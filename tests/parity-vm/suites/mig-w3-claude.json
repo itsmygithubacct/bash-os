@@ -1,0 +1,260 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w3-claude-request-headers",
+      "loadable": "claude",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "claude/api_transport_mock"
+      ],
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w3-claude-mock.py": "59aadf769b3f18aeda9737c325372740bc69d1da3c4deab561eed68846201afb"
+      },
+      "files": {
+        "hdr.script": "[{\"status\": 200, \"headers\": [[\"Content-Type\", \"text/event-stream\"]], \"chunks\": [\"ZXZlbnQ6IG1lc3NhZ2Vfc3RhcnQKZGF0YTogeyJ0eXBlIjoibWVzc2FnZV9zdGFydCIsIm1lc3NhZ2UiOnsiaWQiOiJtc2dfMSIsInR5cGUiOiJtZXNzYWdlIiwicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOltdfX0KCmV2ZW50OiBwaW5nCmRhdGE6IHsidHlwZSI6InBpbmcifQoK\", \"ZXZlbnQ6IGNvbnRlbnRfYmxvY2tfZGVsdGEKZGF0YTogeyJ0eXBlIjoiY29udGVudF9ibG9ja19kZWx0YSIsImluZGV4IjowLCJkZWx0YSI6eyJ0eXBlIjoidGV4dF9kZWx0YSIsInRleHQiOiJvayJ9fQoK\", \"ZXZlbnQ6IG1lc3NhZ2Vfc3RvcApkYXRhOiB7InR5cGUiOiJtZXNzYWdlX3N0b3AifQoK\"]}]"
+      },
+      "setup_script": "mkfifo \"$HOME/nap.fifo\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py certs\n",
+      "setup_timeout": 40,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py\nnap() { read -t \"$1\" -u 7 7<>\"$HOME/nap.fifo\"; }\nserve() { /usr/bin/python3 \"$H\" serve \"$2\" \"$HOME/pki/$3.pem\" \"$HOME/pki/$3.key\" \"$PWD/$1.script\" \"$HOME/$1.jsonl\" 25 & srv=$!\n  local i; for ((i = 0; i < 200; i++)); do [ -e \"$HOME/$1.jsonl.ready\" ] && break; nap 0.05; done; }\nstopsrv() { kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null; }\nkey=$(<\"$HOME/key.txt\")\nexport ANTHROPIC_API_KEY=$key BASHCLAUDE_HOST=127.0.0.1 BASHCLAUDE_CA=\"$HOME/pki/ca.pem\"\nexport BASHCLAUDE_PORT=20701\nserve hdr 20701 server\nclaude prompt hello > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"; echo \"rc=$?\"\nstopsrv\necho \"stdout=$(<\"$HOME/out.txt\")\"\n/usr/bin/python3 \"$H\" check-request \"$HOME/hdr.jsonl\" \"$key\" -\n/usr/bin/tr '\\0' ' ' < /proc/$$/cmdline > \"$HOME/cmdline.txt\"\n/usr/bin/python3 \"$H\" check-secret \"$key\" \"$HOME/out.txt\" \"$HOME/err.txt\" \"$HOME/cmdline.txt\"\n",
+      "stdout": "rc=0\nstdout=ok\nrequest-line=ok\nheader-set=ok\nheader-host=ok\nheader-x-api-key=ok\nheader-anthropic-version=ok\nheader-content-type=ok\nheader-accept=ok\nheader-connection=ok\ncontent-length-exact=ok\nkey-only-in-x-api-key=ok\nbody-matches-file=ok\nsecret-absent-out.txt=ok\nsecret-absent-err.txt=ok\nsecret-absent-cmdline.txt=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "Synthetic PKI (OpenSSL) and a Python ssl loopback mock of POST /v1/messages; the PKI is proven in setup with OpenSSL verify and Python's ssl client (trusted CA and name accepted, wrong CA and wrong name rejected). Expected values come from the documented request contract (x-api-key, anthropic-version 2023-06-01, JSON content type, event-stream accept, connection close, exact content-length), an independently built JSON object, and the response scripts the mock itself serves; no real endpoint or credential is used.",
+      "comparison": "r1 and r7: claude prompt sends POST /v1/messages over TLS with exactly the seven headers (host 127.0.0.1, x-api-key, anthropic-version 2023-06-01, application/json, text/event-stream, connection close, content-length equal to the body length) and the key occurs once in the request bytes (the x-api-key header) and never in stdout, stderr or the shell's argv",
+      "diagnostic_files": [
+        "hdr.jsonl",
+        "body.jsonl",
+        "out.txt",
+        "err.txt"
+      ]
+    },
+    {
+      "id": "mig-w3-claude-wire-body",
+      "loadable": "claude",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "claude/api_transport_mock"
+      ],
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w3-claude-mock.py": "59aadf769b3f18aeda9737c325372740bc69d1da3c4deab561eed68846201afb"
+      },
+      "files": {
+        "body.script": "[{\"status\": 200, \"headers\": [[\"Content-Type\", \"text/event-stream\"]], \"chunks\": [\"ZXZlbnQ6IG1lc3NhZ2Vfc3RhcnQKZGF0YTogeyJ0eXBlIjoibWVzc2FnZV9zdGFydCIsIm1lc3NhZ2UiOnsiaWQiOiJtc2dfMSIsInR5cGUiOiJtZXNzYWdlIiwicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOltdfX0KCmV2ZW50OiBwaW5nCmRhdGE6IHsidHlwZSI6InBpbmcifQoK\", \"ZXZlbnQ6IGNvbnRlbnRfYmxvY2tfZGVsdGEKZGF0YTogeyJ0eXBlIjoiY29udGVudF9ibG9ja19kZWx0YSIsImluZGV4IjowLCJkZWx0YSI6eyJ0eXBlIjoidGV4dF9kZWx0YSIsInRleHQiOiJvayJ9fQoK\", \"ZXZlbnQ6IG1lc3NhZ2Vfc3RvcApkYXRhOiB7InR5cGUiOiJtZXNzYWdlX3N0b3AifQoK\"]}]"
+      },
+      "setup_script": "mkfifo \"$HOME/nap.fifo\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py certs\n",
+      "setup_timeout": 40,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py\nnap() { read -t \"$1\" -u 7 7<>\"$HOME/nap.fifo\"; }\nserve() { /usr/bin/python3 \"$H\" serve \"$2\" \"$HOME/pki/$3.pem\" \"$HOME/pki/$3.key\" \"$PWD/$1.script\" \"$HOME/$1.jsonl\" 25 & srv=$!\n  local i; for ((i = 0; i < 200; i++)); do [ -e \"$HOME/$1.jsonl.ready\" ] && break; nap 0.05; done; }\nstopsrv() { kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null; }\nkey=$(<\"$HOME/key.txt\")\nexport ANTHROPIC_API_KEY=$key BASHCLAUDE_HOST=127.0.0.1 BASHCLAUDE_CA=\"$HOME/pki/ca.pem\"\nexport BASHCLAUDE_PORT=20702\nSYS=$'sys \"quoted\"\\n\\ttext \\\\ end'; TOOLS='[{\"name\":\"t\",\"description\":\"d\",\"input_schema\":{\"type\":\"object\"}}]'; MSG=$'user line with \"quotes\", a \\\\ backslash and \\u00e9'\nserve body 20702 server\nclaude prompt -m claude-test-model -n 77 -s \"$SYS\" --think --tools \"$TOOLS\" \"$MSG\" > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"; echo \"rc=$?\"\nstopsrv\nclaude prompt --dump-request -m claude-test-model -n 77 -s \"$SYS\" --think --tools \"$TOOLS\" \"$MSG\" > \"$HOME/dump.json\"\n/usr/bin/python3 \"$H\" check-body \"$HOME/body.jsonl\" \"$HOME/dump.json\"\n",
+      "stdout": "rc=0\nwire-body-equals-dump-request=ok\nwire-body-equals-independent-object=ok\nfield-order=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "Synthetic PKI (OpenSSL) and a Python ssl loopback mock of POST /v1/messages; the PKI is proven in setup with OpenSSL verify and Python's ssl client (trusted CA and name accepted, wrong CA and wrong name rejected). Expected values come from the documented request contract (x-api-key, anthropic-version 2023-06-01, JSON content type, event-stream accept, connection close, exact content-length), an independently built JSON object, and the response scripts the mock itself serves; no real endpoint or credential is used.",
+      "comparison": "r2: the request body on the wire (model, max_tokens, stream, thinking, system, tools, messages with escaped quotes, newline, tab, backslash and a non-ASCII character) equals the --dump-request bytes and an independently built JSON object",
+      "diagnostic_files": [
+        "hdr.jsonl",
+        "body.jsonl",
+        "out.txt",
+        "err.txt"
+      ]
+    },
+    {
+      "id": "mig-w3-claude-tls-matrix",
+      "loadable": "claude",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "claude/api_transport_mock"
+      ],
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w3-claude-mock.py": "59aadf769b3f18aeda9737c325372740bc69d1da3c4deab561eed68846201afb"
+      },
+      "files": {
+        "tlsa.script": "[{\"status\": 200, \"headers\": [[\"Content-Type\", \"text/event-stream\"]], \"chunks\": [\"ZXZlbnQ6IG1lc3NhZ2Vfc3RhcnQKZGF0YTogeyJ0eXBlIjoibWVzc2FnZV9zdGFydCIsIm1lc3NhZ2UiOnsiaWQiOiJtc2dfMSIsInR5cGUiOiJtZXNzYWdlIiwicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOltdfX0KCmV2ZW50OiBwaW5nCmRhdGE6IHsidHlwZSI6InBpbmcifQoK\", \"ZXZlbnQ6IGNvbnRlbnRfYmxvY2tfZGVsdGEKZGF0YTogeyJ0eXBlIjoiY29udGVudF9ibG9ja19kZWx0YSIsImluZGV4IjowLCJkZWx0YSI6eyJ0eXBlIjoidGV4dF9kZWx0YSIsInRleHQiOiJoZWxsbyJ9fQoK\", \"ZXZlbnQ6IG1lc3NhZ2Vfc3RvcApkYXRhOiB7InR5cGUiOiJtZXNzYWdlX3N0b3AifQoK\"]}]",
+        "tlsb.script": "[{\"status\": 200, \"headers\": [[\"Content-Type\", \"text/event-stream\"]], \"chunks\": [\"ZXZlbnQ6IG1lc3NhZ2Vfc3RhcnQKZGF0YTogeyJ0eXBlIjoibWVzc2FnZV9zdGFydCIsIm1lc3NhZ2UiOnsiaWQiOiJtc2dfMSIsInR5cGUiOiJtZXNzYWdlIiwicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOltdfX0KCmV2ZW50OiBwaW5nCmRhdGE6IHsidHlwZSI6InBpbmcifQoK\", \"ZXZlbnQ6IGNvbnRlbnRfYmxvY2tfZGVsdGEKZGF0YTogeyJ0eXBlIjoiY29udGVudF9ibG9ja19kZWx0YSIsImluZGV4IjowLCJkZWx0YSI6eyJ0eXBlIjoidGV4dF9kZWx0YSIsInRleHQiOiJoZWxsbyJ9fQoK\", \"ZXZlbnQ6IG1lc3NhZ2Vfc3RvcApkYXRhOiB7InR5cGUiOiJtZXNzYWdlX3N0b3AifQoK\"]}]",
+        "tlsc.script": "[{\"status\": 200, \"headers\": [[\"Content-Type\", \"text/event-stream\"]], \"chunks\": [\"ZXZlbnQ6IG1lc3NhZ2Vfc3RhcnQKZGF0YTogeyJ0eXBlIjoibWVzc2FnZV9zdGFydCIsIm1lc3NhZ2UiOnsiaWQiOiJtc2dfMSIsInR5cGUiOiJtZXNzYWdlIiwicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOltdfX0KCmV2ZW50OiBwaW5nCmRhdGE6IHsidHlwZSI6InBpbmcifQoK\", \"ZXZlbnQ6IGNvbnRlbnRfYmxvY2tfZGVsdGEKZGF0YTogeyJ0eXBlIjoiY29udGVudF9ibG9ja19kZWx0YSIsImluZGV4IjowLCJkZWx0YSI6eyJ0eXBlIjoidGV4dF9kZWx0YSIsInRleHQiOiJoZWxsbyJ9fQoK\", \"ZXZlbnQ6IG1lc3NhZ2Vfc3RvcApkYXRhOiB7InR5cGUiOiJtZXNzYWdlX3N0b3AifQoK\"]}]",
+        "tlsd.script": "[{\"status\": 200, \"headers\": [[\"Content-Type\", \"text/event-stream\"]], \"chunks\": [\"ZXZlbnQ6IG1lc3NhZ2Vfc3RhcnQKZGF0YTogeyJ0eXBlIjoibWVzc2FnZV9zdGFydCIsIm1lc3NhZ2UiOnsiaWQiOiJtc2dfMSIsInR5cGUiOiJtZXNzYWdlIiwicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOltdfX0KCmV2ZW50OiBwaW5nCmRhdGE6IHsidHlwZSI6InBpbmcifQoK\", \"ZXZlbnQ6IGNvbnRlbnRfYmxvY2tfZGVsdGEKZGF0YTogeyJ0eXBlIjoiY29udGVudF9ibG9ja19kZWx0YSIsImluZGV4IjowLCJkZWx0YSI6eyJ0eXBlIjoidGV4dF9kZWx0YSIsInRleHQiOiJoZWxsbyJ9fQoK\", \"ZXZlbnQ6IG1lc3NhZ2Vfc3RvcApkYXRhOiB7InR5cGUiOiJtZXNzYWdlX3N0b3AifQoK\"]}]"
+      },
+      "setup_script": "mkfifo \"$HOME/nap.fifo\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py certs\n",
+      "setup_timeout": 40,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py\nnap() { read -t \"$1\" -u 7 7<>\"$HOME/nap.fifo\"; }\nserve() { /usr/bin/python3 \"$H\" serve \"$2\" \"$HOME/pki/$3.pem\" \"$HOME/pki/$3.key\" \"$PWD/$1.script\" \"$HOME/$1.jsonl\" 25 & srv=$!\n  local i; for ((i = 0; i < 200; i++)); do [ -e \"$HOME/$1.jsonl.ready\" ] && break; nap 0.05; done; }\nstopsrv() { kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null; }\nkey=$(<\"$HOME/key.txt\")\nexport ANTHROPIC_API_KEY=$key BASHCLAUDE_HOST=127.0.0.1 BASHCLAUDE_CA=\"$HOME/pki/ca.pem\"\nexport BASHCLAUDE_MAX_RETRIES=0\nreport() { local out; out=$(<\"$HOME/out.txt\"); local d=no z=no; [[ $(<\"$HOME/err.txt\") == *\"TLS handshake failed\"* ]] && d=yes; [ \"$2\" = 0 ] && z=yes; echo \"$1 rc-zero=$z stdout=[$out] handshake-diag=$d\"; }\nrun() { export BASHCLAUDE_PORT=$2; serve \"$1\" \"$2\" \"$3\"; BASHCLAUDE_CA=\"$HOME/pki/$4.pem\" claude prompt $5 hi > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"; local rc=$?; stopsrv; report \"$1\" \"$rc\"; }\nrun tlsa 20711 server ca \"\"\nrun tlsb 20712 rogue ca \"\"\nrun tlsc 20713 wrong ca \"\"\nrun tlsd 20714 rogue ca \"-k\"\n",
+      "stdout": "tlsa rc-zero=yes stdout=[hello] handshake-diag=no\ntlsb rc-zero=no stdout=[] handshake-diag=yes\ntlsc rc-zero=no stdout=[] handshake-diag=yes\ntlsd rc-zero=yes stdout=[hello] handshake-diag=no\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "Synthetic PKI (OpenSSL) and a Python ssl loopback mock of POST /v1/messages; the PKI is proven in setup with OpenSSL verify and Python's ssl client (trusted CA and name accepted, wrong CA and wrong name rejected). Expected values come from the documented request contract (x-api-key, anthropic-version 2023-06-01, JSON content type, event-stream accept, connection close, exact content-length), an independently built JSON object, and the response scripts the mock itself serves; no real endpoint or credential is used.",
+      "comparison": "r3: with BASHCLAUDE_CA naming the synthetic CA the reply is printed; a certificate from an untrusted CA and a trusted-CA certificate for another name each fail with no output, nonzero status and a handshake diagnostic; -k accepts the untrusted certificate",
+      "diagnostic_files": [
+        "hdr.jsonl",
+        "body.jsonl",
+        "out.txt",
+        "err.txt"
+      ]
+    },
+    {
+      "id": "mig-w3-claude-sse-and-raw",
+      "loadable": "claude",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "claude/api_transport_mock"
+      ],
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w3-claude-mock.py": "59aadf769b3f18aeda9737c325372740bc69d1da3c4deab561eed68846201afb"
+      },
+      "files": {
+        "sse.script": "[{\"status\": 200, \"headers\": [[\"Content-Type\", \"text/event-stream\"]], \"chunks\": [\"ZXZlbnQ6IA==\", \"bWVzc2FnZQ==\", \"X3N0YXJ0Cg==\", \"ZGF0YTogew==\", \"InR5cGUiOg==\", \"Im1lc3NhZw==\", \"ZV9zdGFydA==\", \"IiwibWVzcw==\", \"YWdlIjp7Ig==\", \"aWQiOiJtcw==\", \"Z18xIiwidA==\", \"eXBlIjoibQ==\", \"ZXNzYWdlIg==\", \"LCJyb2xlIg==\", \"OiJhc3Npcw==\", \"dGFudCIsIg==\", \"Y29udGVudA==\", \"IjpbXX19Cg==\", \"CmV2ZW50Og==\", \"IHBpbmcKZA==\", \"YXRhOiB7Ig==\", \"dHlwZSI6Ig==\", \"cGluZyJ9Cg==\", \"CmV2ZW50Og==\", \"IGNvbnRlbg==\", \"dF9ibG9jaw==\", \"X2RlbHRhCg==\", \"ZGF0YTogew==\", \"InR5cGUiOg==\", \"ImNvbnRlbg==\", \"dF9ibG9jaw==\", \"X2RlbHRhIg==\", \"LCJpbmRleA==\", \"IjowLCJkZQ==\", \"bHRhIjp7Ig==\", \"dHlwZSI6Ig==\", \"dGV4dF9kZQ==\", \"bHRhIiwidA==\", \"ZXh0IjoiSA==\", \"ZWwifX0KCg==\", \"ZXZlbnQ6IA==\", \"Y29udGVudA==\", \"X2Jsb2NrXw==\", \"ZGVsdGEKZA==\", \"YXRhOiB7Ig==\", \"dHlwZSI6Ig==\", \"Y29udGVudA==\", \"X2Jsb2NrXw==\", \"ZGVsdGEiLA==\", \"ImluZGV4Ig==\", \"OjAsImRlbA==\", \"dGEiOnsidA==\", \"eXBlIjoidA==\", \"ZXh0X2RlbA==\", \"dGEiLCJ0ZQ==\", \"eHQiOiJsbw==\", \"LCB3XHUwMA==\", \"ZjZybGQifQ==\", \"fQoKZXZlbg==\", \"dDogY29udA==\", \"ZW50X2Jsbw==\", \"Y2tfZGVsdA==\", \"YQpkYXRhOg==\", \"IHsidHlwZQ==\", \"IjoiY29udA==\", \"ZW50X2Jsbw==\", \"Y2tfZGVsdA==\", \"YSIsImluZA==\", \"ZXgiOjAsIg==\", \"ZGVsdGEiOg==\", \"eyJ0eXBlIg==\", \"OiJ0ZXh0Xw==\", \"ZGVsdGEiLA==\", \"InRleHQiOg==\", \"IiEifX0KCg==\", \"ZXZlbnQ6IA==\", \"bWVzc2FnZQ==\", \"X3N0b3AKZA==\", \"YXRhOiB7Ig==\", \"dHlwZSI6Ig==\", \"bWVzc2FnZQ==\", \"X3N0b3AifQ==\", \"Cgo=\"]}]",
+        "raw.script": "[{\"status\": 200, \"headers\": [[\"Content-Type\", \"application/json\"]], \"chunks\": [\"eyJpZCI=\", \"OiJtc2c=\", \"XzEiLCI=\", \"dHlwZSI=\", \"OiJtZXM=\", \"c2FnZSI=\", \"LCJyb2w=\", \"ZSI6ImE=\", \"c3Npc3Q=\", \"YW50Iiw=\", \"ImNvbnQ=\", \"ZW50Ijo=\", \"W3sidHk=\", \"cGUiOiI=\", \"dGV4dCI=\", \"LCJ0ZXg=\", \"dCI6InI=\", \"YXcgYm8=\", \"ZHkifV0=\", \"fQ==\"]}]",
+        "raw-body.json": "{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"raw body\"}]}"
+      },
+      "setup_script": "mkfifo \"$HOME/nap.fifo\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py certs\n",
+      "setup_timeout": 40,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py\nnap() { read -t \"$1\" -u 7 7<>\"$HOME/nap.fifo\"; }\nserve() { /usr/bin/python3 \"$H\" serve \"$2\" \"$HOME/pki/$3.pem\" \"$HOME/pki/$3.key\" \"$PWD/$1.script\" \"$HOME/$1.jsonl\" 25 & srv=$!\n  local i; for ((i = 0; i < 200; i++)); do [ -e \"$HOME/$1.jsonl.ready\" ] && break; nap 0.05; done; }\nstopsrv() { kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null; }\nkey=$(<\"$HOME/key.txt\")\nexport ANTHROPIC_API_KEY=$key BASHCLAUDE_HOST=127.0.0.1 BASHCLAUDE_CA=\"$HOME/pki/ca.pem\"\nexport BASHCLAUDE_PORT=20721\nserve sse 20721 server\nclaude prompt hi > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"; echo \"sse-rc=$?\"\nstopsrv\nprintf 'Hello, w\\xc3\\xb6rld!\\n' > \"$HOME/sse-expect.txt\"\n/usr/bin/cmp -s \"$HOME/out.txt\" \"$HOME/sse-expect.txt\" && echo sse-bytes=exact || echo sse-bytes=BAD\nexport BASHCLAUDE_PORT=20722\nserve raw 20722 server\nclaude prompt --raw hi > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"; echo \"raw-rc=$?\"\nstopsrv\n/usr/bin/cmp -s \"$HOME/out.txt\" raw-body.json && echo raw-bytes=exact || echo raw-bytes=BAD\n",
+      "stdout": "sse-rc=0\nsse-bytes=exact\nraw-rc=0\nraw-bytes=exact\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "Synthetic PKI (OpenSSL) and a Python ssl loopback mock of POST /v1/messages; the PKI is proven in setup with OpenSSL verify and Python's ssl client (trusted CA and name accepted, wrong CA and wrong name rejected). Expected values come from the documented request contract (x-api-key, anthropic-version 2023-06-01, JSON content type, event-stream accept, connection close, exact content-length), an independently built JSON object, and the response scripts the mock itself serves; no real endpoint or credential is used.",
+      "comparison": "r4: an SSE reply split into 7-byte HTTP chunks (events cut mid-JSON) is printed as the concatenated text deltas with the JSON escape decoded and one final newline; --raw prints the de-chunked 5-byte-chunked JSON body byte-for-byte",
+      "diagnostic_files": [
+        "hdr.jsonl",
+        "body.jsonl",
+        "out.txt",
+        "err.txt"
+      ]
+    },
+    {
+      "id": "mig-w3-claude-http-errors-not-retried",
+      "loadable": "claude",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "claude/api_transport_mock"
+      ],
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w3-claude-mock.py": "59aadf769b3f18aeda9737c325372740bc69d1da3c4deab561eed68846201afb"
+      },
+      "files": {
+        "e400.script": "[{\"status\": 400, \"reason\": \"Bad Request\", \"headers\": [[\"Content-Type\", \"application/json\"]], \"chunks\": [\"eyJ0eXBlIjoiZXJyb3IiLCJlcnJvciI6eyJ0eXBlIjoiYXBpX2Vycm9yIiwibWVzc2FnZSI6ImJhZCJ9fQ==\"], \"chunked\": false}]",
+        "e401.script": "[{\"status\": 401, \"reason\": \"Unauthorized\", \"headers\": [[\"Content-Type\", \"application/json\"]], \"chunks\": [\"eyJ0eXBlIjoiZXJyb3IiLCJlcnJvciI6eyJ0eXBlIjoiYXBpX2Vycm9yIiwibWVzc2FnZSI6InVuYXV0aCJ9fQ==\"], \"chunked\": false}]",
+        "e404.script": "[{\"status\": 404, \"reason\": \"Not Found\", \"headers\": [[\"Content-Type\", \"application/json\"]], \"chunks\": [\"eyJ0eXBlIjoiZXJyb3IiLCJlcnJvciI6eyJ0eXBlIjoiYXBpX2Vycm9yIiwibWVzc2FnZSI6Im1pc3NpbmcifX0=\"], \"chunked\": false}]"
+      },
+      "setup_script": "mkfifo \"$HOME/nap.fifo\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py certs\n",
+      "setup_timeout": 40,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py\nnap() { read -t \"$1\" -u 7 7<>\"$HOME/nap.fifo\"; }\nserve() { /usr/bin/python3 \"$H\" serve \"$2\" \"$HOME/pki/$3.pem\" \"$HOME/pki/$3.key\" \"$PWD/$1.script\" \"$HOME/$1.jsonl\" 25 & srv=$!\n  local i; for ((i = 0; i < 200; i++)); do [ -e \"$HOME/$1.jsonl.ready\" ] && break; nap 0.05; done; }\nstopsrv() { kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null; }\nkey=$(<\"$HOME/key.txt\")\nexport ANTHROPIC_API_KEY=$key BASHCLAUDE_HOST=127.0.0.1 BASHCLAUDE_CA=\"$HOME/pki/ca.pem\"\nexport BASHCLAUDE_PORT=20731\nphase() { serve \"$1\" 20731 server; claude prompt hi > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"; local rc=$?; stopsrv\n  local e; e=$(<\"$HOME/err.txt\"); local z=no s=no b=no; [ \"$rc\" = 0 ] && z=yes; [ -s \"$HOME/out.txt\" ] || s=yes\n  [[ $e == \"claude: HTTP $2:\"* ]] && b=yes; local m=no; [[ $e == *'\"message\":\"'$3'\"'* ]] && m=yes\n  echo \"$2 rc-zero=$z stdout-empty=$s diag=$b body-shown=$m requests=$(/usr/bin/python3 \"$H\" count \"$HOME/$1.jsonl\")\"; }\nphase e400 400 bad\nphase e401 401 unauth\nphase e404 404 missing\n",
+      "stdout": "400 rc-zero=no stdout-empty=yes diag=yes body-shown=yes requests=1\n401 rc-zero=no stdout-empty=yes diag=yes body-shown=yes requests=1\n404 rc-zero=no stdout-empty=yes diag=yes body-shown=yes requests=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "Synthetic PKI (OpenSSL) and a Python ssl loopback mock of POST /v1/messages; the PKI is proven in setup with OpenSSL verify and Python's ssl client (trusted CA and name accepted, wrong CA and wrong name rejected). Expected values come from the documented request contract (x-api-key, anthropic-version 2023-06-01, JSON content type, event-stream accept, connection close, exact content-length), an independently built JSON object, and the response scripts the mock itself serves; no real endpoint or credential is used.",
+      "comparison": "r5: 400, 401 and 404 responses give nonzero status, no stdout, 'claude: HTTP N:' plus the error body on stderr, and are sent exactly once even though the default allows two retries",
+      "diagnostic_files": [
+        "hdr.jsonl",
+        "body.jsonl",
+        "out.txt",
+        "err.txt"
+      ]
+    },
+    {
+      "id": "mig-w3-claude-retry-after",
+      "loadable": "claude",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "claude/api_transport_mock"
+      ],
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w3-claude-mock.py": "59aadf769b3f18aeda9737c325372740bc69d1da3c4deab561eed68846201afb"
+      },
+      "files": {
+        "ra.script": "[{\"status\": 429, \"reason\": \"Too Many Requests\", \"headers\": [[\"Content-Type\", \"application/json\"], [\"Retry-After\", \"1\"]], \"chunks\": [\"eyJ0eXBlIjoiZXJyb3IiLCJlcnJvciI6eyJ0eXBlIjoiYXBpX2Vycm9yIiwibWVzc2FnZSI6InNsb3cifX0=\"], \"chunked\": false}, {\"status\": 200, \"headers\": [[\"Content-Type\", \"text/event-stream\"]], \"chunks\": [\"ZXZlbnQ6IG1lc3NhZ2Vfc3RhcnQKZGF0YTogeyJ0eXBlIjoibWVzc2FnZV9zdGFydCIsIm1lc3NhZ2UiOnsiaWQiOiJtc2dfMSIsInR5cGUiOiJtZXNzYWdlIiwicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOltdfX0KCmV2ZW50OiBwaW5nCmRhdGE6IHsidHlwZSI6InBpbmcifQoK\", \"ZXZlbnQ6IGNvbnRlbnRfYmxvY2tfZGVsdGEKZGF0YTogeyJ0eXBlIjoiY29udGVudF9ibG9ja19kZWx0YSIsImluZGV4IjowLCJkZWx0YSI6eyJ0eXBlIjoidGV4dF9kZWx0YSIsInRleHQiOiJvayJ9fQoK\", \"ZXZlbnQ6IG1lc3NhZ2Vfc3RvcApkYXRhOiB7InR5cGUiOiJtZXNzYWdlX3N0b3AifQoK\"]}]",
+        "cap.script": "[{\"status\": 429, \"reason\": \"Too Many Requests\", \"headers\": [[\"Content-Type\", \"application/json\"], [\"Retry-After\", \"100000\"]], \"chunks\": [\"eyJ0eXBlIjoiZXJyb3IiLCJlcnJvciI6eyJ0eXBlIjoiYXBpX2Vycm9yIiwibWVzc2FnZSI6InNsb3cifX0=\"], \"chunked\": false}]",
+        "zero.script": "[{\"status\": 503, \"reason\": \"Service Unavailable\", \"headers\": [[\"Content-Type\", \"application/json\"]], \"chunks\": [\"eyJ0eXBlIjoiZXJyb3IiLCJlcnJvciI6eyJ0eXBlIjoiYXBpX2Vycm9yIiwibWVzc2FnZSI6ImRvd24ifX0=\"], \"chunked\": false}]"
+      },
+      "setup_script": "mkfifo \"$HOME/nap.fifo\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py certs\n",
+      "setup_timeout": 40,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py\nnap() { read -t \"$1\" -u 7 7<>\"$HOME/nap.fifo\"; }\nserve() { /usr/bin/python3 \"$H\" serve \"$2\" \"$HOME/pki/$3.pem\" \"$HOME/pki/$3.key\" \"$PWD/$1.script\" \"$HOME/$1.jsonl\" 25 & srv=$!\n  local i; for ((i = 0; i < 200; i++)); do [ -e \"$HOME/$1.jsonl.ready\" ] && break; nap 0.05; done; }\nstopsrv() { kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null; }\nkey=$(<\"$HOME/key.txt\")\nexport ANTHROPIC_API_KEY=$key BASHCLAUDE_HOST=127.0.0.1 BASHCLAUDE_CA=\"$HOME/pki/ca.pem\"\nexport BASHCLAUDE_PORT=20741\nserve ra 20741 server\nclaude prompt hi > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"; echo \"rc=$?\"\nstopsrv\necho \"stdout=$(<\"$HOME/out.txt\")\"\ne=$(<\"$HOME/err.txt\"); [[ $e == *\"claude: rate limited (HTTP 429); retrying in 1s (attempt 1/2)\"* ]] && echo retry-line=yes || echo \"retry-line=NO [$e]\"\necho \"requests=$(/usr/bin/python3 \"$H\" count \"$HOME/ra.jsonl\")\"\ngap=$(/usr/bin/python3 \"$H\" gap \"$HOME/ra.jsonl\"); [[ $gap == 1.* || $gap == 2.* ]] && echo gap-honors-retry-after=yes || echo \"gap-honors-retry-after=NO $gap\"\nexport BASHCLAUDE_PORT=20742\nserve cap 20742 server\n( claude prompt hi > /dev/null 2> \"$HOME/cap-err.txt\" ) & cp=$!\nfor ((i = 0; i < 100; i++)); do [[ $(<\"$HOME/cap-err.txt\") == *\"retrying in\"* ]] && break; nap 0.05; done\nkill -KILL \"$cp\" 2>/dev/null; wait \"$cp\" 2>/dev/null\nstopsrv\ne=$(<\"$HOME/cap-err.txt\"); [[ $e == *\"claude: rate limited (HTTP 429); retrying in 60s (attempt 1/2)\"* ]] && echo retry-after-capped-at-60=yes || echo \"retry-after-capped-at-60=NO [$e]\"\nexport BASHCLAUDE_PORT=20743 BASHCLAUDE_MAX_RETRIES=0\nserve zero 20743 server\nclaude prompt hi > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"; rc=$?\nstopsrv\ne=$(<\"$HOME/err.txt\"); [[ $e == *retrying* ]] && echo zero-retries-line=BAD || echo zero-retries-line=none\necho \"zero-retries rc-zero=$([ $rc = 0 ] && echo yes || echo no) requests=$(/usr/bin/python3 \"$H\" count \"$HOME/zero.jsonl\")\"\n",
+      "stdout": "rc=0\nstdout=ok\nretry-line=yes\nrequests=2\ngap-honors-retry-after=yes\nretry-after-capped-at-60=yes\nzero-retries-line=none\nzero-retries rc-zero=no requests=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 50,
+      "oracle": "Synthetic PKI (OpenSSL) and a Python ssl loopback mock of POST /v1/messages; the PKI is proven in setup with OpenSSL verify and Python's ssl client (trusted CA and name accepted, wrong CA and wrong name rejected). Expected values come from the documented request contract (x-api-key, anthropic-version 2023-06-01, JSON content type, event-stream accept, connection close, exact content-length), an independently built JSON object, and the response scripts the mock itself serves; no real endpoint or credential is used.",
+      "comparison": "r6 (Retry-After): a 429 with Retry-After: 1 is retried once after at least one second with the documented stderr line and then succeeds; Retry-After: 100000 is announced as 60s (the cap; the process is killed during the sleep, so 60 s are not waited); BASHCLAUDE_MAX_RETRIES=0 sends one request and prints no retry line",
+      "diagnostic_files": [
+        "hdr.jsonl",
+        "body.jsonl",
+        "out.txt",
+        "err.txt"
+      ]
+    },
+    {
+      "id": "mig-w3-claude-retry-backoff",
+      "loadable": "claude",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "claude/api_transport_mock"
+      ],
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w3-claude-mock.py": "59aadf769b3f18aeda9737c325372740bc69d1da3c4deab561eed68846201afb"
+      },
+      "files": {
+        "bo.script": "[{\"status\": 503, \"reason\": \"Service Unavailable\", \"headers\": [[\"Content-Type\", \"application/json\"]], \"chunks\": [\"eyJ0eXBlIjoiZXJyb3IiLCJlcnJvciI6eyJ0eXBlIjoiYXBpX2Vycm9yIiwibWVzc2FnZSI6ImRvd24ifX0=\"], \"chunked\": false}, {\"status\": 500, \"reason\": \"Internal Server Error\", \"headers\": [[\"Content-Type\", \"application/json\"]], \"chunks\": [\"eyJ0eXBlIjoiZXJyb3IiLCJlcnJvciI6eyJ0eXBlIjoiYXBpX2Vycm9yIiwibWVzc2FnZSI6ImJvb20ifX0=\"], \"chunked\": false}, {\"status\": 200, \"headers\": [[\"Content-Type\", \"text/event-stream\"]], \"chunks\": [\"ZXZlbnQ6IG1lc3NhZ2Vfc3RhcnQKZGF0YTogeyJ0eXBlIjoibWVzc2FnZV9zdGFydCIsIm1lc3NhZ2UiOnsiaWQiOiJtc2dfMSIsInR5cGUiOiJtZXNzYWdlIiwicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOltdfX0KCmV2ZW50OiBwaW5nCmRhdGE6IHsidHlwZSI6InBpbmcifQoK\", \"ZXZlbnQ6IGNvbnRlbnRfYmxvY2tfZGVsdGEKZGF0YTogeyJ0eXBlIjoiY29udGVudF9ibG9ja19kZWx0YSIsImluZGV4IjowLCJkZWx0YSI6eyJ0eXBlIjoidGV4dF9kZWx0YSIsInRleHQiOiJvayJ9fQoK\", \"ZXZlbnQ6IG1lc3NhZ2Vfc3RvcApkYXRhOiB7InR5cGUiOiJtZXNzYWdlX3N0b3AifQoK\"]}]",
+        "tr.script": "[{\"status\": 200, \"headers\": [[\"Content-Type\", \"text/event-stream\"]], \"chunks\": [\"ZXZlbnQ6IG1lc3NhZ2Vfc3RhcnQKZGF0YTogeyJ0eXBlIjoibWVzc2FnZV9zdGFydCIsIm1lc3NhZ2UiOnsiaWQiOiJtc2dfMSIsInR5cGUiOiJtZXNzYWdlIiwicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOltdfX0KCmV2ZW50OiBwaW5nCmRhdGE6IHsidHlwZSI6InBpbmcifQoK\", \"ZXZlbnQ6IGNvbnRlbnRfYmxvY2tfZGVsdGEKZGF0YTogeyJ0eXBlIjoiY29udGVudF9ibG9ja19kZWx0YSIsImluZGV4IjowLCJkZWx0YSI6eyJ0eXBlIjoidGV4dF9kZWx0YSIsInRleHQiOiJwYXJ0In19Cgo=\", \"ZXZlbnQ6IG1lc3NhZ2Vfc3RvcApkYXRhOiB7InR5cGUiOiJtZXNzYWdlX3N0b3AifQoK\"], \"truncate\": true}]"
+      },
+      "setup_script": "mkfifo \"$HOME/nap.fifo\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py certs\n",
+      "setup_timeout": 40,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py\nnap() { read -t \"$1\" -u 7 7<>\"$HOME/nap.fifo\"; }\nserve() { /usr/bin/python3 \"$H\" serve \"$2\" \"$HOME/pki/$3.pem\" \"$HOME/pki/$3.key\" \"$PWD/$1.script\" \"$HOME/$1.jsonl\" 25 & srv=$!\n  local i; for ((i = 0; i < 200; i++)); do [ -e \"$HOME/$1.jsonl.ready\" ] && break; nap 0.05; done; }\nstopsrv() { kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null; }\nkey=$(<\"$HOME/key.txt\")\nexport ANTHROPIC_API_KEY=$key BASHCLAUDE_HOST=127.0.0.1 BASHCLAUDE_CA=\"$HOME/pki/ca.pem\"\nexport BASHCLAUDE_PORT=20751\nserve bo 20751 server\nclaude prompt hi > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"; echo \"rc=$?\"\nstopsrv\necho \"stdout=$(<\"$HOME/out.txt\")\"\ne=$(<\"$HOME/err.txt\")\n[[ $e == *\"claude: server error (HTTP 503); retrying in 1s (attempt 1/2)\"* ]] && echo line1=yes || echo \"line1=NO\"\n[[ $e == *\"claude: server error (HTTP 500); retrying in 2s (attempt 2/2)\"* ]] && echo line2=yes || echo \"line2=NO\"\necho \"requests=$(/usr/bin/python3 \"$H\" count \"$HOME/bo.jsonl\")\"\nexport BASHCLAUDE_PORT=20752\nserve tr 20752 server\nclaude prompt hi > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"; rc=$?\nstopsrv\necho \"truncated-stream rc-zero=$([ $rc = 0 ] && echo yes || echo no) stdout=[$(<\"$HOME/out.txt\")] requests=$(/usr/bin/python3 \"$H\" count \"$HOME/tr.jsonl\")\"\nexport BASHCLAUDE_PORT=20799 BASHCLAUDE_MAX_RETRIES=1\nclaude prompt hi > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"; rc=$?\ne=$(<\"$HOME/err.txt\"); [[ $e == *\"claude: request failed; retrying in 1s (attempt 1/1)\"* ]] && l=yes || l=no\necho \"connect-failure rc-zero=$([ $rc = 0 ] && echo yes || echo no) retry-line=$l\"\n",
+      "stdout": "rc=0\nstdout=ok\nline1=yes\nline2=yes\nrequests=3\ntruncated-stream rc-zero=yes stdout=[part] requests=1\nconnect-failure rc-zero=no retry-line=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 50,
+      "oracle": "Synthetic PKI (OpenSSL) and a Python ssl loopback mock of POST /v1/messages; the PKI is proven in setup with OpenSSL verify and Python's ssl client (trusted CA and name accepted, wrong CA and wrong name rejected). Expected values come from the documented request contract (x-api-key, anthropic-version 2023-06-01, JSON content type, event-stream accept, connection close, exact content-length), an independently built JSON object, and the response scripts the mock itself serves; no real endpoint or credential is used.",
+      "comparison": "r6 (backoff): 503 then 500 then 200 is retried twice with 1 s and 2 s announcements and succeeds on the third request; a 200 stream that is cut off after output began is not retried; a connect failure is retried once (MAX_RETRIES=1) with the 'request failed' line and then fails",
+      "diagnostic_files": [
+        "hdr.jsonl",
+        "body.jsonl",
+        "out.txt",
+        "err.txt"
+      ]
+    }
+  ]
+}
