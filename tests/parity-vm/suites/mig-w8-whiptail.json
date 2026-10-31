@@ -6,7 +6,7 @@
       "loadable": "whiptail",
       "group": "terminal",
       "driver": "pty",
-      "purpose": "msgbox draws a bordered box with the title, wrapped text (the sentence does not fit one 30-column line) and an Ok button, in a 10x30 window.",
+      "purpose": "msgbox draws a bordered box centred (top row 7, left column 25 on 80x24 for a 10x30 window) with the title, wrapped text (the sentence does not fit one 30-column line) and an Ok button, in a 10x30 window.",
       "script": "whiptail --title 'Wrapped' --msgbox 'The quick brown fox jumps over the lazy dog and keeps on running far away' 10 30 2>res; echo \"rc=$?\" > rc\n",
       "steps": [
         {
@@ -16,7 +16,11 @@
               "The quick brown fox",
               "(jumps|over)",
               "<\\s*Ok\\s*>"
-            ]
+            ],
+            "rows": {
+              "7": "^ {25}\\S",
+              "16": "^ {25}\\S"
+            }
           }
         },
         {
@@ -51,14 +55,10 @@
       "script": "whiptail --infobox 'Please wait a moment' 6 32 2>res; echo \"rc=$?\" > rc\n",
       "steps": [
         {
-          "screen": {
-            "contains": [
-              "Please wait a moment"
-            ],
-            "lacks": [
-              "<\\s*Ok\\s*>"
-            ]
-          }
+          "expect": "Please wait a moment"
+        },
+        {
+          "output_lacks": "<\\s*Ok\\s*>"
         }
       ],
       "size": [
@@ -146,7 +146,8 @@
       "requires": [
         "whiptail"
       ],
-      "timeout": 15
+      "timeout": 15,
+      "restore_terminal": false
     },
     {
       "id": "mig-w8-whiptail-textbox-scroll",
@@ -160,10 +161,10 @@
           "screen": {
             "contains": [
               "text-001",
-              "text-0(0[89]|10)"
+              "text-006"
             ],
             "lacks": [
-              "text-0(1[5-9]|2)"
+              "text-007"
             ]
           }
         },
@@ -176,7 +177,8 @@
               "text-001"
             ],
             "contains": [
-              "text-002"
+              "text-002",
+              "text-007"
             ]
           }
         },
@@ -186,10 +188,10 @@
         {
           "screen": {
             "lacks": [
-              "text-00[1-5]"
+              "text-00[1-6]"
             ],
             "contains": [
-              "text-01[0-9]"
+              "text-0(0[7-9]|1)"
             ]
           }
         },
@@ -226,7 +228,7 @@
       "group": "terminal",
       "driver": "pty",
       "purpose": "tailbox shows the end of a file and follows lines appended while it is open: a fixture-owned background writer appends appended-w8 after 1.5 s.",
-      "script": "( read -t 1.5 <> gate; echo appended-w8 >> log ) & feeder=$!\nwhiptail --tailbox log 12 40 2>res; echo \"rc=$?\" > rc\nkill $feeder 2>/dev/null; wait $feeder 2>/dev/null\n",
+      "script": "( read -t 1.5 <> gate; echo appended-w8 >> log ) & feeder=$!\nwhiptail --tailbox log 12 40 2>res; echo \"rc=$?\" > rc\nkill $feeder 2>/dev/null; wait $feeder 2>/dev/null; :\n",
       "steps": [
         {
           "screen": {
@@ -266,14 +268,14 @@
         "res": "",
         "log": "start-1\nstart-2\nappended-w8\n"
       },
-      "oracle": "Debian 13 whiptail 0.52.25 (newt) on the reference PATH, run in the same PTY (xterm-256color, fixed size) as the candidate whiptail builtin; screen contents decoded independently by pyte.",
+      "oracle": "The reference whiptail 0.52.25 has no --tailbox (it reports unknown option), so there is no reference executable. Expectation follows the documented tail -f style behaviour of dialog --tailbox: the display follows lines appended to the file. Screen decoded by pyte.",
       "comparison": "Screen first shows only the original lines, then also shows appended-w8; status 0; the log has exactly the appended line.",
       "requires": [
-        "whiptail",
         "mkfifo"
       ],
       "setup_script": "/usr/bin/mkfifo gate\n",
-      "timeout": 15
+      "timeout": 15,
+      "kind": "contract"
     },
     {
       "id": "mig-w8-whiptail-resize-redraw",
@@ -287,7 +289,10 @@
           "screen": {
             "contains": [
               "Hello after resize"
-            ]
+            ],
+            "rows": {
+              "10": "^ {25}\\S.*Hello after resize"
+            }
           }
         },
         {
@@ -298,9 +303,9 @@
         },
         {
           "screen": {
-            "contains": [
-              "Hello after resize"
-            ]
+            "rows": {
+              "5": "^ {10}\\S.*Hello after resize"
+            }
           }
         },
         {
@@ -319,8 +324,9 @@
         "rc": "rc=0\n",
         "res": ""
       },
+      "kind": "contract",
       "oracle": "Debian 13 whiptail 0.52.25 (newt) on the reference PATH, run in the same PTY (xterm-256color, fixed size) as the candidate whiptail builtin; screen contents decoded independently by pyte.",
-      "comparison": "Text present after the resize; status 0. Geometry assertions are tightened from the reference rendering.",
+      "comparison": "Before: the text row sits at row 10, column 25 (centred 8x30 window on 24x80, as the reference whiptail draws it). After the resize to 14x50 the text must be on row 5 at column 10 (centre of the new geometry); the reference whiptail redraws only on the next key, so this is asserted against the candidate as a contract.",
       "requires": [
         "whiptail"
       ],

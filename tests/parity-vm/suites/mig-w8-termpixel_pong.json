@@ -7,7 +7,7 @@
       "group": "terminal",
       "driver": "pty",
       "purpose": "The live loop draws the court, puts the terminal in raw mode (canonical input and echo off) and leaves with status 0 and canonical echoing mode restored when ESC is pressed.",
-      "script": "termpixel_pong --two-player --seed 1",
+      "script": "termpixel_pong --two-player --seed 1 --fps 20",
       "steps": [
         {
           "screen": {
@@ -15,31 +15,26 @@
               {
                 "row": 17,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 20,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 17,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -74,7 +69,7 @@
         "termpixel_pong/ai-and-terminal-loop"
       ],
       "kind": "contract",
-      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a white pixel pair = cell fg and bg ffffff). Clamping at the court edge makes the end position independent of frame timing.",
+      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a solid white pixel pair is drawn as a space with background ffffff). Clamping at the court edge makes the end position independent of frame timing.",
       "comparison": "Initial left paddle cells white; ICANON/ECHO cleared while running and set after ESC; status 0; the harness also compares the full termios before and after.",
       "timeout": 25
     },
@@ -84,7 +79,7 @@
       "group": "terminal",
       "driver": "pty",
       "purpose": "Ctrl-C ends the live loop cleanly with status 0 and restores the terminal modes.",
-      "script": "termpixel_pong --two-player --seed 1",
+      "script": "termpixel_pong --two-player --seed 1 --fps 20",
       "steps": [
         {
           "screen": {
@@ -92,31 +87,26 @@
               {
                 "row": 17,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 20,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 17,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -151,7 +141,7 @@
         "termpixel_pong/ai-and-terminal-loop"
       ],
       "kind": "contract",
-      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a white pixel pair = cell fg and bg ffffff). Clamping at the court edge makes the end position independent of frame timing.",
+      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a solid white pixel pair is drawn as a space with background ffffff). Clamping at the court edge makes the end position independent of frame timing.",
       "comparison": "ICANON/ECHO cleared while running and set after ^C; status 0; full termios before/after compared by the harness.",
       "timeout": 25
     },
@@ -160,8 +150,8 @@
       "loadable": "termpixel_pong",
       "group": "terminal",
       "driver": "pty",
-      "purpose": "Key w is decoded in raw mode and moves the left paddle up: after 25 spaced presses (more than the 34 pixels needed) the paddle sits against the court edge.",
-      "script": "termpixel_pong --two-player --seed 1",
+      "purpose": "Key w is decoded in raw mode and moves the left paddle up: after 12 spaced presses (more than the 34 pixels needed) the paddle sits against the court edge.",
+      "script": "termpixel_pong --two-player --seed 1 --fps 20",
       "steps": [
         {
           "screen": {
@@ -169,31 +159,26 @@
               {
                 "row": 17,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 20,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 17,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -203,151 +188,73 @@
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "screen": {
@@ -355,31 +262,26 @@
               {
                 "row": 0,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 3,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 5,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 0,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 5,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -399,7 +301,7 @@
         "termpixel_pong/ai-and-terminal-loop"
       ],
       "kind": "contract",
-      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a white pixel pair = cell fg and bg ffffff). Clamping at the court edge makes the end position independent of frame timing.",
+      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a solid white pixel pair is drawn as a space with background ffffff). Clamping at the court edge makes the end position independent of frame timing.",
       "comparison": "The left paddle's white cells at the top edge of the court after the presses; ESC exits cleanly.",
       "timeout": 25
     },
@@ -408,8 +310,8 @@
       "loadable": "termpixel_pong",
       "group": "terminal",
       "driver": "pty",
-      "purpose": "Key s is decoded in raw mode and moves the left paddle down: after 25 spaced presses (more than the 34 pixels needed) the paddle sits against the court edge.",
-      "script": "termpixel_pong --two-player --seed 1",
+      "purpose": "Key s is decoded in raw mode and moves the left paddle down: after 12 spaced presses (more than the 34 pixels needed) the paddle sits against the court edge.",
+      "script": "termpixel_pong --two-player --seed 1 --fps 20",
       "steps": [
         {
           "screen": {
@@ -417,31 +319,26 @@
               {
                 "row": 17,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 20,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 17,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -451,151 +348,73 @@
           "send": "s"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "s"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "s"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "s"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "s"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "s"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "s"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "s"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "s"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "s"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "s"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "s"
         },
         {
-          "settle_ms": 30
-        },
-        {
-          "send": "s"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "s"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "s"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "s"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "s"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "s"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "s"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "s"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "s"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "s"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "s"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "s"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "s"
-        },
-        {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "screen": {
@@ -603,31 +422,26 @@
               {
                 "row": 34,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 37,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 39,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 34,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 39,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -647,7 +461,7 @@
         "termpixel_pong/ai-and-terminal-loop"
       ],
       "kind": "contract",
-      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a white pixel pair = cell fg and bg ffffff). Clamping at the court edge makes the end position independent of frame timing.",
+      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a solid white pixel pair is drawn as a space with background ffffff). Clamping at the court edge makes the end position independent of frame timing.",
       "comparison": "The left paddle's white cells at the bottom edge of the court after the presses; ESC exits cleanly.",
       "timeout": 25
     },
@@ -656,8 +470,8 @@
       "loadable": "termpixel_pong",
       "group": "terminal",
       "driver": "pty",
-      "purpose": "Key Up arrow is decoded in raw mode and moves the right paddle up: after 25 spaced presses (more than the 34 pixels needed) the paddle sits against the court edge.",
-      "script": "termpixel_pong --two-player --seed 1",
+      "purpose": "Key Up arrow is decoded in raw mode and moves the right paddle up: after 12 spaced presses (more than the 34 pixels needed) the paddle sits against the court edge.",
+      "script": "termpixel_pong --two-player --seed 1 --fps 20",
       "steps": [
         {
           "screen": {
@@ -665,31 +479,26 @@
               {
                 "row": 17,
                 "col": 73,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 20,
                 "col": 73,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 73,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 17,
                 "col": 74,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 74,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -699,151 +508,73 @@
           "key": "up"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "up"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "up"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "up"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "up"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "up"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "up"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "up"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "up"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "up"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "up"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "up"
         },
         {
-          "settle_ms": 30
-        },
-        {
-          "key": "up"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "up"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "up"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "up"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "up"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "up"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "up"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "up"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "up"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "up"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "up"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "up"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "up"
-        },
-        {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "screen": {
@@ -851,31 +582,26 @@
               {
                 "row": 0,
                 "col": 73,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 3,
                 "col": 73,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 5,
                 "col": 73,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 0,
                 "col": 74,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 5,
                 "col": 74,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -895,7 +621,7 @@
         "termpixel_pong/ai-and-terminal-loop"
       ],
       "kind": "contract",
-      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a white pixel pair = cell fg and bg ffffff). Clamping at the court edge makes the end position independent of frame timing.",
+      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a solid white pixel pair is drawn as a space with background ffffff). Clamping at the court edge makes the end position independent of frame timing.",
       "comparison": "The right paddle's white cells at the top edge of the court after the presses; ESC exits cleanly.",
       "timeout": 25
     },
@@ -904,8 +630,8 @@
       "loadable": "termpixel_pong",
       "group": "terminal",
       "driver": "pty",
-      "purpose": "Key Down arrow is decoded in raw mode and moves the right paddle down: after 25 spaced presses (more than the 34 pixels needed) the paddle sits against the court edge.",
-      "script": "termpixel_pong --two-player --seed 1",
+      "purpose": "Key Down arrow is decoded in raw mode and moves the right paddle down: after 12 spaced presses (more than the 34 pixels needed) the paddle sits against the court edge.",
+      "script": "termpixel_pong --two-player --seed 1 --fps 20",
       "steps": [
         {
           "screen": {
@@ -913,31 +639,26 @@
               {
                 "row": 17,
                 "col": 73,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 20,
                 "col": 73,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 73,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 17,
                 "col": 74,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 74,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -947,151 +668,73 @@
           "key": "down"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "down"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "down"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "down"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "down"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "down"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "down"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "down"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "down"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "down"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "down"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "key": "down"
         },
         {
-          "settle_ms": 30
-        },
-        {
-          "key": "down"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "down"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "down"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "down"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "down"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "down"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "down"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "down"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "down"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "down"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "down"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "down"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "key": "down"
-        },
-        {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "screen": {
@@ -1099,31 +742,26 @@
               {
                 "row": 34,
                 "col": 73,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 37,
                 "col": 73,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 39,
                 "col": 73,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 34,
                 "col": 74,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 39,
                 "col": 74,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -1143,7 +781,7 @@
         "termpixel_pong/ai-and-terminal-loop"
       ],
       "kind": "contract",
-      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a white pixel pair = cell fg and bg ffffff). Clamping at the court edge makes the end position independent of frame timing.",
+      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a solid white pixel pair is drawn as a space with background ffffff). Clamping at the court edge makes the end position independent of frame timing.",
       "comparison": "The right paddle's white cells at the bottom edge of the court after the presses; ESC exits cleanly.",
       "timeout": 25
     },
@@ -1152,8 +790,8 @@
       "loadable": "termpixel_pong",
       "group": "terminal",
       "driver": "pty",
-      "purpose": "p pauses the game (paddle keys then have no effect: the left paddle stays at its start rows after 25 w presses) and a second p resumes it (25 more w presses reach the top edge).",
-      "script": "termpixel_pong --two-player --seed 1",
+      "purpose": "p pauses the game (paddle keys then have no effect: the left paddle stays at its start rows after 12 w presses) and a second p resumes it (12 more w presses reach the top edge).",
+      "script": "termpixel_pong --two-player --seed 1 --fps 20",
       "steps": [
         {
           "screen": {
@@ -1161,31 +799,26 @@
               {
                 "row": 17,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 20,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 17,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -1201,151 +834,73 @@
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "screen": {
@@ -1353,31 +908,26 @@
               {
                 "row": 17,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 20,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 17,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -1393,151 +943,73 @@
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "screen": {
@@ -1545,31 +1017,26 @@
               {
                 "row": 0,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 3,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 5,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 0,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 5,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -1588,7 +1055,7 @@
         "termpixel_pong/two-player-interaction"
       ],
       "kind": "contract",
-      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a white pixel pair = cell fg and bg ffffff). Clamping at the court edge makes the end position independent of frame timing.",
+      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a solid white pixel pair is drawn as a space with background ffffff). Clamping at the court edge makes the end position independent of frame timing.",
       "comparison": "Left paddle cells at the start position while paused and at the top edge after resuming; ESC exits cleanly.",
       "timeout": 25
     },
@@ -1598,7 +1065,7 @@
       "group": "terminal",
       "driver": "pty",
       "purpose": "With --winning-score 1 the first score ends the game (the red GAME OVER text is drawn); Enter restarts it: the left paddle moved to the top edge returns to its starting rows.",
-      "script": "termpixel_pong --two-player --seed 1 --winning-score 1",
+      "script": "termpixel_pong --two-player --seed 1 --fps 20 --winning-score 1",
       "steps": [
         {
           "screen": {
@@ -1606,31 +1073,26 @@
               {
                 "row": 17,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 20,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 17,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -1640,151 +1102,73 @@
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "send": "w"
         },
         {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
-        },
-        {
-          "send": "w"
-        },
-        {
-          "settle_ms": 30
+          "settle_ms": 70
         },
         {
           "screen": {
@@ -1792,31 +1176,26 @@
               {
                 "row": 0,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 3,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 5,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 0,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 5,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -1834,31 +1213,26 @@
               {
                 "row": 17,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 20,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 5,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 17,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               },
               {
                 "row": 22,
                 "col": 6,
-                "fg": "ffffff",
                 "bg": "ffffff"
               }
             ]
@@ -1878,7 +1252,7 @@
         "termpixel_pong/ai-and-terminal-loop"
       ],
       "kind": "contract",
-      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a white pixel pair = cell fg and bg ffffff). Clamping at the court edge makes the end position independent of frame timing.",
+      "oracle": "Documented termpixel_pong rules (80x80 pixel canvas drawn two pixels per cell: left paddle x=5..6, y=34..45 initially, right paddle x=73..74, 12 pixels tall, paddle speed 100 px/s clamped to the court, serve delay 1 s) and the pyte terminal model decoding the half-block colour cells (a solid white pixel pair is drawn as a space with background ffffff). Clamping at the court edge makes the end position independent of frame timing.",
       "comparison": "Red (255,80,80) text colour appears after the first point; after Enter the left paddle is back at rows 17-22 and the game accepts ESC.",
       "timeout": 30
     }

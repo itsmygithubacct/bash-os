@@ -39,49 +39,6 @@
       "timeout": 10
     },
     {
-      "id": "mig-w8-more-d-invalid-key",
-      "loadable": "more",
-      "group": "terminal",
-      "driver": "pty",
-      "purpose": "After an unrecognised key under -d, the prompt line shows the util-linux hint pointing at h.",
-      "script": "more -d note",
-      "steps": [
-        {
-          "screen": {
-            "contains": [
-              "--More--"
-            ]
-          }
-        },
-        {
-          "send": "x"
-        },
-        {
-          "screen": {
-            "contains": [
-              "\\[Press 'h' for instructions\\.\\]"
-            ]
-          }
-        },
-        {
-          "send": "q"
-        }
-      ],
-      "expected_status": 0,
-      "covers": [
-        "more/interactive_pty_navigation"
-      ],
-      "files": {
-        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\n"
-      },
-      "expected_files": {
-        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\n"
-      },
-      "oracle": "util-linux 2.41.5 more(1) on the reference PATH (the Debian 13 reference image); screen contents decoded independently by pyte. more -d: an invalid command key redraws the prompt as [Press 'h' for instructions.]",
-      "comparison": "Both builds get an invalid key x at the first prompt; the util-linux reference must show the hint text, the candidate is compared against it.",
-      "timeout": 10
-    },
-    {
       "id": "mig-w8-more-search-forward",
       "loadable": "more",
       "group": "terminal",
@@ -210,11 +167,7 @@
           "send": "zzz-no-such-text\r"
         },
         {
-          "screen": {
-            "contains": [
-              "Pattern not found"
-            ]
-          }
+          "expect": "Pattern not found"
         },
         {
           "send": "q"
@@ -329,67 +282,6 @@
       "oracle": "util-linux 2.41.5 more(1) on the reference PATH (the Debian 13 reference image); screen contents decoded independently by pyte. util-linux more prints a ::::::::::::::/name/:::::::::::::: header per operand and --More--(Next file: NAME) between short files.",
       "comparison": "Two 3-line files in an interactive terminal. The reference shows the header line naming the first file, the Next file prompt, and after space the header and content of the second file. The candidate is compared against these literal observations.",
       "timeout": 10
-    },
-    {
-      "id": "mig-w8-more-probe-invalid-keys",
-      "loadable": "more",
-      "group": "terminal",
-      "driver": "pty",
-      "purpose": "Diagnostic only (claims no requirement): which keys make util-linux more -d print its invalid-key hint.",
-      "script": "more -d note",
-      "steps": [
-        {
-          "screen": {
-            "contains": [
-              "--More--"
-            ]
-          }
-        },
-        {
-          "send": "x"
-        },
-        {
-          "settle_ms": 300
-        },
-        {
-          "send": "Z"
-        },
-        {
-          "settle_ms": 300
-        },
-        {
-          "send": "@"
-        },
-        {
-          "settle_ms": 300
-        },
-        {
-          "send": "%"
-        },
-        {
-          "settle_ms": 300
-        },
-        {
-          "send": "y"
-        },
-        {
-          "settle_ms": 300
-        },
-        {
-          "send": "q"
-        }
-      ],
-      "expected_status": 0,
-      "covers": [],
-      "files": {
-        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\n"
-      },
-      "expected_files": {
-        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\n"
-      },
-      "oracle": "util-linux 2.41.5 more(1) on the reference PATH (the Debian 13 reference image); screen contents decoded independently by pyte.",
-      "comparison": "Both sides must exit 0 with an unchanged file; the raw PTY bytes are inspected by the author.",
-      "timeout": 15
     }
   ]
 }

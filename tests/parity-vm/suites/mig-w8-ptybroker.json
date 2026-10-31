@@ -7,7 +7,7 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "attach control gives the controller role (status controller=1); a second control attach is rejected with EBUSY and does not change the counts; an observer can still attach next to the controller and is counted separately.",
-      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\ntrap 'ptybroker terminate \"$root\" s >/dev/null 2>&1' EXIT\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\nptybroker create \"$root\" s -- /usr/bin/cat >/dev/null 2>&1; echo \"create=$?\" > rc\nptybroker attach \"$root\" s control h1 2>e-c1; echo \"control1=$?\" >> rc\nst=$(ptybroker status \"$root\" s); echo \"after-c1 controller=$(field \"$st\" controller) observers=$(field \"$st\" observers)\" > roles\nptybroker attach \"$root\" s control h2 2>e-c2; echo \"control2=$?\" >> rc\n[[ $(<e-c2) == *\"Device or resource busy\"* ]] && echo busy > c2-diag || echo \"other:$(<e-c2)\" > c2-diag\nst=$(ptybroker status \"$root\" s); echo \"after-c2 controller=$(field \"$st\" controller) observers=$(field \"$st\" observers)\" >> roles\nptybroker attach \"$root\" s observe o1 2>e-o1; echo \"observe-with-controller=$?\" >> rc\nst=$(ptybroker status \"$root\" s); echo \"after-o1 controller=$(field \"$st\" controller) observers=$(field \"$st\" observers)\" >> roles\n",
+      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\nexec 8<>fifo\nsent=''\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\ncleanup() {\n  local st bp i\n  st=$(ptybroker status \"$root\" s 2>/dev/null); bp=$(field \"$st\" broker_pid)\n  ptybroker terminate \"$root\" s >/dev/null 2>&1\n  [[ -n $sent ]] && kill $sent 2>/dev/null\n  if [[ -n $bp ]]; then for ((i=0; i<100; i++)); do [[ -d /proc/$bp ]] || break; read -t 0.05 -u 8 x; done; fi\n}\ntrap cleanup EXIT\nptybroker create \"$root\" s -- /usr/bin/cat >/dev/null 2>&1; echo \"create=$?\" > rc\nptybroker attach \"$root\" s control h1 2>e-c1; echo \"control1=$?\" >> rc\nst=$(ptybroker status \"$root\" s); echo \"after-c1 controller=$(field \"$st\" controller) observers=$(field \"$st\" observers)\" > roles\nptybroker attach \"$root\" s control h2 2>e-c2; echo \"control2=$?\" >> rc\n[[ $(<e-c2) == *\"Device or resource busy\"* ]] && echo busy > c2-diag || echo \"other:$(<e-c2)\" > c2-diag\nst=$(ptybroker status \"$root\" s); echo \"after-c2 controller=$(field \"$st\" controller) observers=$(field \"$st\" observers)\" >> roles\nptybroker attach \"$root\" s observe o1 2>e-o1; echo \"observe-with-controller=$?\" >> rc\nst=$(ptybroker status \"$root\" s); echo \"after-o1 controller=$(field \"$st\" controller) observers=$(field \"$st\" observers)\" >> roles\n",
       "expected_status": 0,
       "stdout": "",
       "covers": [
@@ -23,8 +23,10 @@
       "comparison": "Exit codes and the controller/observers fields of ptybroker status after each attach; the diagnostic must be the EBUSY text.",
       "requires": [
         "mkdir",
-        "cat"
+        "cat",
+        "mkfifo"
       ],
+      "setup_script": "/usr/bin/mkfifo fifo\n",
       "timeout": 25
     },
     {
@@ -33,7 +35,7 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "Eight observers attach (documented limit); the ninth is rejected with EBUSY; all eight receive the bytes the child echoes; observers do not occupy the controller slot, so a controller can still attach.",
-      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\ntrap 'ptybroker terminate \"$root\" s >/dev/null 2>&1' EXIT\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\nptybroker create \"$root\" s -- /usr/bin/cat >/dev/null 2>&1; echo \"create=$?\" > rc\nfor i in 1 2 3 4 5 6 7 8; do\n  ptybroker attach \"$root\" s observe \"o$i\" 2>\"e-o$i\"; echo \"observer$i=$?\" >> rc\ndone\nptybroker attach \"$root\" s observe o9 2>e-o9; echo \"observer9=$?\" >> rc\n[[ $(<e-o9) == *\"Device or resource busy\"* ]] && echo busy > o9-diag || echo \"other:$(<e-o9)\" > o9-diag\nst=$(ptybroker status \"$root\" s); echo \"observers=$(field \"$st\" observers) controller=$(field \"$st\" controller)\" > roles\nptybroker send \"$root\" s $'ping-w8\\n'; echo \"send=$?\" >> rc\nn=0\nfor i in 1 2 3 4 5 6 7 8; do\n  hv=o$i; h=${!hv}; got=0\n  for k in 1 2 3 4 5 6 7 8; do\n    ev=''\n    ptybroker receive \"$h\" 1 ev 2000 >>\"obs$i.out\" 2>/dev/null || break\n    [[ $ev == output* ]] && grep_ok=1\n    [[ $(< \"obs$i.out\") == *ping-w8* ]] && { got=1; break; }\n  done\n  (( got )) && n=$((n+1))\ndone\necho \"observers-receiving=$n\" >> roles\nptybroker attach \"$root\" s control hc 2>e-ctl; echo \"control-after-observers=$?\" >> rc\n",
+      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\nexec 8<>fifo\nsent=''\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\ncleanup() {\n  local st bp i\n  st=$(ptybroker status \"$root\" s 2>/dev/null); bp=$(field \"$st\" broker_pid)\n  ptybroker terminate \"$root\" s >/dev/null 2>&1\n  [[ -n $sent ]] && kill $sent 2>/dev/null\n  if [[ -n $bp ]]; then for ((i=0; i<100; i++)); do [[ -d /proc/$bp ]] || break; read -t 0.05 -u 8 x; done; fi\n}\ntrap cleanup EXIT\nptybroker create \"$root\" s -- /usr/bin/cat >/dev/null 2>&1; echo \"create=$?\" > rc\nfor i in 1 2 3 4 5 6 7 8; do\n  ptybroker attach \"$root\" s observe \"o$i\" 2>\"e-o$i\"; echo \"observer$i=$?\" >> rc\ndone\nptybroker attach \"$root\" s observe o9 2>e-o9; echo \"observer9=$?\" >> rc\n[[ $(<e-o9) == *\"Device or resource busy\"* ]] && echo busy > o9-diag || echo \"other:$(<e-o9)\" > o9-diag\nst=$(ptybroker status \"$root\" s); echo \"observers=$(field \"$st\" observers) controller=$(field \"$st\" controller)\" > roles\nptybroker send \"$root\" s $'ping-w8\\n'; echo \"send=$?\" >> rc\nn=0\nfor i in 1 2 3 4 5 6 7 8; do\n  hv=o$i; h=${!hv}; got=0\n  for k in 1 2 3 4 5 6 7 8; do\n    ev=''\n    ptybroker receive \"$h\" 1 ev 2000 >>\"obs$i.out\" 2>/dev/null || break\n    [[ $ev == output* ]] && grep_ok=1\n    [[ $(< \"obs$i.out\") == *ping-w8* ]] && { got=1; break; }\n  done\n  (( got )) && n=$((n+1))\ndone\necho \"observers-receiving=$n\" >> roles\nptybroker attach \"$root\" s control hc 2>e-ctl; echo \"control-after-observers=$?\" >> rc\n",
       "expected_status": 0,
       "stdout": "",
       "covers": [
@@ -50,8 +52,9 @@
       "requires": [
         "mkdir",
         "cat",
-        "grep"
+        "mkfifo"
       ],
+      "setup_script": "/usr/bin/mkfifo fifo\n",
       "timeout": 40
     },
     {
@@ -60,7 +63,7 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "detach HANDLE releases the controller role (controller=0) while the session child stays alive (running=1, /proc entry present); a new control attach then succeeds.",
-      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\ntrap 'ptybroker terminate \"$root\" s >/dev/null 2>&1' EXIT\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\nptybroker create \"$root\" s -- /usr/bin/sleep 30 >/dev/null 2>&1; echo \"create=$?\" > rc\nst=$(ptybroker status \"$root\" s); cpid=$(field \"$st\" child_pid); echo \"$cpid\" > cpid\nptybroker attach \"$root\" s control h1 2>/dev/null; echo \"control1=$?\" >> rc\nptybroker detach \"$h1\" 2>e-d1; echo \"detach=$?\" >> rc\nst=$(ptybroker status \"$root\" s); echo \"after-detach controller=$(field \"$st\" controller) running=$(field \"$st\" running)\" > roles\n[[ -d /proc/$cpid ]] && echo child-alive > alive || echo child-gone > alive\nptybroker attach \"$root\" s control h2 2>e-c2; echo \"control-again=$?\" >> rc\nst=$(ptybroker status \"$root\" s); echo \"after-reattach controller=$(field \"$st\" controller) running=$(field \"$st\" running)\" >> roles\nptybroker detach \"$h2\" 2>/dev/null; echo \"detach2=$?\" >> rc\n",
+      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\nexec 8<>fifo\nsent=''\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\ncleanup() {\n  local st bp i\n  st=$(ptybroker status \"$root\" s 2>/dev/null); bp=$(field \"$st\" broker_pid)\n  ptybroker terminate \"$root\" s >/dev/null 2>&1\n  [[ -n $sent ]] && kill $sent 2>/dev/null\n  if [[ -n $bp ]]; then for ((i=0; i<100; i++)); do [[ -d /proc/$bp ]] || break; read -t 0.05 -u 8 x; done; fi\n}\ntrap cleanup EXIT\nptybroker create \"$root\" s -- /usr/bin/sleep 30 >/dev/null 2>&1; echo \"create=$?\" > rc\nst=$(ptybroker status \"$root\" s); cpid=$(field \"$st\" child_pid); echo \"$cpid\" > cpid\nptybroker attach \"$root\" s control h1 2>/dev/null; echo \"control1=$?\" >> rc\nptybroker detach \"$h1\" 2>e-d1; echo \"detach=$?\" >> rc\nst=$(ptybroker status \"$root\" s); echo \"after-detach controller=$(field \"$st\" controller) running=$(field \"$st\" running)\" > roles\n[[ -d /proc/$cpid ]] && echo child-alive > alive || echo child-gone > alive\nptybroker attach \"$root\" s control h2 2>e-c2; echo \"control-again=$?\" >> rc\nst=$(ptybroker status \"$root\" s); echo \"after-reattach controller=$(field \"$st\" controller) running=$(field \"$st\" running)\" >> roles\nptybroker detach \"$h2\" 2>/dev/null; echo \"detach2=$?\" >> rc\n",
       "expected_status": 0,
       "stdout": "",
       "covers": [
@@ -76,8 +79,10 @@
       "comparison": "status controller/running fields before and after detach, /proc liveness of the child pid, and the new attach exit status.",
       "requires": [
         "mkdir",
-        "sleep"
+        "sleep",
+        "mkfifo"
       ],
+      "setup_script": "/usr/bin/mkfifo fifo\n",
       "timeout": 25
     },
     {
@@ -86,7 +91,7 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "A handle used from a subshell (another process) is rejected for receive, detach and fd without disturbing the attachment; the owner can still use it (receive times out with 124); after detach the same handle is stale and every use is rejected; the foreign detach did not release the observer.",
-      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\ntrap 'ptybroker terminate \"$root\" s >/dev/null 2>&1' EXIT\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\nptybroker create \"$root\" s -- /usr/bin/sleep 30 >/dev/null 2>&1; echo \"create=$?\" > rc\nptybroker attach \"$root\" s control h1 2>/dev/null; echo \"attach=$?\" >> rc\nptybroker attach \"$root\" s observe o1 2>/dev/null; echo \"attach-observe=$?\" >> rc\n( ptybroker receive \"$o1\" 1 ev 50 >/dev/null 2>sub-err; echo \"subshell-receive=$?\" > sub-rc\n  ptybroker detach \"$o1\" 2>sub-det-err; echo \"subshell-detach=$?\" >> sub-rc\n  ptybroker fd \"$o1\" fdvar 2>sub-fd-err; echo \"subshell-fd=$?\" >> sub-rc )\nfor k in 1 2 3 4 5 6; do ptybroker receive \"$o1\" 1 ev 50 >/dev/null 2>/dev/null; r=$?; [[ $r == 124 ]] && break; done; echo \"owner-receive-drain=$r\" >> rc\nptybroker detach \"$h1\" 2>/dev/null; echo \"detach=$?\" >> rc\nptybroker detach \"$h1\" 2>e-again; echo \"detach-again=$?\" >> rc\nptybroker receive \"$h1\" 1 ev 50 >/dev/null 2>e-recv; echo \"receive-stale=$?\" >> rc\nptybroker fd \"$h1\" fdv 2>e-fd; echo \"fd-stale=$?\" >> rc\nfor f in sub-err sub-det-err sub-fd-err e-again e-recv e-fd; do [[ -s $f ]] && echo \"$f=diagnosed\" >> diag || echo \"$f=silent\" >> diag; done\nst=$(ptybroker status \"$root\" s); echo \"controller=$(field \"$st\" controller) observers=$(field \"$st\" observers)\" > roles\n",
+      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\nexec 8<>fifo\nsent=''\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\ncleanup() {\n  local st bp i\n  st=$(ptybroker status \"$root\" s 2>/dev/null); bp=$(field \"$st\" broker_pid)\n  ptybroker terminate \"$root\" s >/dev/null 2>&1\n  [[ -n $sent ]] && kill $sent 2>/dev/null\n  if [[ -n $bp ]]; then for ((i=0; i<100; i++)); do [[ -d /proc/$bp ]] || break; read -t 0.05 -u 8 x; done; fi\n}\ntrap cleanup EXIT\nptybroker create \"$root\" s -- /usr/bin/sleep 30 >/dev/null 2>&1; echo \"create=$?\" > rc\nptybroker attach \"$root\" s control h1 2>/dev/null; echo \"attach=$?\" >> rc\nptybroker attach \"$root\" s observe o1 2>/dev/null; echo \"attach-observe=$?\" >> rc\n( ptybroker receive \"$o1\" 1 ev 50 >/dev/null 2>sub-err; echo \"subshell-receive=$?\" > sub-rc\n  ptybroker detach \"$o1\" 2>sub-det-err; echo \"subshell-detach=$?\" >> sub-rc\n  ptybroker fd \"$o1\" fdvar 2>sub-fd-err; echo \"subshell-fd=$?\" >> sub-rc )\nfor k in 1 2 3 4 5 6; do ptybroker receive \"$o1\" 1 ev 50 >/dev/null 2>/dev/null; r=$?; [[ $r == 124 ]] && break; done; echo \"owner-receive-drain=$r\" >> rc\nptybroker detach \"$h1\" 2>/dev/null; echo \"detach=$?\" >> rc\nptybroker detach \"$h1\" 2>e-again; echo \"detach-again=$?\" >> rc\nptybroker receive \"$h1\" 1 ev 50 >/dev/null 2>e-recv; echo \"receive-stale=$?\" >> rc\nptybroker fd \"$h1\" fdv 2>e-fd; echo \"fd-stale=$?\" >> rc\nfor f in sub-err sub-det-err sub-fd-err e-again e-recv e-fd; do [[ -s $f ]] && echo \"$f=diagnosed\" >> diag || echo \"$f=silent\" >> diag; done\nst=$(ptybroker status \"$root\" s); echo \"controller=$(field \"$st\" controller) observers=$(field \"$st\" observers)\" > roles\n",
       "expected_status": 0,
       "stdout": "",
       "covers": [
@@ -103,8 +108,10 @@
       "comparison": "Exit statuses and diagnostics for foreign-process and stale-handle use, the owner's later successful receive (timeout 124), and status controller/observers showing the failed foreign detach released nothing.",
       "requires": [
         "mkdir",
-        "sleep"
+        "sleep",
+        "mkfifo"
       ],
+      "setup_script": "/usr/bin/mkfifo fifo\n",
       "timeout": 25
     },
     {
@@ -113,7 +120,7 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "terminate ends the session child and its descendants, including a grandchild in the same session and one that started its own session, and has already waited for them when it returns; an unrelated sentinel process started outside the broker survives; the session directory is removed.",
-      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\ntrap 'ptybroker terminate \"$root\" s >/dev/null 2>&1; [[ -n $sent ]] && kill $sent 2>/dev/null' EXIT\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\nexec 9<>fifo\n/usr/bin/sleep 61 & sent=$!\necho \"$sent\" > sentinel.pid\nptybroker create \"$root\" s -- \"$BASH\" --noprofile --norc ./child.sh >/dev/null 2>e-create; echo \"create=$?\" > rc\nfor ((i=0; i<100; i++)); do [[ -s ready && -s gc-sess.pid ]] && break; read -t 0.1 -u 9 x; done\nst=$(ptybroker status \"$root\" s); cpid=$(field \"$st\" child_pid)\nsame=$(<gc-same.pid); sess=$(<gc-sess.pid)\nfor p in $cpid $same $sess $sent; do [[ -d /proc/$p ]] && echo \"before $p alive\" >> live || echo \"before $p gone\" >> live; done\necho \"child=$([[ $cpid != \"\" && $cpid != 0 ]] && echo set)\" > pids\n[[ $cpid != $same && $same != $sess && $sess != $sent ]] && echo distinct >> pids\nptybroker terminate \"$root\" s 2>e-term; echo \"terminate=$?\" >> rc\n[[ -d /proc/$cpid ]] && echo child-alive > after || echo child-gone > after\n[[ -d /proc/$same ]] && echo same-session-grandchild-alive >> after || echo same-session-grandchild-gone >> after\n[[ -d /proc/$sess ]] && echo own-session-grandchild-alive >> after || echo own-session-grandchild-gone >> after\n[[ -d /proc/$sent ]] && echo sentinel-alive >> after || echo sentinel-gone >> after\n[[ -e $root/s ]] && echo session-dir-present >> after || echo session-dir-removed >> after\nkill $sent; wait $sent 2>/dev/null; sent=''\n",
+      "script": "root=$HOME/br\n/usr/bin/mkdir -m 700 \"$root\" || exit 125\nexec 8<>fifo\nsent=''\nfield() { local s=$1 k=$2; [[ $s =~ (^| )$k=([0-9-]+) ]] && printf '%s' \"${BASH_REMATCH[2]}\"; }\ncleanup() {\n  local st bp i\n  st=$(ptybroker status \"$root\" s 2>/dev/null); bp=$(field \"$st\" broker_pid)\n  ptybroker terminate \"$root\" s >/dev/null 2>&1\n  [[ -n $sent ]] && kill $sent 2>/dev/null\n  if [[ -n $bp ]]; then for ((i=0; i<100; i++)); do [[ -d /proc/$bp ]] || break; read -t 0.05 -u 8 x; done; fi\n}\ntrap cleanup EXIT\n/usr/bin/sleep 61 & sent=$!\necho \"$sent\" > sentinel.pid\nptybroker create \"$root\" s -- \"$BASH\" --noprofile --norc ./child.sh >/dev/null 2>e-create; echo \"create=$?\" > rc\nfor ((i=0; i<100; i++)); do [[ -s ready && -s gc-sess.pid ]] && break; read -t 0.1 -u 8 x; done\nst=$(ptybroker status \"$root\" s); cpid=$(field \"$st\" child_pid)\nsame=$(<gc-same.pid); sess=$(<gc-sess.pid)\nfor p in $cpid $same $sess $sent; do [[ -d /proc/$p ]] && echo \"before $p alive\" >> live || echo \"before $p gone\" >> live; done\necho \"child=$([[ $cpid != \"\" && $cpid != 0 ]] && echo set)\" > pids\n[[ $cpid != $same && $same != $sess && $sess != $sent ]] && echo distinct >> pids\nptybroker terminate \"$root\" s 2>e-term; echo \"terminate=$?\" >> rc\n[[ -d /proc/$cpid ]] && echo child-alive > after || echo child-gone > after\n[[ -d /proc/$same ]] && echo same-session-grandchild-alive >> after || echo same-session-grandchild-gone >> after\n[[ -d /proc/$sess ]] && echo own-session-grandchild-alive >> after || echo own-session-grandchild-gone >> after\n[[ -d /proc/$sent ]] && echo sentinel-alive >> after || echo sentinel-gone >> after\n[[ -e $root/s ]] && echo session-dir-present >> after || echo session-dir-removed >> after\nkill $sent; wait $sent 2>/dev/null; sent=''\n",
       "expected_status": 0,
       "stdout": "",
       "covers": [

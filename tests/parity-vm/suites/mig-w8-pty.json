@@ -7,7 +7,7 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "set-ldisc argument validation happens before any device access: missing operands and a nonnumeric line discipline are usage errors with status 2 and a diagnostic; the nonexistent device is never opened.",
-      "script": "pty set-ldisc 2>e1; echo \"noargs=$?\" > rc\npty set-ldisc 0 2>e2; echo \"nodevice=$?\" >> rc\npty set-ldisc abc /nonexistent-device-w8 2>e3; echo \"nonnumeric=$?\" >> rc\npty set-ldisc 1x /nonexistent-device-w8 2>e4; echo \"trailing=$?\" >> rc\nfor f in e1 e2 e3 e4; do [[ -s $f ]] && echo \"$f=diagnostic\" >> diag || echo \"$f=silent\" >> diag; done\n[[ $(<e3) == *\"open\"* ]] && echo opened >> diag\n",
+      "script": "pty set-ldisc 2>e1; echo \"noargs=$?\" > rc\npty set-ldisc 0 2>e2; echo \"nodevice=$?\" >> rc\npty set-ldisc abc /nonexistent-device-w8 2>e3; echo \"nonnumeric=$?\" >> rc\npty set-ldisc 1x /nonexistent-device-w8 2>e4; echo \"trailing=$?\" >> rc\nfor f in e1 e2 e3 e4; do [[ -s $f ]] && echo \"$f=diagnostic\" >> diag || echo \"$f=silent\" >> diag; done\n[[ $(<e3) == *\"open\"* ]] && echo opened >> diag\n:\n",
       "expected_status": 0,
       "stdout": "",
       "stderr": "",
