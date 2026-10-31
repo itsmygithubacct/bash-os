@@ -42,20 +42,21 @@ def summary(path, n=None):
     recs = [json.loads(l) for l in open(path)] if os.path.exists(path) else []
     dirfd = next((r["arg0"] for r in recs if r["syscall"] in ("unlinkat", "renameat", "renameat2")), None)
     tmpfd = next((r["arg0"] for r in recs if r["syscall"] == "write"), None)
-    out, closed = [], False
+    out, closed, opened = [], False, False
     for r in recs:
         s = r["syscall"]
         if s == "unlinkat":
             name = r.get("string1", "")
             out.append("unlinkat %s%s" % ("tmp" if name.startswith(".rngseed-") else name, suffix(r)))
         elif s == "openat" and str(r.get("string1", "")).startswith(".rngseed-"):
+            opened = True
             out.append("openat tmp")
         elif s == "write":
             out.append("write tmp %d%s" % (r["arg2"], suffix(r)))
         elif s == "fsync":
             fd = r["arg0"]
             out.append("fsync %s%s" % ("dir" if fd == dirfd else "tmp" if fd == tmpfd or tmpfd is None else "fd?", suffix(r)))
-        elif s == "close" and not closed and tmpfd is not None and r["arg0"] == tmpfd:
+        elif s == "close" and opened and not closed and tmpfd is not None and r["arg0"] == tmpfd:
             closed = True
             out.append("close tmp")
         elif s in ("renameat", "renameat2"):
