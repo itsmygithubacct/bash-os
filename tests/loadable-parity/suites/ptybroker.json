@@ -66,7 +66,7 @@
       "id": "roles_and_handle_scope",
       "kind": "deferred",
       "purpose": "Verify controller/observer permissions, documented attachment limits, detach behavior, and rejection of stale or cross-process handles.",
-      "reason": "There is no fixture. The broker allocates its own PTYs, so the driver needs no extra PTY. The VM supplies /proc, pidfd, SOCK_SEQPACKET and subreaper; only the case scripts and their helpers are missing."
+      "reason": "Paired binary records support one same-session observer receiving controlled live bytes. Controller exclusivity, the observer limit and controller restrictions, detach/re-attach, and stale and cross-process handle rejection remain unestablished."
     },
     {
       "id": "pty_geometry_resize",
@@ -94,7 +94,7 @@
       "id": "child_exit_and_cleanup",
       "kind": "deferred",
       "purpose": "Verify final-output-before-exit event ordering, retained child exit status, and cleanup of only the fixture's owned descendants on terminate.",
-      "reason": "There is no fixture. The broker allocates its own PTYs, so the driver needs no extra PTY. The VM supplies /proc, pidfd, SOCK_SEQPACKET and subreaper; only the case scripts and their helpers are missing."
+      "reason": "Paired raw-exit records support the fixed child final-output and retained-status observations. A separate private-session record observes one owned child absent after termination returned; grandchild cleanup, exclusive scope, and reaping before acknowledgment remain unestablished."
     },
     {
       "id": "bounded_io_errors",

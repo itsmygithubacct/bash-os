@@ -32636,30 +32636,51 @@
         "purpose": "Verify final-output-before-exit event ordering, retained child exit status, and cleanup of only the fixture's owned descendants on terminate.",
         "reason": "Requires a disposable Linux VM with private process accounting, subreaper/pidfd support, and a bounded child fixture whose descendants are created and reaped only inside that VM. No process lifecycle operation was run here."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "There is no fixture. The broker allocates its own PTYs, so the driver needs no extra PTY. The VM supplies /proc, pidfd, SOCK_SEQPACKET and subreaper; only the case scripts and their helpers are missing.",
+      "current_reason": "Paired raw-exit records support the fixed child final-output and retained-status observations. A separate private-session record observes one owned child absent after termination returned; grandchild cleanup, exclusive scope, and reaping before acknowledgment remain unestablished.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "The child's final output is delivered before the 'exit' event",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ptybroker-lifecycle-raw-exit",
+              "definition_sha256": "e0136117bfbc7f93d3bd76471ec3a9aa06fff9b0ea7fd93eb911f0c97f7cef6d",
+              "assertion": "Both frozen builds: the selected raw-exit case records complete live output events at offsets 12 and 23, the exact final eight bytes through offset 31, and then an exit event with status 37. The fixed native PTY control, exact raw stream, complete diagnostic envelopes and return codes support this bounded ordering observation."
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "The child's exit status is retained and reported by status after it exits",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-ptybroker-lifecycle-raw-exit",
+              "definition_sha256": "e0136117bfbc7f93d3bd76471ec3a9aa06fff9b0ea7fd93eb911f0c97f7cef6d",
+              "assertion": "Both frozen builds: after receiving the exit event, status returns success and reports running=0, exit_status=37 and next=31 for the same private session and child; the independent native control recorded exit 37."
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "terminate ends only the fixture's own descendants (including a grandchild) and waits for their cleanup before acknowledging",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b01r2-broker-lifecycle",
+              "definition_sha256": "01ced11a3eef155e45b5bae158e48bbe7fe31fe054cdc8557e581c24f5c2ae67",
+              "assertion": "Both frozen builds: the selected private-session fixture records its sleep child live before terminate, terminate returns 0, and a later process check records the child absent and the session removed. These observations do not establish a grandchild, exclusive scope or pre-acknowledgment reaping."
+            }
+          ],
+          "gap": "Only a single child was checked after terminate returned. A fixture-owned grandchild, an unrelated sentinel, exclusive descendant scope, and reaping before the terminate acknowledgment remain unverified; the retained v8 cleanup observation has ambiguous ordering and is not selected by the current report."
         }
       ],
       "notes": "loadables/ptybroker.c:494-515 (contract text); _ptybroker/server.c and client.c (0700 root checks at client.c:48-70, observer limit at server.c:202, PB_CHUNK 16384 in ptybroker.h:10). No GNU equivalent exists, so these are contract cases. All of them fit a new VM suite: the shell or terminal group with ROOT=$(pwd)/root at mode 0700 and children that are fixed in-tree helpers (trusted /usr/bin/python3 or /bin/sh)."
@@ -32893,9 +32914,9 @@
         "purpose": "Verify controller/observer permissions, documented attachment limits, detach behavior, and rejection of stale or cross-process handles.",
         "reason": "Requires isolated Bash client processes and a private broker session in a disposable Linux VM. The fixture must keep all connections and children private and check role/handle outcomes without attaching to any host service."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "There is no fixture. The broker allocates its own PTYs, so the driver needs no extra PTY. The VM supplies /proc, pidfd, SOCK_SEQPACKET and subreaper; only the case scripts and their helpers are missing.",
+      "current_reason": "Paired binary records support one same-session observer receiving controlled live bytes. Controller exclusivity, the observer limit and controller restrictions, detach/re-attach, and stale and cross-process handle rejection remain unestablished.",
       "requirements": [
         {
           "id": "r1",
@@ -32907,9 +32928,16 @@
         {
           "id": "r2",
           "behavior": "Observer attachments up to the documented limit succeed, the next is rejected, and observers receive output but cannot act as the controller",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-terminal-review112-pty-b02r2-binary",
+              "definition_sha256": "4a858c672ebf55335426db90dbeb0b735d6bfb45711dc1781eb6d3f1e0bcebc3",
+              "assertion": "Both frozen builds: the selected same-session binary case uses one observe attachment and records contiguous output events totalling 32813 bytes; captured observer output and independently recorded child input equal the fixed encoded bytes. The attached event text is checked by the fixture but not separately retained."
+            }
+          ],
+          "gap": "Only one observer receiving a fixed payload is supported. Success through the documented attachment limit, rejection of the next observer, and inability of an observer to act as controller are not established; the multi-observer role case is not selected by the current report and its output capture is incomplete."
         },
         {
           "id": "r3",

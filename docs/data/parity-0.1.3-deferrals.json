@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "bd8f99fdf708065300c37dcde9f61f8c68510ce01c8ccbdf8128c5d315381b81",
+  "ledger_sha256": "3f73063684571a46b7b13135950fa57b7127d2d8357186e99672d6caa3f405c6",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 97,
+    "partial": 99,
     "full": 406,
-    "none": 97
+    "none": 95
   },
   "migrations": {
     "deferred": 194,
@@ -41878,34 +41878,55 @@
         {
           "topic": "ptybroker/child_exit_and_cleanup",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "The child's final output is delivered before the 'exit' event",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ptybroker-lifecycle-raw-exit",
+                  "status": "PASS",
+                  "run": "ptybroker-lifecycle-v8-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The child's exit status is retained and reported by status after it exits",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ptybroker-lifecycle-raw-exit",
+                  "status": "PASS",
+                  "run": "ptybroker-lifecycle-v8-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "terminate ends only the fixture's own descendants (including a grandchild) and waits for their cleanup before acknowledging",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Only a single child was checked after terminate returned. A fixture-owned grandchild, an unrelated sentinel, exclusive descendant scope, and reaping before the terminate acknowledgment remain unverified; the retained v8 cleanup observation has ambiguous ordering and is not selected by the current report.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-review112-pty-b01r2-broker-lifecycle",
+                  "status": "PASS",
+                  "run": "terminal-canonical-b06-static-115"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -42131,7 +42152,7 @@
         {
           "topic": "ptybroker/roles_and_handle_scope",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -42147,9 +42168,16 @@
             {
               "id": "r2",
               "behavior": "Observer attachments up to the documented limit succeed, the next is rejected, and observers receive output but cannot act as the controller",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Only one observer receiving a fixed payload is supported. Success through the documented attachment limit, rejection of the next observer, and inability of an observer to act as controller are not established; the multi-observer role case is not selected by the current report and its output capture is incomplete.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-review112-pty-b02r2-binary",
+                  "status": "PASS",
+                  "run": "terminal-canonical-b06-static-115"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -100545,34 +100573,55 @@
         {
           "topic": "ptybroker/child_exit_and_cleanup",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "The child's final output is delivered before the 'exit' event",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ptybroker-lifecycle-raw-exit",
+                  "status": "PASS",
+                  "run": "ptybroker-lifecycle-v8-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "The child's exit status is retained and reported by status after it exits",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-ptybroker-lifecycle-raw-exit",
+                  "status": "PASS",
+                  "run": "ptybroker-lifecycle-v8-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "terminate ends only the fixture's own descendants (including a grandchild) and waits for their cleanup before acknowledging",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Only a single child was checked after terminate returned. A fixture-owned grandchild, an unrelated sentinel, exclusive descendant scope, and reaping before the terminate acknowledgment remain unverified; the retained v8 cleanup observation has ambiguous ordering and is not selected by the current report.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-review112-pty-b01r2-broker-lifecycle",
+                  "status": "PASS",
+                  "run": "terminal-canonical-b06-dynamic-115"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             }
@@ -100798,7 +100847,7 @@
         {
           "topic": "ptybroker/roles_and_handle_scope",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
@@ -100814,9 +100863,16 @@
             {
               "id": "r2",
               "behavior": "Observer attachments up to the documented limit succeed, the next is rejected, and observers receive output but cannot act as the controller",
-              "coverage": "missing",
-              "gap": "Not exercised.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Only one observer receiving a fixed payload is supported. Success through the documented attachment limit, rejection of the next observer, and inability of an observer to act as controller are not established; the multi-observer role case is not selected by the current report and its output capture is incomplete.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-terminal-review112-pty-b02r2-binary",
+                  "status": "PASS",
+                  "run": "terminal-canonical-b06-dynamic-115"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },

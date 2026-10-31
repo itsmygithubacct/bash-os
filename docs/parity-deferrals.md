@@ -8,8 +8,8 @@ saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
 The current review covers 406 of the 600 topics on both builds: static 213 PASS / 193 FAIL;
-dynamic 214 PASS / 192 FAIL. The other 194 retain unresolved requirements: 97 have partial
-coverage and 97 have none. These are topic counts, not additional behavioral test results.
+dynamic 214 PASS / 192 FAIL. The other 194 retain unresolved requirements: 99 have partial
+coverage and 95 have none. These are topic counts, not additional behavioral test results.
 
 The syslog review adds bounded three-record FIFO observations for startup, SIGHUP and periodic replay on both builds. Sender attribution is inferred from pinned serial source and isolated networking; HUP was queued while the daemon was stopped.
 
@@ -64,6 +64,8 @@ The Bash I/O network review exercises address and route operations inside a mapp
 The strace attachment review observes both existing threads attached before release on each build, followed by a worker held in a candidate-owned tracing stop for more than four seconds. The later stall remains FAIL and does not negate the earlier attachment observation. Fixture completion after killing the tracer does not prove natural exit under tracing. Raw case failure labels also appear on their linked requirements; the assertions distinguish the observed phases.
 
 The PTY broker history review preserves the exact successful raw-history case and its pinned helpers. Both builds return the fixed raw bytes, deliver only subsequent output to a late attachment, and report matching attached/gap offsets. Other lifecycle cases remain unresolved: a possible descriptor collision prevents attributing an observer receive failure to the product, and the cleanup observations do not establish descendant reaping before builtin return.
+
+Paired frozen PTY captures add partial attribution for child exit/cleanup and role/handle scope. They preserve 31 fixed output bytes before the exit event, native and candidate status 37, and a later `running=0` status. Cleanup shows only the later absence of one owned child after a successful terminate call. One observe attachment receives the fixed 32,813-byte stream at contiguous offsets. Descendant reaping before return, broader child cleanup, controller permissions, observer limits, detach, stale handles and cross-process scope remain unverified; both topics remain unresolved.
 
 The process-record review adds seven paired observations for malformed stat records, a PID disappearing after enumeration, empty lists, counter rollback, guest accounting and new/reused PIDs. All pass their bounded predicates. Malformed status and cmdline behavior remains untested, so the original topic stays partial. The native guard descriptor and group-anchor cleanup are source-bound; offline parser checks reconstruct the pinned inputs from source rather than claiming those bytes were retained by the guest.
 
