@@ -135,6 +135,7 @@ def mock(up, dp, hp, ready):
                         q += tls.recv(n - len(q))
                     a = answer(q)
                     tls.sendall(struct.pack('!H', len(a)) + a)
+                    break
                 tls.close()
             except Exception:
                 conn.close()
@@ -177,13 +178,6 @@ def probe(dot_port, doh_port):
     want = [(1, '192.0.2.10'), (1, '192.0.2.11')]
     q = build_query('www.x.test.', 1)
     try:
-        ctx.set_alpn_protocols(['h2', 'http/1.1'])
-        with socket.create_connection(('127.0.0.1', doh_port), timeout=5) as raw:
-            with ctx.wrap_socket(raw, server_hostname='127.0.0.1') as tls:
-                need('doh-tls-handshake-and-alpn-selected', tls.selected_alpn_protocol() in ('h2', 'http/1.1'), tls.selected_alpn_protocol())
-    except Exception as exc:
-        need('doh-tls-handshake-and-alpn-selected', False, repr(exc))
-    try:
         c = ssl.create_default_context(cafile=CERT)
         with socket.create_connection(('127.0.0.1', dot_port), timeout=5) as raw:
             with c.wrap_socket(raw, server_hostname='127.0.0.1') as tls:
@@ -212,6 +206,13 @@ def probe(dot_port, doh_port):
             need(label + '-answer-rrset', sorted(r['answers']) == want and r['rcode'] == 0, r)
         except Exception as exc:
             need(label + '-answer-rrset', False, repr(exc))
+    try:
+        ctx.set_alpn_protocols(['h2', 'http/1.1'])
+        with socket.create_connection(('127.0.0.1', doh_port), timeout=5) as raw:
+            with ctx.wrap_socket(raw, server_hostname='127.0.0.1') as tls:
+                need('doh-tls-handshake-and-alpn-selected', tls.selected_alpn_protocol() in ('h2', 'http/1.1'), tls.selected_alpn_protocol())
+    except Exception as exc:
+        need('doh-tls-handshake-and-alpn-selected', False, repr(exc))
     for f in fails:
         print(f)
     print('verified probe failed=%d' % len(fails))

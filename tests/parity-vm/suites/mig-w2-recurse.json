@@ -20,7 +20,7 @@
       ],
       "helpers_sha256": {
         "helpers/mig-w2-recurse.py": "bde76210e7e82914fe4a7d2404880957be41845f71b523df6b877c0ed88dfb06",
-        "helpers/mig-w2-dnsx.py": "16fe9feaa1597fe2e152c445ae940c66c1fbd13374c0c8ad6f037d26ecf22689"
+        "helpers/mig-w2-dnsx.py": "4d3daf7b1b7b155e9edc2475e1cf2b54a799c4622ceca3303251503d7e1b9822"
       },
       "setup_script": "mkfifo w.fifo\n",
       "setup_timeout": 10,

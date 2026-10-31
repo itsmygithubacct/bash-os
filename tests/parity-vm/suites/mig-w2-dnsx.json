@@ -24,7 +24,7 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dnsx.py": "16fe9feaa1597fe2e152c445ae940c66c1fbd13374c0c8ad6f037d26ecf22689"
+        "helpers/mig-w2-dnsx.py": "4d3daf7b1b7b155e9edc2475e1cf2b54a799c4622ceca3303251503d7e1b9822"
       },
       "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\nprintf \"nameserver 127.0.0.1\\n\" > resolv.conf\nopenssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout \"$HOME/tls.key\" -out \"$HOME/tls.crt\" -days 2 -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1 -addext basicConstraints=critical,CA:TRUE 2>\"$HOME/openssl.log\"\n",
       "setup_timeout": 30,
@@ -50,25 +50,26 @@
       ],
       "purpose": "auth-serve --tls-listen/--doh-listen serve the same zone to independent Python DoT and DoH (HTTP/1.1 POST and GET) clients, and the DoH TLS handshake succeeds (r5).",
       "oracle": "Independent Python ssl/http.client clients with a fixed expectation (www.x.test A = 192.0.2.10 and 192.0.2.11, NOERROR), RFC 7858 framing and RFC 8484 POST/GET; separate probes isolate the TLS handshake (with ALPN offered) from the HTTP request and DNS message handling.",
-      "comparison": "Candidate auth-serve with a TLS and a DoH listener on loopback; four probes print only failing lines plus a summary that must report failed=0.",
+      "comparison": "Candidate auth-serve with a TLS and a DoH listener on loopback; the DoT, DoH POST, DoH GET and handshake-only probes (in that order) print only failing lines plus a summary that must report failed=0, and the server must still be running after a client that completes the TLS handshake and disconnects without a request.",
       "requires": [
         "python3",
-        "openssl"
+        "openssl",
+        "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dnsx.py": "16fe9feaa1597fe2e152c445ae940c66c1fbd13374c0c8ad6f037d26ecf22689"
+        "helpers/mig-w2-dnsx.py": "4d3daf7b1b7b155e9edc2475e1cf2b54a799c4622ceca3303251503d7e1b9822"
       },
-      "setup_script": "openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout \"$HOME/tls.key\" -out \"$HOME/tls.crt\" -days 2 -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1 -addext basicConstraints=critical,CA:TRUE 2>\"$HOME/openssl.log\"\n",
+      "setup_script": "mkfifo w.fifo\nopenssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout \"$HOME/tls.key\" -out \"$HOME/tls.crt\" -days 2 -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1 -addext basicConstraints=critical,CA:TRUE 2>\"$HOME/openssl.log\"\n",
       "setup_timeout": 30,
       "files": {
         "x.zone": "$ORIGIN x.test.\n$TTL 300\n@ IN SOA ns1.x.test. hostmaster.x.test. 1 3600 600 86400 300\n@ IN NS ns1.x.test.\n@ IN MX 10 mail.x.test.\nns1 IN A 192.0.2.53\nwww IN A 192.0.2.10\nwww IN A 192.0.2.11\nmail IN A 192.0.2.25\ntxt IN TXT \"alpha\"\ntxt IN TXT \"beta\"\n"
       },
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-dnsx.py\ndns auth-serve --zone x.zone --listen 127.0.0.1 --port 5311 --tls-listen 127.0.0.1:5312 --tls-cert \"$HOME/tls.crt\" --tls-key \"$HOME/tls.key\" --doh-listen 127.0.0.1:5313 --doh-cert \"$HOME/tls.crt\" --doh-key \"$HOME/tls.key\" < /dev/null 2> serve.err &\nsrv=$!\n/usr/bin/python3 \"$H\" waitport 5312 5313\n/usr/bin/python3 \"$H\" probe 5312 5313\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrue\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-dnsx.py\ndns auth-serve --zone x.zone --listen 127.0.0.1 --port 5311 --tls-listen 127.0.0.1:5312 --tls-cert \"$HOME/tls.crt\" --tls-key \"$HOME/tls.key\" --doh-listen 127.0.0.1:5313 --doh-cert \"$HOME/tls.crt\" --doh-key \"$HOME/tls.key\" < /dev/null 2> serve.err &\nsrv=$!\n/usr/bin/python3 \"$H\" waitport 5312 5313\n/usr/bin/python3 \"$H\" probe 5312 5313\nexec 7<>w.fifo\nread -t 0.7 -u 7 l\nkill -0 \"$srv\" 2>/dev/null && echo server-alive-after-handshake-only-client || echo server-died-after-handshake-only-client\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\ntrue\n",
       "diagnostic_files": [
         "serve.err"
       ],
       "expected_status": 0,
-      "stdout": "verified probe failed=0\n",
+      "stdout": "verified probe failed=0\nserver-alive-after-handshake-only-client\n",
       "stderr": "",
       "timeout": 40
     }
