@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-farm600-blockdev-fd-mock-additive-v1",
+      "loadable": "blockdev",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe private regular-file ioctl and descriptor-close error injection, later actions and shell descriptor identity using an owned nonroot guest tracee with observer-drained output pipes.",
+      "covers": [],
+      "oracle": "Guest-only native controls record protected truncate and pipe-ftruncate denial, per-channel pwrite/lseek rejection, both errno classes, post-close EBADF, descriptor reuse and unregistered rejection. Incremental controls and the companion data-only gate assess each assertion separately; pidfd and kcmp only qualify open-description comparisons.",
+      "comparison": "Observation only; a separately reviewed controller teardown and protected-record witness is required before execution. The independent primary gate assesses pipe binding, per-channel sensitivity, stopped-writer drain barriers, protected per-run journals, exact delivery and per-assertion controls; generic runner status establishes no coverage.",
+      "requires": [
+        "python3"
+      ],
+      "candidate_script": "/usr/bin/python3 -B /opt/bashos-parity/harness/helpers/farm600-blockdev-fd-mock-additive-v1.py \"$BASH\"\n",
+      "stdout": "fd-mock-additive-observed\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 60,
+      "diagnostic_files": [
+        "fd-mock-additive-record.json",
+        "fd-mock-additive-index-error.json",
+        "fd-mock-additive-control.jsonl",
+        "fd-mock-additive-success.jsonl",
+        "fd-mock-additive-ioctl-eio.jsonl",
+        "fd-mock-additive-ioctl-eperm.jsonl",
+        "fd-mock-additive-close-eio.jsonl",
+        "fd-mock-additive-close-eperm.jsonl",
+        "fd-mock-additive-control-capture.json",
+        "fd-mock-additive-success-capture.json",
+        "fd-mock-additive-ioctl-eio-capture.json",
+        "fd-mock-additive-ioctl-eperm-capture.json",
+        "fd-mock-additive-close-eio-capture.json",
+        "fd-mock-additive-close-eperm-capture.json"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-blockdev-fd-mock-additive-v1.py": "90c4b220556641140f69ddd8690e2d9f1709800bd75e67c4ace58fb7bc6b6737",
+        "helpers/farm600-blockdev-fd-mock-additive-v1.gate.json": "f56bf7b2548d00b9070457560445b193d5ba7fd69c600f945354e3ff4966381a",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+      }
+    }
+  ]
+}
