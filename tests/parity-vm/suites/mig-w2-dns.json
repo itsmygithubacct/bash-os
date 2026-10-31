@@ -18,7 +18,7 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dnskey.py": "3ed56bf87804a6d7287746711b4b75c38d6681d0a1f5f293e8cea61bbb73484f"
+        "helpers/mig-w2-dnskey.py": "0e202340dcbabae2b1b6ac4b4c36e594cc815e01789e36ff2ed10e203aa659aa"
       },
       "setup_script": "mkfifo w.fifo\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dnskey.py prep\n",
       "setup_timeout": 10,

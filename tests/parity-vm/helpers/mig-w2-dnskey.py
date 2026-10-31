@@ -65,7 +65,7 @@ def serve(port, ready):
             rd = rdata(key)
             answers += b'\xc0\x0c' + struct.pack('!HHIH', 48, 1, 300, len(rd)) + rd
         flags = 0x8400
-        if qtype != 48 or qname != name_wire(ZONE):
+        if qtype != 48 or qname.lower() != name_wire(ZONE):
             answers, flags = b'', 0x8403
         count = 2 if answers else 0
         sock.sendto(qid + struct.pack('!HHHHH', flags, 1, count, 0, 0) + question + answers, src)
@@ -117,7 +117,7 @@ def verify():
     if cand:
         fails.append('candidate-emptied-after-promotion: %s' % cand)
     q = json.load(open('dnskey-queries.json'))
-    if [x['qtype'] for x in q] != [48, 48, 48] or any(x['qname'] != name_wire(ZONE).hex() for x in q):
+    if [x['qtype'] for x in q] != [48, 48, 48] or any(bytes.fromhex(x['qname']).lower() != name_wire(ZONE) for x in q):
         fails.append('server-saw-three-DNSKEY-queries-for-the-zone: %s' % q)
     for f in fails:
         print(f + ' FAIL')
