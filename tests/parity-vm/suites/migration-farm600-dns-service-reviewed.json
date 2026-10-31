@@ -1,0 +1,168 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-farm600-dns-service-reviewed-recursion",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Retain controlled referral peer controls while candidate DNS service observation is held pending attribution and containment witnesses.",
+      "covers": [],
+      "oracle": "Within a fresh uid-mapped user and network namespace, a bounded UDP root provides a controlled NS referral with loopback glue to a distinct authority. Direct native dig controls validate both peers. Supported auxiliary questions receive explicit REFUSED responses and their raw records are retained; other unsupported forms remain inconclusive if they prevent evaluation.",
+      "comparison": "The guest runner starts the candidate driver shell to invoke the helper; the helper does not attest that shell. The helper holds its own DNS service launch and emits an infrastructure inconclusive. The pinned gate requires independently qualified causality, service-sender attribution and safe lifecycle before any r3 verdict; generic runner output claims no coverage.",
+      "requires": [
+        "python3",
+        "ip",
+        "unshare",
+        "dig"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dns-service-reviewed-recursion.py setup\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-dns-service-reviewed-recursion.py candidate\n",
+      "stdout": "",
+      "stderr": "recursive referral inconclusive: required witnesses unavailable\n",
+      "expected_status": 125,
+      "setup_timeout": 45,
+      "timeout": 45,
+      "diagnostic_files": [
+        "recursion-setup.json",
+        "recursion-setup-outer.json",
+        "recursion-candidate.json",
+        "recursion-candidate-outer.json"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-dns-service-reviewed-recursion.py": "f6678eb0530f14ec45afcb4828cdffbd978fedbaca2ce080053a1c00aa0b4993"
+      }
+    }
+  ],
+  "primary_evidence_gate": {
+    "owner": "primary",
+    "execution": "data only; do not import or execute the fixture",
+    "binding": "Pin exact suite, helper and frozen candidate hashes and VM provenance. For setup and any future qualified candidate observation require outer and inner protected identity proofs: canonical /etc marker equals /run/bashos-parity-vm-identity, with initial-root-owned nonwritable directories and 0444 regular single-link files checked from outer uid/gid 2000. Independently parse retained complete raw inner uid_map_raw and gid_map_raw as exactly 0 2000 1, retained raw overflowuid_raw and overflowgid_raw as the kernel overflow owner values, and verify all recorded mapped directory/file uid and gid equal those values. Verify inner uid/euid/gid/egid are zero, outer credentials are 2000, UUID, directory dev/inode/mode and file fingerprints match across reports, and user/net namespace identities differ. Bind token to primary controller attestation. Missing, malformed or inconsistent fields are ERROR. No direct unprivileged DMI UUID read. Generic runner labels are not migration evidence.",
+    "records": "Pin the exact runner, suite, helper and candidate binaries and bind the result to the primary controller guest attestation. For a reached successful setup require complete, duplicate-key-free, nontruncated recursion-setup.json and recursion-setup-outer.json; expected setup modes, controls-complete, zero inner observer status, complete outer stdout/stderr byte counts, and zero runner setup status with error=null. For each runner diagnostic envelope require valid base64, integer captured_bytes equal to the decoded length, boolean truncated=false and no missing/error marker; the runner allows at most 1 MiB per diagnostic and 4 MiB total. Require only records from reached stages on failure. For a completed held preflight require both recursion-candidate.json and recursion-candidate-outer.json to contain the exact type and value of each held_preflight_contract.common field, including boolean observer_launched_dns_service=false, the identical missing_capabilities list and reason; peer_events must be empty in recursion-candidate.json. Both must contain equal valid outer identity proofs consistent with the setup and controller attestation. The helper records driver_shell_observation as not-recorded-by-helper; that is not a shell process witness. From the pinned guest runner and case, successful setup leads the runner to start the candidate binary as the driver shell to invoke candidate_script, before this helper runs. The held flag refers only to the helper launching the separate DNS service, not to whether the runner started candidate code. Independently inspect the candidate-side runner transport: status must be integer 125, error must be null, harness_error absent or null, setup.status is integer 0 and setup.error=null, stdout_base64 decode to empty bytes, stderr_base64 decode to the exact held_preflight_contract bytes, and captured_bytes equal the combined decoded stream lengths. Compare those bytes and status with the suite expectations as well. Do not infer completion from the helper JSON alone: it is saved before stderr and return. Preserve the raw runner result. For this held preflight, a failed prerequisite, missing or inconsistent record, abnormal exit, truncation, output mismatch, failed cleanup or unavailable identity is infrastructure ERROR/inconclusive for DNS, even if the generic contract runner labels it FAIL; a matching 125 is infrastructure-only, not DNS behavior. For future stages, failures of required records and dependencies leave those dependent stages incomplete without erasing an independently established earlier failure because of an unrelated later failure. For a future service implementation require separately reviewed complete records and provenance for its reached stages.",
+    "controls": "For each qualified setup and future candidate invocation require peer stopped, no peer errors, loopback setup status zero, parser controls answer positive=1/negative=2, fixture request positive=1, request classification controls (one malformed and three valid auxiliary), referral-flow positive=2/negative=4, and auxiliary-path ordered observation=1, auxiliary-blocked inconclusive=1 and unsupported-blocked inconclusive=1, and two direct dig controls of the same live peers with zero status. For the present fixed setup require root authority deleg.test. NS ns.deleg.test. and glue A 127.0.0.3, and authority www.deleg.test. A 192.0.2.73. For any future invocation-specific challenge, compare against its independently retained per-invocation expected peer records instead of assuming this fixed glue, and protect the challenge from premature disclosure. Independently decode the raw peer query and response datagrams; match each DNS ID and question within that peer wire exchange and validate the referral or authoritative RR data there. Independently compare those RR facts with the retained native dig output rows and zero status. The +noall dig text does not carry the DNS ID or question and must not be required to contain them. A failed control, namespace identity or dependency is ERROR for its dependent stages; do not erase an independently established earlier failure because of an unrelated later failure. Require per-invocation ordering classifier controls pre_readiness=1, pre_query=1, post_query=1, ambiguous=3, and independently evaluate the data-only samples listed in temporal_provenance. Independently decode the raw auxiliary_controls vectors: a valid auxiliary AAAA query receives an explicitly marked REFUSED response, followed by a valid root referral and authoritative response and a successful client outcome; it yields ordered_observation_only. The same refused auxiliary question with no required path and a client timeout yields inconclusive; a separate unsupported operation without the path also yields inconclusive. Independently decode each vector's raw peer and client query/response bytes (or recorded client timeout), verify the referral and client answer, and recompute expected outcomes rather than relying on helper counters or client_ok alone.",
+    "candidate": "The runner starts the candidate driver shell; the present helper deliberately does not launch the DNS resolver service or candidate namespace observer. A separately reviewed guest implementation must qualify each reached recursive/r3 stage before adjudicating its outcome. Shared prerequisites are a bound and attributable tested client query whose receipt by the service caused the controlled root lookup, a valid matching root referral delivered to and actually read by that service, native peer and negative controls, protected complete records, a complete applicable service-sender attribution route, and bounded safe lifecycle and cleanup. Client receipt and correlation require independently reviewed receive evidence or an adequate undisclosed client-query challenge with a suppressed-client negative control. Referral receipt requires independently reviewed receive/read evidence or another independently sufficient witness; a protected unpredictable invocation-specific referral challenge can establish receipt for an observed causally dependent authority query, but the absent query cannot establish its own referral receipt in a negative case. A peer send, peer ordering, a later snapshot or matching answer alone is not proof of service receipt or causality. For PASS, independently establish that the read referral caused the service to query its advertised authority, by actual receive/read and independently demonstrated referral-selected authority and causal dependency of the subsequent send, or an independently controlled unpredictable invocation-specific referral challenge not disclosed to the service through other actual channels; qualify that witness with suppressed or delayed referral and pre-known or unrelated-authority negative controls. For a potentially reached FAIL, establish referral receipt independently and observe the applicable sender set completely and without loss for the relevant bounded request interval through natural request completion, or another independently sound completed failure observation with an equivalently complete interval, and independently establish that the service sent no query to the advertised authority in that interval, or that every such query was unrelated to the referral. An observed query with unresolved causality is inconclusive, not proof of no follow. Such a FAIL does not require the missing authority query or a matching answer. For the dependent no-follow claim, a missing or incomplete read witness, loss or incomplete observation, unsupported or blocking traffic without causal proof, or observer-induced timeout remains inconclusive. Assess a client answer only against an applicable literal; a missing or incorrect answer alone does not prove failure to follow a referral if the causal authority query occurred. Attribute relevant peer datagrams to the frozen candidate service by either a per-datagram witness binding actual send bytes and process/socket identity to ingress, or an independently established exclusive owned service sender tree in the isolated network namespace for the whole observation interval. The latter must account for the controller, peer, client and all other possible senders and show that each relevant send belongs to that service tree; neither route alone substitutes for complete no-loss observation when absence is claimed. Socket inheritance, sharing or descriptor passing entirely within a proven exclusive owned service tree is allowed; outside or unaccounted senders, reuse or sharing that creates attribution ambiguity is inconclusive. The tree alternative does not require identifying one particular sending PID or socket when service-level attribution is independently sufficient. Exact per-send attribution remains necessary when exclusivity is not established. Relevant senders and writers must be quiescent before snapshots of mutable output. Positive, competing/unrelated traffic, suppressed-referral, sharing/reuse, natural-exit, delayed-writer, timeout, forced-cleanup and observer-death controls must exercise the selected method where relevant. All evidence channels must be bounded and matched to their actual scope; source inspection alone supplies none of these witnesses. Leader exit, pipe EOF or later runner teardown alone do not establish sender attribution or complete mutable snapshots. Preserve an independently established reached failure when an unrelated later stage fails; missing evidence remains inconclusive for stages that depend on it. Retain previously saved ordered observations as provisional. Allow auxiliary questions and retries.",
+    "limits": "For each peer/client datagram require recorded received_bytes equals decoded byte length and msg_flags/MSG_TRUNC and MSG_CTRUNC agree with truncated. Truncation, failed observer or peer socket operation, incomplete timestamp, event-limit, missing control, inconsistent record, unproven service-sender attribution, unstable clock or failed teardown makes any dependent stage ERROR/incomplete; do not erase an independently established earlier failure because of an unrelated later failure. Parse raw DNS to distinguish structurally malformed messages, well-formed auxiliary questions and unsupported operations. Auxiliary or unsupported questions are not product failures. A REFUSED or declined auxiliary exchange that prevents the controlled path leaves dependent referral results inconclusive; one that prevents only a client answer leaves answer-dependent claims inconclusive without erasing independently reached referral evidence; malformed or unrelated packets require separate independently proven causal attribution before any product-failure claim. Repeated valid queries are permitted. Generic runner status is not usable as coverage without this gate. The helper DNS service launch is intentionally held until reviewed per-invocation causality, attribution and containment exist; no current guest invocation can establish recursive/r3 coverage.",
+    "readiness": "For future DNS service observations require a complete readiness witness and a live attributable service listener before the client query. For the existing leader/PID readiness method, require alive_before_query=true and apply the following detailed checks. Independently parse the two bounded raw /proc/PID/stat records, checking their PID equals the launched candidate PID, live non-zombie states, and identical field-22 start ticks equal the retained start_ticks. Decode the bounded cmdline and bind it to candidate argv and the frozen executable: compare retained /proc/PID/exe device/inode to the pinned candidate file device/inode and verify the executable link. Require matching before/after candidate net, user and PID namespace links and matching observer namespace links; bind net and user to the isolated namespace in the report. Independently parse the complete bounded raw UDP table and all recorded fd links: require exactly one owned match at 127.0.0.1 and the recorded listen port, its raw row present in the table, and its row inode matching both recorded inode and socket:[inode] for the recorded descriptor. Check fd_count and udp_table_bytes against retained data, cmdline_bytes against decoded bytes, unique descriptor numbers, numeric inode and fd, a complete newline-terminated table with header, and absence of ambiguity. Verify client destination is the recorded loopback address and port and sent_bytes equals the decoded query length. Require readiness begin <= readiness end <= live poll timestamp <= client send begin <= client send end on the same monotonic clock, with the live poll immediately preceding the client query. All fields, byte encodings and values must be present, bounded and consistent; a missing, raced, stale, malformed or ambiguous readiness proof is ERROR/inconclusive, never product FAIL. A separately reviewed exclusive-tree method may instead establish an identity-bound launched root and exclusive service tree, including a live owned listener and all other namespace senders, without requiring the listener or each upstream send to use that root PID or one socket. It must establish namespace and ownership throughout the relevant interval and prevent or account for descriptor transfer, reuse and outside senders; sharing within the proven tree is not itself disqualifying. For either method bind the client question, destination, exact send length and readiness/live/send ordering to the actual bounded observation channels; malformed, missing, raced or ambiguous proof is ERROR/inconclusive. Readiness alone is not candidate receipt, referral causality, service-sender attribution or relevant writer quiescence.",
+    "temporal_provenance": "Future qualified candidate observations only: Require SO_TIMESTAMPNS enabled on both controlled peer sockets and independently decode exactly one SOL_SOCKET/SO_TIMESTAMPNS ancillary timespec per receive from retained raw base64 using the recorded native 64-bit timespec ABI; verify nanoseconds range, recorded kernel_receive_realtime_ns, recvmsg flags and bounded complete bytes. Kernel ingress time, not time of user-space dequeue, is authoritative so a packet queued before the client send cannot be relabeled by delayed scheduling. Independently check each receive_begin and receive_clock, and every send outcome: fixture and parseable auxiliary questions must have response bytes, sent status, exact sent byte count, and receive-before-send monotonic timestamps; unsupported or malformed requests deliberately declined must have not_sent and no claimed response or send. Independently verify auxiliary responses are explicitly REFUSED and are not treated as authoritative fixture answers. Failed, short, contradictory or absent observer or peer socket outcomes make dependent stages ERROR/incomplete; they do not erase an independently qualified earlier mismatch. Assess a directly witnessed candidate-side outcome against its applicable literal and prerequisites. For launch, readiness, client send begin/end and each receive, verify each clock pair consists of monotonic_before <= realtime sampling <= monotonic_after in program order, with readiness observation and live check completed before the client send. Independently calculate offset_min=min(realtime_ns-monotonic_after_ns) and offset_max=max(realtime_ns-monotonic_before_ns) from all recorded pairs and compare with the saved bounds. Require the primary controller to establish that guest realtime was not stepped or otherwise discontinuous in this interval and that the true realtime-minus-monotonic offset stays inside those bounds; if this cannot be independently established, classify ERROR/inconclusive. Map kernel ingress to [kernel_realtime-offset_max, kernel_realtime-offset_min]. A post-query event is usable only if the entire interval is strictly after client send_end_monotonic_ns and readiness; a pre-readiness interval lies wholly before readiness, a pre-query interval wholly between readiness and send_begin, and overlap with any boundary is ambiguous. Kernel ingress must be consistent with receive timing, phase values and actual event ordering. Any pre-query, pre-readiness, ambiguous or clock-inconsistent packet cannot support a client-path failure or pass. For the existing per-process snapshot route, independently parse bounded upstream_witness stat records, identity, namespace links, complete UDP table and fd links, verify PID/start ticks, fd_count, byte counts, source row, inode and descriptor are internally consistent, and reject raced or ambiguous data. A later snapshot is only supporting context; require separately reviewed send-to-ingress attribution. For the alternative exclusive service-tree route, independently establish the owned sender set and account for all other senders throughout the interval, including any shared/inherited/passed sockets and reuse; attribute the raw ingress to the service tree without imposing the leader PID or a particular socket on each send. If the selected route cannot establish unambiguous service attribution, classify ERROR/inconclusive. The only client query must be sent to the witnessed candidate listening socket with matching saved raw question and destination, within the same namespace. Independently verify the retained client fd/socket link, bounded UDP table and row, source port and inode against the client local socket identity; the socket observation must follow the completed send and precede the client receive or timeout. When a matching fixture authority ingress is present and credited, require the matched root referral send to complete before the lower bound of its ingress interval; overlapping intervals leave causal order inconclusive. Bind each credited peer event to the active client transaction and establish the complete no-loss observation interval needed for its claim. A missing authority ingress is assessable only after independent referral-read proof and complete observation of the applicable sender set through natural request completion, or another independently sound completed failure observation with an equivalently complete interval, not by requiring the absent event. Require peer completion and matching answer before a client receive only when claiming that the client reply derives from that peer answer; neither a matching answer nor authority ingress is a prerequisite for an independently established earlier r3 failure. Retain no-reply timeouts and their cause distinctly; an observer-induced timeout leaves dependent stages inconclusive. Data-only timing controls for event_phase(kernel,offset_min,offset_max,ready,send_begin,send_end): (50,0,0,100,200,300)->pre_readiness; (150,0,0,100,200,300)->pre_query; (350,0,0,100,200,300)->post_query; (200,0,0,100,200,300), (305,0,10,100,200,300), and (350,10,0,100,200,300) each ->ambiguous. Recompute these outcomes independently; do not trust the fixture control counters alone. All timing and later UDP/FD ownership snapshots are provisional chronology only: they do not prove actual datagram sender, referral receipt or causal use. Never qualify a positive or negative recursive/r3 result without separately reviewed causal evidence, one complete sender-attribution route and safe lifecycle evidence described in candidate. Neither route is implemented by the present held preflight.",
+    "qualification_controls": {
+      "current_preflight": "After successful setup the guest runner starts the candidate driver shell to invoke the helper. The helper does not attest that driver shell; it saves observer_launched_dns_service=false and driver_shell_observation=not-recorded-by-helper before a candidate-mode unshare, peer or DNS service creation, and returns the held status and bytes. The successful setup peer has already stopped. Direct inner candidate invocation is refused before observer setup. No configuration bypass exists; the setup exercises only isolated peer controls.",
+      "causality_negative": "A correct pre-known authority query and correct answer after a root send with no proof of candidate referral receipt remains inconclusive.",
+      "sender_negative": "A matching later PID/socket ownership snapshot alone does not identify a datagram sender. In the exclusive-tree route an inherited/shared/passed socket is acceptable only if every sender is independently accounted for inside the owned service set throughout the interval; an outside owner, ambiguous reuse or competing sender is inconclusive.",
+      "containment_negative": "A reaped leader or later runner cleanup without a protected pre-snapshot detached-writer and sender quiescence witness leaves final outputs and dependent verdicts inconclusive.",
+      "future_controls": "Independently qualify the selected causal witness and sender-attribution route with positive and applicable negative controls, including a suppressed client query, suppressed or delayed referral, unrelated sender, sharing or reuse ambiguity, bounded containment, detached delayed writer, forced cleanup and observer death. The exclusive-tree and per-datagram alternatives are source requirements, not implemented capabilities or runtime claims.",
+      "stage_outcomes": "For a future qualified observation, an attributable client query, valid referral independently proved read, complete no-loss service-sender observation through natural request completion, and no causal advertised-authority query support a reached r3 FAIL without any authority answer. A positive control requires a causally attributable advertised-authority query. Suppress referral receipt, make the observation lossy or partial, or induce the client timeout to verify each corresponding negative case stays inconclusive. An unrelated later failure must not erase an already independently established failure. These are data-only requirements, not implemented capabilities or current evidence."
+    },
+    "held_preflight_contract": {
+      "common": {
+        "mode": "candidate",
+        "state": "inconclusive",
+        "observer_launched_dns_service": false,
+        "driver_shell_observation": "not-recorded-by-helper",
+        "missing_capabilities": [
+          "referral-causality",
+          "service-sender-attribution",
+          "owned-writer-containment"
+        ],
+        "reason": "candidate DNS service held pending reviewed witnesses"
+      },
+      "candidate_peer_events": [],
+      "status": 125,
+      "stdout_base64": "",
+      "stderr_base64": "cmVjdXJzaXZlIHJlZmVycmFsIGluY29uY2x1c2l2ZTogcmVxdWlyZWQgd2l0bmVzc2VzIHVuYXZhaWxhYmxlCg==",
+      "transport_error": null,
+      "setup_status": 0,
+      "setup_error": null
+    },
+    "r3_stage_contract": {
+      "shared": "Qualify the exact client-to-root causal path, valid matching referral delivery and service read, native controls, complete protected observation, selected service-sender attribution and safe lifecycle before evaluating the reached stage. A challenge whose only demonstrated effect is an authority query cannot prove referral receipt when that query is absent.",
+      "pass": "The service causally queries the authority selected by the read referral. Establish causal dependence using the independently qualified witness and applicable controls.",
+      "fail": "After independently proved referral read, a complete no-loss observation of the applicable service sender set through natural request completion, or another independently sound completed failure observation with an equivalently complete interval, establishes no service query to the advertised authority, or independently proves every such query was unrelated to the referral. An observed query with unresolved causality is inconclusive. Neither an authority query nor its answer is required to prove this failure.",
+      "incomplete": "Unproved receipt, incomplete or lossy observation, ambiguous attribution, observer-induced timeout, or unsupported or blocking traffic without causal proof cannot establish the dependent outcome.",
+      "preservation": "Keep an independently established reached failure when an unrelated later stage fails; do not waive the reached stage prerequisites or safe lifecycle.",
+      "examples": [
+        {
+          "name": "causal_authority_query",
+          "shared_qualified": true,
+          "referral_read_independently": true,
+          "complete_no_loss": true,
+          "request_end": "natural",
+          "authority_query": "causally_witnessed",
+          "later_unrelated_failure": false,
+          "expected": "PASS"
+        },
+        {
+          "name": "no_authority_query",
+          "shared_qualified": true,
+          "referral_read_independently": true,
+          "complete_no_loss": true,
+          "request_end": "natural",
+          "authority_query": "none_in_complete_interval",
+          "later_unrelated_failure": false,
+          "expected": "FAIL"
+        },
+        {
+          "name": "read_unproved",
+          "shared_qualified": false,
+          "referral_read_independently": false,
+          "complete_no_loss": true,
+          "request_end": "natural",
+          "authority_query": "none_in_complete_interval",
+          "later_unrelated_failure": false,
+          "expected": "INCONCLUSIVE"
+        },
+        {
+          "name": "loss_or_partial_interval",
+          "shared_qualified": true,
+          "referral_read_independently": true,
+          "complete_no_loss": false,
+          "request_end": "natural",
+          "authority_query": "none_in_complete_interval",
+          "later_unrelated_failure": false,
+          "expected": "INCONCLUSIVE"
+        },
+        {
+          "name": "observer_timeout",
+          "shared_qualified": true,
+          "referral_read_independently": true,
+          "complete_no_loss": true,
+          "request_end": "observer_timeout",
+          "authority_query": "none_in_complete_interval",
+          "later_unrelated_failure": false,
+          "expected": "INCONCLUSIVE"
+        },
+        {
+          "name": "later_unrelated_failure",
+          "shared_qualified": true,
+          "referral_read_independently": true,
+          "complete_no_loss": true,
+          "request_end": "natural",
+          "authority_query": "none_in_complete_interval",
+          "later_unrelated_failure": true,
+          "expected": "FAIL"
+        },
+        {
+          "name": "unresolved_authority_causality",
+          "shared_qualified": true,
+          "referral_read_independently": true,
+          "complete_no_loss": true,
+          "request_end": "natural",
+          "authority_query": "causality_unknown",
+          "later_unrelated_failure": false,
+          "expected": "INCONCLUSIVE"
+        },
+        {
+          "name": "attribution_or_lifecycle_unproved",
+          "shared_qualified": false,
+          "referral_read_independently": true,
+          "complete_no_loss": true,
+          "request_end": "natural",
+          "authority_query": "none_in_complete_interval",
+          "later_unrelated_failure": true,
+          "expected": "INCONCLUSIVE"
+        }
+      ],
+      "examples_scope": "Declarative data-only controls for a future independent gate; they neither execute the fixture nor establish current runtime evidence."
+    }
+  }
+}
