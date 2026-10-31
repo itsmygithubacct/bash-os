@@ -1,0 +1,302 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w8-nano2-load-flatten-nul",
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Load a relative fixture file (embedded NUL, CRLF line ends, no final newline) and flatten it back unchanged.",
+      "script": "nano2 flatten bin.dat > flat.out; echo \"rc=$?\" > rc\n",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-operations"
+      ],
+      "files": {
+        "bin.dat": {
+          "base64": "Zmlyc3QAbGluZQ0Kc2Vjb25kIGxpbmUNCm5vIGZpbmFsIG5ld2xpbmU="
+        }
+      },
+      "expected_files": {
+        "flat.out": {
+          "base64": "Zmlyc3QAbGluZQ0Kc2Vjb25kIGxpbmUNCm5vIGZpbmFsIG5ld2xpbmU="
+        },
+        "rc": "rc=0\n",
+        "bin.dat": {
+          "base64": "Zmlyc3QAbGluZQ0Kc2Vjb25kIGxpbmUNCm5vIGZpbmFsIG5ld2xpbmU="
+        }
+      },
+      "kind": "contract",
+      "oracle": "Independent byte-array reference model (Python bytearray with an explicit history stack, written for this fixture from the requirement text; it shares no code with the candidate). The frozen nano2 builtin exposes only 'nano2 selftest' (usage text and help), so no operation named below exists in it: each case calls the operation by the name the requirement uses and records the candidate's actual failure; the expected bytes come from the model.",
+      "comparison": "flat.out must equal bin.dat byte for byte and the status must be 0.",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-nano2-insert-delete",
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Insert and delete at byte offsets: insert a comma at 5, delete 5 bytes at 7, insert \"there\" at 7 (hex-coded) gives the model result.",
+      "script": "nano2 apply base.txt i@5:2c d@7:5 i@7:7468657265 > edited.out; echo \"rc=$?\" > rc\n",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-operations"
+      ],
+      "files": {
+        "base.txt": "hello world\n"
+      },
+      "expected_files": {
+        "edited.out": {
+          "base64": "aGVsbG8sIHRoZXJlCg=="
+        },
+        "rc": "rc=0\n",
+        "base.txt": "hello world\n"
+      },
+      "kind": "contract",
+      "oracle": "Independent byte-array reference model (Python bytearray with an explicit history stack, written for this fixture from the requirement text; it shares no code with the candidate). The frozen nano2 builtin exposes only 'nano2 selftest' (usage text and help), so no operation named below exists in it: each case calls the operation by the name the requirement uses and records the candidate's actual failure; the expected bytes come from the model.",
+      "comparison": "edited.out equals the model bytes (hello, there\\n) and status 0.",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-nano2-line-column-offset",
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Line/column to byte-offset mapping on a text with an empty line and no final newline.",
+      "script": "for lc in 1:0 2:2 3:0 4:3 5:4; do nano2 offset text.txt ${lc%:*} ${lc#*:} | { read -r v; echo \"$lc=$v\"; }; done > offsets.out; echo \"rc=$?\" > rc\n",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-operations"
+      ],
+      "files": {
+        "text.txt": "ab\ncde\n\nfghij\nlast"
+      },
+      "expected_files": {
+        "offsets.out": "1:0=0\n2:2=5\n3:0=7\n4:3=11\n5:4=18\n",
+        "rc": "rc=0\n",
+        "text.txt": "ab\ncde\n\nfghij\nlast"
+      },
+      "kind": "contract",
+      "oracle": "Independent byte-array reference model (Python bytearray with an explicit history stack, written for this fixture from the requirement text; it shares no code with the candidate). The frozen nano2 builtin exposes only 'nano2 selftest' (usage text and help), so no operation named below exists in it: each case calls the operation by the name the requirement uses and records the candidate's actual failure; the expected bytes come from the model.",
+      "comparison": "offsets.out equals the model's line-start-plus-column offsets for five positions.",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-nano2-range-flatten",
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Range flattening of subranges, including an empty range and a range clipped at the end of the buffer.",
+      "script": "for r in 0:2 3:9 6:6 12:20; do nano2 range text.txt ${r%:*} ${r#*:} | /usr/bin/od -An -v -tx1 | /usr/bin/tr -d \" \\n\"; done > ranges.out; echo \"rc=$?\" > rc\n",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-operations"
+      ],
+      "files": {
+        "text.txt": "ab\ncde\n\nfghij\nlast"
+      },
+      "expected_files": {
+        "ranges.out": "61626364650a0a666a0a6c617374",
+        "rc": "rc=0\n",
+        "text.txt": "ab\ncde\n\nfghij\nlast"
+      },
+      "kind": "contract",
+      "oracle": "Independent byte-array reference model (Python bytearray with an explicit history stack, written for this fixture from the requirement text; it shares no code with the candidate). The frozen nano2 builtin exposes only 'nano2 selftest' (usage text and help), so no operation named below exists in it: each case calls the operation by the name the requirement uses and records the candidate's actual failure; the expected bytes come from the model.",
+      "comparison": "ranges.out is the concatenated hex of the four model subranges.",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-nano2-undo-redo",
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Multi-step undo/redo: three edits then three undos and two redos print the buffer after each step and restore each prior state.",
+      "script": "nano2 history base.txt i@3:2074776f i@7:207468726565 d@0:4 undo undo undo redo redo > history.out; echo \"rc=$?\" > rc\n",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-operations"
+      ],
+      "files": {
+        "base.txt": "one\n"
+      },
+      "expected_files": {
+        "history.out": {
+          "base64": "b25lIHR3bwp8b25lIHR3byB0aHJlZQp8dHdvIHRocmVlCnxvbmUgdHdvIHRocmVlCnxvbmUgdHdvCnxvbmUKfG9uZSB0d28KfG9uZSB0d28gdGhyZWUKfA=="
+        },
+        "rc": "rc=0\n",
+        "base.txt": "one\n"
+      },
+      "kind": "contract",
+      "oracle": "Independent byte-array reference model (Python bytearray with an explicit history stack, written for this fixture from the requirement text; it shares no code with the candidate). The frozen nano2 builtin exposes only 'nano2 selftest' (usage text and help), so no operation named below exists in it: each case calls the operation by the name the requirement uses and records the candidate's actual failure; the expected bytes come from the model.",
+      "comparison": "history.out equals the model: after each edit and each undo/redo the flattened buffer followed by |.",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-nano2-model-sequences",
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Per-sequence comparison with the independent model of both status and bytes: three operation sequences (insert+delete, empty buffer with undo and redo, an over-long delete clamped to the buffer end).",
+      "script": "nano2 apply s1.in i@1:5858 d@0:1 > s1.out; echo \"s1=$?\" >> rc\nnano2 apply s2.in i@0:6162 undo redo > s2.out; echo \"s2=$?\" >> rc\nnano2 apply s3.in d@1:9 > s3.out; echo \"s3=$?\" >> rc\n",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-operations"
+      ],
+      "files": {
+        "s1.in": {
+          "base64": "YWJj"
+        },
+        "s2.in": {
+          "base64": ""
+        },
+        "s3.in": {
+          "base64": "eHl6"
+        }
+      },
+      "expected_files": {
+        "s1.out": {
+          "base64": "WFhiYw=="
+        },
+        "s2.out": {
+          "base64": "YWI="
+        },
+        "s3.out": {
+          "base64": "eA=="
+        },
+        "rc": "s1=0\ns2=0\ns3=0\n",
+        "s1.in": {
+          "base64": "YWJj"
+        },
+        "s2.in": {
+          "base64": ""
+        },
+        "s3.in": {
+          "base64": "eHl6"
+        }
+      },
+      "kind": "contract",
+      "oracle": "Independent byte-array reference model (Python bytearray with an explicit history stack, written for this fixture from the requirement text; it shares no code with the candidate). The frozen nano2 builtin exposes only 'nano2 selftest' (usage text and help), so no operation named below exists in it: each case calls the operation by the name the requirement uses and records the candidate's actual failure; the expected bytes come from the model.",
+      "comparison": "Each sequence's status 0 and flattened bytes equal the model's.",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-nano2-save-roundtrip-bytes",
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Load a relative fixture (NUL bytes, CRLF, no final newline) and save it to another relative path byte-identically.",
+      "script": "nano2 save src.bin dst.bin; echo \"rc=$?\" > rc\n",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-file-save"
+      ],
+      "files": {
+        "src.bin": {
+          "base64": "Zmlyc3QAbGluZQ0Kc2Vjb25kIGxpbmUNCm5vIGZpbmFsIG5ld2xpbmU="
+        }
+      },
+      "expected_files": {
+        "dst.bin": {
+          "base64": "Zmlyc3QAbGluZQ0Kc2Vjb25kIGxpbmUNCm5vIGZpbmFsIG5ld2xpbmU="
+        },
+        "src.bin": {
+          "base64": "Zmlyc3QAbGluZQ0Kc2Vjb25kIGxpbmUNCm5vIGZpbmFsIG5ld2xpbmU="
+        },
+        "rc": "rc=0\n"
+      },
+      "kind": "contract",
+      "oracle": "Independent byte-array reference model (Python bytearray with an explicit history stack, written for this fixture from the requirement text; it shares no code with the candidate). The frozen nano2 builtin exposes only 'nano2 selftest' (usage text and help), so no operation named below exists in it: each case calls the operation by the name the requirement uses and records the candidate's actual failure; the expected bytes come from the model.",
+      "comparison": "dst.bin equals src.bin; status 0.",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-nano2-save-relative-path",
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Save to a relative path in the caller's directory (and a nested relative path) lands the file in the current directory tree.",
+      "script": "/usr/bin/mkdir sub\nnano2 save src.txt sub/out.txt; echo \"rc=$?\" > rc\nnano2 save src.txt flat.txt; echo \"flat=$?\" >> rc\n",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-file-save"
+      ],
+      "files": {
+        "src.txt": "relative\n"
+      },
+      "expected_files": {
+        "sub/out.txt": "relative\n",
+        "flat.txt": "relative\n",
+        "src.txt": "relative\n",
+        "rc": "rc=0\nflat=0\n"
+      },
+      "kind": "contract",
+      "oracle": "Independent byte-array reference model (Python bytearray with an explicit history stack, written for this fixture from the requirement text; it shares no code with the candidate). The frozen nano2 builtin exposes only 'nano2 selftest' (usage text and help), so no operation named below exists in it: each case calls the operation by the name the requirement uses and records the candidate's actual failure; the expected bytes come from the model.",
+      "comparison": "sub/out.txt and flat.txt hold the saved bytes; status 0 for both saves.",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-nano2-save-replace-preserves-mode",
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Replacing an existing file keeps its mode (0640) and ownership (the invoking uid and gid) while the content is replaced.",
+      "script": "/usr/bin/chmod 640 dst.txt\nnano2 save src.txt dst.txt; echo \"rc=$?\" > rc\n/usr/bin/stat -c \"%a %u:%g\" dst.txt > dst.stat\n/usr/bin/stat -c \"%a %u:%g\" src.txt > src.stat\n",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-file-save"
+      ],
+      "files": {
+        "src.txt": "new content\n",
+        "dst.txt": "old content\n"
+      },
+      "expected_files": {
+        "dst.txt": "new content\n",
+        "src.txt": "new content\n",
+        "rc": "rc=0\n",
+        "dst.stat": "640 2000:2000\n",
+        "src.stat": "644 2000:2000\n"
+      },
+      "kind": "contract",
+      "oracle": "Independent byte-array reference model (Python bytearray with an explicit history stack, written for this fixture from the requirement text; it shares no code with the candidate). The frozen nano2 builtin exposes only 'nano2 selftest' (usage text and help), so no operation named below exists in it: each case calls the operation by the name the requirement uses and records the candidate's actual failure; the expected bytes come from the model.",
+      "comparison": "dst.txt holds the new bytes; stat shows mode 640 and owner 2000:2000 afterwards.",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-nano2-save-temp-cleanup",
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Atomic-save temporary files are removed on success (only out.txt remains in the target directory) and on failure (a read-only directory stays empty and the save returns status 1).",
+      "script": "nano2 save src.txt ok-dir/out.txt; echo \"ok=$?\" > rc\n/usr/bin/ls -A ok-dir > ok-dir.ls\n/usr/bin/chmod 555 ro-dir\nnano2 save src.txt ro-dir/out.txt 2>/dev/null; echo \"fail=$?\" >> rc\n/usr/bin/ls -A ro-dir > ro-dir.ls\n/usr/bin/chmod 755 ro-dir\n",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-file-save"
+      ],
+      "files": {
+        "src.txt": "cleanup\n"
+      },
+      "expected_files": {
+        "ok-dir.ls": "out.txt\n",
+        "ro-dir.ls": "",
+        "rc": "ok=0\nfail=1\n",
+        "ok-dir/out.txt": "cleanup\n",
+        "src.txt": "cleanup\n"
+      },
+      "kind": "contract",
+      "oracle": "Independent byte-array reference model (Python bytearray with an explicit history stack, written for this fixture from the requirement text; it shares no code with the candidate). The frozen nano2 builtin exposes only 'nano2 selftest' (usage text and help), so no operation named below exists in it: each case calls the operation by the name the requirement uses and records the candidate's actual failure; the expected bytes come from the model.",
+      "comparison": "Directory listings after each save and the two statuses.",
+      "timeout": 15,
+      "setup_script": "/usr/bin/mkdir ok-dir ro-dir\n"
+    }
+  ]
+}

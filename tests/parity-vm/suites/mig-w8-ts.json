@@ -1,0 +1,161 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w8-ts-markdown-block-a",
+      "loadable": "ts",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Upstream differential: the markdown block grammar parses a.md to the same S-expression as the neovim-bundled upstream runtime and grammar.",
+      "expected_status": 0,
+      "covers": [
+        "ts/upstream_tree_sitter_differential"
+      ],
+      "files": {
+        "a.md": "# Title\n\nA paragraph with *emphasis* and `code`.\n\n- one\n- two\n\n```sh\necho hi\n```\n",
+        "parse.lua": "local f = assert(io.open(arg[1], \"rb\")); local text = f:read(\"*a\"); f:close()\nlocal lang = arg[2]\nlocal ok, parser = pcall(vim.treesitter.get_string_parser, text, lang)\nif not ok then io.stdout:write(\"ERR \" .. tostring(parser) .. \"\\n\") os.exit(3) end\nlocal tree = parser:parse()[1]\nio.stdout:write(tree:root():sexpr() .. \"\\n\")\nos.exit(0)\n"
+      },
+      "kind": "parity",
+      "oracle": "Neovim 0.10.4 (Debian neovim 0.10.4-8) on the reference PATH: its built-in tree-sitter 0.22 runtime and bundled markdown / markdown_inline grammars parse the same input (vim.treesitter.get_string_parser(...):parse()[1]:root():sexpr()); the output is compared with the candidate's ts parse for the same grammar.",
+      "comparison": "out.txt (S-expression) and rc compared between neovim and the candidate; status of both must be 0.",
+      "requires": [
+        "nvim"
+      ],
+      "timeout": 15,
+      "reference_script": "export XDG_STATE_HOME=$HOME/st XDG_CACHE_HOME=$HOME/ca XDG_DATA_HOME=$HOME/da XDG_CONFIG_HOME=$HOME/cf\n/usr/bin/nvim --headless --clean -i NONE -l parse.lua a.md markdown > out.txt 2>err.txt; echo \"rc=$?\" > rc\n",
+      "candidate_script": "ts parse -L markdown < a.md > out.txt 2>err.txt; echo \"rc=$?\" > rc\n",
+      "expected_files": {
+        "rc": "rc=0\n"
+      }
+    },
+    {
+      "id": "mig-w8-ts-markdown-block-b",
+      "loadable": "ts",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Upstream differential: the markdown block grammar parses b.md to the same S-expression as the neovim-bundled upstream runtime and grammar.",
+      "expected_status": 0,
+      "covers": [
+        "ts/upstream_tree_sitter_differential"
+      ],
+      "files": {
+        "b.md": "> quote line\n> second\n\n1. first\n2. second\n\n---\n\n| a | b |\n|---|---|\n| 1 | 2 |\n",
+        "parse.lua": "local f = assert(io.open(arg[1], \"rb\")); local text = f:read(\"*a\"); f:close()\nlocal lang = arg[2]\nlocal ok, parser = pcall(vim.treesitter.get_string_parser, text, lang)\nif not ok then io.stdout:write(\"ERR \" .. tostring(parser) .. \"\\n\") os.exit(3) end\nlocal tree = parser:parse()[1]\nio.stdout:write(tree:root():sexpr() .. \"\\n\")\nos.exit(0)\n"
+      },
+      "kind": "parity",
+      "oracle": "Neovim 0.10.4 (Debian neovim 0.10.4-8) on the reference PATH: its built-in tree-sitter 0.22 runtime and bundled markdown / markdown_inline grammars parse the same input (vim.treesitter.get_string_parser(...):parse()[1]:root():sexpr()); the output is compared with the candidate's ts parse for the same grammar.",
+      "comparison": "out.txt (S-expression) and rc compared between neovim and the candidate; status of both must be 0.",
+      "requires": [
+        "nvim"
+      ],
+      "timeout": 15,
+      "reference_script": "export XDG_STATE_HOME=$HOME/st XDG_CACHE_HOME=$HOME/ca XDG_DATA_HOME=$HOME/da XDG_CONFIG_HOME=$HOME/cf\n/usr/bin/nvim --headless --clean -i NONE -l parse.lua b.md markdown > out.txt 2>err.txt; echo \"rc=$?\" > rc\n",
+      "candidate_script": "ts parse -L markdown < b.md > out.txt 2>err.txt; echo \"rc=$?\" > rc\n",
+      "expected_files": {
+        "rc": "rc=0\n"
+      }
+    },
+    {
+      "id": "mig-w8-ts-markdown-block-c",
+      "loadable": "ts",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Upstream differential: the markdown block grammar parses c.md to the same S-expression as the neovim-bundled upstream runtime and grammar.",
+      "expected_status": 0,
+      "covers": [
+        "ts/upstream_tree_sitter_differential"
+      ],
+      "files": {
+        "c.md": "Setext\n======\n\ntext   \nmore text\n\n    indented code\n\n<div>html</div>\n",
+        "parse.lua": "local f = assert(io.open(arg[1], \"rb\")); local text = f:read(\"*a\"); f:close()\nlocal lang = arg[2]\nlocal ok, parser = pcall(vim.treesitter.get_string_parser, text, lang)\nif not ok then io.stdout:write(\"ERR \" .. tostring(parser) .. \"\\n\") os.exit(3) end\nlocal tree = parser:parse()[1]\nio.stdout:write(tree:root():sexpr() .. \"\\n\")\nos.exit(0)\n"
+      },
+      "kind": "parity",
+      "oracle": "Neovim 0.10.4 (Debian neovim 0.10.4-8) on the reference PATH: its built-in tree-sitter 0.22 runtime and bundled markdown / markdown_inline grammars parse the same input (vim.treesitter.get_string_parser(...):parse()[1]:root():sexpr()); the output is compared with the candidate's ts parse for the same grammar.",
+      "comparison": "out.txt (S-expression) and rc compared between neovim and the candidate; status of both must be 0.",
+      "requires": [
+        "nvim"
+      ],
+      "timeout": 15,
+      "reference_script": "export XDG_STATE_HOME=$HOME/st XDG_CACHE_HOME=$HOME/ca XDG_DATA_HOME=$HOME/da XDG_CONFIG_HOME=$HOME/cf\n/usr/bin/nvim --headless --clean -i NONE -l parse.lua c.md markdown > out.txt 2>err.txt; echo \"rc=$?\" > rc\n",
+      "candidate_script": "ts parse -L markdown < c.md > out.txt 2>err.txt; echo \"rc=$?\" > rc\n",
+      "expected_files": {
+        "rc": "rc=0\n"
+      }
+    },
+    {
+      "id": "mig-w8-ts-markdown-inline-1",
+      "loadable": "ts",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Upstream differential: the markdown inline grammar parses i1.txt to the same S-expression as the neovim-bundled upstream runtime and grammar.",
+      "expected_status": 0,
+      "covers": [
+        "ts/upstream_tree_sitter_differential"
+      ],
+      "files": {
+        "i1.txt": "*emph* and **strong** and `code` and [link](http://x.y)\n",
+        "parse.lua": "local f = assert(io.open(arg[1], \"rb\")); local text = f:read(\"*a\"); f:close()\nlocal lang = arg[2]\nlocal ok, parser = pcall(vim.treesitter.get_string_parser, text, lang)\nif not ok then io.stdout:write(\"ERR \" .. tostring(parser) .. \"\\n\") os.exit(3) end\nlocal tree = parser:parse()[1]\nio.stdout:write(tree:root():sexpr() .. \"\\n\")\nos.exit(0)\n"
+      },
+      "kind": "parity",
+      "oracle": "Neovim 0.10.4 (Debian neovim 0.10.4-8) on the reference PATH: its built-in tree-sitter 0.22 runtime and bundled markdown / markdown_inline grammars parse the same input (vim.treesitter.get_string_parser(...):parse()[1]:root():sexpr()); the output is compared with the candidate's ts parse for the same grammar.",
+      "comparison": "out.txt (S-expression) and rc compared between neovim and the candidate; status of both must be 0.",
+      "requires": [
+        "nvim"
+      ],
+      "timeout": 15,
+      "reference_script": "export XDG_STATE_HOME=$HOME/st XDG_CACHE_HOME=$HOME/ca XDG_DATA_HOME=$HOME/da XDG_CONFIG_HOME=$HOME/cf\n/usr/bin/nvim --headless --clean -i NONE -l parse.lua i1.txt markdown_inline > out.txt 2>err.txt; echo \"rc=$?\" > rc\n",
+      "candidate_script": "ts parse -L markdown_inline < i1.txt > out.txt 2>err.txt; echo \"rc=$?\" > rc\n",
+      "expected_files": {
+        "rc": "rc=0\n"
+      }
+    },
+    {
+      "id": "mig-w8-ts-markdown-inline-2",
+      "loadable": "ts",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Upstream differential: the markdown inline grammar parses i2.txt to the same S-expression as the neovim-bundled upstream runtime and grammar.",
+      "expected_status": 0,
+      "covers": [
+        "ts/upstream_tree_sitter_differential"
+      ],
+      "files": {
+        "i2.txt": "plain text with a \\* escape and <b>html</b> and ![img](a.png)\n",
+        "parse.lua": "local f = assert(io.open(arg[1], \"rb\")); local text = f:read(\"*a\"); f:close()\nlocal lang = arg[2]\nlocal ok, parser = pcall(vim.treesitter.get_string_parser, text, lang)\nif not ok then io.stdout:write(\"ERR \" .. tostring(parser) .. \"\\n\") os.exit(3) end\nlocal tree = parser:parse()[1]\nio.stdout:write(tree:root():sexpr() .. \"\\n\")\nos.exit(0)\n"
+      },
+      "kind": "parity",
+      "oracle": "Neovim 0.10.4 (Debian neovim 0.10.4-8) on the reference PATH: its built-in tree-sitter 0.22 runtime and bundled markdown / markdown_inline grammars parse the same input (vim.treesitter.get_string_parser(...):parse()[1]:root():sexpr()); the output is compared with the candidate's ts parse for the same grammar.",
+      "comparison": "out.txt (S-expression) and rc compared between neovim and the candidate; status of both must be 0.",
+      "requires": [
+        "nvim"
+      ],
+      "timeout": 15,
+      "reference_script": "export XDG_STATE_HOME=$HOME/st XDG_CACHE_HOME=$HOME/ca XDG_DATA_HOME=$HOME/da XDG_CONFIG_HOME=$HOME/cf\n/usr/bin/nvim --headless --clean -i NONE -l parse.lua i2.txt markdown_inline > out.txt 2>err.txt; echo \"rc=$?\" > rc\n",
+      "candidate_script": "ts parse -L markdown_inline < i2.txt > out.txt 2>err.txt; echo \"rc=$?\" > rc\n",
+      "expected_files": {
+        "rc": "rc=0\n"
+      }
+    },
+    {
+      "id": "mig-w8-ts-probe-parsers",
+      "loadable": "ts",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Diagnostic only (claims no requirement): list the tree-sitter parsers neovim ships and the grammars compiled into the candidate.",
+      "expected_status": 0,
+      "covers": [],
+      "files": {
+        "probe.lua": "local files = vim.api.nvim_get_runtime_file(\"parser/*\", true)\ntable.sort(files)\nfor _, f in ipairs(files) do io.stdout:write(f .. \"\\n\") end\nos.exit(0)\n"
+      },
+      "kind": "parity",
+      "oracle": "Neovim 0.10.4 (Debian neovim 0.10.4-8) on the reference PATH: its built-in tree-sitter 0.22 runtime and bundled markdown / markdown_inline grammars parse the same input (vim.treesitter.get_string_parser(...):parse()[1]:root():sexpr()); the output is compared with the candidate's ts parse for the same grammar.",
+      "comparison": "Raw out.txt of each side inspected by the author.",
+      "requires": [
+        "nvim"
+      ],
+      "timeout": 15,
+      "reference_script": "export XDG_STATE_HOME=$HOME/st XDG_CACHE_HOME=$HOME/ca XDG_DATA_HOME=$HOME/da XDG_CONFIG_HOME=$HOME/cf\n/usr/bin/nvim --headless --clean -i NONE -l probe.lua > out.txt 2>err.txt; echo \"rc=$?\" > rc\n",
+      "candidate_script": "ts language-list > out.txt 2>err.txt; echo \"rc=$?\" > rc\n"
+    }
+  ]
+}
