@@ -87,7 +87,7 @@ def summary(log):
     seen = set()
     for line in Path(log).read_text().splitlines():
         r = json.loads(line)
-        path = r['path'].rsplit('/', 1)[-1]
+        path = r['path'].split('.git/', 1)[-1]
         seen.add('%s %s%s %d' % (r['method'], path, ('?' + r['query']) if r['query'] else '', r['status']))
     print('\n'.join(sorted(seen)))
 
