@@ -1,0 +1,330 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w8-whiptail-msgbox-layout",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "msgbox draws a bordered box with the title, wrapped text (the sentence does not fit one 30-column line) and an Ok button, in a 10x30 window.",
+      "script": "whiptail --title 'Wrapped' --msgbox 'The quick brown fox jumps over the lazy dog and keeps on running far away' 10 30 2>res; echo \"rc=$?\" > rc\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Wrapped",
+              "The quick brown fox",
+              "(jumps|over)",
+              "<\\s*Ok\\s*>"
+            ]
+          }
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "whiptail/deferred-terminal-rendering"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": ""
+      },
+      "oracle": "Debian 13 whiptail 0.52.25 (newt) on the reference PATH, run in the same PTY (xterm-256color, fixed size) as the candidate whiptail builtin; screen contents decoded independently by pyte.",
+      "comparison": "Title, the first wrapped words, a later wrapped word and the Ok button on screen; status 0.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-whiptail-infobox-no-wait",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "infobox draws its text with no button and returns immediately with status 0 without waiting for a key.",
+      "script": "whiptail --infobox 'Please wait a moment' 6 32 2>res; echo \"rc=$?\" > rc\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Please wait a moment"
+            ],
+            "lacks": [
+              "<\\s*Ok\\s*>"
+            ]
+          }
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "whiptail/deferred-terminal-rendering"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": ""
+      },
+      "oracle": "Debian 13 whiptail 0.52.25 (newt) on the reference PATH, run in the same PTY (xterm-256color, fixed size) as the candidate whiptail builtin; screen contents decoded independently by pyte.",
+      "comparison": "Text on screen, no button, the program exits by itself with status 0.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-whiptail-gauge-updates",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "gauge redraws its percentage and bar as lines arrive on stdin: the feeder prints 0 (initial), 25 and 75 and 100, each released by a key typed on the PTY.",
+      "script": "{ read -n1 </dev/tty; echo 25; read -n1 </dev/tty; echo 75; read -n1 </dev/tty; echo 100; read -n1 </dev/tty; } | whiptail --title Progress --gauge 'Copying files' 7 40 0 2>res; echo \"rc=$?\" > rc\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Copying files",
+              "\\b0%"
+            ]
+          }
+        },
+        {
+          "send": "a"
+        },
+        {
+          "screen": {
+            "contains": [
+              "\\b25%"
+            ],
+            "lacks": [
+              "\\b0%"
+            ]
+          }
+        },
+        {
+          "send": "b"
+        },
+        {
+          "screen": {
+            "contains": [
+              "\\b75%"
+            ],
+            "lacks": [
+              "\\b25%"
+            ]
+          }
+        },
+        {
+          "send": "c"
+        },
+        {
+          "send": "d"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "whiptail/deferred-terminal-rendering"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": ""
+      },
+      "oracle": "Debian 13 whiptail 0.52.25 (newt) on the reference PATH, run in the same PTY (xterm-256color, fixed size) as the candidate whiptail builtin; screen contents decoded independently by pyte.",
+      "comparison": "Percent text 0%, then 25%, then 75% replacing the previous value; status 0 at 100.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-whiptail-textbox-scroll",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "textbox shows the start of a file; the down arrow scrolls one line (text-001 leaves, text-002 stays); Page Down scrolls a page; Enter closes with status 0 and the file is untouched.",
+      "script": "whiptail --textbox note 12 40 2>res; echo \"rc=$?\" > rc\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "text-001",
+              "text-0(0[89]|10)"
+            ],
+            "lacks": [
+              "text-0(1[5-9]|2)"
+            ]
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "screen": {
+            "lacks": [
+              "text-001"
+            ],
+            "contains": [
+              "text-002"
+            ]
+          }
+        },
+        {
+          "key": "page_down"
+        },
+        {
+          "screen": {
+            "lacks": [
+              "text-00[1-5]"
+            ],
+            "contains": [
+              "text-01[0-9]"
+            ]
+          }
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "whiptail/deferred-terminal-rendering"
+      ],
+      "files": {
+        "note": "text-001\ntext-002\ntext-003\ntext-004\ntext-005\ntext-006\ntext-007\ntext-008\ntext-009\ntext-010\ntext-011\ntext-012\ntext-013\ntext-014\ntext-015\ntext-016\ntext-017\ntext-018\ntext-019\ntext-020\ntext-021\ntext-022\ntext-023\ntext-024\ntext-025\ntext-026\ntext-027\ntext-028\ntext-029\ntext-030\ntext-031\ntext-032\ntext-033\ntext-034\ntext-035\ntext-036\ntext-037\ntext-038\ntext-039\ntext-040\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": "",
+        "note": "text-001\ntext-002\ntext-003\ntext-004\ntext-005\ntext-006\ntext-007\ntext-008\ntext-009\ntext-010\ntext-011\ntext-012\ntext-013\ntext-014\ntext-015\ntext-016\ntext-017\ntext-018\ntext-019\ntext-020\ntext-021\ntext-022\ntext-023\ntext-024\ntext-025\ntext-026\ntext-027\ntext-028\ntext-029\ntext-030\ntext-031\ntext-032\ntext-033\ntext-034\ntext-035\ntext-036\ntext-037\ntext-038\ntext-039\ntext-040\n"
+      },
+      "oracle": "Debian 13 whiptail 0.52.25 (newt) on the reference PATH, run in the same PTY (xterm-256color, fixed size) as the candidate whiptail builtin; screen contents decoded independently by pyte.",
+      "comparison": "Screen content before and after each key; file unchanged; status 0.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-whiptail-tailbox-follows",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "tailbox shows the end of a file and follows lines appended while it is open: a fixture-owned background writer appends appended-w8 after 1.5 s.",
+      "script": "( read -t 1.5 <> gate; echo appended-w8 >> log ) & feeder=$!\nwhiptail --tailbox log 12 40 2>res; echo \"rc=$?\" > rc\nkill $feeder 2>/dev/null; wait $feeder 2>/dev/null\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "start-1",
+              "start-2"
+            ],
+            "lacks": [
+              "appended-w8"
+            ]
+          }
+        },
+        {
+          "screen": {
+            "contains": [
+              "appended-w8"
+            ]
+          }
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "whiptail/deferred-terminal-rendering"
+      ],
+      "files": {
+        "log": "start-1\nstart-2\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": "",
+        "log": "start-1\nstart-2\nappended-w8\n"
+      },
+      "oracle": "Debian 13 whiptail 0.52.25 (newt) on the reference PATH, run in the same PTY (xterm-256color, fixed size) as the candidate whiptail builtin; screen contents decoded independently by pyte.",
+      "comparison": "Screen first shows only the original lines, then also shows appended-w8; status 0; the log has exactly the appended line.",
+      "requires": [
+        "whiptail",
+        "mkfifo"
+      ],
+      "setup_script": "/usr/bin/mkfifo gate\n",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-whiptail-resize-redraw",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "After the terminal shrinks from 24x80 to 14x50 while a msgbox is open, the box is redrawn consistently inside the new geometry.",
+      "script": "whiptail --msgbox 'Hello after resize' 8 30 2>res; echo \"rc=$?\" > rc\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Hello after resize"
+            ]
+          }
+        },
+        {
+          "resize": [
+            14,
+            50
+          ]
+        },
+        {
+          "screen": {
+            "contains": [
+              "Hello after resize"
+            ]
+          }
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "whiptail/deferred-terminal-rendering"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": ""
+      },
+      "oracle": "Debian 13 whiptail 0.52.25 (newt) on the reference PATH, run in the same PTY (xterm-256color, fixed size) as the candidate whiptail builtin; screen contents decoded independently by pyte.",
+      "comparison": "Text present after the resize; status 0. Geometry assertions are tightened from the reference rendering.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15
+    }
+  ]
+}

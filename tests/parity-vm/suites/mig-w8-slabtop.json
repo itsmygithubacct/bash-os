@@ -1,0 +1,541 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w8-slabtop-initial-table",
+      "loadable": "slabtop",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Interactive mode draws the initial table from the controlled slab data: a header row and five cache rows ordered by objects descending, with the tie between beta_cache and epsilon_cache (400 objects each) broken by name; USE is active/total.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount --bind \"$1\" /proc/slabinfo || exit 97\nslabtop -d 1 \nrc=$?\n[[ -n $h ]] && { kill $h 2>/dev/null; wait $h 2>/dev/null; }\necho \"rc=$rc\" > \"$2\"' x \"$PWD/slabinfo\" \"$PWD/rc\"\n",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "5": "^\\s*900\\s+900\\s+100\\.0%.*gamma_cache$",
+              "6": "^\\s*400\\s+400\\s+100\\.0%.*beta_cache$",
+              "7": "^\\s*400\\s+10\\s+2\\.5%.*epsilon_cache$",
+              "8": "^\\s*200\\s+100\\s+50\\.0%.*alpha_cache$",
+              "9": "^\\s*100\\s+50\\s+50\\.0%.*delta_cache$"
+            },
+            "contains": [
+              "OBJS\\s+ACTIVE\\s+USE\\s+OBJ SIZE\\s+SLABS\\s+OBJ/SLAB\\s+CACHE SIZE\\s+NAME"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "slabtop/deferred-interactive-pty"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 100 200 128 32 1 : tunables 0 0 0 : slabdata 4 7 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n",
+        "slabinfo2": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 1100 1200 128 32 1 : tunables 0 0 0 : slabdata 35 38 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n"
+      },
+      "kind": "contract",
+      "oracle": "Controlled /proc/slabinfo fixture bind-mounted over /proc/slabinfo in a mapped user+mount namespace inside the PTY session (procps-format version 2.1 rows, values computed by hand); expectations follow the documented slabtop sort criteria (help text: a b c l v n o p s u, default o, ties broken by name) and procps-ng slabtop(1) layout. Rows 5-9 are the five caches sorted by NUM_OBJS descending (900, 400, 400, 200, 100) with name as tie-break; the percentages are 900/900, 400/400, 10/400, 100/200 and 50/100.",
+      "comparison": "Decoded screen rows 5-9 and the column header; q exits with status 0.",
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "timeout": 20,
+      "features": [
+        "userns"
+      ]
+    },
+    {
+      "id": "mig-w8-slabtop-summary-lines",
+      "loadable": "slabtop",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "The summary lines on the interactive screen total the controlled data: 1460 of 2000 objects active (73.0%) and 5 of 5 caches active.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount --bind \"$1\" /proc/slabinfo || exit 97\nslabtop -d 1 \nrc=$?\n[[ -n $h ]] && { kill $h 2>/dev/null; wait $h 2>/dev/null; }\necho \"rc=$rc\" > \"$2\"' x \"$PWD/slabinfo\" \"$PWD/rc\"\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Active / Total Objects \\(% used\\)\\s*:\\s*1460 / 2000 \\(73\\.0%\\)",
+              "Active / Total Caches \\(% used\\)\\s*:\\s*5 / 5 \\(100\\.0%\\)"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "slabtop/deferred-interactive-pty"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 100 200 128 32 1 : tunables 0 0 0 : slabdata 4 7 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n",
+        "slabinfo2": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 1100 1200 128 32 1 : tunables 0 0 0 : slabdata 35 38 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n"
+      },
+      "kind": "contract",
+      "oracle": "Controlled /proc/slabinfo fixture bind-mounted over /proc/slabinfo in a mapped user+mount namespace inside the PTY session (procps-format version 2.1 rows, values computed by hand); expectations follow the documented slabtop sort criteria (help text: a b c l v n o p s u, default o, ties broken by name) and procps-ng slabtop(1) layout. 1460 = 100+400+900+50+10 active objects, 2000 = 200+400+900+100+400 objects; every cache has at least one active object.",
+      "comparison": "Decoded screen text; q exits with status 0.",
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "timeout": 20,
+      "features": [
+        "userns"
+      ]
+    },
+    {
+      "id": "mig-w8-slabtop-sort-cycle",
+      "loadable": "slabtop",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Each 's' advances the sort criterion along the documented list o -> p -> s -> u: pages per slab (beta and delta 2 pages, tied rows by name), object size (256,128,64,32,8) and cache utilization (beta and gamma 100%, then alpha and delta 50%, epsilon 2.5%).",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount --bind \"$1\" /proc/slabinfo || exit 97\nslabtop -d 1 \nrc=$?\n[[ -n $h ]] && { kill $h 2>/dev/null; wait $h 2>/dev/null; }\necho \"rc=$rc\" > \"$2\"' x \"$PWD/slabinfo\" \"$PWD/rc\"\n",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "5": "gamma_cache$",
+              "6": "beta_cache$",
+              "7": "epsilon_cache$",
+              "8": "alpha_cache$",
+              "9": "delta_cache$"
+            }
+          }
+        },
+        {
+          "send": "s"
+        },
+        {
+          "screen": {
+            "rows": {
+              "5": "beta_cache$",
+              "6": "delta_cache$",
+              "7": "alpha_cache$",
+              "8": "epsilon_cache$",
+              "9": "gamma_cache$"
+            }
+          }
+        },
+        {
+          "send": "s"
+        },
+        {
+          "screen": {
+            "rows": {
+              "5": "gamma_cache$",
+              "6": "alpha_cache$",
+              "7": "beta_cache$",
+              "8": "delta_cache$",
+              "9": "epsilon_cache$"
+            }
+          }
+        },
+        {
+          "send": "s"
+        },
+        {
+          "screen": {
+            "rows": {
+              "5": "beta_cache$",
+              "6": "gamma_cache$",
+              "7": "alpha_cache$",
+              "8": "delta_cache$",
+              "9": "epsilon_cache$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "slabtop/deferred-interactive-pty"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 100 200 128 32 1 : tunables 0 0 0 : slabdata 4 7 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n",
+        "slabinfo2": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 1100 1200 128 32 1 : tunables 0 0 0 : slabdata 35 38 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n"
+      },
+      "kind": "contract",
+      "oracle": "Controlled /proc/slabinfo fixture bind-mounted over /proc/slabinfo in a mapped user+mount namespace inside the PTY session (procps-format version 2.1 rows, values computed by hand); expectations follow the documented slabtop sort criteria (help text: a b c l v n o p s u, default o, ties broken by name) and procps-ng slabtop(1) layout. Order after the first s (pages per slab desc): beta, delta | alpha, epsilon, gamma; after the second (object size desc): gamma 256, alpha 128, beta 64, delta 32, epsilon 8; after the third (utilization desc): beta, gamma (100%), alpha, delta (50%), epsilon (2.5%).",
+      "comparison": "Decoded screen rows 5-9 after each key; q exits with status 0.",
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "timeout": 25,
+      "features": [
+        "userns"
+      ]
+    },
+    {
+      "id": "mig-w8-slabtop-quit-keys",
+      "loadable": "slabtop",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "q leaves the interactive display with status 0.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount --bind \"$1\" /proc/slabinfo || exit 97\nslabtop -d 1 \nrc=$?\n[[ -n $h ]] && { kill $h 2>/dev/null; wait $h 2>/dev/null; }\necho \"rc=$rc\" > \"$2\"' x \"$PWD/slabinfo\" \"$PWD/rc\"\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "gamma_cache"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "slabtop/deferred-interactive-pty"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 100 200 128 32 1 : tunables 0 0 0 : slabdata 4 7 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n",
+        "slabinfo2": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 1100 1200 128 32 1 : tunables 0 0 0 : slabdata 35 38 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n"
+      },
+      "kind": "contract",
+      "oracle": "Controlled /proc/slabinfo fixture bind-mounted over /proc/slabinfo in a mapped user+mount namespace inside the PTY session (procps-format version 2.1 rows, values computed by hand); expectations follow the documented slabtop sort criteria (help text: a b c l v n o p s u, default o, ties broken by name) and procps-ng slabtop(1) layout. ",
+      "comparison": "Status 0 written by the nested shell after slabtop returned; terminal modes restored (harness comparison).",
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "timeout": 15,
+      "features": [
+        "userns"
+      ]
+    },
+    {
+      "id": "mig-w8-slabtop-esc-exit",
+      "loadable": "slabtop",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "ESC leaves the interactive display with status 0.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount --bind \"$1\" /proc/slabinfo || exit 97\nslabtop -d 1 \nrc=$?\n[[ -n $h ]] && { kill $h 2>/dev/null; wait $h 2>/dev/null; }\necho \"rc=$rc\" > \"$2\"' x \"$PWD/slabinfo\" \"$PWD/rc\"\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "gamma_cache"
+            ]
+          }
+        },
+        {
+          "key": "escape"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "slabtop/deferred-interactive-pty"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 100 200 128 32 1 : tunables 0 0 0 : slabdata 4 7 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n",
+        "slabinfo2": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 1100 1200 128 32 1 : tunables 0 0 0 : slabdata 35 38 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n"
+      },
+      "kind": "contract",
+      "oracle": "Controlled /proc/slabinfo fixture bind-mounted over /proc/slabinfo in a mapped user+mount namespace inside the PTY session (procps-format version 2.1 rows, values computed by hand); expectations follow the documented slabtop sort criteria (help text: a b c l v n o p s u, default o, ties broken by name) and procps-ng slabtop(1) layout. ",
+      "comparison": "Status 0 after a lone ESC byte; terminal modes restored.",
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "timeout": 15,
+      "features": [
+        "userns"
+      ]
+    },
+    {
+      "id": "mig-w8-slabtop-timeout-redraw",
+      "loadable": "slabtop",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "With no key pressed the table is redrawn after the -d delay: a fixture-owned writer rewrites the controlled data (alpha_cache grows to 1200 objects) and the unattended display later shows alpha_cache first.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount --bind \"$1\" /proc/slabinfo || exit 97\n( read -t 1.5 <> \"$4\"; d=$(<\"$3\"); printf \"%s\\n\" \"$d\" > \"$1\" ) & h=$!\nslabtop -d 1\nrc=$?\nkill $h 2>/dev/null; wait $h 2>/dev/null\necho \"rc=$rc\" > \"$2\"' x \"$PWD/slabinfo\" \"$PWD/rc\" \"$PWD/slabinfo2\" \"$PWD/gate\"\n",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "5": "gamma_cache$",
+              "6": "beta_cache$",
+              "7": "epsilon_cache$",
+              "8": "alpha_cache$",
+              "9": "delta_cache$"
+            }
+          }
+        },
+        {
+          "screen": {
+            "rows": {
+              "5": "^\\s*1200\\s+1100\\s+91\\.7%.*alpha_cache$",
+              "6": "gamma_cache$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "slabtop/deferred-interactive-pty"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 100 200 128 32 1 : tunables 0 0 0 : slabdata 4 7 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n",
+        "slabinfo2": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 1100 1200 128 32 1 : tunables 0 0 0 : slabdata 35 38 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n"
+      },
+      "kind": "contract",
+      "oracle": "Controlled /proc/slabinfo fixture bind-mounted over /proc/slabinfo in a mapped user+mount namespace inside the PTY session (procps-format version 2.1 rows, values computed by hand); expectations follow the documented slabtop sort criteria (help text: a b c l v n o p s u, default o, ties broken by name) and procps-ng slabtop(1) layout. The bind-mounted file is rewritten in place; slabtop -d 1 must reread and redraw on its own timeout. 1100/1200 = 91.7%.",
+      "comparison": "Rows 5-9 before and after the rewrite, with no key sent between them; q exits with status 0.",
+      "requires": [
+        "unshare",
+        "mount",
+        "mkfifo"
+      ],
+      "setup_script": "/usr/bin/mkfifo gate\n",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ]
+    },
+    {
+      "id": "mig-w8-slabtop-resize-redraw",
+      "loadable": "slabtop",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A resize from 24 rows to 10 redraws at the new height: the footer moves to the last row and only the rows that fit (two caches) remain.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount --bind \"$1\" /proc/slabinfo || exit 97\nslabtop -d 1 \nrc=$?\n[[ -n $h ]] && { kill $h 2>/dev/null; wait $h 2>/dev/null; }\necho \"rc=$rc\" > \"$2\"' x \"$PWD/slabinfo\" \"$PWD/rc\"\n",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "5": "gamma_cache$",
+              "6": "beta_cache$",
+              "7": "epsilon_cache$",
+              "8": "alpha_cache$",
+              "9": "delta_cache$"
+            },
+            "contains": [
+              "q/ESC exits"
+            ]
+          }
+        },
+        {
+          "resize": [
+            10,
+            70
+          ]
+        },
+        {
+          "screen": {
+            "rows": {
+              "-1": "q/ESC exits",
+              "5": "gamma_cache$",
+              "6": "beta_cache$"
+            },
+            "lacks": [
+              "delta_cache$",
+              "alpha_cache$"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "slabtop/deferred-interactive-pty"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 100 200 128 32 1 : tunables 0 0 0 : slabdata 4 7 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n",
+        "slabinfo2": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 1100 1200 128 32 1 : tunables 0 0 0 : slabdata 35 38 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n"
+      },
+      "kind": "contract",
+      "oracle": "Controlled /proc/slabinfo fixture bind-mounted over /proc/slabinfo in a mapped user+mount namespace inside the PTY session (procps-format version 2.1 rows, values computed by hand); expectations follow the documented slabtop sort criteria (help text: a b c l v n o p s u, default o, ties broken by name) and procps-ng slabtop(1) layout. The table area is the screen height minus 8 rows (procps slabtop fills the available height); at 10 rows two caches fit.",
+      "comparison": "Decoded screen after the resize; q exits with status 0.",
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "timeout": 25,
+      "features": [
+        "userns"
+      ]
+    },
+    {
+      "id": "mig-w8-slabtop-terminal-restore",
+      "loadable": "slabtop",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "On exit the terminal is restored: the alternate screen entered at start is left again, the cursor shown again, and canonical echoing mode returns.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount --bind \"$1\" /proc/slabinfo || exit 97\nslabtop -d 1 \nrc=$?\n[[ -n $h ]] && { kill $h 2>/dev/null; wait $h 2>/dev/null; }\necho \"rc=$rc\" > \"$2\"' x \"$PWD/slabinfo\" \"$PWD/rc\"\n",
+      "steps": [
+        {
+          "expect": "\\x1b\\[\\?(1049|1047|47)h"
+        },
+        {
+          "screen": {
+            "contains": [
+              "gamma_cache"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        },
+        {
+          "expect": "(\\x1b\\[\\?25h[\\s\\S]*\\x1b\\[\\?(1049|1047|47)l|\\x1b\\[\\?(1049|1047|47)l[\\s\\S]*\\x1b\\[\\?25h)"
+        },
+        {
+          "termios": {
+            "set": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "slabtop/deferred-interactive-pty"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 100 200 128 32 1 : tunables 0 0 0 : slabdata 4 7 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n",
+        "slabinfo2": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 1100 1200 128 32 1 : tunables 0 0 0 : slabdata 35 38 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n"
+      },
+      "kind": "contract",
+      "oracle": "Controlled /proc/slabinfo fixture bind-mounted over /proc/slabinfo in a mapped user+mount namespace inside the PTY session (procps-format version 2.1 rows, values computed by hand); expectations follow the documented slabtop sort criteria (help text: a b c l v n o p s u, default o, ties broken by name) and procps-ng slabtop(1) layout. xterm control sequences: DECSET 1049/1047/47 enter and DECRST leave the alternate screen; DECTCEM ?25l/?25h hide and show the cursor. Termios read from the PTY.",
+      "comparison": "Raw bytes contain an alternate-screen enter before the table and both a cursor-show and an alternate-screen-leave after q; ICANON and ECHO cleared during the display and set afterwards.",
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "timeout": 20,
+      "features": [
+        "userns"
+      ]
+    },
+    {
+      "id": "mig-w8-slabtop-procps-interactive",
+      "loadable": "slabtop",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Both procps-ng slabtop 4.0.4 and the candidate show the same summary line, column header and five cache rows for the controlled data in interactive mode and leave with status 0 on q.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount --bind \"$1\" /proc/slabinfo || exit 97\nslabtop -d 1 \nrc=$?\n[[ -n $h ]] && { kill $h 2>/dev/null; wait $h 2>/dev/null; }\necho \"rc=$rc\" > \"$2\"' x \"$PWD/slabinfo\" \"$PWD/rc\"\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Active / Total Objects \\(% used\\)\\s*:\\s*1460 / 2000 \\(73\\.0%\\)",
+              "OBJS\\s+ACTIVE\\s+USE\\s+OBJ SIZE\\s+SLABS\\s+OBJ/SLAB\\s+CACHE SIZE\\s+NAME",
+              "gamma_cache",
+              "beta_cache",
+              "epsilon_cache",
+              "alpha_cache",
+              "delta_cache"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "slabtop/deferred-interactive-pty"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 100 200 128 32 1 : tunables 0 0 0 : slabdata 4 7 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n",
+        "slabinfo2": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 1100 1200 128 32 1 : tunables 0 0 0 : slabdata 35 38 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n"
+      },
+      "oracle": "procps-ng slabtop 4.0.4 from the reference PATH, fed the same bind-mounted /proc/slabinfo fixture in a mapped user+mount namespace; screen compared semantically (procps and the candidate lay the rows out differently).",
+      "comparison": "Both sides must show the summary total, the column header and all five cache names, and exit 0 with terminal modes restored.",
+      "requires": [
+        "unshare",
+        "mount",
+        "slabtop"
+      ],
+      "timeout": 20,
+      "features": [
+        "userns"
+      ]
+    }
+  ]
+}

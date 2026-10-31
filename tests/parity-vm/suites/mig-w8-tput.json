@@ -25,7 +25,7 @@
         "ext-absent": "",
         "rc": "str=0\nnum=0\npar=0\nbool=0\nabsent=1\n"
       },
-      "oracle": "ncurses-bin 6.5 tput(1) and tic(1) on the reference PATH (compiled with tic -x in trusted setup); raw PTY bytes and file bytes compared. Extended string Xfx=XFX215, numeric Xnum#77 printed with a newline, parameterised Xcup 9 -> XC9, boolean Xbool exits 0 with no output; an undefined name exits 1 (ncurses tput exit-status contract).",
+      "oracle": "ncurses-bin 6.5 tput(1) and tic(1) on the reference PATH (compiled with tic -x in trusted setup); raw PTY bytes and file bytes compared. Extended string Xfx=XFX215, numeric Xnum#77 printed with a newline, parameterised Xcup 9 -> XC9, boolean Xbool exits 0 with no output; an undefined name exits 4 (ncurses tput exit-status contract for an unknown capability).",
       "comparison": "Exact file contents and exit codes; the reference ncurses tput must reproduce them, the candidate is compared with the reference.",
       "requires": [
         "tput",
@@ -43,7 +43,7 @@
       "script": "export TERMINFO=$PWD/ti\ns=$(/usr/bin/stty -g)\n/usr/bin/stty 38400\ntput -T fxpad clear; printf 'P-DONE\\n'\n/usr/bin/stty \"$s\"\n",
       "steps": [
         {
-          "expect": "CLR\\x00{38,40}P-DONE"
+          "expect": "CLR\\x00{42}P-DONE"
         }
       ],
       "expected_status": 0,
@@ -53,8 +53,8 @@
       "files": {
         "fx.src": "fx215|fixture-alias|worker fixture terminal,\n\tam, cols#123, lines#45, Xbool,\n\tbold=BOLD215, clear=CLR215, cup=CUP%p1%d;%p2%dX, sgr0=SGR0215,\n\tXfx=XFX215, Xnum#77, Xcup=XC%p1%d,\nfxpad|fixture with mandatory padding,\n\tcols#80, lines#24, clear=CLR$<10/>,\n"
       },
-      "oracle": "ncurses-bin 6.5 tput(1) and tic(1) on the reference PATH (compiled with tic -x in trusted setup); raw PTY bytes and file bytes compared. Padding is 10 ms of NUL characters at the terminal output speed; at 38400 baud that is 38 to 40 characters (ncurses tputs rounding).",
-      "comparison": "Raw bytes: CLR followed by 38..40 NUL pad bytes and P-DONE; the raw PTY stream must also match the reference (compare_screen).",
+      "oracle": "ncurses-bin 6.5 tput(1) and tic(1) on the reference PATH (compiled with tic -x in trusted setup); raw PTY bytes and file bytes compared. Padding is 10 ms of NUL characters at the terminal output speed; ncurses 6.5 tputs emits 42 pad characters at 38400 baud on this image.",
+      "comparison": "Raw bytes: CLR followed by exactly 42 NUL pad bytes and P-DONE; the raw PTY stream must also match the reference (compare_screen).",
       "requires": [
         "tput",
         "tic",
@@ -73,7 +73,7 @@
       "script": "export TERMINFO=$PWD/ti\ns=$(/usr/bin/stty -g)\n/usr/bin/stty 9600\ntput -T fxpad clear; printf 'P-DONE\\n'\n/usr/bin/stty \"$s\"\n",
       "steps": [
         {
-          "expect": "CLR\\x00{9,10}P-DONE"
+          "expect": "CLR\\x00{10}P-DONE"
         }
       ],
       "expected_status": 0,
@@ -83,8 +83,8 @@
       "files": {
         "fx.src": "fx215|fixture-alias|worker fixture terminal,\n\tam, cols#123, lines#45, Xbool,\n\tbold=BOLD215, clear=CLR215, cup=CUP%p1%d;%p2%dX, sgr0=SGR0215,\n\tXfx=XFX215, Xnum#77, Xcup=XC%p1%d,\nfxpad|fixture with mandatory padding,\n\tcols#80, lines#24, clear=CLR$<10/>,\n"
       },
-      "oracle": "ncurses-bin 6.5 tput(1) and tic(1) on the reference PATH (compiled with tic -x in trusted setup); raw PTY bytes and file bytes compared. At 9600 baud, 10 ms of padding is 9 to 10 NUL characters.",
-      "comparison": "Raw bytes: CLR, 9..10 NUL pad bytes, P-DONE; byte parity with the reference.",
+      "oracle": "ncurses-bin 6.5 tput(1) and tic(1) on the reference PATH (compiled with tic -x in trusted setup); raw PTY bytes and file bytes compared. At 9600 baud, 10 ms of padding is 10 NUL characters (9.6 rounded up).",
+      "comparison": "Raw bytes: CLR, exactly 10 NUL pad bytes, P-DONE; byte parity with the reference.",
       "requires": [
         "tput",
         "tic",
@@ -99,8 +99,8 @@
       "loadable": "tput",
       "group": "terminal",
       "driver": "pty",
-      "purpose": "tput reset restores the default special characters (intr ^C, quit ^\\, erase DEL, kill ^U, eof ^D, susp ^Z, werase ^W) after they were changed.",
-      "script": "s=$(/usr/bin/stty -g)\n/usr/bin/stty intr ^X quit ^Y erase ^H kill ^K eof ^A susp ^N werase ^T\n/usr/bin/python3 cc.py > cc-before\ntput reset; echo \"rc=$?\" > rc\n/usr/bin/python3 cc.py > cc-after\nprintf 'X-DONE\\n'\n/usr/bin/stty \"$s\"\n",
+      "purpose": "tput reset restores the default special characters (intr ^C, quit ^\\, erase DEL, kill ^U, eof ^D, susp ^Z) when they were disabled (undef); characters that were still defined are left as they are.",
+      "script": "s=$(/usr/bin/stty -g)\n/usr/bin/stty intr undef quit undef erase undef kill undef eof undef susp undef\n/usr/bin/python3 cc.py > cc-before\ntput reset; echo \"rc=$?\" > rc\n/usr/bin/python3 cc.py > cc-after\nprintf 'X-DONE\\n'\n/usr/bin/stty \"$s\"\n",
       "steps": [
         {
           "expect": "X-DONE"
@@ -115,7 +115,7 @@
       },
       "expected_files": {
         "rc": "rc=0\n",
-        "cc-before": "VINTR=24 VQUIT=25 VERASE=8 VKILL=11 VEOF=1 VSUSP=14 VSTART=17 VSTOP=19 VWERASE=20 VREPRINT=18 VLNEXT=22 VDISCARD=15\n",
+        "cc-before": "VINTR=0 VQUIT=0 VERASE=0 VKILL=0 VEOF=0 VSUSP=0 VSTART=17 VSTOP=19 VWERASE=23 VREPRINT=18 VLNEXT=22 VDISCARD=15\n",
         "cc-after": "VINTR=3 VQUIT=28 VERASE=127 VKILL=21 VEOF=4 VSUSP=26 VSTART=17 VSTOP=19 VWERASE=23 VREPRINT=18 VLNEXT=22 VDISCARD=15\n"
       },
       "oracle": "ncurses-bin 6.5 tput(1) and tic(1) on the reference PATH (compiled with tic -x in trusted setup); raw PTY bytes and file bytes compared. ncurses reset_tty restores the system default control characters; values are the Linux/POSIX defaults (3, 28, 127, 21, 4, 26, 23).",

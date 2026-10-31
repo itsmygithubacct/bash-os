@@ -77,6 +77,7 @@
       },
       "oracle": "Debian 13 vi (vim.tiny 9.1) on the reference PATH as vi; cursor-key bytes chosen by the PTY driver from the DECCKM mode the program selected; file results compared byte for byte. Expected file derived by hand from vi motions: right,right,x -> abdef; End,x -> abde; left,x -> abe; Home,x -> be; down,right,x deletes h on line 2; up,x -> b.",
       "comparison": "Exact resulting file. Both builds must produce the independently derived text b / gijkl.",
+      "setup_script": "chmod 600 note\n",
       "timeout": 15
     },
     {
@@ -137,8 +138,12 @@
       "files": {
         "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\nline-081\nline-082\nline-083\nline-084\nline-085\nline-086\nline-087\nline-088\nline-089\nline-090\nline-091\nline-092\nline-093\nline-094\nline-095\nline-096\nline-097\nline-098\nline-099\nline-100\n"
       },
+      "expected_files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\nline-081\nline-082\nline-083\nline-084\nline-085\nline-086\nline-087\nline-088\nline-089\nline-090\nline-091\nline-092\nline-093\nline-094\nline-095\nline-096\nline-097\nline-098\nline-099\nline-100\n"
+      },
       "oracle": "Debian 13 vi (vim.tiny 9.1) on the reference PATH as vi; cursor-key bytes chosen by the PTY driver from the DECCKM mode the program selected; file results compared byte for byte. The first page-down screen must start near line 20-23 (a screen minus overlap), checked as a screen row. The final file is compared with the reference vi.",
-      "comparison": "Screen row 0 after the first Page Down must be in the vim range line-018..line-023; the resulting file is compared between reference vi and candidate (parity on the file tree).",
+      "comparison": "Screen row 0 after the first Page Down must be in the vim range line-018..line-023; dd then removes line-039, the line the reference vi had left the cursor on after page-down, page-down, page-up; the oracle for that line is the reference vi run.",
+      "setup_script": "chmod 600 note\n",
       "timeout": 15
     },
     {
@@ -200,6 +205,7 @@
       },
       "oracle": "Debian 13 vi (vim.tiny 9.1) on the reference PATH as vi; cursor-key bytes chosen by the PTY driver from the DECCKM mode the program selected; file results compared byte for byte. vim keeps the cursor line visible after SIGWINCH; the deleted line is derived from the 28G jump, not from candidate output.",
       "comparison": "After the resize the screen contains line-28 and no longer line-01; dd must delete line 28 from the file.",
+      "setup_script": "chmod 600 note\n",
       "timeout": 15
     },
     {
@@ -250,10 +256,11 @@
         "note": "one\ntwo\nthree\nfour\n"
       },
       "expected_files": {
-        "note": "one\ntwo\nour\n"
+        "note": "one\ntwo\nfur\n"
       },
-      "oracle": "Debian 13 vi (vim.tiny 9.1) on the reference PATH as vi; cursor-key bytes chosen by the PTY driver from the DECCKM mode the program selected; file results compared byte for byte. Expected: dd on line 3 leaves one,two,four; right then x deletes the f of four. Hand-derived.",
-      "comparison": "Exact file text one/two/our; vt100 selects a different key table than the default xterm-256color.",
+      "oracle": "Debian 13 vi (vim.tiny 9.1) on the reference PATH as vi; cursor-key bytes chosen by the PTY driver from the DECCKM mode the program selected; file results compared byte for byte. Expected: dd on line 3 leaves one,two,four; right moves to the o of four and x deletes it, leaving fur. Hand-derived.",
+      "comparison": "Exact file text one/two/fur; vt100 selects a different key table than the default xterm-256color.",
+      "setup_script": "chmod 600 note\n",
       "timeout": 15
     }
   ]
