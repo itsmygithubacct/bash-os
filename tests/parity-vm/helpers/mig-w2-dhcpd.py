@@ -50,6 +50,7 @@ class Client:
         self.out.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.out.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, b'veth1')
         self.out.bind((ip or '0.0.0.0', relay_port or 68))
+        self.default_dst = (SERVER, 67) if ip else ('255.255.255.255', 67)
         self.frames = []
 
     def drain(self, wait):
@@ -68,9 +69,9 @@ class Client:
                 self.frames.append(info)
         return True
 
-    def send(self, label, payload, dst):
+    def send(self, label, payload, dst=None):
         self.frames = []
-        self.out.sendto(payload, dst)
+        self.out.sendto(payload, dst or self.default_dst)
         return label
 
     def wait_reply(self, timeout=2.0, want_type=None):
@@ -87,7 +88,7 @@ class Client:
                 return None
             self.drain(left)
 
-    def exchange(self, label, payload, dst=(SERVER, 67), timeout=2.0, want_type=None, **extra):
+    def exchange(self, label, payload, dst=None, timeout=2.0, want_type=None, **extra):
         self.send(label, payload, dst)
         reply = self.wait_reply(timeout, want_type)
         entry = {'label': label, 'sent': payload.hex(), 'reply': reply, 'wall': time.time()}
@@ -167,7 +168,7 @@ def peer_main(scenario, sync, go, arg):
             client.log.append({'label': 'leases-after-ack', 'text': read_text(state['leases']), 'wall': time.time()})
             if ack and scenario == 'decline-lease':
                 dec = message(4, A, 0x1002, extra=[(50, socket.inet_aton(yi)), (54, socket.inet_aton(SERVER))])
-                client.send('decline-a', dec, (SERVER, 67))
+                client.send('decline-a', dec)
                 time.sleep(0.5)
                 client.log.append({'label': 'leases-after-decline', 'text': read_text(state['leases']), 'wall': time.time()})
             if ack and scenario == 'release-lease':
@@ -194,8 +195,7 @@ def peer_main(scenario, sync, go, arg):
             offer = client.exchange('discover-a', message(1, A, 0x3001), want_type=2)
             yi = msg_of(offer)['yiaddr'] if offer else None
             if offer:
-                client.send('decline-a', message(4, A, 0x3002, extra=[(50, yi), (54, socket.inet_aton(SERVER))]),
-                            (SERVER, 67))
+                client.send('decline-a', message(4, A, 0x3002, extra=[(50, yi), (54, socket.inet_aton(SERVER))]))
                 time.sleep(0.5)
                 client.exchange('discover-b-during-quarantine', message(1, B, 0x3003), want_type=2)
                 time.sleep(3.0)
@@ -260,6 +260,27 @@ def parse_leases(text):
     return rows
 
 
+def verify_pxe_gating(report):
+    nxt = socket.inet_aton('192.0.2.99')
+    for name in ('none', 'msft', 'pxe'):
+        text = read_text('reply-%s.hex' % name)
+        report.check('reply-' + name + '-produced', bool(text and text.strip()), text)
+        if not (text and text.strip()):
+            continue
+        m = d4.d4_parse(bytes.fromhex(text.strip()))
+        if name != 'pxe':
+            report.check(name + '-siaddr-not-next-server', m['siaddr'] != nxt, ip_of(m, 'siaddr'))
+            report.check(name + '-no-option-66-67-43', all(d4.opt(m, c) is None for c in (66, 67, 43)),
+                         [c for c, _ in m['opts'] if c in (66, 67, 43)])
+            report.check(name + '-bootp-file-empty', m['file'] == bytes(128), m['file'][:16])
+        else:
+            report.check('pxe-siaddr-next-server', m['siaddr'] == nxt, ip_of(m, 'siaddr'))
+            report.check('pxe-option-66', d4.opt(m, 66) == b'tftp.lab.test', d4.opt(m, 66))
+            report.check('pxe-option-67', d4.opt(m, 67) == b'pxelinux.0', d4.opt(m, 67))
+            report.check('pxe-bootp-file', m['file'].rstrip(b'\0') == b'pxelinux.0', m['file'][:16])
+
+
+
 def main(argv):
     if argv[1] == 'peer':
         peer_main(argv[2], argv[3], argv[4], argv[5] if len(argv) > 5 else None)
@@ -275,6 +296,10 @@ def main(argv):
     if check == 'file-contains':
         text = read_text(argv[3]) or ''
         report.check('file-' + argv[3] + '-has-' + argv[4].replace(' ', '_'), argv[4] in text, text.strip()[:200])
+        report.emit(check)
+        return 0
+    if check == 'pxe-gating':
+        verify_pxe_gating(report)
         report.emit(check)
         return 0
     with open(LOG) as handle:
@@ -375,24 +400,6 @@ def main(argv):
             report.check('reply-from-server-port-67', r['ip_src'] == SERVER and r['sport'] == 67, (r['ip_src'], r['sport']))
             report.check('reply-giaddr-echoed', ip_of(m, 'giaddr') == '192.0.2.5', ip_of(m, 'giaddr'))
             report.check('reply-is-offer', d4.opt(m, 53) == b'\x02', d4.opt(m, 53))
-    elif check == 'pxe-gating':
-        nxt = socket.inet_aton('192.0.2.99')
-        for name in ('none', 'msft', 'pxe'):
-            text = read_text('reply-%s.hex' % name)
-            report.check('reply-' + name + '-produced', bool(text and text.strip()), text)
-            if not (text and text.strip()):
-                continue
-            m = d4.d4_parse(bytes.fromhex(text.strip()))
-            if name != 'pxe':
-                report.check(name + '-siaddr-not-next-server', m['siaddr'] != nxt, ip_of(m, 'siaddr'))
-                report.check(name + '-no-option-66-67-43', all(d4.opt(m, c) is None for c in (66, 67, 43)),
-                             [c for c, _ in m['opts'] if c in (66, 67, 43)])
-                report.check(name + '-bootp-file-empty', m['file'] == bytes(128), m['file'][:16])
-            else:
-                report.check('pxe-siaddr-next-server', m['siaddr'] == nxt, ip_of(m, 'siaddr'))
-                report.check('pxe-option-66', d4.opt(m, 66) == b'tftp.lab.test', d4.opt(m, 66))
-                report.check('pxe-option-67', d4.opt(m, 67) == b'pxelinux.0', d4.opt(m, 67))
-                report.check('pxe-bootp-file', m['file'].rstrip(b'\0') == b'pxelinux.0', m['file'][:16])
     elif check == 'proxy':
         for label, want in (('proxy-discover', 2), ('proxy-request', 5)):
             e = entry(log, label)
