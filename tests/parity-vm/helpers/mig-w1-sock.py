@@ -32,6 +32,7 @@ libc = ctypes.CDLL(None, use_errno=True)
 
 class World:
     def __init__(self):
+        libc.prctl(4, 1, 0, 0, 0)  # PR_SET_DUMPABLE=1: userns creation left the process non-dumpable
         L.seed([["link", "set", "lo", "up"]])
         self.socks = []
         self.t4l = self.tcp_listen(socket.AF_INET, "127.0.0.1", 7)
@@ -224,13 +225,18 @@ def norm_ss_rows(rows, key_net="netid", numeric_unix=False):
     return out
 
 
-def parse_iproute2_ss(text):
+def parse_iproute2_ss(text, default_netid="udp"):
+    """iproute2 omits the Netid column when one socket type is selected."""
     rows = []
-    for ln in text.splitlines():
+    lines = text.splitlines()
+    has_netid = bool(lines) and lines[0].startswith("Netid")
+    for ln in lines[1:]:
         t = ln.split()
-        if len(t) < 6 or t[0] == "Netid":
-            continue
-        rows.append({"netid": t[0], "state": t[1], "rq": int(t[2]), "sq": int(t[3]), "local": t[4], "peer": t[5]})
+        if has_netid:
+            if len(t) >= 6:
+                rows.append({"netid": t[0], "state": t[1], "rq": int(t[2]), "sq": int(t[3]), "local": t[4], "peer": t[5]})
+        elif len(t) >= 5:
+            rows.append({"netid": default_netid, "state": t[0], "rq": int(t[1]), "sq": int(t[2]), "local": t[3], "peer": t[4]})
     return rows
 
 
@@ -295,7 +301,7 @@ def sc_ns_states():
     eqset("netstat -ul shows only unconnected UDP sockets", inet_set_ns(parse_netstat(out)), {r for r in want if r[0].startswith("udp") and r[1] == "UNCONN"})
     rc, out, err = cand_ns("-xl")
     rows = parse_netstat(out)
-    L.check("netstat -xl shows only the unix listener", len(rows) == 1 and rows[0]["local"] == w.xpath and rows[0]["state"] == "LISTENING", str(rows))
+    L.check("netstat -xl shows only the unix listener", len(rows) == 1 and rows[0]["local"] == w.xpath and rows[0]["state"] in ("LISTEN", "LISTENING"), str(rows))
     rc, out, err = cand_ns("-xa")
     L.check("netstat -xa shows every unix socket (listener, pair, dgram)", len(parse_netstat(out)) == 4, out)
     w.close()
@@ -399,8 +405,7 @@ def spawn_owner(mode):
         s = socket.socket()
         s.bind(("127.0.0.1", 0))
         s.listen(3)
-        if mode == "hidden":
-            libc.prctl(4, 0, 0, 0, 0)  # PR_SET_DUMPABLE=0
+        libc.prctl(4, 0 if mode == "hidden" else 1, 0, 0, 0)  # PR_SET_DUMPABLE
         os.write(w, json.dumps({"port": s.getsockname()[1], "fd": s.fileno()}).encode() + b"\n")
         signal.pause()
         os._exit(0)
@@ -429,7 +434,7 @@ def sc_annot_ss():
             return next((r for r in rows if r["local"].endswith(":%d" % port) and r["state"] == "LISTEN"), None)
         ours = row(w.t4l.getsockname()[1])
         L.check("ss -p annotates the fixture-owned listener with its pid and fd", ours is not None and (comm, str(me), str(w.t4l.fileno())) in users(ours), str(ours))
-        acc = [r for r in rows if r["local"] == w.ep(w.t4a)]
+        acc = [r for r in rows if r["local"] == w.ep(w.t4a) and r["state"] == "ESTAB"]
         L.check("ss -p annotates the accepted connection with its own descriptor", acc and (comm, str(me), str(w.t4a.fileno())) in users(acc[0]), str(acc))
         cli = [r for r in rows if r["local"] == w.ep(w.t4c)]
         L.check("ss -p annotates the client end with its own descriptor", cli and (comm, str(me), str(w.t4c.fileno())) in users(cli[0]), str(cli))
@@ -550,7 +555,7 @@ def sc_ns_unix():
     w.xc.send(b"abcde")
     rc, out, err = cand_ns("-x")
     rows = parse_netstat(out)
-    recv = [r for r in rows if r["proto"] == "u_str" and r["state"] == "CONNECTED" and r["rq"] == 5]
+    recv = [r for r in rows if r["proto"] == "u_str" and r["state"] in ("CONNECTED", "ESTAB") and r["rq"] == 5]
     L.check("netstat -x Recv-Q of the receiving end equals the 5 queued bytes", len(recv) == 1, str(rows))
     w.close()
 
