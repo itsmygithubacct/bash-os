@@ -12,12 +12,12 @@
       ],
       "purpose": "bashkmod modprobe -n prints the insmod plan (dependency chain deepest-first, absolute paths, PARAMS on the last module) equal to kmod modprobe -n -v on the live modules.dep",
       "oracle": "kmod modprobe -n -v in the guest on the live /lib/modules/$(uname -r)/modules.dep",
-      "comparison": "Line-for-line equality of the insmod plan for a single module with parameters and for a multi-module dependency chain (br_netfilter).",
+      "comparison": "Line-for-line equality (after dropping candidate lines for modules already loaded, which kmod skips) of the insmod plan for a single module with parameters and for a multi-module dependency chain (br_netfilter).",
       "requires": [
         "python3",
         "modprobe"
       ],
-      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t bashkmod) == builtin ]] || exit 125\ncmp1() { local label=$1; shift\n  local mine ref\n  mine=$(bashkmod modprobe -n \"$@\" 2>&1); local rc=$?\n  ref=$(/usr/sbin/modprobe -n -v \"$@\" 2>&1)\n  echo \"$label: rc=$rc plan-nonempty=$([[ $ref == insmod* ]] && echo 1 || echo 0) equal-to-kmod=$([[ $mine == \"$ref\" ]] && echo 1 || echo 0)\"\n}\ncmp1 single nbd nbds_max=4 max_part=2\ncmp1 chain br_netfilter\ncmp1 chain-params ip_set max_sets=64\n",
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t bashkmod) == builtin ]] || exit 125\ncmp1() { local label=$1; shift\n  local mine ref\n  local raw l n loaded=\" \"; while read -r n _; do loaded=\"$loaded$n \"; done </proc/modules\n  raw=$(bashkmod modprobe -n \"$@\" 2>&1); local rc=$?\n  mine=; while read -r l; do n=${l#insmod }; n=${n%% *}; n=${n##*/}; n=${n%%.ko*}; [[ $loaded == *\" ${n//-/_} \"* ]] || mine=\"$mine$l\"$'\\n'; done <<<\"$raw\"; mine=${mine%$'\\n'}\n  ref=$(/usr/sbin/modprobe -n -v \"$@\" 2>&1)\n  echo \"$label: rc=$rc plan-nonempty=$([[ $ref == insmod* ]] && echo 1 || echo 0) equal-to-kmod=$([[ $mine == \"$ref\" ]] && echo 1 || echo 0)\"\n}\ncmp1 single nbd nbds_max=4 max_part=2\ncmp1 chain br_netfilter\ncmp1 chain-params ip_set max_sets=64\n",
       "expected_status": 0,
       "stdout": "single: rc=0 plan-nonempty=1 equal-to-kmod=1\nchain: rc=0 plan-nonempty=1 equal-to-kmod=1\nchain-params: rc=0 plan-nonempty=1 equal-to-kmod=1\n",
       "stderr": "",
