@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w1-probe-net-env",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Probe which namespace and kernel facilities a mapped user namespace provides to network fixtures.",
+      "oracle": "Raw capability probe output retained in evidence; carries no behavioral expectation.",
+      "requires": [
+        "unshare",
+        "ip",
+        "iptables",
+        "python3",
+        "tcpdump"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "/usr/bin/unshare --user --map-root-user --net --mount --uts \"$BASH\" --noprofile --norc -c '\nexport PATH=/usr/sbin:/usr/bin:/sbin:/bin\necho \"== id\"; id\necho \"== builtins\"; for b in ip fw ping ss netstat netids pcap wg; do echo \"$b: $(type -t $b)\"; done\necho \"== link types\"\nfor t in dummy veth wireguard bridge vlan; do\n  if [ $t = veth ]; then ip link add p0 type veth peer name p1; else ip link add x$t type $t; fi; echo \"$t rc=$?\"\ndone\necho \"== iptables\"; iptables -V; iptables -A OUTPUT -j DROP; echo \"iptables-append rc=$?\"; iptables -S\nip6tables -A OUTPUT -j DROP; echo \"ip6tables-append rc=$?\"\necho \"== nft cli\"; command -v nft; echo rc=$?\necho \"== sysctl ping range\"; echo \"0 2000\" > /proc/sys/net/ipv4/ping_group_range; echo rc=$?; cat /proc/sys/net/ipv4/ping_group_range\necho \"== packet sock\"; python3 -c \"\nimport socket\ns=socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.htons(3)); print(\\\"af_packet ok\\\")\ns=socket.socket(socket.AF_INET,socket.SOCK_RAW,socket.IPPROTO_ICMP); print(\\\"raw icmp ok\\\")\ns=socket.socket(socket.AF_INET,socket.SOCK_DGRAM,socket.IPPROTO_ICMP); print(\\\"dgram icmp ok\\\")\n\"\necho \"== tools\"; ls /usr/sbin/tcpdump /usr/bin/ping /usr/bin/traceroute /usr/bin/ss /usr/sbin/ip /usr/bin/ip /usr/bin/wg /usr/sbin/conntrack 2>&1\necho \"== tcpdump -D\"; tcpdump -D 2>&1 | head\necho \"== modules\"; head -c 600 /proc/modules; ls /sys/module | tr \"\\n\" \" \" | head -c 1500; echo\necho \"== nf\"; ls /proc/net | tr \"\\n\" \" \"; echo; ls /proc/sys/net/netfilter 2>&1 | head\necho \"== ip -V\"; ip -V; cat /proc/net/protocols | head -30\necho \"== wg genl\"; ip link show xwireguard 2>&1\n'\n",
+      "stdout": "probe\n",
+      "expected_status": 0,
+      "timeout": 30
+    }
+  ]
+}
