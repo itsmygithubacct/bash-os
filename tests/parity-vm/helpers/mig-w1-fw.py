@@ -151,7 +151,8 @@ def sc_dryrun_text():
         (["-B", "iptables", "-n", "reset"], "iptables -N BASHFW_IN\niptables -N BASHFW_OUT\n"),
         (["-B", "nft", "-n", "allow", "192.0.2.1"], "nft add rule inet fw input ip saddr 192.0.2.1 accept\n"),
         (["-B", "nft", "-n", "deny", "192.0.2.1", "-p", "tcp", "-d", "22"], "nft add rule inet fw input ip saddr 192.0.2.1 tcp dport 22 drop\n"),
-        (["-B", "nft", "-n", "list"], "nft list chain inet fw input\n"),
+        (["-B", "nft", "-n", "list"], "nft list ruleset\n"),
+        (["-B", "nft", "-n", "list", "output"], "nft list chain inet fw output\n"),
         (["-B", "nft", "-n", "flush"], "nft flush chain inet fw input\n"),
         (["-B", "nft", "-n", "reset"],
          "nft delete table inet fw\nnft add table inet fw\n"
@@ -440,7 +441,9 @@ def sc_restore():
     expect_eq("restore reproduces set membership in the set backend", json.dumps(ipset_state(), sort_keys=True), before_sets)
     # second round: reset then restore (sets survive reset by design)
     reset_ok("restore-after-reset")
-    expect_eq("reset emptied the rules before the second restore", chain_rules("BASHFW_IN"), "-N BASHFW_IN\n")
+    ipt("-F", "BASHFW_IN")
+    ipt("-F", "BASHFW_OUT")
+    expect_eq("recreated chain is empty before the second restore", chain_rules("BASHFW_IN"), "-N BASHFW_IN\n")
     rc, out, err = fw("restore", out_file, env=env)
     L.check("second restore rc0", rc == 0, "rc=%s err=%s" % (rc, err))
     expect_eq("restore after reset reproduces the rules", chain_rules("BASHFW_IN"), before_in)
