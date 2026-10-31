@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-dmesg-since-until-root",
+      "loadable": "dmesg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dmesg/live-ring-buffer"
+      ],
+      "purpose": "--since/--until on the live /dev/kmsg ring select records at/after and at/before microsecond-exact timestamps read independently from the raw device; a ~900-byte record is returned intact",
+      "oracle": "Independent raw /dev/kmsg timestamps (python os.read, one record per read) of three seeded user-facility records, and util-linux dmesg for the long record",
+      "comparison": "Exact inclusive since/until boundaries (equal bounds select one record, one microsecond outside selects none) and the long record against util-linux dmesg.",
+      "requires": [
+        "python3",
+        "dmesg",
+        "cut",
+        "mkfifo",
+        "tail"
+      ],
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t dmesg) == builtin ]] || exit 125\nlvl=$(/usr/bin/cut -f1 /proc/sys/kernel/printk)\ntrap 'echo $lvl > /proc/sys/kernel/printk' EXIT\n/usr/bin/mkfifo wait.fifo; exec 8<>wait.fifo\npause() { read -t \"$1\" -u 8; }\n/usr/bin/dmesg -C || { echo SETUP-FAILED; exit 97; }\nfor i in 1 2 3; do printf '<14>w6-seed: record %s\\n' $i >/dev/kmsg; pause 0.3; done\n/usr/bin/python3 -I - >\"$HOME/ts\" <<'PY'\nimport os\nfd = os.open(\"/dev/kmsg\", os.O_RDONLY | os.O_NONBLOCK)\nts = []\nwhile True:\n    try:\n        rec = os.read(fd, 8192).decode()\n    except BlockingIOError:\n        break\n    head, _, text = rec.partition(\";\")\n    if text.startswith(\"w6-seed: record\"):\n        us = int(head.split(\",\")[2])\n        ts.append(us)\nprint(\" \".join(\"%d.%06d\" % (u // 1000000, u % 1000000) for u in ts), \" \".join(str(u) for u in ts))\nPY\nread -r a b c u1 u2 u3 <\"$HOME/ts\"\nfmt() { local us=$1; printf '%d.%06d' $((us / 1000000)) $((us % 1000000)); }\nshow() { local o; o=$(\"$@\" 2>&1); echo \"[${o//$'\\n'/|}]\"; }\necho \"ordered=$([[ $u1 -lt $u2 && $u2 -lt $u3 ]] && echo 1 || echo 0) count=$(( $# + 3 ))\"\necho \"exact: $(show dmesg -f user -t --since $(fmt $u2) --until $(fmt $u2))\"\necho \"since-t2: $(show dmesg -f user -t --since $(fmt $u2))\"\necho \"until-t2: $(show dmesg -f user -t --until $(fmt $u2))\"\necho \"after-t3: $(show dmesg -f user -t --since $(fmt $((u3 + 1))))\"\necho \"before-t1: $(show dmesg -f user -t --until $(fmt $((u1 - 1))))\"\necho \"equals-bounds-eq-u1-u3: $(show dmesg -f user -t --since $(fmt $u1) --until $(fmt $u3))\"\nlong=$(printf 'x%.0s' {1..900})\nprintf '<14>w6-long: %s\\n' \"$long\" >/dev/kmsg\nmine=$(dmesg -f user -t | /usr/bin/tail -n 1); ref=$(/usr/bin/dmesg -f user -t | /usr/bin/tail -n 1)\necho \"long-record: equal-to-util-linux=$([[ $mine == \"$ref\" ]] && echo 1 || echo 0) length=${#mine}\"\n",
+      "expected_status": 0,
+      "stdout": "ordered=1 count=3\nexact: [w6-seed: record 2]\nsince-t2: [w6-seed: record 2|w6-seed: record 3]\nuntil-t2: [w6-seed: record 1|w6-seed: record 2]\nafter-t3: []\nbefore-t1: []\nequals-bounds-eq-u1-u3: [w6-seed: record 1|w6-seed: record 2|w6-seed: record 3]\nlong-record: equal-to-util-linux=1 length=909\n",
+      "stderr": "",
+      "timeout": 45
+    }
+  ]
+}
