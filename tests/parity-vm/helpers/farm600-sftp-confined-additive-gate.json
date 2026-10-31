@@ -1,0 +1,183 @@
+{
+  "schema": "farm600-sftp-confined-additive-gate-v2",
+  "scope": "sftp/binary-get-put r1 (put) and r2 (get), independently for escaped and quoted spaces; all byte values. This gate does not replace prior observations.",
+  "mandatory_primary_gate": {
+    "provenance": [
+      "Bind the selected case and frozen candidate to the trusted isolated guest/controller archive and exact suite and helper digests. Require the per-side guest guard, uid 2000 and fresh private case/home. Check completeness, provenance and bounds for each record needed for the particular conclusion; these source files and generic runner labels are not runtime evidence.",
+      "A failed prerequisite, uncertain identity, missing or truncated material required for a specific conclusion, unqualified reference or peer, timeout, or uncertain cleanup makes that conclusion inconclusive; never convert an infrastructure error into a product failure. Preserve an independently qualified earlier reached result even if a later unrelated observation is missing. A malformed candidate frame is an observed input, not automatically a malformed diagnostic or fixture failure; assess its origin and peer controls separately.",
+      "Each side uses a separately reset workspace with the same relative remote root sftp-confined-remote. Bind setup, before snapshot, peer start and any reached observation to that root; candidate and reference keep distinct HOME logs. Verify setup and side/peer umasks 0077, expected initial relative paths and absence of sftp-confined-candidate and sftp-confined-reference directories. A root or workspace mismatch is fixture ERROR/inconclusive. For final-state claims additionally require complete after snapshots or runner trees and the relevant writer quiescence; a later missing tree does not erase an independently qualified earlier observation. Do not compare inode or device numbers across separately reset sides; compare them only within each side for the external sentinel.",
+      "Side snapshots are point-in-time records and candidate-after precedes peer wait. Require the trusted reviewed runner and actual relevant process/peer evidence to establish that writers were quiescent before using a snapshot or runner tree as stable final state. If quiescence cannot be established, retain complete earlier request and status observations and classify only the affected final-state conclusion inconclusive.",
+      "The guarded lifecycle helper is a subreaper, but its bounded child list, parent-death signal, leader exit or pipe EOF alone does not prove all descendants stopped. Evaluate the independently collected runner cleanup, completed peer logs and actual process/writer evidence in the single-user isolated guest. A trusted controller archive and a safely reviewed runner may provide the needed provenance and quiescence; do not require a separate new recording facility when existing channels establish the relevant fact. A live, unexpected or unaccounted writer leaves dependent final-state results inconclusive.",
+      "Runtime safety prerequisite: the shared guest plain runner must be independently reviewed and fixed or replaced before these cases run. Its reviewed source calls proc.wait() and then uses the numeric proc.pid for process-group inspection and SIGKILL; the identifier can be reused after reap. Fixture-local pidfds do not repair this outer runner. Missing safe runner is a runtime block, not a candidate failure.",
+      "The guarded launcher checks parent-death SIGKILL before exec, and the native peer checks its parent and parent-death signal before opening the fixture tree. These measures protect only their direct processes. Review the interrupted-observer control and require the safely reviewed runner/controller to bound and clean owned detached writers if the observer is interrupted or enumeration fails. Unresolved cleanup is infrastructure/inconclusive. The shared runner issue remains a runtime block."
+    ],
+    "controls": [
+      "On each side recompute from the recorded packets and frames, not only the passed flag: SFTP version negotiation, put/open/write/close and get/open/read/close of the exact 00 through ff bytes under a filename with a space; verify all request IDs, lengths, status codes, and tree bytes. Require clean process exit with bounded complete streams and no forced cleanup.",
+      "For each protocol require separate absolute, dot-dot, final-symlink and directory-symlink read and write operations, each denied. Independently decode all raw requests and responses, and require identical external sentinel bytes, inode, mode, link count and size before and after every attempt. Validate logs and observed peer operations rather than relying only on the helper's booleans.",
+      "For BASHSSH1 reconstruct both positive frames and eight denied-operation frames from raw base64, verify declared lengths, commands, stdin, response lengths, return status, and EOF. Require 10 complete peer requests, peer PID and ready port, peer finish, and successful byte-exact round trip. Control processes and peer logs must agree.",
+      "For the separate extra-byte and short-body peer controls, match each spawned PID, port and lifecycle to its own peer log. Reconstruct the extra frame and exact trailing bytes through EOF; the deliberately short declared body must close without a response and record the actual partial bytes and controlled error. A missing control or unexplained termination is inconclusive.",
+      "Recompute the independent tree_control from its raw before, SFTP-after, reset and native-after manifests, using the runner tree comparison fields: exact relative names, kinds, modes, symlink targets and complete regular-file bytes. Before equals reset; both results equal that baseline plus exactly positive file.bin with mode 0600 and bytes 00 through ff. Recompute the negative controls with wrong bytes, different mode and different pathname; each must differ. Link the two after manifests to the independently decoded SFTP and BASHSSH1 positive operations and to the peer logs. A mismatch, incomplete manifest or failed reset is fixture ERROR, not a product result. Independently verify each saved negative_samples tree is the claimed mutation: bytes 00 through fe, mode 0644, or the renamed different file.bin, respectively; do not rely on negative_checks booleans alone. The baseline must consist of exactly the escape-link and escape-dir symlinks to the expected external sentinel and directory; no extra control-root entries are accepted.",
+      "Independently audit lifecycle_controls normal, timeout, detached and cleanup_failure. Require the direct leader exit recorded by waitid(WNOWAIT) before its reap; no numeric process-group probe or signal is permitted. The timeout must signal the bound leader pidfd; the detached control must identify the child as owned by the subreaper, reconcile both raw /proc stat/starttime samples and pidfd signal, and retain raw waitid and waitpid status. The cleanup-failure case deliberately injects an observation error while cleaning an owned detached child and must remain incomplete; it is not evidence of an actual kernel failure. Natural, forced, timeout, errors, pipe EOF, limits, timestamps, reap and remaining direct children must be independently checked. Unavailable pidfd, waitid, subreaper or incomplete records are fixture ERROR/inconclusive, never a product failure.",
+      "Require attribution_controls to show one request from the expected parent process and another from a distinct competing child, with distinct client endpoints, both peer accept records and complete raw witness data. Reconstruct each client TCP tuple and inode independently from both untruncated raw /proc/net/tcp snapshots, independently decode both FD-link scans, and verify that only the expected parent owns the matching socket inode. Reparse raw process stat/starttime, check executable identity, timestamps, parent relation and endpoint pairing, and reconcile actual client records and peer logs; do not accept matched booleans alone. Failure or unavailable proc access makes attribution inconclusive and the setup unqualified. Verify competitor_process.pid, raw waitid(WNOWAIT), leader identity and output against competitor.pid; that scoped lifecycle explicitly excludes the still-owned peer PID, whose separate lifecycle must also complete. Exclusion is not evidence that the peer or all descendants are quiescent. Decode the bounded peer_log_base64, check complete JSONL and recompute peer_events rather than relying on their parsed copy; missing or oversized logs are inconclusive.",
+      "Require lifecycle_controls failed_leader_pidfd, failed_leader_identity, failed_leader_wait, failed_leader_signal, failed_adopted_pidfd, failed_adopted_identity and failed_enumeration. For each, independently recompute the injected stage and require an explicit incomplete result with retained raw error and final owned cleanup: direct-child fallback may use a numeric PID only after waitid(WNOWAIT) proves it is an unreaped direct child, never a process group or a reaped PID. If a fallback was used, reconcile its WNOWAIT event and raw waitpid result; a successful bound-pidfd recovery need not contain a numeric fallback. Reconcile the actual direct-leader and adopted-child waits in either path. An unsuccessful signal, wait, ownership check or persistent enumeration must record controller_containment_required and cannot count as cleanup. Also require interrupted_observer to show a pidfd-signalled supervisor, its direct leader already killed by the armed parent-death signal before controller cleanup, and the detached writer separately terminated/reaped by the controlled subreaper. This is a control of the mechanism, not proof that the current shared runner provides equivalent containment.",
+      "Independently validate deadline_controls header, body, eof, limit and repeat against retained client and peer events. Slow-drip header/body must progress at intervals below the old per-read timeout yet hit the absolute frame deadline; no-EOF retains the complete response then reaches the trailing deadline. The exact-limit request carries all 65536 stdin bytes and yields the expected complete file and clean lifecycle. Repeat uses a separately marked four-second control-only server budget, multiple complete requests and server finish at the absolute deadline; the candidate peer retains the 24-second lifetime and four-second frame maximum. Reconcile recorded monotonic accept/frame/server deadlines, partial request/trailing/response bytes, EOF, statuses and cleanup. Unexpected timeout, incomplete data or timing overrun is infrastructure/inconclusive for the affected conclusion."
+    ],
+    "reference": [
+      "Require bounded complete OpenSSH client stdout/stderr and status 0, no timeout or forced/incomplete owned-child lifecycle, plus the SFTP peer started/finished records and exact full packet log. Independently parse each v3 packet and reconstruct file operations and payload bytes; require the expected transfer of the correct filename, closure of every opened handle and byte-exact resulting destination. Compare reference and candidate using separately reset, identically named remote roots and identical initial trees.",
+      "Require the external sentinel to match its setup snapshot including metadata, and the pre-existing source file and non-target file remain unchanged. If OpenSSH needs an unimplemented server operation, record a reference/fixture error rather than a candidate mismatch.",
+      "The lifecycle record describes explicitly observed direct and adopted processes. Use the trusted reviewed runner and actual relevant process/peer records to establish writer quiescence for each final-tree comparison; if that cannot be established, the final tree is inconclusive. A separately invented protected channel is not required when the existing trusted archive and reviewed runner establish the relevant fact."
+    ],
+    "candidate": [
+      "Validity prerequisites are distinct from success: independently bind the selected put/get and quoted/escaped batch bytes, initial all-byte input/source, isolated guest, frozen candidate, applicable passing peer/confinement controls, matching successful OpenSSH reference, and the complete bounded status/stream/peer records needed for the particular reached observation; later unrelated peer completion or a final-tree snapshot is not a prerequisite to preserving that earlier qualified result. Verify requested names and initial files from setup and before snapshots. Candidate-after now records the point-in-time batch, stdout, stderr and builtin-status file; independently decode and cross-check those with setup, retained diagnostics and the wrapper. The snapshot status and status file are builtin return status; the wrapper shell can exit zero even when the builtin returned nonzero. An invalid, missing, unstable or over-limit checkpoint is not negative product evidence; a complete runner diagnostic can supply the same bytes. Do not require the output, request path or payload to equal the expected value merely to admit an observation.",
+      "Reconstruct each available BASHSSH1 request and response using raw length fields, command, stdin, trailing bytes, EOF, return status, endpoint and peer lifecycle. Distinguish a complete well-framed request with a wrong name or a declared short but fully received payload from a truncated capture, timeout, server defect or untrusted origin. Establish that the specific candidate operation and request were reached and attributable before treating a mismatch as a product FAIL. A peer denial is a candidate mismatch only when complete logs, controls and reference establish that the candidate-supplied path/command caused it; unsupported peer behavior, missing causal binding or failed controls remain infrastructure/inconclusive.",
+      "For valid command/input rejection, require exact original batch and initial source, successful matching reference, completed candidate builtin status and complete relevant diagnostic that identifies rejection of that valid put/get input after the necessary connection/setup succeeded. Such a reached rejection may be FAIL for the command/input behavior of r1 or r2 even if no transfer frame was emitted. Mark the transfer-byte and final-state behavior separately NOT_REACHED/unknown. Missing transfer alone, an unexplained nonzero status, a connection/setup failure or a truncated diagnostic does not prove rejection of the valid input.",
+      "For put, a complete attributable request with the wrong target path or payload different from all 256 expected bytes is a reached r1 mismatch after its relevant controls and reference qualify; a correctly framed short declared payload is compared as wrong bytes, not filtered out as an invalid prerequisite. A partial frame may support a bounded mismatch only when complete raw EOF, candidate origin and the candidate-caused short send are independently established; if a timeout, truncation or peer error could explain the shortage it is inconclusive. PASS requires the expected complete request, successful peer response, byte-exact final destination and relevant cleanup.",
+      "For get, compare the actual complete attributable remote request, qualified peer response, candidate builtin status and complete local destination bytes against the successful reference. A wrong requested path or a wrong/short local output despite the correct response can be a reached r2 FAIL. A wrong or incomplete peer response not caused by the candidate request is a fixture/control error, not a product failure. PASS requires the expected successful request, response and byte-exact local destination with relevant cleanup.",
+      "Retain separately any independently qualified reached mismatch with its exact input, output and status even if a later unrelated control, peer finish or final-tree snapshot is missing; missing prerequisites for the particular mismatch remain inconclusive. A reached command failure does not automatically cover unreached byte transfer. Evaluate each case and literal independently and preserve all earlier escaped observations and quoted failures.",
+      "For candidate request attribution, pair the peer accept tuple, raw frame and native-attribution records. Reparse untruncated TCP tables, FD links, PID/starttime, executable device/inode and event order; compare with the frozen candidate and trusted runner/controller archive, and evaluate the positive and competing-client controls. Within the declared non-adversarial isolated guest, those actual channels can suffice when they establish origin; no separate new protected recording facility is mandated. Missing/raced identity, unexpected competing traffic or unaccounted sender leaves the affected packet conclusion inconclusive.",
+      "For final trees, compare complete separately reset runner trees and point-in-time side snapshots by literal paths, kinds, modes and bytes only when actual relevant writers and peer are quiescent under the reviewed runner. Reconcile unexpected entries and the external sentinel. If a final snapshot is unavailable or unstable, keep any independently qualified earlier command/request observation but do not infer a final-tree PASS or FAIL.",
+      "Each native connection uses one recorded absolute frame deadline capped by the peer lifetime. A timeout, missing peer completion, incomplete frame or uncertain cleanup is infrastructure/inconclusive for claims that depend on it; do not retroactively erase an already independently qualified earlier mismatch."
+    ],
+    "limits": "Guest-local protocol fixture only; no SSH authentication, encryption or general network-service claim. Its mock confines the documented fixture operations under the controlled guest conditions. Source changes, synthetic data vectors, helper booleans and generic runner labels do not establish runtime PASS, FAIL or coverage.",
+    "safety_contract": {
+      "runtime_prerequisite": "No guest fixture execution with the present shared plain runner: its post-reap numeric process-group inspection and signaling require an independently reviewed fix or safe replacement. Primary owns runtime authorization.",
+      "deadline_evidence": "The data-only behavioral gate uses the recorded absolute monotonic frame/server deadlines, their guest-only slow-drip/no-EOF/repeat controls, bounded completions, and the reviewed runner cleanup. It does not claim timer state from unrecorded values.",
+      "hard_alarm": "The one-shot hard lifetime alarm and restoration around the attribution alarm are a separate source/lifecycle safety contract to be independently reviewed with the runner. The existing records do not expose timer arm/restoration values and the repeat control alone does not prove restoration. If the safety review requires a dynamic alarm-restoration demonstration, obtain a bounded separately reviewed guest control before runtime; do not represent it as existing evidence or make a new recording facility an automatic behavioral requirement. An unexpected alarm or failed safety control is infrastructure/inconclusive, not a candidate mismatch."
+    },
+    "data_only_decision_examples": {
+      "notice": "Illustrative classification vectors only; none are runtime evidence. baseline_qualified means exact input, relevant independent controls and reference, origin and any particular outcome prerequisites have already been established from real records.",
+      "vectors": [
+        {
+          "id": "quoted-command-rejected",
+          "facts": {
+            "baseline_qualified": true,
+            "candidate_status": 1,
+            "diagnostic": "valid quoted put input rejected",
+            "transfer_frame": "not_observed",
+            "diagnostic_complete": true
+          },
+          "expected": {
+            "r1_command": "FAIL",
+            "r1_transfer_bytes": "NOT_REACHED"
+          }
+        },
+        {
+          "id": "quoted-get-command-rejected",
+          "facts": {
+            "baseline_qualified": true,
+            "candidate_status": 1,
+            "diagnostic": "valid quoted get input rejected",
+            "transfer_frame": "not_observed",
+            "diagnostic_complete": true
+          },
+          "expected": {
+            "r2_command": "FAIL",
+            "r2_transfer_bytes": "NOT_REACHED"
+          }
+        },
+        {
+          "id": "attributed-wrong-put-path",
+          "facts": {
+            "baseline_qualified": true,
+            "operation": "put",
+            "complete_frame": true,
+            "candidate_path": "wrong name",
+            "peer_effect_attributable": true
+          },
+          "expected": {
+            "r1_path": "FAIL"
+          }
+        },
+        {
+          "id": "attributed-wrong-remote-path",
+          "facts": {
+            "baseline_qualified": true,
+            "operation": "get",
+            "complete_frame": true,
+            "candidate_path": "wrong name",
+            "peer_denial_due_to_path": true
+          },
+          "expected": {
+            "r2_path": "FAIL",
+            "r2_download_bytes": "NOT_REACHED"
+          }
+        },
+        {
+          "id": "complete-short-put",
+          "facts": {
+            "baseline_qualified": true,
+            "operation": "put",
+            "complete_frame": true,
+            "declared_and_received_bytes": 255,
+            "expected_bytes": 256
+          },
+          "expected": {
+            "r1_put_bytes": "FAIL"
+          }
+        },
+        {
+          "id": "truncated-short-put",
+          "facts": {
+            "baseline_qualified": true,
+            "operation": "put",
+            "complete_frame": false,
+            "declared_bytes": 256,
+            "retained_bytes": 255,
+            "possible_capture_truncation": true
+          },
+          "expected": {
+            "r1_put_bytes": "INCONCLUSIVE"
+          }
+        },
+        {
+          "id": "correct-get-response-short-local",
+          "facts": {
+            "baseline_qualified": true,
+            "operation": "get",
+            "qualified_response_bytes": 256,
+            "complete_stable_local_bytes": 255
+          },
+          "expected": {
+            "r2_get_bytes": "FAIL"
+          }
+        },
+        {
+          "id": "no-frame-unexplained-status",
+          "facts": {
+            "baseline_qualified": true,
+            "candidate_status": 1,
+            "diagnostic_identifies_input": false,
+            "transfer_frame": "not_observed"
+          },
+          "expected": {
+            "command_input": "INCONCLUSIVE",
+            "transfer_bytes": "NOT_REACHED"
+          }
+        },
+        {
+          "id": "unqualified-peer-error",
+          "facts": {
+            "baseline_qualified": false,
+            "peer_control_failed": true,
+            "candidate_status": 1
+          },
+          "expected": {
+            "candidate_verdict": "INCONCLUSIVE"
+          }
+        },
+        {
+          "id": "qualified-failure-before-late-tree-loss",
+          "facts": {
+            "baseline_qualified": true,
+            "reached_input_rejection_proven": true,
+            "later_final_tree_missing": true
+          },
+          "expected": {
+            "command_input": "FAIL",
+            "final_tree": "INCONCLUSIVE"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,217 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-farm600-sftp-confined-additive-put-escaped",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Compare escaped path-with-spaces binary put using confined independent guest peers.",
+      "oracle": "Stock OpenSSH client against a purpose-built confined guest SFTP v3 server; independent byte-level SFTP and framed transport controls.",
+      "comparison": "Apply the pinned data-only gate per reached assertion: validate inputs and controls separately from candidate outcomes, preserve attributable failures, and use complete quiescent trees for final-state comparisons. Generic runner status alone is not coverage.",
+      "covers": [
+        "sftp/binary-get-put"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-sftp-confined-additive-server.py": "a15ce79b7528f6e8b3f8631257742a522caefaa1a4ccc838aa3b5a6a8a721e06",
+        "helpers/farm600-sftp-confined-additive-controls.py": "0a9fa5d96018f8710959248ad115a74e64ce937ad83b98dbf157f52f826a569d",
+        "helpers/farm600-sftp-confined-additive-case.py": "5c62c3c08a09ecf11c1dc297819bcd93271bf61188deec2dda8a76d574fd8109",
+        "helpers/farm600-sftp-confined-additive-gate.json": "2d4193c02598d0d34fddf958a49affe3e929a109749368d3c7d5982a6acb3860",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762",
+        "helpers/farm600-sftp-confined-additive-lifecycle.py": "e3ba5d6071a9ac3df9ac3e6c59fdae2118c51d4f584016e4a90a3d0fece8f381"
+      },
+      "diagnostic_files": [
+        "sftp-confined-controls.json",
+        "sftp-confined-control.jsonl",
+        "sftp-confined-setup.json",
+        "sftp-confined-candidate-before.json",
+        "sftp-confined-candidate-after.json",
+        "sftp-confined-reference-before.json",
+        "sftp-confined-reference-after.json",
+        "sftp-confined-reference-process.json",
+        "sftp-confined-candidate.jsonl",
+        "sftp-confined-reference.jsonl",
+        "sftp-confined-port",
+        "sftp-confined-client.status",
+        "sftp-confined-peer.status",
+        "sftp-confined-peer.stderr",
+        "sftp-confined-client.stdout",
+        "sftp-confined-client.stderr"
+      ],
+      "script": ":",
+      "setup_script": "export PATH=/usr/bin:/bin\numask 077\nC=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-case.py\nT=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-controls.py\n/usr/bin/python3 -I \"$C\" guard || exit 125\n/usr/bin/python3 -I \"$T\" || exit 98\n/usr/bin/python3 -I \"$C\" setup put escaped || exit 98\n",
+      "setup_timeout": 45,
+      "candidate_script": "export PATH=/usr/bin:/bin\numask 077\nC=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-case.py\nP=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-server.py\n/usr/bin/python3 -I \"$C\" guard || exit 125\n/usr/bin/python3 -I \"$C\" snapshot candidate before -1 || exit 125\nclient_pid=$BASHPID\nSFTP_CONFINED_ROOT=remote SFTP_CONFINED_LOG=candidate SFTP_CONFINED_EXPECTED_PID=$client_pid /usr/bin/python3 -I \"$P\" native > \"$HOME/sftp-confined-port\" 2> \"$HOME/sftp-confined-peer.stderr\" &\npeer=$!\ntrap 'if [[ -n $peer ]]; then wait \"$peer\" 2>/dev/null || :; fi' EXIT\nprintf '%s\\n' \"$peer\" > \"$HOME/sftp-confined-peer.pid\"\nfor ((i=0;i<200;i++)); do [[ -s \"$HOME/sftp-confined-port\" ]] && break; /usr/bin/sleep .05; done\n[[ -s \"$HOME/sftp-confined-port\" ]] || exit 125\nIFS= read -r port < \"$HOME/sftp-confined-port\"\n[[ $port =~ ^[0-9]{1,5}$ ]] && ((10#$port >= 1 && 10#$port <= 65535)) || exit 125\nbuiltin sftp --native -p \"$port\" -b sftp-confined.batch 127.0.0.1 > \"$HOME/sftp-confined-client.stdout\" 2> \"$HOME/sftp-confined-client.stderr\"\nrc=$?\nprintf '%s\\n' \"$rc\" > \"$HOME/sftp-confined-client.status\"\n/usr/bin/python3 -I \"$C\" snapshot candidate after \"$rc\"\npost=$?\nwait \"$peer\"; prc=$?\nprintf 'pid=%s\\nstatus=%s\\n' \"$peer\" \"$prc\" > \"$HOME/sftp-confined-peer.status\"\npeer=; trap - EXIT\nprintf 'status=%s\\n' \"$rc\"\n((post == 0 && prc == 0)) || exit 125\n",
+      "reference_script": "export PATH=/usr/bin:/bin\numask 077\nC=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-case.py\n/usr/bin/python3 -I \"$C\" guard || exit 125\n/usr/bin/python3 -I \"$C\" reference\n",
+      "stdout": "status=0\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45
+    },
+    {
+      "id": "migration-farm600-sftp-confined-additive-put-quoted",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Compare quoted path-with-spaces binary put using confined independent guest peers.",
+      "oracle": "Stock OpenSSH client against a purpose-built confined guest SFTP v3 server; independent byte-level SFTP and framed transport controls.",
+      "comparison": "Apply the pinned data-only gate per reached assertion: validate inputs and controls separately from candidate outcomes, preserve attributable failures, and use complete quiescent trees for final-state comparisons. Generic runner status alone is not coverage.",
+      "covers": [
+        "sftp/binary-get-put"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-sftp-confined-additive-server.py": "a15ce79b7528f6e8b3f8631257742a522caefaa1a4ccc838aa3b5a6a8a721e06",
+        "helpers/farm600-sftp-confined-additive-controls.py": "0a9fa5d96018f8710959248ad115a74e64ce937ad83b98dbf157f52f826a569d",
+        "helpers/farm600-sftp-confined-additive-case.py": "5c62c3c08a09ecf11c1dc297819bcd93271bf61188deec2dda8a76d574fd8109",
+        "helpers/farm600-sftp-confined-additive-gate.json": "2d4193c02598d0d34fddf958a49affe3e929a109749368d3c7d5982a6acb3860",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762",
+        "helpers/farm600-sftp-confined-additive-lifecycle.py": "e3ba5d6071a9ac3df9ac3e6c59fdae2118c51d4f584016e4a90a3d0fece8f381"
+      },
+      "diagnostic_files": [
+        "sftp-confined-controls.json",
+        "sftp-confined-control.jsonl",
+        "sftp-confined-setup.json",
+        "sftp-confined-candidate-before.json",
+        "sftp-confined-candidate-after.json",
+        "sftp-confined-reference-before.json",
+        "sftp-confined-reference-after.json",
+        "sftp-confined-reference-process.json",
+        "sftp-confined-candidate.jsonl",
+        "sftp-confined-reference.jsonl",
+        "sftp-confined-port",
+        "sftp-confined-client.status",
+        "sftp-confined-peer.status",
+        "sftp-confined-peer.stderr",
+        "sftp-confined-client.stdout",
+        "sftp-confined-client.stderr"
+      ],
+      "script": ":",
+      "setup_script": "export PATH=/usr/bin:/bin\numask 077\nC=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-case.py\nT=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-controls.py\n/usr/bin/python3 -I \"$C\" guard || exit 125\n/usr/bin/python3 -I \"$T\" || exit 98\n/usr/bin/python3 -I \"$C\" setup put quoted || exit 98\n",
+      "setup_timeout": 45,
+      "candidate_script": "export PATH=/usr/bin:/bin\numask 077\nC=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-case.py\nP=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-server.py\n/usr/bin/python3 -I \"$C\" guard || exit 125\n/usr/bin/python3 -I \"$C\" snapshot candidate before -1 || exit 125\nclient_pid=$BASHPID\nSFTP_CONFINED_ROOT=remote SFTP_CONFINED_LOG=candidate SFTP_CONFINED_EXPECTED_PID=$client_pid /usr/bin/python3 -I \"$P\" native > \"$HOME/sftp-confined-port\" 2> \"$HOME/sftp-confined-peer.stderr\" &\npeer=$!\ntrap 'if [[ -n $peer ]]; then wait \"$peer\" 2>/dev/null || :; fi' EXIT\nprintf '%s\\n' \"$peer\" > \"$HOME/sftp-confined-peer.pid\"\nfor ((i=0;i<200;i++)); do [[ -s \"$HOME/sftp-confined-port\" ]] && break; /usr/bin/sleep .05; done\n[[ -s \"$HOME/sftp-confined-port\" ]] || exit 125\nIFS= read -r port < \"$HOME/sftp-confined-port\"\n[[ $port =~ ^[0-9]{1,5}$ ]] && ((10#$port >= 1 && 10#$port <= 65535)) || exit 125\nbuiltin sftp --native -p \"$port\" -b sftp-confined.batch 127.0.0.1 > \"$HOME/sftp-confined-client.stdout\" 2> \"$HOME/sftp-confined-client.stderr\"\nrc=$?\nprintf '%s\\n' \"$rc\" > \"$HOME/sftp-confined-client.status\"\n/usr/bin/python3 -I \"$C\" snapshot candidate after \"$rc\"\npost=$?\nwait \"$peer\"; prc=$?\nprintf 'pid=%s\\nstatus=%s\\n' \"$peer\" \"$prc\" > \"$HOME/sftp-confined-peer.status\"\npeer=; trap - EXIT\nprintf 'status=%s\\n' \"$rc\"\n((post == 0 && prc == 0)) || exit 125\n",
+      "reference_script": "export PATH=/usr/bin:/bin\numask 077\nC=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-case.py\n/usr/bin/python3 -I \"$C\" guard || exit 125\n/usr/bin/python3 -I \"$C\" reference\n",
+      "stdout": "status=0\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45
+    },
+    {
+      "id": "migration-farm600-sftp-confined-additive-get-escaped",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Compare escaped path-with-spaces binary get using confined independent guest peers.",
+      "oracle": "Stock OpenSSH client against a purpose-built confined guest SFTP v3 server; independent byte-level SFTP and framed transport controls.",
+      "comparison": "Apply the pinned data-only gate per reached assertion: validate inputs and controls separately from candidate outcomes, preserve attributable failures, and use complete quiescent trees for final-state comparisons. Generic runner status alone is not coverage.",
+      "covers": [
+        "sftp/binary-get-put"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-sftp-confined-additive-server.py": "a15ce79b7528f6e8b3f8631257742a522caefaa1a4ccc838aa3b5a6a8a721e06",
+        "helpers/farm600-sftp-confined-additive-controls.py": "0a9fa5d96018f8710959248ad115a74e64ce937ad83b98dbf157f52f826a569d",
+        "helpers/farm600-sftp-confined-additive-case.py": "5c62c3c08a09ecf11c1dc297819bcd93271bf61188deec2dda8a76d574fd8109",
+        "helpers/farm600-sftp-confined-additive-gate.json": "2d4193c02598d0d34fddf958a49affe3e929a109749368d3c7d5982a6acb3860",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762",
+        "helpers/farm600-sftp-confined-additive-lifecycle.py": "e3ba5d6071a9ac3df9ac3e6c59fdae2118c51d4f584016e4a90a3d0fece8f381"
+      },
+      "diagnostic_files": [
+        "sftp-confined-controls.json",
+        "sftp-confined-control.jsonl",
+        "sftp-confined-setup.json",
+        "sftp-confined-candidate-before.json",
+        "sftp-confined-candidate-after.json",
+        "sftp-confined-reference-before.json",
+        "sftp-confined-reference-after.json",
+        "sftp-confined-reference-process.json",
+        "sftp-confined-candidate.jsonl",
+        "sftp-confined-reference.jsonl",
+        "sftp-confined-port",
+        "sftp-confined-client.status",
+        "sftp-confined-peer.status",
+        "sftp-confined-peer.stderr",
+        "sftp-confined-client.stdout",
+        "sftp-confined-client.stderr"
+      ],
+      "script": ":",
+      "setup_script": "export PATH=/usr/bin:/bin\numask 077\nC=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-case.py\nT=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-controls.py\n/usr/bin/python3 -I \"$C\" guard || exit 125\n/usr/bin/python3 -I \"$T\" || exit 98\n/usr/bin/python3 -I \"$C\" setup get escaped || exit 98\n",
+      "setup_timeout": 45,
+      "candidate_script": "export PATH=/usr/bin:/bin\numask 077\nC=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-case.py\nP=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-server.py\n/usr/bin/python3 -I \"$C\" guard || exit 125\n/usr/bin/python3 -I \"$C\" snapshot candidate before -1 || exit 125\nclient_pid=$BASHPID\nSFTP_CONFINED_ROOT=remote SFTP_CONFINED_LOG=candidate SFTP_CONFINED_EXPECTED_PID=$client_pid /usr/bin/python3 -I \"$P\" native > \"$HOME/sftp-confined-port\" 2> \"$HOME/sftp-confined-peer.stderr\" &\npeer=$!\ntrap 'if [[ -n $peer ]]; then wait \"$peer\" 2>/dev/null || :; fi' EXIT\nprintf '%s\\n' \"$peer\" > \"$HOME/sftp-confined-peer.pid\"\nfor ((i=0;i<200;i++)); do [[ -s \"$HOME/sftp-confined-port\" ]] && break; /usr/bin/sleep .05; done\n[[ -s \"$HOME/sftp-confined-port\" ]] || exit 125\nIFS= read -r port < \"$HOME/sftp-confined-port\"\n[[ $port =~ ^[0-9]{1,5}$ ]] && ((10#$port >= 1 && 10#$port <= 65535)) || exit 125\nbuiltin sftp --native -p \"$port\" -b sftp-confined.batch 127.0.0.1 > \"$HOME/sftp-confined-client.stdout\" 2> \"$HOME/sftp-confined-client.stderr\"\nrc=$?\nprintf '%s\\n' \"$rc\" > \"$HOME/sftp-confined-client.status\"\n/usr/bin/python3 -I \"$C\" snapshot candidate after \"$rc\"\npost=$?\nwait \"$peer\"; prc=$?\nprintf 'pid=%s\\nstatus=%s\\n' \"$peer\" \"$prc\" > \"$HOME/sftp-confined-peer.status\"\npeer=; trap - EXIT\nprintf 'status=%s\\n' \"$rc\"\n((post == 0 && prc == 0)) || exit 125\n",
+      "reference_script": "export PATH=/usr/bin:/bin\numask 077\nC=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-case.py\n/usr/bin/python3 -I \"$C\" guard || exit 125\n/usr/bin/python3 -I \"$C\" reference\n",
+      "stdout": "status=0\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45
+    },
+    {
+      "id": "migration-farm600-sftp-confined-additive-get-quoted",
+      "loadable": "sftp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Compare quoted path-with-spaces binary get using confined independent guest peers.",
+      "oracle": "Stock OpenSSH client against a purpose-built confined guest SFTP v3 server; independent byte-level SFTP and framed transport controls.",
+      "comparison": "Apply the pinned data-only gate per reached assertion: validate inputs and controls separately from candidate outcomes, preserve attributable failures, and use complete quiescent trees for final-state comparisons. Generic runner status alone is not coverage.",
+      "covers": [
+        "sftp/binary-get-put"
+      ],
+      "requires": [
+        "python3",
+        "sftp",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/farm600-sftp-confined-additive-server.py": "a15ce79b7528f6e8b3f8631257742a522caefaa1a4ccc838aa3b5a6a8a721e06",
+        "helpers/farm600-sftp-confined-additive-controls.py": "0a9fa5d96018f8710959248ad115a74e64ce937ad83b98dbf157f52f826a569d",
+        "helpers/farm600-sftp-confined-additive-case.py": "5c62c3c08a09ecf11c1dc297819bcd93271bf61188deec2dda8a76d574fd8109",
+        "helpers/farm600-sftp-confined-additive-gate.json": "2d4193c02598d0d34fddf958a49affe3e929a109749368d3c7d5982a6acb3860",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762",
+        "helpers/farm600-sftp-confined-additive-lifecycle.py": "e3ba5d6071a9ac3df9ac3e6c59fdae2118c51d4f584016e4a90a3d0fece8f381"
+      },
+      "diagnostic_files": [
+        "sftp-confined-controls.json",
+        "sftp-confined-control.jsonl",
+        "sftp-confined-setup.json",
+        "sftp-confined-candidate-before.json",
+        "sftp-confined-candidate-after.json",
+        "sftp-confined-reference-before.json",
+        "sftp-confined-reference-after.json",
+        "sftp-confined-reference-process.json",
+        "sftp-confined-candidate.jsonl",
+        "sftp-confined-reference.jsonl",
+        "sftp-confined-port",
+        "sftp-confined-client.status",
+        "sftp-confined-peer.status",
+        "sftp-confined-peer.stderr",
+        "sftp-confined-client.stdout",
+        "sftp-confined-client.stderr"
+      ],
+      "script": ":",
+      "setup_script": "export PATH=/usr/bin:/bin\numask 077\nC=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-case.py\nT=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-controls.py\n/usr/bin/python3 -I \"$C\" guard || exit 125\n/usr/bin/python3 -I \"$T\" || exit 98\n/usr/bin/python3 -I \"$C\" setup get quoted || exit 98\n",
+      "setup_timeout": 45,
+      "candidate_script": "export PATH=/usr/bin:/bin\numask 077\nC=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-case.py\nP=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-server.py\n/usr/bin/python3 -I \"$C\" guard || exit 125\n/usr/bin/python3 -I \"$C\" snapshot candidate before -1 || exit 125\nclient_pid=$BASHPID\nSFTP_CONFINED_ROOT=remote SFTP_CONFINED_LOG=candidate SFTP_CONFINED_EXPECTED_PID=$client_pid /usr/bin/python3 -I \"$P\" native > \"$HOME/sftp-confined-port\" 2> \"$HOME/sftp-confined-peer.stderr\" &\npeer=$!\ntrap 'if [[ -n $peer ]]; then wait \"$peer\" 2>/dev/null || :; fi' EXIT\nprintf '%s\\n' \"$peer\" > \"$HOME/sftp-confined-peer.pid\"\nfor ((i=0;i<200;i++)); do [[ -s \"$HOME/sftp-confined-port\" ]] && break; /usr/bin/sleep .05; done\n[[ -s \"$HOME/sftp-confined-port\" ]] || exit 125\nIFS= read -r port < \"$HOME/sftp-confined-port\"\n[[ $port =~ ^[0-9]{1,5}$ ]] && ((10#$port >= 1 && 10#$port <= 65535)) || exit 125\nbuiltin sftp --native -p \"$port\" -b sftp-confined.batch 127.0.0.1 > \"$HOME/sftp-confined-client.stdout\" 2> \"$HOME/sftp-confined-client.stderr\"\nrc=$?\nprintf '%s\\n' \"$rc\" > \"$HOME/sftp-confined-client.status\"\n/usr/bin/python3 -I \"$C\" snapshot candidate after \"$rc\"\npost=$?\nwait \"$peer\"; prc=$?\nprintf 'pid=%s\\nstatus=%s\\n' \"$peer\" \"$prc\" > \"$HOME/sftp-confined-peer.status\"\npeer=; trap - EXIT\nprintf 'status=%s\\n' \"$rc\"\n((post == 0 && prc == 0)) || exit 125\n",
+      "reference_script": "export PATH=/usr/bin:/bin\numask 077\nC=/opt/bashos-parity/harness/helpers/farm600-sftp-confined-additive-case.py\n/usr/bin/python3 -I \"$C\" guard || exit 125\n/usr/bin/python3 -I \"$C\" reference\n",
+      "stdout": "status=0\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45
+    }
+  ]
+}
