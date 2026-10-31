@@ -1,0 +1,655 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w3-uv-forward-args",
+      "loadable": "uv",
+      "kind": "contract",
+      "covers": [
+        "uv/forwarding-env-status"
+      ],
+      "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\nfor a in \"$@\"; do printf \"[%s]\\n\" \"$a\"; done\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
+      "script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv alpha \"\" \"two words\" 'dollar$sign' \"*\"\necho \"status=$?\"\n",
+      "stdout": "[alpha]\n[]\n[two words]\n[dollar$sign]\n[*]\nstatus=0\n",
+      "expected_status": 0,
+      "requires": [],
+      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent); expected values derived from the stand-in's own printf format, not from candidate output. ",
+      "comparison": "r1: arguments including an empty word and a spaced word reach the helper verbatim, one argv element each The frozen payload ships neither a uv builtin nor a uv.so, and no pinned upstream uv executable; the package root contains only the shell-script stand-in at libexec/uv/uv, so the builtin cannot be loaded and the helper is never reached on either build.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-uv-forward-env",
+      "loadable": "uv",
+      "kind": "contract",
+      "covers": [
+        "uv/forwarding-env-status"
+      ],
+      "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\nprintf \"exported=%s\\n\" \"${UVW3_EXPORTED-unset}\"; printf \"plain=%s\\n\" \"${UVW3_PLAIN-unset}\"\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
+      "script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nexport UVW3_EXPORTED=visible\nUVW3_PLAIN=hidden\nuv run\necho \"status=$?\"\n",
+      "stdout": "exported=visible\nplain=unset\nstatus=0\n",
+      "expected_status": 0,
+      "requires": [],
+      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent); expected values derived from the stand-in's own printf format, not from candidate output. ",
+      "comparison": "r2: an exported variable is visible to the helper, unexported variables are not The frozen payload ships neither a uv builtin nor a uv.so, and no pinned upstream uv executable; the package root contains only the shell-script stand-in at libexec/uv/uv, so the builtin cannot be loaded and the helper is never reached on either build.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-uv-forward-status",
+      "loadable": "uv",
+      "kind": "contract",
+      "covers": [
+        "uv/forwarding-env-status"
+      ],
+      "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\nexit \"${1:-0}\"\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
+      "script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv 0; echo \"s0=$?\"\nuv 7; echo \"s7=$?\"\nuv 200; echo \"s200=$?\"\n",
+      "stdout": "s0=0\ns7=7\ns200=200\n",
+      "expected_status": 0,
+      "requires": [],
+      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent); expected values derived from the stand-in's own printf format, not from candidate output. ",
+      "comparison": "r3: the helper's exit status is returned unchanged for 0, 7 and 200 The frozen payload ships neither a uv builtin nor a uv.so, and no pinned upstream uv executable; the package root contains only the shell-script stand-in at libexec/uv/uv, so the builtin cannot be loaded and the helper is never reached on either build.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-uv-after-cd",
+      "loadable": "uv",
+      "kind": "contract",
+      "covers": [
+        "uv/helper-resolution-after-cd"
+      ],
+      "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\necho \"stand-in-ran:$1\"\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
+      "script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\ncd elsewhere\nuv ping\necho \"status=$?\"\n",
+      "stdout": "stand-in-ran:ping\nstatus=0\n",
+      "expected_status": 0,
+      "requires": [],
+      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent); expected values derived from the stand-in's own printf format, not from candidate output. uv.so is loaded from a path relative to the starting directory and the shell then changes directory; uv_builtin_load resolves the sibling helper to an absolute path at load time.",
+      "comparison": "r1: a uv.so loaded from the relative package path pkgroot/lib/bash-os/loadables still finds ../libexec/uv/uv after cd into another directory The frozen payload ships neither a uv builtin nor a uv.so, and no pinned upstream uv executable; the package root contains only the shell-script stand-in at libexec/uv/uv, so the builtin cannot be loaded and the helper is never reached on either build.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-uv-local-project",
+      "loadable": "uv",
+      "kind": "contract",
+      "covers": [
+        "uv/local-project-operation"
+      ],
+      "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\n# Stand-in for the one upstream uv operation used here: \"uv init --bare NAME\" creates only pyproject.toml.\n# This is NOT upstream uv: no pinned upstream uv executable exists in the image or payload.\n[ \"$1\" = init ] && [ \"$2\" = --bare ] || { echo \"unsupported: $*\" >&2; exit 2; }\n/bin/mkdir -p \"$3\" && printf '[project]\\nname = \"%s\"\\nversion = \"0.1.0\"\\n' \"$3\" > \"$3/pyproject.toml\"\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
+      "script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv init --bare tinyproj; echo \"status=$?\"\nfor f in tinyproj/*; do echo \"$f\"; done\n{ read -r _; read -r l; echo \"$l\"; } < tinyproj/pyproject.toml\n",
+      "stdout": "status=0\ntinyproj/pyproject.toml\nname = \"tinyproj\"\n",
+      "expected_status": 0,
+      "requires": [],
+      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent); expected values derived from the stand-in's own printf format, not from candidate output. Upstream uv init --bare (uv documentation, 'Creating projects') writes only pyproject.toml with [project] name; no network is used for it.",
+      "comparison": "r1: a local-project operation (uv init --bare on a tiny directory) leaves exactly the expected tree without network access; only a stand-in helper is available because no pinned upstream uv exists The frozen payload ships neither a uv builtin nor a uv.so, and no pinned upstream uv executable; the package root contains only the shell-script stand-in at libexec/uv/uv, so the builtin cannot be loaded and the helper is never reached on either build.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-uv-missing-status",
+      "loadable": "uv",
+      "kind": "contract",
+      "covers": [
+        "uv/missing-helper-diagnostic"
+      ],
+      "script": "type -t uv\nuv --version 2>/dev/null\necho \"status=$?\"\n",
+      "stdout": "builtin\nstatus=127\n",
+      "expected_status": 0,
+      "oracle": "uv builtin help text in loadables/uv.c: 'Exit Status: ... or 127 if uv is not installed'; guest has no /usr/lib/bash-os/libexec/uv/uv (reference-shell access check in setup)",
+      "setup_script": "test ! -e /usr/lib/bash-os/libexec/uv/uv\n",
+      "comparison": "r1: with the helper absent the uv builtin returns 127. On both frozen builds no uv builtin exists, so bash reports the command as not found; status 127 alone would also come from bash's command-not-found, so the case first requires type -t uv to report builtin.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-uv-missing-hint",
+      "loadable": "uv",
+      "kind": "contract",
+      "covers": [
+        "uv/missing-helper-diagnostic"
+      ],
+      "script": "msg=$(uv --version 2>&1 >/dev/null)\nst=$?\necho \"status=$st\"\ncase $msg in\n  *\"install it with: pkg install uv\"*) echo hint-present;;\n  *) echo hint-absent;;\nesac\ncase $msg in\n  *\"/usr/lib/bash-os/libexec/uv/uv\"*) echo names-helper-path;;\n  *) echo no-helper-path;;\nesac\n",
+      "stdout": "status=127\nhint-present\nnames-helper-path\n",
+      "expected_status": 0,
+      "setup_script": "test ! -e /usr/lib/bash-os/libexec/uv/uv\n",
+      "oracle": "uv.c uv_builtin: builtin_error '%s: %s (install it with: pkg install uv)' with the compiled-in helper path and status EX_NOTFOUND 127; guest has no helper at that path (verified in setup)",
+      "comparison": "r2: the diagnostic includes 'install it with: pkg install uv' and the missing helper path, with status 127. Both frozen builds have no uv builtin, so bash prints its own command-not-found message without the hint.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-uv-signal-defaults",
+      "loadable": "uv",
+      "kind": "contract",
+      "covers": [
+        "uv/signal-status-mapping"
+      ],
+      "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\ncase \"$1\" in\n  mask) while read -r k v rest; do case $k in SigIgn:|SigCgt:)\n          printf '%s INT=%d QUIT=%d\\n' \"$k\" $(( (0x$v >> 1) & 1 )) $(( (0x$v >> 2) & 1 ));; esac; done < /proc/self/status ;;\n  term) kill -TERM $$ ;;\n  kill) kill -KILL $$ ;;\n  usr1) kill -USR1 $$ ;;\nesac\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
+      "script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\ntrap 'echo trap-fired' INT QUIT\nuv mask\necho \"status=$?\"\n",
+      "stdout": "SigIgn: INT=0 QUIT=0\nSigCgt: INT=0 QUIT=0\nstatus=0\n",
+      "expected_status": 0,
+      "requires": [],
+      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent); expected values derived from the stand-in's own printf format, not from candidate output. execve resets caught handlers to SIG_DFL; uv_reset_job_signals restores INT/QUIT to SIG_DFL unless trapped-ignored; the stand-in reads its own /proc/self/status.",
+      "comparison": "r1: although the calling script trapped INT and QUIT, the helper starts with both at default disposition (neither ignored nor caught) The frozen payload ships neither a uv builtin nor a uv.so, and no pinned upstream uv executable; the package root contains only the shell-script stand-in at libexec/uv/uv, so the builtin cannot be loaded and the helper is never reached on either build.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-uv-signal-status",
+      "loadable": "uv",
+      "kind": "contract",
+      "covers": [
+        "uv/signal-status-mapping"
+      ],
+      "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\ncase \"$1\" in\n  mask) while read -r k v rest; do case $k in SigIgn:|SigCgt:)\n          printf '%s INT=%d QUIT=%d\\n' \"$k\" $(( (0x$v >> 1) & 1 )) $(( (0x$v >> 2) & 1 ));; esac; done < /proc/self/status ;;\n  term) kill -TERM $$ ;;\n  kill) kill -KILL $$ ;;\n  usr1) kill -USR1 $$ ;;\nesac\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
+      "script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv term; echo \"term=$?\"\nuv kill; echo \"kill=$?\"\nuv usr1; echo \"usr1=$?\"\n",
+      "stdout": "term=143\nkill=137\nusr1=138\n",
+      "expected_status": 0,
+      "requires": [],
+      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent); expected values derived from the stand-in's own printf format, not from candidate output. 128+N mapping with N = 15, 9, 10 (signal(7)); the stand-in signals only its own pid.",
+      "comparison": "r2: a helper that kills itself with SIGTERM, SIGKILL and SIGUSR1 yields 143, 137 and 138 The frozen payload ships neither a uv builtin nor a uv.so, and no pinned upstream uv executable; the package root contains only the shell-script stand-in at libexec/uv/uv, so the builtin cannot be loaded and the helper is never reached on either build.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-bashjson-jq-raw-string",
+      "loadable": "bashjson",
+      "covers": [
+        "bashjson/jq-wrapper-integration"
+      ],
+      "reference_script": "printf '%s' '{\"name\":\"alice \\\"q\\\" \\u00e9\",\"n\":3}' | /usr/bin/jq -r '.name'\n",
+      "candidate_script": "printf '%s' '{\"name\":\"alice \\\"q\\\" \\u00e9\",\"n\":3}' | \"$BASH\" /bash-os/jq.sh -r '.name'\n",
+      "requires": [
+        "jq"
+      ],
+      "oracle": "jq 1.7.1 (Debian trixie) in the guest is the reference; jq.sh is the documented bash-os wrapper at /bash-os/jq.sh (bashjson.c help and header)",
+      "comparison": "r1: jq.sh -r prints the string .name raw (unquoted, with the embedded quote and the non-ASCII character) exactly as host jq -r does. The pinned /bash-os/jq.sh is not in the frozen payload or the guest image, so the candidate side cannot start the wrapper; the candidate PATH stays empty.",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0
+    },
+    {
+      "id": "mig-w3-bashjson-jq-nested-filter",
+      "loadable": "bashjson",
+      "covers": [
+        "bashjson/jq-wrapper-integration"
+      ],
+      "reference_script": "printf '%s' '{\"users\":[{\"profile\":{\"langs\":[\"bash\",\"c\"]}},{\"profile\":{\"langs\":[\"go\",\"rust\"],\"meta\":{\"deep\":[10,20,30]}}}]}' | /usr/bin/jq  '.users[1].profile.meta.deep[2]'\n",
+      "candidate_script": "printf '%s' '{\"users\":[{\"profile\":{\"langs\":[\"bash\",\"c\"]}},{\"profile\":{\"langs\":[\"go\",\"rust\"],\"meta\":{\"deep\":[10,20,30]}}}]}' | \"$BASH\" /bash-os/jq.sh  '.users[1].profile.meta.deep[2]'\n",
+      "requires": [
+        "jq"
+      ],
+      "oracle": "jq 1.7.1 (Debian trixie) in the guest is the reference; jq.sh is the documented bash-os wrapper at /bash-os/jq.sh (bashjson.c help and header)",
+      "comparison": "r2: one nested path filter (.users[1].profile.meta.deep[2]) evaluates to the same JSON value (30) as host jq. The pinned /bash-os/jq.sh is not in the frozen payload or the guest image, so the candidate side cannot start the wrapper; the candidate PATH stays empty.",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0
+    },
+    {
+      "id": "mig-w3-bashperl-system-status",
+      "loadable": "bashperl",
+      "covers": [
+        "bashperl/process-and-native-effects"
+      ],
+      "requires": [
+        "perl"
+      ],
+      "reference_script": "/usr/bin/perl -e 'my $r = system(\"/bin/sh\", \"-c\", \"exit 3\"); print \"rc=\", $r >> 8, \" q=\", $? >> 8, \"\\n\"'; echo \"shell-alive status=$?\"\n",
+      "candidate_script": "bashperl -e 'my $r = system(\"/bin/sh\", \"-c\", \"exit 3\"); print \"rc=\", $r >> 8, \" q=\", $? >> 8, \"\\n\"'; echo \"shell-alive status=$?\"\n",
+      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest; docs/perl.md: system and exec retain Perl behaviour, wrapper restores standard descriptors and signal handlers",
+      "stdout": "rc=3 q=3\nshell-alive status=0\n",
+      "expected_status": 0,
+      "comparison": "r1: Perl system() runs a child, $? >> 8 reports 3, the builtin returns 0, and the embedding shell continues. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found'.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-bashperl-exec-subshell",
+      "loadable": "bashperl",
+      "covers": [
+        "bashperl/process-and-native-effects"
+      ],
+      "requires": [
+        "perl"
+      ],
+      "reference_script": "(/usr/bin/perl -e 'exec \"/bin/echo\", \"execd\"'); echo \"after-subshell status=$?\"\n",
+      "candidate_script": "(bashperl -e 'exec \"/bin/echo\", \"execd\"'); echo \"after-subshell status=$?\"\n",
+      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest; docs/perl.md: system and exec retain Perl behaviour, wrapper restores standard descriptors and signal handlers",
+      "stdout": "execd\nafter-subshell status=0\n",
+      "expected_status": 0,
+      "comparison": "r2: Perl exec() inside an isolating subshell replaces only that subshell; the parent shell observes the exec'd program's output and status 0. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found'.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-bashperl-exec-replaces-shell",
+      "loadable": "bashperl",
+      "covers": [
+        "bashperl/process-and-native-effects"
+      ],
+      "requires": [
+        "perl"
+      ],
+      "kind": "contract",
+      "script": "bashperl -e 'exec \"/bin/echo\", \"execd\"'\necho notreached\n",
+      "oracle": "docs/perl.md states exec affects the embedding process and recommends (bashperl ...) for isolation; expected output is the exec'd /bin/echo output alone",
+      "stdout": "execd\n",
+      "expected_status": 0,
+      "comparison": "r2: documented behaviour of exec() outside a subshell: it replaces the embedding Bash process (docs/perl.md 'Explicit process operations such as exec ... affect the embedding process'), so the following command never runs and the status is the exec'd program's 0. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found'.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-bashperl-sig-handlers",
+      "loadable": "bashperl",
+      "covers": [
+        "bashperl/process-and-native-effects"
+      ],
+      "requires": [
+        "perl"
+      ],
+      "reference_script": "trap 'echo shell-usr1' USR1\ntrap '' USR2\n/usr/bin/perl -e '$SIG{USR1}=sub{print \"perl-usr1\\n\"}; $SIG{USR2}=sub{print \"perl-usr2\\n\"}; kill \"USR1\", $$; kill \"USR2\", $$; print \"perl-done\\n\"'\necho \"perl-status=$?\"\nkill -USR1 $$\necho after-usr1\nkill -USR2 $$\necho after-usr2\n",
+      "candidate_script": "trap 'echo shell-usr1' USR1\ntrap '' USR2\nbashperl -e '$SIG{USR1}=sub{print \"perl-usr1\\n\"}; $SIG{USR2}=sub{print \"perl-usr2\\n\"}; kill \"USR1\", $$; kill \"USR2\", $$; print \"perl-done\\n\"'\necho \"perl-status=$?\"\nkill -USR1 $$\necho after-usr1\nkill -USR2 $$\necho after-usr2\n",
+      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest; docs/perl.md: system and exec retain Perl behaviour, wrapper restores standard descriptors and signal handlers",
+      "stdout": "perl-usr1\nperl-usr2\nperl-done\nperl-status=0\nshell-usr1\nafter-usr1\nafter-usr2\n",
+      "expected_status": 0,
+      "comparison": "r3: Perl %SIG handlers for USR1/USR2 run when the signals are delivered inside the builtin, and afterwards the shell's own USR1 trap fires again and its ignored USR2 stays ignored. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found'.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-bashperl-std-fds",
+      "loadable": "bashperl",
+      "covers": [
+        "bashperl/process-and-native-effects"
+      ],
+      "requires": [
+        "perl"
+      ],
+      "reference_script": "/usr/bin/perl -e 'open(my $o, \">\", \"redir.txt\") or die; open(STDOUT, \">&\", $o) or die; print STDOUT \"to-file\\n\"; close(STDOUT); close(STDERR); close(STDIN)'\necho \"rc=$?\"\necho stdout-ok\necho stderr-ok >&2\nread -r line <<< from-here-string; echo \"stdin-ok:$line\"\n{ read -r l < redir.txt; echo \"$l\"; }\n",
+      "candidate_script": "bashperl -e 'open(my $o, \">\", \"redir.txt\") or die; open(STDOUT, \">&\", $o) or die; print STDOUT \"to-file\\n\"; close(STDOUT); close(STDERR); close(STDIN)'\necho \"rc=$?\"\necho stdout-ok\necho stderr-ok >&2\nread -r line <<< from-here-string; echo \"stdin-ok:$line\"\n{ read -r l < redir.txt; echo \"$l\"; }\n",
+      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest; docs/perl.md: system and exec retain Perl behaviour, wrapper restores standard descriptors and signal handlers",
+      "stdout": "rc=0\nstdout-ok\nstdin-ok:from-here-string\nto-file\n",
+      "expected_status": 0,
+      "comparison": "r4: descriptors 0-2 that Perl redirected and closed are restored for the shell: its own stdout and stderr still work and the redirected bytes landed in the file. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found'.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-bashperl-high-fd",
+      "loadable": "bashperl",
+      "covers": [
+        "bashperl/process-and-native-effects"
+      ],
+      "requires": [
+        "perl"
+      ],
+      "kind": "contract",
+      "script": "exec 7>fd7.out\nbashperl -MPOSIX -e 'POSIX::close(7)'\n{ echo late >&7; } 2>/dev/null; echo \"write-rc=$?\"\n",
+      "oracle": "docs/perl.md: only descriptors 0-2 are restored; closing nonstandard descriptors affects the embedding process; a write to a closed descriptor makes bash return 1",
+      "stdout": "write-rc=1\n",
+      "expected_status": 0,
+      "comparison": "r4: documented non-standard descriptor behaviour: closing fd 7 inside the builtin is not undone (docs/perl.md 'closing arbitrary nonstandard descriptors affect the embedding process'), so the shell's later write to fd 7 fails with status 1. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found'.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-bashperl-xs-modules",
+      "loadable": "bashperl",
+      "covers": [
+        "bashperl/process-and-native-effects"
+      ],
+      "requires": [
+        "perl"
+      ],
+      "reference_script": "X=before; cd /; umask 027\n/usr/bin/perl -MPOSIX -MList::Util=sum,max -MData::Dumper -e '$Data::Dumper::Terse=1; $Data::Dumper::Indent=0; print sum(1..10), \" \", max(4,9,2), \" \", POSIX::floor(2.7), \" \", POSIX::strftime(\"%Y-%m-%d\", gmtime(86400*365)), \" \", Dumper([1,{a=>2}]), \"\\n\"'\necho \"status=$? X=$X pwd=$PWD umask=$(umask)\"\n",
+      "candidate_script": "X=before; cd /; umask 027\nbashperl -MPOSIX -MList::Util=sum,max -MData::Dumper -e '$Data::Dumper::Terse=1; $Data::Dumper::Indent=0; print sum(1..10), \" \", max(4,9,2), \" \", POSIX::floor(2.7), \" \", POSIX::strftime(\"%Y-%m-%d\", gmtime(86400*365)), \" \", Dumper([1,{a=>2}]), \"\\n\"'\necho \"status=$? X=$X pwd=$PWD umask=$(umask)\"\n",
+      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest; docs/perl.md: system and exec retain Perl behaviour, wrapper restores standard descriptors and signal handlers",
+      "stdout": "55 9 2 1971-01-01 [1,{'a' => 2}]\nstatus=0 X=before pwd=/ umask=0027\n",
+      "expected_status": 0,
+      "comparison": "r5: native XS modules (POSIX, List::Util, Data::Dumper) load and compute; afterwards shell variable, cwd and umask are unchanged. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found'.",
+      "group": "shell",
+      "driver": "plain"
+    },
+    {
+      "id": "mig-w3-bashpython-prompt-primary",
+      "loadable": "bashpython",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "bashpython/interactive-prompt"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
+      "timeout": 12,
+      "steps": [
+        {
+          "expect": ">>> "
+        },
+        {
+          "send": "\u0004"
+        },
+        {
+          "expect": "after=0"
+        }
+      ],
+      "expected_status": 0,
+      "comparison": "r1: a bare interactive invocation on a PTY shows the primary prompt '>>> '. bashpython is not built into either frozen binary, so the candidate shell reports 'bashpython: command not found' and the awaited prompt or output never appears.",
+      "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
+      "candidate_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "files": {
+        "inputrc": "set enable-bracketed-paste off\n"
+      }
+    },
+    {
+      "id": "mig-w3-bashpython-prompt-exec-line",
+      "loadable": "bashpython",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "bashpython/interactive-prompt"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
+      "timeout": 12,
+      "steps": [
+        {
+          "expect": ">>> "
+        },
+        {
+          "send": "print(6*7)\r"
+        },
+        {
+          "expect": "\\r\\n42\\r\\n(?:\\x1b\\[\\?2004[hl])*>>> "
+        },
+        {
+          "send": "\u0004"
+        },
+        {
+          "expect": "after=0"
+        }
+      ],
+      "expected_status": 0,
+      "comparison": "r2: a typed line print(6*7) is executed and 42 appears on the terminal followed by a fresh prompt. bashpython is not built into either frozen binary, so the candidate shell reports 'bashpython: command not found' and the awaited prompt or output never appears.",
+      "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
+      "candidate_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "files": {
+        "inputrc": "set enable-bracketed-paste off\n"
+      }
+    },
+    {
+      "id": "mig-w3-bashpython-prompt-continuation",
+      "loadable": "bashpython",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "bashpython/interactive-prompt"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
+      "timeout": 12,
+      "steps": [
+        {
+          "expect": ">>> "
+        },
+        {
+          "send": "for i in range(2):\r"
+        },
+        {
+          "expect": "\\.\\.\\. "
+        },
+        {
+          "send": "    print(i)\r"
+        },
+        {
+          "expect": "\\.\\.\\. "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "0\\r\\n1\\r\\n(?:\\x1b\\[\\?2004[hl])*>>> "
+        },
+        {
+          "send": "\u0004"
+        },
+        {
+          "expect": "after=0"
+        }
+      ],
+      "expected_status": 0,
+      "comparison": "r3: a compound statement shows the continuation prompt '... ' after the header and after the body line, then runs and prints 0 and 1. bashpython is not built into either frozen binary, so the candidate shell reports 'bashpython: command not found' and the awaited prompt or output never appears.",
+      "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
+      "candidate_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "files": {
+        "inputrc": "set enable-bracketed-paste off\n"
+      }
+    },
+    {
+      "id": "mig-w3-bashpython-prompt-eof",
+      "loadable": "bashpython",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "bashpython/interactive-prompt"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
+      "timeout": 12,
+      "steps": [
+        {
+          "expect": ">>> "
+        },
+        {
+          "send": "import sys; sys.stdout.write('marker\\n')\r"
+        },
+        {
+          "expect": "marker\\r\\n(?:\\x1b\\[\\?2004[hl])*>>> "
+        },
+        {
+          "send": "\u0004"
+        },
+        {
+          "expect": "after=0\\r\\n"
+        }
+      ],
+      "expected_status": 0,
+      "comparison": "r4: Ctrl-D at an empty prompt ends the interpreter with status 0, the calling shell continues (prints after=0) and the PTY modes are restored (terminal_restored is asserted by the driver). bashpython is not built into either frozen binary, so the candidate shell reports 'bashpython: command not found' and the awaited prompt or output never appears.",
+      "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
+      "candidate_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "files": {
+        "inputrc": "set enable-bracketed-paste off\n"
+      }
+    },
+    {
+      "id": "mig-w3-bashpython-ki-caught",
+      "loadable": "bashpython",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "bashpython/keyboard-interrupt"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
+      "timeout": 12,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "case $BASH in /opt/bash-5.3.15/bin/bash) P=/usr/bin/python3;; *) P=bashpython;; esac; export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "$P ki1.py; echo \"status=$?\"\r"
+        },
+        {
+          "expect": "ready\\r\\n"
+        },
+        {
+          "foreground_job": [
+            "SIGINT"
+          ]
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "expect": "caught\\r\\nstatus=0\\r\\n"
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "comparison": "r1: ^C from the terminal while Python sleeps inside try/except KeyboardInterrupt prints the handler output and the shell sees status 0. bashpython is not built into either frozen binary, so the candidate shell reports 'bashpython: command not found' and the awaited prompt or output never appears.",
+      "interactive_shell": true,
+      "files": {
+        "ki1.py": "import time\ntry:\n    print('ready', flush=True)\n    time.sleep(30)\nexcept KeyboardInterrupt:\n    print('caught', flush=True)\n"
+      }
+    },
+    {
+      "id": "mig-w3-bashpython-ki-unhandled",
+      "loadable": "bashpython",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "bashpython/keyboard-interrupt"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
+      "timeout": 12,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "case $BASH in /opt/bash-5.3.15/bin/bash) P=/usr/bin/python3;; *) P=bashpython;; esac; export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "$P ki2.py\r"
+        },
+        {
+          "expect": "ready\\r\\n"
+        },
+        {
+          "foreground_job": [
+            "SIGINT"
+          ]
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "expect": "KeyboardInterrupt\\r\\n"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "echo \"status=$?\"\r"
+        },
+        {
+          "expect": "status=130\\r\\n"
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "comparison": "r2: an unhandled KeyboardInterrupt ends Python by SIGINT with a traceback ending in KeyboardInterrupt and the interactive shell reports status 130, exactly as after standalone python3. bashpython is not built into either frozen binary, so the candidate shell reports 'bashpython: command not found' and the awaited prompt or output never appears.",
+      "interactive_shell": true,
+      "files": {
+        "ki2.py": "import time\nprint('ready', flush=True)\ntime.sleep(30)\n"
+      }
+    },
+    {
+      "id": "mig-w3-bashpython-ki-group-scope",
+      "loadable": "bashpython",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "bashpython/keyboard-interrupt"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
+      "timeout": 12,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "case $BASH in /opt/bash-5.3.15/bin/bash) P=/usr/bin/python3;; *) P=bashpython;; esac; export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "/usr/bin/python3 sentinel.py &\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "until [ -e sentinel.ready ]; do :; done; echo sentinel-up\r"
+        },
+        {
+          "expect": "sentinel-up\\r\\n"
+        },
+        {
+          "send": "$P ki3.py; echo \"status=$? cwd=$PWD x=${KI_X-unset}\"\r"
+        },
+        {
+          "expect": "ready\\r\\n"
+        },
+        {
+          "foreground_job": [
+            "SIGINT"
+          ]
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "expect": "caught\\r\\nstatus=0 cwd=[^\\r]*parity-case x=unset\\r\\n"
+        },
+        {
+          "send": "kill -USR1 %1; wait %1; echo \"sentinel=$(<sentinel.out)\"\r"
+        },
+        {
+          "expect": "sentinel=no-int\\r\\n"
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "comparison": "r3: only the foreground job's process group receives the terminal's SIGINT (a background sentinel in its own group sees none), and the calling shell's cwd and environment are unchanged by the Python program. bashpython is not built into either frozen binary, so the candidate shell reports 'bashpython: command not found' and the awaited prompt or output never appears.",
+      "interactive_shell": true,
+      "files": {
+        "ki3.py": "import os, time\nprint('ready', flush=True)\nos.chdir('/')\nos.environ['KI_X'] = 'py'\ntry:\n    time.sleep(30)\nexcept KeyboardInterrupt:\n    print('caught', flush=True)\n",
+        "sentinel.py": "import os, signal, sys, time\nos.setpgid(0, 0)\ngot = []\nsignal.signal(signal.SIGINT, lambda *a: got.append(1))\nsignal.signal(signal.SIGUSR1, lambda *a: sys.exit(0))\nopen('sentinel.ready', 'w').close()\nwhile not got:\n    try:\n        time.sleep(0.05)\n    except SystemExit:\n        break\nopen('sentinel.out', 'w').write('got-int\\n' if got else 'no-int\\n')\n"
+      }
+    }
+  ]
+}
