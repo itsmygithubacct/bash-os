@@ -1,0 +1,88 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w7-scm-peer-match",
+      "loadable": "scm",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "recv-fd --peer-uid/--peer-gid/--peer-pid accept a peer whose SO_PEERCRED matches (alone and combined) and deliver a usable descriptor.",
+      "covers": [
+        "scm/recv-fd-peer-credentials"
+      ],
+      "oracle": "Documented recv-fd contract: SO_PEERCRED of the receiving socket must match --peer-uid/--peer-gid/--peer-pid; a socketpair carries the creator's credentials (uid 2000, gid 2000 and the creating shell pid), and the received descriptor is checked by reading its file and by counting /proc/self/fd entries before and after.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [],
+      "files": {},
+      "script": "printf 'payload-line\\n' > f1\nexec 3<f1\ncount() { local g=(/proc/self/fd/*); REPLY=${#g[@]}; }\nmsg() { local e; e=$(< err.txt); e=${e#*recv-fd: }; e=${e//[0-9][0-9][0-9][0-9]*,/N,}; printf '%s' \"$e\"; }\nmsg() { local e; e=$(< err.txt)\n  case $e in\n    *\"peer uid mismatch (got 2000, want \"*) printf 'uid-mismatch(got 2000)';;\n    *\"peer gid mismatch (got 2000, want \"*) printf 'gid-mismatch(got 2000)';;\n    *\"peer pid mismatch (got \"*) printf 'pid-mismatch';;\n    *\"bad --peer-\"*) printf 'bad-arg';;\n    *\"unexpected\"*) printf 'unexpected-arg';;\n    '') printf 'none';;\n    *) printf 'other';; esac; }\nscm pair -h A -h B\ncount; n0=$REPLY\nok() { local l=$1; shift; exec 3<&-; exec 3<f1; scm send-fd $A 3 tok; scm recv-fd $B \"$@\" -h got 2>err.txt; local rc=$?\n  count; local n1=$REPLY; local data=none\n  if ((rc==0)); then read -r data <&$got; exec {got}<&-; fi\n  printf '%s status=%s err=%s fds=%s data=%s\\n' \"$l\" $rc \"$(msg)\" $((n1-n0)) \"$data\"; }\nok uid-only --peer-uid 2000\nok gid-only --peer-gid 2000\nok pid-only --peer-pid $$\nok all-three --peer-uid 2000 --peer-gid 2000 --peer-pid $$\nok no-filter\nok with-token --token tok\n",
+      "stdout": "uid-only status=0 err=none fds=1 data=payload-line\ngid-only status=0 err=none fds=1 data=payload-line\npid-only status=0 err=none fds=1 data=payload-line\nall-three status=0 err=none fds=1 data=payload-line\nno-filter status=0 err=none fds=1 data=payload-line\nwith-token status=0 err=none fds=1 data=payload-line\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-w7-scm-peer-mismatch",
+      "loadable": "scm",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "recv-fd rejects a mismatched uid, gid or pid with status 1, names the observed credential, binds no variable, and leaves no received descriptor open; a following matching receive still works.",
+      "covers": [
+        "scm/recv-fd-peer-credentials"
+      ],
+      "oracle": "Documented recv-fd contract: SO_PEERCRED of the receiving socket must match --peer-uid/--peer-gid/--peer-pid; a socketpair carries the creator's credentials (uid 2000, gid 2000 and the creating shell pid), and the received descriptor is checked by reading its file and by counting /proc/self/fd entries before and after.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [],
+      "files": {},
+      "script": "printf 'payload-line\\n' > f1\nexec 3<f1\ncount() { local g=(/proc/self/fd/*); REPLY=${#g[@]}; }\nmsg() { local e; e=$(< err.txt); e=${e#*recv-fd: }; e=${e//[0-9][0-9][0-9][0-9]*,/N,}; printf '%s' \"$e\"; }\nmsg() { local e; e=$(< err.txt)\n  case $e in\n    *\"peer uid mismatch (got 2000, want \"*) printf 'uid-mismatch(got 2000)';;\n    *\"peer gid mismatch (got 2000, want \"*) printf 'gid-mismatch(got 2000)';;\n    *\"peer pid mismatch (got \"*) printf 'pid-mismatch';;\n    *\"bad --peer-\"*) printf 'bad-arg';;\n    *\"unexpected\"*) printf 'unexpected-arg';;\n    '') printf 'none';;\n    *) printf 'other';; esac; }\nscm pair -h A -h B\ncount; n0=$REPLY\nbad() { local l=$1; shift; scm send-fd $A 3 tok; scm recv-fd $B \"$@\" -h got 2>err.txt; local rc=$?\n  count; local n1=$REPLY\n  printf '%s status=%s err=%s leaked-fds=%s got-bound=%s\\n' \"$l\" $rc \"$(msg)\" $((n1-n0)) \"${got-unset}\"; unset got; }\nbad wrong-uid --peer-uid 2001\nbad wrong-uid-zero --peer-uid 0\nbad wrong-gid --peer-gid 2001\nbad wrong-pid --peer-pid $(($$+1))\nbad right-uid-wrong-gid --peer-uid 2000 --peer-gid 2001\nbad right-uid-gid-wrong-pid --peer-uid 2000 --peer-gid 2000 --peer-pid $(($$+1))\nscm send-fd $A 3 tok; scm recv-fd $B --peer-uid 2000 --peer-gid 2000 --peer-pid $$ -h got 2>err.txt; rc=$?\nread -r data <&$got\nprintf 'after-rejections status=%s data=%s\\n' $rc \"$data\"\n",
+      "stdout": "wrong-uid status=1 err=uid-mismatch(got 2000) leaked-fds=0 got-bound=unset\nwrong-uid-zero status=1 err=uid-mismatch(got 2000) leaked-fds=0 got-bound=unset\nwrong-gid status=1 err=gid-mismatch(got 2000) leaked-fds=0 got-bound=unset\nwrong-pid status=1 err=pid-mismatch leaked-fds=0 got-bound=unset\nright-uid-wrong-gid status=1 err=gid-mismatch(got 2000) leaked-fds=0 got-bound=unset\nright-uid-gid-wrong-pid status=1 err=pid-mismatch leaked-fds=0 got-bound=unset\nafter-rejections status=0 data=payload-line\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-w7-scm-peer-malformed",
+      "loadable": "scm",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Malformed --peer-uid/--peer-gid/--peer-pid values (non-numeric, trailing text, empty, negative, out of range, missing) are rejected with usage status 2 before any receive, and no descriptor leaks.",
+      "covers": [
+        "scm/recv-fd-peer-credentials"
+      ],
+      "oracle": "Documented recv-fd contract: SO_PEERCRED of the receiving socket must match --peer-uid/--peer-gid/--peer-pid; a socketpair carries the creator's credentials (uid 2000, gid 2000 and the creating shell pid), and the received descriptor is checked by reading its file and by counting /proc/self/fd entries before and after.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [],
+      "files": {},
+      "script": "printf 'payload-line\\n' > f1\nexec 3<f1\ncount() { local g=(/proc/self/fd/*); REPLY=${#g[@]}; }\nmsg() { local e; e=$(< err.txt); e=${e#*recv-fd: }; e=${e//[0-9][0-9][0-9][0-9]*,/N,}; printf '%s' \"$e\"; }\nmsg() { local e; e=$(< err.txt)\n  case $e in\n    *\"peer uid mismatch (got 2000, want \"*) printf 'uid-mismatch(got 2000)';;\n    *\"peer gid mismatch (got 2000, want \"*) printf 'gid-mismatch(got 2000)';;\n    *\"peer pid mismatch (got \"*) printf 'pid-mismatch';;\n    *\"bad --peer-\"*) printf 'bad-arg';;\n    *\"unexpected\"*) printf 'unexpected-arg';;\n    '') printf 'none';;\n    *) printf 'other';; esac; }\nscm pair -h A -h B\ncount; n0=$REPLY\nmal() { local l=$1; shift; scm send-fd $A 3 tok; scm recv-fd $B \"$@\" 2>err.txt; local rc=$?\n  printf '%s status=%s err=%s\\n' \"$l\" $rc \"$(msg)\"\n  # malformed arguments are rejected before the message is consumed: drain it with a valid receive\n  scm recv-fd $B -h drained 2>/dev/null; exec {drained}<&-; unset drained; }\nmal uid-alpha --peer-uid abc\nmal uid-trailing --peer-uid 12x\nmal uid-empty --peer-uid ''\nmal uid-negative --peer-uid -1\nmal uid-over-32-bit --peer-uid 4294967296\nmal gid-alpha --peer-gid abc\nmal gid-over-32-bit --peer-gid 4294967296\nmal pid-alpha --peer-pid abc\nmal pid-over-int --peer-pid 2147483648\nmal pid-negative --peer-pid -5\nmal uid-missing-value --peer-uid\ncount; echo \"fds-delta=$((REPLY-n0))\"\n",
+      "stdout": "uid-alpha status=2 err=bad-arg\nuid-trailing status=2 err=bad-arg\nuid-empty status=2 err=bad-arg\nuid-negative status=2 err=bad-arg\nuid-over-32-bit status=2 err=bad-arg\ngid-alpha status=2 err=bad-arg\ngid-over-32-bit status=2 err=bad-arg\npid-alpha status=2 err=bad-arg\npid-over-int status=2 err=bad-arg\npid-negative status=2 err=bad-arg\nuid-missing-value status=2 err=unexpected-arg\nfds-delta=0\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-w7-scm-peer-distinct-identity-root",
+      "loadable": "scm",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "With a socketpair created while holding uid 4242/gid 4343 and received by a root process, --peer-uid/--peer-gid/--peer-pid 4242/4343/self accept and the receiver's own uid 0 or gid 0 is rejected: results come from a distinct fixture identity, not same-UID credentials.",
+      "covers": [
+        "scm/recv-fd-peer-credentials"
+      ],
+      "oracle": "SO_PEERCRED semantics: a socketpair records the credentials of the process that created it; python3 sets the fixture ids around socketpair(2) and execs the candidate, keeping its pid.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "peer.py": "import os, socket, sys\nbash = sys.argv[1]\nos.setresgid(4343, 4343, 0)\nos.setresuid(4242, 4242, 0)\na, b = socket.socketpair(socket.AF_UNIX, socket.SOCK_DGRAM)\nos.setresuid(0, 0, 0)\nos.setresgid(0, 0, 0)\nfor s in (a, b):\n    os.set_inheritable(s.fileno(), True)\nf = os.open(\"f1\", os.O_RDONLY)\nos.set_inheritable(f, True)\nos.environ.update(A=str(a.fileno()), B=str(b.fileno()), F=str(f))\nos.execv(bash, [bash, \"--noprofile\", \"--norc\", \"inner.sh\"])\n",
+        "inner.sh": "printf 'payload-line\\n' >/dev/null\ncount() { local g=(/proc/self/fd/*); REPLY=${#g[@]}; }\nmsg() { local e; e=$(< err.txt)\n  case $e in\n    *\"peer uid mismatch (got 4242, want \"*) printf 'uid-mismatch(got 4242)';;\n    *\"peer gid mismatch (got 4343, want \"*) printf 'gid-mismatch(got 4343)';;\n    *\"peer pid mismatch\"*) printf 'pid-mismatch';;\n    '') printf 'none';; *) printf 'other';; esac; }\ncount; n0=$REPLY\ntry() { local l=$1; shift; exec {F2}<f1; scm send-fd $A $F2 tok; scm recv-fd $B \"$@\" -h got 2>err.txt; local rc=$?\n  local d=none; ((rc==0)) && { read -r d <&$got; exec {got}<&-; }\n  exec {F2}<&-; count\n  printf '%s status=%s err=%s leaked=%s data=%s\\n' \"$l\" $rc \"$(msg)\" $((REPLY-n0)) \"$d\"; }\ntry distinct-uid --peer-uid 4242\ntry distinct-gid --peer-gid 4343\ntry distinct-all --peer-uid 4242 --peer-gid 4343 --peer-pid $$\ntry receiver-own-uid-rejected --peer-uid 0\ntry receiver-own-gid-rejected --peer-gid 0\ntry same-uid-claim-rejected --peer-uid 0 --peer-gid 4343\n",
+        "f1": "payload-line\n"
+      },
+      "privilege": "root",
+      "script": "/usr/bin/python3 peer.py \"$BASH\"\n",
+      "stdout": "distinct-uid status=0 err=none leaked=0 data=payload-line\ndistinct-gid status=0 err=none leaked=0 data=payload-line\ndistinct-all status=0 err=none leaked=0 data=payload-line\nreceiver-own-uid-rejected status=1 err=uid-mismatch(got 4242) leaked=0 data=none\nreceiver-own-gid-rejected status=1 err=gid-mismatch(got 4343) leaked=0 data=none\nsame-uid-claim-rejected status=1 err=uid-mismatch(got 4242) leaked=0 data=none\n",
+      "expected_status": 0,
+      "timeout": 30
+    }
+  ]
+}
