@@ -1,0 +1,101 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-g1-pkill-default-term",
+      "loadable": "pkill",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "With no signal option pkill sends SIGTERM to every selected owned process, leaves unselected siblings alive, and never signals the invoking shell.",
+      "oracle": "procps-ng 4.0.4 pkill run by the reference bash side against the same fixture processes",
+      "comparison": "Byte parity of stdout, stderr (location prefix normalized) and status; children are owned fixture processes (symlinks of sleep with unique names) and their end states are read back with kill -0 / wait status.",
+      "covers": [
+        "pkill/default-term-owned-target"
+      ],
+      "requires": [
+        "pkill"
+      ],
+      "script": "P=$PWD\n/usr/bin/mkfifo \"$P/gate\"; exec 9<> \"$P/gate\"\nnap() { read -t \"${1:-0.05}\" -u 9 _junk; }\nfor n in alpha alphax xalpha beta longnamedprocess1234567890; do /usr/bin/ln -s /usr/bin/sleep \"$P/g1$n\"; done\ndeclare -A PID\nmk() { local tag=$1 name=$2; shift 2; \"$P/$name\" \"${@:-60}\" & PID[$tag]=$!; nap 0.03; }\nst() { local t out=; for t in \"$@\"; do if kill -0 \"${PID[$t]}\" 2>/dev/null; then out+=\" $t=alive\"; else out+=\" $t=dead\"; fi; done; echo \"state:$out\"; }\nsettle() { local i t any; for ((i=0;i<30;i++)); do any=0; for t in \"$@\"; do kill -0 \"${PID[$t]}\" 2>/dev/null && any=1; done; ((any)) || return 0; nap 0.05; done; }\nnorm() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //; s/^(killall|pkill|pgrep): //'; }\nreap() { local t; for t in \"${!PID[@]}\"; do kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; done; }\ntrap reap EXIT\n\nmk a1 g1alpha; mk a2 g1alpha; mk b1 g1beta\npkill g1alpha; echo \"rc=$?\"\nsettle a1 a2\nst a1 a2 b1\nwait \"${PID[a1]}\"; echo \"a1-wait=$?\"; wait \"${PID[a2]}\"; echo \"a2-wait=$?\"\necho \"shell-alive=yes\"\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-g1-pkill-signal-names-count",
+      "loadable": "pkill",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Named (-HUP, -SIGUSR1, -usr1) and numeric (-10) signals, signal 0, -c count, success/no-match statuses and signal/selector ambiguity (-USR1 vs -U, -PIPE vs -P) behave as in procps pkill, read back from the children's wait statuses.",
+      "oracle": "procps-ng 4.0.4 pkill run by the reference bash side against the same fixture processes",
+      "comparison": "Byte parity of stdout, stderr (location prefix normalized) and status; children are owned fixture processes (symlinks of sleep with unique names) and their end states are read back with kill -0 / wait status.",
+      "covers": [
+        "pkill/signal-names-zero-and-count"
+      ],
+      "requires": [
+        "pkill"
+      ],
+      "script": "P=$PWD\n/usr/bin/mkfifo \"$P/gate\"; exec 9<> \"$P/gate\"\nnap() { read -t \"${1:-0.05}\" -u 9 _junk; }\nfor n in alpha alphax xalpha beta longnamedprocess1234567890; do /usr/bin/ln -s /usr/bin/sleep \"$P/g1$n\"; done\ndeclare -A PID\nmk() { local tag=$1 name=$2; shift 2; \"$P/$name\" \"${@:-60}\" & PID[$tag]=$!; nap 0.03; }\nst() { local t out=; for t in \"$@\"; do if kill -0 \"${PID[$t]}\" 2>/dev/null; then out+=\" $t=alive\"; else out+=\" $t=dead\"; fi; done; echo \"state:$out\"; }\nsettle() { local i t any; for ((i=0;i<30;i++)); do any=0; for t in \"$@\"; do kill -0 \"${PID[$t]}\" 2>/dev/null && any=1; done; ((any)) || return 0; nap 0.05; done; }\nnorm() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //; s/^(killall|pkill|pgrep): //'; }\nreap() { local t; for t in \"${!PID[@]}\"; do kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; done; }\ntrap reap EXIT\n\nfor sig in -HUP -SIGUSR1 -usr1 -10 -0; do\n  mk x g1alpha; out=$(pkill $sig g1alpha 2>&1); rc=$?\n  if [[ $sig == -0 ]]; then st x; else settle x; wait \"${PID[x]}\"; w=$?; fi\n  echo \"pkill $sig rc=$rc out=[$out] wait=${w:-none}\"; w=; kill -KILL \"${PID[x]}\" 2>/dev/null; wait \"${PID[x]}\" 2>/dev/null\ndone\nmk x g1alpha; mk y g1alpha\nout=$(pkill -c g1alpha 2>&1); echo \"count out=[$out] rc=$?\"; settle x y\nout=$(pkill g1alpha 2>&1); echo \"nomatch out=[$out] rc=$?\"\nmk x g1alpha; out=$(pkill -USR1 g1alpha 2>&1); rc=$?; settle x; wait \"${PID[x]}\"; echo \"-USR1 rc=$rc wait=$?\"\nmk x g1alpha; out=$(pkill -PIPE g1alpha 2>&1); rc=$?; settle x; wait \"${PID[x]}\"; echo \"-PIPE rc=$rc wait=$?\"\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-g1-pkill-newest-oldest",
+      "loadable": "pkill",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "pkill -n signals only the newest and -o only the oldest of several matching owned processes started at distinct times.",
+      "oracle": "procps-ng 4.0.4 pkill run by the reference bash side against the same fixture processes",
+      "comparison": "Byte parity of stdout, stderr (location prefix normalized) and status; children are owned fixture processes (symlinks of sleep with unique names) and their end states are read back with kill -0 / wait status.",
+      "covers": [
+        "pkill/newest-oldest-selection"
+      ],
+      "requires": [
+        "pkill"
+      ],
+      "script": "P=$PWD\n/usr/bin/mkfifo \"$P/gate\"; exec 9<> \"$P/gate\"\nnap() { read -t \"${1:-0.05}\" -u 9 _junk; }\nfor n in alpha alphax xalpha beta longnamedprocess1234567890; do /usr/bin/ln -s /usr/bin/sleep \"$P/g1$n\"; done\ndeclare -A PID\nmk() { local tag=$1 name=$2; shift 2; \"$P/$name\" \"${@:-60}\" & PID[$tag]=$!; nap 0.03; }\nst() { local t out=; for t in \"$@\"; do if kill -0 \"${PID[$t]}\" 2>/dev/null; then out+=\" $t=alive\"; else out+=\" $t=dead\"; fi; done; echo \"state:$out\"; }\nsettle() { local i t any; for ((i=0;i<30;i++)); do any=0; for t in \"$@\"; do kill -0 \"${PID[$t]}\" 2>/dev/null && any=1; done; ((any)) || return 0; nap 0.05; done; }\nnorm() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //; s/^(killall|pkill|pgrep): //'; }\nreap() { local t; for t in \"${!PID[@]}\"; do kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; done; }\ntrap reap EXIT\n\nmk o g1alpha; nap 0.3; mk m g1alpha; nap 0.3; mk n g1alpha; nap 0.3\npkill -n g1alpha; echo \"-n rc=$?\"; settle n; st o m n\nmk n g1alpha; nap 0.3\npkill -o g1alpha; echo \"-o rc=$?\"; settle o; st o m n\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-g1-pkill-regex-selectors",
+      "loadable": "pkill",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "pkill default ERE matching on comm, -f on the full command line, -x exact matching, and combined -u/-P selectors (AND semantics) select the same processes as procps pkill.",
+      "oracle": "procps-ng 4.0.4 pkill run by the reference bash side against the same fixture processes",
+      "comparison": "Byte parity of stdout, stderr (location prefix normalized) and status; children are owned fixture processes (symlinks of sleep with unique names) and their end states are read back with kill -0 / wait status.",
+      "covers": [
+        "pkill/regex-cmdline-and-selectors"
+      ],
+      "requires": [
+        "pkill"
+      ],
+      "script": "P=$PWD\n/usr/bin/mkfifo \"$P/gate\"; exec 9<> \"$P/gate\"\nnap() { read -t \"${1:-0.05}\" -u 9 _junk; }\nfor n in alpha alphax xalpha beta longnamedprocess1234567890; do /usr/bin/ln -s /usr/bin/sleep \"$P/g1$n\"; done\ndeclare -A PID\nmk() { local tag=$1 name=$2; shift 2; \"$P/$name\" \"${@:-60}\" & PID[$tag]=$!; nap 0.03; }\nst() { local t out=; for t in \"$@\"; do if kill -0 \"${PID[$t]}\" 2>/dev/null; then out+=\" $t=alive\"; else out+=\" $t=dead\"; fi; done; echo \"state:$out\"; }\nsettle() { local i t any; for ((i=0;i<30;i++)); do any=0; for t in \"$@\"; do kill -0 \"${PID[$t]}\" 2>/dev/null && any=1; done; ((any)) || return 0; nap 0.05; done; }\nnorm() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //; s/^(killall|pkill|pgrep): //'; }\nreap() { local t; for t in \"${!PID[@]}\"; do kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; done; }\ntrap reap EXIT\n\nmk a61 g1alpha 61; mk a62 g1alpha 62; mk b61 g1beta 61; mk ax g1alphax\npkill '^g1alpha$'; echo \"ere-exact rc=$?\"; settle a61 a62; st a61 a62 b61 ax\nmk a61 g1alpha 61; mk a62 g1alpha 62\npkill -f 'g1alpha 61'; echo \"-f rc=$?\"; settle a61; st a61 a62 b61 ax\nmk a61 g1alpha 61\npkill -x g1alp; echo \"-x-partial rc=$?\"; st a61\npkill -x g1alphax; echo \"-x-exact rc=$?\"; settle ax; st a61 ax\npkill -f -x 'g1beta 61'; echo \"-f-x rc=$?\"; settle b61; st b61 a61\npkill -u 2000 -P $$ g1alpha; echo \"u-P rc=$?\"; settle a61 a62; st a61 a62\nmk a61 g1alpha 61; pkill -u 2000 -P 1 g1alpha; echo \"u-P-nomatch rc=$?\"; st a61\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-g1-pkill-invalid-input",
+      "loadable": "pkill",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "An invalid ERE or unknown option gives usage status 2 and signals nothing (children stay alive).",
+      "oracle": "procps-ng 4.0.4 pkill run by the reference bash side against the same fixture processes",
+      "comparison": "Byte parity of stdout, stderr (location prefix normalized) and status; children are owned fixture processes (symlinks of sleep with unique names) and their end states are read back with kill -0 / wait status.",
+      "covers": [
+        "pkill/invalid-input-and-delivery-errors"
+      ],
+      "requires": [
+        "pkill",
+        "sed"
+      ],
+      "script": "P=$PWD\n/usr/bin/mkfifo \"$P/gate\"; exec 9<> \"$P/gate\"\nnap() { read -t \"${1:-0.05}\" -u 9 _junk; }\nfor n in alpha alphax xalpha beta longnamedprocess1234567890; do /usr/bin/ln -s /usr/bin/sleep \"$P/g1$n\"; done\ndeclare -A PID\nmk() { local tag=$1 name=$2; shift 2; \"$P/$name\" \"${@:-60}\" & PID[$tag]=$!; nap 0.03; }\nst() { local t out=; for t in \"$@\"; do if kill -0 \"${PID[$t]}\" 2>/dev/null; then out+=\" $t=alive\"; else out+=\" $t=dead\"; fi; done; echo \"state:$out\"; }\nsettle() { local i t any; for ((i=0;i<30;i++)); do any=0; for t in \"$@\"; do kill -0 \"${PID[$t]}\" 2>/dev/null && any=1; done; ((any)) || return 0; nap 0.05; done; }\nnorm() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //; s/^(killall|pkill|pgrep): //'; }\nreap() { local t; for t in \"${!PID[@]}\"; do kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; done; }\ntrap reap EXIT\n\nmk a g1alpha\nfor args in \"[\" \"--bogus g1alpha\" \"-Z g1alpha\" \"(\" ; do out=$(pkill $args 2>&1 | norm); echo \"pkill $args => rc=${PIPESTATUS[0]} $out\" | head -1; done\nst a\n",
+      "expected_status": 0,
+      "timeout": 30
+    }
+  ]
+}
