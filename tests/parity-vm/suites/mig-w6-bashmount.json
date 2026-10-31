@@ -1,0 +1,515 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-bashmount-mount-plain",
+      "loadable": "bashmount",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashmount/defer_mount_syscall"
+      ],
+      "purpose": "Plain typed tmpfs mount onto a relative directory: mountinfo fstype and file placement",
+      "oracle": "util-linux mount/umount/findmnt in the guest and an independent Python mountinfo parser and raw mount(2)/umount2(2) caller (helpers/mig-w6-mount.py) inside a mapped user and private mount namespace on a fresh tmpfs",
+      "comparison": "Candidate and util-linux mountinfo fstype/source, device change, file placement on the new superblock and unmount hiding it.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "umount",
+        "findmnt",
+        "stat",
+        "mkdir"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-mount.py": "1545f3951ecdb51bf0f4d2b7b205a4197219479aa8c18ef422aedfd211de9bfe"
+      },
+      "files": {
+        "inner.sh": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t bashmount) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-mount.py\npy() { /usr/bin/python3 \"$H\" \"$@\"; }\nW=/tmp/parity-case/w\n/usr/bin/mount --make-rprivate / || exit 98\n/usr/bin/mkdir \"$W\" && /usr/bin/mount -t tmpfs -o size=2m tmpfs \"$W\" || exit 98\ncd \"$W\" || exit 98\nmi() { if [[ $1 == . ]]; then py mi \"$W\" \"$2\"; else py mi \"$W/$1\" \"$2\"; fi; }\nhas() { [[ ,$1, == *,$2,* ]]; }\nb() { if \"$@\"; then echo 1; else echo 0; fi; }\n/usr/bin/mkdir one two\nbashmount -t tmpfs tmpfs one; crc=$?\n/usr/bin/mount -t tmpfs tmpfs two; nrc=$?\necho \"candidate-rc=$crc\"\necho \"native-rc=$nrc\"\necho \"candidate mounted=$(mi one mounted) fstype=$(mi one fstype) source=$(mi one source)\"\necho \"native mounted=$(mi two mounted) fstype=$(mi two fstype) source=$(mi two source)\"\nprintf live >one/f\ndd=$(( $(/usr/bin/stat -c %d one) != $(/usr/bin/stat -c %d .) ))\nread -r got <one/f\necho \"dev-differs=$dd file=$got\"\n/usr/bin/umount one; urc=$?\n[[ ! -e one/f ]]; hid=$(( $? == 0 ))\n[[ -d one ]]; dir=$(( $? == 0 ))\necho \"umount-rc=$urc hidden-after-umount=$hid dir-remains=$dir\"\n"
+      },
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\n",
+      "expected_status": 0,
+      "stdout": "candidate-rc=0\nnative-rc=0\ncandidate mounted=yes fstype=tmpfs source=tmpfs\nnative mounted=yes fstype=tmpfs source=tmpfs\ndev-differs=1 file=live\numount-rc=0 hidden-after-umount=1 dir-remains=1\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-bashmount-mount-flags",
+      "loadable": "bashmount",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashmount/defer_mount_syscall"
+      ],
+      "purpose": "Option names map to per-mount MS_* bits in mountinfo; rw/suid/dev/exec clear the opposite bits",
+      "oracle": "util-linux mount/umount/findmnt in the guest and an independent Python mountinfo parser and raw mount(2)/umount2(2) caller (helpers/mig-w6-mount.py) inside a mapped user and private mount namespace on a fresh tmpfs",
+      "comparison": "Per-mount options after a ro,nosuid,nodev,noexec,noatime mount and after a remount with rw,suid,dev,exec, against util-linux.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "umount",
+        "findmnt",
+        "stat",
+        "mkdir"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-mount.py": "1545f3951ecdb51bf0f4d2b7b205a4197219479aa8c18ef422aedfd211de9bfe"
+      },
+      "files": {
+        "inner.sh": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t bashmount) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-mount.py\npy() { /usr/bin/python3 \"$H\" \"$@\"; }\nW=/tmp/parity-case/w\n/usr/bin/mount --make-rprivate / || exit 98\n/usr/bin/mkdir \"$W\" && /usr/bin/mount -t tmpfs -o size=2m tmpfs \"$W\" || exit 98\ncd \"$W\" || exit 98\nmi() { if [[ $1 == . ]]; then py mi \"$W\" \"$2\"; else py mi \"$W/$1\" \"$2\"; fi; }\nhas() { [[ ,$1, == *,$2,* ]]; }\nb() { if \"$@\"; then echo 1; else echo 0; fi; }\n/usr/bin/mkdir a b\nbashmount -t tmpfs -o ro,nosuid,nodev,noexec,noatime tmpfs a; echo \"candidate-rc=$?\"\n/usr/bin/mount -t tmpfs -o ro,nosuid,nodev,noexec,noatime tmpfs b; echo \"native-rc=$?\"\necho \"candidate-mopts=$(mi a mopts)\"\necho \"native-mopts=$(mi b mopts)\"\necho \"set-equal=$(b [[ $(mi a mopts) == \"$(mi b mopts)\" ]])\"\nbashmount --remount -o rw,suid,dev,exec a; echo \"candidate-clear-rc=$?\"\n/usr/bin/mount -o remount,rw,suid,dev,exec b; echo \"native-clear-rc=$?\"\nca=$(mi a mopts); na=$(mi b mopts)\necho \"cleared ro=$(b has \"$ca\" ro) nosuid=$(b has \"$ca\" nosuid) noexec=$(b has \"$ca\" noexec) noatime=$(b has \"$ca\" noatime) rw=$(b has \"$ca\" rw)\"\necho \"clear-equal-native=$(b [[ $ca == \"$na\" ]])\"\necho \"nodev-candidate=$(b has \"$ca\" nodev) nodev-native=$(b has \"$na\" nodev)\"\n"
+      },
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\n",
+      "expected_status": 0,
+      "stdout": "candidate-rc=0\nnative-rc=0\ncandidate-mopts=noatime,nodev,noexec,nosuid,ro\nnative-mopts=noatime,nodev,noexec,nosuid,ro\nset-equal=1\ncandidate-clear-rc=0\nnative-clear-rc=0\ncleared ro=0 nosuid=0 noexec=0 noatime=0 rw=1\nclear-equal-native=1\nnodev-candidate=0 nodev-native=0\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-bashmount-mount-data",
+      "loadable": "bashmount",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashmount/defer_mount_syscall"
+      ],
+      "purpose": "Unknown option tokens forward to the filesystem as data while flag names map to mount flags",
+      "oracle": "util-linux mount/umount/findmnt in the guest and an independent Python mountinfo parser and raw mount(2)/umount2(2) caller (helpers/mig-w6-mount.py) inside a mapped user and private mount namespace on a fresh tmpfs",
+      "comparison": "tmpfs super options contain size=64k beside the mapped ro,nosuid mount flags; both equal the util-linux result.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "umount",
+        "findmnt",
+        "stat",
+        "mkdir"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-mount.py": "1545f3951ecdb51bf0f4d2b7b205a4197219479aa8c18ef422aedfd211de9bfe"
+      },
+      "files": {
+        "inner.sh": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t bashmount) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-mount.py\npy() { /usr/bin/python3 \"$H\" \"$@\"; }\nW=/tmp/parity-case/w\n/usr/bin/mount --make-rprivate / || exit 98\n/usr/bin/mkdir \"$W\" && /usr/bin/mount -t tmpfs -o size=2m tmpfs \"$W\" || exit 98\ncd \"$W\" || exit 98\nmi() { if [[ $1 == . ]]; then py mi \"$W\" \"$2\"; else py mi \"$W/$1\" \"$2\"; fi; }\nhas() { [[ ,$1, == *,$2,* ]]; }\nb() { if \"$@\"; then echo 1; else echo 0; fi; }\n/usr/bin/mkdir e f\nbashmount -t tmpfs -o size=64k,ro,nosuid tmpfs e; echo \"candidate-rc=$?\"\n/usr/bin/mount -t tmpfs -o size=64k,ro,nosuid tmpfs f; echo \"native-rc=$?\"\nm=$(mi e mopts); s=$(mi e sopts)\necho \"candidate super size=$(b has \"$s\" size=64k) ro=$(b has \"$s\" ro) mount ro=$(b has \"$m\" ro) nosuid=$(b has \"$m\" nosuid)\"\necho \"super-equal-native=$(b [[ $s == \"$(mi f sopts)\" ]]) mount-equal-native=$(b [[ $m == \"$(mi f mopts)\" ]])\"\necho \"size-not-a-mount-flag=$(b [[ $m != *size* ]])\"\n"
+      },
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\n",
+      "expected_status": 0,
+      "stdout": "candidate-rc=0\nnative-rc=0\ncandidate super size=1 ro=1 mount ro=1 nosuid=1\nsuper-equal-native=1 mount-equal-native=1\nsize-not-a-mount-flag=1\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-bashmount-mount-failures",
+      "loadable": "bashmount",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashmount/defer_mount_syscall"
+      ],
+      "purpose": "Rejected mounts: missing target, unknown fstype, invalid data token and usage errors",
+      "oracle": "util-linux mount/umount/findmnt in the guest and an independent Python mountinfo parser and raw mount(2)/umount2(2) caller (helpers/mig-w6-mount.py) inside a mapped user and private mount namespace on a fresh tmpfs; util-linux mount exit class 32 (mount failure) and usage status 2 (bash EX_USAGE)",
+      "comparison": "Candidate status and errno text for three kernel rejections against the raw mount(2) errno and util-linux failure class, plus four usage failures.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "umount",
+        "findmnt",
+        "stat",
+        "mkdir"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-mount.py": "1545f3951ecdb51bf0f4d2b7b205a4197219479aa8c18ef422aedfd211de9bfe"
+      },
+      "files": {
+        "inner.sh": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t bashmount) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-mount.py\npy() { /usr/bin/python3 \"$H\" \"$@\"; }\nW=/tmp/parity-case/w\n/usr/bin/mount --make-rprivate / || exit 98\n/usr/bin/mkdir \"$W\" && /usr/bin/mount -t tmpfs -o size=2m tmpfs \"$W\" || exit 98\ncd \"$W\" || exit 98\nmi() { if [[ $1 == . ]]; then py mi \"$W\" \"$2\"; else py mi \"$W/$1\" \"$2\"; fi; }\nhas() { [[ ,$1, == *,$2,* ]]; }\nb() { if \"$@\"; then echo 1; else echo 0; fi; }\n/usr/bin/mkdir one\nout=$(bashmount -t tmpfs tmpfs missing-dir 2>&1 >/dev/null); rc=$?\necho \"missing-target rc=$rc errno=$(py rawmount tmpfs missing-dir tmpfs 0 \"\") text=$(b [[ $out == *\"No such file or directory\"* ]]) native-rc=$(/usr/bin/mount -t tmpfs tmpfs missing-dir 2>/dev/null; echo $?)\"\nout=$(bashmount -t w6nofs none one 2>&1 >/dev/null); rc=$?\necho \"unknown-fstype rc=$rc errno=$(py rawmount none one w6nofs 0 \"\") text=$(b [[ $out == *\"No such device\"* ]]) native-rc=$(/usr/bin/mount -t w6nofs none one 2>/dev/null; echo $?)\"\nout=$(bashmount -t tmpfs -o size=bogus tmpfs one 2>&1 >/dev/null); rc=$?\necho \"invalid-data rc=$rc errno=$(py rawmount tmpfs one tmpfs 0 \"size=bogus\") text=$(b [[ $out == *\"Invalid argument\"* ]]) native-rc=$(/usr/bin/mount -t tmpfs -o size=bogus tmpfs one 2>/dev/null; echo $?)\"\necho \"none-mounted=$(mi one mounted)\"\nout=$(bashmount -t 2>&1 >/dev/null); echo \"t-no-value rc=$? text=$(b [[ $out == *\"-t requires TYPE\"* ]])\"\nout=$(bashmount -o 2>&1 >/dev/null); echo \"o-no-value rc=$? text=$(b [[ $out == *\"-o requires OPTS\"* ]])\"\nout=$(bashmount -B -R a b 2>&1 >/dev/null); echo \"conflict rc=$? text=$(b [[ $out == *\"conflicting verbs\"* ]])\"\nout=$(bashmount -t tmpfs tmpfs 2>&1 >/dev/null); echo \"one-operand rc=$? text=$(b [[ $out == *\"usage: bashmount\"* ]])\"\n"
+      },
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\n",
+      "expected_status": 0,
+      "stdout": "missing-target rc=1 errno=ENOENT text=1 native-rc=32\nunknown-fstype rc=1 errno=ENODEV text=1 native-rc=32\ninvalid-data rc=1 errno=EINVAL text=1 native-rc=32\nnone-mounted=absent\nt-no-value rc=2 text=1\no-no-value rc=2 text=1\nconflict rc=2 text=1\none-operand rc=2 text=1\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-bashmount-confined",
+      "loadable": "bashmount",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashmount/defer_mount_syscall"
+      ],
+      "purpose": "Mount, bind, remount and unmount inside the per-side namespace leave the outer mount namespace unchanged",
+      "oracle": "util-linux mount/umount/findmnt in the guest and an independent Python mountinfo parser and raw mount(2)/umount2(2) caller (helpers/mig-w6-mount.py) inside a mapped user and private mount namespace on a fresh tmpfs",
+      "comparison": "The outer mount namespace's mountinfo is byte-identical before and after, contains no fixture path, and the fixture directory is empty.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "umount",
+        "findmnt",
+        "stat",
+        "mkdir"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-mount.py": "1545f3951ecdb51bf0f4d2b7b205a4197219479aa8c18ef422aedfd211de9bfe"
+      },
+      "files": {
+        "inner.sh": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t bashmount) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-mount.py\npy() { /usr/bin/python3 \"$H\" \"$@\"; }\nW=/tmp/parity-case/w\n/usr/bin/mount --make-rprivate / || exit 98\n/usr/bin/mkdir \"$W\" && /usr/bin/mount -t tmpfs -o size=2m tmpfs \"$W\" || exit 98\ncd \"$W\" || exit 98\nmi() { if [[ $1 == . ]]; then py mi \"$W\" \"$2\"; else py mi \"$W/$1\" \"$2\"; fi; }\nhas() { [[ ,$1, == *,$2,* ]]; }\nb() { if \"$@\"; then echo 1; else echo 0; fi; }\n/usr/bin/mkdir one two three\nbashmount -t tmpfs -o size=64k tmpfs one; r1=$?\nbashmount -B one two; r2=$?\nbashmount --remount -o ro two; r3=$?\necho \"inside mounted: one=$(mi one mounted) two=$(mi two mounted)\"\necho \"rc=$r1,$r2,$r3\"\nbashmount -t tmpfs tmpfs three; bashmount -u three; echo \"umount-rc=$? three=$(mi three mounted)\"\n"
+      },
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nbefore=$(<\"/proc/self/mountinfo\")\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh; rc=$?\nafter=$(<\"/proc/self/mountinfo\")\necho \"outer-mountinfo-unchanged=$([[ $before == \"$after\" ]] && echo 1 || echo 0)\"\necho \"outer-has-w=$(/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w6-mount.py outer-has /tmp/parity-case/w)\"\necho \"leftover-entries=$(/usr/bin/ls -A /tmp/parity-case/w | /usr/bin/wc -l)\"\nexit $rc\n",
+      "expected_status": 0,
+      "stdout": "inside mounted: one=yes two=yes\nrc=0,0,0\numount-rc=0 three=absent\nouter-mountinfo-unchanged=1\nouter-has-w=no\nleftover-entries=0\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-bashmount-bind-relative",
+      "loadable": "bashmount",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashmount/defer_bind_remount"
+      ],
+      "purpose": "-B binds a relative source directory: contents and mountinfo root of the same superblock",
+      "oracle": "util-linux mount/umount/findmnt in the guest and an independent Python mountinfo parser and raw mount(2)/umount2(2) caller (helpers/mig-w6-mount.py) inside a mapped user and private mount namespace on a fresh tmpfs",
+      "comparison": "Bound directory contents, FSROOT /src and the superblock device number against util-linux mount --bind.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "umount",
+        "findmnt",
+        "stat",
+        "mkdir"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-mount.py": "1545f3951ecdb51bf0f4d2b7b205a4197219479aa8c18ef422aedfd211de9bfe"
+      },
+      "files": {
+        "inner.sh": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t bashmount) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-mount.py\npy() { /usr/bin/python3 \"$H\" \"$@\"; }\nW=/tmp/parity-case/w\n/usr/bin/mount --make-rprivate / || exit 98\n/usr/bin/mkdir \"$W\" && /usr/bin/mount -t tmpfs -o size=2m tmpfs \"$W\" || exit 98\ncd \"$W\" || exit 98\nmi() { if [[ $1 == . ]]; then py mi \"$W\" \"$2\"; else py mi \"$W/$1\" \"$2\"; fi; }\nhas() { [[ ,$1, == *,$2,* ]]; }\nb() { if \"$@\"; then echo 1; else echo 0; fi; }\n/usr/bin/mkdir src dst nat\nprintf content >src/file\nbashmount -B src dst; echo \"candidate-rc=$?\"\n/usr/bin/mount --bind src nat; echo \"native-rc=$?\"\nread -r got <dst/file; echo \"dst-shows=$got\"\necho \"root=$(mi dst root) majmin-same-as-base=$(b [[ $(mi dst majmin) == \"$(mi . majmin)\" ]])\"\necho \"native-root=$(mi nat root) native-majmin-same=$(b [[ $(mi nat majmin) == \"$(mi . majmin)\" ]])\"\necho \"fstype=$(mi dst fstype) mopts-equal-native=$(b [[ $(mi dst mopts) == \"$(mi nat mopts)\" ]])\"\n"
+      },
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\n",
+      "expected_status": 0,
+      "stdout": "candidate-rc=0\nnative-rc=0\ndst-shows=content\nroot=/src majmin-same-as-base=1\nnative-root=/src native-majmin-same=1\nfstype=tmpfs mopts-equal-native=1\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-bashmount-rbind",
+      "loadable": "bashmount",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashmount/defer_bind_remount"
+      ],
+      "purpose": "-R carries a nested submount, plain -B does not",
+      "oracle": "util-linux mount/umount/findmnt in the guest and an independent Python mountinfo parser and raw mount(2)/umount2(2) caller (helpers/mig-w6-mount.py) inside a mapped user and private mount namespace on a fresh tmpfs",
+      "comparison": "mountinfo entries and file visibility under the nested mountpoint for -B, -R and util-linux --rbind.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "umount",
+        "findmnt",
+        "stat",
+        "mkdir"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-mount.py": "1545f3951ecdb51bf0f4d2b7b205a4197219479aa8c18ef422aedfd211de9bfe"
+      },
+      "files": {
+        "inner.sh": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t bashmount) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-mount.py\npy() { /usr/bin/python3 \"$H\" \"$@\"; }\nW=/tmp/parity-case/w\n/usr/bin/mount --make-rprivate / || exit 98\n/usr/bin/mkdir \"$W\" && /usr/bin/mount -t tmpfs -o size=2m tmpfs \"$W\" || exit 98\ncd \"$W\" || exit 98\nmi() { if [[ $1 == . ]]; then py mi \"$W\" \"$2\"; else py mi \"$W/$1\" \"$2\"; fi; }\nhas() { [[ ,$1, == *,$2,* ]]; }\nb() { if \"$@\"; then echo 1; else echo 0; fi; }\n/usr/bin/mkdir src src/sub plain rec nat\n/usr/bin/mount -t tmpfs tmpfs src/sub || exit 98\nprintf inner >src/sub/inner\nbashmount -B src plain; echo \"plain-rc=$?\"\nbashmount -R src rec; echo \"rbind-rc=$?\"\n/usr/bin/mount --rbind src nat; echo \"native-rbind-rc=$?\"\necho \"plain: submount=$(mi plain/sub mounted) inner-visible=$(b [[ -e plain/sub/inner ]])\"\necho \"rbind: submount=$(mi rec/sub mounted) inner-visible=$(b [[ -e rec/sub/inner ]]) fstype=$(mi rec/sub fstype)\"\necho \"native rbind: submount=$(mi nat/sub mounted) inner-visible=$(b [[ -e nat/sub/inner ]])\"\n"
+      },
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\n",
+      "expected_status": 0,
+      "stdout": "plain-rc=0\nrbind-rc=0\nnative-rbind-rc=0\nplain: submount=absent inner-visible=0\nrbind: submount=yes inner-visible=1 fstype=tmpfs\nnative rbind: submount=yes inner-visible=1\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-bashmount-bind-ro",
+      "loadable": "bashmount",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashmount/defer_bind_remount"
+      ],
+      "purpose": "-B -o ro yields a read-only bind while the source stays writable",
+      "oracle": "util-linux mount/umount/findmnt in the guest and an independent Python mountinfo parser and raw mount(2)/umount2(2) caller (helpers/mig-w6-mount.py) inside a mapped user and private mount namespace on a fresh tmpfs; mount(2): a bind mount ignores MS_RDONLY unless a MS_BIND|MS_REMOUNT follows",
+      "comparison": "Write failure on the bind, source writability, per-mount (not superblock) ro in mountinfo against the util-linux two-step.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "umount",
+        "findmnt",
+        "stat",
+        "mkdir"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-mount.py": "1545f3951ecdb51bf0f4d2b7b205a4197219479aa8c18ef422aedfd211de9bfe"
+      },
+      "files": {
+        "inner.sh": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t bashmount) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-mount.py\npy() { /usr/bin/python3 \"$H\" \"$@\"; }\nW=/tmp/parity-case/w\n/usr/bin/mount --make-rprivate / || exit 98\n/usr/bin/mkdir \"$W\" && /usr/bin/mount -t tmpfs -o size=2m tmpfs \"$W\" || exit 98\ncd \"$W\" || exit 98\nmi() { if [[ $1 == . ]]; then py mi \"$W\" \"$2\"; else py mi \"$W/$1\" \"$2\"; fi; }\nhas() { [[ ,$1, == *,$2,* ]]; }\nb() { if \"$@\"; then echo 1; else echo 0; fi; }\n/usr/bin/mkdir src dst nat\nbashmount -B -o ro src dst; echo \"candidate-rc=$?\"\n/usr/bin/mount --bind src nat && /usr/bin/mount -o remount,bind,ro nat; echo \"native-rc=$?\"\n( : >dst/x ) 2>/dev/null; echo \"bind-write-rc=$?\"\n( : >src/y ) 2>/dev/null; echo \"source-write-rc=$?\"\n( : >nat/x ) 2>/dev/null; echo \"native-write-rc=$?\"\necho \"bind-mopts-ro=$(b has \"$(mi dst mopts)\" ro) bind-sopts-ro=$(b has \"$(mi dst sopts)\" ro)\"\necho \"mount-opts-equal-native=$(b [[ $(mi dst mopts) == \"$(mi nat mopts)\" ]])\"\necho \"source-mount-ro=$(b has \"$(mi . mopts)\" ro)\"\n"
+      },
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\n",
+      "expected_status": 0,
+      "stdout": "candidate-rc=0\nnative-rc=0\nbind-write-rc=1\nsource-write-rc=0\nnative-write-rc=1\nbind-mopts-ro=1 bind-sopts-ro=0\nmount-opts-equal-native=1\nsource-mount-ro=0\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-bashmount-remount",
+      "loadable": "bashmount",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashmount/defer_bind_remount"
+      ],
+      "purpose": "--remount -o ro / -o rw changes an existing mount; superblock-wide versus per-mount effect compared with util-linux",
+      "oracle": "util-linux mount/umount/findmnt in the guest and an independent Python mountinfo parser and raw mount(2)/umount2(2) caller (helpers/mig-w6-mount.py) inside a mapped user and private mount namespace on a fresh tmpfs",
+      "comparison": "Direct and via-bind write results plus mountinfo options after remount ro and rw, candidate against util-linux remount.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "umount",
+        "findmnt",
+        "stat",
+        "mkdir"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-mount.py": "1545f3951ecdb51bf0f4d2b7b205a4197219479aa8c18ef422aedfd211de9bfe"
+      },
+      "files": {
+        "inner.sh": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t bashmount) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-mount.py\npy() { /usr/bin/python3 \"$H\" \"$@\"; }\nW=/tmp/parity-case/w\n/usr/bin/mount --make-rprivate / || exit 98\n/usr/bin/mkdir \"$W\" && /usr/bin/mount -t tmpfs -o size=2m tmpfs \"$W\" || exit 98\ncd \"$W\" || exit 98\nmi() { if [[ $1 == . ]]; then py mi \"$W\" \"$2\"; else py mi \"$W/$1\" \"$2\"; fi; }\nhas() { [[ ,$1, == *,$2,* ]]; }\nb() { if \"$@\"; then echo 1; else echo 0; fi; }\n/usr/bin/mkdir c cb n nb\nbashmount -t tmpfs tmpfs c || exit 98\n/usr/bin/mount -t tmpfs tmpfs n || exit 98\nbashmount -B c cb || exit 98\n/usr/bin/mount --bind n nb || exit 98\nbashmount --remount -o ro c; echo \"candidate-ro-rc=$?\"\n/usr/bin/mount -o remount,ro n; echo \"native-ro-rc=$?\"\n( : >c/x ) 2>/dev/null; echo \"ro: direct-write-rc=$? \"\n( : >cb/x ) 2>/dev/null; echo \"ro: via-bind-write-rc=$? (superblock-wide)\"\n( : >nb/x ) 2>/dev/null; echo \"native via-bind-write-rc=$?\"\necho \"ro mopts-equal=$(b [[ $(mi c mopts) == \"$(mi n mopts)\" ]]) sopts-equal=$(b [[ $(mi c sopts) == \"$(mi n sopts)\" ]]) sb-ro=$(b has \"$(mi c sopts)\" ro)\"\nbashmount --remount -o rw c; echo \"candidate-rw-rc=$?\"\n/usr/bin/mount -o remount,rw n; echo \"native-rw-rc=$?\"\n( : >c/x ) 2>/dev/null; echo \"rw: direct-write-rc=$?\"\n( : >cb/y ) 2>/dev/null; echo \"rw: via-bind-write-rc=$?\"\necho \"rw mopts-equal=$(b [[ $(mi c mopts) == \"$(mi n mopts)\" ]]) sopts-equal=$(b [[ $(mi c sopts) == \"$(mi n sopts)\" ]]) sb-ro=$(b has \"$(mi c sopts)\" ro)\"\n"
+      },
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\n",
+      "expected_status": 0,
+      "stdout": "candidate-ro-rc=0\nnative-ro-rc=0\nro: direct-write-rc=1 \nro: via-bind-write-rc=1 (superblock-wide)\nnative via-bind-write-rc=1\nro mopts-equal=1 sopts-equal=1 sb-ro=1\ncandidate-rw-rc=0\nnative-rw-rc=0\nrw: direct-write-rc=0\nrw: via-bind-write-rc=0\nrw mopts-equal=1 sopts-equal=1 sb-ro=0\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-bashmount-bind-usage",
+      "loadable": "bashmount",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashmount/defer_bind_remount"
+      ],
+      "purpose": "-B/-R operand counts, --remount without DST and conflicting verbs return usage status",
+      "oracle": "util-linux mount/umount/findmnt in the guest and an independent Python mountinfo parser and raw mount(2)/umount2(2) caller (helpers/mig-w6-mount.py) inside a mapped user and private mount namespace on a fresh tmpfs; bash EX_USAGE maps to status 2",
+      "comparison": "Status and the documented diagnostic text for each malformed verb request; no mount is attempted.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "umount",
+        "findmnt",
+        "stat",
+        "mkdir"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-mount.py": "1545f3951ecdb51bf0f4d2b7b205a4197219479aa8c18ef422aedfd211de9bfe"
+      },
+      "files": {
+        "inner.sh": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t bashmount) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-mount.py\npy() { /usr/bin/python3 \"$H\" \"$@\"; }\nW=/tmp/parity-case/w\n/usr/bin/mount --make-rprivate / || exit 98\n/usr/bin/mkdir \"$W\" && /usr/bin/mount -t tmpfs -o size=2m tmpfs \"$W\" || exit 98\ncd \"$W\" || exit 98\nmi() { if [[ $1 == . ]]; then py mi \"$W\" \"$2\"; else py mi \"$W/$1\" \"$2\"; fi; }\nhas() { [[ ,$1, == *,$2,* ]]; }\nb() { if \"$@\"; then echo 1; else echo 0; fi; }\ne() { local out; out=$(\"$@\" 2>&1 >/dev/null); echo \"rc=$? $(b [[ $out == *\"$EXP\"* ]])\"; }\nEXP=\"-B SRC DST (got 1 positional args)\"; echo \"bind-one $(e bashmount -B a)\"\nEXP=\"-B SRC DST (got 3 positional args)\"; echo \"bind-three $(e bashmount -B a b c)\"\nEXP=\"-R SRC DST (got 1 positional args)\"; echo \"rbind-one $(e bashmount -R a)\"\nEXP=\"-R SRC DST (got 3 positional args)\"; echo \"rbind-three $(e bashmount -R a b c)\"\nEXP=\"--remount DST (got 0 positional args)\"; echo \"remount-none $(e bashmount --remount)\"\nEXP=\"--remount DST (got 2 positional args)\"; echo \"remount-two $(e bashmount --remount a b)\"\nEXP=\"conflicting verbs\"; echo \"bind+rbind $(e bashmount -B -R a b)\"\nEXP=\"conflicting verbs\"; echo \"remount+bind $(e bashmount --remount -B a)\"\nEXP=\"conflicting verbs\"; echo \"remount+list $(e bashmount --remount -l)\"\n"
+      },
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\n",
+      "expected_status": 0,
+      "stdout": "bind-one rc=2 1\nbind-three rc=2 1\nrbind-one rc=2 1\nrbind-three rc=2 1\nremount-none rc=2 1\nremount-two rc=2 1\nbind+rbind rc=2 1\nremount+bind rc=2 1\nremount+list rc=2 1\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-bashmount-umount-plain",
+      "loadable": "bashmount",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashmount/defer_umount_flags"
+      ],
+      "purpose": "-u DST performs an ordinary unmount; the directory remains",
+      "oracle": "util-linux mount/umount/findmnt in the guest and an independent Python mountinfo parser and raw mount(2)/umount2(2) caller (helpers/mig-w6-mount.py) inside a mapped user and private mount namespace on a fresh tmpfs",
+      "comparison": "mountinfo presence before and after -u against util-linux umount; directory and masked-file state.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "umount",
+        "findmnt",
+        "stat",
+        "mkdir"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-mount.py": "1545f3951ecdb51bf0f4d2b7b205a4197219479aa8c18ef422aedfd211de9bfe"
+      },
+      "files": {
+        "inner.sh": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t bashmount) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-mount.py\npy() { /usr/bin/python3 \"$H\" \"$@\"; }\nW=/tmp/parity-case/w\n/usr/bin/mount --make-rprivate / || exit 98\n/usr/bin/mkdir \"$W\" && /usr/bin/mount -t tmpfs -o size=2m tmpfs \"$W\" || exit 98\ncd \"$W\" || exit 98\nmi() { if [[ $1 == . ]]; then py mi \"$W\" \"$2\"; else py mi \"$W/$1\" \"$2\"; fi; }\nhas() { [[ ,$1, == *,$2,* ]]; }\nb() { if \"$@\"; then echo 1; else echo 0; fi; }\n/usr/bin/mkdir a n\nbashmount -t tmpfs tmpfs a || exit 98\n/usr/bin/mount -t tmpfs tmpfs n || exit 98\nprintf x >a/f; printf x >n/f\necho \"before: a=$(mi a mounted) n=$(mi n mounted)\"\nbashmount -u a; echo \"candidate-rc=$?\"\n/usr/bin/umount n; echo \"native-rc=$?\"\necho \"after: a=$(mi a mounted) n=$(mi n mounted) dir-remains=$(b [[ -d a ]]) native-dir-remains=$(b [[ -d n ]])\"\necho \"hidden-file-gone=$(b [[ ! -e a/f ]])\"\n"
+      },
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\n",
+      "expected_status": 0,
+      "stdout": "before: a=yes n=yes\ncandidate-rc=0\nnative-rc=0\nafter: a=absent n=absent dir-remains=1 native-dir-remains=1\nhidden-file-gone=1\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-bashmount-umount-lazy",
+      "loadable": "bashmount",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashmount/defer_umount_flags"
+      ],
+      "purpose": "-u -l requests MNT_DETACH: busy mount fails EBUSY, lazy detach succeeds, open fd stays readable",
+      "oracle": "util-linux mount/umount/findmnt in the guest and an independent Python mountinfo parser and raw mount(2)/umount2(2) caller (helpers/mig-w6-mount.py) inside a mapped user and private mount namespace on a fresh tmpfs; umount2(2) EBUSY/MNT_DETACH semantics",
+      "comparison": "EBUSY from both the candidate and a raw umount2, then lazy success with a readable held descriptor.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "umount",
+        "findmnt",
+        "stat",
+        "mkdir"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-mount.py": "1545f3951ecdb51bf0f4d2b7b205a4197219479aa8c18ef422aedfd211de9bfe"
+      },
+      "files": {
+        "inner.sh": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t bashmount) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-mount.py\npy() { /usr/bin/python3 \"$H\" \"$@\"; }\nW=/tmp/parity-case/w\n/usr/bin/mount --make-rprivate / || exit 98\n/usr/bin/mkdir \"$W\" && /usr/bin/mount -t tmpfs -o size=2m tmpfs \"$W\" || exit 98\ncd \"$W\" || exit 98\nmi() { if [[ $1 == . ]]; then py mi \"$W\" \"$2\"; else py mi \"$W/$1\" \"$2\"; fi; }\nhas() { [[ ,$1, == *,$2,* ]]; }\nb() { if \"$@\"; then echo 1; else echo 0; fi; }\n/usr/bin/mkdir a\nbashmount -t tmpfs tmpfs a || exit 98\nprintf 'held\\n' >a/file\nexec 3<a/file\nout=$(bashmount -u a 2>&1 >/dev/null); rc=$?\necho \"plain-umount rc=$rc ebusy-text=$(b [[ $out == *\"Device or resource busy\"* ]]) raw=$(py rawumount \"$W/a\" 0) still-mounted=$(mi a mounted)\"\nbashmount -u -l a; echo \"lazy-rc=$?\"\necho \"after-lazy: mounted=$(mi a mounted)\"\nread -r line <&3; echo \"fd3-reads=$line\"\nexec 3<&-\necho \"dir-remains=$(b [[ -d a ]]) file-hidden=$(b [[ ! -e a/file ]])\"\n"
+      },
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\n",
+      "expected_status": 0,
+      "stdout": "plain-umount rc=1 ebusy-text=1 raw=EBUSY still-mounted=yes\nlazy-rc=0\nafter-lazy: mounted=absent\nfd3-reads=held\ndir-remains=1 file-hidden=1\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-bashmount-umount-force",
+      "loadable": "bashmount",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashmount/defer_umount_flags"
+      ],
+      "purpose": "-f maps to MNT_FORCE and -l to MNT_DETACH in the umount2 flags argument; forced unmount status compared with umount -f",
+      "oracle": "Seccomp-notify umount2 record of (target, flags) and the kernel's real answer (MNT_FORCE needs init-namespace CAP_SYS_ADMIN, so EPERM), against util-linux umount -f in the same mapped namespace",
+      "comparison": "Candidate umount2 flags for plain, -l, -f and -l -f; candidate status and mount retention for -f against util-linux umount -f.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "umount",
+        "findmnt",
+        "stat",
+        "mkdir"
+      ],
+      "features": [
+        "userns",
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-mount.py": "1545f3951ecdb51bf0f4d2b7b205a4197219479aa8c18ef422aedfd211de9bfe",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "files": {
+        "inner.sh": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t bashmount) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-mount.py\npy() { /usr/bin/python3 \"$H\" \"$@\"; }\nW=/tmp/parity-case/w\n/usr/bin/mount --make-rprivate / || exit 98\n/usr/bin/mkdir \"$W\" && /usr/bin/mount -t tmpfs -o size=2m tmpfs \"$W\" || exit 98\ncd \"$W\" || exit 98\nmi() { if [[ $1 == . ]]; then py mi \"$W\" \"$2\"; else py mi \"$W/$1\" \"$2\"; fi; }\nhas() { [[ ,$1, == *,$2,* ]]; }\nb() { if \"$@\"; then echo 1; else echo 0; fi; }\n/usr/bin/mkdir a b c d n\nfor x in a b c d n; do /usr/bin/mount -t tmpfs tmpfs $x || exit 98; done\nbashmount -u -f a; fa=$?\nbashmount -u -l b; fb=$?\nbashmount -u c; fc=$?\nbashmount -u -l -f d; fd=$?\n/usr/bin/umount -f n 2>/dev/null; nf=$?\n{ echo \"rc: -f=$fa -l=$fb plain=$fc -l-f=$fd native-f-nonzero=$((nf!=0))\"\n  echo \"after: a=$(mi a mounted) b=$(mi b mounted) c=$(mi c mounted) d=$(mi d mounted) n=$(mi n mounted)\"; } >\"$HOME/inner.out\"\n"
+      },
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 /opt/bashos-parity/harness/helpers/system-sequence.py \\\n  --notify umount2 --log-args umount2=1 --log-string umount2=0 --log \"$HOME/umount.jsonl\" -- \"$BASH\" --noprofile --norc inner.sh\nrc=$?\necho \"observer-rc=$rc\"\n/usr/bin/python3 -I - <<'PY'\nimport json\nrows = [json.loads(l) for l in open('/tmp/parity-home/umount.jsonl')]\ncand = [r for r in rows if r['string0'] in ('a', 'b', 'c', 'd')]\nfor r in cand:\n    print('umount2 %s flags=%d reply=%s' % (r['string0'], r['arg1'], r['reply']))\nPY\n/usr/bin/cat \"$HOME/inner.out\"\n",
+      "expected_status": 0,
+      "stdout": "observer-rc=0\numount2 a flags=1 reply=continue\numount2 b flags=2 reply=continue\numount2 c flags=0 reply=continue\numount2 d flags=3 reply=continue\nrc: -f=1 -l=0 plain=0 -l-f=1 native-f-nonzero=1\nafter: a=yes b=absent c=absent d=yes n=yes\n",
+      "stderr": "",
+      "timeout": 45,
+      "diagnostic_files": [
+        "inner.out",
+        "umount.jsonl"
+      ]
+    },
+    {
+      "id": "mig-w6-bashmount-umount-errors",
+      "loadable": "bashmount",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashmount/defer_umount_flags"
+      ],
+      "purpose": "Unmount errors: non-mountpoint EINVAL, missing path ENOENT, busy mount EBUSY",
+      "oracle": "util-linux mount/umount/findmnt in the guest and an independent Python mountinfo parser and raw mount(2)/umount2(2) caller (helpers/mig-w6-mount.py) inside a mapped user and private mount namespace on a fresh tmpfs; util-linux umount failure status 32",
+      "comparison": "Candidate status and errno text against raw umount2 errno and util-linux umount failure class for three kernel refusals, plus two usage errors.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount",
+        "umount",
+        "findmnt",
+        "stat",
+        "mkdir"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-mount.py": "1545f3951ecdb51bf0f4d2b7b205a4197219479aa8c18ef422aedfd211de9bfe"
+      },
+      "files": {
+        "inner.sh": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t bashmount) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-mount.py\npy() { /usr/bin/python3 \"$H\" \"$@\"; }\nW=/tmp/parity-case/w\n/usr/bin/mount --make-rprivate / || exit 98\n/usr/bin/mkdir \"$W\" && /usr/bin/mount -t tmpfs -o size=2m tmpfs \"$W\" || exit 98\ncd \"$W\" || exit 98\nmi() { if [[ $1 == . ]]; then py mi \"$W\" \"$2\"; else py mi \"$W/$1\" \"$2\"; fi; }\nhas() { [[ ,$1, == *,$2,* ]]; }\nb() { if \"$@\"; then echo 1; else echo 0; fi; }\n/usr/bin/mkdir plain busy nat\nbashmount -t tmpfs tmpfs busy || exit 98\nprintf z >busy/f; exec 3<busy/f\nout=$(bashmount -u plain 2>&1 >/dev/null); echo \"non-mountpoint rc=$? raw=$(py rawumount \"$W/plain\" 0) text=$(b [[ $out == *\"Invalid argument\"* ]]) native-rc=$(/usr/bin/umount plain 2>/dev/null; echo $?)\"\nout=$(bashmount -u missing-path 2>&1 >/dev/null); echo \"missing rc=$? raw=$(py rawumount \"$W/missing-path\" 0) text=$(b [[ $out == *\"No such file or directory\"* ]]) native-rc=$(/usr/bin/umount missing-path 2>/dev/null; echo $?)\"\nout=$(bashmount -u busy 2>&1 >/dev/null); echo \"busy rc=$? raw=$(py rawumount \"$W/busy\" 0) text=$(b [[ $out == *\"Device or resource busy\"* ]]) native-rc=$(/usr/bin/umount busy 2>/dev/null; echo $?)\"\necho \"still-mounted=$(mi busy mounted)\"\nexec 3<&-\nout=$(bashmount -u 2>&1 >/dev/null); echo \"no-operand rc=$? text=$(b [[ $out == *\"-u DST (got 0 positional args)\"* ]])\"\nout=$(bashmount -f x 2>&1 >/dev/null); echo \"f-without-u rc=$? text=$(b [[ $out == *\"-f is only valid after -u\"* ]])\"\n"
+      },
+      "script": "[[ $UID == \"$EUID\" && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\n",
+      "expected_status": 0,
+      "stdout": "non-mountpoint rc=1 raw=EINVAL text=1 native-rc=32\nmissing rc=1 raw=ENOENT text=1 native-rc=32\nbusy rc=1 raw=EBUSY text=1 native-rc=32\nstill-mounted=yes\nno-operand rc=2 text=1\nf-without-u rc=2 text=1\n",
+      "stderr": "",
+      "timeout": 45
+    }
+  ]
+}
