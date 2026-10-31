@@ -30,7 +30,10 @@
       "expected_status": 0,
       "stdout": "unknown-verb rc=2 want=2 text=1\nrun-bad-flag rc=2 want=2 text=1\nrun-c-novalue rc=2 want=2 text=1\nrun-t-novalue rc=2 want=2 text=1\nrun-o-novalue rc=2 want=2 text=1\nenabled-3 rc=2 want=2 text=1\nenabled-x rc=2 want=2 text=1\nenabled-none rc=2 want=2 text=1\nbad-filter rc=1 want=1 text=1\nbad-action rc=1 want=1 text=1\nunknown-syscall rc=1 want=1 text=1\nmalformed-F rc=1 want=1 text=1\nwatch-style rc=1 want=1 text=1\nunknown-field rc=1 want=1 text=1\nbad-operator rc=1 want=1 text=1\ntoo-many rc=1 want=1 text=1\nadd-argc rc=2 want=2 text=1\ndel-argc rc=2 want=2 text=1\nsockets-opened=0\n",
       "stderr": "",
-      "timeout": 40
+      "timeout": 40,
+      "diagnostic_files": [
+        "sock.jsonl"
+      ]
     },
     {
       "id": "mig-w6-audit-refusal",
@@ -48,7 +51,7 @@
       "requires": [
         "python3"
       ],
-      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t audit) == builtin ]] || exit 125\nrefused() { local out=$(\"$@\" 2>&1 >/dev/null); local rc=$?; local so=$(\"$@\" 2>/dev/null); echo \"$LABEL rc=$rc stdout-empty=$([[ -z $so ]] && echo 1 || echo 0) refused=$([[ $out == *\"Operation not permitted\"* || $out == *\"Connection refused\"* ]] && echo 1 || echo 0)\"; }\nLABEL=status refused audit status\nLABEL=list-rules refused audit list-rules\nLABEL=set-enabled refused audit set-enabled 1\nLABEL=add-rule refused audit add-rule a always exit all ';' k\nLABEL=run refused audit run -t 1 -o /tmp/parity-case/rec.out\necho \"record-file-created-before-registration=$([[ -e rec.out ]] && echo 1 || echo 0)\"\nout=$(audit run -o /tmp/parity-case/nodir/rec.out 2>&1); echo \"run-missing-dir rc=$? text=$([[ $out == *\"run: cannot open record file: No such file or directory\"* ]] && echo 1 || echo 0)\"\n",
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t audit) == builtin ]] || exit 125\nrefused() { local out so rc; out=$(\"$@\" 2>&1 >/dev/null); rc=$?; so=$(\"$@\" 2>/dev/null); echo \"$LABEL rc=$rc stdout-empty=$([[ -z $so ]] && echo 1 || echo 0) refused=$([[ $out == *\"Operation not permitted\"* || $out == *\"Connection refused\"* ]] && echo 1 || echo 0)\"; }\nLABEL=status refused audit status\nLABEL=list-rules refused audit list-rules\nLABEL=set-enabled refused audit set-enabled 1\nLABEL=add-rule refused audit add-rule a always exit all ';' k\nLABEL=run refused audit run -t 1 -o /tmp/parity-case/rec.out\necho \"record-file-created-before-registration=$([[ -e rec.out ]] && echo 1 || echo 0)\"\nout=$(audit run -o /tmp/parity-case/nodir/rec.out 2>&1); echo \"run-missing-dir rc=$? text=$([[ $out == *\"run: cannot open record file: No such file or directory\"* ]] && echo 1 || echo 0)\"\n",
       "expected_status": 0,
       "stdout": "status rc=1 stdout-empty=1 refused=1\nlist-rules rc=1 stdout-empty=1 refused=1\nset-enabled rc=1 stdout-empty=1 refused=1\nadd-rule rc=1 stdout-empty=1 refused=1\nrun rc=1 stdout-empty=1 refused=1\nrecord-file-created-before-registration=1\nrun-missing-dir rc=1 text=1\n",
       "stderr": "",
