@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "dba3184a7ee4776a0cb983a7db5686087101d53b454f275d812f06f78387dfde",
+  "ledger_sha256": "bd8f99fdf708065300c37dcde9f61f8c68510ce01c8ccbdf8128c5d315381b81",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "partial": 96,
+    "partial": 97,
     "full": 406,
-    "none": 98
+    "none": 97
   },
   "migrations": {
     "deferred": 194,
@@ -53408,16 +53408,29 @@
         {
           "topic": "top/batch-proc-snapshots",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "--once/-b/--batch print the documented header (uptime/load, task counts, CPU, memory) from proc fields",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Only --once load, displayed process count and memory/swap fields are observed. Uptime, CPU summary, task-count semantics beyond the displayed row count and -b/--batch entry points remain unverified.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-empty",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-malformed",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-static"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },
@@ -112062,16 +112075,29 @@
         {
           "topic": "top/batch-proc-snapshots",
           "migration": null,
-          "coverage": "none",
+          "coverage": "partial",
           "fully_exercised": false,
           "result": "UNRESOLVED",
           "requirements": [
             {
               "id": "r1",
               "behavior": "--once/-b/--batch print the documented header (uptime/load, task counts, CPU, memory) from proc fields",
-              "coverage": "missing",
-              "gap": "Not executed.",
-              "evidence": [],
+              "coverage": "partial",
+              "gap": "Only --once load, displayed process count and memory/swap fields are observed. Uptime, CPU summary, task-count semantics beyond the displayed row count and -b/--batch entry points remain unverified.",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-empty",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "migration-farm600-top-proc-lifecycle-malformed",
+                  "status": "PASS",
+                  "run": "farm600-top-proc-lifecycle-v3-dynamic"
+                }
+              ],
               "fully_exercised": false,
               "result": "UNRESOLVED"
             },

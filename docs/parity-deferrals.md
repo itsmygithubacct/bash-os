@@ -8,8 +8,8 @@ saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
 The current review covers 406 of the 600 topics on both builds: static 213 PASS / 193 FAIL;
-dynamic 214 PASS / 192 FAIL. The other 194 retain unresolved requirements: 96 have partial
-coverage and 98 have none. These are topic counts, not additional behavioral test results.
+dynamic 214 PASS / 192 FAIL. The other 194 retain unresolved requirements: 97 have partial
+coverage and 97 have none. These are topic counts, not additional behavioral test results.
 
 The syslog review adds bounded three-record FIFO observations for startup, SIGHUP and periodic replay on both builds. Sender attribution is inferred from pinned serial source and isolated networking; HUP was queued while the daemon was stopped.
 
@@ -25,7 +25,7 @@ The mlock invalid-input review verifies nonzero status and stderr for all six ca
 
 The watch error review records early exit on both builds before the interactive prompt and key handling. The candidate failures retain the ptrace timing qualification; the reference waits and exits after a key. [Detailed scope](watch-terminal-error-evidence.md) explains the bounded acceptance.
 
-The top review records missing sort prompts on both builds, with later sort input unreached. Delay input and three FIFO redraw samples passed. The redraw interpretation is source-bound; timeout cleanup does not establish a natural-exit or terminal-restoration failure.
+The top review records missing sort prompts on both builds, with later sort input unreached. Delay input and three FIFO redraw samples passed. The redraw interpretation is source-bound; timeout cleanup does not establish a natural-exit or terminal-restoration failure. Paired frozen `--once` captures add partial observations of load, displayed process count and memory/swap fields; uptime, aggregate CPU, broader task counts, `-b`/`--batch`, sorting, PID ties and row caps remain unverified.
 
 The namespace review completes mount operations using native controls, recorded mount options and file effects inside a mapped user namespace. Bind-remount flags are source-bound. Future PID/time observations and the repeated PID request add partial unshare coverage; its other gaps remain.
 
