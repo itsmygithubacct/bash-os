@@ -40,7 +40,7 @@
       ],
       "timeout": 30,
       "privilege": "root",
-      "reference_script": "t=$(/usr/bin/tty)\n/usr/bin/python3 mkutmp.py \"${t#/dev/}\" u1 > /var/run/utmp\n/usr/bin/chmod 664 /var/run/utmp\n/usr/bin/chmod 620 \"$t\"\nprintf 'user-routed message\\n' | { w=/usr/bin/write.ul; [[ -x $w ]] || w=/usr/bin/write; $w u1; }; echo \"rc=$?\" > rc\nprintf 'W-DONE\\n'\n",
+      "reference_script": "t=$(/usr/bin/tty)\n/usr/bin/python3 mkutmp.py \"${t#/dev/}\" u1 > /var/run/utmp\n/usr/bin/chmod 664 /var/run/utmp\n/usr/bin/chmod 620 \"$t\"\nprintf 'user-routed message\\n' | { /usr/bin/find /usr /bin /sbin -name 'write*' -type f -perm -u+x > wfound 2>/dev/null; w=$(/usr/bin/head -n1 wfound); $w u1; }; echo \"rc=$?\" > rc\nprintf 'W-DONE\\n'\n",
       "candidate_script": "t=$(/usr/bin/tty)\n/usr/bin/python3 mkutmp.py \"${t#/dev/}\" u1 > /var/run/utmp\n/usr/bin/chmod 664 /var/run/utmp\n/usr/bin/chmod 620 \"$t\"\nprintf 'user-routed message\\n' | write u1; echo \"rc=$?\" > rc\nprintf 'W-DONE\\n'\n"
     }
   ]
