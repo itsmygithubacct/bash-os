@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w3-claude-update-selection",
+      "loadable": "claude",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "claude/update_package_mock"
+      ],
+      "requires": [
+        "touch"
+      ],
+      "script": "mkdir -p d empty\n: > d/bashclaude_a.pkg; : > d/bashclaude_b.pkg; : > d/bashclaude_c.pkg; : > explicit.pkg\n/usr/bin/touch -d '2025-01-01' d/bashclaude_a.pkg; /usr/bin/touch -d '2020-01-01' d/bashclaude_b.pkg; /usr/bin/touch -d '2015-01-01' d/bashclaude_c.pkg\nexport BASHPKG_LOADABLES_DATADIR=$PWD/d\nclaude update 2>\"$HOME/e1\"; echo \"newest-rc=$?\"\n[[ $(<\"$HOME/e1\") == *\"claude update: installing $PWD/d/bashclaude_a.pkg\"* ]] && echo newest-by-mtime=yes || echo \"newest-by-mtime=NO [$(<\"$HOME/e1\")]\"\nclaude update ./explicit.pkg 2>\"$HOME/e2\"\n[[ $(<\"$HOME/e2\") == *\"claude update: installing ./explicit.pkg\"* && $(<\"$HOME/e2\") != *bashclaude_* ]] && echo explicit-used=yes || echo \"explicit-used=NO [$(<\"$HOME/e2\")]\"\nBASHPKG_LOADABLES_DATADIR=$PWD/empty claude update 2>\"$HOME/e3\"; echo \"none-rc=$?\"\n[[ $(<\"$HOME/e3\") == *\"no bashclaude_*.pkg found in $PWD/empty\"* ]] && echo none-diagnostic=yes || echo \"none-diagnostic=NO [$(<\"$HOME/e3\")]\"\n",
+      "setup_script": "set -e\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "stdout": "newest-rc=1\nnewest-by-mtime=yes\nexplicit-used=yes\nnone-rc=1\nnone-diagnostic=yes\n",
+      "oracle": "claude.c bcl_cmd_update contract and help text: an explicit PKGFILE is used; otherwise the newest (ls -t, i.e. by modification time, not by name) bashclaude_*.pkg in BASHPKG_LOADABLES_DATADIR; with none a diagnostic naming the directory and status 1. Fixture directory with three empty packages whose mtimes order opposite to their names. The update runs in a child /bin/bash which in the guest is GNU bash without a pkg builtin, so the install step reports 'pkg unavailable' (status 1) after the selection line, which is what makes the selection observable here.",
+      "comparison": "r1: selection of the package to install: newest by mtime (bashclaude_a.pkg although bashclaude_c.pkg sorts last), the explicit PKGFILE verbatim, and the no-package diagnostic with status 1. Signature/ABI/arch/digest rejection, install-then-load sequencing and reload of the invoking shell are not exercised by this case."
+    }
+  ]
+}
