@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w7-blkid-override-enumeration",
+      "loadable": "blkid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "With BASHBLKID_SYS_BLOCK_DIR/BASHBLKID_DEV_ROOT pointing at an independently built sysfs-like tree and ext2 images, no-operand enumeration probes exactly the entries that have a device file with content (skipping hidden, device-less and empty entries), and -L/-U search that set printing the device path, status 2 on a miss, usage status 2 for both flags.",
+      "covers": [
+        "blkid/device-discovery-deferred"
+      ],
+      "oracle": "ext2 images made by e2fsprogs mke2fs with known labels and UUIDs; expected set, paths and statuses derive from the documented override semantics, not from candidate output.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "mke2fs",
+        "truncate"
+      ],
+      "files": {},
+      "setup_script": "mkdir -p dev sys/vda1 sys/vda2 sys/vdb sys/ghost sys/vdc sys/.hidden\nfor n in vda1 vda2 vdb; do /usr/bin/truncate -s 2M dev/$n; done\n: > dev/vdc\n/usr/sbin/mke2fs -q -t ext2 -L ROOT -U 11111111-1111-4111-8111-111111111111 dev/vda1\n/usr/sbin/mke2fs -q -t ext2 -L DATA -U 22222222-2222-4222-8222-222222222222 dev/vda2\n/usr/sbin/mke2fs -q -t ext2 -L SCRATCH -U 33333333-3333-4333-8333-333333333333 dev/vdb\nprintf '1\\n' > sys/vda1/partition; printf '2\\n' > sys/vda2/partition\nprintf 'vda\\n' > sys/vda1/parent; printf 'vda\\n' > sys/vda2/parent\n",
+      "setup_timeout": 60,
+      "script": "export BASHBLKID_SYS_BLOCK_DIR=$PWD/sys BASHBLKID_DEV_ROOT=$PWD/dev\nb() { \"$BASH\" --noprofile --norc -c \"$1\" 2>/dev/null; }\nout=$(b 'blkid -s UUID -o value'); echo \"enumerate status=$?\"\nmapfile -t A <<<\"$out\"\nfor ((i=0;i<${#A[@]};i++)); do for ((j=i+1;j<${#A[@]};j++)); do [[ ${A[j]} < ${A[i]} ]] && { t=${A[i]}; A[i]=${A[j]}; A[j]=$t; }; done; done\nprintf 'uuid %s\\n' \"${A[@]}\"\nr() { local l=$1; shift; local o; o=$(b \"$*\"); local rc=$?; printf '%s status=%s out=[%s]\\n' \"$l\" $rc \"$o\"; }\nr label-hit 'blkid -L DATA'\nr label-miss 'blkid -L NOSUCH'\nr uuid-hit 'blkid -U 33333333-3333-4333-8333-333333333333'\nr uuid-miss 'blkid -U 99999999-9999-4999-8999-999999999999'\nr both-flags 'blkid -L DATA -U 33333333-3333-4333-8333-333333333333'\nout=$(b 'blkid -s LABEL -o value'); mapfile -t A <<<\"$out\"; echo \"labels=${#A[@]}\"\n",
+      "stdout": "enumerate status=0\nuuid 11111111-1111-4111-8111-111111111111\nuuid 22222222-2222-4222-8222-222222222222\nuuid 33333333-3333-4333-8333-333333333333\nlabel-hit status=0 out=[/tmp/parity-case/dev/vda2]\nlabel-miss status=2 out=[]\nuuid-hit status=0 out=[/tmp/parity-case/dev/vdb]\nuuid-miss status=2 out=[]\nboth-flags status=2 out=[]\nlabels=3\n",
+      "expected_status": 0,
+      "timeout": 30
+    }
+  ]
+}
