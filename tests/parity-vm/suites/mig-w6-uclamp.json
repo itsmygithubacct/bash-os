@@ -1,0 +1,147 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-uclampset-system-open-fail",
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "uclampset/defer_system_files"
+      ],
+      "purpose": "A read-only target file (EACCES as uid 2000) gives 'cannot open ... for writing' and leaves every file unchanged",
+      "oracle": "Documented uclampset --system contract (open all changed files before the first write, raise the ceiling first when the new floor exceeds it, roll back in reverse order, short write is EIO), a private BASHOS_PROC_ROOT tree and a seccomp-notify syscall log (helpers/system-sequence.py)",
+      "comparison": "Diagnostic text, unchanged file values and the absence of any write for a read-only ceiling and a read-only floor.",
+      "requires": [
+        "python3",
+        "rm",
+        "mkdir",
+        "chmod"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\nSEQ=/opt/bashos-parity/harness/helpers/system-sequence.py\nP=/tmp/parity-case/proc/sys/kernel\nmkproc() { /usr/bin/rm -rf /tmp/parity-case/proc; /usr/bin/mkdir -p \"$P\"; printf '32\\n' >\"$P/sched_util_clamp_min\"; printf '512\\n' >\"$P/sched_util_clamp_max\"; }\n# run LABEL \"SEQ-RULES\" \"COMMAND\" ; prints status, stderr probes, file values and the ordered open/write trace\nrun() {\n  local T=$HOME/$1 rules=$2 cmd=$3\n  /usr/bin/rm -f \"$T\".log \"$T\".err \"$T\".rc\n  BASHOS_PROC_ROOT=/tmp/parity-case/proc /usr/bin/python3 \"$SEQ\" --notify openat --log-string openat=1 --notify write --log-args write=0,2 --log-mem write=1:4 $rules --log \"$T.log\" -- \"$BASH\" --noprofile --norc -c \"$cmd 2>$T.err; printf 'rc=%s\\\\n' \\$? >$T.rc\"\n  local rc=$(<\"$T.rc\") mn mx; read -r mn <\"$P/sched_util_clamp_min\"; read -r mx <\"$P/sched_util_clamp_max\"\n  echo \"$1: ${rc} min=$mn max=$mx\"\n  /usr/bin/python3 -I - \"$T\" <<'PY'\nimport json, re, sys\nt = sys.argv[1]\nev = []\nfor l in open(t + \".log\"):\n    r = json.loads(l)\n    if r[\"syscall\"] == \"openat\":\n        s = str(r.get(\"string1\", \"\"))\n        if \"sched_util_clamp_\" in s:\n            ev.append(\"open \" + s.rsplit(\"_\", 1)[1])\n    elif r[\"syscall\"] == \"write\":\n        data = bytes.fromhex(r[\"memory1\"][\"hex\"])[:r[\"arg2\"]]\n        if re.fullmatch(rb\"[0-9]+\\n\", data):\n            ev.append(\"write %s%s\" % (data.decode().strip(), \"\" if r[\"reply\"] == \"continue\" else \"[\" + r[\"reply\"] + \"]\"))\nprint(\"  trace: \" + (\" | \".join(ev) or \"(none)\"))\nerr = open(t + \".err\").read().strip().splitlines()\nfor line in err:\n    print(\"  err: \" + line.replace(\"/tmp/parity-case/proc/sys/kernel/\", \"P/\"))\nPY\n}\nmkproc; /usr/bin/chmod 444 \"$P/sched_util_clamp_max\"\nrun omax \"\" \"uclampset -m 64 -M 768 --system\"\nmkproc; /usr/bin/chmod 444 \"$P/sched_util_clamp_min\"\nrun omin \"\" \"uclampset -m 64 -M 768 --system\"\n",
+      "expected_status": 0,
+      "stdout": "omax: rc=1 min=32 max=512\n  trace: open min | open max\n  err: uclampset: cannot open P/sched_util_clamp_max for writing: Permission denied\nomin: rc=1 min=32 max=512\n  trace: open min\n  err: uclampset: cannot open P/sched_util_clamp_min for writing: Permission denied\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-uclampset-system-order",
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "uclampset/defer_system_files"
+      ],
+      "purpose": "Write ordering: the ceiling is written first when the new floor exceeds the current ceiling, otherwise the floor first; unchanged members are not written",
+      "oracle": "Documented uclampset --system contract (open all changed files before the first write, raise the ceiling first when the new floor exceeds it, roll back in reverse order, short write is EIO), a private BASHOS_PROC_ROOT tree and a seccomp-notify syscall log (helpers/system-sequence.py)",
+      "comparison": "Open and write order from the syscall log plus the final private file values for three requests.",
+      "requires": [
+        "python3",
+        "rm",
+        "mkdir",
+        "chmod"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\nSEQ=/opt/bashos-parity/harness/helpers/system-sequence.py\nP=/tmp/parity-case/proc/sys/kernel\nmkproc() { /usr/bin/rm -rf /tmp/parity-case/proc; /usr/bin/mkdir -p \"$P\"; printf '32\\n' >\"$P/sched_util_clamp_min\"; printf '512\\n' >\"$P/sched_util_clamp_max\"; }\n# run LABEL \"SEQ-RULES\" \"COMMAND\" ; prints status, stderr probes, file values and the ordered open/write trace\nrun() {\n  local T=$HOME/$1 rules=$2 cmd=$3\n  /usr/bin/rm -f \"$T\".log \"$T\".err \"$T\".rc\n  BASHOS_PROC_ROOT=/tmp/parity-case/proc /usr/bin/python3 \"$SEQ\" --notify openat --log-string openat=1 --notify write --log-args write=0,2 --log-mem write=1:4 $rules --log \"$T.log\" -- \"$BASH\" --noprofile --norc -c \"$cmd 2>$T.err; printf 'rc=%s\\\\n' \\$? >$T.rc\"\n  local rc=$(<\"$T.rc\") mn mx; read -r mn <\"$P/sched_util_clamp_min\"; read -r mx <\"$P/sched_util_clamp_max\"\n  echo \"$1: ${rc} min=$mn max=$mx\"\n  /usr/bin/python3 -I - \"$T\" <<'PY'\nimport json, re, sys\nt = sys.argv[1]\nev = []\nfor l in open(t + \".log\"):\n    r = json.loads(l)\n    if r[\"syscall\"] == \"openat\":\n        s = str(r.get(\"string1\", \"\"))\n        if \"sched_util_clamp_\" in s:\n            ev.append(\"open \" + s.rsplit(\"_\", 1)[1])\n    elif r[\"syscall\"] == \"write\":\n        data = bytes.fromhex(r[\"memory1\"][\"hex\"])[:r[\"arg2\"]]\n        if re.fullmatch(rb\"[0-9]+\\n\", data):\n            ev.append(\"write %s%s\" % (data.decode().strip(), \"\" if r[\"reply\"] == \"continue\" else \"[\" + r[\"reply\"] + \"]\"))\nprint(\"  trace: \" + (\" | \".join(ev) or \"(none)\"))\nerr = open(t + \".err\").read().strip().splitlines()\nfor line in err:\n    print(\"  err: \" + line.replace(\"/tmp/parity-case/proc/sys/kernel/\", \"P/\"))\nPY\n}\nmkproc; run raise \"\" \"uclampset -m 600 -M 800 --system\"\nmkproc; run lower \"\" \"uclampset -m 64 -M 768 --system\"\nmkproc; run ceil \"\" \"uclampset -M 100 --system\"\n",
+      "expected_status": 0,
+      "stdout": "raise: rc=0 min=600 max=800\n  trace: open max | open min | write 800 | write 600\nlower: rc=0 min=64 max=768\n  trace: open min | open max | write 64 | write 768\nceil: rc=0 min=32 max=100\n  trace: open max | write 100\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-uclampset-system-rollback",
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "uclampset/defer_system_files"
+      ],
+      "purpose": "A write failure (ENOSPC) rolls earlier writes back in reverse order, restores file contents, names the file and returns 1",
+      "oracle": "Documented uclampset --system contract (open all changed files before the first write, raise the ceiling first when the new floor exceeds it, roll back in reverse order, short write is EIO), a private BASHOS_PROC_ROOT tree and a seccomp-notify syscall log (helpers/system-sequence.py)",
+      "comparison": "ENOSPC injected on the second write of each order: reverse-order restore writes, final values equal the originals, diagnostic names the failing file. (A /dev/full symlink cannot be used: the pre-read of that file must parse.)",
+      "requires": [
+        "python3",
+        "rm",
+        "mkdir",
+        "chmod"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\nSEQ=/opt/bashos-parity/harness/helpers/system-sequence.py\nP=/tmp/parity-case/proc/sys/kernel\nmkproc() { /usr/bin/rm -rf /tmp/parity-case/proc; /usr/bin/mkdir -p \"$P\"; printf '32\\n' >\"$P/sched_util_clamp_min\"; printf '512\\n' >\"$P/sched_util_clamp_max\"; }\n# run LABEL \"SEQ-RULES\" \"COMMAND\" ; prints status, stderr probes, file values and the ordered open/write trace\nrun() {\n  local T=$HOME/$1 rules=$2 cmd=$3\n  /usr/bin/rm -f \"$T\".log \"$T\".err \"$T\".rc\n  BASHOS_PROC_ROOT=/tmp/parity-case/proc /usr/bin/python3 \"$SEQ\" --notify openat --log-string openat=1 --notify write --log-args write=0,2 --log-mem write=1:4 $rules --log \"$T.log\" -- \"$BASH\" --noprofile --norc -c \"$cmd 2>$T.err; printf 'rc=%s\\\\n' \\$? >$T.rc\"\n  local rc=$(<\"$T.rc\") mn mx; read -r mn <\"$P/sched_util_clamp_min\"; read -r mx <\"$P/sched_util_clamp_max\"\n  echo \"$1: ${rc} min=$mn max=$mx\"\n  /usr/bin/python3 -I - \"$T\" <<'PY'\nimport json, re, sys\nt = sys.argv[1]\nev = []\nfor l in open(t + \".log\"):\n    r = json.loads(l)\n    if r[\"syscall\"] == \"openat\":\n        s = str(r.get(\"string1\", \"\"))\n        if \"sched_util_clamp_\" in s:\n            ev.append(\"open \" + s.rsplit(\"_\", 1)[1])\n    elif r[\"syscall\"] == \"write\":\n        data = bytes.fromhex(r[\"memory1\"][\"hex\"])[:r[\"arg2\"]]\n        if re.fullmatch(rb\"[0-9]+\\n\", data):\n            ev.append(\"write %s%s\" % (data.decode().strip(), \"\" if r[\"reply\"] == \"continue\" else \"[\" + r[\"reply\"] + \"]\"))\nprint(\"  trace: \" + (\" | \".join(ev) or \"(none)\"))\nerr = open(t + \".err\").read().strip().splitlines()\nfor line in err:\n    print(\"  err: \" + line.replace(\"/tmp/parity-case/proc/sys/kernel/\", \"P/\"))\nPY\n}\nmkproc; run rb1 \"--reply-seq write=continue,ENOSPC\" \"uclampset -m 64 -M 768 --system\"\nmkproc; run rb2 \"--reply-seq write=continue,ENOSPC\" \"uclampset -m 600 -M 800 --system\"\n",
+      "expected_status": 0,
+      "stdout": "rb1: rc=1 min=32 max=512\n  trace: open min | open max | write 64 | write 768[errno:28] | write 512 | write 32\n  err: uclampset: cannot write P/sched_util_clamp_max: No space left on device\nrb2: rc=1 min=32 max=512\n  trace: open max | open min | write 800 | write 600[errno:28] | write 32 | write 512\n  err: uclampset: cannot write P/sched_util_clamp_min: No space left on device\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-uclampset-system-short-write",
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "uclampset/defer_system_files"
+      ],
+      "purpose": "A short write(2) (2 of 4 bytes, synthetic) is EIO and the remainder is not written",
+      "oracle": "Documented uclampset --system contract (open all changed files before the first write, raise the ceiling first when the new floor exceeds it, roll back in reverse order, short write is EIO), a private BASHOS_PROC_ROOT tree and a seccomp-notify syscall log (helpers/system-sequence.py)",
+      "comparison": "Status, EIO text, and no continuation write of the unsent tail in the syscall log; the earlier file is restored.",
+      "requires": [
+        "python3",
+        "rm",
+        "mkdir",
+        "chmod"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\nSEQ=/opt/bashos-parity/harness/helpers/system-sequence.py\nP=/tmp/parity-case/proc/sys/kernel\nmkproc() { /usr/bin/rm -rf /tmp/parity-case/proc; /usr/bin/mkdir -p \"$P\"; printf '32\\n' >\"$P/sched_util_clamp_min\"; printf '512\\n' >\"$P/sched_util_clamp_max\"; }\n# run LABEL \"SEQ-RULES\" \"COMMAND\" ; prints status, stderr probes, file values and the ordered open/write trace\nrun() {\n  local T=$HOME/$1 rules=$2 cmd=$3\n  /usr/bin/rm -f \"$T\".log \"$T\".err \"$T\".rc\n  BASHOS_PROC_ROOT=/tmp/parity-case/proc /usr/bin/python3 \"$SEQ\" --notify openat --log-string openat=1 --notify write --log-args write=0,2 --log-mem write=1:4 $rules --log \"$T.log\" -- \"$BASH\" --noprofile --norc -c \"$cmd 2>$T.err; printf 'rc=%s\\\\n' \\$? >$T.rc\"\n  local rc=$(<\"$T.rc\") mn mx; read -r mn <\"$P/sched_util_clamp_min\"; read -r mx <\"$P/sched_util_clamp_max\"\n  echo \"$1: ${rc} min=$mn max=$mx\"\n  /usr/bin/python3 -I - \"$T\" <<'PY'\nimport json, re, sys\nt = sys.argv[1]\nev = []\nfor l in open(t + \".log\"):\n    r = json.loads(l)\n    if r[\"syscall\"] == \"openat\":\n        s = str(r.get(\"string1\", \"\"))\n        if \"sched_util_clamp_\" in s:\n            ev.append(\"open \" + s.rsplit(\"_\", 1)[1])\n    elif r[\"syscall\"] == \"write\":\n        data = bytes.fromhex(r[\"memory1\"][\"hex\"])[:r[\"arg2\"]]\n        if re.fullmatch(rb\"[0-9]+\\n\", data):\n            ev.append(\"write %s%s\" % (data.decode().strip(), \"\" if r[\"reply\"] == \"continue\" else \"[\" + r[\"reply\"] + \"]\"))\nprint(\"  trace: \" + (\" | \".join(ev) or \"(none)\"))\nerr = open(t + \".err\").read().strip().splitlines()\nfor line in err:\n    print(\"  err: \" + line.replace(\"/tmp/parity-case/proc/sys/kernel/\", \"P/\"))\nPY\n}\nmkproc; run sw \"--reply-seq write=2\" \"uclampset -m 100 -M 800 --system\"\n",
+      "expected_status": 0,
+      "stdout": "sw: rc=1 min=32 max=512\n  trace: open min | open max | write 100[value:2] | write 32\n  err: uclampset: cannot write P/sched_util_clamp_min: Input/output error\n",
+      "stderr": "",
+      "timeout": 45
+    },
+    {
+      "id": "mig-w6-uclampset-live-sysctl-absent",
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "uclampset/defer_system_files"
+      ],
+      "purpose": "Evidence for the r5 blocker: the guest kernel has no scheduler clamp sysctls, so live --system semantics cannot be exercised",
+      "oracle": "util-linux uclampset (guest) and the filesystem under /proc/sys/kernel",
+      "comparison": "Existence of the live sysctl files, and candidate and util-linux behavior on the live system path.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\nSEQ=/opt/bashos-parity/harness/helpers/system-sequence.py\nP=/tmp/parity-case/proc/sys/kernel\nmkproc() { /usr/bin/rm -rf /tmp/parity-case/proc; /usr/bin/mkdir -p \"$P\"; printf '32\\n' >\"$P/sched_util_clamp_min\"; printf '512\\n' >\"$P/sched_util_clamp_max\"; }\n[[ -e /proc/sys/kernel/sched_util_clamp_min ]]; a=$?\n[[ -e /proc/sys/kernel/sched_util_clamp_max ]]; b=$?\necho \"live-min-exists=$((a==0)) live-max-exists=$((b==0))\"\nout=$(uclampset --system 2>&1); echo \"candidate rc=$? text=$([[ $out == *\"cannot read /proc/sys/kernel/sched_util_clamp_min: No such file or directory\"* ]] && echo 1 || echo 0)\"\n/usr/bin/uclampset --system >/dev/null 2>&1; echo \"util-linux rc-nonzero=$(( $? != 0 ))\"\n",
+      "expected_status": 0,
+      "stdout": "live-min-exists=0 live-max-exists=0\ncandidate rc=1 text=1\nutil-linux rc-nonzero=1\n",
+      "stderr": "",
+      "timeout": 30
+    }
+  ]
+}
