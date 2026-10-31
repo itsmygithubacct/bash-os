@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w2-dns-transport-udp-dot-doh-parity",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-dot-doh"
+      ],
+      "purpose": "dns query returns the same RRsets and rcodes over UDP, DoT and DoH for multi-record A, MX, TXT, NODATA, NXDOMAIN and SERVFAIL answers (r4).",
+      "oracle": "A Python mock serves one fixed zone over UDP, RFC 7858 DoT and RFC 8484 DoH; the expected RRsets and rcodes are the zone data written in the fixture (A 192.0.2.10/11, MX 10 mail.x.test., TXT alpha/beta, NXDOMAIN, SERVFAIL, NODATA), and each transport must equal both the zone and the UDP result.",
+      "comparison": "Eighteen candidate dns query runs (six questions x three transports) in a mapped user and mount namespace that bind-mounts the fixture CA over the system bundle for curl and uses a PATH holding only a symlink to the candidate for the documented execlp(bash) transports.",
+      "requires": [
+        "python3",
+        "openssl",
+        "unshare",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dnsx.py": "b6a832e85214169321615f0d04ba7945c0462273c35c32e630a6c062f4b3c288"
+      },
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\nprintf \"nameserver 127.0.0.1\\n\" > resolv.conf\nopenssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout \"$HOME/tls.key\" -out \"$HOME/tls.crt\" -days 2 -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1 -addext basicConstraints=critical,CA:TRUE 2>\"$HOME/openssl.log\"\n",
+      "setup_timeout": 30,
+      "files": {
+        "q.sh": "t=/etc/ssl/certs/ca-certificates.crt\n[[ -e /etc/ssl/cert.pem ]] && t=/etc/ssl/cert.pem\n/usr/bin/mount --bind \"$HOME/tls.crt\" \"$t\" || exit 90\n[ /proc/$$/exe -ef \"$HOME/pbin/bash\" ] && exec \"$HOME/pbin/bash\" --noprofile --norc ./transport.sh\nPATH=\"$HOME/pbin\" exec \"$HOME/pbin/bash\" --noprofile --norc ./transport.sh\n",
+        "transport.sh": "export BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"\nfor q in \"www.x.test A\" \"x.test MX\" \"txt.x.test TXT\" \"nx.x.test A\" \"fail.x.test A\" \"www.x.test TXT\"; do\n  set -- $q\n  BASHDNS_SERVER_PORT=5301 dns query \"$1\" \"$2\" -s 127.0.0.1 > \"u-$1-$2.out\" 2> \"u-$1-$2.err\"; echo \"$?\" > \"u-$1-$2.rc\"\n  dns query \"$1\" \"$2\" --dot -h 127.0.0.1:5302 --dot-ca \"$HOME/tls.crt\" > \"d-$1-$2.out\" 2> \"d-$1-$2.err\"; echo \"$?\" > \"d-$1-$2.rc\"\n  dns query \"$1\" \"$2\" --doh https://127.0.0.1:5303/dns-query > \"h-$1-$2.out\" 2> \"h-$1-$2.err\"; echo \"$?\" > \"h-$1-$2.rc\"\ndone\n"
+      },
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-dnsx.py\n/usr/bin/python3 \"$H\" mock 5301 5302 5303 ready 2> mock.err &\nsrv=$!\n/usr/bin/python3 \"$H\" waitport 5302 5303\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh\necho \"transport-run-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify-r4\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "transport-run-rc=0\nverified r4 failed=0\n",
+      "stderr": "",
+      "timeout": 55
+    },
+    {
+      "id": "mig-w2-dns-auth-listeners-independent-clients",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-dot-doh"
+      ],
+      "purpose": "auth-serve --tls-listen/--doh-listen serve the same zone to independent Python DoT and DoH (HTTP/1.1 POST and GET) clients, and the DoH TLS handshake succeeds (r5).",
+      "oracle": "Independent Python ssl/http.client clients with a fixed expectation (www.x.test A = 192.0.2.10 and 192.0.2.11, NOERROR), RFC 7858 framing and RFC 8484 POST/GET; separate probes isolate the TLS handshake (with ALPN offered) from the HTTP request and DNS message handling.",
+      "comparison": "Candidate auth-serve with a TLS and a DoH listener on loopback; four probes print only failing lines plus a summary that must report failed=0.",
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dnsx.py": "b6a832e85214169321615f0d04ba7945c0462273c35c32e630a6c062f4b3c288"
+      },
+      "setup_script": "openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout \"$HOME/tls.key\" -out \"$HOME/tls.crt\" -days 2 -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1 -addext basicConstraints=critical,CA:TRUE 2>\"$HOME/openssl.log\"\n",
+      "setup_timeout": 30,
+      "files": {
+        "x.zone": "$ORIGIN x.test.\n$TTL 300\n@ IN SOA ns1.x.test. hostmaster.x.test. 1 3600 600 86400 300\n@ IN NS ns1.x.test.\n@ IN MX 10 mail.x.test.\nns1 IN A 192.0.2.53\nwww IN A 192.0.2.10\nwww IN A 192.0.2.11\nmail IN A 192.0.2.25\ntxt IN TXT \"alpha\"\ntxt IN TXT \"beta\"\n"
+      },
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-dnsx.py\ndns auth-serve --zone x.zone --listen 127.0.0.1 --port 5311 --tls-listen 127.0.0.1:5312 --tls-cert \"$HOME/tls.crt\" --tls-key \"$HOME/tls.key\" --doh-listen 127.0.0.1:5313 --doh-cert \"$HOME/tls.crt\" --doh-key \"$HOME/tls.key\" < /dev/null 2> serve.err &\nsrv=$!\n/usr/bin/python3 \"$H\" waitport 5312 5313\n/usr/bin/python3 \"$H\" probe 5312 5313\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n",
+      "diagnostic_files": [
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified probe failed=0\n",
+      "stderr": "",
+      "timeout": 40
+    }
+  ]
+}
