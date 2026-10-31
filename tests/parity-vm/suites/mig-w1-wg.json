@@ -26,7 +26,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-wg.py": "345e7f4117d070909f429ca6c4bd87ec45c26225b78ed443a7e819f2af5bda36",
+        "helpers/mig-w1-wg.py": "bbd7f304cee2926825a4a2e55e811d4d5b9c96c059da50824fe960721dc16b48",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -55,7 +55,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-wg.py": "345e7f4117d070909f429ca6c4bd87ec45c26225b78ed443a7e819f2af5bda36",
+        "helpers/mig-w1-wg.py": "bbd7f304cee2926825a4a2e55e811d4d5b9c96c059da50824fe960721dc16b48",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -84,7 +84,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-wg.py": "345e7f4117d070909f429ca6c4bd87ec45c26225b78ed443a7e819f2af5bda36",
+        "helpers/mig-w1-wg.py": "bbd7f304cee2926825a4a2e55e811d4d5b9c96c059da50824fe960721dc16b48",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -113,7 +113,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-wg.py": "345e7f4117d070909f429ca6c4bd87ec45c26225b78ed443a7e819f2af5bda36",
+        "helpers/mig-w1-wg.py": "bbd7f304cee2926825a4a2e55e811d4d5b9c96c059da50824fe960721dc16b48",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -142,9 +142,144 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-wg.py": "345e7f4117d070909f429ca6c4bd87ec45c26225b78ed443a7e819f2af5bda36",
+        "helpers/mig-w1-wg.py": "bbd7f304cee2926825a4a2e55e811d4d5b9c96c059da50824fe960721dc16b48",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
+    },
+    {
+      "id": "mig-w1-wg-root-set-apply",
+      "loadable": "wg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "wg set private-key/listen-port/peer endpoint/allowed-ips/keepalive mutates the real device. (init-namespace root control)",
+      "covers": [
+        "wg/deferred-set-kernel-apply"
+      ],
+      "oracle": "Fresh mapped user+network namespace with a kernel WireGuard device (ip link add wg0 type wireguard). Kernel state is read back (and for show seeded) with an independent generic-netlink codec written from linux/wireguard.h; public keys are checked against the RFC 7748 section 6.1 X25519 vectors; show text is compared with the wg(8) contract. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "python3",
+        "ip"
+      ],
+      "features": [],
+      "candidate_script": "exec /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-wg.py set-apply\n",
+      "stdout": "scenario set-apply: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-wg.py": "bbd7f304cee2926825a4a2e55e811d4d5b9c96c059da50824fe960721dc16b48",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      },
+      "privilege": "root"
+    },
+    {
+      "id": "mig-w1-wg-root-set-errors",
+      "loadable": "wg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "wg set returns 0 on kernel ACK and nonzero with a diagnostic for a nonexistent interface or bad key file. (init-namespace root control)",
+      "covers": [
+        "wg/deferred-set-kernel-apply"
+      ],
+      "oracle": "Fresh mapped user+network namespace with a kernel WireGuard device (ip link add wg0 type wireguard). Kernel state is read back (and for show seeded) with an independent generic-netlink codec written from linux/wireguard.h; public keys are checked against the RFC 7748 section 6.1 X25519 vectors; show text is compared with the wg(8) contract. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "python3",
+        "ip"
+      ],
+      "features": [],
+      "candidate_script": "exec /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-wg.py set-errors\n",
+      "stdout": "scenario set-errors: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-wg.py": "bbd7f304cee2926825a4a2e55e811d4d5b9c96c059da50824fe960721dc16b48",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      },
+      "privilege": "root"
+    },
+    {
+      "id": "mig-w1-wg-root-set-peers",
+      "loadable": "wg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "wg set peer remove and allowed-ips replacement are applied. (init-namespace root control)",
+      "covers": [
+        "wg/deferred-set-kernel-apply"
+      ],
+      "oracle": "Fresh mapped user+network namespace with a kernel WireGuard device (ip link add wg0 type wireguard). Kernel state is read back (and for show seeded) with an independent generic-netlink codec written from linux/wireguard.h; public keys are checked against the RFC 7748 section 6.1 X25519 vectors; show text is compared with the wg(8) contract. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "python3",
+        "ip"
+      ],
+      "features": [],
+      "candidate_script": "exec /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-wg.py set-peers\n",
+      "stdout": "scenario set-peers: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-wg.py": "bbd7f304cee2926825a4a2e55e811d4d5b9c96c059da50824fe960721dc16b48",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      },
+      "privilege": "root"
+    },
+    {
+      "id": "mig-w1-wg-root-setconf",
+      "loadable": "wg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "wg setconf applies a configuration file to the device and the kernel state reads back identically; a second setconf replaces it. (init-namespace root control)",
+      "covers": [
+        "wg/deferred-setconf-kernel-apply"
+      ],
+      "oracle": "Fresh mapped user+network namespace with a kernel WireGuard device (ip link add wg0 type wireguard). Kernel state is read back (and for show seeded) with an independent generic-netlink codec written from linux/wireguard.h; public keys are checked against the RFC 7748 section 6.1 X25519 vectors; show text is compared with the wg(8) contract. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "python3",
+        "ip"
+      ],
+      "features": [],
+      "candidate_script": "exec /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-wg.py setconf\n",
+      "stdout": "scenario setconf: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-wg.py": "bbd7f304cee2926825a4a2e55e811d4d5b9c96c059da50824fe960721dc16b48",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      },
+      "privilege": "root"
+    },
+    {
+      "id": "mig-w1-wg-root-show",
+      "loadable": "wg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "wg show decodes the kernel GET_DEVICE reply for a device seeded by an independent encoder. (init-namespace root control)",
+      "covers": [
+        "wg/deferred-show-device-state"
+      ],
+      "oracle": "Fresh mapped user+network namespace with a kernel WireGuard device (ip link add wg0 type wireguard). Kernel state is read back (and for show seeded) with an independent generic-netlink codec written from linux/wireguard.h; public keys are checked against the RFC 7748 section 6.1 X25519 vectors; show text is compared with the wg(8) contract. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "python3",
+        "ip"
+      ],
+      "features": [],
+      "candidate_script": "exec /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-wg.py show\n",
+      "stdout": "scenario show: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-wg.py": "bbd7f304cee2926825a4a2e55e811d4d5b9c96c059da50824fe960721dc16b48",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      },
+      "privilege": "root"
     }
   ]
 }

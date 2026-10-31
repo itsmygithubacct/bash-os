@@ -158,7 +158,7 @@ def newdev():
 
 
 def peer_of(dev, pub):
-    return next((p for p in dev["peers"] if p["public"] == pub), None)
+    return next((p for p in dev["peers"] if p["public"] == pub), None) or {"public": pub, "ips": None, "keepalive": None, "missing": True}
 
 
 def sc_set_apply():
@@ -171,8 +171,8 @@ def sc_set_apply():
     L.check("set private-key applied: kernel holds the clamped RFC 7748 private key", d.get("private") == clamp(ALICE_PRIV), str(d.get("private")))
     L.check("set private-key applied: kernel public key equals the RFC 7748 Alice public key", d.get("public") == ALICE_PUB, str(d.get("public")))
     p = peer_of(d, BOB_PUB)
-    L.check("set created the peer", p is not None and len(d["peers"]) == 1, str(d["peers"]))
-    if p:
+    L.check("set created the peer", not p.get("missing") and len(d["peers"]) == 1, str(d["peers"]))
+    if not p.get("missing"):
         L.check("set peer endpoint 192.0.2.9:5000", p.get("endpoint") == "192.0.2.9:5000", str(p))
         L.check("set peer allowed ips {10.0.0.0/24, fd00::/64}", p["ips"] == {"10.0.0.0/24", "fd00::/64"}, str(p["ips"]))
         L.check("set peer persistent keepalive 25", p["keepalive"] == 25, str(p["keepalive"]))
@@ -235,8 +235,8 @@ def sc_setconf():
     L.check("setconf: private key clamped and public key equals the RFC 7748 Alice vector", d.get("private") == clamp(ALICE_PRIV) and d.get("public") == ALICE_PUB, str((d.get("private"), d.get("public"))))
     b = peer_of(d, BOB_PUB)
     a = peer_of(d, ALICE_PUB)
-    L.check("setconf: first peer endpoint, allowed IPv4+IPv6 prefixes and keepalive", b is not None and b.get("endpoint") == "192.0.2.9:5000" and b["ips"] == {"10.1.0.0/24", "fd01::/64"} and b["keepalive"] == 15, str(b))
-    L.check("setconf: second peer endpoint and allowed prefix, no keepalive", a is not None and a.get("endpoint") == "198.51.100.4:6000" and a["ips"] == {"10.2.0.0/16"} and a["keepalive"] == 0, str(a))
+    L.check("setconf: first peer endpoint, allowed IPv4+IPv6 prefixes and keepalive", not b.get("missing") and b.get("endpoint") == "192.0.2.9:5000" and b["ips"] == {"10.1.0.0/24", "fd01::/64"} and b["keepalive"] == 15, str(b))
+    L.check("setconf: second peer endpoint and allowed prefix, no keepalive", not a.get("missing") and a.get("endpoint") == "198.51.100.4:6000" and a["ips"] == {"10.2.0.0/16"} and a["keepalive"] == 0, str(a))
     conf2 = CONF.split("[Peer]")[0] + "[Peer]" + CONF.split("[Peer]")[1].replace("10.1.0.0/24, fd01::/64", "10.7.0.0/16")
     open(CASE + "/wg2.conf", "w").write(conf2 % (b64(ALICE_PRIV), b64(BOB_PUB)))
     rc, out, err = wg("setconf", "wg0", CASE + "/wg2.conf")
