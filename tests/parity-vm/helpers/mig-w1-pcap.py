@@ -97,7 +97,7 @@ def decode(path):
 
 
 def tcpdump(path):
-    return L.run(["tcpdump", "-nn", "-e", "-r", path])
+    return L.run(["tcpdump", "-Z", "root", "-nn", "-e", "-r", path])
 
 
 def pcap_run(args, injects, ifn="v0", script='pcap "$@"'):
