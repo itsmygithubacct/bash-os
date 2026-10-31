@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-tz-now-live",
+      "loadable": "tz",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "tz/live-clock-now-info"
+      ],
+      "purpose": "tz now -z ZONE prints the current local time consistent with GNU date at the same instant",
+      "oracle": "GNU date (coreutils) in the guest with the guest tzdata, sampled before and after the candidate to bracket the instant",
+      "comparison": "Candidate wall-clock string lies between two GNU samples and its abbreviation/offset equals GNU's for five zones.",
+      "requires": [
+        "date"
+      ],
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t tz) == builtin ]] || exit 125\nfor z in UTC America/New_York Europe/Berlin Australia/Sydney Asia/Tokyo; do\n  g1=$(TZ=$z /usr/bin/date +'%Y-%m-%d %H:%M:%S')\n  tz now -z \"$z\" -V out; rc=$?\n  g2=$(TZ=$z /usr/bin/date +'%Y-%m-%d %H:%M:%S %Z %z')\n  c=${out:0:19}; t2=${g2:0:19}\n  within=0; [[ ! $c < $g1 && ! $c > $t2 ]] && within=1\n  suffix=0; [[ ${out:20} == \"${g2:20}\" ]] && suffix=1\n  echo \"$z: rc=$rc within-gnu-bracket=$within suffix-equals-gnu=$suffix\"\ndone\n",
+      "expected_status": 0,
+      "stdout": "UTC: rc=0 within-gnu-bracket=1 suffix-equals-gnu=1\nAmerica/New_York: rc=0 within-gnu-bracket=1 suffix-equals-gnu=1\nEurope/Berlin: rc=0 within-gnu-bracket=1 suffix-equals-gnu=1\nAustralia/Sydney: rc=0 within-gnu-bracket=1 suffix-equals-gnu=1\nAsia/Tokyo: rc=0 within-gnu-bracket=1 suffix-equals-gnu=1\n",
+      "stderr": "",
+      "timeout": 30
+    },
+    {
+      "id": "mig-w6-tz-info-live",
+      "loadable": "tz",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "tz/live-clock-now-info"
+      ],
+      "purpose": "tz info ZONE reports the offset and abbreviation in effect now",
+      "oracle": "GNU date (coreutils) in the guest with the guest tzdata, sampled before and after the candidate to bracket the instant; rule names from the zone's published DST regime (US, EU, AU, none)",
+      "comparison": "name, offset and abbreviation equal GNU date's %z/%Z (equal before and after) and the rule label matches the regime, for five zones.",
+      "requires": [
+        "date"
+      ],
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t tz) == builtin ]] || exit 125\ndeclare -A RULE=([UTC]=fixed [America/New_York]=us [Europe/Berlin]=eu [Australia/Sydney]=au [Asia/Tokyo]=fixed)\nfor z in UTC America/New_York Europe/Berlin Australia/Sydney Asia/Tokyo; do\n  a1=$(TZ=$z /usr/bin/date +'%z %Z')\n  out=$(tz info \"$z\"); rc=$?\n  a2=$(TZ=$z /usr/bin/date +'%z %Z')\n  mapfile -t L <<<\"$out\"\n  [[ $a1 == \"$a2\" ]] || exit 97\n  set -- $a1\n  nm=0; [[ ${L[0]} == \"name=$z\" ]] && nm=1\n  of=0; [[ ${L[1]} == \"offset=$1\" ]] && of=1\n  ab=0; [[ ${L[2]} == \"abbr=$2\" ]] && ab=1\n  ru=0; [[ ${L[3]} == \"rule=${RULE[$z]}\" ]] && ru=1\n  echo \"$z: rc=$rc name=$nm offset=$of abbr=$ab rule=$ru lines=${#L[@]}\"\ndone\n",
+      "expected_status": 0,
+      "stdout": "UTC: rc=0 name=1 offset=1 abbr=1 rule=1 lines=4\nAmerica/New_York: rc=0 name=1 offset=1 abbr=1 rule=1 lines=4\nEurope/Berlin: rc=0 name=1 offset=1 abbr=1 rule=1 lines=4\nAustralia/Sydney: rc=0 name=1 offset=1 abbr=1 rule=1 lines=4\nAsia/Tokyo: rc=0 name=1 offset=1 abbr=1 rule=1 lines=4\n",
+      "stderr": "",
+      "timeout": 30
+    },
+    {
+      "id": "mig-w6-tz-dst-controlled-root",
+      "loadable": "tz",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "tz/live-clock-now-info"
+      ],
+      "purpose": "tz now and tz info on both sides of the 2024 US and EU DST transitions with CLOCK_REALTIME set by root",
+      "oracle": "Transition instants from the US (second Sunday of March 07:00Z, first Sunday of November 06:00Z for New York) and EU (last Sunday 01:00Z) rules, with GNU date and the guest tzdata as cross-check",
+      "comparison": "Local time prefix, abbreviation and offset on each side of four transitions.",
+      "requires": [
+        "date"
+      ],
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t tz) == builtin ]] || exit 125\nchk() { # label zone utc-instant local-prefix abbr offset\n  /usr/bin/date -u -s \"$3\" >/dev/null || exit 97\n  tz now -z \"$2\" -V out\n  info=$(tz info \"$2\"); mapfile -t L <<<\"$info\"\n  g=$(TZ=$2 /usr/bin/date +'%Z %z')\n  nowok=0; [[ $out == \"${3%% *} \"* ]] || true\n  lp=${out:11:7}; lok=0; [[ $lp == \"$4\" ]] && lok=1\n  echo \"$1: now-local=$lok now-suffix=${out:20} info-abbr=${L[2]#abbr=} info-offset=${L[1]#offset=} gnu=$g\"\n}\nchk NY-spring-before America/New_York \"2024-03-10 06:59:50\" 01:59:5 EST -0500\nchk NY-spring-after America/New_York \"2024-03-10 07:00:05\" 03:00:0 EDT -0400\nchk NY-fall-before America/New_York \"2024-11-03 05:59:50\" 01:59:5 EDT -0400\nchk NY-fall-after America/New_York \"2024-11-03 06:00:05\" 01:00:0 EST -0500\nchk Berlin-spring-before Europe/Berlin \"2024-03-31 00:59:50\" 01:59:5 CET +0100\nchk Berlin-spring-after Europe/Berlin \"2024-03-31 01:00:05\" 03:00:0 CEST +0200\nchk Berlin-fall-before Europe/Berlin \"2024-10-27 00:59:50\" 02:59:5 CEST +0200\nchk Berlin-fall-after Europe/Berlin \"2024-10-27 01:00:05\" 02:00:0 CET +0100\n",
+      "expected_status": 0,
+      "stdout": "NY-spring-before: now-local=1 now-suffix=EST -0500 info-abbr=EST info-offset=-0500 gnu=EST -0500\nNY-spring-after: now-local=1 now-suffix=EDT -0400 info-abbr=EDT info-offset=-0400 gnu=EDT -0400\nNY-fall-before: now-local=1 now-suffix=EDT -0400 info-abbr=EDT info-offset=-0400 gnu=EDT -0400\nNY-fall-after: now-local=1 now-suffix=EST -0500 info-abbr=EST info-offset=-0500 gnu=EST -0500\nBerlin-spring-before: now-local=1 now-suffix=CET +0100 info-abbr=CET info-offset=+0100 gnu=CET +0100\nBerlin-spring-after: now-local=1 now-suffix=CEST +0200 info-abbr=CEST info-offset=+0200 gnu=CEST +0200\nBerlin-fall-before: now-local=1 now-suffix=CEST +0200 info-abbr=CEST info-offset=+0200 gnu=CEST +0200\nBerlin-fall-after: now-local=1 now-suffix=CET +0100 info-abbr=CET info-offset=+0100 gnu=CET +0100\n",
+      "stderr": "",
+      "timeout": 40
+    }
+  ]
+}
