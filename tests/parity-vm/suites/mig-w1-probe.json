@@ -23,6 +23,26 @@
       "stdout": "probe\n",
       "expected_status": 0,
       "timeout": 30
+    },
+    {
+      "id": "mig-w1-probe-ip-formats",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Probe ip builtin and iproute2 output formats in a seeded namespace.",
+      "oracle": "Raw output retained in evidence; no behavioral expectation.",
+      "requires": [
+        "unshare",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "/usr/bin/unshare --user --map-root-user --net --mount --uts \"$BASH\" --noprofile --norc -c '\nexport PATH=/usr/sbin:/usr/bin:/sbin:/bin\nR=/usr/bin/ip\n$R link add d0 type dummy; echo \"dummy rc=$?\"\n$R link add v0 type veth peer name v1; echo \"veth rc=$?\"\n$R link add wg0 type wireguard; echo \"wireguard rc=$?\"\n$R link set d0 mtu 1400 address 02:00:00:00:00:01 up\n$R addr add 192.0.2.1/24 dev d0; $R addr add 198.51.100.7/32 dev d0; $R addr add fd00::1/64 dev d0\n$R route add 203.0.113.0/24 via 192.0.2.254 dev d0 metric 50\n$R route add 10.20.0.0/16 dev d0 table 100\n$R rule add from 10.9.0.0/16 table 100 priority 500\n$R neigh add 192.0.2.99 lladdr 02:00:00:00:00:99 dev d0 nud permanent\ncmp() { echo \"######## ip $*\"; echo \"--- builtin\"; ip \"$@\" 2>&1; echo \"rc=$?\"; echo \"--- iproute2\"; $R \"$@\" 2>&1; echo \"rc=$?\"; }\ncmp link show d0\ncmp -br link show\ncmp -o link show d0\ncmp -j link show d0\ncmp addr show\ncmp -4 addr show\ncmp -6 addr show\ncmp addr show d0\ncmp addr show to 192.0.2.0/24\ncmp addr show scope host\ncmp -br addr show\ncmp -j addr show d0\ncmp route show\ncmp route show dev d0\ncmp route show table 100\ncmp route show table all\ncmp -j route show\ncmp rule show\ncmp -j rule show\ncmp neigh show\ncmp neigh show dev d0\ncmp -j neigh show dev d0\necho \"######## builtin vs ping_group_range\"\necho \"0 0\" > /proc/sys/net/ipv4/ping_group_range; echo rc=$?; cat /proc/sys/net/ipv4/ping_group_range\n'\n",
+      "stdout": "probe\n",
+      "expected_status": 0,
+      "timeout": 40
     }
   ]
 }
