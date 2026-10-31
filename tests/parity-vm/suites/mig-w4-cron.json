@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w4-cron-nonroot-row-environment",
+      "loadable": "cron",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A non-root cron daemon dispatching a system crontab row and a cron.d row that carry a USER column keeps its own uid but runs each command with USER, LOGNAME, HOME from the named account, SHELL and PATH from the table environment or the documented defaults.",
+      "oracle": "cron_doc: non-root daemon runs keep the daemon uid but still set USER, LOGNAME, HOME, SHELL and PATH. Expected HOME/shell values come from GNU getent passwd in the guest (checked in-script: daemon home /usr/sbin, root home /root and shell /bin/bash), the uid from GNU id -u of the same process, the fixed clock 1700000040 matches every minute of the star rows.",
+      "comparison": "Exact stdout: the exit status of one cron run --once poll with a fixed clock, and the six lines each job wrote (GNU id -u and the environment seen by the job), for one /etc/crontab-shaped row with explicit SHELL= and PATH= environment lines and one cron.d row relying on the defaults.",
+      "covers": [
+        "cron/deferred-system-user-drop"
+      ],
+      "requires": [
+        "id",
+        "getent"
+      ],
+      "script": "export TZ=UTC\nw=$PWD/cronw\nmkdir -p \"$w/etc\" \"$w/cron.d\" \"$w/spool\" \"$w/out\" \"$w/mail\"\nwant_uid=$(/usr/bin/id -u)\nIFS=: read -r _ _ _ _ _ dhome dshell < <(/usr/bin/getent passwd daemon)\nIFS=: read -r _ _ _ _ _ rhome rshell < <(/usr/bin/getent passwd root)\nprintf '%s\\n' \\\n  'SHELL=/bin/bash' \\\n  'PATH=/usr/bin:/bin:/opt/rowpath' \\\n  \"* * * * * daemon { /usr/bin/id -u; echo \\\"\\$USER\\\"; echo \\\"\\$LOGNAME\\\"; echo \\\"\\$HOME\\\"; echo \\\"\\$SHELL\\\"; echo \\\"\\$PATH\\\"; } > $w/row1\" > \"$w/etc/crontab\"\nprintf '%s\\n' \\\n  \"* * * * * root { /usr/bin/id -u; echo \\\"\\$USER\\\"; echo \\\"\\$LOGNAME\\\"; echo \\\"\\$HOME\\\"; echo \\\"\\$SHELL\\\"; echo \\\"\\$PATH\\\"; } > $w/row2\" > \"$w/cron.d/second\"\nBASHCRON_SPOOL_DIR=$w/spool BASHCRON_OUTPUT_DIR=$w/out BASHCRON_ETC_DIR=$w/etc BASHCRON_CROND_DIR=$w/cron.d \\\n  BASHCRON_MAIL_DIR=$w/mail BASHCRON_NOW_EPOCH=1700000040 cron run --once\necho \"cron-status=$?\"\nshow() {\n  local f=$1 l=() line\n  [[ -f $f ]] || { echo \"$f missing\"; return; }\n  while IFS= read -r line; do l+=(\"$line\"); done < \"$f\"\n  echo \"$2 uid=${l[0]} USER=${l[1]} LOGNAME=${l[2]} HOME=${l[3]} SHELL=${l[4]} PATH=${l[5]}\"\n  [[ ${l[0]} == \"$want_uid\" ]] && echo \"$2 keeps-daemon-uid=yes\" || echo \"$2 keeps-daemon-uid=NO($want_uid)\"\n}\nshow \"$w/row1\" row1\nshow \"$w/row2\" row2\n[[ $dhome == /usr/sbin && $rhome == /root && $rshell == /bin/bash ]] && echo \"getent-oracle=agrees\" || echo \"getent-oracle=differs:$dhome:$rhome:$rshell\"\n",
+      "expected_status": 0,
+      "timeout": 40,
+      "stdout": "cron-status=0\nrow1 uid=2000 USER=daemon LOGNAME=daemon HOME=/usr/sbin SHELL=/bin/bash PATH=/usr/bin:/bin:/opt/rowpath\nrow1 keeps-daemon-uid=yes\nrow2 uid=2000 USER=root LOGNAME=root HOME=/root SHELL=/bin/bash PATH=/usr/bin:/bin\nrow2 keeps-daemon-uid=yes\ngetent-oracle=agrees\n",
+      "stderr": ""
+    }
+  ]
+}
