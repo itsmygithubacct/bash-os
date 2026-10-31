@@ -546,6 +546,87 @@
       "timeout": 15,
       "candidate_script": "dialog --msgbox 'Hello after resize' 8 30 2>res; echo \"rc=$?\" > rc\n",
       "reference_script": "whiptail --msgbox 'Hello after resize' 8 30 2>res; echo \"rc=$?\" > rc\n"
+    },
+    {
+      "id": "mig-w8-dialog-output-fd-menu",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "--output-fd N routes the interactive result string to an already-open descriptor: a menu with one down-arrow and Enter writes the tag b to descriptor 3 with status 0, nothing to stderr.",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Alpha"
+            ]
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": "b"
+      },
+      "oracle": "dialog(1) widget conventions (exit 0 OK/Yes, 1 No/Cancel, 255 Esc; result strings to stderr by default; arrow/Tab/space/Enter navigation). The dialog program is not installed in the reference image, so the reference side runs the dialog-compatible whiptail(1) 0.52.25 from the reference PATH with the same widget arguments (candidate: the dialog builtin). Screen contents decoded independently by pyte. Layout and glyph differences between the two implementations are not asserted.",
+      "comparison": "res (the file behind descriptor 3) holds exactly b; status 0.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15,
+      "candidate_script": "dialog --output-fd 3 --menu 'Pick one' 12 40 3 a Alpha b Beta c Gamma 3>res; echo \"rc=$?\" > rc\n",
+      "reference_script": "whiptail --output-fd 3 --menu 'Pick one' 12 40 3 a Alpha b Beta c Gamma 3>res; echo \"rc=$?\" > rc\n"
+    },
+    {
+      "id": "mig-w8-dialog-stdout-menu",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "--stdout routes the interactive result to standard output: a menu with one down-arrow and Enter writes b to stdout with status 0.",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Alpha"
+            ]
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": "b"
+      },
+      "kind": "contract",
+      "oracle": "dialog(1) manual: --stdout sends the result string to standard output instead of standard error (no trailing newline). The reference image has neither dialog nor a whiptail --stdout, so this is a contract on the candidate.",
+      "comparison": "The file capturing stdout holds exactly b; status 0.",
+      "timeout": 15,
+      "candidate_script": "dialog --stdout --menu 'Pick one' 12 40 3 a Alpha b Beta c Gamma >res 2>err; echo \"rc=$?\" > rc\n"
     }
   ]
 }
