@@ -27,7 +27,7 @@
       "expected_status": 0,
       "timeout": 58,
       "helpers_sha256": {
-        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-ping.py": "5ee64a6c244c93d3decd569c75031075e9cbf1b5a90e808b15450758ebcf3d0c",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -57,7 +57,7 @@
       "expected_status": 0,
       "timeout": 58,
       "helpers_sha256": {
-        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-ping.py": "5ee64a6c244c93d3decd569c75031075e9cbf1b5a90e808b15450758ebcf3d0c",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -87,7 +87,7 @@
       "expected_status": 0,
       "timeout": 58,
       "helpers_sha256": {
-        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-ping.py": "5ee64a6c244c93d3decd569c75031075e9cbf1b5a90e808b15450758ebcf3d0c",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -117,7 +117,7 @@
       "expected_status": 0,
       "timeout": 58,
       "helpers_sha256": {
-        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-ping.py": "5ee64a6c244c93d3decd569c75031075e9cbf1b5a90e808b15450758ebcf3d0c",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -147,7 +147,7 @@
       "expected_status": 0,
       "timeout": 58,
       "helpers_sha256": {
-        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-ping.py": "5ee64a6c244c93d3decd569c75031075e9cbf1b5a90e808b15450758ebcf3d0c",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -177,7 +177,7 @@
       "expected_status": 0,
       "timeout": 58,
       "helpers_sha256": {
-        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-ping.py": "5ee64a6c244c93d3decd569c75031075e9cbf1b5a90e808b15450758ebcf3d0c",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -207,7 +207,7 @@
       "expected_status": 0,
       "timeout": 58,
       "helpers_sha256": {
-        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-ping.py": "5ee64a6c244c93d3decd569c75031075e9cbf1b5a90e808b15450758ebcf3d0c",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -237,7 +237,7 @@
       "expected_status": 0,
       "timeout": 58,
       "helpers_sha256": {
-        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-ping.py": "5ee64a6c244c93d3decd569c75031075e9cbf1b5a90e808b15450758ebcf3d0c",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -267,7 +267,7 @@
       "expected_status": 0,
       "timeout": 58,
       "helpers_sha256": {
-        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-ping.py": "5ee64a6c244c93d3decd569c75031075e9cbf1b5a90e808b15450758ebcf3d0c",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -297,7 +297,7 @@
       "expected_status": 0,
       "timeout": 58,
       "helpers_sha256": {
-        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-ping.py": "5ee64a6c244c93d3decd569c75031075e9cbf1b5a90e808b15450758ebcf3d0c",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -327,7 +327,7 @@
       "expected_status": 0,
       "timeout": 58,
       "helpers_sha256": {
-        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-ping.py": "5ee64a6c244c93d3decd569c75031075e9cbf1b5a90e808b15450758ebcf3d0c",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -357,7 +357,7 @@
       "expected_status": 0,
       "timeout": 58,
       "helpers_sha256": {
-        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-ping.py": "5ee64a6c244c93d3decd569c75031075e9cbf1b5a90e808b15450758ebcf3d0c",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     }

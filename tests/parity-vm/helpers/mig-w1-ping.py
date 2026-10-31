@@ -156,13 +156,16 @@ def sniffer(ifn):
     return s
 
 
-def drain(s):
+def drain(s, pkttype):
+    """Frames of one direction only (0 = PACKET_HOST incoming, 4 = PACKET_OUTGOING), so loopback copies are not double counted."""
     out = []
     while True:
         r, _, _ = select.select([s], [], [], 0.3)
         if not r:
             return out
-        out.append(s.recv(65535))
+        data, addr = s.recvfrom(65535)
+        if addr[2] == pkttype:
+            out.append(data)
 
 
 def run_ping(args, timeout=30):
@@ -236,7 +239,7 @@ def sc_v4_request():
     L.seed([["link", "set", "lo", "up"]])
     sn = sniffer("lo")
     r = run_ping(["-4", "-c", "1", "127.0.0.1"])
-    pk = icmp_packets(drain(sn), 4)
+    pk = icmp_packets(drain(sn, 4), 4)
     req = [p for p in pk if p["icmp"][0] == 8]
     rep = [p for p in pk if p["icmp"][0] == 0]
     L.check("v4 request: exactly one echo request (type 8) observed to 127.0.0.1", len(req) == 1 and req[0]["dst"] == "127.0.0.1", str(len(req)))
@@ -266,7 +269,7 @@ def forge_run(fam, plan, target, args_extra=()):
         else:
             peer = Peer()
             L.seed([["link", "add", "v0", "type", "veth", "peer", "name", "v1"], ["link", "set", "v1", "netns", str(peer.pid)], ["addr", "add", "fd77::1/64", "dev", "v0", "nodad"], ["link", "set", "v0", "up"], ["link", "set", "lo", "up"]])
-            peer.sh("/usr/bin/ip addr add fd77::2/64 dev v1 nodad && /usr/bin/ip addr add fd77::3/64 dev v1 nodad && /usr/bin/ip link set v1 up")
+            peer.sh("/usr/bin/ip addr add fd77::2/64 dev v1 nodad && /usr/bin/ip addr add fd77::3/64 dev v1 nodad && /usr/bin/ip link set v1 up && echo 1 > /proc/sys/net/ipv6/icmp/echo_ignore_all")
             time.sleep(0.5)
         try:
             peer.send("respond", fam, plan)
@@ -294,7 +297,7 @@ def sc_v6_request():
     sysctl_dad_off()
     sn = sniffer("lo")
     r = run_ping(["-6", "-c", "1", "::1"])
-    pk = icmp_packets(drain(sn), 6)
+    pk = icmp_packets(drain(sn, 4), 6)
     req = [p for p in pk if p["icmp"][0] == 128]
     rep = [p for p in pk if p["icmp"][0] == 129]
     L.check("v6 request: exactly one echo request (type 128) to ::1", len(req) == 1, str(len(pk)))
@@ -364,7 +367,7 @@ def trace(args, dst, topo_kw=None):
         sn = sniffer("v0")
         try:
             res = run_ping(["-T"] + args + [dst])
-            res["probes"] = [list(x) for x in probes(drain(sn), dst)]
+            res["probes"] = [list(x) for x in probes(drain(sn, 4), dst)]
             return res
         finally:
             sn.close()
@@ -429,6 +432,8 @@ def sc_no_socket():
     def run(args):
         p = subprocess.run([L.CAND, "--noprofile", "--norc", "-c", 'ping "$@"', "cand"] + args, capture_output=True, text=True, env=L.ENV, preexec_fn=inst, timeout=20)
         return p.returncode, p.stderr
+    rc, err = run(["-c", ":"] if False else ["-V"])
+    L.check("baseline: the shell and a non-network ping option (-V) run to completion under the socket-killing filter", rc == 0, "rc=%s err=%r" % (rc, err))
     rc, err = run(["-c", "1", "127.0.0.1"])
     L.check("control: a valid ping under the socket-killing filter is terminated by SIGSYS (so the filter observes socket creation)", rc < 0 or rc == 128 + 31, "rc=%s err=%r" % (rc, err))
     for args in (["-c", "0"], ["-c", "abc"], ["-c", "10001"], ["-W", "0"], ["-W", "61"], ["-w", "0"], ["-w", "86401"], ["-i", "0.01"], ["-i", "x"], ["-c", ""]):
