@@ -28,7 +28,7 @@
       "features": [
         "userns"
       ],
-      "stdout": "push-rc=0\ndir:module/pushed\nfile:module/pushed/a.txt:alpha\ndir:module/pushed/sub\nfile:module/pushed/sub/b.txt:beta\nfile:module/.keep:\ndaemon-stopped\nns-status=0\n",
+      "stdout": "push-rc=0\ndir:module/\nfile:module/.keep:\ndir:module/pushed\nfile:module/pushed/a.txt:alpha\ndir:module/pushed/sub\nfile:module/pushed/sub/b.txt:beta\ndaemon-stopped\nns-status=0\n",
       "stderr": "",
       "diagnostic_files": [
         "rsyncd.log",
@@ -67,7 +67,7 @@
       "features": [
         "userns"
       ],
-      "stdout": "url-rc=0\ncolon-rc=0\ndir:out-url/d\nfile:out-url/d/y.txt:nested\nfile:out-url/x.txt:from-ro\ndir:out-colon/d\nfile:out-colon/d/y.txt:nested\nfile:out-colon/x.txt:from-ro\ndaemon-stopped\nns-status=0\n",
+      "stdout": "url-rc=0\ncolon-rc=0\ndir:out-url/\ndir:out-url/d\nfile:out-url/d/y.txt:nested\nfile:out-url/x.txt:from-ro\ndir:out-colon/\ndir:out-colon/d\nfile:out-colon/d/y.txt:nested\nfile:out-colon/x.txt:from-ro\ndaemon-stopped\nns-status=0\n",
       "stderr": "",
       "diagnostic_files": [
         "rsyncd.log",
