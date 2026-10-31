@@ -1,0 +1,365 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w1-ping-deadline",
+      "loadable": "ping",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "No-reply timeouts, -q summary-only output and a -w deadline against a peer that never answers.",
+      "covers": [
+        "ping/ping-deadline-timeout-quiet"
+      ],
+      "oracle": "Real namespaces joined by veth pairs: request bytes decoded independently from an AF_PACKET sniffer (RFC 792 and RFC 4443 checksums), replies forged by a raw ICMP socket in a peer namespace, forwarding hops with a router namespace, and a seccomp filter that kills any socket() call to prove argument rejection happens before sockets. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ping.py deadline\n",
+      "stdout": "scenario deadline: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 58,
+      "helpers_sha256": {
+        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ping-v4-request",
+      "loadable": "ping",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "IPv4 echo request bytes: type, code, id, seq, length and RFC 792 checksum from a sniffer.",
+      "covers": [
+        "ping/ping-ipv4-echo-matching"
+      ],
+      "oracle": "Real namespaces joined by veth pairs: request bytes decoded independently from an AF_PACKET sniffer (RFC 792 and RFC 4443 checksums), replies forged by a raw ICMP socket in a peer namespace, forwarding hops with a router namespace, and a seccomp filter that kills any socket() call to prove argument rejection happens before sockets. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ping.py v4-request\n",
+      "stdout": "scenario v4-request: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 58,
+      "helpers_sha256": {
+        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ping-v4-accounting",
+      "loadable": "ping",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Per-reply output and summary accounting for one matching reply, status 0.",
+      "covers": [
+        "ping/ping-ipv4-echo-matching"
+      ],
+      "oracle": "Real namespaces joined by veth pairs: request bytes decoded independently from an AF_PACKET sniffer (RFC 792 and RFC 4443 checksums), replies forged by a raw ICMP socket in a peer namespace, forwarding hops with a router namespace, and a seccomp filter that kills any socket() call to prove argument rejection happens before sockets. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ping.py v4-accounting\n",
+      "stdout": "scenario v4-accounting: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 58,
+      "helpers_sha256": {
+        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ping-v4-matching",
+      "loadable": "ping",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Replies with wrong identifier, sequence or payload are rejected; the exact reply is accepted.",
+      "covers": [
+        "ping/ping-ipv4-echo-matching"
+      ],
+      "oracle": "Real namespaces joined by veth pairs: request bytes decoded independently from an AF_PACKET sniffer (RFC 792 and RFC 4443 checksums), replies forged by a raw ICMP socket in a peer namespace, forwarding hops with a router namespace, and a seccomp filter that kills any socket() call to prove argument rejection happens before sockets. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ping.py v4-matching\n",
+      "stdout": "scenario v4-matching: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 58,
+      "helpers_sha256": {
+        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ping-v6-request",
+      "loadable": "ping",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "IPv6 echo request type 128 with id, seq, payload and RFC 4443 pseudo-header checksum.",
+      "covers": [
+        "ping/ping-ipv6-echo-codec"
+      ],
+      "oracle": "Real namespaces joined by veth pairs: request bytes decoded independently from an AF_PACKET sniffer (RFC 792 and RFC 4443 checksums), replies forged by a raw ICMP socket in a peer namespace, forwarding hops with a router namespace, and a seccomp filter that kills any socket() call to prove argument rejection happens before sockets. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ping.py v6-request\n",
+      "stdout": "scenario v6-request: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 58,
+      "helpers_sha256": {
+        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ping-v6-matching",
+      "loadable": "ping",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "ICMPv6 reply matching of id/seq/payload and source validation against forged replies.",
+      "covers": [
+        "ping/ping-ipv6-echo-codec"
+      ],
+      "oracle": "Real namespaces joined by veth pairs: request bytes decoded independently from an AF_PACKET sniffer (RFC 792 and RFC 4443 checksums), replies forged by a raw ICMP socket in a peer namespace, forwarding hops with a router namespace, and a seccomp filter that kills any socket() call to prove argument rejection happens before sockets. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ping.py v6-matching\n",
+      "stdout": "scenario v6-matching: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 58,
+      "helpers_sha256": {
+        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ping-v6-accounting",
+      "loadable": "ping",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Successful ICMPv6 accounting and status 0.",
+      "covers": [
+        "ping/ping-ipv6-echo-codec"
+      ],
+      "oracle": "Real namespaces joined by veth pairs: request bytes decoded independently from an AF_PACKET sniffer (RFC 792 and RFC 4443 checksums), replies forged by a raw ICMP socket in a peer namespace, forwarding hops with a router namespace, and a seccomp filter that kills any socket() call to prove argument rejection happens before sockets. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ping.py v6-accounting\n",
+      "stdout": "scenario v6-accounting: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 58,
+      "helpers_sha256": {
+        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ping-trace-ttl",
+      "loadable": "ping",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Traceroute UDP probe TTL progression and probes per hop from a sniffer.",
+      "covers": [
+        "ping/ping-traceroute-ttl"
+      ],
+      "oracle": "Real namespaces joined by veth pairs: request bytes decoded independently from an AF_PACKET sniffer (RFC 792 and RFC 4443 checksums), replies forged by a raw ICMP socket in a peer namespace, forwarding hops with a router namespace, and a seccomp filter that kills any socket() call to prove argument rejection happens before sockets. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ping.py trace-ttl\n",
+      "stdout": "scenario trace-ttl: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 58,
+      "helpers_sha256": {
+        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ping-trace-hops",
+      "loadable": "ping",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Time-exceeded hops are printed per hop; a non-answering hop prints a timeout.",
+      "covers": [
+        "ping/ping-traceroute-ttl"
+      ],
+      "oracle": "Real namespaces joined by veth pairs: request bytes decoded independently from an AF_PACKET sniffer (RFC 792 and RFC 4443 checksums), replies forged by a raw ICMP socket in a peer namespace, forwarding hops with a router namespace, and a seccomp filter that kills any socket() call to prove argument rejection happens before sockets. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ping.py trace-hops\n",
+      "stdout": "scenario trace-hops: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 58,
+      "helpers_sha256": {
+        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ping-trace-reached",
+      "loadable": "ping",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Destination port-unreachable terminates the trace with status 0.",
+      "covers": [
+        "ping/ping-traceroute-ttl"
+      ],
+      "oracle": "Real namespaces joined by veth pairs: request bytes decoded independently from an AF_PACKET sniffer (RFC 792 and RFC 4443 checksums), replies forged by a raw ICMP socket in a peer namespace, forwarding hops with a router namespace, and a seccomp filter that kills any socket() call to prove argument rejection happens before sockets. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ping.py trace-reached\n",
+      "stdout": "scenario trace-reached: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 58,
+      "helpers_sha256": {
+        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ping-trace-unreached",
+      "loadable": "ping",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Unreached destination after -m returns status 1.",
+      "covers": [
+        "ping/ping-traceroute-ttl"
+      ],
+      "oracle": "Real namespaces joined by veth pairs: request bytes decoded independently from an AF_PACKET sniffer (RFC 792 and RFC 4443 checksums), replies forged by a raw ICMP socket in a peer namespace, forwarding hops with a router namespace, and a seccomp filter that kills any socket() call to prove argument rejection happens before sockets. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ping.py trace-unreached\n",
+      "stdout": "scenario trace-unreached: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 58,
+      "helpers_sha256": {
+        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ping-no-socket",
+      "loadable": "ping",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Rejected ping arguments exit 2 without any socket() call.",
+      "covers": [
+        "ping/ping-option-boundaries"
+      ],
+      "oracle": "Real namespaces joined by veth pairs: request bytes decoded independently from an AF_PACKET sniffer (RFC 792 and RFC 4443 checksums), replies forged by a raw ICMP socket in a peer namespace, forwarding hops with a router namespace, and a seccomp filter that kills any socket() call to prove argument rejection happens before sockets. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ping.py no-socket\n",
+      "stdout": "scenario no-socket: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 58,
+      "helpers_sha256": {
+        "helpers/mig-w1-ping.py": "1fafcaca4919859091d240f552206c9bb96e094aecea46595a07c441a92f2501",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    }
+  ]
+}
