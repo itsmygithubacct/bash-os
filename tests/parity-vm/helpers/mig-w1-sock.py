@@ -392,7 +392,7 @@ def sc_ns_header():
 
 # --------------------------------------------------------------------------- process annotation
 def drop_caps():
-    for cap in (1, 2, 19):  # CAP_DAC_OVERRIDE, CAP_DAC_READ_SEARCH, CAP_SYS_PTRACE
+    for cap in (19,):  # CAP_SYS_PTRACE only: non-dumpable owners become unreadable, dumpable ones stay readable
         libc.prctl(24, cap, 0, 0, 0)  # PR_CAPBSET_DROP
 
 
