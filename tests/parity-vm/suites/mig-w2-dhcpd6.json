@@ -1,0 +1,488 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w2-dhcpd6-serve-default-ports",
+      "loadable": "dhcpd6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd6/live-server-exchange"
+      ],
+      "purpose": "serve binds [::]:547 and replies to the request source address on UDP 546 whatever the request source port was (r1).",
+      "oracle": "RFC 8415 message layout decoded by an independent Python codec; the peer is a scripted DHCPv6 client in a second network namespace and the lease file layout is checked from the configuration documentation.",
+      "comparison": "Candidate dhcpd6 serve/run in a mapped user namespace on a veth pair; the scripted Python client peer sends unicast messages to the server link-local address. Failing assertions print one line each and the summary must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd6.py": "77cc460099b2fecfd8b0cc17395f0e1177e38c465a14bac9aff90c37de164a39",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\ndhcpd6 serve -c dhcpd6.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer ports sync.fifo go.fifo 547 546 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\nfor i in {1..100}; do $IP -6 route show dev veth0 > routes.txt; [[ $(< routes.txt) == *fe80::/64* ]] && break; settle 0.05; done\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify ports 547 546\n",
+        "dhcpd6.conf": "server-duid 00030001aabbccddeeff\npool-start 2001:db8::100\npool-size 4\ndns 2001:db8::53\nlease-pref 3600\nlease-valid 7200\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd6.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified ports failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd6-serve-override-ports",
+      "loadable": "dhcpd6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd6/live-server-exchange"
+      ],
+      "purpose": "BASHDHCPD6_SERVER_PORT and BASHDHCPD6_CLIENT_PORT set the bound server port and the reply port (r1).",
+      "oracle": "RFC 8415 message layout decoded by an independent Python codec; the peer is a scripted DHCPv6 client in a second network namespace and the lease file layout is checked from the configuration documentation.",
+      "comparison": "Candidate dhcpd6 serve/run in a mapped user namespace on a veth pair; the scripted Python client peer sends unicast messages to the server link-local address. Failing assertions print one line each and the summary must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd6.py": "77cc460099b2fecfd8b0cc17395f0e1177e38c465a14bac9aff90c37de164a39",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nexport BASHDHCPD6_SERVER_PORT=5470 BASHDHCPD6_CLIENT_PORT=5460\ndhcpd6 serve -c dhcpd6.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer ports sync.fifo go.fifo 5470 5460 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\nfor i in {1..100}; do $IP -6 route show dev veth0 > routes.txt; [[ $(< routes.txt) == *fe80::/64* ]] && break; settle 0.05; done\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify ports 5470 5460\n",
+        "dhcpd6.conf": "server-duid 00030001aabbccddeeff\npool-start 2001:db8::100\npool-size 4\ndns 2001:db8::53\nlease-pref 3600\nlease-valid 7200\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd6.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified ports failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd6-serve-solicit-request-exchange",
+      "loadable": "dhcpd6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd6/live-server-exchange"
+      ],
+      "purpose": "SOLICIT is answered with an ADVERTISE and REQUEST with a REPLY carrying a pool address, lifetimes and DUIDs over the socket path (r2).",
+      "oracle": "RFC 8415 message layout decoded by an independent Python codec; the peer is a scripted DHCPv6 client in a second network namespace and the lease file layout is checked from the configuration documentation.",
+      "comparison": "Candidate dhcpd6 serve/run in a mapped user namespace on a veth pair; the scripted Python client peer sends unicast messages to the server link-local address. Failing assertions print one line each and the summary must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd6.py": "77cc460099b2fecfd8b0cc17395f0e1177e38c465a14bac9aff90c37de164a39",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\ndhcpd6 serve -c dhcpd6.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer exchange sync.fifo go.fifo 547 546 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\nfor i in {1..100}; do $IP -6 route show dev veth0 > routes.txt; [[ $(< routes.txt) == *fe80::/64* ]] && break; settle 0.05; done\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify exchange\n",
+        "dhcpd6.conf": "server-duid 00030001aabbccddeeff\npool-start 2001:db8::100\npool-size 4\ndns 2001:db8::53\nlease-pref 3600\nlease-valid 7200\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd6.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified exchange failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd6-serve-lease-persist-release",
+      "loadable": "dhcpd6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd6/live-server-exchange"
+      ],
+      "purpose": "The lease file is written on REPLY and a RELEASE removes it through serve (r3).",
+      "oracle": "RFC 8415 message layout decoded by an independent Python codec; the peer is a scripted DHCPv6 client in a second network namespace and the lease file layout is checked from the configuration documentation.",
+      "comparison": "Candidate dhcpd6 serve/run in a mapped user namespace on a veth pair; the scripted Python client peer sends unicast messages to the server link-local address. Failing assertions print one line each and the summary must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd6.py": "77cc460099b2fecfd8b0cc17395f0e1177e38c465a14bac9aff90c37de164a39",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\ndhcpd6 serve -c dhcpd6.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer lease-lifecycle sync.fifo go.fifo 547 546 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\nfor i in {1..100}; do $IP -6 route show dev veth0 > routes.txt; [[ $(< routes.txt) == *fe80::/64* ]] && break; settle 0.05; done\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify lease-persist\n",
+        "dhcpd6.conf": "server-duid 00030001aabbccddeeff\npool-start 2001:db8::100\npool-size 4\ndns 2001:db8::53\nlease-pref 3600\nlease-valid 7200\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd6.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "verified lease-persist failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd6-serve-once",
+      "loadable": "dhcpd6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd6/live-server-exchange"
+      ],
+      "purpose": "serve --once handles one message then exits with status 0; a later message is not answered (r4).",
+      "oracle": "RFC 8415 message layout decoded by an independent Python codec; the peer is a scripted DHCPv6 client in a second network namespace and the lease file layout is checked from the configuration documentation.",
+      "comparison": "Candidate dhcpd6 serve/run in a mapped user namespace on a veth pair; the scripted Python client peer sends unicast messages to the server link-local address. Failing assertions print one line each and the summary must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd6.py": "77cc460099b2fecfd8b0cc17395f0e1177e38c465a14bac9aff90c37de164a39",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\ndhcpd6 serve --once -c dhcpd6.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer once sync.fifo go.fifo 547 546 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\nfor i in {1..100}; do $IP -6 route show dev veth0 > routes.txt; [[ $(< routes.txt) == *fe80::/64* ]] && break; settle 0.05; done\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nwait \"$srv\"; echo \"serve-rc=$?\"\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify once-messages\n",
+        "dhcpd6.conf": "server-duid 00030001aabbccddeeff\npool-start 2001:db8::100\npool-size 4\ndns 2001:db8::53\nlease-pref 3600\nlease-valid 7200\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd6.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "serve-rc=0\nverified once-messages failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd6-run-once",
+      "loadable": "dhcpd6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd6/live-server-exchange"
+      ],
+      "purpose": "The run alias with --once behaves like serve --once (r4).",
+      "oracle": "RFC 8415 message layout decoded by an independent Python codec; the peer is a scripted DHCPv6 client in a second network namespace and the lease file layout is checked from the configuration documentation.",
+      "comparison": "Candidate dhcpd6 serve/run in a mapped user namespace on a veth pair; the scripted Python client peer sends unicast messages to the server link-local address. Failing assertions print one line each and the summary must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd6.py": "77cc460099b2fecfd8b0cc17395f0e1177e38c465a14bac9aff90c37de164a39",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo go.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\nsettle() { read -t \"$1\" -u 7 line; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nexec 8<>go.fifo\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\ndhcpd6 run --once -c dhcpd6.conf -l leases -i veth0 > serve.out 2> serve.err &\nsrv=$!\nsettle 0.3\n\"$PY\" \"$H\" peer once sync.fifo go.fifo 547 546 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\nfor i in {1..100}; do $IP -6 route show dev veth0 > routes.txt; [[ $(< routes.txt) == *fe80::/64* ]] && break; settle 0.05; done\necho go >&8\nread -t 40 -u 7 line || die peer-done\n[[ $line == done ]] || die \"peer-$line\"\nwait \"$srv\"; echo \"serve-rc=$?\"\nwait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify once-messages\n",
+        "dhcpd6.conf": "server-duid 00030001aabbccddeeff\npool-start 2001:db8::100\npool-size 4\ndns 2001:db8::53\nlease-pref 3600\nlease-valid 7200\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer-dhcpd6.json",
+        "serve.err"
+      ],
+      "expected_status": 0,
+      "stdout": "serve-rc=0\nverified once-messages failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w2-dhcpd6-serve-once-idle-exit",
+      "loadable": "dhcpd6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd6/live-server-exchange"
+      ],
+      "purpose": "serve --once with no traffic exits with status 0 after the first idle second (r4).",
+      "oracle": "Documented bounded behavior (--once ends after one reply or the first idle second), measured with the shell EPOCHREALTIME clock around the call.",
+      "comparison": "Single candidate invocation in a mapped user namespace; elapsed wall time is bracketed between 0.8 s and 2.5 s.",
+      "requires": [
+        "unshare"
+      ],
+      "features": [
+        "userns"
+      ],
+      "files": {
+        "case.sh": "export BASHDHCPD6_SERVER_PORT=5470\nstart=$EPOCHREALTIME\ndhcpd6 serve --once -c dhcpd6.conf -l leases > serve.out 2> serve.err\nrc=$?\nend=$EPOCHREALTIME\nms=$(( (${end/./} - ${start/./}) / 1000 ))\necho \"serve-rc=$rc\"\necho \"returned-after-first-idle-second=$([[ $ms -ge 800 && $ms -le 2500 ]] && echo yes || echo \"no-${ms}ms\")\"\n",
+        "dhcpd6.conf": "server-duid 00030001aabbccddeeff\npool-start 2001:db8::100\npool-size 4\ndns 2001:db8::53\nlease-pref 3600\nlease-valid 7200\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "expected_status": 0,
+      "stdout": "serve-rc=0\nreturned-after-first-idle-second=yes\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 20
+    },
+    {
+      "id": "mig-w2-dhcpd6-run-once-idle-exit",
+      "loadable": "dhcpd6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd6/live-server-exchange"
+      ],
+      "purpose": "run --once with no traffic exits with status 0 after the first idle second (r4).",
+      "oracle": "Documented bounded behavior (--once ends after one reply or the first idle second), measured with the shell EPOCHREALTIME clock around the call.",
+      "comparison": "Single candidate invocation in a mapped user namespace; elapsed wall time is bracketed between 0.8 s and 2.5 s.",
+      "requires": [
+        "unshare"
+      ],
+      "features": [
+        "userns"
+      ],
+      "files": {
+        "case.sh": "export BASHDHCPD6_SERVER_PORT=5470\nstart=$EPOCHREALTIME\ndhcpd6 run --once -c dhcpd6.conf -l leases > serve.out 2> serve.err\nrc=$?\nend=$EPOCHREALTIME\nms=$(( (${end/./} - ${start/./}) / 1000 ))\necho \"serve-rc=$rc\"\necho \"returned-after-first-idle-second=$([[ $ms -ge 800 && $ms -le 2500 ]] && echo yes || echo \"no-${ms}ms\")\"\n",
+        "dhcpd6.conf": "server-duid 00030001aabbccddeeff\npool-start 2001:db8::100\npool-size 4\ndns 2001:db8::53\nlease-pref 3600\nlease-valid 7200\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "expected_status": 0,
+      "stdout": "serve-rc=0\nreturned-after-first-idle-second=yes\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 20
+    },
+    {
+      "id": "mig-w2-dhcpd6-leasequery-by-address",
+      "loadable": "dhcpd6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd6/leasequery-lifetimes"
+      ],
+      "purpose": "QUERY_BY_ADDRESS returns a LEASEQUERY-REPLY whose CLIENT_DATA holds CLIENTID, IAADDR and CLT_TIME for an active lease (r1).",
+      "oracle": "RFC 5007 option codes and layouts (OPTION_LQ_QUERY 44, OPTION_CLIENT_DATA 45, OPTION_CLT_TIME 46, query types 1 and 2); queries and the seeded lease file are generated relative to the guest clock by an independent Python helper and the replies decoded independently.",
+      "comparison": "Offline leasequery over a lease file seeded with active, short-remaining and expired leases; every reply is decoded by the independent codec. Lifetime windows allow up to 15 s between seeding and querying.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd6.py": "77cc460099b2fecfd8b0cc17395f0e1177e38c465a14bac9aff90c37de164a39",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py lqprep\n",
+      "setup_timeout": 10,
+      "files": {
+        "dhcpd6.conf": "server-duid 00030001aabbccddeeff\npool-start 2001:db8::100\npool-size 4\ndns 2001:db8::53\nlease-pref 3600\nlease-valid 7200\n"
+      },
+      "script": "for n in addr-100 addr-103 client-a client-c addr-unknown client-unknown addr-expired client-expired; do\n  dhcpd6 leasequery \"$(< q-$n.hex)\" -c dhcpd6.conf -l leases > r-$n.hex 2> e-$n.txt\n  echo \"query-$n-rc=$?\"\ndone\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py verify lq-address\n",
+      "diagnostic_files": [
+        "r-addr-100.hex",
+        "r-client-a.hex",
+        "r-addr-unknown.hex"
+      ],
+      "expected_status": 0,
+      "stdout": "query-addr-100-rc=0\nquery-addr-103-rc=0\nquery-client-a-rc=0\nquery-client-c-rc=0\nquery-addr-unknown-rc=0\nquery-client-unknown-rc=0\nquery-addr-expired-rc=0\nquery-client-expired-rc=0\nverified lq-address failed=0\n",
+      "stderr": "",
+      "timeout": 30
+    },
+    {
+      "id": "mig-w2-dhcpd6-leasequery-by-clientid",
+      "loadable": "dhcpd6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd6/leasequery-lifetimes"
+      ],
+      "purpose": "QUERY_BY_CLIENTID returns all addresses the client holds actively (r2).",
+      "oracle": "RFC 5007 option codes and layouts (OPTION_LQ_QUERY 44, OPTION_CLIENT_DATA 45, OPTION_CLT_TIME 46, query types 1 and 2); queries and the seeded lease file are generated relative to the guest clock by an independent Python helper and the replies decoded independently.",
+      "comparison": "Offline leasequery over a lease file seeded with active, short-remaining and expired leases; every reply is decoded by the independent codec. Lifetime windows allow up to 15 s between seeding and querying.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd6.py": "77cc460099b2fecfd8b0cc17395f0e1177e38c465a14bac9aff90c37de164a39",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py lqprep\n",
+      "setup_timeout": 10,
+      "files": {
+        "dhcpd6.conf": "server-duid 00030001aabbccddeeff\npool-start 2001:db8::100\npool-size 4\ndns 2001:db8::53\nlease-pref 3600\nlease-valid 7200\n"
+      },
+      "script": "for n in addr-100 addr-103 client-a client-c addr-unknown client-unknown addr-expired client-expired; do\n  dhcpd6 leasequery \"$(< q-$n.hex)\" -c dhcpd6.conf -l leases > r-$n.hex 2> e-$n.txt\n  echo \"query-$n-rc=$?\"\ndone\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py verify lq-clientid\n",
+      "diagnostic_files": [
+        "r-addr-100.hex",
+        "r-client-a.hex",
+        "r-addr-unknown.hex"
+      ],
+      "expected_status": 0,
+      "stdout": "query-addr-100-rc=0\nquery-addr-103-rc=0\nquery-client-a-rc=0\nquery-client-c-rc=0\nquery-addr-unknown-rc=0\nquery-client-unknown-rc=0\nquery-addr-expired-rc=0\nquery-client-expired-rc=0\nverified lq-clientid failed=0\n",
+      "stderr": "",
+      "timeout": 30
+    },
+    {
+      "id": "mig-w2-dhcpd6-leasequery-miss-no-client-data",
+      "loadable": "dhcpd6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd6/leasequery-lifetimes"
+      ],
+      "purpose": "Unknown and expired addresses and clients return a reply without CLIENT_DATA (r3; RFC 5007 s4.3.3).",
+      "oracle": "RFC 5007 option codes and layouts (OPTION_LQ_QUERY 44, OPTION_CLIENT_DATA 45, OPTION_CLT_TIME 46, query types 1 and 2); queries and the seeded lease file are generated relative to the guest clock by an independent Python helper and the replies decoded independently.",
+      "comparison": "Offline leasequery over a lease file seeded with active, short-remaining and expired leases; every reply is decoded by the independent codec. Lifetime windows allow up to 15 s between seeding and querying.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd6.py": "77cc460099b2fecfd8b0cc17395f0e1177e38c465a14bac9aff90c37de164a39",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py lqprep\n",
+      "setup_timeout": 10,
+      "files": {
+        "dhcpd6.conf": "server-duid 00030001aabbccddeeff\npool-start 2001:db8::100\npool-size 4\ndns 2001:db8::53\nlease-pref 3600\nlease-valid 7200\n"
+      },
+      "script": "for n in addr-100 addr-103 client-a client-c addr-unknown client-unknown addr-expired client-expired; do\n  dhcpd6 leasequery \"$(< q-$n.hex)\" -c dhcpd6.conf -l leases > r-$n.hex 2> e-$n.txt\n  echo \"query-$n-rc=$?\"\ndone\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py verify lq-miss-no-client-data\n",
+      "diagnostic_files": [
+        "r-addr-100.hex",
+        "r-client-a.hex",
+        "r-addr-unknown.hex"
+      ],
+      "expected_status": 0,
+      "stdout": "query-addr-100-rc=0\nquery-addr-103-rc=0\nquery-client-a-rc=0\nquery-client-c-rc=0\nquery-addr-unknown-rc=0\nquery-client-unknown-rc=0\nquery-addr-expired-rc=0\nquery-client-expired-rc=0\nverified lq-miss-no-client-data failed=0\n",
+      "stderr": "",
+      "timeout": 30
+    },
+    {
+      "id": "mig-w2-dhcpd6-leasequery-miss-failure-status",
+      "loadable": "dhcpd6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd6/leasequery-lifetimes"
+      ],
+      "purpose": "Misses and expired leases carry a failure status code option (r3 as worded: documented failure status).",
+      "oracle": "RFC 5007 option codes and layouts (OPTION_LQ_QUERY 44, OPTION_CLIENT_DATA 45, OPTION_CLT_TIME 46, query types 1 and 2); queries and the seeded lease file are generated relative to the guest clock by an independent Python helper and the replies decoded independently. The requirement text asks for a failure status; RFC 5007 s4.3.3 itself defines no status for a miss, so this case records the requirement as written.",
+      "comparison": "Offline leasequery over a lease file seeded with active, short-remaining and expired leases; every reply is decoded by the independent codec. Lifetime windows allow up to 15 s between seeding and querying.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd6.py": "77cc460099b2fecfd8b0cc17395f0e1177e38c465a14bac9aff90c37de164a39",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py lqprep\n",
+      "setup_timeout": 10,
+      "files": {
+        "dhcpd6.conf": "server-duid 00030001aabbccddeeff\npool-start 2001:db8::100\npool-size 4\ndns 2001:db8::53\nlease-pref 3600\nlease-valid 7200\n"
+      },
+      "script": "for n in addr-100 addr-103 client-a client-c addr-unknown client-unknown addr-expired client-expired; do\n  dhcpd6 leasequery \"$(< q-$n.hex)\" -c dhcpd6.conf -l leases > r-$n.hex 2> e-$n.txt\n  echo \"query-$n-rc=$?\"\ndone\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py verify lq-miss-status\n",
+      "diagnostic_files": [
+        "r-addr-100.hex",
+        "r-client-a.hex",
+        "r-addr-unknown.hex"
+      ],
+      "expected_status": 0,
+      "stdout": "query-addr-100-rc=0\nquery-addr-103-rc=0\nquery-client-a-rc=0\nquery-client-c-rc=0\nquery-addr-unknown-rc=0\nquery-client-unknown-rc=0\nquery-addr-expired-rc=0\nquery-client-expired-rc=0\nverified lq-miss-status failed=0\n",
+      "stderr": "",
+      "timeout": 30
+    },
+    {
+      "id": "mig-w2-dhcpd6-leasequery-lifetimes",
+      "loadable": "dhcpd6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd6/leasequery-lifetimes"
+      ],
+      "purpose": "Valid lifetime equals the remaining time, preferred is the smaller of configured preferred and remaining, and CLT_TIME is configured valid minus remaining (r4).",
+      "oracle": "RFC 5007 option codes and layouts (OPTION_LQ_QUERY 44, OPTION_CLIENT_DATA 45, OPTION_CLT_TIME 46, query types 1 and 2); queries and the seeded lease file are generated relative to the guest clock by an independent Python helper and the replies decoded independently.",
+      "comparison": "Offline leasequery over a lease file seeded with active, short-remaining and expired leases; every reply is decoded by the independent codec. Lifetime windows allow up to 15 s between seeding and querying.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd6.py": "77cc460099b2fecfd8b0cc17395f0e1177e38c465a14bac9aff90c37de164a39",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py lqprep\n",
+      "setup_timeout": 10,
+      "files": {
+        "dhcpd6.conf": "server-duid 00030001aabbccddeeff\npool-start 2001:db8::100\npool-size 4\ndns 2001:db8::53\nlease-pref 3600\nlease-valid 7200\n"
+      },
+      "script": "for n in addr-100 addr-103 client-a client-c addr-unknown client-unknown addr-expired client-expired; do\n  dhcpd6 leasequery \"$(< q-$n.hex)\" -c dhcpd6.conf -l leases > r-$n.hex 2> e-$n.txt\n  echo \"query-$n-rc=$?\"\ndone\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dhcpd6.py verify lq-lifetimes\n",
+      "diagnostic_files": [
+        "r-addr-100.hex",
+        "r-client-a.hex",
+        "r-addr-unknown.hex"
+      ],
+      "expected_status": 0,
+      "stdout": "query-addr-100-rc=0\nquery-addr-103-rc=0\nquery-client-a-rc=0\nquery-client-c-rc=0\nquery-addr-unknown-rc=0\nquery-client-unknown-rc=0\nquery-addr-expired-rc=0\nquery-client-expired-rc=0\nverified lq-lifetimes failed=0\n",
+      "stderr": "",
+      "timeout": 30
+    }
+  ]
+}
