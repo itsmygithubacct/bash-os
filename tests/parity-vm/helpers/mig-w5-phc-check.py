@@ -23,7 +23,7 @@ def matches(phc, password):
     if len(parts) != 6 or parts[1] != "argon2id" or parts[2] != "v=19":
         return False
     params = dict(item.split("=") for item in parts[3].split(","))
-    salt, digest = b64(parts[4]), b64(parts[5])
+    salt, digest = bytes.fromhex(parts[4]), bytes.fromhex(parts[5])  # this product stores salt and hash as hex
     command = ["/usr/bin/openssl", "kdf", "-keylen", str(len(digest)), "-binary",
                "-kdfopt", "pass:" + password, "-kdfopt", "hexsalt:" + salt.hex(),
                "-kdfopt", "iter:" + params["t"], "-kdfopt", "memcost:" + params["m"],

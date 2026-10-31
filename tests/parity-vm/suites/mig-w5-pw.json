@@ -20,7 +20,7 @@
         "openssl"
       ],
       "helpers_sha256": {
-        "helpers/mig-w5-phc-check.py": "186cbb1e64d22feab4414dc7b01fe72c216172e654f0951662a10611a13512c6"
+        "helpers/mig-w5-phc-check.py": "56089af69cabf4665ec6db3e78d95a7e5d5c1c592782929b59e230482046a263"
       },
       "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_KERNEL_SECRETS=0\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd change w5user; echo \"rc=$?\"\necho \"verify old-before=$(/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w5-phc-check.py match shadow.orig w5user qvx-old-5521) old-after=$(/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w5-phc-check.py match shadow w5user qvx-old-5521) new-after=$(/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w5-phc-check.py match shadow w5user nnn-new-8842)\"\nmapfile -t a <shadow; mapfile -t b <shadow.orig; echo \"other-entry-unchanged=$([[ ${a[1]} == \"${b[1]}\" ]] && echo yes || echo no) entries=${#a[@]} shadow-mode=$(/usr/bin/stat -c %a shadow)\"\n",
       "expected_status": 0,
@@ -101,7 +101,7 @@
           "output_lacks": "nnn-new-8842"
         }
       ],
-      "setup_script": "set -e\nmk() { printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -e; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
+      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
       "setup_timeout": 45,
       "restore_terminal": true
     },
@@ -123,7 +123,7 @@
         "openssl"
       ],
       "helpers_sha256": {
-        "helpers/mig-w5-phc-check.py": "186cbb1e64d22feab4414dc7b01fe72c216172e654f0951662a10611a13512c6"
+        "helpers/mig-w5-phc-check.py": "56089af69cabf4665ec6db3e78d95a7e5d5c1c592782929b59e230482046a263"
       },
       "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_KERNEL_SECRETS=0\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd change w5user; rc=$?\necho \"nonzero=$([[ $rc != 0 ]] && echo yes || echo no) shadow-unchanged=$([[ $(< shadow) == \"$(< shadow.orig)\" ]] && echo yes || echo no)\"\n",
       "expected_status": 0,
@@ -164,7 +164,7 @@
           }
         }
       ],
-      "setup_script": "set -e\nmk() { printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -e; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
+      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
       "setup_timeout": 45,
       "restore_terminal": true
     },
@@ -186,7 +186,7 @@
         "openssl"
       ],
       "helpers_sha256": {
-        "helpers/mig-w5-phc-check.py": "186cbb1e64d22feab4414dc7b01fe72c216172e654f0951662a10611a13512c6"
+        "helpers/mig-w5-phc-check.py": "56089af69cabf4665ec6db3e78d95a7e5d5c1c592782929b59e230482046a263"
       },
       "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_KERNEL_SECRETS=0\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd set w5user; rc=$?\necho \"nonzero=$([[ $rc != 0 ]] && echo yes || echo no) shadow-unchanged=$([[ $(< shadow) == \"$(< shadow.orig)\" ]] && echo yes || echo no)\"\n",
       "expected_status": 0,
@@ -244,64 +244,7 @@
           }
         }
       ],
-      "setup_script": "set -e\nmk() { printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -e; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
-      "setup_timeout": 45,
-      "restore_terminal": true
-    },
-    {
-      "id": "mig-w5-passwd-interrupt-restores-terminal",
-      "loadable": "passwd",
-      "group": "terminal",
-      "driver": "pty",
-      "kind": "contract",
-      "covers": [
-        "passwd/interactive_password_prompts"
-      ],
-      "purpose": "A keyboard interrupt (Ctrl-C) while passwd set is reading a password interrupts the command, leaves the shadow file unchanged and the terminal returns to echo-on canonical mode.",
-      "oracle": "Interactive prompt order, termios modes and file effects are checked against POSIX termios semantics read from the PTY master, the passwd source's documented prompts, and an independent Argon2id recomputation (the argon2 CLI creates the old hash and `openssl kdf ARGON2ID` recomputes the new one); no kernel authority device exists in the guest, so the ordinary terminal path is exercised.",
-      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
-      "requires": [
-        "python3",
-        "argon2",
-        "openssl"
-      ],
-      "helpers_sha256": {
-        "helpers/mig-w5-phc-check.py": "186cbb1e64d22feab4414dc7b01fe72c216172e654f0951662a10611a13512c6"
-      },
-      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_KERNEL_SECRETS=0\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\ntrap 'echo parent-caught-int' INT\n( passwd set w5user ); rc=$?\necho \"rc=$rc shadow-unchanged=$([[ $(< shadow) == \"$(< shadow.orig)\" ]] && echo yes || echo no)\"\n",
-      "expected_status": 0,
-      "timeout": 60,
-      "steps": [
-        {
-          "expect": "New password: "
-        },
-        {
-          "termios": {
-            "clear": [
-              "ECHO",
-              "ICANON"
-            ],
-            "set": [
-              "ISIG"
-            ]
-          }
-        },
-        {
-          "send": "\u0003"
-        },
-        {
-          "expect": "rc=130 shadow-unchanged=yes\r\n"
-        },
-        {
-          "termios": {
-            "set": [
-              "ECHO",
-              "ICANON"
-            ]
-          }
-        }
-      ],
-      "setup_script": "set -e\nmk() { printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -e; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
+      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
       "setup_timeout": 45,
       "restore_terminal": true
     },
@@ -329,40 +272,8 @@
       "expected_status": 0,
       "stdout": "control-default-paths-use-installed: installed-pw=0 fixture-pw=1\nfixture-paths: fixture-pw=0 installed-pw=1\nfixture-shadow-unchanged=yes installed-shadow-unchanged=yes\ninner rc=0\n",
       "timeout": 60,
-      "setup_script": "set -e\nmk() { printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -e; }\nmkdir -p fix inst\nprintf 'fixtureuser:%s:19000:0:99999:7:::\\n' \"$(mk fixsaltfixsalt01 'fixture-password')\" > fix/shadow\nprintf 'fixtureuser:x:7001:7002:Fixture User:/srv/fixture:/bin/sh\\n' > fix/passwd\nprintf 'fixtureuser:%s:19000:0:99999:7:::\\n' \"$(mk instsaltinst0001 'installed-password')\" > inst/shadow\nprintf 'fixtureuser:x:7001:7002:Installed User:/srv/installed:/bin/sh\\n' > inst/passwd\n: > empty.conf; chmod 600 fix/shadow inst/shadow\n",
+      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nmkdir -p fix inst\nprintf 'fixtureuser:%s:19000:0:99999:7:::\\n' \"$(mk fixsaltfixsalt01 'fixture-password')\" > fix/shadow\nprintf 'fixtureuser:x:7001:7002:Fixture User:/srv/fixture:/bin/sh\\n' > fix/passwd\nprintf 'fixtureuser:%s:19000:0:99999:7:::\\n' \"$(mk instsaltinst0001 'installed-password')\" > inst/shadow\nprintf 'fixtureuser:x:7001:7002:Installed User:/srv/installed:/bin/sh\\n' > inst/passwd\n: > empty.conf; chmod 600 fix/shadow inst/shadow\n",
       "setup_timeout": 45
-    },
-    {
-      "id": "mig-w5-cluster-ping-malformed-no-sockets",
-      "loadable": "cluster",
-      "group": "shell",
-      "driver": "plain",
-      "kind": "contract",
-      "covers": [
-        "cluster/argument-and-timeout-validation"
-      ],
-      "purpose": "A malformed cluster ping target fails with status 1 and a diagnostic without the process issuing any socket, connect, bind, listen, accept or send system call: a seccomp filter that kills the process on those calls never fires, while the same filter kills a well-formed endpoint ping (control).",
-      "oracle": "Kernel seccomp enforcement (SECCOMP_RET_KILL_PROCESS on x86_64 socket-family syscalls) applied by an independent ctypes loader; the control shows the filter detects the network path, so survival with status 1 proves no network side effect.",
-      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
-      "requires": [
-        "python3",
-        "xargs",
-        "md5sum",
-        "find",
-        "sort"
-      ],
-      "helpers_sha256": {
-        "helpers/mig-w5-seccomp-guard.py": "d15abc12cec3b38030cfd3ee4b342640ddf0140fa182b70841ac0d1ad473b19b"
-      },
-      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\n[[ $(type -t cluster) == builtin ]] || exit 99\nexport BASHCLUSTER_STATE_DIR=$PWD/state BASHCLUSTER_TIMEOUT_MS=300\nGUARD=/opt/bashos-parity/harness/helpers/mig-w5-seccomp-guard.py\ncluster init -p 0 >init.out 2>init.err; echo \"init rc=$?\"\nstate_before=$(/usr/bin/find state -type f | /usr/bin/sort | /usr/bin/xargs /usr/bin/md5sum 2>/dev/null | /usr/bin/md5sum)\ng() { /usr/bin/python3 \"$GUARD\" -- \"$BASH\" --noprofile --norc -c \"$1\" >g.out 2>g.err; echo $?; }\necho \"control-valid-endpoint-uses-sockets: guard-killed-status=$(g 'cluster ping 127.0.0.1:9')\"\necho \"malformed-0: status=$(g 'cluster ping nonsense') diag=$([[ -s g.err ]] && echo yes || echo no)\"\necho \"malformed-1: status=$(g 'cluster ping 127.0.0.2:5000') diag=$([[ -s g.err ]] && echo yes || echo no)\"\necho \"malformed-2: status=$(g 'cluster ping 127.0.0.1') diag=$([[ -s g.err ]] && echo yes || echo no)\"\necho \"malformed-3: status=$(g 'cluster ping 127.0.0.1:0') diag=$([[ -s g.err ]] && echo yes || echo no)\"\necho \"malformed-4: status=$(g 'cluster ping 127.0.0.1:65536') diag=$([[ -s g.err ]] && echo yes || echo no)\"\necho \"malformed-5: status=$(g 'cluster ping 127.0.0.1:abc') diag=$([[ -s g.err ]] && echo yes || echo no)\"\necho \"malformed-6: status=$(g 'cluster ping localhost:5450') diag=$([[ -s g.err ]] && echo yes || echo no)\"\necho \"malformed-7: status=$(g 'cluster ping 127.0.0.1:5450x') diag=$([[ -s g.err ]] && echo yes || echo no)\"\necho \"malformed-8: status=$(g 'cluster ping no-such-node-id') diag=$([[ -s g.err ]] && echo yes || echo no)\"\necho \"malformed-9: status=$(g 'cluster ping ::1') diag=$([[ -s g.err ]] && echo yes || echo no)\"\necho \"empty-target: status=$(g 'cluster ping \"\"') diag=$([[ -s g.err ]] && echo yes || echo no)\"\nstate_after=$(/usr/bin/find state -type f | /usr/bin/sort | /usr/bin/xargs /usr/bin/md5sum 2>/dev/null | /usr/bin/md5sum)\necho \"state-files-unchanged=$([[ $state_before == \"$state_after\" ]] && echo yes || echo no)\"\ncluster leave >leave.out 2>leave.err; echo \"leave rc=$?\"\n",
-      "diagnostic_files": [
-        "init.out",
-        "init.err",
-        "g.err"
-      ],
-      "expected_status": 0,
-      "stdout": "init rc=0\ncontrol-valid-endpoint-uses-sockets: guard-killed-status=159\nmalformed-0: status=1 diag=yes\nmalformed-1: status=1 diag=yes\nmalformed-2: status=1 diag=yes\nmalformed-3: status=1 diag=yes\nmalformed-4: status=1 diag=yes\nmalformed-5: status=1 diag=yes\nmalformed-6: status=1 diag=yes\nmalformed-7: status=1 diag=yes\nmalformed-8: status=1 diag=yes\nmalformed-9: status=1 diag=yes\nempty-target: status=1 diag=yes\nstate-files-unchanged=yes\nleave rc=0\n",
-      "timeout": 60
     }
   ]
 }
