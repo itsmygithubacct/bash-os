@@ -1,0 +1,125 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w7-bashio-chown-numeric",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "bashio chown applies numeric UID, GID, UID:GID and :GID specs through lchown and rejects missing operands with the usage status.",
+      "covers": [
+        "bashio/chown-deferred"
+      ],
+      "oracle": "Expected values follow the lchown(2) contract and the documented bashio chown semantics; ownership and ctime are read back by an independent python3 lstat observer, with synthetic /etc/passwd and /etc/group bind-mounted in a private user+mount namespace (uid/gid 0 inside is the guest's 2000).",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "obs.py": "import os, sys, json\ncmd, args = sys.argv[1], sys.argv[2:]\nif cmd == \"st\":\n    for p in args:\n        try:\n            s = os.lstat(p); print(\"%s %d:%d\" % (p, s.st_uid, s.st_gid))\n        except FileNotFoundError:\n            print(p, \"absent\")\nelif cmd == \"save\":\n    tag, paths = args[0], args[1:]\n    json.dump({p: os.lstat(p).st_ctime_ns for p in paths}, open(tag + \".ctime\", \"w\"))\nelif cmd == \"chg\":\n    old = json.load(open(args[0] + \".ctime\"))\n    for p in args[1:]:\n        print(p, \"advanced\" if os.lstat(p).st_ctime_ns > old[p] else \"unchanged\")\nelif cmd == \"mk\":\n    for p in args:\n        open(p, \"w\").write(\"x\")\nelif cmd == \"link\":\n    os.symlink(args[0], args[1])\nelif cmd == \"fifo\":\n    os.mkfifo(args[0])\n",
+        "passwd": "fixuser:x:0:0:fixture:/:/bin/sh\nunmapped:x:5:5:unmapped:/:/bin/sh\n",
+        "group": "fixgrp:x:0:\nothergrp:x:7:\n",
+        "inner.sh": "/usr/bin/mount --bind passwd /etc/passwd && /usr/bin/mount --bind group /etc/group || exit 97\nO() { /usr/bin/python3 obs.py \"$@\"; }\nO fifo wait.fifo; exec 7<> wait.fifo\ntick() { read -t 0.06 -u 7 || :; }\nr() { local l=$1; shift; \"$@\" 2>err.txt; local rc=$?; local e; e=$(< err.txt)\n  printf '%s status=%s' \"$l\" \"$rc\"\n  case $e in '') printf ' err=none';; *\"unknown user\"*) printf ' err=unknown-user';; *\"unknown group\"*) printf ' err=unknown-group';;\n    *\"Invalid argument\"*) printf ' err=EINVAL';; *\"needs UID\"*) printf ' err=usage';; *) printf ' err=other:%s' \"$e\";; esac\n  printf '\\n'; }\nO mk f1 f2 f3\nO save a f1 f2 f3\ntick\nr numeric-both bashio chown 0:0 f1\nr numeric-uid bashio chown 0 f2\nr numeric-gid bashio chown :0 f3\nO st f1 f2 f3\nO chg a f1 f2 f3\nO save b f1\ntick\nr numeric-unmapped bashio chown 5:5 f1\nO st f1\nO chg b f1\nr usage-no-path bashio chown 0:0\nr usage-no-spec bashio chown\n"
+      },
+      "features": [
+        "userns"
+      ],
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\necho \"ns status=$?\"\n",
+      "stdout": "numeric-both status=0 err=none\nnumeric-uid status=0 err=none\nnumeric-gid status=0 err=none\nf1 0:0\nf2 0:0\nf3 0:0\nf1 advanced\nf2 advanced\nf3 advanced\nnumeric-unmapped status=1 err=EINVAL\nf1 0:0\nf1 unchanged\nusage-no-path status=2 err=usage\nusage-no-spec status=2 err=usage\nns status=0\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-w7-bashio-chown-named",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "bashio chown resolves OWNER, OWNER:GROUP and :GROUP through /etc/passwd and /etc/group, and an unknown name fails with status 1 before any lchown.",
+      "covers": [
+        "bashio/chown-deferred"
+      ],
+      "oracle": "Expected values follow the lchown(2) contract and the documented bashio chown semantics; ownership and ctime are read back by an independent python3 lstat observer, with synthetic /etc/passwd and /etc/group bind-mounted in a private user+mount namespace (uid/gid 0 inside is the guest's 2000).",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "obs.py": "import os, sys, json\ncmd, args = sys.argv[1], sys.argv[2:]\nif cmd == \"st\":\n    for p in args:\n        try:\n            s = os.lstat(p); print(\"%s %d:%d\" % (p, s.st_uid, s.st_gid))\n        except FileNotFoundError:\n            print(p, \"absent\")\nelif cmd == \"save\":\n    tag, paths = args[0], args[1:]\n    json.dump({p: os.lstat(p).st_ctime_ns for p in paths}, open(tag + \".ctime\", \"w\"))\nelif cmd == \"chg\":\n    old = json.load(open(args[0] + \".ctime\"))\n    for p in args[1:]:\n        print(p, \"advanced\" if os.lstat(p).st_ctime_ns > old[p] else \"unchanged\")\nelif cmd == \"mk\":\n    for p in args:\n        open(p, \"w\").write(\"x\")\nelif cmd == \"link\":\n    os.symlink(args[0], args[1])\nelif cmd == \"fifo\":\n    os.mkfifo(args[0])\n",
+        "passwd": "fixuser:x:0:0:fixture:/:/bin/sh\nunmapped:x:5:5:unmapped:/:/bin/sh\n",
+        "group": "fixgrp:x:0:\nothergrp:x:7:\n",
+        "inner.sh": "/usr/bin/mount --bind passwd /etc/passwd && /usr/bin/mount --bind group /etc/group || exit 97\nO() { /usr/bin/python3 obs.py \"$@\"; }\nO fifo wait.fifo; exec 7<> wait.fifo\ntick() { read -t 0.06 -u 7 || :; }\nr() { local l=$1; shift; \"$@\" 2>err.txt; local rc=$?; local e; e=$(< err.txt)\n  printf '%s status=%s' \"$l\" \"$rc\"\n  case $e in '') printf ' err=none';; *\"unknown user\"*) printf ' err=unknown-user';; *\"unknown group\"*) printf ' err=unknown-group';;\n    *\"Invalid argument\"*) printf ' err=EINVAL';; *\"needs UID\"*) printf ' err=usage';; *) printf ' err=other:%s' \"$e\";; esac\n  printf '\\n'; }\nO mk f1 f2 f3 f4 f5 f6\nO save a f1 f2 f3 f4 f5 f6\ntick\nr named-user bashio chown fixuser f1\nr named-both bashio chown fixuser:fixgrp f2\nr group-only bashio chown :fixgrp f3\nO chg a f1 f2 f3\nr named-resolves-to-5 bashio chown unmapped f4\nr group-resolves-to-7 bashio chown :othergrp f5\nO chg a f4 f5\nr unknown-user bashio chown ghost f6\nr unknown-user-mixed-args bashio chown ghost f1 f6\nr unknown-group bashio chown fixuser:ghostgrp f6\nr digits-then-letters-is-a-name bashio chown 12abc f6\nO chg a f6\nO st f1 f2 f3 f4 f5 f6\n"
+      },
+      "features": [
+        "userns"
+      ],
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\necho \"ns status=$?\"\n",
+      "stdout": "named-user status=0 err=none\nnamed-both status=0 err=none\ngroup-only status=0 err=none\nf1 advanced\nf2 advanced\nf3 advanced\nnamed-resolves-to-5 status=1 err=EINVAL\ngroup-resolves-to-7 status=1 err=EINVAL\nf4 unchanged\nf5 unchanged\nunknown-user status=1 err=unknown-user\nunknown-user-mixed-args status=1 err=unknown-user\nunknown-group status=1 err=unknown-group\ndigits-then-letters-is-a-name status=1 err=unknown-user\nf6 unchanged\nf1 0:0\nf2 0:0\nf3 0:0\nf4 0:0\nf5 0:0\nf6 0:0\nns status=0\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-w7-bashio-chown-symlink",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "bashio chown acts on the symlink itself: a dangling link succeeds, a link to a file changes only the link's ctime and never creates or follows the target.",
+      "covers": [
+        "bashio/chown-deferred"
+      ],
+      "oracle": "Expected values follow the lchown(2) contract and the documented bashio chown semantics; ownership and ctime are read back by an independent python3 lstat observer, with synthetic /etc/passwd and /etc/group bind-mounted in a private user+mount namespace (uid/gid 0 inside is the guest's 2000).",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "obs.py": "import os, sys, json\ncmd, args = sys.argv[1], sys.argv[2:]\nif cmd == \"st\":\n    for p in args:\n        try:\n            s = os.lstat(p); print(\"%s %d:%d\" % (p, s.st_uid, s.st_gid))\n        except FileNotFoundError:\n            print(p, \"absent\")\nelif cmd == \"save\":\n    tag, paths = args[0], args[1:]\n    json.dump({p: os.lstat(p).st_ctime_ns for p in paths}, open(tag + \".ctime\", \"w\"))\nelif cmd == \"chg\":\n    old = json.load(open(args[0] + \".ctime\"))\n    for p in args[1:]:\n        print(p, \"advanced\" if os.lstat(p).st_ctime_ns > old[p] else \"unchanged\")\nelif cmd == \"mk\":\n    for p in args:\n        open(p, \"w\").write(\"x\")\nelif cmd == \"link\":\n    os.symlink(args[0], args[1])\nelif cmd == \"fifo\":\n    os.mkfifo(args[0])\n",
+        "passwd": "fixuser:x:0:0:fixture:/:/bin/sh\nunmapped:x:5:5:unmapped:/:/bin/sh\n",
+        "group": "fixgrp:x:0:\nothergrp:x:7:\n",
+        "inner.sh": "/usr/bin/mount --bind passwd /etc/passwd && /usr/bin/mount --bind group /etc/group || exit 97\nO() { /usr/bin/python3 obs.py \"$@\"; }\nO fifo wait.fifo; exec 7<> wait.fifo\ntick() { read -t 0.06 -u 7 || :; }\nr() { local l=$1; shift; \"$@\" 2>err.txt; local rc=$?; local e; e=$(< err.txt)\n  printf '%s status=%s' \"$l\" \"$rc\"\n  case $e in '') printf ' err=none';; *\"unknown user\"*) printf ' err=unknown-user';; *\"unknown group\"*) printf ' err=unknown-group';;\n    *\"Invalid argument\"*) printf ' err=EINVAL';; *\"needs UID\"*) printf ' err=usage';; *) printf ' err=other:%s' \"$e\";; esac\n  printf '\\n'; }\nO mk real\nO link nowhere dangling\nO link real tolink\nO save a real dangling tolink\ntick\nr dangling bashio chown fixuser:fixgrp dangling\nr link-to-file bashio chown fixuser:fixgrp tolink\nO chg a dangling tolink real\nO st dangling tolink real nowhere\nr dangling-unmapped bashio chown unmapped dangling\n"
+      },
+      "features": [
+        "userns"
+      ],
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\necho \"ns status=$?\"\n",
+      "stdout": "dangling status=0 err=none\nlink-to-file status=0 err=none\ndangling advanced\ntolink advanced\nreal unchanged\ndangling 0:0\ntolink 0:0\nreal 0:0\nnowhere absent\ndangling-unmapped status=1 err=EINVAL\nns status=0\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-w7-bashio-chown-distinct-ids-root",
+      "loadable": "bashio",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "As root, bashio chown moves files, a symlink and a dangling symlink to dedicated uid 4242 and gid 4343 resolved by number and by synthetic passwd/group names; the symlink target stays unchanged.",
+      "covers": [
+        "bashio/chown-deferred"
+      ],
+      "oracle": "lchown(2) with CAP_CHOWN; ownership read back by an independent python3 lstat observer; synthetic passwd/group bind-mounted in the side's private mount namespace.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "mount"
+      ],
+      "files": {
+        "obs.py": "import os, sys, json\ncmd, args = sys.argv[1], sys.argv[2:]\nif cmd == \"st\":\n    for p in args:\n        try:\n            s = os.lstat(p); print(\"%s %d:%d\" % (p, s.st_uid, s.st_gid))\n        except FileNotFoundError:\n            print(p, \"absent\")\nelif cmd == \"save\":\n    tag, paths = args[0], args[1:]\n    json.dump({p: os.lstat(p).st_ctime_ns for p in paths}, open(tag + \".ctime\", \"w\"))\nelif cmd == \"chg\":\n    old = json.load(open(args[0] + \".ctime\"))\n    for p in args[1:]:\n        print(p, \"advanced\" if os.lstat(p).st_ctime_ns > old[p] else \"unchanged\")\nelif cmd == \"mk\":\n    for p in args:\n        open(p, \"w\").write(\"x\")\nelif cmd == \"link\":\n    os.symlink(args[0], args[1])\nelif cmd == \"fifo\":\n    os.mkfifo(args[0])\n",
+        "passwd": "dedicated:x:4242:4343:dedicated:/:/bin/sh\nroot:x:0:0:root:/root:/bin/sh\n",
+        "group": "dedgrp:x:4343:\nroot:x:0:\n"
+      },
+      "privilege": "root",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nO() { /usr/bin/python3 obs.py \"$@\"; }\n/usr/bin/mount --bind passwd /etc/passwd && /usr/bin/mount --bind group /etc/group || exit 97\nO mk file1 file2 file3 file4 file5\nO link file5 link1\nO link nowhere dangling\nr() { local l=$1; shift; \"$@\" 2>/dev/null; echo \"$l status=$?\"; }\nr numeric-distinct bashio chown 4242:4343 file1\nr named-distinct bashio chown dedicated:dedgrp file2\nr uid-only-named bashio chown dedicated file3\nr gid-only-named bashio chown :dedgrp file4\nr link-itself bashio chown 4242:4343 link1\nr dangling-distinct bashio chown dedicated:dedgrp dangling\nO st file1 file2 file3 file4 file5 link1 dangling nowhere\n",
+      "stdout": "numeric-distinct status=0\nnamed-distinct status=0\nuid-only-named status=0\ngid-only-named status=0\nlink-itself status=0\ndangling-distinct status=0\nfile1 4242:4343\nfile2 4242:4343\nfile3 4242:0\nfile4 0:4343\nfile5 0:0\nlink1 4242:4343\ndangling 4242:4343\nnowhere absent\n",
+      "expected_status": 0,
+      "timeout": 30
+    }
+  ]
+}
