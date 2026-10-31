@@ -44,6 +44,7 @@ def main(argv):
     buf = ctypes.create_string_buffer(blob, len(blob))
     fprog = struct.pack("HxxxxxxP", len(prog), ctypes.addressof(buf))
     libc = ctypes.CDLL(None, use_errno=True)
+    libc.prctl.argtypes = [ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong]
     if libc.prctl(38, 1, 0, 0, 0) != 0:
         raise OSError(ctypes.get_errno(), "PR_SET_NO_NEW_PRIVS")
     holder = ctypes.create_string_buffer(fprog, len(fprog))
