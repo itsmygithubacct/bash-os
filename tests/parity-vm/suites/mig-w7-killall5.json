@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w7-killall5-delivery",
+      "loadable": "killall5",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "killall5 -SIGNAL (named, SIG-prefixed and numeric) delivers exactly that signal to every owned process outside the caller's session.",
+      "covers": [
+        "killall5/signal_delivery"
+      ],
+      "oracle": "Trap logs written by owned sacrificial python3 victims (each in its own session, plus one sharing the caller's session) are the oracle: sysvinit killall5 refuses non-root callers, so there is no GNU byte oracle. The fixture runs in a private user+PID+mount namespace so the broadcast can reach only processes the case started; expected deliveries follow the documented SysV rule (every process outside the caller's session, not the caller, not omitted).",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "unshare"
+      ],
+      "files": {
+        "victim.py": "import os, signal, sys, time\nname, mode = sys.argv[1], sys.argv[2]\nuid = int(sys.argv[3]) if len(sys.argv) > 3 else None\nif mode == \"session\":\n    os.setsid()\nlog = os.open(name + \".log\", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)\nready = os.open(name + \".ready\", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)\nif uid is not None:\n    os.setgroups([]); os.setgid(uid); os.setuid(uid)\ndef handler(sig, frame):\n    os.write(log, (signal.Signals(sig).name[3:] + \"\\n\").encode())\n    if sig == signal.SIGTERM:\n        os._exit(0)\nfor s in (signal.SIGUSR1, signal.SIGUSR2, signal.SIGHUP, signal.SIGTERM):\n    signal.signal(s, handler)\nos.write(ready, b\"1\")\nend = time.time() + 40\nwhile time.time() < end:\n    time.sleep(0.05)\n",
+        "inner.sh": "tick() { read -t \"$1\" -u 7 || :; }\nO() { /usr/bin/python3 - \"$@\"; }\nstart() { /usr/bin/python3 victim.py \"$@\" & until [[ -s $1.ready ]]; do tick 0.05; done; }\nVICTIMS=(s1 s2 s3 same)\nlines() { local f L n=0; for f in \"${VICTIMS[@]}\" self; do L=(); [[ -e $f.log ]] && mapfile -t L < $f.log; n=$((n+${#L[@]})); done; REPLY=$n; }\nshow() { local f L; for f in \"${VICTIMS[@]}\" self; do L=(); [[ -e $f.log ]] && mapfile -t L < $f.log; local IFS=,; printf ' %s=%s' $f \"${L[*]:--}\"; done; echo; }\ndeliver() { # label expected-log-lines killall5-args...\n  local label=$1 expect=$2 i; shift 2\n  for f in \"${VICTIMS[@]}\" self; do : > $f.log; done\n  killall5 \"$@\" 2>err.txt; local rc=$?\n  for ((i=0;i<60;i++)); do lines; ((REPLY>=expect)) && break; tick 0.05; done\n  tick 0.3\n  local e ep=none; e=$(< err.txt); [[ -n $e ]] && ep=present; printf '%s status=%s err=%s' \"$label\" $rc \"$ep\"; show\n}\nexec 7<> wait.fifo\ntrap 'echo USR1 >> self.log' USR1\nstart s1 session; start s2 session; start s3 session\nstart same none\ndeliver usr1-name 3 -USR1\ndeliver usr2-sig-prefix 3 -SIGUSR2\ndeliver hup-number 3 -1\ndeliver usr1-number 3 -10\n"
+      },
+      "features": [
+        "userns"
+      ],
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import os; os.mkfifo(\"wait.fifo\")'\n/usr/bin/unshare --user --map-root-user --pid --fork --mount-proc \"$BASH\" --noprofile --norc inner.sh\necho \"ns status=$?\"\n",
+      "stdout": "usr1-name status=0 err=none s1=USR1 s2=USR1 s3=USR1 same=- self=-\nusr2-sig-prefix status=0 err=none s1=USR2 s2=USR2 s3=USR2 same=- self=-\nhup-number status=0 err=none s1=HUP s2=HUP s3=HUP same=- self=-\nusr1-number status=0 err=none s1=USR1 s2=USR1 s3=USR1 same=- self=-\nns status=0\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "mig-w7-killall5-exclusions",
+      "loadable": "killall5",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A victim in the caller's own session, the caller itself and every PID in -o lists are never signalled while all other outside-session processes are; omitting everything leaves status 2.",
+      "covers": [
+        "killall5/signal_delivery"
+      ],
+      "oracle": "Trap logs written by owned sacrificial python3 victims (each in its own session, plus one sharing the caller's session) are the oracle: sysvinit killall5 refuses non-root callers, so there is no GNU byte oracle. The fixture runs in a private user+PID+mount namespace so the broadcast can reach only processes the case started; expected deliveries follow the documented SysV rule (every process outside the caller's session, not the caller, not omitted).",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "unshare"
+      ],
+      "files": {
+        "victim.py": "import os, signal, sys, time\nname, mode = sys.argv[1], sys.argv[2]\nuid = int(sys.argv[3]) if len(sys.argv) > 3 else None\nif mode == \"session\":\n    os.setsid()\nlog = os.open(name + \".log\", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)\nready = os.open(name + \".ready\", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)\nif uid is not None:\n    os.setgroups([]); os.setgid(uid); os.setuid(uid)\ndef handler(sig, frame):\n    os.write(log, (signal.Signals(sig).name[3:] + \"\\n\").encode())\n    if sig == signal.SIGTERM:\n        os._exit(0)\nfor s in (signal.SIGUSR1, signal.SIGUSR2, signal.SIGHUP, signal.SIGTERM):\n    signal.signal(s, handler)\nos.write(ready, b\"1\")\nend = time.time() + 40\nwhile time.time() < end:\n    time.sleep(0.05)\n",
+        "inner.sh": "tick() { read -t \"$1\" -u 7 || :; }\nO() { /usr/bin/python3 - \"$@\"; }\nstart() { /usr/bin/python3 victim.py \"$@\" & until [[ -s $1.ready ]]; do tick 0.05; done; }\nVICTIMS=(s1 s2 s3 same)\nlines() { local f L n=0; for f in \"${VICTIMS[@]}\" self; do L=(); [[ -e $f.log ]] && mapfile -t L < $f.log; n=$((n+${#L[@]})); done; REPLY=$n; }\nshow() { local f L; for f in \"${VICTIMS[@]}\" self; do L=(); [[ -e $f.log ]] && mapfile -t L < $f.log; local IFS=,; printf ' %s=%s' $f \"${L[*]:--}\"; done; echo; }\ndeliver() { # label expected-log-lines killall5-args...\n  local label=$1 expect=$2 i; shift 2\n  for f in \"${VICTIMS[@]}\" self; do : > $f.log; done\n  killall5 \"$@\" 2>err.txt; local rc=$?\n  for ((i=0;i<60;i++)); do lines; ((REPLY>=expect)) && break; tick 0.05; done\n  tick 0.3\n  local e ep=none; e=$(< err.txt); [[ -n $e ]] && ep=present; printf '%s status=%s err=%s' \"$label\" $rc \"$ep\"; show\n}\nexec 7<> wait.fifo\ntrap 'echo USR1 >> self.log' USR1\nstart s1 session; P1=$!; start s2 session; P2=$!; start s3 session; P3=$!\nstart same none; PS=$!\ndeliver omit-one 2 -o $P2 -USR1\ndeliver omit-two-listed 1 -USR1 -o $P1,$P3\ndeliver omit-all-three 0 -o $P1,$P2,$P3 -USR1\ndeliver omit-unrelated-pid 3 -o 999999 -USR1\ndeliver omit-same-session-pid 3 -o $PS -USR1\ndeliver no-omit 3 -USR1\n"
+      },
+      "features": [
+        "userns"
+      ],
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import os; os.mkfifo(\"wait.fifo\")'\n/usr/bin/unshare --user --map-root-user --pid --fork --mount-proc \"$BASH\" --noprofile --norc inner.sh\necho \"ns status=$?\"\n",
+      "stdout": "omit-one status=0 err=none s1=USR1 s2=- s3=USR1 same=- self=-\nomit-two-listed status=0 err=none s1=- s2=USR1 s3=- same=- self=-\nomit-all-three status=2 err=none s1=- s2=- s3=- same=- self=-\nomit-unrelated-pid status=0 err=none s1=USR1 s2=USR1 s3=USR1 same=- self=-\nomit-same-session-pid status=0 err=none s1=USR1 s2=USR1 s3=USR1 same=- self=-\nno-omit status=0 err=none s1=USR1 s2=USR1 s3=USR1 same=- self=-\nns status=0\n",
+      "expected_status": 0,
+      "timeout": 50
+    },
+    {
+      "id": "mig-w7-killall5-usage",
+      "loadable": "killall5",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A missing signal, a pattern argument, an unknown signal name and an out-of-range number are rejected with usage status 2 and a diagnostic, delivering nothing to live victims.",
+      "covers": [
+        "killall5/signal_delivery"
+      ],
+      "oracle": "Trap logs written by owned sacrificial python3 victims (each in its own session, plus one sharing the caller's session) are the oracle: sysvinit killall5 refuses non-root callers, so there is no GNU byte oracle. The fixture runs in a private user+PID+mount namespace so the broadcast can reach only processes the case started; expected deliveries follow the documented SysV rule (every process outside the caller's session, not the caller, not omitted).",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "unshare"
+      ],
+      "files": {
+        "victim.py": "import os, signal, sys, time\nname, mode = sys.argv[1], sys.argv[2]\nuid = int(sys.argv[3]) if len(sys.argv) > 3 else None\nif mode == \"session\":\n    os.setsid()\nlog = os.open(name + \".log\", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)\nready = os.open(name + \".ready\", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)\nif uid is not None:\n    os.setgroups([]); os.setgid(uid); os.setuid(uid)\ndef handler(sig, frame):\n    os.write(log, (signal.Signals(sig).name[3:] + \"\\n\").encode())\n    if sig == signal.SIGTERM:\n        os._exit(0)\nfor s in (signal.SIGUSR1, signal.SIGUSR2, signal.SIGHUP, signal.SIGTERM):\n    signal.signal(s, handler)\nos.write(ready, b\"1\")\nend = time.time() + 40\nwhile time.time() < end:\n    time.sleep(0.05)\n",
+        "inner.sh": "tick() { read -t \"$1\" -u 7 || :; }\nO() { /usr/bin/python3 - \"$@\"; }\nstart() { /usr/bin/python3 victim.py \"$@\" & until [[ -s $1.ready ]]; do tick 0.05; done; }\nVICTIMS=(s1 s2 s3 same)\nlines() { local f L n=0; for f in \"${VICTIMS[@]}\" self; do L=(); [[ -e $f.log ]] && mapfile -t L < $f.log; n=$((n+${#L[@]})); done; REPLY=$n; }\nshow() { local f L; for f in \"${VICTIMS[@]}\" self; do L=(); [[ -e $f.log ]] && mapfile -t L < $f.log; local IFS=,; printf ' %s=%s' $f \"${L[*]:--}\"; done; echo; }\ndeliver() { # label expected-log-lines killall5-args...\n  local label=$1 expect=$2 i; shift 2\n  for f in \"${VICTIMS[@]}\" self; do : > $f.log; done\n  killall5 \"$@\" 2>err.txt; local rc=$?\n  for ((i=0;i<60;i++)); do lines; ((REPLY>=expect)) && break; tick 0.05; done\n  tick 0.3\n  local e ep=none; e=$(< err.txt); [[ -n $e ]] && ep=present; printf '%s status=%s err=%s' \"$label\" $rc \"$ep\"; show\n}\nexec 7<> wait.fifo\ntrap 'echo USR1 >> self.log' USR1\nstart s1 session; start s2 session; start s3 session\nstart same none\ndeliver no-signal 0\ndeliver pattern-argument 0 -USR1 victim\ndeliver unknown-signal-name 0 -NOSUCH\ndeliver signal-out-of-range 0 -9999\n"
+      },
+      "features": [
+        "userns"
+      ],
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import os; os.mkfifo(\"wait.fifo\")'\n/usr/bin/unshare --user --map-root-user --pid --fork --mount-proc \"$BASH\" --noprofile --norc inner.sh\necho \"ns status=$?\"\n",
+      "stdout": "no-signal status=2 err=present s1=- s2=- s3=- same=- self=-\npattern-argument status=2 err=present s1=- s2=- s3=- same=- self=-\nunknown-signal-name status=2 err=present s1=- s2=- s3=- same=- self=-\nsignal-out-of-range status=2 err=present s1=- s2=- s3=- same=- self=-\nns status=0\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "mig-w7-killall5-eperm-continues-root",
+      "loadable": "killall5",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A non-root broadcaster gets EPERM for victims owned by another uid, still signals later victims it owns (status 0), reports each refusal on stderr, and exits 2 when no delivery succeeds.",
+      "covers": [
+        "killall5/signal_delivery"
+      ],
+      "oracle": "Trap logs of victims owned by uid 4242 and 4343 in a private PID namespace; kill(2) permission rule for a non-root broadcaster (uid 4343) and documented killall5 statuses 0/2.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "unshare",
+        "setpriv"
+      ],
+      "files": {
+        "victim.py": "import os, signal, sys, time\nname, mode = sys.argv[1], sys.argv[2]\nuid = int(sys.argv[3]) if len(sys.argv) > 3 else None\nif mode == \"session\":\n    os.setsid()\nlog = os.open(name + \".log\", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)\nready = os.open(name + \".ready\", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)\nif uid is not None:\n    os.setgroups([]); os.setgid(uid); os.setuid(uid)\ndef handler(sig, frame):\n    os.write(log, (signal.Signals(sig).name[3:] + \"\\n\").encode())\n    if sig == signal.SIGTERM:\n        os._exit(0)\nfor s in (signal.SIGUSR1, signal.SIGUSR2, signal.SIGHUP, signal.SIGTERM):\n    signal.signal(s, handler)\nos.write(ready, b\"1\")\nend = time.time() + 40\nwhile time.time() < end:\n    time.sleep(0.05)\n",
+        "inner.sh": "tick() { read -t \"$1\" -u 7 || :; }\nstart() { /usr/bin/python3 victim.py \"$@\" & until [[ -s $1.ready ]]; do tick 0.05; done; }\nexec 7<> wait.fifo\nVICTIMS=(a b c d)\nshow() { local f L; for f in \"${VICTIMS[@]}\"; do L=(); [[ -e $f.log ]] && mapfile -t L < $f.log; local IFS=,; printf ' %s=%s' $f \"${L[*]:--}\"; done; echo; }\neperm() { local e n=0 line; e=$(< err.txt); while IFS= read -r line; do [[ $line == *\"Operation not permitted\"* ]] && n=$((n+1)); done <<<\"$e\"; REPLY=$n; }\n# a and c belong to uid 4242, b and d to uid 4343 (the broadcaster); a has the lowest pid, so its EPERM comes first\nstart a session 4242; start b session 4343; PB=$!; start c session 4242; start d session 4343; PD=$!\nbc() { /usr/bin/setpriv --reuid=4343 --regid=4343 --clear-groups \"$BASH\" --noprofile --norc -c \"$1\" 2>err.txt; }\nbc 'killall5 -USR1'; rc=$?\nfor i in {1..40}; do [[ -s b.log && -s d.log ]] && break; tick 0.05; done\ntick 0.3\neperm; printf 'mixed-broadcast status=%s eperm-lines=%s' $rc $REPLY; show\n: > b.log; : > d.log\n# omit the two victims owned by the broadcaster: every remaining delivery is refused\nbc \"killall5 -USR1 -o $PB,$PD\"; rc=$?\ntick 0.3\neperm; printf 'all-foreign status=%s eperm-lines=%s' $rc $REPLY; show\n"
+      },
+      "privilege": "root",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import os; os.mkfifo(\"wait.fifo\")'\n/usr/bin/unshare --pid --fork --mount-proc \"$BASH\" --noprofile --norc inner.sh\necho \"ns status=$?\"\n",
+      "stdout": "mixed-broadcast status=0 eperm-lines=2 a=- b=USR1 c=- d=USR1\nall-foreign status=2 eperm-lines=2 a=- b=- c=- d=-\nns status=0\n",
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}
