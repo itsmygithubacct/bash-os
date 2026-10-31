@@ -7,7 +7,6 @@
       "group": "terminal",
       "driver": "pty",
       "purpose": "Parity with util-linux write when the recipient is given as a user name: the user is looked up in the utmp login records and the message is delivered to that user's terminal, with the Message from banner, the text and the EOF marker.",
-      "script": "t=$(/usr/bin/tty)\n/usr/bin/python3 mkutmp.py \"${t#/dev/}\" u1 > /var/run/utmp\n/usr/bin/chmod 664 /var/run/utmp\n/usr/bin/chmod 620 \"$t\"\nprintf 'user-routed message\\n' | write u1; echo \"rc=$?\" > rc\nprintf 'W-DONE\\n'\n",
       "steps": [
         {
           "expect": "Message from [^ ]+@[^ ]+ on pts/[0-9]+ at [0-2][0-9]:[0-5][0-9]"
@@ -35,13 +34,14 @@
       "oracle": "util-linux write(1) from bsdextrautils 2.41.5 on the reference PATH. A one-record Linux utmp file naming user u1 on the fixture PTY's own line is installed as /var/run/utmp by a root fixture in its private mount namespace; util-linux write selects the recipient terminal from that record. Screen contents decoded independently by pyte.",
       "comparison": "Both builds run the same command, write u1, with the message on stdin. The reference delivers banner, text and EOF to the PTY and exits 0; the candidate (which takes a terminal path, not a user name) is compared with it on status, files and the same raw-byte expectations.",
       "requires": [
-        "write",
         "python3",
         "tty",
         "chmod"
       ],
       "timeout": 30,
-      "privilege": "root"
+      "privilege": "root",
+      "reference_script": "t=$(/usr/bin/tty)\n/usr/bin/python3 mkutmp.py \"${t#/dev/}\" u1 > /var/run/utmp\n/usr/bin/chmod 664 /var/run/utmp\n/usr/bin/chmod 620 \"$t\"\nprintf 'user-routed message\\n' | { w=/usr/bin/write.ul; [[ -x $w ]] || w=/usr/bin/write; $w u1; }; echo \"rc=$?\" > rc\nprintf 'W-DONE\\n'\n",
+      "candidate_script": "t=$(/usr/bin/tty)\n/usr/bin/python3 mkutmp.py \"${t#/dev/}\" u1 > /var/run/utmp\n/usr/bin/chmod 664 /var/run/utmp\n/usr/bin/chmod 620 \"$t\"\nprintf 'user-routed message\\n' | write u1; echo \"rc=$?\" > rc\nprintf 'W-DONE\\n'\n"
     }
   ]
 }
