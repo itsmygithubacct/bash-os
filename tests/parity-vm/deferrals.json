@@ -43919,16 +43919,29 @@
         "kind": "deferred",
         "reason": "Requires a disposable VM or reviewed interposition mock that redirects every /proc directory scan and file open to two small private snapshots (stat, status, cmdline, meminfo, loadavg). The future oracle must independently encode proc(5) fields and the documented headers/rows; live host proc data is not a valid reference."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Never executed. A deterministic private snapshot is presentable unprivileged by bind-mounting a fixture tree over /proc inside an unprivileged user+mount namespace. The oracle is an independent proc(5) encoder written into the fixture expectation.",
+      "current_reason": "Paired frozen --once lifecycle captures support only observed load, displayed process-count and memory/swap header fields. The complete documented header, -b/--batch entry points, sorting, PID tie breaks and -n row caps remain unverified.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "--once/-b/--batch print the documented header (uptime/load, task counts, CPU, memory) from proc fields",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-farm600-top-proc-lifecycle-empty",
+              "definition_sha256": "8e5adca897cfd6032f6f9d295083104b127612afdc619db8f7c24b8b2d6a3e15",
+              "assertion": "The paired frozen --once captures read the pinned synthetic proc epochs and render load 1.25/1.50/1.75, procs 0, memory 8000/5000/3000 kB and swap 2000/750/1250 kB. This is only the observed header subset; no uptime, aggregate CPU, per-state task counts or -b/--batch claim."
+            },
+            {
+              "group": "shell",
+              "id": "migration-farm600-top-proc-lifecycle-malformed",
+              "definition_sha256": "cc0927c161a9672292d8535a70b6f4afdb9c232674b2f1f13d35149376f4e278",
+              "assertion": "The paired frozen --once captures read the pinned synthetic proc epochs and render the same load/memory/swap values with procs 1 after malformed entries are skipped. Related CPU rows are ancillary; no full header, sorting, tie-break or row-cap claim."
+            }
+          ],
+          "gap": "Only --once load, displayed process count and memory/swap fields are observed. Uptime, CPU summary, task-count semantics beyond the displayed row count and -b/--batch entry points remain unverified."
         },
         {
           "id": "r2",
@@ -43952,7 +43965,7 @@
           "gap": "Not executed."
         }
       ],
-      "notes": "top.c hardcodes /proc (top.c:160-319) and has no BASHOS_PROC_ROOT override (vmstat.c:72 has one). A private snapshot can still be presented without a mock: inside '/usr/bin/unshare -Urm', bind a fixture directory over /proc ('mount --bind snap /proc'). Before that, bind the real /proc elsewhere if descriptor checks need it. This assumes unprivileged user namespaces in the guest kernel, which root should verify once. If they are unavailable, the missing capability is a root-controller per-case bind mount of a synthetic tree over /proc in the case's mount namespace. Alternatively, add an env override to top.c as vmstat has; that is a candidate change and needs root coordination."
+      "notes": "top.c hardcodes /proc (top.c:160-319) and has no BASHOS_PROC_ROOT override (vmstat.c:72 has one). A private snapshot can still be presented without a mock: inside '/usr/bin/unshare -Urm', bind a fixture directory over /proc ('mount --bind snap /proc'). Before that, bind the real /proc elsewhere if descriptor checks need it. This assumes unprivileged user namespaces in the guest kernel, which root should verify once. If they are unavailable, the missing capability is a root-controller per-case bind mount of a synthetic tree over /proc in the case's mount namespace. Alternatively, add an env override to top.c as vmstat has; that is a candidate change and needs root coordination. Paired frozen lifecycle captures are also attributed to the observed --once load, displayed process-count and memory/swap header subset in r1. This partial reuse adds no new runtime and does not qualify the remaining header fields, -b/--batch entry points, sorting, PID tie breaks or -n row caps."
     },
     {
       "topic": "top/interactive-pty-contract",

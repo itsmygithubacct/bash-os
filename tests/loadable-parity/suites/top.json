@@ -74,7 +74,7 @@
       "id": "batch-proc-snapshots",
       "purpose": "Compare deterministic --once/-b/--batch output, CPU and memory sorting, PID tie breaks, and row caps against an independent proc-fixture encoder.",
       "kind": "deferred",
-      "reason": "Never executed. A deterministic private snapshot is presentable unprivileged by bind-mounting a fixture tree over /proc inside an unprivileged user+mount namespace. The oracle is an independent proc(5) encoder written into the fixture expectation."
+      "reason": "Paired frozen --once lifecycle captures support only observed load, displayed process-count and memory/swap header fields. The complete documented header, -b/--batch entry points, sorting, PID tie breaks and -n row caps remain unverified."
     },
     {
       "id": "proc-record-and-pid-lifecycle",
