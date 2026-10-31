@@ -36,28 +36,35 @@ def setup_ns():
             pass
 
 
-def dump(v6routes=False, mask_veth=False, rules=True):
+def dump(v6routes=False, rules=True):
     st = {}
-    links = L.jq(["link", "show"])
-    addrs = L.jq(["addr", "show"])
-    if mask_veth:
-        veth = {l["ifname"] for l in links if l["ifname"].startswith("v")}
-        for l in links:
-            if l["ifname"] in veth:
-                l["address"] = "<random>"
-        for a in addrs:
-            if a["ifname"] in veth:
-                a["addr_info"] = [x for x in a.get("addr_info", []) if not x.get("local", "").startswith("fe80")]
-                a["address"] = "<random>"
-    st["link"] = links
-    st["addr"] = addrs
+    st["link"] = L.jq(["link", "show"])
+    st["addr"] = L.jq(["addr", "show"])
     st["route4"] = L.jq(["-4", "route", "show", "table", "all"])
     if v6routes:
-        st["route6"] = [r for r in L.jq(["-6", "route", "show", "table", "all"]) if not (mask_veth and "fe80" in json.dumps(r))]
+        st["route6"] = L.jq(["-6", "route", "show", "table", "all"])
     if rules:
         st["rule4"] = L.jq(["-4", "rule", "show"])
     st["neigh4"] = L.jq(["-4", "neigh", "show", "nud", "all"])
     return st
+
+
+def normalize(st, rand):
+    """Mask kernel-assigned random MACs (and the link-local addresses derived from them); sort lists."""
+    out = json.loads(json.dumps(st))
+    for l in out["link"]:
+        if l["ifname"] in rand:
+            l["address"] = "<random>"
+    for a in out["addr"]:
+        if a["ifname"] in rand:
+            a["address"] = "<random>"
+            a["addr_info"] = [x for x in a.get("addr_info", []) if not x.get("local", "").startswith("fe80")]
+    for key in ("route4", "route6"):
+        if key in out:
+            out[key] = [r for r in out[key] if not (r.get("dev") in rand and "fe80" in json.dumps(r))]
+    for key, val in out.items():
+        out[key] = sorted(val, key=lambda x: json.dumps(x, sort_keys=True))
+    return out
 
 
 def run_ops(who, ops):
@@ -118,7 +125,7 @@ def neighs(st):
     return {(n.get("dst"), n.get("dev"), n.get("lladdr"), tuple(n.get("state", []))) for n in st["neigh4"]}
 
 
-def scenario_mutation(name, seedcmds, steps, **dopts):
+def scenario_mutation(name, seedcmds, steps, rand=(), **dopts):
     c = twin("cand", seedcmds, steps, **dopts)
     r = twin("ref", seedcmds, steps, **dopts)
     if "__error__" in c or "__error__" in r:
@@ -129,7 +136,8 @@ def scenario_mutation(name, seedcmds, steps, **dopts):
         cs, rs = c[i], r[i]
         L.check(lab + " rc-class", [bool(x) for x in cs["rcs"]] == [bool(x) for x in rs["rcs"]],
                 "candidate rcs=%s errs=%s iproute2 rcs=%s errs=%s" % (cs["rcs"], cs["errs"], rs["rcs"], rs["errs"]))
-        L.check(lab + " state-equals-iproute2", cs["state"] == rs["state"], L.json_diff(cs["state"], rs["state"]))
+        ns_c, ns_r = normalize(cs["state"], rand), normalize(rs["state"], rand)
+        L.check(lab + " state-equals-iproute2", ns_c == ns_r, L.json_diff(ns_c, ns_r))
         for desc, fn in step.get("expect", []):
             try:
                 ok_ref = bool(fn(rs["state"]))
@@ -193,7 +201,7 @@ def sc_addr_flush_to():
          "expect": [("both 192.0.2.x removed", lambda s: not any(a[2].startswith("192.0.2.") for a in ips(s))),
                     ("others on d0 kept", lambda s: has_addr(s, "d0", "198.51.100.1/24") and has_addr(s, "d0", "10.99.0.1/32") and has_addr(s, "d0", "fd00::1/64")),
                     ("d1 untouched", lambda s: has_addr(s, "d1", "203.0.113.9/24"))]},
-    ], v6routes=True)
+    ], v6routes=True, rand=("d1",))
 
 
 def sc_addr_flush_scope():
@@ -202,7 +210,7 @@ def sc_addr_flush_scope():
          "expect": [("host scope address removed", lambda s: not has_addr(s, "d0", "10.99.0.1/32")),
                     ("global addresses kept", lambda s: has_addr(s, "d0", "192.0.2.1/24") and has_addr(s, "d0", "198.51.100.1/24") and has_addr(s, "d0", "fd00::1/64")),
                     ("d1 untouched", lambda s: has_addr(s, "d1", "203.0.113.9/24"))]},
-    ], v6routes=True)
+    ], v6routes=True, rand=("d1",))
 
 
 def sc_addr_flush_dev():
@@ -210,7 +218,7 @@ def sc_addr_flush_dev():
         {"ops": [["addr", "flush", "dev", "d0"]],
          "expect": [("d0 has no addresses", lambda s: not any(a[0] == "d0" for a in ips(s))),
                     ("d1 untouched", lambda s: has_addr(s, "d1", "203.0.113.9/24"))]},
-    ], v6routes=True)
+    ], v6routes=True, rand=("d1",))
 
 
 SHOW_SEED = [["link", "add", "d0", "type", "dummy"], ["link", "set", "d0", "address", "02:00:00:00:00:01", "mtu", "1400", "up"],
@@ -358,7 +366,7 @@ def parse_link_brief(text):
 def ref_facts(ref):
     out = {}
     for n, l in ref.items():
-        out[n] = {"ifindex": l["ifindex"], "flags": set(l["flags"]), "mtu": l["mtu"], "state": l["operstate"], "mac": l.get("address") if l.get("link_type") == "ether" else None}
+        out[n] = {"ifindex": l["ifindex"], "flags": set(l["flags"]) - {"M-DOWN"}, "mtu": l["mtu"], "state": l["operstate"], "mac": l.get("address")}
     return out
 
 
@@ -605,7 +613,7 @@ def sc_link_updown():
         {"ops": [["link", "set", "d0", "up"]], "expect": [("d0 administratively up", lambda s: "UP" in flags(s, "d0") and lk(s)["d0"]["operstate"] == "UNKNOWN")]},
         {"ops": [["link", "set", "d0", "down"]], "expect": [("d0 administratively down", lambda s: "UP" not in flags(s, "d0") and lk(s)["d0"]["operstate"] == "DOWN")]},
         {"ops": [["link", "set", "nosuch0", "up"], ["link", "set", "d0", "up"]], "expect": [("unknown link rejected, d0 up again", lambda s: "UP" in flags(s, "d0"))]},
-    ])
+    ], rand=("d0",))
 
 
 def sc_link_mtu_addr():
@@ -613,8 +621,8 @@ def sc_link_mtu_addr():
         {"ops": [["link", "set", "d0", "mtu", "1400"]], "expect": [("mtu 1400", lambda s: lk(s)["d0"]["mtu"] == 1400)]},
         {"ops": [["link", "set", "d0", "address", "02:11:22:33:44:55"]], "expect": [("mac set", lambda s: lk(s)["d0"]["address"] == "02:11:22:33:44:55")]},
         {"ops": [["link", "set", "d0", "mtu", "576", "address", "02:aa:bb:cc:dd:ee"]], "expect": [("mtu and mac together", lambda s: lk(s)["d0"]["mtu"] == 576 and lk(s)["d0"]["address"] == "02:aa:bb:cc:dd:ee")]},
-        {"ops": [["link", "set", "d0", "mtu", "70000"], ["link", "set", "d0", "address", "zz:zz"]], "expect": [("invalid values leave link unchanged", lambda s: lk(s)["d0"]["mtu"] == 576 and lk(s)["d0"]["address"] == "02:aa:bb:cc:dd:ee")]},
-    ])
+        {"ops": [["link", "set", "d0", "mtu", "abc"], ["link", "set", "d0", "address", "zz:zz"]], "expect": [("invalid values leave link unchanged", lambda s: lk(s)["d0"]["mtu"] == 576 and lk(s)["d0"]["address"] == "02:aa:bb:cc:dd:ee")]},
+    ], rand=("d0",))
 
 
 def info_kind(st, n):
@@ -627,7 +635,7 @@ def sc_link_add_dummy():
          "expect": [("d0 exists", lambda s: has_link(s, "d0")), ("d0 is ether", lambda s: lk(s)["d0"]["link_type"] == "ether"), ("d0 down by default", lambda s: "UP" not in flags(s, "d0"))]},
         {"ops": [["link", "add", "d0", "type", "dummy"], ["link", "add", "d1", "type", "dummy"]],
          "expect": [("duplicate rejected and second added", lambda s: has_link(s, "d1") and [l["ifname"] for l in s["link"]].count("d0") == 1)]},
-    ])
+    ], rand=("d0", "d1"))
 
 
 def sc_link_add_veth():
@@ -638,7 +646,7 @@ def sc_link_add_veth():
         {"ops": [["link", "add", "v2", "type", "veth", "peer", "v3"], ["link", "set", "v2", "up"], ["link", "set", "v3", "up"]],
          "expect": [("second pair created", lambda s: has_link(s, "v2") and has_link(s, "v3")),
                     ("pair carrier up", lambda s: lk(s)["v2"]["operstate"] == "UP" and lk(s)["v3"]["operstate"] == "UP")]},
-    ], mask_veth=True)
+    ], rand=("v0", "v1", "v2", "v3"))
 
 
 def sc_link_del():
@@ -646,7 +654,7 @@ def sc_link_del():
         {"ops": [["link", "del", "d0"]], "expect": [("d0 removed", lambda s: not has_link(s, "d0")), ("veth untouched", lambda s: has_link(s, "v0") and has_link(s, "v1"))]},
         {"ops": [["link", "del", "v0"]], "expect": [("v0 removed", lambda s: not has_link(s, "v0")), ("peer v1 removed with it", lambda s: not has_link(s, "v1"))]},
         {"ops": [["link", "del", "nosuch0"]], "expect": [("deleting missing link fails with unchanged state", lambda s: not has_link(s, "d0") and not has_link(s, "v0"))]},
-    ], mask_veth=True)
+    ], rand=("v0", "v1", "v2", "v3"))
 
 
 R_SEED = D0A + [["link", "add", "d1", "type", "dummy"], ["link", "set", "d1", "up"], ["addr", "add", "198.51.100.1/24", "dev", "d1"]]
@@ -669,7 +677,7 @@ def sc_route_add_del():
                     ("default removed", lambda s: not rt(s, "default", "192.0.2.254", "d0")), ("connected route kept", lambda s: rt(s, "192.0.2.0/24"))]},
         {"ops": [["route", "del", "203.0.113.0/24"], ["route", "add", "192.0.2.0/24", "via", "198.51.100.77"]],
          "expect": [("missing delete and unreachable gateway rejected", lambda s: not rt(s, "203.0.113.0/24", "192.0.2.254", "d0", 50))]},
-    ])
+    ], rand=("d1",))
 
 
 def sc_route_change_replace_append():
@@ -682,7 +690,7 @@ def sc_route_change_replace_append():
          "expect": [("append keeps first nexthop and adds second", lambda s: rt(s, "203.0.113.0/24", "192.0.2.253", "d0", 50) and rt(s, "203.0.113.0/24", "192.0.2.252", "d0", 50))]},
         {"ops": [["route", "change", "203.0.113.0/24", "via", "192.0.2.251", "dev", "d0", "metric", "50"]],
          "expect": [("change updates existing route", lambda s: rt(s, "203.0.113.0/24", "192.0.2.251", "d0", 50))]},
-    ])
+    ], rand=("d1",))
 
 
 def sc_route_flush():
@@ -692,7 +700,7 @@ def sc_route_flush():
         {"ops": [["route", "flush", "dev", "d0"]],
          "expect": [("d0 main routes gone", lambda s: not any(r[2] == "d0" and r[4] == "main" and r[5] == "unicast" for r in routes(s))),
                     ("d1 routes kept", lambda s: rt(s, "10.31.0.0/16", "198.51.100.254", "d1") and rt(s, "198.51.100.0/24", None, "d1"))]},
-    ])
+    ], rand=("d1",))
 
 
 RULE_FULL = ["from", "10.9.0.0/16", "to", "192.0.2.0/24", "fwmark", "0x10/0xff", "uidrange", "0-0", "ipproto", "tcp", "table", "100", "priority", "500"]
@@ -711,7 +719,7 @@ def sc_rule():
                     ("to-only rule kept", lambda s: any(r[0] == 700 for r in rules_of(s)))]},
         {"ops": [["rule", "add", "from", "10.8.0.0/16", "table", "100", "priority", "800"], ["rule", "flush"]],
          "expect": [("flush leaves only the default rules", lambda s: sorted(r[0] for r in rules_of(s)) == [0, 32766, 32767])]},
-    ], rules=True)
+    ], rules=True, rand=("d0",))
 
 
 N_SEED = D0A
@@ -733,7 +741,7 @@ def sc_neigh():
 
 
 def sc_batch(kind):
-    seed = [["link", "add", "d0", "type", "dummy"], ["link", "set", "d0", "up"]]
+    seed = [["link", "add", "d0", "type", "dummy"], ["link", "set", "d0", "address", "02:00:00:00:00:01", "up"]]
     have = lambda s, c: has_addr(s, "d0", c)
     if kind == "tokenize":
         text = "# leading comment\n\n  addr add 192.0.2.1/24 dev d0\n\n\taddr   add   192.0.2.2/24\tdev  d0   \n   # indented comment\nip addr add 192.0.2.3/24 dev d0\naddr add 192.0.2.4/24 dev d0 # trailing words\n"

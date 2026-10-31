@@ -26,8 +26,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -55,8 +55,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -84,8 +84,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -113,8 +113,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -142,8 +142,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -171,8 +171,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -200,8 +200,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -229,8 +229,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -258,8 +258,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -287,8 +287,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -316,8 +316,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -345,8 +345,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -374,8 +374,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -403,8 +403,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -432,8 +432,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -461,8 +461,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -490,8 +490,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -519,8 +519,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -548,8 +548,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -577,8 +577,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -606,8 +606,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -635,8 +635,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -664,8 +664,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -693,8 +693,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -722,8 +722,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -751,8 +751,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -780,8 +780,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -809,8 +809,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -838,8 +838,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -867,8 +867,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -896,8 +896,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -925,8 +925,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -954,8 +954,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -983,8 +983,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -1012,8 +1012,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -1041,8 +1041,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -1070,8 +1070,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -1099,8 +1099,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
     {
@@ -1128,8 +1128,8 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "68d52d08b31fbe230308fe2c1f59f7373f20dd274451e6d4540bf69c3a7953e2",
-        "helpers/mig-w1-netlib.py": "ccb071ad03f0d6c9b9cafa941871c73bf36498cb5e15ab4340d18140858734d4"
+        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     }
   ]

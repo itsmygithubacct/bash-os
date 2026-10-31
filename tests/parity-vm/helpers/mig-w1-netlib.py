@@ -76,9 +76,9 @@ def in_netns(fn):
             os.close(r)
             os.unshare(os.CLONE_NEWNET)
             out = fn()
-            data = json.dumps(out).encode()
+            data = json.dumps({"value": out, "results": _results}).encode()
         except BaseException as exc:  # noqa: BLE001
-            data = json.dumps({"__error__": repr(exc)}).encode()
+            data = json.dumps({"value": {"__error__": repr(exc)}, "results": _results}).encode()
         with os.fdopen(w, "wb") as f:
             f.write(data)
         os._exit(0)
@@ -86,7 +86,11 @@ def in_netns(fn):
     with os.fdopen(r, "rb") as f:
         raw = f.read()
     os.waitpid(pid, 0)
-    return json.loads(raw)
+    msg = json.loads(raw)
+    for n, ok, detail in msg["results"]:
+        if (n, ok, detail) not in _results:
+            _results.append((n, ok, detail))
+    return msg["value"]
 
 
 def jq(args, tool=None):
