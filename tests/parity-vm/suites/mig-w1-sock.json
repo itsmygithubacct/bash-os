@@ -25,7 +25,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -53,7 +53,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -81,7 +81,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -109,7 +109,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -137,7 +137,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -165,7 +165,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -193,7 +193,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -221,7 +221,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -249,7 +249,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -277,7 +277,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -305,7 +305,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -333,7 +333,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -361,7 +361,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -389,7 +389,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -417,7 +417,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -445,7 +445,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -473,7 +473,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -501,7 +501,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -529,7 +529,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -557,7 +557,7 @@
       "expected_status": 0,
       "timeout": 50,
       "helpers_sha256": {
-        "helpers/mig-w1-sock.py": "8e4ea1b9558fc8168c701f08725236f4add84693cc7678d4ca0bffb60d8e6854",
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     }

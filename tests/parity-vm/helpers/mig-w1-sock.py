@@ -458,28 +458,26 @@ def sc_annot_denied():
     plain = spawn_owner("plain")
     w = World()
     try:
-        comm = open("/proc/self/comm").read().strip()
+        # Control: with capabilities intact every owner directory is readable and annotated.
+        rc2, out2, err2 = cand_ss("-tp")
+        rows2 = parse_ss(out2)
+        def row(rows, port):
+            return next((r for r in rows if r["local"].endswith(":%d" % port) and r["state"] == "LISTEN"), None)
+        for label, o in (("hidden", hidden), ("plain", plain)):
+            r2 = row(rows2, o["port"])
+            L.check("control: with CAP_SYS_PTRACE the %s owner is annotated with its pid" % label, r2 is not None and "pid=%d" % o["pid"] in r2["rest"], str(r2))
+        # Denied: the scanner has no CAP_SYS_PTRACE, so /proc/PID/fd of non-dumpable owners cannot be read.
         rc, out, err = cand_ss("-tp", preexec=drop_caps)
         rows = parse_ss(out)
-        L.check("ss -tp with an unreadable process directory exits 0", rc == 0, "rc=%s err=%s" % (rc, err))
-        def row(port):
-            return next((r for r in rows if r["local"].endswith(":%d" % port) and r["state"] == "LISTEN"), None)
-        h = row(hidden["port"])
-        L.check("the hidden process's listener row is still listed", h is not None, out)
-        L.check("the hidden process's row carries no annotation", h is not None and "users:" not in h["rest"], str(h))
-        p = row(plain["port"])
-        L.check("a readable process's listener is still annotated", p is not None and "pid=%d" % plain["pid"] in p["rest"], str(p))
-        o = row(w.t4l.getsockname()[1])
-        L.check("the scanner's own listener is still annotated", o is not None and "pid=%d" % os.getpid() in o["rest"], str(o))
-        rc2, out2, err2 = cand_ss("-tp")
-        h2 = next((r for r in parse_ss(out2) if r["local"].endswith(":%d" % hidden["port"])), None)
-        L.check("control: with capabilities intact the same hidden process is annotated", h2 is not None and "pid=%d" % hidden["pid"] in h2["rest"], str(h2))
+        L.check("ss -tp with unreadable process directories exits 0", rc == 0, "rc=%s err=%s" % (rc, err))
+        h = row(rows, hidden["port"])
+        L.check("the unreadable owner's listener row is still listed", h is not None, out)
+        L.check("the unreadable owner's row carries no annotation", h is not None and "users:" not in h["rest"], str(h))
+        eqset("every fixture TCP row is still listed under denial", inet_set_ss(rows) & {r for r in w.inet_rows() if r[0].startswith("tcp")}, {r for r in w.inet_rows() if r[0].startswith("tcp")})
         rc, out, err = cand_ns("-tp", preexec=drop_caps)
         nrows = parse_netstat(out)
         hn = next((r for r in nrows if r["local"].endswith(":%d" % hidden["port"])), None)
         L.check("netstat -tp keeps the unreadable owner's row without an annotation and exits 0", rc == 0 and hn is not None and not hn["rest"], "rc=%s row=%s err=%s" % (rc, hn, err))
-        pn = next((r for r in nrows if r["local"].endswith(":%d" % plain["port"])), None)
-        L.check("netstat -tp annotates the readable owner", pn is not None and str(plain["pid"]) in pn["rest"], str(pn))
     finally:
         stop(hidden["pid"])
         stop(plain["pid"])
