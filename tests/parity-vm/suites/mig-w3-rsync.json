@@ -1,0 +1,164 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w3-rsync-daemon-push",
+      "loadable": "rsync",
+      "covers": [
+        "rsync/daemon-protocol-requires-server"
+      ],
+      "requires": [
+        "rsync",
+        "unshare",
+        "ip"
+      ],
+      "timeout": 40,
+      "files": {
+        "outer.sh": "/usr/sbin/ip link set lo up || echo loopback-down\necho 0 > /proc/sys/net/ipv4/ip_unprivileged_port_start || echo sysctl-failed\nexec /usr/bin/unshare --user --map-user=2000 --map-group=2000 \"$BASH\" --noprofile --norc /tmp/parity-case/inner.sh\n",
+        "rsyncd.conf": "pid file = /tmp/parity-home/rsyncd.pid\nlog file = /tmp/parity-home/rsyncd.log\nlock file = /tmp/parity-home/rsyncd.lock\nport = 873\naddress = 127.0.0.1\nuse chroot = no\nnumeric ids = yes\nmax connections = 8\n[mod]\n    path = /tmp/parity-case/module\n    read only = no\n[ro]\n    path = /tmp/parity-case/module-ro\n    read only = yes\n[denied]\n    path = /tmp/parity-case/module-ro\n    hosts deny = 127.0.0.1\n",
+        "src/a.txt": "alpha\n",
+        "src/sub/b.txt": "beta\n",
+        "module-ro/x.txt": "from-ro\n",
+        "module-ro/d/y.txt": "nested\n",
+        "module/.keep": "",
+        "inner.sh": "listening() { local _a l _r st _x\n  while read -r _a l _r st _x; do [[ $l == 0100007F:$1 && $st == 0A ]] && return 0; done < /proc/net/tcp\n  return 1; }\nup() { local i\n  for ((i = 0; i < 200; i++)); do\n    listening \"$1\" && return 0\n    kill -0 \"$2\" 2>/dev/null || return 1\n    sleep 0.05\n  done\n  return 1; }\nif [[ $BASH == /opt/bash-5.3.15/bin/bash ]]; then rs() { /usr/bin/rsync \"$@\"; }; else rs() { rsync \"$@\"; }; fi\n/usr/bin/rsync --daemon --no-detach --config=/tmp/parity-case/rsyncd.conf </dev/null >/dev/null 2>>/tmp/parity-home/rsyncd.err & dpid=$!\nup 0369 \"$dpid\" || echo daemon-not-listening\nshopt -s globstar nullglob dotglob\ntree() { local f; for f in \"$1\"/**; do if [ -d \"$f\" ]; then echo \"dir:$f\"; else echo \"file:$f:$(<\"$f\")\"; fi; done; }\nrs -r src/ rsync://127.0.0.1:873/mod/pushed/ >/dev/null 2>&1; echo \"push-rc=$?\"\ntree module\nkill \"$dpid\" 2>/dev/null; wait \"$dpid\" 2>/dev/null\necho daemon-stopped\n"
+      },
+      "candidate_script": "/usr/bin/unshare -Urn \"$BASH\" --noprofile --norc \"$PWD/outer.sh\"; echo \"ns-status=$?\"\n",
+      "reference_script": "/usr/bin/unshare -Urn \"$BASH\" --noprofile --norc \"$PWD/outer.sh\"; echo \"ns-status=$?\"\n",
+      "features": [
+        "userns"
+      ],
+      "stdout": "push-rc=0\ndir:module/\nfile:module/.keep:\ndir:module/pushed\nfile:module/pushed/a.txt:alpha\ndir:module/pushed/sub\nfile:module/pushed/sub/b.txt:beta\ndaemon-stopped\nns-status=0\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "rsyncd.log",
+        "rsyncd.err"
+      ],
+      "oracle": "GNU rsync 3.5.0 (Debian trixie; the original asks for 3.4) client and daemon in a private user+net namespace on 127.0.0.1:873; the reference side runs /usr/bin/rsync as client against the same daemon configuration, the candidate side its rsync builtin against that GNU daemon (candidate speaks protocol 27; the daemon accepts the downgrade).",
+      "comparison": "r1: pushing a two-file tree to rsync://127.0.0.1:873/mod/pushed/ transfers both files (with the nested directory) into the daemon module, status 0, and the module directory listing is identical on both sides",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0
+    },
+    {
+      "id": "mig-w3-rsync-daemon-pull",
+      "loadable": "rsync",
+      "covers": [
+        "rsync/daemon-protocol-requires-server"
+      ],
+      "requires": [
+        "rsync",
+        "unshare",
+        "ip"
+      ],
+      "timeout": 40,
+      "files": {
+        "outer.sh": "/usr/sbin/ip link set lo up || echo loopback-down\necho 0 > /proc/sys/net/ipv4/ip_unprivileged_port_start || echo sysctl-failed\nexec /usr/bin/unshare --user --map-user=2000 --map-group=2000 \"$BASH\" --noprofile --norc /tmp/parity-case/inner.sh\n",
+        "rsyncd.conf": "pid file = /tmp/parity-home/rsyncd.pid\nlog file = /tmp/parity-home/rsyncd.log\nlock file = /tmp/parity-home/rsyncd.lock\nport = 873\naddress = 127.0.0.1\nuse chroot = no\nnumeric ids = yes\nmax connections = 8\n[mod]\n    path = /tmp/parity-case/module\n    read only = no\n[ro]\n    path = /tmp/parity-case/module-ro\n    read only = yes\n[denied]\n    path = /tmp/parity-case/module-ro\n    hosts deny = 127.0.0.1\n",
+        "src/a.txt": "alpha\n",
+        "src/sub/b.txt": "beta\n",
+        "module-ro/x.txt": "from-ro\n",
+        "module-ro/d/y.txt": "nested\n",
+        "module/.keep": "",
+        "inner.sh": "listening() { local _a l _r st _x\n  while read -r _a l _r st _x; do [[ $l == 0100007F:$1 && $st == 0A ]] && return 0; done < /proc/net/tcp\n  return 1; }\nup() { local i\n  for ((i = 0; i < 200; i++)); do\n    listening \"$1\" && return 0\n    kill -0 \"$2\" 2>/dev/null || return 1\n    sleep 0.05\n  done\n  return 1; }\nif [[ $BASH == /opt/bash-5.3.15/bin/bash ]]; then rs() { /usr/bin/rsync \"$@\"; }; else rs() { rsync \"$@\"; }; fi\n/usr/bin/rsync --daemon --no-detach --config=/tmp/parity-case/rsyncd.conf </dev/null >/dev/null 2>>/tmp/parity-home/rsyncd.err & dpid=$!\nup 0369 \"$dpid\" || echo daemon-not-listening\nshopt -s globstar nullglob dotglob\ntree() { local f; for f in \"$1\"/**; do if [ -d \"$f\" ]; then echo \"dir:$f\"; else echo \"file:$f:$(<\"$f\")\"; fi; done; }\nrs -r rsync://127.0.0.1:873/ro/ out-url/ >/dev/null 2>&1; echo \"url-rc=$?\"\nrs -r 127.0.0.1::ro/ out-colon/ >/dev/null 2>&1; echo \"colon-rc=$?\"\ntree out-url\ntree out-colon\nkill \"$dpid\" 2>/dev/null; wait \"$dpid\" 2>/dev/null\necho daemon-stopped\n"
+      },
+      "candidate_script": "/usr/bin/unshare -Urn \"$BASH\" --noprofile --norc \"$PWD/outer.sh\"; echo \"ns-status=$?\"\n",
+      "reference_script": "/usr/bin/unshare -Urn \"$BASH\" --noprofile --norc \"$PWD/outer.sh\"; echo \"ns-status=$?\"\n",
+      "features": [
+        "userns"
+      ],
+      "stdout": "url-rc=0\ncolon-rc=0\ndir:out-url/\ndir:out-url/d\nfile:out-url/d/y.txt:nested\nfile:out-url/x.txt:from-ro\ndir:out-colon/\ndir:out-colon/d\nfile:out-colon/d/y.txt:nested\nfile:out-colon/x.txt:from-ro\ndaemon-stopped\nns-status=0\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "rsyncd.log",
+        "rsyncd.err"
+      ],
+      "oracle": "GNU rsync 3.5.0 (Debian trixie; the original asks for 3.4) client and daemon in a private user+net namespace on 127.0.0.1:873; the reference side runs /usr/bin/rsync as client against the same daemon configuration, the candidate side its rsync builtin against that GNU daemon (candidate speaks protocol 27; the daemon accepts the downgrade).",
+      "comparison": "r2: pulling a module with both the rsync:// URL form and the host::module form reproduces the module tree locally (names and bytes), status 0 each time",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0
+    },
+    {
+      "id": "mig-w3-rsync-daemon-refusal",
+      "loadable": "rsync",
+      "covers": [
+        "rsync/daemon-protocol-requires-server"
+      ],
+      "requires": [
+        "rsync",
+        "unshare",
+        "ip"
+      ],
+      "timeout": 40,
+      "files": {
+        "outer.sh": "/usr/sbin/ip link set lo up || echo loopback-down\necho 0 > /proc/sys/net/ipv4/ip_unprivileged_port_start || echo sysctl-failed\nexec /usr/bin/unshare --user --map-user=2000 --map-group=2000 \"$BASH\" --noprofile --norc /tmp/parity-case/inner.sh\n",
+        "rsyncd.conf": "pid file = /tmp/parity-home/rsyncd.pid\nlog file = /tmp/parity-home/rsyncd.log\nlock file = /tmp/parity-home/rsyncd.lock\nport = 873\naddress = 127.0.0.1\nuse chroot = no\nnumeric ids = yes\nmax connections = 8\n[mod]\n    path = /tmp/parity-case/module\n    read only = no\n[ro]\n    path = /tmp/parity-case/module-ro\n    read only = yes\n[denied]\n    path = /tmp/parity-case/module-ro\n    hosts deny = 127.0.0.1\n",
+        "src/a.txt": "alpha\n",
+        "src/sub/b.txt": "beta\n",
+        "module-ro/x.txt": "from-ro\n",
+        "module-ro/d/y.txt": "nested\n",
+        "module/.keep": "",
+        "inner.sh": "listening() { local _a l _r st _x\n  while read -r _a l _r st _x; do [[ $l == 0100007F:$1 && $st == 0A ]] && return 0; done < /proc/net/tcp\n  return 1; }\nup() { local i\n  for ((i = 0; i < 200; i++)); do\n    listening \"$1\" && return 0\n    kill -0 \"$2\" 2>/dev/null || return 1\n    sleep 0.05\n  done\n  return 1; }\nif [[ $BASH == /opt/bash-5.3.15/bin/bash ]]; then rs() { /usr/bin/rsync \"$@\"; }; else rs() { rsync \"$@\"; }; fi\n/usr/bin/rsync --daemon --no-detach --config=/tmp/parity-case/rsyncd.conf </dev/null >/dev/null 2>>/tmp/parity-home/rsyncd.err & dpid=$!\nup 0369 \"$dpid\" || echo daemon-not-listening\nshopt -s globstar nullglob dotglob\ntree() { local f; for f in \"$1\"/**; do if [ -d \"$f\" ]; then echo \"dir:$f\"; else echo \"file:$f:$(<\"$f\")\"; fi; done; }\nrs -r rsync://127.0.0.1:873/nomod/ out-unknown/ >/dev/null 2>&1; rc=$?\nif [ \"$rc\" != 0 ]; then echo unknown-module-failed; else echo unknown-module-ACCEPTED; fi\nif [ -e out-unknown ]; then echo unknown-local-tree-present; else echo unknown-local-tree-absent; fi\nrs -r rsync://127.0.0.1:873/denied/ out-denied/ >/dev/null 2>&1; rc=$?\nif [ \"$rc\" != 0 ]; then echo denied-module-failed; else echo denied-module-ACCEPTED; fi\nif [ -e out-denied ]; then echo denied-local-tree-present; else echo denied-local-tree-absent; fi\nkill \"$dpid\" 2>/dev/null; wait \"$dpid\" 2>/dev/null\necho daemon-stopped\n"
+      },
+      "candidate_script": "/usr/bin/unshare -Urn \"$BASH\" --noprofile --norc \"$PWD/outer.sh\"; echo \"ns-status=$?\"\n",
+      "reference_script": "/usr/bin/unshare -Urn \"$BASH\" --noprofile --norc \"$PWD/outer.sh\"; echo \"ns-status=$?\"\n",
+      "features": [
+        "userns"
+      ],
+      "stdout": "unknown-module-failed\nunknown-local-tree-absent\ndenied-module-failed\ndenied-local-tree-absent\ndaemon-stopped\nns-status=0\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "rsyncd.log",
+        "rsyncd.err"
+      ],
+      "oracle": "GNU rsync 3.5.0 (Debian trixie; the original asks for 3.4) client and daemon in a private user+net namespace on 127.0.0.1:873; the reference side runs /usr/bin/rsync as client against the same daemon configuration, the candidate side its rsync builtin against that GNU daemon (candidate speaks protocol 27; the daemon accepts the downgrade).",
+      "comparison": "r3: an unknown module (@ERROR: Unknown module) and a module that denies the client's address (@ERROR: access denied) both give a nonzero status and leave no partial local tree",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0
+    },
+    {
+      "id": "mig-w3-rsync-daemon-greeting",
+      "loadable": "rsync",
+      "covers": [
+        "rsync/daemon-protocol-requires-server"
+      ],
+      "requires": [
+        "rsync",
+        "unshare",
+        "ip"
+      ],
+      "timeout": 40,
+      "files": {
+        "outer.sh": "/usr/sbin/ip link set lo up || echo loopback-down\necho 0 > /proc/sys/net/ipv4/ip_unprivileged_port_start || echo sysctl-failed\nexec /usr/bin/unshare --user --map-user=2000 --map-group=2000 \"$BASH\" --noprofile --norc /tmp/parity-case/inner.sh\n",
+        "rsyncd.conf": "pid file = /tmp/parity-home/rsyncd.pid\nlog file = /tmp/parity-home/rsyncd.log\nlock file = /tmp/parity-home/rsyncd.lock\nport = 873\naddress = 127.0.0.1\nuse chroot = no\nnumeric ids = yes\nmax connections = 8\n[mod]\n    path = /tmp/parity-case/module\n    read only = no\n[ro]\n    path = /tmp/parity-case/module-ro\n    read only = yes\n[denied]\n    path = /tmp/parity-case/module-ro\n    hosts deny = 127.0.0.1\n",
+        "src/a.txt": "alpha\n",
+        "src/sub/b.txt": "beta\n",
+        "module-ro/x.txt": "from-ro\n",
+        "module-ro/d/y.txt": "nested\n",
+        "module/.keep": "",
+        "inner.sh": "listening() { local _a l _r st _x\n  while read -r _a l _r st _x; do [[ $l == 0100007F:$1 && $st == 0A ]] && return 0; done < /proc/net/tcp\n  return 1; }\nup() { local i\n  for ((i = 0; i < 200; i++)); do\n    listening \"$1\" && return 0\n    kill -0 \"$2\" 2>/dev/null || return 1\n    sleep 0.05\n  done\n  return 1; }\nif [[ $BASH == /opt/bash-5.3.15/bin/bash ]]; then rs() { /usr/bin/rsync \"$@\"; }; else rs() { rsync \"$@\"; }; fi\n/usr/bin/rsync --daemon --no-detach --config=/tmp/parity-case/rsyncd.conf </dev/null >/dev/null 2>>/tmp/parity-home/rsyncd.err & dpid=$!\nup 0369 \"$dpid\" || echo daemon-not-listening\ntree() { local f; for f in \"$1\"/**; do if [ -d \"$f\" ]; then echo \"dir:$f\"; else echo \"file:$f:$(<\"$f\")\"; fi; done; }\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w3-tcp-record.py 874 873 /tmp/parity-home/wire.json & rpid=$!\nfor ((i = 0; i < 100; i++)); do [ -e /tmp/parity-home/wire.json.ready ] && break; sleep 0.05; done\nrsync -r src/ rsync://127.0.0.1:874/mod/greeted/ >/dev/null 2>&1; echo \"push-rc=$?\"\nwait \"$rpid\"\n/usr/bin/python3 - <<'PYEND'\nimport base64, json\nw = json.load(open(\"/tmp/parity-home/wire.json\"))\nc = base64.b64decode(w[\"client_to_server\"]).split(b\"\\n\"); s = base64.b64decode(w[\"server_to_client\"]).split(b\"\\n\")\nprint(\"proxy-error=%s\" % w[\"error\"])\nprint(\"client-line1=%s\" % c[0].decode(\"latin1\"))\nprint(\"client-line2=%s\" % c[1].decode(\"latin1\"))\nprint(\"server-line1-is-rsyncd-version=%s\" % (s[0].startswith(b\"@RSYNCD: \") and s[0] != b\"@RSYNCD: OK\"))\nprint(\"server-ok-line=%s\" % (b\"@RSYNCD: OK\" in s[:3]))\nPYEND\nkill \"$dpid\" 2>/dev/null; wait \"$dpid\" 2>/dev/null\necho daemon-stopped\n"
+      },
+      "features": [
+        "userns"
+      ],
+      "stdout": "push-rc=0\nproxy-error=None\nclient-line1=@RSYNCD: 27\nclient-line2=mod\nserver-line1-is-rsyncd-version=True\nserver-ok-line=True\ndaemon-stopped\nns-status=0\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "rsyncd.log",
+        "rsyncd.err"
+      ],
+      "oracle": "GNU rsync 3.5.0 (Debian trixie; the original asks for 3.4) client and daemon in a private user+net namespace on 127.0.0.1:873; the reference side runs /usr/bin/rsync as client against the same daemon configuration, the candidate side its rsync builtin against that GNU daemon (candidate speaks protocol 27; the daemon accepts the downgrade). The greeting case is candidate-only because the GNU client greets with its own protocol version; expected lines come from the requirement text (greeting '@RSYNCD: 27', module select, '@RSYNCD: OK') and rsync daemon protocol (the server answers @RSYNCD: <version> then @RSYNCD: OK).",
+      "comparison": "r1 (wire): the candidate's first line to the daemon is '@RSYNCD: 27', its second line selects module 'mod', and the daemon answers with its own @RSYNCD version line followed by '@RSYNCD: OK' (recorded by a loopback proxy that relays the single connection)",
+      "kind": "contract",
+      "helpers_sha256": {
+        "helpers/mig-w3-tcp-record.py": "51379e8cb204d2e4f05ba6b2dbfcdb6b2698eeeb9af01137bc2e26cfa4319be3"
+      },
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0,
+      "script": "/usr/bin/unshare -Urn \"$BASH\" --noprofile --norc \"$PWD/outer.sh\"; echo \"ns-status=$?\"\n"
+    }
+  ]
+}
