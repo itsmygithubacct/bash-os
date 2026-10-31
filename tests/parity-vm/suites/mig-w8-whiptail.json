@@ -55,10 +55,14 @@
       "script": "whiptail --infobox 'Please wait a moment' 6 32 2>res; echo \"rc=$?\" > rc\n",
       "steps": [
         {
-          "expect": "Please wait a moment"
-        },
-        {
-          "output_lacks": "<\\s*Ok\\s*>"
+          "screen": {
+            "contains": [
+              "Please wait a moment"
+            ],
+            "lacks": [
+              "<\\s*Ok\\s*>"
+            ]
+          }
         }
       ],
       "size": [
@@ -73,8 +77,9 @@
         "rc": "rc=0\n",
         "res": ""
       },
+      "kind": "contract",
       "oracle": "Debian 13 whiptail 0.52.25 (newt) on the reference PATH, run in the same PTY (xterm-256color, fixed size) as the candidate whiptail builtin; screen contents decoded independently by pyte.",
-      "comparison": "Text on screen, no button, the program exits by itself with status 0.",
+      "comparison": "Text on screen, no button, the program exits by itself with status 0. The reference whiptail 0.52.25 erases the infobox text when it exits, so no reference screen exists; asserted against the candidate as a contract.",
       "requires": [
         "whiptail"
       ],
@@ -155,7 +160,7 @@
       "group": "terminal",
       "driver": "pty",
       "purpose": "textbox shows the start of a file; the down arrow scrolls one line (text-001 leaves, text-002 stays); Page Down scrolls a page; Enter closes with status 0 and the file is untouched.",
-      "script": "whiptail --textbox note 12 40 2>res; echo \"rc=$?\" > rc\n",
+      "script": "whiptail --scrolltext --textbox note 12 40 2>res; echo \"rc=$?\" > rc\n",
       "steps": [
         {
           "screen": {
