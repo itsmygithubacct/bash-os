@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w7-fdisk-partx-kernel-argument-and-uid-refusal",
+      "loadable": "fdisk",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "--partx-kernel rejects a bad OP, non-numeric/negative/over-range bounds, MIN>MAX and a wrong operand count, and a uid 2000 caller is refused with 'BLKPG mutation requires uid 0' for add, delete and update before the device is opened.",
+      "covers": [
+        "fdisk/defer-kernel-partx"
+      ],
+      "oracle": "Documented fdisk --partx-kernel OP DEV [MIN MAX] contract from the candidate usage text (loadables/fdisk.c header) and util-linux partx argument rules; every case exits before any device is opened, so no kernel partition table is touched.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [],
+      "files": {},
+      "script": "r() { local l=$1; shift; \"$@\" >/dev/null 2>err.txt; local rc=$? e c; e=$(< err.txt)\n  case $e in *\"OP must be\"*) c=bad-op;; *\"invalid minimum\"*) c=bad-min;; *\"invalid maximum\"*) c=bad-max;; *\"MIN is greater than MAX\"*) c=min-gt-max;;\n    *\"requires uid 0\"*) c=needs-uid0;; *\"not a block device\"*) c=not-block;; *\"requires OP DEV\"*) c=usage;; '') c=none;; *) c=other:$e;; esac\n  printf '%s status=%s err=%s\\n' \"$l\" $rc \"$c\"; }\nr bad-op fdisk --partx-kernel frobnicate nodev\nr bad-minimum fdisk --partx-kernel add nodev abc\nr bad-maximum fdisk --partx-kernel add nodev 1 2x\nr negative-bound fdisk --partx-kernel add nodev -1 2\nr bound-over-int-max fdisk --partx-kernel add nodev 2147483648\nr min-greater-than-max fdisk --partx-kernel add nodev 5 2\nr no-device fdisk --partx-kernel add\nr too-many-args fdisk --partx-kernel add nodev 1 2 3\nr add-non-root fdisk --partx-kernel add nodev\nr delete-non-root fdisk --partx-kernel delete nodev 1 4\nr update-non-root fdisk --partx-kernel update nodev 2 2\n",
+      "stdout": "bad-op status=1 err=bad-op\nbad-minimum status=1 err=bad-min\nbad-maximum status=1 err=bad-max\nnegative-bound status=1 err=bad-min\nbound-over-int-max status=1 err=bad-min\nmin-greater-than-max status=1 err=min-gt-max\nno-device status=2 err=usage\ntoo-many-args status=2 err=usage\nadd-non-root status=1 err=needs-uid0\ndelete-non-root status=1 err=needs-uid0\nupdate-non-root status=1 err=needs-uid0\n",
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-w7-fdisk-partx-kernel-regular-file-root",
+      "loadable": "fdisk",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "As root, --partx-kernel add, delete and update on a regular-file image fail with 'is not a block device' and status 1.",
+      "covers": [
+        "fdisk/defer-kernel-partx"
+      ],
+      "oracle": "Documented fdisk --partx-kernel OP DEV [MIN MAX] contract from the candidate usage text (loadables/fdisk.c header) and util-linux partx argument rules; every case exits before any device is opened, so no kernel partition table is touched.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "truncate"
+      ],
+      "files": {},
+      "privilege": "root",
+      "script": "r() { local l=$1; shift; \"$@\" >/dev/null 2>err.txt; local rc=$? e c; e=$(< err.txt)\n  case $e in *\"OP must be\"*) c=bad-op;; *\"invalid minimum\"*) c=bad-min;; *\"invalid maximum\"*) c=bad-max;; *\"MIN is greater than MAX\"*) c=min-gt-max;;\n    *\"requires uid 0\"*) c=needs-uid0;; *\"not a block device\"*) c=not-block;; *\"requires OP DEV\"*) c=usage;; '') c=none;; *) c=other:$e;; esac\n  printf '%s status=%s err=%s\\n' \"$l\" $rc \"$c\"; }\n/usr/bin/truncate -s 4M img\nr regular-file-add fdisk --partx-kernel add img\nr regular-file-delete fdisk --partx-kernel delete img 1 2\nr regular-file-update fdisk --partx-kernel update img 1 1\n",
+      "stdout": "regular-file-add status=1 err=not-block\nregular-file-delete status=1 err=not-block\nregular-file-update status=1 err=not-block\n",
+      "expected_status": 0,
+      "timeout": 30
+    }
+  ]
+}
