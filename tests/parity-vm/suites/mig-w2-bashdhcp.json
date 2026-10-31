@@ -12,7 +12,7 @@
       ],
       "purpose": "request transmits a well-formed DHCPDISCOVER on the selected interface (r1).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -29,7 +29,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp request -i veth0 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"request-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify discover\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp request -i veth0 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"request-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify discover\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -51,7 +51,7 @@
       ],
       "purpose": "After an OFFER the DHCPREQUEST repeats the xid and carries options 50 and 54 from the offer (r2).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -68,7 +68,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp request -i veth0 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"request-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify request\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp request -i veth0 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"request-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify request\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -90,7 +90,7 @@
       ],
       "purpose": "Replies with a different xid or the wrong message type are ignored; only the genuine OFFER and ACK are used (r3).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -107,7 +107,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer noise sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp request -i veth0 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"request-rc=$rc\"\necho \"$(< out.txt)\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify noise\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer noise sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp request -i veth0 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"request-rc=$rc\"\necho \"$(< out.txt)\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify noise\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -129,7 +129,7 @@
       ],
       "purpose": "The ACK lease from a live request is decoded and printed with every documented field (r4).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -146,7 +146,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp request -i veth0 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"request-rc=$rc\"\necho \"$(< out.txt)\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp request -i veth0 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"request-rc=$rc\"\necho \"$(< out.txt)\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -168,7 +168,7 @@
       ],
       "purpose": "With -h the live ACK lease is bound to an associative array and nothing is printed (r4).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -185,7 +185,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\ndeclare -A L\nbashdhcp request -i veth0 -t 1000 -h L > out.txt 2> err.txt; rc=$?\necho \"request-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nfor k in ip netmask gateway dns ntp domain server_id lease_time renew_time rebind_time; do echo \"$k=${L[$k]}\"; done\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\ndeclare -A L\nbashdhcp request -i veth0 -t 1000 -h L > out.txt 2> err.txt; rc=$?\necho \"request-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nfor k in ip netmask gateway dns ntp domain server_id lease_time renew_time rebind_time; do echo \"$k=${L[$k]}\"; done\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -207,7 +207,7 @@
       ],
       "purpose": "With no OFFER the command sends three DISCOVERs at doubling timeouts and fails with status 1 and a diagnostic (r5).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -224,7 +224,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer silent sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp request -i veth0 -t 200 > out.txt 2> err.txt; rc=$?\necho \"request-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nsettle 0.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify silent-timing DISCOVER 0.2\n\"$PY\" \"$H\" verify stderr-contains err.txt \"no OFFER received\"\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer silent sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp request -i veth0 -t 200 > out.txt 2> err.txt; rc=$?\necho \"request-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nsettle 0.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify silent-timing DISCOVER 0.2\n\"$PY\" \"$H\" verify stderr-contains err.txt \"no OFFER received\"\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -246,7 +246,7 @@
       ],
       "purpose": "With an OFFER but no ACK the command sends three REQUESTs at doubling timeouts and fails with status 1 and a diagnostic (r5).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -263,7 +263,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer offer-only sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp request -i veth0 -t 200 > out.txt 2> err.txt; rc=$?\necho \"request-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nsettle 0.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify silent-timing REQUEST 0.2\n\"$PY\" \"$H\" verify stderr-contains err.txt \"no ACK after REQUEST\"\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer offer-only sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp request -i veth0 -t 200 > out.txt 2> err.txt; rc=$?\necho \"request-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nsettle 0.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify silent-timing REQUEST 0.2\n\"$PY\" \"$H\" verify stderr-contains err.txt \"no ACK after REQUEST\"\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -285,7 +285,7 @@
       ],
       "purpose": "inform sends DHCPINFORM with ciaddr, chaddr, client-id, hostname, PRL and no options 50/54 (r1).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -302,7 +302,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp inform -i veth0 -a 192.0.2.10 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"inform-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify inform\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp inform -i veth0 -a 192.0.2.10 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"inform-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify inform\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -324,7 +324,7 @@
       ],
       "purpose": "The INFORM is broadcast to 255.255.255.255 port 67 on the selected interface (r2).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -341,7 +341,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp inform -i veth0 -a 192.0.2.10 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"inform-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify inform-destination\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp inform -i veth0 -a 192.0.2.10 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"inform-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify inform-destination\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -363,7 +363,7 @@
       ],
       "purpose": "A matching INFORM ACK is decoded and printed (r3).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -380,7 +380,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp inform -i veth0 -a 192.0.2.10 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"inform-rc=$rc\"\necho \"$(< out.txt)\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp inform -i veth0 -a 192.0.2.10 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"inform-rc=$rc\"\necho \"$(< out.txt)\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -402,7 +402,7 @@
       ],
       "purpose": "A matching INFORM ACK is bound to the -h associative array (r3).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -419,7 +419,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\ndeclare -A L\nbashdhcp inform -i veth0 -a 192.0.2.10 -t 1000 -h L > out.txt 2> err.txt; rc=$?\necho \"inform-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nfor k in ip netmask gateway dns ntp domain server_id lease_time renew_time rebind_time; do echo \"$k=${L[$k]}\"; done\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\ndeclare -A L\nbashdhcp inform -i veth0 -a 192.0.2.10 -t 1000 -h L > out.txt 2> err.txt; rc=$?\necho \"inform-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nfor k in ip netmask gateway dns ntp domain server_id lease_time renew_time rebind_time; do echo \"$k=${L[$k]}\"; done\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -441,7 +441,7 @@
       ],
       "purpose": "When no ACK arrives inform returns status 0 with no output and no diagnostic (r4).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -458,7 +458,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer silent sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp inform -i veth0 -a 192.0.2.10 -t 300 > out.txt 2> err.txt; rc=$?\necho \"inform-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify inform\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer silent sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp inform -i veth0 -a 192.0.2.10 -t 300 > out.txt 2> err.txt; rc=$?\necho \"inform-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify inform\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -480,7 +480,7 @@
       ],
       "purpose": "release sends exactly one unicast DHCPRELEASE to the lease server with ciaddr, option 54, chaddr and no PRL (r1).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -497,7 +497,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer silent sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp release -i veth0 'ip=192.0.2.50;server_id=192.0.2.1' > out.txt 2> err.txt; rc=$?\nsettle 1.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify release\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer silent sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp release -i veth0 'ip=192.0.2.50;server_id=192.0.2.1' > out.txt 2> err.txt; rc=$?\nsettle 1.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify release\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -519,7 +519,7 @@
       ],
       "purpose": "Successful release returns status 0 and writes nothing to stdout or stderr (r2).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -536,7 +536,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer silent sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp release -i veth0 'ip=192.0.2.50;server_id=192.0.2.1' > out.txt 2> err.txt; rc=$?\necho \"release-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer silent sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp release -i veth0 'ip=192.0.2.50;server_id=192.0.2.1' > out.txt 2> err.txt; rc=$?\necho \"release-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -558,7 +558,7 @@
       ],
       "purpose": "A LEASE lacking ip/address or server/server_id is rejected with usage status 2 and nothing is sent (r3).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -575,7 +575,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer silent sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp release -i veth0 'ip=192.0.2.50' > out.txt 2> err.txt; echo \"no-server-rc=$?\"\nbashdhcp release -i veth0 'server_id=192.0.2.1' > out.txt 2> err.txt; echo \"no-ip-rc=$?\"\nbashdhcp release -i veth0 '' > out.txt 2> err.txt; echo \"empty-rc=$?\"\nsettle 0.5\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify nothing-sent\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer silent sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp release -i veth0 'ip=192.0.2.50' > out.txt 2> err.txt; echo \"no-server-rc=$?\"\nbashdhcp release -i veth0 'server_id=192.0.2.1' > out.txt 2> err.txt; echo \"no-ip-rc=$?\"\nbashdhcp release -i veth0 '' > out.txt 2> err.txt; echo \"empty-rc=$?\"\nsettle 0.5\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify nothing-sent\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -597,7 +597,7 @@
       ],
       "purpose": "renew sends one unicast DHCPREQUEST to the lease server with ciaddr set and no option 50 (r1).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -614,7 +614,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp renew -i veth0 -t 1000 'ip=192.0.2.10;server_id=192.0.2.1' > out.txt 2> err.txt; rc=$?\necho \"renew-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify renew\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp renew -i veth0 -t 1000 'ip=192.0.2.10;server_id=192.0.2.1' > out.txt 2> err.txt; rc=$?\necho \"renew-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify renew\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -636,7 +636,7 @@
       ],
       "purpose": "A RENEWING DHCPREQUEST must not carry option 54 (RFC 2131 s4.3.2 table 5) (r2).",
       "oracle": "RFC 2131 section 4.3.2 table 5: in RENEWING state the REQUEST has server identifier MUST NOT be filled in.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -653,7 +653,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp renew -i veth0 -t 1000 'ip=192.0.2.10;server_id=192.0.2.1' > out.txt 2> err.txt; rc=$?\necho \"renew-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify renew-no-server-id\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp renew -i veth0 -t 1000 'ip=192.0.2.10;server_id=192.0.2.1' > out.txt 2> err.txt; rc=$?\necho \"renew-rc=$rc\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify renew-no-server-id\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -675,7 +675,7 @@
       ],
       "purpose": "A matching ACK after renew is decoded and printed (r3).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -692,7 +692,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp renew -i veth0 -t 1000 'ip=192.0.2.10;server_id=192.0.2.1' > out.txt 2> err.txt; rc=$?\necho \"renew-rc=$rc\"\necho \"$(< out.txt)\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp renew -i veth0 -t 1000 'ip=192.0.2.10;server_id=192.0.2.1' > out.txt 2> err.txt; rc=$?\necho \"renew-rc=$rc\"\necho \"$(< out.txt)\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -714,7 +714,7 @@
       ],
       "purpose": "A matching ACK after renew is bound to the -h associative array (r3).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -731,7 +731,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\ndeclare -A L\nbashdhcp renew -i veth0 -t 1000 -h L 'ip=192.0.2.10;server_id=192.0.2.1' > out.txt 2> err.txt; rc=$?\necho \"renew-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nfor k in ip netmask gateway dns ntp domain server_id lease_time renew_time rebind_time; do echo \"$k=${L[$k]}\"; done\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\ndeclare -A L\nbashdhcp renew -i veth0 -t 1000 -h L 'ip=192.0.2.10;server_id=192.0.2.1' > out.txt 2> err.txt; rc=$?\necho \"renew-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nfor k in ip netmask gateway dns ntp domain server_id lease_time renew_time rebind_time; do echo \"$k=${L[$k]}\"; done\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
@@ -753,7 +753,7 @@
       ],
       "purpose": "With no ACK renew exits 1 and reports 'renew: no ACK' (r4).",
       "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
-      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Each assertion is one printed line; any failing line changes stdout.",
+      "comparison": "Candidate bashdhcp in a mapped user namespace on a veth pair; an independent Python DHCPv4 peer in a second network namespace sniffs raw frames and applies RFC 2131 field checks. Reverse-path filtering is switched off in the private namespace so the address-less client can accept broadcast replies. Each assertion is one printed line; any failing line changes stdout.",
       "requires": [
         "python3",
         "unshare",
@@ -770,7 +770,7 @@
       "setup_script": "mkfifo sync.fifo\n",
       "setup_timeout": 10,
       "files": {
-        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer silent sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp renew -i veth0 -t 300 'ip=192.0.2.10;server_id=192.0.2.1' > out.txt 2> err.txt; rc=$?\necho \"renew-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nsettle 0.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify stderr-contains err.txt \"renew: no ACK\"\n"
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer silent sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp renew -i veth0 -t 300 'ip=192.0.2.10;server_id=192.0.2.1' > out.txt 2> err.txt; rc=$?\necho \"renew-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nsettle 0.2\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify stderr-contains err.txt \"renew: no ACK\"\n"
       },
       "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
       "diagnostic_files": [
