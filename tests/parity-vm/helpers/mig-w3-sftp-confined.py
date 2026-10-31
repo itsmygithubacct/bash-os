@@ -21,6 +21,7 @@ HOME = Path('/tmp/parity-home')
 BWRAP = ['/usr/bin/bwrap', '--unshare-all', '--die-with-parent',
          '--ro-bind', '/usr', '/usr', '--symlink', 'usr/bin', '/bin', '--symlink', 'usr/lib', '/lib',
          '--symlink', 'usr/lib64', '/lib64', '--symlink', 'usr/sbin', '/sbin',
+         '--ro-bind', '/etc/passwd', '/etc/passwd', '--ro-bind', '/etc/group', '/etc/group',
          '--proc', '/proc', '--dev', '/dev']
 
 

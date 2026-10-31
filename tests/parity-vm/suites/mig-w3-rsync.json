@@ -14,7 +14,7 @@
       ],
       "timeout": 40,
       "files": {
-        "rsyncd.conf": "pid file = /tmp/parity-home/rsyncd.pid\nlog file = /tmp/parity-home/rsyncd.log\nport = 873\naddress = 127.0.0.1\nuse chroot = no\nnumeric ids = yes\nmax connections = 8\n[mod]\n    path = /tmp/parity-case/module\n    read only = no\n    uid = 0\n    gid = 0\n[ro]\n    path = /tmp/parity-case/module-ro\n    read only = yes\n    uid = 0\n    gid = 0\n[denied]\n    path = /tmp/parity-case/module-ro\n    hosts deny = 127.0.0.1\n    uid = 0\n    gid = 0\n",
+        "rsyncd.conf": "pid file = /tmp/parity-home/rsyncd.pid\nlog file = /tmp/parity-home/rsyncd.log\nlock file = /tmp/parity-home/rsyncd.lock\nport = 873\naddress = 127.0.0.1\nuse chroot = no\nnumeric ids = yes\nmax connections = 8\n[mod]\n    path = /tmp/parity-case/module\n    read only = no\n    uid = 0\n    gid = 0\n[ro]\n    path = /tmp/parity-case/module-ro\n    read only = yes\n    uid = 0\n    gid = 0\n[denied]\n    path = /tmp/parity-case/module-ro\n    hosts deny = 127.0.0.1\n    uid = 0\n    gid = 0\n",
         "src/a.txt": "alpha\n",
         "src/sub/b.txt": "beta\n",
         "module-ro/x.txt": "from-ro\n",
@@ -52,7 +52,7 @@
       ],
       "timeout": 40,
       "files": {
-        "rsyncd.conf": "pid file = /tmp/parity-home/rsyncd.pid\nlog file = /tmp/parity-home/rsyncd.log\nport = 873\naddress = 127.0.0.1\nuse chroot = no\nnumeric ids = yes\nmax connections = 8\n[mod]\n    path = /tmp/parity-case/module\n    read only = no\n    uid = 0\n    gid = 0\n[ro]\n    path = /tmp/parity-case/module-ro\n    read only = yes\n    uid = 0\n    gid = 0\n[denied]\n    path = /tmp/parity-case/module-ro\n    hosts deny = 127.0.0.1\n    uid = 0\n    gid = 0\n",
+        "rsyncd.conf": "pid file = /tmp/parity-home/rsyncd.pid\nlog file = /tmp/parity-home/rsyncd.log\nlock file = /tmp/parity-home/rsyncd.lock\nport = 873\naddress = 127.0.0.1\nuse chroot = no\nnumeric ids = yes\nmax connections = 8\n[mod]\n    path = /tmp/parity-case/module\n    read only = no\n    uid = 0\n    gid = 0\n[ro]\n    path = /tmp/parity-case/module-ro\n    read only = yes\n    uid = 0\n    gid = 0\n[denied]\n    path = /tmp/parity-case/module-ro\n    hosts deny = 127.0.0.1\n    uid = 0\n    gid = 0\n",
         "src/a.txt": "alpha\n",
         "src/sub/b.txt": "beta\n",
         "module-ro/x.txt": "from-ro\n",
@@ -90,7 +90,7 @@
       ],
       "timeout": 40,
       "files": {
-        "rsyncd.conf": "pid file = /tmp/parity-home/rsyncd.pid\nlog file = /tmp/parity-home/rsyncd.log\nport = 873\naddress = 127.0.0.1\nuse chroot = no\nnumeric ids = yes\nmax connections = 8\n[mod]\n    path = /tmp/parity-case/module\n    read only = no\n    uid = 0\n    gid = 0\n[ro]\n    path = /tmp/parity-case/module-ro\n    read only = yes\n    uid = 0\n    gid = 0\n[denied]\n    path = /tmp/parity-case/module-ro\n    hosts deny = 127.0.0.1\n    uid = 0\n    gid = 0\n",
+        "rsyncd.conf": "pid file = /tmp/parity-home/rsyncd.pid\nlog file = /tmp/parity-home/rsyncd.log\nlock file = /tmp/parity-home/rsyncd.lock\nport = 873\naddress = 127.0.0.1\nuse chroot = no\nnumeric ids = yes\nmax connections = 8\n[mod]\n    path = /tmp/parity-case/module\n    read only = no\n    uid = 0\n    gid = 0\n[ro]\n    path = /tmp/parity-case/module-ro\n    read only = yes\n    uid = 0\n    gid = 0\n[denied]\n    path = /tmp/parity-case/module-ro\n    hosts deny = 127.0.0.1\n    uid = 0\n    gid = 0\n",
         "src/a.txt": "alpha\n",
         "src/sub/b.txt": "beta\n",
         "module-ro/x.txt": "from-ro\n",
@@ -128,7 +128,7 @@
       ],
       "timeout": 40,
       "files": {
-        "rsyncd.conf": "pid file = /tmp/parity-home/rsyncd.pid\nlog file = /tmp/parity-home/rsyncd.log\nport = 873\naddress = 127.0.0.1\nuse chroot = no\nnumeric ids = yes\nmax connections = 8\n[mod]\n    path = /tmp/parity-case/module\n    read only = no\n    uid = 0\n    gid = 0\n[ro]\n    path = /tmp/parity-case/module-ro\n    read only = yes\n    uid = 0\n    gid = 0\n[denied]\n    path = /tmp/parity-case/module-ro\n    hosts deny = 127.0.0.1\n    uid = 0\n    gid = 0\n",
+        "rsyncd.conf": "pid file = /tmp/parity-home/rsyncd.pid\nlog file = /tmp/parity-home/rsyncd.log\nlock file = /tmp/parity-home/rsyncd.lock\nport = 873\naddress = 127.0.0.1\nuse chroot = no\nnumeric ids = yes\nmax connections = 8\n[mod]\n    path = /tmp/parity-case/module\n    read only = no\n    uid = 0\n    gid = 0\n[ro]\n    path = /tmp/parity-case/module-ro\n    read only = yes\n    uid = 0\n    gid = 0\n[denied]\n    path = /tmp/parity-case/module-ro\n    hosts deny = 127.0.0.1\n    uid = 0\n    gid = 0\n",
         "src/a.txt": "alpha\n",
         "src/sub/b.txt": "beta\n",
         "module-ro/x.txt": "from-ro\n",
