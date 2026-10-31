@@ -142,8 +142,8 @@
         "uv/signal-status-mapping"
       ],
       "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\ncase \"$1\" in\n  mask) exec /usr/bin/perl -e 'open F, \"/proc/self/status\" or die; while (<F>) { if (/^(SigIgn|SigCgt):\\s+(\\w+)/) { my $v = hex($2); printf \"%s: INT=%d QUIT=%d\\n\", $1, ($v >> 1) & 1, ($v >> 2) & 1 } }' ;;\n  term) kill -TERM $$ ;;\n  kill) kill -KILL $$ ;;\n  usr1) kill -USR1 $$ ;;\nesac\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\n",
-      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv term; echo \"term=$?\"\nuv kill; echo \"kill=$?\"\nuv usr1; echo \"usr1=$?\"\n",
-      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\nuv term; echo \"term=$?\"\nuv kill; echo \"kill=$?\"\nuv usr1; echo \"usr1=$?\"\n",
+      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\n{ uv term; echo \"term=$?\"; uv kill; echo \"kill=$?\"; uv usr1; echo \"usr1=$?\"; } 2>/dev/null\n",
+      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\n{ uv term; echo \"term=$?\"; uv kill; echo \"kill=$?\"; uv usr1; echo \"usr1=$?\"; } 2>/dev/null\n",
       "stdout": "term=143\nkill=137\nusr1=138\n",
       "expected_status": 0,
       "requires": [],
