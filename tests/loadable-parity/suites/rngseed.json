@@ -42,9 +42,34 @@
     },
     {
       "id": "save_transaction",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate save output length, 0600 permissions, atomic replacement, sync ordering, and temporary-file cleanup.",
-      "reason": "Not a capability block for most obligations. save uses only getrandom and file operations, both allowed in the legacy runner. RNDADDENTROPY needs CAP_SYS_ADMIN in the initial user namespace, so under uid 2000 the kernel returns EPERM and the credit-denial path is reachable now. A SECCOMP-NOTIFY helper (modern plain driver only; trusted python3: fork, the child sets no_new_privs and installs a seccomp filter with SECCOMP_FILTER_FLAG_NEW_LISTENER for openat/unlinkat/renameat/fsync/ioctl/getrandom, passes the listener fd to the parent via SCM_RIGHTS, then execs the side shell; the parent records every notified call in order and either continues it or answers with a chosen return value) records ordering and injects faults or successes without privilege. It also lets the supervisor answer RNDADDENTROPY with success, a closed mock at the kernel boundary. No fixture exists."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-save-basic"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-save-faults"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-save-lock"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-save-order"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-save-replace"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-usage"
+        }
+      ]
     },
     {
       "id": "load_entropy_credit",
@@ -54,9 +79,9 @@
     },
     {
       "id": "load_failure_recovery",
-      "kind": "deferred",
       "purpose": "Exercise invalid seed files, credit denial, post-consumption refresh failures, and restoration/cleanup paths.",
-      "reason": "Not a capability block for most obligations. save uses only getrandom and file operations, both allowed in the legacy runner. RNDADDENTROPY needs CAP_SYS_ADMIN in the initial user namespace, so under uid 2000 the kernel returns EPERM and the credit-denial path is reachable now. A SECCOMP-NOTIFY helper (modern plain driver only; trusted python3: fork, the child sets no_new_privs and installs a seccomp filter with SECCOMP_FILTER_FLAG_NEW_LISTENER for openat/unlinkat/renameat/fsync/ioctl/getrandom, passes the listener fd to the parent via SCM_RIGHTS, then execs the side shell; the parent records every notified call in order and either continues it or answers with a chosen return value) records ordering and injects faults or successes without privilege. It also lets the supervisor answer RNDADDENTROPY with success, a closed mock at the kernel boundary. Only power-cut durability needs a new driver capability: an abrupt guest reset during the operation (VM-LIFECYCLE) on a persistent filesystem (BLOCK-DEV). A fixture cannot crash the kernel or bypass page-cache semantics."
+      "kind": "deferred",
+      "reason": "Remaining: r6 power-cut durability is blocked (needs abrupt VM reset and a journaled filesystem image)."
     }
   ]
 }

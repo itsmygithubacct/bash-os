@@ -73,21 +73,120 @@
     },
     {
       "id": "serve-and-run-exchange",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Cover the serve/run path through bounded DHCPDISCOVER/OFFER and DHCPREQUEST/ACK exchanges, pool allocation, lease persistence and wrapper state-directory handling.",
-      "reason": "No live server run; the serve loop is reachable on loopback with BASHDHCPD_SERVER_PORT and relay-style replies, and broadcast replies need a script-created veth pair."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/dhcpd/lease-db-relative-crud"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/dhcpd/respond-offer-contract"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-run-creates-state-dir"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-serve-ack-persists-lease"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-serve-broadcast-to-68"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-serve-offer"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-serve-once-idle-return"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-serve-once-one-message"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-serve-pool-allocation"
+        }
+      ]
     },
     {
       "id": "relay-proxy-pxe",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Cover giaddr-based subnet selection and reply routing, option-82 echo, ProxyDHCP on UDP/4011, and configured PXE options.",
-      "reason": "Remaining obligations: r2: No serve run.; r4: Not observed.; r5: The negative-vendor next-server gating obligation remains unqualified; live PXE/proxy socket behavior is not covered."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-proxy-dhcp-socket"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-pxe-vendor-gating-negative"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-relay-reply-port-67"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-relay-reply-port-override"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-dhcp-server-reviewed-pxe-match"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-dhcp-server-reviewed-pxe-other"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-dhcp-server-reviewed-relay-a"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-dhcp-server-reviewed-relay-b"
+        }
+      ]
     },
     {
       "id": "decline-release-and-hook",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Cover DECLINE quarantine, RELEASE lease removal and lease-exec commit/release environment variables without allowing an uncontrolled child command.",
-      "reason": "Remaining obligations: r1: No serve run.; r2: Not observed.; r3: Not observed.; r5: Not observed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-decline-quarantine"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-decline-removes-lease"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-release-removes-lease"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd-release-runs-hook"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-dhcp-server-reviewed-hook-commit"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-dhcp-server-reviewed-hook-failure"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-dhcp-server-reviewed-hook-missing"
+        }
+      ]
     },
     {
       "id": "parse-discover-array",

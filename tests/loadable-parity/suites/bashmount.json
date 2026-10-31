@@ -102,21 +102,84 @@
     },
     {
       "id": "defer_mount_syscall",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise plain typed mounts, option flag mapping, and filesystem-specific data forwarding.",
-      "reason": "Missing fixture. No executed case attempts a mount. In the existing drivers uid 2000 gets EPERM from mount(2), but a fresh user plus mount namespace (USERNS) gives namespace-scoped CAP_SYS_ADMIN, enough for tmpfs mounts, binds, remounts and lazy unmounts of mounts created there. Locked-flag rules apply only to mounts inherited from the parent namespace, so use fresh tmpfs mounts."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-confined"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-mount-data"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-mount-failures"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-mount-flags"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-mount-plain"
+        }
+      ]
     },
     {
       "id": "defer_bind_remount",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise bind, recursive bind, and remount behavior including read-only follow-up remount handling.",
-      "reason": "Missing fixture. No executed case attempts a mount. In the existing drivers uid 2000 gets EPERM from mount(2), but a fresh user plus mount namespace (USERNS) gives namespace-scoped CAP_SYS_ADMIN, enough for tmpfs mounts, binds, remounts and lazy unmounts of mounts created there. Locked-flag rules apply only to mounts inherited from the parent namespace, so use fresh tmpfs mounts."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-bind-relative"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-bind-ro"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-bind-usage"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-rbind"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-remount"
+        }
+      ]
     },
     {
       "id": "defer_umount_flags",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise ordinary, lazy, and force unmount flag mapping and observable cleanup.",
-      "reason": "Missing fixture. No executed case attempts a mount. In the existing drivers uid 2000 gets EPERM from mount(2), but a fresh user plus mount namespace (USERNS) gives namespace-scoped CAP_SYS_ADMIN, enough for tmpfs mounts, binds, remounts and lazy unmounts of mounts created there. Locked-flag rules apply only to mounts inherited from the parent namespace, so use fresh tmpfs mounts. A real MNT_FORCE needs initial-namespace CAP_SYS_ADMIN, so its flag mapping is captured with SECCOMP-NOTIFY instead."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-confined"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-umount-errors"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-umount-force"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-umount-lazy"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashmount-umount-plain"
+        }
+      ]
     },
     {
       "id": "mountpoint-private-directory",

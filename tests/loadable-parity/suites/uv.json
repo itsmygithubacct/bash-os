@@ -38,33 +38,74 @@
     },
     {
       "id": "forwarding-env-status",
+      "kind": "migrated",
       "purpose": "Exercise argument forwarding (including empty and spaced words), exported-variable visibility, and child exit-status propagation without contacting a package index.",
-      "kind": "deferred",
-      "reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-uv-forward-args"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-uv-forward-env"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-uv-forward-status"
+        }
+      ]
     },
     {
       "id": "helper-resolution-after-cd",
+      "kind": "migrated",
       "purpose": "Verify that a uv.so loaded from a relative package path keeps resolving its sibling helper after the shell changes its working directory.",
-      "kind": "deferred",
-      "reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-uv-after-cd"
+        }
+      ]
     },
     {
       "id": "missing-helper-diagnostic",
+      "kind": "migrated",
       "purpose": "Check the documented status 127 and install hint when the separately packaged uv executable is missing.",
-      "kind": "deferred",
-      "reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-uv-missing-hint"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-uv-missing-status"
+        }
+      ]
     },
     {
       "id": "signal-status-mapping",
+      "kind": "migrated",
       "purpose": "Check child signal defaults and the documented 128+N status mapping without signaling any host or unrelated process.",
-      "kind": "deferred",
-      "reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-uv-signal-defaults"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-uv-signal-status"
+        }
+      ]
     },
     {
       "id": "local-project-operation",
+      "kind": "migrated",
       "purpose": "Exercise a useful upstream uv operation against a tiny local project and verify its resulting fixture tree without network access.",
-      "kind": "deferred",
-      "reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-uv-local-project"
+        }
+      ]
     }
   ]
 }

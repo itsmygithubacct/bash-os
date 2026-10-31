@@ -99,9 +99,58 @@
     },
     {
       "id": "live-server-exchange",
+      "kind": "migrated",
       "purpose": "Verify serve/run bind behavior and the full client-visible DHCPv6 exchange using an isolated peer, without treating offline seams as proof of socket behavior.",
-      "kind": "deferred",
-      "reason": "Offline seams are covered; the socket loop is reachable on [::1] with BASHDHCPD6_* ports, but no IPv6 client peer exists."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/dhcpd6/information-request"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/dhcpd6/relay-forwarding"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/dhcpd6/release-matching-lease"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/dhcpd6/solicit-advertise"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd6-run-once"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd6-run-once-idle-exit"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd6-serve-default-ports"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd6-serve-lease-persist-release"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd6-serve-once"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd6-serve-once-idle-exit"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd6-serve-override-ports"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd6-serve-solicit-request-exchange"
+        }
+      ]
     },
     {
       "id": "relay-forwarding",
@@ -114,9 +163,30 @@
     },
     {
       "id": "leasequery-lifetimes",
+      "kind": "migrated",
       "purpose": "Verify RFC 5007 queries by address and client ID, including active lease data, misses, and bounded preferred/valid remaining lifetime fields.",
-      "kind": "deferred",
-      "reason": "leasequery is an offline verb; a frozen clock is unnecessary because the script can seed lease expiries relative to its own clock read and assert bounded windows (as legacy/dhcpd/lease-db-relative-crud does)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd6-leasequery-by-address"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd6-leasequery-by-clientid"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd6-leasequery-lifetimes"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd6-leasequery-miss-failure-status"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcpd6-leasequery-miss-no-client-data"
+        }
+      ]
     },
     {
       "id": "reply-variable-binding",

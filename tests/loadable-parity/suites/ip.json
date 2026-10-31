@@ -36,33 +36,210 @@
     },
     {
       "id": "ip-read-only-queries",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare link, address, route, rule, and neighbour show output, including JSON/brief forms, family filtering, and selectors against independent rtnetlink state.",
-      "reason": "No seeded namespace exists; read-only queries of a script-owned namespace are safe in the VM."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-addr-show-4"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-addr-show-6"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-addr-show-dev"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-addr-show-scope"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-addr-show-to"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-link-show-brief"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-link-show-default"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-link-show-json"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-link-show-json-schema"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-link-show-oneline"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-neigh-show-all"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-neigh-show-dev"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-neigh-show-strict"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-route-show-default"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-route-show-dev"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-route-show-plain"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-route-show-table"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-rule-show-json"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-rule-show-json-schema"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-rule-show-text"
+        }
+      ]
     },
     {
       "id": "ip-link-changes",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise link up/down, MTU and address setters, dummy/veth creation, and deletion while checking resulting link state.",
-      "reason": "No private-namespace link fixture exists."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-link-add-dummy"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-link-add-veth"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-link-del"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-link-mtu-address"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-link-updown"
+        }
+      ]
     },
     {
       "id": "ip-address-changes",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise address add, delete, change, replace, flush, and address selectors against a known interface state.",
-      "reason": "No fixture runs ip; the VM can provide a private namespace with a seeded dummy interface, so this is fixture work."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-addr-add-del"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-addr-change-replace"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-addr-flush-dev"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-addr-flush-scope"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-addr-flush-to"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-addr-show-dev"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-addr-show-scope"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-addr-show-to"
+        }
+      ]
     },
     {
       "id": "ip-route-rule-neighbour-changes",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise route add/delete/replace/flush, policy-rule add/delete/flush, and neighbour add/change/replace/delete with deterministic state checks.",
-      "reason": "No private-namespace routing fixture exists."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-neigh"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-route-add-del"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-route-change"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-route-flush"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-rule"
+        }
+      ]
     },
     {
       "id": "ip-batch-mode",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check batch-file tokenization, blank lines, stopping at the first failing command, and -force continuation using a bounded sequence with observable state.",
-      "reason": "Needs observable rtnetlink state in a private namespace; no fixture exists."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-batch-force"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-batch-quoting"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-batch-stdin"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-batch-stop"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ip-batch-tokenize"
+        }
+      ]
     }
   ]
 }

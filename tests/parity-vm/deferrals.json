@@ -1191,35 +1191,56 @@
         "purpose": "Validate the complete DHCP client acquisition exchange and returned lease against a private peer.",
         "reason": "Requires a future disposable Linux VM with an isolated IPv4 interface and a DHCP server mock that captures DISCOVER and REQUEST, returns OFFER and ACK using the observed xid/chaddr, and records the resulting lease output. No host interface or network activity is permitted here."
       },
-      "coverage": "partial",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "Only the offline parser is executed. The live request path is reachable on loopback today: BASHDHCP_SERVER_ADDR/BASHDHCP_SERVER_PORT/BASHDHCP_CLIENT_PORT redirect it, and SO_BINDTODEVICE works as VM root with -i lo. What is missing is a DHCP-aware peer.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "request sends a DHCPDISCOVER: op=1, htype=1, hlen=6, broadcast flag, chaddr = interface MAC, magic cookie, option 53=1, client-id 61, hostname 12, parameter request list 55.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No DHCP peer captures the DISCOVER."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-request-discover",
+              "assertion": "A veth-attached Python peer sniffs the first DISCOVER: op=1 htype=1 hlen=6 hops=0, broadcast flag, chaddr = veth0 MAC with zero padding, all four address fields zero, magic cookie, option 53=1, option 61 = 1+MAC, option 12 non-empty, option 55 non-empty with 1/3/6, and the frame is Ethernet/IP broadcast from 0.0.0.0:68 to 255.255.255.255:67.",
+              "definition_sha256": "5fe8c765d3a25eb681838c145b47e2c0c01acc4c1986ceda7c0e256fc4a9b3bc"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "After an OFFER the client sends a DHCPREQUEST with the same xid, option 50 = offered yiaddr and option 54 = offer server identifier.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No two-step exchange fixture."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-request-request",
+              "assertion": "After the peer OFFER (yiaddr 192.0.2.50, server id 192.0.2.1) the sniffed DHCPREQUEST has option 53=3, the DISCOVER xid, option 50 = 192.0.2.50, option 54 = 192.0.2.1 and the client MAC.",
+              "definition_sha256": "8f4296499f074f8f371c485b0ce942c54b4264ec734884992806f98d9eb12215"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Replies with a different xid or wrong message type are ignored (recv_dhcp xid/type filter).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No peer sends a mismatched reply before the matching one."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-request-ignores-mismatches",
+              "assertion": "The peer answers three DISCOVERs with a wrong-xid OFFER, a right-xid wrong-type reply and the genuine OFFER, then three REQUESTs likewise; the client retransmits after each ignored reply (3+3 messages, one xid), the REQUEST names the genuine offer, and the printed lease carries only the genuine ACK values.",
+              "definition_sha256": "69c9402e00f35ad9a89821c0d9b93ba0a7293640ed649d04be164df7580e2d75"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "The ACK lease is decoded and printed (ip/netmask/gateway/dns/ntp/domain/server_id/lease_time/renew_time) or bound to the -h/-V associative array.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -1238,16 +1259,41 @@
               "id": "legacy/bashdhcp/parse-padding-and-ack",
               "assertion": "Fixed ACK with padding decodes mask/lease/renew; absent fields empty.",
               "definition_sha256": "f5c2fe306ce0584e77689894dfdbf0bb3d7c869b98132c0475aaf5b0d334e0cd"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-request-lease-print",
+              "assertion": "A live request prints exactly the nine documented lease lines (ip, netmask, gateway, dns list, ntp, domain, server_id, lease_time, renew_time) equal to the values the peer put in its ACK, with empty stderr.",
+              "definition_sha256": "a4c164df01ae3a79283b73caff692b2b6869ac4453c6b58e8cf4ca746b12bc26"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-request-lease-bind",
+              "assertion": "With -h L the live ACK binds ip, netmask, gateway, dns, ntp, domain, server_id, lease_time, renew_time and rebind_time to the associative array and prints nothing.",
+              "definition_sha256": "0e1b17ffba0ff033bd7c175952e82c0d241bcdedfff09b2badae2b1ef2b34e80"
             }
           ],
-          "gap": "The same decoder is exercised only on fixed hex; the lease returned by a live request (and -h binding after an exchange) is not observed."
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "With no OFFER/ACK the command retries (3 attempts, doubling timeout) and fails with status 1 and a diagnostic.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No silent-peer timeout case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-request-silent-offer",
+              "assertion": "Against a silent peer three DISCOVERs arrive at doubling intervals (about 0.2 s then 0.4 s for -t 200), status is 1 and stderr contains \"no OFFER received\".",
+              "definition_sha256": "55e3b89d77efad013c54e65e58908d2b9ecdf7d64becaaf1038d8267fdd7b82b"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-request-silent-ack",
+              "assertion": "With an OFFER but no ACK three REQUESTs arrive at doubling intervals after one DISCOVER, status is 1 and stderr contains \"no ACK after REQUEST\".",
+              "definition_sha256": "9f28902415a09b16f33af9b319f7b2b041d35c98ca6f64aa423782ce8ba419ed"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "loadables/bashdhcp.c:428-484 request_cmd; env overrides :106-133 (port/addr); xid = time^(pid<<16) :439; read_mac via /sys/class/net/IFACE/address :353-367; recv_dhcp xid/type filter :409-424; build_packet options :369-405."
@@ -1260,28 +1306,42 @@
         "purpose": "Validate DHCPINFORM construction and option-bearing ACK decoding on a private link.",
         "reason": "Requires a future disposable VM and isolated DHCP mock that captures DHCPINFORM, returns a matching ACK, and checks the decoded configuration. This runner does not provide a network peer and no host network activity is permitted."
       },
-      "coverage": "partial",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "inform hard-codes UDP port 67 and limited broadcast (bashdhcp.c:590) and binds no client port, so it needs a script-built private veth topology rather than the loopback peer; no fixture exists.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "inform sends DHCPINFORM: option 53=8, ciaddr = -a address, chaddr, client-id, hostname, PRL; no option 50/54.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No receiver captures the INFORM."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-inform-request",
+              "assertion": "The sniffed INFORM has option 53=8, ciaddr = -a address, yiaddr zero, chaddr and option 61 from veth0, option 12, option 55 with 1 and 3, and no option 50 or 54.",
+              "definition_sha256": "36e7b6097d6700b9740624ca12b5e1a4d3e0d70e8177eaf4ba74da372b10f24b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "INFORM is broadcast to 255.255.255.255:67 on the selected interface.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "inform ignores the BASHDHCP_SERVER_* overrides, so loopback redirection is impossible; a veth topology is required."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-inform-destination",
+              "assertion": "The INFORM frame is sent from the selected veth0 (source MAC and IP) to Ethernet broadcast, IP 255.255.255.255, UDP port 67.",
+              "definition_sha256": "de6f55e7d02abff998ca40d4bc795a403c418378e82922cba97fd3dfd083c8b1"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A matching ACK (same xid, type 5) is decoded and printed or bound to -h.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -1294,16 +1354,47 @@
               "id": "legacy/bashdhcp/parse-documented-assoc-fields",
               "assertion": "The shared -V binding for fixed packet input.",
               "definition_sha256": "a1f7c8424139628a14ae6262ce02f55d389cee886bdaf1a738bf1cae4b2770c5"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-inform-lease-print",
+              "assertion": "An ACK sent to client port 68 as RFC 2131 s4.1 requires is never received: the INFORM socket binds no client port, so nothing is printed (FAIL retained).",
+              "definition_sha256": "d00510ba87354d994e585a884d7c8fcd15d721604110117831488a0639058077"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-inform-lease-bind",
+              "assertion": "The same ACK to port 68 leaves the -h array empty (FAIL retained).",
+              "definition_sha256": "089cf2785d5a39f401517438adaa4800cee338dafe5ccb8127ee3e33f93caefe"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-inform-lease-print-source-port",
+              "assertion": "When the peer answers the INFORM source port the ACK is decoded and printed with the peer values (ip=0.0.0.0 from yiaddr, mask, gateway, dns, ntp, domain, server_id, timers).",
+              "definition_sha256": "2dba41b2862a7f3df686c468a674576c0a7c8671f0bfe4680b767dcf7c291b6b"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-inform-lease-bind-source-port",
+              "assertion": "When the peer answers the INFORM source port the ACK is bound to the -h array and nothing is printed.",
+              "definition_sha256": "103c99904bdcb7cb38a5b0e46d82493c1b87f5dbceae285d09b81c7ee098e3e9"
             }
           ],
-          "gap": "No live ACK reception after an INFORM."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Behavior when no ACK arrives is defined and observed (source returns status 0 with no output).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed; status 0 on timeout differs from request/renew (status 1) and needs an explicit documented expectation."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-inform-silent",
+              "assertion": "With a silent peer inform returns status 0 with empty stdout and stderr after the INFORM was sent once.",
+              "definition_sha256": "890c3b259e56dda659eea639945119f56796a3c245190601ff5ad72dfcf45820"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "loadables/bashdhcp.c:565-607 inform_cmd: dst port 67/INADDR_BROADCAST fixed at :590; returns EXECUTION_SUCCESS when ack_len == 0 (:601)."
@@ -1316,30 +1407,51 @@
         "purpose": "Validate that release emits a DHCPRELEASE with the lease address and server identifier to the intended isolated peer.",
         "reason": "Requires a future disposable VM with an isolated IPv4 interface and a local UDP DHCP server mock that captures the datagram and verifies BOOTP/DHCPRELEASE fields without forwarding it. No host interface or network activity is permitted here."
       },
-      "coverage": "none",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "release is reachable on loopback (lease server_id=127.0.0.1, BASHDHCP_SERVER_PORT, -i lo as root); the existing udp peer captures raw bytes but the random xid prevents byte comparison, so a decoding peer record is needed.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "release sends exactly one DHCPRELEASE unicast to the lease server_id: option 53=7, ciaddr = lease ip, option 54 = server id, chaddr, no PRL.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No receiver records the datagram."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-release-datagram",
+              "assertion": "Exactly one datagram reaches the peer: unicast to the server MAC/IP 192.0.2.1 port 67 with option 53=7, ciaddr = lease ip, option 54 = server id, chaddr = veth0 MAC and no option 55.",
+              "definition_sha256": "501582acfa654850c869e76a9ddea5b87d36cf6a21a78ac87b09a112c69fbb0e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Successful release returns status 0 with no stdout.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-release-status",
+              "assertion": "release returns status 0 with empty stdout and stderr.",
+              "definition_sha256": "86747fa21e882310a6f541e40e289b96cf0a324b61e38c1bccbe1430a145cb69"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A LEASE lacking ip/address or server/server_id is rejected with usage status 2 before sending.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No legacy rejection case for release."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-release-rejects-incomplete-lease",
+              "assertion": "Leases without server_id, without ip and an empty string each return status 2 and the peer sees no datagram.",
+              "definition_sha256": "c715dcd5a7be131d95d1d36f6788d6db8d2700c2b19baa445e2400d5df628805"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "loadables/bashdhcp.c:532-562 release_cmd; read_lease_arg accepts a file or inline text :184-197; option 54 for type 7 at :391-392."
@@ -1352,28 +1464,42 @@
         "purpose": "Validate DHCP renewal packet fields and ACK handling using an isolated configured interface.",
         "reason": "Requires a future disposable VM plus a unicast DHCP server mock bound to an isolated link; the mock must capture the renewal DHCPREQUEST (ciaddr/server identifier), return a matching ACK, and check the decoded lease. No real network target is permitted here."
       },
-      "coverage": "partial",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "renew is reachable on loopback (server_id 127.0.0.1 + BASHDHCP_SERVER_PORT/CLIENT_PORT, -i lo); a DHCP-aware peer is missing.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "renew sends a unicast DHCPREQUEST to the lease server with ciaddr = lease ip and no option 50 (RENEWING state).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No receiver captures the renewal."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-renew-request",
+              "assertion": "One unicast REQUEST to the lease server MAC/IP port 67 from the veth0 address with option 53=3, ciaddr = lease ip, chaddr from veth0 and no option 50.",
+              "definition_sha256": "a4c22cb65bd337235dc11a04e34ab239dc6f38ec0344893e93be60fd3fe54793"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "RENEWING DHCPREQUEST must not carry option 54 server identifier (RFC 2131 4.3.2 table 5).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed. Source analysis: build_packet adds option 54 whenever type==3 and server is set (bashdhcp.c:391-392), so a fixture following RFC 2131 is expected to FAIL."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-renew-no-server-id",
+              "assertion": "RFC 2131 s4.3.2 table 5: the RENEWING REQUEST must not carry option 54; the sniffed REQUEST carries option 54 = 192.0.2.1, so the case FAILs on both builds.",
+              "definition_sha256": "27fe037f1ebfde7d6e75737577f6bd092eebff9ebf8db0f2ca192640d69784ab"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A matching ACK is decoded and printed or bound to -h.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -1386,16 +1512,35 @@
               "id": "legacy/bashdhcp/parse-documented-assoc-fields",
               "assertion": "Shared -V binding on fixed input.",
               "definition_sha256": "a1f7c8424139628a14ae6262ce02f55d389cee886bdaf1a738bf1cae4b2770c5"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-renew-lease-print",
+              "assertion": "The ACK to a renew is decoded and printed with the peer values (ip = ciaddr 192.0.2.10), empty stderr.",
+              "definition_sha256": "5a1551fc3d5c82de07f96e729f7dfea41081c6e6004be818466719894d445e3e"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-renew-lease-bind",
+              "assertion": "The ACK to a renew is bound to the -h associative array, nothing printed.",
+              "definition_sha256": "8569a8ec9b485b3577b68a4385a1a395aaa6afce6bdda520f365a0af49459b74"
             }
           ],
-          "gap": "No live ACK after renew."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "No ACK within the timeout yields status 1 and 'renew: no ACK'.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No silent-peer case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-bashdhcp-renew-silent",
+              "assertion": "With a silent peer renew exits 1, prints nothing and stderr contains \"renew: no ACK\".",
+              "definition_sha256": "b1b51dcfac9ebd459e52e3a5e81fadfec888687968270b15a80dff621b205acb"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "Candidate gap from source (not yet executed): loadables/bashdhcp.c:386-392 includes server identifier in the RENEWING REQUEST. renew_cmd :486-529."
@@ -1656,23 +1801,37 @@
         "purpose": "Exercise the documented jq.sh wrapper's raw-string and filter integration with bashjson.",
         "reason": "The pinned /source tree contains no jq.sh source or wrapper fixture. A future disposable rootfs must include the exact pinned bash-os jq.sh and bash-os binary, keep candidate PATH empty, and compare at least jq.sh -r string output and one nested filter against host jq. This case has no execution result."
       },
-      "coverage": "none",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "The scenario names a component the candidate does not ship. The jq builtin has its own executed parity cases for similar behaviour, but that is a different program, so it cannot stand in for this compound scenario.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "jq.sh -r prints a raw (unquoted) string obtained through bashjson.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The /bash-os/jq.sh wrapper named by bashjson's help (bashjson.c:60, :1705) is not in the repository or any build; loadables/jq.c says it ports that subset into C and does not call bashjson."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-bashjson-jq-raw-string",
+              "assertion": "jq.sh -r .name on a document containing an embedded quote and a non-ASCII character must print the raw string exactly as host jq -r does. /bash-os/jq.sh is absent from both the frozen payload and the guest image, so the candidate exits 127 ('No such file or directory') while the reference host jq 1.7.1 produces the compared bytes.",
+              "definition_sha256": "6964cd95b22889eea30d14907ed73cbc505e7b3de7be24ba9141409b3a3e440b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "jq.sh evaluates one nested filter equal to host jq.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Same: the wrapper does not exist."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-bashjson-jq-nested-filter",
+              "assertion": "The nested path .users[1].profile.meta.deep[2] must evaluate to 30, the same as host jq. /bash-os/jq.sh is absent from both the frozen payload and the guest image, so the candidate exits 127 ('No such file or directory') while the reference host jq 1.7.1 produces the compared bytes.",
+              "definition_sha256": "fc087d761b769d71f71bd13a76d2af732733393fe9a67c680413bb9307354506"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "grep for jq.sh: only references are bashjson.c comments/help and jq.c:4."
@@ -2424,44 +2583,79 @@
         "purpose": "Exercise bind, recursive bind, and remount behavior including read-only follow-up remount handling.",
         "reason": "Requires a disposable VM with nested fixture mountpoints in a private mount namespace, or a reviewed syscall mock that records both mount(2) calls and their flags. Verify -B, -R, --remount, and bind plus ro semantics without changing host mounts."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Missing fixture. No executed case attempts a mount. In the existing drivers uid 2000 gets EPERM from mount(2), but a fresh user plus mount namespace (USERNS) gives namespace-scoped CAP_SYS_ADMIN, enough for tmpfs mounts, binds, remounts and lazy unmounts of mounts created there. Locked-flag rules apply only to mounts inherited from the parent namespace, so use fresh tmpfs mounts.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-B SRC DST bind-mounts a relative directory: DST shows SRC's contents, and mountinfo shows the same superblock with an FSROOT of the source subtree.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No bind mount is executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-bind-relative",
+              "assertion": "-B src dst (relative) shows src contents in dst; mountinfo root is /src on the base tmpfs device number, equal to a util-linux --bind control",
+              "definition_sha256": "ffbe27a4b6f242ec0c8aa4410409e6f7a41ac749f03be0e5c726e6c3f9dc3eca"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "-R recursively binds, including a submount nested under SRC. A plain -B must not carry that submount.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No recursive bind is executed. The nested submount can be created inside the same USERNS mount namespace with /usr/bin/mount as setup."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-rbind",
+              "assertion": "-R carries the nested tmpfs submount (mountpoint present, inner file visible) like util-linux --rbind, while plain -B shows no submount and an empty directory",
+              "definition_sha256": "d4a5fa0321a9458b94445dad1b98852b5f79e9a3a20f7acfa6fbba30d5338960"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "-B -o ro issues the bind and then a MS_BIND|MS_REMOUNT|MS_RDONLY follow-up. The resulting bind is read-only (writes fail with EROFS) while the source stays writable.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The follow-up remount at loadables/bashmount.c:670-675 is never executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-bind-ro",
+              "assertion": "-B -o ro: writes through the bind fail while the source stays writable; per-mount ro without superblock ro, equal to util-linux bind then remount,bind,ro",
+              "definition_sha256": "67f80b3bf1f93385673f58fac9dbf6aa282b6b101517d6d6090f7a71dd5e33c3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "--remount -o ro DST (and -o rw) changes an existing mount's flags; super-block versus per-mount effects are compared with util-linux `mount -o remount,ro`.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No remount is executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-remount",
+              "assertion": "--remount -o ro then -o rw: direct and via-bind writes fail then succeed (superblock-wide for tmpfs), and mountinfo mount/super options equal a raw MS_REMOUNT control (util-linux remount fails here with an invalid uid option for tmpfs)",
+              "definition_sha256": "82379def773836da4d07f55a70970886248b7fd4ee9655acda97510f3e6f788c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Argument errors: -B/-R with the wrong operand count, --remount without DST, and conflicting verbs return the documented usage status.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case invokes these parse paths. Usage checks need no privilege but are still unexecuted."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-bind-usage",
+              "assertion": "-B/-R with one or three operands, --remount with none or two, and bind+rbind, remount+bind and remount+list conflicts all return status 2 with the documented diagnostic",
+              "definition_sha256": "996d16ed1e24c8bd927dcc11e738ba9ec0f6f5bf25c6f22ff9ddd95effd3f177"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "Semantic difference to check: bashmount --remount passes MS_REMOUNT|flags without MS_BIND (bashmount.c:680-686), which changes super-block flags. util-linux `mount -o remount,ro` on a bind mount uses MS_REMOUNT|MS_BIND in libmount, which changes the per-mount flag only. A remount of a bind target may therefore diverge (unexecuted prediction)."
@@ -2474,44 +2668,79 @@
         "purpose": "Exercise plain typed mounts, option flag mapping, and filesystem-specific data forwarding.",
         "reason": "Requires a disposable VM with a dedicated mount namespace and disposable tmpfs target, or a reviewed mount(2) mock that records source, target, type, flags, and data. The fixture must verify successful tmpfs mount effects and option combinations such as ro,nosuid,size=64k without touching host mounts."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Missing fixture. No executed case attempts a mount. In the existing drivers uid 2000 gets EPERM from mount(2), but a fresh user plus mount namespace (USERNS) gives namespace-scoped CAP_SYS_ADMIN, enough for tmpfs mounts, binds, remounts and lazy unmounts of mounts created there. Locked-flag rules apply only to mounts inherited from the parent namespace, so use fresh tmpfs mounts.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A plain typed mount of a tmpfs onto a relative directory succeeds; afterwards the target is a mountpoint of fstype tmpfs, and files written into it live on the new filesystem.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case calls bashmount SRC DST. The suite's queries (mountpoint_devno, nonmount-device-query) never create a mount."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-mount-plain",
+              "assertion": "bashmount -t tmpfs tmpfs one succeeds (rc 0); independent mountinfo parse shows one as a mountpoint with fstype tmpfs equal to the util-linux control; st_dev differs from the parent, the written file reads back live and vanishes after unmount while the directory remains",
+              "definition_sha256": "d615dc0a0bdce93ef4e2dbd3a55cd1e1e5939ac097866a498ce8a6ae1a414713"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Known option names map to MS_* flags: -o ro,nosuid,nodev,noexec,noatime yields the matching per-mount options in mountinfo, and rw/suid/dev/exec clear the opposite bits.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No mount runs, so no mountinfo option string is produced or compared."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-mount-flags",
+              "assertion": "-o ro,nosuid,nodev,noexec,noatime yields per-mount options noatime,nodev,noexec,nosuid,ro identical to util-linux; a later --remount -o rw,suid,dev,exec clears ro/nosuid/noexec/nodev (noatime retained per mount(2)) and equals a raw MS_REMOUNT control",
+              "definition_sha256": "92d6ee484c43845b816f101fad155706a8986ec8353bd81ce12d8ec6196bdd59"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Unknown option tokens are forwarded as filesystem data. With -o size=64k the tmpfs super options show size=64k, combined with the ro,nosuid flag mapping in the same request.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Data forwarding (bm_parse_opts appending unknown tokens) is never executed against the kernel."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-mount-data",
+              "assertion": "-o size=64k,ro,nosuid: tmpfs super options contain size=64k and ro, mount options contain ro,nosuid, size= is not a mount flag, and both option strings equal the util-linux mount result",
+              "definition_sha256": "0ac64ead6272b41dcb219b3c6bd8839ac4261486f3d35f6d360b062a25b589e0"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Failure status and diagnostic for a rejected mount: a missing target, an unknown fstype without probing, and an invalid data token such as size=bogus, compared with util-linux mount status classes.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No failing mount request is executed. Usage-error parsing (-t/-o without a value, conflicting verbs) is not exercised either."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-mount-failures",
+              "assertion": "missing target, unknown fstype (no probing) and size=bogus fail with status 1 and the kernel errno text matching a raw mount(2) call (ENOENT, ENODEV, EINVAL) and util-linux failure class 32; no mount is created; -t/-o without value, conflicting verbs and one operand return status 2 with the documented message",
+              "definition_sha256": "c45601c4488eac609b1939bd74e3ff535b9be68f9183c6dd1e2bd84a87916785"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "No host mount changes: every mount is confined to the per-side namespace and is gone after the side ends.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No driver-side post-condition check exists, because no driver runs mounts."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-confined",
+              "assertion": "plain mount, bind, remount and unmount inside the private mapped namespace leave the outer mountinfo byte-identical, with no fixture mountpoint and an empty fixture directory afterwards",
+              "definition_sha256": "1082989372a4629347c854f50d26625b71c95dbdf02cb3fa4b22c5a1742a3d1b"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "Source: loadables/bashmount.c:80-131 (option table and data forwarding) and :360-386 (bm_do_mount; the fs-type probe is skipped for bind/remount). Without -t, the candidate probes every type in /proc/filesystems (bm_probe_types, :338). util-linux uses libmount/blkid instead, so an untyped mount may diverge. Locked-flag semantics differ when the namespace is created inside a user namespace: remounting away MNT_LOCK_* flags inherited from the parent fails with EPERM. Use a fresh tmpfs created inside the namespace so no flags are locked."
@@ -2524,44 +2753,79 @@
         "purpose": "Exercise ordinary, lazy, and force unmount flag mapping and observable cleanup.",
         "reason": "Requires a disposable VM with disposable private-namespace mounts, or a reviewed umount2(2) mock that records flags. Verify normal, -l/MNT_DETACH, and -f/MNT_FORCE calls and cleanup/error behavior; no unmount operation is run in this suite."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Missing fixture. No executed case attempts a mount. In the existing drivers uid 2000 gets EPERM from mount(2), but a fresh user plus mount namespace (USERNS) gives namespace-scoped CAP_SYS_ADMIN, enough for tmpfs mounts, binds, remounts and lazy unmounts of mounts created there. Locked-flag rules apply only to mounts inherited from the parent namespace, so use fresh tmpfs mounts. A real MNT_FORCE needs initial-namespace CAP_SYS_ADMIN, so its flag mapping is captured with SECCOMP-NOTIFY instead.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-u DST performs an ordinary unmount: the mount disappears from mountinfo and the DST directory remains.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No umount2 call is executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-umount-plain",
+              "assertion": "-u a removes the mount from mountinfo like util-linux umount, the directory remains and the masked file is gone",
+              "definition_sha256": "4dca84e69868a1b90ff9b9b4fcdc3f400c31567de6246ffb9193be93fa3f0c6f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "-u -l DST requests MNT_DETACH. With an open descriptor inside DST (exec 3<dst/file) a normal unmount fails with EBUSY, while -l succeeds, detaches DST from mountinfo, and leaves fd 3 readable.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No lazy unmount is executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-umount-lazy",
+              "assertion": "with fd 3 open in the mount, -u fails status 1 EBUSY text (raw umount2 EBUSY, still mounted); -u -l succeeds, removes the mountinfo entry and fd 3 still reads its content",
+              "definition_sha256": "875303980e9a6d1172db1af343dc4924ba9c5c496e56d558605d946d7141a4b0"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "-u -f DST requests MNT_FORCE, and the status and cleanup are compared with `umount -f`.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "A real MNT_FORCE needs CAP_SYS_ADMIN in the initial user namespace (the capable() check in ksys_umount), which USERNS does not give. The flag mapping (-f gives MNT_FORCE=1, -l gives MNT_DETACH=2) can be recorded by SECCOMP-NOTIFY in the modern plain driver, which captures umount2(target, flags) and replies with success or an error for both util-linux `umount -f` and the candidate, without reaching the kernel."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-umount-force",
+              "assertion": "seccomp-notify records umount2 flags 1 for -f, 2 for -l, 0 for plain and 3 for -l -f; -f succeeds like util-linux umount -f (flags 1, rc 0) in the mapped namespace and the mounts are gone",
+              "definition_sha256": "1cf206f4772d550ea088956931f932dd9b22cb1f9d7504abcb59a72168784708"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Error behavior: unmounting a non-mountpoint (EINVAL), a missing path (ENOENT), and a busy mount without -l (EBUSY), with nonzero status and diagnostics compared with util-linux umount status classes.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No failing umount is executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-umount-errors",
+              "assertion": "non-mountpoint EINVAL, missing path ENOENT and busy mount EBUSY give status 1 with the matching errno text (raw umount2 oracle) and util-linux failure class 32; the busy mount stays; -u without operand and -f without -u return status 2",
+              "definition_sha256": "ccc9cc35d0af0c497287ba2f3bf145d9d96187cc61ee255886c3449e30a2053f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Observable cleanup: after each side, no fixture mount remains in the namespace.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No driver-side cleanup assertion exists."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-bashmount-confined",
+              "assertion": "after mount/bind/remount/umount in the side namespace the outer namespace has no fixture mount and byte-identical mountinfo",
+              "definition_sha256": "1082989372a4629347c854f50d26625b71c95dbdf02cb3fa4b22c5a1742a3d1b"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "Source: loadables/bashmount.c:389-395 (bm_do_umount) and :547-556 (-l means MNT_DETACH only after -u; otherwise it lists; -f is rejected without -u). The parse-only paths (-f without -u returns EX_USAGE) are reachable unprivileged and are not yet executed."
@@ -2574,44 +2838,91 @@
         "purpose": "Exercise Perl system/exec calls, signal handling, arbitrary descriptor changes, or native XS code that can affect the embedding Bash process.",
         "reason": "A future disposable VM should provide a dedicated child-process fixture and syscall or XS mocks that record the requested process effects without launching host commands, signaling unrelated processes, changing host state, or loading an unreviewed extension."
       },
-      "coverage": "none",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "bashperl is an optional module and was not built into either qualified binary (both builds report 'loadable is not present'), so none of its legacy cases, including the ten runnable ones, executed. No fixture exists for the process, signal, descriptor or XS obligations.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Perl system() runs a child from the embedded interpreter and reports its exit status ($? >> 8) as the standalone perl CLI does; the embedding Bash keeps running afterwards",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No executed case. Every legacy bashperl case was skipped because neither qualified binary contains bashperl."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-bashperl-system-status",
+              "assertion": "system() runs /bin/sh -c 'exit 3'; $? >> 8 is 3 and the shell continues with status 0. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
+              "definition_sha256": "27097e04655562b58630f03e2bd2186a7a6cb12986e0f7d42557d878a5a620b6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Perl exec() in the builtin: its effect on the embedding Bash process (replacement or refusal) is specified and observed",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised. loadables/bashperl.c has no exec guard, so exec would replace the shell process; no documented contract states the expected outcome."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-bashperl-exec-subshell",
+              "assertion": "exec inside a subshell replaces only the subshell; parent continues (parity with standalone perl). bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
+              "definition_sha256": "01aded00fc00e290f649c7af161b351fbe77172bf63fc1d82a27c2dd0d669460"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w3-bashperl-exec-replaces-shell",
+              "assertion": "Contract from docs/perl.md: exec outside a subshell replaces the embedding Bash, so only the exec'd program's output appears and the following command never runs. Expected bytes come from the documentation, not from any run. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
+              "definition_sha256": "8db8ff40f48295f0cfbc51210ed7e9bc85b1eaf4ca588f3764ae3e77bf793b12"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Perl %SIG handler installation and a delivered signal inside the builtin; the shell's original dispositions are restored afterwards",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised. The restoration code is bashperl.c:189 (save) and :112 (restore)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-bashperl-sig-handlers",
+              "assertion": "Perl %SIG handlers for USR1/USR2 run on delivered signals; afterwards the shell's USR1 trap still fires and its ignored USR2 stays ignored (handler and disposition restoration). bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
+              "definition_sha256": "86acbd2a59a6e2c2c021754ceb9a54d9771934cd2fe7545663e22f3104a35d30"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Arbitrary descriptor changes (open/dup2/close of fds 0-2 and higher) inside Perl; the shell's standard descriptors are restored and non-standard changes behave as documented",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised. The help text documents restoration of the standard descriptors only (bashperl.c:272)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-bashperl-std-fds",
+              "assertion": "Perl redirects and closes descriptors 0-2; the shell's stdout, stderr and stdin must still work afterwards and the redirected bytes must be in the file. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
+              "definition_sha256": "631f1e88ca83aacc14634619c2bc7e09a54570e6b56fdc738b465bf5617fe6d5"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w3-bashperl-high-fd",
+              "assertion": "Contract from docs/perl.md: closing nonstandard descriptor 7 inside the builtin persists, so a later write to fd 7 fails with status 1. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
+              "definition_sha256": "9a1f002bb91db49f367043cb38c09f2e921da0aa5f966f700a97d2aee05db256"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Loading a native XS module (for example POSIX or List::Util) through the exposed Perl API; it works and leaves the shell state intact",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised. XS needs the global symbol exposure at bashperl.c:247-251."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-bashperl-xs-modules",
+              "assertion": "POSIX, List::Util and Data::Dumper (XS) load and compute 55 9 2 1971-01-01 [1,{'a' => 2}]; afterwards shell variable, cwd and umask are unchanged. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
+              "definition_sha256": "c1ec37c976968bc3036bb1cd5ba4ad1692d13017eb8c62591c513196d55414d9"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "bashperl.c:29-31 saves sigactions, :112 restores them, :230 raises SIGINT, :247 handles XS. The suite exclusions call these effects out explicitly. This entry has an artifact dependency, not a driver gap: no new harness capability is needed once the optional module is built. Precise missing capability: an optional-module build profile in qualification. The module source exists (loadables/bashperl.c, built by build.sh with the pinned static libperl), but neither qualified binary (static 2511208d\u2026, nor the dynamic build) includes it, so every case reports 'loadable is not present in the candidate binary'. This is not a driver feature: the PTY and plain drivers already provide everything the proposed cases need."
@@ -3089,37 +3400,65 @@
         "purpose": "Check prompt input, output, and EOF behavior for the documented interactive invocation.",
         "reason": "Requires a bounded PTY driver to provide terminal input and observe the prompt; the fixture runner supplies no PTY. A future disposable VM test should use only a private PTY, fixed input lines, and a bounded EOF sequence."
       },
-      "coverage": "none",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "bashpython is optional and missing from both qualified binaries, and no terminal case exists. The PTY driver can supply input and observe prompts (expect/send/termios/terminal_restored), so a PTY is no longer the blocker.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Interactive invocation on a terminal shows the primary prompt '>>> '",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No PTY case. bashpython is absent from both qualified binaries (all legacy cases SKIP)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "mig-w3-bashpython-prompt-primary",
+              "assertion": "On a PTY the interactive interpreter shows '>>> '. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
+              "definition_sha256": "25ca9d5981bccd9828762b23e9991b8fb58976cc2ebf921935c0effbc17de05c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Typed input lines are executed and their output appears on the terminal (for example print(6*7) shows 42)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "mig-w3-bashpython-prompt-exec-line",
+              "assertion": "Typed print(6*7) prints 42 on its own line followed by a new prompt. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
+              "definition_sha256": "687360f3b69264a4e2351f7896fdb68f3d91739e2e18fd2ab3d6c7ba67f3c0eb"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "A continuation prompt '... ' appears for a compound statement",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised. This is implied by 'prompt input' for multi-line code."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "mig-w3-bashpython-prompt-continuation",
+              "assertion": "A for statement shows '... ' after the header and after the body, then prints 0 and 1. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
+              "definition_sha256": "0e4cb1cf0a75d4c1029f7912c958db3d2e9b3967fd73ff04df9dbf1fabcddf45"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "EOF (Ctrl-D at an empty prompt) exits with status 0, terminal modes are restored, and the calling shell continues",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "mig-w3-bashpython-prompt-eof",
+              "assertion": "Ctrl-D at an empty prompt exits with status 0 (after=0 printed by the calling shell) and the driver asserts the PTY modes are restored. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
+              "definition_sha256": "8cb98cd5b34885bc0353f10abe7a478b7752664e5bc1b5756b6f151e87906c49"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "bashpython.c:78-94 runs a separate child and ignores SIGINT in the parent. Version skew between the embedded CPython and the system python3 3.13 can change the banner, so suppress it with -q. Precise missing capability: an optional-module build profile in qualification. The module source exists (loadables/bashpython.c, built by build.sh with the pinned static libpython), but neither qualified binary (static 2511208d\u2026, nor the dynamic build) includes it, so every case reports 'loadable is not present in the candidate binary'. This is not a driver feature: the PTY and plain drivers already provide everything the proposed cases need."
@@ -3132,30 +3471,51 @@
         "purpose": "Compare caught and unhandled KeyboardInterrupt behavior between the builtin and standalone Python.",
         "reason": "Requires controlled SIGINT injection while a bounded Python child is waiting. The current runner has no fixture-scoped signal controller. A future disposable VM test should target only the fixture's own process group and capture child and shell status."
       },
-      "coverage": "none",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "Optional module missing from both builds. The stated blocker (no fixture-scoped signal controller) is stale: the PTY driver sends ^C through the private terminal's line discipline only to that PTY's foreground group, and foreground_job [SIGINT] can wait until the child accepts SIGINT.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "SIGINT from the terminal while Python sleeps, with the exception caught by try/except KeyboardInterrupt: the handler output appears and the shell sees the normal status",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised. bashpython is absent from both binaries."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "mig-w3-bashpython-ki-caught",
+              "assertion": "^C while sleeping inside try/except KeyboardInterrupt prints 'caught' and the interactive shell sees status 0. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
+              "definition_sha256": "9cc2583da806e4e2011799df131a7cde169238922b72daaa119097ce0c46ad38"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Unhandled KeyboardInterrupt: Python exits by SIGINT, a traceback diagnostic appears, and the shell sees status 130 or the SIGINT termination exactly as with standalone python3",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised. bashpython.c:93-94 re-raises SIGINT in the shell when the child dies of SIGINT; this has never been compared with how the reference Bash handles a SIGINT-killed child."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "mig-w3-bashpython-ki-unhandled",
+              "assertion": "Unhandled KeyboardInterrupt prints a traceback ending in KeyboardInterrupt and the interactive shell reports status 130. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
+              "definition_sha256": "78ddeb6ded8e0d543f1901f6439e21cf08aa16ee0aeba6ac7840976588ff70e4"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Only the fixture's foreground process group receives the signal, and the calling shell's state afterwards matches the reference",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "terminal",
+              "id": "mig-w3-bashpython-ki-group-scope",
+              "assertion": "A background sentinel in its own process group sees no SIGINT (sentinel=no-int) and the calling shell's cwd and environment are unchanged after the Python program changed them. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
+              "definition_sha256": "69867da7356588db9b70df00c964cd52ec4f595ca80706b4566946eae416972c"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "bashpython.c:78 ignores SIGINT during the wait and :93 calls raise(SIGINT). Because of that raise, the outer bash -c may itself die by SIGINT; GNU Bash does the same for a foreground child killed by SIGINT. Validate this on the reference. Precise missing capability: an optional-module build profile in qualification. The module source exists (loadables/bashpython.c, built by build.sh with the pinned static libpython), but neither qualified binary (static 2511208d\u2026, nor the dynamic build) includes it, so every case reports 'loadable is not present in the candidate binary'. This is not a driver feature: the PTY and plain drivers already provide everything the proposed cases need."
@@ -10133,51 +10493,101 @@
         "purpose": "Exercise the live stateless INFORMATION-REQUEST exchange and DNS/domain option handling only in a future disposable network fixture.",
         "reason": "Requires a disposable VM or mock network namespace with an isolated IPv6 link, a controlled DHCPv6 server bound to UDP/547 that returns DNS/domain configuration, permission to bind the client UDP/546 socket, and packet capture proving the request/reply behavior. This suite must not contact a real network target."
       },
-      "coverage": "partial",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "The live exchange is reachable on IPv6 loopback with -S ::1 and BASHDHCP6_SERVER_PORT/CLIENT_PORT; the peer driver lacks a DHCPv6/IPv6 peer.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "inforequest sends INFORMATION-REQUEST: type 11, CLIENTID, ELAPSED_TIME, ORO 23,24 by default, no IA_NA.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/dhcp6/build_information_request",
               "assertion": "Offline builder emits exact INFORMATION-REQUEST bytes with CLIENTID, ELAPSED_TIME and ORO, without IA_NA.",
               "definition_sha256": "313a6331068bdc32fa977c1ea09b8f1a818439331cf7d768610a2aa1f1215c28"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-inforequest-fields",
+              "assertion": "The datagram received by a veth-attached Python DHCPv6 peer is type 11 with CLIENTID = DUID-LL of veth0, a two-byte ELAPSED_TIME, ORO exactly 23,24 and no IA_NA/IA_PD.",
+              "definition_sha256": "d95d485fbc2c0b00abfe920e4e30dbc504b569c03f58a882e00b2d4d260f784a"
             }
           ],
-          "gap": "The live path uses a time-based xid and the same builder, but the transmitted datagram is not captured."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "The REPLY with matching xid is decoded; DNS servers and domain list are output or bound to -V.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/dhcp6/parse_advertise_options",
               "assertion": "Offline parser decodes DUIDs, IA_NA, DNS, status and ORO from a fixed ADVERTISE.",
               "definition_sha256": "c87258dd14fcdadb337fe0f2eba599ded6db859a9e54b09792bf91ea93255b4a"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-inforequest-reply-dns",
+              "assertion": "The REPLY with the matching xid is decoded and both DNS servers are printed; a wrong-xid REPLY sent first (2001:db8::bad) is ignored.",
+              "definition_sha256": "294150275329caade2d500b62ab1c45819c9700d1fa6b660acd6832c429b9a66"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-inforequest-reply-domains",
+              "assertion": "The REPLY option 24 domain list (lab.test, example.org) is not decoded or printed; the case FAILs on both builds.",
+              "definition_sha256": "fa89d1dfe594e6c0b9de15b6d8ff8e1dc5f8a3f4abf36ff9a7837590b664355f"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-inforequest-reply-bind",
+              "assertion": "With -V R the DNS servers from the live REPLY are bound to the associative array and nothing is printed.",
+              "definition_sha256": "3f73310857cd7b69930dbfb8cf42292fe64fb136e1c80e22250e46cb99bf10c6"
             }
           ],
-          "gap": "Domain-list (option 24) decoding and live REPLY reception are not observed."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Retransmits up to 3 times and fails with 'no REPLY (timeout)' status 1.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No silent peer."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-inforequest-retransmit",
+              "assertion": "Against a silent peer three INFORMATION-REQUESTs with one xid arrive about 1 s apart, status 1, stderr contains \"no REPLY (timeout)\".",
+              "definition_sha256": "cbeebc09d0879cb14b2db3c07ed9524a33a437a852023746249537d85bbc54b8"
+            },
+            {
+              "group": "shell",
+              "id": "migration-dhcp6-inforequest-silent-timeout",
+              "assertion": "Earlier ::1 silent-peer case counting three transmissions and the no-REPLY diagnostic.",
+              "definition_sha256": "31e154de2e311764ffc4e12e9759cfc0d31be4a26953e842f658ea14fa3725c9"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Binds the client UDP port (546 default or BASHDHCP6_CLIENT_PORT) and sends to ff02::1:2 or -S unicast.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No live run."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-inforequest-default-transport",
+              "assertion": "By default the datagram arrives at the peer destined to ff02::1:2 from [fe80::a01]:546.",
+              "definition_sha256": "811890a4098b833ebf22863a77004c573e25fd3c67afd1f814a7403e4d2f0e23"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-inforequest-override-transport",
+              "assertion": "With BASHDHCP6_CLIENT_PORT=54600, BASHDHCP6_SERVER_PORT=5470 and -S fe80::a02 the datagram is unicast to the peer from source port 54600.",
+              "definition_sha256": "f74c610c4d70b5ebd66b1272ebb11a2391dcb8531737555601c79b1f107b2eaf"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "loadables/dhcp6.c:618-680 inforequest; ports via d6_port :403-407; xid time-based :659."
@@ -10190,42 +10600,66 @@
         "purpose": "Exercise the live SOLICIT to ADVERTISE to REQUEST to REPLY state machine only in a future disposable network fixture.",
         "reason": "Requires a disposable VM or mock network namespace with an isolated IPv6 link, a controlled DHCPv6 server bound to UDP/547, permission to bind the client UDP/546 socket, and packet capture to verify XIDs, requested options, retries, and the accepted REPLY. This suite must not contact a real network target."
       },
-      "coverage": "partial",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "The live state machine is reachable on [::1] with -S ::1 and BASHDHCP6_* ports; no DHCPv6 peer exists.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "SOLICIT carries CLIENTID, ELAPSED_TIME, IA_NA (IAID) and ORO.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/dhcp6/build_solicit_fixed_xid",
               "assertion": "Offline SOLICIT bytes with CLIENTID, ELAPSED_TIME and IA_NA IAID 1.",
               "definition_sha256": "387906141d128032e95b954be890024a28a345c704263052de9c7f7b56de3363"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-solicit-fields",
+              "assertion": "The live SOLICIT has CLIENTID, two-byte ELAPSED_TIME, IA_NA with IAID 7, ORO exactly 23, and no RAPID_COMMIT or IA_PD.",
+              "definition_sha256": "6455cdd673b678bf0bfb38419413986094407ad9aa1f4a31d1d6286bcb8bccb4"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-solicit-rapid-form",
+              "assertion": "--rapid adds an empty RAPID_COMMIT option (14) to the SOLICIT.",
+              "definition_sha256": "8b158c0d89cdfe90ddc47a92f5d188f76f1f83470c0f75c76b6d1c0ec3214407"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-solicit-pd-form",
+              "assertion": "--pd 9 adds an IA_PD (25) with IAID 9.",
+              "definition_sha256": "2b055063012b1256e0e6dc6b8b5322920af5015f42a447766529e8de1a20ece1"
             }
           ],
-          "gap": "Live SOLICIT capture missing; the live ORO default (DNS) and --rapid/--pd forms are not checked."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "ADVERTISE is accepted only with matching xid, then REQUEST carries the server DUID and offered IAADDR.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/dhcp6/build_request_address_oro",
               "assertion": "Offline REQUEST bytes with server DUID, IAADDR lifetimes, IAID and ORO.",
               "definition_sha256": "c9770ec7363a58b431a73897b1493b7f89b50b79af5b26d2ff8d51fe5618b095"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-solicit-request-follows",
+              "assertion": "A wrong-xid ADVERTISE from a different server with another address is ignored; the REQUEST carries the genuine server DUID and IAADDR 2001:db8::50 with IAID 7.",
+              "definition_sha256": "4f14728d89185a803b3a2a04a2b0c09bf8ad1aeb4e76a8dd38854dcadcdc34c6"
             }
           ],
-          "gap": "No live ADVERTISE\u2192REQUEST transition; xid filtering unobserved."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "The accepted REPLY is decoded and emitted (or bound with -V).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -10238,23 +10672,55 @@
               "id": "legacy/dhcp6/parse_assoc_array_output",
               "assertion": "parse -V binding.",
               "definition_sha256": "0414756c14855baca160f2079f5b68929e1dae4b70ade9d429ff127f6c7f3157"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-solicit-reply-print",
+              "assertion": "The printed REPLY has msg_type, xid, client_id, server_id, iaid, t1, t2, address, preferred, valid and dns equal to the values the peer sent.",
+              "definition_sha256": "1ea8e03a3484fb97f25ef0abeddf9aee39d9d8dd2728d7ec7652004b002571a5"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-solicit-reply-bind",
+              "assertion": "With -V R the same fields are bound to the associative array and nothing is printed.",
+              "definition_sha256": "c904b374642006f75f5a297d0815a49419d9b7e73422f5b0af06d304677e917b"
             }
           ],
-          "gap": "No live REPLY reception."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Retransmission (up to 3) and timeout failures for missing ADVERTISE or REPLY.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No silent peer."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-solicit-no-advertise",
+              "assertion": "Silent peer: three SOLICITs about 1 s apart, status 1, \"no ADVERTISE (timeout)\".",
+              "definition_sha256": "f353695eb4bbfea26bf5bd906d48f2b05db3ad190e7fe86748e119f056a5abbe"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-solicit-no-reply",
+              "assertion": "ADVERTISE but no REPLY: three REQUESTs about 1 s apart, status 1, \"no REPLY (timeout)\".",
+              "definition_sha256": "e742d2202cbd5294ab7baab7b5f5281191045a83503eec8d153340e4b16919fa"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "--rapid commit accepts a direct REPLY.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcp6-solicit-rapid-direct",
+              "assertion": "--rapid accepts the peer direct REPLY: exit 0, decoded REPLY fields printed, no REQUEST was sent.",
+              "definition_sha256": "1af0b80542a4bb4186d99dceb4ee4729ec4b0bc1e793f28a8cc5e3e134d35598"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "loadables/dhcp6.c:430-505 d6_solicit_exchange; :584-616 option parsing."
@@ -10267,30 +10733,51 @@
         "purpose": "Cover DECLINE quarantine, RELEASE lease removal and lease-exec commit/release environment variables without allowing an uncontrolled child command.",
         "reason": "Requires a future disposable VM or reviewed packet/clock and child-process mock. The fixture must inject DECLINE and RELEASE packets, observe the quarantine interval deterministically, and replace lease-exec with a bounded recording stub; no packets or hook commands are run here."
       },
-      "coverage": "partial",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "Remaining obligations: r1: No serve run.; r2: Not observed.; r3: Not observed.; r5: Not observed.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "DHCPDECLINE with option 50 quarantines that address for BASHDHCPD_DECLINE_QUARANTINE_SEC; a following DISCOVER is offered a different address; after expiry it is offered again.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No serve run."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-decline-quarantine",
+              "assertion": "With BASHDHCPD_DECLINE_QUARANTINE_SEC=2: .100 is offered, declined, a following DISCOVER from another MAC is offered .101, and after 3 s a new DISCOVER is offered .100 again.",
+              "definition_sha256": "d973355ca7d137669cf15771c5b69b4e785be12103527f8a22b4dccab0839e0d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "DECLINE removes the client's persisted lease.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-decline-removes-lease",
+              "assertion": "After a committed lease (one line in the file) a DECLINE with option 50 leaves the lease file without that client.",
+              "definition_sha256": "a64d6fe50e17173f15b910dfea61b3f680ca14f0988757d5ab344bbc09c630a3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "RELEASE removes the client's lease from the lease file.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-release-removes-lease",
+              "assertion": "After a committed lease a unicast RELEASE from the leased address leaves the lease file without that client.",
+              "definition_sha256": "d959120db6d539ba3bdc800413cd16dbc2e41cc05c84a24fa5842736f4244f90"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
@@ -10309,9 +10796,16 @@
         {
           "id": "r5",
           "behavior": "lease-exec runs on release with BASHDHCPD_ACTION=release.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-release-runs-hook",
+              "assertion": "A lease-exec hook that appends action, MAC and IP records exactly \"commit 02:00:00:00:0b:01 192.0.2.100\" then \"release 02:00:00:00:0b:01 192.0.2.100\".",
+              "definition_sha256": "4264e55241dc6dd8690d95414647604aa1b6df9f4c3821c516f477f1263a9246"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
@@ -10344,8 +10838,8 @@
         "purpose": "Cover giaddr-based subnet selection and reply routing, option-82 echo, ProxyDHCP on UDP/4011, and configured PXE options.",
         "reason": "Requires a future disposable DHCP relay/client fixture or reviewed socket mock that can independently inspect giaddr, option 82, proxy replies and PXE option 43/66/67. Network activity is prohibited in this run, so these server paths are not invoked."
       },
-      "coverage": "partial",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "Remaining obligations: r2: No serve run.; r4: Not observed.; r5: The negative-vendor next-server gating obligation remains unqualified; live PXE/proxy socket behavior is not covered.",
       "requirements": [
         {
@@ -10371,9 +10865,22 @@
         {
           "id": "r2",
           "behavior": "giaddr is echoed and the reply is sent to the relay on UDP 67 (BASHDHCPD_RELAY_PORT).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No serve run."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-relay-reply-port-67",
+              "assertion": "A relay at 192.0.2.5 sends a giaddr-set DISCOVER; the reply is unicast to 192.0.2.5 UDP 67 from 192.0.2.1:67, giaddr echoed, type OFFER.",
+              "definition_sha256": "a01804f0102991360fe35663d906c5486e74392247e7caf7873a7f129c9da9e4"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-relay-reply-port-override",
+              "assertion": "With BASHDHCPD_RELAY_PORT=6700 the reply is unicast to 192.0.2.5 UDP 6700 with giaddr echoed.",
+              "definition_sha256": "c4313d7c62e87e0b2c4894dbd75494e040a059b8850f555aeefe2a1a6b7e6043"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
@@ -10398,23 +10905,42 @@
         {
           "id": "r4",
           "behavior": "With proxy-dhcp on, the server binds UDP 4011 and answers offer-only PXE replies to the source.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-proxy-dhcp-socket",
+              "assertion": "With proxy-dhcp on, a PXEClient DISCOVER and REQUEST sent to server UDP 4011 are answered from port 4011 to the source address and port with OFFER/ACK, yiaddr 0.0.0.0, option 60 PXEClient, option 67 pxelinux.0, and no lease is assigned.",
+              "definition_sha256": "456bda83fc6f6983640fe69a3ca671ea54aeafc41ec07202060c327f7b1b1c9e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Configured PXE options: siaddr next-server, option 66, option 67 + BOOTP file, option 43 sub-options 6/8/9/10, gated by option 60 PXEClient when pxe-vendor-match is on.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-farm600-dhcp-server-reviewed-pxe-match",
               "assertion": "Both frozen builds: The reached PXE packet fails the configured menu encoding: option 43 suboption 9 contains 0007426f6f74 instead of 000704426f6f74, omitting the label-length byte. Preserve this complete packet mismatch as FAIL. Independent raw packet, lease or hook observations qualify this bounded offline claim only.",
               "definition_sha256": "742a1c9943ab021b50d897839213bf40d2bd1ca24fd09a73f641d5f1379cc87d"
+            },
+            {
+              "group": "shell",
+              "id": "migration-farm600-dhcp-server-reviewed-pxe-other",
+              "assertion": "A nonmatching vendor does not receive the gated PXE options or BOOTP file.",
+              "definition_sha256": "89e3f78cf1b01050f2e7c9c19be6fde4516543adee1a5337e5bd66807824c9be"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-pxe-vendor-gating-negative",
+              "assertion": "With pxe-vendor-match on, a request without option 60 and one with MSFT 5.0 get no options 66/67/43 or BOOTP file but siaddr is still the configured next-server 192.0.2.99; the case FAILs on both builds at the siaddr gate while a PXEClient request correctly gets siaddr, 66, 67 and the BOOTP file.",
+              "definition_sha256": "7372a5329a38d21a050f54bf3bfdc1d38dee956f3bfcb57bf85b7d5cd8f0ee7f"
             }
           ],
-          "gap": "The negative-vendor next-server gating obligation remains unqualified; live PXE/proxy socket behavior is not covered."
+          "gap": ""
         }
       ],
       "notes": "loadables/dhcpd.c:569-608 subnet selection; :944 giaddr echo; :1029-1036 option 82; :335-360 PXE option 43; proxy socket :1596-1606; reply routing :1486-1500. Seven paired offline cases retain six raw PASS and one raw FAIL per frozen build. Primary replay and independent audit qualify only the stated completed packet, persisted lease and hook observations. No live serve exchange, DECLINE quarantine/expiry, RELEASE/removal/release hook, relay destination port or proxy socket is credited. The PXE menu mismatch remains FAIL; negative-vendor next-server gating is still incomplete."
@@ -10427,21 +10953,28 @@
         "purpose": "Cover the serve/run path through bounded DHCPDISCOVER/OFFER and DHCPREQUEST/ACK exchanges, pool allocation, lease persistence and wrapper state-directory handling.",
         "reason": "Requires a future disposable VM or reviewed private DHCP socket mock with an isolated client, deterministic packet capture and temporary config/lease paths. Current instructions prohibit network activity and server invocation; UDP/67 behavior is not exercised."
       },
-      "coverage": "partial",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "No live server run; the serve loop is reachable on loopback with BASHDHCPD_SERVER_PORT and relay-style replies, and broadcast replies need a script-created veth pair.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "serve binds UDP 67 (BASHDHCPD_SERVER_PORT) and answers DISCOVER with an OFFER from the pool.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No serve run."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-serve-offer",
+              "assertion": "serve answers a broadcast DISCOVER (sent by a veth-attached Python client) with an OFFER: xid echoed, yiaddr = first pool address 192.0.2.100, server id, mask, router, DNS, domain, lease time and chaddr as configured.",
+              "definition_sha256": "b69522343268e829d751cd0701a5f4a020cb73d9b0153efd981c7cf5881fca69"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "REQUEST yields an ACK and the lease is persisted to the lease file.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -10454,37 +10987,77 @@
               "id": "legacy/dhcpd/lease-db-relative-crud",
               "assertion": "Lease file record format, TTL and replacement through lease-add/list/remove.",
               "definition_sha256": "a0893055c96036e567e4101fc5a0d4269a5a715ea4b2f365b6c063fdf791a62c"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-serve-ack-persists-lease",
+              "assertion": "REQUEST yields an ACK for 192.0.2.100 and the lease file written by serve holds exactly one line: MAC, IP, host-a hostname and expiry = now + 3600 s (within 10 s).",
+              "definition_sha256": "eb89d350dc1ba84331ab78c36d4b74da2edc2c8879ab742bfee96a301a71c753"
             }
           ],
-          "gap": "No ACK via serve and no persistence by the server path."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Pool allocation keeps an existing client's lease and gives distinct addresses to distinct clients; an exhausted pool sends nothing.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-serve-pool-allocation",
+              "assertion": "Two-address pool: client A gets .100 then keeps .100 on a later DISCOVER, client B gets .101, and client C gets no reply from the exhausted pool.",
+              "definition_sha256": "e337be17d8ebe92d1d1d1e9169f1e4e5e31003c3022b630381f7f85a29d135aa"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Direct (giaddr 0) replies are broadcast to UDP 68.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs a script-built veth namespace to receive limited broadcast."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-serve-broadcast-to-68",
+              "assertion": "The sniffed reply to a giaddr-0 DISCOVER goes to Ethernet broadcast, IP 255.255.255.255, UDP port 68, from 192.0.2.1 port 67.",
+              "definition_sha256": "d3ea444ede2a6bae118425aa377f90da39025c3c9b829cfb26e4e98ebe5338ab"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "run -d STATEDIR creates the state directory then serves.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-run-creates-state-dir",
+              "assertion": "dhcpd run -d state creates the state directory (present afterwards) and then answers a DISCOVER.",
+              "definition_sha256": "b378a7a5510342f1d30d8ecd7f7311a0f89ce71f339c5b04038b78443e98d25d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "serve --once handles one message and returns (source: also returns after one idle 1 s select).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-serve-once-one-message",
+              "assertion": "serve --once answers the first DISCOVER and returns status 0 on its own; the second DISCOVER 1.5 s later gets no reply.",
+              "definition_sha256": "95025b007b37a0a74047a65fac67dc3f4de8cb736712ae10dce25cccc5cd1224"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd-serve-once-idle-return",
+              "assertion": "With no traffic serve --once returns status 0 after between 0.8 s and 2.5 s (one idle select).",
+              "definition_sha256": "744d5787e9ec5b06aafacb46e91fe27c5cbd6ef3709be15a34ead0d6171ba3a9"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "loadables/dhcpd.c:1405-1530 serve loop; :1561-1615 serve; :1617-1636 run; --once counts idle selects as iterations (:1410-1420), so the client must send within 1 s."
@@ -10497,37 +11070,71 @@
         "kind": "deferred",
         "reason": "A meaningful success-path oracle needs a frozen clock or clock mock plus an independent RFC 5007 encoder to check IAADDR lifetimes and CLT_TIME across boundary values. No matching GNU/Kea reference is available, and this operation is not claimed passed; run it later with a disposable deterministic clock/reference fixture."
       },
-      "coverage": "none",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "leasequery is an offline verb; a frozen clock is unnecessary because the script can seed lease expiries relative to its own clock read and assert bounded windows (as legacy/dhcpd/lease-db-relative-crud does).",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Query by address returns LEASEQUERY-REPLY with CLIENT_DATA containing CLIENTID, IAADDR and CLT_TIME for an active lease.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No leasequery case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd6-leasequery-by-address",
+              "assertion": "QUERY_BY_ADDRESS (RFC 5007 layout, link-address ::) for two active addresses returns type 15 with xid echoed, SERVERID, and CLIENT_DATA holding CLIENTID, IAADDR and a 4-byte CLT_TIME.",
+              "definition_sha256": "623af855890f4814663d27a8aed77d82d1bf682d34020e2a0aef01ba0b11395e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Query by client ID returns all that client's active addresses.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd6-leasequery-by-clientid",
+              "assertion": "QUERY_BY_CLIENTID for a client holding two active addresses returns both IAADDRs; another client returns its single address.",
+              "definition_sha256": "e7b6b3d8b745aa28d6336741a5d7800184aa051812224c1b828d0ce3a9f3094f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Misses and expired leases return the documented failure status without CLIENT_DATA.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd6-leasequery-miss-no-client-data",
+              "assertion": "Unknown address, unknown client, expired address and expired-only client each return a reply without CLIENT_DATA or IAADDR.",
+              "definition_sha256": "8366b503e89e765b489872bcb332eff3aa61f1c35cf3e30de2d479d922089944"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd6-leasequery-miss-failure-status",
+              "assertion": "The same four misses carry a nonzero status code option (status 1, \"lease not found\"); RFC 5007 s4.3.3 defines no status for a miss, so this records the requirement wording.",
+              "definition_sha256": "2bae3d4344a277e187d100e3dc3089d6e087349696b87e8eb4c6e597a695f9e0"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Valid lifetime equals remaining time; preferred = min(configured preferred, remaining); CLT_TIME = configured valid - remaining (bounded window).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd6-leasequery-lifetimes",
+              "assertion": "Seeded leases with 5000, 1000 and 7000 s remaining: valid equals remaining, preferred is min(3600, remaining), and CLT_TIME = 7200 - remaining, each within 15 s.",
+              "definition_sha256": "c3a84a0ea0e4292cd61d4db96593ca86d7354063f13c2b71a8fa2003173cfd32"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "loadables/dhcpd6.c:442-465 lease lifetimes/CLT_TIME; :467-505 reply build; miss returns UnspecFail 'lease not found' (:491, :514) \u2014 confirm against RFC 5007 (possible mismatch). leasequery verb :769-790."
@@ -10540,21 +11147,34 @@
         "kind": "deferred",
         "reason": "Requires a disposable VM or isolated network mock with a controlled DHCPv6 client on UDP 546 and server endpoint on UDP 547, an independent RFC 8415 peer/oracle, packet capture, and lease-file checks. This suite's safety scope forbids network activity, so no live serve/run operation is executed or claimed passed."
       },
-      "coverage": "partial",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "Offline seams are covered; the socket loop is reachable on [::1] with BASHDHCPD6_* ports, but no IPv6 client peer exists.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "serve binds [::]:547 (BASHDHCPD6_SERVER_PORT) and replies to the client's source address on port 546 (BASHDHCPD6_CLIENT_PORT).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No serve run."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd6-serve-default-ports",
+              "assertion": "A SOLICIT sent from an ephemeral port is answered from [fe80::a01]:547 to the request source address on UDP 546, and nothing arrives on the request source port.",
+              "definition_sha256": "fa2d9009b6132aa3fa03702baef4a948fd1906b49439f6e342588bc694b25acd"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd6-serve-override-ports",
+              "assertion": "With BASHDHCPD6_SERVER_PORT=5470 and BASHDHCPD6_CLIENT_PORT=5460 the server listens on 5470 and replies to port 5460.",
+              "definition_sha256": "505e06eb02801a0a640a21b6b49b89abfbb28744244d8848406c0998d4bc5710"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Client-visible SOLICIT\u2192ADVERTISE and REQUEST\u2192REPLY exchange with pool allocation.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -10573,30 +11193,67 @@
               "id": "legacy/dhcpd6/relay-forwarding",
               "assertion": "Offline RELAY-FORW\u2192RELAY-REPL envelope.",
               "definition_sha256": "26ab3e5ae43b654c8d9c6001b56e9f2298ba09a63c7b84973e2e2a0dd38bcede"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd6-serve-solicit-request-exchange",
+              "assertion": "Over the socket path SOLICIT gets an ADVERTISE and REQUEST a REPLY, each with server DUID, echoed client DUID, IAID 1, pool address 2001:db8::100 and preferred/valid 3600/7200.",
+              "definition_sha256": "e0295038e5568a547013c1e74d05d120cec80ab50589148b3ab2fc2d2e6af35f"
             }
           ],
-          "gap": "The socket path (bind, source-address reply, port rewrite) and REQUEST\u2192REPLY lease persistence via serve are not executed."
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Lease file is written on REPLY and RELEASE removes it through serve.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/dhcpd6/release-matching-lease",
               "assertion": "Offline RELEASE removes only the matching DUID/IAID.",
               "definition_sha256": "0e5c4ae012a8bbe65170727105eb0bc6e92efcd3237d6558e9d5981fc67d8d65"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd6-serve-lease-persist-release",
+              "assertion": "After the REPLY the lease file has exactly one line (client DUID, IAID, address hex, expiry = now + 7200 s) and a RELEASE answered with REPLY leaves it empty.",
+              "definition_sha256": "c9dbb341bc81b9f8dbeead96e2ddb491dda60b3b55b7466d015eaba92299d3d3"
             }
           ],
-          "gap": "Not via the live server."
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "serve --once handles one message then exits; run alias behaves the same.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not observed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd6-serve-once",
+              "assertion": "serve --once answers the first SOLICIT and exits 0; a later SOLICIT is unanswered.",
+              "definition_sha256": "077cbfcce96f4d5c4b320cffaaf97b31e8960f2dcc0e69cfc5273d56d7a31b41"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd6-run-once",
+              "assertion": "run --once behaves the same.",
+              "definition_sha256": "b972b8558e930383831ba2da3ab9d5d75d9a1f3f86e10800d5f918d4dda75769"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd6-serve-once-idle-exit",
+              "assertion": "serve --once with no traffic exits 0 after 0.8-2.5 s.",
+              "definition_sha256": "0e1ec0c214d43d5948a91e544bc8185f91cc1ba18562e94d59ce774d6d245450"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w2-dhcpd6-run-once-idle-exit",
+              "assertion": "run --once with no traffic exits 0 after 0.8-2.5 s.",
+              "definition_sha256": "17dcb3541e66dc53cd859c84ba9c3c74d1991bdb18e17e5ba5c5510b09eb16a3"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "loadables/dhcpd6.c:632-668 serve loop (reply port rewrite :660); --once breaks after one reply or first idle second (:653, :665); verbs :811-818."
@@ -14958,14 +15615,14 @@
         "purpose": "Live allow/deny, unban, flush, and reset behavior depends on a real kernel firewall ruleset and can change packet filtering.",
         "reason": "Run only in a future disposable VM with CAP_NET_ADMIN, isolated network interfaces, nft or iptables installed, and a before/after ruleset oracle. Verify apply, list, deletion, flush, and reset against packet/ruleset state; this namespace fixture intentionally does not execute a live backend."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "No live-backend fixture exists. The VM image has iptables but not the nft CLI, so only the iptables backend can be qualified live; the nft live path stays unexercised until nftables is added.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "all requirements covered by executed cases",
       "requirements": [
         {
           "id": "r1",
           "behavior": "allow/deny build the correct backend command (rule text) for nft and iptables.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
@@ -14984,58 +15641,123 @@
               "id": "legacy/fw/batch_dry_run",
               "assertion": "Batch file lines become sequential nft argv, comments skipped.",
               "definition_sha256": "44609fd53d7e679d810097d5a1f3e88b5044ce1a7dfacdefdc494faa48fb107b"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-fw-allow-deny",
+              "assertion": "iptables backend: fw allow/deny argv is accepted by the guest's iptables and lands as the expected canonical -S rules in BASHFW_IN.",
+              "definition_sha256": "a5e07f505fbd96b59659c4b32911181b5d8456c1abbef33324170efb5e674df8"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-fw-dryrun-text",
+              "assertion": "Dry-run argv for allow/deny/unban/list/flush/reset under -B iptables and -B nft compared with the documented iptables(8)/nft(8) syntax; nft list without a chain prints the whole ruleset.",
+              "definition_sha256": "57caa4a7fecf46da15bd35b94a40861f84e3e8702b9d25b3bba2dc74d1bc8a35"
             }
           ],
-          "gap": "Command text only (-n); no backend accepts or applies it, and unban/list/flush/reset have no dry-run text cases."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Applied allow/deny rules appear in the live ruleset (before/after ruleset oracle).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case runs fw without -n against a kernel netfilter backend."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-fw-allow-deny",
+              "assertion": "fw allow (tcp 22) and two denies (a /24 and udp 53) applied to the live kernel BASHFW_IN chain; read back with iptables -S as exactly the expected ACCEPT/DROP rules, BASHFW_OUT untouched. The nft front-end is not live because the image has no nft CLI.",
+              "definition_sha256": "a5e07f505fbd96b59659c4b32911181b5d8456c1abbef33324170efb5e674df8"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-fw-deny-v6",
+              "assertion": "fw deny of 2001:db8::/32 fails (ip6tables: No chain/target/match by that name) because fw reset creates only the IPv4 BASHFW_IN chain (reached FAIL).",
+              "definition_sha256": "5611ef76318f20322f43e8828475ccb4019067a376d14e9d1e7a06b7c21dfb81"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "fw list reports the applied rules.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "fw list is never invoked."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-fw-list",
+              "assertion": "fw list and list -l equal iptables -L BASHFW_IN -n -v [--line-numbers] byte for byte, reporting the allow and deny rules; list BASHFW_OUT likewise.",
+              "definition_sha256": "9c1542e216ab3d555b9f62ceb46c3dddfaf7fd86fd5ead8b875740b3bd10c287"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "fw unban deletes the matching deny rule and only that rule.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "unban (fw.c:890-960: nft handle lookup via `nft -a list chain`, iptables -D) is never invoked."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-fw-unban",
+              "assertion": "fw unban A deletes only the generic deny for A (not A's tcp/22 deny nor B's), unban with proto/port removes only the tcp rule, absent unban fails with the chain unchanged.",
+              "definition_sha256": "a2f6558df08cbf748ef604e5c1d9b734fb91037e8222a2cc38b90140089175e8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "fw flush removes the rules of the selected chain.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "legacy",
               "id": "legacy/fw/pure-private-store-flush",
               "assertion": "Pure file-store backend flush removes the selected chain directory, preserves the other, idempotent on absent chain.",
               "definition_sha256": "6cf5b407fdf20f93d99a5b898541ae1c692891346e9322df4e8a88b2a6bc5eea"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-fw-flush",
+              "assertion": "fw flush empties BASHFW_IN and leaves BASHFW_OUT and an unrelated chain; fw flush BASHFW_OUT then empties exactly the selected chain; verified with iptables -S.",
+              "definition_sha256": "64566f5a44856ce62d083e9cd2382278dbb0e4d13a605e566959d61533d49653"
             }
           ],
-          "gap": "Only the pure file-store backend; no nft/iptables kernel chain is flushed."
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "fw reset returns the fw-owned tables/chains to their initial empty state.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "reset (fw.c:1925) never invoked."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-fw-reset",
+              "assertion": "fw reset creates empty BASHFW_IN/BASHFW_OUT from nothing but, run on populated chains, leaves their rules in place (reached FAIL against the empty-state requirement).",
+              "definition_sha256": "eae815ca4b1c0a5acc864b7d30d828dc94611ee6c01274f5da43ed575fec9eb1"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r7",
           "behavior": "Packet filtering effect: an applied deny blocks, and removal restores, traffic between isolated endpoints.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No packet-level check exists."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-fw-packet-unhooked",
+              "assertion": "Real TCP connection from a veth peer in a second namespace: fw deny of the peer does not block it because nothing hooks BASHFW_IN into INPUT (reached FAIL).",
+              "definition_sha256": "8b7c0c511e901da2231abcf8b130f3a1b50b09050ccc71d3f3f4734492039e4c"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-fw-packet-hooked",
+              "assertion": "With the fixture hooking INPUT -> BASHFW_IN, fw deny makes the peer's connect time out, fw unban restores it, and deny then flush restores it again.",
+              "definition_sha256": "52ad37a2bac114de7ef5f490b41cd734a650eb4107d0382d74951d2948033b7a"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "Backend execution path fw.c:190-300 (fork/execvp of the backend argv, so the backend PATH must be supplied by the case). Pure backend flush only proves file-store semantics. All 9 fw contracts PASS static and dynamic."
@@ -15050,35 +15772,49 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "fw's set backends are ipset (iptables mode, fw.c:1527-1560) and the nft CLI (fw.c:1514-1550); the VM image contains neither, so a bounded side script cannot create or observe a live set. Dry-run set argv can be added now.",
+      "current_reason": "r2, r4 and r5 observe set state only in an ipset stand-in because the image has no ipset or nft CLI; a kernel-set round trip needs those packages",
       "requirements": [
         {
           "id": "r1",
           "behavior": "fw set create/add/del/list/destroy construct the correct ipset/nft commands.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No dry-run case invokes `fw set` (fw.c:1505-1620)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-fw-sets-dryrun",
+              "assertion": "Dry-run argv for set create (hash:ip/hash:net, inet/inet6), add, del, list, destroy under -B iptables (ipset create ... -exist allowed) and -B nft compared with ipset(8)/nft(8) syntax.",
+              "definition_sha256": "14da584c2f32180b720e1ac4a5020817118ca314f9e1dfbe8f0aab22e9fcda51"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A created and populated temporary set exists in the live backend with the expected members.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No live set operation is run."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-fw-sets-live",
+              "assertion": "fw set create/add/del/list/destroy drive a stateful ipset stand-in on PATH; created sets and their members, member deletion and set destruction are observed in its state.",
+              "definition_sha256": "801abd5e5d55bf75fc9b8b92c00b9cad326f8ca7475026c335db92774807f864"
+            }
+          ],
+          "gap": "The image has neither ipset nor the nft CLI, so the set exists in a stateful ipset stand-in, not in a kernel set."
         },
         {
           "id": "r3",
           "behavior": "fw save writes rules plus the ipset section to the named file.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
-              "group": "legacy",
-              "id": "legacy/fw/persistence_dry_run_argv",
-              "assertion": "Dry-run save prints `save FILE` for nft and iptables.",
-              "definition_sha256": "0e9a4d5b958f737a69144d2c2125448c4a3695965d10a5b376b8d78dea9690e1"
+              "group": "shell",
+              "id": "mig-w1-fw-save",
+              "assertion": "fw save FILE writes the live iptables-save ruleset (comments aside); with an ipset on PATH it appends the '# fw ipset-save begin/end' block holding the set and members, keeping the rules before it.",
+              "definition_sha256": "4684f7f5ae74896f17be66bded1f5a087d96f434d0ddc9e5ed95a924cba6d0a5"
             }
           ],
-          "gap": "Dry-run prints a placeholder only; no saved file content (including the `# fw ipset-save begin/end` block, fw.c:88-89) is checked."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -15086,9 +15822,15 @@
           "coverage": "partial",
           "evidence": [
             {
+              "group": "shell",
+              "id": "mig-w1-fw-restore",
+              "assertion": "fw restore after wiping all kernel rules, and after fw reset plus recreate, reproduces the saved BASHFW_IN rules and the complete iptables-save state; set membership is restored in the ipset stand-in.",
+              "definition_sha256": "951da3824d5d6ed11bfbc1e4757bc883e631259ee0286ec967f5ba36526e9bd8"
+            },
+            {
               "group": "legacy",
               "id": "legacy/fw/persistence_dry_run_argv",
-              "assertion": "Dry-run restore prints `nft -f FILE` / `iptables-restore FILE`.",
+              "assertion": "Dry-run restore prints nft -f FILE / iptables-restore FILE.",
               "definition_sha256": "0e9a4d5b958f737a69144d2c2125448c4a3695965d10a5b376b8d78dea9690e1"
             },
             {
@@ -15098,14 +15840,21 @@
               "definition_sha256": "fa9e10e1d83c3ee897c4a6d58b625d96d3945b00ab4e6ae37effeac2791ab6de"
             }
           ],
-          "gap": "No live restore; set membership is never restored or compared."
+          "gap": "Rules restore is verified in the kernel; set membership restore is verified only in an ipset stand-in because the image has no ipset."
         },
         {
           "id": "r5",
           "behavior": "Before/after comparison of rules and set membership is identical.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No round trip exists."
+          "coverage": "partial",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-fw-restore",
+              "assertion": "Before/after comparison: BASHFW_IN rules, the whole iptables-save text and the set-membership state are identical after save, wipe and restore, for both the wipe and the reset round.",
+              "definition_sha256": "951da3824d5d6ed11bfbc1e4757bc883e631259ee0286ec967f5ba36526e9bd8"
+            }
+          ],
+          "gap": "The set side of the before/after comparison is the ipset stand-in's state, not kernel set membership."
         }
       ],
       "notes": "Persistence markers fw.c:78-89; restore default path asymmetry noted at fw.c:78-86. requires_capability here is an image/package gap, not a driver gap: root's design update lists iptables but not ipset or the nft CLI."
@@ -18539,37 +19288,89 @@
         "purpose": "Exercise address add, delete, change, replace, flush, and address selectors against a known interface state.",
         "reason": "Requires a disposable Linux VM/network namespace with CAP_NET_ADMIN or a controlled rtnetlink mock, a seeded virtual interface, and iproute2 ip. The expected address state must be read from the isolated fixture, not from a host interface."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No fixture runs ip; the VM can provide a private namespace with a seeded dummy interface, so this is fixture work.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "all requirements covered by executed cases",
       "requirements": [
         {
           "id": "r1",
           "behavior": "addr add/del CIDR dev IF changes the address list as iproute2 does.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No ip operation runs anywhere."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-addr-add-del",
+              "assertion": "Private mapped netns: addr add of 192.0.2.1/24, 198.51.100.7/32 and fd00::1/64 then addr del run through the builtin and through iproute2; complete ip -j address/route state is identical after each step, literal expectations (addresses present/absent, connected route created, delete-absent and re-add leave state) hold.",
+              "definition_sha256": "d7e9cd4384c083f0bbe3a3b93da750a8e6068c7e27c6d19e09d1447b25c87c25"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "addr change/replace update an existing address (and replace creates when absent).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-addr-change-replace",
+              "assertion": "addr replace creates absent IPv4 and IPv6 addresses, replace of an existing address keeps one copy, addr change of an existing address keeps it, replace on a missing device fails; builtin state and rc class equal iproute2 after every step.",
+              "definition_sha256": "0bc2f3b823fa58f6cfed798ee6c523e263200b5c01da620c966bf40fb2700c3b"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "addr flush dev IF [scope S] [to PREFIX] removes exactly the selected addresses.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-addr-flush-to",
+              "assertion": "addr flush dev d0 to 192.0.2.0/24 removes both addresses inside the prefix while other d0 addresses and d1 stay; state equals iproute2.",
+              "definition_sha256": "0248c2166784f5a6bec111fa204ab04574d3da4275f42fea7d59d6eafab55dcb"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-addr-flush-scope",
+              "assertion": "addr flush dev d0 scope host removes only the host-scope address; state equals iproute2.",
+              "definition_sha256": "98390d87d771d2f21ac10aafa11f3b2a5a6beb802e35b8ca311442a7f15474ff"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-addr-flush-dev",
+              "assertion": "addr flush dev d0 removes every d0 address and leaves d1; state equals iproute2.",
+              "definition_sha256": "c6768e382ec0bd442f4eb010007aa405d58747f88cea031623f24139eabf1ca7"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "addr show selectors (dev, to PREFIX, scope) select the same addresses as iproute2.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-addr-show-dev",
+              "assertion": "addr show d0 lists exactly iproute2's address set for d0 in text and -j, including the literal seeded rows.",
+              "definition_sha256": "5526a33e1f2b0e1d7486af9401fd4d35e7bc25d04c64bbe3edead3666d87868c"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-addr-show-to",
+              "assertion": "addr show to 192.0.2.0/24 selects the same addresses as iproute2 in text and -j.",
+              "definition_sha256": "31c574f80c5a56949989af4cf6ab79f76edc3a2fc7f25e596685af2be4bb7f74"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-addr-show-scope",
+              "assertion": "addr show scope host selects the same addresses as iproute2 in text and -j.",
+              "definition_sha256": "abe8ad28fc634129da344f96d7421fea8d821f60166859c14703d9db042ee6d2"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "ip.c:16-21 address verbs. Legacy has only metadata (legacy/ip/ip-builtin-metadata, legacy/ip/ip-documented-help), which cover no operation."
@@ -18582,37 +19383,71 @@
         "purpose": "Check batch-file tokenization, blank lines, stopping at the first failing command, and -force continuation using a bounded sequence with observable state.",
         "reason": "Meaningful batch commands dispatch into rtnetlink, so the case requires a disposable namespace or controlled rtnetlink mock, a small relative batch fixture, and iproute2 ip for per-command reference behavior. A parse-only invocation was not run because this suite does not invoke the loadable's operational interface."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Needs observable rtnetlink state in a private namespace; no fixture exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "all requirements covered by executed cases",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-batch FILE tokenizes lines (quoting, blank lines, comments) into commands like iproute2.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-batch-tokenize",
+              "assertion": "-batch FILE with comment lines, blank lines, indented comments, tabs and repeated spaces applies the same commands as iproute2 (state equal after the step; literal addresses present).",
+              "definition_sha256": "c389ab003a99581ac84dae2702012563568328c54d9d2c15affcf3e47d848fd2"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-batch-quoting",
+              "assertion": "-batch line with a double-quoted device word: iproute2 accepts and applies it, the builtin rejects it with unknown interface \"d0\", so rc and state differ (reached FAIL, kept).",
+              "definition_sha256": "71926d086334bcc4887bbe172b652e658124859e5795b22eb2a37b3d0d3b841e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Without -force, batch stops at the first failing command, later commands are not applied, and the exit status/diagnostic name the failing line.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-batch-stop",
+              "assertion": "Without -force the first failing command stops the batch: earlier command applied, later one not, status nonzero; the builtin diagnostic does not name the failing batch line (expected FAIL against the line-number requirement).",
+              "definition_sha256": "f3dc9aeae3e2408f388b81d882e085c92b8261a2f2d573da504ee998f8031324"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "With -force, batch continues after failures and returns failure overall, applying the later commands.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-batch-force",
+              "assertion": "With -force later commands after two failures are applied, state equals iproute2 and the overall status is nonzero.",
+              "definition_sha256": "23b611699272cfcb730fe273ed4f7000b95555c5d96700661c4697bd3efbdea8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "-batch - reads commands from stdin.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-batch-stdin",
+              "assertion": "-batch - reads address and link commands from standard input; state equals iproute2 and literal addresses/MTU are applied.",
+              "definition_sha256": "5eed9f8d8ded0c7cab0ec61881a4637543ab8181c3504267f3a5f80797efb613"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "ip.c:8 `-batch FILE|- [-force]`, line splitter ip.c:334."
@@ -18625,44 +19460,79 @@
         "purpose": "Exercise link up/down, MTU and address setters, dummy/veth creation, and deletion while checking resulting link state.",
         "reason": "Requires a disposable network namespace with CAP_NET_ADMIN or a controlled rtnetlink mock, deterministic dummy/veth state, and iproute2 ip for independent command semantics. It must not touch host interfaces or send traffic."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No private-namespace link fixture exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "all requirements covered by executed cases",
       "requirements": [
         {
           "id": "r1",
           "behavior": "link set IF up/down changes the admin state.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-link-updown",
+              "assertion": "link set d0 up then down changes administrative state/operstate as iproute2; unknown link rejected.",
+              "definition_sha256": "2d6caed50b473387f8327b60d43ba9c3eaf4cf34e4c1435993ce9ff71d960c7e"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "link set IF mtu N and address MAC change those attributes.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-link-mtu-address",
+              "assertion": "link set d0 mtu 1400 / address MAC / both change attributes; invalid mtu and MAC leave the link unchanged; state equals iproute2.",
+              "definition_sha256": "94c2a35c1f9a81203b4af87bf40456639e493a0a98ab68eb741f62759c5a3915"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "link add NAME type dummy creates a dummy link.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-link-add-dummy",
+              "assertion": "link add d0 type dummy creates an ether link, down by default; duplicate rejected; state equals iproute2.",
+              "definition_sha256": "cd1de19b2ffc47069287de42708b719847bfcc4af0967b7f6e491ae90e3ff600"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "link add NAME type veth peer NAME creates both veth ends.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-link-add-veth",
+              "assertion": "link add v0 type veth peer v1 creates both ends as peers, further pair created and brought up; state equals iproute2.",
+              "definition_sha256": "6bc3f52bb93693a033f3afc8d7830eb5ef5c44ffb8638ca11b8c38ad75d976e6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "link del NAME removes the link (and its veth peer).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-link-del",
+              "assertion": "link del removes a dummy and a veth together with its peer; deleting a missing link fails; state equals iproute2.",
+              "definition_sha256": "c8d31dfca31c58711f809fc566a3dcc4b097aa55ef4e59a02f0aa49e247f4768"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "ip.c:9-13 link verbs; other link kinds are documented as deferred to v2 (ip.c:33-35)."
@@ -18675,44 +19545,169 @@
         "purpose": "Compare link, address, route, rule, and neighbour show output, including JSON/brief forms, family filtering, and selectors against independent rtnetlink state.",
         "reason": "Requires a disposable Linux VM or controlled rtnetlink mock with seeded interfaces, addresses, routes, rules, and neighbours, plus iproute2 ip as the independent formatter/reference. No query was run because the requested safety scope forbids invoking ip against kernel network state."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No seeded namespace exists; read-only queries of a script-owned namespace are safe in the VM.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "all requirements covered by executed cases",
       "requirements": [
         {
           "id": "r1",
           "behavior": "link show (default, -br, -o, -j) output for seeded links.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-link-show-default",
+              "assertion": "Default link show text for dummy, veth and loopback links compared field by field with iproute2 JSON; flags field differs (MULTICAST present, NOARP/LOWER_UP absent) so the case FAILs.",
+              "definition_sha256": "9aff9ba391c45ed9a7e15d0a0b49482b646b40f389f09729f57858cb5762139c"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-link-show-brief",
+              "assertion": "-br link show rows match iproute2 for state, MAC and kernel flags.",
+              "definition_sha256": "9b3ca64b60a4298c6824e5f7ebc66d23ff2b4b5758232bd1fd162e7e37d903ce"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-link-show-oneline",
+              "assertion": "-o link show rows compared with iproute2 facts; flags differ like the default form.",
+              "definition_sha256": "dc2c2e74440cc5f7069b319b76f5c37662e85a3ca7f20ba06fb794b66f93d84b"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-link-show-json",
+              "assertion": "-j link show field values equal iproute2 for ifindex, mtu, operstate, link_type, address, broadcast, flags.",
+              "definition_sha256": "4b9fbcbf4f951bddbc7d5c26b9c51be14cecc9db54b97b7b22c26a3623561fd2"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-link-show-json-schema",
+              "assertion": "Strict -j link object keys: the builtin omits qdisc, txqlen, group, linkmode and link that iproute2 emits (reached FAIL).",
+              "definition_sha256": "afe81605aee4356c5975d1fb6182c92b4b81eb297e80014a274150212c3818a6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "addr show with -4/-6 family filters and dev/to/scope selectors.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-addr-show-4",
+              "assertion": "-4 addr show equals iproute2's IPv4 address rows (text and -j).",
+              "definition_sha256": "bf6015e0246d832d63ca9967e00aca190050c2b5fc5a6f29e3c659d5880b086b"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-addr-show-6",
+              "assertion": "-6 addr show equals iproute2's IPv6 address rows (text and -j).",
+              "definition_sha256": "b8ede576f830ffa062306005a59fb7aa6ea249b821787403af6ccfee31e35e42"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-addr-show-dev",
+              "assertion": "addr show dev selector equals iproute2.",
+              "definition_sha256": "5526a33e1f2b0e1d7486af9401fd4d35e7bc25d04c64bbe3edead3666d87868c"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-addr-show-to",
+              "assertion": "addr show to PREFIX selector equals iproute2.",
+              "definition_sha256": "31c574f80c5a56949989af4cf6ab79f76edc3a2fc7f25e596685af2be4bb7f74"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-addr-show-scope",
+              "assertion": "addr show scope selector equals iproute2.",
+              "definition_sha256": "abe8ad28fc634129da344f96d7421fea8d821f60166859c14703d9db042ee6d2"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "route show (default, dev, table N|all) for seeded routes.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-route-show-plain",
+              "assertion": "route show rows (dst/via/dev/metric/src) equal iproute2's main-table IPv4 routes.",
+              "definition_sha256": "542dc6c29c6170c355906bc02e2a2bb341b02c336132ab0368d335b50fee7a57"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-route-show-dev",
+              "assertion": "route show dev d1 rows equal iproute2.",
+              "definition_sha256": "be85d850af767440772b6967c7eb7ae345da4c1580334bea726e39a4f9e203a4"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-route-show-default",
+              "assertion": "route show and route show default rows equal iproute2 including the seeded default route.",
+              "definition_sha256": "bdcc4dc024a929d6f703f6377978d5157442f5507fc68343b00b832d41686cbd"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-route-show-table",
+              "assertion": "route show table 100 matches; route show table all omits every IPv6 route that iproute2 prints (reached FAIL).",
+              "definition_sha256": "397e76511d5f41939473e91fd74859ed082a64f3ef443a25c59ced9b92a5f374"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "rule show for seeded policy rules, including JSON.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-rule-show-text",
+              "assertion": "rule show rows equal iproute2 except the fwmark rule prints /0xffffffff mask (reached FAIL).",
+              "definition_sha256": "e0e9a2a5f33b1ebc3cb5b208ccbdc9e5909a85e5217b2691c97723ec356d1d11"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-rule-show-json",
+              "assertion": "-j rule show priority/src/dst/prefix/fwmark/table facts equal iproute2 JSON.",
+              "definition_sha256": "292328a9d47780f6c3b01f5031acab691b9cc646b0e92152e4a8f17467317fba"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-rule-show-json-schema",
+              "assertion": "Strict -j rule schema: from/from_prefix/family/fwmask versus iproute2 src/srclen (reached FAIL).",
+              "definition_sha256": "15876d4de8209fcff40ff119f77a5b5f33ac0a1074bc7d3a1143d01e6184a13d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "neigh show [dev IF] for seeded permanent neighbours.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-neigh-show-all",
+              "assertion": "neigh show: seeded PERMANENT neighbours equal iproute2 in text and -j.",
+              "definition_sha256": "4fd7df3bc8393aab3c427eb4d7f83a15d992d623cacc3ee542fda18be6a2991f"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-neigh-show-dev",
+              "assertion": "neigh show dev d0: PERMANENT rows equal iproute2 in text and -j.",
+              "definition_sha256": "58dd35f7a77ba7cab7a1a8f1f58a2947d0303f92ed9e5e7977510aa50f6ee8ca"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-neigh-show-strict",
+              "assertion": "neigh show full row set includes ff02::2 NOARP rows iproute2 hides (reached FAIL).",
+              "definition_sha256": "67ed8e244ac5f2e936605e2d0b40269b234a8ff8bce31d0c14e5f804064ae639"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "Show verbs ip.c:7,14,22,27,30; JSON emitters ip.c:837-1240."
@@ -18725,37 +19720,71 @@
         "purpose": "Exercise route add/delete/replace/flush, policy-rule add/delete/flush, and neighbour add/change/replace/delete with deterministic state checks.",
         "reason": "Requires a disposable VM/network namespace with CAP_NET_ADMIN or a controlled rtnetlink mock, seeded private tables and neighbour entries, and iproute2 ip as oracle. No real peer, packet exchange, host route, or host neighbour state may be used."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "No private-namespace routing fixture exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "all requirements covered by executed cases",
       "requirements": [
         {
           "id": "r1",
           "behavior": "route add/change/replace/append/del with via/dev/table/metric update the routing table as iproute2 does.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-route-add-del",
+              "assertion": "route add/del with via, dev, table and metric: state equals iproute2; literal routes present then removed, bad delete/unreachable gateway rejected.",
+              "definition_sha256": "f755999f63018403b75bcece18335ed2152e3b6d980180a62ca422cfefa70587"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-route-change",
+              "assertion": "route replace, append and change on 203.0.113.0/24 and replace-creates; state equals iproute2 after each step.",
+              "definition_sha256": "13939752799e94901893fcc46109c4111afb83a78793241e85b25d3cbaae5dd9"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "route flush dev IF removes that device's routes.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-route-flush",
+              "assertion": "route flush dev d0: the builtin refuses with 'destructive flush is not implemented' and rc 1 while iproute2 removes d0's main-table routes (reached FAIL).",
+              "definition_sha256": "7950206fa5668f605b62c0c5cbd4bb66e8ba83c4f649993d0fad780a93b48f36"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "rule add/del (from/to/fwmark/uidrange/ipproto/table/priority) and rule flush.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-rule",
+              "assertion": "rule add with from/to/fwmark/uidrange/ipproto/table/priority matches iproute2; rule del without table fails with ENOENT, and rule flush keeps the main/default rules iproute2 removes (reached FAIL).",
+              "definition_sha256": "88cd7c23ac65c082dc2b0ab272058f452f71b139c9a18ee9c41e27372315fdc8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "neigh add/change/replace/del with lladdr and nud state.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not exercised."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-ip-neigh",
+              "assertion": "neigh add/change/replace/del with lladdr and nud state: state and rc class equal iproute2 after every step.",
+              "definition_sha256": "56bbbd4d9ab26d968cb2e54a406232017ba4c40d8be2f84f238bf6f66ffaf36d"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "ip.c:22-31 verbs."
@@ -20663,37 +21692,58 @@
         "purpose": "Verify the broadcast signal selection, omit-list behavior, and failure handling without sending signals to the runner's process set.",
         "reason": "Requires a future disposable PID-namespace VM with a reviewed kill(2) interceptor or explicitly owned sacrificial children and an independent expected-call oracle. Verify default and named signal numbers, excluded session/self/omitted PIDs, and injected ESRCH/EPERM outcomes. Never target host or general runner processes; this suite does not invoke signal delivery."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Broadcast delivery is safe in the legacy runner's private PID namespace: its members are bwrap's init (PID 1), the case shell (own session via --new-session) and fixture children, so `killall5 -SIG -o 1` reaches only setsid fixture children. sysvinit killall5 refuses non-root callers, so no GNU byte oracle exists; trap logs are the oracle. ESRCH needs syscall injection.",
+      "current_reason": "Delivery, selection and usage errors are exercised; only the EPERM/ESRCH failure outcomes (r3) remain: EPERM needs root fixtures (authored, unrun) and ESRCH needs syscall injection.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "-SIGNAL delivers the named/numeric signal to every eligible process outside the caller's session.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-killall5-delivery",
+              "assertion": "In a private user+PID namespace with three sacrificial python victims in their own sessions, killall5 -USR1, -SIGUSR2, -1 and -10 deliver exactly that signal (named, SIG-prefixed, numeric) to each of them, status 0, verified by each victim trap log.",
+              "definition_sha256": "f6df4d826439af0f0ac66678507f4b329377f94fa4a78517d4a9e218b47dcd12"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Session, self and omitted PIDs are excluded from delivery.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-killall5-exclusions",
+              "assertion": "A same-session victim and the calling shell (which traps USR1) never receive the signal; -o with one, two, all and unrelated PIDs omits exactly those victims; omitting everything gives status 2.",
+              "definition_sha256": "91aad2de3f729fd2d42c110aa2e67f47563de0f1817ceed349ab80fc571d1a5c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "EPERM/ESRCH outcomes do not abort the broadcast and are reflected in the status.",
           "coverage": "missing",
           "evidence": [],
-          "gap": "Not executed."
+          "gap": "EPERM continuation is authored as mig-w7-killall5-eperm-continues-root (victims of uid 4242 and 4343, broadcaster uid 4343: refusals reported, later victims signalled, status 0, and status 2 when every delivery fails) but needs real foreign uids and is not run; ESRCH on a vanished pid cannot be produced deterministically without syscall injection."
         },
         {
           "id": "r4",
           "behavior": "Missing signal is a usage error; a pattern argument is rejected.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed; these parser checks need no delivery and are runnable now."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-killall5-usage",
+              "assertion": "Missing signal, a pattern argument, an unknown signal name and an out-of-range number each exit 2 with a diagnostic while live victims receive nothing.",
+              "definition_sha256": "49cffc0fc288672aa46bb4b828e6b9a356e8f90c965bbfeddcd3fa3ab37cda01"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "pgrep.c: killall5 status 0/2/1; sysvinit killall5 is installed in the image."
@@ -33652,51 +34702,92 @@
         "purpose": "Exercise invalid seed files, credit denial, post-consumption refresh failures, and restoration/cleanup paths.",
         "reason": "Requires a disposable VM or syscall/filesystem fault-injection mock that can deny entropy credit and inject read, sync, rename, and getrandom failures. Verify invalid files are untouched and never credited, failed credit restores identical uncredited bytes when restoration succeeds, consumed bytes are never reusable after refresh failure, and no temporary file or FD is leaked. Power-cut durability additionally needs filesystem crash/recovery testing in a disposable VM."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Not a capability block for most obligations. save uses only getrandom and file operations, both allowed in the legacy runner. RNDADDENTROPY needs CAP_SYS_ADMIN in the initial user namespace, so under uid 2000 the kernel returns EPERM and the credit-denial path is reachable now. A SECCOMP-NOTIFY helper (modern plain driver only; trusted python3: fork, the child sets no_new_privs and installs a seccomp filter with SECCOMP_FILTER_FLAG_NEW_LISTENER for openat/unlinkat/renameat/fsync/ioctl/getrandom, passes the listener fd to the parent via SCM_RIGHTS, then execs the side shell; the parent records every notified call in order and either continues it or answers with a chosen return value) records ordering and injects faults or successes without privilege. It also lets the supervisor answer RNDADDENTROPY with success, a closed mock at the kernel boundary. Only power-cut durability needs a new driver capability: an abrupt guest reset during the operation (VM-LIFECYCLE) on a persistent filesystem (BLOCK-DEV). A fixture cannot crash the kernel or bypass page-cache semantics.",
+      "current_reason": "Remaining: r6 power-cut durability is blocked (needs abrupt VM reset and a journaled filesystem image).",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Invalid seed files are untouched and never credited: wrong mode (0644), symlink, hardlink (nlink 2), non-regular (directory/FIFO), size out of range -> status 1 with diagnostic, file still present",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; reachable now."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-rngseed-invalid-seeds",
+              "assertion": "mode 0644, symlink, hard link, directory, FIFO, sizes 0, 31 and 4097: status 1 with diagnostic, file unchanged, empty trace (no unlinkat, no RNDADDENTROPY)",
+              "definition_sha256": "4878f748735648cfe9c9d158def3000fc79989595bdeaeef36103423b956b8fd"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Credit denial (real EPERM as uid 2000): seed is consumed then restored with identical bytes and mode 0600; status 1 with \"RNDADDENTROPY\" and no double credit",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case; reachable in the legacy runner now because the kernel denies RNDADDENTROPY without CAP_SYS_ADMIN."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-rngseed-credit-denied",
+              "assertion": "real kernel EPERM as uid 2000: status 1 with RNDADDENTROPY text; seed restored with identical bytes at 0600 via temp+rename; exactly one credit attempt",
+              "definition_sha256": "59fd4d0de2c3dcf290e38caaa5510fb944357c0a7134d6a42fbd5a9b84259a6a"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Restore failure after denied credit is reported (\"restore ...\") and the seed is not left half-written",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs injected renameat/fsync failure during restore."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-rngseed-restore-faults",
+              "assertion": "after denied credit, injected rename, temp fsync or temp write EIO: \"restore seed\" reported, FILE absent, no temporary, no leaked descriptor",
+              "definition_sha256": "61163e8265aaa97e32b27ddedd4be46c5943706923f1a724f9b48ff9bb667af8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Refresh failure after a successful credit (getrandom EAGAIN or write failure): consumed bytes are never written back",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs mocked credit success plus injected getrandom/rename failure (SECCOMP-NOTIFY)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-rngseed-refresh-faults",
+              "assertion": "after injected credit success, getrandom EAGAIN (status 0 with diagnostic) and write EIO (status 1): FILE absent and no copy of the consumed bytes exists",
+              "definition_sha256": "11d155132d05217abb51737bfbdc57b9ff8cd9872fb2c5410c919a5ae33bb5fa"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Injected read/sync/rename failures leave no temp file and no leaked descriptor (/proc/self/fd count unchanged in the shell)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs injection."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-rngseed-leaks",
+              "assertion": "injected read EIO, directory fsync EIO and refresh rename EIO: no temp file, descriptor lists identical before and after",
+              "definition_sha256": "984c595d29779d5bb08af68d72c9bf8c88d176dce53e94176458a13c687ce0ea"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w6-rngseed-restore-faults",
+              "assertion": "descriptor lists identical for restore faults",
+              "definition_sha256": "61163e8265aaa97e32b27ddedd4be46c5943706923f1a724f9b48ff9bb667af8"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "Power-cut durability: after abrupt VM reset between consume and credit, the seed is not reusable",
           "coverage": "missing",
           "evidence": [],
-          "gap": "Needs VM-LIFECYCLE with an abrupt reset (QMP system_reset or kill) and BLOCK-DEV on a journaled filesystem image; tmpfs cannot model crash durability."
+          "gap": "Power-cut durability needs an abrupt VM reset between consume and credit on a journaled block device; vmrun offers no reset hook and tmpfs cannot model crash durability."
         }
       ],
       "notes": "Candidate: do_load loadables/rngseed.c:189-256 (restore via write_seed on credit failure :222-227), read_seed checks :113-138."
@@ -33709,51 +34800,99 @@
         "purpose": "Validate save output length, 0600 permissions, atomic replacement, sync ordering, and temporary-file cleanup.",
         "reason": "Requires a disposable VM with a controlled initialized random source or an intercepting getrandom/syscall mock plus a private fixture filesystem. The test must assert exactly 512 output bytes, mode 0600, complete file and directory sync/rename behavior, and cleanup without using host randomness or storage."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "Not a capability block for most obligations. save uses only getrandom and file operations, both allowed in the legacy runner. RNDADDENTROPY needs CAP_SYS_ADMIN in the initial user namespace, so under uid 2000 the kernel returns EPERM and the credit-denial path is reachable now. A SECCOMP-NOTIFY helper (modern plain driver only; trusted python3: fork, the child sets no_new_privs and installs a seccomp filter with SECCOMP_FILTER_FLAG_NEW_LISTENER for openat/unlinkat/renameat/fsync/ioctl/getrandom, passes the listener fd to the parent via SCM_RIGHTS, then execs the side shell; the parent records every notified call in order and either continues it or answers with a chosen return value) records ordering and injects faults or successes without privilege. It also lets the supervisor answer RNDADDENTROPY with success, a closed mock at the kernel boundary. No fixture exists.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
           "behavior": "save FILE writes exactly 512 bytes, mode 0600, owner uid 2000, status 0",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case invokes rngseed save, although getrandom and file ops are allowed in the legacy runner."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-rngseed-save-basic",
+              "assertion": "save writes 512 bytes, mode 0600, owner 2000, status 0, empty stderr; bytes not all zero and differ between two saves",
+              "definition_sha256": "28639e067acda2ead1d043fa0d54790d8f57b4a62d3e46838a139cc66132549a"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Atomic replacement: an existing FILE (other contents, mode 0644) is replaced via temp + rename (inode changes, never partially written)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-rngseed-save-replace",
+              "assertion": "existing 0644 FILE is replaced with a new inode (mode 0600, 512 bytes); a hard link to the old inode keeps the old bytes and mode, so it was not rewritten in place",
+              "definition_sha256": "8302e9aa54a0cbf22daf39f4eb4233d0dde89cc735c0753429e29d31ea384947"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Ordering: write -> fsync(temp) -> close -> renameat -> fsync(directory)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs call recording (SECCOMP-NOTIFY helper)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-rngseed-save-order",
+              "assertion": "seccomp-notify trace: getrandom 512 blocking, openat temp, write 512, fsync(temp), close(temp), renameat, fsync(directory descriptor)",
+              "definition_sha256": "28ae1f674f2d2ae51fa66fe8301ca8ba286084c341124cea141e82ee7ae210f0"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "No .rngseed-* temporary remains after success or after an injected write/fsync/rename failure; failure leaves the old FILE intact",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Needs fault injection for the failure half."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-rngseed-save-order",
+              "assertion": "no .rngseed-* temporary remains after a successful save",
+              "definition_sha256": "28ae1f674f2d2ae51fa66fe8301ca8ba286084c341124cea141e82ee7ae210f0"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w6-rngseed-save-faults",
+              "assertion": "injected write, fsync and rename EIO: status 1, old FILE bytes/mode/inode unchanged, temp unlinked, no temporary left, descriptors unchanged",
+              "definition_sha256": "66e77fd380863d589d400633d8eb953965e0379600c2c4fc96a84b37fe9ddb4d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Directory lock: a concurrent rngseed holding flock on the directory makes save fail (EWOULDBLOCK)",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-rngseed-save-lock",
+              "assertion": "with flock held on the directory (util-linux flock, not a second rngseed) save fails status 1 with EWOULDBLOCK text and creates nothing; succeeds after release",
+              "definition_sha256": "02d90fcb97c0fe2c243cf3fffb92eedc702649b727714d08ec16b2185d440f35"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
           "behavior": "Usage: missing/extra operands, unknown verb -> status 2",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "No case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w6-rngseed-usage",
+              "assertion": "no operands, one operand, extra operand, unknown verb and an option return status 2; unknown-verb diagnostic; no file created",
+              "definition_sha256": "dfa14854743e1909b1c9796722965f185f966492cbb950d112854898a81ae4ad"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "Candidate: do_save loadables/rngseed.c:258-274, write_seed :142-174, open_path flock :76-102. Content randomness is not asserted beyond length (no oracle for values)."
@@ -43870,9 +45009,9 @@
         "kind": "deferred",
         "reason": "Requires a private proc fixture and bounded output-failure injection in a disposable VM (for example, a controlled failing sink); it must not read host proc data or use a host device path."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r4: The descriptor targets and identities are not recorded; equal numbers do not exclude a close-and-reuse or replaced-descriptor leak.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All requirements exercised.",
       "requirements": [
         {
           "id": "r1",
@@ -43925,16 +45064,22 @@
         {
           "id": "r4",
           "behavior": "no descriptors leak into the shell after success or failure",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-terra-local-terminal-top-fds-r3",
               "assertion": "Source purpose: The same shell retains exactly the original descriptor set after both success and ENOSPC failure.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Saved success/failure statuses are 0/1 and before/after lists contain the same descriptor numbers.",
               "definition_sha256": "b1684aaacf666bd2fd40b5d0aa68b2c549cf9be0f1cbfc0c9538bad029801127"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-top-fd-identity-after-failures",
+              "assertion": "The shell descriptor table (number, target, device, inode from the real procfs) is identical before and after a success, a /dev/full write failure (status 1), usage errors (status 2) and three repeats.",
+              "definition_sha256": "d9739b27eed332ec4d13bcb1d82469b8d26c8799fce903860a1b5c4b6137769d"
             }
           ],
-          "gap": "The descriptor targets and identities are not recorded; equal numbers do not exclude a close-and-reuse or replaced-descriptor leak."
+          "gap": ""
         }
       ],
       "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. The saved repeat=PASS predicate requires both same-shell invocation statuses zero and both output comparisons; retained output files are equal and stderr empty. This exercises consistency without inventing separately saved numeric status files."
@@ -43947,50 +45092,89 @@
         "kind": "deferred",
         "reason": "Requires a disposable VM or reviewed interposition mock that redirects every /proc directory scan and file open to two small private snapshots (stat, status, cmdline, meminfo, loadavg). The future oracle must independently encode proc(5) fields and the documented headers/rows; live host proc data is not a valid reference."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Paired frozen --once lifecycle captures support only observed load, displayed process-count and memory/swap header fields. The complete documented header, -b/--batch entry points, sorting, PID tie breaks and -n row caps remain unverified.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All requirements exercised on both builds; the reached FAILs are the missing uptime/CPU/task header lines and -n not capping rows.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "--once/-b/--batch print the documented header (uptime/load, task counts, CPU, memory) from proc fields",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-farm600-top-proc-lifecycle-empty",
-              "definition_sha256": "8e5adca897cfd6032f6f9d295083104b127612afdc619db8f7c24b8b2d6a3e15",
-              "assertion": "The paired frozen --once captures read the pinned synthetic proc epochs and render load 1.25/1.50/1.75, procs 0, memory 8000/5000/3000 kB and swap 2000/750/1250 kB. This is only the observed header subset; no uptime, aggregate CPU, per-state task counts or -b/--batch claim."
+              "assertion": "The paired frozen --once captures read the pinned synthetic proc epochs and render load 1.25/1.50/1.75, procs 0, memory 8000/5000/3000 kB and swap 2000/750/1250 kB. This is only the observed header subset; no uptime, aggregate CPU, per-state task counts or -b/--batch claim.",
+              "definition_sha256": "8e5adca897cfd6032f6f9d295083104b127612afdc619db8f7c24b8b2d6a3e15"
             },
             {
               "group": "shell",
               "id": "migration-farm600-top-proc-lifecycle-malformed",
-              "definition_sha256": "cc0927c161a9672292d8535a70b6f4afdb9c232674b2f1f13d35149376f4e278",
-              "assertion": "The paired frozen --once captures read the pinned synthetic proc epochs and render the same load/memory/swap values with procs 1 after malformed entries are skipped. Related CPU rows are ancillary; no full header, sorting, tie-break or row-cap claim."
+              "assertion": "The paired frozen --once captures read the pinned synthetic proc epochs and render the same load/memory/swap values with procs 1 after malformed entries are skipped. Related CPU rows are ancillary; no full header, sorting, tie-break or row-cap claim.",
+              "definition_sha256": "cc0927c161a9672292d8535a70b6f4afdb9c232674b2f1f13d35149376f4e278"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-top-batch-entry-points",
+              "assertion": "-b, --batch and --once print the identical documented header (load averages 0.52 0.41 0.30, process count, sort column, refresh, Mem and Swap kB) and rows computed from an independent proc(5) fixture.",
+              "definition_sha256": "91cd723542c6a0181ee982aaa3ce3a90d9eafcd38c3e416af9f1c166c706831f"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-top-batch-header-uptime-cpu-tasks",
+              "assertion": "Asserts the uptime from /proc/uptime, an aggregate CPU line from /proc/stat and task-state counts in the header; the candidate prints none of them (reached FAIL, retained).",
+              "definition_sha256": "6595dc085678286a2c6ad3dca789252163b6f1836f40d87fa5d77413fb388d95"
             }
           ],
-          "gap": "Only --once load, displayed process count and memory/swap fields are observed. Uptime, CPU summary, task-count semantics beyond the displayed row count and -b/--batch entry points remain unverified."
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "default CPU sort and -o memory sort order rows correctly",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-top-batch-sort-columns",
+              "assertion": "Default (cpu) and -o mem, -o time, -o pid order the five-process fixture exactly (full output compared).",
+              "definition_sha256": "789bb93b382514a654d15548988d52302cf00c841f28411c293468e0645367b0"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "ties are broken by PID",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-top-batch-pid-tie-break",
+              "assertion": "cpu, mem and time ties order by descending PID and -o pid by ascending PID in the fixture; zero-CPU ties included.",
+              "definition_sha256": "d1c4b67f302b574879a71cc59ce862edf2acc686c43ea077653e3c19fc783571"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "-n row caps limit the number of process rows",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-top-batch-row-cap-n",
+              "assertion": "top -b -n 2 should limit process rows to two; the candidate treats -n as an interactive redraw count and prints all five (reached FAIL, retained).",
+              "definition_sha256": "392b1e5219eb0103eeee31bcdd31724e7869ec9d4320e313babcdee2a21a266d"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-top-batch-row-cap-r",
+              "assertion": "The documented -r N cap limits rows to N in the chosen sort order and -r 0 shows all rows.",
+              "definition_sha256": "400ec1a0b952f304529f703f8e287adfcb71604f6b97c8369c8734466f00dc47"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "top.c hardcodes /proc (top.c:160-319) and has no BASHOS_PROC_ROOT override (vmstat.c:72 has one). A private snapshot can still be presented without a mock: inside '/usr/bin/unshare -Urm', bind a fixture directory over /proc ('mount --bind snap /proc'). Before that, bind the real /proc elsewhere if descriptor checks need it. This assumes unprivileged user namespaces in the guest kernel, which root should verify once. If they are unavailable, the missing capability is a root-controller per-case bind mount of a synthetic tree over /proc in the case's mount namespace. Alternatively, add an env override to top.c as vmstat has; that is a candidate change and needs root coordination. Paired frozen lifecycle captures are also attributed to the observed --once load, displayed process-count and memory/swap header subset in r1. This partial reuse adds no new runtime and does not qualify the remaining header fields, -b/--batch entry points, sorting, PID tie breaks or -n row caps."
@@ -44304,23 +45488,29 @@
         "kind": "deferred",
         "reason": "Requires a private proc interposition fixture with controllable snapshots and directory entries. The fixture must not expose host /proc; expected inclusion, identity, and CPU deltas must be computed independently from proc(5) field positions and the documented top rules."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r1: Malformed status and cmdline semantics remain untested; broad original requirement incomplete.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "All requirements exercised.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "malformed or truncated per-PID records are skipped or handled as documented",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-farm600-top-proc-lifecycle-malformed",
               "assertion": "Both frozen builds: Two malformed/truncated stat records skipped in each epoch; valid record remains. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
               "definition_sha256": "cc0927c161a9672292d8535a70b6f4afdb9c232674b2f1f13d35149376f4e278"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-top-malformed-status-cmdline-stat",
+              "assertion": "Seven valid-stat processes with missing, garbage, absent status, empty and missing cmdline and a comm containing a parenthesis are all listed with correct RSS/state and [comm] fallbacks; truncated and empty stat records are excluded (procs 7).",
+              "definition_sha256": "d4dad361e83ffa65abddcdf2dbd81ea1b63ce438702a62c6f3ece1db4ee56fdd"
             }
           ],
-          "gap": "Malformed status and cmdline semantics remain untested; broad original requirement incomplete."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -45763,7 +46953,7 @@
             {
               "group": "shell",
               "id": "devices-uclamp-setter-r1",
-              "assertion": "Both builds preserve the owned target’s observed policy, nice and other scheduler attributes; SCHED_BATCH or SCHED_IDLE and a distinct nice were not seeded.",
+              "assertion": "Both builds preserve the owned target\u2019s observed policy, nice and other scheduler attributes; SCHED_BATCH or SCHED_IDLE and a distinct nice were not seeded.",
               "definition_sha256": "2be66eddc294bb6516c513d112572a887136977c55a844ba5356479c612bf857"
             },
             {
@@ -46801,30 +47991,51 @@
         "kind": "deferred",
         "reason": "Requires a disposable VM/package tree with a deterministic local stand-in installed at the documented uv helper path; the harness cannot supply that sibling executable. The future fixture should record argv and exported variables and return a chosen nonzero status, with no network access."
       },
-      "coverage": "none",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Arguments (including empty and spaced words) are forwarded to the helper verbatim.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "uv is not in the tested binaries."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-uv-forward-args",
+              "assertion": "Helper stand-in prints each argv element in brackets; expected '[alpha] [] [two words] [dollar$sign] [*]' proves empty, spaced and metacharacter words are forwarded verbatim. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
+              "definition_sha256": "8d63c17106d746fc5d1857fb9d273dfb018d9b100bd6317c26ae47b5c24ff23d"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Exported variables are visible to the helper.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executable against this candidate."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-uv-forward-env",
+              "assertion": "Helper prints an exported variable (visible) and an unexported shell variable (unset). Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
+              "definition_sha256": "40f2527e37e9f4de0faf7dd6614c30ff35b82b4e0bf85dc5e4fc7c7eb21d0924"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "The helper's exit status is returned.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executable against this candidate."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-uv-forward-status",
+              "assertion": "Helper exit statuses 0, 7 and 200 are expected unchanged from the uv builtin. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
+              "definition_sha256": "9698fa711922c638d70d37382e9e6c19a0848e534da45f9b00b0cdfa700000fe"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "legacy/uv/* SKIP records in both builds; uv.c:34 UV_PROGRAM, :46 dladdr."
@@ -46837,16 +48048,23 @@
         "kind": "deferred",
         "reason": "Requires a disposable package root containing both uv.so and a local stand-in under the documented sibling libexec/uv path, loaded before changing directories. The harness cannot mount or populate the compiled-in package path."
       },
-      "coverage": "none",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A uv.so loaded from a relative package path keeps resolving its sibling helper after cd.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "uv is not in the tested binaries."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-uv-after-cd",
+              "assertion": "uv.so is enabled from the relative path pkgroot/lib/bash-os/loadables/uv.so, the shell then cd's elsewhere, and 'uv ping' must still run the sibling ../libexec/uv/uv stand-in. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
+              "definition_sha256": "911b690bcb2876812bc09b2331af7ee12dbbd25cbad27c2e92f3ce175d774cbb"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "legacy/uv/* SKIP records in both builds; uv.c:34 UV_PROGRAM, :46 dladdr."
@@ -46859,16 +48077,23 @@
         "kind": "deferred",
         "reason": "Requires the pinned upstream uv executable in a disposable package tree and an isolated local project fixture. The helper is not supplied to the runner; if dependency resolution is included, it must use a local-only mock index. This has no matching GNU CLI oracle."
       },
-      "coverage": "none",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "A useful upstream uv operation on a tiny local project produces the expected tree without network access.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "uv is not in the tested binaries and no pinned upstream uv executable is in the image or payload."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-uv-local-project",
+              "assertion": "'uv init --bare tinyproj' must leave exactly tinyproj/pyproject.toml with name = \"tinyproj\"; a stand-in helper replaces upstream uv because no pinned upstream uv executable exists in the image or payload, so the assertion tests the builtin's forwarding for this operation, not upstream uv. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
+              "definition_sha256": "a8725e85b0006f00e4c38322ea6b81cebe8cf3c43a29467cebed009102dd7884"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "legacy/uv/* SKIP records in both builds; uv.c:34 UV_PROGRAM, :46 dladdr."
@@ -46881,23 +48106,37 @@
         "kind": "deferred",
         "reason": "Requires a disposable package layout in which the builtin is present but its helper is deliberately absent; the harness has no isolated package-root injection for this compiled-in loadable, and the host /usr tree is read-only."
       },
-      "coverage": "none",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "With the helper absent, uv returns 127.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "uv is not in the tested binaries."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-uv-missing-status",
+              "assertion": "type -t uv must print builtin and 'uv --version' with no helper at the compiled-in path must return 127 (the guest has no /usr/lib/bash-os/libexec/uv/uv, checked in setup). The frozen builds have no uv builtin, so type -t prints nothing and the case fails.",
+              "definition_sha256": "3e2f74ea37a6a8356fa5a9751caf0bd0d39b5c46ceb2bc91ad3f7ff44f0891b3"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "The diagnostic includes the install hint 'install it with: pkg install uv'.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executable against this candidate."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-uv-missing-hint",
+              "assertion": "The diagnostic must contain 'install it with: pkg install uv' and the missing helper path, with status 127. The frozen builds print only bash's command-not-found text.",
+              "definition_sha256": "6dc1770c5179713c3e77b07811ffcf7d7543620ab662a11735641053be8a1c1d"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "legacy/uv/* SKIP records in both builds; uv.c:34 UV_PROGRAM, :46 dladdr."
@@ -46910,23 +48149,37 @@
         "kind": "deferred",
         "reason": "Requires a disposable VM with the sibling helper replaced by a reviewed stand-in that terminates only itself with a selected signal. No child signal behavior is exercised by this suite."
       },
-      "coverage": "none",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "uv is an optional loadable absent from both qualified binaries: legacy/uv/builtin-type and short-help-synopsis are SKIP ('loadable is not present in the candidate binary') in final-static and final-dynamic. The helper resolves ../libexec/uv/uv beside a loaded uv.so (uv.c dladdr) or the compiled-in /usr/lib/bash-os/libexec/uv/uv, so a relative package root works once a uv.so artifact is in the payload and the dynamic build can `enable -f` it. The candidate under qualification cannot execute any uv operation.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Child signals have default dispositions in the helper.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "uv is not in the tested binaries."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-uv-signal-defaults",
+              "assertion": "With INT and QUIT trapped in the calling script, the helper (a perl process reading /proc/self/status) must see neither signal ignored nor caught. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
+              "definition_sha256": "aad3116428c1be348078c0a061ea2294a1ba0015b4063af13625b6c0165561ee"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "A helper killed by signal N yields 128+N.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executable against this candidate."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-uv-signal-status",
+              "assertion": "A helper killing itself with TERM, KILL and USR1 must yield 143, 137 and 138. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
+              "definition_sha256": "b675dfc6e0bf3c19e80df3ef0f2fa6e10cf4f9fcdbda120aae4d4de502b5eeb5"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "legacy/uv/* SKIP records in both builds; uv.c:34 UV_PROGRAM, :46 dladdr."
@@ -46939,37 +48192,51 @@
         "kind": "deferred",
         "reason": "Requires a future disposable VM matrix with AVX2 masked and a non-SSE2 x86 target (or equivalent emulator), so each supported backend path can be selected without host CPU probing. In that VM, run small exact integer sum/dot/min/max cases with vector lengths that cover full SIMD lanes and scalar tails, compare against an independent scalar formula, and verify the reported backend. The current runner does not provide CPU feature controls or alternate architectures."
       },
-      "coverage": "none",
+      "coverage": "partial",
       "migration": null,
-      "current_reason": "Most of the matrix is reachable through the documented BASHVEC_BACKEND override on the existing VM. Masking AVX2 at runtime needs a VM CPU-model variant.",
+      "current_reason": "Backend selection and cross-backend reductions are exercised on both builds; the AVX2-masked fallback needs a controller-owned CPU model and the non-SSE2 target does not exist.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "BASHVEC_BACKEND=scalar, sse2 and avx2 select each backend and `vec backend` reports it.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed. vec.c:550-578 and :822-831 select by environment; avx2 also needs the CPU feature. The VM runs `-cpu host` (vm.py:175), and this host reports AVX2, so all three are reachable now."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-vec-backend-select",
+              "assertion": "In a fresh shell per value, BASHVEC_BACKEND=scalar, sse2 and avx2 each print that backend from `vec backend` on a guest whose /proc/cpuinfo lists avx2; auto, unset and empty report avx2 and an unrecognised value reports scalar.",
+              "definition_sha256": "f08412cb9164356fa1794b2d40fe4212a51150e7b933843b8a479d82d618e53f"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Exact integer sum/dot/min/max agree across backends for lengths covering full lanes and scalar tails.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not executed."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-vec-reductions-agree",
+              "assertion": "sum, min, max and dot over i32, u32, i64, f32 and f64 vectors of 1,2,3,4,5,7,8,9,15,16,17,31,32,33,63,64,65,127,128,129 elements match an independent Python scalar model exactly, under BASHVEC_BACKEND=scalar, sse2, avx2 and auto (400 rows).",
+              "definition_sha256": "56644fd51f36fcd734933a3ea069d42389dc2de78ef8774d1b6b2395cf2944f5"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Auto selection falls back to sse2/scalar when the CPU lacks AVX2.",
           "coverage": "missing",
           "evidence": [],
-          "gap": "Needs a guest whose CPU model masks AVX2 (`-cpu host,-avx2`). VM launch options are root-owned."
+          "gap": "Auto selection without AVX2 needs a guest CPU model that masks AVX2 (-cpu host,-avx2); VM launch options are controller-owned. The selector uses __builtin_cpu_supports (cpuid + xgetbv), which no per-process or environment control can mask, so a fixture cannot observe the fallback."
         },
         {
           "id": "r4",
           "behavior": "Non-SSE2 x86 target.",
           "coverage": "missing",
           "evidence": [],
-          "gap": "Not applicable to the shipped x86-64 binaries, because SSE2 is part of the x86-64 baseline. It only matters if a 32-bit i686 build is in scope; no such target is built."
+          "gap": "A non-SSE2 x86 target does not exist for the shipped x86-64 binaries (SSE2 is part of the x86-64 baseline) and no 32-bit or non-x86 build is produced, so no backend selection on such a target can be executed."
         }
       ]
     },

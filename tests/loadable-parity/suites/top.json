@@ -72,15 +72,81 @@
     },
     {
       "id": "batch-proc-snapshots",
+      "kind": "migrated",
       "purpose": "Compare deterministic --once/-b/--batch output, CPU and memory sorting, PID tie breaks, and row caps against an independent proc-fixture encoder.",
-      "kind": "deferred",
-      "reason": "Paired frozen --once lifecycle captures support only observed load, displayed process-count and memory/swap header fields. The complete documented header, -b/--batch entry points, sorting, PID tie breaks and -n row caps remain unverified."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-top-batch-entry-points"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-top-batch-header-uptime-cpu-tasks"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-top-batch-pid-tie-break"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-top-batch-row-cap-n"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-top-batch-row-cap-r"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-top-batch-sort-columns"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-top-proc-lifecycle-empty"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-top-proc-lifecycle-malformed"
+        }
+      ]
     },
     {
       "id": "proc-record-and-pid-lifecycle",
+      "kind": "migrated",
       "purpose": "Check malformed/truncated and vanishing records, empty process lists, CPU counter rollback, guest accounting, and new or reused PIDs with independently specified records.",
-      "kind": "deferred",
-      "reason": "Remaining obligations: r1: Malformed status and cmdline semantics remain untested; broad original requirement incomplete."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-top-malformed-status-cmdline-stat"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-top-proc-lifecycle-cpu-rollback"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-top-proc-lifecycle-empty"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-top-proc-lifecycle-guest"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-top-proc-lifecycle-lifecycle"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-top-proc-lifecycle-malformed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-top-proc-lifecycle-proc-rollback"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-top-proc-lifecycle-vanish"
+        }
+      ]
     },
     {
       "id": "interactive-pty-contract",
@@ -222,9 +288,34 @@
     },
     {
       "id": "batch-failure-cleanup",
+      "kind": "migrated",
       "purpose": "Check missing proc input, output write failure, repeated invocations, and descriptor/state cleanup while preserving the documented failure statuses.",
-      "kind": "deferred",
-      "reason": "Remaining obligations: r4: The descriptor targets and identities are not recorded; equal numbers do not exclude a close-and-reuse or replaced-descriptor leak."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-top-fd-identity-after-failures"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-terminal-top-fds-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-terminal-top-full-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-terminal-top-missing-mem-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-terminal-top-missing-stat-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-terminal-top-repeat-r3"
+        }
+      ]
     },
     {
       "id": "invalid-delay-zero",

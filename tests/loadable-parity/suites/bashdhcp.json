@@ -72,27 +72,147 @@
     },
     {
       "id": "defer-discover-offer-request-ack",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate the complete DHCP client acquisition exchange and returned lease against a private peer.",
-      "reason": "Only the offline parser is executed. The live request path is reachable on loopback today: BASHDHCP_SERVER_ADDR/BASHDHCP_SERVER_PORT/BASHDHCP_CLIENT_PORT redirect it, and SO_BINDTODEVICE works as VM root with -i lo. What is missing is a DHCP-aware peer."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/bashdhcp/parse-documented-assoc-fields"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/bashdhcp/parse-offer-fields"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/bashdhcp/parse-padding-and-ack"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-request-discover"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-request-ignores-mismatches"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-request-lease-bind"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-request-lease-print"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-request-request"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-request-silent-ack"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-request-silent-offer"
+        }
+      ]
     },
     {
       "id": "defer-renew-ack",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate DHCP renewal packet fields and ACK handling using an isolated configured interface.",
-      "reason": "renew is reachable on loopback (server_id 127.0.0.1 + BASHDHCP_SERVER_PORT/CLIENT_PORT, -i lo); a DHCP-aware peer is missing."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/bashdhcp/parse-documented-assoc-fields"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/bashdhcp/parse-padding-and-ack"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-renew-lease-bind"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-renew-lease-print"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-renew-no-server-id"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-renew-request"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-renew-silent"
+        }
+      ]
     },
     {
       "id": "defer-release",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate that release emits a DHCPRELEASE with the lease address and server identifier to the intended isolated peer.",
-      "reason": "release is reachable on loopback (lease server_id=127.0.0.1, BASHDHCP_SERVER_PORT, -i lo as root); the existing udp peer captures raw bytes but the random xid prevents byte comparison, so a decoding peer record is needed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-release-datagram"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-release-rejects-incomplete-lease"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-release-status"
+        }
+      ]
     },
     {
       "id": "defer-inform-ack",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate DHCPINFORM construction and option-bearing ACK decoding on a private link.",
-      "reason": "inform hard-codes UDP port 67 and limited broadcast (bashdhcp.c:590) and binds no client port, so it needs a script-built private veth topology rather than the loopback peer; no fixture exists."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/bashdhcp/parse-documented-assoc-fields"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/bashdhcp/parse-padding-and-ack"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-inform-destination"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-inform-lease-bind"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-inform-lease-bind-source-port"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-inform-lease-print"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-inform-lease-print-source-port"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-inform-request"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-bashdhcp-inform-silent"
+        }
+      ]
     },
     {
       "id": "parse-padding-and-ack",

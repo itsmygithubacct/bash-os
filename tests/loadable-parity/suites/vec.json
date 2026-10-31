@@ -128,7 +128,7 @@
       "id": "simd-cross-cpu-backends",
       "purpose": "Exercise scalar/SSE2/AVX2 backend selection and reduction equivalence on explicitly controlled CPU feature sets.",
       "kind": "deferred",
-      "reason": "Most of the matrix is reachable through the documented BASHVEC_BACKEND override on the existing VM. Masking AVX2 at runtime needs a VM CPU-model variant."
+      "reason": "Backend selection and cross-backend reductions are exercised on both builds; the AVX2-masked fallback needs a controller-owned CPU model and the non-SSE2 target does not exist."
     },
     {
       "id": "copy-is-independent",

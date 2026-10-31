@@ -128,15 +128,45 @@
     },
     {
       "id": "interactive-prompt",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check prompt input, output, and EOF behavior for the documented interactive invocation.",
-      "reason": "bashpython is optional and missing from both qualified binaries, and no terminal case exists. The PTY driver can supply input and observe prompts (expect/send/termios/terminal_restored), so a PTY is no longer the blocker."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "mig-w3-bashpython-prompt-continuation"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w3-bashpython-prompt-eof"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w3-bashpython-prompt-exec-line"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w3-bashpython-prompt-primary"
+        }
+      ]
     },
     {
       "id": "keyboard-interrupt",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare caught and unhandled KeyboardInterrupt behavior between the builtin and standalone Python.",
-      "reason": "Optional module missing from both builds. The stated blocker (no fixture-scoped signal controller) is stale: the PTY driver sends ^C through the private terminal's line discipline only to that PTY's foreground group, and foreground_job [SIGINT] can wait until the child accepts SIGINT."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "mig-w3-bashpython-ki-caught"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w3-bashpython-ki-group-scope"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w3-bashpython-ki-unhandled"
+        }
+      ]
     }
   ]
 }

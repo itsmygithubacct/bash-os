@@ -137,9 +137,38 @@
     },
     {
       "id": "process-and-native-effects",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise Perl system/exec calls, signal handling, arbitrary descriptor changes, or native XS code that can affect the embedding Bash process.",
-      "reason": "bashperl is an optional module and was not built into either qualified binary (both builds report 'loadable is not present'), so none of its legacy cases, including the ten runnable ones, executed. No fixture exists for the process, signal, descriptor or XS obligations."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-bashperl-exec-replaces-shell"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-bashperl-exec-subshell"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-bashperl-high-fd"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-bashperl-sig-handlers"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-bashperl-std-fds"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-bashperl-system-status"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-bashperl-xs-modules"
+        }
+      ]
     }
   ]
 }

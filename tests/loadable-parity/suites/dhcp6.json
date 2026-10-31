@@ -111,15 +111,109 @@
     },
     {
       "id": "deferred_solicit_exchange",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise the live SOLICIT to ADVERTISE to REQUEST to REPLY state machine only in a future disposable network fixture.",
-      "reason": "The live state machine is reachable on [::1] with -S ::1 and BASHDHCP6_* ports; no DHCPv6 peer exists."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/dhcp6/build_request_address_oro"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/dhcp6/build_solicit_fixed_xid"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/dhcp6/parse_advertise_options"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/dhcp6/parse_assoc_array_output"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-solicit-fields"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-solicit-no-advertise"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-solicit-no-reply"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-solicit-pd-form"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-solicit-rapid-direct"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-solicit-rapid-form"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-solicit-reply-bind"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-solicit-reply-print"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-solicit-request-follows"
+        }
+      ]
     },
     {
       "id": "deferred_inforequest_exchange",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise the live stateless INFORMATION-REQUEST exchange and DNS/domain option handling only in a future disposable network fixture.",
-      "reason": "The live exchange is reachable on IPv6 loopback with -S ::1 and BASHDHCP6_SERVER_PORT/CLIENT_PORT; the peer driver lacks a DHCPv6/IPv6 peer."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/dhcp6/build_information_request"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/dhcp6/parse_advertise_options"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-inforequest-default-transport"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-inforequest-fields"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-inforequest-override-transport"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-inforequest-reply-bind"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-inforequest-reply-dns"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-inforequest-reply-domains"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dhcp6-inforequest-retransmit"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dhcp6-inforequest-silent-timeout"
+        }
+      ]
     },
     {
       "id": "invalid-duid",

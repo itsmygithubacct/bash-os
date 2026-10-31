@@ -148,9 +148,18 @@
     },
     {
       "id": "jq-wrapper-integration",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise the documented jq.sh wrapper's raw-string and filter integration with bashjson.",
-      "reason": "The scenario names a component the candidate does not ship. The jq builtin has its own executed parity cases for similar behaviour, but that is a different program, so it cannot stand in for this compound scenario."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-bashjson-jq-nested-filter"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-bashjson-jq-raw-string"
+        }
+      ]
     },
     {
       "id": "escaped-key-and-empty-root",

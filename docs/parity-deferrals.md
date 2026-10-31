@@ -7,9 +7,9 @@ reviewed requirements, evidence links and specific remaining gaps. The
 saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
-The current review covers 406 of the 600 topics on both builds: static 213 PASS / 193 FAIL;
-dynamic 214 PASS / 192 FAIL. The other 194 retain unresolved requirements: 99 have partial
-coverage and 95 have none. These are topic counts, not additional behavioral test results.
+The current review covers 439 of the 600 topics on both builds: static 227 PASS / 212 FAIL;
+dynamic 228 PASS / 211 FAIL. The other 161 retain unresolved requirements: 89 have partial
+coverage and 72 have none. These are topic counts, not additional behavioral test results.
 
 The syslog review adds bounded three-record FIFO observations for startup, SIGHUP and periodic replay on both builds. Sender attribution is inferred from pinned serial source and isolated networking; HUP was queued while the daemon was stopped.
 
@@ -72,6 +72,8 @@ The process-record review adds seven paired observations for malformed stat reco
 The password-prompt review adds synthetic set-success and confirmation-mismatch observations, including unchanged account files on rejection and exact terminal restoration after natural exit. Earlier EOF/EIO evidence remains. Echo during successful or mismatched reads and Ctrl-C restoration are still unqualified. The change-prompt case has a synthetic-input substring collision with the prompt itself; its raw failure is retained without attributing it to the product, and that case is excluded from the published runnable subset.
 
 The DHCP server review adds offline subnet selection by giaddr, verbatim option 82 echo, persisted commit leases and commit-hook behavior. Failing or missing hooks preserve the complete ACK reply. Both builds omit the label-length byte in PXE menu suboption 9, which remains FAIL. Negative-vendor next-server gating, live serve exchanges, DECLINE/RELEASE, relay delivery and proxy sockets remain unresolved; these partial topics are not counted as full migrations.
+
+The network, service and mount review completes 33 topics on both builds. `ip` address, link, route, rule, neighbour, query and batch changes are compared with iproute2 in a mapped network namespace. `bashmount` mount, bind, remount and unmount flags are compared with util-linux, with the mount and umount2 arguments recorded by a seccomp notifier. DHCP, DHCPv6 and DHCP server exchanges are decoded by independent RFC codecs from frames exchanged with local peers. `top` batch output is checked against a private proc tree encoded from proc(5). Fourteen topics pass: the DHCP discover/offer/request/ack and release flows, DHCPv6 solicit, the DHCP server decline/release/hook and serve exchanges, both DHCPv6 server topics, `ip` address and link changes, all three `bashmount` topics, the rngseed save transaction and the `top` proc-record lifecycle. Nineteen record reached failures on both builds, including `ip` batch quoting and failing-line diagnostics, DHCP inform and renew, the PXE menu suboption, live firewall state and the `top` batch header. The frozen builds have no `uv` builtin, so its five topics fail against the documented interface; the jq, Perl and Python wrapper topics also fail. All failures remain FAIL.
 
 A historical case becomes `MIGRATED` only when every requirement has an explicit
 assertion and valid execution evidence on both builds. Its replacement cases

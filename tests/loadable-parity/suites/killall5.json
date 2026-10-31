@@ -78,9 +78,9 @@
     },
     {
       "id": "signal_delivery",
-      "kind": "deferred",
       "purpose": "Verify the broadcast signal selection, omit-list behavior, and failure handling without sending signals to the runner's process set.",
-      "reason": "Broadcast delivery is safe in the legacy runner's private PID namespace: its members are bwrap's init (PID 1), the case shell (own session via --new-session) and fixture children, so `killall5 -SIG -o 1` reaches only setsid fixture children. sysvinit killall5 refuses non-root callers, so no GNU byte oracle exists; trap logs are the oracle. ESRCH needs syscall injection."
+      "kind": "deferred",
+      "reason": "Delivery, selection and usage errors are exercised; only the EPERM/ESRCH failure outcomes (r3) remain: EPERM needs root fixtures (authored, unrun) and ESRCH needs syscall injection."
     }
   ]
 }
