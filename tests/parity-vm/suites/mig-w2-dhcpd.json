@@ -24,7 +24,7 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dhcpd.py": "cc899db26323ca48cc008998e3d5edffdedfbad412a51717a2125a8fda09009c",
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
         "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
       },
       "setup_script": "mkfifo sync.fifo go.fifo\n",
@@ -66,7 +66,7 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dhcpd.py": "cc899db26323ca48cc008998e3d5edffdedfbad412a51717a2125a8fda09009c",
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
         "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
       },
       "setup_script": "mkfifo sync.fifo go.fifo\n",
@@ -108,7 +108,7 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dhcpd.py": "cc899db26323ca48cc008998e3d5edffdedfbad412a51717a2125a8fda09009c",
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
         "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
       },
       "setup_script": "mkfifo sync.fifo go.fifo\n",
@@ -150,7 +150,7 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dhcpd.py": "cc899db26323ca48cc008998e3d5edffdedfbad412a51717a2125a8fda09009c",
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
         "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
       },
       "setup_script": "mkfifo sync.fifo go.fifo\n",
@@ -192,7 +192,7 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dhcpd.py": "cc899db26323ca48cc008998e3d5edffdedfbad412a51717a2125a8fda09009c",
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
         "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
       },
       "setup_script": "mkfifo sync.fifo go.fifo\n",
@@ -234,7 +234,7 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dhcpd.py": "cc899db26323ca48cc008998e3d5edffdedfbad412a51717a2125a8fda09009c",
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
         "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
       },
       "setup_script": "mkfifo sync.fifo go.fifo\n",
@@ -276,7 +276,7 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dhcpd.py": "cc899db26323ca48cc008998e3d5edffdedfbad412a51717a2125a8fda09009c",
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
         "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
       },
       "setup_script": "mkfifo sync.fifo go.fifo\n",
@@ -318,7 +318,7 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dhcpd.py": "cc899db26323ca48cc008998e3d5edffdedfbad412a51717a2125a8fda09009c",
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
         "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
       },
       "setup_script": "mkfifo sync.fifo go.fifo\n",
@@ -360,7 +360,7 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dhcpd.py": "cc899db26323ca48cc008998e3d5edffdedfbad412a51717a2125a8fda09009c",
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
         "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
       },
       "setup_script": "mkfifo sync.fifo go.fifo\n",
@@ -402,7 +402,7 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dhcpd.py": "cc899db26323ca48cc008998e3d5edffdedfbad412a51717a2125a8fda09009c",
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
         "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
       },
       "setup_script": "mkfifo sync.fifo go.fifo\n",
@@ -445,7 +445,7 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dhcpd.py": "cc899db26323ca48cc008998e3d5edffdedfbad412a51717a2125a8fda09009c",
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
         "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
       },
       "setup_script": "mkfifo sync.fifo go.fifo\n",
@@ -487,7 +487,7 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dhcpd.py": "cc899db26323ca48cc008998e3d5edffdedfbad412a51717a2125a8fda09009c",
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
         "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
       },
       "setup_script": "mkfifo sync.fifo go.fifo\n",
@@ -529,7 +529,7 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dhcpd.py": "cc899db26323ca48cc008998e3d5edffdedfbad412a51717a2125a8fda09009c",
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
         "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
       },
       "setup_script": "mkfifo sync.fifo go.fifo\n",
@@ -564,7 +564,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-dhcpd.py": "cc899db26323ca48cc008998e3d5edffdedfbad412a51717a2125a8fda09009c",
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
         "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py mkreq\n",
