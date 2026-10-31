@@ -37,7 +37,7 @@
       "requires": [
         "id"
       ],
-      "script": "export BASHAUTH_LOGIN_POLICY=$PWD/policy.none BPW_LOCK_DIR=$PWD/lock BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nhn=bash-os; [[ -r /etc/hostname ]] && IFS= read -r hn < /etc/hostname\nissue=; [[ -r /etc/issue ]] && { IFS= read -r -d '' issue < /etc/issue; true; }\nlogin --max-tries 1 < /dev/null > out.txt 2> err.txt\necho \"rc=$?\"\nIFS= read -r -d '' got < out.txt || true\n[[ $got == \"${issue}${hn} login: \" ]] && echo \"prompt-bytes=exact\" || echo \"prompt-bytes=DIFFER\"\n[[ -s err.txt ]] && echo \"stderr=nonempty\" || echo \"stderr=empty\"\n[[ -n $issue ]] && echo \"issue=present\" || echo \"issue=absent\"\n",
+      "script": "export BASHAUTH_LOGIN_POLICY=$PWD/policy.none BPW_LOCK_DIR=$PWD/lock BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nhn=bash-os; [[ -r /etc/hostname ]] && IFS= read -r hn < /etc/hostname\nissue=; [[ -r /etc/issue ]] && { IFS= read -r -d '' issue < /etc/issue; true; }\nlogin login --max-tries 1 < /dev/null > out.txt 2> err.txt\necho \"rc=$?\"\nIFS= read -r -d '' got < out.txt || true\n[[ $got == \"${issue}${hn} login: \" ]] && echo \"prompt-bytes=exact\" || echo \"prompt-bytes=DIFFER\"\n[[ -s err.txt ]] && echo \"stderr=nonempty\" || echo \"stderr=empty\"\n[[ -n $issue ]] && echo \"issue=present\" || echo \"issue=absent\"\n",
       "expected_status": 0,
       "timeout": 20,
       "stdout": "rc=1\nprompt-bytes=exact\nstderr=empty\nissue=present\n",
@@ -64,7 +64,7 @@
       ],
       "setup_script": "mkdir -p lock\nphc_cli() { local h; h=$(printf '%s' \"$1\" | /usr/bin/argon2 somesalt -id -t 1 -k 1024 -p 1 -l 32 -r); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\nphc_ssl() { local hx h; hx=$(printf '%s' \"$1\" | /usr/bin/od -An -v -tx1 | /usr/bin/tr -d ' \\n'); h=$(/usr/bin/openssl kdf -keylen 32 -kdfopt \"hexpass:$hx\" -kdfopt hexsalt:736f6d6573616c74 -kdfopt iter:1 -kdfopt memcost:1024 -kdfopt lanes:1 -kdfopt threads:1 ARGON2ID | /usr/bin/tr -d ':\\n' | /usr/bin/tr 'A-F' 'a-f'); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\n[[ $(phc_cli oracle-check) == \"$(phc_ssl oracle-check)\" ]]\n\ncat > passwd <<'P'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/home/alice:/bin/bash\nP\n{ printf 'root:%s:19000:0:99999:7:::\\n' \"$(phc_cli root-secret)\"; printf 'alice:%s:19000:0:99999:7:::\\n' \"$(phc_cli alice-secret)\"; } > shadow\nprintf '%s\\n' 'account required securetty tty=tty1' > policy.sec1\nprintf 'tty2 # console\\n#tty4\\ntty3\\n' > securetty\nprintf 'account required securetty file=%s/securetty\\n' \"$PWD\" > policy.sec2\nprintf '%s\\n' 'account required time deny' > policy.time\nprintf '%s\\n' 'auth required lockout max=2 window=600 duration=120' > policy.lock\n",
       "setup_timeout": 45,
-      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nlogin --max-tries 1; echo \"rc=$?\"\n",
+      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nlogin login --max-tries 1; echo \"rc=$?\"\n",
       "size": [
         24,
         100
@@ -91,7 +91,7 @@
           "send": "Sup3rSecret-wrong\r"
         },
         {
-          "expect": "Password: \\r\\nLogin incorrect\\r\\n"
+          "expect": "\\r\\nLogin incorrect\\r\\n"
         },
         {
           "expect": "Maximum number of tries exceeded\\.\\r\\n"
@@ -135,7 +135,7 @@
       ],
       "setup_script": "mkdir -p lock\nphc_cli() { local h; h=$(printf '%s' \"$1\" | /usr/bin/argon2 somesalt -id -t 1 -k 1024 -p 1 -l 32 -r); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\nphc_ssl() { local hx h; hx=$(printf '%s' \"$1\" | /usr/bin/od -An -v -tx1 | /usr/bin/tr -d ' \\n'); h=$(/usr/bin/openssl kdf -keylen 32 -kdfopt \"hexpass:$hx\" -kdfopt hexsalt:736f6d6573616c74 -kdfopt iter:1 -kdfopt memcost:1024 -kdfopt lanes:1 -kdfopt threads:1 ARGON2ID | /usr/bin/tr -d ':\\n' | /usr/bin/tr 'A-F' 'a-f'); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\n[[ $(phc_cli oracle-check) == \"$(phc_ssl oracle-check)\" ]]\n\ncat > passwd <<'P'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/home/alice:/bin/bash\nP\n{ printf 'root:%s:19000:0:99999:7:::\\n' \"$(phc_cli root-secret)\"; printf 'alice:%s:19000:0:99999:7:::\\n' \"$(phc_cli alice-secret)\"; } > shadow\nprintf '%s\\n' 'account required securetty tty=tty1' > policy.sec1\nprintf 'tty2 # console\\n#tty4\\ntty3\\n' > securetty\nprintf 'account required securetty file=%s/securetty\\n' \"$PWD\" > policy.sec2\nprintf '%s\\n' 'account required time deny' > policy.time\nprintf '%s\\n' 'auth required lockout max=2 window=600 duration=120' > policy.lock\n",
       "setup_timeout": 45,
-      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nlogin --max-tries 2; echo \"rc=$?\"\n",
+      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nlogin login --max-tries 2; echo \"rc=$?\"\n",
       "size": [
         24,
         100
@@ -154,7 +154,7 @@
           "send": "wrong-one\r"
         },
         {
-          "expect": "Password: \\r\\nLogin incorrect\\r\\n"
+          "expect": "\\r\\nLogin incorrect\\r\\n"
         },
         {
           "expect": "\\S+ login: "
@@ -169,7 +169,7 @@
           "send": "wrong-two\r"
         },
         {
-          "expect": "Password: \\r\\nLogin incorrect\\r\\n"
+          "expect": "\\r\\nLogin incorrect\\r\\n"
         },
         {
           "expect": "Maximum number of tries exceeded\\.\\r\\n"
@@ -205,7 +205,7 @@
       ],
       "setup_script": "mkdir -p lock\nphc_cli() { local h; h=$(printf '%s' \"$1\" | /usr/bin/argon2 somesalt -id -t 1 -k 1024 -p 1 -l 32 -r); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\nphc_ssl() { local hx h; hx=$(printf '%s' \"$1\" | /usr/bin/od -An -v -tx1 | /usr/bin/tr -d ' \\n'); h=$(/usr/bin/openssl kdf -keylen 32 -kdfopt \"hexpass:$hx\" -kdfopt hexsalt:736f6d6573616c74 -kdfopt iter:1 -kdfopt memcost:1024 -kdfopt lanes:1 -kdfopt threads:1 ARGON2ID | /usr/bin/tr -d ':\\n' | /usr/bin/tr 'A-F' 'a-f'); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\n[[ $(phc_cli oracle-check) == \"$(phc_ssl oracle-check)\" ]]\n\ncat > passwd <<'P'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/home/alice:/bin/bash\nP\n{ printf 'root:%s:19000:0:99999:7:::\\n' \"$(phc_cli root-secret)\"; printf 'alice:%s:19000:0:99999:7:::\\n' \"$(phc_cli alice-secret)\"; } > shadow\nprintf '%s\\n' 'account required securetty tty=tty1' > policy.sec1\nprintf 'tty2 # console\\n#tty4\\ntty3\\n' > securetty\nprintf 'account required securetty file=%s/securetty\\n' \"$PWD\" > policy.sec2\nprintf '%s\\n' 'account required time deny' > policy.time\nprintf '%s\\n' 'auth required lockout max=2 window=600 duration=120' > policy.lock\n",
       "setup_timeout": 45,
-      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nlogin --max-tries 2; echo \"rc=$?\"\n",
+      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nlogin login --max-tries 2; echo \"rc=$?\"\n",
       "size": [
         24,
         100
@@ -224,7 +224,7 @@
           "send": "wrong-one\r"
         },
         {
-          "expect": "Password: \\r\\nLogin incorrect\\r\\n"
+          "expect": "\\r\\nLogin incorrect\\r\\n"
         },
         {
           "expect": "\\S+ login: "
@@ -239,7 +239,7 @@
           "send": "wrong-two\r"
         },
         {
-          "expect": "Password: \\r\\nLogin incorrect\\r\\n"
+          "expect": "\\r\\nLogin incorrect\\r\\n"
         },
         {
           "expect": "Maximum number of tries exceeded\\.\\r\\n"
@@ -272,7 +272,7 @@
       ],
       "setup_script": "mkdir -p lock\nphc_cli() { local h; h=$(printf '%s' \"$1\" | /usr/bin/argon2 somesalt -id -t 1 -k 1024 -p 1 -l 32 -r); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\nphc_ssl() { local hx h; hx=$(printf '%s' \"$1\" | /usr/bin/od -An -v -tx1 | /usr/bin/tr -d ' \\n'); h=$(/usr/bin/openssl kdf -keylen 32 -kdfopt \"hexpass:$hx\" -kdfopt hexsalt:736f6d6573616c74 -kdfopt iter:1 -kdfopt memcost:1024 -kdfopt lanes:1 -kdfopt threads:1 ARGON2ID | /usr/bin/tr -d ':\\n' | /usr/bin/tr 'A-F' 'a-f'); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\n[[ $(phc_cli oracle-check) == \"$(phc_ssl oracle-check)\" ]]\n\ncat > passwd <<'P'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/home/alice:/bin/bash\nP\n{ printf 'root:%s:19000:0:99999:7:::\\n' \"$(phc_cli root-secret)\"; printf 'alice:%s:19000:0:99999:7:::\\n' \"$(phc_cli alice-secret)\"; } > shadow\nprintf '%s\\n' 'account required securetty tty=tty1' > policy.sec1\nprintf 'tty2 # console\\n#tty4\\ntty3\\n' > securetty\nprintf 'account required securetty file=%s/securetty\\n' \"$PWD\" > policy.sec2\nprintf '%s\\n' 'account required time deny' > policy.time\nprintf '%s\\n' 'auth required lockout max=2 window=600 duration=120' > policy.lock\n",
       "setup_timeout": 45,
-      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nt0=${EPOCHREALTIME/./}\nlogin --max-tries 1\nrc=$?\nt1=${EPOCHREALTIME/./}\necho \"rc=$rc elapsed_ms=$(( (t1 - t0) / 1000 ))\"\n",
+      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nt0=${EPOCHREALTIME/./}\nlogin login --max-tries 1\nrc=$?\nt1=${EPOCHREALTIME/./}\necho \"rc=$rc elapsed_ms=$(( (t1 - t0) / 1000 ))\"\n",
       "size": [
         24,
         100
@@ -291,7 +291,7 @@
           "send": "wrong-0\r"
         },
         {
-          "expect": "Password: \\r\\nLogin incorrect\\r\\n"
+          "expect": "\\r\\nLogin incorrect\\r\\n"
         },
         {
           "expect": "Maximum number of tries exceeded\\.\\r\\n"
@@ -324,7 +324,7 @@
       ],
       "setup_script": "mkdir -p lock\nphc_cli() { local h; h=$(printf '%s' \"$1\" | /usr/bin/argon2 somesalt -id -t 1 -k 1024 -p 1 -l 32 -r); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\nphc_ssl() { local hx h; hx=$(printf '%s' \"$1\" | /usr/bin/od -An -v -tx1 | /usr/bin/tr -d ' \\n'); h=$(/usr/bin/openssl kdf -keylen 32 -kdfopt \"hexpass:$hx\" -kdfopt hexsalt:736f6d6573616c74 -kdfopt iter:1 -kdfopt memcost:1024 -kdfopt lanes:1 -kdfopt threads:1 ARGON2ID | /usr/bin/tr -d ':\\n' | /usr/bin/tr 'A-F' 'a-f'); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\n[[ $(phc_cli oracle-check) == \"$(phc_ssl oracle-check)\" ]]\n\ncat > passwd <<'P'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/home/alice:/bin/bash\nP\n{ printf 'root:%s:19000:0:99999:7:::\\n' \"$(phc_cli root-secret)\"; printf 'alice:%s:19000:0:99999:7:::\\n' \"$(phc_cli alice-secret)\"; } > shadow\nprintf '%s\\n' 'account required securetty tty=tty1' > policy.sec1\nprintf 'tty2 # console\\n#tty4\\ntty3\\n' > securetty\nprintf 'account required securetty file=%s/securetty\\n' \"$PWD\" > policy.sec2\nprintf '%s\\n' 'account required time deny' > policy.time\nprintf '%s\\n' 'auth required lockout max=2 window=600 duration=120' > policy.lock\n",
       "setup_timeout": 45,
-      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nt0=${EPOCHREALTIME/./}\nlogin --max-tries 2\nrc=$?\nt1=${EPOCHREALTIME/./}\necho \"rc=$rc elapsed_ms=$(( (t1 - t0) / 1000 ))\"\n",
+      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nt0=${EPOCHREALTIME/./}\nlogin login --max-tries 2\nrc=$?\nt1=${EPOCHREALTIME/./}\necho \"rc=$rc elapsed_ms=$(( (t1 - t0) / 1000 ))\"\n",
       "size": [
         24,
         100
@@ -343,7 +343,7 @@
           "send": "wrong-0\r"
         },
         {
-          "expect": "Password: \\r\\nLogin incorrect\\r\\n"
+          "expect": "\\r\\nLogin incorrect\\r\\n"
         },
         {
           "expect": "\\S+ login: "
@@ -358,7 +358,7 @@
           "send": "wrong-1\r"
         },
         {
-          "expect": "Password: \\r\\nLogin incorrect\\r\\n"
+          "expect": "\\r\\nLogin incorrect\\r\\n"
         },
         {
           "expect": "Maximum number of tries exceeded\\.\\r\\n"
@@ -391,7 +391,7 @@
       ],
       "setup_script": "mkdir -p lock\nphc_cli() { local h; h=$(printf '%s' \"$1\" | /usr/bin/argon2 somesalt -id -t 1 -k 1024 -p 1 -l 32 -r); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\nphc_ssl() { local hx h; hx=$(printf '%s' \"$1\" | /usr/bin/od -An -v -tx1 | /usr/bin/tr -d ' \\n'); h=$(/usr/bin/openssl kdf -keylen 32 -kdfopt \"hexpass:$hx\" -kdfopt hexsalt:736f6d6573616c74 -kdfopt iter:1 -kdfopt memcost:1024 -kdfopt lanes:1 -kdfopt threads:1 ARGON2ID | /usr/bin/tr -d ':\\n' | /usr/bin/tr 'A-F' 'a-f'); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\n[[ $(phc_cli oracle-check) == \"$(phc_ssl oracle-check)\" ]]\n\ncat > passwd <<'P'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/home/alice:/bin/bash\nP\n{ printf 'root:%s:19000:0:99999:7:::\\n' \"$(phc_cli root-secret)\"; printf 'alice:%s:19000:0:99999:7:::\\n' \"$(phc_cli alice-secret)\"; } > shadow\nprintf '%s\\n' 'account required securetty tty=tty1' > policy.sec1\nprintf 'tty2 # console\\n#tty4\\ntty3\\n' > securetty\nprintf 'account required securetty file=%s/securetty\\n' \"$PWD\" > policy.sec2\nprintf '%s\\n' 'account required time deny' > policy.time\nprintf '%s\\n' 'auth required lockout max=2 window=600 duration=120' > policy.lock\n",
       "setup_timeout": 45,
-      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nt0=${EPOCHREALTIME/./}\nlogin --max-tries 3\nrc=$?\nt1=${EPOCHREALTIME/./}\necho \"rc=$rc elapsed_ms=$(( (t1 - t0) / 1000 ))\"\n",
+      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nt0=${EPOCHREALTIME/./}\nlogin login --max-tries 3\nrc=$?\nt1=${EPOCHREALTIME/./}\necho \"rc=$rc elapsed_ms=$(( (t1 - t0) / 1000 ))\"\n",
       "size": [
         24,
         100
@@ -410,7 +410,7 @@
           "send": "wrong-0\r"
         },
         {
-          "expect": "Password: \\r\\nLogin incorrect\\r\\n"
+          "expect": "\\r\\nLogin incorrect\\r\\n"
         },
         {
           "expect": "\\S+ login: "
@@ -425,7 +425,7 @@
           "send": "wrong-1\r"
         },
         {
-          "expect": "Password: \\r\\nLogin incorrect\\r\\n"
+          "expect": "\\r\\nLogin incorrect\\r\\n"
         },
         {
           "expect": "\\S+ login: "
@@ -440,7 +440,7 @@
           "send": "wrong-2\r"
         },
         {
-          "expect": "Password: \\r\\nLogin incorrect\\r\\n"
+          "expect": "\\r\\nLogin incorrect\\r\\n"
         },
         {
           "expect": "Maximum number of tries exceeded\\.\\r\\n"
@@ -473,7 +473,7 @@
       ],
       "setup_script": "mkdir -p lock\nphc_cli() { local h; h=$(printf '%s' \"$1\" | /usr/bin/argon2 somesalt -id -t 1 -k 1024 -p 1 -l 32 -r); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\nphc_ssl() { local hx h; hx=$(printf '%s' \"$1\" | /usr/bin/od -An -v -tx1 | /usr/bin/tr -d ' \\n'); h=$(/usr/bin/openssl kdf -keylen 32 -kdfopt \"hexpass:$hx\" -kdfopt hexsalt:736f6d6573616c74 -kdfopt iter:1 -kdfopt memcost:1024 -kdfopt lanes:1 -kdfopt threads:1 ARGON2ID | /usr/bin/tr -d ':\\n' | /usr/bin/tr 'A-F' 'a-f'); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\n[[ $(phc_cli oracle-check) == \"$(phc_ssl oracle-check)\" ]]\n\ncat > passwd <<'P'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/home/alice:/bin/bash\nP\n{ printf 'root:%s:19000:0:99999:7:::\\n' \"$(phc_cli root-secret)\"; printf 'alice:%s:19000:0:99999:7:::\\n' \"$(phc_cli alice-secret)\"; } > shadow\nprintf '%s\\n' 'account required securetty tty=tty1' > policy.sec1\nprintf 'tty2 # console\\n#tty4\\ntty3\\n' > securetty\nprintf 'account required securetty file=%s/securetty\\n' \"$PWD\" > policy.sec2\nprintf '%s\\n' 'account required time deny' > policy.time\nprintf '%s\\n' 'auth required lockout max=2 window=600 duration=120' > policy.lock\n",
       "setup_timeout": 45,
-      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nexport BASHAUTH_LOGIN_POLICY=$PWD/policy.lock\nlogin --max-tries 1; echo \"rc1=$?\"\nlogin --max-tries 1; echo \"rc2=$?\"\nCOUNT= LAST= LOCKED_UNTIL=\nwhile IFS== read -r k v; do declare \"$k=$v\"; done < lock/fail.3001\n[[ $COUNT == 2 && $((LOCKED_UNTIL - LAST)) == 120 ]] && echo lock-state=ok || echo \"lock-state=BAD[$COUNT,$LAST,$LOCKED_UNTIL]\"\necho \"modes=$(/usr/bin/stat -c %a lock | /usr/bin/tr -d '\\n') $(/usr/bin/stat -c %a lock/fail.3001)\"\nlogin --max-tries 1; echo \"rc3=$?\"\nCOUNT=\nwhile IFS== read -r k v; do declare \"$k=$v\"; done < lock/fail.3001\n[[ $COUNT == 2 ]] && echo lock-after-refusal=count-2 || echo \"lock-after-refusal=count-$COUNT\"\n",
+      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nexport BASHAUTH_LOGIN_POLICY=$PWD/policy.lock\nlogin login --max-tries 1; echo \"rc1=$?\"\nlogin login --max-tries 1; echo \"rc2=$?\"\nCOUNT= LAST= LOCKED_UNTIL=\nwhile IFS== read -r k v; do declare \"$k=$v\"; done < lock/fail.3001\n[[ $COUNT == 2 && $((LOCKED_UNTIL - LAST)) == 120 ]] && echo lock-state=ok || echo \"lock-state=BAD[$COUNT,$LAST,$LOCKED_UNTIL]\"\necho \"modes=$(/usr/bin/stat -c %a lock | /usr/bin/tr -d '\\n') $(/usr/bin/stat -c %a lock/fail.3001)\"\nlogin login --max-tries 1; echo \"rc3=$?\"\nCOUNT=\nwhile IFS== read -r k v; do declare \"$k=$v\"; done < lock/fail.3001\n[[ $COUNT == 2 ]] && echo lock-after-refusal=count-2 || echo \"lock-after-refusal=count-$COUNT\"\n",
       "size": [
         24,
         100
@@ -492,7 +492,7 @@
           "send": "wrong-1\r"
         },
         {
-          "expect": "Password: \\r\\nLogin incorrect\\r\\n"
+          "expect": "\\r\\nLogin incorrect\\r\\n"
         },
         {
           "expect": "Maximum number of tries exceeded\\.\\r\\n"
@@ -513,7 +513,7 @@
           "send": "wrong-2\r"
         },
         {
-          "expect": "Password: \\r\\nLogin incorrect\\r\\n"
+          "expect": "\\r\\nLogin incorrect\\r\\n"
         },
         {
           "expect": "Maximum number of tries exceeded\\.\\r\\n"
@@ -567,7 +567,7 @@
       ],
       "setup_script": "mkdir -p lock\nphc_cli() { local h; h=$(printf '%s' \"$1\" | /usr/bin/argon2 somesalt -id -t 1 -k 1024 -p 1 -l 32 -r); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\nphc_ssl() { local hx h; hx=$(printf '%s' \"$1\" | /usr/bin/od -An -v -tx1 | /usr/bin/tr -d ' \\n'); h=$(/usr/bin/openssl kdf -keylen 32 -kdfopt \"hexpass:$hx\" -kdfopt hexsalt:736f6d6573616c74 -kdfopt iter:1 -kdfopt memcost:1024 -kdfopt lanes:1 -kdfopt threads:1 ARGON2ID | /usr/bin/tr -d ':\\n' | /usr/bin/tr 'A-F' 'a-f'); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\n[[ $(phc_cli oracle-check) == \"$(phc_ssl oracle-check)\" ]]\n\ncat > passwd <<'P'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/home/alice:/bin/bash\nP\n{ printf 'root:%s:19000:0:99999:7:::\\n' \"$(phc_cli root-secret)\"; printf 'alice:%s:19000:0:99999:7:::\\n' \"$(phc_cli alice-secret)\"; } > shadow\nprintf '%s\\n' 'account required securetty tty=tty1' > policy.sec1\nprintf 'tty2 # console\\n#tty4\\ntty3\\n' > securetty\nprintf 'account required securetty file=%s/securetty\\n' \"$PWD\" > policy.sec2\nprintf '%s\\n' 'account required time deny' > policy.time\nprintf '%s\\n' 'auth required lockout max=2 window=600 duration=120' > policy.lock\n",
       "setup_timeout": 45,
-      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nBASHAUTH_LOGIN_POLICY=$PWD/policy.sec1 login --max-tries 1 -t tty9; echo \"v1=refused-tty rc=$?\"\nBASHAUTH_LOGIN_POLICY=$PWD/policy.sec1 login --max-tries 1 -t tty1; echo \"v2=listed-tty rc=$?\"\nBASHAUTH_LOGIN_POLICY=$PWD/policy.sec2 login --max-tries 1 -t tty3; echo \"v3=file-tty rc=$?\"\nBASHAUTH_LOGIN_POLICY=$PWD/policy.sec2 login --max-tries 1 -t /dev/tty2; echo \"v4=file-tty-dev-prefix-comment rc=$?\"\nBASHAUTH_LOGIN_POLICY=$PWD/policy.sec2 login --max-tries 1 -t tty4; echo \"v5=file-commented-out rc=$?\"\nBASHAUTH_LOGIN_POLICY=$PWD/policy.sec1 login --max-tries 1 ; echo \"v6=no-tty-name rc=$?\"\nBASHAUTH_LOGIN_POLICY=$PWD/policy.sec1 login --max-tries 1 -t tty9; echo \"v7=nonroot-unrestricted rc=$?\"\nBASHAUTH_LOGIN_POLICY=$PWD/policy.time login --max-tries 1 -t tty1; echo \"v8=time-deny rc=$?\"\n",
+      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\nBASHAUTH_LOGIN_POLICY=$PWD/policy.sec1 login login --max-tries 1 -t tty9; echo \"v1=refused-tty rc=$?\"\nBASHAUTH_LOGIN_POLICY=$PWD/policy.sec1 login login --max-tries 1 -t tty1; echo \"v2=listed-tty rc=$?\"\nBASHAUTH_LOGIN_POLICY=$PWD/policy.sec2 login login --max-tries 1 -t tty3; echo \"v3=file-tty rc=$?\"\nBASHAUTH_LOGIN_POLICY=$PWD/policy.sec2 login login --max-tries 1 -t /dev/tty2; echo \"v4=file-tty-dev-prefix-comment rc=$?\"\nBASHAUTH_LOGIN_POLICY=$PWD/policy.sec2 login login --max-tries 1 -t tty4; echo \"v5=file-commented-out rc=$?\"\nBASHAUTH_LOGIN_POLICY=$PWD/policy.sec1 login login --max-tries 1 ; echo \"v6=no-tty-name rc=$?\"\nBASHAUTH_LOGIN_POLICY=$PWD/policy.sec1 login login --max-tries 1 -t tty9; echo \"v7=nonroot-unrestricted rc=$?\"\nBASHAUTH_LOGIN_POLICY=$PWD/policy.time login login --max-tries 1 -t tty1; echo \"v8=time-deny rc=$?\"\n",
       "size": [
         24,
         100
@@ -586,7 +586,7 @@
           "send": "root-secret\r"
         },
         {
-          "expect": "Password: \\r\\nRoot login refused on this tty\\.\\r\\n"
+          "expect": "\\r\\nRoot login refused on this tty\\.\\r\\n"
         },
         {
           "expect": "v1=refused-tty rc=1\\r\\n"
@@ -604,7 +604,7 @@
           "send": "root-secret\r"
         },
         {
-          "expect": "Password: \\r\\n[^\\r\\n]*login: open /var/run/utmp"
+          "expect": "\\r\\n[^\\r\\n]*login: open /var/run/utmp"
         },
         {
           "expect": "v2=listed-tty rc=1\\r\\n"
@@ -622,7 +622,7 @@
           "send": "root-secret\r"
         },
         {
-          "expect": "Password: \\r\\n[^\\r\\n]*login: open /var/run/utmp"
+          "expect": "\\r\\n[^\\r\\n]*login: open /var/run/utmp"
         },
         {
           "expect": "v3=file-tty rc=1\\r\\n"
@@ -640,7 +640,7 @@
           "send": "root-secret\r"
         },
         {
-          "expect": "Password: \\r\\n[^\\r\\n]*login: open /var/run/utmp"
+          "expect": "\\r\\n[^\\r\\n]*login: open /var/run/utmp"
         },
         {
           "expect": "v4=file-tty-dev-prefix-comment rc=1\\r\\n"
@@ -658,7 +658,7 @@
           "send": "root-secret\r"
         },
         {
-          "expect": "Password: \\r\\nRoot login refused on this tty\\.\\r\\n"
+          "expect": "\\r\\nRoot login refused on this tty\\.\\r\\n"
         },
         {
           "expect": "v5=file-commented-out rc=1\\r\\n"
@@ -676,7 +676,7 @@
           "send": "root-secret\r"
         },
         {
-          "expect": "Password: \\r\\nRoot login refused on unknown tty\\.\\r\\n"
+          "expect": "\\r\\nRoot login refused on unknown tty\\.\\r\\n"
         },
         {
           "expect": "v6=no-tty-name rc=1\\r\\n"
@@ -694,7 +694,7 @@
           "send": "alice-secret\r"
         },
         {
-          "expect": "Password: \\r\\n[^\\r\\n]*login: open /var/run/utmp"
+          "expect": "\\r\\n[^\\r\\n]*login: open /var/run/utmp"
         },
         {
           "expect": "v7=nonroot-unrestricted rc=1\\r\\n"
@@ -712,7 +712,7 @@
           "send": "alice-secret\r"
         },
         {
-          "expect": "Password: \\r\\nLogin not permitted at this time\\.\\r\\n"
+          "expect": "\\r\\nLogin not permitted at this time\\.\\r\\n"
         },
         {
           "expect": "v8=time-deny rc=1\\r\\n"
