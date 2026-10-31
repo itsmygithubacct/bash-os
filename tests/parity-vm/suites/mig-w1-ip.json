@@ -1,0 +1,1165 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w1-ip-addr-add-del",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "addr add and addr del CIDR dev IF for IPv4 /24, /32 and IPv6, with re-add and delete-absent error handling, against iproute2.",
+      "covers": [
+        "ip/ip-address-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py addr-add-del\n",
+      "stdout": "scenario addr-add-del: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-addr-change-replace",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "addr change and addr replace on existing and absent addresses, including replace creating an absent address, against iproute2.",
+      "covers": [
+        "ip/ip-address-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py addr-change-replace\n",
+      "stdout": "scenario addr-change-replace: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-addr-flush-to",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "addr flush dev IF to PREFIX removes exactly the addresses inside PREFIX.",
+      "covers": [
+        "ip/ip-address-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py addr-flush-to\n",
+      "stdout": "scenario addr-flush-to: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-addr-flush-scope",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "addr flush dev IF scope S removes exactly the addresses of that scope.",
+      "covers": [
+        "ip/ip-address-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py addr-flush-scope\n",
+      "stdout": "scenario addr-flush-scope: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-addr-flush-dev",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "addr flush dev IF removes every address of that device and no other device's.",
+      "covers": [
+        "ip/ip-address-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py addr-flush-dev\n",
+      "stdout": "scenario addr-flush-dev: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-addr-show-dev",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "addr show IFNAME selects the device's addresses, matching iproute2 in text and JSON.",
+      "covers": [
+        "ip/ip-address-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py addr-show-dev\n",
+      "stdout": "scenario addr-show-dev: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-addr-show-to",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "addr show to PREFIX selects addresses inside the prefix, matching iproute2 in text and JSON.",
+      "covers": [
+        "ip/ip-address-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py addr-show-to\n",
+      "stdout": "scenario addr-show-to: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-addr-show-scope",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "addr show scope SCOPE selects addresses of that scope, matching iproute2 in text and JSON.",
+      "covers": [
+        "ip/ip-address-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py addr-show-scope\n",
+      "stdout": "scenario addr-show-scope: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-addr-show-4",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-4 addr show lists only IPv4 addresses, matching iproute2.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py addr-show-4\n",
+      "stdout": "scenario addr-show-4: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-addr-show-6",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-6 addr show lists only IPv6 addresses, matching iproute2.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py addr-show-6\n",
+      "stdout": "scenario addr-show-6: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-link-show-default",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "link show default text output for seeded dummy and veth links compared with iproute2 link facts.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py link-show-default\n",
+      "stdout": "scenario link-show-default: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-link-show-brief",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-br link show output compared with iproute2 link facts.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py link-show-brief\n",
+      "stdout": "scenario link-show-brief: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-link-show-oneline",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-o link show output compared with iproute2 link facts.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py link-show-oneline\n",
+      "stdout": "scenario link-show-oneline: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-link-show-json",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-j link show field values compared with iproute2 JSON.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py link-show-json\n",
+      "stdout": "scenario link-show-json: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-link-show-json-schema",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-j link show object keys compared strictly with iproute2 JSON.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py link-show-json-schema\n",
+      "stdout": "scenario link-show-json-schema: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-route-show-plain",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "route show (main table) rows compared with iproute2.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py route-show-plain\n",
+      "stdout": "scenario route-show-plain: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-route-show-dev",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "route show dev IF rows compared with iproute2.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py route-show-dev\n",
+      "stdout": "scenario route-show-dev: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-route-show-default",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "route show and route show default rows compared with iproute2.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py route-show-default\n",
+      "stdout": "scenario route-show-default: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-route-show-table",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "route show table N and table all rows compared with iproute2.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py route-show-table\n",
+      "stdout": "scenario route-show-table: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-rule-show-text",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "rule show text rows compared with iproute2 for seeded policy rules.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py rule-show-text\n",
+      "stdout": "scenario rule-show-text: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-rule-show-json",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-j rule show facts compared with iproute2 JSON.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py rule-show-json\n",
+      "stdout": "scenario rule-show-json: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-rule-show-json-schema",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-j rule show objects compared strictly with iproute2 JSON.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py rule-show-json-schema\n",
+      "stdout": "scenario rule-show-json-schema: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-neigh-show-all",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "neigh show permanent entries compared with iproute2 (text and JSON).",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py neigh-show-all\n",
+      "stdout": "scenario neigh-show-all: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-neigh-show-dev",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "neigh show dev IF permanent entries compared with iproute2 (text and JSON).",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py neigh-show-dev\n",
+      "stdout": "scenario neigh-show-dev: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-neigh-show-strict",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "neigh show full row set (all states) compared strictly with iproute2.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py neigh-show-strict\n",
+      "stdout": "scenario neigh-show-strict: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-link-updown",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "link set IF up and down change the administrative state, and an unknown link is rejected, against iproute2.",
+      "covers": [
+        "ip/ip-link-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py link-updown\n",
+      "stdout": "scenario link-updown: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-link-mtu-address",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "link set IF mtu N and address MAC change those attributes, invalid values rejected, against iproute2.",
+      "covers": [
+        "ip/ip-link-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py link-mtu-address\n",
+      "stdout": "scenario link-mtu-address: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-link-add-dummy",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "link add NAME type dummy creates a dummy link; duplicate is rejected, against iproute2.",
+      "covers": [
+        "ip/ip-link-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py link-add-dummy\n",
+      "stdout": "scenario link-add-dummy: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-link-add-veth",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "link add NAME type veth peer NAME creates both ends, against iproute2.",
+      "covers": [
+        "ip/ip-link-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py link-add-veth\n",
+      "stdout": "scenario link-add-veth: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-link-del",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "link del NAME removes a dummy and a veth together with its peer; deleting a missing link fails, against iproute2.",
+      "covers": [
+        "ip/ip-link-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py link-del\n",
+      "stdout": "scenario link-del: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-route-add-del",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "route add and del with via, dev, table and metric against iproute2.",
+      "covers": [
+        "ip/ip-route-rule-neighbour-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py route-add-del\n",
+      "stdout": "scenario route-add-del: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-route-change",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "route replace, append and change against iproute2.",
+      "covers": [
+        "ip/ip-route-rule-neighbour-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py route-change\n",
+      "stdout": "scenario route-change: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-route-flush",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "route flush dev IF removes that device's main-table routes only, against iproute2.",
+      "covers": [
+        "ip/ip-route-rule-neighbour-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py route-flush\n",
+      "stdout": "scenario route-flush: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-rule",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "rule add, del (from/to/fwmark/uidrange/ipproto/table/priority) and flush against iproute2.",
+      "covers": [
+        "ip/ip-route-rule-neighbour-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py rule\n",
+      "stdout": "scenario rule: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-neigh",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "neigh add, change, replace and del with lladdr and nud state against iproute2.",
+      "covers": [
+        "ip/ip-route-rule-neighbour-changes"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py neigh\n",
+      "stdout": "scenario neigh: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-batch-tokenize",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-batch FILE tokenizes whitespace, blank lines, comments and an ip prefix, against iproute2.",
+      "covers": [
+        "ip/ip-batch-mode"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py batch-tokenize\n",
+      "stdout": "scenario batch-tokenize: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-batch-stop",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-batch stops at the first failing command, later commands not applied, status and diagnostic name the failing line.",
+      "covers": [
+        "ip/ip-batch-mode"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py batch-stop\n",
+      "stdout": "scenario batch-stop: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-batch-quoting",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-batch FILE with a double-quoted word: candidate and iproute2 agree on the outcome and later lines.",
+      "covers": [
+        "ip/ip-batch-mode"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py batch-quoting\n",
+      "stdout": "scenario batch-quoting: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-batch-force",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-force -batch continues after failures, applies later commands and returns failure overall.",
+      "covers": [
+        "ip/ip-batch-mode"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py batch-force\n",
+      "stdout": "scenario batch-force: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-batch-stdin",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-batch - reads commands from standard input, against iproute2.",
+      "covers": [
+        "ip/ip-batch-mode"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py batch-stdin\n",
+      "stdout": "scenario batch-stdin: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    }
+  ]
+}

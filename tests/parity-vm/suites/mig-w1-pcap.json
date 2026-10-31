@@ -1,0 +1,324 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w1-pcap-iface",
+      "loadable": "pcap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pcap -i selects the interface: only frames seen on it are written; nonexistent interface fails.",
+      "covers": [
+        "pcap/capture-interface-timeout"
+      ],
+      "oracle": "Two veth pairs in a fresh mapped user+network namespace (IPv6 disabled so only injected frames exist). Frames are injected with AF_PACKET on one veth end; the candidate captures on the peer end. Expected pcap content is derived from the injected bytes and decoded independently with struct and tcpdump -r; netids blocking uses a recording fw executable first in PATH. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "tcpdump"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-pcap.py iface\n",
+      "stdout": "scenario iface: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 55,
+      "helpers_sha256": {
+        "helpers/mig-w1-pcap.py": "457f376bbf863a10bcb66798bc52d0ed060f24b89b7e3bc30377117818050689",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-pcap-timeout",
+      "loadable": "pcap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pcap -W ends a no-traffic capture within a bounded interval with a valid empty pcap; partial capture keeps earlier frames.",
+      "covers": [
+        "pcap/capture-interface-timeout"
+      ],
+      "oracle": "Two veth pairs in a fresh mapped user+network namespace (IPv6 disabled so only injected frames exist). Frames are injected with AF_PACKET on one veth end; the candidate captures on the peer end. Expected pcap content is derived from the injected bytes and decoded independently with struct and tcpdump -r; netids blocking uses a recording fw executable first in PATH. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "tcpdump"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-pcap.py timeout\n",
+      "stdout": "scenario timeout: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 55,
+      "helpers_sha256": {
+        "helpers/mig-w1-pcap.py": "457f376bbf863a10bcb66798bc52d0ed060f24b89b7e3bc30377117818050689",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-pcap-count-header",
+      "loadable": "pcap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "pcap -c N writes exactly N records then exits; global header fields.",
+      "covers": [
+        "pcap/capture-write-fixed-frames"
+      ],
+      "oracle": "Two veth pairs in a fresh mapped user+network namespace (IPv6 disabled so only injected frames exist). Frames are injected with AF_PACKET on one veth end; the candidate captures on the peer end. Expected pcap content is derived from the injected bytes and decoded independently with struct and tcpdump -r; netids blocking uses a recording fw executable first in PATH. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "tcpdump"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-pcap.py count-header\n",
+      "stdout": "scenario count-header: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 55,
+      "helpers_sha256": {
+        "helpers/mig-w1-pcap.py": "457f376bbf863a10bcb66798bc52d0ed060f24b89b7e3bc30377117818050689",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-pcap-records",
+      "loadable": "pcap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Per-record incl_len/orig_len, bytes and timestamps equal the injected frames.",
+      "covers": [
+        "pcap/capture-write-fixed-frames"
+      ],
+      "oracle": "Two veth pairs in a fresh mapped user+network namespace (IPv6 disabled so only injected frames exist). Frames are injected with AF_PACKET on one veth end; the candidate captures on the peer end. Expected pcap content is derived from the injected bytes and decoded independently with struct and tcpdump -r; netids blocking uses a recording fw executable first in PATH. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "tcpdump"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-pcap.py records\n",
+      "stdout": "scenario records: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 55,
+      "helpers_sha256": {
+        "helpers/mig-w1-pcap.py": "457f376bbf863a10bcb66798bc52d0ed060f24b89b7e3bc30377117818050689",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-pcap-snaplen",
+      "loadable": "pcap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A frame longer than -s is truncated to snaplen with orig_len preserved.",
+      "covers": [
+        "pcap/capture-write-fixed-frames"
+      ],
+      "oracle": "Two veth pairs in a fresh mapped user+network namespace (IPv6 disabled so only injected frames exist). Frames are injected with AF_PACKET on one veth end; the candidate captures on the peer end. Expected pcap content is derived from the injected bytes and decoded independently with struct and tcpdump -r; netids blocking uses a recording fw executable first in PATH. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "tcpdump"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-pcap.py snaplen\n",
+      "stdout": "scenario snaplen: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 55,
+      "helpers_sha256": {
+        "helpers/mig-w1-pcap.py": "457f376bbf863a10bcb66798bc52d0ed060f24b89b7e3bc30377117818050689",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-pcap-perms",
+      "loadable": "pcap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Output file mode is 0644 & ~umask.",
+      "covers": [
+        "pcap/capture-write-fixed-frames"
+      ],
+      "oracle": "Two veth pairs in a fresh mapped user+network namespace (IPv6 disabled so only injected frames exist). Frames are injected with AF_PACKET on one veth end; the candidate captures on the peer end. Expected pcap content is derived from the injected bytes and decoded independently with struct and tcpdump -r; netids blocking uses a recording fw executable first in PATH. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "tcpdump"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-pcap.py perms\n",
+      "stdout": "scenario perms: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 55,
+      "helpers_sha256": {
+        "helpers/mig-w1-pcap.py": "457f376bbf863a10bcb66798bc52d0ed060f24b89b7e3bc30377117818050689",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-pcap-netids-live",
+      "loadable": "netids",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "netids scan -i captures injected packets and emits the matching alert.",
+      "covers": [
+        "netids/deferred-live-capture"
+      ],
+      "oracle": "Two veth pairs in a fresh mapped user+network namespace (IPv6 disabled so only injected frames exist). Frames are injected with AF_PACKET on one veth end; the candidate captures on the peer end. Expected pcap content is derived from the injected bytes and decoded independently with struct and tcpdump -r; netids blocking uses a recording fw executable first in PATH. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "tcpdump"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-pcap.py netids-live\n",
+      "stdout": "scenario netids-live: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 55,
+      "helpers_sha256": {
+        "helpers/mig-w1-pcap.py": "457f376bbf863a10bcb66798bc52d0ed060f24b89b7e3bc30377117818050689",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-pcap-netids-timeout",
+      "loadable": "netids",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "netids scan -i --timeout without traffic ends with no event and success; nonexistent interface fails.",
+      "covers": [
+        "netids/deferred-live-capture"
+      ],
+      "oracle": "Two veth pairs in a fresh mapped user+network namespace (IPv6 disabled so only injected frames exist). Frames are injected with AF_PACKET on one veth end; the candidate captures on the peer end. Expected pcap content is derived from the injected bytes and decoded independently with struct and tcpdump -r; netids blocking uses a recording fw executable first in PATH. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "tcpdump"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-pcap.py netids-timeout\n",
+      "stdout": "scenario netids-timeout: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 55,
+      "helpers_sha256": {
+        "helpers/mig-w1-pcap.py": "457f376bbf863a10bcb66798bc52d0ed060f24b89b7e3bc30377117818050689",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-pcap-block-drop",
+      "loadable": "netids",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Live drop rule runs fw deny once per source (dedupe) and reports block events with dry_run false.",
+      "covers": [
+        "netids/deferred-active-firewall-blocking"
+      ],
+      "oracle": "Two veth pairs in a fresh mapped user+network namespace (IPv6 disabled so only injected frames exist). Frames are injected with AF_PACKET on one veth end; the candidate captures on the peer end. Expected pcap content is derived from the injected bytes and decoded independently with struct and tcpdump -r; netids blocking uses a recording fw executable first in PATH. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "tcpdump"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-pcap.py block-drop\n",
+      "stdout": "scenario block-drop: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 55,
+      "helpers_sha256": {
+        "helpers/mig-w1-pcap.py": "457f376bbf863a10bcb66798bc52d0ed060f24b89b7e3bc30377117818050689",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-pcap-block-reject",
+      "loadable": "netids",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Live reject rule takes the same blocking path as drop.",
+      "covers": [
+        "netids/deferred-active-firewall-blocking"
+      ],
+      "oracle": "Two veth pairs in a fresh mapped user+network namespace (IPv6 disabled so only injected frames exist). Frames are injected with AF_PACKET on one veth end; the candidate captures on the peer end. Expected pcap content is derived from the injected bytes and decoded independently with struct and tcpdump -r; netids blocking uses a recording fw executable first in PATH. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "tcpdump"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-pcap.py block-reject\n",
+      "stdout": "scenario block-reject: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 55,
+      "helpers_sha256": {
+        "helpers/mig-w1-pcap.py": "457f376bbf863a10bcb66798bc52d0ed060f24b89b7e3bc30377117818050689",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-pcap-block-fail",
+      "loadable": "netids",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A failing or missing fw is reflected in bashfw_rc, diagnostics and exit status.",
+      "covers": [
+        "netids/deferred-active-firewall-blocking"
+      ],
+      "oracle": "Two veth pairs in a fresh mapped user+network namespace (IPv6 disabled so only injected frames exist). Frames are injected with AF_PACKET on one veth end; the candidate captures on the peer end. Expected pcap content is derived from the injected bytes and decoded independently with struct and tcpdump -r; netids blocking uses a recording fw executable first in PATH. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "tcpdump"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-pcap.py block-fail\n",
+      "stdout": "scenario block-fail: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 55,
+      "helpers_sha256": {
+        "helpers/mig-w1-pcap.py": "457f376bbf863a10bcb66798bc52d0ed060f24b89b7e3bc30377117818050689",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    }
+  ]
+}

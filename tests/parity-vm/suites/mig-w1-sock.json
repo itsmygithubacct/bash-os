@@ -1,0 +1,565 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w1-sock-ss-default",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "ss with no family flag lists exactly the fixture's TCP sockets.",
+      "covers": [
+        "ss/deferred_owned_socket_selectors"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ss-default\n",
+      "stdout": "scenario ss-default: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-ss-families",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "ss -t/-u/-x and every combination select the corresponding families.",
+      "covers": [
+        "ss/deferred_owned_socket_selectors"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ss-families\n",
+      "stdout": "scenario ss-families: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-ss-listen-all",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "ss -l shows listening sockets only and -a all states for tcp, udp and unix.",
+      "covers": [
+        "ss/deferred_owned_socket_selectors"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ss-listen-all\n",
+      "stdout": "scenario ss-listen-all: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-ss-numeric",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "ss numeric endpoint text for IPv4 127.0.0.1:PORT and IPv6 [::1]:PORT rows.",
+      "covers": [
+        "ss/deferred_owned_socket_selectors"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ss-numeric\n",
+      "stdout": "scenario ss-numeric: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-ss-vs-iproute2",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "ss -tuxa row sets compared with iproute2 ss -tuxan for the same namespace.",
+      "covers": [
+        "ss/deferred_owned_socket_selectors"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ss-vs-iproute2\n",
+      "stdout": "scenario ss-vs-iproute2: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-ns-aliases",
+      "loadable": "netstat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "netstat -t/--tcp, -u/--udp, -x/--unix and combined long aliases select the same families.",
+      "covers": [
+        "netstat/defer-family-options"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ns-aliases\n",
+      "stdout": "scenario ns-aliases: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-ns-states",
+      "loadable": "netstat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "netstat -l shows listeners only, -a and no flag show all states.",
+      "covers": [
+        "netstat/defer-family-options"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ns-states\n",
+      "stdout": "scenario ns-states: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-ns-default",
+      "loadable": "netstat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "netstat with no family flag shows TCP, UDP and unix rows.",
+      "covers": [
+        "netstat/defer-family-options"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ns-default\n",
+      "stdout": "scenario ns-default: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-ns-reset",
+      "loadable": "netstat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "netstat options do not persist between calls in one shell.",
+      "covers": [
+        "netstat/defer-family-options"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ns-reset\n",
+      "stdout": "scenario ns-reset: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-ns-tcp",
+      "loadable": "netstat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "netstat -t numeric IPv4 TCP rows with queues, endpoints and state against the fixture sockets.",
+      "covers": [
+        "netstat/defer-inet-snapshot"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ns-tcp\n",
+      "stdout": "scenario ns-tcp: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-ns-tcp-labels",
+      "loadable": "netstat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "netstat TCP state labels against the net-tools vocabulary.",
+      "covers": [
+        "netstat/defer-inet-snapshot"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ns-tcp-labels\n",
+      "stdout": "scenario ns-tcp-labels: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-ns-udp",
+      "loadable": "netstat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "netstat -u rows with state labels against the fixture sockets and iproute2 ss.",
+      "covers": [
+        "netstat/defer-inet-snapshot"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ns-udp\n",
+      "stdout": "scenario ns-udp: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-ns-ipv6",
+      "loadable": "netstat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "netstat IPv6 rows use bracket-free numeric addresses.",
+      "covers": [
+        "netstat/defer-inet-snapshot"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ns-ipv6\n",
+      "stdout": "scenario ns-ipv6: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-ns-header",
+      "loadable": "netstat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "netstat prints the legacy Proto/Recv-Q/Send-Q/Local Address/Foreign Address/State header.",
+      "covers": [
+        "netstat/defer-inet-snapshot"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ns-header\n",
+      "stdout": "scenario ns-header: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-annot-ns",
+      "loadable": "netstat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "netstat -p annotates rows with the owning pid and program of fixture processes.",
+      "covers": [
+        "netstat/defer-process-ownership"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py annot-ns\n",
+      "stdout": "scenario annot-ns: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-annot-ss",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "ss -p annotates fixture-owned sockets with the correct process and descriptor, compared with iproute2.",
+      "covers": [
+        "ss/deferred_process_annotation"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py annot-ss\n",
+      "stdout": "scenario annot-ss: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-annot-denied",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "ss and netstat -p tolerate a process directory the scanner cannot read.",
+      "covers": [
+        "ss/deferred_process_annotation"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py annot-denied\n",
+      "stdout": "scenario annot-denied: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-annot-vanish",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "ss -p tolerates descriptors that vanish during the /proc scan.",
+      "covers": [
+        "ss/deferred_process_annotation"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py annot-vanish\n",
+      "stdout": "scenario annot-vanish: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-ns-unix",
+      "loadable": "netstat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "netstat -x listener, connected pair, datagram socket, state labels and queue field for fixture unix sockets.",
+      "covers": [
+        "netstat/defer-unix-sockets"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py ns-unix\n",
+      "stdout": "scenario ns-unix: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-sock-fallback",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "With socket(AF_NETLINK, NETLINK_SOCK_DIAG) denied by seccomp, ss and netstat read the proc tables, including IPv6 and unix.",
+      "covers": [
+        "ss/deferred_proc_fallback"
+      ],
+      "oracle": "Fresh mapped user+network namespace holding a fixed set of fixture-owned sockets (IPv4/IPv6 TCP listeners and an established pair, bound/connected UDP, unix stream and dgram). Expected rows are built from the fixture's own getsockname/getpeername/listen backlog; GNU iproute2 ss in the guest is the oracle for row sets and annotation format. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-sock.py fallback\n",
+      "stdout": "scenario fallback: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "helpers_sha256": {
+        "helpers/mig-w1-sock.py": "321681dc6674d7c127eb158a47cb368d6278219543d1cddf09197286cf9d8c5f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    }
+  ]
+}
