@@ -88,6 +88,8 @@ def report(argv):
     parts += ["fds=%s" % fds, "file=%s" % state(file, n), "temps=%s" % (",".join(temps) or "none"), "orig-copies=%d" % copies(n)]
     print(" ".join(parts))
     print("  trace: " + summary(name + ".jsonl", n))
+    if fds != "same" and os.path.exists(name + ".fdl"):
+        print("  fd-lists: " + open(name + ".fdl").read().strip())
 
 
 def payload(argv):
