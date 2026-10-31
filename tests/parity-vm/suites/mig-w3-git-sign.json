@@ -1,0 +1,148 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w3-git-ssh-sign-commit",
+      "loadable": "git",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "git/signing_and_editor"
+      ],
+      "requires": [
+        "git",
+        "ssh-keygen",
+        "python3"
+      ],
+      "setup_script": "set -e\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture-signer -f \"$HOME/key\"\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture-other -f \"$HOME/other\"\nread -r kt kk kc < \"$HOME/key.pub\"\nprintf 'fixture@example.com namespaces=\"git\" %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/allowed_signers\"\ncat > ed-g <<'EOF'\n#!/bin/sh\n{ printf 'msg-G\\n'; /bin/cat \"$1\"; } > \"$1.new\" && /bin/mv \"$1.new\" \"$1\"\nEOF\nsed 's/msg-G/msg-C/' ed-g > ed-c; sed 's/msg-G/msg-V/' ed-g > ed-v; sed 's/msg-G/msg-E/' ed-g > ed-e\nprintf '#!/bin/sh\\nexit 3\\n' > ed-fail\ncat > fakegpg <<'EOF'\n#!/bin/sh\n/bin/cat > /dev/null\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nZml4dHVyZQ==\\n-----END PGP SIGNATURE-----\\n'\nprintf '[GNUPG:] SIG_CREATED D 1 8 00 1 FIXTUREFPR\\n' >&2\nEOF\ncat > seq-edit <<'EOF'\n#!/bin/sh\n# todo: pick c2,c3,c4 -> pick c3, pick c2, drop c4\nset -- \"$1\"\nl2=$(/usr/bin/grep ' c2$' \"$1\"); l3=$(/usr/bin/grep ' c3$' \"$1\"); l4=$(/usr/bin/grep ' c4$' \"$1\")\n{ printf '%s\\n' \"$l3\" \"$l2\"; printf 'drop %s\\n' \"${l4#pick }\"; } > \"$1.new\" && /bin/mv \"$1.new\" \"$1\"\nEOF\nchmod 755 ed-g ed-c ed-v ed-e ed-fail fakegpg seq-edit\n",
+      "setup_timeout": 40,
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\nK=$HOME/key\nyn() { if \"$@\"; then echo yes; else echo no; fi; }\nnewrepo() { /usr/bin/git init -q -b main \"$1\"; cd \"$1\"; printf 'base\\n' > f1; git add f1; git commit -q -m base; }\nnewrepo r\nprintf 'x\\n' > f2; git add f2\ngit -c gpg.format=ssh -c user.signingKey=\"$K\" commit -q -S -m signed 2>\"$HOME/err.txt\"; echo \"commit-rc=$?\"\ngit cat-file commit HEAD > \"$HOME/commit.txt\"\n/usr/bin/python3 - \"$HOME\" <<'PY'\nimport sys,subprocess\nhome=sys.argv[1]; raw=open(home+'/commit.txt','rb').read()\nhead,_,msg=raw.partition(b'\\n\\n'); lines=head.split(b'\\n'); sig=[]; keep=[]; ins=False\nfor l in lines:\n    if l.startswith(b'gpgsig '): ins=True; sig.append(l[7:])\n    elif ins and l.startswith(b' '): sig.append(l[1:])\n    else: ins=False; keep.append(l)\nprint('gpgsig-header=%s' % ('yes' if sig else 'no'))\nopen(home+'/sig.txt','wb').write(b'\\n'.join(sig)+b'\\n'); open(home+'/payload.txt','wb').write(b'\\n'.join(keep)+b'\\n\\n'+msg)\nr=subprocess.run(['/usr/bin/ssh-keygen','-Y','verify','-f',home+'/allowed_signers','-I','fixture@example.com','-n','git','-s',home+'/sig.txt'],stdin=open(home+'/payload.txt','rb'),capture_output=True)\nprint('ssh-keygen-verifies-signature=%s' % ('yes' if r.returncode==0 else 'no'))\nPY\necho \"object-bytes:\"; /usr/bin/python3 -c \"import sys;sys.stdout.write(open('$HOME/commit.txt').read())\"\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "System git 2.47.3 (Debian trixie) with OpenSSH 10.0 ssh-keygen as the reference; fixture-only ed25519 keys generated in setup, no installed credentials",
+      "comparison": "r1: commit -S with gpg.format=ssh and a fixture ed25519 user.signingKey and fixed dates produces a commit object whose complete bytes (including the deterministic SSHSIG gpgsig header) are identical on both sides, and the signature verifies with ssh-keygen -Y verify against the fixture allowed-signers file"
+    },
+    {
+      "id": "mig-w3-git-ssh-verify-commit",
+      "loadable": "git",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "git/signing_and_editor"
+      ],
+      "requires": [
+        "git",
+        "ssh-keygen",
+        "python3"
+      ],
+      "setup_script": "set -e\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture-signer -f \"$HOME/key\"\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture-other -f \"$HOME/other\"\nread -r kt kk kc < \"$HOME/key.pub\"\nprintf 'fixture@example.com namespaces=\"git\" %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/allowed_signers\"\ncat > ed-g <<'EOF'\n#!/bin/sh\n{ printf 'msg-G\\n'; /bin/cat \"$1\"; } > \"$1.new\" && /bin/mv \"$1.new\" \"$1\"\nEOF\nsed 's/msg-G/msg-C/' ed-g > ed-c; sed 's/msg-G/msg-V/' ed-g > ed-v; sed 's/msg-G/msg-E/' ed-g > ed-e\nprintf '#!/bin/sh\\nexit 3\\n' > ed-fail\ncat > fakegpg <<'EOF'\n#!/bin/sh\n/bin/cat > /dev/null\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nZml4dHVyZQ==\\n-----END PGP SIGNATURE-----\\n'\nprintf '[GNUPG:] SIG_CREATED D 1 8 00 1 FIXTUREFPR\\n' >&2\nEOF\ncat > seq-edit <<'EOF'\n#!/bin/sh\n# todo: pick c2,c3,c4 -> pick c3, pick c2, drop c4\nset -- \"$1\"\nl2=$(/usr/bin/grep ' c2$' \"$1\"); l3=$(/usr/bin/grep ' c3$' \"$1\"); l4=$(/usr/bin/grep ' c4$' \"$1\")\n{ printf '%s\\n' \"$l3\" \"$l2\"; printf 'drop %s\\n' \"${l4#pick }\"; } > \"$1.new\" && /bin/mv \"$1.new\" \"$1\"\nEOF\nchmod 755 ed-g ed-c ed-v ed-e ed-fail fakegpg seq-edit\n",
+      "setup_timeout": 40,
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\nK=$HOME/key\nyn() { if \"$@\"; then echo yes; else echo no; fi; }\nnewrepo() { /usr/bin/git init -q -b main \"$1\"; cd \"$1\"; printf 'base\\n' > f1; git add f1; git commit -q -m base; }\nnewrepo r\nG=\"git -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=$HOME/allowed_signers\"\nprintf 'x\\n' > f2; git add f2\ngit -c gpg.format=ssh -c user.signingKey=\"$K\" commit -q -S -m good 2>/dev/null\ngood=$(git rev-parse HEAD)\n$G verify-commit HEAD 2>\"$HOME/v-good.err\"; echo \"good-rc=$?\"\ne=$(<\"$HOME/v-good.err\"); echo \"good-reports-principal=$(yn [[ $e == *'Good \"git\" signature for fixture@example.com'* ]])\"\necho \"good-log-show-signature=$(yn [[ $($G log -1 --show-signature --format=%H 2>&1) == *'Good \"git\" signature'* ]])\"\n# tampered: same gpgsig header over a different message\ngit cat-file commit HEAD > \"$HOME/c.txt\"\n/usr/bin/python3 -c \"\nd=open('$HOME/c.txt','rb').read().replace(b'\\n\\ngood\\n',b'\\n\\nevil\\n'); open('$HOME/t.txt','wb').write(d)\"\nt=$(git hash-object -t commit -w --literally \"$HOME/t.txt\")\n$G verify-commit \"$t\" 2>\"$HOME/v-bad.err\"; echo \"tampered-rejected=$(yn [ $? != 0 ])\"\n# unknown key\ngit -c gpg.format=ssh -c user.signingKey=\"$HOME/other\" commit -q --allow-empty -S -m other 2>/dev/null\n$G verify-commit HEAD 2>\"$HOME/v-unk.err\"; echo \"unknown-key-rejected=$(yn [ $? != 0 ])\"\necho \"unknown-key-not-good=$(yn [[ $(<\"$HOME/v-unk.err\") != *Good* ]])\"\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "System git 2.47.3 (Debian trixie) with OpenSSH 10.0 ssh-keygen as the reference; fixture-only ed25519 keys generated in setup, no installed credentials",
+      "comparison": "r2: verify-commit and log --show-signature with gpg.ssh.allowedSignersFile report a good signature and principal for a commit signed by the allowed key; the same signature over an altered message and a commit signed by a key not in the file are rejected",
+      "stdout": "good-rc=0\ngood-reports-principal=yes\ngood-log-show-signature=yes\ntampered-rejected=yes\nunknown-key-rejected=yes\nunknown-key-not-good=yes\n"
+    },
+    {
+      "id": "mig-w3-git-openpgp-fake-gpg",
+      "loadable": "git",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "git/signing_and_editor"
+      ],
+      "requires": [
+        "git",
+        "ssh-keygen",
+        "python3"
+      ],
+      "setup_script": "set -e\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture-signer -f \"$HOME/key\"\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture-other -f \"$HOME/other\"\nread -r kt kk kc < \"$HOME/key.pub\"\nprintf 'fixture@example.com namespaces=\"git\" %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/allowed_signers\"\ncat > ed-g <<'EOF'\n#!/bin/sh\n{ printf 'msg-G\\n'; /bin/cat \"$1\"; } > \"$1.new\" && /bin/mv \"$1.new\" \"$1\"\nEOF\nsed 's/msg-G/msg-C/' ed-g > ed-c; sed 's/msg-G/msg-V/' ed-g > ed-v; sed 's/msg-G/msg-E/' ed-g > ed-e\nprintf '#!/bin/sh\\nexit 3\\n' > ed-fail\ncat > fakegpg <<'EOF'\n#!/bin/sh\n/bin/cat > /dev/null\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nZml4dHVyZQ==\\n-----END PGP SIGNATURE-----\\n'\nprintf '[GNUPG:] SIG_CREATED D 1 8 00 1 FIXTUREFPR\\n' >&2\nEOF\ncat > seq-edit <<'EOF'\n#!/bin/sh\n# todo: pick c2,c3,c4 -> pick c3, pick c2, drop c4\nset -- \"$1\"\nl2=$(/usr/bin/grep ' c2$' \"$1\"); l3=$(/usr/bin/grep ' c3$' \"$1\"); l4=$(/usr/bin/grep ' c4$' \"$1\")\n{ printf '%s\\n' \"$l3\" \"$l2\"; printf 'drop %s\\n' \"${l4#pick }\"; } > \"$1.new\" && /bin/mv \"$1.new\" \"$1\"\nEOF\nchmod 755 ed-g ed-c ed-v ed-e ed-fail fakegpg seq-edit\n",
+      "setup_timeout": 40,
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\nK=$HOME/key\nyn() { if \"$@\"; then echo yes; else echo no; fi; }\nnewrepo() { /usr/bin/git init -q -b main \"$1\"; cd \"$1\"; printf 'base\\n' > f1; git add f1; git commit -q -m base; }\nnewrepo r\nprintf 'x\\n' > f2; git add f2\ngit -c gpg.format=openpgp -c gpg.program=\"/tmp/parity-case/fakegpg\" -c user.signingKey=FIXTUREKEY commit -q -S -m pgp 2>\"$HOME/err.txt\"; echo \"commit-rc=$?\"\necho \"gpgsig-header=$(yn [[ $(git cat-file commit HEAD) == *'gpgsig -----BEGIN PGP SIGNATURE-----'* ]])\"\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "System git 2.47.3 (Debian trixie) with OpenSSH 10.0 ssh-keygen as the reference; fixture-only ed25519 keys generated in setup, no installed credentials",
+      "comparison": "r3: OpenPGP signing (gpg.format=openpgp) through the configured gpg.program: git runs the program with --status-fd=2 -bsau KEY, takes its SIG_CREATED status and armoured stdout and records it as the commit's gpgsig header. A fixture gpg that emits a fixed armour stands in for gpg (not installed in the guest); the candidate states that it signs with ssh keys only.",
+      "stdout": "commit-rc=0\ngpgsig-header=yes\n"
+    },
+    {
+      "id": "mig-w3-git-editor-precedence",
+      "loadable": "git",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "git/signing_and_editor"
+      ],
+      "requires": [
+        "git",
+        "ssh-keygen",
+        "python3"
+      ],
+      "setup_script": "set -e\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture-signer -f \"$HOME/key\"\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture-other -f \"$HOME/other\"\nread -r kt kk kc < \"$HOME/key.pub\"\nprintf 'fixture@example.com namespaces=\"git\" %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/allowed_signers\"\ncat > ed-g <<'EOF'\n#!/bin/sh\n{ printf 'msg-G\\n'; /bin/cat \"$1\"; } > \"$1.new\" && /bin/mv \"$1.new\" \"$1\"\nEOF\nsed 's/msg-G/msg-C/' ed-g > ed-c; sed 's/msg-G/msg-V/' ed-g > ed-v; sed 's/msg-G/msg-E/' ed-g > ed-e\nprintf '#!/bin/sh\\nexit 3\\n' > ed-fail\ncat > fakegpg <<'EOF'\n#!/bin/sh\n/bin/cat > /dev/null\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nZml4dHVyZQ==\\n-----END PGP SIGNATURE-----\\n'\nprintf '[GNUPG:] SIG_CREATED D 1 8 00 1 FIXTUREFPR\\n' >&2\nEOF\ncat > seq-edit <<'EOF'\n#!/bin/sh\n# todo: pick c2,c3,c4 -> pick c3, pick c2, drop c4\nset -- \"$1\"\nl2=$(/usr/bin/grep ' c2$' \"$1\"); l3=$(/usr/bin/grep ' c3$' \"$1\"); l4=$(/usr/bin/grep ' c4$' \"$1\")\n{ printf '%s\\n' \"$l3\" \"$l2\"; printf 'drop %s\\n' \"${l4#pick }\"; } > \"$1.new\" && /bin/mv \"$1.new\" \"$1\"\nEOF\nchmod 755 ed-g ed-c ed-v ed-e ed-fail fakegpg seq-edit\n",
+      "setup_timeout": 40,
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\nK=$HOME/key\nyn() { if \"$@\"; then echo yes; else echo no; fi; }\nnewrepo() { /usr/bin/git init -q -b main \"$1\"; cd \"$1\"; printf 'base\\n' > f1; git add f1; git commit -q -m base; }\nexport GIT_EDITOR=/tmp/parity-case/ed-g VISUAL=/tmp/parity-case/ed-v EDITOR=/tmp/parity-case/ed-e\nnewrepo r\nn=0\nstep() { n=$((n+1)); printf 'f%d\\n' $n > \"f$n\"; git add \"f$n\"; git commit -q 2>\"$HOME/err$n.txt\"; echo \"$n rc=$? message=[$(git log -1 --format=%B | /usr/bin/tr '\\n' '|')] lines=$(git log -1 --format=%B | /usr/bin/wc -l)\"; }\ngit config core.editor /tmp/parity-case/ed-c\nstep\nunset GIT_EDITOR; step\ngit config --unset core.editor; step\nunset VISUAL; step\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "System git 2.47.3 (Debian trixie) with OpenSSH 10.0 ssh-keygen as the reference; fixture-only ed25519 keys generated in setup, no installed credentials",
+      "comparison": "r4: the commit message editor is GIT_EDITOR, then core.editor, then VISUAL, then EDITOR; the editor appends its message to git's template and the recorded message is exactly the editor's line with the template's comment lines stripped (one line)",
+      "stdout": "1 rc=0 message=[msg-G|] lines=1\n2 rc=0 message=[msg-C|] lines=1\n3 rc=0 message=[msg-V|] lines=1\n4 rc=0 message=[msg-E|] lines=1\n"
+    },
+    {
+      "id": "mig-w3-git-sequence-editor-rebase",
+      "loadable": "git",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "git/signing_and_editor"
+      ],
+      "requires": [
+        "git",
+        "ssh-keygen",
+        "python3"
+      ],
+      "setup_script": "set -e\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture-signer -f \"$HOME/key\"\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture-other -f \"$HOME/other\"\nread -r kt kk kc < \"$HOME/key.pub\"\nprintf 'fixture@example.com namespaces=\"git\" %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/allowed_signers\"\ncat > ed-g <<'EOF'\n#!/bin/sh\n{ printf 'msg-G\\n'; /bin/cat \"$1\"; } > \"$1.new\" && /bin/mv \"$1.new\" \"$1\"\nEOF\nsed 's/msg-G/msg-C/' ed-g > ed-c; sed 's/msg-G/msg-V/' ed-g > ed-v; sed 's/msg-G/msg-E/' ed-g > ed-e\nprintf '#!/bin/sh\\nexit 3\\n' > ed-fail\ncat > fakegpg <<'EOF'\n#!/bin/sh\n/bin/cat > /dev/null\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nZml4dHVyZQ==\\n-----END PGP SIGNATURE-----\\n'\nprintf '[GNUPG:] SIG_CREATED D 1 8 00 1 FIXTUREFPR\\n' >&2\nEOF\ncat > seq-edit <<'EOF'\n#!/bin/sh\n# todo: pick c2,c3,c4 -> pick c3, pick c2, drop c4\nset -- \"$1\"\nl2=$(/usr/bin/grep ' c2$' \"$1\"); l3=$(/usr/bin/grep ' c3$' \"$1\"); l4=$(/usr/bin/grep ' c4$' \"$1\")\n{ printf '%s\\n' \"$l3\" \"$l2\"; printf 'drop %s\\n' \"${l4#pick }\"; } > \"$1.new\" && /bin/mv \"$1.new\" \"$1\"\nEOF\nchmod 755 ed-g ed-c ed-v ed-e ed-fail fakegpg seq-edit\n",
+      "setup_timeout": 40,
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\nK=$HOME/key\nyn() { if \"$@\"; then echo yes; else echo no; fi; }\nnewrepo() { /usr/bin/git init -q -b main \"$1\"; cd \"$1\"; printf 'base\\n' > f1; git add f1; git commit -q -m base; }\nnewrepo r\nfor n in 2 3 4; do printf \"$n\\n\" > f$n; git add f$n; git commit -q -m c$n; done\nGIT_SEQUENCE_EDITOR=/tmp/parity-case/seq-edit git rebase -i -q main~3 2>\"$HOME/err.txt\"; echo \"rebase-rc=$?\"\necho \"subjects=$(git log --format=%s | /usr/bin/tr '\\n' ' ')\"\necho \"files=$(git ls-tree --name-only HEAD | /usr/bin/tr '\\n' ' ')\"\necho \"c4-dropped=$(yn [ ! -e f4 ])\"\necho \"clean-state=$(yn [ ! -d .git/rebase-merge ])\"\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "System git 2.47.3 (Debian trixie) with OpenSSH 10.0 ssh-keygen as the reference; fixture-only ed25519 keys generated in setup, no installed credentials",
+      "comparison": "r5: a GIT_SEQUENCE_EDITOR that rewrites the todo list (swap c2 and c3, drop c4) makes rebase -i produce the history c2, c3, base with files f1 f2 f3, no rebase state left",
+      "stdout": "rebase-rc=0\nsubjects=c2 c3 base \nfiles=f1 f2 f3 \nc4-dropped=yes\nclean-state=yes\n"
+    },
+    {
+      "id": "mig-w3-git-failing-editor",
+      "loadable": "git",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "git/signing_and_editor"
+      ],
+      "requires": [
+        "git",
+        "ssh-keygen",
+        "python3"
+      ],
+      "setup_script": "set -e\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture-signer -f \"$HOME/key\"\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture-other -f \"$HOME/other\"\nread -r kt kk kc < \"$HOME/key.pub\"\nprintf 'fixture@example.com namespaces=\"git\" %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/allowed_signers\"\ncat > ed-g <<'EOF'\n#!/bin/sh\n{ printf 'msg-G\\n'; /bin/cat \"$1\"; } > \"$1.new\" && /bin/mv \"$1.new\" \"$1\"\nEOF\nsed 's/msg-G/msg-C/' ed-g > ed-c; sed 's/msg-G/msg-V/' ed-g > ed-v; sed 's/msg-G/msg-E/' ed-g > ed-e\nprintf '#!/bin/sh\\nexit 3\\n' > ed-fail\ncat > fakegpg <<'EOF'\n#!/bin/sh\n/bin/cat > /dev/null\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nZml4dHVyZQ==\\n-----END PGP SIGNATURE-----\\n'\nprintf '[GNUPG:] SIG_CREATED D 1 8 00 1 FIXTUREFPR\\n' >&2\nEOF\ncat > seq-edit <<'EOF'\n#!/bin/sh\n# todo: pick c2,c3,c4 -> pick c3, pick c2, drop c4\nset -- \"$1\"\nl2=$(/usr/bin/grep ' c2$' \"$1\"); l3=$(/usr/bin/grep ' c3$' \"$1\"); l4=$(/usr/bin/grep ' c4$' \"$1\")\n{ printf '%s\\n' \"$l3\" \"$l2\"; printf 'drop %s\\n' \"${l4#pick }\"; } > \"$1.new\" && /bin/mv \"$1.new\" \"$1\"\nEOF\nchmod 755 ed-g ed-c ed-v ed-e ed-fail fakegpg seq-edit\n",
+      "setup_timeout": 40,
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\nK=$HOME/key\nyn() { if \"$@\"; then echo yes; else echo no; fi; }\nnewrepo() { /usr/bin/git init -q -b main \"$1\"; cd \"$1\"; printf 'base\\n' > f1; git add f1; git commit -q -m base; }\nexport GIT_EDITOR=/tmp/parity-case/ed-fail\nnewrepo r\nbefore=$(git rev-parse HEAD)\nprintf 'z\\n' > f9; git add f9\ngit commit -q 2>\"$HOME/err.txt\"; rc=$?\necho \"rc-nonzero=$(yn [ $rc != 0 ])\"\necho \"status=$rc\"\necho \"no-commit-created=$(yn [ \"$(git rev-parse HEAD)\" = \"$before\" ])\"\necho \"diagnostic=$(yn [[ $(<\"$HOME/err.txt\") == *\"problem with the editor\"* ]])\"\necho \"staged-change-kept=$(yn [ -n \"$(git diff --cached --name-only)\" ])\"\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "System git 2.47.3 (Debian trixie) with OpenSSH 10.0 ssh-keygen as the reference; fixture-only ed25519 keys generated in setup, no installed credentials",
+      "comparison": "r6: an editor that exits 3 aborts the commit: nonzero status 1, 'There was a problem with the editor' on stderr, HEAD unchanged and the staged change kept",
+      "stdout": "rc-nonzero=yes\nstatus=1\nno-commit-created=yes\ndiagnostic=yes\nstaged-change-kept=yes\n"
+    }
+  ]
+}
