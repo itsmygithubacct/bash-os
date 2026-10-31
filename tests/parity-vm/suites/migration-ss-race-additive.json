@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-ss-race-additive-denied",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe controlled owned-process denied behavior in a private guest PID namespace.",
+      "oracle": "Same-process builtin preflight controls, native process-directory controls, task-bound syscall records and independently owned socket facts; apply the pinned data-only gate to complete raw evidence.",
+      "comparison": "Capture-only proposal. Validate pre-run prerequisites and each provisional trace with its matched teardown record; independent gate and safe enclosing runner are required before guest execution.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ss",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/ss-race-additive.py": "ff1d8276f13149b26fa993c52ef0c02cff6926b6695a18ae80538155646e52ad",
+        "helpers/ss-race-additive-gate.json": "f463223e41adddb42de2bfb90812b013705edfbf465027617c2aee31b52f826c",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+      },
+      "script": "/usr/bin/python3 -B /opt/bashos-parity/harness/helpers/ss-race-additive.py denied \"$BASH\"",
+      "expected_status": 0,
+      "stdout": "ss-race-additive-denied-observed\n",
+      "stderr": "",
+      "timeout": 60,
+      "diagnostic_files": [
+        "ss-race-additive-denied.json",
+        "ss-race-additive-denied-outer.json",
+        "ss-race-additive-denied.jsonl"
+      ],
+      "covers": []
+    },
+    {
+      "id": "migration-ss-race-additive-race",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe controlled owned-process race behavior in a private guest PID namespace.",
+      "oracle": "Same-process builtin preflight controls, native process-directory controls, task-bound syscall records and independently owned socket facts; apply the pinned data-only gate to complete raw evidence.",
+      "comparison": "Capture-only proposal. Validate pre-run prerequisites and each provisional trace with its matched teardown record; independent gate and safe enclosing runner are required before guest execution.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ss",
+        "systemd-detect-virt"
+      ],
+      "helpers_sha256": {
+        "helpers/ss-race-additive.py": "ff1d8276f13149b26fa993c52ef0c02cff6926b6695a18ae80538155646e52ad",
+        "helpers/ss-race-additive-gate.json": "f463223e41adddb42de2bfb90812b013705edfbf465027617c2aee31b52f826c",
+        "helpers/ns_guest_identity_r1.py": "a74d97058d313388948010d1033f50dde7151c2d204d221ed3aeb4da3e9e1762"
+      },
+      "script": "/usr/bin/python3 -B /opt/bashos-parity/harness/helpers/ss-race-additive.py race \"$BASH\"",
+      "expected_status": 0,
+      "stdout": "ss-race-additive-race-observed\n",
+      "stderr": "",
+      "timeout": 60,
+      "diagnostic_files": [
+        "ss-race-additive-race.json",
+        "ss-race-additive-race-outer.json",
+        "ss-race-additive-race.jsonl"
+      ],
+      "covers": []
+    }
+  ]
+}

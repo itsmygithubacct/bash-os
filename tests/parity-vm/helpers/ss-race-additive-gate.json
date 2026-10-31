@@ -1,0 +1,128 @@
+{
+  "schema": "ss-race-additive-data-gate-v2",
+  "scope": "Independent data-only gate for the two original process-annotation clauses. Source, setup and generic runner outcomes are not product coverage; preserve all prior source and observed pass/fail evidence.",
+  "qualification": [
+    "Require independent protected VM identity and controller attestation, not just a helper guard-returned label. For a reached inner stage independently validate the journal header or complete report: outer uid/euid/gid/egid are 2000; inner uid/euid/gid/egid are zero, PID and proc_self are 1, cwd and HOME are the guest scratch paths, and complete bounded raw uid_map_raw/gid_map_raw decode to exactly one mapping 0 2000 1 matching the normalized fields. Compare the retained inner and outer pid/mount/network namespace device/inode identities and corroborate outer identities with the available trusted controller/outer record; require distinct namespaces, private proc mounted for PID 1 initially alone, and independently decode network_devices to confirm only loopback. Verify the scanner can address only fixture-owned processes and require no external host networking or privilege effects. Missing, inconsistent or unavailable evidence is UNQUALIFIED, not candidate FAIL.",
+    "Recompute byte sizes, base64 and SHA-256 for all captures and retained raw dirent records. Require complete stable regular-file snapshots with EOF, recorded size equal to retained decoded bytes, no overflow, exact candidate executable device/inode and controller-frozen digest, PID/start continuity, task identity on relevant events, no unsupported child creation, no forced cleanup of the evaluated trace, and the clean owner acknowledgements and statuses applicable to that observation. Require natural trace completion and retain the actual candidate status and output even if the status is nonzero or its annotation is absent or incorrect; do not require the product assertion under test as a prerequisite. For a full case require complete inner report, fully verified incremental journal and outer pre-reap completion without forced namespace shutdown. Unsupported ABI, missing evidence, incomplete snapshots or identity ambiguity are UNQUALIFIED.",
+    "The inner observer writes ss-race-additive-MODE.jsonl schema ss-race-journal-v2. The header appends and fsyncs mode, identity and mapping data, inner and outer namespaces, initial PID inventory, raw network devices, start time and parser controls before any run. Each reached trace is appended and synced as a provisional run-trace containing its index, case mode, label, owner facts and raw trace before owner teardown. A separate run-end follows teardown and contains the matching mode/index/label, trace_checkpoint byte length and SHA-256, a post-trace delta, finish time and problem. A run-unreached record marks a stage that never obtained a trace checkpoint; an overflow record marks omitted data. Both make the full case incomplete. Reconstruct the exact canonical JSON run-trace line including its newline and compare its byte length/hash with the matching run-end reference and delta. Reconstruct each paired run by applying only the listed allowed run-end delta fields to its run-trace data, including replacing the provisional complete value; no other delta field may overwrite trace or owner facts. For a full case, also compare the line metadata and reconstructed run with the corresponding final report entries. A retained prefix may be independently assessed using its prerequisite header and matched records without a final report, provided all stage-specific prerequisites and independently proven safe cleanup are present. Validate the expected stage order and each baseline/fault mode from the pinned source; do not assume every stage uses the case fault mode. A run-unreached or overflow marker identifies an incomplete stage, not a product verdict. For a full case require eight ordered trace/end pairs and an end record with complete=true, run_count=8 and error=null; compare the header, each run-end and footer canonical line byte count and SHA-256 with their report.journal metadata, as well as the reconstructed runs and report.complete=true. For a retained prefix without a final report, verify the available header and matched trace/end records directly and do not require report metadata that does not exist; separate controller attestation and safe cleanup remain required. Independently read at most 880000 bytes and reject duplicate keys, malformed/extra records, mismatched identities, wrong order, incorrect line hashes or lengths, incomplete pairs, non-newline/partial lines, missing footer or overflow for a full-case result. The reporter limit is 950000 bytes and traced-child regular-file limit is 65537; verify complete runner diagnostics within their per-file and total budgets. If a later stage, reporter or outer supervisor fails, retain every preceding complete newline-framed record. A lone run-trace is provisional, never a full case or an inferred PASS; only separately assess an already reached mismatch when the retained prerequisites and stage-specific observations are complete and independently proven safe teardown is available, from the matching run-end or an independently reviewed controller channel. A partial tail or missing footer cannot erase an earlier independently qualified failure. No power-loss or guest-crash durability is assumed.",
+    "Before native path controls require successful, naturally completed, same-process reference-shell type-positive, missing and disabled controls. Independently verify exact trusted reference executable and invocation against the controller-pinned image, raw stdout/stderr, exit statuses 0/99/99, no child creation or forced cleanup, and owned-process teardown. The positive emits ss-race-type-begin, builtin and ss-race-type-end on separate stderr lines; negatives stop after the begin marker without an end marker. For both candidate runs require the same exact direct-builtin type preflight and a stderr prefix of those three lines, from the same traced candidate task and exec identity as the following builtin ss invocation. A missing, disabled, non-builtin, ambiguous or incomplete preflight is a prerequisite failure, never a product verdict. No command substitution, pipeline or other child is permitted in this preflight. Retain the complete stderr, including any candidate diagnostic after the prefix.",
+    "For each invocation independently verify owned target and unaffected listener process identity, TCP port, socket inode and fd from the parent-owned fixture and raw /proc link before scan; verify unaffected socket remains live and identical afterwards. Never infer the pid/fd oracle from candidate output.",
+    "Require native-open-positive and same-case native-fault-control to establish that the same tracer and selected path expose either actual EACCES or actual post-enumeration ENOENT while a different owned fd directory and socket remain accessible. Independently decode the native probe output, wait status, exact selected path, task/start time, raw ordered syscall events and readlink values; do not rely on native_control_valid alone.",
+    "Require the separate native-listing-positive to show each independently owned listener in iproute2 output with its own correct PID/comm/fd and endpoint. Preserve candidate-listing-positive and separately assess any already reached qualified mismatch without treating its failure as proof the later fault was hit.",
+    "For candidate-fault denied: require a witnessed exact /proc/<owned-target-pid>/fd open/openat at the selected task entry, syscall suppression, kernel result and verified replacement with -EACCES at its exit, and independent native EACCES control. Only this directory may be altered; the unaffected fixture directory stays accessible.",
+    "For candidate-fault race: independently parse the complete getdents64 bytes and require the target FD name to have been returned by the exact task for the target directory before its exact readlink/readlinkat entry. Require a parent-controlled close command, identity-matched owner acknowledgment and absent fd link before resuming that syscall, followed by an actual -ENOENT syscall result. A close loop or an absent annotation without this ordered chain is not sufficient.",
+    "After an established injected or real fault, separately assess natural listing completion, the unaffected owned endpoint and any owner annotation against that run's independently captured facts. For a bounded r2/r3 continuation result require the exact fault, natural zero status, a separately witnessed live unaffected listener, and evidence that the scanner/listing continued to its independently attributable endpoint; use the raw task-bound events and endpoint row where their actual ordering supports that conclusion. Correct users annotation is an r1 product assertion, not a prerequisite for this r2/r3 result. Retain an absent, malformed, wrong or duplicate annotation as candidate output and separately assess a reached r1 mismatch when its own prerequisites qualify. Before attributing a nonzero fault-run exit, missing unaffected endpoint or wrong unaffected annotation to the fault in r2/r3, require an independently reviewed direct causal witness OR a fully qualified comparable no-fault candidate baseline that succeeded on the specific behavior being compared: natural zero completion and the relevant owned endpoint row for status/row assertions; a correct same-owner tuple for an annotation-specific assertion. Require both baseline owned endpoints to be independently verified; do not require an unrelated r1 annotation success to record a baseline mismatch or a status-only continuation. The baseline and fault runs create new owners: compare each output semantically against its own endpoint, process identity, fd and inode; never equate their numeric PIDs, ports or inodes. Preserve independently qualified baseline mismatches even if fault-specific causality is unqualified. Do not require the faulted scanner to reach the unaffected socket before recognizing an adequately attributed failure. Signal death, timeout, forced teardown, incomplete capture, missing fault event, failed controls or uncertain ownership remain UNQUALIFIED.",
+    "The pinned suite uses the shared plain runner whose reviewed implementation can wait/reap before probing or signalling the numeric process group. Do not execute through that runner until primary supplies or designates a separately reviewed safe enclosing lifecycle: keep the direct leader unreaped with waitid(WNOWAIT) during all owned-group operations, or use identity-bound bounded pidfd cleanup without stale numeric group probes/signals. Preserve natural/forced statuses, validate normal, timeout, detached and failure controls, and independently attest namespace teardown and absence of survivors. The inner supervisor's own group anchor does not repair the enclosing runner.",
+    "Independently parse native and candidate socket output as raw data. Native-listing-positive is a prerequisite: each expected native endpoint must have one independently verified standalone users:(...) field with a correctly structured same-owner (COMM,pid,fd) tuple. For candidate output, do not require the row or tuple under test as an input prerequisite: retain rows with absent, malformed, wrong, split or duplicate annotations and classify those observations after all applicable independent controls and identity facts qualify. A correct r1 annotation requires an exact endpoint token and the correct structured tuple from that run's owner facts; fakeusers prefixes, split identities or malformed tuples do not count as correct. Duplicate or ambiguous candidate rows must never be silently credited as correct; preserve the bytes and distinguish a reached mismatch from genuinely unresolvable endpoint identity. Positive and fake-label parser controls are necessary; do not rely on native_listing_valid or stored helper verdicts as the independent oracle."
+  ],
+  "requirements": {
+    "ss/deferred_process_annotation/r2": {
+      "literal": "Denied process directories are skipped without failing the listing.",
+      "mode": "denied",
+      "assessment": "The exact candidate-owned scanner receives controlled EACCES for the target fd directory while a second owned listener remains available; check continued listing and status."
+    },
+    "ss/deferred_process_annotation/r3": {
+      "literal": "Descriptors that vanish during the scan are tolerated.",
+      "mode": "race",
+      "assessment": "The owned fd is observed in getdents64, closed by its owner while the scanner is stopped before the corresponding readlink, and the real readlink returns ENOENT; check continued listing and status."
+    }
+  },
+  "limits": [
+    "No guest or native/candidate control has run; no PASS, FAIL or coverage follows from this source.",
+    "This additive source does not cover synthetic proc table fallback or missing IPv6 fallback reads.",
+    "Fault-specific candidate mismatches require the exact fault and all independent prerequisites; a separately qualified baseline mismatch remains independently adjudicable.",
+    "Source proposes bounded pre-run prerequisite records and provisional per-trace checkpoints followed by matched teardown records; neither guest behavior nor crash durability has been executed. A provisional trace is not by itself a qualified outcome; stage prerequisites and independently established safe cleanup remain mandatory.",
+    "The shared plain-runner lifecycle blocker remains outside these owned files; runtime is held pending an independently reviewed safe enclosing runner and primary authorization."
+  ],
+  "journal_format": {
+    "schema": "ss-race-journal-v2",
+    "report_schema": "ss-race-additive-v3",
+    "journal_limit": 880000,
+    "header_fields": [
+      "kind",
+      "schema",
+      "mode",
+      "namespace",
+      "outer_namespace",
+      "identity",
+      "outer_identity",
+      "uid_map",
+      "gid_map",
+      "pid_before",
+      "network_devices",
+      "started_ns",
+      "parser_controls"
+    ],
+    "stage_order": [
+      {
+        "label": "native-type-positive",
+        "trace_mode": "baseline",
+        "kind": "type-positive"
+      },
+      {
+        "label": "native-type-missing",
+        "trace_mode": "baseline",
+        "kind": "type-missing"
+      },
+      {
+        "label": "native-type-disabled",
+        "trace_mode": "baseline",
+        "kind": "type-disabled"
+      },
+      {
+        "label": "native-open-positive",
+        "trace_mode": "baseline",
+        "kind": "probe"
+      },
+      {
+        "label": "native-fault-control",
+        "trace_mode": "case-mode",
+        "kind": "probe"
+      },
+      {
+        "label": "native-listing-positive",
+        "trace_mode": "baseline",
+        "kind": "native-ss"
+      },
+      {
+        "label": "candidate-listing-positive",
+        "trace_mode": "baseline",
+        "kind": "candidate"
+      },
+      {
+        "label": "candidate-fault",
+        "trace_mode": "case-mode",
+        "kind": "candidate"
+      }
+    ],
+    "trace_kind": "run-trace",
+    "trace_provisional": true,
+    "completion_kind": "run-end",
+    "pair_keys": [
+      "mode",
+      "index",
+      "label"
+    ],
+    "completion_reference": "trace_checkpoint",
+    "incomplete_kinds": [
+      "run-unreached",
+      "overflow"
+    ],
+    "footer_kind": "end",
+    "final_delta_fields": [
+      "complete",
+      "trace_checkpoint",
+      "type_observation",
+      "safe_link_after",
+      "safe_identity_after",
+      "safe_after_error",
+      "error",
+      "teardown",
+      "cleanup_incomplete",
+      "assessment_error",
+      "type_control_valid",
+      "native_control_valid",
+      "native_listing_valid"
+    ]
+  }
+}
