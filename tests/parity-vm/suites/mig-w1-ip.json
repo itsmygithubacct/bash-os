@@ -26,7 +26,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -55,7 +55,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -84,7 +84,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -113,7 +113,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -142,7 +142,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -171,7 +171,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -200,7 +200,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -229,7 +229,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -258,7 +258,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -287,7 +287,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -316,7 +316,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -345,7 +345,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -374,7 +374,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -403,7 +403,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -432,7 +432,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -461,7 +461,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -490,7 +490,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -519,7 +519,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -548,7 +548,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -577,7 +577,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -606,7 +606,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -635,7 +635,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -664,7 +664,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -693,7 +693,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -722,7 +722,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -751,7 +751,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -780,7 +780,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -809,7 +809,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -838,7 +838,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -867,7 +867,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -896,7 +896,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -925,7 +925,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -954,7 +954,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -983,7 +983,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -1012,7 +1012,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -1041,7 +1041,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -1070,7 +1070,36 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-ip-batch-quoting",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "-batch FILE with a double-quoted word: candidate and iproute2 agree on the outcome and later lines.",
+      "covers": [
+        "ip/ip-batch-mode"
+      ],
+      "oracle": "Fresh mapped user+network namespaces per run: the same operation list is run through the candidate ip builtin in one namespace and through /usr/bin/ip (iproute2) in another; complete kernel state read back with iproute2 `ip -j` after each step must be identical, plus literal expectations stated from iproute2 semantics. Query cases compare facts parsed from candidate output with iproute2's own JSON readback of the seeded namespace.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-ip.py batch-quoting\n",
+      "stdout": "scenario batch-quoting: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -1099,7 +1128,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -1128,7 +1157,7 @@
       "expected_status": 0,
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/mig-w1-ip.py": "097ce614a15f103d1ffe3d024bd09f06388c6ead19c62960c7f38aa2c6c2d55c",
+        "helpers/mig-w1-ip.py": "d254b8bb954d0f0a52e467636663ce5fe9ff9b848d7b3c260871281c48bdbf1b",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     }

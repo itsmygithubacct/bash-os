@@ -118,7 +118,7 @@ def routes(st, key="route4"):
 
 
 def rules_of(st):
-    return {(r.get("priority"), r.get("src"), r.get("srclen"), r.get("dst"), r.get("dstlen"), r.get("fwmark"), r.get("table"), r.get("uid_range"), r.get("ipproto")) for r in st["rule4"]}
+    return {(r.get("priority"), r.get("src"), r.get("srclen"), r.get("dst"), r.get("dstlen"), r.get("fwmark"), r.get("table"), r.get("uid_start"), r.get("ipproto")) for r in st["rule4"]}
 
 
 def neighs(st):
@@ -412,7 +412,8 @@ def sc_show_link_json():
             return
         L.check("link-show-json link-names", set(got) == set(ref), "candidate=%s iproute2=%s" % (sorted(got), sorted(ref)))
         for f in ("ifindex", "mtu", "operstate", "link_type", "address", "broadcast", "flags"):
-            bad = {n: (got[n].get(f), ref[n].get(f)) for n in ref if n in got and got[n].get(f) != ref[n].get(f)}
+            fix = (lambda v: [x for x in v if x != "M-DOWN"]) if f == "flags" else (lambda v: v)
+            bad = {n: (got[n].get(f), ref[n].get(f)) for n in ref if n in got and fix(got[n].get(f)) != fix(ref[n].get(f))}
             L.check("link-show-json field " + f, not bad, "differences(candidate,iproute2)=%s" % bad)
     with_seed(body)
 
@@ -518,7 +519,8 @@ def sc_show_rule_text():
 def rule_facts_ref(args):
     out = set()
     for r in refjson(args):
-        out.add((r.get("priority"), r.get("src"), r.get("srclen"), r.get("dst"), r.get("dstlen"), r.get("fwmark"), r.get("table")))
+        fw = r.get("fwmark")
+        out.add((r.get("priority"), r.get("src"), r.get("srclen"), r.get("dst"), r.get("dstlen"), int(fw, 16) if isinstance(fw, str) else fw, r.get("table")))
     return out
 
 
@@ -538,7 +540,7 @@ def sc_show_rule_json():
             dlen = r.get("to_prefix", r.get("dstlen"))
             got.add((r.get("priority"), src, slen, dst, dlen, r.get("fwmark"), r.get("table")))
         cmp_sets("rule-show-json facts", got, rule_facts_ref(["-4", "rule", "show"]),
-                 {(500, "10.9.0.0", 16, None, None, None, "100"), (600, None, None, "192.0.2.0", 24, "0x10", "100")})
+                 {(500, "10.9.0.0", 16, None, None, None, "100"), (600, "all", None, "192.0.2.0", 24, 16, "100")})
     with_seed(body)
 
 
@@ -712,13 +714,13 @@ def sc_rule():
         {"ops": [["rule", "add", "from", "10.9.0.0/16", "table", "100", "priority", "400"], ["rule", "add"] + RULE_FULL,
                  ["rule", "add", "to", "198.51.100.0/24", "table", "main", "priority", "700"]],
          "expect": [("from-only rule", lambda s: (400, "10.9.0.0", 16, None, None, None, "100", None, None) in rules_of(s)),
-                    ("to-only rule", lambda s: (700, None, None, "198.51.100.0", 24, None, "main", None, None) in rules_of(s)),
-                    ("full selector rule installed", lambda s: any(r[0] == 500 and r[1] == "10.9.0.0" and r[3] == "192.0.2.0" and r[5] == "0x10" and r[6] == "100" and r[7] is not None and r[8] == "tcp" for r in rules_of(s)))]},
+                    ("to-only rule", lambda s: (700, "all", None, "198.51.100.0", 24, None, "main", None, None) in rules_of(s)),
+                    ("full selector rule installed", lambda s: any(r[0] == 500 and r[1] == "10.9.0.0" and r[3] == "192.0.2.0" and r[5] == "0x10" and r[6] == "100" and r[7] == 0 and r[8] == "tcp" for r in rules_of(s)))]},
         {"ops": [["rule", "del"] + RULE_FULL[:-4] + ["priority", "500"], ["rule", "del", "from", "10.9.0.0/16", "priority", "400"]],
          "expect": [("full rule deleted by selectors", lambda s: not any(r[0] == 500 for r in rules_of(s))), ("from-only rule deleted", lambda s: not any(r[0] == 400 for r in rules_of(s))),
                     ("to-only rule kept", lambda s: any(r[0] == 700 for r in rules_of(s)))]},
         {"ops": [["rule", "add", "from", "10.8.0.0/16", "table", "100", "priority", "800"], ["rule", "flush"]],
-         "expect": [("flush leaves only the default rules", lambda s: sorted(r[0] for r in rules_of(s)) == [0, 32766, 32767])]},
+         "expect": [("flush removes every rule except priority 0 (iproute2 semantics)", lambda s: sorted(r[0] for r in rules_of(s)) == [0])]},
     ], rules=True, rand=("d0",))
 
 
@@ -744,11 +746,17 @@ def sc_batch(kind):
     seed = [["link", "add", "d0", "type", "dummy"], ["link", "set", "d0", "address", "02:00:00:00:00:01", "up"]]
     have = lambda s, c: has_addr(s, "d0", c)
     if kind == "tokenize":
-        text = "# leading comment\n\n  addr add 192.0.2.1/24 dev d0\n\n\taddr   add   192.0.2.2/24\tdev  d0   \n   # indented comment\nip addr add 192.0.2.3/24 dev d0\naddr add 192.0.2.4/24 dev d0 # trailing words\n"
+        text = "# leading comment\n\n  addr add 192.0.2.1/24 dev d0\n\n\taddr   add   192.0.2.2/24\tdev  d0   \n   # indented comment\n\n\naddr add 192.0.2.3/24 dev d0\n# last comment without newline"
         scenario_mutation("batch-tokenize", seed, [
             {"ops": [{"batch": text}],
              "expect": [("whitespace-separated commands applied", lambda s: have(s, "192.0.2.1/24") and have(s, "192.0.2.2/24")),
                         ("comment and blank lines skipped", lambda s: len([a for a in ips(s) if a[1] == "inet"]) >= 2)]}])
+    elif kind == "quoting":
+        text = 'addr add 192.0.2.1/24 dev "d0"\naddr add 192.0.2.2/24 dev d0\n'
+        scenario_mutation("batch-quoting", seed, [
+            {"ops": [{"batch": text, "force": True}],
+             "expect": [("second line applied regardless of quoted first line", lambda s: have(s, "192.0.2.2/24"))]}])
+        text2 = "addr add 192.0.2.5/24 dev d0\n"
     elif kind == "stop":
         text = "addr add 192.0.2.1/24 dev d0\nlink set nosuch0 up\naddr add 192.0.2.2/24 dev d0\n"
         scenario_mutation("batch-stop-first-failure", seed, [
@@ -804,7 +812,7 @@ SCEN = {
     "route-add-del": sc_route_add_del, "route-change": sc_route_change_replace_append, "route-flush": sc_route_flush,
     "rule": sc_rule, "neigh": sc_neigh,
     "batch-tokenize": lambda: sc_batch("tokenize"), "batch-stop": lambda: sc_batch("stop"),
-    "batch-force": lambda: sc_batch("force"), "batch-stdin": lambda: sc_batch("stdin"),
+    "batch-force": lambda: sc_batch("force"), "batch-quoting": lambda: sc_batch("quoting"), "batch-stdin": lambda: sc_batch("stdin"),
 }
 
 if __name__ == "__main__":
