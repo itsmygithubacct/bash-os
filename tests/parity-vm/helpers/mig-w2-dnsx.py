@@ -266,15 +266,15 @@ if __name__ == '__main__':
     elif sys.argv[1] == 'waitport':
         end = time.monotonic() + 10
         for port in sys.argv[2:]:
+            want = '0100007F:%04X' % int(port)
             while True:
-                try:
-                    socket.create_connection(('127.0.0.1', int(port)), timeout=1).close()
+                rows = Path('/proc/net/tcp').read_text().splitlines()[1:]
+                if any(r.split()[1] == want and r.split()[3] == '0A' for r in rows):
                     break
-                except OSError:
-                    if time.monotonic() > end:
-                        print('port-%s-not-listening' % port)
-                        sys.exit(1)
-                    time.sleep(0.05)
+                if time.monotonic() > end:
+                    print('port-%s-not-listening' % port)
+                    sys.exit(1)
+                time.sleep(0.05)
     elif sys.argv[1] == 'probe':
         probe(int(sys.argv[2]), int(sys.argv[3]))
     else:
