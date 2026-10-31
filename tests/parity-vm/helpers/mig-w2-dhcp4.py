@@ -158,12 +158,12 @@ class Peer:
         self.out.sendto(payload, dst)
         self.log.append({'t': time.monotonic(), 'dir': 'out', 'to': list(dst), 'payload': payload.hex()})
 
-    def reply(self, kind, req, yiaddr, wrong_xid=False, to_client=True, **fields):
+    def reply(self, kind, req, yiaddr, wrong_xid=False, port=68, **fields):
         xid = (req['xid'] ^ 0x00010000) if wrong_xid else req['xid']
         mac = req['chaddr'][:6]
         msg = d4_build(2, xid, mac, lease_options(kind), yiaddr=yiaddr, **fields)
         ci = socket.inet_ntoa(req['ciaddr'])
-        dst = (ci, 68) if ci != '0.0.0.0' else ('255.255.255.255', 68)
+        dst = (ci, port) if ci != '0.0.0.0' else ('255.255.255.255', port)
         self.send(msg, dst)
 
     def handle(self, info, msg):
@@ -200,8 +200,10 @@ class Peer:
                 else:
                     self.reply(5, msg, '192.0.2.50')
         elif kind == 'INFORM':
-            if mode == 'full':
+            if mode == 'full':                                # RFC 2131 s4.1: answer to the client port 68
                 self.reply(5, msg, '0.0.0.0', ciaddr=socket.inet_ntoa(msg['ciaddr']))
+            elif mode == 'full-source-port':                  # lenient server: answer to the INFORM's source port
+                self.reply(5, msg, '0.0.0.0', port=info['sport'], ciaddr=socket.inet_ntoa(msg['ciaddr']))
 
     def run(self):
         def terminate(*_):
