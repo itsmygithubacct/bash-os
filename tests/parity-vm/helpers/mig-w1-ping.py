@@ -85,6 +85,7 @@ def peer_main(rf, wf):
                 s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
             else:
                 s = socket.socket(socket.AF_INET6, socket.SOCK_RAW, socket.IPPROTO_ICMPV6)
+                s.bind(("fd77::2", 0))
             got = None
             end = time.time() + 8
             while time.time() < end and got is None:
@@ -412,12 +413,15 @@ class Bpf(ctypes.Structure):
 
 
 def kill_on_socket():
-    prog = [Bpf(0x20, 0, 0, 0), Bpf(0x15, 0, 1, 41), Bpf(0x06, 0, 0, 0x80000000), Bpf(0x06, 0, 0, 0x7fff0000)]
-    arr = (Bpf * 4)(*prog)
+    """seccomp (x86_64): kill on socket() of any SOCK_RAW socket or any AF_INET SOCK_DGRAM socket
+    (the ICMP socket and the resolver's UDP socket); other sockets the shell may open are allowed."""
+    prog = [Bpf(0x20, 0, 0, 0), Bpf(0x15, 0, 7, 41), Bpf(0x20, 0, 0, 24), Bpf(0x54, 0, 0, 0xf), Bpf(0x15, 3, 0, 3), Bpf(0x15, 0, 3, 2),
+            Bpf(0x20, 0, 0, 16), Bpf(0x15, 0, 1, 2), Bpf(0x06, 0, 0, 0x80000000), Bpf(0x06, 0, 0, 0x7fff0000)]
+    arr = (Bpf * len(prog))(*prog)
 
     class Fprog(ctypes.Structure):
         _fields_ = [("len", ctypes.c_ushort), ("filter", ctypes.c_void_p)]
-    fp = Fprog(4, ctypes.cast(arr, ctypes.c_void_p))
+    fp = Fprog(len(prog), ctypes.cast(arr, ctypes.c_void_p))
 
     def install():
         libc.prctl(38, 1, 0, 0, 0)
