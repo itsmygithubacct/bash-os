@@ -46,8 +46,9 @@ def try_load(path):
     e = ctypes.get_errno()
     os.close(fd)
     if r == 0:
-        libc.syscall(176, b"nbd", 0x800)
-        print("OK")
+        d = libc.syscall(176, ctypes.c_char_p(b"nbd"), ctypes.c_uint(0x800))
+        e2 = ctypes.get_errno()
+        print("OK" if d == 0 else "OK-but-unload-failed-%s" % errno.errorcode[e2])
     else:
         print("%s|%s" % (errno.errorcode[e], os.strerror(e)))
 
