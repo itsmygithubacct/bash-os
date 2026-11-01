@@ -1,0 +1,146 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-g1-killall-exact-comm-names",
+      "loadable": "killall",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "killall matches NAME against comm exactly (similar names untouched), unions multiple and duplicate NAMEs once, matches over-15-byte names, never signals the shell, defaults to SIGTERM and reports 'no process found' with status 1.",
+      "oracle": "psmisc 23.7 killall run by the reference bash side against the same fixture processes",
+      "comparison": "Byte parity of stdout, stderr (location prefix normalized) and status; children are owned fixture processes (symlinks of sleep with unique names) and their end states are read back with kill -0 / wait status.",
+      "covers": [
+        "killall/exact-comm-and-name-list"
+      ],
+      "requires": [
+        "killall",
+        "sed"
+      ],
+      "script": "exec \"$BASH\" --noprofile --norc ./body.sh\n",
+      "files": {
+        "body.sh": "exec 2>/dev/null\n\nP=$PWD\n/usr/bin/mkfifo \"$P/gate\"; exec 9<> \"$P/gate\"\nnap() { read -t \"${1:-0.05}\" -u 9 _junk; }\nfor n in alpha alphax xalpha beta longnamedprocess1234567890; do /usr/bin/ln -s /usr/bin/sleep \"$P/g1$n\"; done\ndeclare -A PID\nmk() { local tag=$1 name=$2; shift 2; \"$P/$name\" \"${@:-60}\" & PID[$tag]=$!; nap 0.03; }\nst() { local t out=; for t in \"$@\"; do if kill -0 \"${PID[$t]}\" 2>/dev/null; then out+=\" $t=alive\"; else out+=\" $t=dead\"; fi; done; echo \"state:$out\"; }\nfin() { local t=$1 i; for ((i=0;i<30;i++)); do kill -0 \"${PID[$t]}\" 2>/dev/null || break; nap 0.05; done; if kill -0 \"${PID[$t]}\" 2>/dev/null; then FIN=alive; kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; else wait \"${PID[$t]}\"; FIN=$?; fi; }\nsettle() { local i t any; for ((i=0;i<30;i++)); do any=0; for t in \"$@\"; do kill -0 \"${PID[$t]}\" 2>/dev/null && any=1; done; ((any)) || return 0; nap 0.05; done; }\nnorm() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //; s/^(killall|pkill|pgrep): //'; }\nreap() { local t; for t in \"${!PID[@]}\"; do kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; done; }\ntrap reap EXIT\n\nmk a1 g1alpha; mk ax g1alphax; mk xa g1xalpha; mk b g1beta; mk l g1longnamedprocess1234567890\nkillall g1alpha 2>&1 | norm; echo \"exact rc=${PIPESTATUS[0]}\"; settle a1; st a1 ax xa b l\nmk a1 g1alpha\nkillall g1alpha g1beta 2>&1 | norm; echo \"multi rc=${PIPESTATUS[0]}\"; settle a1 b; st a1 b ax\nkillall g1longnamedprocess1234567890 2>&1 | norm; echo \"long rc=${PIPESTATUS[0]}\"; settle l; st l\nkillall g1nonexistent 2>&1 | norm; echo \"nomatch rc=${PIPESTATUS[0]}\"\nwait \"${PID[a1]}\"; echo \"a1-wait=$?\"\n"
+      },
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-g1-killall-signals-options",
+      "loadable": "killall",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "killall signal names (SIG prefix, case, numeric), -s/--signal, -e/--exact, usage errors (unknown option/signal, zero, missing NAME) and the distinct handling of psmisc-only options.",
+      "oracle": "psmisc 23.7 killall run by the reference bash side against the same fixture processes",
+      "comparison": "Byte parity of stdout, stderr (location prefix normalized) and status; children are owned fixture processes (symlinks of sleep with unique names) and their end states are read back with kill -0 / wait status.",
+      "covers": [
+        "killall/signal-and-option-parsing"
+      ],
+      "requires": [
+        "killall",
+        "sed"
+      ],
+      "script": "exec \"$BASH\" --noprofile --norc ./body.sh\n",
+      "files": {
+        "body.sh": "exec 2>/dev/null\n\nP=$PWD\n/usr/bin/mkfifo \"$P/gate\"; exec 9<> \"$P/gate\"\nnap() { read -t \"${1:-0.05}\" -u 9 _junk; }\nfor n in alpha alphax xalpha beta longnamedprocess1234567890; do /usr/bin/ln -s /usr/bin/sleep \"$P/g1$n\"; done\ndeclare -A PID\nmk() { local tag=$1 name=$2; shift 2; \"$P/$name\" \"${@:-60}\" & PID[$tag]=$!; nap 0.03; }\nst() { local t out=; for t in \"$@\"; do if kill -0 \"${PID[$t]}\" 2>/dev/null; then out+=\" $t=alive\"; else out+=\" $t=dead\"; fi; done; echo \"state:$out\"; }\nfin() { local t=$1 i; for ((i=0;i<30;i++)); do kill -0 \"${PID[$t]}\" 2>/dev/null || break; nap 0.05; done; if kill -0 \"${PID[$t]}\" 2>/dev/null; then FIN=alive; kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; else wait \"${PID[$t]}\"; FIN=$?; fi; }\nsettle() { local i t any; for ((i=0;i<30;i++)); do any=0; for t in \"$@\"; do kill -0 \"${PID[$t]}\" 2>/dev/null && any=1; done; ((any)) || return 0; nap 0.05; done; }\nnorm() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //; s/^(killall|pkill|pgrep): //'; }\nreap() { local t; for t in \"${!PID[@]}\"; do kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; done; }\ntrap reap EXIT\n\nfor a in \"-HUP\" \"-SIGUSR1\" \"-usr1\" \"-10\" \"-s HUP\" \"--signal USR1\" \"-e\" \"--exact\"; do\n  mk x g1alpha; killall $a g1alpha 2>&1 | norm; rc=${PIPESTATUS[0]}\n  fin x; echo \"killall $a rc=$rc end=$FIN\"\ndone\nmk x g1alpha\nfor a in \"--bogus g1alpha\" \"-s BOGUS g1alpha\" \"-s 0 g1alpha\" \"-999 g1alpha\" \"\"; do out=$(killall $a 2>&1); rc=$?; echo \"usage[$a] rc=$rc diagnostic=$([[ -n $out ]] && echo yes || echo no)\"; done\nst x\n"
+      },
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-g1-killall-controlled-child",
+      "loadable": "killall",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "killall delivers exactly one signal to a uniquely named direct child, whose pid, parent, uid and comm are verified from /proc just before delivery; the child is then reaped and nothing stray remains.",
+      "oracle": "psmisc 23.7 killall run by the reference bash side against the same fixture processes",
+      "comparison": "Byte parity of stdout, stderr (location prefix normalized) and status; children are owned fixture processes (symlinks of sleep with unique names) and their end states are read back with kill -0 / wait status.",
+      "covers": [
+        "killall/controlled-child-delivery"
+      ],
+      "requires": [
+        "killall",
+        "sed"
+      ],
+      "script": "exec \"$BASH\" --noprofile --norc ./body.sh\n",
+      "files": {
+        "body.sh": "exec 2>/dev/null\n\nP=$PWD\n/usr/bin/mkfifo \"$P/gate\"; exec 9<> \"$P/gate\"\nnap() { read -t \"${1:-0.05}\" -u 9 _junk; }\nfor n in alpha alphax xalpha beta longnamedprocess1234567890; do /usr/bin/ln -s /usr/bin/sleep \"$P/g1$n\"; done\ndeclare -A PID\nmk() { local tag=$1 name=$2; shift 2; \"$P/$name\" \"${@:-60}\" & PID[$tag]=$!; nap 0.03; }\nst() { local t out=; for t in \"$@\"; do if kill -0 \"${PID[$t]}\" 2>/dev/null; then out+=\" $t=alive\"; else out+=\" $t=dead\"; fi; done; echo \"state:$out\"; }\nfin() { local t=$1 i; for ((i=0;i<30;i++)); do kill -0 \"${PID[$t]}\" 2>/dev/null || break; nap 0.05; done; if kill -0 \"${PID[$t]}\" 2>/dev/null; then FIN=alive; kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; else wait \"${PID[$t]}\"; FIN=$?; fi; }\nsettle() { local i t any; for ((i=0;i<30;i++)); do any=0; for t in \"$@\"; do kill -0 \"${PID[$t]}\" 2>/dev/null && any=1; done; ((any)) || return 0; nap 0.05; done; }\nnorm() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //; s/^(killall|pkill|pgrep): //'; }\nreap() { local t; for t in \"${!PID[@]}\"; do kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; done; }\ntrap reap EXIT\n\nmk c g1beta 61\npid=${PID[c]}; ppid=; uid=; comm=\nwhile IFS= read -r l; do case $l in PPid:*) ppid=${l#PPid:};; Uid:*) set -- ${l#Uid:}; uid=$1;; Name:*) comm=${l#Name:};; esac; done < /proc/$pid/status\necho \"before ppid-is-shell=$([[ $((ppid)) == $$ ]] && echo yes || echo no) uid=$uid comm=$(echo $comm)\"\nkillall -USR1 g1beta 2>&1 | norm; echo \"rc=${PIPESTATUS[0]}\"\nsettle c; wait $pid; echo \"wait=$?\"\necho \"alive-after=$([[ -d /proc/$pid ]] && echo yes || echo no)\"\n"
+      },
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-g1-killall-uid-filter",
+      "loadable": "killall",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "killall -u with a numeric UID selects by real UID and a nonmatching UID selects nothing with status 1 even when NAME matches; an unknown account name selects nothing.",
+      "oracle": "Requirement text plus kernel facts about the owned fixture processes (kill -0 liveness, /proc/PID/status Uid/PPid/Name); psmisc 23.7 killall has no -f and resolves -u only by account name, so it cannot serve as a reference for these forms.",
+      "comparison": "Exact stdout against expectations derived from the requirement text and the fixture's own /proc facts; no reference tool takes part.",
+      "covers": [
+        "killall/real-uid-filter"
+      ],
+      "requires": [
+        "killall"
+      ],
+      "script": "exec \"$BASH\" --noprofile --norc ./body.sh\n",
+      "files": {
+        "body.sh": "exec 2>/dev/null\n\nP=$PWD\n/usr/bin/mkfifo \"$P/gate\"; exec 9<> \"$P/gate\"\nnap() { read -t \"${1:-0.05}\" -u 9 _junk; }\nfor n in alpha alphax xalpha beta longnamedprocess1234567890; do /usr/bin/ln -s /usr/bin/sleep \"$P/g1$n\"; done\ndeclare -A PID\nmk() { local tag=$1 name=$2; shift 2; \"$P/$name\" \"${@:-60}\" & PID[$tag]=$!; nap 0.03; }\nst() { local t out=; for t in \"$@\"; do if kill -0 \"${PID[$t]}\" 2>/dev/null; then out+=\" $t=alive\"; else out+=\" $t=dead\"; fi; done; echo \"state:$out\"; }\nfin() { local t=$1 i; for ((i=0;i<30;i++)); do kill -0 \"${PID[$t]}\" 2>/dev/null || break; nap 0.05; done; if kill -0 \"${PID[$t]}\" 2>/dev/null; then FIN=alive; kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; else wait \"${PID[$t]}\"; FIN=$?; fi; }\nsettle() { local i t any; for ((i=0;i<30;i++)); do any=0; for t in \"$@\"; do kill -0 \"${PID[$t]}\" 2>/dev/null && any=1; done; ((any)) || return 0; nap 0.05; done; }\nnorm() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //; s/^(killall|pkill|pgrep): //'; }\nreap() { local t; for t in \"${!PID[@]}\"; do kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; done; }\ntrap reap EXIT\n\nmk x g1alpha\nkillall -u 2001 g1alpha >/dev/null 2>&1; echo \"nonmatch rc=$?\"; st x\nkillall -u nosuchuser g1alpha >/dev/null 2>&1; echo \"badname rc-nonzero=$([[ $? != 0 ]] && echo yes || echo no)\"; st x\nkillall -u 2000 g1alpha >/dev/null 2>&1; echo \"numeric rc=$?\"; settle x; st x\n"
+      },
+      "expected_status": 0,
+      "timeout": 30,
+      "stdout": "nonmatch rc=1\nstate: x=alive\nbadname rc-nonzero=yes\nstate: x=alive\nnumeric rc=0\nstate: x=dead\n",
+      "stderr": ""
+    },
+    {
+      "id": "mig-g1-killall-full-cmdline",
+      "loadable": "killall",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "killall -f matches the space-joined full command line exactly: a substring does not match, the exact line does, and only the matching process is signalled.",
+      "oracle": "Requirement text plus kernel facts about the owned fixture processes (kill -0 liveness, /proc/PID/status Uid/PPid/Name); psmisc 23.7 killall has no -f and resolves -u only by account name, so it cannot serve as a reference for these forms.",
+      "comparison": "Exact stdout against expectations derived from the requirement text and the fixture's own /proc facts; no reference tool takes part.",
+      "covers": [
+        "killall/full-command-line-exact-mode"
+      ],
+      "requires": [
+        "killall"
+      ],
+      "script": "exec \"$BASH\" --noprofile --norc ./body.sh\n",
+      "files": {
+        "body.sh": "exec 2>/dev/null\n\nP=$PWD\n/usr/bin/mkfifo \"$P/gate\"; exec 9<> \"$P/gate\"\nnap() { read -t \"${1:-0.05}\" -u 9 _junk; }\nfor n in alpha alphax xalpha beta longnamedprocess1234567890; do /usr/bin/ln -s /usr/bin/sleep \"$P/g1$n\"; done\ndeclare -A PID\nmk() { local tag=$1 name=$2; shift 2; \"$P/$name\" \"${@:-60}\" & PID[$tag]=$!; nap 0.03; }\nst() { local t out=; for t in \"$@\"; do if kill -0 \"${PID[$t]}\" 2>/dev/null; then out+=\" $t=alive\"; else out+=\" $t=dead\"; fi; done; echo \"state:$out\"; }\nfin() { local t=$1 i; for ((i=0;i<30;i++)); do kill -0 \"${PID[$t]}\" 2>/dev/null || break; nap 0.05; done; if kill -0 \"${PID[$t]}\" 2>/dev/null; then FIN=alive; kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; else wait \"${PID[$t]}\"; FIN=$?; fi; }\nsettle() { local i t any; for ((i=0;i<30;i++)); do any=0; for t in \"$@\"; do kill -0 \"${PID[$t]}\" 2>/dev/null && any=1; done; ((any)) || return 0; nap 0.05; done; }\nnorm() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //; s/^(killall|pkill|pgrep): //'; }\nreap() { local t; for t in \"${!PID[@]}\"; do kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; done; }\ntrap reap EXIT\n\nmk a g1alpha 61; mk b g1alpha 62\nkillall -f 'g1alpha 6' >/dev/null 2>&1; echo \"substring rc=$?\"; st a b\nkillall -f \"$P/g1alpha 61\" >/dev/null 2>&1; echo \"exact rc=$?\"; settle a; st a b\n"
+      },
+      "expected_status": 0,
+      "timeout": 30,
+      "stdout": "substring rc=1\nstate: a=alive b=alive\nexact rc=0\nstate: a=dead b=alive\n",
+      "stderr": ""
+    },
+    {
+      "id": "mig-g1-killall-failure-paths",
+      "loadable": "killall",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "killall returns 1 for no match, 2 for usage errors, and signals the matching name when only one of several names matches.",
+      "oracle": "Requirement text plus kernel facts about the owned fixture processes (kill -0 liveness, /proc/PID/status Uid/PPid/Name); psmisc 23.7 killall has no -f and resolves -u only by account name, so it cannot serve as a reference for these forms.",
+      "comparison": "Exact stdout against expectations derived from the requirement text and the fixture's own /proc facts; no reference tool takes part.",
+      "covers": [
+        "killall/status-and-proc-failure-paths"
+      ],
+      "requires": [
+        "killall"
+      ],
+      "script": "exec \"$BASH\" --noprofile --norc ./body.sh\n",
+      "files": {
+        "body.sh": "exec 2>/dev/null\n\nP=$PWD\n/usr/bin/mkfifo \"$P/gate\"; exec 9<> \"$P/gate\"\nnap() { read -t \"${1:-0.05}\" -u 9 _junk; }\nfor n in alpha alphax xalpha beta longnamedprocess1234567890; do /usr/bin/ln -s /usr/bin/sleep \"$P/g1$n\"; done\ndeclare -A PID\nmk() { local tag=$1 name=$2; shift 2; \"$P/$name\" \"${@:-60}\" & PID[$tag]=$!; nap 0.03; }\nst() { local t out=; for t in \"$@\"; do if kill -0 \"${PID[$t]}\" 2>/dev/null; then out+=\" $t=alive\"; else out+=\" $t=dead\"; fi; done; echo \"state:$out\"; }\nfin() { local t=$1 i; for ((i=0;i<30;i++)); do kill -0 \"${PID[$t]}\" 2>/dev/null || break; nap 0.05; done; if kill -0 \"${PID[$t]}\" 2>/dev/null; then FIN=alive; kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; else wait \"${PID[$t]}\"; FIN=$?; fi; }\nsettle() { local i t any; for ((i=0;i<30;i++)); do any=0; for t in \"$@\"; do kill -0 \"${PID[$t]}\" 2>/dev/null && any=1; done; ((any)) || return 0; nap 0.05; done; }\nnorm() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //; s/^(killall|pkill|pgrep): //'; }\nreap() { local t; for t in \"${!PID[@]}\"; do kill -KILL \"${PID[$t]}\" 2>/dev/null; wait \"${PID[$t]}\" 2>/dev/null; done; }\ntrap reap EXIT\n\nmk x g1alpha\nkillall g1nonexistent g1alpha >/dev/null 2>&1; echo \"partial rc=$?\"; settle x; st x\nkillall g1nonexistent >/dev/null 2>&1; echo \"nomatch rc=$?\"\nkillall >/dev/null 2>&1; echo \"usage rc=$?\"\n"
+      },
+      "expected_status": 0,
+      "timeout": 30,
+      "stdout": "partial rc=0\nstate: x=dead\nnomatch rc=1\nusage rc=2\n",
+      "stderr": ""
+    }
+  ]
+}
