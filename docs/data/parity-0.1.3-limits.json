@@ -1,0 +1,260 @@
+{
+  "schema": 1,
+  "counting": "Requirements that no available fixture can exercise on the frozen x86-64 builds. Each reason is the requirement gap in tests/parity-vm/deferrals.json.",
+  "requirements": 35,
+  "topics": 23,
+  "categories": {
+    "kernel-authority-absent": 27,
+    "kernel-feature-absent": 2,
+    "hardware-absent": 1,
+    "unreachable-on-frozen-build": 3,
+    "interface-cannot-represent": 2
+  },
+  "limits": [
+    {
+      "topic": "tput/hardware-init-reset",
+      "requirement": "r4",
+      "category": "hardware-absent",
+      "coverage": "missing",
+      "reason": "Not applicable in a VM; the PTY is the terminal under test. Physical serial/console hardware would need real hardware and is out of scope for a disposable VM."
+    },
+    {
+      "topic": "dmesg/live-ring-buffer",
+      "requirement": "r3",
+      "category": "interface-cannot-represent",
+      "coverage": "partial",
+      "reason": "The kernel truncates records written to /dev/kmsg to about 1 KiB, so no record near the 8192-byte read size can exist on the live ring; that boundary is exercised only through the fixture-file path (legacy/dmesg/split-read-boundary)"
+    },
+    {
+      "topic": "utf8/unicode17-exhaustive-grapheme-reference",
+      "requirement": "r3",
+      "category": "interface-cannot-represent",
+      "coverage": "missing",
+      "reason": "The 74 GraphemeBreakTest lines containing U+0000 cannot be passed to the utf8 builtin: its TEXT operand is a bash word, and a bash word is a NUL-terminated C string, so a NUL code point cannot be represented in any argument."
+    },
+    {
+      "topic": "auth/authority-policy-audit-and-child-flow",
+      "requirement": "r3",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "Request-digest binding, audit decoding and child-status handling are produced by the real /dev/bashos-auth kernel authority, which is absent in the guest; a synthetic device cannot stand in for them."
+    },
+    {
+      "topic": "auth/authority-policy-audit-and-child-flow",
+      "requirement": "r4",
+      "category": "kernel-authority-absent",
+      "coverage": "missing",
+      "reason": "Request-digest binding, audit decoding and child-status handling are produced by the real /dev/bashos-auth kernel authority, which is absent in the guest; a synthetic device cannot stand in for them."
+    },
+    {
+      "topic": "auth/authority-policy-audit-and-child-flow",
+      "requirement": "r5",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "Request-digest binding, audit decoding and child-status handling are produced by the real /dev/bashos-auth kernel authority, which is absent in the guest; a synthetic device cannot stand in for them."
+    },
+    {
+      "topic": "auth/device-abi-and-fd-lifecycle",
+      "requirement": "r4",
+      "category": "kernel-authority-absent",
+      "coverage": "missing",
+      "reason": "Close-time clearing of secret slots is performed by the real /dev/bashos-auth kernel authority, which is absent in the guest."
+    },
+    {
+      "topic": "auth/pty-sealed-secret-lifecycle",
+      "requirement": "r3",
+      "category": "kernel-authority-absent",
+      "coverage": "missing",
+      "reason": "In-kernel slot comparison and clear/close cleanup are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest."
+    },
+    {
+      "topic": "auth/pty-sealed-secret-lifecycle",
+      "requirement": "r4",
+      "category": "kernel-authority-absent",
+      "coverage": "missing",
+      "reason": "In-kernel slot comparison and clear/close cleanup are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest."
+    },
+    {
+      "topic": "auth/synthetic-login-and-token-mint",
+      "requirement": "r2",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "Token-reference minting and binding are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest; the synthetic mint's reference semantics are not the contract."
+    },
+    {
+      "topic": "auth/synthetic-login-and-token-mint",
+      "requirement": "r4",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "Token-reference minting and binding are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest; the synthetic mint's reference semantics are not the contract."
+    },
+    {
+      "topic": "doas/authority_policy_and_verification",
+      "requirement": "r4",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (v2 allow, policy deny, non-interactive denial and verifier outcomes are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "login/credential-transition-deferred",
+      "requirement": "r2",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "Token acceptance (--auth-fd CONSUME, --auth-token) is decided by the real /dev/bashos-auth kernel authority (BL_AUTH_IOC_MINT/CONSUME); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "login/interactive-auth-session-deferred",
+      "requirement": "r6",
+      "category": "kernel-authority-absent",
+      "coverage": "missing",
+      "reason": "A successful login needs the real /dev/bashos-auth kernel proof before session accounting and the shell exec; no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "passwd/password_hash_updates",
+      "requirement": "r5",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "The real kernel secret-slot path (BASHPASSWD_REQUIRE_KERNEL_SECRETS=1) needs the real /dev/bashos-auth kernel authority, which is absent in the guest."
+    },
+    {
+      "topic": "passwd/password_verification_lockout",
+      "requirement": "r5",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "Verification through kernel secret slots needs the real /dev/bashos-auth kernel authority, which is absent in the guest."
+    },
+    {
+      "topic": "sshd/authentication-authorization",
+      "requirement": "r7",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "The password half of PermitRootLogin prohibit-password versus yes is decided by the /dev/bashos-auth kernel authority (BSSHD_AUTH_DEV in sshd.c), which the disposable guest does not provide; without it no password attempt can be told apart from a refusal, and a stand-in authority would not test the real one. Admitted root command execution is covered by the privilege=root case."
+    },
+    {
+      "topic": "su/credential-transition",
+      "requirement": "r1",
+      "category": "kernel-authority-absent",
+      "coverage": "missing",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "su/credential-transition",
+      "requirement": "r2",
+      "category": "kernel-authority-absent",
+      "coverage": "missing",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "su/credential-transition",
+      "requirement": "r3",
+      "category": "kernel-authority-absent",
+      "coverage": "missing",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "su/private-account-lookup",
+      "requirement": "r1",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (the account lookup result is bound to the authority's decision before su proceeds); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "sudo/authority-command-authorization",
+      "requirement": "r1",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "sudo/authority-command-authorization",
+      "requirement": "r2",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "sudo/authority-command-authorization",
+      "requirement": "r3",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "sudo/authority-command-authorization",
+      "requirement": "r4",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "sudo/sudoedit-safe-copyback",
+      "requirement": "r1",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (kernel safe-open of policy-bound targets and digest-bound copyback); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "sudo/sudoedit-safe-copyback",
+      "requirement": "r2",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (kernel safe-open of policy-bound targets and digest-bound copyback); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "sudo/sudoedit-safe-copyback",
+      "requirement": "r4",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (kernel safe-open of policy-bound targets and digest-bound copyback); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "sudo/timestamp-validation-flows",
+      "requirement": "r1",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (the cached credential that -k, -K and -v reset or validate lives in the authority); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "sudo/timestamp-validation-flows",
+      "requirement": "r2",
+      "category": "kernel-authority-absent",
+      "coverage": "partial",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (the cached credential that -k, -K and -v reset or validate lives in the authority); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "ns/ns-lsm-transition",
+      "requirement": "r5",
+      "category": "kernel-feature-absent",
+      "coverage": "missing",
+      "reason": "SELinux transition needs a kernel booted with SELinux and a loaded policy; the guest kernel has AppArmor as its only major LSM and no selinuxfs."
+    },
+    {
+      "topic": "uclampset/defer_system_files",
+      "requirement": "r5",
+      "category": "kernel-feature-absent",
+      "coverage": "partial",
+      "reason": "The guest kernel is built without CONFIG_UCLAMP_TASK, so /proc/sys/kernel/sched_util_clamp_min and sched_util_clamp_max do not exist"
+    },
+    {
+      "topic": "bashpoll/signalfd-ownership",
+      "requirement": "r5",
+      "category": "unreachable-on-frozen-build",
+      "coverage": "missing",
+      "reason": "bashpoll is compiled into both candidate builds; enable -d fails with \"not dynamically loaded\", so the unload hook cannot be reached."
+    },
+    {
+      "topic": "vec/simd-cross-cpu-backends",
+      "requirement": "r4",
+      "category": "unreachable-on-frozen-build",
+      "coverage": "missing",
+      "reason": "Non-SSE2 x86 target: SSE2 is part of the x86-64 baseline and only x86-64 binaries are shipped, so no non-SSE2 build or CPU target exists."
+    },
+    {
+      "topic": "wgetch/escape-timing",
+      "requirement": "r4",
+      "category": "unreachable-on-frozen-build",
+      "coverage": "missing",
+      "reason": "Not reachable through the candidate interface: the fixed wgetch.c bw_keys table (no fixture or terminfo loading) contains no exact key that is also a prefix of a longer key (e.g. ESC[20~ and ESC[200~ diverge at byte 5), so the exact-vs-longer resolution path in bw_read_key_fd cannot be triggered by any input. Requires a candidate key-table extension, not a fixture."
+    }
+  ]
+}

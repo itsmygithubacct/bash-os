@@ -152,9 +152,34 @@
     },
     {
       "id": "gles-shader-and-dmabuf",
+      "kind": "migrated",
       "purpose": "Validate shader compile/render output, CPU-canvas shader input retention, resize/readback behavior, and DMA-BUF handoff/fallback and resource retirement.",
-      "kind": "deferred",
-      "reason": "r1-r3 are limits; r4 and r5 not authored"
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-gpu-dmabuf-falls-back-inline"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-gpu-dmabuf-frame-handoff"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-gpu-native-canvas-retention-resize"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-gpu-native-compile-failure"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-gpu-native-shader-render"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-gpu-shader-errors-headless"
+        }
+      ]
     },
     {
       "id": "headless-clear-pixel-clip",

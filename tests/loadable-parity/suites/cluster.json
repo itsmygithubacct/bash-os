@@ -72,11 +72,7 @@
         },
         {
           "group": "shell",
-          "id": "migration-cluster-roster-heartbeats"
-        },
-        {
-          "group": "shell",
-          "id": "migration-cluster-roster-heartbeats-r2"
+          "id": "migration-cluster-roster-heartbeats-r3"
         }
       ]
     },

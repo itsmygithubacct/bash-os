@@ -116,9 +116,18 @@
     },
     {
       "id": "live-procps-parity",
+      "kind": "migrated",
       "purpose": "Compare live process accounting, uptime header, clock and tty idle formatting with procps w.",
-      "kind": "deferred",
-      "reason": "r2 covered; rows blocked by reference output"
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-w-live-header"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-w-live-rows-model"
+        }
+      ]
     },
     {
       "id": "builtin-help-metadata",

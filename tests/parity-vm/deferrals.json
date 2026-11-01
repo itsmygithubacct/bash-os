@@ -5143,6 +5143,18 @@
               "id": "mig-w7-blkid-loop-enumeration-lines",
               "assertion": "Same enumeration compared as sorted line sets.",
               "definition_sha256": "895189e55a7d15a447525657ab2d3daf48995bbf5660a2dad8a34df80be3a187"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-blkid-loop-enumeration-order",
+              "assertion": "Operand-less blkid over loop devices (ext2, vfat, DOS and GPT with partitions) compared byte for byte with util-linux blkid.",
+              "definition_sha256": "9664f6374294f64ec06e85d006957da3c1f28ab0f046aa81682d40b9b1ba9f4f"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-blkid-loop-enumeration-lines",
+              "assertion": "Same enumeration compared as sorted line sets.",
+              "definition_sha256": "895189e55a7d15a447525657ab2d3daf48995bbf5660a2dad8a34df80be3a187"
             }
           ],
           "gap": ""
@@ -5157,6 +5169,12 @@
               "id": "mig-w7-blkid-label-uuid-lookup-devices",
               "assertion": "blkid -L/-U hits (whole disk, DOS and GPT partitions) and misses compared with util-linux.",
               "definition_sha256": "f8bacea346c4755bafcc94126ddd3f3568e3e4dc19b0414d6f7e66c92884bc2b"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-blkid-label-uuid-lookup-devices",
+              "assertion": "blkid -L/-U hits (whole disk, DOS and GPT partitions) and misses compared with util-linux.",
+              "definition_sha256": "f8bacea346c4755bafcc94126ddd3f3568e3e4dc19b0414d6f7e66c92884bc2b"
             }
           ],
           "gap": ""
@@ -5166,6 +5184,12 @@
           "behavior": "Partition-parent metadata: for a partition device the probe reads the parent disk's MBR/GPT entry and reports PARTUUID/PARTLABEL (and PTTYPE of the parent) like util-linux.",
           "coverage": "covered",
           "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-blkid-partition-parent-metadata",
+              "assertion": "PARTUUID/PARTLABEL of partitions and PTTYPE/PTUUID of parent disks compared with util-linux.",
+              "definition_sha256": "5010faa90ae2a0f7d478e08c49ebb7bea4e0840d11549ce377018e047b06a173"
+            },
             {
               "group": "shell",
               "id": "mig-w7-blkid-partition-parent-metadata",
@@ -5491,6 +5515,12 @@
               "id": "mig-w7-blockdev-close-error-injected",
               "assertion": "Injected close(2) EIO on one of three devices is reported once as \"DEV: close: Input/output error\", status 1, later device still processed (five flush ioctls ran).",
               "definition_sha256": "be29851d3933b75ac54323bd22ad0fb3f9b2cf9b2ef1537a279e8798b74508b0"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-blockdev-close-error-injected",
+              "assertion": "Injected close(2) EIO on one of three devices is reported once as \"DEV: close: Input/output error\", status 1, later device still processed (five flush ioctls ran).",
+              "definition_sha256": "be29851d3933b75ac54323bd22ad0fb3f9b2cf9b2ef1537a279e8798b74508b0"
             }
           ],
           "gap": ""
@@ -5517,6 +5547,12 @@
               "id": "migration-blockdev-query-root",
               "assertion": "After the successful queries on loop and dm devices, the shell's own descriptor count is unchanged on the candidate side.",
               "definition_sha256": "0bd6553b5824380a5c6711ae2c3467d2824a6cc513a5986721cd51a0ff8416cb"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-blockdev-close-error-injected",
+              "assertion": "After the close failure no descriptor refers to the fixture files (/proc/PID/fd scan), and a following clean run succeeds.",
+              "definition_sha256": "be29851d3933b75ac54323bd22ad0fb3f9b2cf9b2ef1537a279e8798b74508b0"
             },
             {
               "group": "shell",
@@ -8909,15 +8945,9 @@
           "evidence": [
             {
               "group": "shell",
-              "id": "migration-cluster-roster-heartbeats",
-              "assertion": "original 113 case: Three authenticated identities, all three members commands and saved members files agree on the three rows.",
-              "definition_sha256": "08266dfab93b364ca44a91047a474d0524c1ecb8f618ae533a37f7476c041969"
-            },
-            {
-              "group": "shell",
-              "id": "migration-cluster-roster-heartbeats-r2",
-              "assertion": "original 119 retention case: Three authenticated identities, all three members commands and saved members files agree on the three rows. The complete case is FAIL on static because the expiry predicate is no; this separate result is retained.",
-              "definition_sha256": "b3e9458be4b2ec4b2d4ecae138e9dd6e624659dadc134cd2a102c51ee666539f"
+              "id": "migration-cluster-roster-heartbeats-r3",
+              "assertion": "r3 observer (timestamps after the roster read), 3 repeats per build all PASS with every key yes: Three authenticated identities, all three members commands and saved members files agree on the three rows.",
+              "definition_sha256": "0eca996afe36d69e4f93d1aaf27f98c2cb61060c4ef5a6bbc397cd29f1a6b047"
             }
           ],
           "gap": ""
@@ -8929,15 +8959,9 @@
           "evidence": [
             {
               "group": "shell",
-              "id": "migration-cluster-roster-heartbeats",
-              "assertion": "original 113 case: A successful leave and the VM trace proof show the seed and surviving peer drop the departed member.",
-              "definition_sha256": "08266dfab93b364ca44a91047a474d0524c1ecb8f618ae533a37f7476c041969"
-            },
-            {
-              "group": "shell",
-              "id": "migration-cluster-roster-heartbeats-r2",
-              "assertion": "original 119 retention case: A successful leave and the VM trace proof show the seed and surviving peer drop the departed member. The complete case is FAIL on static because the expiry predicate is no; this separate result is retained.",
-              "definition_sha256": "b3e9458be4b2ec4b2d4ecae138e9dd6e624659dadc134cd2a102c51ee666539f"
+              "id": "migration-cluster-roster-heartbeats-r3",
+              "assertion": "r3 observer (timestamps after the roster read), 3 repeats per build all PASS with every key yes: A successful leave and the VM trace proof show the seed and surviving peer drop the departed member.",
+              "definition_sha256": "0eca996afe36d69e4f93d1aaf27f98c2cb61060c4ef5a6bbc397cd29f1a6b047"
             }
           ],
           "gap": ""
@@ -8949,21 +8973,15 @@
           "evidence": [
             {
               "group": "shell",
+              "id": "migration-cluster-roster-heartbeats-r3",
+              "assertion": "r3 observer (timestamps after the roster read), 3 repeats per build all PASS with every key yes: Heartbeat and silent-peer observations were reached on both builds.",
+              "definition_sha256": "0eca996afe36d69e4f93d1aaf27f98c2cb61060c4ef5a6bbc397cd29f1a6b047"
+            },
+            {
+              "group": "shell",
               "id": "migration-cluster-retention-roster-heartbeats-125",
               "assertion": "Both builds retain members-file bytes matched to roster-read windows, heartbeat-call windows, and predicate inputs; the 125 case passes. Observations are sampled and do not establish exact expiry or candidate receipt of every heartbeat. The original static 119 retention-ends-after-last-beat=no FAIL remains a separate reached result.",
               "definition_sha256": "ad473e0237036738a870a28265f57c68677878a295a6794ac9fefcef73a522cf"
-            },
-            {
-              "group": "shell",
-              "id": "migration-cluster-roster-heartbeats",
-              "assertion": "original 113 case: Heartbeat and silent-peer observations were reached on both builds; the static 119 case remains FAIL for retention-ends-after-last-beat=no. Remaining gap: The saved static last-present/first-absent polling interval crosses the 1.198 s lower boundary; it cannot establish an early-expiry cause or an independently passing boundary.",
-              "definition_sha256": "08266dfab93b364ca44a91047a474d0524c1ecb8f618ae533a37f7476c041969"
-            },
-            {
-              "group": "shell",
-              "id": "migration-cluster-roster-heartbeats-r2",
-              "assertion": "original 119 retention case: Heartbeat and silent-peer observations were reached on both builds; the static 119 case remains FAIL for retention-ends-after-last-beat=no. The complete case is FAIL on static because the expiry predicate is no; this separate result is retained. Remaining gap: The saved static last-present/first-absent polling interval crosses the 1.198 s lower boundary; it cannot establish an early-expiry cause or an independently passing boundary.",
-              "definition_sha256": "b3e9458be4b2ec4b2d4ecae138e9dd6e624659dadc134cd2a102c51ee666539f"
             }
           ],
           "gap": ""
@@ -8975,15 +8993,9 @@
           "evidence": [
             {
               "group": "shell",
-              "id": "migration-cluster-roster-heartbeats",
-              "assertion": "original 113 case: After seed loss the saved leaf state and status show disconnected, self-only roster, then stopped after listener termination.",
-              "definition_sha256": "08266dfab93b364ca44a91047a474d0524c1ecb8f618ae533a37f7476c041969"
-            },
-            {
-              "group": "shell",
-              "id": "migration-cluster-roster-heartbeats-r2",
-              "assertion": "original 119 retention case: After seed loss the saved leaf state and status show disconnected, self-only roster, then stopped after listener termination. The complete case is FAIL on static because the expiry predicate is no; this separate result is retained.",
-              "definition_sha256": "b3e9458be4b2ec4b2d4ecae138e9dd6e624659dadc134cd2a102c51ee666539f"
+              "id": "migration-cluster-roster-heartbeats-r3",
+              "assertion": "r3 observer (timestamps after the roster read), 3 repeats per build all PASS with every key yes: After seed loss the saved leaf state and status show disconnected, self-only roster, then stopped after listener termination.",
+              "definition_sha256": "0eca996afe36d69e4f93d1aaf27f98c2cb61060c4ef5a6bbc397cd29f1a6b047"
             }
           ],
           "gap": ""
@@ -11170,6 +11182,18 @@
               "id": "mig-w7-df-reserved-blocks-root",
               "assertion": "Full-output form including headers and padding.",
               "definition_sha256": "941dbc34b0f2e62e2e55e7371470bff343c2ad962b04b4ddc52ac1389ed4d723"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-df-reserved-blocks-values-root",
+              "assertion": "ext2 loop filesystem with 20% reserved blocks: avail<free and Use% = ceil(used/(used+avail)) from an independent statfs oracle; data rows equal GNU df.",
+              "definition_sha256": "3a3779b27311e770e5f0761c3eaff30999a258a8688ae7a6b92a46b256588f01"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-df-reserved-blocks-root",
+              "assertion": "Full-output form including headers and padding.",
+              "definition_sha256": "941dbc34b0f2e62e2e55e7371470bff343c2ad962b04b4ddc52ac1389ed4d723"
             }
           ],
           "gap": ""
@@ -12396,9 +12420,9 @@
         "purpose": "Check ioctl errno reporting, open failures, response-buffer growth, malformed-record rejection, and descriptor cleanup.",
         "reason": "Requires a reviewed ioctl mock that can inject errno values, correctly shaped kernel replies, buffer-full responses, and malformed records; expected bytes must come from Linux Device Mapper ABI definitions and an independent decoder. This suite does not open the kernel control interface or inject a mock."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r4: Malformed name records were rejected, but no independent all-access memory-overrun detector or malformed target/version record coverage was retained.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "all requirements covered",
       "requirements": [
         {
           "id": "r1",
@@ -12445,16 +12469,28 @@
         {
           "id": "r4",
           "behavior": "Malformed kernel records (bad next offsets, truncated names) are rejected without overruns.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
-              "id": "migration-device-storage-dm-r3",
-              "assertion": "Original obligation: Malformed kernel records (bad next offsets, truncated names) are rejected without overruns. Recorded statuses static=PASS, dynamic=PASS. Static candidate result: dm-good: ok; dm-truncated: ok; dm-bad-next: ok; dm-overrun-next: ok. Independently decoded raw subcalls: control-dm, control-dm-denied, dm-good, dm-truncated, dm-bad-next, dm-overrun-next.",
-              "definition_sha256": "fe6904059a3d985c602942f29f76d6e1314477c4ed4a011493e5cd0185ca867b"
+              "id": "mig-w7-dmsetup-malformed-ls-records-root",
+              "assertion": "Crafted ls kernel replies (next offsets beyond the buffer / into the unused tail, unterminated names or parameters, count above records) are rejected without printing the planted sentinel bytes beyond data_size and without crashing; the good reply is parsed.",
+              "definition_sha256": "e3a9b84cd63fd78e607253c8b966bb1f6e8631ffabfb1b97ec86a0eb65c2a089"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-dmsetup-malformed-targets-records-root",
+              "assertion": "Crafted targets kernel replies (next offsets beyond the buffer / into the unused tail, unterminated names or parameters, count above records) are rejected without printing the planted sentinel bytes beyond data_size and without crashing; the good reply is parsed.",
+              "definition_sha256": "343ca1b2418ab697d527cc1b5c5b2b42ddd5968a6ac39ed0cdaca6949ef5e0c6"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-dmsetup-malformed-table-records-root",
+              "assertion": "Crafted table kernel replies (next offsets beyond the buffer / into the unused tail, unterminated names or parameters, count above records) are rejected without printing the planted sentinel bytes beyond data_size and without crashing; the good reply is parsed.",
+              "definition_sha256": "55af461a8a6cbfe94f15534f5982fbdcc10974dee16bda747593ff0ce11cca7d"
             }
           ],
-          "gap": "Malformed name records were rejected, but no independent all-access memory-overrun detector or malformed target/version record coverage was retained."
+          "gap": ""
         },
         {
           "id": "r5",
@@ -15439,7 +15475,7 @@
               "group": "shell",
               "id": "mig-w7-fdisk-partx-add-delete-root",
               "assertion": "Range adds on a loop device make sysfs start/size equal the DOS table written by sfdisk (p2, then p3, then p1).",
-              "definition_sha256": "6d446a35e30da220fe5634129b55cb1b2b266de45d53c1ae82d6d1f9cb3f98b2"
+              "definition_sha256": "7e5d34a9cc38c8ab067b06528c873f84757a7a2a61a8fcfa2dd011e473b57f9a"
             }
           ],
           "gap": ""
@@ -15453,13 +15489,13 @@
               "group": "shell",
               "id": "mig-w7-fdisk-partx-update-ranges-root",
               "assertion": "delete of one partition, update to a rewritten table size, ENXIO for an absent kernel partition, MIN>MAX and over-range bound rejected.",
-              "definition_sha256": "4ea5247d6e85829f6b6b24f8eae12f76c598c3fa07a1d18a96d633ac96d0b611"
+              "definition_sha256": "2c9c2b070d9174512b25d879c358aadb393d647a400839c6ad00fee0cfb85d21"
             },
             {
               "group": "shell",
               "id": "mig-w7-fdisk-partx-delete-range-root",
               "assertion": "delete MIN MAX over 1..3 then add all again.",
-              "definition_sha256": "7ee3723d007df92bcf7bb74af0057e85310a5b3f41b03651c61cacbd695f4aa6"
+              "definition_sha256": "9b160ff301c0fd6dfa8a35f379b389fd1a67137af8731d3ed33dccfe24c5e340"
             }
           ],
           "gap": ""
@@ -15493,7 +15529,7 @@
               "group": "shell",
               "id": "mig-w7-fdisk-reread-after-write-root",
               "assertion": "--create-mbr on a partscan loop device rereads the table (kernel set follows, also when shrinking); mounted partition gives a BLKRRPART EBUSY warning with the table still written; clean after umount.",
-              "definition_sha256": "bbbdc0f8577eeb70105322ed70bcc0b6c543807698259e5db43ef7410e45ef36"
+              "definition_sha256": "24ce2e06f73f528a839e2c1276cc07fcc411925303c4b5428fb58297b7c8766e"
             }
           ],
           "gap": ""
@@ -15566,6 +15602,12 @@
               "id": "mig-w7-fincore-cache-transitions-root",
               "assertion": "Cold after sync, drop_caches and POSIX_FADV_DONTNEED on a loop-backed ext2 file: RES 0 PAGES 0, matching util-linux fincore.",
               "definition_sha256": "6bdba5380171d629b35f30add911e7bf99c810b1231c5aaeaf819a9f5634bba9"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-fincore-cache-transitions-root",
+              "assertion": "Cold after sync, drop_caches and POSIX_FADV_DONTNEED on a loop-backed ext2 file: RES 0 PAGES 0, matching util-linux fincore.",
+              "definition_sha256": "6bdba5380171d629b35f30add911e7bf99c810b1231c5aaeaf819a9f5634bba9"
             }
           ],
           "gap": ""
@@ -15608,6 +15650,12 @@
               "id": "mig-w7-fincore-cache-transitions-root",
               "assertion": "Exactly one resident page after a single FADV_RANDOM read, matching util-linux fincore.",
               "definition_sha256": "6bdba5380171d629b35f30add911e7bf99c810b1231c5aaeaf819a9f5634bba9"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-fincore-cache-transitions-root",
+              "assertion": "Exactly one resident page after a single FADV_RANDOM read, matching util-linux fincore.",
+              "definition_sha256": "6bdba5380171d629b35f30add911e7bf99c810b1231c5aaeaf819a9f5634bba9"
             }
           ],
           "gap": ""
@@ -15617,6 +15665,12 @@
           "behavior": "Transitions are observed in sequence within one side: cold, then partial, then warm, then cold again.",
           "coverage": "covered",
           "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-fincore-cache-transitions-root",
+              "assertion": "Cold, one page, warm (16 pages), cold again in sequence, each state compared with util-linux fincore.",
+              "definition_sha256": "6bdba5380171d629b35f30add911e7bf99c810b1231c5aaeaf819a9f5634bba9"
+            },
             {
               "group": "shell",
               "id": "mig-w7-fincore-cache-transitions-root",
@@ -16420,6 +16474,12 @@
               "id": "mig-w7-fstrim-fstab-tag-forms-root",
               "assertion": "fstrim -A -n -v over an fstab using LABEL=, UUID=, PARTLABEL= and PARTUUID= resolved through /dev/disk/by-* on loop devices, compared with util-linux.",
               "definition_sha256": "a5c06635497ca2e9759128bac032856e331556e689f7732bc0f13a796ed6cfb4"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-fstrim-fstab-tag-forms-root",
+              "assertion": "fstrim -A -n -v over an fstab using LABEL=, UUID=, PARTLABEL= and PARTUUID= resolved through /dev/disk/by-* on loop devices, compared with util-linux.",
+              "definition_sha256": "a5c06635497ca2e9759128bac032856e331556e689f7732bc0f13a796ed6cfb4"
             }
           ],
           "gap": ""
@@ -16440,6 +16500,12 @@
               "id": "migration-fstrim-selection-discard-capable-root",
               "assertion": "/dev/root resolved from a fixture /proc/cmdline root= to the real root source, matching util-linux for that row",
               "definition_sha256": "fc700a71830bb5de6cf6e913415d61163c030a5c0221468a5a54ea0937f222e2"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-fstrim-root-device-guess-root",
+              "assertion": "fstab entry /dev/root (or an unresolvable UUID) for / falls back to root= from a bind-mounted /proc/cmdline; also the no-root= case, compared with util-linux.",
+              "definition_sha256": "f52cd699abc95b2d33036a90f47156f81bf4e2153dae440afccdd09738b2e8ca"
             },
             {
               "group": "shell",
@@ -17502,44 +17568,85 @@
         "purpose": "Validate shader compile/render output, CPU-canvas shader input retention, resize/readback behavior, and DMA-BUF handoff/fallback and resource retirement.",
         "reason": "A future disposable VM must provide an independently reviewed GLES/GBM ABI mock or dedicated render-node fixture with an independent frame oracle and FD handoff peer. This suite does not open render devices or claim GPU rendering passed."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "r1-r3 are limits; r4 and r5 not authored",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "gpu image with vgem and Mesa software GLES makes r1-r3 and r5 reachable (dynamic build); static refuses by design",
       "requirements": [
         {
           "id": "r1",
           "behavior": "the shader command compiles a fragment program and render produces the expected frame",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Rental guest kernel 6.12.113+deb13-cloud-amd64 has no vgem module (modprobe: FATAL: Module vgem not found in directory /lib/modules/6.12.113+deb13-cloud-amd64), so /dev/dri and any render node never exist, and the guest image lacks libgbm.so.1, libEGL.so.1 and libGLESv2.so.2 that gpu dlopens; no EGL/GLES context can be created for shader compilation."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-gpu-native-shader-render",
+              "assertion": "On a vgem DRM node with Mesa software GLES, the swap shader and the time-dependent shader render exact frames computed from the drawn rectangles and shader formulas (PPM bytes compared with the fixture model); a second render starts again from the CPU canvas.",
+              "definition_sha256": "c5e6b5a01c21434e8bd7e536d15ae6c1b6a7354ff5cb95c6f88f75d08b59969c"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "the CPU canvas is retained as shader input; resize and readback (save) after render give the expected pixels",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Rental guest kernel 6.12.113+deb13-cloud-amd64 has no vgem module (modprobe: FATAL: Module vgem not found in directory /lib/modules/6.12.113+deb13-cloud-amd64), so /dev/dri and any render node never exist, and the guest image lacks libgbm.so.1, libEGL.so.1 and libGLESv2.so.2 that gpu dlopens; the native shader context that retains the CPU canvas cannot exist."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-gpu-native-canvas-retention-resize",
+              "assertion": "Render keeps the CPU canvas as input; resize preserves the rendered image with black padding (docs/gpu.md read-back on CPU operations); a render after resize gives the exact expected frame.",
+              "definition_sha256": "3b6a2ccef7918e3271d6f821a531711af3b3ba5537c75a8c1ba24949b51673bd"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "with transport dmabuf, frames are handed off by GBM BO fd plus modifier/stride/offset to the Kilix frame socket, and BOs are retired",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Rental guest kernel 6.12.113+deb13-cloud-amd64 has no vgem module (modprobe: FATAL: Module vgem not found in directory /lib/modules/6.12.113+deb13-cloud-amd64), so /dev/dri and any render node never exist, and the guest image lacks libgbm.so.1, libEGL.so.1 and libGLESv2.so.2 that gpu dlopens; no GBM buffer object exists to hand off by dmabuf descriptor."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-gpu-dmabuf-frame-handoff",
+              "assertion": "Model Kitty/Kilix peer receives two v2 frame records (KDMA, 4x4, XRGB, transform 6) with the buffer descriptor over SCM_RIGHTS; mapped pixels equal the drawn frame; info reports transport=dmabuf frames=2 fallbacks=0; the session directory is removed on stop.",
+              "definition_sha256": "4acb3feb7669498b3b9db4acd28b81a4d68740682c6119f323ff0e1369e882ff"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "dmabuf/native failure falls back to shm or inline and records the fallback",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Observable WITHOUT a device: in the VM, 'gpu start --transport dmabuf' with no render node should take bg_fallback (gpu.c:425-431). Needs the Kitty peer from gpu/kitty-presentation-transports."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-gpu-dmabuf-falls-back-inline",
+              "assertion": "gpu start --transport dmabuf without a render node: start probes inline, at present the native path fails, the shm probe is rejected and the exact frame is delivered through the inline transport (model peer asserts query order, frame bytes and restored modes).",
+              "definition_sha256": "86ec834209e0ba35e5015ab11431e2a66738f54e300fe04d4b0199c1da39f844"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "shader errors (missing file, compile failure) report and leave the session usable",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The missing-file path is observable without a device. Compile failure needs the native context."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-gpu-native-compile-failure",
+              "assertion": "Native compile failure reports \"shader:\" with the compiler complaint and status 1; the previous program keeps rendering; shader off keeps the last rendered image; the session stays drawable.",
+              "definition_sha256": "2748dd3d76a5463ff61955dabb246439a456f286300fa72e0dbbd8dd77cfae53"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-gpu-shader-errors-headless",
+              "assertion": "Missing, NUL-byte and oversize shader files and render without a shader fail with status 1 in a headless session without a render node.",
+              "definition_sha256": "5881c82c036424c9b1d1d7b807804fbdce343d03ababdc6f369482af5a809288"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "Not a privilege issue: no render node exists in the guest. An unprivileged process cannot create a DRM device or GBM BO. Source: gpu.c:425-520, 943-965."
@@ -23274,6 +23381,12 @@
               "id": "mig-w7-killall5-esrch-injected",
               "assertion": "kill(2) answered ESRCH or EPERM for chosen victims in ascending-PID order: the broadcast continues, later victims receive USR1, status is 0 when any delivery succeeded and 2 when none did; ESRCH silent, EPERM reported.",
               "definition_sha256": "724cd5f051f8d2fd4d517d7da9e83e9f5c2de87ff1b78992e1392ba4d981ff93"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-killall5-esrch-injected",
+              "assertion": "kill(2) answered ESRCH or EPERM for chosen victims in ascending-PID order: the broadcast continues, later victims receive USR1, status is 0 when any delivery succeeded and 2 when none did; ESRCH silent, EPERM reported.",
+              "definition_sha256": "724cd5f051f8d2fd4d517d7da9e83e9f5c2de87ff1b78992e1392ba4d981ff93"
             }
           ],
           "gap": ""
@@ -25536,6 +25649,18 @@
               "id": "mig-w7-lsattr-mocked-flag-words",
               "assertion": "Every single flag bit rendered through a mocked FS_IOC_GETFLAGS compared with e2fsprogs lsattr.",
               "definition_sha256": "df7ee19d6b49eeda8fd99cf47928864913bcc0d4e685a75cc4ff3c195870d3bd"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-lsattr-user-bits-ext4-root",
+              "assertion": "Owner-settable bits set with chattr on ext4 files and directories render at the e2fsprogs positions.",
+              "definition_sha256": "98e392cb3c5e70b406087a24d32e081d79ac794ab6c42ad17116fa5ffe25a7b3"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-lsattr-mocked-flag-words",
+              "assertion": "Every single flag bit rendered through a mocked FS_IOC_GETFLAGS compared with e2fsprogs lsattr.",
+              "definition_sha256": "df7ee19d6b49eeda8fd99cf47928864913bcc0d4e685a75cc4ff3c195870d3bd"
             }
           ],
           "gap": ""
@@ -25732,6 +25857,12 @@
               "id": "mig-w7-lsblk-mounted-fstype-root",
               "assertion": "FSTYPE, LABEL, MOUNTPOINT of a loop ext2 device unmounted, mounted and after umount, plus -f and raw forms, compared with util-linux.",
               "definition_sha256": "3f9c1587ab22ab08855d2978fb8bfd1d26899de0e65845cd8bb058c3cb405f24"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-lsblk-mounted-fstype-root",
+              "assertion": "FSTYPE, LABEL, MOUNTPOINT of a loop ext2 device unmounted, mounted and after umount, plus -f and raw forms, compared with util-linux.",
+              "definition_sha256": "3f9c1587ab22ab08855d2978fb8bfd1d26899de0e65845cd8bb058c3cb405f24"
             }
           ],
           "gap": ""
@@ -25841,6 +25972,12 @@
           "behavior": "unreadable processes (other owner) are skipped (candidate) or reported without descriptors (lsof)",
           "coverage": "covered",
           "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-lsof-unreadable-process-skipped",
+              "assertion": "Non-dumpable same-uid process (unreadable /proc/PID/fd) yields no descriptor rows while its readable sibling lists all, matching GNU lsof.",
+              "definition_sha256": "a252f0993c443cadcfab4b8447763393b547e9b9cf6d6885a277e3919d6dbb6d"
+            },
             {
               "group": "shell",
               "id": "mig-w7-lsof-unreadable-process-skipped",
@@ -26556,7 +26693,7 @@
               "group": "shell",
               "id": "mig-w7-mkfs-block-device-size-root",
               "assertion": "mkfs on a loop device sizes the filesystem from BLKGETSIZE64 (4096 1 KiB blocks, then 1024 4 KiB blocks), writes label and reserved percentage, passes e2fsck -fn and mounts.",
-              "definition_sha256": "08dbc030fa17797eeabf168c9ff0d34d15ff03f9105460c08bd8d6b99c5cf13f"
+              "definition_sha256": "6c26b75a0988fef0ebf41723e8ca89a6aaab4a92d7b50eda69efd8aff04bebcf"
             }
           ],
           "gap": ""
@@ -26591,6 +26728,18 @@
               "id": "migration-mkfs-write-sync-errors-injected",
               "assertion": "fsync EIO: status 1, \"fsync\" + EIO text, no fd leak",
               "definition_sha256": "190bf3afc42794ea9bf0d10a29704d7bdc9a54fc72472c32d03934815033a16d"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-mkfs-fsync-error-injected",
+              "assertion": "Injected fsync EIO reported as \"fsync: Input/output error\", status 1, no descriptor left on the image.",
+              "definition_sha256": "1d4e1bd286c9f3f80f13c46d830bc7b3c544c855e3c3d11495cb891d3ba60451"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-mkfs-close-error-injected",
+              "assertion": "Injected close EIO reported as \"close: Input/output error\", status 1, no descriptor left on the image.",
+              "definition_sha256": "d3da456be4d311b74eae01499452dd4cd7224744faab3e891d28fab9e3e9e2a6"
             },
             {
               "group": "shell",
@@ -39778,9 +39927,9 @@
         "purpose": "Check remote attach/roam command construction and framed byte exchange against an independent protocol encoder, including short, malformed, and valid bounded frames.",
         "reason": "Requires a disposable Linux VM with a mocked SSH/transport boundary and an independent BSCR frame encoder/decoder. No network activity, installed credentials, or real remote target is allowed."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "r5: a live remote attach over a mocked transport is not authored.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -39907,16 +40056,22 @@
         {
           "id": "r5",
           "behavior": "A live remote attach over the transport exchanges frames with the peer.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-terra-local-pty-b04r3-remote-ssh-frames",
               "assertion": "Source purpose: Exchange framed bytes through a fixture-owned loopback OpenSSH transport.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: The standard OpenSSH control saves valid framed input/output, while the candidate live peer receives client-pay rather than a frame, exposes a framed response in stdout and exits 1; both builds FAIL.",
               "definition_sha256": "aac30c58d3650150ca88962855d10bde9c6063c708bdde1fc6b971ddf1af568e"
+            },
+            {
+              "group": "shell",
+              "id": "mig-g1-screen-remote-attach-live-mock",
+              "assertion": "Live attach n1/live --remote over libssh to a fixture-owned unprivileged sshd on 127.0.0.1 (fixture keys, private members and known_hosts files) whose forced command is an independent peer: the peer receives the exact startup line 'BASHSCREEN_STATE_DIR=/remote/state exec /remote/bash -c ...' and the client exits 0, but the frontend bytes reach the peer raw (not as a BSCR PTY frame) and the peer's PTY frame is written to stdout with its BSCR header intact (reached FAIL on both builds).",
+              "definition_sha256": "12287ebfb734fc8db7482a99410021fbda2d30e5f9bd585bd3add963510effd3"
             }
           ],
-          "gap": "A live remote attach exchanging BSCR frames over a mocked transport is not authored: the libssh client needs an SSH server peer, and the original scenario forbids network activity."
+          "gap": ""
         }
       ],
       "notes": "Primary reviewed all 38 original clauses, frozen 175/198 sources, exact paired VM records and independent 203 review. All existing evidence and recorded 44 PASS / 13 FAIL per build remain. Valid reached failures can exercise a clause; unobserved later actions remain partial. Fixed fixture source and successful setup bind the binary stimulus; small PTY/query/control frames have retained byte comparisons and the maximum frame has exact lengths/hashes. Binary decode declares length 4 but emits only A, a reached FAIL. Full successful binary round trip is not claimed; separate per-input persistence is not an original requirement. The nominal over-limit frame also has no declared payload, so rejection may be due to truncation. The bound-specific condition remains partial even though source construction and saved rejection statuses bind the attempted inputs. The saved guest-loopback SSH exchange reaches a framing FAIL, but the original deferred reason explicitly forbids network activity and requires a mocked transport. It remains supplementary evidence; a conforming live mock exchange is still required for complete original coverage."
@@ -52820,16 +52975,23 @@
         "purpose": "Compare live process accounting, uptime header, clock and tty idle formatting with procps w.",
         "reason": "Requires a future disposable VM with coherent reviewed utmp/process/tty/clock mocks. procps w has no alternate-utmp FILE selector. No host utmp or host processes may be used; synthetic cases establish only the documented custom output."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "r2 covered; rows blocked by reference output",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "all requirements covered",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Live process accounting (JCPU/PCPU/WHAT) for real sessions.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "procps w prints no session rows for the synthetic utmp in the guest (its header counts the four sessions), so no reference rows exist to compare with the candidate rows (mig-w7-w-live-rows)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-w-live-rows-model",
+              "assertion": "Four utmp sessions on real ptys: rows with pts tty, utmp login time, JCPU/PCPU of about 2 s summed from /proc and the burner command as WHAT, against an independent model computed from the synthetic utmp and controlled /proc data.",
+              "definition_sha256": "719fdc25caa42684de27422b750ef2d93638b2087d97979a60d08795a21e9ed6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
@@ -52839,7 +53001,7 @@
             {
               "group": "shell",
               "id": "mig-w7-w-live-header",
-              "assertion": "Header line: procps w prints time/up/users/load average agreeing with /proc and the utmp count; candidate prints no header.",
+              "assertion": "Header line: procps w prints time/up/users/load average agreeing with /proc and the utmp count; the candidate prints no header.",
               "definition_sha256": "a634100ff26e8733ae862d9cfad7db7e60bd8da102d2961c1f2d99b5d4e66ba0"
             }
           ],
@@ -52848,16 +53010,36 @@
         {
           "id": "r3",
           "behavior": "Clock-based tty idle formatting.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "procps w prints no session rows for the synthetic utmp in the guest, so idle formatting has no reference output to compare with."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-w-live-rows-model",
+              "assertion": "IDLE derived from tty atimes of 7 s, 90 s, 3700 s and 90000 s: seconds, colon and days classes against the model.",
+              "definition_sha256": "719fdc25caa42684de27422b750ef2d93638b2087d97979a60d08795a21e9ed6"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Agreement with procps w on the same live state.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "procps w prints no session rows for the synthetic utmp in the guest, so agreement on live state cannot be compared."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w7-w-live-header",
+              "assertion": "procps w and the candidate compared on the same live state (header).",
+              "definition_sha256": "a634100ff26e8733ae862d9cfad7db7e60bd8da102d2961c1f2d99b5d4e66ba0"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w7-w-live-rows-model",
+              "assertion": "Rows compared with an independent model because procps w prints no rows for the synthetic utmp without -u and blank tty/idle fields with it.",
+              "definition_sha256": "719fdc25caa42684de27422b750ef2d93638b2087d97979a60d08795a21e9ed6"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "w.c:33 BW_PATH /var/run/utmp; BASHW_PROC_DIR/BASHW_DEV_DIR overrides."

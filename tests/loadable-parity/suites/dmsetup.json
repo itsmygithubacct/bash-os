@@ -122,9 +122,34 @@
     },
     {
       "id": "ioctl-errors-buffering",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check ioctl errno reporting, open failures, response-buffer growth, malformed-record rejection, and descriptor cleanup.",
-      "reason": "Remaining obligations: r4: Malformed name records were rejected, but no independent all-access memory-overrun detector or malformed target/version record coverage was retained."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-dmsetup-malformed-ls-records-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-dmsetup-malformed-table-records-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-dmsetup-malformed-targets-records-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dmsetup-buffers-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dmsetup-create-load-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dmsetup-query-root"
+        }
+      ]
     },
     {
       "id": "udev-real-device-qualification",

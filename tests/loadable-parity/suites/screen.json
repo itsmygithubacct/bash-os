@@ -139,9 +139,70 @@
     },
     {
       "id": "remote-attach-mock",
+      "kind": "migrated",
       "purpose": "Check remote attach/roam command construction and framed byte exchange against an independent protocol encoder, including short, malformed, and valid bounded frames.",
-      "kind": "deferred",
-      "reason": "r5: a live remote attach over a mocked transport is not authored."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/screen/decode-control"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/screen/decode-pty"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/screen/decode-query"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/screen/encode-control"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/screen/encode-pty"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/screen/encode-query"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/screen/frame-usage"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-screen-remote-attach-live-mock"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-screen-remote-frame-bounds"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-b04r2-remote-dry-run"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-b04r2-remote-frame-binary"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-b04r2-remote-frame-boundary"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-b04r2-remote-frames-malformed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-b04r2-remote-frames-small"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-b04r3-remote-ssh-frames"
+        }
+      ]
     },
     {
       "id": "encode-pty",
