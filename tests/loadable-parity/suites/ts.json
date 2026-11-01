@@ -89,9 +89,66 @@
     },
     {
       "id": "upstream_tree_sitter_differential",
+      "kind": "migrated",
       "purpose": "A full parser/query differential across all five bundled grammars would validate broad compatibility beyond the small documented contracts.",
-      "kind": "deferred",
-      "reason": "No upstream grammars for JSON, TOML or Bash exist in the guest; query/highlight and incremental-edit differentials were not built."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/ts/incremental_edit"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/ts/json_highlight_spans_and_render"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/ts/query_utf8_byte_offsets"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-ts-abi15-edit"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-ts-abi15-parse"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-ts-abi15-query-highlight"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-ts-markdown-block-a"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-ts-markdown-block-b"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-ts-markdown-block-c"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-ts-markdown-inline-1"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-ts-markdown-inline-2"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-ts-upstream-json-query-highlight"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-ts-upstream-json-toml-edit"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-ts-upstream-json-toml-parse"
+        }
+      ]
     },
     {
       "id": "fixture_file_ops",

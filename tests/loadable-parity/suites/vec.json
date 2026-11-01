@@ -128,7 +128,7 @@
       "id": "simd-cross-cpu-backends",
       "purpose": "Exercise scalar/SSE2/AVX2 backend selection and reduction equivalence on explicitly controlled CPU feature sets.",
       "kind": "deferred",
-      "reason": "Backend selection and cross-backend reductions are exercised on both builds; the AVX2-masked fallback needs a controller-owned CPU model and the non-SSE2 target does not exist."
+      "reason": "r1-r3 covered; r4 is a limit"
     },
     {
       "id": "copy-is-independent",

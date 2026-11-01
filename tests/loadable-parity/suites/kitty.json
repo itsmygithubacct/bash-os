@@ -100,9 +100,50 @@
     },
     {
       "id": "terminal-rendering-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "End-to-end verification that a Kitty-compatible terminal consumes the generated APC and renders the expected cell/pixel result.",
-      "reason": "Remaining obligations: r1: No real independent Kitty-compatible terminal acceptance/error reply was observed.; r2: Actual rendered pixels and cell geometry on a real Kitty-compatible terminal remain unobserved.; r3: Actual cursor motion in a real Kitty-compatible terminal remains unobserved."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/kitty/direct-rgb-options"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/kitty/raw-chunk-boundary"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/kitty/tmux-auto-framing"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-kitty-term-chunked-quadrants"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-kitty-term-placement-default"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-kitty-term-static-cursor"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-kitty-chunked-placement-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-kitty-placement-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-kitty-static-cursor-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-kitty-tmux-consumer-audit121-r3"
+        }
+      ]
     }
   ]
 }

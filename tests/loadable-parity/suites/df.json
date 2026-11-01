@@ -195,9 +195,22 @@
     },
     {
       "id": "df-statvfs-accounting-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify block and inode counters, -h/-H rounding, -B/-m scaling, and --total arithmetic at controlled boundary values.",
-      "reason": "Remaining obligations: r5: f_bavail < f_bfree needs a filesystem with reserved blocks (F2 ext4 mount); not authored"
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-df-reserved-blocks-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-df-reserved-blocks-values-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-df-statvfs-accounting"
+        }
+      ]
     }
   ]
 }

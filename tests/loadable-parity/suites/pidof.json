@@ -197,9 +197,18 @@
     },
     {
       "id": "pidof-check-root",
+      "kind": "migrated",
       "purpose": "Compare -c filtering when one controlled process has the caller's root and another has a different root.",
-      "kind": "deferred",
-      "reason": "Needs a matching process whose root differs from the caller's. Inside the legacy runner nested user namespaces are disabled (bwrap --disable-userns), but the VM plain driver (uid 2000, no bwrap) can create one with an unprivileged user+mount namespace helper if the Debian kernel default unprivileged_userns_clone remains enabled in the image."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-pidof-check-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pidof-check-root-single-shot"
+        }
+      ]
     },
     {
       "id": "pidof-custom-separator",

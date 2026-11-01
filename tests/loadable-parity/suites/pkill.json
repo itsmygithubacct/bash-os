@@ -86,15 +86,49 @@
     },
     {
       "id": "newest-oldest-selection",
+      "kind": "migrated",
       "purpose": "Verify -n/-o select the expected single process, including equal-start-time PID tie breaking.",
-      "kind": "deferred",
-      "reason": "r3 equal-start-time tie-break not exercised."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-pkill-newest-oldest"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pkill-newest-oldest-ties"
+        }
+      ]
     },
     {
       "id": "invalid-input-and-delivery-errors",
+      "kind": "migrated",
       "purpose": "Verify invalid regexes/options produce usage status without any signal request, and that ESRCH/EPERM failures affect diagnostics, count, and final status as documented.",
-      "kind": "deferred",
-      "reason": "r2-r4 delivery-error paths not authored."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-pkill-count-esrch-eperm"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pkill-count-successful-only"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pkill-eperm-delivery"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pkill-esrch-race"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pkill-invalid-input"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pkill-real-effective-uid-and-eperm"
+        }
+      ]
     }
   ]
 }

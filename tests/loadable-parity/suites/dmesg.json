@@ -103,9 +103,9 @@
     },
     {
       "id": "live-ring-buffer",
-      "kind": "deferred",
       "purpose": "Read and decode records from the live kernel ring buffer.",
-      "reason": "Remaining obligations: r3: No --since/--until or 8192-byte boundary case on the live ring."
+      "kind": "deferred",
+      "reason": "Remaining obligation r3: The kernel truncates records written to /dev/kmsg to about 1 KiB, so no record near the 8192-byte read size can exist on the live ring; that boundary is exercised only through the fixture-file path (legacy/dmesg/split-read-boundary)"
     },
     {
       "id": "console-level-change",

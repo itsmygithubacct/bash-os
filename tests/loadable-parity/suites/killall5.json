@@ -78,9 +78,30 @@
     },
     {
       "id": "signal_delivery",
+      "kind": "migrated",
       "purpose": "Verify the broadcast signal selection, omit-list behavior, and failure handling without sending signals to the runner's process set.",
-      "kind": "deferred",
-      "reason": "Delivery, selection and usage errors are exercised; only the EPERM/ESRCH failure outcomes (r3) remain: EPERM needs root fixtures (authored, unrun) and ESRCH needs syscall injection."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-killall5-delivery"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-killall5-eperm-continues-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-killall5-esrch-injected"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-killall5-exclusions"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-killall5-usage"
+        }
+      ]
     }
   ]
 }

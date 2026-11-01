@@ -121,9 +121,30 @@
     },
     {
       "id": "block-device-and-io-errors",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise BLKGETSIZE64 sizing and bounded write, sync, and close failures without touching a host device.",
-      "reason": "Remaining obligations: r1: unchanged: needs a block device node (BLOCK-DEV request in review-214.json); r3: close(2) failure is not injected (no fd-specific rule); descriptor cleanup is observed by /proc/BASHPID/fd counts"
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-mkfs-block-device-size-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-mkfs-close-error-injected"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-mkfs-fsync-error-injected"
+        },
+        {
+          "group": "shell",
+          "id": "migration-mkfs-write-enospc"
+        },
+        {
+          "group": "shell",
+          "id": "migration-mkfs-write-sync-errors-injected"
+        }
+      ]
     }
   ]
 }

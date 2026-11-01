@@ -104,9 +104,34 @@
     },
     {
       "id": "load_failure_recovery",
+      "kind": "migrated",
       "purpose": "Exercise invalid seed files, credit denial, post-consumption refresh failures, and restoration/cleanup paths.",
-      "kind": "deferred",
-      "reason": "Remaining: r6 power-cut durability is blocked (needs abrupt VM reset and a journaled filesystem image)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-credit-denied"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-invalid-seeds"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-leaks"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-powercut-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-refresh-faults"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-restore-faults"
+        }
+      ]
     }
   ]
 }

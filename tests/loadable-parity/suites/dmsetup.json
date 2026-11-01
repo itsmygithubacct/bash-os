@@ -128,9 +128,26 @@
     },
     {
       "id": "udev-real-device-qualification",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify real target activation, udev node coordination, retry behavior, and output fields that depend on device nodes.",
-      "reason": "Remaining obligations: r2: Not implemented by candidate: dmsetup.c:1329-1356 accepts --noudevsync, --udevcookie, --verifyudev, --addnodeoncreate/--addnodeonresume and ignores them; there is no cookie/semaphore code.; r4: Node ownership options are applied by udev rules in this setup on both sides; a libdevmapper-managed node (outside a separate IPC namespace) is needed to observe -U/-G/-M."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-dmsetup-node-sync-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-dmsetup-report-and-node-options-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-dmsetup-udev-cookie-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dmsetup-real-device-root"
+        }
+      ]
     }
   ]
 }

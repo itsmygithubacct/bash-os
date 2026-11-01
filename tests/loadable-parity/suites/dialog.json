@@ -118,9 +118,110 @@
     },
     {
       "id": "interactive-pty",
+      "kind": "migrated",
       "purpose": "Qualify interactive rendering and keyboard behavior against dialog in a controlled terminal.",
-      "kind": "deferred",
-      "reason": "The real dialog program is not available in the guest image; shared widgets are compared with whiptail instead."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialog-cancel-restore"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialog-esc-255"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialog-esc-menu-restore"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialog-keys-checklist-separate-output"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialog-keys-checklist-space"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialog-keys-menu-down-enter"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialog-keys-tab-cancel"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialog-keys-yesno-tab-no"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialog-output-fd-menu"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialog-render-msgbox"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialog-render-yesno-buttons"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialog-resize-redraw"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialog-stdout-menu"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialogreal-cancel-restore"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialogreal-esc-255"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialogreal-esc-menu-restore"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialogreal-keys-checklist-separate-output"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialogreal-keys-checklist-space"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialogreal-keys-menu-down-enter"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialogreal-keys-tab-cancel"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialogreal-keys-yesno-tab-no"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialogreal-output-fd-menu"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialogreal-render-msgbox"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialogreal-render-yesno-buttons"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-dialogreal-resize-redraw"
+        }
+      ]
     }
   ]
 }

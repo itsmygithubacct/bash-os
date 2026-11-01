@@ -169,7 +169,7 @@
       "id": "defer_system_files",
       "purpose": "Qualify live system sysctl semantics and injected write/open failures, ordering and rollback beyond the private regular-file model.",
       "kind": "deferred",
-      "reason": "Remaining: r5 live sysctl semantics are impossible on this guest kernel (the sysctl files do not exist)."
+      "reason": "Remaining obligation r5: The guest kernel is built without CONFIG_UCLAMP_TASK, so /proc/sys/kernel/sched_util_clamp_min and sched_util_clamp_max do not exist"
     },
     {
       "id": "defer_command_mode",

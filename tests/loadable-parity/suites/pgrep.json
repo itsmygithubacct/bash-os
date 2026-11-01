@@ -45,27 +45,151 @@
     },
     {
       "id": "pgrep-regex-name-matching",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare default comm-field regex matching, -x whole-name matching, alternatives, empty patterns, invalid ERE handling, and self-exclusion with GNU procps-ng pgrep.",
-      "reason": "Only the invalid-ERE parser path has GNU parity. Name-ERE semantics are proven on candidate-only synthetic records; GNU procps cannot read BASHOS_PROC_ROOT and no shared process set exists for both sides."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/invalid-regex"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/pgrep-owned-child-integration"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/synthetic-regex-and-count"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/synthetic-selectors-and-age"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/synthetic-self-exclusion"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pgrep-caller-shell-listed"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pgrep-empty-pattern"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pgrep-name-regex"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pgrep-never-lists-itself"
+        }
+      ]
     },
     {
       "id": "pgrep-cmdline-output",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare -f command-line matching, -a/-l listing, -d delimiters, and -c output, including NUL-separated arguments, embedded newlines, long arguments, and empty command lines.",
-      "reason": "Output formatting is pinned only by candidate-only synthetic literals; -d and long/empty command lines have no executed case."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/pgrep-owned-child-integration"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/synthetic-cmdline-output"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/synthetic-regex-and-count"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pgrep-cmdline-controls"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pgrep-list-and-delimiter"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pgrep-long-and-empty-cmdline"
+        }
+      ]
     },
     {
       "id": "pgrep-selectors-and-age",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare effective and real UID, GID, parent, process-group and session selectors; comma alternatives and combined selectors; -v; and newest/oldest selection including start-time ties.",
-      "reason": "Selector semantics are proven only on candidate-only synthetic records. Parent, group, session, GID, comma/AND, -v and live -n/-o are implementable now with per-side helpers. Only two sub-obligations need more: a process with ruid != euid (an unprivileged uid-2000 process cannot acquire distinct real/effective IDs; image has no setuid helper and scratch mounts are nosuid) and forced start-time ties (not producible live; unmodified procps reads only /proc)."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/exclusive-ages"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/pgrep-owned-child-integration"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/synthetic-regex-and-count"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/synthetic-selectors-and-age"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/trailing-comma-selector"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pgrep-age-ties"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pgrep-invert-and-age"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pgrep-real-vs-effective-uid"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pgrep-selectors-live"
+        }
+      ]
     },
     {
       "id": "pgrep-usage-statuses",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Complete parser option matrix beyond the bounded runnable GNU parser cases.",
-      "reason": "Four parser paths have GNU parity. Selector-argument errors, clustered/attached/long forms, extra positional arguments and help/version are unexercised; the parser cases need no shared process set because they fail before or with an empty enumeration."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/exclusive-ages"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/missing-pattern"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/pgrep/unknown-option"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pgrep-option-forms"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pgrep-selector-argument-errors"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-pgrep-version-help"
+        }
+      ]
     },
     {
       "id": "pgrep-owned-child-integration",

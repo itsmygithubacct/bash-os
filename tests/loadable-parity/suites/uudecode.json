@@ -92,9 +92,70 @@
     },
     {
       "id": "invalid-input-reference-cases",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare the full GNU malformed-input status, diagnostic and partial-output cleanup behavior beyond the independently checked rejection contracts.",
-      "reason": "The semantic rejection contracts executed. GNU byte/status parity needs sharutils added to the image, which is root's image change."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/uudecode/invalid-base64-cleanup"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/uudecode/missing-header-contract"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-uudecode-b64-bad-padding"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-uudecode-b64-invalid-char"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-uudecode-b64-missing-terminator"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-uudecode-bad-char-in-body"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-uudecode-bad-length-char"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-uudecode-bad-mode"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-uudecode-empty"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-uudecode-missing-begin"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-uudecode-missing-end"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-uudecode-missing-zero-line-and-end"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-uudecode-short-final-group"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-uudecode-truncated-body"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-uudecode-valid-control"
+        }
+      ]
     },
     {
       "id": "dev-stdout-alias",

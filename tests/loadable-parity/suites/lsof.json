@@ -51,9 +51,22 @@
     },
     {
       "id": "deferred-process-scan",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify default whole-table enumeration and filtering over a deterministic process set.",
-      "reason": "Remaining obligations: r1: The stable owned child descriptors were compared to procfs and native lsof, but the observer's volatile descriptors prevent a complete simultaneous snapshot of every visible descriptor.; r3: Not executed. The guest controller is root-owned and visible in the fixture's PID namespace."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-lsof-pidns-full-enumeration"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-lsof-unreadable-process-skipped"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-lsof-scan-r1"
+        }
+      ]
     },
     {
       "id": "missing-pid-gnu-status",

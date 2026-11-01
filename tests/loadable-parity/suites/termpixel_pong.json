@@ -89,15 +89,101 @@
     },
     {
       "id": "two-player-interaction",
+      "kind": "migrated",
       "purpose": "Live paddle movement, pause, serve delay, scoring, win condition, and restart need injected keyboard events and controlled elapsed time.",
-      "kind": "deferred",
-      "reason": "Serve delay timing and same-seed restart are not measured; they depend on the real-time clock."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w8-pong-clock-restart-same-seed"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-pong-clock-two-player-serve-score"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-game-over-and-enter-restart"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-key-down-right-down"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-key-s-left-down"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-key-up-right-up"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-key-w-left-up"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-pause-resume"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-serve-delay-after"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-serve-delay-before"
+        }
+      ]
     },
     {
       "id": "ai-and-terminal-loop",
+      "kind": "migrated",
       "purpose": "AI reaction/accuracy behavior and raw-terminal key handling require a live terminal loop with deterministic frame timing.",
-      "kind": "deferred",
-      "reason": "AI reaction/accuracy needs a deterministic clock the candidate does not offer."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w8-pong-clock-ai-easy"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-pong-clock-ai-hard"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-pong-clock-ai-medium"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-game-over-and-enter-restart"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-key-down-right-down"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-key-s-left-down"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-key-up-right-up"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-key-w-left-up"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-pause-resume"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-raw-mode-ctrl-c"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pong-raw-mode-esc"
+        }
+      ]
     }
   ]
 }

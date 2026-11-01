@@ -106,9 +106,38 @@
     },
     {
       "id": "defer-kernel-module-transitions",
+      "kind": "migrated",
       "purpose": "Load/unload and non-dry-run modprobe mutate kernel module state.",
-      "kind": "deferred",
-      "reason": "Remaining: r5 EKEYREJECTED/ENOKEY for unsigned modules under enforced signing cannot be produced because the guest does not enforce module signatures."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/bashkmod/deps-compressed-direct"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/bashkmod/deps-nested-chain"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashkmod-eperm"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashkmod-load-unload-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashkmod-modprobe-chain-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashkmod-plan-oracle"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashkmod-sig-enforce-root"
+        }
+      ]
     },
     {
       "id": "defer-live-module-inventory",

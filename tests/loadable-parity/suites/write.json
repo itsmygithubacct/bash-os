@@ -68,9 +68,30 @@
     },
     {
       "id": "pty-banner-eof-and-faults",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify real terminal/session banner, EOF marker and partial-write behavior.",
-      "reason": "Remaining obligations: r6: The candidate takes a TTY path, not a user name. util-linux write (bsdextrautils in the VM) needs a utmp login record, which requires root (utmp group) provisioning."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/write/disabled-target-and-write-errors"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terminal-platform-write-positive-short-audit121-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-write-enospc"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-write-user-recipient-model"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-write-pty-banner-gate-stdin"
+        }
+      ]
     }
   ]
 }

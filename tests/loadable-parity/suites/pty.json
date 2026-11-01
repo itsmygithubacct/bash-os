@@ -138,9 +138,34 @@
     },
     {
       "id": "pty-serial-ldisc-deferred",
+      "kind": "migrated",
       "purpose": "Exercise set-ldisc validation and line-discipline changes against an isolated serial endpoint.",
-      "kind": "deferred",
-      "reason": "Serial CSIZE/PARENB effects are not observable on a pseudo-terminal."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w8-pty-ldisc-device-validation"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-pty-ldisc-usage-errors"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-pty-ldisc-vt-csize-parity"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pty-ldisc-eperm-termios-unchanged"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pty-ldisc-termios-options"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-pty-ldisc-tiocsetd-effect"
+        }
+      ]
     },
     {
       "id": "regular-file-is-not-terminal",

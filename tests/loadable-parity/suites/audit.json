@@ -98,21 +98,100 @@
     },
     {
       "id": "deferred-kernel-queries",
+      "kind": "migrated",
       "purpose": "Cover status and list-rules netlink read behavior against a controlled audit kernel state.",
-      "kind": "deferred",
-      "reason": "Remaining: r1-r4 and r6 need AUDIT_GET/AUDIT_LIST_RULES success in the initial user and PID namespaces."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w6-audit-queries-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-audit-refusal"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-audit-rules-all-root"
+        }
+      ]
     },
     {
       "id": "deferred-kernel-rule-changes",
+      "kind": "migrated",
       "purpose": "Cover set-enabled, add-rule, and del-rule encoding plus kernel acknowledgement and resulting rule state.",
-      "kind": "deferred",
-      "reason": "Remaining: r1, r3, r4, r6, r7 need CAP_AUDIT_CONTROL in the initial namespaces."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w6-audit-args"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-audit-rules-all-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-audit-rules-prepend-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-audit-rules-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-audit-set-enabled-locked-root"
+        }
+      ]
     },
     {
       "id": "deferred-audit-consumer",
+      "kind": "migrated",
       "purpose": "Cover run registration, bounded event collection, decode integration, and cleanup of the audit daemon PID.",
-      "kind": "deferred",
-      "reason": "Remaining: everything that needs the registered audit daemon (CAP_AUDIT_CONTROL, initial user and PID namespaces)."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/audit/decode-escaped-whitespace"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/audit/decode-file-append"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/audit/decode-known-record"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/audit/decode-unknown-record"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/audit/output-parent-missing"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-audit-args"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-audit-refusal"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-audit-run-bounds-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-audit-run-events-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-audit-run-output-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-audit-run-restore-root"
+        }
+      ]
     },
     {
       "id": "empty-record-defaults",

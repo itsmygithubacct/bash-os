@@ -112,9 +112,9 @@
     },
     {
       "id": "unicode17-exhaustive-grapheme-reference",
-      "kind": "deferred",
       "purpose": "Exercise the complete Unicode grapheme boundary corpus through length and slice operations.",
-      "reason": "The normative reference group already executes the complete expressible corpus with the pinned Unicode 17 GraphemeBreakTest and an independent oracle (the file's own break marks); no utf8 grapheme assertion failed. The only remainder is the NUL subset, which the interface cannot express."
+      "kind": "deferred",
+      "reason": "The NUL subset cannot be expressed through the builtin interface."
     },
     {
       "id": "empty-strings-and-slice-boundaries",

@@ -90,9 +90,34 @@
     },
     {
       "id": "syscall-failures-mock",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise missing/open-failing paths, EACCES read-write retry, ioctl failure continuation, descriptor close handling, and aggregate status.",
-      "reason": "Remaining obligations: r4: close(2) failure injection not attempted: no stable descriptor-number condition for a seccomp rule; r5: Close-error cleanup remains untested: close(2) failure injection has no stable descriptor-number condition."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-blockdev-close-error-injected"
+        },
+        {
+          "group": "shell",
+          "id": "migration-blockdev-injected-errors"
+        },
+        {
+          "group": "shell",
+          "id": "migration-blockdev-mocked-success"
+        },
+        {
+          "group": "shell",
+          "id": "migration-blockdev-query-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-blockdev-real-failures"
+        },
+        {
+          "group": "shell",
+          "id": "migration-blockdev-request-trace"
+        }
+      ]
     }
   ]
 }

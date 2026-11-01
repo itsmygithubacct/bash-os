@@ -127,9 +127,50 @@
     },
     {
       "id": "interactive_pty_navigation",
+      "kind": "migrated",
       "purpose": "Exercise interactive page boundaries, Enter/space navigation, -d prompt text, forward search, quit across operands, and terminal-state restoration.",
-      "kind": "deferred",
-      "reason": "Invalid-key hint text under -d is not produced by the reference."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "mig-w8-more-d-invalid-key-prompt"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-more-d-prompt-text"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-more-multi-file-headers"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-more-quit-multi-operand"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-more-search-forward"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-more-search-missing"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-more-search-regex"
+        },
+        {
+          "group": "terminal",
+          "id": "more-enter-line"
+        },
+        {
+          "group": "terminal",
+          "id": "more-page"
+        },
+        {
+          "group": "terminal",
+          "id": "more-short-file"
+        }
+      ]
     },
     {
       "id": "missing-valid-continuation",

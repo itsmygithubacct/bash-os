@@ -339,9 +339,74 @@
     },
     {
       "id": "dns-recursive-service",
+      "kind": "migrated",
       "purpose": "Exercise resolver forwarding/cache behavior and the documented recursive, DNSSEC, DNS64, and policy paths against controlled peers.",
-      "kind": "deferred",
-      "reason": "r4 (DNSSEC validation of a signed fixture zone with fixed time) remains unexercised: no independent zone signer or injected-clock fixture exists yet; r3 is now covered by mig-w2-dns-resolver-iterative-referrals."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "migration-dns-resolver-allow-cidr"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-resolver-dns64"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-resolver-forward-cache"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-resolver-local-a"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-resolver-rpz"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-resolver-version-bind"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dns-resolver-dnssec-ad-on-valid-data"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dns-resolver-dnssec-servfail-on-bogus-data"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dns-resolver-iterative-referrals"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dnssec-validate-bogus-rejected"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dnssec-validate-fixed-time-skew-window"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dnssec-validate-secure-answers"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dnssec-validate-secure-answers-below-apex"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dnssec-validate-trust-anchor-binding"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-resolver-negative-ttl-minimum-bound"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-resolver-negative-ttl-soa-ttl-bound"
+        }
+      ]
     },
     {
       "id": "dns-slave-transfer-poll",

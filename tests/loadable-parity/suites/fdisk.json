@@ -54,9 +54,34 @@
     },
     {
       "id": "defer-kernel-partx",
+      "kind": "migrated",
       "purpose": "Cover --partx-kernel BLKPG add/delete/update and post-write partition reread behavior.",
-      "kind": "deferred",
-      "reason": "r1, r2 and r4 need loop devices with partition scanning (root); not yet authored."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-fdisk-partx-add-delete-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-fdisk-partx-delete-range-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-fdisk-partx-kernel-argument-and-uid-refusal"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-fdisk-partx-kernel-regular-file-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-fdisk-partx-update-ranges-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-fdisk-reread-after-write-root"
+        }
+      ]
     },
     {
       "id": "defer-interactive-editor",

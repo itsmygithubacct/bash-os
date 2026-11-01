@@ -101,9 +101,30 @@
     },
     {
       "id": "device-discovery-deferred",
+      "kind": "migrated",
       "purpose": "No-operand enumeration and -L/-U discovery are core operations that cannot be compared safely against ambient device state.",
-      "kind": "deferred",
-      "reason": "r4 (candidate enumeration contract) is exercised. r1-r3 need real block devices (loop devices, root) and a util-linux comparison on the same devices; not yet authored."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-blkid-label-uuid-lookup-devices"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-blkid-loop-enumeration-lines"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-blkid-loop-enumeration-order"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-blkid-override-enumeration"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-blkid-partition-parent-metadata"
+        }
+      ]
     },
     {
       "id": "explicit-label-lookup",

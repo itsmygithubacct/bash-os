@@ -98,9 +98,30 @@
     },
     {
       "id": "live-device-inventory-deferred",
+      "kind": "migrated",
       "purpose": "Check enumeration and topology for actual kernel block devices, including loop or device-mapper nodes, without touching or changing them.",
-      "kind": "deferred",
-      "reason": "Remaining obligations: r2: loop/dm nodes need F1-LOOP and F5-DM; r3: Mountpoints and the empty candidate FSTYPE versus util-linux udev values are observed. All live block nodes are unreadable to uid2000, so direct on-device superblock probing remains unexercised."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-lsblk-loop-dm-topology-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-lsblk-mounted-fstype-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-lsblk-live-fstype"
+        },
+        {
+          "group": "shell",
+          "id": "migration-lsblk-live-inventory"
+        },
+        {
+          "group": "shell",
+          "id": "migration-lsblk-live-mountpoints"
+        }
+      ]
     },
     {
       "id": "gnu-sysfs-parity-deferred",

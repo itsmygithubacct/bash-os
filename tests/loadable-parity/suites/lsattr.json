@@ -205,9 +205,38 @@
     },
     {
       "id": "nonzero_attribute_bits",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify exact flag-letter mapping and order for enabled inode attributes.",
-      "reason": "The zero field is already exercised by parity cases. Nonzero bits are missing: owner-settable bits only need a fixture. Feature bits need a driver-provided ext4 image with features, and i/a need CAP_LINUX_IMMUTABLE. C, x and m are unattainable on any filesystem in the image."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/lsattr/directory_itself"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/lsattr/named_file"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/lsattr/recursive_nested_directory"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-lsattr-feature-bits-ext4-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-lsattr-immutable-append-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-lsattr-mocked-flag-words"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-lsattr-user-bits-ext4-root"
+        }
+      ]
     },
     {
       "id": "invalid-option-status",

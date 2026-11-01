@@ -105,9 +105,9 @@
     },
     {
       "id": "signalfd-ownership",
-      "kind": "deferred",
       "purpose": "Exercise signalfd delivery, accepted signal names, overlapping masks, close/unload restoration, preblocked signals, and invalid signal handling.",
-      "reason": "Remaining obligations: r5: bashpoll is compiled into both candidate builds; enable -d cannot unload it, so the unload hook is not reachable."
+      "kind": "deferred",
+      "reason": "r5 is a limit"
     },
     {
       "id": "descriptor-flags-and-close",

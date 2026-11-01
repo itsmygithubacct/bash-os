@@ -34,21 +34,44 @@
     },
     {
       "id": "session-lifecycle",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Create a live named session with a deterministic child, verify list/status state after the creating shell exits, then kill it and verify broker and child cleanup.",
-      "reason": "Remaining obligations: r1: The child readiness files are awaited after the creating shell returns, and no contemporaneous readiness or independent create status is retained at return.; r3: Stopped child/descendants and session directory removal are observed, but the distinct pid-file removed/marked-dead state is not independently bound. The broker is a zombie, not an absent PID. Preserve the recorded PASS without crediting the missing file/reaping observations.; r4: No live executing member remains in the observed tree and the broker is a terminated zombie. Its final reaping and the state exactly at case completion are unobserved; preserve the recorded PASS and this remaining cleanup limitation."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-screen-lifecycle-return-and-cleanup"
+        },
+        {
+          "group": "shell",
+          "id": "migration-terra-local-pty-b03r3-lifecycle"
+        }
+      ]
     },
     {
       "id": "pane-layout-geometry",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Create windows and split panes, switch/select focus, resize and swap panes, and compare each fixture child's observed TIOCGWINSZ geometry with screen's reported layout.",
-      "reason": "Never executed. It is implementable in the plain driver: the pane children report geometry with trusted /usr/bin/stty size on their own PTY into private files."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-screen-focus-resize-swap"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-screen-pane-geometry"
+        }
+      ]
     },
     {
       "id": "literal-child-argv",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Pass empty, spaced, quoted, wildcard, newline, and shell-looking arguments after -- through run, win-create, and pane-split; compare the child's argv byte-for-byte and confirm no shell interpretation.",
-      "reason": "Never executed. A plain-driver contract with a child that records its argv to a private file is enough."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-screen-literal-argv"
+        }
+      ]
     },
     {
       "id": "attach-relay-detach",
@@ -97,15 +120,28 @@
     },
     {
       "id": "operation-errors-rollback",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check invalid names, malformed pane geometry, missing-session mutations, and controlled child-start failure for documented nonzero outcomes and absence of partial layout or leaked broker state.",
-      "reason": "Never executed. The plain driver plus a fixture-owned nonexecutable file covers it; no mock is needed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-screen-child-start-failure"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-screen-invalid-names-and-missing-session"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-screen-malformed-geometry"
+        }
+      ]
     },
     {
       "id": "remote-attach-mock",
-      "kind": "deferred",
       "purpose": "Check remote attach/roam command construction and framed byte exchange against an independent protocol encoder, including short, malformed, and valid bounded frames.",
-      "reason": "Remaining obligations: r4: The nominal over-limit frame also has no declared payload, so rejection may be due to truncation. The bound-specific condition remains partial even though source construction and saved rejection statuses bind the attempted inputs.; r5: The saved guest-loopback SSH exchange reaches a framing FAIL, but the original deferred reason explicitly forbids network activity and requires a mocked transport. It remains supplementary evidence; a conforming live mock exchange is still required for complete original coverage."
+      "kind": "deferred",
+      "reason": "r5: a live remote attach over a mocked transport is not authored."
     },
     {
       "id": "encode-pty",

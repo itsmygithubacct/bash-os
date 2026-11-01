@@ -97,9 +97,26 @@
     },
     {
       "id": "hctosys-local-dst",
+      "kind": "migrated",
       "purpose": "Check local RTC conversion in a controlled timezone, including a DST gap rejection and both valid epochs for a repeated local hour.",
-      "kind": "deferred",
-      "reason": "The candidate exposes no way to request the second interpretation of a repeated local hour; r1, r2 and the membership half of r3 are exercised."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w6-hwclock-hctosys-fold"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-hwclock-hctosys-fold-both"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-hwclock-hctosys-gap"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-hwclock-hctosys-local"
+        }
+      ]
     },
     {
       "id": "systohc-and-adjtime-reset",
@@ -220,9 +237,42 @@
     },
     {
       "id": "rtc-and-adjfile-failure-cleanup",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Inject RTC open/read/write/close and adjtime temporary-file write/close/rename failures; verify failure statuses, no leaked descriptors or temporary files, and preservation of the prior calibration.",
-      "reason": "Remaining obligations: r2: Synthetic close EIO skips the real close, so actual close-failure cleanup is not established. r3: Synthetic close EIO skips the real close and leaves a descriptor; real close-failure descriptor cleanup is not established."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "devices-hwclock-rename-error-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-rtc-open-error-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-rtc-read-error-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-rtc-write-error-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-temp-close-error-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-temp-open-error-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-temp-write-error-r1"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-hwclock-adjfile-real-fs-failures"
+        }
+      ]
     }
   ]
 }

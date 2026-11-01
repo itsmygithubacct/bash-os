@@ -85,9 +85,26 @@
     },
     {
       "id": "fstab-tags-and-root",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare -A fstab behavior, LABEL/UUID-style device resolution and root-device selection from a supplied command line or fake sysfs.",
-      "reason": "Remaining obligations: r1: Only the UUID= form yields a positive selected row. LABEL= positive selection and the PARTLABEL=/PARTUUID= forms are not exercised.; r2: Root-device guessing is only inferred from duplicate-source deduplication; no selected row depends solely on resolving /dev/root."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-fstrim-fstab-tag-forms-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-fstrim-root-device-guess-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-fstab-tags-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fstrim-selection-discard-capable-root"
+        }
+      ]
     },
     {
       "id": "dedup-escapes-and-types",

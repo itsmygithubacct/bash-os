@@ -152,9 +152,9 @@
     },
     {
       "id": "gles-shader-and-dmabuf",
-      "kind": "deferred",
       "purpose": "Validate shader compile/render output, CPU-canvas shader input retention, resize/readback behavior, and DMA-BUF handoff/fallback and resource retirement.",
-      "reason": "Never executed. Rendering and DMA-BUF obligations need a kernel DRM render node, which an unprivileged fixture cannot create. The fallback and error-path obligations can be implemented now with the Kitty peer helper."
+      "kind": "deferred",
+      "reason": "r1-r3 are limits; r4 and r5 not authored"
     },
     {
       "id": "headless-clear-pixel-clip",

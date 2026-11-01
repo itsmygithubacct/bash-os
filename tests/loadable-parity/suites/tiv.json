@@ -124,9 +124,54 @@
     },
     {
       "id": "unicode-terminal-display",
+      "kind": "migrated",
       "purpose": "Qualify how the half, quad, sextant, and octant output appears in a terminal with known Unicode and color support.",
-      "kind": "deferred",
-      "reason": "Real glyph rendering needs an emulator and font rasteriser that the guest does not have."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w8-tiv-kitty-render-half"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-tiv-kitty-render-octant"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-tiv-kitty-render-quad"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-tiv-kitty-render-sextant"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-tiv-colors-256"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-tiv-colors-grey"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-tiv-colors-truecolor"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-tiv-glyph-width-half"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-tiv-glyph-width-octant"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-tiv-glyph-width-quad"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-tiv-glyph-width-sextant"
+        }
+      ]
     },
     {
       "id": "missing-image",

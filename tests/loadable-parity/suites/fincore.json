@@ -165,9 +165,18 @@
     },
     {
       "id": "controlled-cache-transitions",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise exact cold, resident, and page-boundary counts for mincore-based reporting.",
-      "reason": "Remaining obligations: r1: Not observable without privilege in the parity VM (probe-fincore-69): mincore(2) reports every page resident for files the caller cannot write (mm/mincore.c can_do_mincore), util-linux fincore cachestat(2) returns EPERM for non-owned files, and every writable scratch area is tmpfs, where POSIX_FADV_DONTNEED evicts nothing. Needs a caller-owned file on a writable non-tmpfs filesystem (root-provisioned ext4 scratch or BLOCK-DEV).; r4: Not observable without privilege in the parity VM (probe-fincore-69): mincore(2) reports every page resident for files the caller cannot write (mm/mincore.c can_do_mincore), util-linux fincore cachestat(2) returns EPERM for non-owned files, and every writable scratch area is tmpfs, where POSIX_FADV_DONTNEED evicts nothing. Needs a caller-owned file on a writable non-tmpfs filesystem (root-provisioned ext4 scratch or BLOCK-DEV).; r5: Not observable without privilege in the parity VM (probe-fincore-69): mincore(2) reports every page resident for files the caller cannot write (mm/mincore.c can_do_mincore), util-linux fincore cachestat(2) returns EPERM for non-owned files, and every writable scratch area is tmpfs, where POSIX_FADV_DONTNEED evicts nothing. Needs a caller-owned file on a writable non-tmpfs filesystem (root-provisioned ext4 scratch or BLOCK-DEV)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-fincore-cache-transitions-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-fincore-owned-resident-boundaries"
+        }
+      ]
     }
   ]
 }

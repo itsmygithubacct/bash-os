@@ -33,33 +33,90 @@
     },
     {
       "id": "exact-comm-and-name-list",
+      "kind": "migrated",
       "purpose": "Check the core matching contract, including exact comm equality, similar-name exclusion, multiple names, duplicate names, the 15-byte comm boundary, self-exclusion, and default SIGTERM.",
-      "kind": "deferred",
-      "reason": "r2 duplicate operands not asserted."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-killall-duplicate-operands"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-killall-exact-comm-names"
+        }
+      ]
     },
     {
       "id": "full-command-line-exact-mode",
+      "kind": "migrated",
       "purpose": "Exercise -f exact joined-command-line selection, including NUL-separated arguments, empty arguments, long records, and substring nonmatches.",
-      "kind": "deferred",
-      "reason": "r2/r3 not authored."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-killall-full-cmdline"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-killall-full-cmdline-edges"
+        }
+      ]
     },
     {
       "id": "real-uid-filter",
+      "kind": "migrated",
       "purpose": "Check -u numeric and account-name filters against real UID records, including a nonmatching UID and filter interaction with name selection.",
-      "kind": "deferred",
-      "reason": "r2/r4 not exercised."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-killall-real-uid-semantics"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-killall-uid-filter"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-killall-uid-name-resolution"
+        }
+      ]
     },
     {
       "id": "signal-and-option-parsing",
+      "kind": "migrated",
       "purpose": "Check default TERM, signal names with optional SIG prefix and case variation, numeric signals, -e/--exact compatibility, and usage errors such as zero or unknown signals/options.",
-      "kind": "deferred",
-      "reason": "r5 psmisc-only options not exercised."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-killall-psmisc-options"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-killall-signals-options"
+        }
+      ]
     },
     {
       "id": "status-and-proc-failure-paths",
+      "kind": "migrated",
       "purpose": "Check no-match, usage, and fatal-proc status classes along with malformed or missing proc records, bounded PID parsing, delivery ESRCH/EPERM, and partial success.",
-      "kind": "deferred",
-      "reason": "r1 status 3, r2, r3 and ESRCH not exercised."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-killall-eperm-and-esrch"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-killall-failure-paths"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-killall-no-proc-fatal"
+        },
+        {
+          "group": "shell",
+          "id": "mig-g1-killall-proc-records"
+        }
+      ]
     },
     {
       "id": "controlled-child-delivery",

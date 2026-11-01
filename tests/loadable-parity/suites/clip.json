@@ -93,9 +93,42 @@
     },
     {
       "id": "allocator-rollback-faults",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate the all-or-nothing buffer and ring guarantee when cut, copy, or paste allocation fails.",
-      "reason": "Per-allocation-point failure needs a test build with an allocator fault hook; an unprivileged fixture can only force large-allocation failure through `ulimit -v`, which covers one point."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-clip-oom-copy-bytes"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-clip-oom-copy-line"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-clip-oom-copy-lines"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-clip-oom-cut-bytes"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-clip-oom-cut-line"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-clip-oom-cut-lines"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-clip-oom-paste-column"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-clip-oom-paste-lines"
+        }
+      ]
     },
     {
       "id": "copy-survives-source-free",
