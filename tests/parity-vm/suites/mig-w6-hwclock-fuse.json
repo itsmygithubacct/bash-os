@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-hwclock-adjfile-real-fs-failures",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "hwclock/rtc-and-adjfile-failure-cleanup"
+      ],
+      "purpose": "On a real private filesystem (a FUSE server in a user namespace) whose temporary-file create, write, close (FUSE flush, so close(2) really fails) and rename operations fail, hwclock --systohc reports status 1 naming the adjtime path, removes the temporary file, keeps the prior calibration bytes, mode and hard link, leaks no descriptor (the kernel has released every handle before the shell moves on), and a control run without faults replaces the file preserving the mode",
+      "oracle": "The filesystem server's own records of what it stored (names, bytes, mode, link count, open handles at the time the shell continued) and the builtin's documented behavior (builtin_error with the failing path and strerror)",
+      "comparison": "Per fault: status, diagnostic text and path, fault actually reached by the server, temporary removed, prior file content/mode/link unchanged, descriptor table of the shell unchanged and no open FUSE handle when hwclock returned; plus the fault-free control.",
+      "requires": [
+        "python3",
+        "unshare"
+      ],
+      "features": [
+        "seccomp-notify",
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/mig-w6-hwclock-synth.py": "39a4c1bc0a007095fc6e806fad2b387dc8a83587df25ae7475bd4bc4bd1700d8",
+        "helpers/mig-w6-fuse-adj.py": "3a9432c0affe4f5b311f9e52a08af2b39b067e9aaa5194853947d936d2daf260"
+      },
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/mig-w6-fuse-adj.py\nfor m in ok flush write create rename; do\n  /usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 -I \"$H\" \"$BASH\" $m\ndone\n",
+      "expected_status": 0,
+      "stdout": "ok: rc=0 fault-reached=1 diag-names-adjfile=0 diag-strerror=none temp-removed=1 fds-unchanged=1 handles-open-at-return=0 rtc-set=1 link-shares-prior-inode=1 content-replaced=1 new-mode=640 prior-bytes-kept-on-link=1\nflush: rc=1 fault-reached=1 diag-names-adjfile=1 diag-strerror=Input/output error temp-removed=1 fds-unchanged=1 handles-open-at-return=0 rtc-set=1 link-shares-prior-inode=1 prior-bytes-kept=1 prior-mode=640 prior-nlink=2\nwrite: rc=1 fault-reached=1 diag-names-adjfile=1 diag-strerror=Input/output error temp-removed=1 fds-unchanged=1 handles-open-at-return=0 rtc-set=1 link-shares-prior-inode=1 prior-bytes-kept=1 prior-mode=640 prior-nlink=2\ncreate: rc=1 fault-reached=1 diag-names-adjfile=1 diag-strerror=Permission denied temp-removed=1 fds-unchanged=1 handles-open-at-return=0 rtc-set=1 link-shares-prior-inode=1 prior-bytes-kept=1 prior-mode=640 prior-nlink=2\nrename: rc=1 fault-reached=1 diag-names-adjfile=1 diag-strerror=Input/output error temp-removed=1 fds-unchanged=1 handles-open-at-return=0 rtc-set=1 link-shares-prior-inode=1 prior-bytes-kept=1 prior-mode=640 prior-nlink=2\n",
+      "stderr": "",
+      "timeout": 60,
+      "diagnostic_files": [
+        "ops-ok.txt",
+        "ops-flush.txt",
+        "ops-write.txt",
+        "ops-create.txt",
+        "ops-rename.txt"
+      ]
+    }
+  ]
+}

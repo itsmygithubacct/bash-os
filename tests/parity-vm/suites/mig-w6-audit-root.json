@@ -1,0 +1,235 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-audit-queries-root",
+      "loadable": "audit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "audit/deferred-kernel-queries"
+      ],
+      "purpose": "Against a kernel state set up by the oracle (distinctive rate/backlog limits, no rules, then four known rules), audit status and status -V report the kernel's AUDIT_GET values, list-rules prints No rules for an empty set and the canonical text of the known rules in kernel list order, and none of the queries changes the kernel state (the fixture runs as a transient systemd service so that it is in the guest's initial PID namespace, which the kernel requires for audit control)",
+      "oracle": "An independent raw-netlink model (struct.pack/unpack of AUDIT_GET/AUDIT_SET/AUDIT_LIST_RULES/AUDIT_ADD_RULE/AUDIT_DEL_RULE against the guest kernel) as the oracle for kernel state, run as root in the initial namespaces of a KVM guest; the snapshot/restore of audit state is done by the same oracle",
+      "comparison": "audit status lines and the -V variables compared with the oracle's AUDIT_GET taken immediately before and after; list-rules text for the empty set and four oracle-installed rules; the oracle's status and rule dump before versus after the queries.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-audit-nl.py": "49c7efbe4019e474ce6dce29cd6345f5c0b1d25ad361fed044c70cf06bf92ef6"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nW=/run/w6-audit; /usr/bin/mkdir -p \"$W\"\n/usr/bin/cat >\"$W/inner.sh\" <<'INNER_EOF'\nexport HOME=/run/w6-audit PATH=/usr/bin:/usr/sbin:/bin\ncd \"$HOME\"\n[[ $(type -t audit) == builtin ]] || exit 125\nOR=/opt/bashos-parity/harness/helpers/mig-w6-audit-nl.py\nnl() { /usr/bin/python3 -I \"$OR\" \"$@\"; }\njget() { /usr/bin/python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[sys.argv[2]])' \"$1\" \"$2\"; }\nstable() { /usr/bin/python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); [d.pop(k) for k in (\"lost\",\"backlog\",\"mask\")]; print(json.dumps(d, sort_keys=True))' \"$1\"; }\nSNAP=$HOME/audit-snap.json\nnl snapshot \"$SNAP\" >/dev/null || { echo \"audit netlink unavailable: $(nl status)\"; exit 1; }\ntrap 'nl restore \"$SNAP\" >/dev/null 2>&1' EXIT\nnl flush >/dev/null\nnl set enabled=1 failure=0 rate_limit=77 backlog_limit=4321 >/dev/null\nstl() { /usr/bin/python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); print(\"\\n\".join(\"%s=%d\" % (k, d[k]) for k in (\"enabled\",\"pid\",\"rate_limit\",\"backlog_limit\",\"lost\",\"backlog\",\"failure\")))' \"$1\"; }\no1=$(nl status); out=$(audit status); rc=$?; o2=$(nl status)\ne1=$(stl \"$o1\"); e2=$(stl \"$o2\")\necho \"status: rc=$rc equals-oracle=$([[ $out == \"$e1\" || $out == \"$e2\" ]] && echo 1 || echo 0)\"\nwhile IFS= read -r l; do [[ $l == lost=* || $l == backlog=* ]] || echo \"  $l\"; done <<<\"$out\"\naudit status -V qs >\"$HOME/v.out\"; rc=$?\necho \"bind: rc=$rc enabled=$qs_enabled pid=$qs_pid rate_limit=$qs_rate_limit backlog_limit=$qs_backlog_limit failure=$qs_failure lost-ok=$([[ $qs_lost == \"$(jget \"$o1\" lost)\" ]] && echo 1 || echo 0) backlog-ok=$([[ $qs_backlog == \"$(jget \"$o1\" backlog)\" ]] && echo 1 || echo 0) stdout-empty=$([[ -s $HOME/v.out ]] && echo 0 || echo 1)\"\nout=$(audit list-rules); echo \"empty-list: rc=$? out=[$out] kernel=$(nl rules)\"\nnl add '{\"flags\": 4, \"action\": 2, \"syscalls\": [2, 59], \"fields\": [[1, 1073741824, 2000]], \"key\": \"mig-w6-a\"}' >/dev/null\nnl add '{\"flags\": 20, \"action\": 0, \"syscalls\": [57, 58], \"fields\": [[9, 1610612736, 1000], [104, 1073741824, 1]], \"key\": \"\"}' >/dev/null\nnl add '{\"flags\": 0, \"action\": 2, \"syscalls\": [], \"fields\": [[12, 1073741824, 1100]], \"key\": \"mig-w6-u\"}' >/dev/null\nnl add '{\"flags\": 5, \"action\": 2, \"syscalls\": [], \"fields\": [[12, 1073741824, 1300]], \"key\": \"\"}' >/dev/null\ns1=$(stable \"$(nl status)\"); r1=$(nl rules)\nout=$(audit list-rules); rc=$?\necho \"known-list: rc=$rc\"\nwhile IFS= read -r l; do echo \"  $l\"; done <<<\"$out\"\naudit status >/dev/null; audit status -V zz; audit list-rules >/dev/null\ns2=$(stable \"$(nl status)\"); r2=$(nl rules)\necho \"unchanged-by-queries: status=$([[ $s1 == \"$s2\" ]] && echo 1 || echo 0) rules=$([[ $r1 == \"$r2\" ]] && echo 1 || echo 0) kernel-rules=$(/usr/bin/python3 -I -c 'import json,sys; print(len(json.loads(sys.argv[1])))' \"$r2\")\"\n\nINNER_EOF\n/usr/bin/systemd-run --wait --pipe --collect --quiet \"$BASH\" --noprofile --norc \"$W/inner.sh\"\nrc=$?\n/usr/bin/cp \"$W/rec.tsv\" /tmp/parity-case/rec.tsv 2>/dev/null\n/usr/bin/rm -rf \"$W\"\nexit $rc\n",
+      "expected_status": 0,
+      "stdout": "status: rc=0 equals-oracle=1\n  enabled=1\n  pid=0\n  rate_limit=77\n  backlog_limit=4321\n  failure=0\nbind: rc=0 enabled=1 pid=0 rate_limit=77 backlog_limit=4321 failure=0 lost-ok=1 backlog-ok=1 stdout-empty=1\nempty-list: rc=0 out=[No rules] kernel=[]\nknown-list: rc=0\n  -a always,user -F msgtype=1100 -k mig-w6-u\n  -a never,exit -S fork -S vfork -F auid>=1000 -F success=1\n  -a always,exit -S open -S execve -F uid=2000 -k mig-w6-a\n  -a always,exclude -F msgtype=1300\nunchanged-by-queries: status=1 rules=1 kernel-rules=4\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "mig-w6-audit-rules-root",
+      "loadable": "audit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "audit/deferred-kernel-rule-changes",
+        "audit/deferred-kernel-queries"
+      ],
+      "purpose": "set-enabled 0/1 and add-rule/del-rule program the kernel: the encoded rule (flags, action, syscall mask, fields, operators, key) read back from the kernel matches the independent model, list-rules renders each in canonical text, del-rule removes it, a duplicate add reports EEXIST and a missing delete ENOENT with status 1, and the enabled mode and rule set are restored to the snapshot (the fixture runs as a transient systemd service so that it is in the guest's initial PID namespace, which the kernel requires for audit control)",
+      "oracle": "An independent raw-netlink model (struct.pack/unpack of AUDIT_GET/AUDIT_SET/AUDIT_LIST_RULES/AUDIT_ADD_RULE/AUDIT_DEL_RULE against the guest kernel) as the oracle for kernel state, run as root in the initial namespaces of a KVM guest; the snapshot/restore of audit state is done by the same oracle",
+      "comparison": "For six rule forms (append and prepend, always/never, exit/user/exclude, syscall list and all, eight operators/fields, arch b64): kernel readback versus the oracle's expected decoding, list-rules text, del-rule effect; kernel acknowledgement errors; the snapshot comparison after restore.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-audit-nl.py": "49c7efbe4019e474ce6dce29cd6345f5c0b1d25ad361fed044c70cf06bf92ef6"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nW=/run/w6-audit; /usr/bin/mkdir -p \"$W\"\n/usr/bin/cat >\"$W/inner.sh\" <<'INNER_EOF'\nexport HOME=/run/w6-audit PATH=/usr/bin:/usr/sbin:/bin\ncd \"$HOME\"\n[[ $(type -t audit) == builtin ]] || exit 125\nOR=/opt/bashos-parity/harness/helpers/mig-w6-audit-nl.py\nnl() { /usr/bin/python3 -I \"$OR\" \"$@\"; }\njget() { /usr/bin/python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[sys.argv[2]])' \"$1\" \"$2\"; }\nstable() { /usr/bin/python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); [d.pop(k) for k in (\"lost\",\"backlog\",\"mask\")]; print(json.dumps(d, sort_keys=True))' \"$1\"; }\nSNAP=$HOME/audit-snap.json\nnl snapshot \"$SNAP\" >/dev/null || { echo \"audit netlink unavailable: $(nl status)\"; exit 1; }\ntrap 'nl restore \"$SNAP\" >/dev/null 2>&1' EXIT\nnl flush >/dev/null\nrcase() { local label=$1 exp=$2; shift 2; local rc rc2 rc3 got list\n  audit add-rule \"$@\"; rc=$?\n  got=$(nl rules); list=$(audit list-rules); rc2=$?\n  echo \"$label: add-rc=$rc kernel-matches=$([[ $got == \"[$exp]\" ]] && echo 1 || echo 0) list-rc=$rc2\"\n  echo \"  $list\"\n  audit del-rule \"$@\"; rc3=$?\n  echo \"$label: del-rc=$rc3 remaining=$(nl rules) list-after=$(audit list-rules)\"\n  nl flush >/dev/null\n}\naudit set-enabled 1; echo \"set-enabled 1: rc=$? enabled=$(jget \"$(nl status)\" enabled)\"\naudit set-enabled 0; echo \"set-enabled 0: rc=$? enabled=$(jget \"$(nl status)\" enabled)\"\nrcase f1 '{\"action\": 2, \"fields\": [[1, 1073741824, 2000], [210, 1073741824, \"mig-w6-a\"]], \"flags\": 4, \"syscalls\": [2, 59]}' 'a' 'always' 'exit' 'open,execve' 'uid = 2000' 'mig-w6-a'\nrcase f2 '{\"action\": 0, \"fields\": [[9, 1610612736, 1000], [104, 1073741824, 1]], \"flags\": 4, \"syscalls\": [57, 58]}' 'a' 'never' 'exit' 'fork,vfork' 'auid >= 1000;success = yes' ''\nrcase f3 '{\"action\": 2, \"fields\": [[12, 1073741824, 1100], [210, 1073741824, \"mig-w6-u\"]], \"flags\": 0, \"syscalls\": []}' 'a' 'always' 'user' '' 'msgtype = 1100' 'mig-w6-u'\nrcase f4 '{\"action\": 2, \"fields\": [[12, 1073741824, 1300]], \"flags\": 5, \"syscalls\": []}' 'a' 'always' 'exclude' '' 'msgtype = 1300' ''\nrcase f5a '{\"action\": 2, \"fields\": [[2, 805306368, 0]], \"flags\": 4, \"syscalls\": [105]}' 'a' 'always' 'exit' 'setuid' 'euid != 0' ''\nrcase f5b '{\"action\": 2, \"fields\": [[5, 268435456, 100]], \"flags\": 4, \"syscalls\": [105]}' 'a' 'always' 'exit' 'setuid' 'gid < 100' ''\nrcase f5c '{\"action\": 2, \"fields\": [[6, 1342177280, 100]], \"flags\": 4, \"syscalls\": [105]}' 'a' 'always' 'exit' 'setuid' 'egid <= 100' ''\nrcase f5d '{\"action\": 2, \"fields\": [[0, 536870912, 5]], \"flags\": 4, \"syscalls\": [105]}' 'a' 'always' 'exit' 'setuid' 'pid > 5' ''\nrcase f6 '{\"action\": 2, \"fields\": [[11, 1073741824, 3221225534], [1, 1073741824, 2000]], \"flags\": 4, \"syscalls\": [59]}' 'a' 'always' 'exit' 'execve' 'arch = b64;uid = 2000' ''\naudit add-rule a always exit execve ';' mig-w6-dup; echo \"first-add: rc=$?\"\nout=$(audit add-rule a always exit execve ';' mig-w6-dup 2>&1); echo \"duplicate-add: rc=$? text=$([[ $out == *\"add-rule: File exists\" ]] && echo 1 || echo 0) rules=$(/usr/bin/python3 -I -c 'import json,sys; print(len(json.loads(sys.argv[1])))' \"$(nl rules)\")\"\naudit del-rule a always exit execve ';' mig-w6-dup; echo \"delete: rc=$?\"\nout=$(audit del-rule a always exit execve ';' mig-w6-dup 2>&1); echo \"delete-absent: rc=$? text=$([[ $out == *\"del-rule: No such file or directory\" ]] && echo 1 || echo 0)\"\naudit set-enabled 1; nl set rate_limit=5 >/dev/null\nnl restore \"$SNAP\" >/dev/null; echo \"restored-to-snapshot: $(nl matches \"$SNAP\")\"\n\nINNER_EOF\n/usr/bin/systemd-run --wait --pipe --collect --quiet \"$BASH\" --noprofile --norc \"$W/inner.sh\"\nrc=$?\n/usr/bin/cp \"$W/rec.tsv\" /tmp/parity-case/rec.tsv 2>/dev/null\n/usr/bin/rm -rf \"$W\"\nexit $rc\n",
+      "expected_status": 0,
+      "stdout": "set-enabled 1: rc=0 enabled=1\nset-enabled 0: rc=0 enabled=0\nf1: add-rc=0 kernel-matches=1 list-rc=0\n  -a always,exit -S open -S execve -F uid=2000 -k mig-w6-a\nf1: del-rc=0 remaining=[] list-after=No rules\nf2: add-rc=0 kernel-matches=1 list-rc=0\n  -a never,exit -S fork -S vfork -F auid>=1000 -F success=1\nf2: del-rc=0 remaining=[] list-after=No rules\nf3: add-rc=0 kernel-matches=1 list-rc=0\n  -a always,user -F msgtype=1100 -k mig-w6-u\nf3: del-rc=0 remaining=[] list-after=No rules\nf4: add-rc=0 kernel-matches=1 list-rc=0\n  -a always,exclude -F msgtype=1300\nf4: del-rc=0 remaining=[] list-after=No rules\nf5a: add-rc=0 kernel-matches=1 list-rc=0\n  -a always,exit -S setuid -F euid!=0\nf5a: del-rc=0 remaining=[] list-after=No rules\nf5b: add-rc=0 kernel-matches=1 list-rc=0\n  -a always,exit -S setuid -F gid<100\nf5b: del-rc=0 remaining=[] list-after=No rules\nf5c: add-rc=0 kernel-matches=1 list-rc=0\n  -a always,exit -S setuid -F egid<=100\nf5c: del-rc=0 remaining=[] list-after=No rules\nf5d: add-rc=0 kernel-matches=1 list-rc=0\n  -a always,exit -S setuid -F pid>5\nf5d: del-rc=0 remaining=[] list-after=No rules\nf6: add-rc=0 kernel-matches=1 list-rc=0\n  -a always,exit -S execve -F arch=3221225534 -F uid=2000\nf6: del-rc=0 remaining=[] list-after=No rules\nfirst-add: rc=0\nduplicate-add: rc=1 text=1 rules=1\ndelete: rc=0\ndelete-absent: rc=1 text=1\nrestored-to-snapshot: 1\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "mig-w6-audit-set-enabled-locked-root",
+      "loadable": "audit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "audit/deferred-kernel-rule-changes"
+      ],
+      "purpose": "set-enabled 2 locks the audit configuration: the kernel reports enabled=2 and then refuses set-enabled and add-rule/del-rule with EPERM, reported with status 1 (run alone: the lock lasts until the guest is discarded) (the fixture runs as a transient systemd service so that it is in the guest's initial PID namespace, which the kernel requires for audit control)",
+      "oracle": "An independent raw-netlink model (struct.pack/unpack of AUDIT_GET/AUDIT_SET/AUDIT_LIST_RULES/AUDIT_ADD_RULE/AUDIT_DEL_RULE against the guest kernel) as the oracle for kernel state, run as root in the initial namespaces of a KVM guest; the snapshot/restore of audit state is done by the same oracle",
+      "comparison": "Oracle AUDIT_GET after the lock and after each refused change; diagnostics and statuses of the refused operations.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-audit-nl.py": "49c7efbe4019e474ce6dce29cd6345f5c0b1d25ad361fed044c70cf06bf92ef6"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nW=/run/w6-audit; /usr/bin/mkdir -p \"$W\"\n/usr/bin/cat >\"$W/inner.sh\" <<'INNER_EOF'\nexport HOME=/run/w6-audit PATH=/usr/bin:/usr/sbin:/bin\ncd \"$HOME\"\n[[ $(type -t audit) == builtin ]] || exit 125\nOR=/opt/bashos-parity/harness/helpers/mig-w6-audit-nl.py\nnl() { /usr/bin/python3 -I \"$OR\" \"$@\"; }\njget() { /usr/bin/python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[sys.argv[2]])' \"$1\" \"$2\"; }\nstable() { /usr/bin/python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); [d.pop(k) for k in (\"lost\",\"backlog\",\"mask\")]; print(json.dumps(d, sort_keys=True))' \"$1\"; }\nSNAP=$HOME/audit-snap.json\nnl snapshot \"$SNAP\" >/dev/null || { echo \"audit netlink unavailable: $(nl status)\"; exit 1; }\nnl flush >/dev/null; nl set enabled=1 >/dev/null\naudit set-enabled 2; echo \"lock: rc=$? enabled=$(jget \"$(nl status)\" enabled)\"\nfor v in 0 1; do out=$(audit set-enabled $v 2>&1); echo \"set-enabled $v: rc=$? text=$([[ $out == *\"set-enabled: Operation not permitted\" ]] && echo 1 || echo 0) enabled=$(jget \"$(nl status)\" enabled)\"; done\nout=$(audit add-rule a always exit execve ';' mig-w6-lock 2>&1); echo \"add-rule: rc=$? text=$([[ $out == *\"add-rule: Operation not permitted\" ]] && echo 1 || echo 0) kernel-rules=$(nl rules)\"\nout=$(audit del-rule a always exit execve ';' mig-w6-lock 2>&1); echo \"del-rule: rc=$? text=$([[ $out == *\"del-rule: Operation not permitted\" ]] && echo 1 || echo 0)\"\n\nINNER_EOF\n/usr/bin/systemd-run --wait --pipe --collect --quiet \"$BASH\" --noprofile --norc \"$W/inner.sh\"\nrc=$?\n/usr/bin/cp \"$W/rec.tsv\" /tmp/parity-case/rec.tsv 2>/dev/null\n/usr/bin/rm -rf \"$W\"\nexit $rc\n",
+      "expected_status": 0,
+      "stdout": "lock: rc=0 enabled=2\nset-enabled 0: rc=1 text=1 enabled=2\nset-enabled 1: rc=1 text=1 enabled=2\nadd-rule: rc=1 text=1 kernel-rules=[]\ndel-rule: rc=1 text=1\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "mig-w6-audit-run-events-root",
+      "loadable": "audit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "audit/deferred-audit-consumer"
+      ],
+      "purpose": "audit run registers itself as the audit daemon (the kernel reports its pid and enabled=1), receives the audit records of a fixture-run execve that matches an oracle-installed rule, decodes them into the TSV rows (pid, exe, key, syscall number, same-event CWD/EXECVE/PATH records) and deregisters its pid on exit (the fixture runs as a transient systemd service so that it is in the guest's initial PID namespace, which the kernel requires for audit control)",
+      "oracle": "An independent raw-netlink model (struct.pack/unpack of AUDIT_GET/AUDIT_SET/AUDIT_LIST_RULES/AUDIT_ADD_RULE/AUDIT_DEL_RULE against the guest kernel) as the oracle for kernel state, run as root in the initial namespaces of a KVM guest; the snapshot/restore of audit state is done by the same oracle; the expected fields of the event come from the fixture itself (pid of the child it started, /usr/bin/true, uid 0, key of the installed rule)",
+      "comparison": "Oracle AUDIT_GET while the run is active (pid equals the child's pid) and after it ends (pid 0); the decoded SYSCALL/EXECVE/CWD/PATH rows for the fixture's /usr/bin/true compared with the known pid, executable, key and syscall; the row compared with decode-text of its reconstructed payload.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-audit-nl.py": "49c7efbe4019e474ce6dce29cd6345f5c0b1d25ad361fed044c70cf06bf92ef6"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nW=/run/w6-audit; /usr/bin/mkdir -p \"$W\"\n/usr/bin/cat >\"$W/inner.sh\" <<'INNER_EOF'\nexport HOME=/run/w6-audit PATH=/usr/bin:/usr/sbin:/bin\ncd \"$HOME\"\n[[ $(type -t audit) == builtin ]] || exit 125\nOR=/opt/bashos-parity/harness/helpers/mig-w6-audit-nl.py\nnl() { /usr/bin/python3 -I \"$OR\" \"$@\"; }\njget() { /usr/bin/python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[sys.argv[2]])' \"$1\" \"$2\"; }\nstable() { /usr/bin/python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); [d.pop(k) for k in (\"lost\",\"backlog\",\"mask\")]; print(json.dumps(d, sort_keys=True))' \"$1\"; }\nSNAP=$HOME/audit-snap.json\nnl snapshot \"$SNAP\" >/dev/null || { echo \"audit netlink unavailable: $(nl status)\"; exit 1; }\ntrap 'nl restore \"$SNAP\" >/dev/null 2>&1' EXIT\nnl flush >/dev/null\nnl set enabled=0 >/dev/null\nnl add '{\"flags\":4,\"action\":2,\"syscalls\":[59],\"fields\":[],\"key\":\"mig-w6-ev\"}' >/dev/null\n/usr/bin/mkfifo \"$HOME/nap\"; exec 7<>\"$HOME/nap\"\nnap() { read -t \"$1\" -u 7; }\nms() { echo $(( ${EPOCHREALTIME/./} / 1000 )); }\nrec=$HOME/rec.tsv; t0=$(ms)\naudit run -t 6 -o \"$rec\" >\"$HOME/run.out\" 2>\"$HOME/run.err\" &\nrp=$!\nw=$(nl waitpid \"$rp\" 4); st=$(nl status)\necho \"registered: pid-is-child=$([[ $w == timeout || $w == error=* ]] && echo 0 || echo 1) enabled=$(jget \"$st\" enabled)\"\nnap 0.3\n/usr/bin/true & cp=$!; wait \"$cp\"\nnap 0.5\nwait \"$rp\"; rc=$?; t1=$(ms)\nn=$(<\"$HOME/run.out\"); rows=0; while IFS= read -r _; do rows=$((rows+1)); done <\"$rec\"\necho \"run: rc=$rc stderr-empty=$([[ -s $HOME/run.err ]] && echo 0 || echo 1) emitted-equals-rows=$([[ $n == \"$rows\" && $n -gt 0 ]] && echo 1 || echo 0) ended-by-deadline=$(( t1 - t0 >= 5000 ))\"\necho \"deregistered: pid=$(jget \"$(nl status)\" pid)\"\n\n/usr/bin/python3 -I - \"$rec\" \"$cp\" \"$t0\" \"$t1\" \"$HOME\" <<'PY'\nimport re, sys\nrec, cp, t0, t1, home = sys.argv[1:]\nrows = [l.rstrip(\"\\n\").split(\"\\t\") for l in open(rec)]\nsysc = [r for r in rows if len(r) == 9 and r[0] == \"SYSCALL\" and r[5] == cp]\nprint(\"child-syscall-row: count=%d\" % len(sysc), end=\"\")\nif len(sysc) == 1:\n    r = sysc[0]\n    kv = r[8].split(\" \")\n    print(\" key=%s exe=%s uid=%s syscall59=%d success-yes=%d\" % (r[7], r[6], r[4], \"syscall=59\" in kv, \"success=yes\" in kv))\n    ser = r[2]\n    mine = [x for x in rows if len(x) == 9 and x[2] == ser]\n    types = {x[0] for x in mine}\n    execve = [x for x in mine if x[0] == \"EXECVE\"]\n    print(\"same-event: syscall=%d execve=%d cwd=%d path=%d execve-a0=%d\" % (\"SYSCALL\" in types, \"EXECVE\" in types, \"CWD\" in types, \"PATH\" in types,\n          int(bool(execve) and 'a0=\"/usr/bin/true\"' in execve[0][8])))\n    print(\"timestamp-in-window=%d\" % (int(t0) - 2000 <= int(r[1]) <= int(t1) + 2000))\n    payload = 'audit(%d.%03d:%s): auid=%s uid=%s pid=%s exe=\"%s\" key=\"%s\" %s' % (int(r[1]) // 1000, int(r[1]) % 1000, r[2], r[3], r[4], r[5], r[6], r[7], r[8])\n    open(home + \"/payload.txt\", \"w\").write(payload)\n    open(home + \"/row.txt\", \"w\").write(\"\\t\".join(r) + \"\\n\")\nelse:\n    print()\nprint(\"columns-ok=%d\" % all(len(r) == 9 for r in rows))\nprint(\"unknown-rows-typed=%d\" % all(re.match(r\"audit_type=\\d+ \", r[8]) for r in rows if len(r) == 9 and r[0] == \"UNKNOWN\"))\nPY\nif [[ -s $HOME/row.txt ]]; then\n  dt=$(audit decode-text 1300 \"$(<\"$HOME/payload.txt\")\" -o -); echo \"decode-text-equals-row: $([[ $dt == \"$(<\"$HOME/row.txt\")\" ]] && echo 1 || echo 0)\"\nfi\n\nINNER_EOF\n/usr/bin/systemd-run --wait --pipe --collect --quiet \"$BASH\" --noprofile --norc \"$W/inner.sh\"\nrc=$?\n/usr/bin/cp \"$W/rec.tsv\" /tmp/parity-case/rec.tsv 2>/dev/null\n/usr/bin/rm -rf \"$W\"\nexit $rc\n",
+      "expected_status": 0,
+      "stdout": "registered: pid-is-child=1 enabled=1\nrun: rc=0 stderr-empty=1 emitted-equals-rows=1 ended-by-deadline=1\nderegistered: pid=0\nchild-syscall-row: count=1 key=mig-w6-ev exe=/usr/bin/true uid=0 syscall59=1 success-yes=1\nsame-event: syscall=1 execve=1 cwd=1 path=1 execve-a0=1\ntimestamp-in-window=1\ncolumns-ok=1\nunknown-rows-typed=1\ndecode-text-equals-row: 1\n",
+      "stderr": "",
+      "timeout": 60,
+      "diagnostic_files": [
+        "rec.tsv"
+      ]
+    },
+    {
+      "id": "mig-w6-audit-run-bounds-root",
+      "loadable": "audit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "audit/deferred-audit-consumer"
+      ],
+      "purpose": "audit run -c N stops after exactly N records and prints N, -t SECS stops at the deadline, SIGTERM and SIGINT stop a running consumer with status 0 and the emitted count, and each exit leaves the audit pid deregistered (the fixture runs as a transient systemd service so that it is in the guest's initial PID namespace, which the kernel requires for audit control)",
+      "oracle": "An independent raw-netlink model (struct.pack/unpack of AUDIT_GET/AUDIT_SET/AUDIT_LIST_RULES/AUDIT_ADD_RULE/AUDIT_DEL_RULE against the guest kernel) as the oracle for kernel state, run as root in the initial namespaces of a KVM guest; the snapshot/restore of audit state is done by the same oracle",
+      "comparison": "Count printed versus the rows appended to the file; elapsed time of the bounded runs measured by the fixture; exit status after each signal; the oracle's AUDIT_GET pid after each run.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-audit-nl.py": "49c7efbe4019e474ce6dce29cd6345f5c0b1d25ad361fed044c70cf06bf92ef6"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nW=/run/w6-audit; /usr/bin/mkdir -p \"$W\"\n/usr/bin/cat >\"$W/inner.sh\" <<'INNER_EOF'\nexport HOME=/run/w6-audit PATH=/usr/bin:/usr/sbin:/bin\ncd \"$HOME\"\n[[ $(type -t audit) == builtin ]] || exit 125\nOR=/opt/bashos-parity/harness/helpers/mig-w6-audit-nl.py\nnl() { /usr/bin/python3 -I \"$OR\" \"$@\"; }\njget() { /usr/bin/python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[sys.argv[2]])' \"$1\" \"$2\"; }\nstable() { /usr/bin/python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); [d.pop(k) for k in (\"lost\",\"backlog\",\"mask\")]; print(json.dumps(d, sort_keys=True))' \"$1\"; }\nSNAP=$HOME/audit-snap.json\nnl snapshot \"$SNAP\" >/dev/null || { echo \"audit netlink unavailable: $(nl status)\"; exit 1; }\ntrap 'nl restore \"$SNAP\" >/dev/null 2>&1' EXIT\nnl flush >/dev/null\nnl set enabled=0 >/dev/null\nnl add '{\"flags\":4,\"action\":2,\"syscalls\":[59],\"fields\":[],\"key\":\"mig-w6-ev\"}' >/dev/null\n/usr/bin/mkfifo \"$HOME/nap\"; exec 7<>\"$HOME/nap\"\nnap() { read -t \"$1\" -u 7; }\nms() { echo $(( ${EPOCHREALTIME/./} / 1000 )); }\npdone() { echo \"$1: pid-after=$(jget \"$(nl status)\" pid)\"; }\ncnt() { local n=0; while IFS= read -r _; do n=$((n+1)); done <\"$1\"; echo $n; }\nf=$HOME/c.tsv\naudit run -c 3 -t 10 -o \"$f\" >\"$HOME/c.out\" 2>&1 &\nrp=$!; nl waitpid \"$rp\" 4 >/dev/null; nap 0.3; t0=$(ms)\nfor i in 1 2 3; do /usr/bin/true & p=$!; wait $p; done\nwait \"$rp\"; rc=$?; t1=$(ms)\necho \"count-bound: rc=$rc printed=$(<\"$HOME/c.out\") rows=$(cnt \"$f\") before-deadline=$(( t1 - t0 < 7000 ))\"; pdone count-bound\nf=$HOME/t.tsv; t0=$(ms)\naudit run -t 2 -o \"$f\" >\"$HOME/t.out\" 2>&1; rc=$?; t1=$(ms); el=$(( t1 - t0 ))\necho \"time-bound: rc=$rc printed-equals-rows=$([[ $(<\"$HOME/t.out\") == \"$(cnt \"$f\")\" ]] && echo 1 || echo 0) elapsed-in-1.0-3.5s=$(( el >= 1000 && el <= 3500 ))\"; pdone time-bound\nfor sig in TERM INT; do\n  f=$HOME/$sig.tsv; audit run -t 20 -o \"$f\" >\"$HOME/$sig.out\" 2>&1 &\n  rp=$!; nl waitpid \"$rp\" 4 >/dev/null; nap 0.3; t0=$(ms)\n  kill -$sig \"$rp\"; wait \"$rp\"; rc=$?; t1=$(ms)\n  echo \"SIG$sig: rc=$rc printed-equals-rows=$([[ $(<\"$HOME/$sig.out\") == \"$(cnt \"$f\")\" ]] && echo 1 || echo 0) stopped-within-3s=$(( t1 - t0 < 3000 ))\"; pdone SIG$sig\ndone\n\nINNER_EOF\n/usr/bin/systemd-run --wait --pipe --collect --quiet \"$BASH\" --noprofile --norc \"$W/inner.sh\"\nrc=$?\n/usr/bin/cp \"$W/rec.tsv\" /tmp/parity-case/rec.tsv 2>/dev/null\n/usr/bin/rm -rf \"$W\"\nexit $rc\n",
+      "expected_status": 0,
+      "stdout": "count-bound: rc=0 printed=3 rows=3 before-deadline=1\ncount-bound: pid-after=0\ntime-bound: rc=0 printed-equals-rows=1 elapsed-in-1.0-3.5s=1\ntime-bound: pid-after=0\nSIGTERM: rc=0 printed-equals-rows=1 stopped-within-3s=1\nSIGTERM: pid-after=0\nSIGINT: rc=0 printed-equals-rows=1 stopped-within-3s=1\nSIGINT: pid-after=0\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "mig-w6-audit-run-output-root",
+      "loadable": "audit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "audit/deferred-audit-consumer"
+      ],
+      "purpose": "audit run -o FILE appends to an existing file across runs (the seed line stays first), and a record file that cannot be opened is reported with status 1 before the daemon is registered, leaving the kernel's audit state unchanged (the fixture runs as a transient systemd service so that it is in the guest's initial PID namespace, which the kernel requires for audit control)",
+      "oracle": "An independent raw-netlink model (struct.pack/unpack of AUDIT_GET/AUDIT_SET/AUDIT_LIST_RULES/AUDIT_ADD_RULE/AUDIT_DEL_RULE against the guest kernel) as the oracle for kernel state, run as root in the initial namespaces of a KVM guest; the snapshot/restore of audit state is done by the same oracle",
+      "comparison": "File content and printed counts over two consecutive runs; kernel AUDIT_GET before and after the failed open.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-audit-nl.py": "49c7efbe4019e474ce6dce29cd6345f5c0b1d25ad361fed044c70cf06bf92ef6"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nW=/run/w6-audit; /usr/bin/mkdir -p \"$W\"\n/usr/bin/cat >\"$W/inner.sh\" <<'INNER_EOF'\nexport HOME=/run/w6-audit PATH=/usr/bin:/usr/sbin:/bin\ncd \"$HOME\"\n[[ $(type -t audit) == builtin ]] || exit 125\nOR=/opt/bashos-parity/harness/helpers/mig-w6-audit-nl.py\nnl() { /usr/bin/python3 -I \"$OR\" \"$@\"; }\njget() { /usr/bin/python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[sys.argv[2]])' \"$1\" \"$2\"; }\nstable() { /usr/bin/python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); [d.pop(k) for k in (\"lost\",\"backlog\",\"mask\")]; print(json.dumps(d, sort_keys=True))' \"$1\"; }\nSNAP=$HOME/audit-snap.json\nnl snapshot \"$SNAP\" >/dev/null || { echo \"audit netlink unavailable: $(nl status)\"; exit 1; }\ntrap 'nl restore \"$SNAP\" >/dev/null 2>&1' EXIT\nnl flush >/dev/null\nnl set enabled=0 >/dev/null\nnl add '{\"flags\":4,\"action\":2,\"syscalls\":[59],\"fields\":[],\"key\":\"mig-w6-ev\"}' >/dev/null\n/usr/bin/mkfifo \"$HOME/nap\"; exec 7<>\"$HOME/nap\"\nnap() { read -t \"$1\" -u 7; }\nms() { echo $(( ${EPOCHREALTIME/./} / 1000 )); }\ncnt() { local n=0; while IFS= read -r _; do n=$((n+1)); done <\"$1\"; echo $n; }\nf=$HOME/seed.tsv; echo \"seed-line\" >\"$f\"\nfor i in 1 2; do\n  audit run -c 1 -t 8 -o \"$f\" >\"$HOME/o$i.out\" 2>&1 &\n  rp=$!; nl waitpid \"$rp\" 4 >/dev/null; nap 0.3; /usr/bin/true & p=$!; wait $p; wait \"$rp\"; rc=$?\n  first=; IFS= read -r first <\"$f\"\n  echo \"append-run-$i: rc=$rc printed=$(<\"$HOME/o$i.out\") rows=$(cnt \"$f\") first=[$first]\"\ndone\nbefore=$(stable \"$(nl status)\")\nout=$(audit run -o \"$HOME/nodir/rec.tsv\" 2>&1); rc=$?\necho \"open-failure: rc=$rc text=$([[ $out == *\"run: cannot open record file: No such file or directory\" ]] && echo 1 || echo 0) registration-unchanged=$([[ $before == \"$(stable \"$(nl status)\")\" ]] && echo 1 || echo 0) pid=$(jget \"$(nl status)\" pid)\"\n\nINNER_EOF\n/usr/bin/systemd-run --wait --pipe --collect --quiet \"$BASH\" --noprofile --norc \"$W/inner.sh\"\nrc=$?\n/usr/bin/cp \"$W/rec.tsv\" /tmp/parity-case/rec.tsv 2>/dev/null\n/usr/bin/rm -rf \"$W\"\nexit $rc\n",
+      "expected_status": 0,
+      "stdout": "append-run-1: rc=0 printed=1 rows=2 first=[seed-line]\nappend-run-2: rc=0 printed=1 rows=3 first=[seed-line]\nopen-failure: rc=1 text=1 registration-unchanged=1 pid=0\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "mig-w6-audit-run-restore-root",
+      "loadable": "audit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "audit/deferred-audit-consumer"
+      ],
+      "purpose": "After audit run exits, the audit pid is deregistered and the enabled state equals the state before the run (here disabled) (the fixture runs as a transient systemd service so that it is in the guest's initial PID namespace, which the kernel requires for audit control)",
+      "oracle": "An independent raw-netlink model (struct.pack/unpack of AUDIT_GET/AUDIT_SET/AUDIT_LIST_RULES/AUDIT_ADD_RULE/AUDIT_DEL_RULE against the guest kernel) as the oracle for kernel state, run as root in the initial namespaces of a KVM guest; the snapshot/restore of audit state is done by the same oracle",
+      "comparison": "Oracle AUDIT_GET before the run (enabled=0, pid=0) and after it ends.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-audit-nl.py": "49c7efbe4019e474ce6dce29cd6345f5c0b1d25ad361fed044c70cf06bf92ef6"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nW=/run/w6-audit; /usr/bin/mkdir -p \"$W\"\n/usr/bin/cat >\"$W/inner.sh\" <<'INNER_EOF'\nexport HOME=/run/w6-audit PATH=/usr/bin:/usr/sbin:/bin\ncd \"$HOME\"\n[[ $(type -t audit) == builtin ]] || exit 125\nOR=/opt/bashos-parity/harness/helpers/mig-w6-audit-nl.py\nnl() { /usr/bin/python3 -I \"$OR\" \"$@\"; }\njget() { /usr/bin/python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[sys.argv[2]])' \"$1\" \"$2\"; }\nstable() { /usr/bin/python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); [d.pop(k) for k in (\"lost\",\"backlog\",\"mask\")]; print(json.dumps(d, sort_keys=True))' \"$1\"; }\nSNAP=$HOME/audit-snap.json\nnl snapshot \"$SNAP\" >/dev/null || { echo \"audit netlink unavailable: $(nl status)\"; exit 1; }\ntrap 'nl restore \"$SNAP\" >/dev/null 2>&1' EXIT\nnl flush >/dev/null\nnl set enabled=0 >/dev/null\nnl add '{\"flags\":4,\"action\":2,\"syscalls\":[59],\"fields\":[],\"key\":\"mig-w6-ev\"}' >/dev/null\n/usr/bin/mkfifo \"$HOME/nap\"; exec 7<>\"$HOME/nap\"\nnap() { read -t \"$1\" -u 7; }\nms() { echo $(( ${EPOCHREALTIME/./} / 1000 )); }\nbefore=$(nl status)\naudit run -t 2 -o \"$HOME/r.tsv\" >/dev/null 2>&1; rc=$?\nafter=$(nl status)\necho \"run: rc=$rc\"\necho \"after-run: pid=$(jget \"$after\" pid) enabled=$(jget \"$after\" enabled) (before: pid=$(jget \"$before\" pid) enabled=$(jget \"$before\" enabled))\"\necho \"enabled-restored-to-snapshot=$([[ $(jget \"$after\" enabled) == \"$(jget \"$before\" enabled)\" ]] && echo 1 || echo 0)\"\n\nINNER_EOF\n/usr/bin/systemd-run --wait --pipe --collect --quiet \"$BASH\" --noprofile --norc \"$W/inner.sh\"\nrc=$?\n/usr/bin/cp \"$W/rec.tsv\" /tmp/parity-case/rec.tsv 2>/dev/null\n/usr/bin/rm -rf \"$W\"\nexit $rc\n",
+      "expected_status": 0,
+      "stdout": "run: rc=0\nafter-run: pid=0 enabled=0 (before: pid=0 enabled=0)\nenabled-restored-to-snapshot=1\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "mig-w6-audit-rules-prepend-root",
+      "loadable": "audit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "audit/deferred-kernel-rule-changes"
+      ],
+      "purpose": "A rule added with priority A is placed first in its kernel list (the kernel keeps no prepend flag, so list-rules prints -a) and del-rule with the same columns removes it (the fixture runs as a transient systemd service so that it is in the guest's initial PID namespace, which the kernel requires for audit control)",
+      "oracle": "An independent raw-netlink model (struct.pack/unpack of AUDIT_GET/AUDIT_SET/AUDIT_LIST_RULES/AUDIT_ADD_RULE/AUDIT_DEL_RULE against the guest kernel) as the oracle for kernel state, run as root in the initial namespaces of a KVM guest; the snapshot/restore of audit state is done by the same oracle",
+      "comparison": "Kernel list order after an append and a prepend; del-rule with the same columns and the remaining rule count from the oracle.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-audit-nl.py": "49c7efbe4019e474ce6dce29cd6345f5c0b1d25ad361fed044c70cf06bf92ef6"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nW=/run/w6-audit; /usr/bin/mkdir -p \"$W\"\n/usr/bin/cat >\"$W/inner.sh\" <<'INNER_EOF'\nexport HOME=/run/w6-audit PATH=/usr/bin:/usr/sbin:/bin\ncd \"$HOME\"\n[[ $(type -t audit) == builtin ]] || exit 125\nOR=/opt/bashos-parity/harness/helpers/mig-w6-audit-nl.py\nnl() { /usr/bin/python3 -I \"$OR\" \"$@\"; }\njget() { /usr/bin/python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[sys.argv[2]])' \"$1\" \"$2\"; }\nstable() { /usr/bin/python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); [d.pop(k) for k in (\"lost\",\"backlog\",\"mask\")]; print(json.dumps(d, sort_keys=True))' \"$1\"; }\nSNAP=$HOME/audit-snap.json\nnl snapshot \"$SNAP\" >/dev/null || { echo \"audit netlink unavailable: $(nl status)\"; exit 1; }\ntrap 'nl restore \"$SNAP\" >/dev/null 2>&1' EXIT\nnl flush >/dev/null\naudit add-rule a always exit execve ';' mig-w6-p1; r1=$?\naudit add-rule A always exit open ';' mig-w6-p2; r2=$?\necho \"adds: rc=$r1,$r2\"\nout=$(audit list-rules); while IFS= read -r l; do echo \"  $l\"; done <<<\"$out\"\naudit del-rule A always exit open ';' mig-w6-p2; echo \"del-prepended: rc=$? remaining-rules=$(/usr/bin/python3 -I -c 'import json,sys; print(len(json.loads(sys.argv[1])))' \"$(nl rules)\")\"\n\nINNER_EOF\n/usr/bin/systemd-run --wait --pipe --collect --quiet \"$BASH\" --noprofile --norc \"$W/inner.sh\"\nrc=$?\n/usr/bin/cp \"$W/rec.tsv\" /tmp/parity-case/rec.tsv 2>/dev/null\n/usr/bin/rm -rf \"$W\"\nexit $rc\n",
+      "expected_status": 0,
+      "stdout": "adds: rc=0,0\n  -a always,exit -S open -k mig-w6-p2\n  -a always,exit -S execve -k mig-w6-p1\ndel-prepended: rc=0 remaining-rules=1\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "mig-w6-audit-rules-all-root",
+      "loadable": "audit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "audit/deferred-kernel-rule-changes",
+        "audit/deferred-kernel-queries"
+      ],
+      "purpose": "A rule over all system calls is added, listed in the canonical form -S all, and removed with the same columns (the fixture runs as a transient systemd service so that it is in the guest's initial PID namespace, which the kernel requires for audit control)",
+      "oracle": "An independent raw-netlink model (struct.pack/unpack of AUDIT_GET/AUDIT_SET/AUDIT_LIST_RULES/AUDIT_ADD_RULE/AUDIT_DEL_RULE against the guest kernel) as the oracle for kernel state, run as root in the initial namespaces of a KVM guest; the snapshot/restore of audit state is done by the same oracle",
+      "comparison": "list-rules text of the kernel's stored all-syscalls rule (one -S all clause) and del-rule effect, with the kernel's own dump from the oracle.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-audit-nl.py": "49c7efbe4019e474ce6dce29cd6345f5c0b1d25ad361fed044c70cf06bf92ef6"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nW=/run/w6-audit; /usr/bin/mkdir -p \"$W\"\n/usr/bin/cat >\"$W/inner.sh\" <<'INNER_EOF'\nexport HOME=/run/w6-audit PATH=/usr/bin:/usr/sbin:/bin\ncd \"$HOME\"\n[[ $(type -t audit) == builtin ]] || exit 125\nOR=/opt/bashos-parity/harness/helpers/mig-w6-audit-nl.py\nnl() { /usr/bin/python3 -I \"$OR\" \"$@\"; }\njget() { /usr/bin/python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[sys.argv[2]])' \"$1\" \"$2\"; }\nstable() { /usr/bin/python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); [d.pop(k) for k in (\"lost\",\"backlog\",\"mask\")]; print(json.dumps(d, sort_keys=True))' \"$1\"; }\nSNAP=$HOME/audit-snap.json\nnl snapshot \"$SNAP\" >/dev/null || { echo \"audit netlink unavailable: $(nl status)\"; exit 1; }\ntrap 'nl restore \"$SNAP\" >/dev/null 2>&1' EXIT\nnl flush >/dev/null\naudit add-rule a always exit all ';' mig-w6-all; echo \"add-all: rc=$?\"\nout=$(audit list-rules); echo \"list: [$(echo \"${out:0:60}\")] syscall-names=$(/usr/bin/python3 -I -c 'import sys; print(sys.argv[1].count(\" -S \"))' \"$out\")\"\naudit del-rule a always exit all ';' mig-w6-all; echo \"del-all: rc=$? remaining=$(nl rules)\"\n\nINNER_EOF\n/usr/bin/systemd-run --wait --pipe --collect --quiet \"$BASH\" --noprofile --norc \"$W/inner.sh\"\nrc=$?\n/usr/bin/cp \"$W/rec.tsv\" /tmp/parity-case/rec.tsv 2>/dev/null\n/usr/bin/rm -rf \"$W\"\nexit $rc\n",
+      "expected_status": 0,
+      "stdout": "add-all: rc=0\nlist: [-a always,exit -S all -k mig-w6-all] syscall-names=1\ndel-all: rc=0 remaining=[]\n",
+      "stderr": "",
+      "timeout": 60
+    }
+  ]
+}
