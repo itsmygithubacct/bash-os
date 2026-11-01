@@ -76,6 +76,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <strings.h>
 #include <errno.h>
@@ -363,9 +364,19 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
   if (!bc_user_header (o, "Accept"))
     bc_hdr_append (builtin_hdrs, sizeof builtin_hdrs, "Accept: */*");
 
+  /* The buffer holds the request line, both header blocks, the framing
+     lines (" HTTP/1.1", Content-Length, Connection, CRLFs: under 96
+     bytes) and the body. An -X method of any length is counted. */
   size_t body_len = o->body_set ? o->body_len : 0;
-  size_t need = strlen (builtin_hdrs) + strlen (hdrs) + strlen (u->path)
-              + body_len + 512;
+  size_t parts[] = { strlen (o->method), strlen (u->path), strlen (builtin_hdrs),
+                     strlen (hdrs), body_len, 96 };
+  size_t need = 1;
+  for (size_t i = 0; i < sizeof parts / sizeof parts[0]; i++)
+    {
+      if (parts[i] > SIZE_MAX - need)
+        { bc_error ("request too large"); return NULL; }
+      need += parts[i];
+    }
   char *req = malloc (need);
   if (!req) { bc_error ("out of memory"); return NULL; }
 
@@ -387,14 +398,11 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
                   "Connection: close\r\n"
                   "\r\n",
                   o->method, u->path, builtin_hdrs, hdrs);
-  if (n < 0 || (size_t) n >= need)
+  if (n < 0 || (size_t) n >= need || body_len > need - 1 - (size_t) n)
     { free (req); bc_error ("request framing overflow"); return NULL; }
   if (body_len)
-    {
-      memcpy (req + n, o->body, body_len);
-      n += (int) body_len;
-    }
-  *out_len = (size_t) n;
+    memcpy (req + n, o->body, body_len);
+  *out_len = (size_t) n + body_len;
   return req;
 }
 
