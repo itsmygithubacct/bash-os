@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w7-lsattr-mocked-flag-words",
+      "loadable": "lsattr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "For every single inode-flag bit (0..31), the all-ones word and feature/common combinations delivered through a mocked FS_IOC_GETFLAGS, lsattr prints the same letter string (letters and positions: s u S D i a d A c E j t T e V C x m N P F ...) as e2fsprogs lsattr.",
+      "covers": [
+        "lsattr/nonzero_attribute_bits"
+      ],
+      "oracle": "e2fsprogs lsattr reading a deterministic FS_IOC_GETFLAGS word: a seccomp-notify supervisor writes the chosen flags word into the caller's buffer and answers success, for the reference tool and the candidate alike; letters and order per e2fsprogs.",
+      "comparison": "Byte parity of status, stdout, stderr and file tree.",
+      "requires": [
+        "python3",
+        "lsattr",
+        "mkdir"
+      ],
+      "files": {
+        "flagmock.py": "#!/usr/bin/python3\n\"\"\"Usage: flagmock.py MASK -- PROGRAM [ARG...]\nAnswers every FS_IOC_GETFLAGS (0x80086601) ioctl of PROGRAM and its children with success after writing MASK as the\n8-byte flags word through /proc/PID/mem; every other call continues. The filter is inherited by exec'ed programs.\"\"\"\nimport ctypes, errno, fcntl, os, select, struct, sys, time\nALLOW, NOTIFY = 0x7fff0000, 0x7fc00000\nRECV, SEND = 0xc0502100, 0xc0182101\nmask = int(sys.argv[1], 0)\nprogram = sys.argv[sys.argv.index(\"--\") + 1:]\nlib = ctypes.CDLL(\"libseccomp.so.2\", use_errno=True)\nclass ArgCmp(ctypes.Structure):\n    _fields_ = [(\"arg\", ctypes.c_uint), (\"op\", ctypes.c_int), (\"datum_a\", ctypes.c_uint64), (\"datum_b\", ctypes.c_uint64)]\nlib.seccomp_init.restype = ctypes.c_void_p\nlib.seccomp_init.argtypes = [ctypes.c_uint32]\nlib.seccomp_rule_add_array.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int, ctypes.c_uint, ctypes.POINTER(ArgCmp)]\nlib.seccomp_syscall_resolve_name.argtypes = [ctypes.c_char_p]\nlib.seccomp_load.argtypes = [ctypes.c_void_p]\nlib.seccomp_notify_fd.argtypes = [ctypes.c_void_p]\nlib.seccomp_syscall_resolve_num_arch.restype = ctypes.c_void_p\nlib.seccomp_syscall_resolve_num_arch.argtypes = [ctypes.c_uint32, ctypes.c_int]\nlibc = ctypes.CDLL(None, use_errno=True)\npid_ = os.fork()\nif pid_ == 0:\n    try:\n        ctx = lib.seccomp_init(ALLOW)\n        none = (ArgCmp * 1)()\n        eq = (ArgCmp * 1)(ArgCmp(1, 4, 0x80086601, 0))\n        lib.seccomp_rule_add_array(ctx, NOTIFY, lib.seccomp_syscall_resolve_name(b\"ioctl\"), 1, eq)\n        if lib.seccomp_load(ctx) != 0:\n            raise RuntimeError(\"load\")\n        listener = lib.seccomp_notify_fd(ctx)\n        os.set_inheritable(listener, True)\n        os.execv(program[0], program)\n    except BaseException as exc:\n        sys.stderr.write(\"closeinj: %s\\n\" % exc)\n    os._exit(126)\nchild = pid_\npidfd = os.pidfd_open(child)\nlibc.syscall.restype = ctypes.c_long\nlistener = None\ndeadline = time.time() + 15\nwhile listener is None and time.time() < deadline:\n    try:\n        for entry in os.listdir(\"/proc/%d/fd\" % child):\n            try:\n                link = os.readlink(\"/proc/%d/fd/%s\" % (child, entry))\n            except OSError:\n                continue\n            if \"seccomp\" in link:\n                got = libc.syscall(438, pidfd, int(entry), 0)\n                if got >= 0:\n                    listener = got; break\n    except OSError:\n        pass\n    if listener is None:\n        time.sleep(0.001)\nif listener is None:\n    os.kill(child, 9); sys.exit(\"closeinj: no listener\")\nnames = {}\ndef sysname(nr):\n    if nr not in names:\n        names[nr] = ctypes.cast(lib.seccomp_syscall_resolve_num_arch(0, nr), ctypes.c_char_p).value.decode()\n    return names[nr]\nlog = None\nstatus = None\nwhile status is None:\n    done, wait = os.waitpid(child, os.WNOHANG)\n    if done:\n        status = wait; break\n    ready, _, _ = select.select([listener], [], [], 0.05)\n    if not ready:\n        continue\n    req = bytearray(80)\n    try:\n        fcntl.ioctl(listener, RECV, req, True)\n    except OSError as exc:\n        if exc.errno in (errno.ENOENT, errno.EINTR):\n            continue\n        raise\n    ident, pid, _f, nr, _a, _ip = struct.unpack_from(\"<QIIiIQ\", req)\n    args = struct.unpack_from(\"<6Q\", req, 32)\n    resp = struct.pack(\"<QqiI\", ident, 0, 0, 1)\n    if True:\n        try:\n            fd = os.open(\"/proc/%d/mem\" % pid, os.O_RDWR)\n            os.pwrite(fd, struct.pack(\"<Q\", mask), args[2]); os.close(fd)\n            resp = struct.pack(\"<QqiI\", ident, 0, 0, 0)\n        except OSError:\n            resp = struct.pack(\"<QqiI\", ident, 0, -errno.EFAULT, 0)\n    try:\n        fcntl.ioctl(listener, SEND, resp)\n    except OSError as exc:\n        if exc.errno != errno.ENOENT:\n            raise\nsys.exit(os.waitstatus_to_exitcode(status) if os.WIFEXITED(status) else 128 + os.WTERMSIG(status))\n"
+      },
+      "features": [
+        "seccomp-notify"
+      ],
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n: > f; /usr/bin/mkdir d\none() { /usr/bin/python3 flagmock.py \"$1\" -- \"$BASH\" --noprofile --norc -c \"lsattr $2\" 2>&1; }\nfor ((i=0;i<32;i++)); do m=$((1<<i)); printf 'bit%02d %s\\n' $i \"$(one $m f)\"; done\nprintf 'all-bits %s\\n' \"$(one 0xffffffff f)\"\nprintf 'extents-only %s\\n' \"$(one 0x80000 f)\"\nprintf 'common-combo %s\\n' \"$(one $((0x1|0x2|0x8|0x10|0x20|0x40|0x80|0x4000|0x8000|0x10000|0x20000|0x80000)) f)\"\nprintf 'feature-combo %s\\n' \"$(one $((0x10000000|0x40000000|0x20000000|0x100000|0x800|0x80000)) f)\"\nprintf 'dir-flags %s\\n' \"$(one $((0x1000|0x80000|0x40000000)) '-d d')\"\n",
+      "expected_status": 0,
+      "timeout": 60
+    }
+  ]
+}
