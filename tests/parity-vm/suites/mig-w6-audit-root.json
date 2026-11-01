@@ -50,7 +50,7 @@
       "expected_status": 0,
       "stdout": "set-enabled 1: rc=0 enabled=1\nset-enabled 0: rc=0 enabled=0\nf1: add-rc=0 kernel-matches=1 list-rc=0\n  -a always,exit -S open -S execve -F uid=2000 -k mig-w6-a\nf1: del-rc=0 remaining=[] list-after=No rules\nf2: add-rc=0 kernel-matches=1 list-rc=0\n  -A never,exit -S all -F auid>=1000 -F success=1\nf2: del-rc=0 remaining=[] list-after=No rules\nf3: add-rc=0 kernel-matches=1 list-rc=0\n  -a always,user -F msgtype=1100 -k mig-w6-u\nf3: del-rc=0 remaining=[] list-after=No rules\nf4: add-rc=0 kernel-matches=1 list-rc=0\n  -a always,exclude -F msgtype=1300\nf4: del-rc=0 remaining=[] list-after=No rules\nf5: add-rc=0 kernel-matches=1 list-rc=0\n  -a always,exit -S setuid -S setgid -F euid!=0 -F gid<100 -F egid<=100 -F pid>5 -F ppid&3\nf5: del-rc=0 remaining=[] list-after=No rules\nf6: add-rc=0 kernel-matches=1 list-rc=0\n  -a always,exit -S execve -F arch=3221225534 -F uid=2000\nf6: del-rc=0 remaining=[] list-after=No rules\nfirst-add: rc=0\nduplicate-add: rc=1 text=1 rules=1\ndelete: rc=0\ndelete-absent: rc=1 text=1\nrestored-to-snapshot: 1\n",
       "stderr": "",
-      "timeout": 90
+      "timeout": 60
     },
     {
       "id": "mig-w6-audit-set-enabled-locked-root",
@@ -100,7 +100,7 @@
       "expected_status": 0,
       "stdout": "registered: pid-is-child=1 enabled=1\nrun: rc=0 stderr-empty=1 emitted-equals-rows=1 ended-by-deadline=1\nderegistered: pid=0\nchild-syscall-row: count=1 key=mig-w6-ev exe=/usr/bin/true uid=0 syscall59=1 success-yes=1\nsame-event: syscall=1 execve=1 cwd=1 path=1 execve-a0=1\ntimestamp-in-window=1\ncolumns-ok=1\nunknown-rows-typed=1\ndecode-text-equals-row: 1\n",
       "stderr": "",
-      "timeout": 90
+      "timeout": 60
     },
     {
       "id": "mig-w6-audit-run-bounds-root",
@@ -125,7 +125,7 @@
       "expected_status": 0,
       "stdout": "count-bound: rc=0 printed=3 rows=3 before-deadline=1\ncount-bound: pid-after=0\ntime-bound: rc=0 printed-equals-rows=1 elapsed-in-1.0-3.5s=1\ntime-bound: pid-after=0\nSIGTERM: rc=0 printed-equals-rows=1 stopped-within-3s=1\nSIGTERM: pid-after=0\nSIGINT: rc=0 printed-equals-rows=1 stopped-within-3s=1\nSIGINT: pid-after=0\n",
       "stderr": "",
-      "timeout": 120
+      "timeout": 60
     },
     {
       "id": "mig-w6-audit-run-output-root",
@@ -150,7 +150,7 @@
       "expected_status": 0,
       "stdout": "append-run-1: rc=0 printed=1 rows=2 first=[seed-line]\nappend-run-2: rc=0 printed=1 rows=3 first=[seed-line]\nopen-failure: rc=1 text=1 registration-unchanged=1 pid=0\n",
       "stderr": "",
-      "timeout": 90
+      "timeout": 60
     },
     {
       "id": "mig-w6-audit-run-restore-root",
