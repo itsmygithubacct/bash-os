@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "392407f23a18f791c3dde4730700b3c2f1c328e3a9e6bb8721452a07040fc94a",
+  "ledger_sha256": "d3cd1e50e451bdaa1e65b363abc5d4b581aad33a13df5b59cb6b0d6facf21a26",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
     "full": 578,
@@ -10867,7 +10867,7 @@
           "prepared_unchanged": true
         },
         {
-          "name": "w6-root21-static",
+          "name": "w6-pc3-static",
           "groups": [
             "shell"
           ],
@@ -10875,17 +10875,17 @@
           "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
           "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
           "artifacts_sha256": {
-            "summary.json": "b6a1df8bda99aac792510329c12e11b3111da14097574e5900ad4b3a342ca6f4",
-            "provenance.json": "b29b6db4c2bbd4bb60776bffad95604a36c70b076d7087b6f3994113d4051270",
-            "payload.tar": "0b73ef5881fc0ade17c3ee2b20c7700eb517078d430aea0938e799a671b2e8f0",
-            "evidence.tar": "55ebb17aa463450a2b798d47463d4a4a9c7ebbbaa1baa9c1e4361e29ba446bc4"
+            "summary.json": "3c901f5b446d6d7a804a7ca9f4084508ae6501979b3f3302ab026692e8834e19",
+            "provenance.json": "1a02432bd430dd400a9f25dd47c98abe8b9d192d4e8080adc7f9eb2e4c29f96b",
+            "payload.tar": "03ccee8414e7487c3a172279dd30daccedda563a3daf015883f7a1cd979cf5e1",
+            "evidence.tar": "8f07042a5032611934b79856a16a3fe50925386bff2b86cb43810fb944ccacb2"
           },
           "teardown": {
             "qemu_exit_status": 0,
             "clean_poweroff": true,
             "forced_stop": false,
             "poweroff_request": 255,
-            "stopped_at": 1793541559.6439767
+            "stopped_at": 1793563748.3937135
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -11264,7 +11264,7 @@
           "groups": [
             "shell"
           ],
-          "selected_records": 6,
+          "selected_records": 4,
           "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
           "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
           "artifacts_sha256": {
@@ -11695,6 +11695,32 @@
             "forced_stop": false,
             "poweroff_request": 255,
             "stopped_at": 1793558108.4539735
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w7-fstrim-settle-c-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "3df6e0fa2690c747cfa6de38649e2224a4fbe432e1036621373dcb12e3095de0",
+            "provenance.json": "1847252f8ea67ca0a997db40633139bab94ac0307e882daa027e3e162c826fb7",
+            "payload.tar": "76ba670c6654613f42f09026e68b80e35f0417e2533a37a068bced44379216b1",
+            "evidence.tar": "596b1f9534643d0dc4d4bcc812f8b0d53d34859832eb76b044f39db5e1567c2c"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793565111.7843792
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -28656,13 +28682,13 @@
                   "group": "shell",
                   "id": "mig-w7-fstrim-fstab-tag-forms-root",
                   "status": "PASS",
-                  "run": "w7-rv1-static"
+                  "run": "w7-fstrim-settle-c-static"
                 },
                 {
                   "group": "shell",
                   "id": "mig-w7-fstrim-fstab-tag-forms-root",
                   "status": "PASS",
-                  "run": "w7-rv1-static"
+                  "run": "w7-fstrim-settle-c-static"
                 }
               ],
               "fully_exercised": true,
@@ -28690,13 +28716,13 @@
                   "group": "shell",
                   "id": "mig-w7-fstrim-root-device-guess-root",
                   "status": "PASS",
-                  "run": "w7-rv1-static"
+                  "run": "w7-fstrim-settle-c-static"
                 },
                 {
                   "group": "shell",
                   "id": "mig-w7-fstrim-root-device-guess-root",
                   "status": "PASS",
-                  "run": "w7-rv1-static"
+                  "run": "w7-fstrim-settle-c-static"
                 }
               ],
               "fully_exercised": true,
@@ -50365,7 +50391,7 @@
                   "group": "shell",
                   "id": "mig-w6-rngseed-powercut-root",
                   "status": "PASS",
-                  "run": "w6-root21-static"
+                  "run": "w6-pc3-static"
                 }
               ],
               "fully_exercised": true,
@@ -78508,7 +78534,7 @@
           "prepared_unchanged": true
         },
         {
-          "name": "w6-root21-dynamic",
+          "name": "w6-pc3-dynamic",
           "groups": [
             "shell"
           ],
@@ -78516,17 +78542,17 @@
           "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
           "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
           "artifacts_sha256": {
-            "summary.json": "5e5e93eb5a6e8f0d3c3e68b7953d387ffa360eb865756b66dce7251fbc0bcde3",
-            "provenance.json": "a20ac4ee0276ebda888a800dbb30bed616e697acaf74131ee5df3a69f2607101",
-            "payload.tar": "3f526a8fa617ab07003465046dc5df387056eaff7df8f0b3fff12eff809bad34",
-            "evidence.tar": "78c92a42f5d75e0bf2fc210b927097303f8e6565496cab7eb522f47fd097d402"
+            "summary.json": "0a5555efea67f7b412be7521a489553fd6628ef6cefad5f3f9cbb705c739fe04",
+            "provenance.json": "3718005646fc6e1c528e0dfbb8ec9f798ff160c3cba37a2f52cee208a4c5303b",
+            "payload.tar": "41f492f5e83ea8d995bdaf0f10c830426fd917e9681bff101a39888e11c484cc",
+            "evidence.tar": "1eb23392e1b16b9e1b103d99758dd894f1542933c5ab25272cc5e8a7a8895334"
           },
           "teardown": {
             "qemu_exit_status": 0,
             "clean_poweroff": true,
             "forced_stop": false,
             "poweroff_request": 255,
-            "stopped_at": 1793541559.4790363
+            "stopped_at": 1793563790.4509907
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -78905,7 +78931,7 @@
           "groups": [
             "shell"
           ],
-          "selected_records": 6,
+          "selected_records": 4,
           "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
           "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
           "artifacts_sha256": {
@@ -79336,6 +79362,32 @@
             "forced_stop": false,
             "poweroff_request": 255,
             "stopped_at": 1793558173.9705076
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w7-fstrim-settle-c-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 2,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "c4658a09e1801d2adfff23f2b517a4c56f4663ba798b4fe93b8e87959b28e19e",
+            "provenance.json": "caab4ef26c77d3d2da92bc2c049d6cc4bdd7c38bb62e3aa50d6f81feb9fdef3f",
+            "payload.tar": "fe7681b523ce5fb7ffce6a052671259e64bb6f39c50a975e262cfd23309aef28",
+            "evidence.tar": "68e2e465d965e80393076c080fe41237fb1f39fd73f84bbe65954c5f588d5d04"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793565133.410693
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -96297,13 +96349,13 @@
                   "group": "shell",
                   "id": "mig-w7-fstrim-fstab-tag-forms-root",
                   "status": "PASS",
-                  "run": "w7-rv1-dynamic"
+                  "run": "w7-fstrim-settle-c-dynamic"
                 },
                 {
                   "group": "shell",
                   "id": "mig-w7-fstrim-fstab-tag-forms-root",
                   "status": "PASS",
-                  "run": "w7-rv1-dynamic"
+                  "run": "w7-fstrim-settle-c-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -96331,13 +96383,13 @@
                   "group": "shell",
                   "id": "mig-w7-fstrim-root-device-guess-root",
                   "status": "PASS",
-                  "run": "w7-rv1-dynamic"
+                  "run": "w7-fstrim-settle-c-dynamic"
                 },
                 {
                   "group": "shell",
                   "id": "mig-w7-fstrim-root-device-guess-root",
                   "status": "PASS",
-                  "run": "w7-rv1-dynamic"
+                  "run": "w7-fstrim-settle-c-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -118006,7 +118058,7 @@
                   "group": "shell",
                   "id": "mig-w6-rngseed-powercut-root",
                   "status": "PASS",
-                  "run": "w6-root21-dynamic"
+                  "run": "w6-pc3-dynamic"
                 }
               ],
               "fully_exercised": true,
