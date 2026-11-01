@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w5-expect-send-secret-no-crypto-diagnostic",
+      "loadable": "expect",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "expect/secret-handle-delivery"
+      ],
+      "purpose": "With the weak crypto reference reading as unresolved (zero stored by a parent process into the running candidate), send-secret fails with status 1 and the documented diagnostic for valid and invalid handles, writes nothing to the descriptor, while bad-fd and usage errors keep their own statuses; before the store the same requests take the crypto path.",
+      "oracle": "expect.c declares bashcrypto_secret_write_fd weak and refuses send-secret with 'send-secret requires crypto secret handle support' when the reference is null, before any handle is looked up. The null state is produced exactly as a linker or loader leaves an unresolved weak symbol (zero in its slot), applied by an independent parent process to the running candidate; the same request before the store, with a valid and an invalid handle, is the control that the crypto path is otherwise live.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "requires": [
+        "python3",
+        "wc"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w5-weaksym.py": "fe92f52fda0a45bd5c1c4c8b66c854633102014547929f1982fc8e405eb75ed0"
+      },
+      "files": {
+        "cand.sh": "[[ $(type -t expect) == builtin && $(type -t crypto) == builtin ]] || exit 99\nprintf 'w5-secret-bytes\\n' > pw\ncrypto secret-read -h H < pw\nexec 5>fdout\nexpect send-secret 5 \"$H\" 2>err; echo \"before: valid rc=$? written=$(/usr/bin/wc -c < fdout) err=[$(< err)]\"\nexpect send-secret 5 no-such-handle 2>err; echo \"before: invalid rc=$? err=[$(< err)]\"\n: > fdout\necho READY\nread -r go\nexpect send-secret 5 \"$H\" 2>err; echo \"after: valid rc=$? written=$(/usr/bin/wc -c < fdout) err=[$(< err)]\"\nexpect send-secret 5 no-such-handle 2>err; echo \"after: invalid rc=$? written=$(/usr/bin/wc -c < fdout) err=[$(< err)]\"\nexpect send-secret x \"$H\" 2>err; echo \"after: bad-fd rc=$? err=[$(< err)]\"\nexpect send-secret 5 2>err; echo \"after: usage rc=$? err=[$(< err)]\"\n"
+      },
+      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w5-weaksym.py \"$BASH\" \"$PWD/cand.sh\"\necho \"helper rc=$?\"\n",
+      "expected_status": 0,
+      "stdout": "before: valid rc=0 written=15 err=[]\nbefore: invalid rc=1 err=[/tmp/parity-case/cand.sh: line 6: expect: secret-write-fd: invalid handle]\nREADY\nweaksym: slot-found=1 before=resolved after=null\nafter: valid rc=1 written=0 err=[/tmp/parity-case/cand.sh: line 10: expect: send-secret requires crypto secret handle support]\nafter: invalid rc=1 written=0 err=[/tmp/parity-case/cand.sh: line 11: expect: send-secret requires crypto secret handle support]\nafter: bad-fd rc=2 err=[/tmp/parity-case/cand.sh: line 12: expect: bad fd: x]\nafter: usage rc=2 err=[/tmp/parity-case/cand.sh: line 13: expect: send-secret needs FD HANDLE]\nhelper rc=0\n",
+      "timeout": 40
+    }
+  ]
+}
