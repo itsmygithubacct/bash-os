@@ -1,0 +1,187 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w1-fwext-ipset-sets",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "fw set create/add/del/list/destroy against kernel ipset sets (hash:ip, hash:net, inet6), idempotence, set-backed rule, destroy of a referenced set.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Fresh mapped user+network namespace on the extended image. fw is driven with an explicit backend; kernel ipset sets and nftables sets, rules and round-trip state are read back with the real ipset, nft, iptables and iptables-save tools, never through the candidate. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ipset",
+        "nft"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-fwext.py ipset-sets\n",
+      "stdout": "scenario ipset-sets: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/mig-w1-fwext.py": "833a29842497593613f0d611600d8388a8dcb3e09f25b5052ab03b54231a7f8f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-fwext-nft-sets",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "fw set create/add/del/list/destroy against kernel nftables sets in table inet fw, set-backed rule.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Fresh mapped user+network namespace on the extended image. fw is driven with an explicit backend; kernel ipset sets and nftables sets, rules and round-trip state are read back with the real ipset, nft, iptables and iptables-save tools, never through the candidate. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ipset",
+        "nft"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-fwext.py nft-sets\n",
+      "stdout": "scenario nft-sets: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/mig-w1-fwext.py": "833a29842497593613f0d611600d8388a8dcb3e09f25b5052ab03b54231a7f8f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-fwext-ipset-roundtrip",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "fw save/restore round trip of iptables rules plus kernel ipset sets across wipe, set-destroy and reset rounds, and an empty set section.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Fresh mapped user+network namespace on the extended image. fw is driven with an explicit backend; kernel ipset sets and nftables sets, rules and round-trip state are read back with the real ipset, nft, iptables and iptables-save tools, never through the candidate. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ipset",
+        "nft"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-fwext.py ipset-roundtrip\n",
+      "stdout": "scenario ipset-roundtrip: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/mig-w1-fwext.py": "833a29842497593613f0d611600d8388a8dcb3e09f25b5052ab03b54231a7f8f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-fwext-nft-roundtrip",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "fw save/restore round trip of the nftables ruleset, sets and elements across flush and reset.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Fresh mapped user+network namespace on the extended image. fw is driven with an explicit backend; kernel ipset sets and nftables sets, rules and round-trip state are read back with the real ipset, nft, iptables and iptables-save tools, never through the candidate. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ipset",
+        "nft"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-fwext.py nft-roundtrip\n",
+      "stdout": "scenario nft-roundtrip: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/mig-w1-fwext.py": "833a29842497593613f0d611600d8388a8dcb3e09f25b5052ab03b54231a7f8f",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-wghs-handshake",
+      "loadable": "wg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "wg show on a device with a real handshake and nonzero transfer counters, initiator and responder, plus the zero state before traffic.",
+      "covers": [
+        "wg/deferred-show-device-state"
+      ],
+      "oracle": "Two network namespaces (mapped userns) joined by a veth, wg0 configured with wg(8) in each, ICMP through the tunnel completes a real handshake; expected text comes from the kernel counters read by wg show wg0 dump and wg(8)'s documented formatting, with the real wg show as second oracle. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "wg",
+        "nsenter",
+        "ping"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-wghs.py handshake\n",
+      "stdout": "scenario handshake: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/mig-w1-wghs.py": "01743e7ebcabe6fe23b3d12586d186c223a9591766f444e6d674ebd33746068a",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-wghs-counters",
+      "loadable": "wg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "wg show transfer line follows growing kernel counters (KiB scaling).",
+      "covers": [
+        "wg/deferred-show-device-state"
+      ],
+      "oracle": "Two network namespaces (mapped userns) joined by a veth, wg0 configured with wg(8) in each, ICMP through the tunnel completes a real handshake; expected text comes from the kernel counters read by wg show wg0 dump and wg(8)'s documented formatting, with the real wg show as second oracle. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "wg",
+        "nsenter",
+        "ping"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-wghs.py counters\n",
+      "stdout": "scenario counters: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/mig-w1-wghs.py": "01743e7ebcabe6fe23b3d12586d186c223a9591766f444e6d674ebd33746068a",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    }
+  ]
+}
