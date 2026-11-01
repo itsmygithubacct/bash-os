@@ -1,0 +1,173 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w1-procmock-empty",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "header-only and zero-byte proc tables render the header and no rows, exit 0 and silent stderr.",
+      "covers": [
+        "ss/deferred_proc_fallback"
+      ],
+      "oracle": "Fresh mapped user+network namespace. A seccomp user-notification supervisor fails socket(AF_NETLINK,*,NETLINK_SOCK_DIAG) and answers opens of /proc/net/{tcp,tcp6,udp,udp6,unix} with a memfd of synthetic table text (SECCOMP_IOCTL_NOTIF_ADDFD), so ss runs on small known tables; expected rows are encoded independently in the helper from the kernel line formats, and GNU iproute2 ss with PROC_ROOT on the same text is the second oracle. Real sockets exist in the namespace to expose leaks. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-procmock.py empty\n",
+      "stdout": "scenario empty: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/mig-w1-procmock.py": "62bb232c361a51a2a2ec6ff1ed2f8a32a19972ffd3d82f3e0a702f629ae88020",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-procmock-populated",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Small populated proc tables render identity, state, queues, IPv4/IPv6 endpoints and unix type/state/path against an independently encoded expectation.",
+      "covers": [
+        "ss/deferred_proc_fallback"
+      ],
+      "oracle": "Fresh mapped user+network namespace. A seccomp user-notification supervisor fails socket(AF_NETLINK,*,NETLINK_SOCK_DIAG) and answers opens of /proc/net/{tcp,tcp6,udp,udp6,unix} with a memfd of synthetic table text (SECCOMP_IOCTL_NOTIF_ADDFD), so ss runs on small known tables; expected rows are encoded independently in the helper from the kernel line formats, and GNU iproute2 ss with PROC_ROOT on the same text is the second oracle. Real sockets exist in the namespace to expose leaks. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-procmock.py populated\n",
+      "stdout": "scenario populated: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/mig-w1-procmock.py": "62bb232c361a51a2a2ec6ff1ed2f8a32a19972ffd3d82f3e0a702f629ae88020",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-procmock-listening",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "ss -l on the synthetic tables keeps only listening rows.",
+      "covers": [
+        "ss/deferred_proc_fallback"
+      ],
+      "oracle": "Fresh mapped user+network namespace. A seccomp user-notification supervisor fails socket(AF_NETLINK,*,NETLINK_SOCK_DIAG) and answers opens of /proc/net/{tcp,tcp6,udp,udp6,unix} with a memfd of synthetic table text (SECCOMP_IOCTL_NOTIF_ADDFD), so ss runs on small known tables; expected rows are encoded independently in the helper from the kernel line formats, and GNU iproute2 ss with PROC_ROOT on the same text is the second oracle. Real sockets exist in the namespace to expose leaks. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-procmock.py listening\n",
+      "stdout": "scenario listening: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/mig-w1-procmock.py": "62bb232c361a51a2a2ec6ff1ed2f8a32a19972ffd3d82f3e0a702f629ae88020",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-procmock-one-table",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Only one populated table among header-only ones yields only its rows.",
+      "covers": [
+        "ss/deferred_proc_fallback"
+      ],
+      "oracle": "Fresh mapped user+network namespace. A seccomp user-notification supervisor fails socket(AF_NETLINK,*,NETLINK_SOCK_DIAG) and answers opens of /proc/net/{tcp,tcp6,udp,udp6,unix} with a memfd of synthetic table text (SECCOMP_IOCTL_NOTIF_ADDFD), so ss runs on small known tables; expected rows are encoded independently in the helper from the kernel line formats, and GNU iproute2 ss with PROC_ROOT on the same text is the second oracle. Real sockets exist in the namespace to expose leaks. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-procmock.py one-table\n",
+      "stdout": "scenario one-table: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/mig-w1-procmock.py": "62bb232c361a51a2a2ec6ff1ed2f8a32a19972ffd3d82f3e0a702f629ae88020",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-procmock-unix-states",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Unix connecting/disconnecting St values render like iproute2 ss on the same table.",
+      "covers": [
+        "ss/deferred_proc_fallback"
+      ],
+      "oracle": "Fresh mapped user+network namespace. A seccomp user-notification supervisor fails socket(AF_NETLINK,*,NETLINK_SOCK_DIAG) and answers opens of /proc/net/{tcp,tcp6,udp,udp6,unix} with a memfd of synthetic table text (SECCOMP_IOCTL_NOTIF_ADDFD), so ss runs on small known tables; expected rows are encoded independently in the helper from the kernel line formats, and GNU iproute2 ss with PROC_ROOT on the same text is the second oracle. Real sockets exist in the namespace to expose leaks. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-procmock.py unix-states\n",
+      "stdout": "scenario unix-states: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/mig-w1-procmock.py": "62bb232c361a51a2a2ec6ff1ed2f8a32a19972ffd3d82f3e0a702f629ae88020",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "mig-w1-procmock-vs-iproute2",
+      "loadable": "ss",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Candidate inet rows from synthetic tables equal iproute2 ss -tua with PROC_ROOT on the same text.",
+      "covers": [
+        "ss/deferred_proc_fallback"
+      ],
+      "oracle": "Fresh mapped user+network namespace. A seccomp user-notification supervisor fails socket(AF_NETLINK,*,NETLINK_SOCK_DIAG) and answers opens of /proc/net/{tcp,tcp6,udp,udp6,unix} with a memfd of synthetic table text (SECCOMP_IOCTL_NOTIF_ADDFD), so ss runs on small known tables; expected rows are encoded independently in the helper from the kernel line formats, and GNU iproute2 ss with PROC_ROOT on the same text is the second oracle. Real sockets exist in the namespace to expose leaks. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w1-procmock.py vs-iproute2\n",
+      "stdout": "scenario vs-iproute2: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/mig-w1-procmock.py": "62bb232c361a51a2a2ec6ff1ed2f8a32a19972ffd3d82f3e0a702f629ae88020",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    }
+  ]
+}
