@@ -1318,12 +1318,20 @@ bs_run_attach(struct bs_state *st, pid_t pid)
     sigemptyset(&sa.sa_mask);
     bs_stop = 0;
     bs_stop_sig = 0;
+    /* As on the exec path, keep bash's SIGCHLD handler from reaping a
+       tracee's attach SIGSTOP or a new child's first stop. */
+    struct bs_child_guard guard;
+    if (bs_child_guard_begin(&guard) < 0) {
+        builtin_error("SIGCHLD guard: %s", strerror(errno));
+        return EXECUTION_FAILURE;
+    }
     sigaction(SIGINT, &sa, &old_int);
     sigaction(SIGTERM, &sa, &old_term);
 
 #define BS_ATTACH_RETURN(_rc) do {                 \
         sigaction(SIGINT, &old_int, NULL);         \
         sigaction(SIGTERM, &old_term, NULL);       \
+        bs_child_guard_parent_end(&guard);         \
         return (_rc);                              \
     } while (0)
 
