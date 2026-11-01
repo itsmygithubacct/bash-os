@@ -1,0 +1,145 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w7-gpu-native-shader-render",
+      "loadable": "gpu",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "On a vgem DRM node with Mesa software GLES a fragment shader renders the CPU canvas: the swap shader gives the exact swapped colours, a second render starts again from the CPU canvas, and the time uniform changes the output (blue channel by time>0.5).",
+      "covers": [
+        "gpu/gles-shader-and-dmabuf"
+      ],
+      "oracle": "Expected frames computed in the fixture from the drawn rectangles and the shader formulas (swap: gl_FragColor=canvas.gbr; time: blue channel = time>0.5), compared byte for byte with the saved PPM; docs/gpu.md resize semantics (preserve overlap, new pixels black); vgem primary node with Mesa software GLES.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "setpriv",
+        "modprobe",
+        "udevadm",
+        "readlink",
+        "env"
+      ],
+      "files": {
+        "swap.frag": "precision mediump float;\nvarying vec2 uv;\nuniform sampler2D canvas;\nvoid main(){gl_FragColor=vec4(texture2D(canvas,uv).gbr,1.0);}\n",
+        "time.frag": "precision mediump float;\nvarying vec2 uv;\nuniform float time;\nuniform vec2 resolution;\nuniform sampler2D canvas;\nvoid main(){gl_FragColor=vec4(texture2D(canvas,uv).rg, time>0.5?1.0:0.0, 1.0);}\n",
+        "bad.frag": "precision mediump float;\nvoid main(){gl_FragColor=nosuch;}\n",
+        "chk.py": "import sys\ndata = open(sys.argv[1], \"rb\").read()\nw, h = (int(x) for x in sys.argv[2].split(\"x\"))\nhead = b\"P6\\n%d %d\\n255\\n\" % (w, h)\nok = data.startswith(head) and data[len(head):].hex() == sys.argv[3]\nif not ok:\n    print(\"observed=%s\" % (data[len(head):].hex() if data.startswith(head) else \"bad-header:\" + data[:16].hex()))\nsys.exit(0 if ok else 1)\n",
+        "inner.sh": "exec 2>&1\ncard=\nfor c in /sys/class/drm/card?; do [[ -e $c ]] || continue; d=$(/usr/bin/readlink -f \"$c/device\"); [[ ${d##*/} == vgem ]] && card=/dev/dri/${c##*/}; done\n[[ -n $card ]] || { echo \"setup-failed: no vgem primary node\"; exit 1; }\nchk() { /usr/bin/python3 -I chk.py \"$1\" \"$2\" \"$3\" && echo \"$4=yes\" || echo \"$4=NO\"; }\ndraw() { gpu rect 0 0 4 2 FF0000; gpu rect 0 2 4 2 00FF00; }\ngpu start 4 4 --headless --device $card; echo \"start=$?\"\ndraw; echo \"draw=$?\"\ngpu shader \"$PWD/swap.frag\"; echo \"shader-load=$?\"\ngpu render 0.25; echo \"render=$?\"; gpu save \"$PWD/a.ppm\"; echo \"save=$?\"; chk a.ppm 4x4 0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000ffff0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000 swapped-pixels-match\ngpu render 0.5; echo \"render-again=$?\"; gpu save \"$PWD/b.ppm\"; chk b.ppm 4x4 0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000ffff0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000 second-render-uses-cpu-canvas-again\ngpu shader \"$PWD/time.frag\"; echo \"shader-time-load=$?\"\ngpu render 0.25; echo \"render-time-low=$?\"; gpu save \"$PWD/c.ppm\"; chk c.ppm 4x4 ff0000ff0000ff0000ff0000ff0000ff0000ff0000ff000000ff0000ff0000ff0000ff0000ff0000ff0000ff0000ff00 time-low-pixels-match\ngpu render 0.75; echo \"render-time-high=$?\"; gpu save \"$PWD/d.ppm\"; chk d.ppm 4x4 ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff time-high-pixels-match\ngpu stop; echo \"stop=$?\"\n"
+      },
+      "privilege": "root",
+      "setup_script": "modprobe vgem || { echo \"setup-failed: modprobe vgem\"; exit 1; }\nudevadm settle --timeout=10 || true\nfor n in /dev/dri/card* /dev/dri/renderD*; do [ -e \"$n\" ] && chmod 0666 \"$n\"; done\n",
+      "setup_timeout": 60,
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nU=\"/usr/bin/setpriv --reuid 2000 --regid 2000 --clear-groups\"\n$U /usr/bin/env MALLOC_ARENA_MAX=1 LP_NUM_THREADS=1 MESA_SHADER_CACHE_DISABLE=true \"$BASH\" --noprofile --norc ./inner.sh\necho \"inner status=$?\"\n",
+      "stdout": "start=0\ndraw=0\nshader-load=0\nrender=0\nsave=0\nswapped-pixels-match=yes\nrender-again=0\nsecond-render-uses-cpu-canvas-again=yes\nshader-time-load=0\nrender-time-low=0\ntime-low-pixels-match=yes\nrender-time-high=0\ntime-high-pixels-match=yes\nstop=0\ninner status=0\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "file_size_limit": 67108864
+    },
+    {
+      "id": "mig-w7-gpu-native-canvas-retention-resize",
+      "loadable": "gpu",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "The CPU canvas is retained as shader input across renders; resize preserves the overlap (a render followed by a CPU-side operation first reads the rendered image back into the canvas, per docs/gpu.md) and fills new pixels black, so a readback after resize equals the padded rendered image, and rendering after resize uses that image as shader input.",
+      "covers": [
+        "gpu/gles-shader-and-dmabuf"
+      ],
+      "oracle": "Expected frames computed in the fixture from the drawn rectangles and the shader formulas (swap: gl_FragColor=canvas.gbr; time: blue channel = time>0.5), compared byte for byte with the saved PPM; docs/gpu.md resize semantics (preserve overlap, new pixels black); vgem primary node with Mesa software GLES.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "setpriv",
+        "modprobe",
+        "udevadm",
+        "readlink",
+        "env"
+      ],
+      "files": {
+        "swap.frag": "precision mediump float;\nvarying vec2 uv;\nuniform sampler2D canvas;\nvoid main(){gl_FragColor=vec4(texture2D(canvas,uv).gbr,1.0);}\n",
+        "time.frag": "precision mediump float;\nvarying vec2 uv;\nuniform float time;\nuniform vec2 resolution;\nuniform sampler2D canvas;\nvoid main(){gl_FragColor=vec4(texture2D(canvas,uv).rg, time>0.5?1.0:0.0, 1.0);}\n",
+        "bad.frag": "precision mediump float;\nvoid main(){gl_FragColor=nosuch;}\n",
+        "chk.py": "import sys\ndata = open(sys.argv[1], \"rb\").read()\nw, h = (int(x) for x in sys.argv[2].split(\"x\"))\nhead = b\"P6\\n%d %d\\n255\\n\" % (w, h)\nok = data.startswith(head) and data[len(head):].hex() == sys.argv[3]\nif not ok:\n    print(\"observed=%s\" % (data[len(head):].hex() if data.startswith(head) else \"bad-header:\" + data[:16].hex()))\nsys.exit(0 if ok else 1)\n",
+        "inner.sh": "exec 2>&1\ncard=\nfor c in /sys/class/drm/card?; do [[ -e $c ]] || continue; d=$(/usr/bin/readlink -f \"$c/device\"); [[ ${d##*/} == vgem ]] && card=/dev/dri/${c##*/}; done\n[[ -n $card ]] || { echo \"setup-failed: no vgem primary node\"; exit 1; }\nchk() { /usr/bin/python3 -I chk.py \"$1\" \"$2\" \"$3\" && echo \"$4=yes\" || echo \"$4=NO\"; }\ndraw() { gpu rect 0 0 4 2 FF0000; gpu rect 0 2 4 2 00FF00; }\ngpu start 4 4 --headless --device $card; echo \"start=$?\"\ndraw; gpu save \"$PWD/pre.ppm\"; chk pre.ppm 4x4 ff0000ff0000ff0000ff0000ff0000ff0000ff0000ff000000ff0000ff0000ff0000ff0000ff0000ff0000ff0000ff00 cpu-canvas-before-render\ngpu shader \"$PWD/swap.frag\"; echo \"shader-load=$?\"\ngpu render 0.25; gpu save \"$PWD/a.ppm\"; chk a.ppm 4x4 0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000ffff0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000 rendered-before-resize\ngpu resize 6 4; echo \"resize=$?\"\ngpu save \"$PWD/b.ppm\"; chk b.ppm 6x4 0000ff0000ff0000ff0000ff0000000000000000ff0000ff0000ff0000ff000000000000ff0000ff0000ff0000ff0000000000000000ff0000ff0000ff0000ff0000000000000000 resize-keeps-rendered-image-padded-black\ngpu render 1.0; echo \"render-after-resize=$?\"; gpu save \"$PWD/c.ppm\"; chk c.ppm 6x4 00ff0000ff0000ff0000ff0000000000000000ff0000ff0000ff0000ff000000000000000000ff0000ff0000ff0000ff0000000000000000ff0000ff0000ff0000ff000000000000 render-after-resize-uses-rendered-image-as-input\ngpu stop; echo \"stop=$?\"\n"
+      },
+      "privilege": "root",
+      "setup_script": "modprobe vgem || { echo \"setup-failed: modprobe vgem\"; exit 1; }\nudevadm settle --timeout=10 || true\nfor n in /dev/dri/card* /dev/dri/renderD*; do [ -e \"$n\" ] && chmod 0666 \"$n\"; done\n",
+      "setup_timeout": 60,
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nU=\"/usr/bin/setpriv --reuid 2000 --regid 2000 --clear-groups\"\n$U /usr/bin/env MALLOC_ARENA_MAX=1 LP_NUM_THREADS=1 MESA_SHADER_CACHE_DISABLE=true \"$BASH\" --noprofile --norc ./inner.sh\necho \"inner status=$?\"\n",
+      "stdout": "start=0\ncpu-canvas-before-render=yes\nshader-load=0\nrendered-before-resize=yes\nresize=0\nresize-keeps-rendered-image-padded-black=yes\nrender-after-resize=0\nrender-after-resize-uses-rendered-image-as-input=yes\nstop=0\ninner status=0\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "file_size_limit": 67108864
+    },
+    {
+      "id": "mig-w7-gpu-native-compile-failure",
+      "loadable": "gpu",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A shader that fails to compile (undeclared identifier) reports 'shader:' with the compiler's complaint and status 1, leaves the previous program rendering exactly as before, shader off keeps the last rendered image as the CPU canvas, and the session keeps working.",
+      "covers": [
+        "gpu/gles-shader-and-dmabuf"
+      ],
+      "oracle": "Expected frames computed in the fixture from the drawn rectangles and the shader formulas (swap: gl_FragColor=canvas.gbr; time: blue channel = time>0.5), compared byte for byte with the saved PPM; docs/gpu.md resize semantics (preserve overlap, new pixels black); vgem primary node with Mesa software GLES.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "setpriv",
+        "modprobe",
+        "udevadm",
+        "readlink",
+        "env"
+      ],
+      "files": {
+        "swap.frag": "precision mediump float;\nvarying vec2 uv;\nuniform sampler2D canvas;\nvoid main(){gl_FragColor=vec4(texture2D(canvas,uv).gbr,1.0);}\n",
+        "time.frag": "precision mediump float;\nvarying vec2 uv;\nuniform float time;\nuniform vec2 resolution;\nuniform sampler2D canvas;\nvoid main(){gl_FragColor=vec4(texture2D(canvas,uv).rg, time>0.5?1.0:0.0, 1.0);}\n",
+        "bad.frag": "precision mediump float;\nvoid main(){gl_FragColor=nosuch;}\n",
+        "chk.py": "import sys\ndata = open(sys.argv[1], \"rb\").read()\nw, h = (int(x) for x in sys.argv[2].split(\"x\"))\nhead = b\"P6\\n%d %d\\n255\\n\" % (w, h)\nok = data.startswith(head) and data[len(head):].hex() == sys.argv[3]\nif not ok:\n    print(\"observed=%s\" % (data[len(head):].hex() if data.startswith(head) else \"bad-header:\" + data[:16].hex()))\nsys.exit(0 if ok else 1)\n",
+        "inner.sh": "exec 2>&1\ncard=\nfor c in /sys/class/drm/card?; do [[ -e $c ]] || continue; d=$(/usr/bin/readlink -f \"$c/device\"); [[ ${d##*/} == vgem ]] && card=/dev/dri/${c##*/}; done\n[[ -n $card ]] || { echo \"setup-failed: no vgem primary node\"; exit 1; }\nchk() { /usr/bin/python3 -I chk.py \"$1\" \"$2\" \"$3\" && echo \"$4=yes\" || echo \"$4=NO\"; }\ndraw() { gpu rect 0 0 4 2 FF0000; gpu rect 0 2 4 2 00FF00; }\ngpu start 4 4 --headless --device $card; echo \"start=$?\"\ndraw; gpu shader \"$PWD/swap.frag\"; echo \"shader-load=$?\"\ngpu render 0.25; gpu save \"$PWD/a.ppm\"; chk a.ppm 4x4 0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000ffff0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000 valid-render\ngpu shader \"$PWD/bad.frag\" 2>err.txt; echo \"shader-compile-failure status=$?\"\nm=$(< err.txt); [[ $m == *\"shader:\"* ]] && echo \"diagnostic-has-shader-prefix=yes\" || echo \"diagnostic-has-shader-prefix=NO [$m]\"\n[[ $m == *nosuch* ]] && echo \"diagnostic-names-undeclared-identifier=yes\" || echo \"diagnostic-names-undeclared-identifier=NO [$m]\"\ngpu render 0.5; echo \"render-after-failure=$?\"; gpu save \"$PWD/b.ppm\"; chk b.ppm 4x4 0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000ffff0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000 previous-program-still-renders\ngpu shader off; echo \"shader-off=$?\"; gpu save \"$PWD/c.ppm\"; chk c.ppm 4x4 0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000ffff0000ff0000ff0000ff0000ff0000ff0000ff0000ff0000 shader-off-keeps-last-rendered-image-as-canvas\ndraw; gpu rect 0 0 1 1 0000FF; gpu save \"$PWD/d.ppm\"; echo \"session-still-drawable=$?\"\ngpu stop; echo \"stop=$?\"\n"
+      },
+      "privilege": "root",
+      "setup_script": "modprobe vgem || { echo \"setup-failed: modprobe vgem\"; exit 1; }\nudevadm settle --timeout=10 || true\nfor n in /dev/dri/card* /dev/dri/renderD*; do [ -e \"$n\" ] && chmod 0666 \"$n\"; done\n",
+      "setup_timeout": 60,
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nU=\"/usr/bin/setpriv --reuid 2000 --regid 2000 --clear-groups\"\n$U /usr/bin/env MALLOC_ARENA_MAX=1 LP_NUM_THREADS=1 MESA_SHADER_CACHE_DISABLE=true \"$BASH\" --noprofile --norc ./inner.sh\necho \"inner status=$?\"\n",
+      "stdout": "start=0\nshader-load=0\nvalid-render=yes\nshader-compile-failure status=1\ndiagnostic-has-shader-prefix=yes\ndiagnostic-names-undeclared-identifier=yes\nrender-after-failure=0\nprevious-program-still-renders=yes\nshader-off=0\nshader-off-keeps-last-rendered-image-as-canvas=yes\nsession-still-drawable=0\nstop=0\ninner status=0\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "file_size_limit": 67108864
+    },
+    {
+      "id": "mig-w7-gpu-dmabuf-frame-handoff",
+      "loadable": "gpu",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "With --transport dmabuf on a vgem node the candidate hands each frame to the Kitty/Kilix frame socket as a 40-byte v2 record (magic, version 2, 4x4, stride, offset, XRGB, modifier, transform 6) plus the buffer descriptor over SCM_RIGHTS; the mapped pixels equal the drawn frame (bottom-up), both frames are acknowledged, info reports transport=dmabuf frames=2 fallbacks=0, and the session directory is removed on stop.",
+      "covers": [
+        "gpu/gles-shader-and-dmabuf"
+      ],
+      "oracle": "Model Kitty/Kilix peer (pty query replies, frame-socket accept, SCM_RIGHTS receive and mmap) with expected rows computed from the drawn rectangles and the bottom-left framebuffer origin documented in the wire record.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "setpriv",
+        "modprobe",
+        "udevadm",
+        "readlink",
+        "env"
+      ],
+      "files": {
+        "peer.py": "import base64, mmap, os, re, select, socket, struct, subprocess, sys, tempfile, time\nbash = sys.argv[1]; card = sys.argv[2]\nmaster, slave = os.openpty(); tty = os.ttyname(slave)\nhome = tempfile.mkdtemp(prefix=\"kilix-\", dir=os.getcwd())\nscript = (\"gpu start 4 4 --transport dmabuf --tty %s --device %s; echo \\\"start=$?\\\"\\n\"\n          \"gpu rect 0 0 4 2 FF0000; gpu rect 0 2 4 2 0000FF; gpu rect 0 0 1 1 00FF00\\n\"\n          \"gpu present; echo \\\"present=$?\\\"\\ngpu info\\n\"\n          \"gpu rect 0 0 4 4 FFFFFF; gpu present; echo \\\"present2=$?\\\"\\ngpu info\\n\"\n          \"gpu stop; echo \\\"stop=$?\\\"\\n\") % (tty, card)\nproc = subprocess.Popen([bash, \"--noprofile\", \"--norc\", \"-c\", script], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,\n                        stderr=subprocess.STDOUT, env=dict(os.environ, KILIX_SESSION_HOME=home))\ncand, frames, events, buffer = [], [], [], b\"\"\ndeadline = time.monotonic() + 20\ndef rows_of(words, view):\n    _, _, width, height, stride, offset = words[:6]\n    return [view[offset + y * stride: offset + y * stride + width * 4] for y in range(height)]\ndef pix(row):  # XRGB little-endian: B G R X per pixel, X ignored\n    return [ \"%02x%02x%02x\" % (row[i + 2], row[i + 1], row[i]) for i in range(0, len(row), 4)]\ndef frame(path):\n    s = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET); s.settimeout(2); s.connect(path)\n    data, fds, _, _ = socket.recv_fds(s, 64, 1)\n    words = struct.unpack(\"=10I\", data) if len(data) == 40 else ()\n    info = {\"words\": words, \"fds\": len(fds), \"rows\": None}\n    if fds and words:\n        size = os.lseek(fds[0], 0, os.SEEK_END)\n        with mmap.mmap(fds[0], size, prot=mmap.PROT_READ) as view:\n            info[\"rows\"] = [pix(r) for r in rows_of(words, view)]\n        os.close(fds[0])\n    s.send(b\"\\x01\"); s.close()\n    return info\nwhile time.monotonic() < deadline:\n    ready, _, _ = select.select([master, proc.stdout], [], [], 0.05)\n    if master in ready:\n        try: buffer += os.read(master, 65536)\n        except OSError: pass\n    while True:\n        m = re.search(rb\"\\x1b_G([^;\\x1b]*);?([^\\x1b]*)\\x1b\\\\\", buffer)\n        if not m: break\n        buffer = buffer[m.end():]\n        ctl = dict(i.split(b\"=\", 1) for i in m.group(1).split(b\",\") if b\"=\" in i)\n        act, kind = ctl.get(b\"a\", b\"\"), ctl.get(b\"t\", b\"\")\n        events.append((act + b\"/\" + kind).decode())\n        if act == b\"q\":\n            os.write(master, b\"\\x1b_Gi=\" + ctl[b\"i\"] + b\";\" + (b\"OK\" if kind == b\"d\" else b\"ENOTSUP:model peer offers no shared memory\") + b\"\\x1b\\\\\")\n        elif act == b\"g\" and kind == b\"g\":\n            try: frames.append(frame(base64.b64decode(m.group(2)).decode()))\n            except OSError as e: frames.append({\"error\": e.strerror})\n    if proc.stdout in ready:\n        line = proc.stdout.readline()\n        if line: cand.append(line.decode(errors=\"replace\").rstrip())\n        elif proc.poll() is not None: break\nif proc.poll() is None: proc.kill()\nproc.wait()\ninfos = [l for l in cand if l.startswith(\"active=\")]\ndef field(l, k):\n    mm = re.search(r\"\\b%s=(\\S+)\" % k, l); return mm.group(1) if mm else \"?\"\nfor l in cand:\n    if l.startswith((\"start=\", \"present=\", \"present2=\", \"stop=\")): print(l)\n    if l.startswith(\"active=\"):\n        print(\"info transport=%s frames=%s fallbacks=%s\" % (field(l, \"transport\"), field(l, \"frames\"), field(l, \"fallbacks\")))\nR, G, B = \"ff0000\", \"00ff00\", \"0000ff\"\nexpect = [[[B]*4, [B]*4, [R]*4, [G, R, R, R]], [[\"ffffff\"]*4]*4]\nprint(\"frames-received=%d\" % len(frames))\nfor n, f in enumerate(frames, 1):\n    if \"error\" in f: print(\"frame%d error=%s\" % (n, f[\"error\"])); continue\n    w = f[\"words\"]\n    magic = \"%#x\" % w[0] if w else \"?\"\n    fourcc = struct.pack(\"=I\", w[6]).decode(errors=\"replace\") if w else \"?\"\n    print(\"frame%d magic=%s version=%d size=%dx%d fourcc=%s transform=%d fds=%d stride-ok=%s offset=%d modifier-words=%d pixels-match=%s\" % (\n        n, magic, w[1], w[2], w[3], fourcc, w[9], f[\"fds\"], \"yes\" if w[4] >= 16 and w[4] % 4 == 0 else \"NO\", w[5], 2,\n        \"yes\" if f[\"rows\"] == expect[n - 1] else \"NO %s\" % f[\"rows\"]))\nprint(\"graphics-packets-with-frame-socket-handoff=%d\" % events.count(\"g/g\"))\nprint(\"session-dir-left=%s\" % os.listdir(home))\nprint(\"candidate-exit=%s\" % proc.returncode)\nos.rmdir(home)\n"
+      },
+      "privilege": "root",
+      "setup_script": "modprobe vgem || { echo \"setup-failed: modprobe vgem\"; exit 1; }\nudevadm settle --timeout=10 || true\nfor n in /dev/dri/card* /dev/dri/renderD*; do [ -e \"$n\" ] && chmod 0666 \"$n\"; done\n",
+      "setup_timeout": 60,
+      "script": "export PYTHONDONTWRITEBYTECODE=1\ncard=\nfor c in /sys/class/drm/card?; do [[ -e $c ]] || continue; d=$(/usr/bin/readlink -f \"$c/device\"); [[ ${d##*/} == vgem ]] && card=/dev/dri/${c##*/}; done\n[[ -n $card ]] || { echo \"setup-failed: no vgem primary node\"; exit 1; }\nU=\"/usr/bin/setpriv --reuid 2000 --regid 2000 --clear-groups\"\n$U /usr/bin/env MALLOC_ARENA_MAX=1 LP_NUM_THREADS=1 MESA_SHADER_CACHE_DISABLE=true /usr/bin/python3 -I peer.py \"$BASH\" \"$card\"\n",
+      "stdout": "start=0\npresent=0\ninfo transport=dmabuf frames=1 fallbacks=0\npresent2=0\ninfo transport=dmabuf frames=2 fallbacks=0\nstop=0\nframes-received=2\nframe1 magic=0x4b444d41 version=2 size=4x4 fourcc=XR24 transform=6 fds=1 stride-ok=yes offset=0 modifier-words=2 pixels-match=yes\nframe2 magic=0x4b444d41 version=2 size=4x4 fourcc=XR24 transform=6 fds=1 stride-ok=yes offset=0 modifier-words=2 pixels-match=yes\ngraphics-packets-with-frame-socket-handoff=2\nsession-dir-left=[]\ncandidate-exit=0\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "file_size_limit": 67108864
+    }
+  ]
+}
