@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w7-fincore-cache-transitions-root",
+      "loadable": "fincore",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "On a loop-backed ext2 file fincore reports cold (0 resident pages after sync and drop_caches), exactly one resident page after a single POSIX_FADV_RANDOM read, fully warm after a full read, and cold again, matching util-linux fincore in every state.",
+      "covers": [
+        "fincore/controlled-cache-transitions"
+      ],
+      "oracle": "util-linux fincore on the same file in the same page-cache state (mincore/cachestat as root), states produced by posix_fadvise/pread from Python and drop_caches.",
+      "comparison": "Byte parity of status, stdout, stderr and file tree.",
+      "requires": [
+        "losetup",
+        "mke2fs",
+        "truncate",
+        "sfdisk",
+        "sort",
+        "umount",
+        "fincore",
+        "python3",
+        "mount",
+        "mkdir",
+        "sync"
+      ],
+      "files": {
+        "rl.sh": "export PYTHONDONTWRITEBYTECODE=1\ncleanup() { /usr/bin/umount -R \"$PWD/mnt\" 2>/dev/null; /usr/sbin/dmsetup remove_all 2>/dev/null; /usr/sbin/losetup -D 2>/dev/null; }\ntrap cleanup EXIT\nmapk=(); mapv=()\nreg() { mapk+=(\"$1\"); mapv+=(\"$2\"); }\nnorm() { local s i; s=$(< \"$1\"); for i in \"${!mapk[@]}\"; do s=${s//\"${mapk[i]}\"/${mapv[i]}}; done; printf '%s\\n' \"$s\"; }\nnormv() { local s=$1 i; for i in \"${!mapk[@]}\"; do s=${s//\"${mapk[i]}\"/${mapv[i]}}; done; printf '%s' \"$s\"; }\nat() { REPLY=$(/usr/sbin/losetup -fP --show \"$1\") || echo \"losetup failed: $1\" >&2; }\nMK=/usr/sbin/mke2fs\n",
+        "fc.py": "import os, sys\nop, path = sys.argv[1], sys.argv[2]\nPAGE = os.sysconf(\"SC_PAGE_SIZE\")\nif op == \"make\":\n    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o644)\n    os.write(fd, bytes((i * 7) % 251 for i in range(PAGE * 16))); os.fsync(fd); os.close(fd)\nelif op == \"cold\":\n    fd = os.open(path, os.O_RDONLY); os.fsync(fd) if False else None\n    os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED); os.close(fd)\nelif op == \"one\":\n    fd = os.open(path, os.O_RDONLY); os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_RANDOM)\n    os.pread(fd, 1, PAGE * 5); os.close(fd)\nelif op == \"warm\":\n    fd = os.open(path, os.O_RDONLY)\n    while os.read(fd, 65536): pass\n    os.close(fd)\n"
+      },
+      "privilege": "root",
+      "script": ". ./rl.sh\nr() { local l=$1; shift; \"$@\" >o.txt 2>e.txt; local rc=$?; printf '[%s] status=%s\\n' \"$l\" $rc; norm o.txt; echo \"[stderr]\"; norm e.txt; }\nF() { /usr/bin/python3 fc.py \"$@\"; }\n/usr/bin/truncate -s 6M a.img; $MK -q -t ext2 a.img; at a.img; A=$REPLY; reg $A LOOP-A\n/usr/bin/mkdir -p mnt; /usr/bin/mount $A mnt\nF make mnt/f; /usr/bin/sync; echo 3 > /proc/sys/vm/drop_caches\nF cold mnt/f; r cold fincore mnt/f\nr cold-bytes fincore -b mnt/f\nF one mnt/f; r one-page fincore -b mnt/f\nF warm mnt/f; r warm fincore -b mnt/f\nr warm-human fincore mnt/f\nF cold mnt/f; echo 3 > /proc/sys/vm/drop_caches; r cold-again fincore -b mnt/f\n",
+      "expected_status": 0,
+      "timeout": 60
+    }
+  ]
+}
