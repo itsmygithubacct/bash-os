@@ -78,7 +78,13 @@ same option to `prepare`, `check` and `run`. A cache prepared from a different
 specification is refused, and provenance records both the image and
 specification hashes. Fixtures that need the added tools should name them in
 `requires`, so the default image reports a missing dependency as `ERROR`.
-Debian 13 ships no `write` command, so neither image provides one.
+`image-gpu.lock.json` adds the Mesa GBM, EGL and GLES2 runtime and Debian's
+generic kernel, whose vgem module a privileged fixture can load. Mesa's
+software GBM allocates KMS dumb buffers, which the kernel refuses on render
+nodes, so a native context needs vgem's primary node (`gpu start --device`).
+The lock's `kernel_flavour` key makes preparation purge every other kernel
+image, so the sealed image boots, and its manifest records, only that kernel.
+Debian 13 ships no `write` command, so no image provides one.
 
 Runtime networking is restricted. Before uploading the candidate, the controller
 checks VM identity, absence of shared mounts, and refusal of outbound access to

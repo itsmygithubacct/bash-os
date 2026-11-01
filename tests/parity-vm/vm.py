@@ -561,16 +561,30 @@ class VM:
                 self.lock.close()
 
 
+def kernel_flavour(lock):
+    """A lock may name a Debian kernel flavour; other kernel images are then purged."""
+    flavour = lock.get("kernel_flavour")
+    if flavour is not None and not (isinstance(flavour, str) and flavour.replace("-", "").isalnum()):
+        raise RuntimeError("invalid kernel_flavour in image lock")
+    return flavour
+
+
 def provision_script(lock):
     sources = lock["reference_bash"]
     patches = " ".join(shlex.quote(Path(p["url"]).name) for p in sources["patches"])
+    flavour = kernel_flavour(lock)
+    # Only the flavour's metapackage and versioned images stay, so GRUB can boot nothing else.
+    kernel = "" if flavour is None else """other=$(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\\n' 'linux-image-*' | awk '$1 == "ii" && $2 !~ /^linux-image-(""" + flavour + "|[0-9][^-]*-" + flavour + """)$/ {print $2}')
+if [ -n "$other" ]; then apt-get purge -y $other; fi
+test "$(linux-version list | wc -l)" = 1
+"""
     return """set -eu
 export DEBIAN_FRONTEND=noninteractive
 systemctl disable --now apt-daily.timer apt-daily-upgrade.timer
 systemctl mask unattended-upgrades.service
 apt-get update
 apt-get install -y --no-install-recommends """ + " ".join(map(shlex.quote, lock["packages"])) + """
-# Reference tools only: their daemons must not run in the sealed base.
+""" + kernel + """# Reference tools only: their daemons must not run in the sealed base.
 for unit in cron.service rsync.service; do
   if systemctl cat "$unit" >/dev/null 2>&1; then systemctl disable --now "$unit"; fi
 done
@@ -633,8 +647,10 @@ def prepare(cache, lock):
                                 stderr=subprocess.STDOUT, timeout=1800)
             if result.returncode:
                 raise RuntimeError("reference provisioning failed; inspect provision.log")
+            # With a kernel flavour, the provisioning boot still ran the base image's kernel.
+            kernel_query = "uname -r" if kernel_flavour(lock) is None else "linux-version list"
             facts = vm.ssh(f"cat {GUEST_ROOT}/packages.tsv; echo '#'; cat {GUEST_ROOT}/apt-release.tsv; "
-                           f"echo '#'; cat {GUEST_ROOT}/reference-bash.txt; echo '#'; uname -r; "
+                           f"echo '#'; cat {GUEST_ROOT}/reference-bash.txt; echo '#'; {kernel_query}; "
                            "/bin/bash --version | head -1",
                            capture_output=True, check=True, timeout=10).stdout.decode()
         if not vm.teardown.get("clean_poweroff"):
