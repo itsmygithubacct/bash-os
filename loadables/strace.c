@@ -411,6 +411,49 @@ bs_print_quoted(unsigned long addr, pid_t pid)
     if (n > 80) fputs("...", bs_out);
 }
 
+/* Print a write(2) buffer: at most `len` bytes from the tracee (80 shown,
+ * "..." past that), so bytes beyond the count are never read or shown.
+ * Embedded NULs print as \0. An unreadable buffer prints as its address. */
+static void
+bs_print_buffer(unsigned long addr, pid_t pid, unsigned long len)
+{
+    unsigned char raw[80];
+    size_t want = len > sizeof(raw) ? sizeof(raw) : (size_t)len;
+    size_t got = 0;
+    if (addr == 0 && len > 0) { bs_emit("NULL"); return; }
+    /* Aligned word reads never cross into a page past the buffer. */
+    while (got < want) {
+        unsigned long at = addr + got;
+        unsigned long base = at & ~(unsigned long)(sizeof(long) - 1);
+        size_t off = (size_t)(at - base);
+        errno = 0;
+        long w = ptrace(PTRACE_PEEKDATA, pid, base, NULL);
+        if (errno) break;
+        size_t take = sizeof(long) - off;
+        if (take > want - got) take = want - got;
+        memcpy(raw + got, (unsigned char *)&w + off, take);
+        got += take;
+    }
+    if (got < want) { bs_emit("0x%lx", addr); return; }
+    fputc('"', bs_out);
+    for (size_t i = 0; i < got; i++) {
+        unsigned char c = raw[i];
+        switch (c) {
+            case '\0': fputs("\\0", bs_out); break;
+            case '\n': fputs("\\n", bs_out); break;
+            case '\t': fputs("\\t", bs_out); break;
+            case '\r': fputs("\\r", bs_out); break;
+            case '\\': fputs("\\\\", bs_out); break;
+            case '"':  fputs("\\\"", bs_out); break;
+            default:
+                if (c >= 32 && c < 127) fputc(c, bs_out);
+                else fprintf(bs_out, "\\x%02x", c);
+        }
+    }
+    fputc('"', bs_out);
+    if (len > got) fputs("...", bs_out);
+}
+
 /* --- arg printer ------------------------------------------------------ */
 
 static void
@@ -823,7 +866,10 @@ bs_print_syscall(pid_t pid, const struct bs_syscall_regs *r, int on_exit, double
             for (int i = 0; i < n; i++) {
                 if (i) bs_emit(", ");
                 int kind = (d->argmask >> (i * 4)) & 0xf;
-                bs_print_arg(kind, r->args[i], pid);
+                if (i == 1 && kind == BS_STR && !strcmp(d->name, "write"))
+                    bs_print_buffer(r->args[1], pid, r->args[2]);
+                else
+                    bs_print_arg(kind, r->args[i], pid);
             }
             bs_emit(")");
         } else {
