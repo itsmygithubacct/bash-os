@@ -17,6 +17,7 @@ import glob
 import lzma
 import os
 import sys
+import time
 
 MARKER = b"~Module signature appended~\n"
 libc = ctypes.CDLL(None, use_errno=True)
@@ -46,8 +47,12 @@ def try_load(path):
     e = ctypes.get_errno()
     os.close(fd)
     if r == 0:
-        d = libc.syscall(176, ctypes.c_char_p(b"nbd"), ctypes.c_uint(0x800))
-        e2 = ctypes.get_errno()
+        for _ in range(50):
+            d = libc.syscall(176, ctypes.c_char_p(b"nbd"), ctypes.c_uint(0x800))
+            e2 = ctypes.get_errno()
+            if d == 0:
+                break
+            time.sleep(0.1)
         print("OK" if d == 0 else "OK-but-unload-failed-%s" % errno.errorcode[e2])
     else:
         print("%s|%s" % (errno.errorcode[e], os.strerror(e)))
