@@ -227,9 +227,42 @@
     },
     {
       "id": "ns-lsm-transition",
+      "kind": "migrated",
       "purpose": "Check LSM detection and on-exec profile requests for AppArmor and SELinux, including unavailable and invalid-profile paths.",
-      "kind": "deferred",
-      "reason": "Remaining r5 is a listed limit (kernel-feature-absent)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-lsm-apparmor-transition-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-lsm-detect"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-lsm-onexec-errors"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-lsm-onexec-real-unknown-profile"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-lsm-onexec-write"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-lsm-selinux-transition-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-lsm-selinux-transition-user"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-spawn-lsm"
+        }
+      ]
     },
     {
       "id": "ns-cgroup-v2-helpers",

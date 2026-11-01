@@ -7,9 +7,10 @@ reviewed requirements, evidence links and specific remaining gaps. The
 saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
-The current review covers 573 of the 600 topics on both builds: static 297 PASS / 276 FAIL;
-dynamic 299 PASS / 274 FAIL. The other 27 retain unresolved requirements: 25 have partial
-coverage and 2 have none. These are topic counts, not additional behavioral test results.
+The current review covers 578 of the 600 topics on both builds: static 300 PASS / 278 FAIL;
+dynamic 301 PASS / 277 FAIL. The other 22 retain unresolved requirements: 21 have partial
+coverage and 1 has none. These are topic counts, not additional behavioral test results. Every unresolved requirement in them, 34 in all, is a
+[concrete limit](#concrete-limits) that no available fixture can exercise.
 
 The syslog review adds bounded three-record FIFO observations for startup, SIGHUP and periodic replay on both builds. Sender attribution is inferred from pinned serial source and isolated networking; HUP was queued while the daemon was stopped.
 
@@ -81,6 +82,8 @@ The third review completes 9 more topics on both builds, 4 passing and 5 failing
 
 The fourth review completes 48 more topics, 25 passing and 23 failing on the static build; `fdisk` kernel partition re-reading failed on the static build only, which the fifth review traced to a fixture race, and no other result differs between builds. Block-device topics (`blkid`, `fdisk`, `fsck`, `mkfs`, `lsblk`, `fstrim`, `lsattr`, `dmsetup` udev handling, `fincore` cache states) ran as `privilege: root` fixtures on loop and device-mapper devices in rented disposable guests. Process-selection topics (`pgrep`, `pidof`, `pkill`, `killall`, `killall5`) and `screen` sessions signal only processes the case creates. Fault paths without a reference implementation use seccomp user notification to inject errors (`close` failures in `blockdev` and `mkfs`, allocation failures in `clip`, `ESRCH` in `killall5`), and `termpixel_pong` runs against a virtual clock answered through the same mechanism, compared frame by frame with an independent model. An extended guest image adds `dialog`, GNU `sharutils`, `kitty` with a software renderer, ipset, nftables and WireGuard tools as references. Failing topics include the `audit` netlink client, `bashkmod` module transitions, `dns` DNSSEC validation, `more` and `dialog` interactive keys, `uudecode` invalid input, `write` delivery, and several `pgrep` and `killall` option and output forms. Requirements that need an AVX2-masked guest CPU, physical terminal hardware, a kernel with utilization clamping or SELinux, NUL bytes in a shell word, or the `/dev/bashos-auth` kernel authority are recorded with that limit as their gap.
 
+The fifth review completes the migration. Five more topics carry complete evidence. `dmsetup` error reporting and response-buffer growth on device-mapper devices, a live `screen` remote attach through a fixture-owned loopback SSH peer, and the `w` uptime header compared with procps `w` fail on both builds. `gpu` shader rendering, canvas retention, compile errors and DMA-BUF frame handoff run in a guest image with Debian's generic kernel, the vgem driver and Mesa's software GLES runtime; they pass on the dynamic build, and the static build refuses native GPU contexts by design. A guest image that boots with SELinux as the active security module (permissive, with the stock policy loaded) completes `ns` LSM transitions: an on-exec request moves the child into a policy-allowed domain on both builds, and as root a runtime-loaded test domain confines the child once enforcement is switched on around the check. Two earlier build differences were fixture timing faults. The `fdisk` partition-table cases now wait for udev between steps, and the `cluster` heartbeat observer records a roster change after reading it; both topics pass on both builds in three repeats each. Every remaining requirement is listed under [Concrete limits](#concrete-limits) with its reason.
+
 A historical case becomes `MIGRATED` only when every requirement has an explicit
 assertion and valid execution evidence on both builds. Its replacement cases
 remain ordinary behavioral results. `MIGRATED` is an index entry, never another
@@ -100,12 +103,13 @@ historical claims about unavailable VMs or permission to use isolated fixtures.
 Coverage labels describe asserted requirements, not the presence of a `covers`
 annotation or a related smoke check.
 
+
 ## Concrete limits
 
-35 requirements in 23 topics cannot be exercised by any available fixture: mapped user namespaces, seccomp user notification, time namespaces, root fixtures in disposable guests, an extended guest image and independent models were all considered first. Each requirement keeps its reason as its gap in the ledger, and [the limit list](data/parity-0.1.3-limits.json) repeats them. These topics stay unresolved; a limit is not a passing or failing result.
+34 requirements in 22 topics cannot be exercised by any available fixture: mapped user namespaces, seccomp user notification, time namespaces, root fixtures in disposable guests, an extended guest image, a generic-kernel image with the vgem driver and Mesa, an SELinux-booted image, and independent models were all considered first. Each requirement keeps its reason as its gap in the ledger, and [the limit list](data/parity-0.1.3-limits.json) repeats them. These topics stay unresolved; a limit is not a passing or failing result.
 
 - **The observable is produced by the `/dev/bashos-auth` kernel authority, which no available kernel implements** (27): `auth/authority-policy-audit-and-child-flow` r3, r4, r5; `auth/device-abi-and-fd-lifecycle` r4; `auth/pty-sealed-secret-lifecycle` r3, r4; `auth/synthetic-login-and-token-mint` r2, r4; `doas/authority_policy_and_verification` r4; `login/credential-transition-deferred` r2; `login/interactive-auth-session-deferred` r6; `passwd/password_hash_updates` r5; `passwd/password_verification_lockout` r5; `sshd/authentication-authorization` r7; `su/credential-transition` r1, r2, r3; `su/private-account-lookup` r1; `sudo/authority-command-authorization` r1, r2, r3, r4; `sudo/sudoedit-safe-copyback` r1, r2, r4; `sudo/timestamp-validation-flows` r1, r2.
-- **The guest kernel lacks the feature** (2): `ns/ns-lsm-transition` r5; `uclampset/defer_system_files` r5.
+- **The guest kernel lacks the feature** (1): `uclampset/defer_system_files` r5.
 - **Physical hardware is required** (1): `tput/hardware-init-reset` r4.
 - **The code path cannot be reached in the released x86-64 builds** (3): `bashpoll/signalfd-ownership` r5; `vec/simd-cross-cpu-backends` r4; `wgetch/escape-timing` r4.
 - **The interface cannot carry the input or state** (2): `dmesg/live-ring-buffer` r3; `utf8/unicode17-exhaustive-grapheme-reference` r3.

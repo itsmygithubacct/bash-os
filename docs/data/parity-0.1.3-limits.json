@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "counting": "Requirements that no available fixture can exercise on the frozen x86-64 builds. Each reason is the requirement gap in tests/parity-vm/deferrals.json.",
-  "requirements": 35,
-  "topics": 23,
+  "requirements": 34,
+  "topics": 22,
   "categories": {
     "kernel-authority-absent": 27,
-    "kernel-feature-absent": 2,
+    "kernel-feature-absent": 1,
     "hardware-absent": 1,
     "unreachable-on-frozen-build": 3,
     "interface-cannot-represent": 2
@@ -222,18 +222,11 @@
       "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (the cached credential that -k, -K and -v reset or validate lives in the authority); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
     },
     {
-      "topic": "ns/ns-lsm-transition",
-      "requirement": "r5",
-      "category": "kernel-feature-absent",
-      "coverage": "missing",
-      "reason": "SELinux transition needs a kernel booted with SELinux and a loaded policy; the guest kernel has AppArmor as its only major LSM and no selinuxfs."
-    },
-    {
       "topic": "uclampset/defer_system_files",
       "requirement": "r5",
       "category": "kernel-feature-absent",
       "coverage": "partial",
-      "reason": "The guest kernel is built without CONFIG_UCLAMP_TASK, so /proc/sys/kernel/sched_util_clamp_min and sched_util_clamp_max do not exist"
+      "reason": "Debian 13's cloud and generic amd64 kernels (6.12.113+deb13), the only kernels the guest images can boot, are both built without CONFIG_UCLAMP_TASK, so /proc/sys/kernel/sched_util_clamp_min and sched_util_clamp_max do not exist"
     },
     {
       "topic": "bashpoll/signalfd-ownership",

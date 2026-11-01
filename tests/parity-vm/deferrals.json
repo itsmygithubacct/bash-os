@@ -30595,9 +30595,9 @@
         "purpose": "Check LSM detection and on-exec profile requests for AppArmor and SELinux, including unavailable and invalid-profile paths.",
         "reason": "Actual transition behavior requires a disposable VM booted with the relevant LSM and a dedicated test policy that affects only a fixture executable. Independently verify the transition at exec, compare the proc/securityfs requests, and cover absent-LSM and invalid-profile errors. A future filesystem-only mock may separately test the documented root overrides; no LSM interface was read or written here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining r5 is a listed limit (kernel-feature-absent).",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -30664,9 +30664,22 @@
         {
           "id": "r5",
           "behavior": "SELinux transition",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "SELinux transition needs a kernel booted with SELinux and a loaded policy; the guest kernel has AppArmor as its only major LSM and no selinuxfs."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w5-ns-lsm-selinux-transition-user",
+              "assertion": "SELinux image, uid 2000, both builds: ns lsm-detect reports 'selinux: available' (-V selinux); ns lsm-onexec writes the context to attr/exec; the exec'd child, like runcon, a native attr/exec write and ns spawn lsm, runs in the policy-allowed unconfined_t domain while caller and plain child stay initrc_t; unknown type gives status 1 and EINVAL.",
+              "definition_sha256": "098c74b4ebd527825fff88e1cec67fa75270daa8e2ad94a61b55b382df8fcfd1"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w5-ns-lsm-selinux-transition-root",
+              "assertion": "SELinux image, real root (rental), both builds: a runtime-loaded CIL domain bashos_lsm_w5_t is entered at exec via ns lsm-onexec and ns spawn lsm (same as runcon); permissive: the confined child reads the labelled file; enforcing (only around the checks): both confined children get EACCES with no leak while the caller reads it; permissive restored before semodule -r; module unlisted, enforce 0 and type gone afterwards.",
+              "definition_sha256": "753d8b2dd4835863c7807fddbf3330c7f143d24d046715d0e7dac3314662a3c4"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r6",
@@ -51006,7 +51019,7 @@
               "definition_sha256": "4ca89b37538817d6d79384c3ec908d81745e9100aa34afb252b7be0f9e62da15"
             }
           ],
-          "gap": "The guest kernel is built without CONFIG_UCLAMP_TASK, so /proc/sys/kernel/sched_util_clamp_min and sched_util_clamp_max do not exist"
+          "gap": "Debian 13's cloud and generic amd64 kernels (6.12.113+deb13), the only kernels the guest images can boot, are both built without CONFIG_UCLAMP_TASK, so /proc/sys/kernel/sched_util_clamp_min and sched_util_clamp_max do not exist"
         }
       ],
       "notes": "Source: loadables/uclampset.c:480-593. Writing to /dev/full through a symlink: the open() of the symlink succeeds O_WRONLY, the fstat shows a character device, so trim=0 and the write fails with ENOSPC. Executed related evidence: legacy/uclampset/private-system-file-model (contract) covers successful query/update and -1 keep-current only."

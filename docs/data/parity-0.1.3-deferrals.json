@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "original_topics": 600,
-  "ledger_sha256": "27e574e9b6ee533c622f6cee9ca4359d5d5564712cf6d7997422d135f8791ee5",
+  "ledger_sha256": "392407f23a18f791c3dde4730700b3c2f1c328e3a9e6bb8721452a07040fc94a",
   "counting": "Topic results summarize existing checks; they are not additional behavioral cases.",
   "coverage": {
-    "full": 573,
-    "partial": 25,
-    "none": 2
+    "full": 578,
+    "partial": 21,
+    "none": 1
   },
   "migrations": {
-    "replacement": 573,
-    "deferred": 27
+    "replacement": 578,
+    "deferred": 22
   },
   "pending_full_topics": [],
   "builds": {
@@ -11208,7 +11208,7 @@
           "prepared_unchanged": true
         },
         {
-          "name": "w7-ru3-static",
+          "name": "w7-fdisk-settle-c-static",
           "groups": [
             "shell"
           ],
@@ -11216,17 +11216,17 @@
           "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
           "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
           "artifacts_sha256": {
-            "summary.json": "ef5a6ceb10e2bec2022198b0cc63965713b73d7b8eb7f0c8093c6f1ea63eb3a1",
-            "provenance.json": "c7a43a9f32fd878af7fce20174c5b3a54302e7addd8b0bf86688b2128bb1bd29",
-            "payload.tar": "22f6a06deb1ee967a35f7da2ade63eca2a40d946647a5a54bf6c6e5c4140cbda",
-            "evidence.tar": "51aab979137d9c9826c56a6e4c1d26de899e9a6ec4a245b5fd8a32c3925956a4"
+            "summary.json": "6df08398fa4d729c3d18239fa46130ce607c88f18ca60cb6171a17e490ab5ad7",
+            "provenance.json": "13e2cacdfc2a3166c5a701d9f24105f767c593b943ecfefc1f52654dff216705",
+            "payload.tar": "1cb4c76c2f639dac6365f73f33f36bf223e91393392ead4c7df4da59a3ef99a6",
+            "evidence.tar": "7d1361b265e04c61b53a42263b689c6ebaf917e379e51889ee300fdf30d8fe65"
           },
           "teardown": {
             "qemu_exit_status": 0,
             "clean_poweroff": true,
             "forced_stop": false,
-            "poweroff_request": 255,
-            "stopped_at": 1793542501.1740053
+            "poweroff_request": 0,
+            "stopped_at": 1793546912.1862972
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -11442,7 +11442,7 @@
           "prepared_unchanged": true
         },
         {
-          "name": "w7-nr1-static",
+          "name": "w7-nr4-static",
           "groups": [
             "shell"
           ],
@@ -11450,17 +11450,251 @@
           "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
           "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
           "artifacts_sha256": {
-            "summary.json": "42ab3811776f40d89d7d4d5e6a76e533e0c4834fc15696e75acdabd69ced3c2a",
-            "provenance.json": "f8b3d9cdd975d1177c4a2e56a194cfc8d510aaab9f1ed26d149f4acd7327a5e2",
-            "payload.tar": "d69809637410abcf0a1785be9b7576bf22e186372f5a04303118aa2ab949f6ed",
-            "evidence.tar": "513c010e32df0d5b946a938b87880e6a062f4cbd2969f9ca75ceefc09321ee39"
+            "summary.json": "41453199689a828e3bd516d6d69b5fcedf64d236d2ac4862a6228d1f7dbe42ae",
+            "provenance.json": "cea9a36c8f654e30ddfaa314bce0d7d861b313faa3e7ef999164fa47a29dc176",
+            "payload.tar": "e22361bb2bfd2565cb9fa3a834b9de8e9f0305ef2f4e634072c315dceb71fd06",
+            "evidence.tar": "0c1538704d5f61c3cf44ccd24b533b5618831fcaa17d8db6a30d8331b2a98c02"
           },
           "teardown": {
             "qemu_exit_status": 0,
             "clean_poweroff": true,
             "forced_stop": false,
             "poweroff_request": 0,
-            "stopped_at": 1793540795.3035643
+            "stopped_at": 1793544181.1261914
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w7-dm1-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "8cce2a7a520312db14e96cb8c112edcea52d29507e3c65f0f3e928426845bb8d",
+            "provenance.json": "0271a1d74b68bb0ba02eb14dcd99d90df06bf208ea1306cb669518b0e31d58c0",
+            "payload.tar": "1e8652e68e350b26580a347dc7be7ae3250d870c92abbc33461e6e8b7e104bac",
+            "evidence.tar": "e7a4f275349f6cf245decc4507ce83fbc88336c1e3f06c174cf1c1bac07e0dc5"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793544307.6568308
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w7-gp2-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "72598e9b48644c818ad26c424c00703acde6871eb94f20029bd3fa863739ec35",
+            "provenance.json": "64cadff9a1362c86a823871b33e0e1bb27765ec469be6e27e5550c33876a8d91",
+            "payload.tar": "15b7ff7ab7f0904a72be0805b25f62c71207810e7a63854bd012a4e6f5353dcd",
+            "evidence.tar": "206d70267aa42bbfbf6ee28ba446ad534dd419499d47299a521a7e4c685e7b1e"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793544398.6761627
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w7-gp3-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "65bf80ba1a1fee686dc946763b9fcf77fd21517e385a564386611c5677b6141b",
+            "provenance.json": "1ed6a526030b1bc7fde8a9eb9c39b7dd4fc1887e72e39fc1576c834e6d8a0f33",
+            "payload.tar": "7c749e6863afe312cfccdc76b534879f5971c6a55f9d915eb0db432758c6592c",
+            "evidence.tar": "a7b091dec9852642600d98b8a851914145515ebc00e265ed64011a5e2c34cb37"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793544579.56972
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "g1-sc8-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "aaaa2f281708edc889bea67a427e30881f1da1e2f0677e7d5b23cafeac31d8ed",
+            "provenance.json": "e615e637fb65845c4f33ea3079d88fe2753c4b0246b207ea779a3a142a8b497e",
+            "payload.tar": "d4a16e1e3f7027f106696dfb561993aee404ea82868218008d6bc1ba64b12b75",
+            "evidence.tar": "8270c12a93e73d1b1f666e5ede970fb678d110bab439fcb93b8f59dc2b2ee694"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793544701.4844418
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w7-nr5-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "cb305d861268efdb44d9e9a5037fdad65398243cf018400c19afd19e97b7b205",
+            "provenance.json": "4579ec7941dfe9d6af49e4d5af644ca99ab6f2ec2ae3210951d295a6ee943206",
+            "payload.tar": "7c749e6863afe312cfccdc76b534879f5971c6a55f9d915eb0db432758c6592c",
+            "evidence.tar": "69823d796d06ec480057a903c192f8f5e303c82020952c6ec5a24e02298ef45b"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793544991.4783902
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w7-gpuimg-c-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "b2c531b555cfbcf6bc6b2d3f4573a832093a294a899e44e9dfe75ba137967590",
+          "artifacts_sha256": {
+            "summary.json": "bd38a8b0bc141f5d0bbcbc7ca8d1302b5aaa987e075d9fe3ac6e5b4c8d733734",
+            "provenance.json": "0cf2150fd017800bc570a000e6d1244b9b400db0b36daf6fa9853cb0ec97f944",
+            "payload.tar": "c9576429626eb0b258d80034687e5828a43347f4fbedbe77f2009a4c49d48607",
+            "evidence.tar": "4163440b54c43f8cf58e5e2a6e02b77ab4cf7ae63b2b6674a73a80755adee640"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793548113.8175287
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w1-roster-r3c-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "297e97dbf257c8277629e2bb2a0090066da319e352aec8b9bf3394629c9be1a5",
+            "provenance.json": "3bdfd39e775164583b948d554d9146fd3bc221ddc7da72473d5e862ed2182dee",
+            "payload.tar": "ee6c34c58e95eebeac3097ae01c716fa3daaf55d780d39c27f042decf63b0653",
+            "evidence.tar": "afabe5f1486cdfd72e3be02b082579376903c914b10edb9236691018905aba94"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793548086.5804229
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w5-r2-se-user-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "56273dfd2b0b00242b894c70993ddb7ad64a519ad0de6a89637426a5a180a254",
+          "artifacts_sha256": {
+            "summary.json": "eba62f7bc720ced9b388982c459d42a69faad27e12a6aa749bad054c2fbceb78",
+            "provenance.json": "6c1ef66a61aceffa8f406bd2bb801bca8cbd72b6317ef3e29ea606ee9051c18b",
+            "payload.tar": "cb7fb18f330b85d2b084d84d1851e386e02b0977d413df9e7ae85879d96bd06b",
+            "evidence.tar": "8e8ee859d83c3301cce3bbfffc70f8e69a30d8db7b9d911587d437bb52482b81"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793557998.0575006
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w5-r2-se-root-static",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+          "prepared_sha256": "56273dfd2b0b00242b894c70993ddb7ad64a519ad0de6a89637426a5a180a254",
+          "artifacts_sha256": {
+            "summary.json": "6b36fa1a09793cf5f4e4dcb97a3e51ce8cfe542cac754d10e5b0b77fedce1f51",
+            "provenance.json": "151ebdda4aade3cf03f49daa9c1d23081cd6f720474779c68991e906bc646a86",
+            "payload.tar": "cb7fb18f330b85d2b084d84d1851e386e02b0977d413df9e7ae85879d96bd06b",
+            "evidence.tar": "0fb79091b43dd86e39d0fe5ab1651d8a5bca221196f061c027cfcd961f890149"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793558108.4539735
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -16775,6 +17009,18 @@
                   "id": "mig-w7-blkid-loop-enumeration-lines",
                   "status": "FAIL",
                   "run": "w7-rv1-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-blkid-loop-enumeration-order",
+                  "status": "FAIL",
+                  "run": "w7-rv1-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-blkid-loop-enumeration-lines",
+                  "status": "FAIL",
+                  "run": "w7-rv1-static"
                 }
               ],
               "fully_exercised": true,
@@ -16791,6 +17037,12 @@
                   "id": "mig-w7-blkid-label-uuid-lookup-devices",
                   "status": "PASS",
                   "run": "w7-rv1-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-blkid-label-uuid-lookup-devices",
+                  "status": "PASS",
+                  "run": "w7-rv1-static"
                 }
               ],
               "fully_exercised": true,
@@ -16802,6 +17054,12 @@
               "coverage": "covered",
               "gap": "",
               "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-blkid-partition-parent-metadata",
+                  "status": "FAIL",
+                  "run": "w7-rv1-static"
+                },
                 {
                   "group": "shell",
                   "id": "mig-w7-blkid-partition-parent-metadata",
@@ -17135,6 +17393,12 @@
                   "id": "mig-w7-blockdev-close-error-injected",
                   "status": "PASS",
                   "run": "w7-inj1-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-blockdev-close-error-injected",
+                  "status": "PASS",
+                  "run": "w7-inj1-static"
                 }
               ],
               "fully_exercised": true,
@@ -17163,6 +17427,12 @@
                   "id": "migration-blockdev-query-root",
                   "status": "FAIL",
                   "run": "root-d-static-81"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-blockdev-close-error-injected",
+                  "status": "PASS",
+                  "run": "w7-inj1-static"
                 },
                 {
                   "group": "shell",
@@ -20641,7 +20911,7 @@
           "migration": "replacement",
           "coverage": "full",
           "fully_exercised": true,
-          "result": "FAIL",
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -20651,19 +20921,13 @@
               "evidence": [
                 {
                   "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats",
+                  "id": "migration-cluster-roster-heartbeats-r3",
                   "status": "PASS",
-                  "run": "cluster-followup-static-113-178-candidate"
-                },
-                {
-                  "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats-r2",
-                  "status": "FAIL",
-                  "run": "cluster-retention-static-119-178-candidate"
+                  "run": "w1-roster-r3c-static"
                 }
               ],
               "fully_exercised": true,
-              "result": "FAIL"
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -20673,19 +20937,13 @@
               "evidence": [
                 {
                   "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats",
+                  "id": "migration-cluster-roster-heartbeats-r3",
                   "status": "PASS",
-                  "run": "cluster-followup-static-113-178-candidate"
-                },
-                {
-                  "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats-r2",
-                  "status": "FAIL",
-                  "run": "cluster-retention-static-119-178-candidate"
+                  "run": "w1-roster-r3c-static"
                 }
               ],
               "fully_exercised": true,
-              "result": "FAIL"
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -20695,25 +20953,19 @@
               "evidence": [
                 {
                   "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats-r3",
+                  "status": "PASS",
+                  "run": "w1-roster-r3c-static"
+                },
+                {
+                  "group": "shell",
                   "id": "migration-cluster-retention-roster-heartbeats-125",
                   "status": "PASS",
                   "run": "probe-composite-retention125-cluster-178-candidate"
-                },
-                {
-                  "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats",
-                  "status": "PASS",
-                  "run": "cluster-followup-static-113-178-candidate"
-                },
-                {
-                  "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats-r2",
-                  "status": "FAIL",
-                  "run": "cluster-retention-static-119-178-candidate"
                 }
               ],
               "fully_exercised": true,
-              "result": "FAIL"
+              "result": "PASS"
             },
             {
               "id": "r4",
@@ -20723,19 +20975,13 @@
               "evidence": [
                 {
                   "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats",
+                  "id": "migration-cluster-roster-heartbeats-r3",
                   "status": "PASS",
-                  "run": "cluster-followup-static-113-178-candidate"
-                },
-                {
-                  "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats-r2",
-                  "status": "FAIL",
-                  "run": "cluster-retention-static-119-178-candidate"
+                  "run": "w1-roster-r3c-static"
                 }
               ],
               "fully_exercised": true,
-              "result": "FAIL"
+              "result": "PASS"
             }
           ]
         },
@@ -23001,6 +23247,18 @@
                   "id": "mig-w7-df-reserved-blocks-root",
                   "status": "FAIL",
                   "run": "w7-rv2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-df-reserved-blocks-values-root",
+                  "status": "PASS",
+                  "run": "w7-rv2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-df-reserved-blocks-root",
+                  "status": "FAIL",
+                  "run": "w7-rv2-static"
                 }
               ],
               "fully_exercised": true,
@@ -24245,10 +24503,10 @@
         },
         {
           "topic": "dmsetup/ioctl-errors-buffering",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -24301,18 +24559,30 @@
             {
               "id": "r4",
               "behavior": "Malformed kernel records (bad next offsets, truncated names) are rejected without overruns.",
-              "coverage": "partial",
-              "gap": "Malformed name records were rejected, but no independent all-access memory-overrun detector or malformed target/version record coverage was retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
-                  "id": "migration-device-storage-dm-r3",
+                  "id": "mig-w7-dmsetup-malformed-ls-records-root",
                   "status": "PASS",
-                  "run": "qual-remote-canon-probe-composite-syscalls-current-static"
+                  "run": "w7-dm1-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-dmsetup-malformed-targets-records-root",
+                  "status": "PASS",
+                  "run": "w7-dm1-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-dmsetup-malformed-table-records-root",
+                  "status": "PASS",
+                  "run": "w7-dm1-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -27368,7 +27638,7 @@
           "migration": "replacement",
           "coverage": "full",
           "fully_exercised": true,
-          "result": "FAIL",
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -27380,7 +27650,7 @@
                   "group": "shell",
                   "id": "mig-w7-fdisk-partx-add-delete-root",
                   "status": "PASS",
-                  "run": "w7-ru3-static"
+                  "run": "w7-fdisk-settle-c-static"
                 }
               ],
               "fully_exercised": true,
@@ -27396,17 +27666,17 @@
                   "group": "shell",
                   "id": "mig-w7-fdisk-partx-update-ranges-root",
                   "status": "PASS",
-                  "run": "w7-ru3-static"
+                  "run": "w7-fdisk-settle-c-static"
                 },
                 {
                   "group": "shell",
                   "id": "mig-w7-fdisk-partx-delete-range-root",
-                  "status": "FAIL",
-                  "run": "w7-ru3-static"
+                  "status": "PASS",
+                  "run": "w7-fdisk-settle-c-static"
                 }
               ],
               "fully_exercised": true,
-              "result": "FAIL"
+              "result": "PASS"
             },
             {
               "id": "r3",
@@ -27440,7 +27710,7 @@
                   "group": "shell",
                   "id": "mig-w7-fdisk-reread-after-write-root",
                   "status": "PASS",
-                  "run": "w7-ru3-static"
+                  "run": "w7-fdisk-settle-c-static"
                 }
               ],
               "fully_exercised": true,
@@ -27507,6 +27777,12 @@
                   "id": "mig-w7-fincore-cache-transitions-root",
                   "status": "PASS",
                   "run": "w7-rv3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-fincore-cache-transitions-root",
+                  "status": "PASS",
+                  "run": "w7-rv3-static"
                 }
               ],
               "fully_exercised": true,
@@ -27555,6 +27831,12 @@
                   "id": "mig-w7-fincore-cache-transitions-root",
                   "status": "PASS",
                   "run": "w7-rv3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-fincore-cache-transitions-root",
+                  "status": "PASS",
+                  "run": "w7-rv3-static"
                 }
               ],
               "fully_exercised": true,
@@ -27566,6 +27848,12 @@
               "coverage": "covered",
               "gap": "",
               "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-fincore-cache-transitions-root",
+                  "status": "PASS",
+                  "run": "w7-rv3-static"
+                },
                 {
                   "group": "shell",
                   "id": "mig-w7-fincore-cache-transitions-root",
@@ -28369,6 +28657,12 @@
                   "id": "mig-w7-fstrim-fstab-tag-forms-root",
                   "status": "PASS",
                   "run": "w7-rv1-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-fstrim-fstab-tag-forms-root",
+                  "status": "PASS",
+                  "run": "w7-rv1-static"
                 }
               ],
               "fully_exercised": true,
@@ -28391,6 +28685,12 @@
                   "id": "migration-fstrim-selection-discard-capable-root",
                   "status": "FAIL",
                   "run": "workers-d-static-63"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-fstrim-root-device-guess-root",
+                  "status": "PASS",
+                  "run": "w7-rv1-static"
                 },
                 {
                   "group": "shell",
@@ -29477,55 +29777,96 @@
         },
         {
           "topic": "gpu/gles-shader-and-dmabuf",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "the shader command compiles a fragment program and render produces the expected frame",
-              "coverage": "missing",
-              "gap": "Rental guest kernel 6.12.113+deb13-cloud-amd64 has no vgem module (modprobe: FATAL: Module vgem not found in directory /lib/modules/6.12.113+deb13-cloud-amd64), so /dev/dri and any render node never exist, and the guest image lacks libgbm.so.1, libEGL.so.1 and libGLESv2.so.2 that gpu dlopens; no EGL/GLES context can be created for shader compilation.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-gpu-native-shader-render",
+                  "status": "FAIL",
+                  "run": "w7-gpuimg-c-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r2",
               "behavior": "the CPU canvas is retained as shader input; resize and readback (save) after render give the expected pixels",
-              "coverage": "missing",
-              "gap": "Rental guest kernel 6.12.113+deb13-cloud-amd64 has no vgem module (modprobe: FATAL: Module vgem not found in directory /lib/modules/6.12.113+deb13-cloud-amd64), so /dev/dri and any render node never exist, and the guest image lacks libgbm.so.1, libEGL.so.1 and libGLESv2.so.2 that gpu dlopens; the native shader context that retains the CPU canvas cannot exist.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-gpu-native-canvas-retention-resize",
+                  "status": "FAIL",
+                  "run": "w7-gpuimg-c-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "with transport dmabuf, frames are handed off by GBM BO fd plus modifier/stride/offset to the Kilix frame socket, and BOs are retired",
-              "coverage": "missing",
-              "gap": "Rental guest kernel 6.12.113+deb13-cloud-amd64 has no vgem module (modprobe: FATAL: Module vgem not found in directory /lib/modules/6.12.113+deb13-cloud-amd64), so /dev/dri and any render node never exist, and the guest image lacks libgbm.so.1, libEGL.so.1 and libGLESv2.so.2 that gpu dlopens; no GBM buffer object exists to hand off by dmabuf descriptor.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-gpu-dmabuf-frame-handoff",
+                  "status": "FAIL",
+                  "run": "w7-gpuimg-c-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r4",
               "behavior": "dmabuf/native failure falls back to shm or inline and records the fallback",
-              "coverage": "missing",
-              "gap": "Observable WITHOUT a device: in the VM, 'gpu start --transport dmabuf' with no render node should take bg_fallback (gpu.c:425-431). Needs the Kitty peer from gpu/kitty-presentation-transports.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-gpu-dmabuf-falls-back-inline",
+                  "status": "PASS",
+                  "run": "w7-gp2-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "shader errors (missing file, compile failure) report and leave the session usable",
-              "coverage": "missing",
-              "gap": "The missing-file path is observable without a device. Compile failure needs the native context.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-gpu-native-compile-failure",
+                  "status": "FAIL",
+                  "run": "w7-gpuimg-c-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-gpu-shader-errors-headless",
+                  "status": "PASS",
+                  "run": "w7-gp3-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -35360,6 +35701,12 @@
                   "id": "mig-w7-killall5-esrch-injected",
                   "status": "PASS",
                   "run": "w7-r2a-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-killall5-esrch-injected",
+                  "status": "PASS",
+                  "run": "w7-r2a-static"
                 }
               ],
               "fully_exercised": true,
@@ -37674,6 +38021,18 @@
                   "id": "mig-w7-lsattr-mocked-flag-words",
                   "status": "FAIL",
                   "run": "w7-lm1-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-lsattr-user-bits-ext4-root",
+                  "status": "FAIL",
+                  "run": "w7-rv3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-lsattr-mocked-flag-words",
+                  "status": "FAIL",
+                  "run": "w7-lm1-static"
                 }
               ],
               "fully_exercised": true,
@@ -37874,6 +38233,12 @@
                   "id": "mig-w7-lsblk-mounted-fstype-root",
                   "status": "FAIL",
                   "run": "w7-rv2-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-lsblk-mounted-fstype-root",
+                  "status": "FAIL",
+                  "run": "w7-rv2-static"
                 }
               ],
               "fully_exercised": true,
@@ -37983,6 +38348,12 @@
               "coverage": "covered",
               "gap": "",
               "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-lsof-unreadable-process-skipped",
+                  "status": "PASS",
+                  "run": "w7-nr2-static"
+                },
                 {
                   "group": "shell",
                   "id": "mig-w7-lsof-unreadable-process-skipped",
@@ -38710,7 +39081,7 @@
                   "group": "shell",
                   "id": "mig-w7-mkfs-block-device-size-root",
                   "status": "PASS",
-                  "run": "w7-ru3-static"
+                  "run": "w7-fdisk-settle-c-static"
                 }
               ],
               "fully_exercised": true,
@@ -38749,6 +39120,18 @@
                   "id": "migration-mkfs-write-sync-errors-injected",
                   "status": "PASS",
                   "run": "images-static-42"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-mkfs-fsync-error-injected",
+                  "status": "PASS",
+                  "run": "w7-inj1-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-mkfs-close-error-injected",
+                  "status": "PASS",
+                  "run": "w7-inj1-static"
                 },
                 {
                   "group": "shell",
@@ -42682,10 +43065,10 @@
         },
         {
           "topic": "ns/ns-lsm-transition",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -42760,11 +43143,24 @@
             {
               "id": "r5",
               "behavior": "SELinux transition",
-              "coverage": "missing",
-              "gap": "SELinux transition needs a kernel booted with SELinux and a loaded policy; the guest kernel has AppArmor as its only major LSM and no selinuxfs.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w5-ns-lsm-selinux-transition-user",
+                  "status": "PASS",
+                  "run": "w5-r2-se-user-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w5-ns-lsm-selinux-transition-root",
+                  "status": "PASS",
+                  "run": "w5-r2-se-root-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
@@ -52155,10 +52551,10 @@
         },
         {
           "topic": "screen/remote-attach-mock",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -52293,18 +52689,24 @@
             {
               "id": "r5",
               "behavior": "A live remote attach over the transport exchanges frames with the peer.",
-              "coverage": "partial",
-              "gap": "A live remote attach exchanging BSCR frames over a mocked transport is not authored: the libssh client needs an SSH server peer, and the original scenario forbids network activity.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-terra-local-pty-b04r3-remote-ssh-frames",
                   "status": "FAIL",
                   "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-g1-screen-remote-attach-live-mock",
+                  "status": "FAIL",
+                  "run": "g1-sc8-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -63503,7 +63905,7 @@
               "id": "r5",
               "behavior": "Live sysctl semantics: writes to the real /proc/sys/kernel/sched_util_clamp_min/max change system clamps, and kernel validation rejects min>max or values over 1024 with EINVAL, compared with util-linux `uclampset --system`.",
               "coverage": "partial",
-              "gap": "The guest kernel is built without CONFIG_UCLAMP_TASK, so /proc/sys/kernel/sched_util_clamp_min and sched_util_clamp_max do not exist",
+              "gap": "Debian 13's cloud and generic amd64 kernels (6.12.113+deb13), the only kernels the guest images can boot, are both built without CONFIG_UCLAMP_TASK, so /proc/sys/kernel/sched_util_clamp_min and sched_util_clamp_max do not exist",
               "evidence": [
                 {
                   "group": "shell",
@@ -65450,19 +65852,26 @@
         },
         {
           "topic": "w/live-procps-parity",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Live process accounting (JCPU/PCPU/WHAT) for real sessions.",
-              "coverage": "missing",
-              "gap": "procps w prints no session rows for the synthetic utmp in the guest (its header counts the four sessions), so no reference rows exist to compare with the candidate rows (mig-w7-w-live-rows).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-w-live-rows-model",
+                  "status": "PASS",
+                  "run": "w7-nr4-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -65473,30 +65882,50 @@
                 {
                   "group": "shell",
                   "id": "mig-w7-w-live-header",
-                  "status": "STALE",
-                  "run": "w7-nr1-static"
+                  "status": "FAIL",
+                  "run": "w7-nr5-static"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Clock-based tty idle formatting.",
-              "coverage": "missing",
-              "gap": "procps w prints no session rows for the synthetic utmp in the guest, so idle formatting has no reference output to compare with.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-w-live-rows-model",
+                  "status": "PASS",
+                  "run": "w7-nr4-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Agreement with procps w on the same live state.",
-              "coverage": "missing",
-              "gap": "procps w prints no session rows for the synthetic utmp in the guest, so agreement on live state cannot be compared.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-w-live-header",
+                  "status": "FAIL",
+                  "run": "w7-nr5-static"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-w-live-rows-model",
+                  "status": "PASS",
+                  "run": "w7-nr4-static"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -67220,9 +67649,9 @@
         }
       ],
       "results": {
-        "FAIL": 276,
-        "UNRESOLVED": 27,
-        "PASS": 297
+        "FAIL": 278,
+        "UNRESOLVED": 22,
+        "PASS": 300
       },
       "migration_without_complete_evidence": []
     },
@@ -78420,7 +78849,7 @@
           "prepared_unchanged": true
         },
         {
-          "name": "w7-ru3-dynamic",
+          "name": "w7-fdisk-settle-c-dynamic",
           "groups": [
             "shell"
           ],
@@ -78428,17 +78857,17 @@
           "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
           "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
           "artifacts_sha256": {
-            "summary.json": "c17fe496a4cf4be2757460f823040af1c618a0a0204c8bb1f230c60052b0e720",
-            "provenance.json": "45253aa28b77c302b794ad0b5d6b44815dbedd5096c7047af7d31691152d7960",
-            "payload.tar": "fa66437d9d178e3718390a928da61df5211d1a66a64bf2596da2b44367c3c13d",
-            "evidence.tar": "2f7d9f162d7b02dcabe8ecfe83aaba0a45512060d3c704218c2a30df27b9d178"
+            "summary.json": "63b1705156da2c40849031da9150cb1ff48724a19265935062a8241bb38dbf98",
+            "provenance.json": "38f4aa8385edd591438e140a8833aefb60cbf5a53c639589668c28a32d6076af",
+            "payload.tar": "088b83490fb7193c381c3354fe7fadc9d69793eac0f4d5560777c0ed2722e3ad",
+            "evidence.tar": "c1c88d131842b6b236e9c032aa2aff91fd68084e2d6c2e21631a71226ae0dd8c"
           },
           "teardown": {
             "qemu_exit_status": 0,
             "clean_poweroff": true,
             "forced_stop": false,
             "poweroff_request": 255,
-            "stopped_at": 1793542606.589361
+            "stopped_at": 1793546952.5385625
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -78654,7 +79083,7 @@
           "prepared_unchanged": true
         },
         {
-          "name": "w7-nr1-dynamic",
+          "name": "w7-nr4-dynamic",
           "groups": [
             "shell"
           ],
@@ -78662,17 +79091,251 @@
           "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
           "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
           "artifacts_sha256": {
-            "summary.json": "72fe5733f0fc39aab41737b996c589b11d1dc139ad049298ee67080abab38e16",
-            "provenance.json": "8d050597f9af4b47be5e68d8e02d2bdd79537d33f02ab72b21f72898a2ef5843",
-            "payload.tar": "7adf0229a7af4cd9d74f9810c67972cc74bbc2e88c1903660d04c9da819b5f8b",
-            "evidence.tar": "05a614458a8a7646e24888da83003e119fa8635fa66b35569278e6d116e39661"
+            "summary.json": "96ffea1860b6c66164ce73c3ac020f8eec041bf9981bcf86f2575efc63dc5738",
+            "provenance.json": "8ddcd8a67ce3b5b05b2db4a4a7497b3256c032de123d60379adc737f9feeab14",
+            "payload.tar": "aeb32c7e6ce85d314bea655e5acdeaad973db82a859ecb27534b8300963243a5",
+            "evidence.tar": "dc0697eed6d93c3d62c8dad7376807bb85fec8376cf603bf12a9d67a31ded2bd"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793544180.908601
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w7-dm1-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 3,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "669bb62ac02889fee3444735f247c7acca7778c160c3698978a291ba0a0e7b87",
+            "provenance.json": "18984212b62b2729c442227de9a56694f8fa39f8bc68783e21ffde11fadd368b",
+            "payload.tar": "5fb9651232d73beff0a78cae2331176170394d724a6711d142d0f5c03c101689",
+            "evidence.tar": "0471386d08a38db9bbd8eee0412fdc072bf74406b20e9a2988e98b7957c3373c"
           },
           "teardown": {
             "qemu_exit_status": 0,
             "clean_poweroff": true,
             "forced_stop": false,
             "poweroff_request": 255,
-            "stopped_at": 1793540795.2374992
+            "stopped_at": 1793544314.3274097
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w7-gp2-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "9aa1521216cdfe669ecda6b78a5fc75c605afa33899d4310c2be4fbae5e91dde",
+            "provenance.json": "d71184f86cbfe6b55efdc4578b0fd7ad599649f2e5a5f45fcbc89a4d6603e72d",
+            "payload.tar": "7e8bb756d2110bbb988cadf04e225261b1557ed3a2a687cc012b3f0a8deb1745",
+            "evidence.tar": "bb0e59d8d10869c4aec92e22978777ad0ebfb62741d49d2def4d315958375342"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793544425.2981157
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w7-gp3-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "731e0f4ff50b64b53f1b9ec84b4e82953fdfea2ce88fdc4f9985c8e0343791e2",
+            "provenance.json": "d2d95c2b0d5ec51127e79b9b9832c98554a7ced7af4b95b3e36486a04f72e59b",
+            "payload.tar": "4f2c026a2183f4ce2451900c7af52dddf0f4495bd233744c5f3f3a41319e33f3",
+            "evidence.tar": "20b54246897fd4410953c54b9c98d6d5adfce363f34819840aaa8a884825b484"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793544610.422943
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "g1-sc8-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "8e6a5f874f36f2eaac35a01b26e8eb79dc8aaa56f0f070cfd99db4866938d220",
+            "provenance.json": "afd34d8c8c48ca05750782e4b4d417100a6b03fb8f8425a54e8a7a81f5b0f3b5",
+            "payload.tar": "ece0b0925ac84280facf7319147f0760b070b3d5d8f9dbb8d15f77b3ec3c18c2",
+            "evidence.tar": "34f26fbad109a380ccd6bf553682cf6d2d7de4935c4e7c2aecd84186a88c7c67"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793544701.4803245
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w7-nr5-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "9c317ca2f837965cf002f5c51d6cadb3ee07cd183fab70dc3e93ace04b321862",
+            "provenance.json": "04b1f18e89a3039d10141429930030bca22fd60ffaa683267aee96f43fbe6ad2",
+            "payload.tar": "4f2c026a2183f4ce2451900c7af52dddf0f4495bd233744c5f3f3a41319e33f3",
+            "evidence.tar": "2aa37f979b55e4d557525e40bf2c9eb3f7abcec32a98b1c5ad730f3bb55a7a13"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793544991.44743
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w7-gpuimg-c-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 4,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "b2c531b555cfbcf6bc6b2d3f4573a832093a294a899e44e9dfe75ba137967590",
+          "artifacts_sha256": {
+            "summary.json": "d6c61a45176d064c75da170b74936d14caa7d0de453875f3d844d4942902c1ee",
+            "provenance.json": "e5862a7a95c8a241a7da8f4f48141c9fabec902afb590529adf110c8d4fc97c3",
+            "payload.tar": "a6a5dfb1374cf3cc5f69118e521a105fe004730a2b54609b3de5c1bc3334971c",
+            "evidence.tar": "2a4bf2dfedaec26d5bd5345d5194afaf1dcbfa84009228d79f6c046f340e043b"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793548138.955957
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w1-roster-r3c-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+          "artifacts_sha256": {
+            "summary.json": "5f99c91ec78e21962ef185e294182df2b5c3fc4fc2b29e57a2f73dad058f0203",
+            "provenance.json": "24f4b028326671ece329d434e5adbbdbdfffa603c5e8fb1ddcb6ef9087a67615",
+            "payload.tar": "ea0e1a791378b11c3fd2c2773e201a10844273dc78dc96711dbcd542cde36f27",
+            "evidence.tar": "4f69db63d1f24573ef4838d08d76ccda65538be04bd1e8cf38367f9631d9c99a"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 0,
+            "stopped_at": 1793548115.3216157
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w5-r2-se-user-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "56273dfd2b0b00242b894c70993ddb7ad64a519ad0de6a89637426a5a180a254",
+          "artifacts_sha256": {
+            "summary.json": "9da9121beeb2d31aaf654d5265ada27d87a0fea065d55b5b05e3ff541effbdba",
+            "provenance.json": "5cc980273beca1f903efcd07fa2e999ff0bc7e5261b7a73869b797d09b76cd7a",
+            "payload.tar": "521776710ccdaacb262d6c24ada1278f5f188a17884fd1dbeba71ee53ba37256",
+            "evidence.tar": "dbce6bf72c578ad51d830f9e62a8f832e4d20ea17f56d1733fd70e287c296609"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793558039.3030794
+          },
+          "overlay_discarded": true,
+          "candidate_unchanged": true,
+          "candidate_matches_guest": true,
+          "prepared_unchanged": true
+        },
+        {
+          "name": "w5-r2-se-root-dynamic",
+          "groups": [
+            "shell"
+          ],
+          "selected_records": 1,
+          "candidate_sha256": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2",
+          "prepared_sha256": "56273dfd2b0b00242b894c70993ddb7ad64a519ad0de6a89637426a5a180a254",
+          "artifacts_sha256": {
+            "summary.json": "5ef37a2302ed4229e26d2b1858d6e3cae4f62f708d791ebf8fe96d471f0e73bc",
+            "provenance.json": "7b0f568e5886d1173ace17a3389dd243cdee3d8d89f460e0f046a496cc14fe40",
+            "payload.tar": "521776710ccdaacb262d6c24ada1278f5f188a17884fd1dbeba71ee53ba37256",
+            "evidence.tar": "6c88c963669f0f46c63bd9afd67940ab8bf08009779f7da3a03666a9622a4bff"
+          },
+          "teardown": {
+            "qemu_exit_status": 0,
+            "clean_poweroff": true,
+            "forced_stop": false,
+            "poweroff_request": 255,
+            "stopped_at": 1793558173.9705076
           },
           "overlay_discarded": true,
           "candidate_unchanged": true,
@@ -83987,6 +84650,18 @@
                   "id": "mig-w7-blkid-loop-enumeration-lines",
                   "status": "FAIL",
                   "run": "w7-rv1-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-blkid-loop-enumeration-order",
+                  "status": "FAIL",
+                  "run": "w7-rv1-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-blkid-loop-enumeration-lines",
+                  "status": "FAIL",
+                  "run": "w7-rv1-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -84003,6 +84678,12 @@
                   "id": "mig-w7-blkid-label-uuid-lookup-devices",
                   "status": "PASS",
                   "run": "w7-rv1-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-blkid-label-uuid-lookup-devices",
+                  "status": "PASS",
+                  "run": "w7-rv1-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -84014,6 +84695,12 @@
               "coverage": "covered",
               "gap": "",
               "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-blkid-partition-parent-metadata",
+                  "status": "FAIL",
+                  "run": "w7-rv1-dynamic"
+                },
                 {
                   "group": "shell",
                   "id": "mig-w7-blkid-partition-parent-metadata",
@@ -84347,6 +85034,12 @@
                   "id": "mig-w7-blockdev-close-error-injected",
                   "status": "PASS",
                   "run": "w7-inj1-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-blockdev-close-error-injected",
+                  "status": "PASS",
+                  "run": "w7-inj1-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -84375,6 +85068,12 @@
                   "id": "migration-blockdev-query-root",
                   "status": "FAIL",
                   "run": "root-d-dynamic-81"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-blockdev-close-error-injected",
+                  "status": "PASS",
+                  "run": "w7-inj1-dynamic"
                 },
                 {
                   "group": "shell",
@@ -87863,15 +88562,9 @@
               "evidence": [
                 {
                   "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats",
+                  "id": "migration-cluster-roster-heartbeats-r3",
                   "status": "PASS",
-                  "run": "cluster-followup-dynamic-113-178-candidate"
-                },
-                {
-                  "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats-r2",
-                  "status": "PASS",
-                  "run": "cluster-retention-dynamic-119-178-candidate"
+                  "run": "w1-roster-r3c-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -87885,15 +88578,9 @@
               "evidence": [
                 {
                   "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats",
+                  "id": "migration-cluster-roster-heartbeats-r3",
                   "status": "PASS",
-                  "run": "cluster-followup-dynamic-113-178-candidate"
-                },
-                {
-                  "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats-r2",
-                  "status": "PASS",
-                  "run": "cluster-retention-dynamic-119-178-candidate"
+                  "run": "w1-roster-r3c-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -87907,21 +88594,15 @@
               "evidence": [
                 {
                   "group": "shell",
+                  "id": "migration-cluster-roster-heartbeats-r3",
+                  "status": "PASS",
+                  "run": "w1-roster-r3c-dynamic"
+                },
+                {
+                  "group": "shell",
                   "id": "migration-cluster-retention-roster-heartbeats-125",
                   "status": "PASS",
                   "run": "probe-composite-retention125-cluster-paired-178-candidate"
-                },
-                {
-                  "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats",
-                  "status": "PASS",
-                  "run": "cluster-followup-dynamic-113-178-candidate"
-                },
-                {
-                  "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats-r2",
-                  "status": "PASS",
-                  "run": "cluster-retention-dynamic-119-178-candidate"
                 }
               ],
               "fully_exercised": true,
@@ -87935,15 +88616,9 @@
               "evidence": [
                 {
                   "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats",
+                  "id": "migration-cluster-roster-heartbeats-r3",
                   "status": "PASS",
-                  "run": "cluster-followup-dynamic-113-178-candidate"
-                },
-                {
-                  "group": "shell",
-                  "id": "migration-cluster-roster-heartbeats-r2",
-                  "status": "PASS",
-                  "run": "cluster-retention-dynamic-119-178-candidate"
+                  "run": "w1-roster-r3c-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -90213,6 +90888,18 @@
                   "id": "mig-w7-df-reserved-blocks-root",
                   "status": "FAIL",
                   "run": "w7-rv2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-df-reserved-blocks-values-root",
+                  "status": "PASS",
+                  "run": "w7-rv2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-df-reserved-blocks-root",
+                  "status": "FAIL",
+                  "run": "w7-rv2-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -91457,10 +92144,10 @@
         },
         {
           "topic": "dmsetup/ioctl-errors-buffering",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -91513,18 +92200,30 @@
             {
               "id": "r4",
               "behavior": "Malformed kernel records (bad next offsets, truncated names) are rejected without overruns.",
-              "coverage": "partial",
-              "gap": "Malformed name records were rejected, but no independent all-access memory-overrun detector or malformed target/version record coverage was retained.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
-                  "id": "migration-device-storage-dm-r3",
+                  "id": "mig-w7-dmsetup-malformed-ls-records-root",
                   "status": "PASS",
-                  "run": "qual-remote-canon-probe-composite-syscalls-current-paired-dynamic"
+                  "run": "w7-dm1-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-dmsetup-malformed-targets-records-root",
+                  "status": "PASS",
+                  "run": "w7-dm1-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-dmsetup-malformed-table-records-root",
+                  "status": "PASS",
+                  "run": "w7-dm1-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
@@ -94592,7 +95291,7 @@
                   "group": "shell",
                   "id": "mig-w7-fdisk-partx-add-delete-root",
                   "status": "PASS",
-                  "run": "w7-ru3-dynamic"
+                  "run": "w7-fdisk-settle-c-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -94608,13 +95307,13 @@
                   "group": "shell",
                   "id": "mig-w7-fdisk-partx-update-ranges-root",
                   "status": "PASS",
-                  "run": "w7-ru3-dynamic"
+                  "run": "w7-fdisk-settle-c-dynamic"
                 },
                 {
                   "group": "shell",
                   "id": "mig-w7-fdisk-partx-delete-range-root",
                   "status": "PASS",
-                  "run": "w7-ru3-dynamic"
+                  "run": "w7-fdisk-settle-c-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -94652,7 +95351,7 @@
                   "group": "shell",
                   "id": "mig-w7-fdisk-reread-after-write-root",
                   "status": "PASS",
-                  "run": "w7-ru3-dynamic"
+                  "run": "w7-fdisk-settle-c-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -94719,6 +95418,12 @@
                   "id": "mig-w7-fincore-cache-transitions-root",
                   "status": "PASS",
                   "run": "w7-rv3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-fincore-cache-transitions-root",
+                  "status": "PASS",
+                  "run": "w7-rv3-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -94767,6 +95472,12 @@
                   "id": "mig-w7-fincore-cache-transitions-root",
                   "status": "PASS",
                   "run": "w7-rv3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-fincore-cache-transitions-root",
+                  "status": "PASS",
+                  "run": "w7-rv3-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -94778,6 +95489,12 @@
               "coverage": "covered",
               "gap": "",
               "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-fincore-cache-transitions-root",
+                  "status": "PASS",
+                  "run": "w7-rv3-dynamic"
+                },
                 {
                   "group": "shell",
                   "id": "mig-w7-fincore-cache-transitions-root",
@@ -95581,6 +96298,12 @@
                   "id": "mig-w7-fstrim-fstab-tag-forms-root",
                   "status": "PASS",
                   "run": "w7-rv1-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-fstrim-fstab-tag-forms-root",
+                  "status": "PASS",
+                  "run": "w7-rv1-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -95603,6 +96326,12 @@
                   "id": "migration-fstrim-selection-discard-capable-root",
                   "status": "FAIL",
                   "run": "workers-d-dynamic-63"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-fstrim-root-device-guess-root",
+                  "status": "PASS",
+                  "run": "w7-rv1-dynamic"
                 },
                 {
                   "group": "shell",
@@ -96689,55 +97418,96 @@
         },
         {
           "topic": "gpu/gles-shader-and-dmabuf",
-          "migration": null,
-          "coverage": "none",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
               "behavior": "the shader command compiles a fragment program and render produces the expected frame",
-              "coverage": "missing",
-              "gap": "Rental guest kernel 6.12.113+deb13-cloud-amd64 has no vgem module (modprobe: FATAL: Module vgem not found in directory /lib/modules/6.12.113+deb13-cloud-amd64), so /dev/dri and any render node never exist, and the guest image lacks libgbm.so.1, libEGL.so.1 and libGLESv2.so.2 that gpu dlopens; no EGL/GLES context can be created for shader compilation.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-gpu-native-shader-render",
+                  "status": "PASS",
+                  "run": "w7-gpuimg-c-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
               "behavior": "the CPU canvas is retained as shader input; resize and readback (save) after render give the expected pixels",
-              "coverage": "missing",
-              "gap": "Rental guest kernel 6.12.113+deb13-cloud-amd64 has no vgem module (modprobe: FATAL: Module vgem not found in directory /lib/modules/6.12.113+deb13-cloud-amd64), so /dev/dri and any render node never exist, and the guest image lacks libgbm.so.1, libEGL.so.1 and libGLESv2.so.2 that gpu dlopens; the native shader context that retains the CPU canvas cannot exist.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-gpu-native-canvas-retention-resize",
+                  "status": "PASS",
+                  "run": "w7-gpuimg-c-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r3",
               "behavior": "with transport dmabuf, frames are handed off by GBM BO fd plus modifier/stride/offset to the Kilix frame socket, and BOs are retired",
-              "coverage": "missing",
-              "gap": "Rental guest kernel 6.12.113+deb13-cloud-amd64 has no vgem module (modprobe: FATAL: Module vgem not found in directory /lib/modules/6.12.113+deb13-cloud-amd64), so /dev/dri and any render node never exist, and the guest image lacks libgbm.so.1, libEGL.so.1 and libGLESv2.so.2 that gpu dlopens; no GBM buffer object exists to hand off by dmabuf descriptor.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-gpu-dmabuf-frame-handoff",
+                  "status": "PASS",
+                  "run": "w7-gpuimg-c-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "dmabuf/native failure falls back to shm or inline and records the fallback",
-              "coverage": "missing",
-              "gap": "Observable WITHOUT a device: in the VM, 'gpu start --transport dmabuf' with no render node should take bg_fallback (gpu.c:425-431). Needs the Kitty peer from gpu/kitty-presentation-transports.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-gpu-dmabuf-falls-back-inline",
+                  "status": "PASS",
+                  "run": "w7-gp2-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r5",
               "behavior": "shader errors (missing file, compile failure) report and leave the session usable",
-              "coverage": "missing",
-              "gap": "The missing-file path is observable without a device. Compile failure needs the native context.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-gpu-native-compile-failure",
+                  "status": "PASS",
+                  "run": "w7-gpuimg-c-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-gpu-shader-errors-headless",
+                  "status": "PASS",
+                  "run": "w7-gp3-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             }
           ]
         },
@@ -102572,6 +103342,12 @@
                   "id": "mig-w7-killall5-esrch-injected",
                   "status": "PASS",
                   "run": "w7-r2a-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-killall5-esrch-injected",
+                  "status": "PASS",
+                  "run": "w7-r2a-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -104886,6 +105662,18 @@
                   "id": "mig-w7-lsattr-mocked-flag-words",
                   "status": "FAIL",
                   "run": "w7-lm1-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-lsattr-user-bits-ext4-root",
+                  "status": "FAIL",
+                  "run": "w7-rv3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-lsattr-mocked-flag-words",
+                  "status": "FAIL",
+                  "run": "w7-lm1-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -105086,6 +105874,12 @@
                   "id": "mig-w7-lsblk-mounted-fstype-root",
                   "status": "FAIL",
                   "run": "w7-rv2-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-lsblk-mounted-fstype-root",
+                  "status": "FAIL",
+                  "run": "w7-rv2-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -105195,6 +105989,12 @@
               "coverage": "covered",
               "gap": "",
               "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-lsof-unreadable-process-skipped",
+                  "status": "PASS",
+                  "run": "w7-nr2-dynamic"
+                },
                 {
                   "group": "shell",
                   "id": "mig-w7-lsof-unreadable-process-skipped",
@@ -105922,7 +106722,7 @@
                   "group": "shell",
                   "id": "mig-w7-mkfs-block-device-size-root",
                   "status": "PASS",
-                  "run": "w7-ru3-dynamic"
+                  "run": "w7-fdisk-settle-c-dynamic"
                 }
               ],
               "fully_exercised": true,
@@ -105961,6 +106761,18 @@
                   "id": "migration-mkfs-write-sync-errors-injected",
                   "status": "PASS",
                   "run": "images-dynamic-42"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-mkfs-fsync-error-injected",
+                  "status": "PASS",
+                  "run": "w7-inj1-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-mkfs-close-error-injected",
+                  "status": "PASS",
+                  "run": "w7-inj1-dynamic"
                 },
                 {
                   "group": "shell",
@@ -109894,10 +110706,10 @@
         },
         {
           "topic": "ns/ns-lsm-transition",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "PASS",
           "requirements": [
             {
               "id": "r1",
@@ -109972,11 +110784,24 @@
             {
               "id": "r5",
               "behavior": "SELinux transition",
-              "coverage": "missing",
-              "gap": "SELinux transition needs a kernel booted with SELinux and a loaded policy; the guest kernel has AppArmor as its only major LSM and no selinuxfs.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w5-ns-lsm-selinux-transition-user",
+                  "status": "PASS",
+                  "run": "w5-r2-se-user-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w5-ns-lsm-selinux-transition-root",
+                  "status": "PASS",
+                  "run": "w5-r2-se-root-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r6",
@@ -119367,10 +120192,10 @@
         },
         {
           "topic": "screen/remote-attach-mock",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
@@ -119505,18 +120330,24 @@
             {
               "id": "r5",
               "behavior": "A live remote attach over the transport exchanges frames with the peer.",
-              "coverage": "partial",
-              "gap": "A live remote attach exchanging BSCR frames over a mocked transport is not authored: the libssh client needs an SSH server peer, and the original scenario forbids network activity.",
+              "coverage": "covered",
+              "gap": "",
               "evidence": [
                 {
                   "group": "shell",
                   "id": "migration-terra-local-pty-b04r3-remote-ssh-frames",
                   "status": "FAIL",
                   "run": "saved198-candidate-qual-local-pty-repair02-bundle-r3-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-g1-screen-remote-attach-live-mock",
+                  "status": "FAIL",
+                  "run": "g1-sc8-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -130715,7 +131546,7 @@
               "id": "r5",
               "behavior": "Live sysctl semantics: writes to the real /proc/sys/kernel/sched_util_clamp_min/max change system clamps, and kernel validation rejects min>max or values over 1024 with EINVAL, compared with util-linux `uclampset --system`.",
               "coverage": "partial",
-              "gap": "The guest kernel is built without CONFIG_UCLAMP_TASK, so /proc/sys/kernel/sched_util_clamp_min and sched_util_clamp_max do not exist",
+              "gap": "Debian 13's cloud and generic amd64 kernels (6.12.113+deb13), the only kernels the guest images can boot, are both built without CONFIG_UCLAMP_TASK, so /proc/sys/kernel/sched_util_clamp_min and sched_util_clamp_max do not exist",
               "evidence": [
                 {
                   "group": "shell",
@@ -132662,19 +133493,26 @@
         },
         {
           "topic": "w/live-procps-parity",
-          "migration": null,
-          "coverage": "partial",
-          "fully_exercised": false,
-          "result": "UNRESOLVED",
+          "migration": "replacement",
+          "coverage": "full",
+          "fully_exercised": true,
+          "result": "FAIL",
           "requirements": [
             {
               "id": "r1",
               "behavior": "Live process accounting (JCPU/PCPU/WHAT) for real sessions.",
-              "coverage": "missing",
-              "gap": "procps w prints no session rows for the synthetic utmp in the guest (its header counts the four sessions), so no reference rows exist to compare with the candidate rows (mig-w7-w-live-rows).",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-w-live-rows-model",
+                  "status": "PASS",
+                  "run": "w7-nr4-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r2",
@@ -132685,30 +133523,50 @@
                 {
                   "group": "shell",
                   "id": "mig-w7-w-live-header",
-                  "status": "STALE",
-                  "run": "w7-nr1-dynamic"
+                  "status": "FAIL",
+                  "run": "w7-nr5-dynamic"
                 }
               ],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "fully_exercised": true,
+              "result": "FAIL"
             },
             {
               "id": "r3",
               "behavior": "Clock-based tty idle formatting.",
-              "coverage": "missing",
-              "gap": "procps w prints no session rows for the synthetic utmp in the guest, so idle formatting has no reference output to compare with.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-w-live-rows-model",
+                  "status": "PASS",
+                  "run": "w7-nr4-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "PASS"
             },
             {
               "id": "r4",
               "behavior": "Agreement with procps w on the same live state.",
-              "coverage": "missing",
-              "gap": "procps w prints no session rows for the synthetic utmp in the guest, so agreement on live state cannot be compared.",
-              "evidence": [],
-              "fully_exercised": false,
-              "result": "UNRESOLVED"
+              "coverage": "covered",
+              "gap": "",
+              "evidence": [
+                {
+                  "group": "shell",
+                  "id": "mig-w7-w-live-header",
+                  "status": "FAIL",
+                  "run": "w7-nr5-dynamic"
+                },
+                {
+                  "group": "shell",
+                  "id": "mig-w7-w-live-rows-model",
+                  "status": "PASS",
+                  "run": "w7-nr4-dynamic"
+                }
+              ],
+              "fully_exercised": true,
+              "result": "FAIL"
             }
           ]
         },
@@ -134432,9 +135290,9 @@
         }
       ],
       "results": {
-        "FAIL": 274,
-        "UNRESOLVED": 27,
-        "PASS": 299
+        "FAIL": 277,
+        "UNRESOLVED": 22,
+        "PASS": 301
       },
       "migration_without_complete_evidence": []
     }
