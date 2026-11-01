@@ -60,6 +60,13 @@ class Dev:
 
     def up(self):
         sh(*DM, 'create', 'flk', '--noudevsync', '--noudevrules', '--table', self.table(False))
+        info = sh(*DM, 'info', '-c', '--noheadings', '-o', 'major,minor', 'flk').stdout.split()[0].split(':')
+        os.makedirs('/dev/mapper', exist_ok=True)
+        try:
+            os.unlink('/dev/mapper/flk')
+        except FileNotFoundError:
+            pass
+        os.mknod('/dev/mapper/flk', 0o60600, os.makedev(int(info[0]), int(info[1])))
         sh('/usr/bin/mount', '-t', 'ext4', '/dev/mapper/flk', MNT)
 
     def cut(self):
