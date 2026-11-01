@@ -151,9 +151,50 @@
     },
     {
       "id": "deferred_sets_persistence_roundtrip",
+      "kind": "migrated",
       "purpose": "Set-backed rules and persistence require live nft/ipset backend state and a safe, independently verifiable restore target.",
-      "kind": "deferred",
-      "reason": "r2, r4 and r5 observe set state only in an ipset stand-in because the image has no ipset or nft CLI; a kernel-set round trip needs those packages"
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/fw/persistence_dry_run_argv"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/fw/restore_missing_explicit_file"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-fw-restore"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-fw-save"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-fw-sets-dryrun"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-fw-sets-live"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-fwext-ipset-roundtrip"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-fwext-ipset-sets"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-fwext-nft-roundtrip"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-fwext-nft-sets"
+        }
+      ]
     },
     {
       "id": "pure-private-store-flush",

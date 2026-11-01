@@ -70,9 +70,54 @@
     },
     {
       "id": "deferred_proc_fallback",
+      "kind": "migrated",
       "purpose": "Future operation comparison should force sock_diag unavailable and verify deterministic TCP/UDP/Unix proc-table fallback, empty snapshots, queue limitations, and no partial netlink rows after fallback.",
-      "kind": "deferred",
-      "reason": "r2 needs synthetic proc-table input via a syscall mock; r1 and the existing r3/r4 are covered"
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-procmock-empty"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-procmock-listening"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-procmock-one-table"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-procmock-populated"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-procmock-unix-states"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-procmock-vs-iproute2"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-fallback"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ss-netlink-error-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ss-netlink-interrupt-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ss-netlink-malformed-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ss-proc-fallback-r2"
+        }
+      ]
     },
     {
       "id": "deferred_process_annotation",

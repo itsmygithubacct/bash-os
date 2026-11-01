@@ -135,9 +135,18 @@
     },
     {
       "id": "secret-handle-delivery",
+      "kind": "migrated",
       "purpose": "Defer send-secret validation, including delivery through the crypto secret-handle interface without exposing the secret in shell variables or logs.",
-      "kind": "deferred",
-      "reason": "Remaining obligations: r3: Unobservable on the parity candidate: build.sh links every loadable of config/bash-loadables.list statically into one binary, so expect's weak bashcrypto_secret_write_fd always resolves to crypto.c. The diagnostic path exists only in a build without crypto (config/profiles.json 'desktop' includes expect, and neither it nor 'core' includes crypto). Root request filed with the exact case."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w5-expect-send-secret-no-crypto-diagnostic"
+        },
+        {
+          "group": "shell",
+          "id": "migration-expect-send-secret"
+        }
+      ]
     },
     {
       "id": "send-private-descriptor",

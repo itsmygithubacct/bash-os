@@ -100,9 +100,22 @@
     },
     {
       "id": "deferred-show-device-state",
+      "kind": "migrated",
       "purpose": "Validate decoding and formatting of real device and peer state returned by the kernel for wg show IFACE.",
-      "kind": "deferred",
-      "reason": "r3 needs a live handshake and transfer counters; the candidate currently cannot reach device state at all"
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-wg-show"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-wghs-counters"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-wghs-handshake"
+        }
+      ]
     },
     {
       "id": "deferred-setconf-kernel-apply",

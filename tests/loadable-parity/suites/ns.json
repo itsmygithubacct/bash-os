@@ -26,9 +26,38 @@
     },
     {
       "id": "ns-unshare-namespaces",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare ns unshare for its supported namespace flags and the special for-children behavior of pid/time namespaces.",
-      "reason": "R5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-unshare-einval-multithreaded"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ns-list-proc-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ns-unshare-errors-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ns-unshare-owned-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-unshare-user-inode-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ns-unshare-future-pid-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ns-unshare-future-time-r1"
+        }
+      ]
     },
     {
       "id": "ns-spawn-child-exec",
@@ -200,7 +229,7 @@
       "id": "ns-lsm-transition",
       "purpose": "Check LSM detection and on-exec profile requests for AppArmor and SELinux, including unavailable and invalid-profile paths.",
       "kind": "deferred",
-      "reason": "Remaining: r5 SELinux unavailable in the guest (AppArmor-only kernel, no SELinux policy in the image)."
+      "reason": "Remaining r5 is a listed limit (kernel-feature-absent)."
     },
     {
       "id": "ns-cgroup-v2-helpers",

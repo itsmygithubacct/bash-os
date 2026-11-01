@@ -43,9 +43,9 @@
     },
     {
       "id": "authority_policy_and_verification",
-      "kind": "deferred",
       "purpose": "Exercise non-root allow, deny, non-interactive deny, and interactive verification behavior at the authority boundary.",
-      "reason": "Remaining obligations: r4: A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic."
+      "kind": "deferred",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (v2 allow, policy deny, non-interactive denial and verifier outcomes are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
     },
     {
       "id": "external_delegate_fallback",

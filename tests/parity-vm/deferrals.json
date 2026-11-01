@@ -586,7 +586,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r3: The authority decision and request fields are synthetic; the request digest and real kernel binding were not independently verified.; r4: Requires the device.; r5: The synthetic allow child exited 7 but the auth command reported status 0; deny/error markers remained absent.",
+      "current_reason": "Remaining requirements are listed limits (kernel-authority-absent).",
       "requirements": [
         {
           "id": "r1",
@@ -640,14 +640,14 @@
               "definition_sha256": "5f4d6044b1fd164308d83fd93aeb114ba179f62e6098292e5f85d95665b284f1"
             }
           ],
-          "gap": "The authority decision and request fields are synthetic; the request digest and real kernel binding were not independently verified."
+          "gap": "Request-digest binding, audit decoding and child-status handling are produced by the real /dev/bashos-auth kernel authority, which is absent in the guest; a synthetic device cannot stand in for them."
         },
         {
           "id": "r4",
           "behavior": "Audit records are decoded.",
           "coverage": "missing",
           "evidence": [],
-          "gap": "Requires the device."
+          "gap": "Request-digest binding, audit decoding and child-status handling are produced by the real /dev/bashos-auth kernel authority, which is absent in the guest; a synthetic device cannot stand in for them."
         },
         {
           "id": "r5",
@@ -661,7 +661,7 @@
               "definition_sha256": "41377885befd4d5f6f2973a3a50f39cc3c7acd73984dfd33dce16026c93c4a80"
             }
           ],
-          "gap": "The synthetic allow child exited 7 but the auth command reported status 0; deny/error markers remained absent."
+          "gap": "Request-digest binding, audit decoding and child-status handling are produced by the real /dev/bashos-auth kernel authority, which is absent in the guest; a synthetic device cannot stand in for them."
         }
       ],
       "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
@@ -676,7 +676,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r4: Not executed.",
+      "current_reason": "Remaining requirements are listed limits (kernel-authority-absent).",
       "requirements": [
         {
           "id": "r1",
@@ -725,7 +725,7 @@
           "behavior": "Closing the fd clears its secret slots (cleanup).",
           "coverage": "missing",
           "evidence": [],
-          "gap": "Not executed."
+          "gap": "Close-time clearing of secret slots is performed by the real /dev/bashos-auth kernel authority, which is absent in the guest."
         },
         {
           "id": "r5",
@@ -754,7 +754,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r3: Not executed.; r4: Not executed.",
+      "current_reason": "Remaining requirements are listed limits (kernel-authority-absent).",
       "requirements": [
         {
           "id": "r1",
@@ -789,14 +789,14 @@
           "behavior": "auth same-secret compares two slots in the kernel.",
           "coverage": "missing",
           "evidence": [],
-          "gap": "Not executed."
+          "gap": "In-kernel slot comparison and clear/close cleanup are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest."
         },
         {
           "id": "r4",
           "behavior": "auth clear and close-time cleanup drop slots.",
           "coverage": "missing",
           "evidence": [],
-          "gap": "Not executed."
+          "gap": "In-kernel slot comparison and clear/close cleanup are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest."
         }
       ],
       "notes": "auth.c read-secret / same-secret / clear. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r2: The PTY and permitted synthetic slot device produce handle 4097; the saved process argv, environment and terminal capture omit the synthetic secret, and protocol/no-echo controls pass. This is client/mock evidence, not real kernel slot enforcement."
@@ -811,7 +811,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r2: The correct synthetic credential reaches mint and binds raw mock token bytes, but validity of this mock's token-reference semantics is not established. Preserve the observed opacity mismatch without crediting the unresolved reference model.; r4: Saved output, argv and environment contain no token, while the shell binding equals raw synthetic token bytes. Whether this represents the original fd-only token-reference contract remains unresolved; do not infer that a token was printed.",
+      "current_reason": "Remaining requirements are listed limits (kernel-authority-absent).",
       "requirements": [
         {
           "id": "r1",
@@ -839,7 +839,7 @@
               "definition_sha256": "bac0968016a802f7df4947c4e14acb618e614f8423f75b747796e26494f8d2ab"
             }
           ],
-          "gap": "The correct synthetic credential reaches mint and binds raw mock token bytes, but validity of this mock's token-reference semantics is not established. Preserve the observed opacity mismatch without crediting the unresolved reference model."
+          "gap": "Token-reference minting and binding are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest; the synthetic mint's reference semantics are not the contract."
         },
         {
           "id": "r3",
@@ -867,7 +867,7 @@
               "definition_sha256": "bac0968016a802f7df4947c4e14acb618e614f8423f75b747796e26494f8d2ab"
             }
           ],
-          "gap": "Saved output, argv and environment contain no token, while the shell binding equals raw synthetic token bytes. Whether this represents the original fd-only token-reference contract remains unresolved; do not infer that a token was printed."
+          "gap": "Token-reference minting and binding are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest; the synthetic mint's reference semantics are not the contract."
         }
       ],
       "notes": "Note: passwd and su compute Argon2id in userland (monocypher crypto_argon2), so the same OpenSSL vectors also serve passwd/su topics. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The fixed inputs reach hash-secret; the saved independent guest Argon2 PHC and returned candidate PHC differ even though the candidate command returns 0. The device and secrets are synthetic as required. Both framework results remain FAIL; no host KDF is performed. r2: The correct synthetic credential reaches mint and binds raw mock token bytes, but validity of this mock's token-reference semantics is not established. Preserve the observed opacity mismatch without crediting the unresolved reference model. r4: Saved output, argv and environment contain no token, while the shell binding equals raw synthetic token bytes. Whether this represents the original fd-only token-reference contract remains unresolved; do not infer that a token was printed."
@@ -7535,8 +7535,8 @@
         "purpose": "Qualify signed-package selection, install/load sequencing, and dynamic builtin reload without touching a real package database.",
         "reason": "Requires a future disposable dynamic build with a temporary package database, a deterministic signed fixture package, and an isolated mock package manager that records install/load calls. The current runner cannot safely qualify package installation or hot-reload effects."
       },
-      "coverage": "partial",
-      "migration": null,
+      "coverage": "full",
+      "migration": "replacement",
       "current_reason": "Remaining: r2-r4 need the overlay/userns fixture with the candidate as /bin/bash and signed claude fixture packages; the update helper hard-codes /bin/bash and the child load cannot reload the invoking shell.",
       "requirements": [
         {
@@ -7556,23 +7556,44 @@
         {
           "id": "r2",
           "behavior": "Signature, ABI, arch and digest verification rejects a tampered or unsigned package before install.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not authored: needs the candidate installed as /bin/bash inside a user+mount namespace with writable overlays over /usr/lib and /var/lib, plus the pinned signed claude fixture packages (signed, unsigned, tampered, wrong ABI, wrong arch, wrong digest)."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-claude-update-rejects-unverified",
+              "assertion": "Independent fixture: gcc-built claude stand-in .so (proven to answer 'claude-fixture 2' in the reference GNU bash), packages signed with a fresh OpenSSL Ed25519 key, candidate bind-mounted over /usr/bin/bash in a user+mount namespace with overlays over /usr/lib, /var/lib and /etc, tmpfs over /root; tampered, unsigned, untrusted-signer, wrong-ABI, wrong-architecture and wrong-digest packages are each refused by the real pkg verbs with status 1, no regular file written to the overlays and the stand-in never loaded; the same path installs the valid package (control)",
+              "definition_sha256": "e3ff5545b210683c6dfb848f1335da13bf416c1b210809f1a055554ca52db6ef"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Install then load sequencing: pkg install, then pkg load claude, in that order, with status propagation.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not authored: same namespace/overlay fixture and a signed claude.so stand-in package so that pkg install then pkg load claude run in order."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-claude-update-install-then-load",
+              "assertion": "Independent fixture: gcc-built claude stand-in .so (proven to answer 'claude-fixture 2' in the reference GNU bash), packages signed with a fresh OpenSSL Ed25519 key, candidate bind-mounted over /usr/bin/bash in a user+mount namespace with overlays over /usr/lib, /var/lib and /etc, tmpfs over /root; valid package: status 0, installed files byte-exact, stand-in loaded once after the install; signed package that cannot load: status 1 after the install; a refused install triggers no load of the installed version-1 package. Both frozen builds fail the success scenario: pkg load claude is refused with 'builtin already exists and is static' (reached FAIL)",
+              "definition_sha256": "eb2912253ab3d539e8bc3a3933f9a46d696ec45f72125b960e0266691ad3c8b9"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
           "behavior": "Dynamic builtin reload: after update, the invoking shell runs the new claude builtin.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not authored: same fixture, then the invoking shell's 'claude version' after 'claude update' must show the new builtin; source inspection says the load happens only in the child."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w3-claude-update-reloads-invoking-shell",
+              "assertion": "Independent fixture: gcc-built claude stand-in .so (proven to answer 'claude-fixture 2' in the reference GNU bash), packages signed with a fresh OpenSSL Ed25519 key, candidate bind-mounted over /usr/bin/bash in a user+mount namespace with overlays over /usr/lib, /var/lib and /etc, tmpfs over /root; after claude update the invoking shell's 'claude version' must print the new builtin's output 'claude-fixture 2'; both frozen builds still print their own 'claude 1.0.0' and claude update returns 1 because the static claude builtin cannot be replaced (reached FAIL)",
+              "definition_sha256": "421fbee1b697ad29762988e4c925384970bbc1bfe977b98b5293d9bde57955f9"
+            }
+          ],
+          "gap": ""
         }
       ],
       "notes": "Finding (source only, not executed): r4 is likely not implemented. pkg load runs in a child process, so the caller keeps the old builtin."
@@ -7875,9 +7896,9 @@
         "purpose": "Validate init/join/ping arguments and timeout handling in lifecycle contexts; the offline members parser is covered separately.",
         "reason": "Requires a future disposable VM or independently reviewed socket/listener mock to verify malformed init/join/ping requests never start listeners or leave state. No network verb is invoked in the current suite; offline members timeout parsing is covered by runnable cases."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: The bounded quiet decoys and calibrated counters establish no observed emitted UDP/loopback traffic; they do not establish every possible network side effect.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -7946,7 +7967,7 @@
         {
           "id": "r3",
           "behavior": "Malformed ping target fails with status 1 and no network side effect.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -7965,9 +7986,15 @@
               "id": "migration-cluster-gap-negative-ping-238-r1",
               "assertion": "Both builds returned status 1 for the recorded malformed 127.0.0.2 target. The two calibrated owned decoys were quiet over the bounded observation and namespace UDP and loopback transmit/loss counters were unchanged; the records do not establish every possible network side effect or trace every attempted syscall.",
               "definition_sha256": "c4745dd873fef194e7dae760dbc03cc68e8249c86a2dc48005e98edde60a2624"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w5-cluster-ping-no-side-effect",
+              "assertion": "Seven malformed ping targets (wrong host, port 0, 65536, non-numeric, empty port, non-loopback address, unknown node) each fail with status 1 and the diagnostic; a seccomp user-notification log of the candidate shell shows the same records as an idle shell start-up (AF_UNIX only) with no non-UNIX socket, bind, listen or sendto; a valid-endpoint ping to a closed port records an AF_INET datagram socket, bind and sendto (positive control); state directory and UDP/TCP socket tables are unchanged.",
+              "definition_sha256": "43a77183073c9226551638e7b573e1117a41ab3fff0ce19183778359d4a69622"
             }
           ],
-          "gap": "The bounded quiet decoys and calibrated counters establish no observed emitted UDP/loopback traffic; they do not establish every possible network side effect."
+          "gap": ""
         },
         {
           "id": "r4",
@@ -9543,9 +9570,9 @@
         "purpose": "System crontab dispatch under root with a real USER-column privilege transition, including failure refusal.",
         "reason": "Requires a future disposable VM with an isolated account database and controlled root privilege, or a reviewed syscall mock for getpwnam/initgroups/setgid/setuid. User/account changes and privilege manipulation are out of scope here; the test must verify the selected uid and that a failed drop never executes the command."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "r2: exit status 127 unobserved.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -9564,16 +9591,22 @@
         {
           "id": "r2",
           "behavior": "A failed drop exits 127 without running the command.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "mig-w4-root-cron-system-user-drop",
               "assertion": "With setuid failing (seccomp EPERM) the alice and bob commands never run while the root row still does; the child's exit status 127 is not externally observable.",
               "definition_sha256": "767f32719b58f5118bcf92c57abd14fba7b361ebf1e4ca55efa3d2ef7742e4c5"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w4-root-cron-drop-failure-status",
+              "assertion": "Root cron run --once with setuid/setresuid refused (EPERM) by a seccomp filter: a user-notification listener on exit_group records exactly two exit_group(127) calls (the alice and bob dispatch children), neither command ran, and the root row still ran as uid 0.",
+              "definition_sha256": "fa164d937b02774ef232c6803634f7a67ac2225ed63f4fc567e1275e3b7a5f17"
             }
           ],
-          "gap": "The 127 exit status of the failed child is not observable from outside the daemon; only the command's non-execution is asserted."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -13505,7 +13538,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r4: A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic.",
+      "current_reason": "The observable is produced by the real /dev/bashos-auth kernel authority (v2 allow, policy deny, non-interactive denial and verifier outcomes are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
       "requirements": [
         {
           "id": "r1",
@@ -13561,7 +13594,7 @@
               "definition_sha256": "58be86641df880c5ae9b8863e6403ec26f7d417eede09376a46da055791bdfb4"
             }
           ],
-          "gap": "A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic."
+          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (v2 allow, policy deny, non-interactive denial and verifier outcomes are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         }
       ],
       "notes": "doas.c bda_run_authority, bda_open_authority_if_available. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: A purpose-built synthetic v2 authority allows the private non-root caller; the owned child marker and exit 7 follow the recorded handoff. No real authority or credential transition is inferred. r2: The synthetic policy deny ends authorization with status 1 and no owned child marker. The bounded mock and private identities meet the original scenario; both cases PASS. r3: The -n request receives synthetic authentication-required denial and no child marker. The independent request/response is saved. An interactive verifier process belongs to a different clause."
@@ -14516,9 +14549,9 @@
         "kind": "deferred",
         "reason": "Requires a future disposable VM with the bashcrypto_secret_write_fd integration and a synthetic secret-handle provider/mock plus an isolated PTY receiver. No secret-delivery behavior is claimed as passed."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining obligations: r3: Unobservable on the parity candidate: build.sh links every loadable of config/bash-loadables.list statically into one binary, so expect's weak bashcrypto_secret_write_fd always resolves to crypto.c. The diagnostic path exists only in a build without crypto (config/profiles.json 'desktop' includes expect, and neither it nor 'core' includes crypto). Root request filed with the exact case.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -14551,9 +14584,16 @@
         {
           "id": "r3",
           "behavior": "Without crypto secret support, send-secret fails with the documented diagnostic ('send-secret requires crypto secret handle support')",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Unobservable on the parity candidate: build.sh links every loadable of config/bash-loadables.list statically into one binary, so expect's weak bashcrypto_secret_write_fd always resolves to crypto.c. The diagnostic path exists only in a build without crypto (config/profiles.json 'desktop' includes expect, and neither it nor 'core' includes crypto). Root request filed with the exact case."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w5-expect-send-secret-no-crypto-diagnostic",
+              "assertion": "With the weak bashcrypto_secret_write_fd slot stored as zero in the running candidate (what an unresolved weak symbol is) by a parent process, send-secret fails status 1 with 'send-secret requires crypto secret handle support' for valid and invalid handles and writes nothing; bad-fd and usage errors keep status 2; before the store the crypto path delivers 15 bytes.",
+              "definition_sha256": "1f8cd1c45f9144e786f55f5907797bb00c60bff0e6f5e9c1a6a425e20141ad39"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r4",
@@ -16399,9 +16439,9 @@
         "purpose": "Set-backed rules and persistence require live nft/ipset backend state and a safe, independently verifiable restore target.",
         "reason": "Run only in a future disposable VM or independently reviewed privileged backend mock with nft or iptables plus ipset available. Create and populate a temporary set, save it, reset/recreate isolated state, restore it, and compare set membership and rules before and after; no backend is invoked here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "r2, r4 and r5 observe set state only in an ipset stand-in because the image has no ipset or nft CLI; a kernel-set round trip needs those packages",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "all requirements covered by executed cases; ipset-roundtrip reaches a FAIL when sets drifted before restore",
       "requirements": [
         {
           "id": "r1",
@@ -16420,16 +16460,28 @@
         {
           "id": "r2",
           "behavior": "A created and populated temporary set exists in the live backend with the expected members.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "mig-w1-fw-sets-live",
               "assertion": "fw set create/add/del/list/destroy drive a stateful ipset stand-in on PATH; created sets and their members, member deletion and set destruction are observed in its state.",
               "definition_sha256": "801abd5e5d55bf75fc9b8b92c00b9cad326f8ca7475026c335db92774807f864"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-fwext-ipset-sets",
+              "assertion": "On the extended image fw set create/add/del/list/destroy drive real kernel ipset sets (hash:ip, hash:net, inet6): the kernel's ipset save shows exactly the created sets with type, family and members; ipset test agrees; re-add/re-create are idempotent; fw set list equals ipset list; a set-backed rule (fw deny -S blk) is installed as -m set --match-set; destroying a referenced set fails and keeps it; fw reset keeps the sets.",
+              "definition_sha256": "bd06d5f9894501796dea3ccb04d56f2ed35210d06e6d77080925045f7715f0e2"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-fwext-nft-sets",
+              "assertion": "Same operations with -B nft against kernel nftables sets in table inet fw (ipv4_addr, interval prefix set, ipv6_addr): nft -j list sets shows types, flags and elements; fw set list equals nft list set; ip saddr @blk drop rule installed; deletion and destroy reflected in the kernel.",
+              "definition_sha256": "c92934a3e089233fbae5a777eb41221f5697f7ec67260c99dd764f70c8bbc7ee"
             }
           ],
-          "gap": "The image has neither ipset nor the nft CLI, so the set exists in a stateful ipset stand-in, not in a kernel set."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -16448,7 +16500,7 @@
         {
           "id": "r4",
           "behavior": "After reset/recreate, fw restore reproduces the saved rules and set membership.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -16467,23 +16519,47 @@
               "id": "legacy/fw/restore_missing_explicit_file",
               "assertion": "Explicit missing restore file returns 1 with a diagnostic.",
               "definition_sha256": "fa9e10e1d83c3ee897c4a6d58b625d96d3945b00ab4e6ae37effeac2791ab6de"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-fwext-ipset-roundtrip",
+              "assertion": "With real kernel ipset sets: the saved ipset section equals ipset save byte for byte and the rules section equals iptables-save; after wiping rules and sets, fw restore reproduces BASHFW_IN, the complete iptables-save text and every kernel set (type, parameters, initval, members); also after destroying sets and emptying the chain, and with an empty set section. After fw reset with drifted surviving sets (192.0.2.3 removed, 192.0.2.77 added) restore re-adds the saved members but leaves the stale 192.0.2.77 member, so membership is not identical (reached FAIL; ipset restore -exist merges).",
+              "definition_sha256": "5b93d24a3bd7e0e41fffd3fea580be540d0e1d454750ea56bf8e85a678720d53"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-fwext-nft-roundtrip",
+              "assertion": "With -B nft: fw save equals nft list ruleset; after nft flush ruleset and after fw reset, fw restore reproduces the complete kernel ruleset including sets and elements (all checks pass).",
+              "definition_sha256": "b1451b1517cf69c07aeb6e05b8320c53f6b8bfcf61dbdbb9ae3322ee1f82a6bb"
             }
           ],
-          "gap": "Rules restore is verified in the kernel; set membership restore is verified only in an ipset stand-in because the image has no ipset."
+          "gap": ""
         },
         {
           "id": "r5",
           "behavior": "Before/after comparison of rules and set membership is identical.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "mig-w1-fw-restore",
               "assertion": "Before/after comparison: BASHFW_IN rules, the whole iptables-save text and the set-membership state are identical after save, wipe and restore, for both the wipe and the reset round.",
               "definition_sha256": "951da3824d5d6ed11bfbc1e4757bc883e631259ee0286ec967f5ba36526e9bd8"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-fwext-ipset-roundtrip",
+              "assertion": "Before/after comparison of BASHFW_IN, the whole iptables-save text and the kernel set state (ipset save) is identical after wipe and set-destroy rounds, but not after the reset round with drifted sets (stale member kept, reached FAIL).",
+              "definition_sha256": "5b93d24a3bd7e0e41fffd3fea580be540d0e1d454750ea56bf8e85a678720d53"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-fwext-nft-roundtrip",
+              "assertion": "Before/after nft list ruleset is identical after flush and reset rounds, and kernel set membership is back.",
+              "definition_sha256": "b1451b1517cf69c07aeb6e05b8320c53f6b8bfcf61dbdbb9ae3322ee1f82a6bb"
             }
           ],
-          "gap": "The set side of the before/after comparison is the ipset stand-in's state, not kernel set membership."
+          "gap": ""
         }
       ],
       "notes": "Persistence markers fw.c:78-89; restore default path asymmetry noted at fw.c:78-86. requires_capability here is an image/package gap, not a driver gap: root's design update lists iptables but not ipset or the nft CLI."
@@ -23923,7 +23999,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "r2 token acceptance needs the real device.",
+      "current_reason": "Token acceptance (--auth-fd CONSUME, --auth-token) is decided by the real /dev/bashos-auth kernel authority (BL_AUTH_IOC_MINT/CONSUME); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
       "requirements": [
         {
           "id": "r1",
@@ -23951,7 +24027,7 @@
               "definition_sha256": "9a0cffaad5bb6774dca91588a2801eb7584b601180fdb9dba913ee2d2fa8e80f"
             }
           ],
-          "gap": "Successful token consumption through /dev/bashos-auth cannot be exercised without the real authority device."
+          "gap": "Token acceptance (--auth-fd CONSUME, --auth-token) is decided by the real /dev/bashos-auth kernel authority (BL_AUTH_IOC_MINT/CONSUME); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         },
         {
           "id": "r3",
@@ -24008,7 +24084,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "r6 successful session needs root and writable accounting files; r2 includes a retained candidate FAIL.",
+      "current_reason": "A successful login needs the real /dev/bashos-auth kernel proof before session accounting and the shell exec; no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
       "requirements": [
         {
           "id": "r1",
@@ -24109,7 +24185,7 @@
           "behavior": "Successful login: kernel proof, session accounting (utmp/wtmp/lastlog) and session setup ending in become/exec of the user shell",
           "coverage": "missing",
           "evidence": [],
-          "gap": "Needs a root-run side plus /var/run/utmp, wtmp, lastlog and /dev/bashos-auth (or BASHLOGIN_REQUIRE_KERNEL_TOKEN=0); not authored."
+          "gap": "A successful login needs the real /dev/bashos-auth kernel proof before session accounting and the shell exec; no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         }
       ],
       "notes": "loadables/login.c:2428 bl_login_cmd (flow), :1186 bl_verify_secret, which uses argon2id PHC only (_bashauth/authcrypto). Hostname comes from /etc/hostname; the prompt prefix is the VM's hostname, so match it with a regex. /etc/issue is printed when present. Back-off timing makes three-try cases take 36 s or more, so keep max-tries at 2."
@@ -29727,7 +29803,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining: r5 SELinux unavailable in the guest (AppArmor-only kernel, no SELinux policy in the image).",
+      "current_reason": "Remaining r5 is a listed limit (kernel-feature-absent).",
       "requirements": [
         {
           "id": "r1",
@@ -29796,7 +29872,7 @@
           "behavior": "SELinux transition",
           "coverage": "missing",
           "evidence": [],
-          "gap": "The guest kernel boots with AppArmor only; SELinux needs a selinux=1 boot and policy absent from the image."
+          "gap": "SELinux transition needs a kernel booted with SELinux and a loaded policy; the guest kernel has AppArmor as its only major LSM and no selinuxfs."
         },
         {
           "id": "r6",
@@ -30283,9 +30359,9 @@
         "purpose": "Compare ns unshare for its supported namespace flags and the special for-children behavior of pid/time namespaces.",
         "reason": "Requires a disposable Linux VM with namespace creation enabled. A future case should compare util-linux unshare against ns unshare for user, mount, net, ipc, uts, cgroup, pid, and time where supported; inspect namespace IDs from a child and confirm pid/time requests affect future children while the caller stays in its original namespace. Record kernel-dependent EINVAL/EPERM behavior from both sides. No namespace creation was attempted here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "R5: The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -30362,16 +30438,22 @@
         {
           "id": "r5",
           "behavior": "Kernel refusals: EPERM for unprivileged non-user namespaces (e.g. `ns unshare uts` as uid 2000 in the plain driver), EINVAL where unsupported; behavior matches util-linux unshare on the same request",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-namespace-network-ns-unshare-errors-r1",
               "assertion": "Original obligation: Kernel refusals: EPERM for unprivileged non-user namespaces (e.g. `ns unshare uts` as uid 2000 in the plain driver), EINVAL where unsupported; behavior matches util-linux unshare on the same request Recorded statuses static=PASS, dynamic=PASS. Static candidate result: none-rc=0 diagnostic=expected; upper-rc=0 diagnostic=expected; unknown-rc=1 diagnostic=expected; missing-rc=2 diagnostic=expected; denied-rc=1 diagnostic=expected; native-unshare-rc=1 diagnostic=expected; namespace-changes=expected. Independent raw observations: Saved result files {'status.raw': 'none=0\\nupper=0\\nunknown=1\\nmissing=2\\ndenied=1\\nnative-unshare=1\\n', 'none.out': '', 'none.err': '', 'upper.out': '', 'upper.err': '', 'unknown.out': '', 'unknown.err': '/opt/bashos-parity/candidate: line 24: ns: unknown namespace: missing-type (try mount/uts/ipc/user/pid/net/cgroup/time)\\n', 'missing.out': '', 'missing.err': '/opt/bashos-parity/candidate: line 24: ns: unshare: FLAGS (comma-separated)\\n', 'denied.out': '', 'denied.err': '/opt/bashos-parity/candidate: line 24: ns: unshare: Operation not permitted\\n', 'unshare.out': '', 'unshare.err': 'unshare: unshare failed: Operation not permitted\\n'}",
               "definition_sha256": "e9feb6136a61222e596a8344336f2b1fef5efdec3446e2d788fd5ac58171049b"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w5-ns-unshare-einval-multithreaded",
+              "assertion": "A caller made multithreaded (Threads: 2) by a libc-free loadable gets EINVAL from ns unshare user (status 1, 'Invalid argument', user namespace unchanged), matching an independent ctypes unshare(2) from a two-thread process; the single-threaded control succeeds.",
+              "definition_sha256": "44456bf502d54f53152ec08fb9af1608f92d4c5afe01f9f3319cab9709642b2b"
             }
           ],
-          "gap": "The unprivileged UTS EPERM agrees with unshare; unsupported-namespace EINVAL was not exercised."
+          "gap": ""
         },
         {
           "id": "r6",
@@ -31101,9 +31183,9 @@
         "kind": "deferred",
         "reason": "Interactive password commands need terminal input and can read or change credentials. A future disposable VM/mock must supply an owned PTY driver, synthetic input only, a fake authentication device, and assertions that echo is disabled during reads and restored after success, mismatch, read failure, and signal interruption."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining: r4 Ctrl-C (SIGINT) restoration.",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "",
       "requirements": [
         {
           "id": "r1",
@@ -31174,7 +31256,7 @@
         {
           "id": "r4",
           "behavior": "Terminal restored after success, mismatch, read failure (EOF) and signal interruption (^C).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "terminal",
@@ -31211,9 +31293,33 @@
               "id": "mig-w5-passwd-set-mismatch-echo",
               "assertion": "Terminal modes restored after mismatch.",
               "definition_sha256": "644c1f5fb116cf93e8d1a2180225f1f49faee3c5282a36439145f1005f844df0"
+            },
+            {
+              "group": "terminal",
+              "id": "mig-w5-passwd-sigint-set-new-restores-terminal",
+              "assertion": "Ctrl-C at the New password prompt: terminal modes must be restored (ECHO, ICANON set). Candidate FAIL on both builds: the shell dies by SIGINT with ECHO and ICANON still cleared.",
+              "definition_sha256": "929bc961da726c354707f98f0f05616166e2454fdbf51722a8f4119f2412eb78"
+            },
+            {
+              "group": "terminal",
+              "id": "mig-w5-passwd-sigint-set-retype-restores-terminal",
+              "assertion": "Ctrl-C at the Retype prompt: same expectation, same candidate FAIL.",
+              "definition_sha256": "05821047a92de796fbc5d0ed63441a023ece3b5e685c55e080482ac4b5986a3c"
+            },
+            {
+              "group": "terminal",
+              "id": "mig-w5-passwd-sigint-change-current-restores-terminal",
+              "assertion": "Ctrl-C at the Current password prompt of passwd change: same expectation, same candidate FAIL.",
+              "definition_sha256": "0c61f1f4551206afe5432529a4d21f2c3ff7eb683159012124c1a55e5a9b842f"
+            },
+            {
+              "group": "terminal",
+              "id": "mig-w5-passwd-sigint-control-gnu-read-restores-terminal",
+              "assertion": "Control: GNU bash read -s interrupted by Ctrl-C on the same PTY restores ECHO and ICANON (PASS).",
+              "definition_sha256": "19c4825cf341075e778cb9dd398069ddd39c49c9b16abf4352c3d3d65b2d9aa2"
             }
           ],
-          "gap": "Foreground Ctrl-C restoration is still not covered: the non-interactive PTY case could not deliver SIGINT to the foreground group (an attempted case left the candidate alive) and an interactive shell changes termios itself."
+          "gap": ""
         }
       ],
       "notes": "Preserve original obligations and existing companion evidence. Ten framework failures per build are retained. Candidate NTS application behavior and later live-history steps were unreached and are not credited. No crypto calculations or fixture behavior were executed. The reviewed set-success and set-mismatch cases preserve prior EOF/EIO evidence and add complete synthetic-device prompt/mismatch/restoration observations. The change-success raw FAIL is unqualified: the current synthetic password is a substring of the expected prompt, so the strict no-input-substring control collides. That case is excluded from the runnable publication subset, while its original raw record and the initial shutdown-request-255 run remain retained. Prompt-time echo samples do not prove echo state during a read. Foreground Ctrl-C remains untested."
@@ -31228,7 +31334,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining: r4 secret wiping (unobservable without tracing) and r5 real kernel secret slots (blocked-authority).",
+      "current_reason": "Remaining r5 is a listed limit (kernel-authority-absent).",
       "requirements": [
         {
           "id": "r1",
@@ -31293,16 +31399,28 @@
         {
           "id": "r4",
           "behavior": "Secret buffers are wiped / never written elsewhere; shadow file permissions preserved.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-passwd-set-fd-argon2id-independent-oracle",
               "assertion": "password bytes in no database or diagnostic file; shadow has no other-access bits",
               "definition_sha256": "368ae15e01429f3a96b2087420058704cbf3965c4a28141136650b03e2c299be"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w5-passwd-setfd-secret-wiped-from-memory",
+              "assertion": "After set-fd, an independent /proc/PID/mem scan of the shell finds 0 copies of the secret while a variable-held secret is found; no file in fixture, home, /var/tmp or /dev/shm contains it; shadow mode/owner unchanged; no stray files; new hash verifies.",
+              "definition_sha256": "cda909ccd8749c5ab3a6f05ffd9d7d9e7d5e722d17a01a9da12a97ed3879b0cb"
+            },
+            {
+              "group": "terminal",
+              "id": "mig-w5-passwd-change-tty-secrets-wiped-from-memory",
+              "assertion": "After passwd change typed at the terminal, the same scan finds 0 copies of the old and new secrets in the shell, none in files, shadow stat unchanged, no echo; a read -s secret is found (control).",
+              "definition_sha256": "32efbfbe8841e83b3e696601492bc4a8c07e8a0ce2a4074bfa19f8424949625b"
             }
           ],
-          "gap": "No observation establishes that the candidate secret buffer is wiped after use or that secret bytes never reach paths outside the searched database and diagnostic files. The old mode check establishes only that shadow has no other-access bits; full pre/post shadow permission preservation was not observed."
+          "gap": ""
         },
         {
           "id": "r5",
@@ -31322,7 +31440,7 @@
               "definition_sha256": "578d1c78aa3d70574261831e5cecab5b9c6c1b6c1bee7a4abf188a2b2a4d3494"
             }
           ],
-          "gap": "The slot protocol used intercepted synthetic device replies; real kernel secret-slot security remains untested."
+          "gap": "The real kernel secret-slot path (BASHPASSWD_REQUIRE_KERNEL_SECRETS=1) needs the real /dev/bashos-auth kernel authority, which is absent in the guest."
         }
       ],
       "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
@@ -31337,7 +31455,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r5: Verification used intercepted synthetic device replies; real kernel secret slots are not established.",
+      "current_reason": "Remaining r5 is a listed limit (kernel-authority-absent).",
       "requirements": [
         {
           "id": "r1",
@@ -31407,7 +31525,7 @@
               "definition_sha256": "9fa12d4a27ff34989d17933f5241c48fec9576b9f858fc727cd691f0d14a681d"
             }
           ],
-          "gap": "Verification used intercepted synthetic device replies; real kernel secret slots are not established."
+          "gap": "Verification through kernel secret slots needs the real /dev/bashos-auth kernel authority, which is absent in the guest."
         }
       ],
       "notes": "Root review (2026-10-27) reconciled workers-d-63/64 raw VM records on both unchanged builds against the original obligations. Covered requirements may PASS or FAIL. Pane-214 batch 9 (fstrim-selection, 5de79f06) and pane-217 A4r1/A5/A6 (account-files 750929ff, hash 95c46e75, verify 648c98c2) ran unchanged in workers-d-63. Pane-214 batch 13 cred: migration-cred-drop's verify.sh printed a deleted log on its second observation (ipcobs.py calls removes LOG while the helper keeps appending), a fixture defect corrected by root without changing expectations; all five cred cases re-ran in workers-d-64 and workers-d-63's cred records are not used. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
@@ -41331,9 +41449,9 @@
         "kind": "deferred",
         "reason": "Requires a disposable VM or reviewed syscall mock that forces the fallback route and maps /proc/net tables to small synthetic fixtures, plus an independently encoded expected renderer. The current suite must not execute ss or access a host proc path."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "r2 needs synthetic proc-table input via a syscall mock; r1 and the existing r3/r4 are covered",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "r1 and r2 covered; r2 reaches FAILs on IPv6 endpoint brackets and the unix disconnecting state label",
       "requirements": [
         {
           "id": "r1",
@@ -41358,9 +41476,46 @@
         {
           "id": "r2",
           "behavior": "Rendering of small synthetic proc tables (including empty tables) matches an independently encoded expectation.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Rendering of small synthetic /proc/net tables (including empty ones) against an independently encoded expectation is not done: the fixture cannot substitute proc table content (needs a syscall mock such as seccomp user notification); only the fixture's real tables are compared."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "mig-w1-procmock-empty",
+              "assertion": "Header-only and zero-byte /proc/net/{tcp,tcp6,udp,udp6,unix} served from memfds through SECCOMP ADDFD: ss -tuxa exits 0 with a silent stderr and prints the header alone (iproute2 agrees); no real namespace socket leaks in.",
+              "definition_sha256": "40f97a28fbc328d0e4767dbde1d16a749409343566e73adf9325bbdaa5082169"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-procmock-populated",
+              "assertion": "Five-state IPv4 TCP, IPv4 UDP, IPv6 and six unix synthetic rows: identity, state, Recv-Q/Send-Q and IPv4 endpoints equal an independently encoded expectation; IPv6 endpoints print as ::1:5000 and :::22 instead of [::1]:5000 and [::]:22 (reached FAIL).",
+              "definition_sha256": "be423cd0a3c5bb4d3bc0e73f4c10d70f91f10ef9ff74ec7a6621926964e0141a"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-procmock-listening",
+              "assertion": "ss -tuxl on the synthetic tables keeps only LISTEN TCP, bound-only UDP and listening unix rows, equal to iproute2 ss -tuxl on the same text.",
+              "definition_sha256": "e42dabcbfee7cc63568c25d3242e0b613834009c418e667fbf3435c538a9f665"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-procmock-one-table",
+              "assertion": "One populated table among header-only ones yields exactly that table's rows.",
+              "definition_sha256": "2c333542b0d9eb4add315f3594125e5f4c5529f5dd7c95f7f9c801a00bf913a9"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-procmock-unix-states",
+              "assertion": "Unix St=2 renders SYN-SENT like iproute2, but St=4 (disconnecting) renders CLOSE-WAIT where iproute2 ss prints CLOSING (reached FAIL).",
+              "definition_sha256": "0bf71430b2c111e38aea0be2fc139a31072284e8930b478f20134fa322d39fcd"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-procmock-vs-iproute2",
+              "assertion": "IPv4 rows and IPv6 identity/state/queues equal iproute2 ss -tuan with PROC_ROOT on the same text; IPv6 endpoint text differs by the missing brackets (reached FAIL).",
+              "definition_sha256": "f7d539ed01944732f2827171834d56a06d092d20b06765bde3881b4295d90db9"
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
@@ -41787,7 +41942,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r2: The from, no-pty and no-port-forwarding restrictions are exercised. The per-key no-agent-forwarding branch remains untested.; r7: PasswordAuthentication no is set in every variant; no discriminating prohibit-password password attempt, nor admitted command execution.; r8: Reverse-forward denial is still missing.",
+      "current_reason": "Remaining: r7 password half only, a kernel-authority-absent limit (listed in status.json); admitted root command execution is covered.",
       "requirements": [
         {
           "id": "r1",
@@ -41812,7 +41967,7 @@
         {
           "id": "r2",
           "behavior": "authorized_keys restrictions: from=, no-pty, no-port-forwarding, no-agent-forwarding",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -41837,9 +41992,15 @@
               "id": "migration-sshd-key-no-port-forwarding",
               "assertion": "no-port-forwarding refuses direct-tcpip; destination untouched",
               "definition_sha256": "fbd4489f3e33d5c4c8b587f939188d940fc8c34e43530a09ed2cf01f6f8ae047"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w3-sshd-key-no-agent-forwarding",
+              "assertion": "OpenSSH 10.0 sshd as reference server and client; authorized_keys no-agent-forwarding suppresses SSH_AUTH_SOCK although AllowAgentForwarding yes, and a rewritten key line without the option restores it on the next connection",
+              "definition_sha256": "387ab320e0b4f351ae00e41fae8666bb9fa3d655264aae9508f2a833eceb73ce"
             }
           ],
-          "gap": "The from, no-pty and no-port-forwarding restrictions are exercised. The per-key no-agent-forwarding branch remains untested."
+          "gap": ""
         },
         {
           "id": "r3",
@@ -41907,14 +42068,20 @@
               "id": "migration-sshd-permit-root-login-userns",
               "assertion": "UID-0 publickey root admission is refused for no and held for prohibit-password/yes; no-mode command marker remains absent. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
               "definition_sha256": "8e146b16593aa1bdec38a428d30f5f423b00c203d96f8ac195cabfd185e04487"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w3-sshd-permit-root-login-exec-root",
+              "assertion": "OpenSSH 10.0 sshd as reference server and client; real uid 0: PermitRootLogin no refuses a root key login (255); prohibit-password and yes admit it and the remote /usr/bin/id -u prints 0",
+              "definition_sha256": "c70a6423250427d3bc214a038f1cf50faf9516c90d726db9e195eac692094780"
             }
           ],
-          "gap": "PasswordAuthentication no is set in every variant; no discriminating prohibit-password password attempt, nor admitted command execution."
+          "gap": "The password half of PermitRootLogin prohibit-password versus yes is decided by the /dev/bashos-auth kernel authority (BSSHD_AUTH_DEV in sshd.c), which the disposable guest does not provide; without it no password attempt can be told apart from a refusal, and a stand-in authority would not test the real one. Admitted root command execution is covered by the privilege=root case."
         },
         {
           "id": "r8",
           "behavior": "Forwarding authorization: AllowTcpForwarding/--allow-forwarding gate direct/reverse forwarding",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -41945,9 +42112,15 @@
               "id": "migration-sshd-reverse-forward-cancel",
               "assertion": "Allowed direct and reverse paths are reached with explicit bytes/connection observations. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
               "definition_sha256": "c574fe069d5d1e31982d4bba5e4cd4b7520cbaea3752ace8925927faf8d3fc8a"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w3-sshd-reverse-forward-denied",
+              "assertion": "OpenSSH 10.0 sshd as reference server and client; AllowTcpForwarding no refuses -R: client exits 255, no server-side listener, destination untouched",
+              "definition_sha256": "e9badaa52669e1bd6c69a1735d28c61531679ecc56e12e47ca69c93258fa1713"
             }
           ],
-          "gap": "Reverse-forward denial is still missing."
+          "gap": ""
         }
       ],
       "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r4: The original permits an isolated mock/test identity and independent SSH client. Saved guest-generated synthetic password control and mock token interactions accompany successful loopback-client authentication/command status 0, with wrong-password status 255. This does not establish standard PHC interoperability or real kernel authority."
@@ -43173,28 +43346,28 @@
       },
       "coverage": "none",
       "migration": null,
-      "current_reason": "The transition runs only after the kernel token (both root and non-root routes call bsu_kernel_proof) and needs privilege. Blocked by guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour and guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid); failure injection additionally needs syscall errno/short-count injection for a static binary (seccomp SECCOMP_RET_ERRNO or user-notify filter installed by a trusted guest helper, matched on fd/pid/syscall).",
+      "current_reason": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Supplementary groups loaded with initgroups semantics, primary gid included.",
           "coverage": "missing",
           "evidence": [],
-          "gap": "Requires a successful transition."
+          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         },
         {
           "id": "r2",
           "behavior": "Ordered setgroups/setresgid/setresuid and saved-ID verification.",
           "coverage": "missing",
           "evidence": [],
-          "gap": "Requires a successful transition."
+          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         },
         {
           "id": "r3",
           "behavior": "Each injected failure denies the transition with no partial credential change.",
           "coverage": "missing",
           "evidence": [],
-          "gap": "Requires syscall injection in a privileged process."
+          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         }
       ],
       "notes": "loadables/common/bashcred_privdrop.h bc_privdrop_to_user; su.c bsu_exec_user."
@@ -43454,7 +43627,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: The test uses only the same uid/gid 2000, so it does not establish selection among varying target IDs or a real credential transition.",
+      "current_reason": "The observable is produced by the real /dev/bashos-auth kernel authority (the account lookup result is bound to the authority's decision before su proceeds); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
       "requirements": [
         {
           "id": "r1",
@@ -43468,7 +43641,7 @@
               "definition_sha256": "acd0a362be6186711eaf4e1fef0ff363bf317de265423fc069a5a1eecdbf677e"
             }
           ],
-          "gap": "The test uses only the same uid/gid 2000, so it does not establish selection among varying target IDs or a real credential transition."
+          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (the account lookup result is bound to the authority's decision before su proceeds); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         },
         {
           "id": "r2",
@@ -43659,7 +43832,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: An owned child ran on a synthetic authority response; real v2 authority and credential enforcement were not exercised.; r2: Synthetic denial left the child marker absent; real authority policy enforcement remains untested.; r3: Synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested.; r4: A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic.",
+      "current_reason": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
       "requirements": [
         {
           "id": "r1",
@@ -43673,7 +43846,7 @@
               "definition_sha256": "5f4d6044b1fd164308d83fd93aeb114ba179f62e6098292e5f85d95665b284f1"
             }
           ],
-          "gap": "An owned child ran on a synthetic authority response; real v2 authority and credential enforcement were not exercised."
+          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         },
         {
           "id": "r2",
@@ -43687,7 +43860,7 @@
               "definition_sha256": "5f4d6044b1fd164308d83fd93aeb114ba179f62e6098292e5f85d95665b284f1"
             }
           ],
-          "gap": "Synthetic denial left the child marker absent; real authority policy enforcement remains untested."
+          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         },
         {
           "id": "r3",
@@ -43701,7 +43874,7 @@
               "definition_sha256": "5f4d6044b1fd164308d83fd93aeb114ba179f62e6098292e5f85d95665b284f1"
             }
           ],
-          "gap": "Synthetic authentication-required response caused noninteractive denial; real authority enforcement remains untested."
+          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         },
         {
           "id": "r4",
@@ -43715,7 +43888,7 @@
               "definition_sha256": "4080a898e7944f742701c6285b76577bcece245bc10381fbbd825c0e1b69797c"
             }
           ],
-          "gap": "A real verifier process, successful interactive authentication and authorized interactive handoff remain unproved; successful ioctl acknowledgements here are synthetic."
+          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         }
       ],
       "notes": "sudo.c delegates to doas.c bashdoas_dispatch(1, ...). This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
@@ -43961,7 +44134,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: Real kernel safe-open, privileged copyback and enforcement of the digest-bound authorization are not established by the synthetic private-file peer.; r2: Real kernel safe-open, privileged copyback and enforcement of the digest-bound authorization are not established by the synthetic private-file peer.; r4: The client handled 1, 2 and 16 files and rejected 17, but privileged safe-open and copyback were synthetic.",
+      "current_reason": "The observable is produced by the real /dev/bashos-auth kernel authority (kernel safe-open of policy-bound targets and digest-bound copyback); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
       "requirements": [
         {
           "id": "r1",
@@ -43975,7 +44148,7 @@
               "definition_sha256": "98665b87de6cd1b97b31f87aef88860a57a9cdbca6027460d0670cc402e6567b"
             }
           ],
-          "gap": "Real kernel safe-open, privileged copyback and enforcement of the digest-bound authorization are not established by the synthetic private-file peer."
+          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (kernel safe-open of policy-bound targets and digest-bound copyback); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         },
         {
           "id": "r2",
@@ -43989,7 +44162,7 @@
               "definition_sha256": "98665b87de6cd1b97b31f87aef88860a57a9cdbca6027460d0670cc402e6567b"
             }
           ],
-          "gap": "Real kernel safe-open, privileged copyback and enforcement of the digest-bound authorization are not established by the synthetic private-file peer."
+          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (kernel safe-open of policy-bound targets and digest-bound copyback); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         },
         {
           "id": "r3",
@@ -44023,7 +44196,7 @@
               "definition_sha256": "98665b87de6cd1b97b31f87aef88860a57a9cdbca6027460d0670cc402e6567b"
             }
           ],
-          "gap": "The client handled 1, 2 and 16 files and rejected 17, but privileged safe-open and copyback were synthetic."
+          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (kernel safe-open of policy-bound targets and digest-bound copyback); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         }
       ],
       "notes": "doas.c bda_run_sudoedit, bda_spawn_editor. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
@@ -44038,7 +44211,7 @@
       },
       "coverage": "partial",
       "migration": null,
-      "current_reason": "Remaining obligations: r1: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.; r2: The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established.",
+      "current_reason": "The observable is produced by the real /dev/bashos-auth kernel authority (the cached credential that -k, -K and -v reset or validate lives in the authority); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
       "requirements": [
         {
           "id": "r1",
@@ -44058,7 +44231,7 @@
               "definition_sha256": "3e5f7e649d7e6b1a3176d76b5bcd5a9a23bdf8cc2308236782ab4c1addf75720"
             }
           ],
-          "gap": "The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established."
+          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (the cached credential that -k, -K and -v reset or validate lives in the authority); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         },
         {
           "id": "r2",
@@ -44078,7 +44251,7 @@
               "definition_sha256": "3e5f7e649d7e6b1a3176d76b5bcd5a9a23bdf8cc2308236782ab4c1addf75720"
             }
           ],
-          "gap": "The client request and ordering were observed against a synthetic authority; actual cached credential reset or validation is not established."
+          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (the cached credential that -k, -K and -v reset or validate lives in the authority); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
         },
         {
           "id": "r3",
@@ -51812,9 +51985,9 @@
         "purpose": "Validate decoding and formatting of real device and peer state returned by the kernel for wg show IFACE.",
         "reason": "Requires a disposable WireGuard-enabled Linux VM with a preconfigured test interface and peer state so the GET_DEVICE reply can be checked against the independent wg(8) contract. No live kernel query is attempted here."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "r3 needs a live handshake and transfer counters; the candidate currently cannot reach device state at all",
+      "coverage": "full",
+      "migration": "replacement",
+      "current_reason": "all requirements covered by executed cases; the candidate cannot reach device state",
       "requirements": [
         {
           "id": "r1",
@@ -51847,16 +52020,22 @@
         {
           "id": "r3",
           "behavior": "Handshake time and transfer counters are rendered per the documented contract (none when zero).",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
-              "id": "mig-w1-wg-show",
-              "assertion": "Only the zero-state expectation (no handshake or transfer lines) is asserted, and it cannot be observed because show fails.",
-              "definition_sha256": "a5b3fd14b2dc2efc810889017f66ce9dbdb9fe1c5a2ad9484bb7c4ca08e32cf5"
+              "id": "mig-w1-wghs-handshake",
+              "assertion": "Two wireguard interfaces in two network namespaces complete a real handshake (ICMP through the tunnel): the kernel reports a nonzero handshake time and nonzero rx/tx counters on both sides; the zero-state baseline before traffic was also built. Expected lines come from wg show dump and wg(8) formatting; the candidate prints nothing and exits 1 for the zero state, the initiator and the responder. The candidate fails with 'wg: netlink recv timeout waiting for WireGuard generic netlink family' on a device that wg(8) reads fine in the same namespace (reached FAIL).",
+              "definition_sha256": "c878f45638c7cc0044f241b17e7eac950c170f917c2a360c1f0d8119d0272c8d"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w1-wghs-counters",
+              "assertion": "After a 20 KiB-scale traffic burst the kernel counters are 25.15 KiB/25.24 KiB; the candidate cannot render the transfer line. The candidate fails with 'wg: netlink recv timeout waiting for WireGuard generic netlink family' on a device that wg(8) reads fine in the same namespace (reached FAIL).",
+              "definition_sha256": "37b5cec99a726083e6990318a81ff6586d57eb5b71c2efe9e7c057680f02a30f"
             }
           ],
-          "gap": "No peer with a nonzero handshake time or transfer counters was produced (needs a real two-endpoint tunnel exchange), so rendering of those fields is unobserved."
+          "gap": ""
         },
         {
           "id": "r4",

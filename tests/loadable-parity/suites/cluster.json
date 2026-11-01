@@ -186,9 +186,38 @@
     },
     {
       "id": "argument-and-timeout-validation",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate init/join/ping arguments and timeout handling in lifecycle contexts; the offline members parser is covered separately.",
-      "reason": "Remaining obligations: r3: The bounded quiet decoys and calibrated counters establish no observed emitted UDP/loopback traffic; they do not establish every possible network side effect."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/cluster/offline-members-invalid-timeout"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-cluster-ping-no-side-effect"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-argument-validation"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-argument-validation-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-gap-negative-ping-238-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-key-syntax"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cluster-key-syntax-r2"
+        }
+      ]
     },
     {
       "id": "offline-members-stream",

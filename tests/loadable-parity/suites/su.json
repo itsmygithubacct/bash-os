@@ -44,9 +44,9 @@
     },
     {
       "id": "private-account-lookup",
-      "kind": "deferred",
       "purpose": "Check account lookup for present, absent, malformed, and unreadable synthetic passwd records, including target UID/GID/home/shell selection.",
-      "reason": "Remaining obligations: r1: The test uses only the same uid/gid 2000, so it does not establish selection among varying target IDs or a real credential transition."
+      "kind": "deferred",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (the account lookup result is bound to the authority's decision before su proceeds); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
     },
     {
       "id": "password-and-lockout-flow",
@@ -92,9 +92,9 @@
     },
     {
       "id": "credential-transition",
-      "kind": "deferred",
       "purpose": "Check supplementary groups and ordered setgroups/setresgid/setresuid transitions, saved-ID verification, and denial on each injected failure.",
-      "reason": "The transition runs only after the kernel token (both root and non-root routes call bsu_kernel_proof) and needs privilege. Blocked by guest /dev/bashos-auth v2 UAPI implementation (kernel module or a root-owned CUSE character-device mock implementing loadables/common/_bashos_auth_uapi.h: VERSION, PRIVCMD_AUTHZ, EXEC_VERIFY, EXEC_HANDOFF, token mint/consume, secret slots, policy info). The Debian guest kernel has no such device and the repository holds only the UAPI header, so open() fails with ENOENT and no unprivileged fixture can observe any ioctl behaviour and guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid); failure injection additionally needs syscall errno/short-count injection for a static binary (seccomp SECCOMP_RET_ERRNO or user-notify filter installed by a trusted guest helper, matched on fd/pid/syscall)."
+      "kind": "deferred",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
     },
     {
       "id": "target-shell-environment-and-fds",

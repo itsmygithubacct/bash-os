@@ -77,19 +77,60 @@
       "id": "password_hash_updates",
       "purpose": "Future coverage for set, set-fd, change, add, and add-fd password hashing and shadow updates.",
       "kind": "deferred",
-      "reason": "Remaining: r4 secret wiping (unobservable without tracing) and r5 real kernel secret slots (blocked-authority)."
+      "reason": "Remaining r5 is a listed limit (kernel-authority-absent)."
     },
     {
       "id": "password_verification_lockout",
       "purpose": "Future coverage for correct/wrong password results, locked/malformed shadow rows, and failure lockout state.",
       "kind": "deferred",
-      "reason": "Remaining obligations: r5: Verification used intercepted synthetic device replies; real kernel secret slots are not established."
+      "reason": "Remaining r5 is a listed limit (kernel-authority-absent)."
     },
     {
       "id": "interactive_password_prompts",
+      "kind": "migrated",
       "purpose": "Future coverage for prompt ordering, new-password confirmation, echo suppression, and terminal restoration.",
-      "kind": "deferred",
-      "reason": "Remaining: r4 Ctrl-C (SIGINT) restoration."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-farm600-passwd-prompts-reviewed-set-mismatch"
+        },
+        {
+          "group": "shell",
+          "id": "migration-farm600-passwd-prompts-reviewed-set-success"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w5-passwd-change-flow"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w5-passwd-set-mismatch-echo"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w5-passwd-sigint-change-current-restores-terminal"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w5-passwd-sigint-control-gnu-read-restores-terminal"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w5-passwd-sigint-set-new-restores-terminal"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w5-passwd-sigint-set-retype-restores-terminal"
+        },
+        {
+          "group": "terminal",
+          "id": "trace-vm-passwd-read-eio-r2"
+        },
+        {
+          "group": "terminal",
+          "id": "trace-vm-passwd-read-eof-r2"
+        }
+      ]
     },
     {
       "id": "readonly_database_queries",

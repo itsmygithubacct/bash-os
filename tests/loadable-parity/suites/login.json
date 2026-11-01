@@ -91,13 +91,13 @@
       "id": "interactive-auth-session-deferred",
       "purpose": "Future end-to-end coverage of password verification, retry and lockout state, TTY policy, session accounting, and successful login session setup.",
       "kind": "deferred",
-      "reason": "r6 successful session needs root and writable accounting files; r2 includes a retained candidate FAIL."
+      "reason": "A successful login needs the real /dev/bashos-auth kernel proof before session accounting and the shell exec; no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
     },
     {
       "id": "credential-transition-deferred",
       "purpose": "Future verification of become's token handling, supplementary groups, uid/gid transition, environment, working directory, and exec arguments.",
       "kind": "deferred",
-      "reason": "r2 token acceptance needs the real device."
+      "reason": "Token acceptance (--auth-fd CONSUME, --auth-token) is decided by the real /dev/bashos-auth kernel authority (BL_AUTH_IOC_MINT/CONSUME); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
     }
   ]
 }

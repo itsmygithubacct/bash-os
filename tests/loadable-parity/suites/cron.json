@@ -146,9 +146,22 @@
     },
     {
       "id": "deferred-system-user-drop",
+      "kind": "migrated",
       "purpose": "System crontab dispatch under root with a real USER-column privilege transition, including failure refusal.",
-      "kind": "deferred",
-      "reason": "r2: exit status 127 unobserved."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w4-cron-nonroot-row-environment"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w4-root-cron-drop-failure-status"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w4-root-cron-system-user-drop"
+        }
+      ]
     }
   ]
 }

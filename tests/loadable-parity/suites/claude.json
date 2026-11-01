@@ -170,9 +170,26 @@
     },
     {
       "id": "update_package_mock",
+      "kind": "migrated",
       "purpose": "Qualify signed-package selection, install/load sequencing, and dynamic builtin reload without touching a real package database.",
-      "kind": "deferred",
-      "reason": "Remaining: r2-r4 need the overlay/userns fixture with the candidate as /bin/bash and signed claude fixture packages; the update helper hard-codes /bin/bash and the child load cannot reload the invoking shell."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-claude-update-install-then-load"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-claude-update-rejects-unverified"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-claude-update-reloads-invoking-shell"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-claude-update-selection"
+        }
+      ]
     }
   ]
 }
