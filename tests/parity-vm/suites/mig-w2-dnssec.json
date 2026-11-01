@@ -1,0 +1,215 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w2-dnssec-validate-secure-answers",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "purpose": "dns query --validate accepts correctly signed zone-apex data and signed NODATA through the DS/DNSKEY chain from the root trust anchor (r4, valid side).",
+      "oracle": "A pure-Python ECDSAP256SHA256 signer (fixed key seeds; KSK, ZSK, DS SHA-256, NSEC chains per RFC 4034/4035) serves \".\", \"test.\", \"x.test.\" and \"bad.test.\" on 127.0.0.2; signatures were checked with dnspython and every run first has BIND delv validate the same server (control-ok) before the candidate is queried. Expected outcomes follow from the signing choices (good, flipped signature, altered data, missing RRSIG, expired, not yet valid, unknown signer, DS digest mismatch).",
+      "comparison": "After the delv control, the candidate walks \".\", \"test.\" and the signed zone \"ok.test.\" with the matching DS trust anchor; exit 0 and the signed A and TXT RRsets, or an empty validated NODATA denial (NSEC), are required.",
+      "requires": [
+        "python3",
+        "delv",
+        "dig",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dnssec.py": "6e47a0a06175d11e93e017f283bc6d0e1152c174bb3a5037d2737a9a536353e4"
+      },
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\nprintf \"nameserver 127.0.0.2\\n\" > resolv.conf\nmkfifo w.fifo\n",
+      "setup_timeout": 20,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-dnssec.py\n/usr/bin/python3 \"$H\" prep\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> srv.err &\nsrv=$!\nexec 7<>w.fifo\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340\n/usr/bin/python3 \"$H\" control 127.0.0.2 5340 secure\nexport PATH=\"$HOME/pbin\" BASHDNS_SERVER_PORT=5340 BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\" BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\"\nq() { dns query \"$2\" \"$3\" -s 127.0.0.2 -t 3000 --validate $4 $5 > \"$1-$2-$3.out\" 2> \"$1-$2-$3.err\" < /dev/null; echo \"$?\" > \"$1-$2-$3.rc\"; }\nq s ok.test A\nq s ok.test TXT\nq s ok.test AAAA\nq s ok.test MX\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify-secure\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\nverified secure failed=0\n",
+      "stderr": "",
+      "timeout": 55
+    },
+    {
+      "id": "mig-w2-dnssec-validate-secure-answers-below-apex",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "purpose": "dns query --validate accepts correctly signed answers for names below a zone apex, including a signed NXDOMAIN, where the DS lookup at a non-delegation label returns a signed NODATA (r4, valid side).",
+      "oracle": "A pure-Python ECDSAP256SHA256 signer (fixed key seeds; KSK, ZSK, DS SHA-256, NSEC chains per RFC 4034/4035) serves \".\", \"test.\", \"x.test.\" and \"bad.test.\" on 127.0.0.2; signatures were checked with dnspython and every run first has BIND delv validate the same server (control-ok) before the candidate is queried. Expected outcomes follow from the signing choices (good, flipped signature, altered data, missing RRSIG, expired, not yet valid, unknown signer, DS digest mismatch).",
+      "comparison": "After the delv control, the candidate validates www.x.test A, mail.x.test A, txt.x.test TXT, nx.x.test A (NXDOMAIN, two NSEC), nx.ok.test A (NXDOMAIN, apex NSEC) and www.x.test AAAA (NODATA); the answer RRset or the empty denial and exit 0 are required.",
+      "requires": [
+        "python3",
+        "delv",
+        "dig",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dnssec.py": "6e47a0a06175d11e93e017f283bc6d0e1152c174bb3a5037d2737a9a536353e4"
+      },
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\nprintf \"nameserver 127.0.0.2\\n\" > resolv.conf\nmkfifo w.fifo\n",
+      "setup_timeout": 20,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-dnssec.py\n/usr/bin/python3 \"$H\" prep\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> srv.err &\nsrv=$!\nexec 7<>w.fifo\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340\n/usr/bin/python3 \"$H\" control 127.0.0.2 5340 secure\nexport PATH=\"$HOME/pbin\" BASHDNS_SERVER_PORT=5340 BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\" BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\"\nq() { dns query \"$2\" \"$3\" -s 127.0.0.2 -t 3000 --validate $4 $5 > \"$1-$2-$3.out\" 2> \"$1-$2-$3.err\" < /dev/null; echo \"$?\" > \"$1-$2-$3.rc\"; }\nq w www.x.test A\nq w mail.x.test A\nq w txt.x.test TXT\nq w nx.x.test A\nq w nx.ok.test A\nq w www.x.test AAAA\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify-below\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\nverified below-apex failed=0\n",
+      "stderr": "",
+      "timeout": 55
+    },
+    {
+      "id": "mig-w2-dnssec-validate-bogus-rejected",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "purpose": "dns query --validate rejects bogus data: flipped signature, altered RRset, missing RRSIG, expired, not yet valid, unknown signer, corrupted NSEC denial and DS digest mismatch, while the valid zone in the same run is accepted (r4, bogus side).",
+      "oracle": "A pure-Python ECDSAP256SHA256 signer (fixed key seeds; KSK, ZSK, DS SHA-256, NSEC chains per RFC 4034/4035) serves \".\", \"test.\", \"x.test.\" and \"bad.test.\" on 127.0.0.2; signatures were checked with dnspython and every run first has BIND delv validate the same server (control-ok) before the candidate is queried. Expected outcomes follow from the signing choices (good, flipped signature, altered data, missing RRSIG, expired, not yet valid, unknown signer, DS digest mismatch).",
+      "comparison": "After the delv control (every bogus zone fails there too), the candidate must accept ok.test A as the positive control, and exit non-zero with no answer for each bogus zone.",
+      "requires": [
+        "python3",
+        "delv",
+        "dig",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dnssec.py": "6e47a0a06175d11e93e017f283bc6d0e1152c174bb3a5037d2737a9a536353e4"
+      },
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\nprintf \"nameserver 127.0.0.2\\n\" > resolv.conf\nmkfifo w.fifo\n",
+      "setup_timeout": 20,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-dnssec.py\n/usr/bin/python3 \"$H\" prep\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> srv.err &\nsrv=$!\nexec 7<>w.fifo\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340\n/usr/bin/python3 \"$H\" control 127.0.0.2 5340 bogus\nexport PATH=\"$HOME/pbin\" BASHDNS_SERVER_PORT=5340 BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\" BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\"\nq() { dns query \"$2\" \"$3\" -s 127.0.0.2 -t 3000 --validate $4 $5 > \"$1-$2-$3.out\" 2> \"$1-$2-$3.err\" < /dev/null; echo \"$?\" > \"$1-$2-$3.rc\"; }\nq b ok.test A\nfor n in badsig tamper nosig expired future unknownkey badds; do q b $n.test A; done\nq b badnsec.test AAAA\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify-bogus\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\nverified bogus failed=0\n",
+      "stderr": "",
+      "timeout": 55
+    },
+    {
+      "id": "mig-w2-dnssec-validate-fixed-time-skew-window",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "purpose": "The validation time is fixed against signature windows built from the guest clock: zones that expired or start 120 s away fail at --skew 0 and pass at --skew 300; zones an hour outside the window fail at 300 and pass at 7200 (r4, fixed time).",
+      "oracle": "A pure-Python ECDSAP256SHA256 signer (fixed key seeds; KSK, ZSK, DS SHA-256, NSEC chains per RFC 4034/4035) serves \".\", \"test.\", \"x.test.\" and \"bad.test.\" on 127.0.0.2; signatures were checked with dnspython and every run first has BIND delv validate the same server (control-ok) before the candidate is queried. Expected outcomes follow from the signing choices (good, flipped signature, altered data, missing RRSIG, expired, not yet valid, unknown signer, DS digest mismatch). Windows: valid [now-1h, now+30d]; edge-exp ended now-120 s; edge-inc starts now+120 s; expired ended now-1h; future starts now+1h; the margins dwarf the run time.",
+      "comparison": "Same server and anchor throughout; only the --skew tolerance changes between the three passes, so the accepted or rejected outcome is decided by the validator comparing RRSIG inception/expiration with the current time.",
+      "requires": [
+        "python3",
+        "delv",
+        "dig",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dnssec.py": "6e47a0a06175d11e93e017f283bc6d0e1152c174bb3a5037d2737a9a536353e4"
+      },
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\nprintf \"nameserver 127.0.0.2\\n\" > resolv.conf\nmkfifo w.fifo\n",
+      "setup_timeout": 20,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-dnssec.py\n/usr/bin/python3 \"$H\" prep\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> srv.err &\nsrv=$!\nexec 7<>w.fifo\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340\n/usr/bin/python3 \"$H\" control 127.0.0.2 5340 ok\nexport PATH=\"$HOME/pbin\" BASHDNS_SERVER_PORT=5340 BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\" BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\"\nq() { dns query \"$2\" \"$3\" -s 127.0.0.2 -t 3000 --validate --skew \"$4\" > \"$1-$2-$3.out\" 2> \"$1-$2-$3.err\" < /dev/null; echo \"$?\" > \"$1-$2-$3.rc\"; }\nq k0 ok.test A 0\nq k0 edge-exp.test A 0\nq k0 edge-inc.test A 0\nfor n in edge-exp edge-inc expired future; do q k300 $n.test A 300; done\nfor n in expired future; do q k7200 $n.test A 7200; done\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify-skew\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\nverified skew failed=0\n",
+      "stderr": "",
+      "timeout": 55
+    },
+    {
+      "id": "mig-w2-dnssec-validate-trust-anchor-binding",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "purpose": "Validation is anchored: the matching root DS validates, a DS with a wrong digest and a missing anchor file are rejected (r4).",
+      "oracle": "A pure-Python ECDSAP256SHA256 signer (fixed key seeds; KSK, ZSK, DS SHA-256, NSEC chains per RFC 4034/4035) serves \".\", \"test.\", \"x.test.\" and \"bad.test.\" on 127.0.0.2; signatures were checked with dnspython and every run first has BIND delv validate the same server (control-ok) before the candidate is queried. Expected outcomes follow from the signing choices (good, flipped signature, altered data, missing RRSIG, expired, not yet valid, unknown signer, DS digest mismatch).",
+      "comparison": "Three runs of the same query, each in its own subshell so the process-wide trust set is loaded afresh; only BASHDNS_TRUST_ANCHOR changes (matching DS, DS with flipped digest, nonexistent file); delv with the wrong anchor fails in the control.",
+      "requires": [
+        "python3",
+        "delv",
+        "dig",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dnssec.py": "6e47a0a06175d11e93e017f283bc6d0e1152c174bb3a5037d2737a9a536353e4"
+      },
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\nprintf \"nameserver 127.0.0.2\\n\" > resolv.conf\nmkfifo w.fifo\n",
+      "setup_timeout": 20,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-dnssec.py\n/usr/bin/python3 \"$H\" prep\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> srv.err &\nsrv=$!\nexec 7<>w.fifo\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340\n/usr/bin/python3 \"$H\" control 127.0.0.2 5340 ok anchor\nexport PATH=\"$HOME/pbin\" BASHDNS_SERVER_PORT=5340 BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\" BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\"\na() { dns query ok.test A -s 127.0.0.2 -t 3000 --validate > \"a-$1.out\" 2> \"a-$1.err\" < /dev/null; echo \"$?\" > \"a-$1.rc\"; }\n(BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\"; a good)\n(BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.wrong.ds\"; a wrong)\n(BASHDNS_TRUST_ANCHOR=\"$PWD/missing.anchor\"; a none)\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify-anchor\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\nverified anchor failed=0\n",
+      "stderr": "",
+      "timeout": 55
+    },
+    {
+      "id": "mig-w2-dns-resolver-dnssec-ad-on-valid-data",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "purpose": "resolver-serve --recurse over the signed hierarchy returns valid data, a validated NXDOMAIN and a validated NODATA with the AD flag set (r4, AD on valid data).",
+      "oracle": "A pure-Python ECDSAP256SHA256 signer (fixed key seeds; KSK, ZSK, DS SHA-256, NSEC chains per RFC 4034/4035) serves \".\", \"test.\", \"x.test.\" and \"bad.test.\" on 127.0.0.2; signatures were checked with dnspython and every run first has BIND delv validate the same server (control-ok) before the candidate is queried. Expected outcomes follow from the signing choices (good, flipped signature, altered data, missing RRSIG, expired, not yet valid, unknown signer, DS digest mismatch). RFC 4035 s3.2.3 (AD set when all RRsets were validated), s5.5 (a bogus answer is SERVFAIL) and s3.2.2 (CD=1 returns the data without AD); BIND dig is the independent client.",
+      "comparison": "The resolver iterates from root hint 127.0.0.2 (which also serves test. and x.test.); dig +dnssec +adflag asks for ok.test A, ok.test AAAA (NODATA) and nx.ok.test A (NXDOMAIN); answers and flags are read from the client side.",
+      "requires": [
+        "python3",
+        "delv",
+        "dig",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dnssec.py": "6e47a0a06175d11e93e017f283bc6d0e1152c174bb3a5037d2737a9a536353e4"
+      },
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\nprintf \"nameserver 127.0.0.2\\n\" > resolv.conf\nmkfifo w.fifo\n",
+      "setup_timeout": 20,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-dnssec.py\n/usr/bin/python3 \"$H\" prep\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> srv.err &\nsrv=$!\nexec 7<>w.fifo\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340\n/usr/bin/python3 \"$H\" control 127.0.0.2 5340 ok\nexport PATH=\"$HOME/pbin\" BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\" BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\"\nBASHDNS_SERVER_PORT=5340 dns resolver-serve --listen 127.0.0.1 --port 5320 --root-hints 127.0.0.2 --max-queries 4 --timeout 3000 < /dev/null 2> resolver.err &\nres=$!\n/usr/bin/python3 \"$H\" waitudp 127.0.0.1 5320\nd() { /usr/bin/dig +tries=1 +time=6 -p 5320 @127.0.0.1 \"${@:2}\" > \"dig-$1.out\" 2>&1; }\nd valid +dnssec +adflag ok.test A\nd nodata +dnssec +adflag ok.test AAAA\nd nx +dnssec +adflag nx.ok.test A\nd noad +nodnssec +noadflag ok.test A\nfor i in {1..20}; do kill -0 \"$res\" 2>/dev/null || break; read -t 0.1 -u 7 l; done\nkill \"$res\" 2>/dev/null; wait \"$res\" 2>/dev/null\necho resolver-done\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify-resolver-ad\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\nresolver-done\nverified resolver-ad failed=0\n",
+      "stderr": "",
+      "timeout": 55
+    },
+    {
+      "id": "mig-w2-dns-resolver-dnssec-servfail-on-bogus-data",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "purpose": "resolver-serve --recurse answers SERVFAIL, with no answer data and no AD, for bogus data (flipped signature, altered RRset, missing RRSIG, expired, unknown signer, DS mismatch) and returns the data without AD when the client sets CD (r4, SERVFAIL on bogus).",
+      "oracle": "A pure-Python ECDSAP256SHA256 signer (fixed key seeds; KSK, ZSK, DS SHA-256, NSEC chains per RFC 4034/4035) serves \".\", \"test.\", \"x.test.\" and \"bad.test.\" on 127.0.0.2; signatures were checked with dnspython and every run first has BIND delv validate the same server (control-ok) before the candidate is queried. Expected outcomes follow from the signing choices (good, flipped signature, altered data, missing RRSIG, expired, not yet valid, unknown signer, DS digest mismatch). RFC 4035 s3.2.3 (AD set when all RRsets were validated), s5.5 (a bogus answer is SERVFAIL) and s3.2.2 (CD=1 returns the data without AD); BIND dig is the independent client.",
+      "comparison": "The resolver iterates from root hint 127.0.0.2; dig +dnssec asks for each bogus name and, for badsig, once more with +cdflag; status, flags and answers are read from the client side after the delv control confirmed every name is bogus at the server.",
+      "requires": [
+        "python3",
+        "delv",
+        "dig",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dnssec.py": "6e47a0a06175d11e93e017f283bc6d0e1152c174bb3a5037d2737a9a536353e4"
+      },
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\nprintf \"nameserver 127.0.0.2\\n\" > resolv.conf\nmkfifo w.fifo\n",
+      "setup_timeout": 20,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-dnssec.py\n/usr/bin/python3 \"$H\" prep\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> srv.err &\nsrv=$!\nexec 7<>w.fifo\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340\n/usr/bin/python3 \"$H\" control 127.0.0.2 5340 bogus\nexport PATH=\"$HOME/pbin\" BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\" BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\"\nBASHDNS_SERVER_PORT=5340 dns resolver-serve --listen 127.0.0.1 --port 5320 --root-hints 127.0.0.2 --max-queries 7 --timeout 3000 < /dev/null 2> resolver.err &\nres=$!\n/usr/bin/python3 \"$H\" waitudp 127.0.0.1 5320\nd() { /usr/bin/dig +tries=1 +time=6 -p 5320 @127.0.0.1 \"${@:2}\" > \"dig-$1.out\" 2>&1; }\nfor n in badsig tamper nosig expired unknownkey badds; do d $n +dnssec $n.test A; done\nd cd +dnssec +cdflag badsig.test A\nfor i in {1..20}; do kill -0 \"$res\" 2>/dev/null || break; read -t 0.1 -u 7 l; done\nkill \"$res\" 2>/dev/null; wait \"$res\" 2>/dev/null\necho resolver-done\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify-resolver-bogus\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\nresolver-done\nverified resolver-bogus failed=0\n",
+      "stderr": "",
+      "timeout": 55
+    }
+  ]
+}
