@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w4-root-cron-drop-failure-status",
+      "loadable": "cron",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "When the credential drop fails in the dispatch child of a root cron daemon (setuid and setresuid refused with EPERM by a seccomp filter), each failing child terminates with exit status 127, observed as exit_group(127) at a user-notification listener, the command never runs and the root row is unaffected.",
+      "oracle": "Kernel-reported exit_group arguments of every process under the filter (system-sequence.py --notify exit_group --log-args exit_group=0), the injected failure being a real EPERM from the same seccomp filter; row output files show which commands ran.",
+      "comparison": "Exact stdout: the number of exit_group(127) notifications (one per failing row) and per-row ran/identity lines.",
+      "covers": [
+        "cron/deferred-system-user-drop"
+      ],
+      "requires": [
+        "id",
+        "mkdir",
+        "mount",
+        "python3",
+        "rm"
+      ],
+      "script": "P=$PWD\nH=/opt/bashos-parity/harness/helpers\ncat > \"$P/passwd.fx\" <<'X'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/tmp/parity-case/home-alice:/bin/bash\nbob:x:3002:3002:Bob:/tmp/parity-case/no-such-home:/bin/bash\nX\ncat > \"$P/group.fx\" <<'X'\nroot:x:0:\nalice:x:3001:alice\nbob:x:3002:\nstaff:x:4000:alice\nwheel:x:4001:alice,bob\nops:x:5000:\nX\n/usr/bin/mount --bind \"$P/passwd.fx\" /etc/passwd || echo \"MOUNT-FAIL passwd\"\n/usr/bin/mount --bind \"$P/group.fx\" /etc/group || echo \"MOUNT-FAIL group\"\n/usr/bin/mkdir -m 755 \"$P/home-alice\"\nsnap() { local l; set -f; while IFS= read -r l; do case $l in Uid:*|Gid:*|Groups:*|NoNewPrivs:*) echo $l;; esac; done < /proc/$BASHPID/status; set +f; }\n\n/usr/bin/mkdir -m 777 \"$P/out\"\nw=$P/cw\n/usr/bin/mkdir -p \"$w/etc\" \"$w/cron.d\" \"$w/spool\" \"$w/mail\" \"$w/jobout\"\ncmd() { printf '{ /usr/bin/id -u; /usr/bin/id -g; /usr/bin/id -G; echo \"$USER $LOGNAME $HOME\"; } > %s/out/%s.txt' \"$P\" \"$1\"; }\n{\n  printf '%s\\n' 'SHELL=/bin/bash' 'PATH=/usr/bin:/bin'\n  printf '* * * * * alice %s\\n' \"$(cmd alice)\"\n  printf '* * * * * bob %s\\n' \"$(cmd bob)\"\n  printf '* * * * * root %s\\n' \"$(cmd root)\"\n} > \"$w/etc/crontab\"\ncat > \"$P/poll.sh\" <<X\nw=$w\nexport TZ=UTC\nBASHCRON_SPOOL_DIR=\\$w/spool BASHCRON_OUTPUT_DIR=\\$w/jobout BASHCRON_ETC_DIR=\\$w/etc BASHCRON_CROND_DIR=\\$w/cron.d BASHCRON_MAIL_DIR=\\$w/mail BASHCRON_NOW_EPOCH=1700000040 cron run --once\necho \"\\$1 poll rc=\\$?\"\nX\nshow() {\n  local f=$P/out/$1.txt l=() line\n  [[ -f $f ]] || { echo \"$1 ran=no\"; return; }\n  while IFS= read -r line; do l+=(\"$line\"); done < \"$f\"\n  if [[ $1 == root ]]; then echo \"$1 uid=${l[0]} gid=${l[1]} env=${l[3]}\"; else echo \"$1 uid=${l[0]} gid=${l[1]} groups=${l[2]} env=${l[3]}\"; fi\n}\n\nSS=$H/system-sequence.py\n/usr/bin/python3 \"$SS\" --errno setuid:EPERM --errno setresuid:EPERM --notify exit_group --log-args exit_group=0 --log \"$P/exits.jsonl\" -- \"$BASH\" --noprofile --norc \"$P/poll.sh\" injected\nn127=0; nall=0\nwhile IFS= read -r l; do [[ $l == *'\"exit_group\"'* ]] || continue; nall=$((nall+1)); [[ $l == *'\"arg0\": 127,'* ]] && n127=$((n127+1)); done < \"$P/exits.jsonl\"\necho \"exit_group-notifications>=3=$([[ $nall -ge 3 ]] && echo yes || echo no) exit_group(127)-count=$n127\"\nshow alice; show bob; show root\n/usr/bin/head -c 300 \"$P/exits.jsonl\" > \"$P/exits.sample\"\n",
+      "expected_status": 0,
+      "timeout": 55,
+      "stdout": "injected poll rc=0\nexit_group-notifications>=3=yes exit_group(127)-count=2\nalice ran=no\nbob ran=no\nroot uid=0 gid=0 env=root root /root\n",
+      "stderr": "",
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      }
+    }
+  ]
+}
