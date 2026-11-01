@@ -1,0 +1,95 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w7-blockdev-close-error-injected",
+      "loadable": "blockdev",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "An injected close(2) EIO on one of three devices is reported once with the device name and 'close', sets status 1 without aborting the later device (all five flush ioctls ran), leaves no descriptor referring to the fixture files, and a following clean run succeeds.",
+      "covers": [
+        "blockdev/syscall-failures-mock"
+      ],
+      "oracle": "Seccomp-notify supervisor that fails close(2) of exactly the fixture file with EIO after replacing the descriptor by /dev/null (so the fixture file is really released), plus reviewed system-sequence.py for fsync; expected diagnostics follow the builtin's documented error format (<device>: close: <errno>) and the /proc/PID/fd listing is the descriptor oracle.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "grep",
+        "readlink"
+      ],
+      "files": {
+        "closeinj.py": "#!/usr/bin/python3\n\"\"\"Usage: closeinj.py TARGET_BASENAME LOGFILE [--ioctl NUM] -- PROGRAM [ARG...]\nNotifies close(2) (and optionally ioctl with request NUM, answered 0). A close of a descriptor whose /proc/PID/fd link has\nbasename TARGET_BASENAME is failed with EIO after the descriptor is replaced by /dev/null (SECCOMP_ADDFD_FLAG_SETFD), so the\ntarget file really is released while the caller sees a close error. Every other call continues.\"\"\"\nimport ctypes, errno, fcntl, os, select, struct, sys\nALLOW, NOTIFY = 0x7fff0000, 0x7fc00000\nRECV, SEND, ADDFD = 0xc0502100, 0xc0182101, 0x40182103\ntarget, logpath = sys.argv[1], sys.argv[2]\nrest = sys.argv[3:]\nioctl_num = None\nif rest[0] == \"--ioctl\":\n    ioctl_num = int(rest[1], 0); rest = rest[2:]\nprogram = rest[rest.index(\"--\") + 1:]\nlib = ctypes.CDLL(\"libseccomp.so.2\", use_errno=True)\nclass ArgCmp(ctypes.Structure):\n    _fields_ = [(\"arg\", ctypes.c_uint), (\"op\", ctypes.c_int), (\"datum_a\", ctypes.c_uint64), (\"datum_b\", ctypes.c_uint64)]\nlib.seccomp_init.restype = ctypes.c_void_p\nlib.seccomp_init.argtypes = [ctypes.c_uint32]\nlib.seccomp_rule_add_array.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int, ctypes.c_uint, ctypes.POINTER(ArgCmp)]\nlib.seccomp_syscall_resolve_name.argtypes = [ctypes.c_char_p]\nlib.seccomp_load.argtypes = [ctypes.c_void_p]\nlib.seccomp_notify_fd.argtypes = [ctypes.c_void_p]\nlib.seccomp_syscall_resolve_num_arch.restype = ctypes.c_void_p\nlib.seccomp_syscall_resolve_num_arch.argtypes = [ctypes.c_uint32, ctypes.c_int]\nlibc = ctypes.CDLL(None, use_errno=True)\npid_ = os.fork()\nif pid_ == 0:\n    try:\n        ctx = lib.seccomp_init(ALLOW)\n        none = (ArgCmp * 1)()\n        lib.seccomp_rule_add_array(ctx, NOTIFY, lib.seccomp_syscall_resolve_name(b\"close\"), 0, none)\n        if ioctl_num is not None:\n            eq = (ArgCmp * 1)(ArgCmp(1, 4, ioctl_num, 0))\n            lib.seccomp_rule_add_array(ctx, NOTIFY, lib.seccomp_syscall_resolve_name(b\"ioctl\"), 1, eq)\n        if lib.seccomp_load(ctx) != 0:\n            raise RuntimeError(\"load\")\n        listener = lib.seccomp_notify_fd(ctx)\n        os.set_inheritable(listener, True)\n        os.execv(program[0], program)\n    except BaseException as exc:\n        sys.stderr.write(\"closeinj: %s\\n\" % exc)\n    os._exit(126)\nchild = pid_\npidfd = os.pidfd_open(child)\nlibc.syscall.restype = ctypes.c_long\nlistener = None\nimport time\ndeadline = time.time() + 15\nwhile listener is None and time.time() < deadline:\n    try:\n        for entry in os.listdir(\"/proc/%d/fd\" % child):\n            try:\n                link = os.readlink(\"/proc/%d/fd/%s\" % (child, entry))\n            except OSError:\n                continue\n            if \"seccomp\" in link:\n                got = libc.syscall(438, pidfd, int(entry), 0)\n                if got >= 0:\n                    listener = got; break\n    except OSError:\n        pass\n    if listener is None:\n        time.sleep(0.001)\nif listener is None:\n    os.kill(child, 9); sys.exit(\"closeinj: no listener\")\nnames = {}\ndef sysname(nr):\n    if nr not in names:\n        names[nr] = ctypes.cast(lib.seccomp_syscall_resolve_num_arch(0, nr), ctypes.c_char_p).value.decode()\n    return names[nr]\nnullfd = os.open(\"/dev/null\", os.O_RDWR)\nlog = open(logpath, \"a\")\nstatus = None\nwhile status is None:\n    done, wait = os.waitpid(child, os.WNOHANG)\n    if done:\n        status = wait; break\n    ready, _, _ = select.select([listener], [], [], 0.05)\n    if not ready:\n        continue\n    req = bytearray(80)\n    try:\n        fcntl.ioctl(listener, RECV, req, True)\n    except OSError as exc:\n        if exc.errno in (errno.ENOENT, errno.EINTR):\n            continue\n        raise\n    ident, pid, _f, nr, _a, _ip = struct.unpack_from(\"<QIIiIQ\", req)\n    args = struct.unpack_from(\"<6Q\", req, 32)\n    name = sysname(nr)\n    resp = struct.pack(\"<QqiI\", ident, 0, 0, 1)\n    if name == \"ioctl\":\n        log.write(\"ioctl 0x%x -> 0\\n\" % args[1]); log.flush()\n        resp = struct.pack(\"<QqiI\", ident, 0, 0, 0)\n    elif name == \"close\":\n        fd = args[0] & 0xffffffff\n        try:\n            link = os.readlink(\"/proc/%d/fd/%d\" % (pid, fd))\n        except OSError:\n            link = \"\"\n        if os.path.basename(link) == target:\n            add = struct.pack(\"<QIIII\", ident, 1, nullfd, fd, 0)\n            try:\n                fcntl.ioctl(listener, ADDFD, add)\n                log.write(\"close %s -> EIO (descriptor %d replaced by /dev/null)\\n\" % (target, fd)); log.flush()\n                resp = struct.pack(\"<QqiI\", ident, 0, -errno.EIO, 0)\n            except OSError as exc:\n                log.write(\"addfd failed: %s\\n\" % exc); log.flush()\n    try:\n        fcntl.ioctl(listener, SEND, resp)\n    except OSError as exc:\n        if exc.errno != errno.ENOENT:\n            raise\nsys.exit(os.waitstatus_to_exitcode(status) if os.WIFEXITED(status) else 128 + os.WTERMSIG(status))\n",
+        "inner.sh": "me=$BASHPID\nn_ref() { local c=0 f t; for f in /proc/$me/fd/*; do t=$(/usr/bin/readlink \"$f\" 2>/dev/null); [[ $t == */$1* ]] && c=$((c+1)); done; echo $c; }\nlast() { mapfile -t L < err.txt; REPLY=${L[-1]}; REPLY=${REPLY#*$1: }; }\nblockdev --flushbufs img1 img2 img3 2>err.txt; rc=$?\nprintf 'status=%s\\n' $rc\nmapfile -t L < err.txt; echo \"diagnostics=${#L[@]}\"; for l in \"${L[@]}\"; do echo \"  ${l#*blockdev: }\"; done\necho \"fds-referring-to-img=$(n_ref img)\"\nblockdev --flushbufs img1 img3 2>err.txt; echo \"clean-run status=$?\"\n"
+      },
+      "features": [
+        "seccomp-notify"
+      ],
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n: > img1; : > img2; : > img3\n/usr/bin/python3 closeinj.py img2 inj.log --ioctl 0x1261 -- \"$BASH\" --noprofile --norc inner.sh\necho \"driver=$?\"\necho \"log: $(/usr/bin/grep -c 'ioctl 0x1261' inj.log) flush ioctls, $(/usr/bin/grep -c '^close img2 -> EIO' inj.log) injected close\"\n",
+      "stdout": "status=1\ndiagnostics=1\n  img2: close: Input/output error\nfds-referring-to-img=0\nclean-run status=0\ndriver=0\nlog: 5 flush ioctls, 1 injected close\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "mig-w7-mkfs-fsync-error-injected",
+      "loadable": "mkfs",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "An injected fsync EIO makes mkfs report 'fsync: Input/output error' with status 1 and close its image descriptor (none refers to the image afterwards); mkfs of the same image without injection succeeds.",
+      "covers": [
+        "mkfs/block-device-and-io-errors"
+      ],
+      "oracle": "Seccomp-notify supervisor that fails close(2) of exactly the fixture file with EIO after replacing the descriptor by /dev/null (so the fixture file is really released), plus reviewed system-sequence.py for fsync; expected diagnostics follow the builtin's documented error format (<device>: close: <errno>) and the /proc/PID/fd listing is the descriptor oracle.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "truncate",
+        "readlink"
+      ],
+      "files": {
+        "inner.sh": "me=$BASHPID\nn_ref() { local c=0 f t; for f in /proc/$me/fd/*; do t=$(/usr/bin/readlink \"$f\" 2>/dev/null); [[ $t == */$1* ]] && c=$((c+1)); done; echo $c; }\nlast() { mapfile -t L < err.txt; REPLY=${L[-1]}; REPLY=${REPLY#*$1: }; }\nmkfs m.img 2>err.txt; rc=$?\nlast mkfs; echo \"status=$rc last-diagnostic=[$REPLY]\"\necho \"fds-referring-to-image=$(n_ref m.img)\"\n"
+      },
+      "features": [
+        "seccomp-notify"
+      ],
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nH=/opt/bashos-parity/harness/helpers/system-sequence.py\n/usr/bin/truncate -s 1M m.img\n/usr/bin/python3 $H --errno fsync:EIO -- \"$BASH\" --noprofile --norc inner.sh\necho \"driver=$?\"\nmkfs m.img 2>/dev/null; echo \"after-injection-run status=$?\"\n",
+      "stdout": "status=1 last-diagnostic=[fsync: Input/output error]\nfds-referring-to-image=0\ndriver=0\nafter-injection-run status=0\n",
+      "expected_status": 0,
+      "timeout": 40,
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      }
+    },
+    {
+      "id": "mig-w7-mkfs-close-error-injected",
+      "loadable": "mkfs",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "An injected close(2) EIO on the image makes mkfs report 'close: Input/output error' with status 1 and no descriptor refers to the image afterwards; mkfs of the same image without injection succeeds.",
+      "covers": [
+        "mkfs/block-device-and-io-errors"
+      ],
+      "oracle": "Seccomp-notify supervisor that fails close(2) of exactly the fixture file with EIO after replacing the descriptor by /dev/null (so the fixture file is really released), plus reviewed system-sequence.py for fsync; expected diagnostics follow the builtin's documented error format (<device>: close: <errno>) and the /proc/PID/fd listing is the descriptor oracle.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "truncate",
+        "grep",
+        "readlink"
+      ],
+      "files": {
+        "closeinj.py": "#!/usr/bin/python3\n\"\"\"Usage: closeinj.py TARGET_BASENAME LOGFILE [--ioctl NUM] -- PROGRAM [ARG...]\nNotifies close(2) (and optionally ioctl with request NUM, answered 0). A close of a descriptor whose /proc/PID/fd link has\nbasename TARGET_BASENAME is failed with EIO after the descriptor is replaced by /dev/null (SECCOMP_ADDFD_FLAG_SETFD), so the\ntarget file really is released while the caller sees a close error. Every other call continues.\"\"\"\nimport ctypes, errno, fcntl, os, select, struct, sys\nALLOW, NOTIFY = 0x7fff0000, 0x7fc00000\nRECV, SEND, ADDFD = 0xc0502100, 0xc0182101, 0x40182103\ntarget, logpath = sys.argv[1], sys.argv[2]\nrest = sys.argv[3:]\nioctl_num = None\nif rest[0] == \"--ioctl\":\n    ioctl_num = int(rest[1], 0); rest = rest[2:]\nprogram = rest[rest.index(\"--\") + 1:]\nlib = ctypes.CDLL(\"libseccomp.so.2\", use_errno=True)\nclass ArgCmp(ctypes.Structure):\n    _fields_ = [(\"arg\", ctypes.c_uint), (\"op\", ctypes.c_int), (\"datum_a\", ctypes.c_uint64), (\"datum_b\", ctypes.c_uint64)]\nlib.seccomp_init.restype = ctypes.c_void_p\nlib.seccomp_init.argtypes = [ctypes.c_uint32]\nlib.seccomp_rule_add_array.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int, ctypes.c_uint, ctypes.POINTER(ArgCmp)]\nlib.seccomp_syscall_resolve_name.argtypes = [ctypes.c_char_p]\nlib.seccomp_load.argtypes = [ctypes.c_void_p]\nlib.seccomp_notify_fd.argtypes = [ctypes.c_void_p]\nlib.seccomp_syscall_resolve_num_arch.restype = ctypes.c_void_p\nlib.seccomp_syscall_resolve_num_arch.argtypes = [ctypes.c_uint32, ctypes.c_int]\nlibc = ctypes.CDLL(None, use_errno=True)\npid_ = os.fork()\nif pid_ == 0:\n    try:\n        ctx = lib.seccomp_init(ALLOW)\n        none = (ArgCmp * 1)()\n        lib.seccomp_rule_add_array(ctx, NOTIFY, lib.seccomp_syscall_resolve_name(b\"close\"), 0, none)\n        if ioctl_num is not None:\n            eq = (ArgCmp * 1)(ArgCmp(1, 4, ioctl_num, 0))\n            lib.seccomp_rule_add_array(ctx, NOTIFY, lib.seccomp_syscall_resolve_name(b\"ioctl\"), 1, eq)\n        if lib.seccomp_load(ctx) != 0:\n            raise RuntimeError(\"load\")\n        listener = lib.seccomp_notify_fd(ctx)\n        os.set_inheritable(listener, True)\n        os.execv(program[0], program)\n    except BaseException as exc:\n        sys.stderr.write(\"closeinj: %s\\n\" % exc)\n    os._exit(126)\nchild = pid_\npidfd = os.pidfd_open(child)\nlibc.syscall.restype = ctypes.c_long\nlistener = None\nimport time\ndeadline = time.time() + 15\nwhile listener is None and time.time() < deadline:\n    try:\n        for entry in os.listdir(\"/proc/%d/fd\" % child):\n            try:\n                link = os.readlink(\"/proc/%d/fd/%s\" % (child, entry))\n            except OSError:\n                continue\n            if \"seccomp\" in link:\n                got = libc.syscall(438, pidfd, int(entry), 0)\n                if got >= 0:\n                    listener = got; break\n    except OSError:\n        pass\n    if listener is None:\n        time.sleep(0.001)\nif listener is None:\n    os.kill(child, 9); sys.exit(\"closeinj: no listener\")\nnames = {}\ndef sysname(nr):\n    if nr not in names:\n        names[nr] = ctypes.cast(lib.seccomp_syscall_resolve_num_arch(0, nr), ctypes.c_char_p).value.decode()\n    return names[nr]\nnullfd = os.open(\"/dev/null\", os.O_RDWR)\nlog = open(logpath, \"a\")\nstatus = None\nwhile status is None:\n    done, wait = os.waitpid(child, os.WNOHANG)\n    if done:\n        status = wait; break\n    ready, _, _ = select.select([listener], [], [], 0.05)\n    if not ready:\n        continue\n    req = bytearray(80)\n    try:\n        fcntl.ioctl(listener, RECV, req, True)\n    except OSError as exc:\n        if exc.errno in (errno.ENOENT, errno.EINTR):\n            continue\n        raise\n    ident, pid, _f, nr, _a, _ip = struct.unpack_from(\"<QIIiIQ\", req)\n    args = struct.unpack_from(\"<6Q\", req, 32)\n    name = sysname(nr)\n    resp = struct.pack(\"<QqiI\", ident, 0, 0, 1)\n    if name == \"ioctl\":\n        log.write(\"ioctl 0x%x -> 0\\n\" % args[1]); log.flush()\n        resp = struct.pack(\"<QqiI\", ident, 0, 0, 0)\n    elif name == \"close\":\n        fd = args[0] & 0xffffffff\n        try:\n            link = os.readlink(\"/proc/%d/fd/%d\" % (pid, fd))\n        except OSError:\n            link = \"\"\n        if os.path.basename(link) == target:\n            add = struct.pack(\"<QIIII\", ident, 1, nullfd, fd, 0)\n            try:\n                fcntl.ioctl(listener, ADDFD, add)\n                log.write(\"close %s -> EIO (descriptor %d replaced by /dev/null)\\n\" % (target, fd)); log.flush()\n                resp = struct.pack(\"<QqiI\", ident, 0, -errno.EIO, 0)\n            except OSError as exc:\n                log.write(\"addfd failed: %s\\n\" % exc); log.flush()\n    try:\n        fcntl.ioctl(listener, SEND, resp)\n    except OSError as exc:\n        if exc.errno != errno.ENOENT:\n            raise\nsys.exit(os.waitstatus_to_exitcode(status) if os.WIFEXITED(status) else 128 + os.WTERMSIG(status))\n",
+        "inner.sh": "me=$BASHPID\nn_ref() { local c=0 f t; for f in /proc/$me/fd/*; do t=$(/usr/bin/readlink \"$f\" 2>/dev/null); [[ $t == */$1* ]] && c=$((c+1)); done; echo $c; }\nlast() { mapfile -t L < err.txt; REPLY=${L[-1]}; REPLY=${REPLY#*$1: }; }\nmkfs m.img 2>err.txt; rc=$?\nlast mkfs; echo \"status=$rc last-diagnostic=[$REPLY]\"\necho \"fds-referring-to-image=$(n_ref m.img)\"\n"
+      },
+      "features": [
+        "seccomp-notify"
+      ],
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/truncate -s 1M m.img\n/usr/bin/python3 closeinj.py m.img inj.log -- \"$BASH\" --noprofile --norc inner.sh\necho \"driver=$?\"\necho \"log: $(/usr/bin/grep -c '^close m.img -> EIO' inj.log) injected close\"\nmkfs m.img 2>/dev/null; echo \"after-injection-run status=$?\"\n",
+      "stdout": "status=1 last-diagnostic=[close: Input/output error]\nfds-referring-to-image=0\ndriver=0\nlog: 1 injected close\nafter-injection-run status=0\n",
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}
