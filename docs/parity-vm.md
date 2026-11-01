@@ -192,50 +192,31 @@ execution without the matching VM marker, DMI identity and guest isolation.
 
 See [parity scope](parity-scope.md) for the full inventory and remaining work.
 
-## 0.1.3 evidence snapshot batch-220
+## 0.1.3 release qualification
 
-Migration remains in progress. The selected evidence contains 4,821 unique
-candidate case records per build: 4,798 executed cases and 23
-SKIP records. The selection contains 1,603 modern and 3,218 historical
-case records, selected once per case ID and current definition from
-158 qualified source selections per build. Those selections
-refer to 156 distinct saved runs for static and
-155 for dynamic; multiple selections can refer
-to the same saved run. The earlier batch 92 snapshot contained 4,111
-records; this snapshot adds 710 distinct candidate cases. Previously
-selected FAIL results remain in the counts.
+The deferral review ran on frozen candidates built before the release source.
+The 0.1.3 binaries were then built from the release source, and every fixture
+definition ran on both of them in disposable guests. Non-root cases ran on the
+base, extended and SELinux images; root cases, including the GPU image cases
+and the SELinux root case, ran in rented guests. Each build has 6,271 selected
+records from 25 runs: all 2,398 modern fixture definitions, 3,821 historical
+case rows and 52 harness checks (38 reference corpus records, 13 guest
+selfchecks and the runtime inventory).
 
 | Group | Static PASS | Static FAIL | Dynamic PASS | Dynamic FAIL | SKIP per build |
 |---|---:|---:|---:|---:|---:|
-| Shell and command contracts | 902 | 319 | 903 | 318 | 0 |
-| Terminal | 213 | 55 | 213 | 55 | 0 |
+| Shell and command contracts | 1,437 | 472 | 1,439 | 470 | 0 |
+| Terminal | 282 | 90 | 282 | 90 | 0 |
 | Network | 96 | 18 | 94 | 20 | 0 |
-| Historical behavior | 3,171 | 24 | 3,171 | 24 | 23 |
-| Total | 4,382 | 416 | 4,381 | 417 | 23 |
+| Historical behavior | 3,174 | 24 | 3,174 | 24 | 23 |
+| Total | 4,989 | 604 | 4,989 | 604 | 23 |
 
-The selected behavioral results have zero ERROR statuses. Two earlier DNS
-transport probes differ between builds; their launch failures do not establish
-certificate validation. Build-specific differences and all retained failures
-are listed in the validation record.
-
-The authored inventory contains 1,636 modern definitions:
-1,603 selected candidate cases, 9 selected support controls,
-and 24 without selected evidence. Separate native controls, guest
-selfchecks, archived-evidence audit wrappers, and topic metadata add no
-candidate cases. The selection includes 1 candidate-shell basics support control, which adds no candidate coverage. A membership-only projection of a fixture does not add an
-execution. Three unselected filesystem diagnostics retain excluded FAIL history
-and reasons in the [validation record](data/parity-0.1.3-validation.json).
-
-At batch-220, the deferral review recorded 355 migrated topics
-(static 183 PASS and 172 FAIL; dynamic 184 PASS and 171 FAIL) and 245 unresolved topics per build.
-For the current topic counts, see the [deferral review](parity-deferrals.md).
-These summaries index named checks and add no cases. All 600 original
-DEFERRED metadata rows and their original definitions remain recorded.
-
-All guest selfchecks recorded in the selected runs pass. Each run retains its
-frozen payload and evidence hashes and its recorded overlay disposition.
-Runtime inventory remains `COLLECTED`. The six original job-control fixtures
-retain their three successful repeats per build; repeats add no cases.
+Three definitions per build end in ERROR before a behavioral result: one shell
+case whose fixture setup failed, and two terminal cases whose reference run did
+not reach the expected screen. None of them is deferral-review evidence. All 13
+guest selfchecks pass, and the runtime inventory remains `COLLECTED`. The
+historical suites also record 578 deferred rows as migrated and 22 as still
+deferred; those metadata rows add no cases.
 
 Each build executes 9,331,283 planned normative assertions: 9,331,243 pass
 and 40 fail. The failures concern four non-starter composition exclusions in
@@ -244,12 +225,33 @@ SKIP records. The plan excludes NUL inputs, unavailable casing interfaces and
 unsupported RFC vectors as detailed in those records. Scalar sweeps, corpus
 records and ordinary fixture cases have different denominators.
 
-The [validation record](data/parity-0.1.3-validation.json) separates behavioral
-cases, support controls and metadata; lists retained behavioral failures; and
-preserves source-run filters and artifact hashes. It records the sealed images,
-package versions, unchanged candidate hashes and clean teardown. Private
-diagnostic and superseded runs remain outside the selected counts. The first
-image's original lock content is unavailable, though its hash and 413-package
-map remain; the committed lock describes the later image. The
+On the release binaries the 600 topics resolve as static 280 PASS, 256 FAIL
+and 64 UNRESOLVED, and dynamic 281 PASS, 255 FAIL and 64 UNRESOLVED. The
+unresolved topics are the 22 with [concrete limits](parity-deferrals.md#concrete-limits)
+and 42 whose evidence comes from controller pipelines that plain runs cannot
+execute. Plain variants of their cases run on the release binaries for 22 of
+the 42; their results match the frozen candidates except for three cases fixed
+after the freeze (two quoted `sftp` transfers and one `netstat` transport
+fallback). The other 20 stop before behavioral execution without their
+controllers and rest on frozen-candidate evidence. Their commands' sources did
+not change after the freeze, apart from two `dns` changes that the DNS
+rate-limiting evidence does not exercise.
+
+Compared with the frozen candidates, seven topics change from FAIL to PASS on
+both builds through fixes made after the freeze: `bashio` address checks,
+`lsattr` attribute bits, `netstat` Unix sockets, namespace cgroup-v2 paths,
+`sftp` binary transfers, `strace` attach and `tput` compiled terminfo. One
+topic per build changes from PASS to FAIL: `fdisk` partition deletion on
+static and the `rtspcat` output descriptor lifecycle on dynamic. Neither
+command changed after the freeze. The `fdisk` case met a partition still held
+by a udev probe, and the `rtspcat` fixture read an incomplete process-status
+snapshot for its own before-and-after comparison. Each case passed three
+repeats on the same binary; the recorded failures are kept.
+
+The [validation record](data/release-0.1.3-validation.json) lists every case
+whose result differs from the frozen candidates, with the product commits that
+touch its command, every changed topic with its cause, and every ERROR. It
+records the binary and manifest hashes, the harness and image-lock hashes, the
+source changes since 0.1.2 and the evidence-only confirmation. The
 [scope inventory](data/parity-0.1.3-scope.json) keeps missing commands,
 unreviewed option forms and all deferrals visible.

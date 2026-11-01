@@ -22,15 +22,12 @@ three optional commands, 61 native Bash builtin names, 105 reference Coreutils
 commands and all 600 original historical deferrals. Of those Coreutils commands, 32 have
 no matching candidate builtin. These counts describe scope, not passes.
 
-The batch-220 snapshot inventories 1,636 modern fixture
-definitions: 1,603 selected candidate cases, 9 selected support
-controls and 24 unselected definitions per build. The historical
-topic index contains 355 migrated and 245 unresolved scenarios.
-Topic metadata and support controls add no behavioral cases. Three excluded
-filesystem diagnostics retain FAIL history in the
-[validation record](data/parity-0.1.3-validation.json).
-The scope's package inventory describes the first 413-package image; validation
-records both images and the first image's unavailable lock-content limitation.
+The release snapshot inventories 2,398 modern fixture definitions, and every
+one of them ran on both release builds. The historical topic index contains
+578 migrated and 22 unresolved scenarios. Topic metadata adds no behavioral
+cases. The package inventory describes the 419-package base image of the
+committed image lock, observed by the release static build. Release results
+are in the [validation record](data/release-0.1.3-validation.json).
 
 Generate the source/fixture inventory after a build has unpacked the pinned Bash
 source. This reads files and does not run a candidate:

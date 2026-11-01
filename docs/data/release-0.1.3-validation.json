@@ -1,0 +1,2420 @@
+{
+ "release_tag": "v0.1.3",
+ "version": "0.1.3",
+ "architecture": "Linux x86-64",
+ "base_release": "v0.1.2",
+ "base_commit": "8381e8136626d18083d470ac26ba079ad0b2f602",
+ "source_commit": "cc935b999e98ae611cc710dd7a2366621bd7c08f",
+ "source_commit_role": "commit the release binaries were built from; later commits change only tests and documentation",
+ "baseline": "docs/data/release-0.1.2-validation.json",
+ "baseline_sha256": "119a62b3b030a7ac9db31cbb285bf47516013e59d3254b51a0394fabbae236c7",
+ "source_changes": {
+  ".gitignore": "50b88275fd3b1bf45ba6e2619bbc9f8a136d67ef13d09d14027c7cc751dedf4a",
+  "VERSION": "2d2454ef0edeb462a6ce8b25d387aaa74df08093d5cea0428a10ce55510c6326",
+  "loadables/_git/odb.c": "eb29ea25e6c33ea60aa35bc733bf2b849c4cf8e9d63bd9936801d2f0c0c8d65e",
+  "loadables/_git/odb.h": "066ce8e06f2648b318e917d7829392b7942dfb3bfc79ecfe7dc52bb685e53e4d",
+  "loadables/_git/pack.c": "3f568b1d76a7c82c315399db240ff0453439b7265a68c78efea53f0239a1c8a0",
+  "loadables/_git/pack.h": "2265ecf2f68d5b1212e11c533b21b94db3ca7b9f21e20a67b1dadb6ac98b0586",
+  "loadables/_mbedtls/ssl_tls12_client.c": "ee4beaae04685d66cf04be4d89b360c7e1921161c8fa19ff73659754f6e40062",
+  "loadables/auth.c": "583546756eca42b1ec1246c5af051972f3b51aba48ef2f29a5953c0433bc7914",
+  "loadables/bashio.c": "9b410af252f5d91b79c2e3331bf54393930dc8be0df9c439933ac56b2292005e",
+  "loadables/bashkmod.c": "ce1e7c1c518c218d7eed517bcbef0543c5561475fe01e538525f85ac616bf6fa",
+  "loadables/curl.c": "4222c202723922aae827c5624c20c84d30e34244079cae000a7bdfcf75720552",
+  "loadables/df.c": "309b5e36fa23b82f877299b425668756b5c2ecc7f6799fdb45971440460adaae",
+  "loadables/dhcp6.c": "06fb728e69c6096d8e62a8faee3dd38d662a562b5de7cb01a14b293933989728",
+  "loadables/dns.c": "2e7dd5e84835a93e99c31adc14f7f0e9ef93b098d9f000e369e707ab2bb0ee51",
+  "loadables/lsattr.c": "ffbbdaafbea599a6dc5cfd8ecbadf7301d838d6d5bf11d163a459cd8c453baa0",
+  "loadables/ns.c": "c980c6a15bc01c6afcb460634efd9726e4bd186fddecd16f835401b53f05a89a",
+  "loadables/pack.c": "c501582f16663e3b8b70398491ac7bd510f2f1e90a1467ea10ea56bd6a523803",
+  "loadables/scm.c": "299ca7609346bd1e2ace9e460485d8c421da2d6ddd0ba3cc2b93de20a39318f6",
+  "loadables/sftp.c": "55a4c38493bcc2e3a1f9fe3edcd2c660b8dab570a31622a74a2495407491c224",
+  "loadables/ss.c": "c712ec326738728e838c9a806936681b3514f4ff990ad07fdb2e81f05b7b692e",
+  "loadables/strace.c": "c132878fde44d575283bc83bc93e9ad0ab2285424be54e17fd6632c890e1dfe0",
+  "loadables/tinfo.c": "8ebb0db1a58fd02cc6250efa65e89dac2a9d530b96b954839f53eff05191f734",
+  "loadables/tput.c": "d005e1a94d71d1ca0edfd143da34411772c0022f40a3fbc92287a51d96f13007",
+  "scripts/rsync_image_deb.py": "6abf1e161ff80d55593982630d811a05640bfbe0715a0db586ae305dd7897453",
+  "scripts/test_rsync_image_deb.py": "c161ca90caa25f6cfa5c191d91d1a174fbb5001416e98fd25165db341eda7246",
+  "scripts/test_rsync_image_deb_bounds.py": "3cff220130f67ea2b330c3bac618c6d697b80ee9225e80b15b0e378cd86abca4"
+ },
+ "compiler": "cc (Debian 14.2.0-19) 14.2.0",
+ "harness": {
+  "tests/parity-vm/deferrals.py": "e54d9b7be16985f455a73daf4057d0facd10b571a14061c53379b0b3697534f0",
+  "tests/parity-vm/device_v8_raw_audit.py": "46113da7520c20d60f5068dd9d3d4cf87428ed846b1f521d37752f4a8ba87f6a",
+  "tests/parity-vm/guest.py": "30e1ffa5de2f8288d5a7d56391e523ce7bed4444c5b6f9f317fd2d214b2667b3",
+  "tests/parity-vm/inventory.py": "94a8db0606a3638416cffe62421d16468a6a3496f838484b01ae1524e4eccae3",
+  "tests/parity-vm/network.py": "88ad4bdef7c68049301557bdc74eca24d91e4a6c2a66b86139569bebb4c17393",
+  "tests/parity-vm/primary_broker_evidence.py": "11a2b536f700f78e129e1928cfc094244c85c5f4fb732ed4c0c38aa8612aa30c",
+  "tests/parity-vm/primary_calendar45_evidence.py": "911685c6437e24e1ac4839a362988e935992dd8cff4e8990e98aa9b521f9411a",
+  "tests/parity-vm/primary_calendar_evidence.py": "11403b55b3823ddfcd5a3167da98630c427b21bf8426ac322723c14e6b30bc7a",
+  "tests/parity-vm/primary_clock_evidence.py": "02b206a8dadd3a5a086d6776fde9a267a7e5d47f5ab2bc532b55838c6b4c9cc3",
+  "tests/parity-vm/primary_controller_evidence.py": "b926b5bf88055c763a4ed5f36d5df56681a34d3cf3c160c434d16999ab8b20c0",
+  "tests/parity-vm/primary_device_v8_evidence.py": "5a1d23a86b9aabda77911d7ae56584c343e42795633d99fe8ea2aa4c4ba5920a",
+  "tests/parity-vm/primary_modern_evidence.py": "87f56ed376c4396272f2abf4d99f7c8419d6b3d04bf98b07514817e42a0d1d3a",
+  "tests/parity-vm/primary_ncdu_evidence.py": "33f542ec2f48a5d8c372bc472cc0e626faefb0356fac10418a372d0d9584b057",
+  "tests/parity-vm/primary_ns_native_control.py": "400a7cee875899ec1ef8bcbd77e8cc0b3d9fa58b7a7571f54e11db3472a4073b",
+  "tests/parity-vm/primary_owned_crypto_validator.py": "4591c9a07113de118d2689a5ff923cef3ec638391202151e3bcb7923ede58ac6",
+  "tests/parity-vm/primary_owned_passive_validator.py": "abe1dd268d8fbe1ffc11f3b797a46c38e40397c68c50bac3daa73d21c309ccaf",
+  "tests/parity-vm/primary_owned_pty_evidence.py": "bdde1bbd848d9f3e62fb707fc77f993b3cdb6e7f79d4b689098553ba320cba3a",
+  "tests/parity-vm/primary_owner_r12_evidence.py": "a5b400c1009e43865caa2b885e5bf5a9d7aa53b9c11b6b3a58c903c885edefcf",
+  "tests/parity-vm/primary_rtc_evidence.py": "7e5b90cafc5ff283ed7ff19407e9f0df3411974c00c3b220ce44931b9c046acb",
+  "tests/parity-vm/primary_setter45_evidence.py": "1f2f33d04ec161ce8edc004eaf6ecb4e758cac0cfa952df9bd2f8396c12f509c",
+  "tests/parity-vm/primary_ss_multipart_evidence.py": "03d7fbe94ac7eaf4268c26ee7c5616a123df4e78c0f17241a14c9da3b6369edf",
+  "tests/parity-vm/primary_su_v7_evidence.py": "b2b0871b97d54418a8de8f5360b79de9c7a7fd9121facb0a012eeb07f8754eac",
+  "tests/parity-vm/primary_syslog_evidence.py": "e6020bb323542577c20118e2e43ea0d4fa83d7684ae1917f5aca0bdf0ea3117a",
+  "tests/parity-vm/primary_top371_evidence.py": "b5d4df4f51858858ea13eaeb3ffb8d91860d137042883134a3004ca9d7992dac",
+  "tests/parity-vm/primary_top_typed.py": "d157f84b5608ede3b6f44a87ac6372caabc92d0c11b8743afd1e3db78f4ac56b",
+  "tests/parity-vm/primary_uclamp40_evidence.py": "2cd337e46f5248512d85f52af5a3e4620ef57765b1cf14c8f61e0515f4d48611",
+  "tests/parity-vm/primary_uclamp_setter55_evidence.py": "1e5cc987c2f0cad5ba91af0922efd86772704eea86879c3c963a65437a3b3b5d",
+  "tests/parity-vm/primary_watch337_evidence.py": "dbd000c0e8a3c80b031940a4766309b1306080e9a82267ba022ffa078ea24ab0",
+  "tests/parity-vm/primary_watch_evidence.py": "1a467c2e922ff0526ca831051d6c31d18e210e633ad0d5930144ba8648b6374a",
+  "tests/parity-vm/references.py": "372e914c3a6bf0fe1fd506cb2e217f2317ca738fc053186baea31bfbd8195d83",
+  "tests/parity-vm/schema.py": "4eef4f3f3e305ab956a9067d7048cb3b3002dc0101be92f34b5e1d1d345221a6",
+  "tests/parity-vm/scope.py": "63611c3638b270ac3ad71f19ac2cf7368778207f1f223177b794b3c2f47b6d3a",
+  "tests/parity-vm/selfcheck.py": "f55887c3e1354ae7769eb4f610a12f55e6aec5ab6dc9d2d2b69d403846ffbc1e",
+  "tests/parity-vm/setter45_inventory.py": "746f72accd577b7669c783f30acbfc9210660dd03160009182f3cbc05943b8d2",
+  "tests/parity-vm/setter45_saved_logic.py": "5ab6150b65178a1d77c91f47737f8f3720bb3d9e82507ef5a8b671f772dad55a",
+  "tests/parity-vm/terminal.py": "f112dac0dd8a55da1816fcae1de4dca95b071abc53468448fffdaf9c16c6b199",
+  "tests/parity-vm/uclamp40_case_semantics.py": "d3fb1b566d256eb311afcb65d989120df24065ad921037cad171917684032c8d",
+  "tests/parity-vm/vm.py": "de42aa1c4ada083e9ad44e77b7c2f18216a7a859af49c50a86f05e3c14e6c4e6",
+  "tests/parity-vm/watch337_dynamic_data.py": "c5e35fc058b78ad8ecb360925b90d23059321155d35e7263b8a11206948ea60e",
+  "tests/parity-vm/watch337_static_data.py": "0b6979ab07b7c615df24a0374eb39b97235f732ab3ed4da2548dcbd8b8aa7db2",
+  "tests/parity-vm/image-extended.lock.json": "b5730f7799dc05e42a3a4bc8ac75cc07144763b8b403ae45aebb8ecd3997daa3",
+  "tests/parity-vm/image-gpu.lock.json": "99918443a2846bb1f3d14a9576ff29e0f548d6bb1df64dfde5895922f99a6c04",
+  "tests/parity-vm/image-selinux.lock.json": "d561678a1690d8235b913dae30ee9550acb246fc8be8bb6003b26422b0b96946",
+  "tests/parity-vm/image.lock.json": "928c39be64700eaf8c0cd5498e3f433a1d0da4cb7bc4e27d3f3760ae0ee63346"
+ },
+ "builds": {
+  "static": {
+   "binary_sha256": "11e4edf30b60abeab3318fedd5a4052f783d2500576a934b295bca451e5b6308",
+   "binary_bytes": 14998376,
+   "manifest_sha256": "fd83b50a632c6ff336d493fd9498fad2973430eec20612c4696d764ad7881d84",
+   "injected_builtins": 286,
+   "static": true,
+   "runs": 25,
+   "selected_case_records": 6271,
+   "modern_results_by_group": {
+    "inventory": {
+     "COLLECTED": 1
+    },
+    "network": {
+     "FAIL": 18,
+     "PASS": 96
+    },
+    "reference": {
+     "FAIL": 1,
+     "PASS": 33,
+     "SKIP": 4
+    },
+    "selfcheck": {
+     "PASS": 13
+    },
+    "shell": {
+     "ERROR": 1,
+     "FAIL": 472,
+     "PASS": 1437
+    },
+    "terminal": {
+     "ERROR": 2,
+     "FAIL": 90,
+     "PASS": 282
+    }
+   },
+   "historical_suites": {
+    "DEFERRED": 22,
+    "FAIL": 24,
+    "MIGRATED": 578,
+    "PASS": 3174,
+    "SKIP": 23
+   },
+   "reference_assertions": {
+    "planned": 9331283,
+    "executed": 9331283,
+    "passed": 9331243,
+    "failed": 40
+   },
+   "case_changes_from_frozen": [
+    {
+     "id": "mig-w1-sock-ns-unix",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "netstat",
+     "product_commits_since_base": [
+      "26e4c9b7"
+     ],
+     "note": null
+    },
+    {
+     "id": "mig-w5-ns-cgroup-path-validation",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "ns",
+     "product_commits_since_base": [
+      "68bb6299"
+     ],
+     "note": null
+    },
+    {
+     "id": "mig-w7-fdisk-partx-delete-range-root",
+     "group": "shell",
+     "frozen": "PASS",
+     "release": "FAIL",
+     "ledger_evidence": true,
+     "loadable": "fdisk",
+     "product_commits_since_base": [],
+     "note": "Plan-5 run FAIL on release-static only (rq5-root-shell-1): the BLKPG partition delete returned EBUSY while a udev probe still held the new loop partition open. Repeats fdrep1-3 on the same binary: 3/3 PASS with no differences. fdisk has no product commits after the frozen build; the recorded FAIL is kept."
+    },
+    {
+     "id": "mig-w7-lsattr-feature-bits-ext4-root",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "lsattr",
+     "product_commits_since_base": [
+      "e6019c3c"
+     ],
+     "note": null
+    },
+    {
+     "id": "mig-w7-lsattr-mocked-flag-words",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "lsattr",
+     "product_commits_since_base": [
+      "e6019c3c"
+     ],
+     "note": null
+    },
+    {
+     "id": "mig-w7-lsattr-user-bits-ext4-root",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "lsattr",
+     "product_commits_since_base": [
+      "e6019c3c"
+     ],
+     "note": null
+    },
+    {
+     "id": "mig-w8-tput-extended-capabilities",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "tput",
+     "product_commits_since_base": [
+      "0928c88b",
+      "e828f90e",
+      "86c847a1",
+      "16cb18bb"
+     ],
+     "note": null
+    },
+    {
+     "id": "mig-w8-tput-padding-38400",
+     "group": "terminal",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "tput",
+     "product_commits_since_base": [
+      "0928c88b",
+      "e828f90e",
+      "86c847a1",
+      "16cb18bb"
+     ],
+     "note": null
+    },
+    {
+     "id": "mig-w8-tput-padding-9600",
+     "group": "terminal",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "tput",
+     "product_commits_since_base": [
+      "0928c88b",
+      "e828f90e",
+      "86c847a1",
+      "16cb18bb"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-auth-policy-fnmatch-pathname",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "auth",
+     "product_commits_since_base": [
+      "59a0a06b"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-auth-policy-parse-grammar",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "auth",
+     "product_commits_since_base": [
+      "59a0a06b"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-bashio-network-reviewed-addr-bad-mask",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "bashio",
+     "product_commits_since_base": [
+      "26e4c9b7"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-dns-auth-doh-h2c-plain-literals",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "dns",
+     "product_commits_since_base": [
+      "a8f0ec61",
+      "1453fabd"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-farm600-sftp-remaining-reviewed-navigation-quoted",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "sftp",
+     "product_commits_since_base": [
+      "2a3feeda"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-namespace-network-netstat-unix-r1",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "netstat",
+     "product_commits_since_base": [
+      "26e4c9b7"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-strace-attach-existing-r1",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "strace",
+     "product_commits_since_base": [
+      "80440c4f",
+      "9008b204",
+      "421c55ed",
+      "da05885c"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-strace-attach-existing-r2",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "strace",
+     "product_commits_since_base": [
+      "80440c4f",
+      "9008b204",
+      "421c55ed",
+      "da05885c"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-strace-exec-decode-reviewed",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "strace",
+     "product_commits_since_base": [
+      "80440c4f",
+      "9008b204",
+      "421c55ed",
+      "da05885c"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-system-client-followup-kmod-effects-guard-r2",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "bashkmod",
+     "product_commits_since_base": [
+      "7ab4a67e"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-system-client-followup-kmod-policy-guard-r2",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "bashkmod",
+     "product_commits_since_base": [
+      "7ab4a67e"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-tput-compiled-terminfo",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "tput",
+     "product_commits_since_base": [
+      "0928c88b",
+      "e828f90e",
+      "86c847a1",
+      "16cb18bb"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-tput-padding-pty",
+     "group": "terminal",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": false,
+     "loadable": "tput",
+     "product_commits_since_base": [
+      "0928c88b",
+      "e828f90e",
+      "86c847a1",
+      "16cb18bb"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-tput-terminal-byte-parity",
+     "group": "terminal",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "tput",
+     "product_commits_since_base": [
+      "0928c88b",
+      "e828f90e",
+      "86c847a1",
+      "16cb18bb"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-transfer-sftp-get-binary-r4",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "sftp",
+     "product_commits_since_base": [
+      "2a3feeda"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-transfer-sftp-local-verbs-r4",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "sftp",
+     "product_commits_since_base": [
+      "2a3feeda"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-transfer-sftp-put-binary-r4",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "sftp",
+     "product_commits_since_base": [
+      "2a3feeda"
+     ],
+     "note": null
+    },
+    {
+     "id": "trace-vm-crypto-tls12-r1",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "crypto",
+     "product_commits_since_base": [
+      "97e65c2b"
+     ],
+     "note": null
+    }
+   ],
+   "cases_only_in_release": [
+    "legacy/curl/redirect-credentials-cross-origin",
+    "legacy/curl/redirect-location-control-bytes",
+    "legacy/tput/compiled-terminfo-hostile-padding",
+    "mig-w1-probe-ip-formats",
+    "mig-w1-probe-net-env",
+    "mig-w1-wg-root-set-apply",
+    "mig-w1-wg-root-set-errors",
+    "mig-w1-wg-root-set-peers",
+    "mig-w1-wg-root-setconf",
+    "mig-w1-wg-root-show",
+    "mig-w8-ts-probe-parsers",
+    "mig-w8-write-user-recipient-utmp",
+    "migration-dd-noerror-read-errors",
+    "migration-expect-tcl-deadline-eof",
+    "migration-genl-list-multipart",
+    "migration-link-cross-filesystem-rejection",
+    "migration-mv-exdev-copy-remove",
+    "migration-system-client-followup-syslog-safety",
+    "migration-tput-extended-builtin",
+    "migration-tput-padding-builtin-bytes",
+    "migration-tput-padding-npc-delay",
+    "migration-tput-reset-special-chars",
+    "migration-transfer-rsync-native-delta-r3",
+    "protocol-wire-dkim-control-r4",
+    "protocol-wire-mail-capture-control-r4",
+    "protocol-wire-mail-delivery-control-r4",
+    "protocol-wire-rtsp-control-evidence-r5",
+    "protocol-wire-rtsp-control-evidence-r6",
+    "protocol-wire-rtsp-receipt-control-r5",
+    "protocol-wire-rtsp-receipt-control-r6",
+    "selfcheck-file-size-allowance",
+    "selfcheck-syscall-sequence-observer"
+   ],
+   "cases_only_in_frozen_selection": {
+    "job-control repeat record": 12,
+    "evidence-only controller case": 67
+   },
+   "errors": [
+    {
+     "id": "migration-genl-list-multipart",
+     "run": "rq5-local-shell-4-release-static",
+     "ledger_evidence": false,
+     "cause": "fixture setup failed before behavioral execution"
+    },
+    {
+     "id": "migration-tput-padding-builtin-bytes",
+     "run": "rq5-local-terminal-1-release-static",
+     "ledger_evidence": false,
+     "cause": "process exited before step 2 expect '\\\\x1b\\\\[H\\\\x1b\\\\[JC\\\\r\\\\n': not seen"
+    },
+    {
+     "id": "mig-w8-write-user-recipient-utmp",
+     "run": "rq5-root-terminal-1-release-static",
+     "ledger_evidence": false,
+     "cause": "process exited before step 0 expect 'Message from [^ ]+@[^ ]+ on pts/[0-9]+ at [0-2][0-9]:[0-5][0-9]': not seen"
+    }
+   ],
+   "topic_results": {
+    "FAIL": 256,
+    "UNRESOLVED": 64,
+    "PASS": 280
+   },
+   "frozen_to_release_transitions": {
+    "FAIL->FAIL": 255,
+    "UNRESOLVED->UNRESOLVED": 22,
+    "PASS->UNRESOLVED": 26,
+    "FAIL->UNRESOLVED": 16,
+    "PASS->PASS": 273,
+    "FAIL->PASS": 7,
+    "PASS->FAIL": 1
+   },
+   "changed_topics": [
+    {
+     "topic": "bashclock/clock_domain_reads",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "bashclock/since_arithmetic",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "bashio/set-addr-deferred",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "migration-bashio-network-reviewed-addr-bad-mask",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "26e4c9b7"
+       ],
+       "note": null
+      }
+     ]
+    },
+    {
+     "topic": "bashsyslogd/forwarding_queue_replay",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "cluster/argument-and-timeout-validation",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "cluster/packet-rejection",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "cluster/ping-protocol",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "cluster/private-state-recovery",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "crypto/secret-read-terminal",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "dns/dns-authoritative-service",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "fdisk/defer-kernel-partx",
+     "frozen": "PASS",
+     "release": "FAIL",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "mig-w7-fdisk-partx-delete-range-root",
+       "frozen": "PASS",
+       "release": "FAIL",
+       "product_commits_since_base": [],
+       "note": "Plan-5 run FAIL on release-static only (rq5-root-shell-1): the BLKPG partition delete returned EBUSY while a udev probe still held the new loop partition open. Repeats fdrep1-3 on the same binary: 3/3 PASS with no differences. fdisk has no product commits after the frozen build; the recorded FAIL is kept."
+      }
+     ]
+    },
+    {
+     "topic": "hwclock/adjtime-validation-before-rtc",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "hwclock/adjust-fractional-drift",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "hwclock/hctosys-utc-epoch",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "hwclock/rtc-and-adjfile-failure-cleanup",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "hwclock/show-raw-rtc-calendar",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "hwclock/systohc-and-adjtime-reset",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "lpr/cancel_owned_child",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "lpr/submit_fixture_backend",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "lsattr/nonzero_attribute_bits",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "mig-w7-lsattr-feature-bits-ext4-root",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "e6019c3c"
+       ],
+       "note": null
+      },
+      {
+       "id": "mig-w7-lsattr-mocked-flag-words",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "e6019c3c"
+       ],
+       "note": null
+      },
+      {
+       "id": "mig-w7-lsattr-user-bits-ext4-root",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "e6019c3c"
+       ],
+       "note": null
+      }
+     ]
+    },
+    {
+     "topic": "lsof/deferred-user-filter",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "mlock/all-operation",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "mlock/try-lock-operation",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "mlock/unlock-operation",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "ncdu/interactive-browser-pty",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "netstat/defer-transport-errors",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "netstat/defer-unix-sockets",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "mig-w1-sock-ns-unix",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "26e4c9b7"
+       ],
+       "note": null
+      },
+      {
+       "id": "migration-namespace-network-netstat-unix-r1",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "26e4c9b7"
+       ],
+       "note": null
+      }
+     ]
+    },
+    {
+     "topic": "ns/ns-cgroup-v2-helpers",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "mig-w5-ns-cgroup-path-validation",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "68bb6299"
+       ],
+       "note": null
+      }
+     ]
+    },
+    {
+     "topic": "ns/ns-mount-operations",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "ns/ns-spawn-child-exec",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "ns/ns-unshare-namespaces",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "pty/pty-session-control-deferred",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "ptybroker/bounded_io_errors",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "ptybroker/private_session_lifecycle",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "scrub/live-history-deferred",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "sftp/binary-get-put",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "migration-transfer-sftp-get-binary-r4",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "2a3feeda"
+       ],
+       "note": null
+      },
+      {
+       "id": "migration-transfer-sftp-put-binary-r4",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "2a3feeda"
+       ],
+       "note": null
+      }
+     ]
+    },
+    {
+     "topic": "sftp/local-session-verbs",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "sqlite/concurrent-file-locking",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "ss/deferred_netlink_protocol_errors",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "ss/deferred_output_and_repeat_calls",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "strace/attach-existing-pid",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "migration-strace-attach-existing-r1",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "80440c4f",
+        "9008b204",
+        "421c55ed",
+        "da05885c"
+       ],
+       "note": null
+      },
+      {
+       "id": "migration-strace-attach-existing-r2",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "80440c4f",
+        "9008b204",
+        "421c55ed",
+        "da05885c"
+       ],
+       "note": null
+      }
+     ]
+    },
+    {
+     "topic": "su/kernel-token-protocol",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "su/owned-child-status-and-signals",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "top/interactive-pty-contract",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "tput/compiled-terminfo",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "mig-w8-tput-extended-capabilities",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "0928c88b",
+        "e828f90e",
+        "86c847a1",
+        "16cb18bb"
+       ],
+       "note": null
+      },
+      {
+       "id": "mig-w8-tput-padding-38400",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "0928c88b",
+        "e828f90e",
+        "86c847a1",
+        "16cb18bb"
+       ],
+       "note": null
+      },
+      {
+       "id": "mig-w8-tput-padding-9600",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "0928c88b",
+        "e828f90e",
+        "86c847a1",
+        "16cb18bb"
+       ],
+       "note": null
+      },
+      {
+       "id": "migration-tput-compiled-terminfo",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "0928c88b",
+        "e828f90e",
+        "86c847a1",
+        "16cb18bb"
+       ],
+       "note": null
+      },
+      {
+       "id": "migration-tput-padding-pty",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "0928c88b",
+        "e828f90e",
+        "86c847a1",
+        "16cb18bb"
+       ],
+       "note": null
+      }
+     ]
+    },
+    {
+     "topic": "uclampset/defer_all_tasks_preflight",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "uclampset/defer_command_mode",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "uclampset/defer_pid_query",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "uclampset/defer_pid_setter",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "watch/watch-terminal-parity",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    }
+   ]
+  },
+  "dynamic": {
+   "binary_sha256": "090c95cd49df3478967c0acb73534d425ed099ba0ef55e5522745d30fec0c039",
+   "binary_bytes": 12541960,
+   "manifest_sha256": "fd83b50a632c6ff336d493fd9498fad2973430eec20612c4696d764ad7881d84",
+   "injected_builtins": 286,
+   "static": false,
+   "runs": 25,
+   "selected_case_records": 6271,
+   "modern_results_by_group": {
+    "inventory": {
+     "COLLECTED": 1
+    },
+    "network": {
+     "FAIL": 20,
+     "PASS": 94
+    },
+    "reference": {
+     "FAIL": 1,
+     "PASS": 33,
+     "SKIP": 4
+    },
+    "selfcheck": {
+     "PASS": 13
+    },
+    "shell": {
+     "ERROR": 1,
+     "FAIL": 470,
+     "PASS": 1439
+    },
+    "terminal": {
+     "ERROR": 2,
+     "FAIL": 90,
+     "PASS": 282
+    }
+   },
+   "historical_suites": {
+    "DEFERRED": 22,
+    "FAIL": 24,
+    "MIGRATED": 578,
+    "PASS": 3174,
+    "SKIP": 23
+   },
+   "reference_assertions": {
+    "planned": 9331283,
+    "executed": 9331283,
+    "passed": 9331243,
+    "failed": 40
+   },
+   "case_changes_from_frozen": [
+    {
+     "id": "mig-w1-sock-ns-unix",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "netstat",
+     "product_commits_since_base": [
+      "26e4c9b7"
+     ],
+     "note": null
+    },
+    {
+     "id": "mig-w5-ns-cgroup-path-validation",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "ns",
+     "product_commits_since_base": [
+      "68bb6299"
+     ],
+     "note": null
+    },
+    {
+     "id": "mig-w7-lsattr-feature-bits-ext4-root",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "lsattr",
+     "product_commits_since_base": [
+      "e6019c3c"
+     ],
+     "note": null
+    },
+    {
+     "id": "mig-w7-lsattr-mocked-flag-words",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "lsattr",
+     "product_commits_since_base": [
+      "e6019c3c"
+     ],
+     "note": null
+    },
+    {
+     "id": "mig-w7-lsattr-user-bits-ext4-root",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "lsattr",
+     "product_commits_since_base": [
+      "e6019c3c"
+     ],
+     "note": null
+    },
+    {
+     "id": "mig-w8-tput-extended-capabilities",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "tput",
+     "product_commits_since_base": [
+      "0928c88b",
+      "e828f90e",
+      "86c847a1",
+      "16cb18bb"
+     ],
+     "note": null
+    },
+    {
+     "id": "mig-w8-tput-padding-38400",
+     "group": "terminal",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "tput",
+     "product_commits_since_base": [
+      "0928c88b",
+      "e828f90e",
+      "86c847a1",
+      "16cb18bb"
+     ],
+     "note": null
+    },
+    {
+     "id": "mig-w8-tput-padding-9600",
+     "group": "terminal",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "tput",
+     "product_commits_since_base": [
+      "0928c88b",
+      "e828f90e",
+      "86c847a1",
+      "16cb18bb"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-auth-policy-fnmatch-pathname",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "auth",
+     "product_commits_since_base": [
+      "59a0a06b"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-auth-policy-parse-grammar",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "auth",
+     "product_commits_since_base": [
+      "59a0a06b"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-bashio-network-reviewed-addr-bad-mask",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "bashio",
+     "product_commits_since_base": [
+      "26e4c9b7"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-dns-auth-doh-h2c-plain-literals",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "dns",
+     "product_commits_since_base": [
+      "a8f0ec61",
+      "1453fabd"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-farm600-sftp-remaining-reviewed-navigation-quoted",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "sftp",
+     "product_commits_since_base": [
+      "2a3feeda"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-namespace-network-netstat-unix-r1",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "netstat",
+     "product_commits_since_base": [
+      "26e4c9b7"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-strace-attach-existing-r1",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "strace",
+     "product_commits_since_base": [
+      "80440c4f",
+      "9008b204",
+      "421c55ed",
+      "da05885c"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-strace-attach-existing-r2",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "strace",
+     "product_commits_since_base": [
+      "80440c4f",
+      "9008b204",
+      "421c55ed",
+      "da05885c"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-strace-exec-decode-reviewed",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "strace",
+     "product_commits_since_base": [
+      "80440c4f",
+      "9008b204",
+      "421c55ed",
+      "da05885c"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-system-client-followup-kmod-effects-guard-r2",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "bashkmod",
+     "product_commits_since_base": [
+      "7ab4a67e"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-system-client-followup-kmod-policy-guard-r2",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "bashkmod",
+     "product_commits_since_base": [
+      "7ab4a67e"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-tput-compiled-terminfo",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "tput",
+     "product_commits_since_base": [
+      "0928c88b",
+      "e828f90e",
+      "86c847a1",
+      "16cb18bb"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-tput-padding-pty",
+     "group": "terminal",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": false,
+     "loadable": "tput",
+     "product_commits_since_base": [
+      "0928c88b",
+      "e828f90e",
+      "86c847a1",
+      "16cb18bb"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-tput-terminal-byte-parity",
+     "group": "terminal",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "tput",
+     "product_commits_since_base": [
+      "0928c88b",
+      "e828f90e",
+      "86c847a1",
+      "16cb18bb"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-transfer-sftp-get-binary-r4",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "sftp",
+     "product_commits_since_base": [
+      "2a3feeda"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-transfer-sftp-local-verbs-r4",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "sftp",
+     "product_commits_since_base": [
+      "2a3feeda"
+     ],
+     "note": null
+    },
+    {
+     "id": "migration-transfer-sftp-put-binary-r4",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "sftp",
+     "product_commits_since_base": [
+      "2a3feeda"
+     ],
+     "note": null
+    },
+    {
+     "id": "protocol-wire-rtsp-output-pipe-evidence-r5",
+     "group": "shell",
+     "frozen": "PASS",
+     "release": "FAIL",
+     "ledger_evidence": true,
+     "loadable": "rtspcat",
+     "product_commits_since_base": [],
+     "note": "Plan-5 run FAIL on release-dynamic only (rq5-local-shell-5): the fixture's before snapshot of /proc/$$/status had no SigIgn line, so its before/after comparison failed and the expected stdout was not printed. rtspcat itself returned the expected status 1 and the shell survived. Repeats rtrep1-3 on the same binary: 3/3 PASS with the exact expected stdout. rtspcat has no product commits after the frozen build; the recorded FAIL is kept."
+    },
+    {
+     "id": "trace-vm-crypto-tls12-r1",
+     "group": "shell",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "ledger_evidence": true,
+     "loadable": "crypto",
+     "product_commits_since_base": [
+      "97e65c2b"
+     ],
+     "note": null
+    }
+   ],
+   "cases_only_in_release": [
+    "legacy/curl/redirect-credentials-cross-origin",
+    "legacy/curl/redirect-location-control-bytes",
+    "legacy/tput/compiled-terminfo-hostile-padding",
+    "mig-w1-probe-ip-formats",
+    "mig-w1-probe-net-env",
+    "mig-w1-wg-root-set-apply",
+    "mig-w1-wg-root-set-errors",
+    "mig-w1-wg-root-set-peers",
+    "mig-w1-wg-root-setconf",
+    "mig-w1-wg-root-show",
+    "mig-w8-ts-probe-parsers",
+    "mig-w8-write-user-recipient-utmp",
+    "migration-dd-noerror-read-errors",
+    "migration-expect-tcl-deadline-eof",
+    "migration-genl-list-multipart",
+    "migration-link-cross-filesystem-rejection",
+    "migration-mv-exdev-copy-remove",
+    "migration-system-client-followup-syslog-safety",
+    "migration-tput-extended-builtin",
+    "migration-tput-padding-builtin-bytes",
+    "migration-tput-padding-npc-delay",
+    "migration-tput-reset-special-chars",
+    "migration-transfer-rsync-native-delta-r3",
+    "protocol-wire-dkim-control-r4",
+    "protocol-wire-mail-capture-control-r4",
+    "protocol-wire-mail-delivery-control-r4",
+    "protocol-wire-rtsp-control-evidence-r5",
+    "protocol-wire-rtsp-control-evidence-r6",
+    "protocol-wire-rtsp-receipt-control-r5",
+    "protocol-wire-rtsp-receipt-control-r6",
+    "selfcheck-file-size-allowance",
+    "selfcheck-syscall-sequence-observer"
+   ],
+   "cases_only_in_frozen_selection": {
+    "job-control repeat record": 12,
+    "evidence-only controller case": 67
+   },
+   "errors": [
+    {
+     "id": "migration-genl-list-multipart",
+     "run": "rq5-local-shell-4-release-dynamic",
+     "ledger_evidence": false,
+     "cause": "fixture setup failed before behavioral execution"
+    },
+    {
+     "id": "migration-tput-padding-builtin-bytes",
+     "run": "rq5-local-terminal-1-release-dynamic",
+     "ledger_evidence": false,
+     "cause": "process exited before step 2 expect '\\\\x1b\\\\[H\\\\x1b\\\\[JC\\\\r\\\\n': not seen"
+    },
+    {
+     "id": "mig-w8-write-user-recipient-utmp",
+     "run": "rq5-root-terminal-1-release-dynamic",
+     "ledger_evidence": false,
+     "cause": "process exited before step 0 expect 'Message from [^ ]+@[^ ]+ on pts/[0-9]+ at [0-2][0-9]:[0-5][0-9]': not seen"
+    }
+   ],
+   "topic_results": {
+    "FAIL": 255,
+    "UNRESOLVED": 64,
+    "PASS": 281
+   },
+   "frozen_to_release_transitions": {
+    "FAIL->FAIL": 254,
+    "UNRESOLVED->UNRESOLVED": 22,
+    "PASS->UNRESOLVED": 26,
+    "FAIL->UNRESOLVED": 16,
+    "PASS->PASS": 274,
+    "FAIL->PASS": 7,
+    "PASS->FAIL": 1
+   },
+   "changed_topics": [
+    {
+     "topic": "bashclock/clock_domain_reads",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "bashclock/since_arithmetic",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "bashio/set-addr-deferred",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "migration-bashio-network-reviewed-addr-bad-mask",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "26e4c9b7"
+       ],
+       "note": null
+      }
+     ]
+    },
+    {
+     "topic": "bashsyslogd/forwarding_queue_replay",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "cluster/argument-and-timeout-validation",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "cluster/packet-rejection",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "cluster/ping-protocol",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "cluster/private-state-recovery",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "crypto/secret-read-terminal",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "dns/dns-authoritative-service",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "hwclock/adjtime-validation-before-rtc",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "hwclock/adjust-fractional-drift",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "hwclock/hctosys-utc-epoch",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "hwclock/rtc-and-adjfile-failure-cleanup",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "hwclock/show-raw-rtc-calendar",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "hwclock/systohc-and-adjtime-reset",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "lpr/cancel_owned_child",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "lpr/submit_fixture_backend",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "lsattr/nonzero_attribute_bits",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "mig-w7-lsattr-feature-bits-ext4-root",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "e6019c3c"
+       ],
+       "note": null
+      },
+      {
+       "id": "mig-w7-lsattr-mocked-flag-words",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "e6019c3c"
+       ],
+       "note": null
+      },
+      {
+       "id": "mig-w7-lsattr-user-bits-ext4-root",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "e6019c3c"
+       ],
+       "note": null
+      }
+     ]
+    },
+    {
+     "topic": "lsof/deferred-user-filter",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "mlock/all-operation",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "mlock/try-lock-operation",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "mlock/unlock-operation",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "ncdu/interactive-browser-pty",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "netstat/defer-transport-errors",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "netstat/defer-unix-sockets",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "mig-w1-sock-ns-unix",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "26e4c9b7"
+       ],
+       "note": null
+      },
+      {
+       "id": "migration-namespace-network-netstat-unix-r1",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "26e4c9b7"
+       ],
+       "note": null
+      }
+     ]
+    },
+    {
+     "topic": "ns/ns-cgroup-v2-helpers",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "mig-w5-ns-cgroup-path-validation",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "68bb6299"
+       ],
+       "note": null
+      }
+     ]
+    },
+    {
+     "topic": "ns/ns-mount-operations",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "ns/ns-spawn-child-exec",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "ns/ns-unshare-namespaces",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "pty/pty-session-control-deferred",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "ptybroker/bounded_io_errors",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "ptybroker/private_session_lifecycle",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "rtspcat/deferred-output-fd-lifecycle",
+     "frozen": "PASS",
+     "release": "FAIL",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "protocol-wire-rtsp-output-pipe-evidence-r5",
+       "frozen": "PASS",
+       "release": "FAIL",
+       "product_commits_since_base": [],
+       "note": "Plan-5 run FAIL on release-dynamic only (rq5-local-shell-5): the fixture's before snapshot of /proc/$$/status had no SigIgn line, so its before/after comparison failed and the expected stdout was not printed. rtspcat itself returned the expected status 1 and the shell survived. Repeats rtrep1-3 on the same binary: 3/3 PASS with the exact expected stdout. rtspcat has no product commits after the frozen build; the recorded FAIL is kept."
+      }
+     ]
+    },
+    {
+     "topic": "scrub/live-history-deferred",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "sftp/binary-get-put",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "migration-transfer-sftp-get-binary-r4",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "2a3feeda"
+       ],
+       "note": null
+      },
+      {
+       "id": "migration-transfer-sftp-put-binary-r4",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "2a3feeda"
+       ],
+       "note": null
+      }
+     ]
+    },
+    {
+     "topic": "sftp/local-session-verbs",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "sqlite/concurrent-file-locking",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "ss/deferred_netlink_protocol_errors",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "ss/deferred_output_and_repeat_calls",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "strace/attach-existing-pid",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "migration-strace-attach-existing-r1",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "80440c4f",
+        "9008b204",
+        "421c55ed",
+        "da05885c"
+       ],
+       "note": null
+      },
+      {
+       "id": "migration-strace-attach-existing-r2",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "80440c4f",
+        "9008b204",
+        "421c55ed",
+        "da05885c"
+       ],
+       "note": null
+      }
+     ]
+    },
+    {
+     "topic": "su/kernel-token-protocol",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "su/owned-child-status-and-signals",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: the release report cannot count controller-pipeline evidence; plain release runs reconfirmed its cases (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "top/interactive-pty-contract",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "tput/compiled-terminfo",
+     "frozen": "FAIL",
+     "release": "PASS",
+     "not_executed": [],
+     "cases": [
+      {
+       "id": "mig-w8-tput-extended-capabilities",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "0928c88b",
+        "e828f90e",
+        "86c847a1",
+        "16cb18bb"
+       ],
+       "note": null
+      },
+      {
+       "id": "mig-w8-tput-padding-38400",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "0928c88b",
+        "e828f90e",
+        "86c847a1",
+        "16cb18bb"
+       ],
+       "note": null
+      },
+      {
+       "id": "mig-w8-tput-padding-9600",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "0928c88b",
+        "e828f90e",
+        "86c847a1",
+        "16cb18bb"
+       ],
+       "note": null
+      },
+      {
+       "id": "migration-tput-compiled-terminfo",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "0928c88b",
+        "e828f90e",
+        "86c847a1",
+        "16cb18bb"
+       ],
+       "note": null
+      },
+      {
+       "id": "migration-tput-padding-pty",
+       "frozen": "FAIL",
+       "release": "PASS",
+       "product_commits_since_base": [
+        "0928c88b",
+        "e828f90e",
+        "86c847a1",
+        "16cb18bb"
+       ],
+       "note": null
+      }
+     ]
+    },
+    {
+     "topic": "uclampset/defer_all_tasks_preflight",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "uclampset/defer_command_mode",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "uclampset/defer_pid_query",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "uclampset/defer_pid_setter",
+     "frozen": "PASS",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    },
+    {
+     "topic": "watch/watch-terminal-parity",
+     "frozen": "FAIL",
+     "release": "UNRESOLVED",
+     "not_executed": [
+      "NOT_RUN"
+     ],
+     "cause": "evidence-only topic: its controller pipeline cannot run on the release builds, so it rests on frozen-candidate evidence (see evidence_only_confirmation)"
+    }
+   ]
+  }
+ },
+ "migration": {
+  "record": "docs/data/parity-0.1.3-deferrals.json",
+  "record_sha256": "4debe19b2f0791674b53a1a79736a79a79047d417f571e972353b19cec128c3c",
+  "coverage": {
+   "full": 578,
+   "partial": 21,
+   "none": 1
+  },
+  "results": {
+   "static": {
+    "FAIL": 278,
+    "UNRESOLVED": 22,
+    "PASS": 300
+   },
+   "dynamic": {
+    "FAIL": 277,
+    "UNRESOLVED": 22,
+    "PASS": 301
+   }
+  },
+  "frozen_candidates": {
+   "static": "2511208dea53bf380088ca242ea5b26029ebfeceb1794d87fc42fde4df8f22ab",
+   "dynamic": "6f0e188ae4509e660fe472ae9d7ba368846c0161184556d5d925d5c527b8e0e2"
+  },
+  "limits": {
+   "record": "docs/data/parity-0.1.3-limits.json",
+   "requirements": 34,
+   "topics": 22,
+   "categories": {
+    "kernel-authority-absent": 27,
+    "kernel-feature-absent": 1,
+    "hardware-absent": 1,
+    "unreachable-on-frozen-build": 3,
+    "interface-cannot-represent": 2
+   }
+  }
+ },
+ "evidence_only_confirmation": {
+  "purpose": "Supplementary confirmation of evidence-only (controller-pipeline) cases on the release builds. These plain runs are not ledger evidence: deferrals.py accepts evidence-only cases only with primary-qualified controller receipts.",
+  "counts": {
+   "static": {
+    "ERROR": 49,
+    "PASS": 72,
+    "FAIL": 9
+   },
+   "dynamic": {
+    "ERROR": 49,
+    "PASS": 72,
+    "FAIL": 9
+   },
+   "release-static": {
+    "ERROR": 49,
+    "PASS": 75,
+    "FAIL": 6
+   },
+   "release-dynamic": {
+    "ERROR": 49,
+    "PASS": 75,
+    "FAIL": 6
+   }
+  },
+  "changed_between_frozen_and_release": [
+   {
+    "id": "migration-farm600-sftp-confined-additive-get-quoted",
+    "frozen": "FAIL",
+    "release": "PASS"
+   },
+   {
+    "id": "migration-farm600-sftp-confined-additive-put-quoted",
+    "frozen": "FAIL",
+    "release": "PASS"
+   },
+   {
+    "id": "migration-netstat-transport-fallback-r1",
+    "frozen": "FAIL",
+    "release": "PASS"
+   }
+  ],
+  "change_attribution": {
+   "migration-farm600-sftp-confined-additive-get-quoted": "2a3feeda",
+   "migration-farm600-sftp-confined-additive-put-quoted": "2a3feeda",
+   "migration-netstat-transport-fallback-r1": "26e4c9b7"
+  },
+  "plain_vs_pipeline_disagreements": [
+   {
+    "id": "migration-terminal213-crypto-secret-lf-r3",
+    "pipeline": "PASS",
+    "plain": "FAIL",
+    "reason": "plain runtime compares the reference tree mode: the reference writes secret.bin 0600, the candidate script 0644; content identical; same on all four builds"
+   },
+   {
+    "id": "migration-terminal213-crypto-secret-cr-r3",
+    "pipeline": "PASS",
+    "plain": "FAIL",
+    "reason": "plain runtime compares the reference tree mode: the reference writes secret.bin 0600, the candidate script 0644; content identical; same on all four builds"
+   }
+  ],
+  "topics_reconfirmed_on_release": [
+   "crypto/secret-read-terminal",
+   "hwclock/adjtime-validation-before-rtc",
+   "hwclock/adjust-fractional-drift",
+   "hwclock/hctosys-utc-epoch",
+   "hwclock/rtc-and-adjfile-failure-cleanup",
+   "hwclock/show-raw-rtc-calendar",
+   "hwclock/systohc-and-adjtime-reset",
+   "lpr/cancel_owned_child",
+   "lpr/submit_fixture_backend",
+   "lsof/deferred-user-filter",
+   "mlock/try-lock-operation",
+   "netstat/defer-transport-errors",
+   "ns/ns-mount-operations",
+   "ns/ns-spawn-child-exec",
+   "ns/ns-unshare-namespaces",
+   "scrub/live-history-deferred",
+   "sftp/local-session-verbs",
+   "sqlite/concurrent-file-locking",
+   "ss/deferred_netlink_protocol_errors",
+   "ss/deferred_output_and_repeat_calls",
+   "su/kernel-token-protocol",
+   "su/owned-child-status-and-signals"
+  ],
+  "topics_on_frozen_evidence_only": [
+   "bashclock/clock_domain_reads",
+   "bashclock/since_arithmetic",
+   "bashsyslogd/forwarding_queue_replay",
+   "cluster/argument-and-timeout-validation",
+   "cluster/packet-rejection",
+   "cluster/ping-protocol",
+   "cluster/private-state-recovery",
+   "dns/dns-authoritative-service",
+   "mlock/all-operation",
+   "mlock/unlock-operation",
+   "ncdu/interactive-browser-pty",
+   "pty/pty-session-control-deferred",
+   "ptybroker/bounded_io_errors",
+   "ptybroker/private_session_lifecycle",
+   "top/interactive-pty-contract",
+   "uclampset/defer_all_tasks_preflight",
+   "uclampset/defer_command_mode",
+   "uclampset/defer_pid_query",
+   "uclampset/defer_pid_setter",
+   "watch/watch-terminal-parity"
+  ],
+  "frozen_only_reason": "their cases need controller-provided guards, native controls or historical helper bytes and stop before behavioral execution in the plain runtime (ERROR, identical on all four builds)",
+  "frozen_only_source_check": "None of their sources (bashclock, bashsyslogd, cluster, mlock, ncdu, pty, ptybroker, top, uclampset, watch) changed after the freeze. dns.c changed (DoH response header indexes a8f0ec61, client NXDOMAIN retry 1453fabd); the dns/dns-authoritative-service evidence exercises UDP response rate limiting, which neither change touches.",
+  "release_candidate_reruns": "The plain variants ran on each of the three release candidates; case statuses are identical on all three, so the counts and changes above hold for the release binaries."
+ },
+ "scope": [
+  "The migration review was executed on frozen candidates built before the release source; every selected case was then re-run on both release binaries in disposable guests, and each frozen-to-release topic change is listed with its cause.",
+  "Topic results count reviewed scenarios, not cases; static and dynamic totals cover the same topics and must not be added.",
+  "Requirements listed as concrete limits stay unresolved; a limit is neither a pass nor a failure.",
+  "Evidence-only topics whose controller pipelines cannot be re-run rest on frozen-candidate evidence; frozen_only_source_check lists the source changes after the freeze and why that evidence does not exercise them.",
+  "These results do not establish complete Bash or GNU command conformance."
+ ]
+}

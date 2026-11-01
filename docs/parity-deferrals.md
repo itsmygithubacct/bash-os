@@ -4,10 +4,11 @@ The migration review is complete. The original 600 scenarios are preserved in th
 [obligation ledger](../tests/parity-vm/deferrals.json), together with their
 reviewed requirements, evidence links and specific remaining gaps. The
 [execution review](data/parity-0.1.3-deferrals.json) reconciles those links against
-saved static and dynamic VM runs. The initial qualification tables in the VM
-guide describe the earlier fixture set.
+saved static and dynamic VM runs of the frozen candidates. The
+[release qualification](parity-vm.md#013-release-qualification) in the VM guide
+records how the same topics resolve on the 0.1.3 release binaries.
 
-The current review covers 578 of the 600 topics on both builds: static 300 PASS / 278 FAIL;
+The review covers 578 of the 600 topics on both frozen builds: static 300 PASS / 278 FAIL;
 dynamic 301 PASS / 277 FAIL. The other 22 retain unresolved requirements: 21 have partial
 coverage and 1 has none. These are topic counts, not additional behavioral test results. Every unresolved requirement in them, 34 in all, is a
 [concrete limit](#concrete-limits) that no available fixture can exercise.

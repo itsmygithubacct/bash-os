@@ -3,30 +3,67 @@
 All notable changes to bash-os are recorded here. Versions follow
 [semantic versioning](https://semver.org/); `VERSION` holds the current one.
 
-## 0.1.3 — Unreleased
+## 0.1.3 — 2026-11-01
 
 - Added a disposable KVM test environment with pinned reference Bash, isolated
   terminal and loopback network fixtures, bounded execution, raw evidence and
-  explicit lifecycle checks. The historical suites retain all deferred cases.
+  explicit lifecycle checks. Root-only fixtures run in disposable rented guests,
+  and extended, GPU and SELinux guest images cover what the base image lacks.
 - Added independent Unicode 17 and published protocol/cryptographic vectors,
   plus a reproducible Bash and command interface inventory. The
   [parity scope](docs/parity-scope.md) documents the remaining coverage.
+- Completed the review of the 600 deferred historical scenarios: 578 now run
+  as executable fixtures, and the other 22 keep 34 requirements recorded as
+  concrete limits.
+  See the [deferral review](docs/parity-deferrals.md) and the
+  [concrete limits](docs/data/parity-0.1.3-limits.json).
 - `curl` sends nondefault ports in Host, handles repeated and file-based data,
   honors header overrides and silent errors, and follows redirect method and
   transfer-status behavior more closely. `dns` stops retrying a verified
-  NXDOMAIN response.
-- The batch-220 selected evidence contains 1,603 modern candidate
-  cases and 3,218 historical case records per build, including 23
-  SKIP records. Static results
-  are 4,382 PASS and 416 FAIL; dynamic results are 4,381 PASS
-  and 417 FAIL. Each build retains 23 SKIP and 0 ERROR
-  statuses. The deferral review records 355 migrated and 245
-  unresolved topics. Controls and topic metadata add no behavioral cases.
-- Independent data checks execute 9,331,283 planned assertions per build, with 40
-  retained NFC/NFKC composition-exclusion failures. See the
-  [validation record](docs/data/parity-0.1.3-validation.json) for separate
-  parity/contract counts, fixture revalidation, evidence hashes and exclusions.
-  These additions do not establish complete Bash or command parity.
+  NXDOMAIN response and uses the HPACK static indexes for DoH `content-type`
+  and `content-length`.
+- `tput` loads compiled terminfo before rejecting an unknown terminal. As in
+  ncurses, a string given no parameters is written unexpanded and `clear`
+  also writes the entry's E3; a compiled string with parameter operators
+  beyond `%p`, `%d`, `%s`, `%c`, `%i` and `%%` is answered from the built-in
+  table instead. `tput init` and `tput reset` restore disabled terminal
+  special characters.
+  Padding delays are parsed without integer overflow, capped at 5 seconds,
+  and applied only when output is a terminal.
+- The TLS 1.2 client verifies an RSA-PSS ServerKeyExchange signature with the
+  PSS checker.
+- `df` sizes columns from the widest cell and labels 1000-byte blocks as `1kB`.
+- `lsattr` prints feature flags in e2fsprogs column order.
+- `ss` and `netstat` label Unix sockets with SS states; `bashio` checks
+  addresses before the ioctl.
+- `sftp` keeps a quoted path containing spaces as one argument.
+- `strace` quotes traced write buffers up to their byte count and continues
+  children after the attach stop. `strace -p` no longer hangs the shell when
+  the traced process forks, and tracing waits only for traced tasks, so the
+  shell keeps its own background jobs.
+- `scm` closes received descriptors when the peer credential does not match.
+- `sudo` normalizes sudoers lists and accepts a numeric uid rule.
+- `modprobe` propagates install and remove directive status, and a deep
+  soft-dependency chain now fails with a diagnostic instead of overflowing
+  the stack.
+- Namespace cgroup paths reject empty, `.` and `..` components, including
+  `a//b` and a trailing slash.
+- `dhcp6` reports the client port that `bind` used.
+- `git` decodes pack objects past 2 GiB without reading the whole pack into
+  memory, and prints such an object only from bytes the pack checksum
+  covered; a pack that changes while it is read fails.
+- `curl -L` drops `-u` credentials and user-supplied `Authorization` and
+  `Cookie` headers when a redirect leaves the first origin, keeps control
+  bytes in a redirect `Location` out of the next request, and sizes requests
+  with long `-X` methods without overflowing its buffer.
+- Every fixture definition ran on both release binaries. Static and dynamic
+  each record 4,989 PASS and 604 FAIL, with 23 historical SKIP records and
+  three ERROR definitions per build. The 600 topics resolve as static 280
+  PASS, 256 FAIL and 64 UNRESOLVED, and dynamic 281 PASS, 255 FAIL and 64
+  UNRESOLVED. Independent data checks execute 9,331,283 planned assertions
+  per build, with 40 retained NFC/NFKC composition-exclusion failures. See the
+  [0.1.3 validation record](docs/data/release-0.1.3-validation.json).
+  These results do not establish complete Bash or command parity.
 
 ## 0.1.2 — 2026-10-26
 
