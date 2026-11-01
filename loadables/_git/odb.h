@@ -53,10 +53,33 @@ long bgit_parse_header (const unsigned char *data, size_t len,
    refuse to write the object. Silent. */
 int bgit_sha1 (const unsigned char *data, size_t n, unsigned char digest[20]);
 
+/* A range of an fd that was read, with the SHA-1 of the bytes the read
+   returned. LEN is at most BGIT_FD_SPAN_MAX. */
+#define BGIT_FD_SPAN_MAX 65536
+struct bgit_fd_span {
+    unsigned long long off;
+    size_t len;
+    unsigned char sha[20];
+};
+
+struct bgit_fd_spans {
+    struct bgit_fd_span *v;
+    size_t n, cap;
+};
+
+/* Record that BYTES were read from [OFF, OFF + N), split into spans of at
+   most BGIT_FD_SPAN_MAX. Returns 0, or -1 when out of memory or the bytes
+   carry a SHA-1 collision attack. Caller frees SPANS->v. Silent. */
+int bgit_fd_spans_add (struct bgit_fd_spans *spans, unsigned long long off,
+                       const void *bytes, size_t n);
+
 /* Hash the first N bytes of FD, from offset 0. Same digest and collision
-   result as bgit_sha1 over those bytes. Silent. The file position is left
-   where it was. */
-int bgit_sha1_fd (int fd, unsigned long long n, unsigned char digest[20]);
+   result as bgit_sha1 over those bytes. The same single pass reads every
+   recorded span (which may reach past N) and sets *CHANGED when one now
+   holds bytes other than the ones recorded. SPANS is reordered. Silent.
+   The file position is left where it was. */
+int bgit_sha1_fd (int fd, unsigned long long n, unsigned char digest[20],
+                  struct bgit_fd_spans *spans, int *changed);
 
 /* Deflate DATA into a malloc'd buffer. Caller frees *out. Silent. */
 int bgit_deflate (const unsigned char *data, size_t n,
