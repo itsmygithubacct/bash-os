@@ -956,8 +956,11 @@ bs_child_guard_begin(struct bs_child_guard *g)
 static void
 bs_child_guard_parent_end(struct bs_child_guard *g)
 {
-    sigprocmask(SIG_SETMASK, &g->oldmask, NULL);
     sigaction(SIGCHLD, &g->old_chld, NULL);
+    sigprocmask(SIG_SETMASK, &g->oldmask, NULL);
+    /* The tracer took the SIGCHLD notices; let the shell look at its
+     * own jobs, which may have finished meanwhile. */
+    raise(SIGCHLD);
 }
 
 static void
@@ -980,8 +983,15 @@ bs_slot_for(struct bs_state *st, pid_t pid)
 {
     for (int i = 0; i < st->nslots; i++)
         if (st->slots[i].pid == pid) return i;
-    if (st->nslots >= 256) return -1;
-    int i = st->nslots++;
+    int i;
+    if (st->nslots < 256) {
+        i = st->nslots++;
+    } else {
+        /* Reuse the slot of a task that has exited or been detached. */
+        for (i = 0; i < st->nslots && st->slots[i].pid > 0; i++)
+            ;
+        if (i == st->nslots) return -1;
+    }
     st->slots[i].pid = pid;
     st->slots[i].in_syscall = 0;
     st->slots[i].printed_entry = 0;
@@ -1138,6 +1148,49 @@ bs_enumerate_tasks(pid_t pid, pid_t *tasks, int max_tasks)
     return n;
 }
 
+/* Wait for a state change of a task this tracer follows. waitpid(-1)
+ * would also reap the shell's own background jobs, so poll only the
+ * known tasks and sleep on SIGCHLD, which the child guard keeps blocked.
+ * A new -f child is known from its parent's fork event before it is
+ * waited for. Returns the pid, or -1 with errno EINTR or ECHILD. */
+static pid_t
+bs_wait_traced(struct bs_state *st, int *status)
+{
+    static int cursor;
+    sigset_t chld;
+    sigemptyset(&chld);
+    sigaddset(&chld, SIGCHLD);
+    for (;;) {
+        int known = 0;
+        for (int n = 0; n < st->nslots; n++) {
+            int i = (cursor + n) % st->nslots;
+            pid_t pid = st->slots[i].pid;
+            if (pid <= 0)
+                continue;
+            pid_t w = waitpid(pid, status, __WALL | WNOHANG);
+            if (w == pid) {
+                cursor = i + 1;
+                return w;
+            }
+            if (w < 0 && errno == ECHILD) {
+                /* Gone without a report (a thread whose id an exec
+                 * took over); stop waiting for it. */
+                st->slots[i].pid = -1;
+                continue;
+            }
+            known++;
+        }
+        if (!known) {
+            errno = ECHILD;
+            return -1;
+        }
+        /* Re-poll at least once a second in case a notice coalesced. */
+        struct timespec ts = { 1, 0 };
+        if (sigtimedwait(&chld, NULL, &ts) < 0 && errno == EINTR)
+            return -1;
+    }
+}
+
 static int
 bs_trace_loop(struct bs_state *st, pid_t root, int attached_root)
 {
@@ -1155,7 +1208,7 @@ bs_trace_loop(struct bs_state *st, pid_t root, int attached_root)
     }
 
     while (alive > 0) {
-        pid_t w = waitpid(-1, &status, __WALL);
+        pid_t w = bs_wait_traced(st, &status);
         if (w < 0) {
             if (errno == EINTR) {
                 if (bs_stop && attached_root) {
@@ -1254,6 +1307,13 @@ bs_trace_loop(struct bs_state *st, pid_t root, int attached_root)
                     if (child >= 0 && !st->slots[child].announced) {
                         st->slots[child].announced = 1;
                         alive++;
+                    } else if (child < 0) {
+                        /* No slot left to follow it: take its attach stop
+                         * and let it run untraced. */
+                        int cst;
+                        while (waitpid((pid_t)new_pid, &cst, __WALL) < 0 && errno == EINTR)
+                            ;
+                        ptrace(PTRACE_DETACH, (pid_t)new_pid, NULL, NULL);
                     }
                 }
             } else if (status >> 16 == PTRACE_EVENT_EXEC) {
