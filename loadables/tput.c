@@ -427,7 +427,8 @@ parameter_code (const char *cap)
  * $<N/> delays to a terminal become floor(ms * baud / 9000) pad bytes, or
  * a sleep when the entry sets npc. Non-mandatory $<N> delays are omitted.
  * init, reset, and the environment-backed size queries stay on the curated
- * path. */
+ * path. As in ncurses tput, a string given no parameters is written
+ * unexpanded, and clear also writes the entry's E3 when it has one. */
 #define TP_MAX_OUT (512 * 1024)
 /* The longest padding any capability in the ncurses terminfo database
    requests is 5000 ms. A longer delay is ignored, and one capability's
@@ -586,7 +587,7 @@ tp_out_pad (struct tp_out *o, const char *var, int npc, long ms)
 
 static int
 tp_expand_compiled (const char *tmpl, WORD_LIST *args, const char *var,
-                    int npc, struct tp_out *o)
+                    int npc, int raw, struct tp_out *o)
 {
   const char *pstr[9];
   int pnum[9];
@@ -638,7 +639,7 @@ tp_expand_compiled (const char *tmpl, WORD_LIST *args, const char *var,
             return -1;
           continue;
         }
-      if (tmpl[0] != '%' || tmpl[1] == '\0')
+      if (raw || tmpl[0] != '%' || tmpl[1] == '\0')
         {
           if (tp_out_add (o, tmpl, 1) < 0) return -1;
           tmpl++;
@@ -735,14 +736,23 @@ emit_compiled (const char *term, const char *cap, WORD_LIST *args, const char *v
     }
   if (!str)
     return -1;
-  if (!tp_string_supported (str) && known_cap (cap) && known_term (term))
+  /* Never write a partly expanded string: an operator outside the
+     supported set leaves the capability to the curated path. */
+  if (args && !tp_string_supported (str))
     {
       free (str);
       return -1;
     }
   memset (&out, 0, sizeof out);
-  rc = tp_expand_compiled (str, args, var, npc, &out);
+  rc = tp_expand_compiled (str, args, var, npc, args == NULL, &out);
   free (str);
+  if (rc == 0 && !strcmp (cap, "clear"))
+    {
+      char *e3 = NULL;
+      if (bt_compiled_lookup (term, "E3", NULL, NULL, &e3, NULL) == 2 && e3)
+        rc = tp_expand_compiled (e3, NULL, var, npc, 1, &out);
+      free (e3);
+    }
   if (rc < 0)
     {
       free (out.data);
@@ -1300,10 +1310,12 @@ char *tput_doc[] = {
   "    tput info [-T TERM]",
   "",
   "Common boolean queries return 0 for true and 1 for false, without output.",
-  "With no parameters, built-in parameterized strings are returned verbatim.",
+  "With no parameters, parameterized strings are returned verbatim.",
   "Statuses: 2 for usage/missing TERM, 3 for unknown terminal, 4 for unknown CAP.",
   "A compiled terminfo entry (TERMINFO, ~/.terminfo, TERMINFO_DIRS, or the",
-  "system database) is used before an unknown terminal is reported.",
+  "system database) is used before an unknown terminal is reported. A",
+  "compiled string with parameters is expanded only when it uses %p1-%p9,",
+  "%d, %s, %c, %i and %%; otherwise the built-in table answers.",
   "reset restores each disabled special character and keeps the others.",
   "init restores only a disabled erase, intr, or kill.",
   "Supported terminal entries: xterm-256color, xterm, screen-256color,",
