@@ -1,0 +1,96 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w8-pong-serve-delay-before",
+      "loadable": "termpixel_pong",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "After 20 frames at 20 fps (the last frame is drawn about 0.95 s after the start, before the 1 s serve counter can be reached) the SERVING text is still drawn and the ball is still at the centre.",
+      "script": "termpixel_pong --two-player --seed 1 --fps 20 --frames 20",
+      "steps": [
+        {
+          "settle_ms": 500
+        },
+        {
+          "settle_ms": 500
+        },
+        {
+          "screen": {
+            "cells": [
+              {
+                "row": 17,
+                "col": 26,
+                "bg": "dcdc50"
+              },
+              {
+                "row": 20,
+                "col": 41,
+                "bg": "ffffff"
+              }
+            ]
+          }
+        }
+      ],
+      "size": [
+        42,
+        82
+      ],
+      "expected_status": 0,
+      "covers": [
+        "termpixel_pong/two-player-interaction"
+      ],
+      "kind": "contract",
+      "oracle": "Documented termpixel_pong rules: 80x80 pixel canvas drawn two pixels per terminal row, a 1 s serve delay during which the SERVING text (colour 220,220,80, 3x5 font at x=25,y=35) is drawn and the ball rests at the centre (40,40, 2x2), decoded by the pyte terminal model. Timing is real-clock (CLOCK_MONOTONIC): the frame loop is held to --fps 20, so N frames take at least (N-1)*50 ms; the cases use frame counts with at least 0.3 s of margin on each side of the 1 s delay.",
+      "comparison": "Final screen: cell (17,26) has background dcdc50 (SERVING text top row) and cell (20,41) is white (ball).",
+      "timeout": 25
+    },
+    {
+      "id": "mig-w8-pong-serve-delay-after",
+      "loadable": "termpixel_pong",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "After 34 frames at 20 fps (at least 1.65 s) the 1 s serve delay has elapsed: the SERVING text is gone and the ball has left the centre.",
+      "script": "termpixel_pong --two-player --seed 1 --fps 20 --frames 34",
+      "steps": [
+        {
+          "settle_ms": 500
+        },
+        {
+          "settle_ms": 500
+        },
+        {
+          "settle_ms": 500
+        },
+        {
+          "screen": {
+            "cells": [
+              {
+                "row": 17,
+                "col": 26,
+                "bg": "000000"
+              },
+              {
+                "row": 20,
+                "col": 41,
+                "bg": "000000"
+              }
+            ]
+          }
+        }
+      ],
+      "size": [
+        42,
+        82
+      ],
+      "expected_status": 0,
+      "covers": [
+        "termpixel_pong/two-player-interaction"
+      ],
+      "kind": "contract",
+      "oracle": "Documented termpixel_pong rules: 80x80 pixel canvas drawn two pixels per terminal row, a 1 s serve delay during which the SERVING text (colour 220,220,80, 3x5 font at x=25,y=35) is drawn and the ball rests at the centre (40,40, 2x2), decoded by the pyte terminal model. Timing is real-clock (CLOCK_MONOTONIC): the frame loop is held to --fps 20, so N frames take at least (N-1)*50 ms; the cases use frame counts with at least 0.3 s of margin on each side of the 1 s delay.",
+      "comparison": "Final screen: cell (17,26) black (no SERVING text) and cell (20,41) black (ball moved away).",
+      "timeout": 25
+    }
+  ]
+}
