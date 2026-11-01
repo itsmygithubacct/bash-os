@@ -31,7 +31,8 @@
       "privilege": "root",
       "script": ". ./rl.sh\nr() { local l=$1; shift; \"$@\" >o.txt 2>e.txt; local rc=$?; printf '[%s] status=%s\\n' \"$l\" $rc; norm o.txt; echo \"[stderr]\"; norm e.txt; }\n/usr/bin/truncate -s 4M a.img; $MK -q -t ext2 -m 20 -L DFRES a.img; at a.img; A=$REPLY; reg $A LOOP-A\n/usr/bin/mkdir -p mnt; /usr/bin/mount $A mnt\nr kb df -k --output=source,size,used,avail,pcent mnt\nr inodes df -i --output=source,itotal,iused,iavail,ipcent mnt\nr default df -k mnt\nr posix df -P mnt\nr bytes df -B1 --output=size,used,avail mnt\nr total df -k --total --output=size,used,avail,pcent mnt\nbs=$(/usr/bin/stat -f -c %S mnt); tot=$(/usr/bin/stat -f -c %b mnt); fr=$(/usr/bin/stat -f -c %f mnt); av=$(/usr/bin/stat -f -c %a mnt)\nused=$((tot-fr)); pc=$(( (used*100 + used+av - 1) / (used+av) ))\necho \"oracle avail-lt-free=$((av<fr ? 1 : 0)) reserved-blocks=$((fr-av)) use-pct=$pc%\"\n",
       "expected_status": 0,
-      "timeout": 60
+      "timeout": 60,
+      "file_size_limit": 67108864
     }
   ]
 }

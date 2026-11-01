@@ -33,7 +33,8 @@
       "privilege": "root",
       "script": ". ./rl.sh\nr() { local l=$1; shift; \"$@\" >o.txt 2>e.txt; local rc=$?; printf '[%s] status=%s\\n' \"$l\" $rc; norm o.txt; echo \"[stderr]\"; norm e.txt; }\nF() { /usr/bin/python3 fc.py \"$@\"; }\n/usr/bin/truncate -s 6M a.img; $MK -q -t ext2 a.img; at a.img; A=$REPLY; reg $A LOOP-A\n/usr/bin/mkdir -p mnt; /usr/bin/mount $A mnt\nF make mnt/f; /usr/bin/sync; echo 3 > /proc/sys/vm/drop_caches\nF cold mnt/f; r cold fincore mnt/f\nr cold-bytes fincore -b mnt/f\nF one mnt/f; r one-page fincore -b mnt/f\nF warm mnt/f; r warm fincore -b mnt/f\nr warm-human fincore mnt/f\nF cold mnt/f; echo 3 > /proc/sys/vm/drop_caches; r cold-again fincore -b mnt/f\n",
       "expected_status": 0,
-      "timeout": 60
+      "timeout": 60,
+      "file_size_limit": 67108864
     }
   ]
 }
