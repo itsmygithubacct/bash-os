@@ -1,0 +1,239 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w4-su-locked-and-missing-shadow",
+      "loadable": "su",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "su rejects an account whose shadow password field is '!', '*', empty or '!'-prefixed, and an account without a shadow row, with the documented diagnostic and status 2, before any password prompt and without reaching the credential step.",
+      "oracle": "su.c bsu_verify_user_interactive and bashos_read_shadow_entry/bashos_verify_phc_secret as documented in the su help (non-root su authenticates the target through the Argon2id PHC shadow format used by passwd; password bytes are read from the tty into a 4096-byte buffer). Account rows are private PHCLIB_PASSWD/PHCLIB_SHADOW files; the Argon2id hashes come from the guest argon2 CLI and, for the 4096-byte password the CLI cannot take, OpenSSL's independent ARGON2ID KDF, after a setup cross-check that both tools agree. Expectations are fixed by the requirement text and the documented diagnostics, not copied from candidate output.",
+      "comparison": "Per account the raw diagnostic line and the natural status 2 of su, then output_lacks for any password prompt and for the kernel-token step across all five invocations.",
+      "covers": [
+        "su/password-and-lockout-flow"
+      ],
+      "requires": [
+        "argon2",
+        "openssl",
+        "od",
+        "tr"
+      ],
+      "setup_script": "mkdir -p lock\nphc_cli() { local h; h=$(printf '%s' \"$1\" | /usr/bin/argon2 somesalt -id -t 1 -k 1024 -p 1 -l 32 -r); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\nphc_ssl() { local hx h; hx=$(printf '%s' \"$1\" | /usr/bin/od -An -v -tx1 | /usr/bin/tr -d ' \\n'); h=$(/usr/bin/openssl kdf -keylen 32 -kdfopt \"hexpass:$hx\" -kdfopt hexsalt:736f6d6573616c74 -kdfopt iter:1 -kdfopt memcost:1024 -kdfopt lanes:1 -kdfopt threads:1 ARGON2ID | /usr/bin/tr -d ':\\n' | /usr/bin/tr 'A-F' 'a-f'); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\n[[ $(phc_cli oracle-check) == \"$(phc_ssl oracle-check)\" ]]\n\ngood=$(phc_cli alice-secret)\nlong4096=$(printf '%4096s' '' | /usr/bin/tr ' ' p)\ncat > passwd <<'P'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/home/alice:/bin/bash\nlockbang:x:3002:3002::/home/lockbang:/bin/bash\nlockstar:x:3003:3003::/home/lockstar:/bin/bash\nlockempty:x:3004:3004::/home/lockempty:/bin/bash\nlockhash:x:3005:3005::/home/lockhash:/bin/bash\nnoshadow:x:3006:3006::/home/noshadow:/bin/bash\nbadprefix:x:3007:3007::/home/badprefix:/bin/bash\nbadver:x:3008:3008::/home/badver:/bin/bash\nlowmem:x:3009:3009::/home/lowmem:/bin/bash\nshortsalt:x:3010:3010::/home/shortsalt:/bin/bash\noddhash:x:3011:3011::/home/oddhash:/bin/bash\nargon2i:x:3012:3012::/home/argon2i:/bin/bash\nlongpw:x:3013:3013::/home/longpw:/bin/bash\nP\nh64=${good##*\\$}\n{\n  printf 'alice:%s:19000:0:99999:7:::\\n' \"$good\"\n  printf 'lockbang:!:19000:0:99999:7:::\\n'\n  printf 'lockstar:*:19000:0:99999:7:::\\n'\n  printf 'lockempty::19000:0:99999:7:::\\n'\n  printf 'lockhash:!%s:19000:0:99999:7:::\\n' \"$good\"\n  printf 'badprefix:notaphc:19000:0:99999:7:::\\n'\n  printf 'badver:$argon2id$v=16$m=1024,t=1,p=1$736f6d6573616c74$%s:19000:0:99999:7:::\\n' \"$h64\"\n  printf 'lowmem:$argon2id$v=19$m=512,t=1,p=1$736f6d6573616c74$%s:19000:0:99999:7:::\\n' \"$h64\"\n  printf 'shortsalt:$argon2id$v=19$m=1024,t=1,p=1$abcd$%s:19000:0:99999:7:::\\n' \"$h64\"\n  printf 'oddhash:$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s:19000:0:99999:7:::\\n' \"${h64%?}\"\n  printf 'argon2i:$argon2i$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s:19000:0:99999:7:::\\n' \"$h64\"\n  printf 'longpw:%s:19000:0:99999:7:::\\n' \"$(phc_ssl \"$long4096\")\"\n} > shadow\n",
+      "setup_timeout": 50,
+      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none\nsu lockbang; echo \"lockbang rc=$?\"\nsu lockstar; echo \"lockstar rc=$?\"\nsu lockempty; echo \"lockempty rc=$?\"\nsu lockhash; echo \"lockhash rc=$?\"\nsu noshadow; echo \"noshadow rc=$?\"\n",
+      "size": [
+        24,
+        100
+      ],
+      "steps": [
+        {
+          "expect": "su: lockbang is locked or has no password\\r\\n"
+        },
+        {
+          "expect": "lockbang rc=2\\r\\n"
+        },
+        {
+          "expect": "su: lockstar is locked or has no password\\r\\n"
+        },
+        {
+          "expect": "lockstar rc=2\\r\\n"
+        },
+        {
+          "expect": "su: lockempty is locked or has no password\\r\\n"
+        },
+        {
+          "expect": "lockempty rc=2\\r\\n"
+        },
+        {
+          "expect": "su: lockhash is locked or has no password\\r\\n"
+        },
+        {
+          "expect": "lockhash rc=2\\r\\n"
+        },
+        {
+          "expect": "su: no shadow entry for noshadow\\r\\n"
+        },
+        {
+          "expect": "noshadow rc=2\\r\\n"
+        },
+        {
+          "output_lacks": "Password: "
+        },
+        {
+          "output_lacks": "kernel auth"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 30
+    },
+    {
+      "id": "mig-w4-su-malformed-phc-entries",
+      "loadable": "su",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "su rejects shadow entries whose PHC string is malformed (wrong prefix, version 16, memory cost below 1024, 4-hex-digit salt, odd-length hash, argon2i) with 'unsupported or malformed PHC string' and status 2 after reading the password, never reaching the credential step.",
+      "oracle": "su.c bsu_verify_user_interactive and bashos_read_shadow_entry/bashos_verify_phc_secret as documented in the su help (non-root su authenticates the target through the Argon2id PHC shadow format used by passwd; password bytes are read from the tty into a 4096-byte buffer). Account rows are private PHCLIB_PASSWD/PHCLIB_SHADOW files; the Argon2id hashes come from the guest argon2 CLI and, for the 4096-byte password the CLI cannot take, OpenSSL's independent ARGON2ID KDF, after a setup cross-check that both tools agree. Expectations are fixed by the requirement text and the documented diagnostics, not copied from candidate output.",
+      "comparison": "Per account the password prompt, the diagnostic immediately after the prompt line and status 2, then output_lacks for the kernel-token step and for any echo of the typed bytes.",
+      "covers": [
+        "su/password-and-lockout-flow"
+      ],
+      "requires": [
+        "argon2",
+        "openssl",
+        "od",
+        "tr"
+      ],
+      "setup_script": "mkdir -p lock\nphc_cli() { local h; h=$(printf '%s' \"$1\" | /usr/bin/argon2 somesalt -id -t 1 -k 1024 -p 1 -l 32 -r); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\nphc_ssl() { local hx h; hx=$(printf '%s' \"$1\" | /usr/bin/od -An -v -tx1 | /usr/bin/tr -d ' \\n'); h=$(/usr/bin/openssl kdf -keylen 32 -kdfopt \"hexpass:$hx\" -kdfopt hexsalt:736f6d6573616c74 -kdfopt iter:1 -kdfopt memcost:1024 -kdfopt lanes:1 -kdfopt threads:1 ARGON2ID | /usr/bin/tr -d ':\\n' | /usr/bin/tr 'A-F' 'a-f'); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\n[[ $(phc_cli oracle-check) == \"$(phc_ssl oracle-check)\" ]]\n\ngood=$(phc_cli alice-secret)\nlong4096=$(printf '%4096s' '' | /usr/bin/tr ' ' p)\ncat > passwd <<'P'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/home/alice:/bin/bash\nlockbang:x:3002:3002::/home/lockbang:/bin/bash\nlockstar:x:3003:3003::/home/lockstar:/bin/bash\nlockempty:x:3004:3004::/home/lockempty:/bin/bash\nlockhash:x:3005:3005::/home/lockhash:/bin/bash\nnoshadow:x:3006:3006::/home/noshadow:/bin/bash\nbadprefix:x:3007:3007::/home/badprefix:/bin/bash\nbadver:x:3008:3008::/home/badver:/bin/bash\nlowmem:x:3009:3009::/home/lowmem:/bin/bash\nshortsalt:x:3010:3010::/home/shortsalt:/bin/bash\noddhash:x:3011:3011::/home/oddhash:/bin/bash\nargon2i:x:3012:3012::/home/argon2i:/bin/bash\nlongpw:x:3013:3013::/home/longpw:/bin/bash\nP\nh64=${good##*\\$}\n{\n  printf 'alice:%s:19000:0:99999:7:::\\n' \"$good\"\n  printf 'lockbang:!:19000:0:99999:7:::\\n'\n  printf 'lockstar:*:19000:0:99999:7:::\\n'\n  printf 'lockempty::19000:0:99999:7:::\\n'\n  printf 'lockhash:!%s:19000:0:99999:7:::\\n' \"$good\"\n  printf 'badprefix:notaphc:19000:0:99999:7:::\\n'\n  printf 'badver:$argon2id$v=16$m=1024,t=1,p=1$736f6d6573616c74$%s:19000:0:99999:7:::\\n' \"$h64\"\n  printf 'lowmem:$argon2id$v=19$m=512,t=1,p=1$736f6d6573616c74$%s:19000:0:99999:7:::\\n' \"$h64\"\n  printf 'shortsalt:$argon2id$v=19$m=1024,t=1,p=1$abcd$%s:19000:0:99999:7:::\\n' \"$h64\"\n  printf 'oddhash:$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s:19000:0:99999:7:::\\n' \"${h64%?}\"\n  printf 'argon2i:$argon2i$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s:19000:0:99999:7:::\\n' \"$h64\"\n  printf 'longpw:%s:19000:0:99999:7:::\\n' \"$(phc_ssl \"$long4096\")\"\n} > shadow\n",
+      "setup_timeout": 50,
+      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none\nsu badprefix; echo \"badprefix rc=$?\"\nsu badver; echo \"badver rc=$?\"\nsu lowmem; echo \"lowmem rc=$?\"\nsu shortsalt; echo \"shortsalt rc=$?\"\nsu oddhash; echo \"oddhash rc=$?\"\nsu argon2i; echo \"argon2i rc=$?\"\n",
+      "size": [
+        24,
+        100
+      ],
+      "steps": [
+        {
+          "expect": "Password: "
+        },
+        {
+          "send": "whatever\r"
+        },
+        {
+          "expect": "\\r\\n[^\\r\\n]*su: unsupported or malformed PHC string\\r\\n"
+        },
+        {
+          "expect": "badprefix rc=2\\r\\n"
+        },
+        {
+          "expect": "Password: "
+        },
+        {
+          "send": "whatever\r"
+        },
+        {
+          "expect": "\\r\\n[^\\r\\n]*su: unsupported or malformed PHC string\\r\\n"
+        },
+        {
+          "expect": "badver rc=2\\r\\n"
+        },
+        {
+          "expect": "Password: "
+        },
+        {
+          "send": "whatever\r"
+        },
+        {
+          "expect": "\\r\\n[^\\r\\n]*su: unsupported or malformed PHC string\\r\\n"
+        },
+        {
+          "expect": "lowmem rc=2\\r\\n"
+        },
+        {
+          "expect": "Password: "
+        },
+        {
+          "send": "whatever\r"
+        },
+        {
+          "expect": "\\r\\n[^\\r\\n]*su: unsupported or malformed PHC string\\r\\n"
+        },
+        {
+          "expect": "shortsalt rc=2\\r\\n"
+        },
+        {
+          "expect": "Password: "
+        },
+        {
+          "send": "whatever\r"
+        },
+        {
+          "expect": "\\r\\n[^\\r\\n]*su: unsupported or malformed PHC string\\r\\n"
+        },
+        {
+          "expect": "oddhash rc=2\\r\\n"
+        },
+        {
+          "expect": "Password: "
+        },
+        {
+          "send": "whatever\r"
+        },
+        {
+          "expect": "\\r\\n[^\\r\\n]*su: unsupported or malformed PHC string\\r\\n"
+        },
+        {
+          "expect": "argon2i rc=2\\r\\n"
+        },
+        {
+          "output_lacks": "kernel auth"
+        },
+        {
+          "output_lacks": "whatever"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "mig-w4-su-bounded-password-input",
+      "loadable": "su",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "su's password reader accepts exactly 4096 bytes (a correct 4096-byte password verifies and reaches the credential step) and rejects 4097 bytes with 'password read: Argument list too long' and status 2, without recording a failure.",
+      "oracle": "su.c bsu_verify_user_interactive and bashos_read_shadow_entry/bashos_verify_phc_secret as documented in the su help (non-root su authenticates the target through the Argon2id PHC shadow format used by passwd; password bytes are read from the tty into a 4096-byte buffer). Account rows are private PHCLIB_PASSWD/PHCLIB_SHADOW files; the Argon2id hashes come from the guest argon2 CLI and, for the 4096-byte password the CLI cannot take, OpenSSL's independent ARGON2ID KDF, after a setup cross-check that both tools agree. Expectations are fixed by the requirement text and the documented diagnostics, not copied from candidate output.",
+      "comparison": "A correct 4096-byte password reaches the kernel-token diagnostic with status 1; a 4097-byte entry produces the read error and status 2 and neither echoes the bytes nor creates failure state under BPW_LOCK_DIR.",
+      "covers": [
+        "su/password-and-lockout-flow"
+      ],
+      "requires": [
+        "argon2",
+        "openssl",
+        "od",
+        "tr"
+      ],
+      "setup_script": "mkdir -p lock\nphc_cli() { local h; h=$(printf '%s' \"$1\" | /usr/bin/argon2 somesalt -id -t 1 -k 1024 -p 1 -l 32 -r); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\nphc_ssl() { local hx h; hx=$(printf '%s' \"$1\" | /usr/bin/od -An -v -tx1 | /usr/bin/tr -d ' \\n'); h=$(/usr/bin/openssl kdf -keylen 32 -kdfopt \"hexpass:$hx\" -kdfopt hexsalt:736f6d6573616c74 -kdfopt iter:1 -kdfopt memcost:1024 -kdfopt lanes:1 -kdfopt threads:1 ARGON2ID | /usr/bin/tr -d ':\\n' | /usr/bin/tr 'A-F' 'a-f'); printf '$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s' \"$h\"; }\n[[ $(phc_cli oracle-check) == \"$(phc_ssl oracle-check)\" ]]\n\ngood=$(phc_cli alice-secret)\nlong4096=$(printf '%4096s' '' | /usr/bin/tr ' ' p)\ncat > passwd <<'P'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/home/alice:/bin/bash\nlockbang:x:3002:3002::/home/lockbang:/bin/bash\nlockstar:x:3003:3003::/home/lockstar:/bin/bash\nlockempty:x:3004:3004::/home/lockempty:/bin/bash\nlockhash:x:3005:3005::/home/lockhash:/bin/bash\nnoshadow:x:3006:3006::/home/noshadow:/bin/bash\nbadprefix:x:3007:3007::/home/badprefix:/bin/bash\nbadver:x:3008:3008::/home/badver:/bin/bash\nlowmem:x:3009:3009::/home/lowmem:/bin/bash\nshortsalt:x:3010:3010::/home/shortsalt:/bin/bash\noddhash:x:3011:3011::/home/oddhash:/bin/bash\nargon2i:x:3012:3012::/home/argon2i:/bin/bash\nlongpw:x:3013:3013::/home/longpw:/bin/bash\nP\nh64=${good##*\\$}\n{\n  printf 'alice:%s:19000:0:99999:7:::\\n' \"$good\"\n  printf 'lockbang:!:19000:0:99999:7:::\\n'\n  printf 'lockstar:*:19000:0:99999:7:::\\n'\n  printf 'lockempty::19000:0:99999:7:::\\n'\n  printf 'lockhash:!%s:19000:0:99999:7:::\\n' \"$good\"\n  printf 'badprefix:notaphc:19000:0:99999:7:::\\n'\n  printf 'badver:$argon2id$v=16$m=1024,t=1,p=1$736f6d6573616c74$%s:19000:0:99999:7:::\\n' \"$h64\"\n  printf 'lowmem:$argon2id$v=19$m=512,t=1,p=1$736f6d6573616c74$%s:19000:0:99999:7:::\\n' \"$h64\"\n  printf 'shortsalt:$argon2id$v=19$m=1024,t=1,p=1$abcd$%s:19000:0:99999:7:::\\n' \"$h64\"\n  printf 'oddhash:$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s:19000:0:99999:7:::\\n' \"${h64%?}\"\n  printf 'argon2i:$argon2i$v=19$m=1024,t=1,p=1$736f6d6573616c74$%s:19000:0:99999:7:::\\n' \"$h64\"\n  printf 'longpw:%s:19000:0:99999:7:::\\n' \"$(phc_ssl \"$long4096\")\"\n} > shadow\n",
+      "setup_timeout": 50,
+      "script": "export PHCLIB_PASSWD=$PWD/passwd PHCLIB_SHADOW=$PWD/shadow BPW_LOCK_DIR=$PWD/lock BASHAUTH_LOGIN_POLICY=$PWD/policy.none\nsu longpw; echo \"exact-bound rc=$?\"\nsu longpw; echo \"over-bound rc=$?\"\necho \"lock-files=[$(echo lock/*)]\"\n",
+      "size": [
+        24,
+        100
+      ],
+      "steps": [
+        {
+          "expect": "Password: "
+        },
+        {
+          "send": "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp\r"
+        },
+        {
+          "expect": "\\r\\n[^\\r\\n]*su: kernel auth: /dev/bashos-auth: No such file or directory\\r\\n"
+        },
+        {
+          "expect": "exact-bound rc=1\\r\\n"
+        },
+        {
+          "expect": "Password: "
+        },
+        {
+          "send": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp\r"
+        },
+        {
+          "expect": "\\r\\n[^\\r\\n]*su: password read: Argument list too long\\r\\n"
+        },
+        {
+          "expect": "over-bound rc=2\\r\\n"
+        },
+        {
+          "expect": "lock-files=\\[lock/\\*\\]\\r\\n"
+        },
+        {
+          "output_lacks": "pppppppp"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w4-root-cron-system-user-drop",
+      "loadable": "cron",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "A root cron daemon dispatching /etc/crontab-style rows with a USER column runs each command as that account: uid and gid from passwd, supplementary groups from /etc/group plus the primary gid, USER/LOGNAME/HOME from the account, and no drop for a root row; a seccomp-injected setuid failure in the dispatch child means the command never runs while the daemon carries on with the other rows.",
+      "oracle": "GNU id -u/-g/-G run by the dropped command itself (kernel credentials) with private passwd/group rows bind-mounted over /etc; the injected failure is a real EPERM from a seccomp filter on setuid (mig-w4-inject.py). The 127 exit status of the failed child is not observable from outside the daemon.",
+      "comparison": "Exact stdout: the status of one cron run --once poll with a fixed clock and, per row, the identity the command recorded; for the injected-failure poll, which rows produced output.",
+      "covers": [
+        "cron/deferred-system-user-drop"
+      ],
+      "requires": [
+        "id",
+        "mkdir",
+        "mount",
+        "python3",
+        "rm"
+      ],
+      "script": "P=$PWD\nH=/opt/bashos-parity/harness/helpers\ncat > \"$P/passwd.fx\" <<'X'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/tmp/parity-case/home-alice:/bin/bash\nbob:x:3002:3002:Bob:/tmp/parity-case/no-such-home:/bin/bash\nX\ncat > \"$P/group.fx\" <<'X'\nroot:x:0:\nalice:x:3001:alice\nbob:x:3002:\nstaff:x:4000:alice\nwheel:x:4001:alice,bob\nops:x:5000:\nX\n/usr/bin/mount --bind \"$P/passwd.fx\" /etc/passwd || echo \"MOUNT-FAIL passwd\"\n/usr/bin/mount --bind \"$P/group.fx\" /etc/group || echo \"MOUNT-FAIL group\"\n/usr/bin/mkdir -m 755 \"$P/home-alice\"\nsnap() { local l; set -f; while IFS= read -r l; do case $l in Uid:*|Gid:*|Groups:*|NoNewPrivs:*) echo $l;; esac; done < /proc/$BASHPID/status; set +f; }\n\n/usr/bin/mkdir -m 777 \"$P/out\"\nw=$P/cw\n/usr/bin/mkdir -p \"$w/etc\" \"$w/cron.d\" \"$w/spool\" \"$w/mail\" \"$w/jobout\"\ncmd() { printf '{ /usr/bin/id -u; /usr/bin/id -g; /usr/bin/id -G; echo \"$USER $LOGNAME $HOME\"; } > %s/out/%s.txt' \"$P\" \"$1\"; }\n{\n  printf '%s\\n' 'SHELL=/bin/bash' 'PATH=/usr/bin:/bin'\n  printf '* * * * * alice %s\\n' \"$(cmd alice)\"\n  printf '* * * * * bob %s\\n' \"$(cmd bob)\"\n  printf '* * * * * root %s\\n' \"$(cmd root)\"\n} > \"$w/etc/crontab\"\ncat > \"$P/poll.sh\" <<X\nw=$w\nexport TZ=UTC\nBASHCRON_SPOOL_DIR=\\$w/spool BASHCRON_OUTPUT_DIR=\\$w/jobout BASHCRON_ETC_DIR=\\$w/etc BASHCRON_CROND_DIR=\\$w/cron.d BASHCRON_MAIL_DIR=\\$w/mail BASHCRON_NOW_EPOCH=1700000040 cron run --once\necho \"\\$1 poll rc=\\$?\"\nX\nshow() {\n  local f=$P/out/$1.txt l=() line\n  [[ -f $f ]] || { echo \"$1 ran=no\"; return; }\n  while IFS= read -r line; do l+=(\"$line\"); done < \"$f\"\n  if [[ $1 == root ]]; then echo \"$1 uid=${l[0]} gid=${l[1]} env=${l[3]}\"; else echo \"$1 uid=${l[0]} gid=${l[1]} groups=${l[2]} env=${l[3]}\"; fi\n}\n\n\"$BASH\" --noprofile --norc \"$P/poll.sh\" normal\nshow alice; show bob; show root\n/usr/bin/rm -f \"$P/out/\"*.txt\n/usr/bin/python3 \"$H/mig-w4-inject.py\" setuid:1 -- \"$BASH\" --noprofile --norc \"$P/poll.sh\" injected 2>&1\nshow alice; show bob; show root\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "stdout": "normal poll rc=0\nalice uid=3001 gid=3001 groups=3001 4000 4001 env=alice alice /tmp/parity-case/home-alice\nbob uid=3002 gid=3002 groups=3002 4001 env=bob bob /tmp/parity-case/no-such-home\nroot uid=0 gid=0 env=root root /root\ninjected poll rc=0\nalice ran=no\nbob ran=no\nroot uid=0 gid=0 env=root root /root\n",
+      "stderr": "",
+      "helpers_sha256": {
+        "helpers/mig-w4-inject.py": "60e9f1ef51a6dd70607a3da36274708e80d5f602a783506676a40867846fcd83"
+      }
+    },
+    {
+      "id": "mig-w4-root-login-become-transition",
+      "loadable": "login",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "login become, run as real root with the kernel-token requirement disabled by BASHLOGIN_REQUIRE_KERNEL_TOKEN=0, drops to the target with groups {primary} (or the memberships plus primary with --with-supplementary), clears the environment to the documented whitelist unless --unsafe-keep-env, starts in the target's HOME and execs the target shell as 'SHELL -c CMD' with ARGS or, without -c, as 'SHELL --login'; a --auth-token or --auth-fd that cannot be consumed aborts before any credential change.",
+      "oracle": "The target process reports its own kernel credentials (/proc/PID/status), initial environment (/proc/PID/environ) and argv (/proc/PID/cmdline); the expected argv forms are the documented ones in login.c's header (SHELL --login; SHELL -c CMD with ARGS), the environment whitelist and PATH are the documented list, and command-not-run is shown by a marker file a GNU touch command would have created.",
+      "comparison": "Exact stdout: credential lines for both group modes, the sorted whitelist environment, whether FOO survives and LD_LIBRARY_PATH is stripped with --unsafe-keep-env, the working directory and argv forms, and for four unconsumable-token invocations the status, message and marker state.",
+      "covers": [
+        "login/credential-transition-deferred"
+      ],
+      "requires": [
+        "id",
+        "mkdir",
+        "mount",
+        "sort",
+        "touch"
+      ],
+      "script": "P=$PWD\nH=/opt/bashos-parity/harness/helpers\ncat > \"$P/passwd.fx\" <<'X'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/tmp/parity-case/home-alice:/bin/bash\nbob:x:3002:3002:Bob:/tmp/parity-case/no-such-home:/bin/bash\nX\ncat > \"$P/group.fx\" <<'X'\nroot:x:0:\nalice:x:3001:alice\nbob:x:3002:\nstaff:x:4000:alice\nwheel:x:4001:alice,bob\nops:x:5000:\nX\n/usr/bin/mount --bind \"$P/passwd.fx\" /etc/passwd || echo \"MOUNT-FAIL passwd\"\n/usr/bin/mount --bind \"$P/group.fx\" /etc/group || echo \"MOUNT-FAIL group\"\n/usr/bin/mkdir -m 755 \"$P/home-alice\"\nsnap() { local l; set -f; while IFS= read -r l; do case $l in Uid:*|Gid:*|Groups:*|NoNewPrivs:*) echo $l;; esac; done < /proc/$BASHPID/status; set +f; }\n\ncat > \"$P/show.sh\" <<'X'\n#!/bin/bash\nset -f\nwhile IFS= read -r l; do case $l in Uid:*|Gid:*|Groups:*|NoNewPrivs:*) echo $l;; esac; done < /proc/self/status\nX\n/usr/bin/chmod 755 \"$P/show.sh\"\n\nlab() { local t=$1 l; while IFS= read -r l; do echo \"$t $l\"; done; }\n\nexport BASHLOGIN_REQUIRE_KERNEL_TOKEN=0 FOO=leaked LD_LIBRARY_PATH=/nonexistent\n/usr/bin/mkdir -m 777 \"$P/out\"\nCRED='set -f; while IFS= read -r l; do case $l in Uid:*|Gid:*|Groups:*) echo $l;; esac; done < /proc/$$/status'\nENVD='while IFS= read -r -d \"\" e; do echo \"$e\"; done < /proc/$$/environ'\nARGV='echo \"cwd=$PWD\"; while IFS= read -r -d \"\" a; do printf \"[%s]\" \"$a\"; done < /proc/$$/cmdline; echo'\nlogin become alice -c \"$CRED\" 2>&1 | lab primary\nlogin become alice --with-supplementary -c \"$CRED\" 2>&1 | lab supp\necho \"--- environment\"\nlogin become alice -c \"$ENVD\" 2>/dev/null | /usr/bin/sort | lab env\nout=$(login become alice --unsafe-keep-env -c \"$ENVD\" 2>/dev/null)\necho \"keep-env FOO=$([[ $out == *$'\\nFOO=leaked'* || $out == FOO=leaked* ]] && echo kept || echo lost) LD_LIBRARY_PATH=$([[ $out == *LD_LIBRARY_PATH* ]] && echo kept || echo stripped) USER=$([[ $out == *'USER=alice'* ]] && echo alice || echo other)\"\necho \"--- cwd and argv\"\nout=$(login become alice -c \"$ARGV\" 2>/dev/null)\necho \"cwd-is-home=$([[ ${out%%$'\\n'*} == cwd=/tmp/parity-case/home-alice ]] && echo yes || echo no)\"\n[[ ${out#*$'\\n'} == \"[/bin/bash][-c][$ARGV]\" ]] && echo \"c-form=ok\" || echo \"c-form=DIFFERS[${out#*$'\\n'}]\"\nout=$(login become alice -c \"$ARGV\" -- one two 2>/dev/null)\n[[ ${out#*$'\\n'} == \"[/bin/bash][-c][$ARGV][one][two]\" ]] && echo \"c-args-form=ok\" || echo \"c-args-form=DIFFERS[${out#*$'\\n'}]\"\nout=$(printf '%s\\n' \"$ARGV\" | login become alice 2>/dev/null)\necho \"default-cwd-is-home=$([[ ${out%%$'\\n'*} == cwd=/tmp/parity-case/home-alice ]] && echo yes || echo no)\"\n[[ ${out#*$'\\n'} == \"[/bin/bash][--login]\" ]] && echo \"default-form=ok\" || echo \"default-form=DIFFERS[${out#*$'\\n'}]\"\necho \"--- unconsumable tokens\"\ntk() { # label, expected message fragment, marker, args...\n  local label=$1 frag=$2 marker=$3; shift 3\n  login become alice \"$@\" -c \"/usr/bin/touch $P/out/$marker\" 2> \"$P/err.$label\"; rc=$?\n  local e; e=$(< \"$P/err.$label\")\n  echo \"$label rc=$rc message=$([[ $e == *\"$frag\"* ]] && echo yes || echo no) marker=$([[ -e $P/out/$marker ]] && echo present || echo absent)\"\n}\ntk token-hex \"kernel auth token rejected (no open /dev/bashos-auth fd)\" m1 --auth-token 0000000000000000000000000000000000000000000000000000000000000000\nprintf '%s' 0123456789abcdef0123456789abcdef > \"$P/tok32\"\nprintf '%s' 0123456789abcdef0123456789abcde > \"$P/tok31\"\ntk token-fd-closed \"--auth-fd 7: read token: Bad file descriptor\" m2 --auth-fd 7\nexec 8< \"$P/tok31\"\ntk token-fd-short \"--auth-fd 8: read token: Input/output error\" m3 --auth-fd 8\nexec 8<&-\nexec 8< \"$P/tok32\"\ntk token-fd-ioctl \"--auth-fd 8: kernel auth token rejected: Inappropriate ioctl for device\" m4 --auth-fd 8\nexec 8<&-\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "stdout": "primary Uid: 3001 3001 3001 3001\nprimary Gid: 3001 3001 3001 3001\nprimary Groups: 3001\nsupp Uid: 3001 3001 3001 3001\nsupp Gid: 3001 3001 3001 3001\nsupp Groups: 3001 4000 4001\n--- environment\nenv HOME=/tmp/parity-case/home-alice\nenv LANG=C.UTF-8\nenv LC_ALL=C.UTF-8\nenv LOGNAME=alice\nenv PATH=/bin:/bash-os:/usr/bin\nenv SHELL=/bin/bash\nenv TERM=xterm-256color\nenv TZ=UTC\nenv USER=alice\nkeep-env FOO=kept LD_LIBRARY_PATH=stripped USER=alice\n--- cwd and argv\ncwd-is-home=yes\nc-form=ok\nc-args-form=ok\ndefault-cwd-is-home=yes\ndefault-form=ok\n--- unconsumable tokens\ntoken-hex rc=1 message=yes marker=absent\ntoken-fd-closed rc=1 message=yes marker=absent\ntoken-fd-short rc=1 message=yes marker=absent\ntoken-fd-ioctl rc=1 message=yes marker=absent\n",
+      "stderr": ""
+    }
+  ]
+}

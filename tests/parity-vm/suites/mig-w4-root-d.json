@@ -1,0 +1,113 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w4-root-id-real-effective",
+      "loadable": "id",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "purpose": "With real uid/gid 3001 and effective uid/gid 3002 (and supplementary groups 4000,4001) id -ru/-rg print the real IDs, -u/-g the effective IDs, the default output carries euid=/egid= fields, and id -G lists the real gid, then the effective gid, then the supplementary groups, all identical to GNU id.",
+      "oracle": "GNU coreutils 9.7 id run by the reference bash side in the same kernel credential state, created by util-linux setpriv (--ruid/--euid/--rgid/--egid/--groups) and started with bash -p so the shell keeps its effective ids.",
+      "comparison": "Byte parity of each id invocation's output and status inside the credential-split shell, with private passwd/group rows bind-mounted over /etc/passwd and /etc/group.",
+      "covers": [
+        "id/id-real-effective-identity"
+      ],
+      "requires": [
+        "id",
+        "mount",
+        "setpriv"
+      ],
+      "script": "P=$PWD\nH=/opt/bashos-parity/harness/helpers\ncat > \"$P/passwd.fx\" <<'X'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/tmp/parity-case/home-alice:/bin/bash\nbob:x:3002:3002:Bob:/tmp/parity-case/no-such-home:/bin/bash\nX\ncat > \"$P/group.fx\" <<'X'\nroot:x:0:\nalice:x:3001:alice\nbob:x:3002:\nstaff:x:4000:alice\nwheel:x:4001:alice,bob\nops:x:5000:\nX\n/usr/bin/mount --bind \"$P/passwd.fx\" /etc/passwd || echo \"MOUNT-FAIL passwd\"\n/usr/bin/mount --bind \"$P/group.fx\" /etc/group || echo \"MOUNT-FAIL group\"\n/usr/bin/mkdir -m 755 \"$P/home-alice\"\nsnap() { local l; set -f; while IFS= read -r l; do case $l in Uid:*|Gid:*|Groups:*|NoNewPrivs:*) echo $l;; esac; done < /proc/$BASHPID/status; set +f; }\n\nrun() { /usr/bin/setpriv --ruid=3001 --euid=3002 --rgid=3001 --egid=3002 --groups=4000,4001 \"$BASH\" --noprofile --norc -p -c \"$1\" 2>&1; }\nfor q in 'id -ru' 'id -rg' 'id -u' 'id -g' 'id -run' 'id -rgn' 'id -un' 'id -gn' 'id -G' 'id -Gn' 'id -Gr' 'id -Grn'; do\n  out=$(run \"$q\"); rc=$?; echo \"$q => $out (rc=$rc)\"\ndone\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "mig-w4-root-id-default-output",
+      "loadable": "id",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "purpose": "With real uid/gid 3001 (default output only): and effective uid/gid 3002 (and supplementary groups 4000,4001) id -ru/-rg print the real IDs, -u/-g the effective IDs, the default output carries euid=/egid= fields formatted like GNU (and id -G lists the real gid, then the effective gid, then the supplementary groups, all identical to GNU id.",
+      "oracle": "GNU coreutils 9.7 id run by the reference bash side in the same kernel credential state, created by util-linux setpriv (--ruid/--euid/--rgid/--egid/--groups) and started with bash -p so the shell keeps its effective ids.",
+      "comparison": "Byte parity of each id invocation's output and status inside the credential-split shell, with private passwd/group rows bind-mounted over /etc/passwd and /etc/group.",
+      "covers": [
+        "id/id-real-effective-identity"
+      ],
+      "requires": [
+        "id",
+        "mount",
+        "setpriv"
+      ],
+      "script": "P=$PWD\nH=/opt/bashos-parity/harness/helpers\ncat > \"$P/passwd.fx\" <<'X'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/tmp/parity-case/home-alice:/bin/bash\nbob:x:3002:3002:Bob:/tmp/parity-case/no-such-home:/bin/bash\nX\ncat > \"$P/group.fx\" <<'X'\nroot:x:0:\nalice:x:3001:alice\nbob:x:3002:\nstaff:x:4000:alice\nwheel:x:4001:alice,bob\nops:x:5000:\nX\n/usr/bin/mount --bind \"$P/passwd.fx\" /etc/passwd || echo \"MOUNT-FAIL passwd\"\n/usr/bin/mount --bind \"$P/group.fx\" /etc/group || echo \"MOUNT-FAIL group\"\n/usr/bin/mkdir -m 755 \"$P/home-alice\"\nsnap() { local l; set -f; while IFS= read -r l; do case $l in Uid:*|Gid:*|Groups:*|NoNewPrivs:*) echo $l;; esac; done < /proc/$BASHPID/status; set +f; }\n\nrun() { /usr/bin/setpriv --ruid=3001 --euid=3002 --rgid=3001 --egid=3002 --groups=4000,4001 \"$BASH\" --noprofile --norc -p -c \"$1\" 2>&1; }\nfor q in 'id' 'id -a'; do\n  out=$(run \"$q\"); rc=$?; echo \"$q => $out (rc=$rc)\"\ndone\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "mig-w4-root-nice-negative-adjustment",
+      "loadable": "nice",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "purpose": "As root nice -n N with a negative N lowers the child's niceness by exactly N (clamped to -20), composes with a nested nice, and returns the child's exit status, as GNU nice does.",
+      "oracle": "GNU coreutils 9.7 nice run by the reference bash side as uid 0; the child /usr/bin/nice prints the niceness it inherited.",
+      "comparison": "Byte parity of each invocation's output and status.",
+      "covers": [
+        "nice/denied-priority-adjustment"
+      ],
+      "requires": [
+        "nice"
+      ],
+      "script": "for n in -1 -5 -19 -20 -40 5; do out=$(nice -n $n /usr/bin/nice 2>&1); echo \"nice -n $n => $out (rc=$?)\"; done\nout=$(nice -n -4 /usr/bin/nice -n 2 /usr/bin/nice 2>&1); echo \"nested => $out\"\nnice -n -3 /bin/bash -c 'exit 9'; echo \"status=$?\"\nout=$(nice -n -3 /usr/bin/nice -n -2 /bin/bash -c 'kill -TERM $$' 2>&1); echo \"signal rc=$?\"\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "mig-w4-root-chrt-realtime-command",
+      "loadable": "chrt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "purpose": "chrt applies SCHED_FIFO and SCHED_RR with valid priorities 1, 10, 50 and 99 to the command it execs, observed by the child's own sched_getscheduler/sched_getparam, and with -R the reset-on-fork flag is set on the child while a grandchild forked from a FIFO/RR (and from a negative-nice) parent reverts to SCHED_OTHER priority 0 with niceness 0.",
+      "oracle": "util-linux 2.41 chrt run by the reference bash side as uid 0; an independent Python child reads sched_getscheduler/sched_getparam (the Linux system calls) and its forked grandchild does the same.",
+      "comparison": "Byte parity of the child's and grandchild's policy, reset flag, priority and niceness lines for each invocation and of each exit status.",
+      "covers": [
+        "chrt/deferred-policy-command"
+      ],
+      "requires": [
+        "chrt",
+        "nice",
+        "python3"
+      ],
+      "script": "P=$PWD\n\ncat > \"$P/obs.py\" <<'X'\nimport os, sys\ndef fmt(tag, pid=0):\n    p = os.sched_getscheduler(pid)\n    print('%s policy=%d reset=%s prio=%d' % (tag, p & ~0x40000000, bool(p & 0x40000000), os.sched_getparam(pid).sched_priority))\nfmt('child')\nif sys.argv[1:] == ['fork']:\n    pid = os.fork()\n    if pid == 0:\n        fmt('grandchild')\n        print('grandchild nice=%d' % os.nice(0))\n        os._exit(0)\n    os.waitpid(pid, 0)\nX\n\nfor spec in '-f 1' '-f 10' '-f 50' '-f 99' '-r 1' '-r 50' '-r 99' '-R -f 10' '-R -r 99'; do\n  out=$(chrt $spec /usr/bin/python3 \"$P/obs.py\" 2>&1); echo \"chrt $spec => $out (rc=$?)\"\ndone\nfor spec in '-R -f 10' '-R -r 20'; do\n  out=$(chrt $spec /usr/bin/python3 \"$P/obs.py\" fork 2>&1); echo \"fork chrt $spec => $out\"\ndone\nout=$(nice -n -5 chrt -R -f 10 /usr/bin/python3 \"$P/obs.py\" fork 2>&1); echo \"fork nice -5 chrt -R -f 10 => $out\"\n",
+      "expected_status": 0,
+      "timeout": 40
+    },
+    {
+      "id": "mig-w4-root-chrt-deadline-proc-sched",
+      "loadable": "chrt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "purpose": "chrt -d with runtime 5 ms, deadline 10 ms and period 16.666666 ms on an owned process succeeds, the kernel's sched_getattr read-back reports policy 6 with exactly those three values and /proc/PID/sched shows the deadline policy; invalid orderings (runtime > deadline, deadline > period) are rejected without changing the parameters.",
+      "oracle": "util-linux 2.41 chrt run by the reference bash side as uid 0 on an owned sleeping Python process; sched_getattr is called directly through the Linux system call (x86-64 number 315) by an independent Python helper.",
+      "comparison": "Byte parity of the set status, the system-call read-back, the /proc/PID/sched policy/priority/deadline lines and the two rejection statuses and diagnostics.",
+      "covers": [
+        "chrt/deferred-pid-deadline"
+      ],
+      "requires": [
+        "chrt",
+        "python3",
+        "tr"
+      ],
+      "script": "P=$PWD\ncat > \"$P/dl.py\" <<'X'\nimport ctypes, os, sys\npid = int(sys.argv[1])\nlibc = ctypes.CDLL(None, use_errno=True)\nbuf = ctypes.create_string_buffer(56)\nr = libc.syscall(315, pid, buf, 56, 0)      # sched_getattr, x86-64\nif r != 0:\n    print('sched_getattr errno', ctypes.get_errno()); sys.exit(1)\nsize, policy, flags = ctypes.c_uint32.from_buffer(buf, 0).value, ctypes.c_uint32.from_buffer(buf, 4).value, ctypes.c_uint64.from_buffer(buf, 8).value\nruntime, deadline, period = (ctypes.c_uint64.from_buffer(buf, o).value for o in (24, 32, 40))\nprint('policy=%d runtime=%d deadline=%d period=%d' % (policy, runtime, deadline, period))\nX\n/usr/bin/python3 -c 'import time; time.sleep(25)' & pid=$!\nout=$(chrt -d -T 5000000 -D 10000000 -P 16666666 -p 0 $pid 2>&1); rc=$?; echo \"set rc=$rc out=[${out//$pid/PID}]\"\n/usr/bin/python3 \"$P/dl.py\" $pid\nwhile IFS= read -r l; do case $l in 'policy '*|'prio '*) set -f; echo \"proc-sched $l\" | /usr/bin/tr -s ' ';; esac; done < /proc/$pid/sched\nout=$(chrt -d -T 5000000 -D 4000000 -P 16666666 -p 0 $pid 2>&1); rc=$?; echo \"runtime>deadline rc=$rc out=[${out//$pid/PID}]\"\nout=$(chrt -d -T 5000000 -D 20000000 -P 10000000 -p 0 $pid 2>&1); rc=$?; echo \"deadline>period rc=$rc out=[${out//$pid/PID}]\"\n/usr/bin/python3 \"$P/dl.py\" $pid\nkill $pid; wait $pid 2>/dev/null\necho done\n",
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}

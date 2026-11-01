@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w4-root-sudo-login-shell-quoting",
+      "loadable": "sudo",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "sudo -i starts the target's login shell in the target's home (a missing home is reported and the shell starts where it is), sudo -s runs the invoking shell from $SHELL (falling back to the invoking account's shell), and the command string handed to the shell escapes every byte except letters, digits, underscore, hyphen and dollar with a backslash (empty and newline words single-quoted), so the shell reconstructs the original words.",
+      "oracle": "sudo(8) -i/-s semantics as pinned in the source comment for sudo 1.9.16p2: a bash model of the escape rule computes the expected command string, the shell probe prints its own argv from /proc/PID/cmdline and the target shell itself reports its working directory, HOME, login-shell state and BASH_VERSION; direct execution of a helper gives the expected word list.",
+      "comparison": "Exact stdout: the login shell's own report for an existing and a missing home, the shell kind chosen under three SHELL settings, byte equality of the -c string with the independent model, and whether the executed helper received the original words (with the documented $HOME expansion).",
+      "covers": [
+        "sudo/login-shell-and-command-quoting"
+      ],
+      "requires": [
+        "id",
+        "mount",
+        "python3"
+      ],
+      "script": "P=$PWD\nH=/opt/bashos-parity/harness/helpers\ncat > \"$P/passwd.fx\" <<'X'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/tmp/parity-case/home-alice:/bin/bash\nbob:x:3002:3002:Bob:/tmp/parity-case/no-such-home:/bin/bash\nX\ncat > \"$P/group.fx\" <<'X'\nroot:x:0:\nalice:x:3001:alice\nbob:x:3002:\nstaff:x:4000:alice\nwheel:x:4001:alice,bob\nops:x:5000:\nX\n/usr/bin/mount --bind \"$P/passwd.fx\" /etc/passwd || echo \"MOUNT-FAIL passwd\"\n/usr/bin/mount --bind \"$P/group.fx\" /etc/group || echo \"MOUNT-FAIL group\"\n/usr/bin/mkdir -m 755 \"$P/home-alice\"\nsnap() { local l; set -f; while IFS= read -r l; do case $l in Uid:*|Gid:*|Groups:*|NoNewPrivs:*) echo $l;; esac; done < /proc/$BASHPID/status; set +f; }\n\ncat > \"$P/show.sh\" <<'X'\n#!/bin/bash\nset -f\nwhile IFS= read -r l; do case $l in Uid:*|Gid:*|Groups:*|NoNewPrivs:*) echo $l;; esac; done < /proc/self/status\nX\n/usr/bin/chmod 755 \"$P/show.sh\"\n\ncat > \"$P/argv.sh\" <<'X'\n#!/bin/bash\necho \"argc=$#\"; for a in \"$@\"; do printf '<%s>\\n' \"$a\"; done\nX\ncat > \"$P/cmdprobe\" <<'X'\n#!/bin/bash\nprintf '%s' \"$2\"\nX\n/usr/bin/chmod 755 \"$P/argv.sh\" \"$P/cmdprobe\"\nreport='while IFS= read -r -d \"\" a; do printf \"[%s]\" \"$a\"; done < /proc/$$/cmdline; echo; echo \"cwd=$PWD home=$HOME\"; shopt -q login_shell && echo login=yes || echo login=no; echo shell=$SHELL'\necho \"--- login existing home\"\nprintf '%s\\n' \"$report\" | sudo -i -u alice 2>&1 | while IFS= read -r l; do echo \"i $l\"; done\necho \"--- login missing home\"\nprintf '%s\\n' \"$report\" | sudo -i -u bob 2>&1 | while IFS= read -r l; do echo \"m $l\"; done\necho \"--- shell selection\"\nfor sh in /bin/sh /bin/bash; do\n  out=$(printf 'echo bash=${BASH_VERSION:+yes}\\n' | SHELL=$sh sudo -s -u alice 2>&1); echo \"SHELL=$sh $out\"\ndone\nunset SHELL\nout=$(printf 'echo bash=${BASH_VERSION:+yes}\\n' | sudo -s -u alice 2>&1); echo \"SHELL=unset $out\"\necho \"--- escaping\"\nesc() { local s=$1 out= c i; for ((i=0; i<${#s}; i++)); do c=${s:i:1}; case $c in [A-Za-z0-9_\\$-]) out+=$c;; *) out+=\"\\\\$c\";; esac; done; printf '%s' \"$out\"; }\nmw() { local w=$1; if [[ -z $w || $w == *$'\\n'* ]]; then w=${w//\\'/\\'\\\\\\'\\'}; printf \"'%s'\" \"$w\"; else esc \"$w\"; fi; }\nwords=(\"$P/argv.sh\" 'a b' \"it's\" '*' ';' '&&' '|' '<' '>' '\"dq\"' 'back\\slash' '' $'nl\\nx' '#hash' '~' '$HOME' $'x\\n$HOME' 'tab\ttab')\nmodel=; for w in \"${words[@]}\"; do model+=\"${model:+ }$(mw \"$w\")\"; done\ngot=$(SHELL=\"$P/cmdprobe\" sudo -s -u alice \"${words[@]}\")\n[[ $got == \"$model\" ]] && echo \"command-string=matches-model\" || echo \"command-string=DIFFERS\"\nhm=/tmp/parity-case/home-alice\nexec_out=$(SHELL=/bin/bash sudo -s -u alice \"${words[@]}\" 2>&1)\nwant_args=(\"${words[@]:1}\"); want_args[14]=$hm\nwant=$(\"$P/argv.sh\" \"${want_args[@]}\")\n[[ $exec_out == \"$want\" ]] && echo \"words-reconstructed=yes count=$(( ${#words[@]} - 1 ))\" || echo \"words-reconstructed=NO\"\n",
+      "expected_status": 0,
+      "timeout": 50,
+      "stdout": "--- login existing home\ni [-bash][-l]\ni cwd=/tmp/parity-case/home-alice home=/tmp/parity-case/home-alice\ni login=yes\ni shell=/bin/bash\n--- login missing home\nm sudo: unable to change directory to /tmp/parity-case/no-such-home: No such file or directory\nm [-bash][-l]\nm cwd=/tmp/parity-case home=/tmp/parity-case/no-such-home\nm login=yes\nm shell=/bin/bash\n--- shell selection\nSHELL=/bin/sh bash=\nSHELL=/bin/bash bash=yes\nSHELL=unset bash=yes\n--- escaping\ncommand-string=matches-model\nwords-reconstructed=yes count=17\n",
+      "stderr": ""
+    }
+  ]
+}
