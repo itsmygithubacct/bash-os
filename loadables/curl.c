@@ -146,6 +146,8 @@ typedef struct {
   int         max_time;        /* --max-time SEC */
   int         max_redirs;      /* --max-redirs N (0 = use BCURL_MAX_REDIRECTS) */
   int         method_set;      /* -X/--request given: keep it across redirects */
+  int         offsite;         /* this hop is not on the first URL's origin */
+  int         auth_dropped;    /* a hop left the first origin: -u stays off */
   int         features;        /* --features */
 } bc_opts;
 
@@ -282,6 +284,16 @@ bc_user_header (const bc_opts *o, const char *name)
   return 0;
 }
 
+/* curl's rule for credentials on a redirect: an origin is the scheme, the
+   host (any case) and the port. */
+static int
+bc_same_origin (const bc_url *a, const bc_url *b)
+{
+  return strcasecmp (a->scheme, b->scheme) == 0
+         && strcasecmp (a->host, b->host) == 0
+         && strtol (a->port, NULL, 10) == strtol (b->port, NULL, 10);
+}
+
 static char *
 bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
 {
@@ -294,6 +306,10 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
       const char *colon = strchr (h, ':');
       const char *semi = strchr (h, ';');
       char empty[BCURL_HDRBUF_MAX];
+      /* Like curl, -H Authorization and Cookie go only to the first
+         origin; there is no option that sends them elsewhere. */
+      if (o->offsite && (bc_header_is (h, "Authorization") || bc_header_is (h, "Cookie")))
+        continue;
       if (colon)
         {
           /* "Name:" with no value removes the header instead of sending it. */
@@ -317,8 +333,9 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
     { bc_error ("header buffer exceeded"); return NULL; }
 
   /* Basic auth: only injected when -u is set and the caller did not
-   * already supply an Authorization header. */
-  if (o->userpass && !bc_user_header (o, "Authorization"))
+   * already supply an Authorization header. As in curl, a redirect that
+   * leaves the first origin drops -u for the rest of the transfer. */
+  if (o->userpass && !o->auth_dropped && !bc_user_header (o, "Authorization"))
     {
       char *b64 = bc_b64encode ((const unsigned char *) o->userpass,
                                 strlen (o->userpass));
@@ -1786,6 +1803,13 @@ curl_builtin (WORD_LIST *list)
                 o.cookie = o.cookie_alloc;
             }
         }
+      {
+        bc_url hop;
+        o.offsite = have_start_url && bc_parse_url (cur_url, &hop) == 0
+                    && !bc_same_origin (&start_url, &hop);
+        if (o.offsite)
+          o.auth_dropped = 1;
+      }
       bc_errcode = 0;
       rc = bc_one_request (&o, cur_url, &r);
       if (rc < 0)
