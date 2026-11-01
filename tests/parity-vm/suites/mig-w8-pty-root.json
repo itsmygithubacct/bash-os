@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w8-pty-ldisc-vt-csize-parity",
+      "loadable": "pty",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "On a real serial tty (/dev/ttyS0, the 8250 console UART of the guest whose driver, unlike the PTY driver, honours CSIZE and PARENB), set-ldisc, with the terminal held open so the tty reset-on-close does not discard the settings, applies CS7 with even parity and two stop bits, CS8 odd, CS7 odd, CS8 even and back to CS8 without parity, and the termios read back by Python matches each request.",
+      "script": "t=/dev/ttyS0\nexec 7<>$t\n/usr/bin/python3 ti.py $t > st0\npty set-ldisc 0 $t 9600 7 even 2 1 256 2>e1; echo \"cs7even=$?\" > rc\n/usr/bin/python3 ti.py $t > st1\npty set-ldisc 0 $t 115200 8 odd 1 - - 2>e2; echo \"cs8odd=$?\" >> rc\n/usr/bin/python3 ti.py $t > st2\npty set-ldisc 0 $t - 7 odd - - - 2>e3; echo \"cs7odd=$?\" >> rc\n/usr/bin/python3 ti.py $t > st3\npty set-ldisc 0 $t - 8 even - - - 2>e4; echo \"cs8even=$?\" >> rc\n/usr/bin/python3 ti.py $t > st4\npty set-ldisc 0 $t 115200 8 none 1 - 257 2>e5; echo \"restore=$?\" >> rc\n/usr/bin/python3 ti.py $t > st5\n",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "",
+      "covers": [
+        "pty/pty-serial-ldisc-deferred"
+      ],
+      "files": {
+        "ti.py": "import fcntl, os, struct, sys, termios\nfd = os.open(sys.argv[1], os.O_RDWR | os.O_NOCTTY)\na = termios.tcgetattr(fd)\nsp = {getattr(termios, n): n for n in dir(termios) if n.startswith('B') and n[1:].isdigit()}\ncs = {termios.CS5: 5, termios.CS6: 6, termios.CS7: 7, termios.CS8: 8}[a[2] & termios.CSIZE]\npar = 'none' if not a[2] & termios.PARENB else ('odd' if a[2] & termios.PARODD else 'even')\nbuf = fcntl.ioctl(fd, 0x5424, b'\\0\\0\\0\\0')\nprint('ispeed=%s ospeed=%s cs=%d parity=%s cstopb=%d ignbrk=%d icrnl=%d ldisc=%d' % (sp.get(a[4]), sp.get(a[5]), cs, par, bool(a[2] & termios.CSTOPB), bool(a[0] & termios.IGNBRK), bool(a[0] & termios.ICRNL), struct.unpack('i', buf)[0]))\n"
+      },
+      "expected_files": {
+        "rc": "cs7even=0\ncs8odd=0\ncs7odd=0\ncs8even=0\nrestore=0\n",
+        "st1": "ispeed=B9600 ospeed=B9600 cs=7 parity=even cstopb=1 ignbrk=1 icrnl=0 ldisc=0\n",
+        "st2": "ispeed=B115200 ospeed=B115200 cs=8 parity=odd cstopb=0 ignbrk=1 icrnl=0 ldisc=0\n",
+        "st3": "ispeed=B115200 ospeed=B115200 cs=7 parity=odd cstopb=0 ignbrk=1 icrnl=0 ldisc=0\n",
+        "st4": "ispeed=B115200 ospeed=B115200 cs=8 parity=even cstopb=0 ignbrk=1 icrnl=0 ldisc=0\n",
+        "st5": "ispeed=B115200 ospeed=B115200 cs=8 parity=none cstopb=0 ignbrk=0 icrnl=0 ldisc=0\n"
+      },
+      "kind": "contract",
+      "oracle": "Linux termios.h constants (B9600/B115200, CS5-CS8, PARENB/PARODD, CSTOPB, IGNBRK, ICRNL) read back with Python's termios module; a root fixture on the rental is required for CAP_SYS_ADMIN and the device node. The pty builtin has no reference executable.",
+      "comparison": "Per-step termios read back after each pty set-ldisc invocation: speed, character size, parity, stop bits and the iflag masks.",
+      "requires": [
+        "python3"
+      ],
+      "timeout": 30,
+      "privilege": "root"
+    }
+  ]
+}
