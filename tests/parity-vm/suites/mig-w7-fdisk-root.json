@@ -30,8 +30,43 @@
         "rl.sh": "export PYTHONDONTWRITEBYTECODE=1\ncleanup() { /usr/bin/umount -R \"$PWD/mnt\" 2>/dev/null; /usr/sbin/dmsetup remove_all 2>/dev/null; /usr/sbin/losetup -D 2>/dev/null; }\ntrap cleanup EXIT\nmapk=(); mapv=()\nreg() { mapk+=(\"$1\"); mapv+=(\"$2\"); }\nnorm() { local s i; s=$(< \"$1\"); for i in \"${!mapk[@]}\"; do s=${s//\"${mapk[i]}\"/${mapv[i]}}; done; printf '%s\\n' \"$s\"; }\nnormv() { local s=$1 i; for i in \"${!mapk[@]}\"; do s=${s//\"${mapk[i]}\"/${mapv[i]}}; done; printf '%s' \"$s\"; }\nat() { REPLY=$(/usr/sbin/losetup -fP --show \"$1\") || echo \"losetup failed: $1\" >&2; }\nMK=/usr/sbin/mke2fs\n"
       },
       "privilege": "root",
-      "script": ". ./rl.sh\nkp() { local p s z o=; for p in /sys/block/$LN/${LN}p*; do [[ -e $p ]] || continue; read -r s < $p/start; read -r z < $p/size; o+=\" p${p##*p}=$s+$z\"; done; echo \"  kernel:${o:- none}\"; }\nf() { local l=$1; shift; fdisk \"$@\" >o.txt 2>&1; local rc=$?; local m; m=$(norm o.txt | /usr/bin/sed 's/^.*fdisk: //' | /usr/bin/tr '\\n' '|'); printf '%s status=%s msg=[%s]\\n' \"$l\" $rc \"$m\"; }\ntbl() { /usr/bin/truncate -s 8M disk.img; at disk.img; L=$REPLY; LN=${L#/dev/}; reg $L LOOP; }\nmbr3() { /usr/sbin/sfdisk -q disk.img <<E\nlabel: dos\nlabel-id: 0x12345678\nstart=2048, size=2048, type=83\nstart=4096, size=4096, type=83\nstart=8192, size=${1:-2048}, type=83\nE\n}\ntbl; mbr3\nkp\nf add-2-2 --partx-kernel add $L 2 2; kp\nf add-3-3 --partx-kernel add $L 3 3; kp\nf add-1 --partx-kernel add $L 1 1; kp\nf delete-1-3 --partx-kernel delete $L 1 3; kp\nf add-all --partx-kernel add $L; kp\n",
-      "stdout": "  kernel: none\nadd-2-2 status=0 msg=[BLKPG add applied to 1 partition(s) on LOOP|]\n  kernel: p2=4096+4096\nadd-3-3 status=0 msg=[BLKPG add applied to 1 partition(s) on LOOP|]\n  kernel: p2=4096+4096 p3=8192+2048\nadd-1 status=0 msg=[BLKPG add applied to 1 partition(s) on LOOP|]\n  kernel: p1=2048+2048 p2=4096+4096 p3=8192+2048\ndelete-1-3 status=0 msg=[BLKPG delete applied to 3 partition(s) on LOOP|]\n  kernel: none\nadd-all status=0 msg=[BLKPG add applied to 3 partition(s) on LOOP|]\n  kernel: p1=2048+2048 p2=4096+4096 p3=8192+2048\n",
+      "script": ". ./rl.sh\nkp() { local p s z o=; for p in /sys/block/$LN/${LN}p*; do [[ -e $p ]] || continue; read -r s < $p/start; read -r z < $p/size; o+=\" p${p##*p}=$s+$z\"; done; echo \"  kernel:${o:- none}\"; }\nf() { local l=$1; shift; fdisk \"$@\" >o.txt 2>&1; local rc=$?; local m; m=$(norm o.txt | /usr/bin/sed 's/^.*fdisk: //' | /usr/bin/tr '\\n' '|'); printf '%s status=%s msg=[%s]\\n' \"$l\" $rc \"$m\"; }\ntbl() { /usr/bin/truncate -s 8M disk.img; at disk.img; L=$REPLY; LN=${L#/dev/}; reg $L LOOP; }\nmbr3() { /usr/sbin/sfdisk -q disk.img <<E\nlabel: dos\nlabel-id: 0x12345678\nstart=2048, size=2048, type=83\nstart=4096, size=4096, type=83\nstart=8192, size=${1:-2048}, type=83\nE\n}\ntbl; mbr3\nkp\nf add-2-2 --partx-kernel add $L 2 2; kp\nf add-3-3 --partx-kernel add $L 3 3; kp\nf add-1 --partx-kernel add $L 1 1; kp\n",
+      "stdout": "  kernel: none\nadd-2-2 status=0 msg=[BLKPG add applied to 1 partition(s) on LOOP|]\n  kernel: p2=4096+4096\nadd-3-3 status=0 msg=[BLKPG add applied to 1 partition(s) on LOOP|]\n  kernel: p2=4096+4096 p3=8192+2048\nadd-1 status=0 msg=[BLKPG add applied to 1 partition(s) on LOOP|]\n  kernel: p1=2048+2048 p2=4096+4096 p3=8192+2048\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "file_size_limit": 67108864
+    },
+    {
+      "id": "mig-w7-fdisk-partx-delete-range-root",
+      "loadable": "fdisk",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "--partx-kernel delete MIN MAX removes every kernel partition in the range (1..3) after add, leaving an empty kernel set, and a following add restores all three.",
+      "covers": [
+        "fdisk/defer-kernel-partx"
+      ],
+      "oracle": "Kernel partition set read from sysfs (start/size in sectors per loopNpM), compared with the table written independently by util-linux sfdisk or requested from fdisk (--create-mbr specs); BLKPG semantics per partx(8)/blkpg ioctl.",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "losetup",
+        "mke2fs",
+        "truncate",
+        "sfdisk",
+        "sort",
+        "umount",
+        "fdisk",
+        "sed",
+        "tr",
+        "mount",
+        "grep"
+      ],
+      "files": {
+        "rl.sh": "export PYTHONDONTWRITEBYTECODE=1\ncleanup() { /usr/bin/umount -R \"$PWD/mnt\" 2>/dev/null; /usr/sbin/dmsetup remove_all 2>/dev/null; /usr/sbin/losetup -D 2>/dev/null; }\ntrap cleanup EXIT\nmapk=(); mapv=()\nreg() { mapk+=(\"$1\"); mapv+=(\"$2\"); }\nnorm() { local s i; s=$(< \"$1\"); for i in \"${!mapk[@]}\"; do s=${s//\"${mapk[i]}\"/${mapv[i]}}; done; printf '%s\\n' \"$s\"; }\nnormv() { local s=$1 i; for i in \"${!mapk[@]}\"; do s=${s//\"${mapk[i]}\"/${mapv[i]}}; done; printf '%s' \"$s\"; }\nat() { REPLY=$(/usr/sbin/losetup -fP --show \"$1\") || echo \"losetup failed: $1\" >&2; }\nMK=/usr/sbin/mke2fs\n"
+      },
+      "privilege": "root",
+      "script": ". ./rl.sh\nkp() { local p s z o=; for p in /sys/block/$LN/${LN}p*; do [[ -e $p ]] || continue; read -r s < $p/start; read -r z < $p/size; o+=\" p${p##*p}=$s+$z\"; done; echo \"  kernel:${o:- none}\"; }\nf() { local l=$1; shift; fdisk \"$@\" >o.txt 2>&1; local rc=$?; local m; m=$(norm o.txt | /usr/bin/sed 's/^.*fdisk: //' | /usr/bin/tr '\\n' '|'); printf '%s status=%s msg=[%s]\\n' \"$l\" $rc \"$m\"; }\ntbl() { /usr/bin/truncate -s 8M disk.img; at disk.img; L=$REPLY; LN=${L#/dev/}; reg $L LOOP; }\nmbr3() { /usr/sbin/sfdisk -q disk.img <<E\nlabel: dos\nlabel-id: 0x12345678\nstart=2048, size=2048, type=83\nstart=4096, size=4096, type=83\nstart=8192, size=${1:-2048}, type=83\nE\n}\ntbl; mbr3\nf add-all --partx-kernel add $L; kp\nf delete-1-3 --partx-kernel delete $L 1 3; kp\nf add-all-again --partx-kernel add $L; kp\n",
+      "stdout": "add-all status=0 msg=[BLKPG add applied to 3 partition(s) on LOOP|]\n  kernel: p1=2048+2048 p2=4096+4096 p3=8192+2048\ndelete-1-3 status=0 msg=[BLKPG delete applied to 3 partition(s) on LOOP|]\n  kernel: none\nadd-all-again status=0 msg=[BLKPG add applied to 3 partition(s) on LOOP|]\n  kernel: p1=2048+2048 p2=4096+4096 p3=8192+2048\n",
       "expected_status": 0,
       "timeout": 60,
       "file_size_limit": 67108864
