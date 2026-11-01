@@ -1,0 +1,145 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w3-claude-update-rejects-unverified",
+      "loadable": "claude",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "claude/update_package_mock"
+      ],
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf",
+        "unshare",
+        "mount",
+        "find"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w3-claude-pkgs.py": "4d36b45c9dfe0b8edf690ba433398481ffa2ae62d1608b42f84398509f4c43e9"
+      },
+      "files": {
+        "inner.sh": "# runs as mapped root inside the user+mount namespace; $1 is the scenario\nH=/tmp/parity-home; FIX=$H/claude-fixture; OV=$H/ov; MARKS=$H/load-marks\nset -e\n/usr/bin/rm -rf \"$OV\" \"$MARKS\"\n/usr/bin/mkdir -p \"$OV/u-lib\" \"$OV/w-lib\" \"$OV/u-var\" \"$OV/w-var\" \"$OV/w-etc\"\n/usr/bin/cp -a \"$FIX/etc-upper\" \"$OV/u-etc\"\n/usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$OV/u-lib,workdir=$OV/w-lib\" /usr/lib\n/usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$OV/u-var,workdir=$OV/w-var\" /var/lib\n/usr/bin/mount -t overlay overlay -o \"lowerdir=/etc,upperdir=$OV/u-etc,workdir=$OV/w-etc\" /etc\n/usr/bin/mount -t tmpfs tmpfs /root\n/usr/bin/mkdir /root/loadables\nctl=$(/usr/bin/bash -c 'enable -f \"$1\" claude && claude version' _ \"$FIX/claude.so\" 2>&1)\n/usr/bin/rm -f \"$MARKS\"\nstandin=NO; [[ $ctl == 'claude-fixture 2' ]] && standin=yes\n/usr/bin/mount --bind \"$CANDIDATE\" /usr/bin/bash\nset +e\nexport BASHPKG_LOADABLES_DATADIR=/root/loadables\nstage() {\n  /usr/bin/rm -rf /root/loadables; /usr/bin/mkdir /root/loadables\n  /usr/bin/cp \"$FIX/bashclaude_$1.pkg\" \"/root/loadables/bashclaude_$1.pkg\"\n  if [[ -f $FIX/bashclaude_$1.pkg.sig ]]; then /usr/bin/cp \"$FIX/bashclaude_$1.pkg.sig\" \"/root/loadables/bashclaude_$1.pkg.sig\"; fi\n  PKG=/root/loadables/bashclaude_$1.pkg\n}\nnfiles() { nf=$(/usr/bin/find \"$OV/u-lib\" \"$OV/u-var\" -type f | /usr/bin/wc -l); }\nnloads() { nl=0; if [[ -f $MARKS ]]; then nl=$(/usr/bin/wc -l < \"$MARKS\"); fi; }\ninstalled() {\n  inst=no\n  if [[ -f /var/lib/pkg/installed/claude/sha256 && -f /usr/lib/bash-os/loadables/claude.so ]] \\\n     && /usr/bin/cmp -s /usr/lib/bash-os/loadables/claude.so \"$FIX/claude.so\" \\\n     && [[ $(< /var/lib/pkg/installed/claude/sha256) == \"$(< \"$FIX/valid.so.sha256\")\" ]]; then inst=yes; fi\n}\nreached() { reach=yes; if ! /usr/bin/grep -q '^claude update: installing ' \"$H/err-$1\" || ! /usr/bin/grep -q '^bash: line 1: pkg: ' \"$H/err-$1\"; then reach=NO; fi; }\n\nfor name in tampered unsigned foreign bad-abi bad-arch bad-sha; do\n  stage \"$name\"\n  claude update 2> \"$H/err-$name\"; rc=$?\n  nfiles; nloads; reached \"$name\"\n  printf '%s: rc=%s files=%s loads=%s reached-pkg=%s\\n' \"$name\" \"$rc\" \"$nf\" \"$nl\" \"$reach\"\ndone\nstage valid\nclaude update > \"$H/out-valid\" 2> \"$H/err-valid\"\ninstalled\nprintf 'control-valid: installed=%s\\n' \"$inst\"\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --mount /usr/bin/env CANDIDATE=\"$BASH\" \"$BASH\" --noprofile --norc \"$PWD/inner.sh\" \n",
+      "setup_script": "set -e\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w3-claude-pkgs.py\n",
+      "setup_timeout": 60,
+      "timeout": 60,
+      "stdout": "tampered: rc=1 files=0 loads=0 reached-pkg=yes\nunsigned: rc=1 files=0 loads=0 reached-pkg=yes\nforeign: rc=1 files=0 loads=0 reached-pkg=yes\nbad-abi: rc=1 files=0 loads=0 reached-pkg=yes\nbad-arch: rc=1 files=0 loads=0 reached-pkg=yes\nbad-sha: rc=1 files=0 loads=0 reached-pkg=yes\ncontrol-valid: installed=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "oracle": "Independent fixture (mig-w3-claude-pkgs.py): gcc-built claude stand-in .so whose constructor records when it is loaded, packages signed with a fresh OpenSSL Ed25519 key (OpenSSL verifies every signature, and a flipped byte breaks the valid one), the matching public key installed in the default /etc/bashsignify/trusted of a private overlay. The invoking shell runs in a user+mount namespace where the candidate is bind-mounted over /usr/bin/bash, so the child '/bin/bash -lc' that 'claude update' starts is the candidate, with writable overlays over /usr/lib, /var/lib and /etc and a tmpfs over /root; the package under test is the only bashclaude_*.pkg in BASHPKG_LOADABLES_DATADIR (also the default /root/loadables) and 'claude update' is run without an argument, so selection does not depend on the environment hand-off of an explicit PKGFILE (that is case mig-w3-claude-update-selection). Six packages that must not install: a byte flipped after signing, no signature file, a signature by a key that is not trusted, manifest ABI bash-4.4, manifest architecture not of this machine, manifest digest that is not the .so digest. 'files' is the count of regular files that appeared in the writable /usr/lib and /var/lib overlays (find, not the candidate): none may appear. A control run of the valid package in the same namespace proves the same update path does install a verified package.",
+      "comparison": "r2: 'claude update' (the package staged as the only bashclaude_*.pkg of the data directory) rejects a tampered, unsigned, untrusted-signer, wrong-ABI, wrong-architecture and wrong-digest package before anything is installed (status 1, no state or loadable written, the stand-in never loaded), reaching the real pkg verbs each time; the same path installs the valid signed package.",
+      "diagnostic_files": [
+        "err-tampered",
+        "err-unsigned",
+        "err-foreign",
+        "err-bad-abi",
+        "err-bad-arch",
+        "err-bad-sha",
+        "err-valid",
+        "claude-fixture/public-evidence.json",
+        "load-marks"
+      ]
+    },
+    {
+      "id": "mig-w3-claude-update-install-then-load",
+      "loadable": "claude",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "claude/update_package_mock"
+      ],
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf",
+        "unshare",
+        "mount",
+        "find"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w3-claude-pkgs.py": "4d36b45c9dfe0b8edf690ba433398481ffa2ae62d1608b42f84398509f4c43e9"
+      },
+      "files": {
+        "inner.sh": "# runs as mapped root inside the user+mount namespace; $1 is the scenario\nH=/tmp/parity-home; FIX=$H/claude-fixture; OV=$H/ov; MARKS=$H/load-marks\nset -e\n/usr/bin/rm -rf \"$OV\" \"$MARKS\"\n/usr/bin/mkdir -p \"$OV/u-lib\" \"$OV/w-lib\" \"$OV/u-var\" \"$OV/w-var\" \"$OV/w-etc\"\n/usr/bin/cp -a \"$FIX/etc-upper\" \"$OV/u-etc\"\n/usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$OV/u-lib,workdir=$OV/w-lib\" /usr/lib\n/usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$OV/u-var,workdir=$OV/w-var\" /var/lib\n/usr/bin/mount -t overlay overlay -o \"lowerdir=/etc,upperdir=$OV/u-etc,workdir=$OV/w-etc\" /etc\n/usr/bin/mount -t tmpfs tmpfs /root\n/usr/bin/mkdir /root/loadables\nctl=$(/usr/bin/bash -c 'enable -f \"$1\" claude && claude version' _ \"$FIX/claude.so\" 2>&1)\n/usr/bin/rm -f \"$MARKS\"\nstandin=NO; [[ $ctl == 'claude-fixture 2' ]] && standin=yes\n/usr/bin/mount --bind \"$CANDIDATE\" /usr/bin/bash\nset +e\nexport BASHPKG_LOADABLES_DATADIR=/root/loadables\nstage() {\n  /usr/bin/rm -rf /root/loadables; /usr/bin/mkdir /root/loadables\n  /usr/bin/cp \"$FIX/bashclaude_$1.pkg\" \"/root/loadables/bashclaude_$1.pkg\"\n  if [[ -f $FIX/bashclaude_$1.pkg.sig ]]; then /usr/bin/cp \"$FIX/bashclaude_$1.pkg.sig\" \"/root/loadables/bashclaude_$1.pkg.sig\"; fi\n  PKG=/root/loadables/bashclaude_$1.pkg\n}\nnfiles() { nf=$(/usr/bin/find \"$OV/u-lib\" \"$OV/u-var\" -type f | /usr/bin/wc -l); }\nnloads() { nl=0; if [[ -f $MARKS ]]; then nl=$(/usr/bin/wc -l < \"$MARKS\"); fi; }\ninstalled() {\n  inst=no\n  if [[ -f /var/lib/pkg/installed/claude/sha256 && -f /usr/lib/bash-os/loadables/claude.so ]] \\\n     && /usr/bin/cmp -s /usr/lib/bash-os/loadables/claude.so \"$FIX/claude.so\" \\\n     && [[ $(< /var/lib/pkg/installed/claude/sha256) == \"$(< \"$FIX/valid.so.sha256\")\" ]]; then inst=yes; fi\n}\nreached() { reach=yes; if ! /usr/bin/grep -q '^claude update: installing ' \"$H/err-$1\" || ! /usr/bin/grep -q '^bash: line 1: pkg: ' \"$H/err-$1\"; then reach=NO; fi; }\n\ncase $1 in\nok)\n  stage valid\n  claude update > \"$H/out-ok\" 2> \"$H/err-ok\"; rc=$?\n  installed; nloads\n  line=; if [[ -f $MARKS ]]; then line=$(< \"$MARKS\"); fi\n  order=no; [[ $line == *' state=1 so=1' ]] && order=yes\n  printf 'standin-answers-in-reference-shell=%s\\n' \"$standin\"\n  printf 'ok: rc=%s installed=%s loads=%s load-after-install=%s\\n' \"$rc\" \"$inst\" \"$nl\" \"$order\"\n  ;;\nloadfail)\n  stage noload\n  claude update > \"$H/out-loadfail\" 2> \"$H/err-loadfail\"; rc=$?\n  [[ -f /var/lib/pkg/installed/claude/sha256 && -f /usr/lib/bash-os/loadables/claude.so ]] && st=yes || st=no\n  nloads\n  line=; if [[ -f $MARKS ]]; then line=$(< \"$MARKS\"); fi\n  printf '%s\\n' \"$line\" > \"$H/loadfail-mark\"\n  printf 'loadfail: rc=%s installed=%s\\n' \"$rc\" \"$st\"\n  ;;\nnoinstall)\n  stage old\n  builtin pkg install \"$PKG\" > \"$H/preinstall.out\" 2> \"$H/preinstall.err\"; pre=$?\n  [[ $(< /var/lib/pkg/installed/claude/MANIFEST) == *'version: 1'* ]] && v=1 || v=other\n  /usr/bin/rm -f \"$MARKS\"\n  stage tampered\n  claude update > \"$H/out-noinstall\" 2> \"$H/err-noinstall\"; rc=$?\n  nloads\n  [[ $(< /var/lib/pkg/installed/claude/MANIFEST) == *'version: 1'* ]] && kept=yes || kept=no\n  printf 'noinstall: preinstall=%s version=%s rc=%s loads=%s version-kept=%s\\n' \"$pre\" \"$v\" \"$rc\" \"$nl\" \"$kept\"\n  ;;\nesac\n",
+        "run.sh": "for s in ok loadfail noinstall; do\n  /usr/bin/unshare --user --map-root-user --mount /usr/bin/env CANDIDATE=\"$BASH\" \"$BASH\" --noprofile --norc \"$PWD/inner.sh\" \"$s\"\ndone\n"
+      },
+      "script": "\"$BASH\" --noprofile --norc \"$PWD/run.sh\"\n",
+      "setup_script": "set -e\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w3-claude-pkgs.py\n",
+      "setup_timeout": 60,
+      "timeout": 60,
+      "stdout": "standin-answers-in-reference-shell=yes\nok: rc=0 installed=yes loads=1 load-after-install=yes\nloadfail: rc=1 installed=yes\nnoinstall: preinstall=0 version=1 rc=1 loads=0 version-kept=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "oracle": "Independent fixture (mig-w3-claude-pkgs.py): gcc-built claude stand-in .so whose constructor records when it is loaded, packages signed with a fresh OpenSSL Ed25519 key (OpenSSL verifies every signature, and a flipped byte breaks the valid one), the matching public key installed in the default /etc/bashsignify/trusted of a private overlay. The invoking shell runs in a user+mount namespace where the candidate is bind-mounted over /usr/bin/bash, so the child '/bin/bash -lc' that 'claude update' starts is the candidate, with writable overlays over /usr/lib, /var/lib and /etc and a tmpfs over /root; the package under test is the only bashclaude_*.pkg in BASHPKG_LOADABLES_DATADIR (also the default /root/loadables) and 'claude update' is run without an argument, so selection does not depend on the environment hand-off of an explicit PKGFILE (that is case mig-w3-claude-update-selection). Three fresh namespaces. ok: the stand-in's own answer is first proven by loading it with 'enable -f' in the reference GNU bash (no claude builtin there); the valid package is then updated; installed state and loadable are checked byte-for-byte against the independently built .so and its SHA-256, and the stand-in's constructor records that the installed state and .so already existed when it was loaded (one load only). loadfail: a signed package whose .so lacks the claude_struct symbol installs but cannot load, so update must fail with status 1 after the install (the stand-in's constructor mark, if the loader got that far, is kept as a diagnostic). noinstall: a version-1 package is pre-installed, then a tampered package must fail with status 1 and must not trigger any load of the installed one.",
+      "comparison": "r3: 'claude update' runs 'pkg install' then 'pkg load claude' in that order and propagates the status: success when both succeed (installed files exact, loaded once after install), status 1 when only the load fails (install happened first), and no load at all when the install is refused.",
+      "diagnostic_files": [
+        "err-ok",
+        "out-ok",
+        "err-loadfail",
+        "loadfail-mark",
+        "err-noinstall",
+        "preinstall.out",
+        "preinstall.err",
+        "load-marks"
+      ]
+    },
+    {
+      "id": "mig-w3-claude-update-reloads-invoking-shell",
+      "loadable": "claude",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "claude/update_package_mock"
+      ],
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf",
+        "unshare",
+        "mount",
+        "find"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w3-claude-pkgs.py": "4d36b45c9dfe0b8edf690ba433398481ffa2ae62d1608b42f84398509f4c43e9"
+      },
+      "files": {
+        "inner.sh": "# runs as mapped root inside the user+mount namespace; $1 is the scenario\nH=/tmp/parity-home; FIX=$H/claude-fixture; OV=$H/ov; MARKS=$H/load-marks\nset -e\n/usr/bin/rm -rf \"$OV\" \"$MARKS\"\n/usr/bin/mkdir -p \"$OV/u-lib\" \"$OV/w-lib\" \"$OV/u-var\" \"$OV/w-var\" \"$OV/w-etc\"\n/usr/bin/cp -a \"$FIX/etc-upper\" \"$OV/u-etc\"\n/usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$OV/u-lib,workdir=$OV/w-lib\" /usr/lib\n/usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$OV/u-var,workdir=$OV/w-var\" /var/lib\n/usr/bin/mount -t overlay overlay -o \"lowerdir=/etc,upperdir=$OV/u-etc,workdir=$OV/w-etc\" /etc\n/usr/bin/mount -t tmpfs tmpfs /root\n/usr/bin/mkdir /root/loadables\nctl=$(/usr/bin/bash -c 'enable -f \"$1\" claude && claude version' _ \"$FIX/claude.so\" 2>&1)\n/usr/bin/rm -f \"$MARKS\"\nstandin=NO; [[ $ctl == 'claude-fixture 2' ]] && standin=yes\n/usr/bin/mount --bind \"$CANDIDATE\" /usr/bin/bash\nset +e\nexport BASHPKG_LOADABLES_DATADIR=/root/loadables\nstage() {\n  /usr/bin/rm -rf /root/loadables; /usr/bin/mkdir /root/loadables\n  /usr/bin/cp \"$FIX/bashclaude_$1.pkg\" \"/root/loadables/bashclaude_$1.pkg\"\n  if [[ -f $FIX/bashclaude_$1.pkg.sig ]]; then /usr/bin/cp \"$FIX/bashclaude_$1.pkg.sig\" \"/root/loadables/bashclaude_$1.pkg.sig\"; fi\n  PKG=/root/loadables/bashclaude_$1.pkg\n}\nnfiles() { nf=$(/usr/bin/find \"$OV/u-lib\" \"$OV/u-var\" -type f | /usr/bin/wc -l); }\nnloads() { nl=0; if [[ -f $MARKS ]]; then nl=$(/usr/bin/wc -l < \"$MARKS\"); fi; }\ninstalled() {\n  inst=no\n  if [[ -f /var/lib/pkg/installed/claude/sha256 && -f /usr/lib/bash-os/loadables/claude.so ]] \\\n     && /usr/bin/cmp -s /usr/lib/bash-os/loadables/claude.so \"$FIX/claude.so\" \\\n     && [[ $(< /var/lib/pkg/installed/claude/sha256) == \"$(< \"$FIX/valid.so.sha256\")\" ]]; then inst=yes; fi\n}\nreached() { reach=yes; if ! /usr/bin/grep -q '^claude update: installing ' \"$H/err-$1\" || ! /usr/bin/grep -q '^bash: line 1: pkg: ' \"$H/err-$1\"; then reach=NO; fi; }\n\nbefore=$(claude version 2>&1)\nstage valid\nclaude update > \"$H/out-reload\" 2> \"$H/err-reload\"; rc=$?\nafter=$(claude version 2>&1)\nnloads; installed\nprintf '%s\\n' \"$before\" > \"$H/version-before\"; printf '%s\\n' \"$after\" > \"$H/version-after\"\nold=yes; [[ $before == 'claude-fixture 2' ]] && old=NO\nprintf 'standin-answers-in-reference-shell=%s\\n' \"$standin\"\nprintf 'before-is-old=%s\\nupdate-rc=%s\\ninstalled=%s\\nafter=%s\\n' \"$old\" \"$rc\" \"$inst\" \"$after\"\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --mount /usr/bin/env CANDIDATE=\"$BASH\" \"$BASH\" --noprofile --norc \"$PWD/inner.sh\" \n",
+      "setup_script": "set -e\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w3-claude-pkgs.py\n",
+      "setup_timeout": 60,
+      "timeout": 60,
+      "stdout": "standin-answers-in-reference-shell=yes\nbefore-is-old=yes\nupdate-rc=0\ninstalled=yes\nafter=claude-fixture 2\n",
+      "stderr": "",
+      "expected_status": 0,
+      "oracle": "Independent fixture (mig-w3-claude-pkgs.py): gcc-built claude stand-in .so whose constructor records when it is loaded, packages signed with a fresh OpenSSL Ed25519 key (OpenSSL verifies every signature, and a flipped byte breaks the valid one), the matching public key installed in the default /etc/bashsignify/trusted of a private overlay. The invoking shell runs in a user+mount namespace where the candidate is bind-mounted over /usr/bin/bash, so the child '/bin/bash -lc' that 'claude update' starts is the candidate, with writable overlays over /usr/lib, /var/lib and /etc and a tmpfs over /root; the package under test is the only bashclaude_*.pkg in BASHPKG_LOADABLES_DATADIR (also the default /root/loadables) and 'claude update' is run without an argument, so selection does not depend on the environment hand-off of an explicit PKGFILE (that is case mig-w3-claude-update-selection). The stand-in's own answer is first proven by loading it with 'enable -f' in the reference GNU bash (which has no claude builtin) before the candidate is bind-mounted. The invoking shell runs 'claude version' before (must not be the stand-in's text, which proves the builtin that answers later is a different one), then 'claude update' with the valid package, then 'claude version' again: the requirement is that the invoking shell now runs the new builtin, whose output is the stand-in's 'claude-fixture 2'.",
+      "comparison": "r4: after a successful 'claude update' the invoking shell itself runs the new claude builtin (not only a child process): 'claude version' prints the stand-in's output.",
+      "diagnostic_files": [
+        "err-reload",
+        "out-reload",
+        "version-before",
+        "version-after",
+        "load-marks"
+      ]
+    }
+  ]
+}
