@@ -1,0 +1,279 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w5-passwd-change-flow",
+      "loadable": "passwd",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "passwd/interactive_password_prompts",
+        "passwd/password_hash_updates"
+      ],
+      "purpose": "passwd change prompts Current, New and Retype in that order with echo off at each read, replaces only the target shadow entry with an Argon2id hash of the new password, rejects the old password afterwards, and restores the terminal.",
+      "oracle": "Interactive prompt order, termios modes and file effects are checked against POSIX termios semantics read from the PTY master, the passwd source's documented prompts, and an independent Argon2id recomputation (the argon2 CLI creates the old hash and `openssl kdf ARGON2ID` recomputes the new one); no kernel authority device exists in the guest, so the ordinary terminal path is exercised.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "requires": [
+        "python3",
+        "argon2",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w5-phc-check.py": "56089af69cabf4665ec6db3e78d95a7e5d5c1c592782929b59e230482046a263"
+      },
+      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_KERNEL_SECRETS=0\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd change w5user; echo \"rc=$?\"\necho \"verify old-before=$(/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w5-phc-check.py match shadow.orig w5user qvx-old-5521) old-after=$(/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w5-phc-check.py match shadow w5user qvx-old-5521) new-after=$(/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w5-phc-check.py match shadow w5user nnn-new-8842)\"\nmapfile -t a <shadow; mapfile -t b <shadow.orig; echo \"other-entry-unchanged=$([[ ${a[1]} == \"${b[1]}\" ]] && echo yes || echo no) entries=${#a[@]} shadow-mode=$(/usr/bin/stat -c %a shadow)\"\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "steps": [
+        {
+          "expect": "Current password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "send": "qvx-old-5521\r"
+        },
+        {
+          "expect": "New password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "send": "nnn-new-8842\r"
+        },
+        {
+          "expect": "Retype new password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "send": "nnn-new-8842\r"
+        },
+        {
+          "expect": "rc=0\r\n"
+        },
+        {
+          "expect": "verify old-before=match old-after=differ new-after=match\r\n"
+        },
+        {
+          "expect": "other-entry-unchanged=yes entries=2 shadow-mode=600\r\n"
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "output_lacks": "qvx-old-5521"
+        },
+        {
+          "output_lacks": "nnn-new-8842"
+        }
+      ],
+      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
+      "setup_timeout": 45,
+      "restore_terminal": true
+    },
+    {
+      "id": "mig-w5-passwd-change-wrong-current",
+      "loadable": "passwd",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "passwd/password_hash_updates"
+      ],
+      "purpose": "passwd change verifies the current password before replacing: a wrong current password fails with no New password prompt, leaves the shadow file byte-identical and restores the terminal.",
+      "oracle": "Interactive prompt order, termios modes and file effects are checked against POSIX termios semantics read from the PTY master, the passwd source's documented prompts, and an independent Argon2id recomputation (the argon2 CLI creates the old hash and `openssl kdf ARGON2ID` recomputes the new one); no kernel authority device exists in the guest, so the ordinary terminal path is exercised.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "requires": [
+        "python3",
+        "argon2",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w5-phc-check.py": "56089af69cabf4665ec6db3e78d95a7e5d5c1c592782929b59e230482046a263"
+      },
+      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_KERNEL_SECRETS=0\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd change w5user; rc=$?\necho \"nonzero=$([[ $rc != 0 ]] && echo yes || echo no) shadow-unchanged=$([[ $(< shadow) == \"$(< shadow.orig)\" ]] && echo yes || echo no)\"\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "steps": [
+        {
+          "expect": "Current password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "send": "zzz-wrong-0001\r"
+        },
+        {
+          "expect": "nonzero=yes shadow-unchanged=yes\r\n"
+        },
+        {
+          "output_lacks": "New password"
+        },
+        {
+          "output_lacks": "zzz-wrong-0001"
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        }
+      ],
+      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
+      "setup_timeout": 45,
+      "restore_terminal": true
+    },
+    {
+      "id": "mig-w5-passwd-set-mismatch-echo",
+      "loadable": "passwd",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "passwd/interactive_password_prompts"
+      ],
+      "purpose": "passwd set reads New and Retype with echo off, reports a mismatch without touching the shadow file and restores echo and canonical mode.",
+      "oracle": "Interactive prompt order, termios modes and file effects are checked against POSIX termios semantics read from the PTY master, the passwd source's documented prompts, and an independent Argon2id recomputation (the argon2 CLI creates the old hash and `openssl kdf ARGON2ID` recomputes the new one); no kernel authority device exists in the guest, so the ordinary terminal path is exercised.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "requires": [
+        "python3",
+        "argon2",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w5-phc-check.py": "56089af69cabf4665ec6db3e78d95a7e5d5c1c592782929b59e230482046a263"
+      },
+      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_KERNEL_SECRETS=0\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd set w5user; rc=$?\necho \"nonzero=$([[ $rc != 0 ]] && echo yes || echo no) shadow-unchanged=$([[ $(< shadow) == \"$(< shadow.orig)\" ]] && echo yes || echo no)\"\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "steps": [
+        {
+          "expect": "New password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "send": "aaa-first-4410\r"
+        },
+        {
+          "expect": "Retype new password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "send": "bbb-second-9921\r"
+        },
+        {
+          "expect": "nonzero=yes shadow-unchanged=yes\r\n"
+        },
+        {
+          "output_lacks": "aaa-first-4410"
+        },
+        {
+          "output_lacks": "bbb-second-9921"
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        }
+      ],
+      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
+      "setup_timeout": 45,
+      "restore_terminal": true
+    },
+    {
+      "id": "mig-w5-userdb-verify-private-files-only",
+      "loadable": "userdb",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "userdb/defer-passwd-verification"
+      ],
+      "purpose": "With distinct installed credentials bind-mounted over /etc/shadow and /etc/passwd, userdb verify using the private fixture environment accepts only the fixture password and rejects the installed one, while the same call with no fixture environment reads the installed files (control).",
+      "oracle": "Independent argon2 CLI hashes for two different passwords for the same account name; a mapped-user mount namespace makes the installed files distinguishable, so any consultation of the installed files changes the verdict.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "requires": [
+        "argon2",
+        "unshare",
+        "mount"
+      ],
+      "files": {
+        "inner.sh": "[[ $(type -t userdb) == builtin ]] || exit 99\n/usr/bin/mount --bind \"$PWD/inst/shadow\" /etc/shadow || exit 90\n/usr/bin/mount --bind \"$PWD/inst/passwd\" /etc/passwd || exit 90\nexport BASHUSERDB_CONF=$PWD/empty.conf BPW_LOCK_DIR=$PWD/lock BASHPASSWD_KERNEL_SECRETS=0\nmkdir -p lock\nv() { \"$@\" >/dev/null 2>&1; echo $?; }\necho \"control-default-paths-use-installed: installed-pw=$(unset BASHUSERDB_PASSWD PHCLIB_PASSWD PHCLIB_SHADOW; v userdb verify fixtureuser installed-password) fixture-pw=$(unset BASHUSERDB_PASSWD PHCLIB_PASSWD PHCLIB_SHADOW; v userdb verify fixtureuser fixture-password)\"\nexport BASHUSERDB_PASSWD=$PWD/fix/passwd PHCLIB_PASSWD=$PWD/fix/passwd PHCLIB_SHADOW=$PWD/fix/shadow\necho \"fixture-paths: fixture-pw=$(v userdb verify fixtureuser fixture-password) installed-pw=$(v userdb verify fixtureuser installed-password)\"\nbefore=$(< fix/shadow); echo \"fixture-shadow-unchanged=$([[ $(< fix/shadow) == \"$before\" ]] && echo yes || echo no) installed-shadow-unchanged=$(/usr/bin/cmp -s inst/shadow /etc/shadow && echo yes || echo no)\"\n"
+      },
+      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\n/usr/bin/unshare --user --map-root-user --mount -- \"$BASH\" --noprofile --norc \"$PWD/inner.sh\"\necho \"inner rc=$?\"\n",
+      "expected_status": 0,
+      "stdout": "control-default-paths-use-installed: installed-pw=0 fixture-pw=1\nfixture-paths: fixture-pw=0 installed-pw=1\nfixture-shadow-unchanged=yes installed-shadow-unchanged=yes\ninner rc=0\n",
+      "timeout": 60,
+      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nmkdir -p fix inst\nprintf 'fixtureuser:%s:19000:0:99999:7:::\\n' \"$(mk fixsaltfixsalt01 'fixture-password')\" > fix/shadow\nprintf 'fixtureuser:x:7001:7002:Fixture User:/srv/fixture:/bin/sh\\n' > fix/passwd\nprintf 'fixtureuser:%s:19000:0:99999:7:::\\n' \"$(mk instsaltinst0001 'installed-password')\" > inst/shadow\nprintf 'fixtureuser:x:7001:7002:Installed User:/srv/installed:/bin/sh\\n' > inst/passwd\n: > empty.conf; chmod 600 fix/shadow inst/shadow\n",
+      "setup_timeout": 45
+    }
+  ]
+}
