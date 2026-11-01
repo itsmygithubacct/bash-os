@@ -41,7 +41,7 @@ class Dev:
         sh('/usr/sbin/modprobe', 'dm_flakey')
         resource.setrlimit(resource.RLIMIT_FSIZE, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
         with open(IMG, 'wb') as f:
-            f.truncate(64 << 20)
+            f.truncate(6 << 20)
         self.loop = sh('/usr/sbin/losetup', '-f', '--show', IMG).stdout.strip()
         name = os.path.basename(self.loop)
         if not os.path.exists(self.loop):
