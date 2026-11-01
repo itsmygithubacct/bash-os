@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w8-write-user-recipient-model",
+      "loadable": "write",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "write with a user-name recipient resolves the user through the utmp login records and delivers the banner, the text and EOF to that user's terminal (independent-model oracle).",
+      "steps": [
+        {
+          "expect": "Message from [^ ]+@[^ ]+ on pts/[0-9]+ at [0-2][0-9]:[0-5][0-9]"
+        },
+        {
+          "expect": "user-routed message"
+        },
+        {
+          "expect": "EOF"
+        },
+        {
+          "expect": "W-DONE"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "write/pty-banner-eof-and-faults"
+      ],
+      "files": {
+        "mkutmp.py": "import struct, sys, time\nline, user = sys.argv[1], sys.argv[2]\n# glibc/Linux struct utmp (384 bytes): type, pid, line[32], id[4], user[32], host[256], exit, session, tv(sec,usec), addr[4], unused[20]\nrec = struct.pack('<hxxi32s4s32s256shhiii4i20s', 7, 4242, line.encode(), b'p1', user.encode(), b'', 0, 0, 0, int(time.time()), 0, 0, 0, 0, 0, b'')\nassert len(rec) == 384, len(rec)\nsys.stdout.buffer.write(rec)\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n"
+      },
+      "oracle": "Independent model of write(1) (man page and the util-linux behaviour it documents): Debian 13 ships no write command, so no reference executable exists. The model: with a one-record Linux utmp file (glibc struct utmp, USER_PROCESS) naming user u1 on the fixture PTY's line installed as /var/run/utmp by a root fixture, 'write u1' selects u1's terminal from that record, prints 'Message from USER@HOST on TTY at HH:MM ...' to it, copies stdin, prints EOF at end of input and exits 0.",
+      "comparison": "Contract on the candidate: exit status 0 and the banner, message text and EOF reaching the recipient terminal, observed on the PTY byte stream.",
+      "requires": [
+        "python3",
+        "tty",
+        "chmod"
+      ],
+      "timeout": 30,
+      "privilege": "root",
+      "script": "t=$(/usr/bin/tty)\n/usr/bin/python3 mkutmp.py \"${t#/dev/}\" u1 > /var/run/utmp\n/usr/bin/chmod 664 /var/run/utmp\n/usr/bin/chmod 620 \"$t\"\nprintf 'user-routed message\\n' | write u1; echo \"rc=$?\" > rc\nprintf 'W-DONE\\n'\n",
+      "kind": "contract"
+    }
+  ]
+}
