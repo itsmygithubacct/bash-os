@@ -19,7 +19,7 @@ is mounted again directly (journal replay) to see what survived.
 
 Prints one result line per phase.
 """
-import ctypes, errno, fcntl, importlib.util, os, resource, select, signal, struct, subprocess, sys
+import ctypes, errno, fcntl, importlib.util, os, resource, select, signal, struct, subprocess, sys, time
 
 D = '/tmp/parity-case'
 IMG, MNT, MNT2 = D + '/pc.img', D + '/pcmnt', D + '/pcmnt2'
@@ -29,6 +29,10 @@ DM = ['/usr/sbin/dmsetup']
 libc = ctypes.CDLL(None, use_errno=True)
 
 
+class SetupFailed(Exception):
+    pass
+
+
 def sh(*args, check=True):
     r = subprocess.run(list(args), capture_output=True, text=True)
     if check and r.returncode:
@@ -36,19 +40,62 @@ def sh(*args, check=True):
     return r
 
 
+def step(name, *args):
+    """Run a setup command; a failure is reported as setup-failed: NAME."""
+    r = subprocess.run(list(args), capture_output=True, text=True)
+    if r.returncode:
+        sys.stderr.write('%s: %s\n' % (name, r.stderr.strip()))
+        raise SetupFailed(name)
+    return r
+
+
+def settle():
+    for path in ('/usr/bin/udevadm', '/bin/udevadm', '/usr/sbin/udevadm'):
+        if os.path.exists(path):
+            sh(path, 'settle', '-t', '10', check=False)
+            return
+
+
+def dm_gone():
+    return sh(*DM, 'info', 'flk', check=False).returncode != 0
+
+
+def wait_gone():
+    for _ in range(100):
+        if dm_gone():
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def drop_dm():
+    """Unmount the filesystem and remove the flakey device, waiting until it is really gone."""
+    for i in range(50):
+        if sh('/usr/bin/umount', MNT, check=False).returncode and i > 5:
+            sh('/usr/bin/umount', '-l', MNT, check=False)
+        sh(*DM, 'remove', 'flk', '--noudevsync', '--force', check=False)
+        settle()
+        if dm_gone():
+            return
+        time.sleep(0.2)
+    raise SetupFailed('dm-remove')
+
+
 class Dev:
     def __init__(self):
-        sh('/usr/sbin/modprobe', 'dm_flakey')
+        step('modprobe', '/usr/sbin/modprobe', 'dm_flakey')
         resource.setrlimit(resource.RLIMIT_FSIZE, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
         with open(IMG, 'wb') as f:
             f.truncate(6 << 20)
-        self.loop = sh('/usr/sbin/losetup', '-f', '--show', IMG).stdout.strip()
+        self.loop = step('losetup', '/usr/sbin/losetup', '-f', '--show', IMG).stdout.strip()
+        settle()
         name = os.path.basename(self.loop)
         if not os.path.exists(self.loop):
             major, minor = open('/sys/block/%s/dev' % name).read().strip().split(':')
             os.mknod(self.loop, 0o60600, os.makedev(int(major), int(minor)))
-        sh('/usr/sbin/mkfs.ext4', '-q', '-F', self.loop)
-        self.sectors = int(sh('/usr/sbin/blockdev', '--getsz', self.loop).stdout)
+        step('mkfs', '/usr/sbin/mkfs.ext4', '-q', '-F', self.loop)
+        settle()
+        self.sectors = int(step('blockdev', '/usr/sbin/blockdev', '--getsz', self.loop).stdout)
         os.makedirs(MNT, exist_ok=True)
         os.makedirs(MNT2, exist_ok=True)
         self.up()
@@ -59,15 +106,27 @@ class Dev:
         return '0 %d flakey %s 0 3600 0' % (self.sectors, self.loop)
 
     def up(self):
-        sh(*DM, 'create', 'flk', '--noudevsync', '--noudevrules', '--table', self.table(False))
-        info = sh(*DM, 'info', '-c', '--noheadings', '-o', 'major,minor', 'flk').stdout.split()[0].split(':')
+        if not wait_gone():
+            raise SetupFailed('dm-previous-device-still-present')
+        for attempt in range(40):
+            r = sh(*DM, 'create', 'flk', '--noudevsync', '--noudevrules', '--table', self.table(False), check=False)
+            if r.returncode == 0:
+                break
+            sys.stderr.write('dm create attempt %d: %s\n' % (attempt, r.stderr.strip()))
+            settle()
+            time.sleep(0.25)
+        else:
+            raise SetupFailed('dm-create')
+        settle()
+        info = step('dm-info', *DM, 'info', '-c', '--noheadings', '-o', 'major,minor', 'flk').stdout.split()[0].split(':')
         os.makedirs('/dev/mapper', exist_ok=True)
         try:
             os.unlink('/dev/mapper/flk')
         except FileNotFoundError:
             pass
         os.mknod('/dev/mapper/flk', 0o60600, os.makedev(int(info[0]), int(info[1])))
-        sh('/usr/bin/mount', '-t', 'ext4', '/dev/mapper/flk', MNT)
+        step('mount', '/usr/bin/mount', '-t', 'ext4', '/dev/mapper/flk', MNT)
+        settle()
 
     def cut(self):
         sh(*DM, 'suspend', 'flk', '--noudevsync', '--noflush', '--nolockfs')
@@ -76,11 +135,11 @@ class Dev:
 
     def recover(self):
         """Drop the mounted filesystem, replay the journal from the loop file, return the file names."""
-        sh('/usr/bin/umount', '-l', MNT, check=False)
-        sh(*DM, 'remove', 'flk', '--noudevsync', '--force', check=False)
-        sh('/usr/bin/mount', '-t', 'ext4', self.loop, MNT2)
+        drop_dm()
+        step('replay-mount', '/usr/bin/mount', '-t', 'ext4', self.loop, MNT2)
         names = sorted(os.listdir(MNT2))
-        sh('/usr/bin/umount', MNT2)
+        step('replay-umount', '/usr/bin/umount', MNT2)
+        settle()
         return names
 
     def finish(self):
@@ -152,15 +211,22 @@ def load(dev, bash):
 
 
 def main():
-    dev = Dev()
+    dev = None
     try:
+        dev = Dev()
         control(dev)
         dev.up()
         load(dev, sys.argv[1])
+    except SetupFailed as e:
+        print('setup-failed: %s' % e)
+        return 1
     finally:
-        sh('/usr/bin/umount', '-l', MNT, check=False)
-        sh(*DM, 'remove', 'flk', '--noudevsync', '--force', check=False)
-        dev.finish()
+        try:
+            drop_dm()
+        except SetupFailed:
+            pass
+        if dev is not None:
+            dev.finish()
     return 0
 
 
