@@ -24,7 +24,7 @@
       ],
       "helpers_sha256": {
         "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
-        "helpers/mig-w6-powercut.py": "cc821b2e578c53fac920093a3709d0a790fab36bbf228f0e9bd99e46f4a488aa"
+        "helpers/mig-w6-powercut.py": "998275179e1d4673b65a37aad341bff8105a4cf13322f5904d74d7733c225c09"
       },
       "privilege": "root",
       "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t rngseed) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w6-powercut.py \"$BASH\"\n",

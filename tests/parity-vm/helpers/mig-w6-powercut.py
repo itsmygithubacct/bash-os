@@ -19,7 +19,7 @@ is mounted again directly (journal replay) to see what survived.
 
 Prints one result line per phase.
 """
-import ctypes, errno, fcntl, importlib.util, os, select, signal, struct, subprocess, sys
+import ctypes, errno, fcntl, importlib.util, os, resource, select, signal, struct, subprocess, sys
 
 D = '/tmp/parity-case'
 IMG, MNT, MNT2 = D + '/pc.img', D + '/pcmnt', D + '/pcmnt2'
@@ -39,6 +39,7 @@ def sh(*args, check=True):
 class Dev:
     def __init__(self):
         sh('/usr/sbin/modprobe', 'dm_flakey')
+        resource.setrlimit(resource.RLIMIT_FSIZE, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
         with open(IMG, 'wb') as f:
             f.truncate(64 << 20)
         self.loop = sh('/usr/sbin/losetup', '-f', '--show', IMG).stdout.strip()
