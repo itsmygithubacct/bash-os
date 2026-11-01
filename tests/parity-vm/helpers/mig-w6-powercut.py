@@ -70,7 +70,7 @@ class Dev:
         sh('/usr/bin/mount', '-t', 'ext4', '/dev/mapper/flk', MNT)
 
     def cut(self):
-        sh(*DM, 'suspend', 'flk', '--noudevsync')
+        sh(*DM, 'suspend', 'flk', '--noudevsync', '--noflush', '--nolockfs')
         sh(*DM, 'load', 'flk', '--table', self.table(True))
         sh(*DM, 'resume', 'flk', '--noudevsync')
 
@@ -89,7 +89,7 @@ class Dev:
 
 def control(dev):
     p = MNT + '/seed-control'
-    with open(p, 'wb') as f:
+    with os.fdopen(os.open(p, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600), 'wb') as f:
         f.write(os.urandom(512))
         f.flush()
         os.fsync(f.fileno())
@@ -102,7 +102,7 @@ def control(dev):
 
 def load(dev, bash):
     p = MNT + '/seed-load'
-    with open(p, 'wb') as f:
+    with os.fdopen(os.open(p, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600), 'wb') as f:
         f.write(os.urandom(512))
         f.flush()
         os.fsync(f.fileno())
