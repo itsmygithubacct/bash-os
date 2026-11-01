@@ -84,6 +84,16 @@ software GBM allocates KMS dumb buffers, which the kernel refuses on render
 nodes, so a native context needs vgem's primary node (`gpu start --device`).
 The lock's `kernel_flavour` key makes preparation purge every other kernel
 image, so the sealed image boots, and its manifest records, only that kernel.
+`image-selinux.lock.json` adds the reference SELinux policy, policycoreutils,
+selinux-utils and setools. Its `selinux` key boots the guest with
+`security=selinux` in the named mode, so SELinux replaces AppArmor as the major
+LSM. The provisioning boot still runs AppArmor, so preparation labels the root
+filesystem with `setfiles` as its last step, and `check` requires the
+configured mode. The image boots permissive: in enforcing mode the reference
+policy denies cloud-init's generator, and the guest never accepts the
+controller's login. Fixtures run as `system_u:system_r:initrc_t:s0`. A
+privileged fixture that needs denials may enforce for its own steps, and must
+restore permissive mode and remove any policy module it loaded.
 Debian 13 ships no `write` command, so no image provides one.
 
 Runtime networking is restricted. Before uploading the candidate, the controller

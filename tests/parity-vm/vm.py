@@ -569,6 +569,14 @@ def kernel_flavour(lock):
     return flavour
 
 
+def selinux_mode(lock):
+    """A lock may boot SELinux instead of AppArmor, in this mode; preparation labels the image."""
+    mode = lock.get("selinux")
+    if mode not in (None, "permissive", "enforcing"):
+        raise RuntimeError("invalid selinux mode in image lock")
+    return mode
+
+
 def provision_script(lock):
     sources = lock["reference_bash"]
     patches = " ".join(shlex.quote(Path(p["url"]).name) for p in sources["patches"])
@@ -578,13 +586,25 @@ def provision_script(lock):
 if [ -n "$other" ]; then apt-get purge -y $other; fi
 test "$(linux-version list | wc -l)" = 1
 """
+    mode = selinux_mode(lock)
+    # The kernel lists AppArmor before SELinux; security= makes SELinux the major LSM from the next boot.
+    selinux = "" if mode is None else """printf 'SELINUX=""" + mode + """\\nSELINUXTYPE=default\\n' >/etc/selinux/config
+install -d /etc/default/grub.d
+printf 'GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX security=selinux"\\n' >/etc/default/grub.d/90-bashos-selinux.cfg
+update-grub
+grep -q ' security=selinux' /boot/grub/grub.cfg
+"""
+    # The provisioning boot runs AppArmor, so label last instead of relabelling at a later boot.
+    label = "" if mode is None else """rm -f /.autorelabel
+setfiles -F /etc/selinux/default/contexts/files/file_contexts /
+"""
     return """set -eu
 export DEBIAN_FRONTEND=noninteractive
 systemctl disable --now apt-daily.timer apt-daily-upgrade.timer
 systemctl mask unattended-upgrades.service
 apt-get update
 apt-get install -y --no-install-recommends """ + " ".join(map(shlex.quote, lock["packages"])) + """
-""" + kernel + """# Reference tools only: their daemons must not run in the sealed base.
+""" + kernel + selinux + """# Reference tools only: their daemons must not run in the sealed base.
 for unit in cron.service rsync.service; do
   if systemctl cat "$unit" >/dev/null 2>&1; then systemctl disable --now "$unit"; fi
 done
@@ -604,7 +624,7 @@ for f in /var/lib/apt/lists/*_InRelease; do printf '%s\\t%s\\n' "${f##*/}" "$(se
 apt-get clean
 rm -f /etc/bashos-parity-vm
 cloud-init clean --logs
-sync
+""" + label + """sync
 """
 
 
@@ -775,6 +795,13 @@ def evaluate(args, cache):
                 record["guest_opt_clean"] = facts[4:] == ["clean"]
                 if record["fixture_namespace_links"] != ["lo"] or not record["guest_opt_clean"]:
                     raise RuntimeError("fixture namespace or guest state check failed")
+                mode = selinux_mode(json.loads(IMAGE_LOCK.read_text()))
+                if mode is not None:
+                    lsm = vm.ssh("cat /sys/kernel/security/lsm; echo; getenforce", capture_output=True,
+                                 check=True, timeout=10).stdout.decode().split()
+                    record["guest_lsm"], record["guest_selinux"] = lsm
+                    if lsm[1].lower() != mode or "selinux" not in lsm[0].split(",") or "apparmor" in lsm[0].split(","):
+                        raise RuntimeError("SELinux is not the active major LSM in the image lock's mode")
                 record["status"], result_code = "checked", 0
                 return result_code
             with (output / "payload.tar").open("rb") as stream:
