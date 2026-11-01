@@ -68,6 +68,18 @@ An uncatchable controller `SIGKILL` stops its VM through the parent-death signal
 but can leave an overlay and no final provenance file; that interrupted run is
 not qualification evidence.
 
+The controller option `--image-lock NAME`, given before the operation, selects
+another specification file in `tests/parity-vm`; the default is
+`image.lock.json`. `image-extended.lock.json` keeps the same Debian image,
+guest kernel and reference Bash, and adds reference tools the default image
+lacks: ipset, nftables, WireGuard tools, dialog, sharutils, and kitty with Xvfb
+and Mesa software rendering. Give each specification its own cache and pass the
+same option to `prepare`, `check` and `run`. A cache prepared from a different
+specification is refused, and provenance records both the image and
+specification hashes. Fixtures that need the added tools should name them in
+`requires`, so the default image reports a missing dependency as `ERROR`.
+Debian 13 ships no `write` command, so neither image provides one.
+
 Runtime networking is restricted. Before uploading the candidate, the controller
 checks VM identity, absence of shared mounts, and refusal of outbound access to
 a host canary and a previously reachable package mirror. Fixture execution uses

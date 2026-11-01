@@ -33,6 +33,8 @@ GUEST_ROOT = "/opt/bashos-parity"
 ACCEL = "kvm"  # set from --accel
 BOOT_SCALE = 1
 REFERENCE_BASH = "/opt/bash-5.3.15"
+# Image specification; set from --image-lock (a file name in this directory).
+IMAGE_LOCK = HERE / "image.lock.json"
 # Whole-VM limits on the host; the guest itself is 2 vCPU / 2 GiB.
 SCOPE_LIMITS = ["CPUQuota=150%", "MemoryMax=3G", "MemorySwapMax=0", "TasksMax=128"]
 # QEMU options that would share host state with the guest. Never emitted; the
@@ -650,7 +652,7 @@ def prepare(cache, lock):
             disk.rename(state / "provisioning-failed.qcow2")
         raise
     json_write(manifest, {"schema": 2, "sha256": digest(base),
-               "base_image_sha512": lock["sha512"], "image_lock_sha256": digest(HERE / "image.lock.json"),
+               "base_image_sha512": lock["sha512"], "image_lock_sha256": digest(IMAGE_LOCK),
                "qemu": run(["qemu-system-x86_64", "--version"], capture_output=True, text=True).stdout.splitlines()[0],
                "guest_kernel": kernel, "system_bash": system_bash, "reference_bash": bash53.strip(),
                "reference_bash_path": REFERENCE_BASH + "/bin/bash",
@@ -666,7 +668,7 @@ def prepare(cache, lock):
 def verify_base(cache):
     # Always rehash: a stored manifest is a claim, not evidence.
     info = json.loads((cache / "prepared.json").read_text())
-    if info["image_lock_sha256"] != digest(HERE / "image.lock.json"):
+    if info["image_lock_sha256"] != digest(IMAGE_LOCK):
         raise RuntimeError("image/package specification changed; use a fresh cache")
     if info["sha256"] != digest(cache / "prepared.qcow2"):
         raise RuntimeError("prepared image checksum mismatch")
@@ -832,9 +834,15 @@ def main():
                       help="run privilege=root fixtures as uid 0 in the guest; for rented hosts only")
     parser.add_argument("--accel", choices=("kvm", "tcg"), default="kvm",
                         help="tcg emulates the guest CPU where the host has no usable /dev/kvm")
+    parser.add_argument("--image-lock", default="image.lock.json", metavar="NAME",
+                        help="image specification: a *.lock.json file name in tests/parity-vm")
     args = parser.parse_args()
-    global ACCEL, BOOT_SCALE
+    global ACCEL, BOOT_SCALE, IMAGE_LOCK
     ACCEL, BOOT_SCALE = args.accel, 1 if args.accel == "kvm" else 6
+    if (args.image_lock != Path(args.image_lock).name or not args.image_lock.endswith(".lock.json")
+            or not (HERE / args.image_lock).is_file()):
+        parser.error("--image-lock must name a *.lock.json file in tests/parity-vm")
+    IMAGE_LOCK = HERE / args.image_lock
     if args.operation == "check":
         args.groups, args.keep_overlay = "", False
     if args.operation == "run":
@@ -861,7 +869,7 @@ def main():
     # Turn termination into an exception so the VM is shut down and evidence written.
     signal.signal(signal.SIGTERM, interrupt)
     signal.signal(signal.SIGHUP, interrupt)
-    lock = json.loads((HERE / "image.lock.json").read_text())
+    lock = json.loads(IMAGE_LOCK.read_text())
     if args.operation == "prepare":
         prepare(cache, lock)
         return 0
