@@ -37783,7 +37783,7 @@
               "group": "shell",
               "id": "mig-w6-rngseed-powercut-root",
               "assertion": "On ext4 over a dm-flakey device, cutting the power (writes dropped, process killed) at the RNDADDENTROPY ioctl of rngseed load leaves no seed file after journal replay, while an unsynced plain unlink in the same model comes back, so the absence comes from the builtin's unlink plus directory fsync before the credit.",
-              "definition_sha256": "df17cb58560dd348c6629563404f19e6ba39a46de15811e437c50adb6803d38f"
+              "definition_sha256": "edb9039035087a6c8a08ff880dac2a18c1128dc325eede02558c41e7d6d61da8"
             }
           ],
           "gap": ""
