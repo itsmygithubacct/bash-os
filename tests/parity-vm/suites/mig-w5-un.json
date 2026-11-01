@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w5-ns-unshare-einval-multithreaded",
+      "loadable": "ns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ns/ns-unshare-namespaces"
+      ],
+      "purpose": "In a caller made multithreaded by a freestanding loadable, ns unshare user fails with status 1 and the kernel EINVAL text, leaves the user namespace unchanged, and matches an independent ctypes unshare(2) from a two-thread process; a single-threaded shell making the same request succeeds.",
+      "oracle": "unshare(2) man page: CLONE_NEWUSER fails with EINVAL if the caller is multithreaded; the strerror text and the native result come from an independent Python ctypes call to libc unshare(2) made from a process that has a second thread, and a single-threaded shell making the same request is the control.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "requires": [
+        "gcc",
+        "python3",
+        "readlink"
+      ],
+      "files": {
+        "thr.c": "/* Freestanding loadable: no libc, so it loads the same way into the static and the dynamic candidate.\n   \"thr\" adds one blocked kernel thread to the calling shell with a raw clone(2). */\ntypedef struct word_list WORD_LIST;\ntypedef int sh_builtin_func_t(WORD_LIST *);\nstruct builtin { char *name; sh_builtin_func_t *function; int flags; char * const *long_doc; const char *short_doc; char *handle; };\nstatic long sc(long n, long a, long b, long c, long d) {\n  long r; register long r10 __asm__(\"r10\") = d;\n  __asm__ volatile(\"syscall\" : \"=a\"(r) : \"0\"(n), \"D\"(a), \"S\"(b), \"d\"(c), \"r\"(r10) : \"rcx\", \"r11\", \"memory\");\n  return r;\n}\nstatic int thr_builtin(WORD_LIST *l) {\n  unsigned long all = ~0UL, old = 0;\n  long stack, r;\n  (void)l;\n  {\n    register long r10 __asm__(\"r10\") = 0x22; register long r8 __asm__(\"r8\") = -1; register long r9 __asm__(\"r9\") = 0;\n    __asm__ volatile(\"syscall\" : \"=a\"(stack) : \"0\"(9L), \"D\"(0L), \"S\"(65536L), \"d\"(3L), \"r\"(r10), \"r\"(r8), \"r\"(r9) : \"rcx\", \"r11\", \"memory\");\n  }                                                 /* mmap(NULL, 64K, RW, PRIVATE|ANONYMOUS, -1, 0) */\n  if (stack < 0 && stack > -4096) return 1;\n  sc(14, 2, (long)&all, (long)&old, 8);             /* block every signal so the new thread never runs a handler */\n  {\n    register long r10 __asm__(\"r10\") = 0; register long r8 __asm__(\"r8\") = 0;\n    __asm__ volatile(\"syscall\\n\\ttest %%rax,%%rax\\n\\tjnz 1f\\n2:\\tmov $34,%%eax\\n\\tsyscall\\n\\tjmp 2b\\n1:\"\n      : \"=a\"(r) : \"0\"(56L), \"D\"(0x50f00UL /* VM|FS|FILES|SIGHAND|THREAD|SYSVSEM */), \"S\"(stack + 65536), \"d\"(0L), \"r\"(r10), \"r\"(r8) : \"rcx\", \"r11\", \"memory\");\n  }\n  sc(14, 2, (long)&old, 0, 8);\n  return r > 0 ? 0 : 1;\n}\nstatic char * const thr_doc[] = { \"Add one blocked thread to this shell.\", 0 };\nstruct builtin thr_struct = { \"thr\", thr_builtin, 1, thr_doc, \"thr\", 0 };\n"
+      },
+      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PATH=/usr/bin:/bin\n[[ $(type -t ns) == builtin ]] || exit 99\n/usr/bin/gcc -shared -fPIC -nostdlib -O1 -fno-stack-protector -fcf-protection=none -o thr.so thr.c || { echo gcc-failed; exit 98; }\nnat=$(/usr/bin/python3 -I -c '\nimport ctypes, os, threading\nev = threading.Event(); t = threading.Thread(target=ev.wait); t.start()\nn = sum(1 for _ in os.scandir(\"/proc/self/task\"))\nlibc = ctypes.CDLL(None, use_errno=True)\nr = libc.unshare(0x10000000)\ne = ctypes.get_errno()\nprint(\"threads=%d rc=%d errno=%s msg=%s\" % (n, r, __import__(\"errno\").errorcode.get(e), os.strerror(e)))\nev.set(); t.join()')\necho \"native-control $nat\"\nmsg=${nat#*msg=}\ncat > cand.sh <<'EOS'\nnth() { local k v rest; while read -r k v rest; do [[ $k == Threads: ]] && { THREADS=$v; return; }; done </proc/self/status; }\nino() { /usr/bin/readlink /proc/self/ns/user; }\nbefore=$(ino)\nnth; echo \"threads=$THREADS\"\nif [[ $1 == multi ]]; then\n  enable -f ./thr.so thr; echo \"enable rc=$?\"\n  thr; echo \"thr rc=$?\"\n  nth; echo \"threads=$THREADS\"\nfi\nns unshare user 2>err.txt; echo \"ns unshare user rc=$?\"\necho \"err=$(< err.txt)\"\necho \"user-ns-changed=$([[ $(ino) != \"$before\" ]] && echo yes || echo no)\"\nEOS\necho \"--- single-threaded control\"\n\"$BASH\" --noprofile --norc cand.sh single 2>&1\necho \"--- multithreaded caller\"\n\"$BASH\" --noprofile --norc cand.sh multi 2>&1\necho \"message-matches-native=$([[ $(< err.txt) == *\": $msg\" ]] && echo yes || echo no)\"\n",
+      "expected_status": 0,
+      "stdout": "native-control threads=2 rc=-1 errno=EINVAL msg=Invalid argument\n--- single-threaded control\nthreads=1\nns unshare user rc=0\nerr=\nuser-ns-changed=yes\n--- multithreaded caller\nthreads=1\nenable rc=0\nthr rc=0\nthreads=2\nns unshare user rc=1\nerr=cand.sh: line 10: ns: unshare: Invalid argument\nuser-ns-changed=no\nmessage-matches-native=yes\n",
+      "timeout": 60
+    }
+  ]
+}
