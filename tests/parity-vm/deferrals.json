@@ -16473,13 +16473,13 @@
               "group": "shell",
               "id": "mig-w7-fstrim-fstab-tag-forms-root",
               "assertion": "fstrim -A -n -v over an fstab using LABEL=, UUID=, PARTLABEL= and PARTUUID= resolved through /dev/disk/by-* on loop devices, compared with util-linux.",
-              "definition_sha256": "a5c06635497ca2e9759128bac032856e331556e689f7732bc0f13a796ed6cfb4"
+              "definition_sha256": "dfe4b22692ebb9e71ccaad8cd62dad6b3932efbba29b51269402cbf0add78938"
             },
             {
               "group": "shell",
               "id": "mig-w7-fstrim-fstab-tag-forms-root",
               "assertion": "fstrim -A -n -v over an fstab using LABEL=, UUID=, PARTLABEL= and PARTUUID= resolved through /dev/disk/by-* on loop devices, compared with util-linux.",
-              "definition_sha256": "a5c06635497ca2e9759128bac032856e331556e689f7732bc0f13a796ed6cfb4"
+              "definition_sha256": "dfe4b22692ebb9e71ccaad8cd62dad6b3932efbba29b51269402cbf0add78938"
             }
           ],
           "gap": ""
@@ -16505,13 +16505,13 @@
               "group": "shell",
               "id": "mig-w7-fstrim-root-device-guess-root",
               "assertion": "fstab entry /dev/root (or an unresolvable UUID) for / falls back to root= from a bind-mounted /proc/cmdline; also the no-root= case, compared with util-linux.",
-              "definition_sha256": "f52cd699abc95b2d33036a90f47156f81bf4e2153dae440afccdd09738b2e8ca"
+              "definition_sha256": "5fbc05473a063b6c6e86295d973adebaa2f33e29b38a80d881b9795ed6b9d4e2"
             },
             {
               "group": "shell",
               "id": "mig-w7-fstrim-root-device-guess-root",
               "assertion": "fstab entry /dev/root (or an unresolvable UUID) for / falls back to root= from a bind-mounted /proc/cmdline; also the no-root= case, compared with util-linux.",
-              "definition_sha256": "f52cd699abc95b2d33036a90f47156f81bf4e2153dae440afccdd09738b2e8ca"
+              "definition_sha256": "5fbc05473a063b6c6e86295d973adebaa2f33e29b38a80d881b9795ed6b9d4e2"
             }
           ],
           "gap": ""
