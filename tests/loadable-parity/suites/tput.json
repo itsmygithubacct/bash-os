@@ -172,6 +172,18 @@
       ]
     },
     {
+      "id": "compiled-terminfo-hostile-padding",
+      "kind": "parity",
+      "purpose": "A private compiled entry with npc and padding fields that do not fit an int: clear has a 23-digit mandatory delay, ed one just past ncurses' range, el a 24-place fraction, plus malformed $<5.5.5/> and $<5x/> fields and cursor addressing at INT_MAX with %i. ncurses returns at once with these bytes (the oversized delays never become a sleep; a malformed field consumes one byte after the flags and prints the rest). Output goes to files, so a sleep would also exceed the wall-clock limit.",
+      "script": "mkdir -p ti/h\nprintf '\\032\\001\\025\\000\\032\\000\\001\\000\\022\\000\\206\\000hpad|hostile padding\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\000\\001\\000P\\000\\377\\377\\377\\377\\377\\377\\377\\377\\377\\377\\000\\000#\\000E\\000\\377\\377\\377\\377V\\000\\377\\377g\\000\\377\\377q\\000\\377\\377\\377\\377|\\000\\033[H\\033[2J$<99999999999999999999999/>\\000\\033[K$<1.000000000000000000000001/>\\000\\033[J$<214748365/>\\000\\033[\\045i\\045p1\\045d;\\045p2\\045dH\\000\\033[H$<.5/>\\000\\010$<5.5.5/>\\000\\033[C$<5x/>\\000' > ti/h/hpad\nexport TERMINFO=\"$PWD/ti\"\nn=0\nfor cap in clear ed el home cub1 cuf1 'cup 4 6' 'cup 2147483647 2147483647'; do\n n=$((n + 1)); rc=0\n tput -T hpad $cap > \"out$n\" || rc=$?\n printf '%s %s\\n' \"$cap\" \"$rc\"\ndone",
+      "requires": [
+        "tput"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 10
+    },
+    {
       "id": "compiled-terminfo",
       "kind": "migrated",
       "purpose": "Full compiled terminfo loading, arbitrary user database replacements, aliases, extended capabilities and padding timing need separate implementation and qualification; this command intentionally preserves its custom text sidecar interface.",

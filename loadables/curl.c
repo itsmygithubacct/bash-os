@@ -76,6 +76,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <strings.h>
 #include <errno.h>
@@ -145,6 +146,8 @@ typedef struct {
   int         max_time;        /* --max-time SEC */
   int         max_redirs;      /* --max-redirs N (0 = use BCURL_MAX_REDIRECTS) */
   int         method_set;      /* -X/--request given: keep it across redirects */
+  int         offsite;         /* this hop is not on the first URL's origin */
+  int         auth_dropped;    /* a hop left the first origin: -u stays off */
   int         features;        /* --features */
 } bc_opts;
 
@@ -156,6 +159,7 @@ typedef struct {
   size_t blen;
   char  location[BCURL_URL_MAX]; /* extracted Location: header if 3xx */
   int   location_too_long;     /* the Location: header did not fit */
+  int   location_bad;          /* the Location: header holds a control byte */
   long  missing;               /* Content-Length bytes the peer never sent */
 } bc_response;
 
@@ -280,6 +284,16 @@ bc_user_header (const bc_opts *o, const char *name)
   return 0;
 }
 
+/* curl's rule for credentials on a redirect: an origin is the scheme, the
+   host (any case) and the port. */
+static int
+bc_same_origin (const bc_url *a, const bc_url *b)
+{
+  return strcasecmp (a->scheme, b->scheme) == 0
+         && strcasecmp (a->host, b->host) == 0
+         && strtol (a->port, NULL, 10) == strtol (b->port, NULL, 10);
+}
+
 static char *
 bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
 {
@@ -292,6 +306,10 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
       const char *colon = strchr (h, ':');
       const char *semi = strchr (h, ';');
       char empty[BCURL_HDRBUF_MAX];
+      /* Like curl, -H Authorization and Cookie go only to the first
+         origin; there is no option that sends them elsewhere. */
+      if (o->offsite && (bc_header_is (h, "Authorization") || bc_header_is (h, "Cookie")))
+        continue;
       if (colon)
         {
           /* "Name:" with no value removes the header instead of sending it. */
@@ -315,8 +333,9 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
     { bc_error ("header buffer exceeded"); return NULL; }
 
   /* Basic auth: only injected when -u is set and the caller did not
-   * already supply an Authorization header. */
-  if (o->userpass && !bc_user_header (o, "Authorization"))
+   * already supply an Authorization header. As in curl, a redirect that
+   * leaves the first origin drops -u for the rest of the transfer. */
+  if (o->userpass && !o->auth_dropped && !bc_user_header (o, "Authorization"))
     {
       char *b64 = bc_b64encode ((const unsigned char *) o->userpass,
                                 strlen (o->userpass));
@@ -363,9 +382,19 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
   if (!bc_user_header (o, "Accept"))
     bc_hdr_append (builtin_hdrs, sizeof builtin_hdrs, "Accept: */*");
 
+  /* The buffer holds the request line, both header blocks, the framing
+     lines (" HTTP/1.1", Content-Length, Connection, CRLFs: under 96
+     bytes) and the body. An -X method of any length is counted. */
   size_t body_len = o->body_set ? o->body_len : 0;
-  size_t need = strlen (builtin_hdrs) + strlen (hdrs) + strlen (u->path)
-              + body_len + 512;
+  size_t parts[] = { strlen (o->method), strlen (u->path), strlen (builtin_hdrs),
+                     strlen (hdrs), body_len, 96 };
+  size_t need = 1;
+  for (size_t i = 0; i < sizeof parts / sizeof parts[0]; i++)
+    {
+      if (parts[i] > SIZE_MAX - need)
+        { bc_error ("request too large"); return NULL; }
+      need += parts[i];
+    }
   char *req = malloc (need);
   if (!req) { bc_error ("out of memory"); return NULL; }
 
@@ -387,14 +416,11 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
                   "Connection: close\r\n"
                   "\r\n",
                   o->method, u->path, builtin_hdrs, hdrs);
-  if (n < 0 || (size_t) n >= need)
+  if (n < 0 || (size_t) n >= need || body_len > need - 1 - (size_t) n)
     { free (req); bc_error ("request framing overflow"); return NULL; }
   if (body_len)
-    {
-      memcpy (req + n, o->body, body_len);
-      n += (int) body_len;
-    }
-  *out_len = (size_t) n;
+    memcpy (req + n, o->body, body_len);
+  *out_len = (size_t) n + body_len;
   return req;
 }
 
@@ -1123,10 +1149,15 @@ bc_content_length (const char *hdrs)
 }
 
 /* Returns -1, leaving OUT empty, when the target does not fit: following a
-   truncated URL would fetch some other resource. */
+   truncated URL would fetch some other resource. Like curl, a bare CR or
+   LF ends the header line, trailing blanks are dropped, and spaces and
+   bytes past 0x7e are percent-encoded so the target stays one token of
+   the next request line. Another control byte is percent-encoded in a
+   relative target and makes an absolute one malformed: -2, OUT empty. */
 static int
 bc_extract_location (const char *hdrs, char *out, size_t cap)
 {
+  static const char hex[] = "0123456789abcdef";
   out[0] = '\0';
   const char *p = hdrs;
   while (p && *p)
@@ -1135,11 +1166,32 @@ bc_extract_location (const char *hdrs, char *out, size_t cap)
         {
           const char *v = p + 9;
           while (*v == ' ' || *v == '\t') v++;
-          const char *eol = strstr (v, "\r\n");
-          size_t n = eol ? (size_t) (eol - v) : strlen (v);
-          if (n >= cap) return -1;
-          memcpy (out, v, n);
-          out[n] = '\0';
+          size_t n = strcspn (v, "\r\n");
+          while (n > 0 && (v[n - 1] == ' ' || v[n - 1] == '\t')) n--;
+          int absolute = 0;
+          for (size_t i = 0; i + 3 <= n && !absolute; i++)
+            absolute = memcmp (v + i, "://", 3) == 0;
+          size_t o = 0;
+          for (size_t i = 0; i < n; i++)
+            {
+              unsigned char c = (unsigned char) v[i];
+              int ctl = c < 0x20 || c == 0x7f;
+              if (ctl && absolute)
+                { out[0] = '\0'; return -2; }
+              if (ctl || c == ' ' || c > 0x7e)
+                {
+                  if (cap - o <= 3) { out[0] = '\0'; return -1; }
+                  out[o++] = '%';
+                  out[o++] = hex[c >> 4];
+                  out[o++] = hex[c & 15];
+                }
+              else
+                {
+                  if (cap - o <= 1) { out[0] = '\0'; return -1; }
+                  out[o++] = (char) c;
+                }
+            }
+          out[o] = '\0';
           return 0;
         }
       p = strstr (p, "\r\n");
@@ -1200,6 +1252,9 @@ bc_parse_response (unsigned char *raw, size_t rawlen, int head_request, bc_respo
       { body = i + 4; found = 1; break; }
   if (!found)
     { bc_error ("no header/body separator"); bc_errcode = 8; return -1; }
+  /* The header block is handled as a string; curl refuses a NUL in it. */
+  if (memchr (raw, '\0', body))
+    { bc_curl_error (8, "Nul byte in header"); bc_errcode = 8; return -1; }
 
   size_t hlen = body - 2;       /* keep trailing \r\n before the blank line */
   r->headers = malloc (hlen + 1);
@@ -1235,7 +1290,11 @@ bc_parse_response (unsigned char *raw, size_t rawlen, int head_request, bc_respo
     }
 
   if (r->status >= 300 && r->status < 400)
-    r->location_too_long = bc_extract_location (r->headers, r->location, sizeof r->location) < 0;
+    {
+      int lrc = bc_extract_location (r->headers, r->location, sizeof r->location);
+      r->location_too_long = lrc == -1;
+      r->location_bad = lrc == -2;
+    }
 
   return 0;
 }
@@ -1744,6 +1803,13 @@ curl_builtin (WORD_LIST *list)
                 o.cookie = o.cookie_alloc;
             }
         }
+      {
+        bc_url hop;
+        o.offsite = have_start_url && bc_parse_url (cur_url, &hop) == 0
+                    && !bc_same_origin (&start_url, &hop);
+        if (o.offsite)
+          o.auth_dropped = 1;
+      }
       bc_errcode = 0;
       rc = bc_one_request (&o, cur_url, &r);
       if (rc < 0)
@@ -1753,7 +1819,8 @@ curl_builtin (WORD_LIST *list)
           free (o.body_alloc);
           return bc_errcode ? bc_errcode : EXECUTION_FAILURE;
         }
-      if (o.follow && r.status >= 300 && r.status < 400 && (r.location[0] || r.location_too_long))
+      if (o.follow && r.status >= 300 && r.status < 400
+          && (r.location[0] || r.location_too_long || r.location_bad))
         {
           int rcap = o.max_redirs > 0 ? o.max_redirs : BCURL_MAX_REDIRECTS;
           if (++redirects > rcap)
@@ -1763,6 +1830,10 @@ curl_builtin (WORD_LIST *list)
           if (r.location_too_long)
             { if (show_errs) builtin_error ("redirect target is longer than %d bytes", BCURL_URL_MAX - 1);
               bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); return EXECUTION_FAILURE; }
+          if (r.location_bad)
+            { bc_curl_error (3, "The redirect target URL could not be parsed: Malformed input to a URL function");
+              bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc);
+              return 3; /* CURLE_URL_MALFORMAT */ }
           char next[BCURL_URL_MAX];
           if (bc_resolve_redirect (cur_url, r.location, next, sizeof next) < 0)
             { if (show_errs) builtin_error ("bad redirect target: %s", r.location);

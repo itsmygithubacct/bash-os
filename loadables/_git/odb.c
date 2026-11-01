@@ -151,35 +151,144 @@ bgit_sha1 (const unsigned char *data, size_t n, unsigned char digest[20])
     return SHA1DCFinal (digest, &ctx) == 0 ? 0 : -1;
 }
 
-int
-bgit_sha1_fd (int fd, unsigned long long n, unsigned char digest[20])
+/* bgit_sha1 for bytes at any address. sha1dc loads whole words straight
+   from its input, so an unaligned range is hashed through an aligned copy. */
+static int
+bgit_sha1_unaligned (const unsigned char *data, size_t n,
+                     unsigned char digest[20])
 {
+    uint32_t bounce[1024];
     SHA1_CTX ctx;
+    if ((uintptr_t) data % sizeof (uint32_t) == 0)
+        return bgit_sha1 (data, n, digest);
     SHA1DCInit (&ctx);
     SHA1DCSetSafeHash (&ctx, 0);
-    unsigned char buf[65536];
-    unsigned long long off = 0;
-    while (off < n) {
-        unsigned long long left = n - off;
-        size_t chunk = left > sizeof buf ? sizeof buf : (size_t) left;
-        off_t pos = (off_t) off;
-        if (pos < 0 || (unsigned long long) pos != off) {
-            errno = EOVERFLOW;
+    while (n > 0) {
+        size_t k = n > sizeof bounce ? sizeof bounce : n;
+        memcpy (bounce, data, k);
+        SHA1DCUpdate (&ctx, (const char *) bounce, k);
+        data += k;
+        n -= k;
+    }
+    return SHA1DCFinal (digest, &ctx) == 0 ? 0 : -1;
+}
+
+int
+bgit_fd_spans_add (struct bgit_fd_spans *spans, unsigned long long off,
+                   const void *bytes, size_t n)
+{
+    const unsigned char *p = bytes;
+    while (n > 0) {
+        size_t len = n > BGIT_FD_SPAN_MAX ? BGIT_FD_SPAN_MAX : n;
+        struct bgit_fd_span *s;
+        if (spans->n == spans->cap) {
+            size_t nc = spans->cap ? spans->cap * 2 : 64;
+            struct bgit_fd_span *nv;
+            if (nc < spans->cap || nc > SIZE_MAX / sizeof *nv) {
+                errno = ENOMEM;
+                return -1;
+            }
+            nv = realloc (spans->v, nc * sizeof *nv);
+            if (!nv) return -1;
+            spans->v = nv;
+            spans->cap = nc;
+        }
+        s = &spans->v[spans->n];
+        s->off = off;
+        s->len = len;
+        if (bgit_sha1_unaligned (p, len, s->sha) < 0) {
+            errno = EINVAL;
             return -1;
         }
-        ssize_t r = pread (fd, buf, chunk, pos);
+        spans->n++;
+        off += len;
+        p += len;
+        n -= len;
+    }
+    return 0;
+}
+
+static int
+bgit_fd_span_end_cmp (const void *a, const void *b)
+{
+    const struct bgit_fd_span *x = a, *y = b;
+    unsigned long long ex = x->off + x->len, ey = y->off + y->len;
+    return ex < ey ? -1 : ex > ey;
+}
+
+/* The pass reads into a window that keeps the last BGIT_FD_SPAN_MAX bytes
+   of the previous read, so a span ending in a read lies wholly in it. */
+int
+bgit_sha1_fd (int fd, unsigned long long n, unsigned char digest[20],
+              struct bgit_fd_spans *spans, int *changed)
+{
+    enum { WIN = 16 * BGIT_FD_SPAN_MAX };
+    SHA1_CTX ctx;
+    unsigned char *win;
+    unsigned long long wstart = 0, wend = 0, end = n;
+    size_t next = 0, nspans = spans ? spans->n : 0;
+    *changed = 0;
+    for (size_t i = 0; i < nspans; i++) {
+        const struct bgit_fd_span *s = &spans->v[i];
+        if (s->len == 0 || s->len > BGIT_FD_SPAN_MAX ||
+            s->off > ULLONG_MAX - s->len) {
+            errno = EINVAL;
+            return -1;
+        }
+        if (s->off + s->len > end) end = s->off + s->len;
+    }
+    if (nspans > 1)
+        qsort (spans->v, nspans, sizeof *spans->v, bgit_fd_span_end_cmp);
+    win = malloc (WIN);
+    if (!win) return -1;
+    SHA1DCInit (&ctx);
+    SHA1DCSetSafeHash (&ctx, 0);
+    while (wend < end) {
+        size_t keep, chunk;
+        ssize_t r;
+        off_t pos = (off_t) wend;
+        if (pos < 0 || (unsigned long long) pos != wend) {
+            errno = EOVERFLOW;
+            goto fail;
+        }
+        if (wend - wstart > BGIT_FD_SPAN_MAX) {
+            memmove (win, win + (size_t) (wend - wstart) - BGIT_FD_SPAN_MAX,
+                     BGIT_FD_SPAN_MAX);
+            wstart = wend - BGIT_FD_SPAN_MAX;
+        }
+        keep = (size_t) (wend - wstart);
+        chunk = WIN - keep;
+        if (end - wend < chunk) chunk = (size_t) (end - wend);
+        r = pread (fd, win + keep, chunk, pos);
         if (r < 0) {
             if (errno == EINTR) continue;
-            return -1;
+            goto fail;
         }
         if (r == 0) {
             errno = EIO;
-            return -1;
+            goto fail;
         }
-        SHA1DCUpdate (&ctx, (const char *) buf, (size_t) r);
-        off += (unsigned long long) r;
+        if (wend < n)
+            SHA1DCUpdate (&ctx, (const char *) win + keep,
+                          n - wend < (unsigned long long) r
+                          ? (size_t) (n - wend) : (size_t) r);
+        wend += (unsigned long long) r;
+        for (; next < nspans; next++) {
+            const struct bgit_fd_span *s = &spans->v[next];
+            unsigned char got[20];
+            if (s->off + s->len > wend) break;
+            if (s->off < wstart ||
+                bgit_sha1_unaligned (win + (size_t) (s->off - wstart), s->len,
+                                     got) < 0 ||
+                memcmp (got, s->sha, 20) != 0)
+                *changed = 1;
+        }
     }
+    free (win);
     return SHA1DCFinal (digest, &ctx) == 0 ? 0 : -1;
+fail:
+    free (win);
+    return -1;
 }
 
 int

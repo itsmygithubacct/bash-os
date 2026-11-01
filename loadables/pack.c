@@ -148,8 +148,11 @@ bp_pread_exact (int fd, uint64_t off, void *buf, size_t n)
 
 /* pack cat of a pack that reaches offset 0x80000000. The buffered path
    mallocs the whole file, so an object at that offset never gets decoded.
-   This path checks the same header, trailer, and idx, then reads the
-   object by seek. IDX is freed here. */
+   This path checks the same header, trailer, and idx, and reads the object
+   by seek. The decode runs first and records every range it reads; the one
+   pass that hashes the pack then re-reads those ranges, so the object
+   printed is made of the bytes the trailer SHA-1 covered. Errors are
+   reported in the buffered path's order. IDX is freed here. */
 static int
 bp_cat_large (const char *pack_path, unsigned char *idx, size_t ilen,
               const unsigned char sha[20], const char *sha_hex,
@@ -161,9 +164,10 @@ bp_cat_large (const char *pack_path, unsigned char *idx, size_t ilen,
     unsigned char head[12], trailer[20], pack_sha[20];
     uint32_t pack_ver;
     uint64_t off;
-    int type, saved;
+    int type = 0, saved, changed = 0, decoded = -1, rc = EXECUTION_FAILURE;
     unsigned char *content = NULL;
     size_t clen = 0;
+    struct bgit_fd_spans spans = { NULL, 0, 0 };
     if (fd < 0) {
         saved = errno;
         free (idx);
@@ -171,100 +175,83 @@ bp_cat_large (const char *pack_path, unsigned char *idx, size_t ilen,
         return EXECUTION_FAILURE;
     }
     if (fstat (fd, &st) < 0) {
-        saved = errno;
-        close (fd);
-        free (idx);
-        builtin_error ("read %s: %s", pack_path, strerror (saved));
-        return EXECUTION_FAILURE;
+        builtin_error ("read %s: %s", pack_path, strerror (errno));
+        goto out;
     }
     if (st.st_size < 0) {
-        close (fd);
-        free (idx);
         builtin_error ("read %s: %s", pack_path, strerror (EINVAL));
-        return EXECUTION_FAILURE;
+        goto out;
     }
     plen = (uint64_t) st.st_size;
     if (plen < 32) {
-        close (fd);
-        free (idx);
         builtin_error ("cat: not a packfile");
-        return EXECUTION_FAILURE;
+        goto out;
     }
-    if (bp_pread_exact (fd, 0, head, 12) < 0) {
-        saved = errno;
-        close (fd);
-        free (idx);
-        builtin_error ("read %s: %s", pack_path, strerror (saved));
-        return EXECUTION_FAILURE;
+    if (bp_pread_exact (fd, 0, head, 12) < 0 ||
+        bgit_fd_spans_add (&spans, 0, head, 12) < 0) {
+        builtin_error ("read %s: %s", pack_path, strerror (errno));
+        goto out;
     }
     if (memcmp (head, "PACK", 4) != 0) {
-        close (fd);
-        free (idx);
         builtin_error ("cat: not a packfile");
-        return EXECUTION_FAILURE;
+        goto out;
     }
     pack_ver = bgit_pack_be32 (head + 4);
     if (pack_ver != 2 && pack_ver != 3) {
-        close (fd);
-        free (idx);
         builtin_error ("cat: unsupported pack version %u", pack_ver);
-        return EXECUTION_FAILURE;
+        goto out;
     }
     if (plen < 40) {
-        close (fd);
-        free (idx);
         builtin_error ("cat: too short (no trailer)");
-        return EXECUTION_FAILURE;
+        goto out;
     }
+    if (bp_pread_exact (fd, plen - 20, trailer, 20) < 0 ||
+        bgit_fd_spans_add (&spans, plen - 20, trailer, 20) < 0) {
+        builtin_error ("read %s: %s", pack_path, strerror (errno));
+        goto out;
+    }
+    /* The lookup bounds every idx read itself, so it is safe on an idx
+       that is verified only after the hash. */
+    off = bgit_pack_lookup_offset (idx, ilen, sha);
+    if (off != (uint64_t) -1)
+        decoded = bgit_pack_read_object_fd (fd, plen, idx, ilen, repo, off,
+                                            &type, &content, &clen, 0, &spans);
     errno = 0;
-    if (bgit_sha1_fd (fd, plen - 20, pack_sha) < 0) {
+    if (bgit_sha1_fd (fd, plen - 20, pack_sha, &spans, &changed) < 0) {
         saved = errno;
-        close (fd);
-        free (idx);
         if (saved)
             builtin_error ("read %s: %s", pack_path, strerror (saved));
         else
             builtin_error ("cat: SHA-1 init failed");
-        return EXECUTION_FAILURE;
+        goto out;
     }
-    if (bp_pread_exact (fd, plen - 20, trailer, 20) < 0) {
-        saved = errno;
-        close (fd);
-        free (idx);
-        builtin_error ("read %s: %s", pack_path, strerror (saved));
-        return EXECUTION_FAILURE;
+    if (changed) {
+        builtin_error ("cat: %s changed while it was read", pack_path);
+        goto out;
     }
     if (memcmp (pack_sha, trailer, 20) != 0) {
-        close (fd);
-        free (idx);
         builtin_error ("cat: packfile SHA-1 mismatch (corrupt)");
-        return EXECUTION_FAILURE;
+        goto out;
     }
-    if (bgit_pack_verify_idx (idx, ilen, trailer) < 0) {
-        close (fd);
-        free (idx);
-        return EXECUTION_FAILURE;
-    }
-    off = bgit_pack_lookup_offset (idx, ilen, sha);
+    if (bgit_pack_verify_idx (idx, ilen, trailer) < 0)
+        goto out;
     if (off == (uint64_t) -1) {
-        close (fd);
-        free (idx);
         builtin_error ("cat: %s not in idx", sha_hex);
-        return EXECUTION_FAILURE;
+        goto out;
     }
-    if (bgit_pack_read_object_fd (fd, plen, idx, ilen, repo, off, &type,
-                                  &content, &clen, 0) < 0) {
-        close (fd);
-        free (idx);
+    if (decoded < 0) {
         builtin_error ("cat: read failed for %s", sha_hex);
-        return EXECUTION_FAILURE;
+        goto out;
     }
     fwrite (content, 1, clen, stdout);
+    rc = EXECUTION_SUCCESS;
+out:
     free (content);
+    free (spans.v);
     free (idx);
     close (fd);
     (void) type;
-    return EXECUTION_SUCCESS;
+    return rc;
 }
 
 /* --- cat verb ---------------------------------------------------------- */

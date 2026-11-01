@@ -909,6 +909,7 @@ bgit_pack_read_object_at (const unsigned char *pack, size_t plen,
 struct bgit_pack_fd {
     int fd;
     uint64_t size;
+    struct bgit_fd_spans *spans;    /* NULL, or where each read is recorded */
 };
 
 static int
@@ -940,6 +941,8 @@ bgit_pack_pread (const struct bgit_pack_fd *src, uint64_t off,
         }
         got += (size_t) r;
     }
+    if (src->spans && bgit_fd_spans_add (src->spans, off, buf, n) < 0)
+        return -1;
     return 0;
 }
 
@@ -1161,11 +1164,13 @@ int
 bgit_pack_read_object_fd (int fd, uint64_t pack_size,
                           const unsigned char *idx, size_t ilen,
                           const char *repo, uint64_t off, int *type_out,
-                          unsigned char **out, size_t *out_len, int depth)
+                          unsigned char **out, size_t *out_len, int depth,
+                          struct bgit_fd_spans *spans)
 {
     struct bgit_pack_fd src;
     src.fd = fd;
     src.size = pack_size;
+    src.spans = spans;
     return bgit_pack_read_fd_at (&src, idx, ilen, repo, off, type_out, out,
                                  out_len, depth);
 }
