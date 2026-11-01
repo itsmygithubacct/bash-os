@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-bashkmod-sig-enforce-root",
+      "loadable": "bashkmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashkmod/defer-kernel-module-transitions"
+      ],
+      "purpose": "With module signature enforcement switched on at runtime, bashkmod load of an unsigned and of a tampered module reports the kernel's rejection (EKEYREJECTED) with status 1 and the strerror text, exactly like a direct finit_module call, and the shipped signed module still loads",
+      "oracle": "A direct finit_module(2) call through ctypes on the same file (kernel verdict and strerror text), before and after sig_enforce is set to Y through /sys/module/module/parameters/sig_enforce",
+      "comparison": "For signed, signature-stripped and payload-tampered copies of the shipped nbd module, before and after enforcement: the oracle's errno name versus the candidate's status and diagnostic text, and whether the module stayed loaded.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-kmod-sig.py": "b5987b60723963bd68577afc8547cbf5ba5688c85e2c46d3d26f492e25b8d60c"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t bashkmod) == builtin ]] || exit 125\nsig() { /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/mig-w6-kmod-sig.py \"$@\"; }\nhas() { local n; while read -r n _; do [[ $n == \"$1\" ]] && return 0; done </proc/modules; return 1; }\nD=/tmp/parity-case\nread -r se </sys/module/module/parameters/sig_enforce; echo \"sig_enforce-before=$se\"\nsig prep \"$D\"\ntry3() {\n  local ph=$1 f o c rc\n  for f in signed unsigned tampered; do\n    o=$(sig try \"$D/$f.ko\"); c=$(bashkmod load \"$D/$f.ko\" 2>&1); rc=$?\n    if [[ $o == OK ]]; then ok=$([[ $rc == 0 && -z $c ]] && echo 1 || echo 0); has nbd && bashkmod unload nbd\n    else ok=$([[ $rc == 1 && $c == \"load: $D/$f.ko: ${o#*|}\" ]] && echo 1 || echo 0); fi\n    echo \"$ph $f: oracle=${o%%|*} candidate-agrees=$ok still-loaded=$(has nbd && echo 1 || echo 0)\"\n  done\n}\ntry3 before-enforce\necho \"enforce: $(sig enforce)\"\ntry3 enforced\n",
+      "expected_status": 0,
+      "stdout": "sig_enforce-before=N\nshipped-module-signed=1 unsigned-differs=1\nbefore-enforce signed: oracle=OK candidate-agrees=1 still-loaded=0\nbefore-enforce unsigned: oracle=OK candidate-agrees=1 still-loaded=0\nbefore-enforce tampered: oracle=EKEYREJECTED candidate-agrees=1 still-loaded=0\nenforce: Y\nenforced signed: oracle=OK candidate-agrees=1 still-loaded=0\nenforced unsigned: oracle=EKEYREJECTED candidate-agrees=1 still-loaded=0\nenforced tampered: oracle=EKEYREJECTED candidate-agrees=1 still-loaded=0\n",
+      "stderr": "",
+      "timeout": 50
+    }
+  ]
+}
