@@ -35,37 +35,42 @@
       "id": "exact-comm-and-name-list",
       "purpose": "Check the core matching contract, including exact comm equality, similar-name exclusion, multiple names, duplicate names, the 15-byte comm boundary, self-exclusion, and default SIGTERM.",
       "kind": "deferred",
-      "reason": "No killall run exists. Legacy runner inside the VM: bwrap private PID namespace means only fixture processes are visible, so killall NAME cannot reach anything outside the case. psmisc killall 23.7 is installed in the image as the oracle."
+      "reason": "r2 duplicate operands not asserted."
     },
     {
       "id": "full-command-line-exact-mode",
       "purpose": "Exercise -f exact joined-command-line selection, including NUL-separated arguments, empty arguments, long records, and substring nonmatches.",
       "kind": "deferred",
-      "reason": "-f is a candidate extension (psmisc 23.7 killall has no -f option), so there is no GNU oracle; it needs a contract case with owned children."
+      "reason": "r2/r3 not authored."
     },
     {
       "id": "real-uid-filter",
       "purpose": "Check -u numeric and account-name filters against real UID records, including a nonmatching UID and filter interaction with name selection.",
       "kind": "deferred",
-      "reason": "Numeric and name filters with matching/nonmatching UIDs are implementable for uid 2000; real-vs-effective distinction requires root-prepared credentials."
+      "reason": "r2/r4 not exercised."
     },
     {
       "id": "signal-and-option-parsing",
       "purpose": "Check default TERM, signal names with optional SIG prefix and case variation, numeric signals, -e/--exact compatibility, and usage errors such as zero or unknown signals/options.",
       "kind": "deferred",
-      "reason": "No parsing case runs. Parser errors can be compared without any target; valid signals need trap-logging children."
+      "reason": "r5 psmisc-only options not exercised."
     },
     {
       "id": "status-and-proc-failure-paths",
       "purpose": "Check no-match, usage, and fatal-proc status classes along with malformed or missing proc records, bounded PID parsing, delivery ESRCH/EPERM, and partial success.",
       "kind": "deferred",
-      "reason": "No killall status path executed. EPERM and no-match are reproducible in the VM; malformed records and ESRCH require a fixture proc adapter with a non-forwarding kill recorder."
+      "reason": "r1 status 3, r2, r3 and ESRCH not exercised."
     },
     {
       "id": "controlled-child-delivery",
+      "kind": "migrated",
       "purpose": "Qualify real signal delivery and cleanup only against a uniquely named direct child whose PID, parent, UID, and comm are independently verified immediately before delivery.",
-      "kind": "deferred",
-      "reason": "The disposable VM plus bwrap private PID namespace satisfies the isolation the original reason required; no executed fixture exists."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-killall-controlled-child"
+        }
+      ]
     }
   ]
 }

@@ -101,9 +101,9 @@
     },
     {
       "id": "device-discovery-deferred",
-      "kind": "deferred",
       "purpose": "No-operand enumeration and -L/-U discovery are core operations that cannot be compared safely against ambient device state.",
-      "reason": "Discovery needs real block devices with known signatures. uid 2000 with setgroups([]) cannot open /dev/loop-control or /dev/loopN (root:disk 0660), cannot mknod block nodes (CAP_MKNOD; device nodes are refused inside user namespaces), and the real virtio disk nodes are root:disk 0660, so no block device with known contents is visible to an unprivileged fixture. The util-linux reference cannot use the candidate-only override variables, so byte parity needs driver-provisioned devices; only the candidate-side contract (r4) is reachable unprivileged."
+      "kind": "deferred",
+      "reason": "r4 (candidate enumeration contract) is exercised. r1-r3 need real block devices (loop devices, root) and a util-linux comparison on the same devices; not yet authored."
     },
     {
       "id": "explicit-label-lookup",

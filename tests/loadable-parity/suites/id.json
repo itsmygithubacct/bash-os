@@ -115,9 +115,18 @@
     },
     {
       "id": "id-real-effective-identity",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise -r and the euid/egid fields when real and effective credentials differ.",
-      "reason": "Distinct real and effective credentials can only be created by a privileged launcher; an unprivileged fixture or a single-uid bubblewrap user namespace cannot create ruid != euid. Bash also resets euid to ruid at startup unless invoked with -p, so the launcher must start both shells with -p."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w4-root-id-default-output"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w4-root-id-real-effective"
+        }
+      ]
     },
     {
       "id": "id-named-user-supplementary-groups",

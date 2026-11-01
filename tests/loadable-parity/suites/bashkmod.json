@@ -106,21 +106,59 @@
     },
     {
       "id": "defer-kernel-module-transitions",
-      "kind": "deferred",
       "purpose": "Load/unload and non-dry-run modprobe mutate kernel module state.",
-      "reason": "Module load/unload needs CAP_SYS_MODULE in the initial user namespace, finit_module/delete_module not filtered, disposable modules matching the guest kernel (6.12.113+deb13-cloud-amd64, which may enforce module signatures), and state restore. No driver provides this; the legacy seccomp filter returns EPERM for these syscalls. Missing capability: CAP_SYS_MODULE in the initial user namespace (module state is global; USERNS gives no CAP_SYS_MODULE effect: finit_module/delete_module return EPERM under uid 2000 and in any user namespace)."
+      "kind": "deferred",
+      "reason": "Remaining: r5 EKEYREJECTED/ENOKEY for unsigned modules under enforced signing cannot be produced because the guest does not enforce module signatures."
     },
     {
       "id": "defer-live-module-inventory",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "bashkmod list reads the live /proc/modules file; live info reads kernel-owned sysfs state.",
-      "reason": "The live read paths are reachable unprivileged, but no case exercises them. The legacy runner lacks /sys, while the modern plain driver has /proc and /sys. A deterministic, seeded module set still needs module loading under PRIV-ROOT."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w6-bashkmod-info-errors"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashkmod-info-live"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashkmod-live-list"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashkmod-load-unload-root"
+        }
+      ]
     },
     {
       "id": "defer-policy-command-effects",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "modprobe policy can select soft dependencies and may execute configured install/remove argv while applying module actions.",
-      "reason": "Remaining obligations: r6: Requires PRIV-ROOT module syscalls, same as defer-kernel-module-transitions."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/bashkmod/deps-nested-chain"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-bashkmod-modprobe-chain-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-kmod-effects-guard-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-kmod-policy-guard-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-kmod-reference-guard-r2"
+        }
+      ]
     },
     {
       "id": "weak-modules-usable-relative-links",

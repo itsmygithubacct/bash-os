@@ -108,9 +108,66 @@
     },
     {
       "id": "acme-protocol-lifecycle-deferred",
+      "kind": "migrated",
       "purpose": "Full ACME directory, account, order, challenge, finalize, and certificate issuance behavior is outside this crypto-only loadable and cannot be exercised against a live service in this suite.",
-      "kind": "deferred",
-      "reason": "The candidate implements only local JWK/JWS/keyAuthorization primitives; the ACME client lifecycle (directory, nonce, account, order, challenge, finalize, certificate) has no candidate implementation. The help text points to rootfs/bash-os/acme.sh, which is not in the repository."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/acme/jwk-thumbprint-rfc7638"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/acme/jws-jwk-inline-payload"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/acme/jws-kid-binary-file-payload"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/acme/jws-kid-post-as-get-empty-payload"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/acme/key-authorization-alias"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/acme/key-authorization-rfc8555"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-acme-lifecycle-r1"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-acme-lifecycle-r2"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-acme-lifecycle-r3"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-acme-lifecycle-r4"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-acme-lifecycle-r5"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-acme-lifecycle-r6"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-acme-lifecycle-r7"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-acme-lifecycle-r8"
+        }
+      ]
     }
   ]
 }

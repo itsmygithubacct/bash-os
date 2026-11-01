@@ -186,9 +186,30 @@
     },
     {
       "id": "deferred_spell_helper",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Run a tiny fixture-local word-list helper through the editor, test replacement and cancel behavior, and compare the resulting saved file with GNU nano using the same deterministic helper contract.",
-      "reason": "Remaining obligations: r1: No candidate GNU-filename-helper correction workflow ran. Under that strict contract, correction prompt, reply, replacement and corrected save remain unreached after refusal42. Dual-interface semantic PASS must not be relabelled as strict API compatibility or used to erase that FAIL."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-nano-followup-spell-custom-file-contract"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nano-followup-spell-dual-cancel"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nano-followup-spell-dual-replacement"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nano-followup-spell-helper-failure"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nano-followup-spell-helper-timeout"
+        }
+      ]
     },
     {
       "id": "command_help_contract",

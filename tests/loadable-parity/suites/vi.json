@@ -129,9 +129,34 @@
     },
     {
       "id": "terminal-keys-resize",
+      "kind": "migrated",
       "purpose": "Track terminal arrow-key decoding and viewport behavior after a deterministic window resize.",
-      "kind": "deferred",
-      "reason": "Down-arrow decoding and a basic resize redraw ran (the candidate fails redraw). Wider key coverage and cursor-tracking viewport behavior are not exercised."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "mig-w8-vi-left-right-home-end"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-vi-page-up-down"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-vi-resize-cursor-offscreen"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-vi-term-vt100-keys"
+        },
+        {
+          "group": "terminal",
+          "id": "vi-arrow-keys"
+        },
+        {
+          "group": "terminal",
+          "id": "vi-resize-redraw"
+        }
+      ]
     },
     {
       "id": "ex-quit-preserves-source",

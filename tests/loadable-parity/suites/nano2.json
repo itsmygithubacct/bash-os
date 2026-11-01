@@ -69,15 +69,57 @@
     },
     {
       "id": "piece-table-operations",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise load, insert, delete, line/column mapping, range flattening, binary NUL handling, and multi-step undo/redo against an independent reference model.",
-      "reason": "The piece-table engine is reachable only through a fixed internal selftest. There is no argument interface, so no fixture can drive deterministic operation sequences, and the selftest's assertions are not independent evidence."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w8-nano2-insert-delete"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-nano2-line-column-offset"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-nano2-load-flatten-nul"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-nano2-model-sequences"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-nano2-range-flatten"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-nano2-undo-redo"
+        }
+      ]
     },
     {
       "id": "piece-table-file-save",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise file load/save byte preservation, relative-path save, replacement, and temporary-file cleanup through the actual nano2 engine.",
-      "reason": "Save is internal to the selftest, which uses fixed paths of its own. No callable save interface accepts fixture paths."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w8-nano2-save-relative-path"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-nano2-save-replace-preserves-mode"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-nano2-save-roundtrip-bytes"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-nano2-save-temp-cleanup"
+        }
+      ]
     }
   ]
 }

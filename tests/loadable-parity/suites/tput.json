@@ -173,15 +173,32 @@
     },
     {
       "id": "compiled-terminfo",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Full compiled terminfo loading, arbitrary user database replacements, aliases, extended capabilities and padding timing need separate implementation and qualification; this command intentionally preserves its custom text sidecar interface.",
-      "reason": "Remaining obligations: r4: Extended-capability query is attempted, but arbitrary compiled terminal lookup fails first, so extended-capability decoding is not reached.; r5: Reference produces 40 pad bytes at 38400 baud; candidate rejects the compiled terminal before padding processing. Padding at output speed remains unexercised."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w8-tput-extended-capabilities"
+        },
+        {
+          "group": "shell",
+          "id": "migration-tput-compiled-terminfo"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-tput-padding-38400"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-tput-padding-9600"
+        }
+      ]
     },
     {
       "id": "hardware-init-reset",
-      "kind": "deferred",
       "purpose": "Hardware and init/reset terminal-driver qualification requires a controlled terminal mock or disposable hardware environment. These mode-setting operations are not exercised in the byte fixtures.",
-      "reason": "Remaining obligations: r2: Echo, canonical input, ONLCR and reset bytes are observed; special-character restoration is not asserted.; r4: Not applicable in a VM; the PTY is the terminal under test. Physical serial/console hardware would need real hardware and is out of scope for a disposable VM."
+      "kind": "deferred",
+      "reason": "Physical hardware qualification (r4) is not applicable in a disposable VM."
     }
   ]
 }

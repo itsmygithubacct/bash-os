@@ -81,21 +81,47 @@
     },
     {
       "id": "deferred-set-kernel-apply",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate actual device mutation and kernel acknowledgement for wg set.",
-      "reason": "No executed case reaches netlink. Interface creation in a private netns is possible from the VM script as root."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-wg-set-apply"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-wg-set-errors"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-wg-set-peers"
+        }
+      ]
     },
     {
       "id": "deferred-show-device-state",
-      "kind": "deferred",
       "purpose": "Validate decoding and formatting of real device and peer state returned by the kernel for wg show IFACE.",
-      "reason": "No executed case queries a device."
+      "kind": "deferred",
+      "reason": "r3 needs a live handshake and transfer counters; the candidate currently cannot reach device state at all"
     },
     {
       "id": "deferred-setconf-kernel-apply",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate that a valid configuration is applied to a WireGuard device and can be read back from kernel state.",
-      "reason": "Parsing/encoding is covered in dry-run, but no case applies a configuration or reads kernel state back."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/wg/setconf-dryrun-encoded-peer"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/wg/setconf-dryrun-valid-cidr-boundaries"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-wg-setconf"
+        }
+      ]
     },
     {
       "id": "set-dryrun-rejects-ipv4-prefix-33",

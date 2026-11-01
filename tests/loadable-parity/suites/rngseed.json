@@ -73,9 +73,34 @@
     },
     {
       "id": "load_entropy_credit",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Validate accepted seed sizes, durable consume-before-credit ordering, exact credit payload, and nonblocking refresh behavior.",
-      "reason": "Not a capability block for most obligations. save uses only getrandom and file operations, both allowed in the legacy runner. RNDADDENTROPY needs CAP_SYS_ADMIN in the initial user namespace, so under uid 2000 the kernel returns EPERM and the credit-denial path is reachable now. A SECCOMP-NOTIFY helper (modern plain driver only; trusted python3: fork, the child sets no_new_privs and installs a seccomp filter with SECCOMP_FILTER_FLAG_NEW_LISTENER for openat/unlinkat/renameat/fsync/ioctl/getrandom, passes the listener fd to the parent via SCM_RIGHTS, then execs the side shell; the parent records every notified call in order and either continues it or answers with a chosen return value) records ordering and injects faults or successes without privilege. It also lets the supervisor answer RNDADDENTROPY with success, a closed mock at the kernel boundary. Only the real-kernel credit acceptance needs CAP_SYS_ADMIN, since RNDADDENTROPY returns EPERM under uid 2000."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-load-first-boot"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-load-order"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-load-payload"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-load-real-credit"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-load-refresh"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-rngseed-load-sizes"
+        }
+      ]
     },
     {
       "id": "load_failure_recovery",

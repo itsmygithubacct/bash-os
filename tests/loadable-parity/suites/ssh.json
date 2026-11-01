@@ -193,9 +193,26 @@
     },
     {
       "id": "ssh-pty-multiplex-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise interactive shell/PTY resizing, ControlMaster persistence and cleanup, and multiplexed session behavior.",
-      "reason": "Remaining obligations: r1: Not executed.; r2: Not executed.; r5: Not executed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-ssh-retention-master-persist-125"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ssh-retention-master-routing-125"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w3-ssh-shell-pty"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w3-ssh-shell-resize"
+        }
+      ]
     },
     {
       "id": "known-hosts-alias-case-and-whitespace",

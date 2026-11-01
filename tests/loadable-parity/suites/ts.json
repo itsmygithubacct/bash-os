@@ -89,9 +89,9 @@
     },
     {
       "id": "upstream_tree_sitter_differential",
-      "kind": "deferred",
       "purpose": "A full parser/query differential across all five bundled grammars would validate broad compatibility beyond the small documented contracts.",
-      "reason": "This needs a reference tool that is absent from the image: a tree-sitter CLI built at the bundled grammar revisions. That is an image addition owned by root, not a new execution capability."
+      "kind": "deferred",
+      "reason": "No upstream grammars for JSON, TOML or Bash exist in the guest; query/highlight and incremental-edit differentials were not built."
     },
     {
       "id": "fixture_file_ops",

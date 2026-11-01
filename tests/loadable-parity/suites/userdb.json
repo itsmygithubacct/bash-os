@@ -72,9 +72,18 @@
     },
     {
       "id": "defer-passwd-verification",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Built-in passwd-backed userdb verification, including success and wrong-password results.",
-      "reason": "Remaining obligations: r3: Private shadow swap and unchanged fixture bytes were recorded, but candidate file opens were not independently traced."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w5-userdb-verify-private-files-only"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-userdb-passwd-verification"
+        }
+      ]
     },
     {
       "id": "defer-provider-lookup",

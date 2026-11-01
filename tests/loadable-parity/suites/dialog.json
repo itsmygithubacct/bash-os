@@ -118,9 +118,9 @@
     },
     {
       "id": "interactive-pty",
-      "kind": "deferred",
       "purpose": "Qualify interactive rendering and keyboard behavior against dialog in a controlled terminal.",
-      "reason": "There is no interactive dialog fixture, and the dialog reference package is not in the VM image. The PTY driver can now control size, keys, resize, screen and restoration."
+      "kind": "deferred",
+      "reason": "The real dialog program is not available in the guest image; shared widgets are compared with whiptail instead."
     }
   ]
 }

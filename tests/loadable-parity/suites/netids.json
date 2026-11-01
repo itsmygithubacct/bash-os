@@ -101,15 +101,41 @@
     },
     {
       "id": "deferred-live-capture",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify the -i interface path with a bounded one-packet capture.",
-      "reason": "No live-capture fixture; the VM as root can capture on a script-created veth or on lo with self-injected traffic."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-pcap-netids-live"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-pcap-netids-timeout"
+        }
+      ]
     },
     {
       "id": "deferred-active-firewall-blocking",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify non-dry-run drop/reject behavior and the exact fw deny request.",
-      "reason": "No mock fw is supplied. netids execs an external `fw` by PATH lookup, not the fw builtin, so a fixture-local mock executable makes this fully observable offline (-r PCAP) with no firewall access."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/netids/offline-block-dry-run-event"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-pcap-block-drop"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-pcap-block-fail"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-pcap-block-reject"
+        }
+      ]
     }
   ]
 }

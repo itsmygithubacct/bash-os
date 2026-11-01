@@ -64,9 +64,26 @@
     },
     {
       "id": "roles_and_handle_scope",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify controller/observer permissions, documented attachment limits, detach behavior, and rejection of stale or cross-process handles.",
-      "reason": "Paired binary records support one same-session observer receiving controlled live bytes. Controller exclusivity, the observer limit and controller restrictions, detach/re-attach, and stale and cross-process handle rejection remain unestablished."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w8-ptybroker-control-role-busy"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-ptybroker-detach-releases-role"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-ptybroker-observer-limit-and-receive"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-ptybroker-stale-and-foreign-handles"
+        }
+      ]
     },
     {
       "id": "pty_geometry_resize",
@@ -92,9 +109,18 @@
     },
     {
       "id": "child_exit_and_cleanup",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify final-output-before-exit event ordering, retained child exit status, and cleanup of only the fixture's owned descendants on terminate.",
-      "reason": "Paired raw-exit records support the fixed child final-output and retained-status observations. A separate private-session record observes one owned child absent after termination returned; grandchild cleanup, exclusive scope, and reaping before acknowledgment remain unestablished."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w8-ptybroker-terminate-descendants"
+        },
+        {
+          "group": "shell",
+          "id": "migration-ptybroker-lifecycle-raw-exit"
+        }
+      ]
     },
     {
       "id": "bounded_io_errors",

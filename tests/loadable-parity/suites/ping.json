@@ -38,33 +38,94 @@
     },
     {
       "id": "ping-ipv4-echo-matching",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise IPv4 echo request construction, exact reply identity and payload matching, output accounting, and success status with one deterministic matching reply.",
-      "reason": "No executed case pings. Inside the VM as root, 127.0.0.1 answers echo requests from the kernel, and tcpdump can capture the exchange."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-ping-v4-accounting"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ping-v4-matching"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ping-v4-request"
+        }
+      ]
     },
     {
       "id": "ping-ipv6-echo-codec",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise IPv6 echo request/reply type, sequence and payload matching, source validation, and successful accounting.",
-      "reason": "No executed case pings ::1. The VM has IPv6 loopback; a private netns gives a deterministic topology."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-ping-v6-accounting"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ping-v6-matching"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ping-v6-request"
+        }
+      ]
     },
     {
       "id": "ping-deadline-timeout-quiet",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise no-reply timeout accounting, quiet summary-only output, and an overall deadline that ends a multi-probe request with the documented failure status.",
-      "reason": "No executed fixture creates a non-answering destination. Stale 'no network' reason is obsolete: the VM script can create a private netns with a blackhole route as root."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-ping-deadline"
+        }
+      ]
     },
     {
       "id": "ping-option-boundaries",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise documented minimum/maximum numeric values and representative malformed or out-of-range -c, -W, -w, and -i arguments, checking usage status and that invalid values do not proceed to resolution or socket creation.",
-      "reason": "Remaining obligations: r4: The marked interval has no recorded socket/connect or resolver-file offender; arbitrary in-process resolver calls were not observed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-ping-no-socket"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ping-deadline-ends-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ping-invalid-options-r2"
+        }
+      ]
     },
     {
       "id": "ping-traceroute-ttl",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise -T UDP probe TTL progression, per-hop timeout output, hop-exceeded handling, destination-unreachable termination, and reached/unreached exit status.",
-      "reason": "No executed case. A multi-hop topology can be built by the script as VM root with network namespaces and veth pairs with forwarding enabled."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-ping-trace-hops"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ping-trace-reached"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ping-trace-ttl"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-ping-trace-unreached"
+        }
+      ]
     }
   ]
 }

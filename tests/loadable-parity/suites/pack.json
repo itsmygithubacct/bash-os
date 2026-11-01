@@ -115,9 +115,22 @@
     },
     {
       "id": "large-offset-deferred",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise pack cat through an index v2 64-bit offset entry above the 32-bit offset range.",
-      "reason": "The real >2 GiB scenario needs a resource class the VM does not offer. The 64-bit table lookup itself (r1) can be reached with a small pack: an index whose 32-bit entry has the MSB set and points into a one-entry overflow table holding a small offset. Git reads such entries through nth_packed_object_offset, but git verify-pack/fsck may reject an overflow entry below 2^31, so the reference must be recorded rather than assumed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-pack-offset-above-2gib-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-pack-overflow-offset-cat"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-pack-overflow-verify"
+        }
+      ]
     }
   ]
 }

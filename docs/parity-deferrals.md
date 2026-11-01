@@ -7,9 +7,9 @@ reviewed requirements, evidence links and specific remaining gaps. The
 saved static and dynamic VM runs. The initial qualification tables in the VM
 guide describe the earlier fixture set.
 
-The current review covers 439 of the 600 topics on both builds: static 227 PASS / 212 FAIL;
-dynamic 228 PASS / 211 FAIL. The other 161 retain unresolved requirements: 89 have partial
-coverage and 72 have none. These are topic counts, not additional behavioral test results.
+The current review covers 516 of the 600 topics on both builds: static 268 PASS / 248 FAIL;
+dynamic 269 PASS / 247 FAIL. The other 84 retain unresolved requirements: 75 have partial
+coverage and 9 have none. These are topic counts, not additional behavioral test results.
 
 The syslog review adds bounded three-record FIFO observations for startup, SIGHUP and periodic replay on both builds. Sender attribution is inferred from pinned serial source and isolated networking; HUP was queued while the daemon was stopped.
 
@@ -74,6 +74,8 @@ The password-prompt review adds synthetic set-success and confirmation-mismatch 
 The DHCP server review adds offline subnet selection by giaddr, verbatim option 82 echo, persisted commit leases and commit-hook behavior. Failing or missing hooks preserve the complete ACK reply. Both builds omit the label-length byte in PXE menu suboption 9, which remains FAIL. Negative-vendor next-server gating, live serve exchanges, DECLINE/RELEASE, relay delivery and proxy sockets remain unresolved; these partial topics are not counted as full migrations.
 
 The network, service and mount review completes 33 topics on both builds. `ip` address, link, route, rule, neighbour, query and batch changes are compared with iproute2 in a mapped network namespace. `bashmount` mount, bind, remount and unmount flags are compared with util-linux, with the mount and umount2 arguments recorded by a seccomp notifier. DHCP, DHCPv6 and DHCP server exchanges are decoded by independent RFC codecs from frames exchanged with local peers. `top` batch output is checked against a private proc tree encoded from proc(5). Fourteen topics pass: the DHCP discover/offer/request/ack and release flows, DHCPv6 solicit, the DHCP server decline/release/hook and serve exchanges, both DHCPv6 server topics, `ip` address and link changes, all three `bashmount` topics, the rngseed save transaction and the `top` proc-record lifecycle. Nineteen record reached failures on both builds, including `ip` batch quoting and failing-line diagnostics, DHCP inform and renew, the PXE menu suboption, live firewall state and the `top` batch header. The frozen builds have no `uv` builtin, so its five topics fail against the documented interface; the jq, Perl and Python wrapper topics also fail. All failures remain FAIL.
+
+The second review completes 77 more topics on both builds, 38 passing and 39 failing, with no result differing between builds. Root-only requirements (credential drops, real setuid transitions, kernel modules, the system clock) ran as `privilege: root` fixtures in disposable guests on a rented host; everything else ran unprivileged or in mapped user namespaces. Passing topics include all five `ping` topics, the `sv` service lifecycle, readiness, activation and privilege topics, `pkill` default, regex and signal-name selection, `killall` controlled delivery, `ptybroker` child exit and handle scope, the `doas`, `sudo`, `su`, `cred` and `nice` root credential paths, and `netids`. Failing topics include the ACME client lifecycle, which the frozen builds do not implement and which was run against a local RFC 8555 mock, `wg` kernel apply and show, `fail2ban` ban state and reload, `bashkmod` module transitions, the `git` remote protocol and signing workflows, `sshd` authentication and configuration policy, `rsync` daemon protocol, `sftp` binary transfer, `nano` spell helper and `nano2` piece tables, `tput`, `vi`, `whiptail` and `slabtop` terminal behavior, and DNS DoT/DoH and transfer polling. Requirements whose observable needs the `/dev/bashos-auth` kernel authority remain unresolved: no implementation of that authority is available to exercise.
 
 A historical case becomes `MIGRATED` only when every requirement has an explicit
 assertion and valid execution evidence on both builds. Its replacement cases

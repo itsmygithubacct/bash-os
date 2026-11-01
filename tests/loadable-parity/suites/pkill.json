@@ -53,33 +53,48 @@
     },
     {
       "id": "default-term-owned-target",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify default TERM reaches only selected private fixture processes and never the invoking shell.",
-      "reason": "No pkill delivery case exists. In the VM a private-PID-namespace legacy case or a plain-driver case with owned children is safe; the historic prohibition no longer applies."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-pkill-default-term"
+        }
+      ]
     },
     {
       "id": "signal-names-zero-and-count",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify named and numeric signal parsing, signal zero, -c output, and success/no-match statuses against controlled delivery results.",
-      "reason": "Signal parsing and delivery are unexercised. Owned children in the legacy runner's private PID namespace make delivery deterministic and observable through traps."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-pkill-signal-names-count"
+        }
+      ]
     },
     {
       "id": "regex-cmdline-and-selectors",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify POSIX ERE matching, -f/-x command-line behavior, and combined UID/parent selectors against a known process set.",
-      "reason": "pkill shares pgrep's walker but no pkill run selected anything; live UID combinations need processes with other UIDs."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-g1-pkill-regex-selectors"
+        }
+      ]
     },
     {
       "id": "newest-oldest-selection",
-      "kind": "deferred",
       "purpose": "Verify -n/-o select the expected single process, including equal-start-time PID tie breaking.",
-      "reason": "Live newest/oldest delivery is implementable with sequentially started owned children; tie-breaking is not, because delivery is refused for synthetic trees and live ties cannot be forced."
+      "kind": "deferred",
+      "reason": "r3 equal-start-time tie-break not exercised."
     },
     {
       "id": "invalid-input-and-delivery-errors",
-      "kind": "deferred",
       "purpose": "Verify invalid regexes/options produce usage status without any signal request, and that ESRCH/EPERM failures affect diagnostics, count, and final status as documented.",
-      "reason": "No pkill error path executed. Usage errors and EPERM are reproducible in the VM; ESRCH needs syscall injection."
+      "kind": "deferred",
+      "reason": "r2-r4 delivery-error paths not authored."
     }
   ]
 }

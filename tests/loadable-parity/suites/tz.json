@@ -136,9 +136,22 @@
     },
     {
       "id": "live-clock-now-info",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare tz now and DST-sensitive info against GNU date at a controlled current instant.",
-      "reason": "Live bracketed comparisons are implementable now; the DST-sided obligation needs a controllable wall clock for the candidate."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w6-tz-dst-controlled-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-tz-info-live"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-tz-now-live"
+        }
+      ]
     },
     {
       "id": "fixed-zone-info",

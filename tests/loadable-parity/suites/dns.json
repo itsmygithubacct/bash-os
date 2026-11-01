@@ -154,9 +154,54 @@
     },
     {
       "id": "dns-dot-doh",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise DNS-over-TLS and DNS-over-HTTPS framing, certificate validation, and DNS message handling through each transport.",
-      "reason": "Remaining obligations: r4: Both transports now return the same single A answer as UDP. Additional RR types, multi-record answers and error rcodes (NXDOMAIN, SERVFAIL) through DoT/DoH are not compared with the UDP path.; r5: The independent DoT client receives the zone answer. DoH requests fail in the HTTP/2 path; its TLS handshake and reachable DNS-message handling need separate probes."
+      "replacement_cases": [
+        {
+          "group": "network",
+          "id": "migration-dns-doh-post"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-doh-post-hosted-env"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-dot-query"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-dot-query-hosted-env"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-dot-wrong-ca-rejects"
+        },
+        {
+          "group": "network",
+          "id": "migration-dns-dot-wrong-ca-rejects-hosted-env"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dns-auth-listeners-independent-clients"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-dns-transport-udp-dot-doh-parity"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-doh-cleartext"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-doh-tls"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-auth-dot-listener"
+        }
+      ]
     },
     {
       "id": "dns-update-notify",
@@ -294,15 +339,44 @@
     },
     {
       "id": "dns-recursive-service",
-      "kind": "deferred",
       "purpose": "Exercise resolver forwarding/cache behavior and the documented recursive, DNSSEC, DNS64, and policy paths against controlled peers.",
-      "reason": "Remaining obligations: r3: No referral-serving peer.; r4: Not executed; requires signed zone data and an injected clock."
+      "kind": "deferred",
+      "reason": "r4 (DNSSEC validation of a signed fixture zone with fixed time) remains unexercised: no independent zone signer or injected-clock fixture exists yet; r3 is now covered by mig-w2-dns-resolver-iterative-referrals."
     },
     {
       "id": "dns-slave-transfer-poll",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise slave IXFR/AXFR transfer verification and DNSKEY polling used by trust-anchor rollover.",
-      "reason": "No primary/transfer peer exists. rfc5011-step (logic only) and slave-verify-chain are host-safe but also unexecuted."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w2-dns-rfc5011-poll-rollover"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-slave-axfr-multi-message"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-slave-ixfr-refresh"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-slave-tsig-chain"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-slave-tsig-chain-bad-mac"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-slave-tsig-single"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dns-slave-tsig-single-bad-mac"
+        }
+      ]
     },
     {
       "id": "offline-chain",

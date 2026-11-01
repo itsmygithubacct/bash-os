@@ -99,15 +99,41 @@
     },
     {
       "id": "deferred-policy-command",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise policy selection, priority boundaries, reset-on-fork, argv forwarding, and child exit-status propagation without changing host process scheduling.",
-      "reason": "Remaining obligations: r2: Valid FIFO/RR requests were denied without CAP_SYS_NICE; actual successful real-time application remains a separate case. Real FIFO/RR success needs guest hard RLIMIT_RTPRIO at least 99 or another approved real facility.; r4: Reset-on-fork flag observed on a real OTHER child; actual FIFO/RR grandchild reversion remains unproven. Real FIFO/RR success needs guest hard RLIMIT_RTPRIO at least 99 or another approved real facility."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w4-root-chrt-realtime-command"
+        },
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-chrt-command-cleanup-r3"
+        }
+      ]
     },
     {
       "id": "deferred-pid-deadline",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise existing-PID/all-thread policy changes and SCHED_DEADLINE parameter validation only against an isolated target.",
-      "reason": "Remaining obligations: r4: Requires CAP_SYS_NICE (root) for the fixture side: an unprivileged task can never enter SCHED_DEADLINE."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/chrt/invalid-pid"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/chrt/invalid-pid-with-priority"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w4-root-chrt-deadline-proc-sched"
+        },
+        {
+          "group": "shell",
+          "id": "migration-system-client-followup-chrt-pid-cleanup-r3"
+        }
+      ]
     },
     {
       "id": "invalid-pid-with-priority",

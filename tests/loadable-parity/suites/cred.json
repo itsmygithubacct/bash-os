@@ -33,9 +33,18 @@
     },
     {
       "id": "status-oracle",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "The read-only status verb formats real/effective UID/GID and the supplementary group list. A future fixture should compare the complete line against an independently obtained same-process getuid/getgid/geteuid/getegid/getgroups snapshot, including an empty group list and multiple groups.",
-      "reason": "Remaining obligations: r4: Reachable in the legacy runner; unasserted.; r5: No process with several groups exists in any driver; an unprivileged process cannot call setgroups (EPERM without CAP_SETGID)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w4-root-cred-transition"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cred-status"
+        }
+      ]
     },
     {
       "id": "lookup-synthetic-databases",
@@ -50,9 +59,18 @@
     },
     {
       "id": "drop-identity-transition",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify the ordered setgroups, setresgid, and setresuid transition, primary-group fallback, optional supplementary-group retention, saved-ID verification, and fail-closed diagnostics.",
-      "reason": "Remaining obligations: r1: The calls are mocked, so the end state (all real/effective/saved ids equal to the target) is not observed; needs a real-root case.; r2: Only the requested count is recorded; the resulting group list needs a real-root case.; r6: The partial transition (groups actually changed, uid unchanged) needs a real-root case with an injected setresuid failure."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w4-root-cred-transition"
+        },
+        {
+          "group": "shell",
+          "id": "migration-cred-drop"
+        }
+      ]
     },
     {
       "id": "no-new-privileges",

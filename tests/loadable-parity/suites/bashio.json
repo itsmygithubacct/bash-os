@@ -98,9 +98,26 @@
     },
     {
       "id": "chown-deferred",
+      "kind": "migrated",
       "purpose": "Ownership changes are outside the permitted fixture operations for this run.",
-      "kind": "deferred",
-      "reason": "No bashio chown invocation has executed in any run. Identity-preserving and parsing/symlink obligations are reachable by the existing legacy runner; only distinct-id transfer needs CAP_CHOWN plus synthetic identities."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-bashio-chown-distinct-ids-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-bashio-chown-named"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-bashio-chown-numeric"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-bashio-chown-symlink"
+        }
+      ]
     },
     {
       "id": "set-addr-deferred",

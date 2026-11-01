@@ -41,27 +41,83 @@
     },
     {
       "id": "defer-inet-snapshot",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare numeric TCP, UDP, and IPv6 rows, headers, and state labels from an independently encoded deterministic socket snapshot.",
-      "reason": "No socket fixture; there is no net-tools netstat in the image, so expected rows must be written from the helper's known sockets."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ns-header"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ns-ipv6"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ns-tcp"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ns-tcp-labels"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ns-udp"
+        }
+      ]
     },
     {
       "id": "defer-family-options",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare short and long family aliases, listen-only filtering, all-state selection, default families, and per-call option reset behavior against known fixture rows.",
-      "reason": "No deterministic socket table fixture; a script-created private netns gives one in the VM."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ns-aliases"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ns-default"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ns-reset"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ns-states"
+        }
+      ]
     },
     {
       "id": "defer-unix-sockets",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare Unix listener and connected rows, legacy state labels, and queue fields using an independently encoded Unix diagnostic fixture.",
-      "reason": "Remaining obligations: r1: The candidate reports the observed owned listener path as u_str/LISTEN and the recorded case fails against LISTENING. However the source opens AF_NETLINK protocol 4 and sends to the kernel; the original explicitly requires a Unix sock_diag mock and private proc fixture. This live-kernel record is supplementary, not this scenario's coverage.; r2: The saved owned pair appears as u_str/ESTAB, a reached negative relative to CONNECTED. The diagnostic source and kernel sender [0,0] show a live kernel dump, not the expressly required sock_diag mock. Keep both FAIL results as supplementary evidence.; r3: The retained listener/connected examples show LISTEN and ESTAB against the expected labels, but the original requires a mock. The live AF_NETLINK dump and real private-namespace proc table do not establish coverage of that specific mocked scenario."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ns-unix"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-netstat-unix-r1"
+        }
+      ]
     },
     {
       "id": "defer-process-ownership",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Compare -p annotations using controlled inode-to-PID/FD ownership, including an inaccessible fixture directory.",
-      "reason": "No fixture; as VM root everything is readable, so r2 needs the query to run as a non-root uid, which setpriv in the side script can do."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-annot-denied"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-annot-ns"
+        }
+      ]
     },
     {
       "id": "defer-transport-errors",

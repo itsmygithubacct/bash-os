@@ -115,15 +115,64 @@
     },
     {
       "id": "api_transport_mock",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify prompt/api request headers and body, TLS verification, stream/raw responses, and retry behavior against deterministic local responses.",
-      "reason": "The VM now has loopback HTTPS and throwaway certificate setup. No Claude API fixture yet supplies the expected JSON or streaming responses through BASHCLAUDE_HOST, BASHCLAUDE_PORT and BASHCLAUDE_CA; only offline parser and request-assembly contracts have executed."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/claude/dump_request_python_parity"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/claude/parse_http_error_status"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/claude/parse_raw_chunked_body"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/claude/parse_sse_chunk_boundary"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/claude/parse_sse_identity"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-claude-http-errors-not-retried"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-claude-request-headers"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-claude-retry-after"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-claude-retry-backoff"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-claude-sse-and-raw"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-claude-tls-matrix"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-claude-wire-body"
+        }
+      ]
     },
     {
       "id": "update_package_mock",
-      "kind": "deferred",
       "purpose": "Qualify signed-package selection, install/load sequencing, and dynamic builtin reload without touching a real package database.",
-      "reason": "Not executed. Two concrete blockers. (1) The update helper hard-codes /bin/bash, which in the parity VM is the GNU reference shell, so the candidate always takes the 'pkg unavailable' path unless the image installs the candidate as /bin/bash. (2) Package trust uses the root-owned /etc/bashsignify/trusted, so a synthetic signed fixture package needs root provisioning. Separately, reload of the invoking shell appears not to be implemented."
+      "kind": "deferred",
+      "reason": "Remaining: r2-r4 need the overlay/userns fixture with the candidate as /bin/bash and signed claude fixture packages; the update helper hard-codes /bin/bash and the child load cannot reload the invoking shell."
     }
   ]
 }

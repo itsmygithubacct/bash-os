@@ -50,9 +50,30 @@
     },
     {
       "id": "password-and-lockout-flow",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check correct and incorrect passwords, locked or malformed shadow entries, bounded password input, failure lockout, and success cleanup.",
-      "reason": "Remaining obligations: r3: Not executed.; r4: Not executed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-auth-client-dependent-su-lockout-r4-guarded-bootstrap-r1-argon2-cli-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-auth-client-dependent-su-token-r4-guarded-bootstrap-r1-argon2-cli-r1"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w4-su-bounded-password-input"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w4-su-locked-and-missing-shadow"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w4-su-malformed-phc-entries"
+        }
+      ]
     },
     {
       "id": "kernel-token-protocol",

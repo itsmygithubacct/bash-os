@@ -146,9 +146,9 @@
     },
     {
       "id": "deferred-system-user-drop",
-      "kind": "deferred",
       "purpose": "System crontab dispatch under root with a real USER-column privilege transition, including failure refusal.",
-      "reason": "The non-root environment contract is implementable now; the privileged drop needs guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid)."
+      "kind": "deferred",
+      "reason": "r2: exit status 127 unobserved."
     }
   ]
 }

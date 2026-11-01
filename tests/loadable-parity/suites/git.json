@@ -130,15 +130,61 @@
     },
     {
       "id": "remote_protocol_mock",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Remote protocol behavior for clone, fetch, and push.",
-      "reason": "No remote-transport fixture exists. The candidate implements http(s) and ssh transports, an upload-pack (protocol v2) and receive-pack, so this is fixture work only."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-git-remote-errors"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-git-smart-http"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-git-ssh-clone"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-git-ssh-fetch"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-git-ssh-push"
+        }
+      ]
     },
     {
       "id": "signing_and_editor",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Signed commits and interactive editor-driven operations.",
-      "reason": "No signing or editor fixture exists. A PTY is not required: git invokes the editor non-interactively through the shell, and ssh signing needs only a fixture key; OpenPGP signing is not implemented by the candidate."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-git-editor-precedence"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-git-failing-editor"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-git-openpgp-fake-gpg"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-git-sequence-editor-rebase"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-git-ssh-sign-commit"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-git-ssh-verify-commit"
+        }
+      ]
     },
     {
       "id": "missing_object_modes",

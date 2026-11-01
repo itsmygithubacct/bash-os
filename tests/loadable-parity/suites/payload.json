@@ -71,15 +71,41 @@
     },
     {
       "id": "remove-rollback-boundary",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check transaction lookup and rollback dispatch without performing a real package rollback.",
-      "reason": "Remaining obligations: r5: The outside sentinel and fixture diff were observed, but no complete independent snapshot of every path outside the fixture was retained."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-payload-remove-outside-snapshot"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-payload-remove-order"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-payload-remove-refusals"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-payload-remove-snapshot"
+        }
+      ]
     },
     {
       "id": "image-helper-integration",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify the real image-owned helper's install/remove integration and resulting package state.",
-      "reason": "Blocked on an external artifact: the real bl-pkg.sh helper is not in this source tree or the parity image. Once supplied (pinned by hash), everything else runs under fixture-relative PAYLOAD_ROOT/PAYLOAD_REPO without privilege."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-payload-image-install"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-payload-image-remove"
+        }
+      ]
     },
     {
       "id": "inventory-filters",

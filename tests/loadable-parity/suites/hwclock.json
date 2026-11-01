@@ -97,15 +97,36 @@
     },
     {
       "id": "hctosys-local-dst",
-      "kind": "deferred",
       "purpose": "Check local RTC conversion in a controlled timezone, including a DST gap rejection and both valid epochs for a repeated local hour.",
-      "reason": "Not executed; reachable with the per-side mock and a POSIX TZ rule; the 'both epochs' part can only be checked as membership because the candidate exposes no fold selector."
+      "kind": "deferred",
+      "reason": "The candidate exposes no way to request the second interpretation of a repeated local hour; r1, r2 and the membership half of r3 are exercised."
     },
     {
       "id": "systohc-and-adjtime-reset",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Convert fixed UTC/local system timestamps to RTC fields and check that successful systohc resets adjtime timestamps, remainder, and mode; also cover --noadjfile.",
-      "reason": "Remaining obligations: r1: The sampled system time is bracketed rather than fixed; no real RTC setting is established."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "devices-hwclock-rtc-write-error-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-systohc-local-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-systohc-noadjfile-r1"
+        },
+        {
+          "group": "shell",
+          "id": "devices-hwclock-systohc-utc-r1"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-hwclock-systohc-fixed-root"
+        }
+      ]
     },
     {
       "id": "adjust-fractional-drift",

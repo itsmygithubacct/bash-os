@@ -63,9 +63,22 @@
     },
     {
       "id": "ns-enter-namespace-fd",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check setns using a descriptor for a controlled namespace, including ownership, invalid-descriptor, and permission behavior.",
-      "reason": "Remaining obligations: r1: No case.; r2: No case.; r4: The candidate and nsenter both receive EPERM on the saved descriptor; its owning initial user namespace is not independently established in the retained record."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-enter-denied-initial-owner"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-enter-owned-fds"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ns-enter-invalid-denied-r1"
+        }
+      ]
     },
     {
       "id": "ns-id-mapping",
@@ -150,21 +163,67 @@
     },
     {
       "id": "ns-seccomp-filter",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check loading and applying a binary sock_filter profile, including valid, malformed, and kernel-rejected profiles.",
-      "reason": "Remaining obligations: r1: Candidate reports Seccomp 2 and an increased filter count, but individual before/after filter counts are not separately retained for independent comparison.; r6: Native control results are saved for the selected profiles, but candidate seccomp syscall outcomes are not independently traced for every profile."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-seccomp-counts"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-seccomp-independent-helper"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ns-seccomp-allow-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ns-seccomp-deny-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ns-seccomp-kernel-invalid-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ns-seccomp-malformed-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-namespace-network-ns-seccomp-permission-r1"
+        }
+      ]
     },
     {
       "id": "ns-lsm-transition",
-      "kind": "deferred",
       "purpose": "Check LSM detection and on-exec profile requests for AppArmor and SELinux, including unavailable and invalid-profile paths.",
-      "reason": "The detection and on-exec write paths are file-based and testable unprivileged with the documented root overrides; no fixture exists for them. A real AppArmor transition needs a test profile, and loading one needs CAP_MAC_ADMIN in the initial user namespace with an unload restore, which no driver provides. Missing capability: CAP_MAC_ADMIN in the initial user namespace. Writes to /sys/kernel/security/apparmor/.replace fail with EACCES/EPERM for uid 2000, and USERNS root has no MAC_ADMIN over the global policy. SELinux needs a different boot configuration and policy."
+      "kind": "deferred",
+      "reason": "Remaining: r5 SELinux unavailable in the guest (AppArmor-only kernel, no SELinux policy in the image)."
     },
     {
       "id": "ns-cgroup-v2-helpers",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check cgroup v2 create, controller value, process membership, controller-enable, and remove behavior.",
-      "reason": "Writing cgroup files needs a writable delegated subtree. As uid 2000, mkdir under root-owned /sys/fs/cgroup returns EACCES; the legacy runner has no /sys. The root controller must create a per-side subtree and chown it to uid 2000 (cgroup delegation: directory, cgroup.procs, cgroup.subtree_control). The candidate hardcodes /sys/fs/cgroup (loadables/ns.c:532), so the fixture must address the subtree by its relative path from the root. Path validation needs no privilege."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-cgroup-add-enable-remove"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-cgroup-create-set"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-cgroup-path-validation"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-ns-cgroup-real-root"
+        }
+      ]
     },
     {
       "id": "help-verbs-contract",

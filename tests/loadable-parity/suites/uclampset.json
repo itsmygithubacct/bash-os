@@ -167,9 +167,9 @@
     },
     {
       "id": "defer_system_files",
-      "kind": "deferred",
       "purpose": "Qualify live system sysctl semantics and injected write/open failures, ordering and rollback beyond the private regular-file model.",
-      "reason": "r1 to r3 are missing fixtures on the existing private-file seam. The short write needs SECCOMP-NOTIFY. Only the live sysctl semantics need root, because the sysctls are global and not namespaced."
+      "kind": "deferred",
+      "reason": "Remaining: r5 live sysctl semantics are impossible on this guest kernel (the sysctl files do not exist)."
     },
     {
       "id": "defer_command_mode",

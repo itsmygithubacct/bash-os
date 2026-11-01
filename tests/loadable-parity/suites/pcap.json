@@ -107,15 +107,41 @@
     },
     {
       "id": "capture-write-fixed-frames",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Capture a known frame count into a classic pcap file and verify global and per-record fields, snaplen truncation, and output permissions.",
-      "reason": "No executed case writes a capture. Frame injection and capture are possible as VM root in a script-created netns."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-pcap-count-header"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-pcap-perms"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-pcap-records"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-pcap-snaplen"
+        }
+      ]
     },
     {
       "id": "capture-interface-timeout",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check interface selection and bounded timeout behavior with and without injected packets.",
-      "reason": "No executed capture case. The VM script runs as root (CAP_NET_RAW) and can create a private netns with two veth interfaces and inject frames with a python AF_PACKET helper."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-pcap-iface"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-pcap-timeout"
+        }
+      ]
     },
     {
       "id": "info-swapped-nanosecond",

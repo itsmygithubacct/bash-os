@@ -115,9 +115,78 @@
     },
     {
       "id": "configuration-policy",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check sshd -F parsing for supported directives, Include expansion, Match blocks, invalid values, and configuration reload behavior.",
-      "reason": "Remaining obligations: r1: The shared fixture exercises listen address/port, host key, authorized keys, password-disabled and forwarding policy. PubkeyAuthentication disable and a positive AllowAgentForwarding channel still need explicit assertions.; r2: Absolute Include glob expansion and exclusion of nonmatching files pass. Relative-to-parent expansion in the reviewed contract remains untested; OpenSSH resolves relative Includes differently.; r3: Matching/nonmatching Address blocks exercise PermitTTY. Match User/All and PermitRootLogin/forwarding overrides remain untested."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-sshd-agent-channel-list"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-sshd-include-relative"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-sshd-match-all-tty"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-sshd-match-root-login-userns"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-sshd-match-user-forward-denied"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-sshd-match-user-nonmatching"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-sshd-pubkey-auth-disabled"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-agent-forward-denied"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-direct-forward-allowed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-direct-forward-denied"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-encrypted-exec"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-include-glob"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-invalid-config-refused"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-match-address-applies"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-match-address-skips"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-password-disabled"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-review-session-reload"
+        }
+      ]
     },
     {
       "id": "authentication-authorization",
@@ -154,9 +223,70 @@
     },
     {
       "id": "sftp-and-forwarding",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check SFTP file requests and direct/reverse TCP and agent forwarding after authentication, including denied-policy cases.",
-      "reason": "Remaining obligations: r1: SFTP put/get/chmod bytes and modes pass; directory listing is not asserted.; r4: No agent-channel request/reply is asserted; original ssh-add -l case exits early.; r5: Direct forwarding and global agent-forwarding denials are checked. SFTP-unavailable refusal and the per-key no-agent-forwarding branch remain untested."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-sshd-agent-channel-list"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-sshd-key-no-agent-forwarding"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-sshd-sftp-ls"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-sshd-sftp-subsystem-unavailable"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-agent-forward-allowed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-agent-forward-denied"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-agent-forward-session-env"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-direct-forward-allowed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-direct-forward-denied"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-direct-forward-local-listener"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-key-no-port-forwarding"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-reverse-forward"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-reverse-forward-cancel"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-reverse-forward-only"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-sftp-put-get"
+        }
+      ]
     }
   ]
 }

@@ -91,13 +91,13 @@
       "id": "interactive-auth-session-deferred",
       "purpose": "Future end-to-end coverage of password verification, retry and lockout state, TTY policy, session accounting, and successful login session setup.",
       "kind": "deferred",
-      "reason": "Nothing executes the login verb. Prompting, verification, retries, lockout and TTY policy are observable by an unprivileged PTY fixture with private account files. Only the successful session (accounting files, credential switch, kernel proof) needs a root-run side and/or the bash-os auth device."
+      "reason": "r6 successful session needs root and writable accounting files; r2 includes a retained candidate FAIL."
     },
     {
       "id": "credential-transition-deferred",
       "purpose": "Future verification of become's token handling, supplementary groups, uid/gid transition, environment, working directory, and exec arguments.",
       "kind": "deferred",
-      "reason": "become is root-only by design and its token path depends on the bash-os kernel auth device. Only the non-root refusal is observable by an ordinary fixture."
+      "reason": "r2 token acceptance needs the real device."
     }
   ]
 }

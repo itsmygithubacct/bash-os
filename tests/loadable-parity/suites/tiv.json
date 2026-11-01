@@ -124,9 +124,9 @@
     },
     {
       "id": "unicode-terminal-display",
-      "kind": "deferred",
       "purpose": "Qualify how the half, quad, sextant, and octant output appears in a terminal with known Unicode and color support.",
-      "reason": "Never executed. r1 is implementable now with screen assertions. r2 needs a small driver extension (cell attribute assertions). r3 needs an emulator, font and screenshot capability that no fixture driver has."
+      "kind": "deferred",
+      "reason": "Real glyph rendering needs an emulator and font rasteriser that the guest does not have."
     },
     {
       "id": "missing-image",

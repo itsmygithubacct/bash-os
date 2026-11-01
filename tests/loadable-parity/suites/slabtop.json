@@ -206,9 +206,46 @@
     },
     {
       "id": "deferred-interactive-pty",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Interactive screen behavior and terminal cleanup need a bounded PTY driver and independently controlled slab data.",
-      "reason": "There is no fixture. Candidate-contract behavior is testable now through BASHOS_PROC_ROOT with a relative fixture plus the PTY driver. The GNU interactive comparison (r7) uses the same unprivileged unshare -Urm bind-mount overlay as deferred-gnu-batch-parity."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "mig-w8-slabtop-esc-exit"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-slabtop-initial-table"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-slabtop-procps-interactive"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-slabtop-quit-keys"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-slabtop-resize-redraw"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-slabtop-sort-cycle"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-slabtop-summary-lines"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-slabtop-terminal-restore"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-slabtop-timeout-redraw"
+        }
+      ]
     },
     {
       "id": "missing-private-slabinfo",

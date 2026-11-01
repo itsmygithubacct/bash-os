@@ -100,19 +100,19 @@
       "id": "deferred-kernel-queries",
       "purpose": "Cover status and list-rules netlink read behavior against a controlled audit kernel state.",
       "kind": "deferred",
-      "reason": "No driver runs a case with CAP_AUDIT_CONTROL in the initial user and PID namespaces, and no controller records audit status/rules around a case. The image has no auditctl reference. Only the unprivileged refusal path is reachable with existing drivers and it is not asserted. Missing capability: CAP_AUDIT_CONTROL in the initial user and PID namespaces. An unprivileged fixture cannot observe the obligation: audit_netlink_ok() returns ECONNREFUSED in any non-initial user namespace (legacy bwrap, USERNS) and EPERM for uid 2000 without CAP_AUDIT_CONTROL in the plain driver; audit state is global, not namespaced."
+      "reason": "Remaining: r1-r4 and r6 need AUDIT_GET/AUDIT_LIST_RULES success in the initial user and PID namespaces."
     },
     {
       "id": "deferred-kernel-rule-changes",
       "purpose": "Cover set-enabled, add-rule, and del-rule encoding plus kernel acknowledgement and resulting rule state.",
       "kind": "deferred",
-      "reason": "Rule mutation needs CAP_AUDIT_CONTROL in the initial user and PID namespaces plus snapshot/restore of global audit state; no driver provides that, and no reference auditctl is installed. Unprivileged argument-validation paths exist in the candidate but are not asserted. Missing capability: CAP_AUDIT_CONTROL in the initial user and PID namespaces. An unprivileged fixture cannot observe the obligation: audit_netlink_ok() returns ECONNREFUSED in any non-initial user namespace (legacy bwrap, USERNS) and EPERM for uid 2000 without CAP_AUDIT_CONTROL in the plain driver; audit state is global, not namespaced."
+      "reason": "Remaining: r1, r3, r4, r6, r7 need CAP_AUDIT_CONTROL in the initial namespaces."
     },
     {
       "id": "deferred-audit-consumer",
       "purpose": "Cover run registration, bounded event collection, decode integration, and cleanup of the audit daemon PID.",
       "kind": "deferred",
-      "reason": "Consuming events requires being the registered audit daemon (CAP_AUDIT_CONTROL, initial user+PID ns, no competing auditd), a controller-installed rule, fixture-triggered events and pid/enabled restore. No driver provides that. Only the decoder is covered, with synthetic payloads. Missing capability: CAP_AUDIT_CONTROL in the initial user and PID namespaces. An unprivileged fixture cannot observe the obligation: audit_netlink_ok() returns ECONNREFUSED in any non-initial user namespace (legacy bwrap, USERNS) and EPERM for uid 2000 without CAP_AUDIT_CONTROL in the plain driver; audit state is global, not namespaced."
+      "reason": "Remaining: everything that needs the registered audit daemon (CAP_AUDIT_CONTROL, initial user and PID namespaces)."
     },
     {
       "id": "empty-record-defaults",

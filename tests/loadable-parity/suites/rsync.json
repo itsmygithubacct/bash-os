@@ -168,9 +168,26 @@
     },
     {
       "id": "daemon-protocol-requires-server",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise rsync daemon URL/module transfers against a disposable rsync daemon mock.",
-      "reason": "No executed fixture runs an rsync daemon. A per-side script can background the trusted /usr/bin/rsync --daemon on 127.0.0.1 with a private config."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-rsync-daemon-greeting"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-rsync-daemon-pull"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-rsync-daemon-push"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-rsync-daemon-refusal"
+        }
+      ]
     },
     {
       "id": "empty-source-directory",

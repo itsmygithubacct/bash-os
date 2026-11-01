@@ -96,15 +96,49 @@
     },
     {
       "id": "defer-ban-state-and-firewall",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise actual banip/unbanip policy changes and backend effects through the integration layer.",
-      "reason": "The bash-os loadable is a control-plane parser/formatter only; the ban/unban state machine and firewall calls live in shell wrappers that are not shipped in this repository, so no candidate code performs the obligation."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/fail2ban/format-all-jails"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/fail2ban/invalid-ip-status"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/fail2ban/invalid-jail-status"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/fail2ban/valid-token-forms"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-fail2ban-ban-state"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-fail2ban-ban-validation"
+        }
+      ]
     },
     {
       "id": "defer-daemon-reload-control",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise reload and daemon-backed status behavior across the client control interface.",
-      "reason": "The candidate implements no daemon client, control socket, or reload operation; the obligation belongs to absent shell wrappers."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/fail2ban/parse-accepted-verbs"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w6-fail2ban-daemon-control"
+        }
+      ]
     },
     {
       "id": "validator-missing-operand",

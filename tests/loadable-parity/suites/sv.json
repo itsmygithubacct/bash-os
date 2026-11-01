@@ -61,27 +61,135 @@
     },
     {
       "id": "deferred-service-lifecycle",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify once/up/down/restart/signal/status/run and shutdown semantics with services confined to an owned fixture process tree.",
-      "reason": "Remaining obligations: r1: No service verb has executed.; r2: Not executed.; r3: Not executed.; r4: Not executed."
+      "replacement_cases": [
+        {
+          "group": "legacy",
+          "id": "legacy/sv/log-binary-long-unterminated"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/sv/log-empty-and-blank-records"
+        },
+        {
+          "group": "legacy",
+          "id": "legacy/sv/log-line-count-boundaries"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-once"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-signal"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-status"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-up-down-restart"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-sv-run-shutdown-r2"
+        }
+      ]
     },
     {
       "id": "deferred-readiness-and-ordering",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify restart policies, finish hooks, readiness checks, oneshot behavior, and dependency-ordered boot and shutdown.",
-      "reason": "Remaining obligations: r1: Not executed.; r3: Notification readiness was recorded; check, COMMAND and timeout readiness branches were not exercised.; r4: Not executed.; r5: Not executed."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-boot-shutdown-order"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-oneshot-failure-blocks-boot"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-oneshot-gates-boot"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-oneshot-lifecycle"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-readiness-failure-blocks-dependents"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-readiness-gates-dependents"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-readiness-modes"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-restart-policy"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-sv-notify-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-sv-run-shutdown-r2"
+        }
+      ]
     },
     {
       "id": "deferred-activation-protocols",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify socket and path activation, notify readiness, and timer scheduling without contacting host services or peers.",
-      "reason": "Remaining obligations: r1: Not executed; loopback is authorized in the VM.; r2: Not executed; unprivileged on a private directory.; r4: Not executed; private spool dir via env."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-path-activation"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-socket-activation"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-timer"
+        },
+        {
+          "group": "shell",
+          "id": "migration-services-sv-notify-r2"
+        }
+      ]
     },
     {
       "id": "deferred-privilege-and-namespaces",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Qualify service user drops, capability drops, and namespace directives.",
-      "reason": "Namespace directives (with a user namespace) and directive-failure handling are unprivileged; actual user and capability drops need guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-capabilities-drop"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-directive-failure-blocks-start"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-namespace-directive"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-sv-user-drop-root"
+        }
+      ]
     }
   ]
 }

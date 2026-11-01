@@ -127,9 +127,9 @@
     },
     {
       "id": "interactive_pty_navigation",
-      "kind": "deferred",
       "purpose": "Exercise interactive page boundaries, Enter/space navigation, -d prompt text, forward search, quit across operands, and terminal-state restoration.",
-      "reason": "Paging, line advance, short-file EOF and termios restoration are exercised. -d prompt text, search and multi-operand quit have no fixture."
+      "kind": "deferred",
+      "reason": "Invalid-key hint text under -d is not produced by the reference."
     },
     {
       "id": "missing-valid-continuation",

@@ -78,9 +78,18 @@
     },
     {
       "id": "denied-priority-adjustment",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Future check of negative adjustments and the documented nonfatal handling of setpriority failure.",
-      "reason": "Remaining obligations: r3: Requires a privileged side: every guest fixture runs as uid 2000 with no capabilities and hard RLIMIT_NICE 0, so lowering niceness cannot succeed; a root-run case is the only way to observe it."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w4-root-nice-negative-adjustment"
+        },
+        {
+          "group": "shell",
+          "id": "migration-nice-denied-adjustment"
+        }
+      ]
     },
     {
       "id": "command-dispatch-and-errors",

@@ -99,9 +99,26 @@
     },
     {
       "id": "recv-fd-peer-credentials",
+      "kind": "migrated",
       "purpose": "Check the optional peer UID, GID, and PID filters, including mismatches and malformed numeric arguments.",
-      "kind": "deferred",
-      "reason": "No executed case. The VM script runs as root, so a python helper can fork, setresgid/setresuid to fixture ids (e.g. 4242/4343) and connect, giving a distinct-identity peer without new driver capability."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-scm-peer-distinct-identity-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-scm-peer-malformed"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-scm-peer-match"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-scm-peer-mismatch"
+        }
+      ]
     }
   ]
 }

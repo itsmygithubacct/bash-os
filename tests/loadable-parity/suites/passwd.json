@@ -77,7 +77,7 @@
       "id": "password_hash_updates",
       "purpose": "Future coverage for set, set-fd, change, add, and add-fd password hashing and shadow updates.",
       "kind": "deferred",
-      "reason": "Remaining obligations: r3: Not executed.; r4: No observation establishes that the candidate secret buffer is wiped after use or that secret bytes never reach paths outside the searched database and diagnostic files. The old mode check establishes only that shadow has no other-access bits; full pre/post shadow permission preservation was not observed.; r5: The slot protocol used intercepted synthetic device replies; real kernel secret-slot security remains untested."
+      "reason": "Remaining: r4 secret wiping (unobservable without tracing) and r5 real kernel secret slots (blocked-authority)."
     },
     {
       "id": "password_verification_lockout",
@@ -89,7 +89,7 @@
       "id": "interactive_password_prompts",
       "purpose": "Future coverage for prompt ordering, new-password confirmation, echo suppression, and terminal restoration.",
       "kind": "deferred",
-      "reason": "Remaining obligations: r1: Change prompt scenario requires a non-colliding synthetic current password and independent revalidation.; r3: ECHO state during successful, mismatch and interrupted reads remains unqualified.; r4: Foreground Ctrl-C interruption restoration remains uncovered; change case remains unqualified under strict collision gate."
+      "reason": "Remaining: r4 Ctrl-C (SIGINT) restoration."
     },
     {
       "id": "readonly_database_queries",

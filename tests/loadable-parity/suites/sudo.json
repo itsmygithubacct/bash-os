@@ -50,15 +50,33 @@
     },
     {
       "id": "root-credential-drop",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check child uid/gid and supplementary groups, environment scrubbing and assignment replacement, descriptor and signal cleanup, literal argv, and child exit/signal statuses on the root route.",
-      "reason": "Root route is device-free but needs guest case option to run a side as uid 0 inside a private mount namespace with fixture /etc/passwd and /etc/group bind-mounted (guest.py terminal.child_limits always drops to uid 2000; a drop to a second synthetic uid needs CAP_SETUID/CAP_SETGID, the legacy runner disables user namespaces, and an unprivileged user namespace maps only one uid)."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w4-root-sudo-child-drop"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w4-root-sudo-target-groups"
+        }
+      ]
     },
     {
       "id": "login-shell-and-command-quoting",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Check -i home and login-shell selection, -s shell selection, and sudo command-string escaping for metacharacters, dollar signs, empty arguments, quotes, and newlines.",
-      "reason": "Remaining obligations: r1: Requires euid 0 (root route) or the device; the delegate route refuses -i.; r2: Requires an executing route.; r3: The quoting function (doas.c bda_sudo_shell_join/bda_sudo_escape_append) is pure, but it is only reachable through an executing route; no device-free entry point prints it."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w4-root-sudo-login-shell-quoting"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sudo-doas-fallback-translation"
+        }
+      ]
     },
     {
       "id": "timestamp-validation-flows",

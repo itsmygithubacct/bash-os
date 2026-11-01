@@ -138,9 +138,9 @@
     },
     {
       "id": "pty-serial-ldisc-deferred",
-      "kind": "deferred",
       "purpose": "Exercise set-ldisc validation and line-discipline changes against an isolated serial endpoint.",
-      "reason": "Never executed. r1-r3 are ordinary unprivileged fixtures. r4-r5 sit behind the candidate's CAP_SYS_ADMIN check (pty.c 902-908) and need a real serial endpoint, because changing a PTY's line discipline away from N_TTY is not a meaningful serial test."
+      "kind": "deferred",
+      "reason": "Serial CSIZE/PARENB effects are not observable on a pseudo-terminal."
     },
     {
       "id": "regular-file-is-not-terminal",

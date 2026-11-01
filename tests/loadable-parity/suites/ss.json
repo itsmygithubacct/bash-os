@@ -43,21 +43,55 @@
     },
     {
       "id": "deferred_owned_socket_selectors",
+      "kind": "migrated",
       "purpose": "Future operation comparison should cover default TCP selection, TCP/UDP/Unix family flags, listen versus all states, numeric endpoints, and IPv4/IPv6 rows using only sockets owned by the fixture.",
-      "kind": "deferred",
-      "reason": "No executed case. A deterministic socket table needs a private netns the script creates as VM root, populated by its own python helper."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ss-default"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ss-families"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ss-listen-all"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ss-numeric"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-ss-vs-iproute2"
+        }
+      ]
     },
     {
       "id": "deferred_proc_fallback",
       "purpose": "Future operation comparison should force sock_diag unavailable and verify deterministic TCP/UDP/Unix proc-table fallback, empty snapshots, queue limitations, and no partial netlink rows after fallback.",
       "kind": "deferred",
-      "reason": "Remaining obligations: r1: Controlled live IPv4 TCP/UDP and Unix records were observed; the captured IPv6 proc tables contained no controlled rows.; r2: Not executed."
+      "reason": "r2 needs synthetic proc-table input via a syscall mock; r1 and the existing r3/r4 are covered"
     },
     {
       "id": "deferred_process_annotation",
+      "kind": "migrated",
       "purpose": "Future operation comparison should verify -p associates fixture-owned socket inodes with the correct process and file descriptor, while tolerating denied process directories and descriptors that disappear during scanning.",
-      "kind": "deferred",
-      "reason": "No executed case. Owned-child annotation is checkable per side: each side verifies the PID/fd against its own known helper child and emits a semantic marker. Denied directories need a process the scanner cannot read, which the root VM script can produce with hidepid or a distinct-uid helper while scanning as an unprivileged uid."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-annot-denied"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-annot-ss"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w1-sock-annot-vanish"
+        }
+      ]
     },
     {
       "id": "deferred_netlink_protocol_errors",

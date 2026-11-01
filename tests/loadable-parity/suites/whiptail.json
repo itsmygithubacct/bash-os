@@ -250,9 +250,34 @@
     },
     {
       "id": "deferred-terminal-rendering",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Exercise box layout and redraw behavior for message/progress widgets and file-backed textbox/tailbox scrolling.",
-      "reason": "Never executed. The PTY driver's screen rows and resize steps can assert box geometry and content semantically against newt whiptail in the VM."
+      "replacement_cases": [
+        {
+          "group": "terminal",
+          "id": "mig-w8-whiptail-gauge-updates"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-whiptail-infobox-no-wait"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-whiptail-msgbox-layout"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-whiptail-resize-redraw"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-whiptail-tailbox-follows"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-whiptail-textbox-scroll"
+        }
+      ]
     }
   ]
 }

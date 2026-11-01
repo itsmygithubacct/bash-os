@@ -143,9 +143,26 @@
     },
     {
       "id": "ntp-nts-ke-query",
-      "kind": "deferred",
+      "kind": "migrated",
       "purpose": "Verify the NTS-KE negotiation, cookie handling and authenticated NTP response path against independently generated protocol fixtures.",
-      "reason": "No executed fixture provides an NTS-KE TLS server and an NTS-authenticated NTP UDP responder. The candidate's ntp query passes no CA path to bc_nts_ke_run, so trust must come from the system bundle, which a fixture must override privately."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w2-ntp-nts-r1"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-ntp-nts-r2"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-ntp-nts-r3"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w2-ntp-nts-r4"
+        }
+      ]
     }
   ]
 }
