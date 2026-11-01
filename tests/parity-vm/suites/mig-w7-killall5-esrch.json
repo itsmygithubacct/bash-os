@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w7-killall5-esrch-injected",
+      "loadable": "killall5",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "With kill(2) answered ESRCH (victim vanished) or EPERM by a seccomp-notify supervisor for chosen victims, killall5 does not abort the broadcast, still signals the remaining victims, and exits 0 when at least one delivery succeeded and 2 when none did; ESRCH is silent while EPERM is reported.",
+      "covers": [
+        "killall5/signal_delivery"
+      ],
+      "oracle": "Trap logs of three owned sacrificial victims in a private PID namespace; the injected kill results come from the reviewed system-sequence.py reply sequences (victims are signalled in ascending PID order).",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3",
+        "unshare"
+      ],
+      "files": {
+        "victim.py": "import os, signal, sys, time\nname, mode = sys.argv[1], sys.argv[2]\nuid = int(sys.argv[3]) if len(sys.argv) > 3 else None\nif mode == \"session\":\n    os.setsid()\nlog = os.open(name + \".log\", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)\nready = os.open(name + \".ready\", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)\nif uid is not None:\n    os.setgroups([]); os.setgid(uid); os.setuid(uid)\ndef handler(sig, frame):\n    os.write(log, (signal.Signals(sig).name[3:] + \"\\n\").encode())\n    if sig == signal.SIGTERM:\n        os._exit(0)\nfor s in (signal.SIGUSR1, signal.SIGUSR2, signal.SIGHUP, signal.SIGTERM):\n    signal.signal(s, handler)\nos.write(ready, b\"1\")\nend = time.time() + 40\nwhile time.time() < end:\n    time.sleep(0.05)\n",
+        "inner.sh": "tick() { read -t \"$1\" -u 7 || :; }\nO() { /usr/bin/python3 - \"$@\"; }\nstart() { /usr/bin/python3 victim.py \"$@\" & until [[ -s $1.ready ]]; do tick 0.05; done; }\nVICTIMS=(s1 s2 s3 same)\nlines() { local f L n=0; for f in \"${VICTIMS[@]}\" self; do L=(); [[ -e $f.log ]] && mapfile -t L < $f.log; n=$((n+${#L[@]})); done; REPLY=$n; }\nshow() { local f L; for f in \"${VICTIMS[@]}\" self; do L=(); [[ -e $f.log ]] && mapfile -t L < $f.log; local IFS=,; printf ' %s=%s' $f \"${L[*]:--}\"; done; echo; }\ndeliver() { # label expected-log-lines killall5-args...\n  local label=$1 expect=$2 i; shift 2\n  for f in \"${VICTIMS[@]}\" self; do : > $f.log; done\n  killall5 \"$@\" 2>err.txt; local rc=$?\n  for ((i=0;i<60;i++)); do lines; ((REPLY>=expect)) && break; tick 0.05; done\n  tick 0.3\n  local e ep=none; e=$(< err.txt); [[ -n $e ]] && ep=present; printf '%s status=%s err=%s' \"$label\" $rc \"$ep\"; show\n}\nexec 7<> wait.fifo\ntrap 'echo USR1 >> self.log' USR1\nstart s1 session; start s2 session; start s3 session\nstart same none\nH=/opt/bashos-parity/harness/helpers/system-sequence.py\ninj() { local lab=$1; shift; for f in \"${VICTIMS[@]}\" self; do : > $f.log; done\n  /usr/bin/python3 $H \"$@\" -- \"$BASH\" --noprofile --norc -c 'killall5 -USR1' 2>err.txt; local rc=$?\n  tick 0.5; local e ep=none; e=$(< err.txt); [[ -n $e ]] && ep=present; printf '%s status=%s err=%s' \"$lab\" $rc \"$ep\"; show; }\ninj first-victim-esrch --notify kill --reply-seq kill=ESRCH,continue,continue\ninj last-victim-esrch --notify kill --reply-seq kill=continue,continue,ESRCH\ninj all-esrch --notify kill --reply kill=ESRCH\ninj esrch-then-eperm --notify kill --reply-seq kill=ESRCH,EPERM,continue\ninj all-eperm --notify kill --reply kill=EPERM\ninj eperm-and-esrch-only --notify kill --reply-seq kill=EPERM,ESRCH,ESRCH\n"
+      },
+      "features": [
+        "userns",
+        "seccomp-notify"
+      ],
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import os; os.mkfifo(\"wait.fifo\")'\n/usr/bin/unshare --user --map-root-user --pid --fork --mount-proc \"$BASH\" --noprofile --norc inner.sh\necho \"ns status=$?\"\n",
+      "stdout": "first-victim-esrch status=0 err=none s1=- s2=USR1 s3=USR1 same=- self=-\nlast-victim-esrch status=0 err=none s1=USR1 s2=USR1 s3=- same=- self=-\nall-esrch status=2 err=none s1=- s2=- s3=- same=- self=-\nesrch-then-eperm status=0 err=present s1=- s2=- s3=USR1 same=- self=-\nall-eperm status=2 err=present s1=- s2=- s3=- same=- self=-\neperm-and-esrch-only status=2 err=present s1=- s2=- s3=- same=- self=-\nns status=0\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      }
+    }
+  ]
+}
