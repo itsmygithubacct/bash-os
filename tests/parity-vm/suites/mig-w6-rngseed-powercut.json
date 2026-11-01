@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-rngseed-powercut-root",
+      "loadable": "rngseed",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "rngseed/load_failure_recovery"
+      ],
+      "purpose": "Power-cut durability: with the seed on a journaled ext4 filesystem over a dm-flakey device, cutting the power (all further writes dropped, process killed) at the moment rngseed load is about to credit leaves no seed file after journal replay, while a plain unsynced unlink in the same model is lost and the file comes back",
+      "oracle": "A dm-flakey drop_writes model of a power cut on an ext4 loop device, replayed from the loop file; the control shows the model loses an unsynced removal, so the absence after rngseed load is due to the builtin's unlink plus directory fsync before the credit",
+      "comparison": "After the cut at the RNDADDENTROPY ioctl (seccomp user notification, ioctl never executed): names present on the replayed filesystem; control file names for an unsynced unlink.",
+      "requires": [
+        "python3",
+        "mkfs.ext4",
+        "dmsetup",
+        "losetup"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/mig-w6-powercut.py": "cc821b2e578c53fac920093a3709d0a790fab36bbf228f0e9bd99e46f4a488aa"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t rngseed) == builtin ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w6-powercut.py \"$BASH\"\n",
+      "expected_status": 0,
+      "stdout": "control-plain-unlink: seed-present-after-power-cut=1\nrngseed-load: stopped-at-credit-ioctl=1 seed-present-after-power-cut=0\n",
+      "stderr": "",
+      "timeout": 60
+    }
+  ]
+}
