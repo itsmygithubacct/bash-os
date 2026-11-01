@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w7-gpu-shader-errors-headless",
+      "loadable": "gpu",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "In a headless session a missing shader file, a file containing a NUL byte, an over-1-MiB file, a valid file with no render node, and render without a shader each fail with status 1 and a diagnostic naming the cause, while the canvas stays exactly as drawn (compared with an independent PPM model) and the session continues to work.",
+      "covers": [
+        "gpu/gles-shader-and-dmabuf"
+      ],
+      "oracle": "Independent PPM byte model of the red 4x4 canvas; errno texts per the documented gpu shader behaviour (fopen failure, EINVAL for invalid/oversize text, 'no usable render node' when no DRM render node exists).",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "python3"
+      ],
+      "files": {},
+      "script": "export PYTHONDONTWRITEBYTECODE=1\ne() { local l=$1 want=$2; local m=$(< err.txt); [[ $m == *\"$want\"* ]] && echo yes || echo \"no [$m]\"; }\ngpu start 4 4 --headless; echo \"start=$?\"\ngpu rect 0 0 4 4 FF0000; echo \"rect=$?\"\ngpu shader \"$PWD/nosuch.frag\" 2>err.txt; echo \"missing-file status=$? names-error=$(e x 'No such file or directory')\"\nprintf 'void main(){}\\0\\n' > nul.frag\ngpu shader \"$PWD/nul.frag\" 2>err.txt; echo \"nul-byte-file status=$? names-error=$(e x 'Invalid argument')\"\n/usr/bin/python3 -c 'open(\"big.frag\",\"wb\").write(b\"a\" * (1024 * 1024 + 1))'\ngpu shader \"$PWD/big.frag\" 2>err.txt; echo \"oversize-file status=$? names-error=$(e x 'Invalid argument')\"\nprintf 'precision mediump float;\\nvoid main(){gl_FragColor=vec4(1.0);}\\n' > ok.frag\ngpu shader \"$PWD/ok.frag\" 2>err.txt; echo \"valid-shader-without-gpu status=$? reports-no-render-node=$(e x 'no usable render node')\"\ngpu render 0.0 2>err.txt; echo \"render-without-shader status=$? says-load-first=$(e x 'load a fragment shader first')\"\ngpu save out.ppm ppm; echo \"save=$?\"\n/usr/bin/python3 -c 'import sys; sys.exit(0 if open(\"out.ppm\",\"rb\").read() == b\"P6\\n4 4\\n255\\n\" + bytes([255,0,0]) * 16 else 1)'; echo \"canvas-unchanged-matches-model=$([[ $? == 0 ]] && echo yes || echo no)\"\ngpu shader off; echo \"shader-off=$?\"\ngpu stop; echo \"stop=$?\"\n",
+      "stdout": "start=0\nrect=0\nmissing-file status=1 names-error=yes\nnul-byte-file status=1 names-error=yes\noversize-file status=1 names-error=yes\nvalid-shader-without-gpu status=1 reports-no-render-node=yes\nrender-without-shader status=1 says-load-first=yes\nsave=0\ncanvas-unchanged-matches-model=yes\nshader-off=0\nstop=0\n",
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}
