@@ -1,0 +1,229 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w2-acme-lifecycle-r1",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Fetch the ACME directory and use its newNonce/newAccount/newOrder URLs (RFC 8555 7.1.1). The frozen candidate implements only the JWK/JWS primitives (acme.c dispatch); the lifecycle verb named in its help text is invoked here so the reached failure is recorded.",
+      "oracle": "RFC 8555 requirements enforced by a local Python mock CA (ES256 JWS validation, nonce accounting, kid/jwk rules, POST-as-GET, CSR parsing, http-01 fetch); a Python control client first completes the whole lifecycle against a separate mock instance so the oracle is shown to accept a correct client.",
+      "comparison": "Candidate runs the documented lifecycle verb against the loopback mock CA with a fixture-only key; expected status 0 and the CA-side request log must satisfy the requirement. Because the verb is absent the candidate exits with a usage error and the case FAILs.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-acme.py": "85cc5aa8b78983d4429fc0164ed737f31457952e3b66e4f2d4af936964b2423f"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" control 5811\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme directory \"$U/directory\" > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r1 5810\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nverified r1 failed=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-acme-lifecycle-r2",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Obtain a Replay-Nonce with HEAD newNonce and carry each response nonce into the next JWS. The frozen candidate implements only the JWK/JWS primitives (acme.c dispatch); the lifecycle verb named in its help text is invoked here so the reached failure is recorded.",
+      "oracle": "RFC 8555 requirements enforced by a local Python mock CA (ES256 JWS validation, nonce accounting, kid/jwk rules, POST-as-GET, CSR parsing, http-01 fetch); a Python control client first completes the whole lifecycle against a separate mock instance so the oracle is shown to accept a correct client.",
+      "comparison": "Candidate runs the documented lifecycle verb against the loopback mock CA with a fixture-only key; expected status 0 and the CA-side request log must satisfy the requirement. Because the verb is absent the candidate exits with a usage error and the case FAILs.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-acme.py": "85cc5aa8b78983d4429fc0164ed737f31457952e3b66e4f2d4af936964b2423f"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" control 5811\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme account --directory \"$U/directory\" -k \"$K\" --domain fixture.test > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r2 5810\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nverified r2 failed=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-acme-lifecycle-r3",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "newAccount is a flattened ES256 JWS with jwk, url, nonce and valid signature; the account Location is reported. The frozen candidate implements only the JWK/JWS primitives (acme.c dispatch); the lifecycle verb named in its help text is invoked here so the reached failure is recorded.",
+      "oracle": "RFC 8555 requirements enforced by a local Python mock CA (ES256 JWS validation, nonce accounting, kid/jwk rules, POST-as-GET, CSR parsing, http-01 fetch); a Python control client first completes the whole lifecycle against a separate mock instance so the oracle is shown to accept a correct client.",
+      "comparison": "Candidate runs the documented lifecycle verb against the loopback mock CA with a fixture-only key; expected status 0 and the CA-side request log must satisfy the requirement. Because the verb is absent the candidate exits with a usage error and the case FAILs.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-acme.py": "85cc5aa8b78983d4429fc0164ed737f31457952e3b66e4f2d4af936964b2423f"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" control 5811\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme account --directory \"$U/directory\" -k \"$K\" --domain fixture.test > out.txt 2> err.txt; echo \"candidate-rc=$?\"\necho \"account-url=$(< out.txt)\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r3 5810\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\naccount-url=http://127.0.0.1:5810/acme/acct/1\nverified r3 failed=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-acme-lifecycle-r4",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "newOrder, authorization fetch and order polling use kid-headed JWS and POST-as-GET. The frozen candidate implements only the JWK/JWS primitives (acme.c dispatch); the lifecycle verb named in its help text is invoked here so the reached failure is recorded.",
+      "oracle": "RFC 8555 requirements enforced by a local Python mock CA (ES256 JWS validation, nonce accounting, kid/jwk rules, POST-as-GET, CSR parsing, http-01 fetch); a Python control client first completes the whole lifecycle against a separate mock instance so the oracle is shown to accept a correct client.",
+      "comparison": "Candidate runs the documented lifecycle verb against the loopback mock CA with a fixture-only key; expected status 0 and the CA-side request log must satisfy the requirement. Because the verb is absent the candidate exits with a usage error and the case FAILs.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-acme.py": "85cc5aa8b78983d4429fc0164ed737f31457952e3b66e4f2d4af936964b2423f"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" control 5811\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme order --directory \"$U/directory\" -k \"$K\" --domain fixture.test > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r4 5810\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nverified r4 failed=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-acme-lifecycle-r5",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "http-01 challenge: the CA fetches token.thumbprint and the challenge is POSTed. The frozen candidate implements only the JWK/JWS primitives (acme.c dispatch); the lifecycle verb named in its help text is invoked here so the reached failure is recorded.",
+      "oracle": "RFC 8555 requirements enforced by a local Python mock CA (ES256 JWS validation, nonce accounting, kid/jwk rules, POST-as-GET, CSR parsing, http-01 fetch); a Python control client first completes the whole lifecycle against a separate mock instance so the oracle is shown to accept a correct client.",
+      "comparison": "Candidate runs the documented lifecycle verb against the loopback mock CA with a fixture-only key; expected status 0 and the CA-side request log must satisfy the requirement. Because the verb is absent the candidate exits with a usage error and the case FAILs.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-acme.py": "85cc5aa8b78983d4429fc0164ed737f31457952e3b66e4f2d4af936964b2423f"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" control 5811\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme challenge --directory \"$U/directory\" -k \"$K\" --domain fixture.test > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r5 5810\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nverified r5 failed=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-acme-lifecycle-r6",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Finalize with a CSR for the fixture identifier and poll until valid. The frozen candidate implements only the JWK/JWS primitives (acme.c dispatch); the lifecycle verb named in its help text is invoked here so the reached failure is recorded.",
+      "oracle": "RFC 8555 requirements enforced by a local Python mock CA (ES256 JWS validation, nonce accounting, kid/jwk rules, POST-as-GET, CSR parsing, http-01 fetch); a Python control client first completes the whole lifecycle against a separate mock instance so the oracle is shown to accept a correct client.",
+      "comparison": "Candidate runs the documented lifecycle verb against the loopback mock CA with a fixture-only key; expected status 0 and the CA-side request log must satisfy the requirement. Because the verb is absent the candidate exits with a usage error and the case FAILs.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-acme.py": "85cc5aa8b78983d4429fc0164ed737f31457952e3b66e4f2d4af936964b2423f"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" control 5811\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme finalize --directory \"$U/directory\" -k \"$K\" --domain fixture.test > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r6 5810\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nverified r6 failed=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-acme-lifecycle-r7",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Download and store the issued certificate chain. The frozen candidate implements only the JWK/JWS primitives (acme.c dispatch); the lifecycle verb named in its help text is invoked here so the reached failure is recorded.",
+      "oracle": "RFC 8555 requirements enforced by a local Python mock CA (ES256 JWS validation, nonce accounting, kid/jwk rules, POST-as-GET, CSR parsing, http-01 fetch); a Python control client first completes the whole lifecycle against a separate mock instance so the oracle is shown to accept a correct client.",
+      "comparison": "Candidate runs the documented lifecycle verb against the loopback mock CA with a fixture-only key; expected status 0 and the CA-side request log must satisfy the requirement. Because the verb is absent the candidate exits with a usage error and the case FAILs.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-acme.py": "85cc5aa8b78983d4429fc0164ed737f31457952e3b66e4f2d4af936964b2423f"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" control 5811\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --directory \"$U/directory\" -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r7 5810\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nverified r7 failed=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w2-acme-lifecycle-r8",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "The whole protocol run contacts only the private local peer with fixture-only keys. The frozen candidate implements only the JWK/JWS primitives (acme.c dispatch); the lifecycle verb named in its help text is invoked here so the reached failure is recorded.",
+      "oracle": "RFC 8555 requirements enforced by a local Python mock CA (ES256 JWS validation, nonce accounting, kid/jwk rules, POST-as-GET, CSR parsing, http-01 fetch); a Python control client first completes the whole lifecycle against a separate mock instance so the oracle is shown to accept a correct client.",
+      "comparison": "Candidate runs the documented lifecycle verb against the loopback mock CA with a fixture-only key; expected status 0 and the CA-side request log must satisfy the requirement. Because the verb is absent the candidate exits with a usage error and the case FAILs.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-acme.py": "85cc5aa8b78983d4429fc0164ed737f31457952e3b66e4f2d4af936964b2423f"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/python3 \"$H\" control 5811\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --directory \"$U/directory\" -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r8 5810\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nverified r8 failed=0\n",
+      "stderr": "",
+      "timeout": 40
+    }
+  ]
+}

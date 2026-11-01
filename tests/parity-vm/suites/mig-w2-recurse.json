@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w2-dns-resolver-iterative-referrals",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "purpose": "resolver-serve --recurse --root-hints follows referrals from a controlled root through a TLD server to the authoritative server and returns the answer (r3).",
+      "oracle": "RFC 1034 s4.3.2 iterative resolution against a Python root/TLD/authority chain on 127.0.0.2/3/4 (referrals with glue); BIND dig is the independent client and the per-tier query log is recorded by the peer.",
+      "comparison": "One candidate resolver run with BASHDNS_SERVER_PORT redirecting iterative queries to port 5330 and root hint 127.0.0.2; dig queries it once; the client answer and the ordered root, tld, auth queries are checked.",
+      "requires": [
+        "python3",
+        "dig",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-recurse.py": "bde76210e7e82914fe4a7d2404880957be41845f71b523df6b877c0ed88dfb06",
+        "helpers/mig-w2-dnsx.py": "4d3daf7b1b7b155e9edc2475e1cf2b54a799c4622ceca3303251503d7e1b9822"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-recurse.py\n/usr/bin/python3 \"$H\" serve ready 2> tiers.err &\ntiers=$!\nexec 7<>w.fifo\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\nBASHDNS_SERVER_PORT=5330 dns resolver-serve --listen 127.0.0.1 --port 5320 --root-hints 127.0.0.2 --max-queries 1 --timeout 3000 < /dev/null 2> resolver.err &\nres=$!\n/usr/bin/python3 \"$H\" waitudp 5320\n/usr/bin/dig +tries=1 +time=6 -p 5320 @127.0.0.1 www.x.test A > dig.out 2>&1\nwait \"$res\"\necho \"resolver-rc=$?\"\nkill \"$tiers\"; wait \"$tiers\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify\n",
+      "diagnostic_files": [],
+      "expected_status": 0,
+      "stdout": "resolver-rc=0\nverified recurse failed=0\n",
+      "stderr": "",
+      "timeout": 40
+    }
+  ]
+}
