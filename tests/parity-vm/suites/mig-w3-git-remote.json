@@ -1,0 +1,127 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w3-git-ssh-clone",
+      "loadable": "git",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "git/remote_protocol_mock"
+      ],
+      "requires": [
+        "git",
+        "python3"
+      ],
+      "setup_script": "set -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-01-01T00:00:00Z' GIT_COMMITTER_DATE='2020-01-01T00:00:00Z'\ncat > fakessh <<'EOF'\n#!/bin/sh\n# fixture-only stand-in for ssh: drop option pairs, run the far command locally\nwhile [ $# -gt 2 ]; do case $1 in -o|-p) shift 2;; *) shift;; esac; done\nexec /bin/sh -c \"PATH=/usr/bin:/bin:/usr/lib/git-core; $2\"\nEOF\nchmod 755 fakessh\nG=/usr/bin/git\n$G init -q -b main src\ncd src\nprintf 'one\\n' > a.txt; mkdir dir; printf 'bee\\n' > dir/b.txt; $G add .; $G commit -q -m c1\nprintf 'two\\n' > a.txt; $G commit -q -am c2\nprintf 'three\\n' > a.txt; $G commit -q -am c3\ncd ..\n$G clone -q --bare src server.git\n$G --git-dir=server.git config http.receivepack true\n",
+      "setup_timeout": 40,
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-02-01T00:00:00Z' GIT_COMMITTER_DATE='2020-02-01T00:00:00Z'\nexport GIT_SSH_COMMAND=/tmp/parity-case/fakessh\nSG=\"/usr/bin/git --git-dir=/tmp/parity-case/server.git\"\nU=ssh://fixture/tmp/parity-case/server.git\nyn() { if \"$@\"; then echo yes; else echo no; fi; }\nhas() { case $1 in *\"$2\"*) echo yes;; *) echo no;; esac; }\ncleanup() { cd /tmp/parity-case; /bin/rm -rf src server.git cl cl2 hcl miss; }\ngit clone -q $U cl 2>\"$HOME/err.txt\"; echo \"clone-rc=$?\"\ncd cl\necho \"head-matches-server=$(yn [ \"$(git rev-parse HEAD)\" = \"$($SG rev-parse refs/heads/main)\" ])\"\necho \"tracking-ref-matches-server=$(yn [ \"$(git rev-parse refs/remotes/origin/main)\" = \"$($SG rev-parse refs/heads/main)\" ])\"\necho \"branch=$(git symbolic-ref --short HEAD)\"\necho \"commits=$(git rev-list --count HEAD)\"\necho \"a.txt=$(<a.txt) b.txt=$(<dir/b.txt)\"\ncleanup\n",
+      "stdout": "clone-rc=0\nhead-matches-server=yes\ntracking-ref-matches-server=yes\nbranch=main\ncommits=3\na.txt=three b.txt=bee\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "System git 2.47.3 (Debian trixie) run by the reference shell as the reference client; the server side is always the independent system git (git-upload-pack, git-receive-pack, git-http-backend) over a fixture-only fake ssh command or a loopback CGI peer; refs, counts and file bytes are also read back from the server repository with the system git",
+      "comparison": "r1: cloning ssh://fixture/PATH through the fake-ssh pipe transport (upload-pack) checks out main with the server's 3 commits, tracking ref and file bytes equal to the server repository The clone, server and source repositories are removed after the read-backs, because their internal pack/loose layout is not part of the requirement and would otherwise dominate the tree comparison."
+    },
+    {
+      "id": "mig-w3-git-ssh-fetch",
+      "loadable": "git",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "git/remote_protocol_mock"
+      ],
+      "requires": [
+        "git",
+        "python3"
+      ],
+      "setup_script": "set -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-01-01T00:00:00Z' GIT_COMMITTER_DATE='2020-01-01T00:00:00Z'\ncat > fakessh <<'EOF'\n#!/bin/sh\n# fixture-only stand-in for ssh: drop option pairs, run the far command locally\nwhile [ $# -gt 2 ]; do case $1 in -o|-p) shift 2;; *) shift;; esac; done\nexec /bin/sh -c \"PATH=/usr/bin:/bin:/usr/lib/git-core; $2\"\nEOF\nchmod 755 fakessh\nG=/usr/bin/git\n$G init -q -b main src\ncd src\nprintf 'one\\n' > a.txt; mkdir dir; printf 'bee\\n' > dir/b.txt; $G add .; $G commit -q -m c1\nprintf 'two\\n' > a.txt; $G commit -q -am c2\nprintf 'three\\n' > a.txt; $G commit -q -am c3\ncd ..\n$G clone -q --bare src server.git\n$G --git-dir=server.git config http.receivepack true\n",
+      "setup_timeout": 40,
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-02-01T00:00:00Z' GIT_COMMITTER_DATE='2020-02-01T00:00:00Z'\nexport GIT_SSH_COMMAND=/tmp/parity-case/fakessh\nSG=\"/usr/bin/git --git-dir=/tmp/parity-case/server.git\"\nU=ssh://fixture/tmp/parity-case/server.git\nyn() { if \"$@\"; then echo yes; else echo no; fi; }\nhas() { case $1 in *\"$2\"*) echo yes;; *) echo no;; esac; }\ncleanup() { cd /tmp/parity-case; /bin/rm -rf src server.git cl cl2 hcl miss; }\ngit clone -q $U cl 2>\"$HOME/err.txt\"; echo \"clone-rc=$?\"\ncd /tmp/parity-case/src\nprintf 'four\\n' > c.txt; /usr/bin/git add c.txt; /usr/bin/git commit -q -m c4; /usr/bin/git push -q ../server.git main\ncd /tmp/parity-case/cl\nbefore=$(git rev-parse refs/remotes/origin/main)\ngit fetch -q origin 2>\"$HOME/err.txt\"; echo \"fetch-rc=$?\"\necho \"tracking-advanced=$(yn [ \"$(git rev-parse refs/remotes/origin/main)\" != \"$before\" ])\"\necho \"tracking-ref-matches-server=$(yn [ \"$(git rev-parse refs/remotes/origin/main)\" = \"$($SG rev-parse refs/heads/main)\" ])\"\necho \"commits-on-tracking=$(git rev-list --count refs/remotes/origin/main)\"\necho \"new-blob=$(git cat-file blob refs/remotes/origin/main:c.txt)\"\necho \"local-branch-untouched=$(yn [ \"$(git rev-parse refs/heads/main)\" = \"$before\" ])\"\ncleanup\n",
+      "stdout": "clone-rc=0\nfetch-rc=0\ntracking-advanced=yes\ntracking-ref-matches-server=yes\ncommits-on-tracking=4\nnew-blob=four\nlocal-branch-untouched=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "System git 2.47.3 (Debian trixie) run by the reference shell as the reference client; the server side is always the independent system git (git-upload-pack, git-receive-pack, git-http-backend) over a fixture-only fake ssh command or a loopback CGI peer; refs, counts and file bytes are also read back from the server repository with the system git",
+      "comparison": "r2: after the server gains a commit, fetch over the pipe transport advances only refs/remotes/origin/main to the server's new tip with the new object readable and the local branch untouched The clone, server and source repositories are removed after the read-backs, because their internal pack/loose layout is not part of the requirement and would otherwise dominate the tree comparison."
+    },
+    {
+      "id": "mig-w3-git-ssh-push",
+      "loadable": "git",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "git/remote_protocol_mock"
+      ],
+      "requires": [
+        "git",
+        "python3"
+      ],
+      "setup_script": "set -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-01-01T00:00:00Z' GIT_COMMITTER_DATE='2020-01-01T00:00:00Z'\ncat > fakessh <<'EOF'\n#!/bin/sh\n# fixture-only stand-in for ssh: drop option pairs, run the far command locally\nwhile [ $# -gt 2 ]; do case $1 in -o|-p) shift 2;; *) shift;; esac; done\nexec /bin/sh -c \"PATH=/usr/bin:/bin:/usr/lib/git-core; $2\"\nEOF\nchmod 755 fakessh\nG=/usr/bin/git\n$G init -q -b main src\ncd src\nprintf 'one\\n' > a.txt; mkdir dir; printf 'bee\\n' > dir/b.txt; $G add .; $G commit -q -m c1\nprintf 'two\\n' > a.txt; $G commit -q -am c2\nprintf 'three\\n' > a.txt; $G commit -q -am c3\ncd ..\n$G clone -q --bare src server.git\n$G --git-dir=server.git config http.receivepack true\n",
+      "setup_timeout": 40,
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-02-01T00:00:00Z' GIT_COMMITTER_DATE='2020-02-01T00:00:00Z'\nexport GIT_SSH_COMMAND=/tmp/parity-case/fakessh\nSG=\"/usr/bin/git --git-dir=/tmp/parity-case/server.git\"\nU=ssh://fixture/tmp/parity-case/server.git\nyn() { if \"$@\"; then echo yes; else echo no; fi; }\nhas() { case $1 in *\"$2\"*) echo yes;; *) echo no;; esac; }\ncleanup() { cd /tmp/parity-case; /bin/rm -rf src server.git cl cl2 hcl miss; }\ngit clone -q $U cl 2>\"$HOME/err.txt\"; git clone -q $U cl2 2>\"$HOME/err.txt\"\ncd cl\nprintf 'pushed\\n' > p.txt; git add p.txt; git commit -q -m push\ngit push -q origin main 2>\"$HOME/err.txt\"; echo \"push-rc=$?\"\necho \"server-has-push=$(yn [ \"$(git rev-parse HEAD)\" = \"$($SG rev-parse refs/heads/main)\" ])\"\necho \"server-blob=$($SG cat-file blob refs/heads/main:p.txt)\"\ngood=$($SG rev-parse refs/heads/main)\ncd ../cl2\nprintf 'stale\\n' > s.txt; git add s.txt; git commit -q -m stale\ngit push -q origin main 2>\"$HOME/err2.txt\"; rc=$?\necho \"stale-push-rejected=$(yn [ $rc != 0 ])\"\ne=$(<\"$HOME/err2.txt\"); echo \"diagnostic-marks-rejection=$(has \"$e\" '[rejected]')\"\necho \"server-unchanged=$(yn [ \"$($SG rev-parse refs/heads/main)\" = \"$good\" ])\"\ncleanup\n",
+      "stdout": "push-rc=0\nserver-has-push=yes\nserver-blob=pushed\nstale-push-rejected=yes\ndiagnostic-marks-rejection=yes\nserver-unchanged=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "System git 2.47.3 (Debian trixie) run by the reference shell as the reference client; the server side is always the independent system git (git-upload-pack, git-receive-pack, git-http-backend) over a fixture-only fake ssh command or a loopback CGI peer; refs, counts and file bytes are also read back from the server repository with the system git",
+      "comparison": "r3: a fast-forward push runs receive-pack and moves the server's refs/heads/main to the pushed commit with its blob; a push from a stale clone is rejected (nonzero status, a [rejected] line) and leaves the server ref unchanged The clone, server and source repositories are removed after the read-backs, because their internal pack/loose layout is not part of the requirement and would otherwise dominate the tree comparison."
+    },
+    {
+      "id": "mig-w3-git-smart-http",
+      "loadable": "git",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "git/remote_protocol_mock"
+      ],
+      "requires": [
+        "git",
+        "python3"
+      ],
+      "setup_script": "set -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-01-01T00:00:00Z' GIT_COMMITTER_DATE='2020-01-01T00:00:00Z'\ncat > fakessh <<'EOF'\n#!/bin/sh\n# fixture-only stand-in for ssh: drop option pairs, run the far command locally\nwhile [ $# -gt 2 ]; do case $1 in -o|-p) shift 2;; *) shift;; esac; done\nexec /bin/sh -c \"PATH=/usr/bin:/bin:/usr/lib/git-core; $2\"\nEOF\nchmod 755 fakessh\nG=/usr/bin/git\n$G init -q -b main src\ncd src\nprintf 'one\\n' > a.txt; mkdir dir; printf 'bee\\n' > dir/b.txt; $G add .; $G commit -q -m c1\nprintf 'two\\n' > a.txt; $G commit -q -am c2\nprintf 'three\\n' > a.txt; $G commit -q -am c3\ncd ..\n$G clone -q --bare src server.git\n$G --git-dir=server.git config http.receivepack true\nmkfifo \"$HOME/nap.fifo\"\n",
+      "setup_timeout": 40,
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-02-01T00:00:00Z' GIT_COMMITTER_DATE='2020-02-01T00:00:00Z'\nexport GIT_SSH_COMMAND=/tmp/parity-case/fakessh\nSG=\"/usr/bin/git --git-dir=/tmp/parity-case/server.git\"\nU=ssh://fixture/tmp/parity-case/server.git\nyn() { if \"$@\"; then echo yes; else echo no; fi; }\nhas() { case $1 in *\"$2\"*) echo yes;; *) echo no;; esac; }\ncleanup() { cd /tmp/parity-case; /bin/rm -rf src server.git cl cl2 hcl miss; }\nH=/opt/bashos-parity/harness/helpers/mig-w3-git-http.py\nnap() { read -t \"$1\" -u 7 7<>\"$HOME/nap.fifo\"; }\n/usr/bin/python3 \"$H\" serve 20791 /tmp/parity-case \"$HOME/http.log\" 30 & srv=$!\nfor ((i = 0; i < 200; i++)); do [ -e \"$HOME/http.log.ready\" ] && break; nap 0.05; done\ngit clone -q http://127.0.0.1:20791/server.git hcl 2>\"$HOME/err.txt\"; echo \"clone-rc=$?\"\ncd hcl\necho \"head-matches-server=$(yn [ \"$(git rev-parse HEAD)\" = \"$($SG rev-parse refs/heads/main)\" ])\"\nprintf 'http\\n' > h.txt; git add h.txt; git commit -q -m http\ngit push -q origin main 2>\"$HOME/err.txt\"; echo \"push-rc=$?\"\necho \"server-has-push=$(yn [ \"$(git rev-parse HEAD)\" = \"$($SG rev-parse refs/heads/main)\" ])\"\necho \"server-blob=$($SG cat-file blob refs/heads/main:h.txt)\"\n/usr/bin/python3 -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:20791/__stop__').read()\"\nwait \"$srv\"\n/usr/bin/python3 \"$H\" summary \"$HOME/http.log\"\ncleanup\n",
+      "stdout": "clone-rc=0\nhead-matches-server=yes\npush-rc=0\nserver-has-push=yes\nserver-blob=http\nGET info/refs?service=git-receive-pack 200\nGET info/refs?service=git-upload-pack 200\nPOST git-receive-pack 200\nPOST git-upload-pack 200\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "System git 2.47.3 (Debian trixie) run by the reference shell as the reference client; the server side is always the independent system git (git-upload-pack, git-receive-pack, git-http-backend) over a fixture-only fake ssh command or a loopback CGI peer; refs, counts and file bytes are also read back from the server repository with the system git",
+      "comparison": "r4: clone and push against a loopback git-http-backend: GET info/refs?service=git-upload-pack and POST git-upload-pack for the clone, GET info/refs?service=git-receive-pack and POST git-receive-pack for the push (peer-side request log), all 200, and the server ref and blob equal the pushed ones (smart-HTTP protocol, gitprotocol-http) The clone, server and source repositories are removed after the read-backs, because their internal pack/loose layout is not part of the requirement and would otherwise dominate the tree comparison.",
+      "helpers_sha256": {
+        "helpers/mig-w3-git-http.py": "dc378ea9bb6676fcafbaa0d816aa7a2738cb4d76a17ed7705c938153de8bd0c1"
+      },
+      "diagnostic_files": [
+        "http.log",
+        "err.txt"
+      ]
+    },
+    {
+      "id": "mig-w3-git-remote-errors",
+      "loadable": "git",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "git/remote_protocol_mock"
+      ],
+      "requires": [
+        "git",
+        "python3"
+      ],
+      "setup_script": "set -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-01-01T00:00:00Z' GIT_COMMITTER_DATE='2020-01-01T00:00:00Z'\ncat > fakessh <<'EOF'\n#!/bin/sh\n# fixture-only stand-in for ssh: drop option pairs, run the far command locally\nwhile [ $# -gt 2 ]; do case $1 in -o|-p) shift 2;; *) shift;; esac; done\nexec /bin/sh -c \"PATH=/usr/bin:/bin:/usr/lib/git-core; $2\"\nEOF\nchmod 755 fakessh\nG=/usr/bin/git\n$G init -q -b main src\ncd src\nprintf 'one\\n' > a.txt; mkdir dir; printf 'bee\\n' > dir/b.txt; $G add .; $G commit -q -m c1\nprintf 'two\\n' > a.txt; $G commit -q -am c2\nprintf 'three\\n' > a.txt; $G commit -q -am c3\ncd ..\n$G clone -q --bare src server.git\n$G --git-dir=server.git config http.receivepack true\n",
+      "setup_timeout": 40,
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.com GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.com\nexport GIT_AUTHOR_DATE='2020-02-01T00:00:00Z' GIT_COMMITTER_DATE='2020-02-01T00:00:00Z'\nexport GIT_SSH_COMMAND=/tmp/parity-case/fakessh\nSG=\"/usr/bin/git --git-dir=/tmp/parity-case/server.git\"\nU=ssh://fixture/tmp/parity-case/server.git\nyn() { if \"$@\"; then echo yes; else echo no; fi; }\nhas() { case $1 in *\"$2\"*) echo yes;; *) echo no;; esac; }\ncleanup() { cd /tmp/parity-case; /bin/rm -rf src server.git cl cl2 hcl miss; }\ngit clone -q ssh://fixture/tmp/parity-case/nonexistent.git miss 2>\"$HOME/miss.err\"; rc=$?\necho \"missing-clone-status=$rc\"\necho \"missing-clone-local-dir=$(yn [ -e miss ])\"\necho \"missing-diagnostic-names-repo=$(has \"$(<\"$HOME/miss.err\")\" nonexistent.git)\"\ngit clone -q $U cl 2>/dev/null\nmkdir -p /tmp/parity-case/server.git/hooks\nprintf '#!/bin/sh\\necho refused-by-hook >&2\\nexit 1\\n' > /tmp/parity-case/server.git/hooks/pre-receive; chmod 755 /tmp/parity-case/server.git/hooks/pre-receive\ncd cl; printf 'r\\n' > r.txt; git add r.txt; git commit -q -m r\nbefore=$($SG rev-parse refs/heads/main)\ngit push -q origin main 2>\"$HOME/push.err\"; prc=$?\necho \"refused-push-status=$prc\"\necho \"refused-push-ref-unchanged=$(yn [ \"$($SG rev-parse refs/heads/main)\" = \"$before\" ])\"\necho \"refused-diagnostic=$(has \"$(<\"$HOME/push.err\")\" 'remote rejected')\"\ncleanup\n",
+      "stdout": "missing-clone-status=128\nmissing-clone-local-dir=no\nmissing-diagnostic-names-repo=yes\nrefused-push-status=1\nrefused-push-ref-unchanged=yes\nrefused-diagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "System git 2.47.3 (Debian trixie) run by the reference shell as the reference client; the server side is always the independent system git (git-upload-pack, git-receive-pack, git-http-backend) over a fixture-only fake ssh command or a loopback CGI peer; refs, counts and file bytes are also read back from the server repository with the system git",
+      "comparison": "r5: cloning a missing repository exits 128 with a diagnostic naming it and leaves no local directory; a push refused by the server's pre-receive hook exits 1 with a 'remote rejected' diagnostic and leaves the server ref unchanged (reference-identical statuses) The clone, server and source repositories are removed after the read-backs, because their internal pack/loose layout is not part of the requirement and would otherwise dominate the tree comparison."
+    }
+  ]
+}
