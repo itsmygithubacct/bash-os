@@ -1,0 +1,132 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w8-tput-extended-capabilities",
+      "loadable": "tput",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "User-defined (extended) capabilities compiled with tic -x are readable: a string, a number, a parameterised string and a boolean, and a missing extended name fails.",
+      "script": "export TERMINFO=$PWD/ti\ntput -T fx215 Xfx > ext-str; echo \"str=$?\" > rc\ntput -T fx215 Xnum > ext-num; echo \"num=$?\" >> rc\ntput -T fx215 Xcup 9 > ext-par; echo \"par=$?\" >> rc\ntput -T fx215 Xbool > ext-bool; echo \"bool=$?\" >> rc\ntput -T fx215 Xabsent > ext-absent 2>/dev/null; echo \"absent=$?\" >> rc\n",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "",
+      "covers": [
+        "tput/compiled-terminfo"
+      ],
+      "files": {
+        "fx.src": "fx215|fixture-alias|worker fixture terminal,\n\tam, cols#123, lines#45, Xbool,\n\tbold=BOLD215, clear=CLR215, cup=CUP%p1%d;%p2%dX, sgr0=SGR0215,\n\tXfx=XFX215, Xnum#77, Xcup=XC%p1%d,\nfxpad|fixture with mandatory padding,\n\tcols#80, lines#24, clear=CLR$<10/>,\n"
+      },
+      "expected_files": {
+        "ext-str": "XFX215",
+        "ext-num": "77\n",
+        "ext-par": "XC9",
+        "ext-bool": "",
+        "ext-absent": "",
+        "rc": "str=0\nnum=0\npar=0\nbool=0\nabsent=4\n"
+      },
+      "oracle": "ncurses-bin 6.5 tput(1) and tic(1) on the reference PATH (compiled with tic -x in trusted setup); raw PTY bytes and file bytes compared. Extended string Xfx=XFX215, numeric Xnum#77 printed with a newline, parameterised Xcup 9 -> XC9, boolean Xbool exits 0 with no output; an undefined name exits 4 (ncurses tput exit-status contract for an unknown capability).",
+      "comparison": "Exact file contents and exit codes; the reference ncurses tput must reproduce them, the candidate is compared with the reference.",
+      "requires": [
+        "tput",
+        "tic"
+      ],
+      "setup_script": "mkdir -p ti\ntic -x -o \"$PWD/ti\" fx.src\n",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-tput-padding-38400",
+      "loadable": "tput",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Mandatory padding $<10/> at an output speed of 38400 baud: the pad bytes between CLR and P-DONE are NULs sized for that speed.",
+      "script": "export TERMINFO=$PWD/ti\ns=$(/usr/bin/stty -g)\n/usr/bin/stty 38400\ntput -T fxpad clear; printf 'P-DONE\\n'\n/usr/bin/stty \"$s\"\n",
+      "steps": [
+        {
+          "expect": "CLR\\x00{42}P-DONE"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tput/compiled-terminfo"
+      ],
+      "files": {
+        "fx.src": "fx215|fixture-alias|worker fixture terminal,\n\tam, cols#123, lines#45, Xbool,\n\tbold=BOLD215, clear=CLR215, cup=CUP%p1%d;%p2%dX, sgr0=SGR0215,\n\tXfx=XFX215, Xnum#77, Xcup=XC%p1%d,\nfxpad|fixture with mandatory padding,\n\tcols#80, lines#24, clear=CLR$<10/>,\n"
+      },
+      "oracle": "ncurses-bin 6.5 tput(1) and tic(1) on the reference PATH (compiled with tic -x in trusted setup); raw PTY bytes and file bytes compared. Padding is 10 ms of NUL characters at the terminal output speed; ncurses 6.5 tputs emits 42 pad characters at 38400 baud on this image.",
+      "comparison": "Raw bytes: CLR followed by exactly 42 NUL pad bytes and P-DONE; the raw PTY stream must also match the reference (compare_screen).",
+      "requires": [
+        "tput",
+        "tic",
+        "stty"
+      ],
+      "compare_screen": true,
+      "setup_script": "mkdir -p ti\ntic -x -o \"$PWD/ti\" fx.src\n",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-tput-padding-9600",
+      "loadable": "tput",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "The same padding at 9600 baud is proportionally shorter (about a quarter), showing that padding follows the output speed.",
+      "script": "export TERMINFO=$PWD/ti\ns=$(/usr/bin/stty -g)\n/usr/bin/stty 9600\ntput -T fxpad clear; printf 'P-DONE\\n'\n/usr/bin/stty \"$s\"\n",
+      "steps": [
+        {
+          "expect": "CLR\\x00{10}P-DONE"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tput/compiled-terminfo"
+      ],
+      "files": {
+        "fx.src": "fx215|fixture-alias|worker fixture terminal,\n\tam, cols#123, lines#45, Xbool,\n\tbold=BOLD215, clear=CLR215, cup=CUP%p1%d;%p2%dX, sgr0=SGR0215,\n\tXfx=XFX215, Xnum#77, Xcup=XC%p1%d,\nfxpad|fixture with mandatory padding,\n\tcols#80, lines#24, clear=CLR$<10/>,\n"
+      },
+      "oracle": "ncurses-bin 6.5 tput(1) and tic(1) on the reference PATH (compiled with tic -x in trusted setup); raw PTY bytes and file bytes compared. At 9600 baud, 10 ms of padding is 10 NUL characters (9.6 rounded up).",
+      "comparison": "Raw bytes: CLR, exactly 10 NUL pad bytes, P-DONE; byte parity with the reference.",
+      "requires": [
+        "tput",
+        "tic",
+        "stty"
+      ],
+      "compare_screen": true,
+      "setup_script": "mkdir -p ti\ntic -x -o \"$PWD/ti\" fx.src\n",
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-tput-reset-special-chars",
+      "loadable": "tput",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "tput reset restores the default special characters (intr ^C, quit ^\\, erase DEL, kill ^U, eof ^D, susp ^Z) when they were disabled (undef); characters that were still defined are left as they are.",
+      "script": "s=$(/usr/bin/stty -g)\n/usr/bin/stty intr undef quit undef erase undef kill undef eof undef susp undef\n/usr/bin/python3 cc.py > cc-before\ntput reset; echo \"rc=$?\" > rc\n/usr/bin/python3 cc.py > cc-after\nprintf 'X-DONE\\n'\n/usr/bin/stty \"$s\"\n",
+      "steps": [
+        {
+          "expect": "X-DONE"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tput/hardware-init-reset"
+      ],
+      "files": {
+        "cc.py": "import termios\na = termios.tcgetattr(0)\nc = a[6]\nnames = ['VINTR','VQUIT','VERASE','VKILL','VEOF','VSUSP','VSTART','VSTOP','VWERASE','VREPRINT','VLNEXT','VDISCARD']\nprint(' '.join('%s=%d' % (n, c[getattr(termios, n)][0] if isinstance(c[getattr(termios, n)], bytes) else c[getattr(termios, n)]) for n in names))\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n",
+        "cc-before": "VINTR=0 VQUIT=0 VERASE=0 VKILL=0 VEOF=0 VSUSP=0 VSTART=17 VSTOP=19 VWERASE=23 VREPRINT=18 VLNEXT=22 VDISCARD=15\n",
+        "cc-after": "VINTR=3 VQUIT=28 VERASE=127 VKILL=21 VEOF=4 VSUSP=26 VSTART=17 VSTOP=19 VWERASE=23 VREPRINT=18 VLNEXT=22 VDISCARD=15\n"
+      },
+      "oracle": "ncurses-bin 6.5 tput(1) and tic(1) on the reference PATH (compiled with tic -x in trusted setup); raw PTY bytes and file bytes compared. ncurses reset_tty restores the system default control characters; values are the Linux/POSIX defaults (3, 28, 127, 21, 4, 26, 23).",
+      "comparison": "termios control characters read by an independent Python termios helper before and after tput reset; byte parity of the output stream.",
+      "requires": [
+        "tput",
+        "stty",
+        "python3"
+      ],
+      "compare_screen": true,
+      "timeout": 15
+    }
+  ]
+}

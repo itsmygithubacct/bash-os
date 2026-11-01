@@ -1,0 +1,287 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w8-more-d-prompt-text",
+      "loadable": "more",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "more -d shows the util-linux hint text on the --More-- prompt.",
+      "script": "more -d note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$",
+              "22": "^line-023$"
+            },
+            "contains": [
+              "--More--.*\\[Press space to continue, 'q' to quit\\.\\]"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "more/interactive_pty_navigation"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\n"
+      },
+      "expected_files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\n"
+      },
+      "oracle": "util-linux 2.41.5 more(1) on the reference PATH (the Debian 13 reference image); screen contents decoded independently by pyte. util-linux more -d prompt: --More--(N%)[Press space to continue, 'q' to quit.]",
+      "comparison": "Both builds must show the literal util-linux hint on the prompt line of the first page; q quits. The candidate prints a different hint wording; that difference is the retained result.",
+      "timeout": 10
+    },
+    {
+      "id": "mig-w8-more-search-forward",
+      "loadable": "more",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "/pattern with a literal pattern shows the next matching line.",
+      "script": "more note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "--More--"
+            ]
+          }
+        },
+        {
+          "send": "/"
+        },
+        {
+          "settle_ms": 250
+        },
+        {
+          "send": "line-100\r"
+        },
+        {
+          "screen": {
+            "contains": [
+              "^line-100$"
+            ],
+            "lacks": [
+              "^line-001$"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "more/interactive_pty_navigation"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\nline-081\nline-082\nline-083\nline-084\nline-085\nline-086\nline-087\nline-088\nline-089\nline-090\nline-091\nline-092\nline-093\nline-094\nline-095\nline-096\nline-097\nline-098\nline-099\nline-100\nline-101\nline-102\nline-103\nline-104\nline-105\nline-106\nline-107\nline-108\nline-109\nline-110\nline-111\nline-112\nline-113\nline-114\nline-115\nline-116\nline-117\nline-118\nline-119\nline-120\nline-121\nline-122\nline-123\nline-124\nline-125\nline-126\nline-127\nline-128\nline-129\nline-130\nline-131\nline-132\nline-133\nline-134\nline-135\nline-136\nline-137\nline-138\nline-139\nline-140\nline-141\nline-142\nline-143\nline-144\nline-145\nline-146\nline-147\nline-148\nline-149\nline-150\nline-151\nline-152\nline-153\nline-154\nline-155\nline-156\nline-157\nline-158\nline-159\nline-160\nline-161\nline-162\nline-163\nline-164\nline-165\nline-166\nline-167\nline-168\nline-169\nline-170\nline-171\nline-172\nline-173\nline-174\nline-175\nline-176\nline-177\nline-178\nline-179\nline-180\nline-181\nline-182\nline-183\nline-184\nline-185\nline-186\nline-187\nline-188\nline-189\nline-190\nline-191\nline-192\nline-193\nline-194\nline-195\nline-196\nline-197\nline-198\nline-199\nline-200\n"
+      },
+      "expected_files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\nline-081\nline-082\nline-083\nline-084\nline-085\nline-086\nline-087\nline-088\nline-089\nline-090\nline-091\nline-092\nline-093\nline-094\nline-095\nline-096\nline-097\nline-098\nline-099\nline-100\nline-101\nline-102\nline-103\nline-104\nline-105\nline-106\nline-107\nline-108\nline-109\nline-110\nline-111\nline-112\nline-113\nline-114\nline-115\nline-116\nline-117\nline-118\nline-119\nline-120\nline-121\nline-122\nline-123\nline-124\nline-125\nline-126\nline-127\nline-128\nline-129\nline-130\nline-131\nline-132\nline-133\nline-134\nline-135\nline-136\nline-137\nline-138\nline-139\nline-140\nline-141\nline-142\nline-143\nline-144\nline-145\nline-146\nline-147\nline-148\nline-149\nline-150\nline-151\nline-152\nline-153\nline-154\nline-155\nline-156\nline-157\nline-158\nline-159\nline-160\nline-161\nline-162\nline-163\nline-164\nline-165\nline-166\nline-167\nline-168\nline-169\nline-170\nline-171\nline-172\nline-173\nline-174\nline-175\nline-176\nline-177\nline-178\nline-179\nline-180\nline-181\nline-182\nline-183\nline-184\nline-185\nline-186\nline-187\nline-188\nline-189\nline-190\nline-191\nline-192\nline-193\nline-194\nline-195\nline-196\nline-197\nline-198\nline-199\nline-200\n"
+      },
+      "oracle": "util-linux 2.41.5 more(1) on the reference PATH (the Debian 13 reference image); screen contents decoded independently by pyte.",
+      "comparison": "Both builds search forward for the literal text line-100 from the first page of a 200-line file and must display the matching line with the first page scrolled away.",
+      "timeout": 10
+    },
+    {
+      "id": "mig-w8-more-search-regex",
+      "loadable": "more",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "/pattern is a regular expression: a bracket-class pattern finds line-150.",
+      "script": "more note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "--More--"
+            ]
+          }
+        },
+        {
+          "send": "/"
+        },
+        {
+          "settle_ms": 250
+        },
+        {
+          "send": "line-1[5]0\r"
+        },
+        {
+          "screen": {
+            "contains": [
+              "^line-150$"
+            ],
+            "lacks": [
+              "^line-001$"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "more/interactive_pty_navigation"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\nline-081\nline-082\nline-083\nline-084\nline-085\nline-086\nline-087\nline-088\nline-089\nline-090\nline-091\nline-092\nline-093\nline-094\nline-095\nline-096\nline-097\nline-098\nline-099\nline-100\nline-101\nline-102\nline-103\nline-104\nline-105\nline-106\nline-107\nline-108\nline-109\nline-110\nline-111\nline-112\nline-113\nline-114\nline-115\nline-116\nline-117\nline-118\nline-119\nline-120\nline-121\nline-122\nline-123\nline-124\nline-125\nline-126\nline-127\nline-128\nline-129\nline-130\nline-131\nline-132\nline-133\nline-134\nline-135\nline-136\nline-137\nline-138\nline-139\nline-140\nline-141\nline-142\nline-143\nline-144\nline-145\nline-146\nline-147\nline-148\nline-149\nline-150\nline-151\nline-152\nline-153\nline-154\nline-155\nline-156\nline-157\nline-158\nline-159\nline-160\nline-161\nline-162\nline-163\nline-164\nline-165\nline-166\nline-167\nline-168\nline-169\nline-170\nline-171\nline-172\nline-173\nline-174\nline-175\nline-176\nline-177\nline-178\nline-179\nline-180\nline-181\nline-182\nline-183\nline-184\nline-185\nline-186\nline-187\nline-188\nline-189\nline-190\nline-191\nline-192\nline-193\nline-194\nline-195\nline-196\nline-197\nline-198\nline-199\nline-200\n"
+      },
+      "expected_files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\nline-081\nline-082\nline-083\nline-084\nline-085\nline-086\nline-087\nline-088\nline-089\nline-090\nline-091\nline-092\nline-093\nline-094\nline-095\nline-096\nline-097\nline-098\nline-099\nline-100\nline-101\nline-102\nline-103\nline-104\nline-105\nline-106\nline-107\nline-108\nline-109\nline-110\nline-111\nline-112\nline-113\nline-114\nline-115\nline-116\nline-117\nline-118\nline-119\nline-120\nline-121\nline-122\nline-123\nline-124\nline-125\nline-126\nline-127\nline-128\nline-129\nline-130\nline-131\nline-132\nline-133\nline-134\nline-135\nline-136\nline-137\nline-138\nline-139\nline-140\nline-141\nline-142\nline-143\nline-144\nline-145\nline-146\nline-147\nline-148\nline-149\nline-150\nline-151\nline-152\nline-153\nline-154\nline-155\nline-156\nline-157\nline-158\nline-159\nline-160\nline-161\nline-162\nline-163\nline-164\nline-165\nline-166\nline-167\nline-168\nline-169\nline-170\nline-171\nline-172\nline-173\nline-174\nline-175\nline-176\nline-177\nline-178\nline-179\nline-180\nline-181\nline-182\nline-183\nline-184\nline-185\nline-186\nline-187\nline-188\nline-189\nline-190\nline-191\nline-192\nline-193\nline-194\nline-195\nline-196\nline-197\nline-198\nline-199\nline-200\n"
+      },
+      "oracle": "util-linux 2.41.5 more(1) on the reference PATH (the Debian 13 reference image); screen contents decoded independently by pyte. util-linux more compiles the search string as a POSIX regular expression.",
+      "comparison": "The pattern line-1[5]0 (typed after the / prompt appeared) matches only as a regular expression. The util-linux reference must display line-150 on the screen; a literal-substring candidate cannot match it.",
+      "timeout": 10
+    },
+    {
+      "id": "mig-w8-more-search-missing",
+      "loadable": "more",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A search for text that is not in the input reports Pattern not found on the screen.",
+      "script": "more note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "--More--"
+            ]
+          }
+        },
+        {
+          "send": "/"
+        },
+        {
+          "settle_ms": 250
+        },
+        {
+          "send": "zzz-no-such-text\r"
+        },
+        {
+          "expect": "Pattern not found"
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "more/interactive_pty_navigation"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\nline-081\nline-082\nline-083\nline-084\nline-085\nline-086\nline-087\nline-088\nline-089\nline-090\nline-091\nline-092\nline-093\nline-094\nline-095\nline-096\nline-097\nline-098\nline-099\nline-100\nline-101\nline-102\nline-103\nline-104\nline-105\nline-106\nline-107\nline-108\nline-109\nline-110\nline-111\nline-112\nline-113\nline-114\nline-115\nline-116\nline-117\nline-118\nline-119\nline-120\nline-121\nline-122\nline-123\nline-124\nline-125\nline-126\nline-127\nline-128\nline-129\nline-130\nline-131\nline-132\nline-133\nline-134\nline-135\nline-136\nline-137\nline-138\nline-139\nline-140\nline-141\nline-142\nline-143\nline-144\nline-145\nline-146\nline-147\nline-148\nline-149\nline-150\nline-151\nline-152\nline-153\nline-154\nline-155\nline-156\nline-157\nline-158\nline-159\nline-160\nline-161\nline-162\nline-163\nline-164\nline-165\nline-166\nline-167\nline-168\nline-169\nline-170\nline-171\nline-172\nline-173\nline-174\nline-175\nline-176\nline-177\nline-178\nline-179\nline-180\nline-181\nline-182\nline-183\nline-184\nline-185\nline-186\nline-187\nline-188\nline-189\nline-190\nline-191\nline-192\nline-193\nline-194\nline-195\nline-196\nline-197\nline-198\nline-199\nline-200\n"
+      },
+      "expected_files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\nline-081\nline-082\nline-083\nline-084\nline-085\nline-086\nline-087\nline-088\nline-089\nline-090\nline-091\nline-092\nline-093\nline-094\nline-095\nline-096\nline-097\nline-098\nline-099\nline-100\nline-101\nline-102\nline-103\nline-104\nline-105\nline-106\nline-107\nline-108\nline-109\nline-110\nline-111\nline-112\nline-113\nline-114\nline-115\nline-116\nline-117\nline-118\nline-119\nline-120\nline-121\nline-122\nline-123\nline-124\nline-125\nline-126\nline-127\nline-128\nline-129\nline-130\nline-131\nline-132\nline-133\nline-134\nline-135\nline-136\nline-137\nline-138\nline-139\nline-140\nline-141\nline-142\nline-143\nline-144\nline-145\nline-146\nline-147\nline-148\nline-149\nline-150\nline-151\nline-152\nline-153\nline-154\nline-155\nline-156\nline-157\nline-158\nline-159\nline-160\nline-161\nline-162\nline-163\nline-164\nline-165\nline-166\nline-167\nline-168\nline-169\nline-170\nline-171\nline-172\nline-173\nline-174\nline-175\nline-176\nline-177\nline-178\nline-179\nline-180\nline-181\nline-182\nline-183\nline-184\nline-185\nline-186\nline-187\nline-188\nline-189\nline-190\nline-191\nline-192\nline-193\nline-194\nline-195\nline-196\nline-197\nline-198\nline-199\nline-200\n"
+      },
+      "oracle": "util-linux 2.41.5 more(1) on the reference PATH (the Debian 13 reference image); screen contents decoded independently by pyte. more_error(\"Pattern not found\")",
+      "comparison": "Both builds search for text absent from the input; the reference prints the diagnostic on the prompt line and the screen must contain it.",
+      "timeout": 10
+    },
+    {
+      "id": "mig-w8-more-quit-multi-operand",
+      "loadable": "more",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "q at the first operand ends the whole invocation: the second operand is never shown.",
+      "script": "more fa fb",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "--More--"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        },
+        {
+          "settle_ms": 200
+        },
+        {
+          "output_lacks": "b-001"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "more/interactive_pty_navigation"
+      ],
+      "files": {
+        "fa": "a-001\na-002\na-003\na-004\na-005\na-006\na-007\na-008\na-009\na-010\na-011\na-012\na-013\na-014\na-015\na-016\na-017\na-018\na-019\na-020\na-021\na-022\na-023\na-024\na-025\na-026\na-027\na-028\na-029\na-030\na-031\na-032\na-033\na-034\na-035\na-036\na-037\na-038\na-039\na-040\na-041\na-042\na-043\na-044\na-045\na-046\na-047\na-048\na-049\na-050\na-051\na-052\na-053\na-054\na-055\na-056\na-057\na-058\na-059\na-060\n",
+        "fb": "b-001\nb-002\nb-003\nb-004\nb-005\nb-006\nb-007\nb-008\nb-009\nb-010\nb-011\nb-012\nb-013\nb-014\nb-015\nb-016\nb-017\nb-018\nb-019\nb-020\nb-021\nb-022\nb-023\nb-024\nb-025\nb-026\nb-027\nb-028\nb-029\nb-030\nb-031\nb-032\nb-033\nb-034\nb-035\nb-036\nb-037\nb-038\nb-039\nb-040\nb-041\nb-042\nb-043\nb-044\nb-045\nb-046\nb-047\nb-048\nb-049\nb-050\nb-051\nb-052\nb-053\nb-054\nb-055\nb-056\nb-057\nb-058\nb-059\nb-060\n"
+      },
+      "expected_files": {
+        "fa": "a-001\na-002\na-003\na-004\na-005\na-006\na-007\na-008\na-009\na-010\na-011\na-012\na-013\na-014\na-015\na-016\na-017\na-018\na-019\na-020\na-021\na-022\na-023\na-024\na-025\na-026\na-027\na-028\na-029\na-030\na-031\na-032\na-033\na-034\na-035\na-036\na-037\na-038\na-039\na-040\na-041\na-042\na-043\na-044\na-045\na-046\na-047\na-048\na-049\na-050\na-051\na-052\na-053\na-054\na-055\na-056\na-057\na-058\na-059\na-060\n",
+        "fb": "b-001\nb-002\nb-003\nb-004\nb-005\nb-006\nb-007\nb-008\nb-009\nb-010\nb-011\nb-012\nb-013\nb-014\nb-015\nb-016\nb-017\nb-018\nb-019\nb-020\nb-021\nb-022\nb-023\nb-024\nb-025\nb-026\nb-027\nb-028\nb-029\nb-030\nb-031\nb-032\nb-033\nb-034\nb-035\nb-036\nb-037\nb-038\nb-039\nb-040\nb-041\nb-042\nb-043\nb-044\nb-045\nb-046\nb-047\nb-048\nb-049\nb-050\nb-051\nb-052\nb-053\nb-054\nb-055\nb-056\nb-057\nb-058\nb-059\nb-060\n"
+      },
+      "oracle": "util-linux 2.41.5 more(1) on the reference PATH (the Debian 13 reference image); screen contents decoded independently by pyte.",
+      "comparison": "Two 60-line operands; q at the first prompt. Neither build may print any line of the second operand; the screen/output must lack b-001.",
+      "timeout": 10
+    },
+    {
+      "id": "mig-w8-more-multi-file-headers",
+      "loadable": "more",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "With several operands more prints a ::::: header naming each file and prompts with the next file name.",
+      "script": "more fa fb",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "^::::::::::::::$",
+              "^fa$",
+              "^sa-1$"
+            ]
+          }
+        },
+        {
+          "screen": {
+            "contains": [
+              "--More--.*Next file: fb"
+            ]
+          }
+        },
+        {
+          "send": " "
+        },
+        {
+          "screen": {
+            "contains": [
+              "^fb$",
+              "^sb-1$"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "more/interactive_pty_navigation"
+      ],
+      "files": {
+        "fa": "sa-1\nsa-2\nsa-3\n",
+        "fb": "sb-1\nsb-2\nsb-3\n"
+      },
+      "expected_files": {
+        "fa": "sa-1\nsa-2\nsa-3\n",
+        "fb": "sb-1\nsb-2\nsb-3\n"
+      },
+      "oracle": "util-linux 2.41.5 more(1) on the reference PATH (the Debian 13 reference image); screen contents decoded independently by pyte. util-linux more prints a ::::::::::::::/name/:::::::::::::: header per operand and --More--(Next file: NAME) between short files.",
+      "comparison": "Two 3-line files in an interactive terminal. The reference shows the header line naming the first file, the Next file prompt, and after space the header and content of the second file. The candidate is compared against these literal observations.",
+      "timeout": 10
+    }
+  ]
+}

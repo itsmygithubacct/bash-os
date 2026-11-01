@@ -1,0 +1,632 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w8-dialog-render-msgbox",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A msgbox on an 80x24 PTY draws the title, the text and an OK button; the screen edges stay blank; the terminal is in raw/no-echo mode while the box is open.",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Greeting",
+              "Hello from the box",
+              "<\\s*(Ok|OK)\\s*>"
+            ]
+          }
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^\\s*$",
+              "23": "^\\s*$"
+            }
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": ""
+      },
+      "oracle": "dialog(1) widget conventions (exit 0 OK/Yes, 1 No/Cancel, 255 Esc; result strings to stderr by default; arrow/Tab/space/Enter navigation). The dialog program is not installed in the reference image, so the reference side runs the dialog-compatible whiptail(1) 0.52.25 from the reference PATH with the same widget arguments (candidate: the dialog builtin). Screen contents decoded independently by pyte. Layout and glyph differences between the two implementations are not asserted.",
+      "comparison": "Decoded screen rows must contain the title, text and a button labelled Ok/OK; rows 0 and 23 blank; ICANON and ECHO cleared during the widget; status 0 and empty result on both builds.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15,
+      "candidate_script": "dialog --title 'Greeting' --msgbox 'Hello from the box' 8 30 2>res; echo \"rc=$?\" > rc\n",
+      "reference_script": "whiptail --title 'Greeting' --msgbox 'Hello from the box' 8 30 2>res; echo \"rc=$?\" > rc\n"
+    },
+    {
+      "id": "mig-w8-dialog-render-yesno-buttons",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A yesno box draws the question and both Yes and No buttons; Enter accepts the default Yes with status 0.",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Proceed with the update\\?",
+              "<\\s*Yes\\s*>",
+              "<\\s*No\\s*>"
+            ]
+          }
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": ""
+      },
+      "oracle": "dialog(1) widget conventions (exit 0 OK/Yes, 1 No/Cancel, 255 Esc; result strings to stderr by default; arrow/Tab/space/Enter navigation). The dialog program is not installed in the reference image, so the reference side runs the dialog-compatible whiptail(1) 0.52.25 from the reference PATH with the same widget arguments (candidate: the dialog builtin). Screen contents decoded independently by pyte. Layout and glyph differences between the two implementations are not asserted.",
+      "comparison": "Both buttons visible, status 0 after Enter.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15,
+      "candidate_script": "dialog --yesno 'Proceed with the update?' 8 40 2>res; echo \"rc=$?\" > rc\n",
+      "reference_script": "whiptail --yesno 'Proceed with the update?' 8 40 2>res; echo \"rc=$?\" > rc\n"
+    },
+    {
+      "id": "mig-w8-dialog-keys-menu-down-enter",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "In a menu, the down arrow twice moves the selection to the third item; Enter accepts and the tag c goes to stderr with status 0.",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Alpha",
+              "Beta",
+              "Gamma"
+            ]
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "key": "down"
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": "c"
+      },
+      "oracle": "dialog(1) widget conventions (exit 0 OK/Yes, 1 No/Cancel, 255 Esc; result strings to stderr by default; arrow/Tab/space/Enter navigation). The dialog program is not installed in the reference image, so the reference side runs the dialog-compatible whiptail(1) 0.52.25 from the reference PATH with the same widget arguments (candidate: the dialog builtin). Screen contents decoded independently by pyte. Layout and glyph differences between the two implementations are not asserted.",
+      "comparison": "res must contain exactly the tag c; status 0.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15,
+      "candidate_script": "dialog --menu 'Pick one' 12 40 3 a Alpha b Beta c Gamma 2>res; echo \"rc=$?\" > rc\n",
+      "reference_script": "whiptail --menu 'Pick one' 12 40 3 a Alpha b Beta c Gamma 2>res; echo \"rc=$?\" > rc\n"
+    },
+    {
+      "id": "mig-w8-dialog-keys-tab-cancel",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Tab moves from the list to OK and then Cancel; Enter on Cancel exits with status 1 and no result string.",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Alpha"
+            ]
+          }
+        },
+        {
+          "key": "tab"
+        },
+        {
+          "key": "tab"
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=1\n",
+        "res": ""
+      },
+      "oracle": "dialog(1) widget conventions (exit 0 OK/Yes, 1 No/Cancel, 255 Esc; result strings to stderr by default; arrow/Tab/space/Enter navigation). The dialog program is not installed in the reference image, so the reference side runs the dialog-compatible whiptail(1) 0.52.25 from the reference PATH with the same widget arguments (candidate: the dialog builtin). Screen contents decoded independently by pyte. Layout and glyph differences between the two implementations are not asserted.",
+      "comparison": "status 1, empty result.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15,
+      "candidate_script": "dialog --menu 'Pick one' 12 40 3 a Alpha b Beta c Gamma 2>res; echo \"rc=$?\" > rc\n",
+      "reference_script": "whiptail --menu 'Pick one' 12 40 3 a Alpha b Beta c Gamma 2>res; echo \"rc=$?\" > rc\n"
+    },
+    {
+      "id": "mig-w8-dialog-keys-yesno-tab-no",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Tab selects the No button; Enter exits with status 1.",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Proceed"
+            ]
+          }
+        },
+        {
+          "key": "tab"
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=1\n",
+        "res": ""
+      },
+      "oracle": "dialog(1) widget conventions (exit 0 OK/Yes, 1 No/Cancel, 255 Esc; result strings to stderr by default; arrow/Tab/space/Enter navigation). The dialog program is not installed in the reference image, so the reference side runs the dialog-compatible whiptail(1) 0.52.25 from the reference PATH with the same widget arguments (candidate: the dialog builtin). Screen contents decoded independently by pyte. Layout and glyph differences between the two implementations are not asserted.",
+      "comparison": "status 1.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15,
+      "candidate_script": "dialog --yesno 'Proceed?' 8 40 2>res; echo \"rc=$?\" > rc\n",
+      "reference_script": "whiptail --yesno 'Proceed?' 8 40 2>res; echo \"rc=$?\" > rc\n"
+    },
+    {
+      "id": "mig-w8-dialog-keys-checklist-space",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "In a checklist, space toggles the first and third items; Enter accepts and the quoted tags a and c are written to stderr.",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Alpha",
+              "Beta",
+              "Gamma"
+            ]
+          }
+        },
+        {
+          "send": " "
+        },
+        {
+          "key": "down"
+        },
+        {
+          "key": "down"
+        },
+        {
+          "send": " "
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": "\"a\" \"c\""
+      },
+      "oracle": "dialog(1) widget conventions (exit 0 OK/Yes, 1 No/Cancel, 255 Esc; result strings to stderr by default; arrow/Tab/space/Enter navigation). The dialog program is not installed in the reference image, so the reference side runs the dialog-compatible whiptail(1) 0.52.25 from the reference PATH with the same widget arguments (candidate: the dialog builtin). Screen contents decoded independently by pyte. Layout and glyph differences between the two implementations are not asserted.",
+      "comparison": "res is the quoted tag list \"a\" \"c\"; status 0.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15,
+      "candidate_script": "dialog --checklist 'Pick any' 12 40 3 a Alpha off b Beta off c Gamma off 2>res; echo \"rc=$?\" > rc\n",
+      "reference_script": "whiptail --checklist 'Pick any' 12 40 3 a Alpha off b Beta off c Gamma off 2>res; echo \"rc=$?\" > rc\n"
+    },
+    {
+      "id": "mig-w8-dialog-keys-checklist-separate-output",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "With --separate-output, a checklist prints one tag per line: b starts on and is toggled off, a pre-toggle sequence selects a and c.",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Alpha",
+              "Beta",
+              "Gamma"
+            ]
+          }
+        },
+        {
+          "send": " "
+        },
+        {
+          "key": "down"
+        },
+        {
+          "send": " "
+        },
+        {
+          "key": "down"
+        },
+        {
+          "send": " "
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": "a\nc\n"
+      },
+      "oracle": "dialog(1) widget conventions (exit 0 OK/Yes, 1 No/Cancel, 255 Esc; result strings to stderr by default; arrow/Tab/space/Enter navigation). The dialog program is not installed in the reference image, so the reference side runs the dialog-compatible whiptail(1) 0.52.25 from the reference PATH with the same widget arguments (candidate: the dialog builtin). Screen contents decoded independently by pyte. Layout and glyph differences between the two implementations are not asserted.",
+      "comparison": "res is a then c on separate lines.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15,
+      "candidate_script": "dialog --separate-output --checklist 'Pick any' 12 40 3 a Alpha off b Beta on c Gamma off 2>res; echo \"rc=$?\" > rc\n",
+      "reference_script": "whiptail --separate-output --checklist 'Pick any' 12 40 3 a Alpha off b Beta on c Gamma off 2>res; echo \"rc=$?\" > rc\n"
+    },
+    {
+      "id": "mig-w8-dialog-esc-255",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Esc in an interactive yesno exits with status 255 and no result.",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Proceed"
+            ]
+          }
+        },
+        {
+          "key": "escape"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=255\n",
+        "res": ""
+      },
+      "oracle": "dialog(1) widget conventions (exit 0 OK/Yes, 1 No/Cancel, 255 Esc; result strings to stderr by default; arrow/Tab/space/Enter navigation). The dialog program is not installed in the reference image, so the reference side runs the dialog-compatible whiptail(1) 0.52.25 from the reference PATH with the same widget arguments (candidate: the dialog builtin). Screen contents decoded independently by pyte. Layout and glyph differences between the two implementations are not asserted.",
+      "comparison": "status 255; terminal restored after exit (terminal_restored is part of the case expectations).",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15,
+      "candidate_script": "dialog --yesno 'Proceed?' 8 40 2>res; echo \"rc=$?\" > rc\n",
+      "reference_script": "whiptail --yesno 'Proceed?' 8 40 2>res; echo \"rc=$?\" > rc\n"
+    },
+    {
+      "id": "mig-w8-dialog-esc-menu-restore",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A menu left with Esc returns 255 and the terminal modes are restored to canonical echoing mode after exit.",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Alpha"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "key": "escape"
+        },
+        {
+          "termios": {
+            "set": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=255\n",
+        "res": ""
+      },
+      "oracle": "dialog(1) widget conventions (exit 0 OK/Yes, 1 No/Cancel, 255 Esc; result strings to stderr by default; arrow/Tab/space/Enter navigation). The dialog program is not installed in the reference image, so the reference side runs the dialog-compatible whiptail(1) 0.52.25 from the reference PATH with the same widget arguments (candidate: the dialog builtin). Screen contents decoded independently by pyte. Layout and glyph differences between the two implementations are not asserted.",
+      "comparison": "termios cleared during the widget, set again after Esc; status 255; the harness also compares full termios before/after.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15,
+      "candidate_script": "dialog --menu 'Pick one' 12 40 3 a Alpha b Beta c Gamma 2>res; echo \"rc=$?\" > rc\n",
+      "reference_script": "whiptail --menu 'Pick one' 12 40 3 a Alpha b Beta c Gamma 2>res; echo \"rc=$?\" > rc\n"
+    },
+    {
+      "id": "mig-w8-dialog-cancel-restore",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Leaving through the No/Cancel button restores canonical echoing mode.",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Proceed"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "key": "tab"
+        },
+        {
+          "key": "enter"
+        },
+        {
+          "termios": {
+            "set": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=1\n",
+        "res": ""
+      },
+      "oracle": "dialog(1) widget conventions (exit 0 OK/Yes, 1 No/Cancel, 255 Esc; result strings to stderr by default; arrow/Tab/space/Enter navigation). The dialog program is not installed in the reference image, so the reference side runs the dialog-compatible whiptail(1) 0.52.25 from the reference PATH with the same widget arguments (candidate: the dialog builtin). Screen contents decoded independently by pyte. Layout and glyph differences between the two implementations are not asserted.",
+      "comparison": "termios cleared during, set after; status 1.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15,
+      "candidate_script": "dialog --yesno 'Proceed?' 8 40 2>res; echo \"rc=$?\" > rc\n",
+      "reference_script": "whiptail --yesno 'Proceed?' 8 40 2>res; echo \"rc=$?\" > rc\n"
+    },
+    {
+      "id": "mig-w8-dialog-resize-redraw",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "After the terminal is resized from 24x80 to 14x50 while the box is open, the box is redrawn at the new geometry: the text moves from row 10, column 25 to row 5, column 10 (centre of the new screen).",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "10": "^ {25}\\S.*Hello after resize"
+            }
+          }
+        },
+        {
+          "resize": [
+            14,
+            50
+          ]
+        },
+        {
+          "screen": {
+            "rows": {
+              "5": "^ {10}\\S.*Hello after resize"
+            }
+          }
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": ""
+      },
+      "kind": "contract",
+      "oracle": "dialog(1) widget conventions (exit 0 OK/Yes, 1 No/Cancel, 255 Esc; result strings to stderr by default; arrow/Tab/space/Enter navigation). The dialog program is not installed in the reference image, so the reference side runs the dialog-compatible whiptail(1) 0.52.25 from the reference PATH with the same widget arguments (candidate: the dialog builtin). Screen contents decoded independently by pyte. Layout and glyph differences between the two implementations are not asserted.",
+      "comparison": "Centred placement observed from the reference whiptail (8x30 window on 24x80: text at row 10, column 25); dialog(1) redraws on SIGWINCH, whiptail only on the next key, so this is asserted against the candidate as a contract.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15,
+      "candidate_script": "dialog --msgbox 'Hello after resize' 8 30 2>res; echo \"rc=$?\" > rc\n",
+      "reference_script": "whiptail --msgbox 'Hello after resize' 8 30 2>res; echo \"rc=$?\" > rc\n"
+    },
+    {
+      "id": "mig-w8-dialog-output-fd-menu",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "--output-fd N routes the interactive result string to an already-open descriptor: a menu with one down-arrow and Enter writes the tag b to descriptor 3 with status 0, nothing to stderr.",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Alpha"
+            ]
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": "b"
+      },
+      "oracle": "dialog(1) widget conventions (exit 0 OK/Yes, 1 No/Cancel, 255 Esc; result strings to stderr by default; arrow/Tab/space/Enter navigation). The dialog program is not installed in the reference image, so the reference side runs the dialog-compatible whiptail(1) 0.52.25 from the reference PATH with the same widget arguments (candidate: the dialog builtin). Screen contents decoded independently by pyte. Layout and glyph differences between the two implementations are not asserted.",
+      "comparison": "res (the file behind descriptor 3) holds exactly b; status 0.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15,
+      "candidate_script": "dialog --output-fd 3 --menu 'Pick one' 12 40 3 a Alpha b Beta c Gamma 3>res; echo \"rc=$?\" > rc\n",
+      "reference_script": "whiptail --output-fd 3 --menu 'Pick one' 12 40 3 a Alpha b Beta c Gamma 3>res; echo \"rc=$?\" > rc\n"
+    },
+    {
+      "id": "mig-w8-dialog-stdout-menu",
+      "loadable": "dialog",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "--stdout routes the interactive result to standard output: a menu with one down-arrow and Enter writes b to stdout with status 0.",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Alpha"
+            ]
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "dialog/interactive-pty"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": "b"
+      },
+      "kind": "contract",
+      "oracle": "dialog(1) manual: --stdout sends the result string to standard output instead of standard error (no trailing newline). The reference image has neither dialog nor a whiptail --stdout, so this is a contract on the candidate.",
+      "comparison": "The file capturing stdout holds exactly b; status 0.",
+      "timeout": 15,
+      "candidate_script": "dialog --stdout --menu 'Pick one' 12 40 3 a Alpha b Beta c Gamma >res 2>err; echo \"rc=$?\" > rc\n"
+    }
+  ]
+}

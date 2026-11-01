@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w8-pty-ldisc-usage-errors",
+      "loadable": "pty",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "set-ldisc argument validation happens before any device access: missing operands and a nonnumeric line discipline are usage errors with status 2 and a diagnostic; the nonexistent device is never opened.",
+      "script": "pty set-ldisc 2>e1; echo \"noargs=$?\" > rc\npty set-ldisc 0 2>e2; echo \"nodevice=$?\" >> rc\npty set-ldisc abc /nonexistent-device-w8 2>e3; echo \"nonnumeric=$?\" >> rc\npty set-ldisc 1x /nonexistent-device-w8 2>e4; echo \"trailing=$?\" >> rc\nfor f in e1 e2 e3 e4; do [[ -s $f ]] && echo \"$f=diagnostic\" >> diag || echo \"$f=silent\" >> diag; done\n[[ $(<e3) == *\"open\"* ]] && echo opened >> diag\n:\n",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "",
+      "covers": [
+        "pty/pty-serial-ldisc-deferred"
+      ],
+      "expected_files": {
+        "rc": "noargs=2\nnodevice=2\nnonnumeric=2\ntrailing=2\n",
+        "diag": "e1=diagnostic\ne2=diagnostic\ne3=diagnostic\ne4=diagnostic\n"
+      },
+      "kind": "contract",
+      "oracle": "Documented pty set-ldisc interface (LDISC DEVICE [SPEED|-] [CSIZE|-] [PARITY|-] [STOPBITS|-] [IFLAG_SET|-] [IFLAG_CLEAR|-], usage errors status 2, failures status 1); POSIX/Linux termios constants read back with Python's termios module as the independent observer. No reference executable implements this builtin, so these are contract cases.",
+      "comparison": "Exit statuses 2 for four malformed invocations; each prints a diagnostic; a device-open diagnostic must not appear for the nonnumeric LDISC (the device path does not exist, so any open attempt would be reported).",
+      "timeout": 10
+    },
+    {
+      "id": "mig-w8-pty-ldisc-device-validation",
+      "loadable": "pty",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Device validation: a nonexistent path fails with an open diagnostic naming the path; a regular file and /dev/null (a character device that is not a tty) are rejected as not a serial line.",
+      "script": "printf x > regular\npty set-ldisc 0 /nonexistent-device-w8 2>e1; echo \"missing=$?\" > rc\npty set-ldisc 0 ./regular 2>e2; echo \"regular=$?\" >> rc\npty set-ldisc 0 /dev/null 2>e3; echo \"chardev=$?\" >> rc\n[[ $(<e1) == *\"No such file or directory\"* && $(<e1) == *\"/nonexistent-device-w8\"* ]] && echo missing-diagnosed > diag\n[[ $(<e2) == *\"not a serial line\"* ]] && echo regular-rejected >> diag\n[[ $(<e3) == *\"not a serial line\"* ]] && echo null-rejected >> diag\n",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "",
+      "covers": [
+        "pty/pty-serial-ldisc-deferred"
+      ],
+      "expected_files": {
+        "rc": "missing=1\nregular=1\nchardev=1\n",
+        "diag": "missing-diagnosed\nregular-rejected\nnull-rejected\n",
+        "regular": "x"
+      },
+      "kind": "contract",
+      "oracle": "Documented pty set-ldisc interface (LDISC DEVICE [SPEED|-] [CSIZE|-] [PARITY|-] [STOPBITS|-] [IFLAG_SET|-] [IFLAG_CLEAR|-], usage errors status 2, failures status 1); POSIX/Linux termios constants read back with Python's termios module as the independent observer. No reference executable implements this builtin, so these are contract cases. open(2) ENOENT text from strerror; S_ISCHR && isatty(3) as the serial-line test.",
+      "comparison": "Exit status 1 for each; diagnostics contain the open error with the path or the words not a serial line.",
+      "timeout": 10
+    },
+    {
+      "id": "mig-w8-pty-ldisc-eperm-termios-unchanged",
+      "loadable": "pty",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Without CAP_SYS_ADMIN, set-ldisc on a real tty (the fixture PTY) with termios options fails with Operation not permitted and leaves the terminal settings untouched.",
+      "script": "t=$(tty)\ns=$(/usr/bin/stty -g)\npty set-ldisc 0 \"$t\" 9600 7 even 2 2>err; echo \"rc=$?\" > rc\ns2=$(/usr/bin/stty -g)\n[[ $s == \"$s2\" ]] && echo unchanged > cmp || echo changed > cmp\n[[ $(<err) == *\"Operation not permitted\"* ]] && echo eperm > errcheck || echo other > errcheck\nprintf 'LD-DONE\\n'\n",
+      "steps": [
+        {
+          "expect": "LD-DONE"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-serial-ldisc-deferred"
+      ],
+      "expected_files": {
+        "rc": "rc=1\n",
+        "cmp": "unchanged\n",
+        "errcheck": "eperm\n"
+      },
+      "kind": "contract",
+      "oracle": "Documented pty set-ldisc interface (LDISC DEVICE [SPEED|-] [CSIZE|-] [PARITY|-] [STOPBITS|-] [IFLAG_SET|-] [IFLAG_CLEAR|-], usage errors status 2, failures status 1); POSIX/Linux termios constants read back with Python's termios module as the independent observer. No reference executable implements this builtin, so these are contract cases. The fixture runs as uid 2000 without capabilities; stty -g before and after is the independent termios observer.",
+      "comparison": "Status 1, diagnostic text Operation not permitted, identical stty -g before and after.",
+      "requires": [
+        "tty",
+        "stty"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "mig-w8-pty-ldisc-termios-options",
+      "loadable": "pty",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Inside a user namespace that holds CAP_SYS_ADMIN, set-ldisc validates SPEED, CSIZE, PARITY, STOPBITS and IFLAG masks and applies them to the fixture PTY: 9600 baud/2 stop bits/IGNBRK set/ICRNL cleared (CS7 and even parity requested), then 115200/odd parity/1 stop bit, then parity none; every invalid option is a status-2 usage error and leaves termios unchanged. The Linux PTY driver (drivers/tty/pty.c pty_set_termios) forces CS8 and clears PARENB on a pseudo-terminal, so CSIZE and PARENB cannot be observed on this endpoint; speed, stop bits, PARODD and the iflag masks can.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c 't=$1\n/usr/bin/python3 ti.py 0 > st0\npty set-ldisc 0 \"$t\" 9600 7 even 2 1 256 2>e1; echo \"all=$?\" > rc\n/usr/bin/python3 ti.py 0 > st1\npty set-ldisc 0 \"$t\" 115200 8 odd 1 - - 2>e2; echo \"second=$?\" >> rc\n/usr/bin/python3 ti.py 0 > st2\npty set-ldisc 0 \"$t\" - - none - - - 2>e3; echo \"paritynone=$?\" >> rc\n/usr/bin/python3 ti.py 0 > st3\n/usr/bin/stty -F \"$t\" 9600 cs8 -parenb -parodd -cstopb -ignbrk icrnl ixon\npty set-ldisc 0 \"$t\" 12345 2>e4; echo \"badspeed=$?\" >> rc\npty set-ldisc 0 \"$t\" - 6 2>e5; echo \"badcsize=$?\" >> rc\npty set-ldisc 0 \"$t\" - - mark 2>e6; echo \"badparity=$?\" >> rc\npty set-ldisc 0 \"$t\" - - - 3 2>e7; echo \"badstop=$?\" >> rc\npty set-ldisc 0 \"$t\" - - - - zz 2>e8; echo \"badiflag=$?\" >> rc\n/usr/bin/python3 ti.py 0 > st4\n' x \"$(tty)\"\nprintf 'OPT-DONE\\n'\n",
+      "steps": [
+        {
+          "expect": "OPT-DONE"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-serial-ldisc-deferred"
+      ],
+      "files": {
+        "ti.py": "import fcntl, struct, sys, termios\nfd = int(sys.argv[1]) if len(sys.argv) > 1 else 0\na = termios.tcgetattr(fd)\nsp = {getattr(termios, n): n for n in dir(termios) if n.startswith('B') and n[1:].isdigit()}\ncs = {termios.CS5: 5, termios.CS6: 6, termios.CS7: 7, termios.CS8: 8}[a[2] & termios.CSIZE]\npar = 'none' if not a[2] & termios.PARENB else ('odd' if a[2] & termios.PARODD else 'even')\nbuf = fcntl.ioctl(fd, 0x5424, b'\\0\\0\\0\\0')\nprint('ispeed=%s ospeed=%s cs=%d parenb=%d parodd=%d cstopb=%d ignbrk=%d icrnl=%d ixon=%d ldisc=%d' % (sp.get(a[4]), sp.get(a[5]), cs, bool(a[2] & termios.PARENB), bool(a[2] & termios.PARODD), bool(a[2] & termios.CSTOPB), bool(a[0] & termios.IGNBRK), bool(a[0] & termios.ICRNL), bool(a[0] & termios.IXON), struct.unpack('i', buf)[0]))\n"
+      },
+      "expected_files": {
+        "rc": "all=0\nsecond=0\nparitynone=0\nbadspeed=2\nbadcsize=2\nbadparity=2\nbadstop=2\nbadiflag=2\n",
+        "st1": "ispeed=B9600 ospeed=B9600 cs=8 parenb=0 parodd=0 cstopb=1 ignbrk=1 icrnl=0 ixon=1 ldisc=0\n",
+        "st2": "ispeed=B115200 ospeed=B115200 cs=8 parenb=0 parodd=1 cstopb=0 ignbrk=1 icrnl=0 ixon=1 ldisc=0\n",
+        "st3": "ispeed=B115200 ospeed=B115200 cs=8 parenb=0 parodd=0 cstopb=0 ignbrk=1 icrnl=0 ixon=1 ldisc=0\n",
+        "st4": "ispeed=B9600 ospeed=B9600 cs=8 parenb=0 parodd=0 cstopb=0 ignbrk=0 icrnl=1 ixon=1 ldisc=0\n"
+      },
+      "kind": "contract",
+      "oracle": "Documented pty set-ldisc interface (LDISC DEVICE [SPEED|-] [CSIZE|-] [PARITY|-] [STOPBITS|-] [IFLAG_SET|-] [IFLAG_CLEAR|-], usage errors status 2, failures status 1); POSIX/Linux termios constants read back with Python's termios module as the independent observer. No reference executable implements this builtin, so these are contract cases. Expected values are the Linux termios.h definitions: B9600/B115200 speed codes, CS7/CS8, PARENB/PARODD, CSTOPB, IGNBRK=1 (octal 01) and ICRNL=0400 (octal) from <asm-generic/termbits.h>, read back by Python's termios module. On a PTY the kernel clamps CSIZE to CS8 and clears PARENB; the expected cs=8 parenb=0 values are that kernel behavior, not an assertion that CS7/PARENB were applied.",
+      "comparison": "termios read back by an independent Python helper after each invocation, plus exit statuses.",
+      "requires": [
+        "unshare",
+        "tty",
+        "stty",
+        "python3"
+      ],
+      "timeout": 20,
+      "features": [
+        "userns"
+      ],
+      "restore_terminal": false
+    },
+    {
+      "id": "mig-w8-pty-ldisc-tiocsetd-effect",
+      "loadable": "pty",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "The TIOCSETD request takes effect on the fixture PTY endpoint: line discipline 18 (N_PPS, present in the guest kernel) is installed and read back with TIOCGETD, set-ldisc 0 restores N_TTY, and an unregistered discipline number is rejected with a TIOCSETD error and leaves the discipline at 0.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c 't=$1\npty set-ldisc 18 \"$t\" 2>e1; echo \"pps=$?\" > rc\n/usr/bin/python3 ti.py 0 > st-pps\npty set-ldisc 0 \"$t\" 2>e2; echo \"back=$?\" >> rc\n/usr/bin/python3 ti.py 0 > st-back\npty set-ldisc 19 \"$t\" 2>e3; echo \"unknown=$?\" >> rc\n/usr/bin/python3 ti.py 0 > st-unknown\n[[ $(<e3) == *\"TIOCSETD\"* && $(<e3) == *\"Invalid argument\"* ]] && echo diagnosed > diag\n' x \"$(tty)\"\nprintf 'LD-DONE\\n'\n",
+      "steps": [
+        {
+          "expect": "LD-DONE"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-serial-ldisc-deferred"
+      ],
+      "files": {
+        "ti.py": "import fcntl, struct, sys, termios\nfd = int(sys.argv[1]) if len(sys.argv) > 1 else 0\na = termios.tcgetattr(fd)\nsp = {getattr(termios, n): n for n in dir(termios) if n.startswith('B') and n[1:].isdigit()}\ncs = {termios.CS5: 5, termios.CS6: 6, termios.CS7: 7, termios.CS8: 8}[a[2] & termios.CSIZE]\npar = 'none' if not a[2] & termios.PARENB else ('odd' if a[2] & termios.PARODD else 'even')\nbuf = fcntl.ioctl(fd, 0x5424, b'\\0\\0\\0\\0')\nprint('ispeed=%s ospeed=%s cs=%d parenb=%d parodd=%d cstopb=%d ignbrk=%d icrnl=%d ixon=%d ldisc=%d' % (sp.get(a[4]), sp.get(a[5]), cs, bool(a[2] & termios.PARENB), bool(a[2] & termios.PARODD), bool(a[2] & termios.CSTOPB), bool(a[0] & termios.IGNBRK), bool(a[0] & termios.ICRNL), bool(a[0] & termios.IXON), struct.unpack('i', buf)[0]))\n"
+      },
+      "expected_files": {
+        "rc": "pps=0\nback=0\nunknown=1\n",
+        "st-pps": "ispeed=B38400 ospeed=B38400 cs=8 parenb=0 parodd=0 cstopb=0 ignbrk=0 icrnl=1 ixon=1 ldisc=18\n",
+        "st-back": "ispeed=B38400 ospeed=B38400 cs=8 parenb=0 parodd=0 cstopb=0 ignbrk=0 icrnl=1 ixon=1 ldisc=0\n",
+        "st-unknown": "ispeed=B38400 ospeed=B38400 cs=8 parenb=0 parodd=0 cstopb=0 ignbrk=0 icrnl=1 ixon=1 ldisc=0\n",
+        "diag": "diagnosed\n"
+      },
+      "kind": "contract",
+      "oracle": "Documented pty set-ldisc interface (LDISC DEVICE [SPEED|-] [CSIZE|-] [PARITY|-] [STOPBITS|-] [IFLAG_SET|-] [IFLAG_CLEAR|-], usage errors status 2, failures status 1); POSIX/Linux termios constants read back with Python's termios module as the independent observer. No reference executable implements this builtin, so these are contract cases. /proc/tty/ldiscs of the guest kernel lists n_tty 0, pps_tty 18 and n_null 27; the effective discipline is read back with the TIOCGETD ioctl (0x5424) by Python. A PTY slave is the virtual serial endpoint available without a physical or privileged serial device.",
+      "comparison": "TIOCGETD value after each set-ldisc and the exit statuses; the PTY is returned to N_TTY before the fixture ends.",
+      "requires": [
+        "unshare",
+        "tty",
+        "python3"
+      ],
+      "timeout": 20,
+      "features": [
+        "userns"
+      ]
+    }
+  ]
+}

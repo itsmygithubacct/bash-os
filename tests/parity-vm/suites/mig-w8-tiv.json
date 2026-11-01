@@ -1,0 +1,427 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w8-tiv-colors-truecolor",
+      "loadable": "tiv",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Truecolor mode: each cell of a 4x2-cell render of a known 4x4 image has the top pixel as foreground and the bottom pixel as background, exactly.",
+      "script": "tiv -w 4 -H 2 -m rgb pic.png",
+      "steps": [
+        {
+          "screen": {
+            "cells": [
+              {
+                "row": 0,
+                "col": 0,
+                "fg": "ff0000",
+                "bg": "000000"
+              },
+              {
+                "row": 0,
+                "col": 1,
+                "fg": "00ff00",
+                "bg": "ffffff"
+              },
+              {
+                "row": 0,
+                "col": 2,
+                "fg": "0000ff",
+                "bg": "ff0000"
+              },
+              {
+                "row": 0,
+                "col": 3,
+                "fg": "ffffff",
+                "bg": "00ff00"
+              },
+              {
+                "row": 1,
+                "col": 0,
+                "fg": "0000ff",
+                "bg": "ffffff"
+              },
+              {
+                "row": 1,
+                "col": 1,
+                "fg": "ff0000",
+                "bg": "000000"
+              },
+              {
+                "row": 1,
+                "col": 2,
+                "fg": "00ff00",
+                "bg": "0000ff"
+              },
+              {
+                "row": 1,
+                "col": 3,
+                "fg": "ffffff",
+                "bg": "ff0000"
+              }
+            ],
+            "rows": {
+              "0": "^.{4}$",
+              "1": "^.{4}$",
+              "2": "^\\s*$"
+            }
+          }
+        }
+      ],
+      "size": [
+        12,
+        40
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tiv/unicode-terminal-display"
+      ],
+      "files": {
+        "pic.png": {
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAHElEQVR4nGP4z8DAAMZAwICgoWwwCyQClQULAQA8FBXrwIcXrQAAAABJRU5ErkJggg=="
+        }
+      },
+      "kind": "contract",
+      "oracle": "Unicode terminal model pyte 0.8 (python3-wcwidth) decoding the raw PTY stream; expected cell colours follow the half-block rule documented in the tiv help (top pixel = foreground, bottom pixel = background) and the xterm 256-colour palette (cube index 16+36r+6g+b with levels 0,95,135,175,215,255; greyscale ramp 232..255 = 8+10*(i-232)).",
+      "comparison": "pyte per-cell fg/bg for all eight cells; rows hold four glyphs each and the next row is blank.",
+      "timeout": 12
+    },
+    {
+      "id": "mig-w8-tiv-colors-256",
+      "loadable": "tiv",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "256-colour mode: the same image uses palette colours whose RGB values equal the pure red, green, blue, white and black pixels (cube entries 196, 46, 21, 231 and 16).",
+      "script": "tiv -w 4 -H 2 -m 256 pic.png",
+      "steps": [
+        {
+          "screen": {
+            "cells": [
+              {
+                "row": 0,
+                "col": 0,
+                "fg": "ff0000",
+                "bg": "000000"
+              },
+              {
+                "row": 0,
+                "col": 1,
+                "fg": "00ff00",
+                "bg": "ffffff"
+              },
+              {
+                "row": 0,
+                "col": 2,
+                "fg": "0000ff",
+                "bg": "ff0000"
+              },
+              {
+                "row": 0,
+                "col": 3,
+                "fg": "ffffff",
+                "bg": "00ff00"
+              },
+              {
+                "row": 1,
+                "col": 0,
+                "fg": "0000ff",
+                "bg": "ffffff"
+              },
+              {
+                "row": 1,
+                "col": 1,
+                "fg": "ff0000",
+                "bg": "000000"
+              },
+              {
+                "row": 1,
+                "col": 2,
+                "fg": "00ff00",
+                "bg": "0000ff"
+              },
+              {
+                "row": 1,
+                "col": 3,
+                "fg": "ffffff",
+                "bg": "ff0000"
+              }
+            ],
+            "rows": {
+              "0": "^.{4}$",
+              "1": "^.{4}$",
+              "2": "^\\s*$"
+            }
+          }
+        }
+      ],
+      "size": [
+        12,
+        40
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tiv/unicode-terminal-display"
+      ],
+      "files": {
+        "pic.png": {
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAHElEQVR4nGP4z8DAAMZAwICgoWwwCyQClQULAQA8FBXrwIcXrQAAAABJRU5ErkJggg=="
+        }
+      },
+      "kind": "contract",
+      "oracle": "Unicode terminal model pyte 0.8 (python3-wcwidth) decoding the raw PTY stream; expected cell colours follow the half-block rule documented in the tiv help (top pixel = foreground, bottom pixel = background) and the xterm 256-colour palette (cube index 16+36r+6g+b with levels 0,95,135,175,215,255; greyscale ramp 232..255 = 8+10*(i-232)). The pixel colours are exactly representable in the xterm cube, so the palette entry colours must equal them.",
+      "comparison": "pyte per-cell fg/bg (palette resolved to RGB by the decoder) for all eight cells.",
+      "timeout": 12
+    },
+    {
+      "id": "mig-w8-tiv-colors-grey",
+      "loadable": "tiv",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Grey mode: a black-and-white image maps black to the darkest and white to the lightest entry of the xterm greyscale ramp (080808 and eeeeee), top pixel as foreground and bottom pixel as background.",
+      "script": "tiv -w 4 -H 2 -m grey pic.png",
+      "steps": [
+        {
+          "screen": {
+            "cells": [
+              {
+                "row": 0,
+                "col": 0,
+                "fg": "080808",
+                "bg": "eeeeee"
+              },
+              {
+                "row": 0,
+                "col": 1,
+                "fg": "eeeeee",
+                "bg": "080808"
+              },
+              {
+                "row": 0,
+                "col": 2,
+                "fg": "080808",
+                "bg": "eeeeee"
+              },
+              {
+                "row": 0,
+                "col": 3,
+                "fg": "eeeeee",
+                "bg": "080808"
+              },
+              {
+                "row": 1,
+                "col": 0,
+                "fg": "eeeeee",
+                "bg": "080808"
+              },
+              {
+                "row": 1,
+                "col": 1,
+                "fg": "eeeeee",
+                "bg": "080808"
+              },
+              {
+                "row": 1,
+                "col": 2,
+                "fg": "080808",
+                "bg": "eeeeee"
+              },
+              {
+                "row": 1,
+                "col": 3,
+                "fg": "080808",
+                "bg": "eeeeee"
+              }
+            ],
+            "rows": {
+              "0": "^.{4}$",
+              "1": "^.{4}$",
+              "2": "^\\s*$"
+            }
+          }
+        }
+      ],
+      "size": [
+        12,
+        40
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tiv/unicode-terminal-display"
+      ],
+      "files": {
+        "pic.png": {
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAGUlEQVR4nGNgYGD4//8/lESwIBSUBQcQIQBt4hfpIt2pngAAAABJRU5ErkJggg=="
+        }
+      },
+      "kind": "contract",
+      "oracle": "Unicode terminal model pyte 0.8 (python3-wcwidth) decoding the raw PTY stream; expected cell colours follow the half-block rule documented in the tiv help (top pixel = foreground, bottom pixel = background) and the xterm 256-colour palette (cube index 16+36r+6g+b with levels 0,95,135,175,215,255; greyscale ramp 232..255 = 8+10*(i-232)).",
+      "comparison": "pyte per-cell fg/bg for all eight cells.",
+      "timeout": 12
+    },
+    {
+      "id": "mig-w8-tiv-glyph-width-half",
+      "loadable": "tiv",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "In the half glyph mode a 16-column render on a terminal exactly 16 cells wide fills each of four rows with 16 single-cell code points: no row wraps into extra lines and the next row stays blank.",
+      "script": "tiv -w 16 -H 4 -g half pic.png",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^.{16}$",
+              "1": "^.{16}$",
+              "2": "^.{16}$",
+              "3": "^.{16}$",
+              "4": "^\\s*$"
+            }
+          }
+        },
+        {
+          "settle_ms": 50
+        }
+      ],
+      "size": [
+        12,
+        16
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tiv/unicode-terminal-display"
+      ],
+      "files": {
+        "pic.png": {
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAPUlEQVR4nGP4z8DAAMZAAGNSmTuUTQdxaWs6BAz5gBrKpo9G8ggwfTSSR4Dpo5E8AkwfjeQRYPpoJA8K0wFrWMdx4o8qpAAAAABJRU5ErkJggg=="
+        }
+      },
+      "kind": "contract",
+      "oracle": "Unicode terminal model pyte 0.8 (python3-wcwidth) decoding the raw PTY stream; expected cell colours follow the half-block rule documented in the tiv help (top pixel = foreground, bottom pixel = background) and the xterm 256-colour palette (cube index 16+36r+6g+b with levels 0,95,135,175,215,255; greyscale ramp 232..255 = 8+10*(i-232)). Block-element, sextant and octant code points are East Asian Width neutral (one cell); a wider glyph would wrap the 16-cell terminal and push content into the blank row.",
+      "comparison": "Rows 0-3 each hold exactly 16 characters, row 4 is blank (pyte decoded screen).",
+      "timeout": 12
+    },
+    {
+      "id": "mig-w8-tiv-glyph-width-quad",
+      "loadable": "tiv",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "In the quad glyph mode a 16-column render on a terminal exactly 16 cells wide fills each of four rows with 16 single-cell code points: no row wraps into extra lines and the next row stays blank.",
+      "script": "tiv -w 16 -H 4 -g quad pic.png",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^.{16}$",
+              "1": "^.{16}$",
+              "2": "^.{16}$",
+              "3": "^.{16}$",
+              "4": "^\\s*$"
+            }
+          }
+        },
+        {
+          "settle_ms": 50
+        }
+      ],
+      "size": [
+        12,
+        16
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tiv/unicode-terminal-display"
+      ],
+      "files": {
+        "pic.png": {
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAPUlEQVR4nGP4z8DAAMZAAGNSmTuUTQdxaWs6BAz5gBrKpo9G8ggwfTSSR4Dpo5E8AkwfjeQRYPpoJA8K0wFrWMdx4o8qpAAAAABJRU5ErkJggg=="
+        }
+      },
+      "kind": "contract",
+      "oracle": "Unicode terminal model pyte 0.8 (python3-wcwidth) decoding the raw PTY stream; expected cell colours follow the half-block rule documented in the tiv help (top pixel = foreground, bottom pixel = background) and the xterm 256-colour palette (cube index 16+36r+6g+b with levels 0,95,135,175,215,255; greyscale ramp 232..255 = 8+10*(i-232)). Block-element, sextant and octant code points are East Asian Width neutral (one cell); a wider glyph would wrap the 16-cell terminal and push content into the blank row.",
+      "comparison": "Rows 0-3 each hold exactly 16 characters, row 4 is blank (pyte decoded screen).",
+      "timeout": 12
+    },
+    {
+      "id": "mig-w8-tiv-glyph-width-sextant",
+      "loadable": "tiv",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "In the sextant glyph mode a 16-column render on a terminal exactly 16 cells wide fills each of four rows with 16 single-cell code points: no row wraps into extra lines and the next row stays blank.",
+      "script": "tiv -w 16 -H 4 -g sextant pic.png",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^.{16}$",
+              "1": "^.{16}$",
+              "2": "^.{16}$",
+              "3": "^.{16}$",
+              "4": "^\\s*$"
+            }
+          }
+        },
+        {
+          "settle_ms": 50
+        }
+      ],
+      "size": [
+        12,
+        16
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tiv/unicode-terminal-display"
+      ],
+      "files": {
+        "pic.png": {
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAPUlEQVR4nGP4z8DAAMZAAGNSmTuUTQdxaWs6BAz5gBrKpo9G8ggwfTSSR4Dpo5E8AkwfjeQRYPpoJA8K0wFrWMdx4o8qpAAAAABJRU5ErkJggg=="
+        }
+      },
+      "kind": "contract",
+      "oracle": "Unicode terminal model pyte 0.8 (python3-wcwidth) decoding the raw PTY stream; expected cell colours follow the half-block rule documented in the tiv help (top pixel = foreground, bottom pixel = background) and the xterm 256-colour palette (cube index 16+36r+6g+b with levels 0,95,135,175,215,255; greyscale ramp 232..255 = 8+10*(i-232)). Block-element, sextant and octant code points are East Asian Width neutral (one cell); a wider glyph would wrap the 16-cell terminal and push content into the blank row.",
+      "comparison": "Rows 0-3 each hold exactly 16 characters, row 4 is blank (pyte decoded screen).",
+      "timeout": 12
+    },
+    {
+      "id": "mig-w8-tiv-glyph-width-octant",
+      "loadable": "tiv",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "In the octant glyph mode a 16-column render on a terminal exactly 16 cells wide fills each of four rows with 16 single-cell code points: no row wraps into extra lines and the next row stays blank.",
+      "script": "tiv -w 16 -H 4 -g octant pic.png",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^.{16}$",
+              "1": "^.{16}$",
+              "2": "^.{16}$",
+              "3": "^.{16}$",
+              "4": "^\\s*$"
+            }
+          }
+        },
+        {
+          "settle_ms": 50
+        }
+      ],
+      "size": [
+        12,
+        16
+      ],
+      "expected_status": 0,
+      "covers": [
+        "tiv/unicode-terminal-display"
+      ],
+      "files": {
+        "pic.png": {
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAPUlEQVR4nGP4z8DAAMZAAGNSmTuUTQdxaWs6BAz5gBrKpo9G8ggwfTSSR4Dpo5E8AkwfjeQRYPpoJA8K0wFrWMdx4o8qpAAAAABJRU5ErkJggg=="
+        }
+      },
+      "kind": "contract",
+      "oracle": "Unicode terminal model pyte 0.8 (python3-wcwidth) decoding the raw PTY stream; expected cell colours follow the half-block rule documented in the tiv help (top pixel = foreground, bottom pixel = background) and the xterm 256-colour palette (cube index 16+36r+6g+b with levels 0,95,135,175,215,255; greyscale ramp 232..255 = 8+10*(i-232)). Block-element, sextant and octant code points are East Asian Width neutral (one cell); a wider glyph would wrap the 16-cell terminal and push content into the blank row.",
+      "comparison": "Rows 0-3 each hold exactly 16 characters, row 4 is blank (pyte decoded screen).",
+      "timeout": 12
+    }
+  ]
+}
