@@ -1,0 +1,113 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w7-fsck-block-device-clean-root",
+      "loadable": "fsck",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "fsck and fsck -v on a loop block device holding an mke2fs ext2 filesystem report clean status 0, and the verbose summary and stdout fields equal the dumpe2fs values.",
+      "covers": [
+        "fsck/real-block-device"
+      ],
+      "oracle": "dumpe2fs -h (e2fsprogs) of the same image gives inode/block counts and blocks-per-group; state bytes and unchanged-device checks use SHA-256 of the first 8 KiB read independently with Python; expected status codes per the fsck header (0 clean, 4 uncorrected, 8 operational).",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "losetup",
+        "mke2fs",
+        "truncate",
+        "sfdisk",
+        "sort",
+        "umount",
+        "fsck",
+        "dumpe2fs",
+        "python3",
+        "cp",
+        "sync",
+        "setpriv"
+      ],
+      "files": {
+        "rl.sh": "export PYTHONDONTWRITEBYTECODE=1\ncleanup() { /usr/bin/umount -R \"$PWD/mnt\" 2>/dev/null; /usr/sbin/dmsetup remove_all 2>/dev/null; /usr/sbin/losetup -D 2>/dev/null; }\ntrap cleanup EXIT\nmapk=(); mapv=()\nreg() { mapk+=(\"$1\"); mapv+=(\"$2\"); }\nnorm() { local s i; s=$(< \"$1\"); for i in \"${!mapk[@]}\"; do s=${s//\"${mapk[i]}\"/${mapv[i]}}; done; printf '%s\\n' \"$s\"; }\nnormv() { local s=$1 i; for i in \"${!mapk[@]}\"; do s=${s//\"${mapk[i]}\"/${mapv[i]}}; done; printf '%s' \"$s\"; }\nat() { REPLY=$(/usr/sbin/losetup -fP --show \"$1\") || echo \"losetup failed: $1\" >&2; }\nMK=/usr/sbin/mke2fs\n"
+      },
+      "privilege": "root",
+      "script": ". ./rl.sh\n/usr/bin/truncate -s 4M f.img\n$MK -q -t ext2 -b 1024 -L FSCKDEV f.img\ndump=$(/usr/sbin/dumpe2fs -h f.img 2>/dev/null)\nget() { local k=$1 l; v=; while IFS= read -r l; do [[ $l == \"$k:\"* ]] && { v=${l#*:}; v=${v#\"${v%%[![:space:]]*}\"}; return; }; done <<<\"$dump\"; }\nget \"Inode count\"; ino=$v; get \"Block count\"; blk=$v; get \"Blocks per group\"; bpg=$v; groups=$(((blk+bpg-1)/bpg))\nsha() { /usr/bin/python3 -c 'import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],\"rb\").read(8192)).hexdigest())' \"$1\"; }\nat f.img; L=$REPLY\nfsck -v $L >o.txt 2>e.txt; echo \"verbose status=$?\"\n[[ $(< o.txt) == \"$L: clean, ext2, $ino inodes $blk blocks\" ]] && echo stdout=match || echo \"stdout=differ [$(< o.txt)]\"\n[[ $(< e.txt) == \"$L: variant=ext2 block_size=1024 blocks=$blk inodes=$ino groups=$groups state=0x0001 rev=1 label=\\\"FSCKDEV\\\"\" ]] && echo summary=match || echo \"summary=differ [$(< e.txt)]\"\nfsck $L >o.txt 2>e.txt; echo \"plain status=$? stderr-empty=$([[ -s e.txt ]] && echo no || echo yes)\"\n",
+      "stdout": "verbose status=0\nstdout=match\nsummary=match\nplain status=0 stderr-empty=yes\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "file_size_limit": 67108864
+    },
+    {
+      "id": "mig-w7-fsck-block-device-dirty-root",
+      "loadable": "fsck",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "On a block device with the ERRORS bit set, fsck without -p exits 4 leaving the device bytes unchanged; fsck -p clears only s_state through the device node, the change persists in the backing file, and a later check is clean.",
+      "covers": [
+        "fsck/real-block-device"
+      ],
+      "oracle": "dumpe2fs -h (e2fsprogs) of the same image gives inode/block counts and blocks-per-group; state bytes and unchanged-device checks use SHA-256 of the first 8 KiB read independently with Python; expected status codes per the fsck header (0 clean, 4 uncorrected, 8 operational).",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "losetup",
+        "mke2fs",
+        "truncate",
+        "sfdisk",
+        "sort",
+        "umount",
+        "fsck",
+        "dumpe2fs",
+        "python3",
+        "cp",
+        "sync",
+        "setpriv"
+      ],
+      "files": {
+        "rl.sh": "export PYTHONDONTWRITEBYTECODE=1\ncleanup() { /usr/bin/umount -R \"$PWD/mnt\" 2>/dev/null; /usr/sbin/dmsetup remove_all 2>/dev/null; /usr/sbin/losetup -D 2>/dev/null; }\ntrap cleanup EXIT\nmapk=(); mapv=()\nreg() { mapk+=(\"$1\"); mapv+=(\"$2\"); }\nnorm() { local s i; s=$(< \"$1\"); for i in \"${!mapk[@]}\"; do s=${s//\"${mapk[i]}\"/${mapv[i]}}; done; printf '%s\\n' \"$s\"; }\nnormv() { local s=$1 i; for i in \"${!mapk[@]}\"; do s=${s//\"${mapk[i]}\"/${mapv[i]}}; done; printf '%s' \"$s\"; }\nat() { REPLY=$(/usr/sbin/losetup -fP --show \"$1\") || echo \"losetup failed: $1\" >&2; }\nMK=/usr/sbin/mke2fs\n"
+      },
+      "privilege": "root",
+      "script": ". ./rl.sh\n/usr/bin/truncate -s 4M f.img\n$MK -q -t ext2 -b 1024 -L FSCKDEV f.img\ndump=$(/usr/sbin/dumpe2fs -h f.img 2>/dev/null)\nget() { local k=$1 l; v=; while IFS= read -r l; do [[ $l == \"$k:\"* ]] && { v=${l#*:}; v=${v#\"${v%%[![:space:]]*}\"}; return; }; done <<<\"$dump\"; }\nget \"Inode count\"; ino=$v; get \"Block count\"; blk=$v; get \"Blocks per group\"; bpg=$v; groups=$(((blk+bpg-1)/bpg))\nsha() { /usr/bin/python3 -c 'import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],\"rb\").read(8192)).hexdigest())' \"$1\"; }\n/usr/bin/python3 - f.img <<'PY'\nimport struct, sys\nfh = open(sys.argv[1], \"r+b\"); fh.seek(1024 + 58); fh.write(struct.pack(\"<H\", 2)); fh.close()\nPY\n/usr/bin/cp f.img orig.img\nat f.img; L=$REPLY\nh0=$(sha $L)\nfsck $L >o.txt 2>e.txt; rc=$?\n[[ $(< e.txt) == \"$L: s_state has ERRORS bit set (0x0002); rerun with -p or -y to clear\" ]] && m=message || m=\"other:$(< e.txt)\"\necho \"no-repair status=$rc $m unchanged=$([[ $(sha $L) == \"$h0\" ]] && echo yes || echo no)\"\nfsck -p $L >o.txt 2>e.txt; rc=$?\n[[ $(< o.txt) == \"$L: cleared dirty bit (s_state 0x0002 -> 0x0001), ext2, $ino inodes $blk blocks\" ]] && m=message || m=\"other:$(< o.txt)\"\necho \"preen status=$rc $m\"\n/usr/bin/sync\n/usr/bin/python3 - orig.img f.img <<'PY'\nimport sys\na = open(sys.argv[1], \"rb\").read(8192); b = open(sys.argv[2], \"rb\").read(8192)\nprint(\"changed-offsets-in-backing-file=\" + \",\".join(str(i) for i in range(len(a)) if a[i] != b[i]))\nPY\nfsck $L >o.txt 2>e.txt; echo \"after-repair status=$?\"\n",
+      "stdout": "no-repair status=4 message unchanged=yes\npreen status=0 message\nchanged-offsets-in-backing-file=1082\nafter-repair status=0\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "file_size_limit": 67108864
+    },
+    {
+      "id": "mig-w7-fsck-block-device-open-errors-root",
+      "loadable": "fsck",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "An unreadable device node (uid 2000 against a root-owned 0660 loop node) and a missing node give operational status 8 with the errno text; root reads the same node with status 0.",
+      "covers": [
+        "fsck/real-block-device"
+      ],
+      "oracle": "dumpe2fs -h (e2fsprogs) of the same image gives inode/block counts and blocks-per-group; state bytes and unchanged-device checks use SHA-256 of the first 8 KiB read independently with Python; expected status codes per the fsck header (0 clean, 4 uncorrected, 8 operational).",
+      "comparison": "Candidate output, status and files compared with values derived independently of candidate output.",
+      "requires": [
+        "losetup",
+        "mke2fs",
+        "truncate",
+        "sfdisk",
+        "sort",
+        "umount",
+        "fsck",
+        "dumpe2fs",
+        "python3",
+        "cp",
+        "sync",
+        "setpriv"
+      ],
+      "files": {
+        "rl.sh": "export PYTHONDONTWRITEBYTECODE=1\ncleanup() { /usr/bin/umount -R \"$PWD/mnt\" 2>/dev/null; /usr/sbin/dmsetup remove_all 2>/dev/null; /usr/sbin/losetup -D 2>/dev/null; }\ntrap cleanup EXIT\nmapk=(); mapv=()\nreg() { mapk+=(\"$1\"); mapv+=(\"$2\"); }\nnorm() { local s i; s=$(< \"$1\"); for i in \"${!mapk[@]}\"; do s=${s//\"${mapk[i]}\"/${mapv[i]}}; done; printf '%s\\n' \"$s\"; }\nnormv() { local s=$1 i; for i in \"${!mapk[@]}\"; do s=${s//\"${mapk[i]}\"/${mapv[i]}}; done; printf '%s' \"$s\"; }\nat() { REPLY=$(/usr/sbin/losetup -fP --show \"$1\") || echo \"losetup failed: $1\" >&2; }\nMK=/usr/sbin/mke2fs\n"
+      },
+      "privilege": "root",
+      "script": ". ./rl.sh\n/usr/bin/truncate -s 4M f.img\n$MK -q -t ext2 -b 1024 -L FSCKDEV f.img\ndump=$(/usr/sbin/dumpe2fs -h f.img 2>/dev/null)\nget() { local k=$1 l; v=; while IFS= read -r l; do [[ $l == \"$k:\"* ]] && { v=${l#*:}; v=${v#\"${v%%[![:space:]]*}\"}; return; }; done <<<\"$dump\"; }\nget \"Inode count\"; ino=$v; get \"Block count\"; blk=$v; get \"Blocks per group\"; bpg=$v; groups=$(((blk+bpg-1)/bpg))\nsha() { /usr/bin/python3 -c 'import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],\"rb\").read(8192)).hexdigest())' \"$1\"; }\nat f.img; L=$REPLY\n/usr/bin/setpriv --reuid=2000 --regid=2000 --clear-groups \"$BASH\" --noprofile --norc -c \"fsck $L\" >o.txt 2>e.txt; rc=$?\n[[ $(< e.txt) == *\"open $L: Permission denied\" ]] && m=eacces || m=\"other:$(< e.txt)\"\necho \"unreadable-node status=$rc $m\"\nfsck /dev/loop-no-such-node >o.txt 2>e.txt; rc=$?\n[[ $(< e.txt) == *\"No such file or directory\" ]] && m=enoent || m=\"other:$(< e.txt)\"\necho \"missing-node status=$rc $m\"\nfsck $L >o.txt 2>e.txt; echo \"root-readable status=$?\"\n",
+      "stdout": "unreadable-node status=8 eacces\nmissing-node status=8 enoent\nroot-readable status=0\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "file_size_limit": 67108864
+    }
+  ]
+}

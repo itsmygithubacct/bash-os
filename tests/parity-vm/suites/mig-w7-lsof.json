@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w7-lsof-pidns-full-enumeration",
+      "loadable": "lsof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "In a private PID namespace containing only the fixture's processes, argument-less lsof lists every visible process (all /proc PIDs appear) and the descriptor rows of two sacrificial processes holding files, a pipe, a socketpair, a directory and /dev/null match GNU lsof.",
+      "covers": [
+        "lsof/deferred-process-scan"
+      ],
+      "oracle": "GNU lsof on the same live process set; both outputs are parsed by one Python normaliser keeping the numeric descriptor rows (fd number and path, anonymous objects collapsed) of the fixture's own sacrificial processes, plus, in the private PID namespace, whether every process listed in /proc beforehand appears in the output.",
+      "comparison": "Byte parity of status, stdout, stderr and file tree.",
+      "requires": [
+        "python3",
+        "unshare",
+        "lsof"
+      ],
+      "files": {
+        "lsvic.py": "import ctypes, os, signal, socket, subprocess, sys, time\nmode, inner = sys.argv[1], sys.argv[2]\nspecs = [(\"v1\", False), (\"v2\", False)] if mode == \"all\" else [(\"readable\", False), (\"hidden\", True)]\nkids = []\nfor label, dump in specs:\n    open(label + \".r\", \"w\").write(\"x\"); open(label + \".w\", \"w\").write(\"x\")\n    pid = os.fork()\n    if pid == 0:\n        if dump:\n            ctypes.CDLL(None).prctl(4, 0, 0, 0, 0)\n        keep = [os.open(label + \".r\", os.O_RDONLY), os.open(label + \".w\", os.O_WRONLY), os.open(\".\", os.O_RDONLY)]\n        keep += list(os.pipe()) + [s.fileno() for s in socket.socketpair()]\n        keep += [os.open(\"/dev/null\", os.O_RDWR)]\n        open(label + \".ready\", \"w\").write(\"1\")\n        while True:\n            time.sleep(1)\n    kids.append((label, pid))\nfor label, _ in kids:\n    while not os.path.exists(label + \".ready\"):\n        time.sleep(0.02)\nopen(\"victims.txt\", \"w\").write(\"\".join(\"%s %d\\n\" % k for k in kids))\ntry:\n    rc = subprocess.run([os.environ[\"BASH\"], \"--noprofile\", \"--norc\", inner]).returncode\nfinally:\n    for _, pid in kids:\n        os.kill(pid, signal.SIGKILL); os.waitpid(pid, 0)\nprint(\"helper-exit=%d\" % rc)\n",
+        "lsnorm.py": "import re, sys\nlines = open(sys.argv[1]).read().splitlines()\ncols = lines[0].split() if lines else []\nwide = \"PATH\" not in cols\nrows = lines[1:]\nvic = [l.split() for l in open(sys.argv[2]).read().splitlines()]\nwant = set(open(sys.argv[3]).read().split()) if sys.argv[4] == \"all\" else set()\nby = {p: l for l, p in vic}\nseen = set(); out = {l: [] for l, _ in vic}\nfor r in rows:\n    f = r.split(None, 8 if wide else 5)\n    if len(f) < (9 if wide else 6):\n        continue\n    seen.add(f[1])\n    if f[1] in by:\n        m = re.match(r\"^(\\d+)\", f[3])\n        if m:\n            name = f[8] if wide else f[5]\n            out[by[f[1]]].append((int(m.group(1)), name if name.startswith(\"/\") else \"anonymous\"))\nif sys.argv[4] == \"all\":\n    print(\"all-visible-pids-listed=\" + (\"yes\" if want <= seen else \"no:\" + \",\".join(sorted(want - seen))))\nfor l, _ in vic:\n    print(\"%s descriptors=%s\" % (l, sorted(out[l])))\n",
+        "inner.sh": "for p in /proc/[0-9]*; do echo ${p#/proc/}; done > allpids.txt\nlsof > out.txt 2>err.txt; echo \"lsof status=$?\"\n/usr/bin/python3 lsnorm.py out.txt victims.txt allpids.txt all\n/usr/bin/rm -f out.txt err.txt allpids.txt victims.txt\n"
+      },
+      "features": [
+        "userns"
+      ],
+      "script": "export PYTHONDONTWRITEBYTECODE=1 BASH\n/usr/bin/unshare --user --map-root-user --pid --fork --mount-proc /usr/bin/python3 lsvic.py all inner.sh\necho \"ns status=$?\"\n",
+      "expected_status": 0,
+      "timeout": 60
+    },
+    {
+      "id": "mig-w7-lsof-unreadable-process-skipped",
+      "loadable": "lsof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "A non-dumpable process of the caller's own uid (whose /proc/PID/fd is root-owned and unreadable) contributes no descriptor rows, while a readable sibling lists its full descriptors; the candidate's output for both equals GNU lsof's.",
+      "covers": [
+        "lsof/deferred-process-scan"
+      ],
+      "oracle": "GNU lsof on the same live process set; both outputs are parsed by one Python normaliser keeping the numeric descriptor rows (fd number and path, anonymous objects collapsed) of the fixture's own sacrificial processes, plus, in the private PID namespace, whether every process listed in /proc beforehand appears in the output.",
+      "comparison": "Byte parity of status, stdout, stderr and file tree.",
+      "requires": [
+        "python3",
+        "lsof"
+      ],
+      "files": {
+        "lsvic.py": "import ctypes, os, signal, socket, subprocess, sys, time\nmode, inner = sys.argv[1], sys.argv[2]\nspecs = [(\"v1\", False), (\"v2\", False)] if mode == \"all\" else [(\"readable\", False), (\"hidden\", True)]\nkids = []\nfor label, dump in specs:\n    open(label + \".r\", \"w\").write(\"x\"); open(label + \".w\", \"w\").write(\"x\")\n    pid = os.fork()\n    if pid == 0:\n        if dump:\n            ctypes.CDLL(None).prctl(4, 0, 0, 0, 0)\n        keep = [os.open(label + \".r\", os.O_RDONLY), os.open(label + \".w\", os.O_WRONLY), os.open(\".\", os.O_RDONLY)]\n        keep += list(os.pipe()) + [s.fileno() for s in socket.socketpair()]\n        keep += [os.open(\"/dev/null\", os.O_RDWR)]\n        open(label + \".ready\", \"w\").write(\"1\")\n        while True:\n            time.sleep(1)\n    kids.append((label, pid))\nfor label, _ in kids:\n    while not os.path.exists(label + \".ready\"):\n        time.sleep(0.02)\nopen(\"victims.txt\", \"w\").write(\"\".join(\"%s %d\\n\" % k for k in kids))\ntry:\n    rc = subprocess.run([os.environ[\"BASH\"], \"--noprofile\", \"--norc\", inner]).returncode\nfinally:\n    for _, pid in kids:\n        os.kill(pid, signal.SIGKILL); os.waitpid(pid, 0)\nprint(\"helper-exit=%d\" % rc)\n",
+        "lsnorm.py": "import re, sys\nlines = open(sys.argv[1]).read().splitlines()\ncols = lines[0].split() if lines else []\nwide = \"PATH\" not in cols\nrows = lines[1:]\nvic = [l.split() for l in open(sys.argv[2]).read().splitlines()]\nwant = set(open(sys.argv[3]).read().split()) if sys.argv[4] == \"all\" else set()\nby = {p: l for l, p in vic}\nseen = set(); out = {l: [] for l, _ in vic}\nfor r in rows:\n    f = r.split(None, 8 if wide else 5)\n    if len(f) < (9 if wide else 6):\n        continue\n    seen.add(f[1])\n    if f[1] in by:\n        m = re.match(r\"^(\\d+)\", f[3])\n        if m:\n            name = f[8] if wide else f[5]\n            out[by[f[1]]].append((int(m.group(1)), name if name.startswith(\"/\") else \"anonymous\"))\nif sys.argv[4] == \"all\":\n    print(\"all-visible-pids-listed=\" + (\"yes\" if want <= seen else \"no:\" + \",\".join(sorted(want - seen))))\nfor l, _ in vic:\n    print(\"%s descriptors=%s\" % (l, sorted(out[l])))\n",
+        "inner.sh": "for p in /proc/[0-9]*; do echo ${p#/proc/}; done > allpids.txt\nlsof > out.txt 2>err.txt; echo \"lsof status=$?\"\n/usr/bin/python3 lsnorm.py out.txt victims.txt allpids.txt other\n/usr/bin/rm -f out.txt err.txt allpids.txt victims.txt\n"
+      },
+      "script": "export PYTHONDONTWRITEBYTECODE=1 BASH\n/usr/bin/python3 lsvic.py dump inner.sh\n",
+      "expected_status": 0,
+      "timeout": 60
+    }
+  ]
+}
