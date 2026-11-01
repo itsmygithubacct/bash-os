@@ -1,0 +1,75 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-bashkmod-load-unload-root",
+      "loadable": "bashkmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashkmod/defer-kernel-module-transitions",
+        "bashkmod/defer-live-module-inventory"
+      ],
+      "purpose": "bashkmod load/unload of the real nbd module: Live in /proc/modules, parameters visible in sysfs, list agrees with lsmod, EEXIST/ENOENT/EBUSY diagnostics, state restored",
+      "oracle": "kmod (modprobe/rmmod/lsmod/modinfo, util-linux-independent) in the guest kernel 6.12 cloud image, plus /proc/modules and /sys/module read directly",
+      "comparison": "Oracle kmod modprobe/modprobe -r establish the expected state of the same module; the candidate load of the decompressed .ko, its list row against lsmod, error texts and the restored module set are asserted.",
+      "requires": [
+        "python3",
+        "modprobe",
+        "lsmod"
+      ],
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t bashkmod) == builtin ]] || exit 125\nhas() { local n; while read -r n _; do [[ $n == \"$1\" ]] && return 0; done </proc/modules; return 1; }\nnames() { local n out=; while read -r n _; do out=\"$out $n\"; done </proc/modules; echo \"$out\"; }\nb() { \"$@\" && echo 1 || echo 0; }\n/usr/bin/python3 -I - <<'PY'\nimport glob, lzma\nsrc = glob.glob('/lib/modules/*/kernel/drivers/block/nbd.ko.xz')[0]\nopen('/tmp/parity-case/nbd.ko', 'wb').write(lzma.open(src).read())\nPY\nKO=/tmp/parity-case/nbd.ko\nbase=$(names)\necho \"before: nbd-loaded=$(b has nbd)\"\n/usr/sbin/modprobe nbd nbds_max=4 max_part=2; rc=$?; read -r st </sys/module/nbd/initstate; read -r nm </sys/module/nbd/parameters/nbds_max; read -r omp </sys/module/nbd/parameters/max_part\necho \"oracle modprobe: rc=$rc loaded=$(b has nbd) initstate=$st nbds_max=$nm\"\n/usr/sbin/modprobe -r nbd; echo \"oracle modprobe -r: rc=$? loaded=$(b has nbd)\"\nbashkmod load \"$KO\" nbds_max=4 max_part=2; rc=$?\nread -r st </sys/module/nbd/initstate; read -r nm </sys/module/nbd/parameters/nbds_max; read -r mp </sys/module/nbd/parameters/max_part\nstate=; while read -r n sz ref deps s _; do [[ $n == nbd ]] && state=$s; done </proc/modules\necho \"candidate load: rc=$rc loaded=$(b has nbd) initstate=$st proc-state=$state nbds_max=$nm max_part-equals-oracle=$([[ $mp == \"$omp\" ]] && echo 1 || echo 0)\"\nrow=; while read -r n sz ref deps s; do [[ $n == nbd ]] && row=\"$sz $ref\"; done < <(bashkmod list)\nlrow=; while read -r n sz ref rest; do [[ $n == nbd ]] && lrow=\"$sz $ref\"; done < <(/usr/sbin/lsmod)\necho \"list-row-equals-lsmod=$([[ -n $row && $row == \"$lrow\" ]] && echo 1 || echo 0)\"\nout=$(bashkmod load \"$KO\" 2>&1); echo \"reload: rc=$? text=$([[ $out == *\"File exists\"* ]] && echo 1 || echo 0)\"\nbashkmod unload nbd; echo \"unload: rc=$? loaded=$(b has nbd)\"\nout=$(bashkmod unload nbd 2>&1); echo \"unload-again: rc=$? text=$([[ $out == *\"no such module\"* ]] && echo 1 || echo 0)\"\n/usr/sbin/modprobe ip_set; echo \"oracle ip_set: rc=$? loaded=$(b has ip_set)\"\nout=$(bashkmod unload nfnetlink 2>&1); echo \"unload-busy: rc=$? text=$([[ $out == *\"module in use\"* ]] && echo 1 || echo 0) still-loaded=$(b has nfnetlink)\"\nbashkmod unload ip_set; echo \"unload ip_set: rc=$? loaded=$(b has ip_set)\"\necho \"restored: $([[ $(names) == \"$base\" ]] && echo 1 || echo 0)\"\n",
+      "expected_status": 0,
+      "stdout": "before: nbd-loaded=0\noracle modprobe: rc=0 loaded=1 initstate=live nbds_max=4\noracle modprobe -r: rc=0 loaded=0\ncandidate load: rc=0 loaded=1 initstate=live proc-state=Live nbds_max=4 max_part-equals-oracle=1\nlist-row-equals-lsmod=1\nreload: rc=1 text=1\nunload: rc=0 loaded=0\nunload-again: rc=1 text=1\noracle ip_set: rc=0 loaded=1\nunload-busy: rc=1 text=1 still-loaded=1\nunload ip_set: rc=0 loaded=0\nrestored: 1\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w6-bashkmod-modprobe-chain-root",
+      "loadable": "bashkmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashkmod/defer-kernel-module-transitions"
+      ],
+      "purpose": "Non-dry bashkmod modprobe loads the modules.dep chain deepest-first and the final module with PARAMS; modprobe -r removes the chain in reverse",
+      "oracle": "kmod (modprobe/rmmod/lsmod/modinfo, util-linux-independent) in the guest kernel 6.12 cloud image, plus /proc/modules and /sys/module read directly",
+      "comparison": "kmod's modprobe -n -v plan gives the expected load order; the candidate's resulting /proc/modules additions, parameters and removal are compared.",
+      "requires": [
+        "python3",
+        "modprobe",
+        "rmmod"
+      ],
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t bashkmod) == builtin ]] || exit 125\nhas() { local n; while read -r n _; do [[ $n == \"$1\" ]] && return 0; done </proc/modules; return 1; }\nnames() { local n out=; while read -r n _; do out=\"$out $n\"; done </proc/modules; echo \"$out\"; }\nb() { \"$@\" && echo 1 || echo 0; }\nbase=$(names)\nplan=$(/usr/sbin/modprobe -n -v br_netfilter 2>&1); order=\nwhile read -r l; do [[ $l == insmod* ]] || continue; n=${l##*/}; n=${n%%.ko*}; order=\"$order ${n//-/_}\"; done <<<\"$plan\"\necho \"oracle plan nonempty=$([[ -n $order ]] && echo 1 || echo 0)\"\nout=$(bashkmod modprobe nbd nbds_max=4 2>&1); rc=$?\nread -r nm </sys/module/nbd/parameters/nbds_max 2>/dev/null\necho \"modprobe nbd: rc=$rc loaded=$(b has nbd) nbds_max=${nm:-none}\"\n/usr/sbin/rmmod nbd 2>/dev/null\nout=$(bashkmod modprobe br_netfilter 2>&1); rc=$?\nnew=; for n in $(names); do [[ \" $base \" == *\" $n \"* ]] || new=\"$new $n\"; done\necho \"modprobe br_netfilter: rc=$rc loaded-in-kmod-plan-order=$([[ \"$new\" == \"$order\" ]] && echo 1 || echo 0)\"\nout=$(bashkmod modprobe -r br_netfilter 2>&1); echo \"modprobe -r: rc=$? back-to-base=$([[ $(names) == \"$base\" ]] && echo 1 || echo 0)\"\n/usr/sbin/modprobe -r br_netfilter 2>/dev/null\n",
+      "expected_status": 0,
+      "stdout": "oracle plan nonempty=1\nmodprobe nbd: rc=0 loaded=1 nbds_max=4\nmodprobe br_netfilter: rc=0 loaded-in-kmod-plan-order=1\nmodprobe -r: rc=0 back-to-base=1\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w6-bashkmod-eperm",
+      "loadable": "bashkmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashkmod/defer-kernel-module-transitions"
+      ],
+      "purpose": "Without CAP_SYS_MODULE load maps EPERM to 'need CAP_SYS_MODULE' with status 2 and unload reports it with status 1",
+      "oracle": "The kernel's capability check for finit_module/delete_module as uid 2000, and the builtin's documented errno mapping",
+      "comparison": "Status and diagnostic text for load and unload as an unprivileged user.",
+      "requires": [
+        "python3"
+      ],
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t bashkmod) == builtin ]] || exit 125\n/usr/bin/python3 -I -c \"open('/tmp/parity-case/x.ko','wb').close()\"\nout=$(bashkmod load /tmp/parity-case/x.ko 2>&1); echo \"load: rc=$? text=$([[ $out == *\"need CAP_SYS_MODULE\"* ]] && echo 1 || echo 0)\"\nout=$(bashkmod unload nbd 2>&1); echo \"unload: rc=$? text=$([[ $out == *\"need CAP_SYS_MODULE\"* ]] && echo 1 || echo 0)\"\n",
+      "expected_status": 0,
+      "stdout": "load: rc=2 text=1\nunload: rc=1 text=1\n",
+      "stderr": "",
+      "timeout": 30
+    }
+  ]
+}

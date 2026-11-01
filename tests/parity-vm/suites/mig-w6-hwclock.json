@@ -1,0 +1,121 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-hwclock-hctosys-local",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "hwclock/hctosys-local-dst"
+      ],
+      "purpose": "--hctosys --localtime under EST5EDT,M3.2.0/2,M11.1.0/2 converts ordinary local calendars (summer, winter, just after the spring gap, around the fall fold) to the independent epoch and issues one CLOCK_REALTIME set",
+      "oracle": "Independently derived epochs (UTC instants of the local calendars under the US rule EST5EDT,M3.2.0/2,M11.1.0/2 from Gregorian arithmetic, checked against zoneinfo America/New_York) and a synthetic RTC/clock recorder (helpers/mig-w6-hwclock-synth.py); no real RTC or clock is touched",
+      "comparison": "The recorded clock_settime seconds for five local RTC calendars against independent epochs.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/mig-w6-hwclock-synth.py": "39a4c1bc0a007095fc6e806fad2b387dc8a83587df25ae7475bd4bc4bd1700d8"
+      },
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n: >rtc\nHS=/opt/bashos-parity/harness/helpers/mig-w6-hwclock-synth.py\nexport TZ='EST5EDT,M3.2.0/2,M11.1.0/2'\n# hs LABEL RTC-JSON-ARRAY PROBE-TEXT COMMAND-OPTIONS\nhs() {\n  printf '{\"rtc\": %s}\\n' \"$2\" >synth.json\n  local out err rc\n  out=$(/usr/bin/python3 \"$HS\" \"$BASH\" --noprofile --norc -c \"hwclock $4 --noadjfile --rtc /tmp/parity-case/rtc 2>\\\"\\$HOME/op.err\\\"; echo \\$? >\\\"\\$HOME/op.rc\\\"\")\n  rc=$(<\"$HOME/op.rc\"); err=$(<\"$HOME/op.err\")\n  HSOUT=$out\n  local p=''; [[ -n $3 ]] && p=\" probe=$([[ $err == *\"$3\"* ]] && echo 1 || echo 0)\"\n  echo \"$1: rc=$rc [${out//$'\\n'/ ; }]$p\"\n}\nhs jul \"[0,0,12,4,6,124,0,0,0]\" \"\" \"--hctosys --localtime\"\nhs jan \"[0,30,8,15,0,124,0,0,0]\" \"\" \"--hctosys --localtime\"\nhs after-gap \"[0,0,3,10,2,124,0,0,0]\" \"\" \"--hctosys --localtime\"\nhs before-fold \"[59,59,0,3,10,124,0,0,0]\" \"\" \"--hctosys --localtime\"\nhs after-fold \"[0,0,2,3,10,124,0,0,0]\" \"\" \"--hctosys --localtime\"\n",
+      "expected_status": 0,
+      "stdout": "jul: rc=0 [rd ; clock_settime clk=0 sec=1720108800 nsec=0]\njan: rc=0 [rd ; clock_settime clk=0 sec=1705325400 nsec=0]\nafter-gap: rc=0 [rd ; clock_settime clk=0 sec=1710054000 nsec=0]\nbefore-fold: rc=0 [rd ; clock_settime clk=0 sec=1730609999 nsec=0]\nafter-fold: rc=0 [rd ; clock_settime clk=0 sec=1730617200 nsec=0]\n",
+      "stderr": "",
+      "timeout": 50
+    },
+    {
+      "id": "mig-w6-hwclock-hctosys-gap",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "hwclock/hctosys-local-dst"
+      ],
+      "purpose": "A local RTC time inside the spring-forward gap (2024-03-10 02:30:00) is rejected with 'nonexistent or out-of-range local RTC time' and no clock_settime request",
+      "oracle": "Independently derived epochs (UTC instants of the local calendars under the US rule EST5EDT,M3.2.0/2,M11.1.0/2 from Gregorian arithmetic, checked against zoneinfo America/New_York) and a synthetic RTC/clock recorder (helpers/mig-w6-hwclock-synth.py); no real RTC or clock is touched",
+      "comparison": "Status 1, the documented diagnostic, and only the RTC read in the recorded event list.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/mig-w6-hwclock-synth.py": "39a4c1bc0a007095fc6e806fad2b387dc8a83587df25ae7475bd4bc4bd1700d8"
+      },
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n: >rtc\nHS=/opt/bashos-parity/harness/helpers/mig-w6-hwclock-synth.py\nexport TZ='EST5EDT,M3.2.0/2,M11.1.0/2'\n# hs LABEL RTC-JSON-ARRAY PROBE-TEXT COMMAND-OPTIONS\nhs() {\n  printf '{\"rtc\": %s}\\n' \"$2\" >synth.json\n  local out err rc\n  out=$(/usr/bin/python3 \"$HS\" \"$BASH\" --noprofile --norc -c \"hwclock $4 --noadjfile --rtc /tmp/parity-case/rtc 2>\\\"\\$HOME/op.err\\\"; echo \\$? >\\\"\\$HOME/op.rc\\\"\")\n  rc=$(<\"$HOME/op.rc\"); err=$(<\"$HOME/op.err\")\n  HSOUT=$out\n  local p=''; [[ -n $3 ]] && p=\" probe=$([[ $err == *\"$3\"* ]] && echo 1 || echo 0)\"\n  echo \"$1: rc=$rc [${out//$'\\n'/ ; }]$p\"\n}\nhs gap \"[0,30,2,10,2,124,0,0,0]\" \"nonexistent or out-of-range local RTC time\" \"--hctosys --localtime\"\n",
+      "expected_status": 0,
+      "stdout": "gap: rc=1 [rd] probe=1\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w6-hwclock-hctosys-fold",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "hwclock/hctosys-local-dst"
+      ],
+      "purpose": "For the repeated local hour 2024-11-03 01:30:00 the result is one of the two valid epochs (1730611800 EDT, 1730615400 EST) and equals libc mktime with tm_isdst=-1",
+      "oracle": "Independently derived epochs (UTC instants of the local calendars under the US rule EST5EDT,M3.2.0/2,M11.1.0/2 from Gregorian arithmetic, checked against zoneinfo America/New_York) and a synthetic RTC/clock recorder (helpers/mig-w6-hwclock-synth.py); no real RTC or clock is touched; libc mktime(tm_isdst=-1) in the same TZ as the documented choice",
+      "comparison": "Membership of the recorded epoch in the two valid values and equality with mktime. Obtaining the other epoch is not asserted (no fold selector exists).",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/mig-w6-hwclock-synth.py": "39a4c1bc0a007095fc6e806fad2b387dc8a83587df25ae7475bd4bc4bd1700d8"
+      },
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n: >rtc\nHS=/opt/bashos-parity/harness/helpers/mig-w6-hwclock-synth.py\nexport TZ='EST5EDT,M3.2.0/2,M11.1.0/2'\n# hs LABEL RTC-JSON-ARRAY PROBE-TEXT COMMAND-OPTIONS\nhs() {\n  printf '{\"rtc\": %s}\\n' \"$2\" >synth.json\n  local out err rc\n  out=$(/usr/bin/python3 \"$HS\" \"$BASH\" --noprofile --norc -c \"hwclock $4 --noadjfile --rtc /tmp/parity-case/rtc 2>\\\"\\$HOME/op.err\\\"; echo \\$? >\\\"\\$HOME/op.rc\\\"\")\n  rc=$(<\"$HOME/op.rc\"); err=$(<\"$HOME/op.err\")\n  HSOUT=$out\n  local p=''; [[ -n $3 ]] && p=\" probe=$([[ $err == *\"$3\"* ]] && echo 1 || echo 0)\"\n  echo \"$1: rc=$rc [${out//$'\\n'/ ; }]$p\"\n}\nm=$(/usr/bin/python3 -c \"import time;print(int(time.mktime((2024,11,3,1,30,0,0,0,-1))))\")\nhs fold \"[0,30,1,3,10,124,0,0,0]\" \"\" \"--hctosys --localtime\" >/dev/null\nsec=${HSOUT##* sec=}; sec=${sec%% *}\necho \"sec=[$sec] m=[$m] hsout=[$HSOUT]\" >\"$HOME/dbg\"\necho \"fold-member-of-valid-epochs=$([[ $sec == 1730611800 || $sec == 1730615400 ]] && echo 1 || echo 0) equals-libc-mktime-isdst-1=$([[ $sec == \"$m\" ]] && echo 1 || echo 0)\"\necho \"fold-rc=$(<$HOME/op.rc)\"\n",
+      "expected_status": 0,
+      "stdout": "fold-member-of-valid-epochs=1 equals-libc-mktime-isdst-1=1\nfold-rc=0\n",
+      "stderr": "",
+      "timeout": 40,
+      "diagnostic_files": [
+        "dbg"
+      ]
+    },
+    {
+      "id": "mig-w6-hwclock-systohc-fixed-root",
+      "loadable": "hwclock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "hwclock/systohc-and-adjtime-reset"
+      ],
+      "purpose": "--systohc converts a FIXED system time (CLOCK_REALTIME set by root to 2024-06-15 12:34:50 UTC) to RTC fields, UTC and local (EST5EDT), and issues one RTC_SET_TIME",
+      "oracle": "Fixed instant set by root and independent calendar arithmetic (UTC 12:34:50; EDT local 08:34:50); the RTC is a synthetic recorder",
+      "comparison": "The six RTC_SET_TIME fields recorded for --utc and --localtime; the seconds field is within a 3 s window after the fixed instant.",
+      "requires": [
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da",
+        "helpers/mig-w6-hwclock-synth.py": "39a4c1bc0a007095fc6e806fad2b387dc8a83587df25ae7475bd4bc4bd1700d8"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t hwclock) == builtin ]] || exit 125\n: >rtc\nHS=/opt/bashos-parity/harness/helpers/mig-w6-hwclock-synth.py\nexport TZ='EST5EDT,M3.2.0/2,M11.1.0/2'\n# hs LABEL RTC-JSON-ARRAY PROBE-TEXT COMMAND-OPTIONS\nhs() {\n  printf '{\"rtc\": %s}\\n' \"$2\" >synth.json\n  local out err rc\n  out=$(/usr/bin/python3 \"$HS\" \"$BASH\" --noprofile --norc -c \"hwclock $4 --noadjfile --rtc /tmp/parity-case/rtc 2>\\\"\\$HOME/op.err\\\"; echo \\$? >\\\"\\$HOME/op.rc\\\"\")\n  rc=$(<\"$HOME/op.rc\"); err=$(<\"$HOME/op.err\")\n  HSOUT=$out\n  local p=''; [[ -n $3 ]] && p=\" probe=$([[ $err == *\"$3\"* ]] && echo 1 || echo 0)\"\n  echo \"$1: rc=$rc [${out//$'\\n'/ ; }]$p\"\n}\n/usr/bin/date -u -s '2024-06-15 12:34:50' >/dev/null || exit 97\nhs utc \"[0,0,0,1,0,100,0,0,0]\" \"\" \"--systohc --utc\" >/dev/null\nev=${HSOUT##*set }; IFS=, read -r s mi h d mo y <<<\"$ev\"\necho \"utc: min=$mi hour=$h mday=$d mon=$mo year=$y sec-in-window=$([[ $s -ge 50 && $s -le 53 ]] && echo 1 || echo 0)\"\n/usr/bin/date -u -s '2024-06-15 12:34:50' >/dev/null || exit 97\nhs local \"[0,0,0,1,0,100,0,0,0]\" \"\" \"--systohc --localtime\" >/dev/null\nev=${HSOUT##*set }; IFS=, read -r s mi h d mo y <<<\"$ev\"\necho \"local: min=$mi hour=$h mday=$d mon=$mo year=$y sec-in-window=$([[ $s -ge 50 && $s -le 53 ]] && echo 1 || echo 0)\"\n",
+      "expected_status": 0,
+      "stdout": "utc: min=34 hour=12 mday=15 mon=5 year=124 sec-in-window=1\nlocal: min=34 hour=8 mday=15 mon=5 year=124 sec-in-window=1\n",
+      "stderr": "",
+      "timeout": 50
+    }
+  ]
+}

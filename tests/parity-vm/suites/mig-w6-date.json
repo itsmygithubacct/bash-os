@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-date-setter-request",
+      "loadable": "date",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "date/system_clock_setting"
+      ],
+      "purpose": "A clock-setting request (date -s STRING / date MMDDhhmm[[CC]YY][.ss]) sets CLOCK_REALTIME to the requested instant and prints it; recorded against a mock without changing the real clock",
+      "oracle": "GNU date (coreutils) in the guest, run through the same seccomp-notify mock (clock_settime/settimeofday answered with success and recorded), as the independent expectation of the setter request",
+      "comparison": "Printed new time and the recorded clock-set request (seconds, nanoseconds, CLOCK_REALTIME) for both forms, GNU versus candidate; the real clock is untouched.",
+      "requires": [
+        "python3",
+        "date"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t date) == builtin ]] || exit 125\nSEQ=/opt/bashos-parity/harness/helpers/system-sequence.py\nRULES=\"--notify clock_settime --log-args clock_settime=0 --log-mem clock_settime=1:16 --notify settimeofday --log-mem settimeofday=0:16 --reply clock_settime=0 --reply settimeofday=0\"\n# trial LABEL COMMAND : run COMMAND in a filtered shell with clock setters answered by a mock success\ntrial() {\n  local label=$1 cmd=$2 T=$HOME/$1\n  /usr/bin/python3 \"$SEQ\" $RULES --log \"$T.log\" -- \"$BASH\" --noprofile --norc -c \"$cmd\" scn >\"$T.out\" 2>\"$T.err\"\n  local rc=$?\n  /usr/bin/python3 -I - \"$T\" \"$label\" \"$rc\" <<'PY'\nimport json, os, struct, sys\nt, label, rc = sys.argv[1:]\nrows = [json.loads(l) for l in open(t + \".log\")] if os.path.exists(t + \".log\") else []\nreqs = []\nfor r in rows:\n    key = \"memory1\" if r[\"syscall\"] == \"clock_settime\" else \"memory0\"\n    raw = bytes.fromhex(r[key][\"hex\"])\n    sec, sub = struct.unpack(\"<qq\", raw)\n    reqs.append((sec, sub if r[\"syscall\"] == \"clock_settime\" else sub * 1000, r[\"syscall\"] == \"settimeofday\" or r[\"arg0\"] == 0))\nout = open(t + \".out\").read().rstrip(\"\\n\")\nerr = open(t + \".err\").read()\nfirst = \"none\" if not reqs else \"sec=%d nsec=%d realtime=%d\" % reqs[0]\nprint(\"%s: rc=%s out=[%s] requests=%d first: %s unknown-arg=%d\" % (label, rc, out, len(reqs), first, \"unknown arg\" in err))\nPY\n}\ntrial gnu-s \"/usr/bin/date -u -s '2000-01-01 00:00:00'\"\ntrial cand-s \"date -u -s '2000-01-01 00:00:00'\"\ntrial gnu-mmdd \"/usr/bin/date -u 010100002000\"\ntrial cand-mmdd \"date -u 010100002000\"\nnow=$(/usr/bin/date +%s); echo \"real-clock-unchanged=$(( now > 1900000000 || now < 1000000000 ? 0 : 1 ))\"\n",
+      "expected_status": 0,
+      "stdout": "gnu-s: rc=0 out=[Sat Jan  1 00:00:00 UTC 2000] requests=1 first: sec=946684800 nsec=0 realtime=1 unknown-arg=0\ncand-s: rc=0 out=[Sat Jan  1 00:00:00 UTC 2000] requests=1 first: sec=946684800 nsec=0 realtime=1 unknown-arg=0\ngnu-mmdd: rc=0 out=[Sat Jan  1 00:00:00 UTC 2000] requests=1 first: sec=946684800 nsec=0 realtime=1 unknown-arg=0\ncand-mmdd: rc=0 out=[Sat Jan  1 00:00:00 UTC 2000] requests=1 first: sec=946684800 nsec=0 realtime=1 unknown-arg=0\nreal-clock-unchanged=1\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "mig-w6-date-setter-rejected",
+      "loadable": "date",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "date/system_clock_setting"
+      ],
+      "purpose": "Setter syntax the candidate does not support (date -s @0, date 010100002000) is rejected with failure and a diagnostic, and no clock mutation is requested",
+      "oracle": "The candidate's documented option set (-u -R -I --rfc-3339 -d +FORMAT) as the contract: anything else is an unknown argument; the seccomp-notify mock records no clock_settime/settimeofday call",
+      "comparison": "Status, diagnostic and absence of any recorded setter call for two unsupported forms.",
+      "requires": [
+        "python3",
+        "date"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t date) == builtin ]] || exit 125\nSEQ=/opt/bashos-parity/harness/helpers/system-sequence.py\nRULES=\"--notify clock_settime --log-args clock_settime=0 --log-mem clock_settime=1:16 --notify settimeofday --log-mem settimeofday=0:16 --reply clock_settime=0 --reply settimeofday=0\"\n# trial LABEL COMMAND : run COMMAND in a filtered shell with clock setters answered by a mock success\ntrial() {\n  local label=$1 cmd=$2 T=$HOME/$1\n  /usr/bin/python3 \"$SEQ\" $RULES --log \"$T.log\" -- \"$BASH\" --noprofile --norc -c \"$cmd\" scn >\"$T.out\" 2>\"$T.err\"\n  local rc=$?\n  /usr/bin/python3 -I - \"$T\" \"$label\" \"$rc\" <<'PY'\nimport json, os, struct, sys\nt, label, rc = sys.argv[1:]\nrows = [json.loads(l) for l in open(t + \".log\")] if os.path.exists(t + \".log\") else []\nreqs = []\nfor r in rows:\n    key = \"memory1\" if r[\"syscall\"] == \"clock_settime\" else \"memory0\"\n    raw = bytes.fromhex(r[key][\"hex\"])\n    sec, sub = struct.unpack(\"<qq\", raw)\n    reqs.append((sec, sub if r[\"syscall\"] == \"clock_settime\" else sub * 1000, r[\"syscall\"] == \"settimeofday\" or r[\"arg0\"] == 0))\nout = open(t + \".out\").read().rstrip(\"\\n\")\nerr = open(t + \".err\").read()\nfirst = \"none\" if not reqs else \"sec=%d nsec=%d realtime=%d\" % reqs[0]\nprint(\"%s: rc=%s out=[%s] requests=%d first: %s unknown-arg=%d\" % (label, rc, out, len(reqs), first, \"unknown arg\" in err))\nPY\n}\ntrial s-at \"date -s @0\"\ntrial mmdd \"date 010100002000\"\n",
+      "expected_status": 0,
+      "stdout": "s-at: rc=1 out=[] requests=0 first: none unknown-arg=1\nmmdd: rc=1 out=[] requests=0 first: none unknown-arg=1\n",
+      "stderr": "",
+      "timeout": 40
+    }
+  ]
+}

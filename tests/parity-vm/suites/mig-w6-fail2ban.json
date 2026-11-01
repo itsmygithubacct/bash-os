@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-fail2ban-ban-validation",
+      "loadable": "fail2ban",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "fail2ban/defer-ban-state-and-firewall"
+      ],
+      "purpose": "banip/unbanip with an invalid IP or jail token is refused with an 'invalid' diagnostic (status 2) and changes no ban state",
+      "oracle": "fail2ban.c token rules (IPv4 ^[0-9]{1,3}(\\.[0-9]{1,3}){3}$, IPv6 hex with ':', jail ^[A-Za-z0-9_.-]{1,64}$) and exit status 2 for invalid tokens; The frozen fail2ban builtin documents only parse-command/validate-ip/validate-jail/format-status/selftest (fail2ban.c header) and no mutation, firewall or daemon-client verb; this case states the documented fail2ban-client behavior (banip/unbanip/reload/status with -s SOCKET, ban.db as the DB operand like format-status) and records the candidate's reached failure. Any operand layout is rejected at the subcommand level, so the failure does not depend on the layout chosen.",
+      "comparison": "Status, an 'invalid' diagnostic and absence of any ban.db for three invalid requests.",
+      "requires": [
+        "python3",
+        "mkdir",
+        "chmod"
+      ],
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t fail2ban) == builtin ]] || exit 125\nb() { \"$@\" && echo 1 || echo 0; }\n/usr/bin/mkdir -p bin; printf '#!/bin/sh\\necho \"$@\" >>\"$HOME/fw.log\"\\n' >bin/fw; /usr/bin/chmod +x bin/fw; : >\"$HOME/fw.log\"\nt() { local l=$1 out rc; shift; out=$(\"$@\" 2>&1); rc=$?; echo \"$l: rc=$rc diag-says-invalid=$([[ $out == *invalid* ]] && echo 1 || echo 0) db-exists=$([[ -e ban.db ]] && echo 1 || echo 0)\"; }\nt bad-ip fail2ban banip ban.db sshd 1.2.3\nt bad-jail fail2ban banip ban.db \"bad jail\" 192.0.2.1\nt bad-unban-ip fail2ban unbanip ban.db sshd 12.34.56.7890\n",
+      "expected_status": 0,
+      "stdout": "bad-ip: rc=2 diag-says-invalid=1 db-exists=0\nbad-jail: rc=2 diag-says-invalid=1 db-exists=0\nbad-unban-ip: rc=2 diag-says-invalid=1 db-exists=0\n",
+      "stderr": "",
+      "timeout": 30
+    },
+    {
+      "id": "mig-w6-fail2ban-ban-state",
+      "loadable": "fail2ban",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "fail2ban/defer-ban-state-and-firewall"
+      ],
+      "purpose": "banip appends <ip>\\t<jail>\\t<epoch> rows to an isolated ban.db, unbanip removes only the named row, status reflects each transition, and a mock firewall actor sees the requests",
+      "oracle": "fail2ban-client semantics and the ban.db row format in the fail2ban.c header; a mock fw executable that appends its argv to a private log; The frozen fail2ban builtin documents only parse-command/validate-ip/validate-jail/format-status/selftest (fail2ban.c header) and no mutation, firewall or daemon-client verb; this case states the documented fail2ban-client behavior (banip/unbanip/reload/status with -s SOCKET, ban.db as the DB operand like format-status) and records the candidate's reached failure. Any operand layout is rejected at the subcommand level, so the failure does not depend on the layout chosen.",
+      "comparison": "Return statuses, the exact ban.db rows with an epoch inside the sampled window, remaining rows after unbanip, format-status output after each step, and mock fw invocations naming the IP.",
+      "requires": [
+        "python3",
+        "mkdir",
+        "chmod",
+        "date",
+        "tr",
+        "cut",
+        "wc",
+        "head"
+      ],
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t fail2ban) == builtin ]] || exit 125\nb() { \"$@\" && echo 1 || echo 0; }\n/usr/bin/mkdir -p bin; printf '#!/bin/sh\\necho \"$@\" >>\"$HOME/fw.log\"\\n' >bin/fw; /usr/bin/chmod +x bin/fw; : >\"$HOME/fw.log\"\nt0=$(/usr/bin/date +%s)\nexport PATH=/tmp/parity-case/bin\nfail2ban banip ban.db sshd 192.0.2.7; r1=$?\nfail2ban banip ban.db sshd 192.0.2.8; r2=$?\nfail2ban banip ban.db nginx 198.51.100.4; r3=$?\nt1=$(/usr/bin/date +%s)\nrows=0; ok=1\nwhile IFS=$'\\t' read -r ip jail ep; do rows=$((rows+1)); [[ -n $ip && -n $jail && $ep -ge $t0 && $ep -le $t1 ]] || ok=0; done <ban.db 2>/dev/null\necho \"banip: rc=$r1,$r2,$r3 rows=$rows row-format-and-epoch-ok=$ok first=$(head -n1 ban.db 2>/dev/null | /usr/bin/tr '\\t' ' ' | /usr/bin/cut -d' ' -f1,2)\"\nst=$(fail2ban format-status ban.db sshd 2>&1)\necho \"status-after-ban: both-ips=$([[ $st == *192.0.2.7* && $st == *192.0.2.8* ]] && echo 1 || echo 0)\"\nfail2ban unbanip ban.db sshd 192.0.2.7; r4=$?\nrows=0; left=; while IFS=$'\\t' read -r ip jail ep; do rows=$((rows+1)); left=\"$left $ip/$jail\"; done <ban.db 2>/dev/null\nst=$(fail2ban format-status ban.db sshd 2>&1)\necho \"unbanip: rc=$r4 rows=$rows left=[$left ] status-without-removed=$([[ $st == *192.0.2.8* && $st != *192.0.2.7* ]] && echo 1 || echo 0)\"\nfw=$(<\"$HOME/fw.log\")\necho \"mock-fw: mentions-ban-ip=$([[ $fw == *192.0.2.7* ]] && echo 1 || echo 0) calls=$(/usr/bin/wc -l <\"$HOME/fw.log\")\"\n",
+      "expected_status": 0,
+      "stdout": "banip: rc=0,0,0 rows=3 row-format-and-epoch-ok=1 first=192.0.2.7 sshd\nstatus-after-ban: both-ips=1\nunbanip: rc=0 rows=2 left=[ 192.0.2.8/sshd 198.51.100.4/nginx ] status-without-removed=1\nmock-fw: mentions-ban-ip=1 calls=4\n",
+      "stderr": "",
+      "timeout": 30
+    },
+    {
+      "id": "mig-w6-fail2ban-daemon-control",
+      "loadable": "fail2ban",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "fail2ban/defer-daemon-reload-control"
+      ],
+      "purpose": "The client sends reload and status over a private Unix control socket to a daemon and reports its reply; a reload reaches the firewall backend (mocked)",
+      "oracle": "A mock control daemon on a private Unix socket (helpers/mig-w6-f2b-mock.py) that records requests and returns a fixed jail status, plus a mock fw executable; The frozen fail2ban builtin documents only parse-command/validate-ip/validate-jail/format-status/selftest (fail2ban.c header) and no mutation, firewall or daemon-client verb; this case states the documented fail2ban-client behavior (banip/unbanip/reload/status with -s SOCKET, ban.db as the DB operand like format-status) and records the candidate's reached failure. Any operand layout is rejected at the subcommand level, so the failure does not depend on the layout chosen.",
+      "comparison": "Connections seen by the mock daemon, the verb in the request bytes, the client's stdout against the daemon reply and the mock firewall call, for reload and status.",
+      "requires": [
+        "python3",
+        "mkdir",
+        "chmod",
+        "rm"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-f2b-mock.py": "5b568a0720048d2d23e1898b10b5b4d4f7798f67cb5251ef58cc623bd6bad4d0"
+      },
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t fail2ban) == builtin ]] || exit 125\nb() { \"$@\" && echo 1 || echo 0; }\n/usr/bin/mkdir -p bin; printf '#!/bin/sh\\necho \"$@\" >>\"$HOME/fw.log\"\\n' >bin/fw; /usr/bin/chmod +x bin/fw; : >\"$HOME/fw.log\"\nprintf 'Status\\n|- Number of jails:\\t1\\n`- Jail list:\\tsshd\\n' >reply.txt\nMOCK=/opt/bashos-parity/harness/helpers/mig-w6-f2b-mock.py\nmock() { # LABEL CLIENT-COMMAND\n  /usr/bin/rm -f \"$HOME/rep.json\" \"$HOME/out.txt\" \"$HOME/rc.txt\"; : >\"$HOME/fw.log\"\n  /usr/bin/python3 \"$MOCK\" /tmp/parity-case/f2b.sock reply.txt \"$HOME/rep.json\" -- \"$BASH\" --noprofile --norc -c \"PATH=/tmp/parity-case/bin $2 >\\\"\\$HOME/out.txt\\\" 2>/dev/null; echo \\$? >\\\"\\$HOME/rc.txt\\\"\"\n  /usr/bin/python3 -I - \"$1\" <<'PY'\nimport json, sys\nr = json.load(open(\"/tmp/parity-home/rep.json\"))\nrc = open(\"/tmp/parity-home/rc.txt\").read().strip()\nout = open(\"/tmp/parity-home/out.txt\").read()\nfw = open(\"/tmp/parity-home/fw.log\").read()\nprint(\"%s: rc=%s connections=%d request-has-verb=%d stdout-equals-daemon-reply=%d fw-called=%d\" % (\n    sys.argv[1], rc, r[\"connections\"], any(b\"reload\" in bytes.fromhex(x) or b\"status\" in bytes.fromhex(x) for x in r[\"requests\"]),\n    out == \"Status\\n|- Number of jails:\\t1\\n`- Jail list:\\tsshd\\n\", bool(fw.strip())))\nPY\n}\nmock reload \"fail2ban -s /tmp/parity-case/f2b.sock reload\"\nmock status \"fail2ban -s /tmp/parity-case/f2b.sock status\"\n",
+      "expected_status": 0,
+      "stdout": "reload: rc=0 connections=1 request-has-verb=1 stdout-equals-daemon-reply=1 fw-called=1\nstatus: rc=0 connections=1 request-has-verb=1 stdout-equals-daemon-reply=1 fw-called=0\n",
+      "stderr": "",
+      "timeout": 45
+    }
+  ]
+}

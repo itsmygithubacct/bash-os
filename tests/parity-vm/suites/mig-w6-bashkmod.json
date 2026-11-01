@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-bashkmod-live-list",
+      "loadable": "bashkmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashkmod/defer-live-module-inventory"
+      ],
+      "purpose": "bashkmod list prints one 'name size refcnt deps state' row per /proc/modules line without the address column, and agrees with lsmod",
+      "oracle": "An independent Python parse of the live /proc/modules (first five columns) and kmod lsmod in the guest",
+      "comparison": "Row-for-row equality with the independent parse, and name/size/used-by equality with lsmod, on the guest's live module set (at least one module).",
+      "requires": [
+        "python3",
+        "lsmod"
+      ],
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t bashkmod) == builtin ]] || exit 125\nbashkmod list >\"$HOME/list.out\"; rc=$?\n/usr/bin/python3 -I - \"$HOME/list.out\" <<'PY'\nimport subprocess, sys\ngot = open(sys.argv[1]).read().splitlines()\nwant = [\" \".join(l.split()[:5]) for l in open(\"/proc/modules\")]\nlsmod = [l.split() for l in subprocess.run([\"/usr/sbin/lsmod\"], capture_output=True, text=True).stdout.splitlines()[1:]]\nrows = [r.split() for r in got]\nls = {r[0]: r for r in lsmod}\nprint(\"rows-nonzero=%d equal-to-proc-modules=%d columns-5=%d\" % (len(got) > 0, got == want, all(len(r) == 5 for r in rows)))\nprint(\"names-equal-lsmod=%d size-equal=%d usedby-count-equal=%d\" % (\n    sorted(r[0] for r in rows) == sorted(ls),\n    all(ls[r[0]][1] == r[1] for r in rows if r[0] in ls),\n    all(ls[r[0]][2] == r[2] for r in rows if r[0] in ls)))\nPY\necho \"rc=$rc\"\n",
+      "expected_status": 0,
+      "stdout": "rows-nonzero=1 equal-to-proc-modules=1 columns-5=1\nnames-equal-lsmod=1 size-equal=1 usedby-count-equal=1\nrc=0\n",
+      "stderr": "",
+      "timeout": 30
+    },
+    {
+      "id": "mig-w6-bashkmod-info-live",
+      "loadable": "bashkmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashkmod/defer-live-module-inventory"
+      ],
+      "purpose": "info NAME on a live module reports /sys/module/NAME coresize/initsize/initstate/refcnt/version and sorted parameters equal to the kernel values",
+      "oracle": "An independent Python read of /sys/module/NAME of the first live module (sorted by name) that exposes initstate and a parameters directory of regular files",
+      "comparison": "Candidate output compared line for line with the independent model for a live module chosen at run time; the chosen module must have initstate and parameters.",
+      "requires": [
+        "python3"
+      ],
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t bashkmod) == builtin ]] || exit 125\n/usr/bin/python3 -I - <<'PY' >\"$HOME/pick\"\nimport os\nfor l in sorted(l.split()[0] for l in open(\"/proc/modules\")):\n    d = \"/sys/module/\" + l\n    p = d + \"/parameters\"\n    if os.path.isfile(d + \"/initstate\") and os.path.isdir(p) and os.listdir(p) and all(os.path.isfile(p + \"/\" + f) for f in os.listdir(p)):\n        print(l); break\nPY\nread -r mod <\"$HOME/pick\" || exit 125\n[[ -n $mod ]] || exit 125\nbashkmod info \"$mod\" >\"$HOME/info.out\"; rc=$?\n/usr/bin/python3 -I - \"$mod\" \"$HOME/info.out\" <<'PY'\nimport os, sys\nmod, out = sys.argv[1:]\nd = \"/sys/module/\" + mod\nwant = []\nfor f in (\"coresize\", \"initsize\", \"initstate\", \"refcnt\", \"version\"):\n    try:\n        v = open(d + \"/\" + f).readline().rstrip(\"\\n\")\n    except OSError:\n        continue\n    want.append(\"%s=%s\" % (f, v))\nfor f in sorted(os.listdir(d + \"/parameters\")):\n    try:\n        v = open(d + \"/parameters/\" + f).readline().rstrip(\"\\n\")\n    except OSError:\n        continue\n    want.append(\"param.%s=%s\" % (f, v))\ngot = open(out).read().splitlines()\nprint(\"lines-equal=%d has-initstate=%d has-coresize=%d has-params=%d\" % (got == want, any(l.startswith(\"initstate=\") for l in got), any(l.startswith(\"coresize=\") for l in got), any(l.startswith(\"param.\") for l in got)))\nPY\necho \"rc=$rc\"\n",
+      "expected_status": 0,
+      "stdout": "lines-equal=1 has-initstate=1 has-coresize=1 has-params=1\nrc=0\n",
+      "stderr": "",
+      "timeout": 30
+    },
+    {
+      "id": "mig-w6-bashkmod-info-errors",
+      "loadable": "bashkmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashkmod/defer-live-module-inventory"
+      ],
+      "purpose": "info on a module that is not loaded fails with 'not loaded' status 1; invalid names are rejected; a non-directory entry is refused",
+      "oracle": "The builtin's documented messages and statuses (bash EX_USAGE maps to status 2), over the live /sys/module and a private BASHKMOD_SYS_MODULE_DIR",
+      "comparison": "Status and diagnostic for an absent module, a regular-file entry, five invalid names and a missing operand.",
+      "requires": [
+        "python3",
+        "env",
+        "mkdir"
+      ],
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t bashkmod) == builtin ]] || exit 125\n/usr/bin/mkdir -p sys; : >sys/afile\nt() { local out; out=$(\"$@\" 2>&1 >/dev/null); echo \"[$*] rc=$? \"; }\nchk() { local label=$1 text=$2; shift 2; local out rc; out=$(\"$@\" 2>&1 >/dev/null); rc=$?; echo \"$label rc=$rc text=$([[ $out == *\"$text\"* ]] && echo 1 || echo 0)\"; }\nchk absent-live \"w6nomod not loaded\" bashkmod info w6nomod\nchk absent-private \"not loaded\" env BASHKMOD_SYS_MODULE_DIR=/tmp/parity-case/sys \"$BASH\" --noprofile --norc -c 'bashkmod info w6nomod'\nchk not-a-dir \"not a module directory\" env BASHKMOD_SYS_MODULE_DIR=/tmp/parity-case/sys \"$BASH\" --noprofile --norc -c 'bashkmod info afile'\nchk dotdot \"invalid module name\" bashkmod info ../etc\nchk slash \"invalid module name\" bashkmod info a/b\nchk dot \"invalid module name\" bashkmod info .\nchk dotdot2 \"invalid module name\" bashkmod info ..\nchk empty \"invalid module name\" bashkmod info \"\"\nchk no-operand \"info: NAME\" bashkmod info\nchk too-many \"too many arguments\" bashkmod info a b\n",
+      "expected_status": 0,
+      "stdout": "absent-live rc=1 text=1\nabsent-private rc=1 text=1\nnot-a-dir rc=1 text=1\ndotdot rc=2 text=1\nslash rc=2 text=1\ndot rc=2 text=1\ndotdot2 rc=2 text=1\nempty rc=2 text=1\nno-operand rc=2 text=1\ntoo-many rc=2 text=1\n",
+      "stderr": "",
+      "timeout": 30
+    }
+  ]
+}
