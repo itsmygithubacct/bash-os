@@ -424,10 +424,15 @@ parameter_code (const char *cap)
 
 /* Compiled terminfo is resolved before the unknown-terminal return.
  * A loaded entry supplies standard and extended capabilities. Mandatory
- * $<N/> delays become floor(ms * baud / 9000) pad bytes, or a sleep when
- * the entry sets npc. Non-mandatory $<N> delays are omitted. init, reset,
- * and the environment-backed size queries stay on the curated path. */
+ * $<N/> delays to a terminal become floor(ms * baud / 9000) pad bytes, or
+ * a sleep when the entry sets npc. Non-mandatory $<N> delays are omitted.
+ * init, reset, and the environment-backed size queries stay on the curated
+ * path. */
 #define TP_MAX_OUT (512 * 1024)
+/* The longest padding any capability in the ncurses terminfo database
+   requests is 5000 ms. A longer delay is ignored, and one capability's
+   padding is bounded by that total. */
+#define TP_MAX_PAD_MS 5000L
 
 extern int bt_compiled_lookup (const char *term, const char *cap,
                                int *flag, int32_t *num, char **str, int *npc);
@@ -507,6 +512,7 @@ struct tp_out {
   char *data;
   size_t len;
   size_t cap;
+  long pad_ms;      /* padding already applied for this capability */
 };
 
 static int
@@ -538,22 +544,26 @@ tp_out_add (struct tp_out *o, const void *bytes, size_t n)
   return 0;
 }
 
+/* Pad bytes need an output speed and a sleep needs a terminal, so neither
+   applies when stdout is not a terminal. */
 static int
-tp_out_pad (struct tp_out *o, const char *var, int npc, long whole, long frac, long scale)
+tp_out_pad (struct tp_out *o, const char *var, int npc, long ms)
 {
-  long num, den, nuls;
+  long nuls;
   int baud;
 
-  if (scale < 1) scale = 1;
-  num = whole * scale + frac;
-  if (num < 0) num = 0;
-  if (var)
+  if (ms > TP_MAX_PAD_MS)
     return 0;
+  if (ms > TP_MAX_PAD_MS - o->pad_ms)
+    ms = TP_MAX_PAD_MS - o->pad_ms;
+  if (var || ms <= 0)
+    return 0;
+  o->pad_ms += ms;
   if (npc)
     {
       struct timespec ts;
-      long ms = num / scale;
-      long usec = ((num % scale) * 1000000L) / scale;
+      if (!isatty (STDOUT_FILENO))
+        return 0;
       if (o->len)
         {
           fwrite (o->data, 1, o->len, stdout);
@@ -562,18 +572,12 @@ tp_out_pad (struct tp_out *o, const char *var, int npc, long whole, long frac, l
         }
       fflush (stdout);
       ts.tv_sec = ms / 1000;
-      ts.tv_nsec = (ms % 1000) * 1000000L + usec * 1000L;
-      if (ts.tv_nsec >= 1000000000L)
-        {
-          ts.tv_sec += ts.tv_nsec / 1000000000L;
-          ts.tv_nsec %= 1000000000L;
-        }
+      ts.tv_nsec = (ms % 1000) * 1000000L;
       nanosleep (&ts, NULL);
       return 0;
     }
   baud = tp_baud ();
-  den = 9000L * scale;
-  nuls = den > 0 ? (num * (long) baud) / den : 0;
+  nuls = (ms * (long) baud) / 9000L;
   while (nuls-- > 0)
     if (tp_out_add (o, "", 1) < 0)
       return -1;
@@ -607,36 +611,30 @@ tp_expand_compiled (const char *tmpl, WORD_LIST *args, const char *var,
     {
       if (tmpl[0] == '$' && tmpl[1] == '<')
         {
-          const char *start = tmpl;
+          /* ncurses tputs: digits, then '.' and decimals, then any '*' and
+             '/' flags; the byte after them (normally '>') is consumed. The
+             delay is whole milliseconds; parsing stops growing it past the
+             bound. */
           const char *p = tmpl + 2;
-          const char *end = strchr (p, '>');
-          long whole = 0, frac = 0, scale = 1;
-          int seen_dot = 0, mandatory = 0, ok = 1;
-          if (!end) { if (tp_out_add (o, tmpl, 1) < 0) return -1; tmpl++; continue; }
-          while (p < end)
+          long ms = 0;
+          int mandatory = 0;
+          if ((!(*p >= '0' && *p <= '9') && *p != '.') || !strchr (p, '>'))
             {
-              if (*p >= '0' && *p <= '9')
-                {
-                  if (!seen_dot) whole = whole * 10 + (*p - '0');
-                  else { frac = frac * 10 + (*p - '0'); scale *= 10; }
-                }
-              else if (*p == '.' && !seen_dot)
-                seen_dot = 1;
-              else if (*p == '/')
-                mandatory = 1;
-              else if (*p == '*')
-                ;
-              else
-                ok = 0;
-              p++;
-            }
-          tmpl = end + 1;
-          if (!ok)
-            {
-              if (tp_out_add (o, start, (size_t) (tmpl - start)) < 0) return -1;
+              if (tp_out_add (o, "$<", 2) < 0) return -1;
+              tmpl = p;
               continue;
             }
-          if (mandatory && tp_out_pad (o, var, npc, whole, frac, scale) < 0)
+          for (; *p >= '0' && *p <= '9'; p++)
+            if (ms <= TP_MAX_PAD_MS)
+              ms = ms * 10 + (*p - '0');
+          if (*p == '.')
+            for (p++; *p >= '0' && *p <= '9'; p++)
+              ;
+          for (; *p == '*' || *p == '/'; p++)
+            if (*p == '/')
+              mandatory = 1;
+          tmpl = p + 1;
+          if (mandatory && tp_out_pad (o, var, npc, ms) < 0)
             return -1;
           continue;
         }
@@ -655,8 +653,9 @@ tp_expand_compiled (const char *tmpl, WORD_LIST *args, const char *var,
         }
       if (*tmpl == 'i')
         {
-          pnum[0]++;
-          pnum[1]++;
+          /* Wrap at INT_MAX, as ncurses does, without signed overflow. */
+          pnum[0] = (int) ((unsigned int) pnum[0] + 1u);
+          pnum[1] = (int) ((unsigned int) pnum[1] + 1u);
           tmpl++;
           continue;
         }
