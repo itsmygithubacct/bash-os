@@ -1,4 +1,5 @@
 {
+  "schema": 1,
   "cases": [
     {
       "comparison": "Keep exact header/endpoint parsing and partial journal; permit the exact native -u header without a state column only with matching live connected UDP socket and procfs local/peer/inode/UID witnesses before and after.",
@@ -42,6 +43,5 @@
       "stdout": "controls=complete candidate=PASS\n",
       "timeout": 60
     }
-  ],
-  "schema": 1
+  ]
 }

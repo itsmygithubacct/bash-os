@@ -1,4 +1,5 @@
 {
+  "schema": 1,
   "cases": [
     {
       "comparison": "Record both status values and candidate diagnostic; signal 15 must yield 143.",
@@ -30,6 +31,5 @@
       "stdout": "signal-status=143\n",
       "timeout": 25
     }
-  ],
-  "schema": 1
+  ]
 }

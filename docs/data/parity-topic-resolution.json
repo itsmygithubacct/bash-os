@@ -1,0 +1,404 @@
+{
+  "schema": 1,
+  "baseline_release": "v0.1.3",
+  "baseline_commit": "115262e9187fa282d07fc2372c293119658476e6",
+  "objective": "Every historical topic has a definite PASS or FAIL on each release binary. Missing or incomplete evidence remains UNRESOLVED.",
+  "original_topics": 600,
+  "baseline": {
+    "static": {
+      "FAIL": 256,
+      "UNRESOLVED": 64,
+      "PASS": 280
+    },
+    "dynamic": {
+      "FAIL": 255,
+      "UNRESOLVED": 64,
+      "PASS": 281
+    }
+  },
+  "builds": {
+    "static": {
+      "binary_sha256": "11e4edf30b60abeab3318fedd5a4052f783d2500576a934b295bca451e5b6308",
+      "results": {
+        "FAIL": 263,
+        "UNRESOLVED": 42,
+        "PASS": 295
+      },
+      "resolved_topics": [
+        {
+          "topic": "crypto/secret-read-terminal",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "hwclock/adjtime-validation-before-rtc",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "hwclock/adjust-fractional-drift",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "hwclock/hctosys-utc-epoch",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "hwclock/rtc-and-adjfile-failure-cleanup",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "hwclock/show-raw-rtc-calendar",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "hwclock/systohc-and-adjtime-reset",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "lpr/cancel_owned_child",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "lpr/submit_fixture_backend",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "lsof/deferred-user-filter",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "mlock/try-lock-operation",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "netstat/defer-transport-errors",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ns/ns-mount-operations",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ns/ns-spawn-child-exec",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ns/ns-unshare-namespaces",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "scrub/live-history-deferred",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "sftp/local-session-verbs",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "sqlite/concurrent-file-locking",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ss/deferred_netlink_protocol_errors",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ss/deferred_output_and_repeat_calls",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "su/kernel-token-protocol",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "su/owned-child-status-and-signals",
+          "result": "PASS",
+          "fully_exercised": true
+        }
+      ],
+      "unresolved_topics": [
+        "auth/authority-policy-audit-and-child-flow",
+        "auth/device-abi-and-fd-lifecycle",
+        "auth/pty-sealed-secret-lifecycle",
+        "auth/synthetic-login-and-token-mint",
+        "bashclock/clock_domain_reads",
+        "bashclock/since_arithmetic",
+        "bashpoll/signalfd-ownership",
+        "bashsyslogd/forwarding_queue_replay",
+        "cluster/argument-and-timeout-validation",
+        "cluster/packet-rejection",
+        "cluster/ping-protocol",
+        "cluster/private-state-recovery",
+        "dmesg/live-ring-buffer",
+        "dns/dns-authoritative-service",
+        "doas/authority_policy_and_verification",
+        "login/credential-transition-deferred",
+        "login/interactive-auth-session-deferred",
+        "mlock/all-operation",
+        "mlock/unlock-operation",
+        "ncdu/interactive-browser-pty",
+        "passwd/password_hash_updates",
+        "passwd/password_verification_lockout",
+        "pty/pty-session-control-deferred",
+        "ptybroker/bounded_io_errors",
+        "ptybroker/private_session_lifecycle",
+        "sshd/authentication-authorization",
+        "su/credential-transition",
+        "su/private-account-lookup",
+        "sudo/authority-command-authorization",
+        "sudo/sudoedit-safe-copyback",
+        "sudo/timestamp-validation-flows",
+        "top/interactive-pty-contract",
+        "tput/hardware-init-reset",
+        "uclampset/defer_all_tasks_preflight",
+        "uclampset/defer_command_mode",
+        "uclampset/defer_pid_query",
+        "uclampset/defer_pid_setter",
+        "uclampset/defer_system_files",
+        "utf8/unicode17-exhaustive-grapheme-reference",
+        "vec/simd-cross-cpu-backends",
+        "watch/watch-terminal-parity",
+        "wgetch/escape-timing"
+      ],
+      "new_run": {
+        "name": "ordinary-first-static",
+        "groups": [
+          "shell",
+          "terminal"
+        ],
+        "selected_records": 71,
+        "candidate_sha256": "11e4edf30b60abeab3318fedd5a4052f783d2500576a934b295bca451e5b6308",
+        "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+        "artifacts_sha256": {
+          "summary.json": "c0e523e52873ad1c97d79a2a4bf3c7a9b091c86fe8befcade11fef22943338ab",
+          "provenance.json": "42a6b99fb74afe159fb0c1e2cbbea5b3da7ce3db7bd5175b8cce3841b559c8ca",
+          "payload.tar": "bb96142783e2e00f017f2516237acfa8a6fa5da30cbe001e046d49066e6e3db0",
+          "evidence.tar": "ff7ca13c17826c159c060860847665df3c0575b71a4def3a3dc65b48b2165ac5"
+        },
+        "teardown": {
+          "qemu_exit_status": 0,
+          "clean_poweroff": true,
+          "forced_stop": false,
+          "poweroff_request": 0,
+          "stopped_at": 1793656478.3800607
+        },
+        "overlay_discarded": true,
+        "candidate_unchanged": true,
+        "candidate_matches_guest": true,
+        "prepared_unchanged": true
+      }
+    },
+    "dynamic": {
+      "binary_sha256": "090c95cd49df3478967c0acb73534d425ed099ba0ef55e5522745d30fec0c039",
+      "results": {
+        "FAIL": 262,
+        "UNRESOLVED": 42,
+        "PASS": 296
+      },
+      "resolved_topics": [
+        {
+          "topic": "crypto/secret-read-terminal",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "hwclock/adjtime-validation-before-rtc",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "hwclock/adjust-fractional-drift",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "hwclock/hctosys-utc-epoch",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "hwclock/rtc-and-adjfile-failure-cleanup",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "hwclock/show-raw-rtc-calendar",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "hwclock/systohc-and-adjtime-reset",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "lpr/cancel_owned_child",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "lpr/submit_fixture_backend",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "lsof/deferred-user-filter",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "mlock/try-lock-operation",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "netstat/defer-transport-errors",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ns/ns-mount-operations",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ns/ns-spawn-child-exec",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ns/ns-unshare-namespaces",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "scrub/live-history-deferred",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "sftp/local-session-verbs",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "sqlite/concurrent-file-locking",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ss/deferred_netlink_protocol_errors",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ss/deferred_output_and_repeat_calls",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "su/kernel-token-protocol",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "su/owned-child-status-and-signals",
+          "result": "PASS",
+          "fully_exercised": true
+        }
+      ],
+      "unresolved_topics": [
+        "auth/authority-policy-audit-and-child-flow",
+        "auth/device-abi-and-fd-lifecycle",
+        "auth/pty-sealed-secret-lifecycle",
+        "auth/synthetic-login-and-token-mint",
+        "bashclock/clock_domain_reads",
+        "bashclock/since_arithmetic",
+        "bashpoll/signalfd-ownership",
+        "bashsyslogd/forwarding_queue_replay",
+        "cluster/argument-and-timeout-validation",
+        "cluster/packet-rejection",
+        "cluster/ping-protocol",
+        "cluster/private-state-recovery",
+        "dmesg/live-ring-buffer",
+        "dns/dns-authoritative-service",
+        "doas/authority_policy_and_verification",
+        "login/credential-transition-deferred",
+        "login/interactive-auth-session-deferred",
+        "mlock/all-operation",
+        "mlock/unlock-operation",
+        "ncdu/interactive-browser-pty",
+        "passwd/password_hash_updates",
+        "passwd/password_verification_lockout",
+        "pty/pty-session-control-deferred",
+        "ptybroker/bounded_io_errors",
+        "ptybroker/private_session_lifecycle",
+        "sshd/authentication-authorization",
+        "su/credential-transition",
+        "su/private-account-lookup",
+        "sudo/authority-command-authorization",
+        "sudo/sudoedit-safe-copyback",
+        "sudo/timestamp-validation-flows",
+        "top/interactive-pty-contract",
+        "tput/hardware-init-reset",
+        "uclampset/defer_all_tasks_preflight",
+        "uclampset/defer_command_mode",
+        "uclampset/defer_pid_query",
+        "uclampset/defer_pid_setter",
+        "uclampset/defer_system_files",
+        "utf8/unicode17-exhaustive-grapheme-reference",
+        "vec/simd-cross-cpu-backends",
+        "watch/watch-terminal-parity",
+        "wgetch/escape-timing"
+      ],
+      "new_run": {
+        "name": "ordinary-first-dynamic",
+        "groups": [
+          "shell",
+          "terminal"
+        ],
+        "selected_records": 71,
+        "candidate_sha256": "090c95cd49df3478967c0acb73534d425ed099ba0ef55e5522745d30fec0c039",
+        "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
+        "artifacts_sha256": {
+          "summary.json": "40a8afd170bfc4a435f50ee4813ecc7564bf688cd41c0b37d822ed5213103dd7",
+          "provenance.json": "f90f570795cd9bbd9f4818b334689388b75ad5e94e1f5dd4f75c0435c20405d7",
+          "payload.tar": "0607ca37da0ed679cc7395cc5b56f0f906a4c8a2316eaa177bd71f1c537621bd",
+          "evidence.tar": "5adc8b7362aaeb34758f8f23031af5b46101f035632b05bacd1fcbab0cfb775b"
+        },
+        "teardown": {
+          "qemu_exit_status": 0,
+          "clean_poweroff": true,
+          "forced_stop": false,
+          "poweroff_request": 0,
+          "stopped_at": 1793656478.475866
+        },
+        "overlay_discarded": true,
+        "candidate_unchanged": true,
+        "candidate_matches_guest": true,
+        "prepared_unchanged": true
+      }
+    }
+  },
+  "definition_change": "The two raw crypto PTY cases create their caller-owned secret output file with mode 0600 on both sides. Content, prompt, echo and termios assertions are preserved."
+}

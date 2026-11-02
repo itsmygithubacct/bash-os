@@ -1,4 +1,5 @@
 {
+  "schema": 1,
   "cases": [
     {
       "comparison": "In one interactive command, clear history, read the private fixture history, retain the before snapshot and verify all three records before explicit prune. Then retain count and after snapshot and check removed and retained whole records. Missing preconditions exit 125 and are incomplete; expected count or after mismatch is a reached candidate FAIL. Placeholder diagnostics prevent absent-file rejection.",
@@ -138,6 +139,5 @@
       ],
       "timeout": 25
     }
-  ],
-  "schema": 1
+  ]
 }

@@ -9939,14 +9939,14 @@
             {
               "group": "terminal",
               "id": "migration-terminal213-crypto-secret-lf-r3",
-              "assertion": "Both unchanged builds: issued paired owned-PTY evidence retains candidate and independent reference prompt, no-echo ECHO-clear observation while blocked, synthetic LF delimiter and exact handle bytes delivered to the FD by expect send-secret; raw side and terminal-control observations are receipt-bound. The outer stty restoration does not independently isolate builtin restoration.",
-              "definition_sha256": "34e3690faf246309c5d95e2b61f726fae901f1ffbc4c168ffab552eb7eafc7b8"
+              "assertion": "Paired standard-runtime PTY execution retains the independent literal-byte reference, in-flight ECHO/ICANON/ICRNL checks, prompt placement, CR/LF delimiter handling, and exact synthetic bytes exported through expect send-secret. The caller creates the output file privately on both sides; outer stty restoration does not independently isolate builtin restoration.",
+              "definition_sha256": "915680dd7b327b56c526dfa9b3a66088ec23041a3672da9a25978fba5181dd90"
             },
             {
               "group": "terminal",
               "id": "migration-terminal213-crypto-secret-cr-r3",
-              "assertion": "Both unchanged builds: issued paired owned-PTY evidence retains candidate and independent reference prompt, no-echo ECHO-clear observation while blocked, synthetic CR delimiter and exact handle bytes delivered to the FD by expect send-secret; raw side and terminal-control observations are receipt-bound. The outer stty restoration does not independently isolate builtin restoration.",
-              "definition_sha256": "b9b33bae340461cc844ec6124f22b94125f7d4242391c1bf68c856cbc8f86555"
+              "assertion": "Paired standard-runtime PTY execution retains the independent literal-byte reference, in-flight ECHO/ICANON/ICRNL checks, prompt placement, CR/LF delimiter handling, and exact synthetic bytes exported through expect send-secret. The caller creates the output file privately on both sides; outer stty restoration does not independently isolate builtin restoration.",
+              "definition_sha256": "c010de0256d38a5eb0ed2beaa0746e2d46285a41416cc35e82736a6fc3ece42e"
             }
           ],
           "gap": ""
@@ -9971,14 +9971,14 @@
             {
               "group": "terminal",
               "id": "migration-terminal213-crypto-secret-lf-r3",
-              "assertion": "Both unchanged builds: issued paired owned-PTY evidence retains candidate and independent reference prompt, no-echo ECHO-clear observation while blocked, synthetic LF delimiter and exact handle bytes delivered to the FD by expect send-secret; raw side and terminal-control observations are receipt-bound. The outer stty restoration does not independently isolate builtin restoration.",
-              "definition_sha256": "34e3690faf246309c5d95e2b61f726fae901f1ffbc4c168ffab552eb7eafc7b8"
+              "assertion": "Paired standard-runtime PTY execution retains the independent literal-byte reference, in-flight ECHO/ICANON/ICRNL checks, prompt placement, CR/LF delimiter handling, and exact synthetic bytes exported through expect send-secret. The caller creates the output file privately on both sides; outer stty restoration does not independently isolate builtin restoration.",
+              "definition_sha256": "915680dd7b327b56c526dfa9b3a66088ec23041a3672da9a25978fba5181dd90"
             },
             {
               "group": "terminal",
               "id": "migration-terminal213-crypto-secret-cr-r3",
-              "assertion": "Both unchanged builds: issued paired owned-PTY evidence retains candidate and independent reference prompt, no-echo ECHO-clear observation while blocked, synthetic CR delimiter and exact handle bytes delivered to the FD by expect send-secret; raw side and terminal-control observations are receipt-bound. The outer stty restoration does not independently isolate builtin restoration.",
-              "definition_sha256": "b9b33bae340461cc844ec6124f22b94125f7d4242391c1bf68c856cbc8f86555"
+              "assertion": "Paired standard-runtime PTY execution retains the independent literal-byte reference, in-flight ECHO/ICANON/ICRNL checks, prompt placement, CR/LF delimiter handling, and exact synthetic bytes exported through expect send-secret. The caller creates the output file privately on both sides; outer stty restoration does not independently isolate builtin restoration.",
+              "definition_sha256": "c010de0256d38a5eb0ed2beaa0746e2d46285a41416cc35e82736a6fc3ece42e"
             }
           ],
           "gap": ""
@@ -10003,14 +10003,14 @@
             {
               "group": "terminal",
               "id": "migration-terminal213-crypto-secret-lf-r3",
-              "assertion": "Both unchanged builds: issued paired owned-PTY evidence retains candidate and independent reference prompt, no-echo ECHO-clear observation while blocked, synthetic LF delimiter and exact handle bytes delivered to the FD by expect send-secret; raw side and terminal-control observations are receipt-bound. The outer stty restoration does not independently isolate builtin restoration.",
-              "definition_sha256": "34e3690faf246309c5d95e2b61f726fae901f1ffbc4c168ffab552eb7eafc7b8"
+              "assertion": "Paired standard-runtime PTY execution retains the independent literal-byte reference, in-flight ECHO/ICANON/ICRNL checks, prompt placement, CR/LF delimiter handling, and exact synthetic bytes exported through expect send-secret. The caller creates the output file privately on both sides; outer stty restoration does not independently isolate builtin restoration.",
+              "definition_sha256": "915680dd7b327b56c526dfa9b3a66088ec23041a3672da9a25978fba5181dd90"
             },
             {
               "group": "terminal",
               "id": "migration-terminal213-crypto-secret-cr-r3",
-              "assertion": "Both unchanged builds: issued paired owned-PTY evidence retains candidate and independent reference prompt, no-echo ECHO-clear observation while blocked, synthetic CR delimiter and exact handle bytes delivered to the FD by expect send-secret; raw side and terminal-control observations are receipt-bound. The outer stty restoration does not independently isolate builtin restoration.",
-              "definition_sha256": "b9b33bae340461cc844ec6124f22b94125f7d4242391c1bf68c856cbc8f86555"
+              "assertion": "Paired standard-runtime PTY execution retains the independent literal-byte reference, in-flight ECHO/ICANON/ICRNL checks, prompt placement, CR/LF delimiter handling, and exact synthetic bytes exported through expect send-secret. The caller creates the output file privately on both sides; outer stty restoration does not independently isolate builtin restoration.",
+              "definition_sha256": "c010de0256d38a5eb0ed2beaa0746e2d46285a41416cc35e82736a6fc3ece42e"
             }
           ],
           "gap": ""
