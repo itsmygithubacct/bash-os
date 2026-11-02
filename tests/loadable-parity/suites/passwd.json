@@ -76,14 +76,68 @@
     {
       "id": "password_hash_updates",
       "purpose": "Future coverage for set, set-fd, change, add, and add-fd password hashing and shadow updates.",
-      "kind": "deferred",
-      "reason": "Remaining r5 is a listed limit (kernel-authority-absent)."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "auth-stage1-real-set"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w5-passwd-setfd-secret-wiped-from-memory"
+        },
+        {
+          "group": "shell",
+          "id": "migration-auth-client-dependent-set-r4-guarded-bootstrap-r1-argon2-cli-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-add-fd-records"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-set-fd-argon2id-independent-oracle"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-set-fd-refusals"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w5-passwd-change-flow"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w5-passwd-change-tty-secrets-wiped-from-memory"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w5-passwd-change-wrong-current"
+        }
+      ]
     },
     {
       "id": "password_verification_lockout",
       "purpose": "Future coverage for correct/wrong password results, locked/malformed shadow rows, and failure lockout state.",
-      "kind": "deferred",
-      "reason": "Remaining r5 is a listed limit (kernel-authority-absent)."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "auth-stage1-real-verify"
+        },
+        {
+          "group": "shell",
+          "id": "migration-auth-client-dependent-verify-r4-guarded-bootstrap-r1-argon2-cli-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-verify-fd-independent-rows"
+        },
+        {
+          "group": "shell",
+          "id": "migration-passwd-verify-fd-lockout"
+        }
+      ]
     },
     {
       "id": "interactive_password_prompts",

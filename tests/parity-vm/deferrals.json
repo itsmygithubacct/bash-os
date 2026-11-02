@@ -819,9 +819,8 @@
         "purpose": "Future operation coverage for version probing, opening the authority descriptor, per-descriptor counters, secret clearing, close-on-exec behavior, and cleanup.",
         "reason": "Requires a disposable Linux VM with a matching /dev/bashos-auth UAPI implementation or a reviewed ioctl/device mock. The fixture must return scripted ABI/features and lifecycle responses so probe output and descriptor ownership can be checked independently; the current runner provides no auth device and this suite must not invoke device operations."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining requirements are listed limits (kernel-authority-absent).",
+      "coverage": "full",
+      "migration": "replacement",
       "requirements": [
         {
           "id": "r1",
@@ -868,9 +867,20 @@
         {
           "id": "r4",
           "behavior": "Closing the fd clears its secret slots (cleanup).",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Close-time clearing of secret slots is performed by the real /dev/bashos-auth kernel authority, which is absent in the guest."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "auth-stage1-real-auth",
+              "definition_sha256": "cc48c152d1241ea3c88232cb0f8886692af5a522d6d4d7b7864f45d36a8a5a8f",
+              "assertion": "Actual secret-slot device supplied by the newly authored conservative stage-1 backend, on its exact guest kernel. Every notified syscall continues to Linux; independent C device controls perform 392 actual checks. Auth PTY compare/clear/fd lifecycle and required-kernel passwd set/verify exercise the release binaries. Source-bound KUnit evidence separately proves all 12 storage/erasure cases under KASAN and lockdep, with normal QEMU shutdown. Original module source was not recovered; no token, policy or production authorization semantics are claimed. Existing companion FAILs remain."
+            }
+          ],
+          "gap": "",
+          "control_support": {
+            "type": "kernel-secret-erasure-v1",
+            "id": "auth-stage1-kunit"
+          }
         },
         {
           "id": "r5",
@@ -887,7 +897,7 @@
           "gap": ""
         }
       ],
-      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The original explicitly permits a reviewed device/ioctl mock; its retained VERSION response supplies 1.5 and 0xf and candidate probe prints those values. Control and request/response bytes are saved. This is not a real driver probe. r2: Two mock-device opens bind distinct FDVAR values; retained fdinfo and child-exec observations and positive/negative controls establish close-on-exec for the bounded mock descriptors. Both cases PASS, with no real device claim. r3: The two scripted mock descriptors return distinct STATS vectors 201..206 and 301..306 and candidate prints the corresponding vectors. The original expressly allows a scripted UAPI mock; no live counter isolation is inferred."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The original explicitly permits a reviewed device/ioctl mock; its retained VERSION response supplies 1.5 and 0xf and candidate probe prints those values. Control and request/response bytes are saved. This is not a real driver probe. r2: Two mock-device opens bind distinct FDVAR values; retained fdinfo and child-exec observations and positive/negative controls establish close-on-exec for the bounded mock descriptors. Both cases PASS, with no real device claim. r3: The two scripted mock descriptors return distinct STATS vectors 201..206 and 301..306 and candidate prints the corresponding vectors. The original expressly allows a scripted UAPI mock; no live counter isolation is inferred. Secret-storage gaps qualified against the experimental real stage-1 backend only, with separately required kernel erasure evidence. All token/policy features are unavailable, not modeled successful production authorization."
     },
     {
       "topic": "auth/pty-sealed-secret-lifecycle",
@@ -897,9 +907,8 @@
         "purpose": "Future operation coverage for echo-disabled secret input, opaque slot handles, same-secret comparison, explicit clearing, and close-time slot cleanup.",
         "reason": "Requires an owned PTY driver plus a disposable auth-device mock or VM implementation of secret-slot ioctls. Use only synthetic input and assert that secret bytes do not appear in argv, environment, or output. The current runner does not provide the terminal/device mock needed to validate the documented lifecycle."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining requirements are listed limits (kernel-authority-absent).",
+      "coverage": "full",
+      "migration": "replacement",
       "requirements": [
         {
           "id": "r1",
@@ -932,19 +941,41 @@
         {
           "id": "r3",
           "behavior": "auth same-secret compares two slots in the kernel.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "In-kernel slot comparison and clear/close cleanup are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "auth-stage1-real-auth",
+              "definition_sha256": "cc48c152d1241ea3c88232cb0f8886692af5a522d6d4d7b7864f45d36a8a5a8f",
+              "assertion": "Actual secret-slot device supplied by the newly authored conservative stage-1 backend, on its exact guest kernel. Every notified syscall continues to Linux; independent C device controls perform 392 actual checks. Auth PTY compare/clear/fd lifecycle and required-kernel passwd set/verify exercise the release binaries. Source-bound KUnit evidence separately proves all 12 storage/erasure cases under KASAN and lockdep, with normal QEMU shutdown. Original module source was not recovered; no token, policy or production authorization semantics are claimed. Existing companion FAILs remain."
+            }
+          ],
+          "gap": "",
+          "control_support": {
+            "type": "kernel-secret-erasure-v1",
+            "id": "auth-stage1-kunit"
+          }
         },
         {
           "id": "r4",
           "behavior": "auth clear and close-time cleanup drop slots.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "In-kernel slot comparison and clear/close cleanup are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "auth-stage1-real-auth",
+              "definition_sha256": "cc48c152d1241ea3c88232cb0f8886692af5a522d6d4d7b7864f45d36a8a5a8f",
+              "assertion": "Actual secret-slot device supplied by the newly authored conservative stage-1 backend, on its exact guest kernel. Every notified syscall continues to Linux; independent C device controls perform 392 actual checks. Auth PTY compare/clear/fd lifecycle and required-kernel passwd set/verify exercise the release binaries. Source-bound KUnit evidence separately proves all 12 storage/erasure cases under KASAN and lockdep, with normal QEMU shutdown. Original module source was not recovered; no token, policy or production authorization semantics are claimed. Existing companion FAILs remain."
+            }
+          ],
+          "gap": "",
+          "control_support": {
+            "type": "kernel-secret-erasure-v1",
+            "id": "auth-stage1-kunit"
+          }
         }
       ],
-      "notes": "auth.c read-secret / same-secret / clear. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r2: The PTY and permitted synthetic slot device produce handle 4097; the saved process argv, environment and terminal capture omit the synthetic secret, and protocol/no-echo controls pass. This is client/mock evidence, not real kernel slot enforcement."
+      "notes": "auth.c read-secret / same-secret / clear. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r2: The PTY and permitted synthetic slot device produce handle 4097; the saved process argv, environment and terminal capture omit the synthetic secret, and protocol/no-echo controls pass. This is client/mock evidence, not real kernel slot enforcement. Secret-storage gaps qualified against the experimental real stage-1 backend only, with separately required kernel erasure evidence. All token/policy features are unavailable, not modeled successful production authorization."
     },
     {
       "topic": "auth/synthetic-login-and-token-mint",
@@ -32139,9 +32170,8 @@
         "kind": "deferred",
         "reason": "These verbs consume password bytes and write credential records, which this task prohibits. A future disposable VM/mock must use synthetic secrets and private account files, independently generated Argon2id PHC vectors, a test double for /dev/bashos-auth secret-slot ioctls, and fault injection to verify secret cleanup, file permissions, and account rollback. No installed or real credential may be used."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining r5 is a listed limit (kernel-authority-absent).",
+      "coverage": "full",
+      "migration": "replacement",
       "requirements": [
         {
           "id": "r1",
@@ -32232,7 +32262,7 @@
         {
           "id": "r5",
           "behavior": "Kernel secret-slot path (BASHPASSWD_REQUIRE_KERNEL_SECRETS=1) uses the device.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
@@ -32245,12 +32275,22 @@
               "id": "migration-auth-client-dependent-set-r4-guarded-bootstrap-r1-argon2-cli-r1",
               "assertion": "On both builds, saved interception records show the synthetic device VERSION, secret-slot new, write, seal, export and clear operations; no real bashos-auth kernel device was exercised. The same case is a framework FAIL because the written standard-PHC field lengths are wrong. Existing absent-device refusal evidence is preserved.",
               "definition_sha256": "578d1c78aa3d70574261831e5cecab5b9c6c1b6c1bee7a4abf188a2b2a4d3494"
+            },
+            {
+              "group": "shell",
+              "id": "auth-stage1-real-set",
+              "definition_sha256": "7c6a5ab986baf1f764ac0121fd8508df8bd1cec24e399f7603b5c428b4c417ad",
+              "assertion": "Actual secret-slot device supplied by the newly authored conservative stage-1 backend, on its exact guest kernel. Every notified syscall continues to Linux; independent C device controls perform 392 actual checks. Auth PTY compare/clear/fd lifecycle and required-kernel passwd set/verify exercise the release binaries. Source-bound KUnit evidence separately proves all 12 storage/erasure cases under KASAN and lockdep, with normal QEMU shutdown. Original module source was not recovered; no token, policy or production authorization semantics are claimed. Existing companion FAILs remain."
             }
           ],
-          "gap": "The real kernel secret-slot path (BASHPASSWD_REQUIRE_KERNEL_SECRETS=1) needs the real /dev/bashos-auth kernel authority, which is absent in the guest."
+          "gap": "",
+          "control_support": {
+            "type": "kernel-secret-erasure-v1",
+            "id": "auth-stage1-kunit"
+          }
         }
       ],
-      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Secret-storage gaps qualified against the experimental real stage-1 backend only, with separately required kernel erasure evidence. All token/policy features are unavailable, not modeled successful production authorization."
     },
     {
       "topic": "passwd/password_verification_lockout",
@@ -32260,9 +32300,8 @@
         "kind": "deferred",
         "reason": "verify and verify-fd process password material and update lockout state, so they are not invoked here. A future disposable VM/mock must provide independently generated synthetic PHC vectors, private shadow and lock files, a deterministic clock or lockout-time mock, and an authentication-device test double for the kernel-secret path; assert success, rejection, status codes, and lockout cleanup without real credentials."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "Remaining r5 is a listed limit (kernel-authority-absent).",
+      "coverage": "full",
+      "migration": "replacement",
       "requirements": [
         {
           "id": "r1",
@@ -32323,19 +32362,29 @@
         {
           "id": "r5",
           "behavior": "Kernel-secret path variant.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "group": "shell",
               "id": "migration-auth-client-dependent-verify-r4-guarded-bootstrap-r1-argon2-cli-r1",
               "assertion": "Original obligation: Kernel-secret path variant. Static framework PASS: Synthetic secret-device path records wrong/correct statuses and a five-failure lockout with clearing after successful verification. Dynamic framework PASS: Synthetic secret-device path records wrong/correct statuses and a five-failure lockout with clearing after successful verification. Raw guest observations: decoded/static/migration-auth-client-dependent-verify-r4-guarded-bootstrap-r1-argon2-cli-r1.json and decoded/dynamic/migration-auth-client-dependent-verify-r4-guarded-bootstrap-r1-argon2-cli-r1.json.",
               "definition_sha256": "9fa12d4a27ff34989d17933f5241c48fec9576b9f858fc727cd691f0d14a681d"
+            },
+            {
+              "group": "shell",
+              "id": "auth-stage1-real-verify",
+              "definition_sha256": "93f981c9d5a6116600f3271a9fd990011113a4a1e76ca4783f674c3f79f6af4e",
+              "assertion": "Actual secret-slot device supplied by the newly authored conservative stage-1 backend, on its exact guest kernel. Every notified syscall continues to Linux; independent C device controls perform 392 actual checks. Auth PTY compare/clear/fd lifecycle and required-kernel passwd set/verify exercise the release binaries. Source-bound KUnit evidence separately proves all 12 storage/erasure cases under KASAN and lockdep, with normal QEMU shutdown. Original module source was not recovered; no token, policy or production authorization semantics are claimed. Existing companion FAILs remain."
             }
           ],
-          "gap": "Verification through kernel secret slots needs the real /dev/bashos-auth kernel authority, which is absent in the guest."
+          "gap": "",
+          "control_support": {
+            "type": "kernel-secret-erasure-v1",
+            "id": "auth-stage1-kunit"
+          }
         }
       ],
-      "notes": "Root review (2026-10-27) reconciled workers-d-63/64 raw VM records on both unchanged builds against the original obligations. Covered requirements may PASS or FAIL. Pane-214 batch 9 (fstrim-selection, 5de79f06) and pane-217 A4r1/A5/A6 (account-files 750929ff, hash 95c46e75, verify 648c98c2) ran unchanged in workers-d-63. Pane-214 batch 13 cred: migration-cred-drop's verify.sh printed a deleted log on its second observation (ipcobs.py calls removes LOG while the helper keeps appending), a fixture defect corrected by root without changing expectations; all five cred cases re-ran in workers-d-64 and workers-d-63's cred records are not used. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "Root review (2026-10-27) reconciled workers-d-63/64 raw VM records on both unchanged builds against the original obligations. Covered requirements may PASS or FAIL. Pane-214 batch 9 (fstrim-selection, 5de79f06) and pane-217 A4r1/A5/A6 (account-files 750929ff, hash 95c46e75, verify 648c98c2) ran unchanged in workers-d-63. Pane-214 batch 13 cred: migration-cred-drop's verify.sh printed a deleted log on its second observation (ipcobs.py calls removes LOG while the helper keeps appending), a fixture defect corrected by root without changing expectations; all five cred cases re-ran in workers-d-64 and workers-d-63's cred records are not used. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Secret-storage gaps qualified against the experimental real stage-1 backend only, with separately required kernel erasure evidence. All token/policy features are unavailable, not modeled successful production authorization."
     },
     {
       "topic": "passwd/readonly_database_queries",
@@ -44468,33 +44517,137 @@
         "purpose": "Check supplementary groups and ordered setgroups/setresgid/setresuid transitions, saved-ID verification, and denial on each injected failure.",
         "reason": "Requires a disposable VM or syscall mock that records and injects credential syscalls. This suite must not attempt a real user or group change."
       },
-      "coverage": "none",
-      "migration": null,
-      "current_reason": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
+      "coverage": "full",
+      "migration": "replacement",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Supplementary groups loaded with initgroups semantics, primary gid included.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "su-native-member",
+              "definition_sha256": "97eadca3b3ecb5c0c1e2be17bdf06d8765b076b019cb32b546e41e2c097c6328",
+              "assertion": "Real Linux setgroups receives the private target memberships with its primary GID included exactly once; member, append-primary, primary-only and alternate-row controls compare actual kernel/target groups on both release binaries. Authorization descriptor and mint/consume replies alone are modeled."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-append-primary",
+              "definition_sha256": "f7c2077e45e4ed356f158329ec97e5e3e7a97ec0fb7571e441e9794258da289d",
+              "assertion": "Real Linux setgroups receives the private target memberships with its primary GID included exactly once; member, append-primary, primary-only and alternate-row controls compare actual kernel/target groups on both release binaries. Authorization descriptor and mint/consume replies alone are modeled."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-primary-only",
+              "definition_sha256": "9fe4534fd201194eb78660520c0eef0e9c1d074ce89c0ba3c3330e66bd11f893",
+              "assertion": "Real Linux setgroups receives the private target memberships with its primary GID included exactly once; member, append-primary, primary-only and alternate-row controls compare actual kernel/target groups on both release binaries. Authorization descriptor and mint/consume replies alone are modeled."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-alternate",
+              "definition_sha256": "4ddd079db1009af989005614feffd232380b0de5056379b067a6fd73c895cf8b",
+              "assertion": "Real Linux setgroups receives the private target memberships with its primary GID included exactly once; member, append-primary, primary-only and alternate-row controls compare actual kernel/target groups on both release binaries. Authorization descriptor and mint/consume replies alone are modeled."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-no-login",
+              "definition_sha256": "6d69137fc64c58760ec7043358dbcd0422a82a8b70b2528a54b38d7803a9ba94",
+              "assertion": "Real Linux setgroups receives the private target memberships with its primary GID included exactly once; member, append-primary, primary-only and alternate-row controls compare actual kernel/target groups on both release binaries. Authorization descriptor and mint/consume replies alone are modeled."
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r2",
           "behavior": "Ordered setgroups/setresgid/setresuid and saved-ID verification.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "su-native-member",
+              "definition_sha256": "97eadca3b3ecb5c0c1e2be17bdf06d8765b076b019cb32b546e41e2c097c6328",
+              "assertion": "Ordered real setgroups/setresgid/setresuid/getresuid/getresgid calls, live kernel real/effective/saved/fs IDs and target self-reported real/effective/saved IDs. Saved-ID mismatch denial is additionally exercised by the fault cases under r3; no retired output buffers or syscall return values are claimed as observed."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-append-primary",
+              "definition_sha256": "f7c2077e45e4ed356f158329ec97e5e3e7a97ec0fb7571e441e9794258da289d",
+              "assertion": "Ordered real setgroups/setresgid/setresuid/getresuid/getresgid calls, live kernel real/effective/saved/fs IDs and target self-reported real/effective/saved IDs. Saved-ID mismatch denial is additionally exercised by the fault cases under r3; no retired output buffers or syscall return values are claimed as observed."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-primary-only",
+              "definition_sha256": "9fe4534fd201194eb78660520c0eef0e9c1d074ce89c0ba3c3330e66bd11f893",
+              "assertion": "Ordered real setgroups/setresgid/setresuid/getresuid/getresgid calls, live kernel real/effective/saved/fs IDs and target self-reported real/effective/saved IDs. Saved-ID mismatch denial is additionally exercised by the fault cases under r3; no retired output buffers or syscall return values are claimed as observed."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-alternate",
+              "definition_sha256": "4ddd079db1009af989005614feffd232380b0de5056379b067a6fd73c895cf8b",
+              "assertion": "Ordered real setgroups/setresgid/setresuid/getresuid/getresgid calls, live kernel real/effective/saved/fs IDs and target self-reported real/effective/saved IDs. Saved-ID mismatch denial is additionally exercised by the fault cases under r3; no retired output buffers or syscall return values are claimed as observed."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-no-login",
+              "definition_sha256": "6d69137fc64c58760ec7043358dbcd0422a82a8b70b2528a54b38d7803a9ba94",
+              "assertion": "Ordered real setgroups/setresgid/setresuid/getresuid/getresgid calls, live kernel real/effective/saved/fs IDs and target self-reported real/effective/saved IDs. Saved-ID mismatch denial is additionally exercised by the fault cases under r3; no retired output buffers or syscall return values are claimed as observed."
+            }
+          ],
+          "gap": ""
         },
         {
           "id": "r3",
           "behavior": "Each injected failure denies the transition with no partial credential change.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+          "coverage": "covered",
+          "evidence": [
+            {
+              "group": "shell",
+              "id": "su-native-fault-setgroups",
+              "definition_sha256": "a2d7867065534c1a57e259bb06bb76274ccf0955c121456644c10ffd1d7ab4ba",
+              "assertion": "Each selected EPERM or saved-ID mismatch must make the client abort through its observed nonzero actor exit, with exact call prefix, no extra containment denial, no attempted target exec and unchanged caller. Deliberately incorrect native controls are rejected. The original no-partial-change wording is evaluated literally at the owned child exit: setgroups failure PASS; six later failures FAIL because prior real credential changes remain in the exiting child. Caller isolation is preserved and is not relabeled rollback."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-fault-setresgid",
+              "definition_sha256": "5162d80957c17ef9b00a08ed2227641e48723beda30f4d18684204a6cf3cf783",
+              "assertion": "Each selected EPERM or saved-ID mismatch must make the client abort through its observed nonzero actor exit, with exact call prefix, no extra containment denial, no attempted target exec and unchanged caller. Deliberately incorrect native controls are rejected. The original no-partial-change wording is evaluated literally at the owned child exit: setgroups failure PASS; six later failures FAIL because prior real credential changes remain in the exiting child. Caller isolation is preserved and is not relabeled rollback."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-fault-setresuid",
+              "definition_sha256": "44ec5528b7be98b5af8f82b54737cc28c4dcf1d285884668391ec609db70dd48",
+              "assertion": "Each selected EPERM or saved-ID mismatch must make the client abort through its observed nonzero actor exit, with exact call prefix, no extra containment denial, no attempted target exec and unchanged caller. Deliberately incorrect native controls are rejected. The original no-partial-change wording is evaluated literally at the owned child exit: setgroups failure PASS; six later failures FAIL because prior real credential changes remain in the exiting child. Caller isolation is preserved and is not relabeled rollback."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-fault-getresuid",
+              "definition_sha256": "2289f885462f0957b423e74ce0286e2ed708a9c347b10bbe71fa62d1f31d2baa",
+              "assertion": "Each selected EPERM or saved-ID mismatch must make the client abort through its observed nonzero actor exit, with exact call prefix, no extra containment denial, no attempted target exec and unchanged caller. Deliberately incorrect native controls are rejected. The original no-partial-change wording is evaluated literally at the owned child exit: setgroups failure PASS; six later failures FAIL because prior real credential changes remain in the exiting child. Caller isolation is preserved and is not relabeled rollback."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-fault-getresgid",
+              "definition_sha256": "d62e0241f437e315509f60a7fb51e4e7a7048511ecde056d8045bbbee801aec8",
+              "assertion": "Each selected EPERM or saved-ID mismatch must make the client abort through its observed nonzero actor exit, with exact call prefix, no extra containment denial, no attempted target exec and unchanged caller. Deliberately incorrect native controls are rejected. The original no-partial-change wording is evaluated literally at the owned child exit: setgroups failure PASS; six later failures FAIL because prior real credential changes remain in the exiting child. Caller isolation is preserved and is not relabeled rollback."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-fault-mismatch-getresuid",
+              "definition_sha256": "ea455bee1aa24af4dbc1f7e181c2d2a397dbcd9cd1f6e386a997c366ec7e35d6",
+              "assertion": "Each selected EPERM or saved-ID mismatch must make the client abort through its observed nonzero actor exit, with exact call prefix, no extra containment denial, no attempted target exec and unchanged caller. Deliberately incorrect native controls are rejected. The original no-partial-change wording is evaluated literally at the owned child exit: setgroups failure PASS; six later failures FAIL because prior real credential changes remain in the exiting child. Caller isolation is preserved and is not relabeled rollback."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-fault-mismatch-getresgid",
+              "definition_sha256": "9872071cfbcff10f1052f74f290c70fd130639fe3479e7a425aa602be7b54b6c",
+              "assertion": "Each selected EPERM or saved-ID mismatch must make the client abort through its observed nonzero actor exit, with exact call prefix, no extra containment denial, no attempted target exec and unchanged caller. Deliberately incorrect native controls are rejected. The original no-partial-change wording is evaluated literally at the owned child exit: setgroups failure PASS; six later failures FAIL because prior real credential changes remain in the exiting child. Caller isolation is preserved and is not relabeled rollback."
+            }
+          ],
+          "gap": ""
         }
       ],
-      "notes": "loadables/common/bashcred_privdrop.h bc_privdrop_to_user; su.c bsu_exec_user."
+      "notes": "Userspace credential obligation qualified in rented root guests. The real authority is not being tested by this SU client fixture. The literal child no-partial-change requirement FAILs on both unchanged release binaries; all seven injected failure paths, including saved UID/GID mismatches, deny target execution and preserve caller credentials."
     },
     {
       "topic": "su/kernel-token-protocol",
@@ -44749,15 +44902,44 @@
         "purpose": "Check account lookup for present, absent, malformed, and unreadable synthetic passwd records, including target UID/GID/home/shell selection.",
         "reason": "Requires a future disposable VM or reviewed account-file syscall mock with private passwd data and injected file-open errors. It must not consult installed accounts or change account state."
       },
-      "coverage": "partial",
-      "migration": null,
-      "current_reason": "The observable is produced by the real /dev/bashos-auth kernel authority (the account lookup result is bound to the authority's decision before su proceeds); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
+      "coverage": "full",
+      "migration": "replacement",
       "requirements": [
         {
           "id": "r1",
           "behavior": "Present user: target UID/GID/home/shell are taken from the private passwd row.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
+            {
+              "group": "shell",
+              "id": "su-native-member",
+              "definition_sha256": "97eadca3b3ecb5c0c1e2be17bdf06d8765b076b019cb32b546e41e2c097c6328",
+              "assertion": "Private passwd rows determine actual target UID/GID, home directory, shell path and environment after real guest credential changes. Two distinct rows and login/no-login forms are observed. Authority mint/consume replies remain a selective client model. All existing malformed/unreadable-row FAIL evidence is retained."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-append-primary",
+              "definition_sha256": "f7c2077e45e4ed356f158329ec97e5e3e7a97ec0fb7571e441e9794258da289d",
+              "assertion": "Private passwd rows determine actual target UID/GID, home directory, shell path and environment after real guest credential changes. Two distinct rows and login/no-login forms are observed. Authority mint/consume replies remain a selective client model. All existing malformed/unreadable-row FAIL evidence is retained."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-primary-only",
+              "definition_sha256": "9fe4534fd201194eb78660520c0eef0e9c1d074ce89c0ba3c3330e66bd11f893",
+              "assertion": "Private passwd rows determine actual target UID/GID, home directory, shell path and environment after real guest credential changes. Two distinct rows and login/no-login forms are observed. Authority mint/consume replies remain a selective client model. All existing malformed/unreadable-row FAIL evidence is retained."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-alternate",
+              "definition_sha256": "4ddd079db1009af989005614feffd232380b0de5056379b067a6fd73c895cf8b",
+              "assertion": "Private passwd rows determine actual target UID/GID, home directory, shell path and environment after real guest credential changes. Two distinct rows and login/no-login forms are observed. Authority mint/consume replies remain a selective client model. All existing malformed/unreadable-row FAIL evidence is retained."
+            },
+            {
+              "group": "shell",
+              "id": "su-native-no-login",
+              "definition_sha256": "6d69137fc64c58760ec7043358dbcd0422a82a8b70b2528a54b38d7803a9ba94",
+              "assertion": "Private passwd rows determine actual target UID/GID, home directory, shell path and environment after real guest credential changes. Two distinct rows and login/no-login forms are observed. Authority mint/consume replies remain a selective client model. All existing malformed/unreadable-row FAIL evidence is retained."
+            },
             {
               "group": "shell",
               "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2",
@@ -44765,7 +44947,7 @@
               "definition_sha256": "acd0a362be6186711eaf4e1fef0ff363bf317de265423fc069a5a1eecdbf677e"
             }
           ],
-          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (the account lookup result is bound to the authority's decision before su proceeds); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+          "gap": ""
         },
         {
           "id": "r2",
@@ -44816,7 +44998,7 @@
           "gap": ""
         }
       ],
-      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain."
+      "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. The present-row gap is now closed by real guest credential changes and target self-report; modeled authority scope is explicit. Existing stack-smash and directory-read FAILs are retained."
     },
     {
       "topic": "su/pty-echo-and-cancellation",

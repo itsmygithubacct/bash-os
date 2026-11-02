@@ -200,6 +200,53 @@ class SchemaChecks(unittest.TestCase):
                 record = guest.evaluate({**self.case, "kind": kind, "oracle": "explicit stdout"}, Path(name) / "case")
                 self.assertEqual(record["status"], "ERROR")
 
+    def test_incomplete_observer_is_not_a_behavioral_failure(self):
+        import guest
+        for value in (0, True, 256, '125'):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'observation_error_status'):
+                schema.validate({**self.case, 'observation_error_status': value})
+        schema.validate({**self.case, 'observation_error_status': 125})
+        result = {'status': 125, 'stdout_base64': '', 'stderr_base64': '',
+                  'error': None, 'tree': {}, 'captured_bytes': 0}
+        for configured, expected in ((False, 'FAIL'), (True, 'ERROR')):
+            case = {**self.case, 'kind': 'contract', 'oracle': 'explicit stdout'}
+            if configured:
+                case['observation_error_status'] = 125
+            with self.subTest(configured=configured), tempfile.TemporaryDirectory() as name, \
+                    patch.object(guest, 'workspace', return_value=Path(name)), \
+                    patch.object(guest, 'plain', side_effect=lambda *a, **k: dict(result)), \
+                    patch.object(guest, 'tree', return_value={}):
+                record = guest.evaluate(case, Path(name) / 'case')
+                self.assertEqual(record['status'], expected)
+
+    def test_kernel_erasure_control_rejects_incomplete_or_faulting_ktap(self):
+        import kernel_secret_control as control
+        lines = [f'    ok {i} {name}' for i, name in enumerate(control.NAMES, 1)]
+        end = '\n# Totals: pass:12 fail:0 skip:0 total:12\nok 1 bashos-auth-stage1-secrets\nreboot: Restarting system\n'
+        good = '\n'.join(lines) + end
+        control.validate_log(good)
+        for bad in ('\n'.join(lines[:-1]) + end, good + '\n' + lines[0],
+                    good.replace('ok 3 ', 'not ok 3 '), good.replace(lines[0], lines[0] + ' # SKIP'),
+                    good + '\nBUG: KASAN: use-after-free', good + '\nexiting with held locks',
+                    good + '\nKernel panic', good.replace('reboot: Restarting system', 'timeout')):
+            with self.subTest(log=bad[-70:]), self.assertRaises(ValueError):
+                control.validate_log(bad)
+
+    def test_secret_client_pass_requires_separate_kernel_control(self):
+        import deferrals
+        import kernel_secret_control as control
+        name = ('shell', self.case['id'])
+        requirement = {'id': 'r4', 'coverage': 'covered', 'behavior': 'Closing the fd clears slots',
+                       'evidence': [{'group': name[0], 'id': name[1]}],
+                       'control_support': control.REFERENCE}
+        evidence = {name: {'record': {'status': 'PASS'}, 'definition': self.case, 'run': 'synthetic-data'}}
+        self.assertFalse(control.status({}, Path('/unused')))
+        for qualified, expected in ((False, 'UNRESOLVED'), (True, 'PASS')):
+            result = deferrals.assess(requirement, evidence, {name: self.case}, {},
+                                      topic='auth/device-abi-and-fd-lifecycle', kernel_secret_ok=qualified)
+            self.assertEqual(result['result'], expected)
+            self.assertEqual(result['control_support']['candidate_behavior_count'], 0)
+
     def test_missing_fixture_tool_is_an_error_before_candidate_execution(self):
         import guest
         with tempfile.TemporaryDirectory() as name, patch.object(guest.shutil, "which", return_value=None), \

@@ -421,6 +421,8 @@ def unprivileged_side(case, mode):
             result["peer_setup"] = requests.setup
     else:
         result = plain(argv, env, root, case)
+    if result.get("status") == case.get("observation_error_status", -1):
+        result["harness_error"] = "fixture observer could not complete its observations"
     result["tree"] = tree(root)
     if case.get("diagnostic_files"):
         result["diagnostics"] = diagnostics(case)

@@ -45,8 +45,41 @@
     {
       "id": "private-account-lookup",
       "purpose": "Check account lookup for present, absent, malformed, and unreadable synthetic passwd records, including target UID/GID/home/shell selection.",
-      "kind": "deferred",
-      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (the account lookup result is bound to the authority's decision before su proceeds); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-auth-client-su-client-shell-guarded-bootstrap-r1-argon2-cli-r1-raw-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-su-private-account-lookup-failclosed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-su-private-account-lookup-seven-field-rows"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-alternate"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-append-primary"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-member"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-no-login"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-primary-only"
+        }
+      ]
     },
     {
       "id": "password-and-lockout-flow",
@@ -93,8 +126,57 @@
     {
       "id": "credential-transition",
       "purpose": "Check supplementary groups and ordered setgroups/setresgid/setresuid transitions, saved-ID verification, and denial on each injected failure.",
-      "kind": "deferred",
-      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "su-native-alternate"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-append-primary"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-fault-getresgid"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-fault-getresuid"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-fault-mismatch-getresgid"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-fault-mismatch-getresuid"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-fault-setgroups"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-fault-setresgid"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-fault-setresuid"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-member"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-no-login"
+        },
+        {
+          "group": "shell",
+          "id": "su-native-primary-only"
+        }
+      ]
     },
     {
       "id": "target-shell-environment-and-fds",

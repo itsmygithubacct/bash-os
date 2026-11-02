@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: GPL-2.0-only
+obj-y += bashos_auth_stage1_test.o
+bashos_auth_stage1_test-y := tests/kunit.o tests/core_under_test.o

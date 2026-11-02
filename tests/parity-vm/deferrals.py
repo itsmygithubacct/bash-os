@@ -19,6 +19,7 @@ import uuid
 
 import schema
 import primary_ns_native_control as native_control
+import kernel_secret_control
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -171,6 +172,9 @@ def validate(ledger, repo=REPO):
             if topic == "ns/ns-unshare-namespaces" and rid == "r1":
                 check(requirement.get("control_support") == {"type":"ns-native-inodes-paired-v1", "id":"ns-native-inodes-r2"},
                       "native unshare r1 requires the fixed control-support reference")
+            elif (topic, rid) in kernel_secret_control.REQUIREMENTS and coverage == "covered":
+                check(requirement.get('control_support') == kernel_secret_control.REFERENCE,
+                      'covered kernel-secret requirement needs the fixed erasure control')
             else:
                 check("control_support" not in requirement, "unreviewed control-support reference")
             for reference in evidence:
@@ -493,7 +497,7 @@ def load_run(spec, expected_binary, expected_build=None, repo=REPO):
     return selected, metadata
 
 
-def assess(requirement, evidence, fixtures, sources, control_ok=False, topic=None):
+def assess(requirement, evidence, fixtures, sources, control_ok=False, topic=None, kernel_secret_ok=False):
     observations = []
     for reference in requirement["evidence"]:
         name = key(reference)
@@ -514,7 +518,9 @@ def assess(requirement, evidence, fixtures, sources, control_ok=False, topic=Non
                  or requirement.get("control_support") == {"type":"ns-native-inodes-paired-v1", "id":"ns-native-inodes-r2"}
                  or (requirement.get("id") == "r1" and requirement.get("behavior") ==
                      "ns unshare user,mount,net,ipc,uts,cgroup changes the caller's /proc/self/ns/<type> inode for each requested type and leaves others unchanged"))
-    complete = requirement["coverage"] == "covered" and executed and (not native_r1 or control_ok is True)
+    secret_control = (topic, requirement.get('id')) in kernel_secret_control.REQUIREMENTS
+    complete = (requirement["coverage"] == "covered" and executed and (not native_r1 or control_ok is True)
+                and (not secret_control or kernel_secret_ok is True))
     result = {"id": requirement["id"], "behavior": requirement["behavior"],
               "coverage": requirement["coverage"], "gap": requirement.get("gap", ""),
               "evidence": observations, "fully_exercised": complete,
@@ -523,6 +529,9 @@ def assess(requirement, evidence, fixtures, sources, control_ok=False, topic=Non
     if native_r1:
         result["control_support"] = {"type":"ns-native-inodes-paired-v1", "verified":control_ok is True,
                                      "candidate_behavior_count":0}
+    if secret_control:
+        result['control_support'] = {**kernel_secret_control.REFERENCE,
+                                     'verified': kernel_secret_ok is True, 'candidate_behavior_count': 0}
     return result
 
 
@@ -530,6 +539,7 @@ def reconcile(ledger, configuration, repo=REPO):
     fixtures = validate(ledger, repo)
     sources = reference_sources(repo)
     builds = {}
+    kernel_secret_ok = kernel_secret_control.status(configuration, repo)
     for build, spec in configuration["builds"].items():
         binary = file_digest(spec["binary"])
         evidence, runs = {}, []
@@ -547,7 +557,7 @@ def reconcile(ledger, configuration, repo=REPO):
         entries = []
         native_control_ok = native_control.status(configuration, build)
         for entry in ledger["entries"]:
-            requirements = [assess(r, evidence, fixtures, sources, native_control_ok, entry["topic"])
+            requirements = [assess(r, evidence, fixtures, sources, native_control_ok, entry["topic"], kernel_secret_ok)
                             for r in entry["requirements"]]
             complete = all(r["fully_exercised"] for r in requirements)
             entries.append({"topic": entry["topic"], "migration": entry.get("migration"),

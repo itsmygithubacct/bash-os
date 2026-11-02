@@ -20,9 +20,9 @@
     "static": {
       "binary_sha256": "11e4edf30b60abeab3318fedd5a4052f783d2500576a934b295bca451e5b6308",
       "results": {
-        "FAIL": 271,
-        "UNRESOLVED": 26,
-        "PASS": 303
+        "FAIL": 275,
+        "UNRESOLVED": 20,
+        "PASS": 305
       },
       "resolved_topics": [
         {
@@ -214,23 +214,47 @@
           "topic": "watch/watch-terminal-parity",
           "result": "FAIL",
           "fully_exercised": true
+        },
+        {
+          "topic": "auth/device-abi-and-fd-lifecycle",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "auth/pty-sealed-secret-lifecycle",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "passwd/password_hash_updates",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "passwd/password_verification_lockout",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "su/credential-transition",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "su/private-account-lookup",
+          "result": "FAIL",
+          "fully_exercised": true
         }
       ],
       "unresolved_topics": [
         "auth/authority-policy-audit-and-child-flow",
-        "auth/device-abi-and-fd-lifecycle",
-        "auth/pty-sealed-secret-lifecycle",
         "auth/synthetic-login-and-token-mint",
         "bashpoll/signalfd-ownership",
         "dmesg/live-ring-buffer",
         "doas/authority_policy_and_verification",
         "login/credential-transition-deferred",
         "login/interactive-auth-session-deferred",
-        "passwd/password_hash_updates",
-        "passwd/password_verification_lockout",
         "sshd/authentication-authorization",
-        "su/credential-transition",
-        "su/private-account-lookup",
         "sudo/authority-command-authorization",
         "sudo/sudoedit-safe-copyback",
         "sudo/timestamp-validation-flows",
@@ -318,14 +342,62 @@
           "payload.tar": "39fbdabeaf0f6d2c18eda539010e0fa368d6ef981f6c691e6ced5391aec043f3",
           "evidence.tar": "480cf29ab48184afd9275bd64813f04b594fc804919f09d03c4facfd3c597db3"
         }
-      }
+      },
+      "authorization_runs": [
+        {
+          "name": "su-native-final-r2-static",
+          "artifacts_sha256": {
+            "payload.tar": "35d9d2b0265ec1c63a797c57748657e65c1cf906cde5af14cafcacd6b9fe2d7d",
+            "evidence.tar": "7b8a3a79d1a51b57dcfe8ae02da37f88a1c6e733dcb669db3f0f85d5398b07a7",
+            "summary.json": "eb7380d3107fe55b129e2472581840942e4c878b6599f77b5a34b1816e4effdd",
+            "provenance.json": "2a20bd74048e3d0a66f14ffdfb0e8b0247c07aed9c4c211c9f9256d82a507247"
+          },
+          "summary": {
+            "PASS": 23,
+            "FAIL": 6,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 0,
+            "MIGRATED": 0,
+            "COLLECTED": 0
+          },
+          "root_fixtures": true,
+          "candidate_unchanged": true,
+          "overlay_discarded": true,
+          "prepared_unchanged": true,
+          "guest_selfchecks": 17
+        },
+        {
+          "name": "auth-stage1-final-r3-static",
+          "artifacts_sha256": {
+            "payload.tar": "c2e52fdf34c0c625b5b2897dd3aa1c589645ff179da35a9f124dccf77c68518e",
+            "evidence.tar": "3a6eeecc90ce33c74d722eb8b76cd117a6eb754145d0d743c30a32ca036e6b3f",
+            "summary.json": "c898dfc5cbec059c77ceff483a5b4d387f28be848e884b8b306a7059f19f0b68",
+            "provenance.json": "fc04ba3f7781d07c14330c7d1ca8a435e531e4fe441f0e532af0f45147209230"
+          },
+          "summary": {
+            "PASS": 20,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 0,
+            "MIGRATED": 0,
+            "COLLECTED": 0
+          },
+          "root_fixtures": true,
+          "candidate_unchanged": true,
+          "overlay_discarded": true,
+          "prepared_unchanged": true,
+          "guest_selfchecks": 17
+        }
+      ]
     },
     "dynamic": {
       "binary_sha256": "090c95cd49df3478967c0acb73534d425ed099ba0ef55e5522745d30fec0c039",
       "results": {
-        "FAIL": 270,
-        "UNRESOLVED": 26,
-        "PASS": 304
+        "FAIL": 274,
+        "UNRESOLVED": 20,
+        "PASS": 306
       },
       "resolved_topics": [
         {
@@ -517,23 +589,47 @@
           "topic": "watch/watch-terminal-parity",
           "result": "FAIL",
           "fully_exercised": true
+        },
+        {
+          "topic": "auth/device-abi-and-fd-lifecycle",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "auth/pty-sealed-secret-lifecycle",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "passwd/password_hash_updates",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "passwd/password_verification_lockout",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "su/credential-transition",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "su/private-account-lookup",
+          "result": "FAIL",
+          "fully_exercised": true
         }
       ],
       "unresolved_topics": [
         "auth/authority-policy-audit-and-child-flow",
-        "auth/device-abi-and-fd-lifecycle",
-        "auth/pty-sealed-secret-lifecycle",
         "auth/synthetic-login-and-token-mint",
         "bashpoll/signalfd-ownership",
         "dmesg/live-ring-buffer",
         "doas/authority_policy_and_verification",
         "login/credential-transition-deferred",
         "login/interactive-auth-session-deferred",
-        "passwd/password_hash_updates",
-        "passwd/password_verification_lockout",
         "sshd/authentication-authorization",
-        "su/credential-transition",
-        "su/private-account-lookup",
         "sudo/authority-command-authorization",
         "sudo/sudoedit-safe-copyback",
         "sudo/timestamp-validation-flows",
@@ -621,7 +717,55 @@
           "payload.tar": "79147a1a29f29baf2033764a40a4f296f2a256f4ed2bed1303826a50443d2cc1",
           "evidence.tar": "690f2a1d16be6a2919d337a06b2c5b86ba0cd990df8c2755a4f63a76dbc3a82f"
         }
-      }
+      },
+      "authorization_runs": [
+        {
+          "name": "su-native-final-r2-dynamic",
+          "artifacts_sha256": {
+            "payload.tar": "560ddae3a1ff2f2545c81d60d02d595c4cdf58c06548e3c2b9ae9bde389a98b3",
+            "evidence.tar": "297aaff78dd781f4b5c0fdea0a1d7df88430acc832a3d969e56f503507d52d90",
+            "summary.json": "60807cb4c7caaf5ee87e2f95661cc11beb2f975e17f842a75356132501c3d5ac",
+            "provenance.json": "ca9751118ca769f2ccf32a8932921cb9d1c3efe8f4dd4281891e586f897ad637"
+          },
+          "summary": {
+            "PASS": 23,
+            "FAIL": 6,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 0,
+            "MIGRATED": 0,
+            "COLLECTED": 0
+          },
+          "root_fixtures": true,
+          "candidate_unchanged": true,
+          "overlay_discarded": true,
+          "prepared_unchanged": true,
+          "guest_selfchecks": 17
+        },
+        {
+          "name": "auth-stage1-final-r3-dynamic",
+          "artifacts_sha256": {
+            "payload.tar": "df8d771d508dd3f6ca9839c0ee03405f02299679c9005b5457ad44e75dd8083d",
+            "evidence.tar": "ca283a8b26667772fddefa53b2bf05a57257e17fb4300d386c3d8475d274a9e6",
+            "summary.json": "f45202d117c9dabcd1e6648239c8aa506da5b58de92baf038ee6a21999ad877c",
+            "provenance.json": "dd51099ce0c0207503d7f43b17555bf98d9d3b88e308184b46c2639e6c034261"
+          },
+          "summary": {
+            "PASS": 20,
+            "FAIL": 0,
+            "ERROR": 0,
+            "SKIP": 0,
+            "DEFERRED": 0,
+            "MIGRATED": 0,
+            "COLLECTED": 0
+          },
+          "root_fixtures": true,
+          "candidate_unchanged": true,
+          "overlay_discarded": true,
+          "prepared_unchanged": true,
+          "guest_selfchecks": 17
+        }
+      ]
     }
   },
   "kernel_capability_probe": {
@@ -660,16 +804,6 @@
       "reason": "Request-digest binding, audit decoding and child-status handling are produced by the real /dev/bashos-auth kernel authority, which is absent in the guest; a synthetic device cannot stand in for them."
     },
     {
-      "topic": "auth/device-abi-and-fd-lifecycle",
-      "category": "kernel-authority-absent",
-      "reason": "Close-time clearing of secret slots is performed by the real /dev/bashos-auth kernel authority, which is absent in the guest."
-    },
-    {
-      "topic": "auth/pty-sealed-secret-lifecycle",
-      "category": "kernel-authority-absent",
-      "reason": "In-kernel slot comparison and clear/close cleanup are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest."
-    },
-    {
       "topic": "auth/synthetic-login-and-token-mint",
       "category": "kernel-authority-absent",
       "reason": "Token-reference minting and binding are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest; the synthetic mint's reference semantics are not the contract."
@@ -700,29 +834,9 @@
       "reason": "A successful login needs the real /dev/bashos-auth kernel proof before session accounting and the shell exec; no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
     },
     {
-      "topic": "passwd/password_hash_updates",
-      "category": "kernel-authority-absent",
-      "reason": "The real kernel secret-slot path (BASHPASSWD_REQUIRE_KERNEL_SECRETS=1) needs the real /dev/bashos-auth kernel authority, which is absent in the guest."
-    },
-    {
-      "topic": "passwd/password_verification_lockout",
-      "category": "kernel-authority-absent",
-      "reason": "Verification through kernel secret slots needs the real /dev/bashos-auth kernel authority, which is absent in the guest."
-    },
-    {
       "topic": "sshd/authentication-authorization",
       "category": "kernel-authority-absent",
       "reason": "The password half of PermitRootLogin prohibit-password versus yes is decided by the /dev/bashos-auth kernel authority (BSSHD_AUTH_DEV in sshd.c), which the disposable guest does not provide; without it no password attempt can be told apart from a refusal, and a stand-in authority would not test the real one. Admitted root command execution is covered by the privilege=root case."
-    },
-    {
-      "topic": "su/credential-transition",
-      "category": "kernel-authority-absent",
-      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
-    },
-    {
-      "topic": "su/private-account-lookup",
-      "category": "kernel-authority-absent",
-      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (the account lookup result is bound to the authority's decision before su proceeds); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
     },
     {
       "topic": "sudo/authority-command-authorization",
@@ -790,13 +904,86 @@
     "38 formerly controller-only topics are now exercised by ordinary disposable-VM fixtures on both release binaries.",
     "Captured ncdu restoration compares primary characters, reverse bits and cursor; full colour rendition is not independently compared.",
     "The top FIFO check binds three visible loads and their timing to four independently logged source reads.",
-    "Unsupported kernel facilities, physical hardware and unreachable interface obligations remain unresolved."
+    "Unsupported kernel facilities, physical hardware and unreachable interface obligations remain unresolved.",
+    "Six additional authorization-related topics are qualified: SU uses modeled token replies with real Linux credentials; four storage topics use the newly authored experimental secret-slot module and a separately required source-bound KUnit erasure control. Original authority source and later token/policy semantics were not recovered.",
+    "New authorization evidence has 15 behavioral cases per build: 9 PASS and 6 literal SU child-rollback FAILs. Prior reached FAILs are retained. The 392-check native device control and 12-test KUnit control are supporting evidence, not additional historical topic results."
   ],
   "host_validation": {
-    "data_validation_tests_passed": 29,
+    "data_validation_tests_passed": 32,
     "ledger_topics_validated": 600
   },
   "ledger": "tests/parity-vm/deferrals.json",
-  "ledger_canonical_sha256": "3a6f9b0e4590e629857e4c70f83c03fd6615ac17f8f3fa2208037f705716253b",
-  "reconcile_exit_status": 1
+  "ledger_canonical_sha256": "ace39ee7e91eb1ecd505d62c3f1505182461223e974f9da22cc91c2de2ca5566",
+  "reconcile_exit_status": 1,
+  "authorization_followup": {
+    "closed_topics": [
+      "auth/device-abi-and-fd-lifecycle",
+      "auth/pty-sealed-secret-lifecycle",
+      "passwd/password_hash_updates",
+      "passwd/password_verification_lockout",
+      "su/credential-transition",
+      "su/private-account-lookup"
+    ],
+    "remaining_authority_topics": 9,
+    "source_recovered": false,
+    "backend": "Experimental stage-1 secret slots, runtime ABI 1.0, SECRETS|STATS=0x5",
+    "unsupported": [
+      "tokens",
+      "policy",
+      "verification",
+      "timestamps",
+      "audit",
+      "handoff",
+      "sudoedit"
+    ],
+    "qualification": "392 native real-device checks and three consumer fixtures pass on both unchanged release binaries. Separate 12-test KUnit run under KASAN/lockdep passed with normal QEMU shutdown. Original semantics and non-root deployment remain unqualified.",
+    "kernel_control": {
+      "schema": "bashos-auth-stage1-kunit-v1",
+      "source": "Debian linux-source-6.12 6.12.113-1",
+      "tests": {
+        "PASS": 12,
+        "FAIL": 0,
+        "SKIP": 0
+      },
+      "qemu_exit": 0,
+      "parser_exit": 0,
+      "kasans_or_lockdep_errors": false,
+      "artifact_sha256": {
+        "kernel": "026647bc47412a09342fd55c914821ffc267f215686280d11daceb0563d2f743",
+        "config": "fe8c28c4fddcd505719532613f8723b19192b9749b2cafcbbb66ff589ab4b70e",
+        "log": "d615a8eb2e8960a0bf7646106e01989929308028281de69afb3abbf2f8de5a43",
+        "parser": "73cc947832044e656af8f61977bd2e73fb7b385fbfc633424a7fcc7d107ea981",
+        "module": "bc95712ef12cbbd045186078bc17b7232e70c4f8297ef14c226d3766f3183c72",
+        "device_test": "a389e8a225fc5c1d91601e3f1f00c88b190efa2ec983d939c4d76c7d8bf89fa7"
+      },
+      "source_sha256": {
+        "secrets.c": "0b7b2fb23f27b0fc22a73dafa445ed22df7db3f1bd2e61b813fb0a36615f37b0",
+        "secrets.h": "1338596cd61ef970d962c04fdc5ced7384fa2a1a9aa8da69d2551d0822e1f5d8",
+        "tests/kunit.c": "4fd45a62f0762653d83e30fd64eb9e674eb4c2fc826bce0639874e20576d9ea8",
+        "tests/core_under_test.c": "bfbc544c77af6842e636304ad74d995492bb39ca545898ecb7320603c5b43cf7",
+        "uapi/linux/bashos_auth.h": "ee020e32a8463e34afa2e6089db030b021f1364bbbcc8825ef09d569baa57b0e"
+      },
+      "config": [
+        "CONFIG_KUNIT=y",
+        "CONFIG_BASHOS_AUTH_STAGE1_KUNIT_TEST=y",
+        "CONFIG_DEBUG_KERNEL=y",
+        "CONFIG_PROVE_LOCKING=y",
+        "CONFIG_KASAN=y",
+        "CONFIG_KASAN_GENERIC=y",
+        "CONFIG_KASAN_INLINE=y"
+      ],
+      "scope": "Identical storage core compiled with a pre-free wipe observer; actual uaccess and VFS device behavior are separate controls.",
+      "module_source_sha256": {
+        "device.c": "d3371be8f99e0ec23e12a493edb0413dded19261814ed7c5c0bdb7878ef3cfcb",
+        "secrets.c": "0b7b2fb23f27b0fc22a73dafa445ed22df7db3f1bd2e61b813fb0a36615f37b0",
+        "secrets.h": "1338596cd61ef970d962c04fdc5ced7384fa2a1a9aa8da69d2551d0822e1f5d8",
+        "uapi/linux/bashos_auth.h": "ee020e32a8463e34afa2e6089db030b021f1364bbbcc8825ef09d569baa57b0e"
+      }
+    },
+    "kernel_control_gate": "tests/parity-vm/kernel_secret_control.py",
+    "native_module_artifacts": {
+      "auth-stage1.ko": "bc95712ef12cbbd045186078bc17b7232e70c4f8297ef14c226d3766f3183c72",
+      "auth-stage1-device-test": "a389e8a225fc5c1d91601e3f1f00c88b190efa2ec983d939c4d76c7d8bf89fa7"
+    }
+  }
 }

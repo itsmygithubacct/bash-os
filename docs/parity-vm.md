@@ -259,10 +259,10 @@ unreviewed option forms and all deferrals visible.
 ## Follow-up topic resolution
 
 The [topic-resolution record](data/parity-topic-resolution.json) adds ordinary
-VM evidence for 38 of the 64 topics left unresolved by the release qualification.
+VM evidence for 44 of the 64 topics left unresolved by the release qualification.
 The release binaries are unchanged. Of the original 600 topics, static now has
-303 PASS, 271 FAIL and 26 UNRESOLVED; dynamic has 304 PASS, 270 FAIL and
-26 UNRESOLVED. These counts summarize topics rather than additional passing
+305 PASS, 275 FAIL and 20 UNRESOLVED; dynamic has 306 PASS, 274 FAIL and
+20 UNRESOLVED. These counts summarize topics rather than additional passing
 cases. The published release qualification above remains a historical record.
 
 The follow-up runs exercise 106 ported cases on each build, together with 15
@@ -274,8 +274,35 @@ reverse bits and cursor, and compares timed redraws with independent FIFO reads.
 The clock injector uses exact binary hashes and verified call sites for the
 release builds. Invalid controls remain incomplete evidence.
 
-Fifteen remaining topics require the unavailable kernel authorization device.
-Five need kernel clamp support, including four controller topics still awaiting
-a helper port: a native util-linux control on the available guest receives
-`Operation not supported` when setting clamps on its own child. The other six
-retain the hardware or interface limits listed in the obligation ledger.
+The authorization follow-up adds 15 root behavioral cases per build: nine PASS
+and six FAIL, plus 17 guest selfchecks in each of two runs. All execute in
+rented disposable guests. SU target account fields, groups and saved IDs are
+now observed after real Linux credential changes. Its token replies remain a
+selective client test model. Every selected fault denies target execution and
+preserves the caller. Six later faults leave prior changes in the exiting
+child, so the literal no-partial-child-change requirement FAILs. Existing
+malformed-account and password-format FAILs remain.
+
+The [experimental secret-slot backend](../kernel/bashos-auth/README.txt) is new
+code reconstructed from reviewed callers; original kernel source was not
+recovered. It implements bounded real kernel storage and reports ABI 1.0 with
+SECRETS|STATS only. Tokens, policy, verifier, audit, timestamp, handoff and
+sudoedit operations return ENOTTY. It is qualified for the documented root
+fixture profile, not production authorization or non-root deployment.
+
+The module passes 392 native device checks. Both release binaries pass real
+`auth` PTY compare/clear/close and required-kernel `passwd set-fd`/`verify-fd`
+checks. A separate source-bound kernel control passes twelve KUnit tests under
+KASAN and lockdep, checking erasure after explicit wipe and before free. These
+controls support the four secret-storage topics and add no candidate behavior
+cases to their denominator. The evidence reader requires the pinned kernel,
+config, full log, parser result, module, device control and matching sources;
+without them those requirements remain UNRESOLVED. Protocol mocks cannot
+satisfy that gate. Incomplete fixture observers are ERROR, not behavioral FAIL.
+
+Nine authorization topics still need the real token/policy trust contracts,
+audit formats or handoff/edit semantics. Five topics need kernel clamp support,
+including four controller topics still awaiting a helper port: a native
+util-linux control on the available guest receives `Operation not supported`
+when setting clamps on its own child. The other six retain the hardware or
+interface limits listed in the obligation ledger.

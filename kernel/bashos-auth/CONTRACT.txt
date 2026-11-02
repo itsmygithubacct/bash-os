@@ -1,0 +1,118 @@
+Evidence-based boundary
+
+Reviewed source: bash-os 1f4412f245700d7ba5b8dd1bf40e7a4c86afb818.
+The ABI mirror names kernel/bashos-auth/uapi/linux/bashos_auth.h; cred_exec.h
+also references drivers/bashos/bashos_auth.c. Neither implementation was found.
+The delivered module is a staged replacement proposal, not recovered source.
+Original kernel errno/state/counter semantics remain unverified.
+
+Secret behavior supported by caller evidence
+
+loadables/auth.c:1-37: slots belong to the open file description, final close
+clears them; comparison is kernel-side between sealed slots; stats are per fd;
+hash/verify export once into a C-owned buffer. ba_read_secret_cmd (1651 onwards)
+creates, writes, seals, and clears after failures. ba_export_secret_once (1450)
+passes capacity=4096 and consumes the returned len. These are caller contracts,
+not evidence that an absent historical kernel actually enforced them.
+
+loadables/passwd.c:174-314 probes major=1 and the SECRETS feature, creates and
+clears slots, passes flags=0, treats SAME.result nonzero as equality and EXPORT
+len as the returned byte count. Crucially, lines 1205-1220, 1284-1299 and
+1320-1356 issue repeated one-byte WRITE requests for the same slot: writes must
+APPEND. Replacing a slot's contents on each WRITE would break the real client.
+The maximum password size is 4096. New-password confirmation makes both slots
+on the same authority fd (1381 onwards) and clears the second after comparison.
+Empty confirmation passwords are rejected by passwd itself; auth's storage
+transport can still send zero bytes and seal an empty slot.
+
+Stage-1 contract choices
+
+The following are deliberately new conservative choices because the callers
+do not determine them: 16 slots / 128 contexts; monotonically increasing IDs
+with no reuse before final close; initial-namespace root + CAP_SYS_ADMIN at
+open and ioctl; O_RDWR-only; rejection of repeated SEAL/CLEAR and nonzero flags;
+ENOSPC for short export capacity with no length disclosure; consume and erase
+after any attempted data export even on EFAULT; retained exported tombstones;
+precise stats meanings; zero-length and invalid-pointer error ordering. The
+module README documents all of these. They must not be described as restored
+production policy or historical compatibility beyond the supported call paths.
+
+The runtime returns ABI 1.0 and SECRETS|STATS=0x5, although the complete header
+keeps the reviewed 1.5 transport definitions. This is intentional: later
+features are neither implemented nor advertised. PRIVCMD and TOKENS are zero.
+All 11 unsupported exact ioctls, plus unknown encodings, return ENOTTY for an
+authorized caller. No ioctl reports successful token mint/consume or an allow
+decision. The module has no account, credential, exec, sudoedit or audit path.
+
+ABI and unresolved architecture issue
+
+ABI_MAP.json includes all 19 structs, every field offset/size/alignment, and
+19 ioctl encodings for x86-64, i386, AArch64 and RISC-V compiler layouts.
+Native GCC layout from the untouched mirror matches the reconstructed header.
+The supported stage-1 structs have identical size/field offsets and ioctl
+numbers across those targets; __u64 alignment can differ on i386.
+
+The full mirror is NOT generically compat-safe. policy_info is 512 bytes on
+x86-64/AArch64/RISC-V and 508 on i386, so POLICY_INFO is 0xc200ba0c versus
+0xc1fcba0c. privcmd_audit_event is 976 versus 972, with session_id and later
+fields shifted by four bytes. This module rejects those operations. Any future
+full authority needs an explicit compat contract/translation or a versioned ABI;
+do not insert padding into the shipped ABI without a compatibility plan.
+Cross checks used installed Linux fixed-width integer/asm-generic ioctl headers
+with target C layouts, not full target sysroots or target kernel builds.
+
+Open questions that block the subsequent authority stages
+
+1. Where is the original pre-git build tree, kernel tree, design/signoff docs,
+   or a matching source archive? Recovery was bounded to recorded local project
+   roots, histories/backups, and accessible GitHub. Unmounted/remote archives,
+   inaccessible private repositories and other machines were not searched.
+2. Which principals could historically open/use/transfer an authority fd?
+   Node mode 0600 is documented in the mirror, but fd inheritance, credential
+   changes, namespace/capability checks and verifier lineage are not specified.
+3. Did export erase immediately, retain compare ability, or destroy the slot?
+   What happened on short buffers, data-copy faults and reply-copy faults?
+   What limits, errno values and counter rules were externally promised?
+4. Who is allowed to mint login/su tokens, and what authenticates that request?
+   su.c:106-139 and login.c:358-390 submit target uid/gid/user/purpose after
+   userspace verification. None of those fields proves authentication by itself.
+   A token backend that accepts arbitrary requests would create an authority
+   bypass. Specify the trusted verifier and kernel-verified binding first.
+5. What exactly is a legacy login token/reference and its read-stream protocol?
+   auth.c:1948-1975 hex-encodes req.token into a Bash variable, while login.c:
+   270-305 reads 32 bytes from --auth-fd and CONSUMEs on that SAME fd. Comments
+   saying 'only token references' do not resolve this observable tension. Scope
+   to fd/task/session, expiry clock/defaults/caps, replay behavior, read ordering,
+   identity/purpose binding and close/revocation semantics need a real contract.
+6. PRIVCMD caller identity cannot be accepted from request fields. Recover
+   sudoers/doas grammar, safe policy file ownership/open rules, normalization
+   and digests, supplementary groups, environment policy, caching generation,
+   verifier provenance, rate limiting and AUTH_REQUIRED retry behavior.
+7. EXEC_HANDOFF/EXEC_INTERACTIVE require a trusted executor, opaque-handle
+   ownership/lineage, replay control, immutable argv/env/cwd/target binding,
+   credential setup order, child status and rollback behavior. The userspace
+   cred_exec helpers and mocks establish sequencing only, not kernel authority.
+8. AUDIT_READ's actual binary record layout is expressly unpublished. The
+   separately declared privcmd_audit_event cannot be assumed to be that layout.
+   Ring overflow, paging, failure policy, keyed request hash and TEXT formatting
+   need recovery/specification before declaring real audit coverage.
+9. Sudoedit needs a full safe-open and revalidation model, target-count limits,
+   per-target identity/content binding, caller-owned edit copies, atomicity and
+   cleanup on partial failure. User helpers alone do not authorize copyback.
+
+Validation boundary
+
+Completed after source review: native ABI checks and four-target compiler
+layouts; external module build for the exact 6.12.113+deb13-cloud-amd64 guest;
+twelve KUnit tests under KASAN/lockdep in a separate rental-only kernel;
+392 real-device C checks; three real-backend client fixtures on both unchanged
+release binaries, with all guest selfchecks passing. The original KUnit test
+fixture held a mutex across callbacks and was repaired before acceptance;
+production storage code was unchanged. Earlier invalid runs are not coverage.
+
+The separate source-bound kernel control is required in addition to client
+fixtures before the five secret-storage requirements can close. Existing
+companion FAILs are retained. The supported experimental backend does not
+establish historical kernel compatibility, non-root deployment, KCSAN or
+production token/policy/audit/handoff/edit enforcement. Those stages remain
+blocked by the trust and semantics questions above.

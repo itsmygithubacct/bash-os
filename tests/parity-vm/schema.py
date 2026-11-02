@@ -98,6 +98,10 @@ def validate(case):
               "contract needs observable expectations beyond exit status")
     check(type(case.get("expected_status")) is int and 0 <= case["expected_status"] <= 255,
           "expected_status must be explicit")
+    if "observation_error_status" in case:
+        value = case["observation_error_status"]
+        check(type(value) is int and 1 <= value <= 255 and value != case["expected_status"],
+              "observation_error_status must be a distinct nonzero exit status")
     check(type(case.get("timeout", 12)) in (int, float) and 0 < case.get("timeout", 12) <= 60,
           "timeout must be in (0, 60]")
     for key in ("interactive_shell", "restore_terminal", "compare_screen"):

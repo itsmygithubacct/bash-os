@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config BASHOS_AUTH_STAGE1_KUNIT_TEST
+    bool "bash-os stage-1 secret storage tests"
+    depends on KUNIT
+    select CRYPTO_LIB_UTILS
+    default n
