@@ -1190,20 +1190,20 @@
             {
               "group": "shell",
               "id": "migration-clock254-domain-boottime",
-              "assertion": "Requested clock ID 7 with synthetic timespec (67890, 333333333); bashclock boot must print 67890.333333333.",
-              "definition_sha256": "8e6ba82ed7ba879ce06c38fc6714d812da236ce1fbd47a8c1452f0f35d8132f4"
+              "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
+              "definition_sha256": "0ea390bce9c3da6f2d8d64aaff73fab6c601bc10bf61144e80ce1465de340028"
             },
             {
               "group": "shell",
               "id": "migration-clock254-domain-monotonic",
-              "assertion": "Requested clock ID 1 with synthetic timespec (12345, 222222222); bashclock mono must print 12345.222222222.",
-              "definition_sha256": "223e579a3238fdb8f4e281ed987d8e52292bc3dbc2fa730a0b51a12288b4103d"
+              "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
+              "definition_sha256": "11f02daa353d0bcf92b965da531e7201671c047c3ee22a830a7a44f73cd9edfd"
             },
             {
               "group": "shell",
               "id": "migration-clock254-domain-realtime",
-              "assertion": "Requested clock ID 0 with synthetic timespec (1700000001, 111111111); bashclock now must print 1700000001.111111111.",
-              "definition_sha256": "89125f3e02d6482fc72826833eafba9635acf43cee297c8c96a6cb9a6d7e3da0"
+              "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
+              "definition_sha256": "5174c1ace7b13882db9397da3dc25db7ae2deb1d0b9a695601babe8e11022bb5"
             }
           ],
           "gap": ""
@@ -1236,26 +1236,26 @@
             {
               "group": "shell",
               "id": "migration-clock254-boundary-large-epoch",
-              "assertion": "Requested clock ID 0 with synthetic timespec (4294967296, 999999999); bashclock now must print 4294967296.999999999.",
-              "definition_sha256": "d5df1c3c354108a23654677cd55ac34dcb2d221ece039342b2c5e368ba9e938a"
+              "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
+              "definition_sha256": "f2fc73e6779f899977433ea6fb777c5b3c5c00b357df9c262cb1887309f5e56f"
             },
             {
               "group": "shell",
               "id": "migration-clock254-boundary-max-nanos",
-              "assertion": "Requested clock ID 0 with synthetic timespec (0, 999999999); bashclock now must print 0.999999999.",
-              "definition_sha256": "dc177b8411a346099e8762f9619079d4ee8c61d819ae46c23f96b1c8d2a572d1"
+              "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
+              "definition_sha256": "7d6bbb33b13ed089573bd392fd4607ba8675b3cced8650e84d7cee1f6377486f"
             },
             {
               "group": "shell",
               "id": "migration-clock254-boundary-negative-epoch",
-              "assertion": "Requested clock ID 0 with synthetic timespec (-1, 0); bashclock now must print -1.000000000.",
-              "definition_sha256": "b5729cd8b5b071332e22c26911a9334de9a489cc3234dcfd4b8961b815cc94b6"
+              "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
+              "definition_sha256": "6f43a0ee8d53a754edb6458bad00536a9eb240a7cc904295349f7a39d0b24a20"
             },
             {
               "group": "shell",
               "id": "migration-clock254-boundary-zero",
-              "assertion": "Requested clock ID 0 with synthetic timespec (0, 0); bashclock now must print 0.000000000.",
-              "definition_sha256": "ac8727525923edb338c4dac70437a6c09148baf6610d54e5e3650f07a9e5aea6"
+              "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
+              "definition_sha256": "accb5ce5ad9c3ed522ada3caaf1e71492cab4cbbd149d908f3a92617253eaffb"
             }
           ],
           "gap": ""
@@ -1297,8 +1297,8 @@
             {
               "group": "shell",
               "id": "migration-clock254-since-borrow",
-              "assertion": "Requested clock ID 1 with synthetic timespec (101, 100000001); bashclock since 100.900000000 must print 0.200000001.",
-              "definition_sha256": "8c5181c403586d0291619114b76b1a893917df6dac4c66a72f5efa8d3e15917a"
+              "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
+              "definition_sha256": "1fb6348c5a15752fdec99ee4fc19e5752db1f765ead9faa97b344c55acc0dbda"
             }
           ],
           "gap": ""
@@ -1311,20 +1311,20 @@
             {
               "group": "shell",
               "id": "migration-clock254-since-exact-zero",
-              "assertion": "Requested clock ID 1 with synthetic timespec (100, 500000000); bashclock since 100.500000000 must print 0.000000000.",
-              "definition_sha256": "954ace00be183606439729e0e54a2a0aaf61cf68714dc0d2ada281223b105553"
+              "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
+              "definition_sha256": "24293c94fd9000b484dc73014967cae80b4d4ef32ffdd25ff080828c6bb5376a"
             },
             {
               "group": "shell",
               "id": "migration-clock254-since-future-fraction",
-              "assertion": "Requested clock ID 1 with synthetic timespec (100, 100000000); bashclock since 100.200000000 must print -0.100000000.",
-              "definition_sha256": "f2bdeedc91fbcb191b9623541f63e35f40e6d208ba19eeb08066c28dea03d3c1"
+              "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
+              "definition_sha256": "6294197694993cc7d1a136805ef8aa69d9561dac08bfc7b5af0411914506d477"
             },
             {
               "group": "shell",
               "id": "migration-clock254-since-future-integer",
-              "assertion": "Requested clock ID 1 with synthetic timespec (100, 500000000); bashclock since 101.500000000 must print -1.000000000.",
-              "definition_sha256": "d4a5295f2bfecacc5edb4039349a7fab923fc14e941b2538b7f3ec5274c51033"
+              "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
+              "definition_sha256": "15d5be209abf2339d8122d74977310f5e9ac50128ca27a69e5cc8db3930f76ff"
             }
           ],
           "gap": ""
@@ -1357,8 +1357,8 @@
             {
               "group": "shell",
               "id": "migration-clock254-since-clock-error",
-              "assertion": "Requested clock ID 1 with synthetic EIO at the compiled callsite; bashclock since 100.500000000 must exit 1 and diagnose clock_gettime.",
-              "definition_sha256": "52f5c967276fed02ebe9a254bf6b7ac73752e0325f9fc46a28990da5a952c3f1"
+              "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
+              "definition_sha256": "68addcbfea8d334c51efe7af305c892a80814989b05a9518427e52788b1110a3"
             }
           ],
           "gap": ""
@@ -29064,20 +29064,20 @@
             {
               "group": "terminal",
               "id": "migration-terminal213-ncdu-visible-restore-q",
-              "assertion": "Both builds exit via the recorded key; independent replay compares seeded primary cells, reverse bits and cursor, and the terminal attributes match before and after. Full color rendition and an input-consumption syscall were not independently checked.",
-              "definition_sha256": "9a82a5ff8965ba213cbe972a553c737a357d39fa93286ef32db0bcfb96600c17"
+              "assertion": "Standard PTY execution records exact input bytes, output chunks and termios before/after, then independently replays the saved primary characters, reverse bits and cursor across alternate-screen entry and exit. Any restoration mismatch is a candidate failure; unsupported replay is incomplete.",
+              "definition_sha256": "c27e0c413e6a7da147dfb685d0bbb4a93fd9a66a0869d33193e0c5db38df1bb5"
             },
             {
               "group": "terminal",
               "id": "migration-terminal213-ncdu-visible-restore-escape",
-              "assertion": "Both builds exit via the recorded key; independent replay compares seeded primary cells, reverse bits and cursor, and the terminal attributes match before and after. Full color rendition and an input-consumption syscall were not independently checked.",
-              "definition_sha256": "c0bb431691e03a11e69a8ed725eddd5512e7cfa15d6a58b6d07d2118ec05ad25"
+              "assertion": "Standard PTY execution records exact input bytes, output chunks and termios before/after, then independently replays the saved primary characters, reverse bits and cursor across alternate-screen entry and exit. Any restoration mismatch is a candidate failure; unsupported replay is incomplete.",
+              "definition_sha256": "83018dff83bfa3e61a83efcd3a117046aa34d3d2959254f3bef0a719109e9510"
             },
             {
               "group": "terminal",
               "id": "migration-terminal213-ncdu-visible-restore-ctrl-c",
-              "assertion": "Both builds exit via the recorded key; independent replay compares seeded primary cells, reverse bits and cursor, and the terminal attributes match before and after. Full color rendition and an input-consumption syscall were not independently checked.",
-              "definition_sha256": "308d64bf8506ddc2639f453be0dd29f6c998fd893417ba014b465086bbfe3562"
+              "assertion": "Standard PTY execution records exact input bytes, output chunks and termios before/after, then independently replays the saved primary characters, reverse bits and cursor across alternate-screen entry and exit. Any restoration mismatch is a candidate failure; unsupported replay is incomplete.",
+              "definition_sha256": "abb661422d6af21413cd2a9c7b9bd9a138c55f7ac19048acc6b0d00917516146"
             }
           ],
           "gap": ""
@@ -36145,8 +36145,8 @@
             {
               "group": "shell",
               "id": "migration-pty-session-setsid-errno-r3",
-              "assertion": "Both unchanged builds retain candidate and independent reference session transitions and EPERM diagnostics for the process-group leader; the prior session evidence remains.",
-              "definition_sha256": "53ff81f4ab82b1fbe663659ef042c04c157a9ea9e3a18cba40f915a7c261a512"
+              "assertion": "Standard disposable-guest execution uses the saved helper bytes under a unique hash-bound path, retaining the controlled setsid errno scenarios and pre-candidate positive controls.",
+              "definition_sha256": "a7ed72803883617102495cc4dac32ffc9fedc9c3d345ab31d1aa8b2747e2879e"
             }
           ],
           "gap": ""
@@ -49048,8 +49048,8 @@
             {
               "group": "terminal",
               "id": "migration-terminal213-top-fifo-redraw",
-              "assertion": "Both builds observed three frames and four source-bound samples with bounded intervals; primary accepted the stated FIFO limitation.",
-              "definition_sha256": "23d58dccac902c61f1eb1b60ed9e5c1cd9b19f7249eee66056b090b636fb7094"
+              "assertion": "Standard PTY execution retains timestamped visible load rows and four independently logged FIFO deliveries. Three distinct visible values must match deliveries 2-4 in order and redraw at the requested two-second interval within 750 ms; missing source observations are incomplete.",
+              "definition_sha256": "df047629ef90f87cee8b80f7ddbba3ab2c95bd8c8343cfd545e4b16d0dcb897e"
             }
           ],
           "gap": ""

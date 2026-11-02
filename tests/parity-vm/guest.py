@@ -9,6 +9,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import selectors
 import signal
@@ -20,6 +21,7 @@ import uuid
 
 import network
 import terminal
+import terminal_frames
 import schema
 
 ROOT = Path("/opt/bashos-parity")
@@ -46,6 +48,10 @@ def require_guest(token):
     if [link["ifname"] for link in links] != ["lo"]:
         raise RuntimeError("fixture network must be a fresh loopback-only namespace")
     subprocess.run(["ip", "link", "set", "lo", "up"], check=True)
+    # sysfs retains the network namespace of its mount. Give guarded fixtures
+    # the same loopback-only view as the evaluator's ip/netlink queries.
+    subprocess.run(["mount", "-t", "sysfs", "-o", "ro,nosuid,nodev,noexec", "sysfs", "/sys"],
+                   check=True, capture_output=True)
     return {"virtualization": virt, "uid": os.geteuid(), "links": [link["ifname"] for link in links],
             "vm_uuid_matches": True, "pid_namespace": os.readlink("/proc/self/ns/pid"),
             "network_namespace": os.readlink("/proc/self/ns/net"),
@@ -54,6 +60,36 @@ def require_guest(token):
 
 def b64(data):
     return base64.b64encode(data).decode()
+
+
+def attest_namespaces(token, outer):
+    """Record the evaluator's real namespace boundary for guarded fixtures."""
+    inner = {name: os.readlink('/proc/self/ns/' + name) for name in ('pid', 'net', 'mnt')}
+    if os.getpid() != 1 or os.geteuid() != 0 or not isinstance(outer, dict) or set(outer) != set(inner):
+        raise RuntimeError('namespace attestation requires the isolated root evaluator')
+    for name, value in inner.items():
+        if (not isinstance(outer[name], str) or
+                not re.fullmatch(re.escape(name) + r':\[[0-9]+\]', outer[name]) or outer[name] == value):
+            raise RuntimeError('evaluator namespace is not isolated: ' + name)
+    directory = Path('/run').lstat()
+    if (not stat.S_ISDIR(directory.st_mode) or directory.st_uid != 0 or directory.st_gid != 0
+            or stat.S_IMODE(directory.st_mode) & 0o022):
+        raise RuntimeError('namespace attestation directory is not protected')
+    proof = {'schema': 'bashos-syslog-namespace-attestation-v1', 'token': token,
+             'namespaces': inner, 'outer_namespaces': outer}
+    data = (json.dumps(proof, sort_keys=True) + '\n').encode('ascii')
+    fd = os.open('/run/bashos-syslog-namespace-208.json',
+                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o444)
+    try:
+        while data:
+            count = os.write(fd, data)
+            if count <= 0:
+                raise RuntimeError('short namespace attestation write')
+            data = data[count:]
+        os.fchmod(fd, 0o444)
+    finally:
+        os.close(fd)
+    return proof
 
 
 def write_json(path, value):
@@ -388,6 +424,13 @@ def unprivileged_side(case, mode):
     result["tree"] = tree(root)
     if case.get("diagnostic_files"):
         result["diagnostics"] = diagnostics(case)
+    if case.get('frame_timing') and not result.get('error'):
+        try:
+            result['frame_timing'] = terminal_frames.check_timing(case, result)
+            if not result['frame_timing']['matched']:
+                result['error'] = 'redraw frames or intervals differ from independently logged FIFO reads'
+        except (KeyError, ValueError, TypeError) as exc:
+            result['error'] = result['harness_error'] = 'frame source is incomplete: ' + str(exc)
     if setup is not None:
         result["setup"] = setup
     return result
@@ -665,6 +708,8 @@ def legacy(output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--vm-token", required=True)
+    parser.add_argument("--outer-namespaces", required=True,
+                        help="root controller's namespace identities before unshare")
     parser.add_argument("--groups", required=True)
     parser.add_argument("--case-ids", help="comma-separated modern fixture IDs; selected groups still apply")
     parser.add_argument("--allow-root-fixtures", action="store_true",
@@ -673,6 +718,7 @@ def main():
     global allow_root
     allow_root = args.allow_root_fixtures
     isolation = require_guest(args.vm_token)
+    isolation['namespace_attestation'] = attest_namespaces(args.vm_token, json.loads(args.outer_namespaces))
     output = ROOT / "results"
     output.mkdir(exist_ok=False)
     groups = set(args.groups.split(","))

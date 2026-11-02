@@ -21,6 +21,34 @@ class SchemaChecks(unittest.TestCase):
         self.case = {"id": "example", "loadable": "bash", "group": "shell", "driver": "plain",
                      "script": "printf expected", "expected_status": 0, "stdout": "expected"}
 
+    def test_primary_screen_replay_rejects_damage_and_unsupported_output(self):
+        from terminal_restoration import restoration
+        seed = b'\x1b[7mcanary\x1b[3;1Hanchor'
+        raw = seed + b'\x1b[?1049h\x1b[0m\x1b[2Jtemporary\x1b[?1049l'
+        self.assertTrue(restoration(raw)['matched'])
+        self.assertFalse(restoration(raw + b'\x1b[2J')['matched'])
+        self.assertFalse(restoration(seed + b'\x1b[?1049h')['matched'])
+        with self.assertRaisesRegex(ValueError, 'unsupported'):
+            restoration(raw + b'\x1b[9z')
+
+    def test_fifo_redraw_checks_reject_missing_frames_and_invalid_source(self):
+        import terminal_frames
+        source = {'schema': 'top-fifo-frame-v1', 'state': 'completed', 'records': [
+            {'index': i, 'value': f'0.{i:02d} 0.50 1.00 1/30 130',
+             'write_ns': i * 2_000_000_000, 'reader_close_ns': i * 2_000_000_000 + 10_000_000}
+            for i in range(1, 5)]}
+        case = {'frame_timing': {'diagnostic': 'fifo.json', 'pattern': r'load (0\.[0-9]{2})',
+                                 'period_ms': 2000, 'tolerance_ms': 750}}
+        result = {'diagnostics': {'fifo.json': {'base64': base64.b64encode(json.dumps(source).encode()).decode()}},
+                  'screen_frames': [{'row': f'load 0.{i:02d}', 'monotonic_ns': i * 2_000_000_000 + 20_000_000,
+                                     'output_offset': i * 20} for i in range(2, 5)]}
+        self.assertTrue(terminal_frames.check_timing(case, result)['matched'])
+        result['screen_frames'].pop(1)
+        self.assertFalse(terminal_frames.check_timing(case, result)['matched'])
+        result['diagnostics']['fifo.json']['truncated'] = True
+        with self.assertRaisesRegex(ValueError, 'absent or truncated'):
+            terminal_frames.check_timing(case, result)
+
     def test_duplicate_ids_across_files(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
@@ -65,7 +93,9 @@ class SchemaChecks(unittest.TestCase):
                 schema.validate({**self.case, "files": {name: "bad"}})
 
     def test_diagnostic_paths_are_bounded_and_relative(self):
-        for names in (["../escape"], ["/tmp/escape"], ["a", "a"], ["file"] * 17):
+        schema.validate({**self.case, "diagnostic_files": ['file-' + str(i) for i in range(32)]})
+        for names in (["../escape"], ["/tmp/escape"], ["a", "a"],
+                      ['file-' + str(i) for i in range(33)]):
             with self.subTest(names=names), self.assertRaises(ValueError):
                 schema.validate({**self.case, "diagnostic_files": names})
         schema.validate({**self.case, "diagnostic_files": ["server.log", "child/state.json"]})
@@ -588,6 +618,70 @@ print('sequence-exhaustion bounded-memory invalid-inputs-ok')
                 "bounded_binary_memory_read": True, "unreadable_pointer_observed": True,
                 "synthetic_success_does_not_write": True, "invalid_options_do_not_spawn": True}
 
+    def namespace_attestation():
+        """Existing fixture guards accept the real boundary and refuse altered proof."""
+        proof = Path('/run/bashos-syslog-namespace-208.json')
+        original = proof.read_bytes()
+        case = {"id": "namespace-attestation", "loadable": "bash", "group": "shell",
+                "driver": "plain", "kind": "contract", "expected_status": 0,
+                "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal213_guard.py"}
+        good = guest.side(case, "reference")
+        assert good['status'] == 0 and not good.get('harness_error'), good
+        refused = []
+        try:
+            value = json.loads(original)
+            value['token'] = str(__import__('uuid').uuid4())
+            proof.write_text(json.dumps(value) + '\n')
+            result = guest.side(case, "reference")
+            assert result['status'] != 0 and b'identity mismatch' in base64.b64decode(result['stderr_base64']), result
+            refused.append('wrong-token')
+            proof.write_bytes(original)
+            proof.chmod(0o644)
+            result = guest.side(case, "reference")
+            assert result['status'] != 0 and b'not protected' in base64.b64decode(result['stderr_base64']), result
+            refused.append('writable-proof')
+        finally:
+            proof.write_bytes(original)
+            proof.chmod(0o444)
+        return {'root_created_boundary': True, 'refused': refused}
+
+    def passive_foreground_controls():
+        cases, _ = schema.load(Path(__file__).parent / 'suites')
+        case = copy.deepcopy(next(c for c in cases if c['id'] == 'migration-terminal213-pty-foreground-passive-r4'))
+        good = guest.side(case, 'reference')
+        assert good['status'] == 0 and not good.get('error') and not good.get('harness_error'), good
+        checks = []
+        for old, new, error in (
+                ('str(child.pid)+', 'str(os.getpid())+', 'foreground requested group mismatch'),
+                ('os.tcsetpgrp(0,os.getpgrp())', 'os.tcsetpgrp(0,child.pid)', 'foreground owner group mismatch')):
+            broken = copy.deepcopy(case)
+            assert broken['reference_script'].count(old) == 1
+            broken['reference_script'] = broken['reference_script'].replace(old, new)
+            result = guest.side(broken, 'reference')
+            assert error in (result.get('error') or '') and not result.get('harness_error'), result
+            checks.append(error)
+        return {'native_foreground_and_restore': True, 'refused': checks}
+
+    def terminal_observation_errors():
+        """A recorder limit or a late decoder fault is an ERROR, never a product FAIL."""
+        driver = guest.terminal
+        case = {'id': 'terminal-observation-errors', 'loadable': 'bash', 'group': 'terminal',
+                'driver': 'pty', 'kind': 'contract', 'oracle': 'harness', 'script': 'printf okay',
+                'steps': [{'expect': 'okay'}], 'expected_status': 0}
+        normal = guest.evaluate(case, directory / 'terminal-observation-normal')
+        assert normal['status'] == 'PASS', normal
+        with patch.object(driver.Session, 'take', side_effect=driver.foreground_observer.ObservationError('recorder cap')):
+            capped = guest.evaluate(case, directory / 'terminal-observation-cap')
+        assert capped['status'] == 'ERROR', capped
+        original = driver.Session.take
+        def broken_decoder(session, block):
+            original(session, block)
+            session.decoder_error = 'injected late decoder failure'
+        with patch.object(driver.Session, 'take', broken_decoder):
+            broken = guest.evaluate({**case, 'restore_primary_screen': True}, directory / 'terminal-observation-decoder')
+        assert broken['status'] == 'ERROR', broken
+        return {'normal': normal['status'], 'recorder_cap': capped['status'], 'late_decoder': broken['status']}
+
     def root_isolation():
         """A root side keeps uid 0, and its mounts, links, hostname and loop devices do not outlive it."""
         evaluator = {n: os.readlink("/proc/self/ns/" + n) for n in ("mnt", "net", "uts", "ipc")}
@@ -626,6 +720,9 @@ print('sequence-exhaustion bounded-memory invalid-inputs-ok')
     run("diagnostic-capture", diagnostic_capture)
     run("file-size-allowance", file_size_allowance)
     run("syscall-sequence-observer", syscall_sequence_observer)
+    run("namespace-attestation", namespace_attestation)
+    run("passive-foreground-controls", passive_foreground_controls)
+    run("terminal-observation-errors", terminal_observation_errors)
     if guest.allow_root:
         run("root-isolation", root_isolation)
     return records

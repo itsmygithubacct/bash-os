@@ -84,8 +84,8 @@ def validate(case):
               and 0 < case.get("setup_timeout", 30) <= 60, "setup timeout must be in (0, 60]")
     if "diagnostic_files" in case:
         names = case["diagnostic_files"]
-        check(isinstance(names, list) and len(names) <= 16,
-              "diagnostic_files must list at most 16 relative HOME paths")
+        check(isinstance(names, list) and len(names) <= 32,
+              "diagnostic_files must list at most 32 relative HOME paths")
         for name in names:
             filename(name)
         check(len(set(names)) == len(names), "duplicate diagnostic file")

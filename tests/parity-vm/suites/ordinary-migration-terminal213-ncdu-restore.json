@@ -72,7 +72,8 @@
       "restore_terminal": true,
       "helpers_sha256": {
         "helpers/terminal213_guard.py": "dea91736a54538ae758c4b416d0eb48b2fd4a4ba331af789967c2de0ccf769c6"
-      }
+      },
+      "restore_primary_screen": true
     },
     {
       "comparison": "Offline replay must compare the saved pre-entry canary frame with the primary screen after the saved alternate-screen exit, and termios before and after. PTY input hex and raw output are mandatory.",
@@ -145,7 +146,8 @@
       "restore_terminal": true,
       "helpers_sha256": {
         "helpers/terminal213_guard.py": "dea91736a54538ae758c4b416d0eb48b2fd4a4ba331af789967c2de0ccf769c6"
-      }
+      },
+      "restore_primary_screen": true
     },
     {
       "comparison": "Offline replay must compare the saved pre-entry canary frame with the primary screen after the saved alternate-screen exit, and termios before and after. PTY input hex and raw output are mandatory.",
@@ -218,7 +220,8 @@
       "restore_terminal": true,
       "helpers_sha256": {
         "helpers/terminal213_guard.py": "dea91736a54538ae758c4b416d0eb48b2fd4a4ba331af789967c2de0ccf769c6"
-      }
+      },
+      "restore_primary_screen": true
     }
   ]
 }

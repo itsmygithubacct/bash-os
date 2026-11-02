@@ -8,6 +8,11 @@ saved static and dynamic VM runs of the frozen candidates. The
 [release qualification](parity-vm.md#013-release-qualification) in the VM guide
 records how the same topics resolve on the 0.1.3 release binaries.
 
+Subsequent [ordinary-fixture topic resolution](parity-vm.md#follow-up-topic-resolution)
+resolves 574 of those topics on each release binary. The current ledger includes
+the ported fixture definitions; the frozen migration and release records below
+retain their original evidence and counts.
+
 The review covers 578 of the 600 topics on both frozen builds: static 300 PASS / 278 FAIL;
 dynamic 301 PASS / 277 FAIL. The other 22 retain unresolved requirements: 21 have partial
 coverage and 1 has none. These are topic counts, not additional behavioral test results. Every unresolved requirement in them, 34 in all, is a

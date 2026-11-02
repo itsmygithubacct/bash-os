@@ -1,4 +1,5 @@
 {
+  "schema": 1,
   "cases": [
     {
       "comparison": "Pin the original owned listener and its stopped parent; retain the listener as an unreaped zombie with the exact original on-disk PID and three known temporary files through the next init. Save the process births, PID bytes, command status and recovery observations. A live sentinel is separate.",
@@ -94,6 +95,5 @@
       "stdout": "cluster238 negative=pass\n",
       "timeout": 60
     }
-  ],
-  "schema": 1
+  ]
 }

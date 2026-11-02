@@ -48,6 +48,9 @@ import subprocess
 import termios
 import time
 
+import foreground_observer
+import terminal_restoration
+
 try:
     import pyte
 except ImportError:  # reported per case; screen steps then fail
@@ -56,7 +59,7 @@ except ImportError:  # reported per case; screen steps then fail
 OUTPUT_LIMIT = 2 * 1024**2
 MAX_TIMEOUT = 60
 STEP_KEYS = {"expect", "send", "send_base64", "key", "resize", "settle_ms", "quiet_ms",
-             "screen", "termios", "output_lacks", "foreground_job", "hangup"}
+             "screen", "termios", "output_lacks", "foreground_job", "foreground_owner", "hangup"}
 CASE_KEYS = {"size", "steps", "answer_queries", "allow_stray_processes"}
 
 # Bytes sent by xterm for each key: (normal cursor mode, application cursor mode).
@@ -110,6 +113,20 @@ def regex(value, what):
 def validate_case(case):
     """Validate the PTY-specific fields of a fixture; raises ValueError."""
     dimensions(case.get("size", [24, 80]))
+    if 'restore_primary_screen' in case:
+        check(type(case['restore_primary_screen']) is bool and case.get('size', [24, 80]) == [24, 80],
+              'primary-screen replay requires a boolean and a 24 by 80 terminal')
+    if 'frame_timing' in case:
+        value = case['frame_timing']
+        check(isinstance(value, dict) and set(value) == {'diagnostic', 'row', 'pattern', 'period_ms', 'tolerance_ms'},
+              'invalid frame timing assertion')
+        check(value['diagnostic'] in case.get('diagnostic_files', []) and type(value['row']) is int
+              and 0 <= value['row'] < case.get('size', [24, 80])[0], 'invalid frame source or row')
+        regex(value['pattern'], 'frame pattern')
+        check(re.compile(value['pattern']).groups == 1, 'frame pattern needs one value group')
+        check(type(value['period_ms']) is int and 0 < value['period_ms'] <= 60000
+              and type(value['tolerance_ms']) is int and 0 <= value['tolerance_ms'] < value['period_ms'],
+              'invalid frame timing bounds')
     for key in ("answer_queries", "allow_stray_processes"):
         if key in case:
             check(type(case[key]) is bool, key + " must be boolean")
@@ -175,6 +192,8 @@ def validate_case(case):
                 isinstance(name, str) and name.startswith("SIG") and
                 isinstance(getattr(signal, name, None), signal.Signals) for name in value),
                 "foreground_job needs a list of signal names")
+        elif action == "foreground_owner":
+            check(value is True, "foreground_owner must be true")
         elif action == "hangup":
             check(value is True, "hangup must be true")
             hung_up = True
@@ -300,11 +319,15 @@ class Screen(pyte.Screen if pyte else object):
 
 
 class Session:
-    def __init__(self, master, slave, rows, columns, deadline, answer_queries):
+    def __init__(self, master, slave, rows, columns, deadline, answer_queries, frame_row=None):
         self.master = master
         self.slave = slave
         self.deadline = deadline
         self.captured = bytearray()
+        self.output_chunks = []
+        self.input_writes = []
+        self.frame_row = frame_row
+        self.screen_frames = []
         self.answer = answer_queries
         self.screen = self.stream = None
         self.decoder_error = None
@@ -319,7 +342,11 @@ class Session:
         return left
 
     def take(self, block):
+        if len(self.output_chunks) >= 8192:
+            raise foreground_observer.ObservationError('terminal output observation limit')
+        start = len(self.captured)
         self.captured.extend(block)
+        self.output_chunks.append({'start': start, 'end': len(self.captured), 'monotonic_ns': time.monotonic_ns()})
         if len(self.captured) > OUTPUT_LIMIT:
             raise RuntimeError("PTY output limit")
         if self.stream:
@@ -334,6 +361,11 @@ class Session:
                 replies = bytes(self.screen.replies)
                 self.screen.replies.clear()
                 self.write(replies)
+            if self.frame_row is not None:
+                row = self.screen.display[self.frame_row]
+                if not self.screen_frames or row != self.screen_frames[-1]['row']:
+                    self.screen_frames.append({'row': row, 'output_offset': len(self.captured),
+                                               'monotonic_ns': time.monotonic_ns()})
 
     def pump(self, wait=0.05):
         """Read once; returns True when output arrived."""
@@ -367,7 +399,13 @@ class Session:
             _, ready, _ = select.select([], [self.master], [], min(0.05, self.remaining()))
             if ready:
                 try:
-                    view = view[os.write(self.master, view):]
+                    if len(self.input_writes) >= 4096:
+                        raise foreground_observer.ObservationError('terminal input observation limit')
+                    count = os.write(self.master, view)
+                    self.input_writes.append({'hex': bytes(view[:count]).hex(),
+                                              'output_offset': len(self.captured),
+                                              'monotonic_ns': time.monotonic_ns()})
+                    view = view[count:]
                 except BlockingIOError:
                     pass
             self.pump(0)
@@ -514,7 +552,7 @@ def execute(argv, env, cwd, case):
     tty_name = os.ttyname(slave)
     set_subreaper()
     session = Session(master, slave, rows, columns, time.monotonic() + timeout,
-                      case.get("answer_queries", False))
+                      case.get("answer_queries", False), case.get('frame_timing', {}).get('row'))
     events = []
     cursor = 0
     proc = None
@@ -523,6 +561,8 @@ def execute(argv, env, cwd, case):
     strays = []
     harness_error = None
     started = time.monotonic()
+    passive_foreground = any('foreground_owner' in step for step in case['steps'])
+    leader_birth = None
 
     def child():
         os.setsid()
@@ -530,12 +570,17 @@ def execute(argv, env, cwd, case):
         child_limits(root=root)
 
     def event(index, action, **detail):
-        events.append(dict(step=index, action=action, t_ms=round((time.monotonic() - started) * 1000),
-                           offset=len(session.captured), **detail))
+        record = dict(step=index, action=action, monotonic_ns=time.monotonic_ns(),
+                      t_ms=round((time.monotonic() - started) * 1000),
+                      offset=len(session.captured), **detail)
+        events.append(record)
+        return record
 
     try:
         proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=slave, stdout=slave,
                                 stderr=slave, preexec_fn=child)
+        if passive_foreground:
+            leader_birth = foreground_observer.process_birth(proc.pid)
         for index, step in enumerate(case["steps"]):
             (action, value), = step.items()
             if action == "expect":
@@ -595,7 +640,28 @@ def execute(argv, env, cwd, case):
             elif action == "foreground_job":
                 wait_for(session, proc.pid, lambda: foreground_problem(session, proc.pid, value),
                          "step " + str(index) + " foreground job")
-                event(index, action, group=os.tcgetpgrp(master))
+                if passive_foreground:
+                    owned = foreground_observer.foreground_owned_witness(master, proc.pid, leader_birth)
+                    requested, request_record = foreground_observer.passive_foreground_request(proc.pid, leader_birth)
+                    observed = event(index, action, group=owned['group'], requested_group=requested,
+                                     request_record=request_record, foreground_owned_witness=owned)
+                    if requested != owned['group']:
+                        raise RuntimeError('foreground requested group mismatch')
+                    observed['gate_release'] = foreground_observer.release_passive_foreground_gate()
+                else:
+                    event(index, action, group=os.tcgetpgrp(master))
+            elif action == "foreground_owner":
+                if foreground_observer.process_birth(proc.pid) != leader_birth:
+                    raise foreground_observer.ObservationError('foreground owner leader changed')
+                sampled = time.monotonic_ns()
+                group = os.tcgetpgrp(master)
+                if foreground_observer.process_birth(proc.pid) != leader_birth:
+                    raise foreground_observer.ObservationError('foreground owner leader changed after sample')
+                observed = event(index, action, group=group, expected_owner=proc.pid,
+                                 leader_birth=list(leader_birth), sample_ns=sampled)
+                if group != proc.pid:
+                    raise RuntimeError('foreground owner group mismatch')
+                observed['gate_release'] = foreground_observer.release_passive_foreground_gate()
             elif action == "hangup":
                 session.drain()
                 os.close(master)
@@ -604,6 +670,8 @@ def execute(argv, env, cwd, case):
         while not leader_exited(proc.pid):
             session.pump()
         session.drain()
+    except foreground_observer.ObservationError as exc:
+        failure = harness_error = 'terminal observation failed: ' + str(exc)
     except (RuntimeError, TimeoutError, OSError, termios.error) as exc:
         failure = str(exc)
     except Exception as exc:  # a harness defect: keep the evidence, report it as an error
@@ -632,12 +700,26 @@ def execute(argv, env, cwd, case):
         failure = "processes outlived the session leader: " + ", ".join(
             str(p["pid"]) + ":" + p["name"] for p in strays)
     rendered = session.rows()
+    restoration = None
+    if (session.decoder_error and (case.get('frame_timing') or case.get('restore_primary_screen'))
+            and failure is None):
+        failure = harness_error = session.decoder_error
+    if case.get('restore_primary_screen') and failure is None:
+        try:
+            restoration = terminal_restoration.restoration(bytes(session.captured))
+            if not restoration['matched']:
+                failure = 'primary screen characters, reverse bits or cursor were not restored'
+        except ValueError as exc:
+            failure = harness_error = str(exc)
     # Shell convention: death by signal N is status 128+N; "signal" keeps N.
     code = proc.returncode if proc else None
     return {"status": None if code is None else code if code >= 0 else 128 - code,
             "signal": -code if code is not None and code < 0 else None,
             "screen_base64": base64.b64encode(bytes(session.captured)).decode(),
             "rendered_screen": rendered,
+            "primary_screen_restoration": restoration,
+            "output_chunks": session.output_chunks, "input_writes": session.input_writes,
+            "screen_frames": session.screen_frames,
             "cursor": [session.screen.cursor.y, session.screen.cursor.x] if session.screen else None,
             "decoder": decoder_version(), "decoder_error": session.decoder_error,
             "tty_name": tty_name,

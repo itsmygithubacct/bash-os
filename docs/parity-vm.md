@@ -255,3 +255,27 @@ records the binary and manifest hashes, the harness and image-lock hashes, the
 source changes since 0.1.2 and the evidence-only confirmation. The
 [scope inventory](data/parity-0.1.3-scope.json) keeps missing commands,
 unreviewed option forms and all deferrals visible.
+
+## Follow-up topic resolution
+
+The [topic-resolution record](data/parity-topic-resolution.json) adds ordinary
+VM evidence for 38 of the 64 topics left unresolved by the release qualification.
+The release binaries are unchanged. Of the original 600 topics, static now has
+303 PASS, 271 FAIL and 26 UNRESOLVED; dynamic has 304 PASS, 270 FAIL and
+26 UNRESOLVED. These counts summarize topics rather than additional passing
+cases. The published release qualification above remains a historical record.
+
+The follow-up runs exercise 106 ported cases on each build, together with 15
+guest selfchecks, with no harness errors. Fixtures now receive a protected
+namespace attestation, a loopback-only sysfs view and a bounded 64 MiB memlock
+limit. The PTY driver retains input bytes and output chunks, observes requested
+foreground ownership and restoration, replays primary-screen characters,
+reverse bits and cursor, and compares timed redraws with independent FIFO reads.
+The clock injector uses exact binary hashes and verified call sites for the
+release builds. Invalid controls remain incomplete evidence.
+
+Fifteen remaining topics require the unavailable kernel authorization device.
+Five need kernel clamp support, including four controller topics still awaiting
+a helper port: a native util-linux control on the available guest receives
+`Operation not supported` when setting clamps on its own child. The other six
+retain the hardware or interface limits listed in the obligation ledger.

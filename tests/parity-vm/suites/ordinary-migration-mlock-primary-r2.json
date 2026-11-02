@@ -1,4 +1,5 @@
 {
+  "schema": 1,
   "cases": [
     {
       "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/migration-mlock-limits-exit-r1.py \"$BASH\" future-unlock\n",
@@ -95,6 +96,5 @@
       "stdout": "held_exit=observed\n",
       "timeout": 45
     }
-  ],
-  "schema": 1
+  ]
 }

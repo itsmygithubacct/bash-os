@@ -20,14 +20,54 @@
     "static": {
       "binary_sha256": "11e4edf30b60abeab3318fedd5a4052f783d2500576a934b295bca451e5b6308",
       "results": {
-        "FAIL": 263,
-        "UNRESOLVED": 42,
-        "PASS": 295
+        "FAIL": 271,
+        "UNRESOLVED": 26,
+        "PASS": 303
       },
       "resolved_topics": [
         {
+          "topic": "bashclock/clock_domain_reads",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "bashclock/since_arithmetic",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "bashsyslogd/forwarding_queue_replay",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "cluster/argument-and-timeout-validation",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "cluster/packet-rejection",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "cluster/ping-protocol",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "cluster/private-state-recovery",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
           "topic": "crypto/secret-read-terminal",
           "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "dns/dns-authoritative-service",
+          "result": "FAIL",
           "fully_exercised": true
         },
         {
@@ -76,8 +116,23 @@
           "fully_exercised": true
         },
         {
+          "topic": "mlock/all-operation",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
           "topic": "mlock/try-lock-operation",
           "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "mlock/unlock-operation",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ncdu/interactive-browser-pty",
+          "result": "FAIL",
           "fully_exercised": true
         },
         {
@@ -97,6 +152,21 @@
         },
         {
           "topic": "ns/ns-unshare-namespaces",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "pty/pty-session-control-deferred",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ptybroker/bounded_io_errors",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ptybroker/private_session_lifecycle",
           "result": "PASS",
           "fully_exercised": true
         },
@@ -134,6 +204,16 @@
           "topic": "su/owned-child-status-and-signals",
           "result": "PASS",
           "fully_exercised": true
+        },
+        {
+          "topic": "top/interactive-pty-contract",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "watch/watch-terminal-parity",
+          "result": "FAIL",
+          "fully_exercised": true
         }
       ],
       "unresolved_topics": [
@@ -141,34 +221,19 @@
         "auth/device-abi-and-fd-lifecycle",
         "auth/pty-sealed-secret-lifecycle",
         "auth/synthetic-login-and-token-mint",
-        "bashclock/clock_domain_reads",
-        "bashclock/since_arithmetic",
         "bashpoll/signalfd-ownership",
-        "bashsyslogd/forwarding_queue_replay",
-        "cluster/argument-and-timeout-validation",
-        "cluster/packet-rejection",
-        "cluster/ping-protocol",
-        "cluster/private-state-recovery",
         "dmesg/live-ring-buffer",
-        "dns/dns-authoritative-service",
         "doas/authority_policy_and_verification",
         "login/credential-transition-deferred",
         "login/interactive-auth-session-deferred",
-        "mlock/all-operation",
-        "mlock/unlock-operation",
-        "ncdu/interactive-browser-pty",
         "passwd/password_hash_updates",
         "passwd/password_verification_lockout",
-        "pty/pty-session-control-deferred",
-        "ptybroker/bounded_io_errors",
-        "ptybroker/private_session_lifecycle",
         "sshd/authentication-authorization",
         "su/credential-transition",
         "su/private-account-lookup",
         "sudo/authority-command-authorization",
         "sudo/sudoedit-safe-copyback",
         "sudo/timestamp-validation-flows",
-        "top/interactive-pty-contract",
         "tput/hardware-init-reset",
         "uclampset/defer_all_tasks_preflight",
         "uclampset/defer_command_mode",
@@ -177,48 +242,135 @@
         "uclampset/defer_system_files",
         "utf8/unicode17-exhaustive-grapheme-reference",
         "vec/simd-cross-cpu-backends",
-        "watch/watch-terminal-parity",
         "wgetch/escape-timing"
       ],
       "new_run": {
-        "name": "ordinary-first-static",
+        "name": "ordinary-final-static",
         "groups": [
           "shell",
           "terminal"
         ],
-        "selected_records": 71,
+        "selected_records": 106,
         "candidate_sha256": "11e4edf30b60abeab3318fedd5a4052f783d2500576a934b295bca451e5b6308",
         "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
         "artifacts_sha256": {
-          "summary.json": "c0e523e52873ad1c97d79a2a4bf3c7a9b091c86fe8befcade11fef22943338ab",
-          "provenance.json": "42a6b99fb74afe159fb0c1e2cbbea5b3da7ce3db7bd5175b8cce3841b559c8ca",
-          "payload.tar": "bb96142783e2e00f017f2516237acfa8a6fa5da30cbe001e046d49066e6e3db0",
-          "evidence.tar": "ff7ca13c17826c159c060860847665df3c0575b71a4def3a3dc65b48b2165ac5"
+          "summary.json": "5716514c8fcd3faff96fa7e949452dc2bdd95234c089b967e30aa1027d35cb38",
+          "provenance.json": "29608229bc0415a9954894b295798299af98bbe20f31ced543d54889a73327ca",
+          "payload.tar": "7f40b21e604a28bbb1241da2d0fa83c4623ea3fce356b7ca375cb9fd66b87e53",
+          "evidence.tar": "b1251225d4056a37d066abc870704b1e9ccbc7ec4d0c10a6fac80950dbd2f9ae"
         },
         "teardown": {
           "qemu_exit_status": 0,
           "clean_poweroff": true,
           "forced_stop": false,
           "poweroff_request": 0,
-          "stopped_at": 1793656478.3800607
+          "stopped_at": 1793657318.7377687
         },
         "overlay_discarded": true,
         "candidate_unchanged": true,
         "candidate_matches_guest": true,
         "prepared_unchanged": true
+      },
+      "qualification": {
+        "product_cases": 106,
+        "guest_selfchecks": 15,
+        "results_including_selfchecks": {
+          "PASS": 112,
+          "FAIL": 9,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 0,
+          "MIGRATED": 0,
+          "COLLECTED": 0
+        }
+      },
+      "supplemental_harness_checks": {
+        "results": {
+          "PASS": 16,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 0,
+          "MIGRATED": 0,
+          "COLLECTED": 0
+        },
+        "ids": [
+          "selfcheck-bounded-output",
+          "selfcheck-bounded-time",
+          "selfcheck-invalid-oracle-is-error",
+          "selfcheck-candidate-mismatch-is-fail",
+          "selfcheck-network-isolation",
+          "selfcheck-orphan-cleanup",
+          "selfcheck-detached-orphan-cleanup",
+          "selfcheck-scratch-isolation",
+          "selfcheck-migration-is-metadata",
+          "selfcheck-setup-classification",
+          "selfcheck-diagnostic-capture",
+          "selfcheck-file-size-allowance",
+          "selfcheck-syscall-sequence-observer",
+          "selfcheck-namespace-attestation",
+          "selfcheck-passive-foreground-controls",
+          "selfcheck-terminal-observation-errors"
+        ],
+        "artifacts_sha256": {
+          "summary.json": "a34b6338134a97af82635f4eaa2bf24a7054f0b584413facf77336bf2cd47592",
+          "provenance.json": "9c5569b76194db1cbca5cc150901100806ddcbcbbd425c185e518fe4c8920a19",
+          "payload.tar": "39fbdabeaf0f6d2c18eda539010e0fa368d6ef981f6c691e6ced5391aec043f3",
+          "evidence.tar": "480cf29ab48184afd9275bd64813f04b594fc804919f09d03c4facfd3c597db3"
+        }
       }
     },
     "dynamic": {
       "binary_sha256": "090c95cd49df3478967c0acb73534d425ed099ba0ef55e5522745d30fec0c039",
       "results": {
-        "FAIL": 262,
-        "UNRESOLVED": 42,
-        "PASS": 296
+        "FAIL": 270,
+        "UNRESOLVED": 26,
+        "PASS": 304
       },
       "resolved_topics": [
         {
+          "topic": "bashclock/clock_domain_reads",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "bashclock/since_arithmetic",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "bashsyslogd/forwarding_queue_replay",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "cluster/argument-and-timeout-validation",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "cluster/packet-rejection",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "cluster/ping-protocol",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "cluster/private-state-recovery",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
           "topic": "crypto/secret-read-terminal",
           "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "dns/dns-authoritative-service",
+          "result": "FAIL",
           "fully_exercised": true
         },
         {
@@ -267,8 +419,23 @@
           "fully_exercised": true
         },
         {
+          "topic": "mlock/all-operation",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
           "topic": "mlock/try-lock-operation",
           "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "mlock/unlock-operation",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ncdu/interactive-browser-pty",
+          "result": "FAIL",
           "fully_exercised": true
         },
         {
@@ -288,6 +455,21 @@
         },
         {
           "topic": "ns/ns-unshare-namespaces",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "pty/pty-session-control-deferred",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ptybroker/bounded_io_errors",
+          "result": "PASS",
+          "fully_exercised": true
+        },
+        {
+          "topic": "ptybroker/private_session_lifecycle",
           "result": "PASS",
           "fully_exercised": true
         },
@@ -325,6 +507,16 @@
           "topic": "su/owned-child-status-and-signals",
           "result": "PASS",
           "fully_exercised": true
+        },
+        {
+          "topic": "top/interactive-pty-contract",
+          "result": "FAIL",
+          "fully_exercised": true
+        },
+        {
+          "topic": "watch/watch-terminal-parity",
+          "result": "FAIL",
+          "fully_exercised": true
         }
       ],
       "unresolved_topics": [
@@ -332,34 +524,19 @@
         "auth/device-abi-and-fd-lifecycle",
         "auth/pty-sealed-secret-lifecycle",
         "auth/synthetic-login-and-token-mint",
-        "bashclock/clock_domain_reads",
-        "bashclock/since_arithmetic",
         "bashpoll/signalfd-ownership",
-        "bashsyslogd/forwarding_queue_replay",
-        "cluster/argument-and-timeout-validation",
-        "cluster/packet-rejection",
-        "cluster/ping-protocol",
-        "cluster/private-state-recovery",
         "dmesg/live-ring-buffer",
-        "dns/dns-authoritative-service",
         "doas/authority_policy_and_verification",
         "login/credential-transition-deferred",
         "login/interactive-auth-session-deferred",
-        "mlock/all-operation",
-        "mlock/unlock-operation",
-        "ncdu/interactive-browser-pty",
         "passwd/password_hash_updates",
         "passwd/password_verification_lockout",
-        "pty/pty-session-control-deferred",
-        "ptybroker/bounded_io_errors",
-        "ptybroker/private_session_lifecycle",
         "sshd/authentication-authorization",
         "su/credential-transition",
         "su/private-account-lookup",
         "sudo/authority-command-authorization",
         "sudo/sudoedit-safe-copyback",
         "sudo/timestamp-validation-flows",
-        "top/interactive-pty-contract",
         "tput/hardware-init-reset",
         "uclampset/defer_all_tasks_preflight",
         "uclampset/defer_command_mode",
@@ -368,37 +545,258 @@
         "uclampset/defer_system_files",
         "utf8/unicode17-exhaustive-grapheme-reference",
         "vec/simd-cross-cpu-backends",
-        "watch/watch-terminal-parity",
         "wgetch/escape-timing"
       ],
       "new_run": {
-        "name": "ordinary-first-dynamic",
+        "name": "ordinary-final-dynamic",
         "groups": [
           "shell",
           "terminal"
         ],
-        "selected_records": 71,
+        "selected_records": 106,
         "candidate_sha256": "090c95cd49df3478967c0acb73534d425ed099ba0ef55e5522745d30fec0c039",
         "prepared_sha256": "cd0b9552bcf5155f9c693c06f2abb949aea081764ad674716793dbd4f68871ea",
         "artifacts_sha256": {
-          "summary.json": "40a8afd170bfc4a435f50ee4813ecc7564bf688cd41c0b37d822ed5213103dd7",
-          "provenance.json": "f90f570795cd9bbd9f4818b334689388b75ad5e94e1f5dd4f75c0435c20405d7",
-          "payload.tar": "0607ca37da0ed679cc7395cc5b56f0f906a4c8a2316eaa177bd71f1c537621bd",
-          "evidence.tar": "5adc8b7362aaeb34758f8f23031af5b46101f035632b05bacd1fcbab0cfb775b"
+          "summary.json": "d562f7cf181c8c14c6c61e5e08e236f311116aebcf073ad941e20c6ad2ce50db",
+          "provenance.json": "3c981f2480ba52722204ccbd9803d616c52772c3c56cb0dfc9576e38e3b7f7e5",
+          "payload.tar": "912c5bcdeb854afd12ac19dff63863e4fffd4ffe7c34db8528161679db8338b6",
+          "evidence.tar": "3e9e25220b437944f58d4974ef8ff1cb7df09e689c1e669c1062a9b8e363465d"
         },
         "teardown": {
           "qemu_exit_status": 0,
           "clean_poweroff": true,
           "forced_stop": false,
           "poweroff_request": 0,
-          "stopped_at": 1793656478.475866
+          "stopped_at": 1793657317.4012172
         },
         "overlay_discarded": true,
         "candidate_unchanged": true,
         "candidate_matches_guest": true,
         "prepared_unchanged": true
+      },
+      "qualification": {
+        "product_cases": 106,
+        "guest_selfchecks": 15,
+        "results_including_selfchecks": {
+          "PASS": 111,
+          "FAIL": 10,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 0,
+          "MIGRATED": 0,
+          "COLLECTED": 0
+        }
+      },
+      "supplemental_harness_checks": {
+        "results": {
+          "PASS": 16,
+          "FAIL": 0,
+          "ERROR": 0,
+          "SKIP": 0,
+          "DEFERRED": 0,
+          "MIGRATED": 0,
+          "COLLECTED": 0
+        },
+        "ids": [
+          "selfcheck-bounded-output",
+          "selfcheck-bounded-time",
+          "selfcheck-invalid-oracle-is-error",
+          "selfcheck-candidate-mismatch-is-fail",
+          "selfcheck-network-isolation",
+          "selfcheck-orphan-cleanup",
+          "selfcheck-detached-orphan-cleanup",
+          "selfcheck-scratch-isolation",
+          "selfcheck-migration-is-metadata",
+          "selfcheck-setup-classification",
+          "selfcheck-diagnostic-capture",
+          "selfcheck-file-size-allowance",
+          "selfcheck-syscall-sequence-observer",
+          "selfcheck-namespace-attestation",
+          "selfcheck-passive-foreground-controls",
+          "selfcheck-terminal-observation-errors"
+        ],
+        "artifacts_sha256": {
+          "summary.json": "a2180e7690d9919c3a6442460d7ce5b5c9053d65b9016730ac13248c98c73e98",
+          "provenance.json": "4e17891b551ae6f55d948421071b1a94686760af3ace5ba0b9f303dd4f6cc20a",
+          "payload.tar": "79147a1a29f29baf2033764a40a4f296f2a256f4ed2bed1303826a50443d2cc1",
+          "evidence.tar": "690f2a1d16be6a2919d337a06b2c5b86ba0cd990df8c2755a4f63a76dbc3a82f"
+        }
       }
     }
   },
-  "definition_change": "The two raw crypto PTY cases create their caller-owned secret output file with mode 0600 on both sides. Content, prompt, echo and termios assertions are preserved."
+  "kernel_capability_probe": {
+    "purpose": "Independent native kernel capability observation; no historical topic or candidate behavior is counted by this probe.",
+    "native_observation": {
+      "after": {
+        "status": 0,
+        "stderr": "",
+        "stdout": "python3 (12) util_clamp: min: 0 max: 0\n"
+      },
+      "available": false,
+      "before": {
+        "status": 0,
+        "stderr": "",
+        "stdout": "python3 (12) util_clamp: min: 0 max: 0\n"
+      },
+      "change": {
+        "status": 1,
+        "stderr": "uclampset: failed to set pid 12's uclamp values: Operation not supported\n",
+        "stdout": ""
+      },
+      "kernel": "6.12.113+deb13-cloud-amd64",
+      "uid": 2000
+    },
+    "artifacts_sha256": {
+      "summary.json": "8d546c22c554b98e0d79904a7f2129f928738721cdfdf79cbd7cafa8996e9066",
+      "provenance.json": "8d1da5a8c125d3d1ed98ef89fc970efbd13fa6a2af439b7a9aa051637911021e",
+      "payload.tar": "4a436cc5a6aeee6ea31d56e8ace106eb06c39f08ea725f04bdc752f3aa77077f",
+      "evidence.tar": "075bdfe8e67f62a44d4c799fa441ae886cfa3a473c6ddccd7565827df361f583"
+    }
+  },
+  "remaining_blockers": [
+    {
+      "topic": "auth/authority-policy-audit-and-child-flow",
+      "category": "kernel-authority-absent",
+      "reason": "Request-digest binding, audit decoding and child-status handling are produced by the real /dev/bashos-auth kernel authority, which is absent in the guest; a synthetic device cannot stand in for them."
+    },
+    {
+      "topic": "auth/device-abi-and-fd-lifecycle",
+      "category": "kernel-authority-absent",
+      "reason": "Close-time clearing of secret slots is performed by the real /dev/bashos-auth kernel authority, which is absent in the guest."
+    },
+    {
+      "topic": "auth/pty-sealed-secret-lifecycle",
+      "category": "kernel-authority-absent",
+      "reason": "In-kernel slot comparison and clear/close cleanup are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest."
+    },
+    {
+      "topic": "auth/synthetic-login-and-token-mint",
+      "category": "kernel-authority-absent",
+      "reason": "Token-reference minting and binding are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest; the synthetic mint's reference semantics are not the contract."
+    },
+    {
+      "topic": "bashpoll/signalfd-ownership",
+      "category": "unreachable-on-frozen-build",
+      "reason": "bashpoll is compiled into both candidate builds; enable -d fails with \"not dynamically loaded\", so the unload hook cannot be reached."
+    },
+    {
+      "topic": "dmesg/live-ring-buffer",
+      "category": "interface-cannot-represent",
+      "reason": "The kernel truncates records written to /dev/kmsg to about 1 KiB, so no record near the 8192-byte read size can exist on the live ring; that boundary is exercised only through the fixture-file path (legacy/dmesg/split-read-boundary)"
+    },
+    {
+      "topic": "doas/authority_policy_and_verification",
+      "category": "kernel-authority-absent",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (v2 allow, policy deny, non-interactive denial and verifier outcomes are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "login/credential-transition-deferred",
+      "category": "kernel-authority-absent",
+      "reason": "Token acceptance (--auth-fd CONSUME, --auth-token) is decided by the real /dev/bashos-auth kernel authority (BL_AUTH_IOC_MINT/CONSUME); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "login/interactive-auth-session-deferred",
+      "category": "kernel-authority-absent",
+      "reason": "A successful login needs the real /dev/bashos-auth kernel proof before session accounting and the shell exec; no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "passwd/password_hash_updates",
+      "category": "kernel-authority-absent",
+      "reason": "The real kernel secret-slot path (BASHPASSWD_REQUIRE_KERNEL_SECRETS=1) needs the real /dev/bashos-auth kernel authority, which is absent in the guest."
+    },
+    {
+      "topic": "passwd/password_verification_lockout",
+      "category": "kernel-authority-absent",
+      "reason": "Verification through kernel secret slots needs the real /dev/bashos-auth kernel authority, which is absent in the guest."
+    },
+    {
+      "topic": "sshd/authentication-authorization",
+      "category": "kernel-authority-absent",
+      "reason": "The password half of PermitRootLogin prohibit-password versus yes is decided by the /dev/bashos-auth kernel authority (BSSHD_AUTH_DEV in sshd.c), which the disposable guest does not provide; without it no password attempt can be told apart from a refusal, and a stand-in authority would not test the real one. Admitted root command execution is covered by the privilege=root case."
+    },
+    {
+      "topic": "su/credential-transition",
+      "category": "kernel-authority-absent",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (su obtains its authorization and credential-change proof from it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "su/private-account-lookup",
+      "category": "kernel-authority-absent",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (the account lookup result is bound to the authority's decision before su proceeds); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "sudo/authority-command-authorization",
+      "category": "kernel-authority-absent",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "sudo/sudoedit-safe-copyback",
+      "category": "kernel-authority-absent",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (kernel safe-open of policy-bound targets and digest-bound copyback); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "sudo/timestamp-validation-flows",
+      "category": "kernel-authority-absent",
+      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (the cached credential that -k, -K and -v reset or validate lives in the authority); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+    },
+    {
+      "topic": "tput/hardware-init-reset",
+      "category": "hardware-absent",
+      "reason": "Not applicable in a VM; the PTY is the terminal under test. Physical serial/console hardware would need real hardware and is out of scope for a disposable VM."
+    },
+    {
+      "topic": "uclampset/defer_all_tasks_preflight",
+      "category": "kernel-feature-absent",
+      "reason": "Live util-linux control receives EOPNOTSUPP setting clamps on an owned child in the available guest kernel; the frozen controller helpers additionally require their old kernel profile. These four controller topics need an enabled kernel and a port of their helper profile."
+    },
+    {
+      "topic": "uclampset/defer_command_mode",
+      "category": "kernel-feature-absent",
+      "reason": "Live util-linux control receives EOPNOTSUPP setting clamps on an owned child in the available guest kernel; the frozen controller helpers additionally require their old kernel profile. These four controller topics need an enabled kernel and a port of their helper profile."
+    },
+    {
+      "topic": "uclampset/defer_pid_query",
+      "category": "kernel-feature-absent",
+      "reason": "Live util-linux control receives EOPNOTSUPP setting clamps on an owned child in the available guest kernel; the frozen controller helpers additionally require their old kernel profile. These four controller topics need an enabled kernel and a port of their helper profile."
+    },
+    {
+      "topic": "uclampset/defer_pid_setter",
+      "category": "kernel-feature-absent",
+      "reason": "Live util-linux control receives EOPNOTSUPP setting clamps on an owned child in the available guest kernel; the frozen controller helpers additionally require their old kernel profile. These four controller topics need an enabled kernel and a port of their helper profile."
+    },
+    {
+      "topic": "uclampset/defer_system_files",
+      "category": "kernel-feature-absent",
+      "reason": "Debian 13's cloud and generic amd64 kernels (6.12.113+deb13), the only kernels the guest images can boot, are both built without CONFIG_UCLAMP_TASK, so /proc/sys/kernel/sched_util_clamp_min and sched_util_clamp_max do not exist"
+    },
+    {
+      "topic": "utf8/unicode17-exhaustive-grapheme-reference",
+      "category": "interface-cannot-represent",
+      "reason": "The 74 GraphemeBreakTest lines containing U+0000 cannot be passed to the utf8 builtin: its TEXT operand is a bash word, and a bash word is a NUL-terminated C string, so a NUL code point cannot be represented in any argument."
+    },
+    {
+      "topic": "vec/simd-cross-cpu-backends",
+      "category": "unreachable-on-frozen-build",
+      "reason": "Non-SSE2 x86 target: SSE2 is part of the x86-64 baseline and only x86-64 binaries are shipped, so no non-SSE2 build or CPU target exists."
+    },
+    {
+      "topic": "wgetch/escape-timing",
+      "category": "unreachable-on-frozen-build",
+      "reason": "Not reachable through the candidate interface: the fixed wgetch.c bw_keys table (no fixture or terminfo loading) contains no exact key that is also a prefix of a longer key (e.g. ESC[20~ and ESC[200~ diverge at byte 5), so the exact-vs-longer resolution path in bw_read_key_fd cannot be triggered by any input. Requires a candidate key-table extension, not a fixture."
+    }
+  ],
+  "scope": [
+    "The release binaries and published 0.1.3 qualification record are unchanged. This record adds subsequent fixture evidence.",
+    "38 formerly controller-only topics are now exercised by ordinary disposable-VM fixtures on both release binaries.",
+    "Captured ncdu restoration compares primary characters, reverse bits and cursor; full colour rendition is not independently compared.",
+    "The top FIFO check binds three visible loads and their timing to four independently logged source reads.",
+    "Unsupported kernel facilities, physical hardware and unreachable interface obligations remain unresolved."
+  ],
+  "host_validation": {
+    "data_validation_tests_passed": 29,
+    "ledger_topics_validated": 600
+  },
+  "ledger": "tests/parity-vm/deferrals.json",
+  "ledger_canonical_sha256": "3a6f9b0e4590e629857e4c70f83c03fd6615ac17f8f3fa2208037f705716253b",
+  "reconcile_exit_status": 1
 }

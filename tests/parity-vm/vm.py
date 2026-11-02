@@ -811,11 +811,17 @@ def evaluate(args, cache):
                 raise RuntimeError("payload hash mismatch after upload")
             vm.ssh(f"tar -xf {GUEST_ROOT}/payload.tar -C {GUEST_ROOT} --no-same-owner && "
                    f"rm {GUEST_ROOT}/payload.tar && chmod 755 {GUEST_ROOT}/candidate", check=True, timeout=60)
+            namespace_query = "import json,os; print(json.dumps({n:os.readlink('/proc/self/ns/'+n) for n in ('pid','net','mnt')}))"
+            outer_namespaces = json.loads(vm.ssh(shlex.join(['/usr/bin/python3', '-c', namespace_query]),
+                                                 capture_output=True, check=True, timeout=10).stdout)
+            record['outer_namespaces'] = outer_namespaces
             command = ["systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit=parity-evaluation",
                        "-p", "MemoryMax=1200M", "-p", "MemorySwapMax=0", "-p", "TasksMax=128",
+                       "-p", "LimitMEMLOCK=64M",
                        "-p", "RuntimeMaxSec=1800", "-p", "KillMode=control-group",
                        "unshare", "--mount", "--pid", "--fork", "--net", "--mount-proc", "--kill-child",
                        "/usr/bin/python3", f"{GUEST_ROOT}/harness/guest.py", "--vm-token", vm.token,
+                       "--outer-namespaces", json.dumps(outer_namespaces, sort_keys=True),
                        "--groups", args.groups]
             if args.case_ids is not None:
                 command += ["--case-ids", args.case_ids]
