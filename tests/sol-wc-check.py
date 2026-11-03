@@ -163,6 +163,37 @@ def main():
             proc = run('wc -m --files0-from=list')
             assert proc.returncode != 0 and b'zero-length' in proc.stderr, proc
             checks += 1
+        # Stdin can supply the list or file data, but never both. Invalid '-'
+        # entries still count toward the decision to print a total row.
+        for names in [['-'], ['-', '-'], ['-', 'unicode'], ['unicode', '-'],
+                      ['unicode', '-', 'ascii'], ['unicode', 'ascii']]:
+            for terminated in [False, True]:
+                data = '\0'.join(names).encode() + (b'\0' if terminated else b'')
+                (root/'list').write_bytes(data)
+                valid = [n for n in names if n != '-']
+                for script, stdin in [('wc -m --files0-from=-', data),
+                                      ('wc -m --files0-from - < list', None)]:
+                    proc = run(script, stdin=stdin)
+                    expected_rows = [[str(counts(fixtures[n], 'UTF8')['m']).encode(), n.encode()] for n in valid]
+                    if len(names) > 1:
+                        expected_rows.append([str(sum(counts(fixtures[n], 'UTF8')['m'] for n in valid)).encode(), b'total'])
+                    assert [line.split() for line in proc.stdout.splitlines()] == expected_rows, (names, proc)
+                    assert proc.returncode == int('-' in names), (names, proc)
+                    assert proc.stderr.count(b"no file name of '-' allowed") == names.count('-'), (names, proc)
+                    checks += 1
+        # A named list may still contain '-' and repeated stdin operands.
+        (root/'list').write_bytes(b'-\0-\0')
+        proc = run('wc -m --files0-from=list', stdin=fixtures['unicode'])
+        length = str(counts(fixtures['unicode'], 'UTF8')['m']).encode()
+        assert proc.returncode == 0 and not proc.stderr, proc
+        assert [line.split() for line in proc.stdout.splitlines()] == [[length, b'-'], [b'0', b'-'], [length, b'total']], proc
+        checks += 1
+        # Failure must not prevent the next invocation from reading fresh stdin.
+        (root/'list').write_bytes(b'-\0')
+        proc = run('wc -m --files0-from=- < list; s=$?; wc -m < unicode; ((s==1))')
+        assert proc.returncode == 0 and int(proc.stdout) == int(length), proc
+        assert proc.stderr.count(b"no file name of '-' allowed") == 1, proc
+        checks += 1
         print(f'sol-wc-check: {checks} assertions passed; C/C.UTF-8/en_US.utf8; empty PATH')
 
 

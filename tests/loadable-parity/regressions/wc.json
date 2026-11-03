@@ -10,7 +10,8 @@
     "Multiple named inputs, per-file rows, total sums, maximum width totals, and repeated stdin operands.",
     "NUL-separated filename lists with a space in a name, an unterminated final name, and an empty list.",
     "Missing-file and invalid-option exit behavior.",
-    "Bash builtin type and help metadata against the documented wc help entry."
+    "Bash builtin type and help metadata against the documented wc help entry.",
+    "Reject stdin data entries when --files0-from reads stdin, retain totals and continue valid files, while allowing stdin data for named lists."
   ],
   "exclusions": [
     "Only the harness-provided GNU wc version and C/C.UTF-8 locales are compared; other GNU versions, locales, and libc behavior are not qualified.",
@@ -166,6 +167,61 @@
         "wc"
       ],
       "script": "printf 'file\\0' > names\nprintf x > file\nwc -?",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "files0-stdin-only",
+      "kind": "parity",
+      "purpose": "Reject stdin as data when stdin supplies the filename list.",
+      "requires": [
+        "wc"
+      ],
+      "script": "export LC_ALL=C\nprintf -- '-\\0' | wc -c --files0-from=-",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "files0-stdin-repeated",
+      "kind": "parity",
+      "purpose": "Repeated forbidden stdin entries contribute to total-row selection without printing operand rows.",
+      "requires": [
+        "wc"
+      ],
+      "script": "export LC_ALL=C\nprintf -- '-\\0-' | wc -c --files0-from=-",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "files0-stdin-mixed",
+      "kind": "parity",
+      "purpose": "Continue counting regular files around a forbidden stdin entry and retain the total.",
+      "requires": [
+        "wc"
+      ],
+      "script": "export LC_ALL=C\nprintf 'one two\\n' > first\nprintf 'three\\n' > second\nprintf 'first\\0-\\0second\\0' > names\nwc -c --files0-from - < names",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "files0-named-list-stdin",
+      "kind": "parity",
+      "purpose": "A named filename list may still request stdin data repeatedly.",
+      "requires": [
+        "wc"
+      ],
+      "script": "export LC_ALL=C\nprintf -- '-\\0-\\0' > names\nprintf 'one two\\n' | wc -c --files0-from=names",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "files0-stdin-count-width",
+      "kind": "parity",
+      "purpose": "Forbidden stdin operands must not contribute the filename-list size to count-column padding.",
+      "requires": [
+        "wc"
+      ],
+      "script": "export LC_ALL=C\nprintf 'one two\\n' > a\nprintf -- '-\\0a\\0' > names\nwc --files0-from=- < names",
       "expected_status": 1,
       "stderr": "nonempty"
     }

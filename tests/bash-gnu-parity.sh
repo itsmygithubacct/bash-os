@@ -115,6 +115,7 @@ run_case text-head-tail 0 exact 'printf "one\ntwo\nthree\nfour\n" > data; head -
 run_case text-head-bytes 0 exact 'printf "a\0b\ncd" | head -c 4'
 run_case text-tail-bytes 0 exact 'printf "a\0b\ncd" | tail -c 3'
 run_case text-wc 0 exact 'printf "one two\nthree\n" | wc -l -w -c'
+run_case text-wc-files0-stdin 0 exact 'printf "one two\n" > first; printf "three\n" > second; printf "first\0-\0second\0" > names; rc=0; wc -c --files0-from=- < names 2>/dev/null || rc=$?; printf "status=%s\n" "$rc"; printf "one two\n" > a; printf -- "-\0a\0" > width-names; rc=0; wc --files0-from=- < width-names 2>/dev/null || rc=$?; printf "status=%s\n" "$rc"'
 run_case text-cut-fields 0 exact 'printf "a::c\none:two:three\n" | cut -d: -f1,3'
 run_case text-cut-complement 0 exact 'printf "abcdef\n" | cut -b2-4 --complement'
 run_case text-tr 0 exact 'printf "a1  b2\n" | tr -d "[:digit:]" | tr -s " " | tr "[:lower:]" "[:upper:]"'

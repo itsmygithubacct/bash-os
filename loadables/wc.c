@@ -341,7 +341,7 @@ bwc_slurp (const char *file, size_t *lenp)
  *   - else sum st_size of regular inputs; width = digits(sum); any
  *     non-regular input forces a minimum width of 7. */
 static int
-bwc_number_width (char **files, int nfiles, int ncols)
+bwc_number_width (char **files, int nfiles, int ncols, int stdin_is_list)
 {
     if (nfiles == 0 || (nfiles == 1 && ncols == 1))
         return 1;
@@ -358,6 +358,9 @@ bwc_number_width (char **files, int nfiles, int ncols)
     int minimum_width = 1;
     unsigned long long regular_total = 0;
     for (int i = 0; i < nfiles; i++) {
+        /* A rejected stdin operand must not add the filename list's size. */
+        if (stdin_is_list && strcmp (files[i], "-") == 0)
+            continue;
         struct stat s;
         int failed = (strcmp (files[i], "-") == 0)
             ? fstat (STDIN_FILENO, &s)
@@ -492,15 +495,21 @@ wc_builtin (WORD_LIST *list)
         if (strcmp (files_from, "-") == 0) {
             struct stat lst;
             if (fstat (STDIN_FILENO, &lst) == 0 && S_ISREG (lst.st_mode))
-                width = bwc_number_width (names, nnames, ncols);
+                width = bwc_number_width (names, nnames, ncols, 1);
             else
                 width = 1;
         } else {
-            width = bwc_number_width (names, nnames, ncols);
+            width = bwc_number_width (names, nnames, ncols, 0);
         }
 
         for (int k = 0; k < nnames; k++) {
             int from_stdin = strcmp (names[k], "-") == 0;
+            /* Stdin cannot supply both the filename list and file data. */
+            if (from_stdin && strcmp (files_from, "-") == 0) {
+                builtin_error ("when reading file names from stdin, no file name of '-' allowed");
+                rc = EXECUTION_FAILURE;
+                continue;
+            }
             FILE *f = from_stdin ? stdin : fopen (names[k], "r");
             if (!f) {
                 builtin_error ("%s: %s", names[k], strerror (errno));
@@ -544,7 +553,7 @@ wc_builtin (WORD_LIST *list)
     }
 
     if (!list) {
-        int width = bwc_number_width ((char *[]){ (char *) "-" }, 1, ncols);
+        int width = bwc_number_width ((char *[]){ (char *) "-" }, 1, ncols, 0);
         bwc_counts c = {0};
         bwc_count_selected (stdin, &c, lflag, wflag, cflag, mflag, Lflag);
         if (ferror (stdin)) {
@@ -563,7 +572,7 @@ wc_builtin (WORD_LIST *list)
             for (WORD_LIST *p = list; p; p = p->next)
                 files[k++] = p->word->word;
         }
-        int width = bwc_number_width (files, n_files, ncols);
+        int width = bwc_number_width (files, n_files, ncols, 0);
         free (files);
 
         for (WORD_LIST *p = list; p; p = p->next) {

@@ -15,5 +15,5 @@ printf '#!/bin/bash\nexport LD_PRELOAD=%q\nexport SOL_WC_MODULE=%q\nexec %q "$@"
   "$("$CC" -print-file-name=libasan.so)" "$d/wc.so" \
   "$(realpath "${1:-out/bash-sol-wc-after}")" > "$d/bash-os"
 chmod +x "$d/bash-os"
-ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+SOL_WC_MODULE="$d/wc.so" ASAN_OPTIONS=detect_leaks=0:abort_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
   python3 tests/sol-wc-check.py "$d/bash-os"
