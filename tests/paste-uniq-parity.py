@@ -36,6 +36,50 @@ def compare(tool, args=(), data=b'', expected_status=None):
 with tempfile.TemporaryDirectory() as directory:
     d = Path(directory)
     first,second = d/'first',d/'second'
+    def compare_paste_script(script, data=b'', expected=None):
+        global checks
+        results = []
+        for executable, prelude in [('/bin/bash', 'paste() { /usr/bin/paste "$@"; };\n'),
+                                    (binary,prefix)]:
+            result = subprocess.run([executable,'-c',prelude+script,'_',str(first),str(second)],
+                                    input=data,capture_output=True,env=environment,timeout=20,cwd=d)
+            assert b'AddressSanitizer' not in result.stderr and b'runtime error:' not in result.stderr,result.stderr
+            results.append((result.returncode,result.stdout,result.stderr))
+        assert results[0][0]==0 and not results[0][2],results[0]
+        if expected is not None: assert results[0][1]==expected,results[0]
+        assert results[1]==results[0],(script,results)
+        checks += 1
+
+    # Each shell call owns its stream, while multiple '-' operands within
+    # one paste still consume a shared input in sequence.
+    for zero in (False,True):
+        delim = b'\0' if zero else b'\n'
+        first.write_bytes(delim.join([b'a',b'b'])+delim)
+        second.write_bytes(delim.join([b'c',b'd'])+delim)
+        for options in ('-s','-s -','-s - -','-','- -',''):
+            flags = ('-z ' if zero else '') + options
+            compare_paste_script(f'paste {flags} <"$1"; paste {flags} <"$2"')
+        first.write_bytes(b'')
+        compare_paste_script(f'paste {"-zs" if zero else "-s"} <"$1"; '
+                             f'paste {"-zs" if zero else "-s"} <"$2"',
+                             expected=delim+b'c\td'+delim)
+    first.write_bytes(b'a\nb\n'); second.write_bytes(b'c\nd\n')
+    compare_paste_script('paste -s <"$1"; IFS= read -r line; printf "%s\\n" "$line"',
+                         data=b'shell input\n',expected=b'a\tb\nshell input\n')
+    for operands in ('','-','"$1" -','- "$1"'):
+        for mode in ('','-s'):
+            compare_paste_script(f'paste {mode} {operands} 0<&- 2>/dev/null; '
+                                 'printf "status=%s\\n" "$?"; paste -s <"$2"')
+    compare_paste_script('ulimit -n 48; for ((i=0; i<128; i++)); do '
+                         'paste - missing <"$1" 2>/dev/null; [[ $? == 1 ]] || exit 90; '
+                         'paste -s <"$1" >/dev/null || exit 91; done; paste -s <"$2"',
+                         expected=b'c\td\n')
+    # A failed output leaves stdio read-ahead behind unless stdin is private.
+    first.write_bytes(b'old record\n'*20000)
+    for mode in ('','-s'):
+        compare_paste_script(f'paste {mode} <"$1" >/dev/full 2>/dev/null; '
+                             'printf "status=%s\\n" "$?"; paste -s <"$2"',
+                             expected=b'status=1\nc\td\n')
     # Numeric options share GNU's decimal syntax and saturating bounds. Check
     # all spellings, including legacy counts, against an independent process.
     valid_counts = ['0', '+0', '-0', '-000', '1', '+1', '  +1', '\t1', '01',

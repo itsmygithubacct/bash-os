@@ -8,7 +8,8 @@
     "Cycling delimiters and the backslash-tab escape; serial mode across multiple files; repeated stdin operands.",
     "NUL record framing with -z and the empty delimiter escape \\0.",
     "Missing-input and invalid-option status/diagnostic behavior, plus -- before a leading-dash filename.",
-    "Relative fixture file lifecycle using mkdir, cp, ln, chmod, touch, mv, rm and paste; resulting bytes, modes, hardlinks, and symlink target are compared."
+    "Relative fixture file lifecycle using mkdir, cp, ln, chmod, touch, mv, rm and paste; resulting bytes, modes, hardlinks, and symlink target are compared.",
+    "Repeated serial stdin redirections and multiple shared stdin operands in a single invocation."
   ],
   "exclusions": [
     "No VM-only cases are needed for paste's bounded local-file and pipe operations; the suite uses only small relative fixtures and no host paths, network, devices, or privileged actions.",
@@ -171,6 +172,28 @@
       "requires": [
         "paste"
       ]
+    },
+    {
+      "id": "repeated-serial-stdin",
+      "kind": "parity",
+      "purpose": "Each implicit-stdin serial invocation reads the newly redirected file.",
+      "script": "printf 'a\\nb\\n' > first; printf 'c\\nd\\n' > second; paste -s <first; paste -s <second",
+      "requires": [
+        "paste"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "repeated-shared-stdin",
+      "kind": "parity",
+      "purpose": "Explicit stdin operands share one stream within an invocation and reset for later redirections.",
+      "script": "printf 'a\\nb\\n' > first; printf 'c\\nd\\n' > second; paste -s - - <first; paste -s - - <second",
+      "requires": [
+        "paste"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

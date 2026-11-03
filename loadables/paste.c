@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <sys/stat.h>
 
@@ -167,12 +168,27 @@ bp_write_delim (bl_output *out, const bp_delims *d, size_t *pos, size_t *off)
 }
 
 static FILE *
-bp_open_input (const char *name, int *is_stdin)
+bp_open_stdin (void)
+{
+    /* Own the stream, but share its offset with fd 0. Do not reuse a closed
+       stdout/stderr descriptor, or retain Bash's EOF/read-ahead state. */
+    int fd = fcntl (STDIN_FILENO, F_DUPFD_CLOEXEC, 3);
+    FILE *input = fd < 0 ? NULL : fdopen (fd, "r");
+    if (!input) {
+        int error = errno;
+        if (fd >= 0) close (fd);
+        errno = error;
+    }
+    return input;
+}
+
+static FILE *
+bp_open_input (const char *name, int *is_stdin, FILE *input, int input_error)
 {
     if (!strcmp (name, "-")) {
         *is_stdin = 1;
-        clearerr (stdin);
-        return stdin;
+        if (!input) errno = input_error;
+        return input;
     }
     *is_stdin = 0;
     return fopen (name, "r");
@@ -182,10 +198,8 @@ static int
 bp_close_input (FILE *f, int is_stdin)
 {
     if (!f) return 0;
-    if (is_stdin) {
-        clearerr (f);
-        return 0;
-    }
+    /* Repeated '-' operands share one stream; its owner closes it once. */
+    if (is_stdin) return 0;
     return fclose (f);
 }
 
@@ -268,7 +282,15 @@ paste_builtin (WORD_LIST *list)
 
     /* No files = stdin. */
     int n_files = 0;
-    for (WORD_LIST *p = list; p; p = p->next) n_files++;
+    int need_stdin = list == NULL;
+    for (WORD_LIST *p = list; p; p = p->next) {
+        n_files++;
+        if (!strcmp (p->word->word, "-")) need_stdin = 1;
+    }
+    /* Reserve stdin before a named file can reuse a closed fd 0. Defer any
+       diagnostic until that operand is reached, preserving serial output. */
+    FILE *input = need_stdin ? bp_open_stdin () : NULL;
+    int input_error = need_stdin && !input ? errno : 0;
 
     int rc = EXECUTION_SUCCESS;
     bl_output output;
@@ -277,7 +299,15 @@ paste_builtin (WORD_LIST *list)
     if (sflag) {
         /* Serial: one file per output line, joined by cycling delim. */
         if (n_files == 0) {
-            FILE *f = stdin;
+            FILE *f = input;
+            if (!f) {
+                builtin_error ("standard input: %s", strerror (input_error));
+                rc = EXECUTION_FAILURE;
+                /* GNU serial paste terminates even an unreadable stdin
+                   record; preserve that output when fd 0 was closed. */
+                if (input_error == EBADF) bl_output_byte (&output, line_delim);
+                goto done;
+            }
             char *line = NULL; size_t cap = 0; ssize_t rd;
             int first = 1;
             size_t dpos = 0, doff = 0;
@@ -294,10 +324,12 @@ paste_builtin (WORD_LIST *list)
         } else {
             for (WORD_LIST *p = list; p; p = p->next) {
                 int is_stdin = 0;
-                FILE *f = bp_open_input (p->word->word, &is_stdin);
+                FILE *f = bp_open_input (p->word->word, &is_stdin, input, input_error);
                 if (!f) {
                     builtin_error ("%s: %s", p->word->word, strerror (errno));
                     rc = EXECUTION_FAILURE;
+                    if (is_stdin && input_error == EBADF)
+                        bl_output_byte (&output, line_delim);
                     continue;
                 }
                 char *line = NULL; size_t cap = 0; ssize_t rd;
@@ -322,17 +354,25 @@ paste_builtin (WORD_LIST *list)
             n_files = 1;
         FILE **files = calloc ((size_t) n_files, sizeof *files);
         int *is_stdin = calloc ((size_t) n_files, sizeof *is_stdin);
-        if (!files || !is_stdin) { free (files); free (is_stdin); bp_free_delims (&delims); return EXECUTION_FAILURE; }
+        if (!files || !is_stdin) {
+            free (files); free (is_stdin);
+            rc = EXECUTION_FAILURE;
+            goto done;
+        }
         char **lines = NULL;
         char **records = NULL;
         size_t *caps = NULL;
         size_t *lens = NULL;
         bp_block *blocks = calloc ((size_t) n_files, sizeof *blocks);
-        if (!blocks) { free (files); free (is_stdin); bp_free_delims (&delims); return EXECUTION_FAILURE; }
+        if (!blocks) {
+            free (files); free (is_stdin);
+            rc = EXECUTION_FAILURE;
+            goto done;
+        }
         int i = 0;
         for (WORD_LIST *p = list; i < n_files; i++) {
             const char *name = p ? p->word->word : "-";
-            files[i] = bp_open_input (name, &is_stdin[i]);
+            files[i] = bp_open_input (name, &is_stdin[i], input, input_error);
             if (!files[i]) {
                 builtin_error ("%s: %s", name, strerror (errno));
                 rc = EXECUTION_FAILURE;
@@ -391,6 +431,8 @@ parallel_done:
         }
         free (blocks); free (records); free (lines); free (caps); free (lens); free (files); free (is_stdin);
     }
+done:
+    if (input) fclose (input);
     bl_output_flush (&output);
     if (output.error) { builtin_error ("write error: %s", strerror (output.error)); rc = EXECUTION_FAILURE; }
     bp_free_delims (&delims);

@@ -120,6 +120,7 @@ run_case text-cut-complement 0 exact 'printf "abcdef\n" | cut -b2-4 --complement
 run_case text-tr 0 exact 'printf "a1  b2\n" | tr -d "[:digit:]" | tr -s " " | tr "[:lower:]" "[:upper:]"'
 run_case text-tr-nul 0 exact 'printf "a\0b\0\n" | tr -d "\000"'
 run_case text-tee 0 exact 'printf "one\n" | tee a b; cmp a b; cat a'
+run_case text-paste-repeated-stdin 0 exact 'printf "a\nb\n" > first; printf "c\nd\n" > second; paste -s <first; paste -s <second'
 run_case text-paste 0 exact 'printf "a\nb\n" > a; printf "1\n2\n" > b; paste -d: a b'
 run_case text-join 0 exact 'printf "1 alpha\n2 beta\n" > a; printf "1 A\n3 C\n" > b; join -a1 a b'
 run_case text-comm 0 exact 'printf "a\nb\n" > a; printf "b\nc\n" > b; comm a b'
