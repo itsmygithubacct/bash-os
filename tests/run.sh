@@ -131,7 +131,7 @@ check 'P-256 and ACME independent interoperability' python3 tests/p256-check.py 
 check 'more paging contracts' python3 tests/sol-more-check.py out/bash
 check 'more shared key consumers' python3 tests/sol-more-helper-check.py out/bash
 check 'vi deletion and UTF-8 endpoints' env OPUS_VI_REQUIRE_NVIM=1 python3 tests/opus-vi-dd.py out/bash
-for name in comm-stdin cmp-streams cp-safety cp-parents mv-safety split-safety sort-version-parity diff-safety dd-safety; do
+for name in comm-stdin cmp-streams cp-safety cp-parents mv-safety split-safety sort-version-parity truncate-size-parity diff-safety dd-safety; do
   check "$name" python3 "tests/$name.py" out/bash
 done
 check 'copy/move finalization failures' python3 tests/copy-move-errors.py out/bash
@@ -223,7 +223,7 @@ check 'static crypto independent byte contracts' python3 tests/sol-crypto-check.
 check 'static P-256 and ACME independent interoperability' python3 tests/p256-check.py out/bash-static --report out/p256-static.json
 check 'static more paging contracts' python3 tests/sol-more-check.py out/bash-static
 check 'static vi deletion and UTF-8 endpoints' env OPUS_VI_REQUIRE_NVIM=1 python3 tests/opus-vi-dd.py out/bash-static
-for name in comm-stdin cmp-streams cp-safety cp-parents mv-safety split-safety sort-version-parity diff-safety dd-safety; do
+for name in comm-stdin cmp-streams cp-safety cp-parents mv-safety split-safety sort-version-parity truncate-size-parity diff-safety dd-safety; do
   check "static $name" python3 "tests/$name.py" out/bash-static
 done
 check 'static paste and uniq parity' python3 tests/paste-uniq-parity.py out/bash-static

@@ -98,8 +98,10 @@ bt_parse_size (const char *s, bt_relmode *mode, long long *mag)
     if (mult == 0)
         return -1;
     if (mult > 1) {
-        long long an = n < 0 ? -n : n;
-        if (an > 9223372036854775807LL / mult)   /* overflow guard */
+        /* Check both signed bounds without negating LLONG_MIN. Its
+           magnitude is not representable, but an exact negative product
+           of LLONG_MIN is valid (for example -9007199254740992K). */
+        if (n > LLONG_MAX / mult || n < LLONG_MIN / mult)
             return -1;
         n *= mult;
     }

@@ -8,7 +8,8 @@
     "Relative extension/shrinkage including clamping below zero",
     "At-most, at-least, round-down, and round-up size modifiers",
     "GNU decimal/binary suffixes and I/O block sizing",
-    "Reference-file sizing, no-create behavior, overflow preservation, invalid-size status, and multi-operand error continuation"
+    "Reference-file sizing, no-create behavior, overflow preservation, invalid-size status, and multi-operand error continuation",
+    "Signed unit-multiplication boundaries: reject overflow before touching files and accept an exact minimum signed product."
   ],
   "exclusions": [
     "Block-special-file behavior is deferred because it requires a disposable VM with a safely created loop-backed device; no host device path is used.",
@@ -138,6 +139,39 @@
       "kind": "deferred",
       "purpose": "Exercise behavior when truncate is given a block-special-file operand.",
       "reason": "Requires a disposable VM with a safely created loop-backed block device and an isolated disposable filesystem. The namespace fixture runner exposes no such fixture, and host devices are outside scope."
+    },
+    {
+      "id": "negative-unit-overflow",
+      "kind": "parity",
+      "purpose": "Compare size-unit multiplication failure and the valid negative boundary without large files.",
+      "requires": [
+        "truncate"
+      ],
+      "script": "printf keep > file\ntruncate -s -9223372036854775808K file",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "negative-unit-overflow-missing",
+      "kind": "parity",
+      "purpose": "Compare size-unit multiplication failure and the valid negative boundary without large files.",
+      "requires": [
+        "truncate"
+      ],
+      "script": "truncate -s -9223372036854775808K missing",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "negative-unit-minimum-product",
+      "kind": "parity",
+      "purpose": "Compare size-unit multiplication failure and the valid negative boundary without large files.",
+      "requires": [
+        "truncate"
+      ],
+      "script": "printf keep > file\ntruncate -s -9007199254740992K file",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }
