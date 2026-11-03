@@ -44,16 +44,17 @@ typedef struct {
     int all, first_only;
 } bu_opts;
 
-/* Keep explicit stops until option parsing finishes: repeated -t options
-   append to the list. A single stop means a repeating tab width. */
+/* Keep explicit stops until option parsing finishes. Extension markers apply
+   to subsequent values in one argument, but reset at the next -t argument.
+   A zero extension is inert; a nonzero extension may only be assigned once. */
 static int
 bu_parse_tablist (const char *s, bu_opts *o)
 {
+    int extension = 0;
     while (*s) {
         while (*s == ',' || *s == ' ' || *s == '\t') s++;
         if (!*s) break;
-        int extension = 0;
-        if (*s == '/' || *s == '+') extension = *s++;
+        if (*s == '/' || *s == '+') { extension = *s++; continue; }
         char *end;
         errno = 0;
         long n = strtol (s, &end, 10);
@@ -63,27 +64,21 @@ bu_parse_tablist (const char *s, bu_opts *o)
             builtin_error ("invalid tab size: %s", s);
             return -1;
         }
-        if (o->extend_size || o->increment_size) {
-            builtin_error ("tab extension must be last");
-            return -1;
-        }
         if (extension) {
-            if (extension == '/') o->extend_size = (int) n;
-            else o->increment_size = (int) n;
-            s = end;
-            while (*s == ',' || *s == ' ' || *s == '\t') s++;
-            if (*s) {
+            int *size = extension == '/' ? &o->extend_size : &o->increment_size;
+            if (*size) {
                 builtin_error ("tab extension must be last");
                 return -1;
             }
-            break;
+            *size = (int) n;
+        } else {
+            if ((o->n_stops && n <= o->stops[o->n_stops - 1]) ||
+                o->n_stops == BU_MAX_STOPS) {
+                builtin_error ("tab stops must increase (maximum %d stops)", BU_MAX_STOPS);
+                return -1;
+            }
+            o->stops[o->n_stops++] = (int) n;
         }
-        if ((o->n_stops && n <= o->stops[o->n_stops - 1]) ||
-            o->n_stops == BU_MAX_STOPS) {
-            builtin_error ("tab stops must increase (maximum %d stops)", BU_MAX_STOPS);
-            return -1;
-        }
-        o->stops[o->n_stops++] = (int) n;
         s = end;
     }
     return 0;
@@ -511,6 +506,10 @@ unexpand_builtin (WORD_LIST *list)
         char number[32];
         snprintf (number, sizeof number, "%u", legacy_size);
         if (bu_parse_tablist (number, &o) < 0) return EXECUTION_FAILURE;
+    }
+    if (o.extend_size && o.increment_size) {
+        builtin_error ("'/' and '+' specifiers are mutually exclusive");
+        return EXECUTION_FAILURE;
     }
     if (!o.n_stops) {
         o.every = o.extend_size ? o.extend_size : o.increment_size ? o.increment_size : 8;

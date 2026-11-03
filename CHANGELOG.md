@@ -9,6 +9,8 @@ The release gate requires every recorded FAIL to be fixed and every required
 static and dynamic qualification case to PASS. This target is not yet met;
 the historical 0.1.3 evidence remains available separately.
 
+- `unexpand` accepts GNU tab-extension syntax across repeated `-t` options
+  and zero-sized extensions, while rejecting conflicting nonzero extensions.
 - `wc --files0-from=-` rejects stdin operands in the filename list while
   continuing to count valid files and preserving GNU total rows.
 - `paste` owns one stdin stream per invocation, preventing EOF and buffered

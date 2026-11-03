@@ -6,6 +6,9 @@ accept comma or space separators, uniform widths, finite explicit stops,
 trailing `/N` aligned to column zero, and trailing `+N` relative to the last
 explicit stop. Empty tab arguments retain the default. Operands form one
 continuous byte stream, including pending blanks across unterminated files.
+Extension markers apply within one tab-list argument; each subsequent `-t`
+starts fresh syntax while retaining accumulated stops and extension values.
+Zero extensions are inert, and nonzero `/N` and `+N` are mutually exclusive.
 Missing files and read errors report failure while later readable operands
 are processed. Write errors stop processing and return 1.
 
@@ -23,8 +26,8 @@ ASan/UBSan module and runs the same cases; run it through the build gate.
 The supported software scope is byte-oriented conversion in the C locale
 on the native Linux Bash build.
 Tab widths are bounded by
-`INT_MAX` and explicit lists by 64 stops. Invalid CLI arguments use Bash's
-usage status 2; GNU uses 1. Diagnostic prefixes/help/version text are specific
+`INT_MAX` and explicit lists by 64 stops. Invalid CLI arguments return status 1,
+matching GNU. Diagnostic prefixes/help/version text are specific
 to the builtin. These bounds and text differences are not full GNU CLI
 conformance. Options precede file operands. Other locales are not qualified
 by this C-locale suite. No hardware qualification is needed.

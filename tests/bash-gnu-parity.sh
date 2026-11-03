@@ -132,6 +132,7 @@ run_case text-csplit 0 exact 'printf "a\nb\nc\n" > data; csplit -s data 3; cat x
 run_case text-fold 0 exact 'printf "abcdefghij\n" | fold -w 4'
 run_case text-expand 0 exact 'printf "a\tb\n" | expand -t 4'
 run_case text-unexpand 0 exact 'printf "a   b\n" | unexpand -a -t 4'
+run_case text-unexpand-tab-extensions 0 exact 'printf "        A        B\b        C\n" > data; unexpand -t /4 -t 8 data; unexpand -t "4,+0,8" data; unexpand -t "/0,8" data; unexpand -t "+0,8" data'
 run_case text-nl 0 exact 'printf "a\n\nb\n" | nl -ba'
 run_case text-pr 0 exact 'printf "a\nb\n" | pr -t -n'
 run_case text-tac 0 exact 'printf "one\ntwo\n" | tac'

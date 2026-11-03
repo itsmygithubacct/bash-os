@@ -94,6 +94,15 @@ with tempfile.TemporaryDirectory(prefix='sol-unexpand-') as d:
                 ['-a', '--first-only', '-a'], ['--first-only', '-t', '4', '-a']]:
         compare(opt, b'        A        B\b        C\n        last')
     compare(['-t', ','.join(map(str, range(1, 65)))], b' ' * 100)
+    # An extension marker persists within one tab-list argument, while the
+    # next -t starts a fresh list. Zero extensions do not claim an extension.
+    specs = ['', '4', '8', '0', '/0', '+0', '/4', '+4', '/', '+']
+    combinations = [['-t', a, '-t', b] for a, b in product(specs, repeat=2)]
+    combinations += [['-t', s] for s in specs +
+                     ['4,+0,8', '/0,8', '+0,8', '4,/0,8', '/4,0', '/+4', '+/4']]
+    for opt in combinations:
+        for file in (False, True):
+            compare(opt, b'        A        B\b        C\n        last', file)
     for width in ('65537', '2147483647'):
         for file in (False, True):
             compare(['-t', width], b' ' * 200000 + b'\0end', file)
@@ -118,12 +127,14 @@ with tempfile.TemporaryDirectory(prefix='sol-unexpand-') as d:
                 ['-t', '3,/8,12'], ['-t', '3,+8,/4'],
                 ['-t', '99999999999999999999999999999999999']]:
         got = shell('unexpand "$@"', opt)
-        assert got.returncode == 2 and got.stderr and not got.stdout, (opt, got)
+        want = subprocess.run(['/usr/bin/unexpand', *opt], capture_output=True,
+                              input=b'', env={'LC_ALL': 'C'}, timeout=20)
+        assert got.returncode == want.returncode == 1 and got.stderr and not got.stdout, (opt, got, want)
         checks += 1
-    # Deliberate bounds shared with expand: 64 stops and INT_MAX tab widths.
+    # Current builtin bounds: 64 stops and INT_MAX tab widths.
     for spec in ['2147483648', '3,/2147483648', ','.join(map(str, range(1, 66)))]:
         got = shell('unexpand -t "$1"', [spec])
-        assert got.returncode == 2 and got.stderr, (spec, got)
+        assert got.returncode == 1 and got.stderr, (spec, got)
         checks += 1
     first.write_bytes(b'alpha   beta    gamma\n' * 5000 + b'\0        end')
     wanted = subprocess.check_output(['/usr/bin/unexpand', '-a', str(first)])

@@ -11,7 +11,8 @@
     "A leading-dash relative filename after --",
     "Failure for a missing operand while continuing to process a later readable file",
     "Invalid tab width status and diagnostic presence",
-    "Empty and unterminated blank input, finite-stop exhaustion and descending-stop rejection."
+    "Empty and unterminated blank input, finite-stop exhaustion and descending-stop rejection.",
+    "Tab-extension state across arguments, zero-sized extensions within a list, and conflicting nonzero extensions."
   ],
   "exclusions": [
     "Bash help wording and builtin availability are checked as a contract rather than compared with GNU output.",
@@ -99,7 +100,7 @@
     {
       "id": "invalid-tab-size-status",
       "kind": "parity",
-      "purpose": "Reject zero tab size with GNU status 1 and a diagnostic.",
+      "purpose": "Invalid tab sizes return status 1 with a diagnostic, matching GNU.",
       "requires": [
         "unexpand"
       ],
@@ -174,6 +175,50 @@
       "requires": [
         "unexpand"
       ]
+    },
+    {
+      "id": "repeated-tab-extensions",
+      "kind": "parity",
+      "purpose": "Each -t starts fresh extension syntax while retaining accumulated stops.",
+      "requires": [
+        "unexpand"
+      ],
+      "script": "export LC_ALL=C\nprintf '        A        B\\b        C\\n' > data\nunexpand -t /4 -t 8 data\nunexpand -t +4 -t 8 data\nunexpand -t /4 -t 8 -t 12 data",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zero-tab-extensions",
+      "kind": "parity",
+      "purpose": "Zero extensions permit a later value in the same list.",
+      "requires": [
+        "unexpand"
+      ],
+      "script": "export LC_ALL=C\nprintf '        A        B\\b        C\\n' > data\nunexpand -t '4,+0,8' data\nunexpand -t '/0,8' data\nunexpand -t '+0,8' data",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "conflicting-tab-extensions",
+      "kind": "parity",
+      "purpose": "Nonzero absolute and relative extensions are mutually exclusive across arguments.",
+      "requires": [
+        "unexpand"
+      ],
+      "script": "export LC_ALL=C\nprintf '        data\\n' | unexpand -t /4 -t +8",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "repeated-nonzero-extension",
+      "kind": "parity",
+      "purpose": "A second nonzero extension of the same kind is invalid.",
+      "requires": [
+        "unexpand"
+      ],
+      "script": "export LC_ALL=C\nprintf '        data\\n' | unexpand -t /4 -t /8",
+      "expected_status": 1,
+      "stderr": "nonempty"
     }
   ]
 }
