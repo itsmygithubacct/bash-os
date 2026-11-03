@@ -21,8 +21,9 @@ class SplitSafety(unittest.TestCase):
         self.root = Path(directory.name)
 
     def shell(self, script, *args, data=b""):
+        prefix = 'if [[ -n ${SPLIT_MODULE:-} ]]; then enable -f "$SPLIT_MODULE" split || exit; fi; '
         result = subprocess.run(
-            [BINARY, "--noprofile", "--norc", "-c", script, "split-test", *map(str, args)],
+            [BINARY, "--noprofile", "--norc", "-c", prefix + script, "split-test", *map(str, args)],
             input=data, capture_output=True, timeout=10, env=ENV, cwd=self.root)
         self.assertNotIn(b"AddressSanitizer", result.stderr)
         self.assertNotIn(b"runtime error:", result.stderr)
@@ -48,6 +49,31 @@ class SplitSafety(unittest.TestCase):
                                      (reference.returncode, reference.stderr))
                     self.assertEqual({p.name: p.read_bytes() for p in actual.iterdir()},
                                      {p.name: p.read_bytes() for p in expected.iterdir()})
+
+    def test_numeric_start_suffixes_match_gnu(self):
+        options = [('--numeric-suffixes=7', '-a3'), ('-a1', '--numeric-suffixes=8'),
+                   ('--numeric-suffixes=99',), ('--numeric-suffixes=00007',),
+                   ('--numeric-suffixes=7', '--numeric-suffixes=2'),
+                   ('--numeric-suffixes=999998', '-a6')]
+        for spec in ['', '+7', ' 7', '-1', '7x', '100', '9'*80]:
+            options.append(('--numeric-suffixes='+spec,))
+        for option in options:
+            for mode, data in [(('-b2',), b'abcdefg'), (('-l1',), b'a\nb\nc\nd')]:
+                for payload in [data, b'']:
+                    with self.subTest(option=option, mode=mode, empty=not payload):
+                        actual, expected = self.root/'actual', self.root/'expected'
+                        for directory in [actual, expected]:
+                            directory.mkdir(exist_ok=True)
+                            for path in directory.iterdir():
+                                path.unlink()
+                        args = [*mode, *option, '-']
+                        want = subprocess.run(['/usr/bin/split', *args, str(expected/'piece')],
+                                              input=payload, capture_output=True, timeout=10, env=ENV)
+                        got = self.shell('split "$@"', *args, actual/'piece', data=payload)
+                        self.assertEqual((got.returncode, got.stdout, bool(got.stderr)),
+                                         (want.returncode, want.stdout, bool(want.stderr)))
+                        self.assertEqual({p.name: p.read_bytes() for p in actual.iterdir()},
+                                         {p.name: p.read_bytes() for p in expected.iterdir()})
 
     def test_output_failure_is_reported_for_full_and_partial_chunks(self):
         for args in (("-l", "1"), ("-l", "3"), ("-b", "2"), ("-b", "32")):

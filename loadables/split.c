@@ -79,20 +79,22 @@ bs_parse_size (const char *s, uintmax_t *size)
     return 0;
 }
 
-/* Compose PREFIX + suffix-of-length-suflen from `index`. Suffix is all
-   lowercase (a..z), big-endian. Returns -1 if index exceeds capacity. */
+/* Compose PREFIX + a fixed-width suffix from `index`, using lowercase
+   letters or decimal digits. Returns -1 if index exceeds capacity. */
 static int
-bs_make_name (char *out, size_t cap, const char *prefix, int suflen, long index)
+bs_make_name (char *out, size_t cap, const char *prefix, int suflen, long index,
+              int numeric)
 {
     size_t plen = strlen (prefix);
     if (plen + (size_t) suflen + 1 > cap) return -1;
     memcpy (out, prefix, plen);
     long max = 1;
-    for (int i = 0; i < suflen; i++) max *= 26;
+    int base = numeric ? 10 : 26;
+    for (int i = 0; i < suflen; i++) max *= base;
     if (index >= max) return -1;
     for (int i = suflen - 1; i >= 0; i--) {
-        out[plen + i] = 'a' + (char) (index % 26);
-        index /= 26;
+        out[plen + i] = (numeric ? '0' : 'a') + (char) (index % base);
+        index /= base;
     }
     out[plen + suflen] = '\0';
     return 0;
@@ -163,12 +165,31 @@ split_builtin (WORD_LIST *list)
     long line_chunk = 1000;     /* -l N default */
     uintmax_t byte_chunk = 0;   /* -b SIZE; 0 = use lines */
     int suflen = 2;             /* -a */
+    int numeric = 0;
+    long start = 0;
     const char *prefix = "x";
     const char *input = NULL;
 
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
         if (!strcmp (w, "--")) { list = list->next; break; }
+        if (!strncmp (w, "--numeric-suffixes=", 19)) {
+            const char *p = w + 19;
+            long value = 0;
+            /* GNU treats an explicitly empty starting value as zero. */
+            for (; *p; p++) {
+                if (*p < '0' || *p > '9' || value > (LONG_MAX - (*p - '0')) / 10)
+                    goto invalid_start;
+                value = value * 10 + (*p - '0');
+            }
+            numeric = 1;
+            start = value;
+            list = list->next;
+            continue;
+invalid_start:
+            builtin_error ("invalid start value for numerical suffix: %s", w + 19);
+            return EXECUTION_FAILURE;
+        }
         if (!strcmp (w, "-l") || !strncmp (w, "-l", 2)) {
             const char *v = w[2] ? w + 2 : (list = list->next, list ? list->word->word : NULL);
             if (!v) { builtin_error ("-l needs N"); builtin_usage (); return EXECUTION_FAILURE; }
@@ -207,6 +228,15 @@ split_builtin (WORD_LIST *list)
     if (list) { prefix = list->word->word; list = list->next; }
     if (list) { builtin_error ("split: extra argument: %s", list->word->word); builtin_usage (); return EXECUTION_FAILURE; }
 
+    if (numeric) {
+        long capacity = 1;
+        for (int i = 0; i < suflen; i++) capacity *= 10;
+        if (start >= capacity) {
+            builtin_error ("numerical suffix start value is too large for the suffix length");
+            return EXECUTION_FAILURE;
+        }
+    }
+
     int from_stdin = !input || !strcmp (input, "-");
     FILE *fin = from_stdin ? bs_open_stdin () : fopen (input, "r");
     if (!fin) {
@@ -227,7 +257,7 @@ split_builtin (WORD_LIST *list)
         fclose (fin);
         return EXECUTION_FAILURE;
     }
-    long idx = 0;
+    long idx = start;
     int rc = EXECUTION_SUCCESS;
 
     if (byte_chunk > 0) {
@@ -246,7 +276,7 @@ split_builtin (WORD_LIST *list)
             size_t r = fread (buf, 1, want, fin);
             if (r == 0) break;
             if (fout == NULL) {
-                if (bs_make_name (namebuf, namecap, prefix, suflen, idx) < 0) {
+                if (bs_make_name (namebuf, namecap, prefix, suflen, idx, numeric) < 0) {
                     builtin_error ("split: suffix exhausted (try larger -a)");
                     rc = EXECUTION_FAILURE;
                     break;
@@ -281,7 +311,7 @@ split_builtin (WORD_LIST *list)
         FILE *fout = NULL;
         while ((n = getline (&line, &cap, fin)) != -1) {
             if (lines_in_chunk == 0) {
-                if (bs_make_name (namebuf, namecap, prefix, suflen, idx) < 0) {
+                if (bs_make_name (namebuf, namecap, prefix, suflen, idx, numeric) < 0) {
                     builtin_error ("split: suffix exhausted (try larger -a)");
                     rc = EXECUTION_FAILURE;
                     break;
@@ -331,6 +361,7 @@ char *split_doc[] = {
     "    -b SIZE     SIZE bytes per piece; b=512, K=1024, KB=1000, KiB=1024",
     "                Units K, M, G, T, P, E, Z, Y, R, Q; k/m also accepted",
     "    -a SUFLEN   suffix length (default 2 → aa..zz, max 26^2 = 676)",
+    "    --numeric-suffixes=FROM  use fixed-width decimal suffixes from FROM",
     "",
     "INPUT defaults to stdin (or `-`). Output files are named",
     "PREFIXaa, PREFIXab, ... where PREFIX defaults to `x`.",

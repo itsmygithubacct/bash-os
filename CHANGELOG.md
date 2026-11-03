@@ -9,6 +9,11 @@ The release gate requires every recorded FAIL to be fixed and every required
 static and dynamic qualification case to PASS. This target is not yet met;
 the historical 0.1.3 evidence remains available separately.
 
+- Added 20 Docker parity cases for binary records, stream boundaries, command
+  options, and filesystem behavior. `sort -V` now orders tilde prereleases
+  before releases and treats zero-padded numeric keys as equal, while honoring
+  dot-name and archive-suffix ordering; `split`
+  supports fixed-width decimal suffixes with `--numeric-suffixes=FROM`.
 - `unexpand` accepts GNU tab-extension syntax across repeated `-t` options
   and zero-sized extensions, while rejecting conflicting nonzero extensions.
 - `wc --files0-from=-` rejects stdin operands in the filename list while

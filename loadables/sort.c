@@ -257,55 +257,89 @@ bs_parse_keydef (const char *s, bs_keydef *key)
 }
 
 
+/* In a version's nonnumeric segment, tilde precedes even end-of-string,
+   letters precede punctuation, and a digit starts the numeric segment. */
+static int
+bs_version_order (unsigned char c)
+{
+    if (c == '~') return -1;
+    if (!c || (c >= '0' && c <= '9')) return 0;
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) return c;
+    return c + 256;
+}
+
+static int
+bs_version_part (const char *a, size_t na, const char *b, size_t nb)
+{
+    const unsigned char *pa = (const unsigned char *) a, *ea = pa + na;
+    const unsigned char *pb = (const unsigned char *) b, *eb = pb + nb;
+    while (pa < ea || pb < eb) {
+        while ((pa < ea && !isdigit (*pa)) || (pb < eb && !isdigit (*pb))) {
+            int order_a = bs_version_order (pa < ea ? *pa : 0);
+            int order_b = bs_version_order (pb < eb ? *pb : 0);
+            if (order_a != order_b) return order_a < order_b ? -1 : 1;
+            if (pa < ea) pa++;
+            if (pb < eb) pb++;
+        }
+        /* Zero-padded numeric keys are equal; -s/-u retain input order. */
+        while (pa < ea && *pa == '0') pa++;
+        while (pb < eb && *pb == '0') pb++;
+        const unsigned char *da = pa, *db = pb;
+        while (da < ea && isdigit (*da)) da++;
+        while (db < eb && isdigit (*db)) db++;
+        size_t la = (size_t) (da - pa), lb = (size_t) (db - pb);
+        if (la != lb) return la < lb ? -1 : 1;
+        for (size_t i = 0; i < la; i++)
+            if (pa[i] != pb[i]) return pa[i] < pb[i] ? -1 : 1;
+        pa = da;
+        pb = db;
+    }
+    return 0;
+}
+
+static int
+bs_version_letter (unsigned char c)
+{
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '~';
+}
+
+/* Compare the name before trailing .letter[letter-or-digit]* suffixes
+   first, then the full name. This keeps archive extensions after releases
+   but before a later version, including chains such as .tar.gz. */
+static size_t
+bs_version_prefix (const char *s, size_t n)
+{
+    size_t end = n;
+    while (end) {
+        size_t i = end;
+        while (i && (bs_version_letter ((unsigned char) s[i-1]) ||
+                     (s[i-1] >= '0' && s[i-1] <= '9'))) i--;
+        if (i <= 1 || i == end || s[i-1] != '.' ||
+            !bs_version_letter ((unsigned char) s[i])) break;
+        end = i - 1;
+    }
+    return end;
+}
+
+static int
+bs_version_class (const char *s)
+{
+    if (!*s) return 0;
+    if (!strcmp (s, ".")) return 1;
+    if (!strcmp (s, "..")) return 2;
+    return *s == '.' ? 3 : 4;
+}
+
 static int
 bs_version_cmp (const char *a, const char *b)
 {
-    const unsigned char *pa = (const unsigned char *) a;
-    const unsigned char *pb = (const unsigned char *) b;
-
-    while (*pa || *pb) {
-        if (isdigit (*pa) && isdigit (*pb)) {
-            const unsigned char *za = pa;
-            const unsigned char *zb = pb;
-            while (*za == '0')
-                za++;
-            while (*zb == '0')
-                zb++;
-
-            const unsigned char *ea = za;
-            const unsigned char *eb = zb;
-            while (isdigit (*ea))
-                ea++;
-            while (isdigit (*eb))
-                eb++;
-
-            size_t la = (size_t) (ea - za);
-            size_t lb = (size_t) (eb - zb);
-            if (la != lb)
-                return (la < lb) ? -1 : 1;
-            for (size_t i = 0; i < la; i++) {
-                if (za[i] != zb[i])
-                    return (za[i] < zb[i]) ? -1 : 1;
-            }
-
-            /* Equal numeric value. Prefer fewer leading zeroes. */
-            size_t lza = (size_t) (za - pa);
-            size_t lzb = (size_t) (zb - pb);
-            if (lza != lzb)
-                return (lza < lzb) ? -1 : 1;
-
-            pa = ea;
-            pb = eb;
-            continue;
-        }
-        if (*pa != *pb)
-            return (*pa < *pb) ? -1 : 1;
-        if (*pa)
-            pa++;
-        if (*pb)
-            pb++;
-    }
-    return 0;
+    int ca = bs_version_class (a), cb = bs_version_class (b);
+    if (ca != cb) return ca < cb ? -1 : 1;
+    size_t na = strlen (a), nb = strlen (b);
+    size_t pa = bs_version_prefix (a, na), pb = bs_version_prefix (b, nb);
+    int cmp = bs_version_part (a, pa, b, pb);
+    if (cmp || (pa == na && pb == nb)) return cmp;
+    return bs_version_part (a, na, b, nb);
 }
 
 static int

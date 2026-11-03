@@ -217,6 +217,28 @@ run_case files-df-invalid-column 1 diagnostic 'df --output=not_a_parity_column .
 run_case files-du-dereferenced-alias 0 exact 'mkdir tree; printf data > tree/target; ln -s target tree/alias; du --bytes -s -L tree'
 run_case environment-free-extra-operand 1 diagnostic 'free extra'
 
+# Additional binary, boundary, option, and filesystem parity cases.
+run_case text-cut-record-delimiter 0 exact 'printf "one\ntwo\nthree" | cut -d $'\''\n'\'' -f 2'
+run_case text-cut-nul-output-delimiter 0 exact 'printf "abcdef\nxy\n" | cut -b 1,3,5 --output-delimiter=""'
+run_case text-sort-stable-key 0 exact 'printf "b 2\na 2\nc 1\nd 2\n" | sort -s -k2,2n'
+run_case text-sort-version 0 exact 'printf "v1.10\nv1.2\nv1.02\nv1.0~rc1\nv1.0\nv1.gz\nv1a\n.v1.1.gz\n.v2\n.\n..\n\n" > versions; sort -V versions; sort -Vs versions; sort -Vu versions'
+run_case text-uniq-nul-fields 0 exact 'printf "a same\0b same\0c other\0" | uniq -z -f 1'
+run_case text-head-negative-lines 0 exact 'printf "one\ntwo\nthree\nfour" | head -n -2'
+run_case text-tail-nul-from 0 exact 'printf "one\0two\0three\0four" | tail -z -n +2'
+run_case text-paste-empty-delimiter-cycle 0 exact 'printf "a\nb\nc\nd\n" > first; printf "1\n2\n" > second; paste -d "\0:" first second first'
+run_case text-comm-nul-records 0 exact 'printf "a\0b\0d\0" > first; printf "b\0c\0d\0" > second; comm -z -12 first second'
+run_case text-join-unpaired-fields 0 exact 'printf "1 alpha\n3 gamma\n" > first; printf "1 A\n2 B\n" > second; join -a1 -a2 -e missing -o 0,1.2,2.2 first second'
+run_case text-expand-continuous-files 0 exact 'printf "abc" > first; printf "\tX\n" > second; expand -t 4 first second'
+run_case text-unexpand-backspace-stops 0 exact 'printf "   A    B\b     C\n          tail" | unexpand -a -t 3,7,12'
+run_case text-split-numeric-suffix-start 0 exact 'printf "abcdefg" > data; split -b 2 --numeric-suffixes=7 -a 3 data chunk_; for f in chunk_*; do printf "%s:" "$f"; cat "$f"; printf "\n"; done'
+run_case text-csplit-suppress-matched 0 exact 'printf "first\nMARK\nsecond\nMARK\nthird\n" > data; csplit -s --suppress-matched data "/MARK/" "{*}"; for f in xx*; do printf "%s:" "$f"; cat "$f"; done'
+run_case files-cp-hardlink-preservation 0 exact 'mkdir source; printf payload > source/first; ln source/first source/second; cp -a source copy; [[ copy/first -ef copy/second ]]; stat -c "%n %h" copy/first copy/second'
+run_case files-mv-same-file 1 diagnostic 'printf keep > data; mv data ./data'
+run_case files-chmod-omitted-who-umask 0 exact 'printf data > file; chmod 000 file; umask 027; chmod +rw file; stat -c "%a" file; chmod a+x file; stat -c "%a" file'
+run_case files-readlink-nul-multiple 0 exact 'ln -s "target with spaces" first; ln -s ../target second; readlink -z first second'
+run_case files-truncate-relative-size 0 exact 'printf abcdef > data; truncate -s -2 data; cat data; truncate -s +3 data; od -An -tx1 data'
+run_case text-grep-empty-pattern-file 1 exact ': > patterns; printf "alpha\nbeta\n" > data; grep -f patterns data'
+
 printf '\n%s: %s cases, %s passed, %s failed\n' "$mode" "$total" "$((total-failed))" "$failed"
 printf '%s\t%s\t%s\n' "$mode" "$total" "$failed" > "$output/summary.tsv"
 printf 'complete\n' > "$output/complete"
