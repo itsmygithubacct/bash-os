@@ -9,7 +9,7 @@ compile_flags=(-O1 -g -fPIC -shared -Wl,-Bsymbolic -fsanitize=address,undefined
   -DHAVE_CONFIG_H -Iloadables/common -I"$BT" -I"$BT/include"
   -I"$BT/builtins" -I"$BT/examples/loadables")
 printf 'set -e\n' > "$d/load.sh"
-for name in cp mv tr date coreutils; do
+for name in cp mv tr date touch coreutils; do
   shim=()
   if [[ $name != coreutils ]]; then
     # These sources export bashNAME_struct; enable -f NAME needs NAME_struct.

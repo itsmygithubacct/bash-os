@@ -12,7 +12,8 @@
     "Invalid date diagnostics/status and continued processing of later operands.",
     "Bash builtin type/help metadata contract.",
     "GNU argument-error statuses for missing values, invalid values and unknown options.",
-    "Default symlink following, directory timestamps and hardlink timestamp identity."
+    "Default symlink following, directory timestamps and hardlink timestamp identity.",
+    "Calendar timestamps at epoch second -1, in UTC and a fixed local timezone."
   ],
   "exclusions": [
     "This suite does not exhaustively cover GNU natural-language date parsing, every long-option spelling, fractional precision beyond nanoseconds, inaccessible filesystems, or all error diagnostics.",
@@ -281,6 +282,30 @@
         "ln",
         "stat"
       ]
+    },
+    {
+      "id": "pre-epoch-calendar",
+      "kind": "parity",
+      "purpose": "Accept epoch second -1 as a real calendar timestamp, both POSIX and UTC ISO forms.",
+      "script": "export TZ=UTC0; touch -t 196912312359.59 compact; touch -d 1969-12-31T23:59:59Z iso; stat -c '%n %X %Y' compact iso",
+      "requires": [
+        "touch",
+        "stat"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pre-epoch-local",
+      "kind": "parity",
+      "purpose": "Convert local time to epoch -1 while preserving unselected timestamps.",
+      "script": "export TZ=EST5; touch -d @10 item; touch -a -t 196912311859.59 item; stat -c '%X %Y' item; touch -m -d 1969-12-31T18:59:59 item; stat -c '%X %Y' item",
+      "requires": [
+        "touch",
+        "stat"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

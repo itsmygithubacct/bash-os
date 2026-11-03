@@ -76,8 +76,10 @@ bt_parsetime (const char *str, time_t *out)
     char *end = strptime (buf, fmt, &t);
     if (!end || *end) return -1;
     struct tm parsed = t;
+    /* Epoch second -1 is valid; errno distinguishes it from overflow. */
+    errno = 0;
     *out = zulu ? timegm (&t) : mktime (&t);
-    if (*out == (time_t) -1) return -1;
+    if (*out == (time_t) -1 && errno != 0) return -1;
 
     struct tm roundtrip;
     if (zulu) {

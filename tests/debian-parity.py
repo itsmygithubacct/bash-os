@@ -212,6 +212,47 @@ class DebianParity(unittest.TestCase):
             with self.subTest(value=value):
                 self.compare("date", ["-d", value, "+%s"])
 
+    def test_touch_pre_epoch_calendar_timestamp(self):
+        def setup(root):
+            (root / "existing").write_bytes(b"keep contents\n")
+            os.utime(root / "existing", ns=(1234567890123456789, 1234567890987654321))
+
+        fields = ("st_atime_ns", "st_mtime_ns")
+        for zone, compact, local in (
+                ("UTC0", "196912312359.59", "1969-12-31T23:59:59"),
+                ("EST5", "196912311859.59", "1969-12-31T18:59:59"),
+                ("JST-9", "197001010859.59", "1970-01-01T08:59:59")):
+            for date_args in (["-t", compact], ["-t" + compact], ["-d", local],
+                              ["-d", "1969-12-31T23:59:59Z"],
+                              ["--date=1969-12-31T23:59:59Z"]):
+                for selection in ([], ["-a"], ["-m"]):
+                    targets = ["existing"] if selection else ["existing", "created"]
+                    with self.subTest(zone=zone, date_args=date_args, selection=selection), \
+                            mock.patch.dict(ENV, TZ=zone):
+                        self.compare("touch", selection + date_args + targets, setup=setup,
+                                     metadata={name: fields for name in targets})
+
+    def test_touch_invalid_calendar_dates_preserve_existing_files(self):
+        def setup(root):
+            (root / "existing").write_bytes(b"keep contents\n")
+            os.utime(root / "existing", ns=(1000000000, 2000000000))
+
+        for option, values in (
+                ("-t", ("196902300000.00", "202302290000.00", "202404310000.00")),
+                ("-d", ("1969-02-30T00:00:00Z", "2023-02-29T00:00:00Z",
+                        "2024-04-31T00:00:00Z"))):
+            for value in values:
+                with self.subTest(option=option, value=value):
+                    self.compare("touch", [option, value, "existing", "created"],
+                                 setup=setup, status=1,
+                                 metadata={"existing": ("st_atime_ns", "st_mtime_ns")})
+
+    def test_touch_pre_epoch_after_failure_in_same_shell(self):
+        self.compare("touch", ["-t", "196912312359.59", "created"],
+                     setup=lambda root: None,
+                     script='"$1" missing/child 2>/dev/null || :; "$@"',
+                     metadata={"created": ("st_atime_ns", "st_mtime_ns")})
+
     def test_date_nanosecond_precision(self):
         for value in ("@0.000000001", "@-0.000000001", "@+1.25",
                       "@1.1234567899", "@-1.1234567899", "@-0.0000000001",
