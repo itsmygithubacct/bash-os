@@ -9,6 +9,10 @@ The release gate requires every recorded FAIL to be fixed and every required
 static and dynamic qualification case to PASS. This target is not yet met;
 the historical 0.1.3 evidence remains available separately.
 
+- `cp --parents` retains source paths under an existing destination directory,
+  creates missing parents with source-derived permissions, and supports archive
+  links, recursive copies, and continued processing after a failed operand.
+  Focused GNU comparisons cover path spelling, modes, symlinks, and errors.
 - Updated the pinned Bash source to 5.3.20 (official patches 001–020).
 - Added a Debian parity-reference Dockerfile with the full loadable scope,
   optional integrations, pinned stock Bash and uv, and a checked reference

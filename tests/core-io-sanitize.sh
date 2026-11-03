@@ -37,6 +37,6 @@ export ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:allocator_may_return_null=1
 export UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1:exitcode=86
 # The native suite exercises RLIMIT_AS; ASan reserves a huge virtual range.
 export BASHOS_TEST_SANITIZED=1
-for suite in cmp-streams cp-safety mv-safety split-safety diff-safety dd-safety copy-move-errors; do
+for suite in cmp-streams cp-safety cp-parents mv-safety split-safety diff-safety dd-safety copy-move-errors; do
   python3 "tests/$suite.py" "$d/bash-os"
 done

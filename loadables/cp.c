@@ -58,7 +58,7 @@ typedef struct bcp_dir {
 
 typedef struct {
     int fflag, iflag, nflag, pflag, rflag, vflag;
-    int Hflag, Lflag, Pflag, aflag;
+    int Hflag, Lflag, Pflag, aflag, parents;
     bcp_link *links;
     bcp_dir *directories;
 } bcp_opts;
@@ -499,8 +499,11 @@ bcp_copy_dir (const char *src, const char *dst, const struct stat *sst,
         }
         if (strcmp (de->d_name, ".") == 0 || strcmp (de->d_name, "..") == 0)
             continue;
-        size_t sn = strlen (src) + strlen (de->d_name) + 2;
-        size_t dn = strlen (dst) + strlen (de->d_name) + 2;
+        size_t src_len = strlen (src), dst_len = strlen (dst);
+        while (src_len && src[src_len - 1] == '/') src_len--;
+        while (dst_len && dst[dst_len - 1] == '/') dst_len--;
+        size_t sn = src_len + strlen (de->d_name) + 2;
+        size_t dn = dst_len + strlen (de->d_name) + 2;
         if (sn > 4096 || dn > 4096) {
             builtin_error ("path too long while copying %s", de->d_name);
             rc = -1;
@@ -515,8 +518,8 @@ bcp_copy_dir (const char *src, const char *dst, const struct stat *sst,
             rc = -1;
             break;
         }
-        snprintf (src_child, sn, "%s/%s", src, de->d_name);
-        snprintf (dst_child, dn, "%s/%s", dst, de->d_name);
+        snprintf (src_child, sn, "%.*s/%s", (int) src_len, src, de->d_name);
+        snprintf (dst_child, dn, "%.*s/%s", (int) dst_len, dst, de->d_name);
         if (bcp_one (src_child, dst_child, o, 0) < 0) rc = -1;
         free (src_child);
         free (dst_child);
@@ -599,6 +602,120 @@ bcp_one (const char *src, const char *dst, bcp_opts *o, int top_level_source)
     return -1;
 }
 
+/* --parents retains the source spelling below DEST (without leading /).
+   Create only missing parent directories and restore their source-derived
+   modes after copying, deepest first, so read-only parents can be populated. */
+typedef struct bcp_parent {
+    char *path;
+    struct stat source;
+    mode_t mode;
+    struct bcp_parent *next;
+} bcp_parent;
+
+static int
+bcp_copy_parents (const char *src, const char *dest, bcp_opts *o)
+{
+    size_t start = 0, end = strlen (src), dn = strlen (dest);
+    while (src[start] == '/') start++;
+    while (end > start && src[end - 1] == '/') end--;
+    while (dn > 1 && dest[dn - 1] == '/') dn--;
+    size_t base = dn + (dn == 0 || dest[dn - 1] != '/');
+    size_t tail = end - start;
+    if (base + tail + 1 > 4096) {
+        builtin_error ("destination path too long: %s", dest);
+        return -1;
+    }
+    char *dst = malloc (base + tail + 1), *prefix = strdup (src);
+    if (!dst || !prefix) {
+        builtin_error ("out of memory");
+        free (dst);
+        free (prefix);
+        return -1;
+    }
+    memcpy (dst, dest, dn);
+    if (base > dn) dst[dn] = '/';
+    memcpy (dst + base, src + start, tail);
+    dst[base + tail] = '\0';
+    bcp_parent *parents = NULL;
+    int rc = 0;
+    mode_t mask = umask (0);
+    umask (mask);
+    for (size_t i = start; i < end; i++) {
+        if (src[i] != '/' || i == start || src[i - 1] == '/') continue;
+        size_t cut = base + i - start;
+        dst[cut] = '\0';
+        prefix[i] = '\0';
+        struct stat st;
+        if (stat (dst, &st) == 0) {
+            if (!S_ISDIR (st.st_mode)) {
+                builtin_error ("'%s' is not a directory", dst);
+                rc = -1;
+            }
+        } else if (errno != ENOENT) {
+            builtin_error ("stat %s: %s", dst, strerror (errno));
+            rc = -1;
+        } else if (stat (prefix, &st) < 0) {
+            builtin_error ("stat %s: %s", prefix, strerror (errno));
+            rc = -1;
+        } else if (!S_ISDIR (st.st_mode)) {
+            builtin_error ("'%s' is not a directory", prefix);
+            rc = -1;
+        } else {
+            bcp_parent *parent = malloc (sizeof *parent);
+            if (!parent || !(parent->path = strdup (dst))) {
+                free (parent);
+                builtin_error ("out of memory");
+                rc = -1;
+            } else {
+                parent->source = st;
+                parent->mode = (st.st_mode & (0777 | S_ISVTX)) & ~mask;
+                if (mkdir (dst, parent->mode | S_IRWXU) < 0) {
+                    builtin_error ("mkdir %s: %s", dst, strerror (errno));
+                    free (parent->path);
+                    free (parent);
+                    rc = -1;
+                } else {
+                    parent->next = parents;
+                    parents = parent;
+                    /* Keep setgid inherited from the destination directory,
+                       but do not copy source set-ID bits without -p. */
+                    struct stat created;
+                    if (stat (dst, &created) < 0) {
+                        builtin_error ("stat %s: %s", dst, strerror (errno));
+                        rc = -1;
+                    } else {
+                        parent->mode |= created.st_mode & S_ISGID;
+                        if (chmod (dst, parent->mode | S_IRWXU) < 0) {
+                            builtin_error ("chmod %s: %s", dst, strerror (errno));
+                            rc = -1;
+                        }
+                    }
+                    if (o->vflag) printf ("%s -> %s\n", prefix, dst);
+                }
+            }
+        }
+        prefix[i] = '/';
+        dst[cut] = '/';
+        if (rc < 0) break;
+    }
+    if (rc == 0) rc = bcp_one (src, dst, o, 1);
+    while (parents) {
+        bcp_parent *parent = parents;
+        parents = parent->next;
+        if (o->pflag) {
+            if (bcp_apply_metadata (parent->path, &parent->source) < 0) rc = -1;
+        } else if (chmod (parent->path, parent->mode) < 0) {
+            builtin_error ("chmod %s: %s", parent->path, strerror (errno));
+            rc = -1;
+        }
+        free (parent->path);
+        free (parent);
+    }
+    free (prefix);
+    free (dst);
+    return rc;
+}
+
 int
 cp_builtin (WORD_LIST *list)
 {
@@ -617,6 +734,7 @@ cp_builtin (WORD_LIST *list)
             free (positional.v);
             return EXECUTION_SUCCESS;
         }
+        if (!strcmp (w, "--parents")) { o.parents = 1; continue; }
         if (!strcmp (w, "--no-clobber")) { o.nflag = 1; o.iflag = 0; continue; }
         if (!strcmp (w, "--interactive")) { o.iflag = 1; o.nflag = 0; continue; }
         if (!strcmp (w, "--force")) { o.fflag = 1; continue; }
@@ -678,7 +796,7 @@ cp_builtin (WORD_LIST *list)
     struct stat dst_st;
     int dst_is_dir = (stat (dest, &dst_st) == 0 && S_ISDIR (dst_st.st_mode));
 
-    if (nsrc > 1 && !dst_is_dir) {
+    if ((nsrc > 1 || o.parents) && !dst_is_dir) {
         builtin_error ("target '%s' is not a directory", dest);
         free (positional.v);
         return EXECUTION_FAILURE;
@@ -687,6 +805,10 @@ cp_builtin (WORD_LIST *list)
     int rc = EXECUTION_SUCCESS;
     for (int i = 0; i < nsrc; i++) {
         const char *src = positional.v[i];
+        if (o.parents) {
+            if (bcp_copy_parents (src, dest, &o) < 0) rc = EXECUTION_FAILURE;
+            continue;
+        }
         char dst_buf[4096];
         const char *dst;
         if (dst_is_dir) {
@@ -730,6 +852,7 @@ char *cp_doc[] = {
     "    -i   interactive: prompt before overwrite",
     "    -n, --no-clobber   skip existing destinations; last -i/-n wins",
     "    -p   preserve mode/owner/group/timestamps",
+    "    --parents   retain source paths under an existing destination directory",
     "    -R, -r   recursive",
     "    -v   verbose: print each completed copy",
     "    -H   follow symlinks named on the command line",

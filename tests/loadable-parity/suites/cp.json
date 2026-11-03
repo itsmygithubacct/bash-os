@@ -13,7 +13,8 @@
     "Same-file and missing-source diagnostics with unchanged fixture data",
     "Interactive overwrite acceptance and decline using bounded here-string input",
     "Bash type/help metadata contract for the registered cp builtin",
-    "Additional bounded regular-file, hardlink, symlink and multi-operand error continuation regressions."
+    "Additional bounded regular-file, hardlink, symlink and multi-operand error continuation regressions.",
+    "GNU --parents path retention, parent modes, archive links, and failure continuation."
   ],
   "exclusions": [
     "Device nodes, FIFOs, sockets, ACLs, extended attributes, and security labels are outside this private regular-file/symlink fixture suite.",
@@ -295,6 +296,82 @@
       "script": "printf new > source\nprintf old > first\nln first first-alias\nprintf old > second\nln second second-alias\ncp -a source first\ncp -af source second",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "parents_nested_paths",
+      "kind": "parity",
+      "purpose": "Retain nested source names and create missing destination parents, including a trailing slash on the destination.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "cat"
+      ],
+      "script": "mkdir -p source/nested destination\nprintf 'Hello, world!\\n' > source/nested/message.txt\ncp -v --parents source/nested/message.txt destination/\ncat destination/source/nested/message.txt",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "parents_archive_links",
+      "kind": "parity",
+      "purpose": "Preserve hard links and symlinks across --parents archive operands.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln"
+      ],
+      "script": "mkdir -p source/sub destination\nprintf payload > source/sub/file\nln source/sub/file source/sub/hard\nln -s file source/sub/link\ncp -a --parents source/sub/file source/sub/hard source/sub/link destination",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "parents_readonly_modes",
+      "kind": "parity",
+      "purpose": "Populate newly created read-only parents before restoring source-derived modes under umask.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "chmod"
+      ],
+      "script": "mkdir -p source/sub destination\nprintf payload > source/sub/file\nchmod 751 source\nchmod 511 source/sub\numask 027\ncp --parents source/sub/file destination",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "parents_existing_modes",
+      "kind": "parity",
+      "purpose": "Preserve preexisting destination parent modes even when -p is requested.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "chmod"
+      ],
+      "script": "mkdir -p source/sub destination/source/sub\nprintf payload > source/sub/file\nchmod 700 destination/source destination/source/sub\ncp -p --parents source/sub/file destination",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "parents_failure_continuation",
+      "kind": "parity",
+      "purpose": "Reject a missing parent and still copy a later valid operand.",
+      "requires": [
+        "cp",
+        "mkdir"
+      ],
+      "script": "mkdir -p source/sub destination\nprintf payload > source/sub/file\nif cp --parents missing/sub/file source/sub/file destination; then rc=0; else rc=$?; fi\nprintf 'status=%s\\n' \"$rc\"\n[[ $rc == 1 ]]",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "parents_requires_directory",
+      "kind": "parity",
+      "purpose": "Reject an absent or regular-file destination without changing it.",
+      "requires": [
+        "cp",
+        "mkdir"
+      ],
+      "script": "mkdir -p source/sub\nprintf payload > source/sub/file\nprintf keep > destination\nif cp --parents source/sub/file destination; then a=0; else a=$?; fi\nif cp --parents source/sub/file absent; then b=0; else b=$?; fi\nprintf '%s %s\\n' \"$a\" \"$b\"\n[[ $a == 1 && $b == 1 && ! -e absent ]]",
+      "expected_status": 0,
+      "stderr": "nonempty"
     }
   ]
 }
