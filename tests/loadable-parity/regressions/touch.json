@@ -12,7 +12,8 @@
     "Invalid date diagnostics/status and continued processing of later operands.",
     "Bash builtin type/help metadata contract.",
     "GNU argument-error statuses for missing values, invalid values and unknown options.",
-    "Calendar timestamps at epoch second -1, in UTC and a fixed local timezone."
+    "Calendar timestamps at epoch second -1, in UTC and a fixed local timezone.",
+    "-h rejects missing operands without creation, -ch ignores them, and later operands still update."
   ],
   "exclusions": [
     "This suite does not exhaustively cover GNU natural-language date parsing, every long-option spelling, fractional precision beyond nanoseconds, inaccessible filesystems, or all error diagnostics.",
@@ -275,6 +276,31 @@
       "requires": [
         "touch",
         "stat"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "no-dereference-missing",
+      "kind": "parity",
+      "purpose": "Do not create a missing operand under -h; report failure and still update a later existing file.",
+      "script": "printf 'keep' > existing; touch -d @2 existing; touch -h -d @1 absent existing; rc=$?; stat -c '%X %Y' existing; exit \"$rc\"",
+      "requires": [
+        "touch",
+        "stat"
+      ],
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "no-dereference-no-create",
+      "kind": "parity",
+      "purpose": "No-create suppresses missing-path errors while -h updates a dangling link itself.",
+      "script": "ln -s missing-target link; touch -ch -d @1 absent link; stat -c '%X %Y' link",
+      "requires": [
+        "touch",
+        "stat",
+        "ln"
       ],
       "expected_status": 0,
       "stderr": "empty"

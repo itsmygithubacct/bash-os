@@ -253,6 +253,49 @@ class DebianParity(unittest.TestCase):
                      script='"$1" missing/child 2>/dev/null || :; "$@"',
                      metadata={"created": ("st_atime_ns", "st_mtime_ns")})
 
+    def test_touch_no_dereference_missing_operands(self):
+        def setup(root):
+            (root / "directory").mkdir()
+            (root / "dangling").symlink_to("missing-target")
+
+        for flags, status in ((["-h"], 1), (["--no-dereference"], 1),
+                              (["-ch"], 0), (["-hc"], 0),
+                              (["--no-dereference", "--no-create"], 0)):
+            for path in ("absent", "directory/absent", "missing/child",
+                         "dangling/child", "absent/", "-absent", "two words"):
+                with self.subTest(flags=flags, path=path):
+                    self.compare("touch", [*flags, "-d", "@1", "--", path],
+                                 setup=setup, status=status)
+
+    def test_touch_no_dereference_continues_after_missing_operand(self):
+        def setup(root):
+            (root / "existing").write_bytes(b"keep contents\n")
+            os.utime(root / "existing", ns=(2000000000, 3000000000))
+
+        for targets in (["absent", "existing"], ["existing", "absent"],
+                        ["absent", "existing", "another-missing"]):
+            with self.subTest(targets=targets):
+                self.compare("touch", ["-h", "-d", "@1", *targets], setup=setup,
+                             status=1, metadata={"existing": ("st_atime_ns", "st_mtime_ns")})
+
+    def test_touch_no_dereference_updates_dangling_symlink(self):
+        def setup(root):
+            (root / "link").symlink_to("missing-target")
+            os.utime(root / "link", ns=(2000000000, 3000000000), follow_symlinks=False)
+
+        for flags in (["-h"], ["-ch"], ["-a", "-h"], ["-m", "-h"]):
+            with self.subTest(flags=flags):
+                self.compare("touch", [*flags, "-d", "@1", "link"], setup=setup,
+                             metadata={"link": ("st_atime_ns", "st_mtime_ns")})
+
+    def test_touch_default_still_creates_missing_files_and_symlink_targets(self):
+        def setup(root):
+            (root / "link").symlink_to("missing-target")
+
+        self.compare("touch", ["-d", "@1", "absent", "link"], setup=setup,
+                     metadata={name: ("st_atime_ns", "st_mtime_ns")
+                               for name in ("absent", "missing-target")})
+
     def test_date_nanosecond_precision(self):
         for value in ("@0.000000001", "@-0.000000001", "@+1.25",
                       "@1.1234567899", "@-1.1234567899", "@-0.0000000001",

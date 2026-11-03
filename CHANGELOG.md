@@ -9,6 +9,8 @@ The release gate requires every recorded FAIL to be fixed and every required
 static and dynamic qualification case to PASS. This target is not yet met;
 the historical 0.1.3 evidence remains available separately.
 
+- `touch -h` refuses missing operands without creating regular files; `-c`
+  suppresses those errors, and later existing operands are still updated.
 - `touch` accepts calendar timestamps at epoch second -1, distinguishing a
   valid pre-epoch time from conversion failure while rejecting invalid dates.
 - `uniq` accepts GNU signed nonnegative counts and saturates oversized field,

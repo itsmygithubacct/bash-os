@@ -155,14 +155,16 @@ bt_time_word (const char *w, int *a, int *m)
 
 /* Apply `times` to `path`. Creates the file when missing and !cflag. When
    hflag is set (-h/--no-dereference) operate on a symlink itself rather than
-   its target. Returns 0 on success, -1 on a fatal error (already reported). */
+   its target, and never create missing operands. Returns 0 on success,
+   -1 on a fatal error (already reported). */
 static int
 bt_touch (const char *path, struct timespec times[2], int cflag, int hflag)
 {
     if (utimensat (AT_FDCWD, path, times,
                    hflag ? AT_SYMLINK_NOFOLLOW : 0) == 0)
         return 0;
-    if (errno != ENOENT) {
+    /* -h refuses missing operands; -c may suppress the ENOENT diagnostic. */
+    if (errno != ENOENT || (hflag && !cflag)) {
         builtin_error ("'%s': %s", path, strerror (errno));
         return -1;
     }
