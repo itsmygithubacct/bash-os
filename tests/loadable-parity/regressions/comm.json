@@ -9,7 +9,8 @@
     "NUL-delimited records, unterminated final records, and stdin as the first input.",
     "Explicit sorted-order failure and --nocheck-order behavior on unsorted fixture data.",
     "Missing operand and missing relative input-file errors.",
-    "Bash metadata: comm is available as a builtin with an empty candidate PATH."
+    "Bash metadata: comm is available as a builtin with an empty candidate PATH.",
+    "Repeated stdin redirections in one shell, with stdin in either operand position."
   ],
   "exclusions": [
     "Write-failure behavior against device-backed sinks is omitted; all fixture paths remain relative and regular-file based.",
@@ -145,6 +146,28 @@
       "expected_status": 0,
       "stderr": "empty",
       "stdout": "builtin\n"
+    },
+    {
+      "id": "repeated_stdin_first",
+      "kind": "parity",
+      "purpose": "Each invocation reads its redirected input independently of earlier EOF state.",
+      "script": "printf \"a\\nb\\n\" > first; printf \"b\\nc\\n\" > second; printf \"b\\n\" > common; comm -12 - common <first; comm -12 - common <second",
+      "requires": [
+        "comm"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "repeated_stdin_second",
+      "kind": "parity",
+      "purpose": "Each invocation reads its redirected input independently of earlier EOF state.",
+      "script": "printf \"a\\nb\\n\" > first; printf \"b\\nc\\n\" > second; printf \"b\\n\" > common; comm -12 common - <first; comm -12 common - <second",
+      "requires": [
+        "comm"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

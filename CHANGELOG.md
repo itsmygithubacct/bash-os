@@ -9,6 +9,8 @@ The release gate requires every recorded FAIL to be fixed and every required
 static and dynamic qualification case to PASS. This target is not yet met;
 the historical 0.1.3 evidence remains available separately.
 
+- `comm` owns its stdin stream per invocation, so repeated redirections read
+  fresh input after EOF or an early failure without retaining buffered records.
 - Corrected the `cp` symlink ownership fault fixture to preserve the link with
   `-Pp`, so it reaches and verifies the injected `lchown` failure.
 - `split -b` accepts GNU decimal and binary size units, implicit unit counts,

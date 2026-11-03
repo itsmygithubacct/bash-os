@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include "loadables.h"
 
@@ -282,6 +283,21 @@ fail:
     return EXECUTION_FAILURE;
 }
 
+/* Bash keeps stdin's FILE across builtin invocations. Own a separate stream
+   so EOF, errors, and unread records cannot leak into a later redirection. */
+static FILE *
+bc_open_stdin (void)
+{
+    int fd = fcntl (STDIN_FILENO, F_DUPFD_CLOEXEC, 3);
+    FILE *in = fd < 0 ? NULL : fdopen (fd, "r");
+    if (!in) {
+        int error = errno;
+        if (fd >= 0) close (fd);
+        builtin_error ("stdin: %s", strerror (error));
+    }
+    return in;
+}
+
 int
 comm_builtin (WORD_LIST *list)
 {
@@ -375,21 +391,34 @@ comm_builtin (WORD_LIST *list)
         return EXECUTION_FAILURE;
     }
 
-    FILE *fa = !strcmp (p1, "-") ? stdin : fopen (p1, "r");
-    if (!fa) { builtin_error ("%s: %s", p1, strerror (errno)); return EXECUTION_FAILURE; }
-    FILE *fb = !strcmp (p2, "-") ? stdin : fopen (p2, "r");
-    if (!fb) {
-        if (fa != stdin) fclose (fa);
-        builtin_error ("%s: %s", p2, strerror (errno));
+    /* Duplicate stdin before opening named inputs: a closed fd 0 must not
+       silently become a named file that happens to reuse that descriptor. */
+    FILE *input = NULL;
+    if (!strcmp (p1, "-") || !strcmp (p2, "-")) {
+        input = bc_open_stdin ();
+        if (!input) return EXECUTION_FAILURE;
+    }
+    FILE *fa = !strcmp (p1, "-") ? input : fopen (p1, "r");
+    if (!fa) {
+        int error = errno;
+        if (input) fclose (input);
+        builtin_error ("%s: %s", p1, strerror (error));
         return EXECUTION_FAILURE;
     }
-    if (fa != stdin)
+    FILE *fb = !strcmp (p2, "-") ? input : fopen (p2, "r");
+    if (!fb) {
+        int error = errno;
+        fclose (fa);
+        builtin_error ("%s: %s", p2, strerror (error));
+        return EXECUTION_FAILURE;
+    }
+    if (fa != input)
         setvbuf (fa, NULL, _IOFBF, 65536);
-    if (fb != stdin)
+    if (fb != input)
         setvbuf (fb, NULL, _IOFBF, 65536);
     int rc = bc_run (fa, fb, suppress, total_option, sep, delim, order_mode);
-    if (fa != stdin) fclose (fa);
-    if (fb != stdin) fclose (fb);
+    fclose (fa);
+    fclose (fb);
     return rc;
 }
 
