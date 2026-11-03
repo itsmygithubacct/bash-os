@@ -109,6 +109,7 @@ run_case text-awk-fields 0 exact 'printf "a,2\nb,3\na,4\n" | awk -F, "{sum+=\$2}
 run_case text-sort-numeric 0 exact 'printf "10\n-2\n3\n3\n" | sort -nu'
 run_case text-sort-fields 0 exact 'printf "b 2\na 10\nc 2\n" | sort -k2,2n -k1,1'
 run_case text-sort-nul 0 exact 'printf "b\0a\0b\0" | sort -zu'
+run_case text-uniq-numeric 0 exact 'printf "ax\nbx\n" | uniq -s +1; printf "alpha\nbeta\n" | uniq -s 18446744073709551616'
 run_case text-uniq-count 0 exact 'printf "a\na\nb\n" | uniq -c'
 run_case text-head-tail 0 exact 'printf "one\ntwo\nthree\nfour\n" > data; head -n 2 data; tail -n +3 data'
 run_case text-head-bytes 0 exact 'printf "a\0b\ncd" | head -c 4'

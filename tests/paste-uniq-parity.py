@@ -21,11 +21,14 @@ def builtin(tool, args, data):
     assert b'AddressSanitizer' not in p.stderr and b'runtime error:' not in p.stderr,p.stderr
     return p
 
-def compare(tool, args=(), data=b''):
+def compare(tool, args=(), data=b'', expected_status=None):
     global checks
     actual = builtin(tool,args,data)
     expected = subprocess.run(['/usr/bin/'+tool,*map(str,args)], input=data,
                               capture_output=True, env=environment, timeout=20)
+    if expected_status is not None:
+        assert expected.returncode == expected_status, (args,expected.stderr)
+        assert bool(actual.stderr) == bool(expected.stderr), (args,actual.stderr,expected.stderr)
     assert (actual.returncode,actual.stdout)==(expected.returncode,expected.stdout), (
         tool,args,actual.returncode,expected.returncode,actual.stdout[:200],expected.stdout[:200],actual.stderr)
     checks += 1
@@ -33,6 +36,35 @@ def compare(tool, args=(), data=b''):
 with tempfile.TemporaryDirectory() as directory:
     d = Path(directory)
     first,second = d/'first',d/'second'
+    # Numeric options share GNU's decimal syntax and saturating bounds. Check
+    # all spellings, including legacy counts, against an independent process.
+    valid_counts = ['0', '+0', '-0', '-000', '1', '+1', '  +1', '\t1', '01',
+                    '2', '4294967296', '18446744073709551615',
+                    '18446744073709551616', '999999999999999999999999',
+                    '+' + '9' * 200, '0' * 200 + '1']
+    invalid_counts = ['', ' ', '+', '-', '-1', '  -1', '-18446744073709551616',
+                      '1 ', '1junk', '1K', '0x1', '++1', '+-0', '9' * 200 + 'x']
+    for short,long in [('-f','--skip-fields'),('-s','--skip-chars'),('-w','--check-chars')]:
+        for value in valid_counts + invalid_counts:
+            valid = value in valid_counts
+            for args in [[short,value],[short+value],[long,value],[long+'='+value]]:
+                # An empty attached short argument means a missing operand.
+                for zero in ((False,True) if valid else (False,)):
+                    data = b'ax same\nbx same\nbx same\ncy other\n'
+                    if zero: data = data.replace(b'\n',b'\0')
+                    compare('uniq',(['-z'] if zero else [])+args,data,
+                            expected_status=0 if valid else 1)
+        first.write_bytes(b'preserve input\n')
+        second.write_bytes(b'preserve output\n')
+        compare('uniq',[short,'9'*200+'x',first,second],expected_status=1)
+        assert first.read_bytes()==b'preserve input\n'
+        assert second.read_bytes()==b'preserve output\n'
+    for args in [['-18446744073709551616'],['-999999999999999999999999'],
+                 ['-999999999999999999999999d'],['+18446744073709551616'],
+                 ['-18446744073709551616','-1'],['-1','-2'],
+                 ['-f','1','-2'],['-2','-f','1'],['-f','+1','-2'],
+                 ['-18446744073709551616','-f','1']]:
+        compare('uniq',args,b'ax same\nbx same\ncy other\n',expected_status=0)
     datasets = [b'', b'one', b'a\na\nb\nb\nc\n', b'a\0x\na\0x\na\0y',
                 b'a'*65535+b'\n'+b'b'*65536+b'\n'+b'c'*65537,
                 b'Alpha\nalpha\nBeta\nBETA\n',b'a 1\nb 1\nc 2\n']

@@ -133,21 +133,31 @@ bu_get_record (char **line, size_t *cap, FILE *f, char delimiter)
     return rd;
 }
 
+/* GNU treats counts beyond SIZE_MAX as effectively unbounded. Keep parsing
+   after saturation so a trailing invalid character is still rejected. */
+static size_t
+bu_size_digit (size_t value, unsigned int digit)
+{
+    size_t maximum = (size_t) -1;
+    return value > (maximum - digit) / 10 ? maximum : value * 10 + digit;
+}
+
 static int
 bu_parse_size (const char *s, size_t *out)
 {
-    char *end = NULL;
-    unsigned long v;
-
-    if (!s || !*s || s[0] == '-' || s[0] == '+')
-        return -1;
-    errno = 0;
-    v = strtoul (s, &end, 10);
-    if (errno || *end)
-        return -1;
-    *out = (size_t) v;
-    if ((unsigned long) *out != v)
-        *out = (size_t) -1;
+    if (!s) return -1;
+    while (isspace ((unsigned char) *s)) s++;
+    int negative = *s == '-';
+    if (*s == '+' || negative) s++;
+    if (*s < '0' || *s > '9') return -1;
+    size_t value = 0;
+    for (; *s; s++) {
+        if (*s < '0' || *s > '9') return -1;
+        value = bu_size_digit (value, (unsigned int) (*s - '0'));
+    }
+    /* A signed zero is valid, but negative nonzero counts are not. */
+    if (negative && value) return -1;
+    *out = value;
     return 0;
 }
 
@@ -364,7 +374,7 @@ uniq_builtin (WORD_LIST *list)
                resets the count first, matching GNU uniq. */
             if (*p >= '0' && *p <= '9') {
                 if (sfo_new) { o.skip_fields = 0; sfo_new = 0; }
-                o.skip_fields = o.skip_fields * 10 + (size_t) (*p - '0');
+                o.skip_fields = bu_size_digit (o.skip_fields, (unsigned int) (*p - '0'));
                 continue;
             }
             switch (*p) {

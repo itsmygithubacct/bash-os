@@ -226,6 +226,7 @@ check 'static vi deletion and UTF-8 endpoints' env OPUS_VI_REQUIRE_NVIM=1 python
 for name in comm-stdin cmp-streams cp-safety cp-parents mv-safety split-safety diff-safety dd-safety; do
   check "static $name" python3 "tests/$name.py" out/bash-static
 done
+check 'static paste and uniq parity' python3 tests/paste-uniq-parity.py out/bash-static
 check 'static Debian command parity' python3 tests/debian-parity.py out/bash-static
 check 'static tac parity' python3 tests/tac-parity.py out/bash-static
 check 'static tac anchor-plus parity' python3 tests/grok-tac-c1-parity.py out/bash-static --timeout 5
