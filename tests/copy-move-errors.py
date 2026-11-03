@@ -128,9 +128,12 @@ class CopyMoveErrors(unittest.TestCase):
     def test_cp_reports_symlink_ownership_errors(self):
         self.source.unlink()
         self.source.symlink_to("missing")
-        result, _ = self.run_fault("cp", ["-p", self.source, self.target], "lchown", self.target)
+        # -p alone follows the dangling link and fails at stat, before the
+        # ownership operation. -P preserves the link so lchown is exercised.
+        result, _ = self.run_fault("cp", ["-Pp", self.source, self.target], "lchown", self.target)
         self.assert_failed(result)
         self.assertEqual(os.readlink(self.source), "missing")
+        self.assertEqual(os.readlink(self.target), "missing")
 
     def test_move_preserves_source_after_close_or_regular_metadata_error(self):
         target = self.second_filesystem() / "target"
