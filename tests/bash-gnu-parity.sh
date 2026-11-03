@@ -153,6 +153,7 @@ run_case files-links 0 exact 'printf data > original; ln original hard; ln -s or
 run_case files-chmod 0 exact 'touch data; chmod 600 data; chmod u+x,g+r data; stat -c "%a" data'
 run_case files-touch-time 0 exact 'touch -d @1234567890 data; stat -c "%Y" data'
 run_case files-truncate 0 exact 'printf abcdef > data; truncate -s 3 data; cat data; truncate -s 5 data; od -An -tx1 data'
+run_case files-truncate-implicit-units 0 exact 'for size in K KB KiB "<K" ">K" "/K" "%K"; do printf "%1500s" "" > file; truncate -s "$size" file; printf "%s:" "$size"; stat -c "%s" file; done'
 run_case files-truncate-size-overflow 0 exact 'printf keep > file; rc=0; truncate -s -9223372036854775808K file 2>/dev/null || rc=$?; printf "status=%s\n" "$rc"; cat file; printf "\n"; truncate -s -9007199254740992K file; stat -c "%s" file'
 run_case files-remove 0 exact 'mkdir -p private/sub; touch private/sub/file; rm private/sub/file; rmdir private/sub private; [[ ! -e private ]]; printf removed'
 run_case files-dash-name 0 exact 'printf data > ./-n; cat -- -n; cp -- -n copy; rm -- -n; cat copy'

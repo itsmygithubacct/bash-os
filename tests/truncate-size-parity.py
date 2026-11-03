@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Check signed size-unit boundaries against GNU without creating large files."""
+"""Check size-unit parsing and signed boundaries against GNU on small files."""
 import os
 from pathlib import Path
 import subprocess
@@ -22,6 +22,50 @@ checks = 0
 with tempfile.TemporaryDirectory(prefix='truncate-size-') as directory:
     root = Path(directory)
     original = b'keep\0these bytes\n'
+
+    def compare_unit(size, initial=None, no_create=False, reference=False):
+        global checks
+        results = []
+        for candidate in [False, True]:
+            file = root/'file'
+            file.unlink(missing_ok=True)
+            if initial is not None:
+                file.write_bytes(b'x'*initial)
+            argv = ['-s', size]
+            if no_create:
+                argv.append('-c')
+            if reference:
+                (root/'reference').write_bytes(b'x'*1500)
+                argv += ['-r', 'reference']
+            argv.append('file')
+            command = ([binary, '-c', prefix+'truncate "$@"', '_', *argv] if candidate
+                       else ['/usr/bin/truncate', *argv])
+            p = subprocess.run(command, cwd=root, env=env if candidate else {'LC_ALL': 'C'},
+                               capture_output=True, timeout=10)
+            assert b'runtime error:' not in p.stderr and b'AddressSanitizer' not in p.stderr, p.stderr
+            assert not file.exists() or file.stat().st_size <= 2048, size
+            results.append((p.returncode, p.stdout, bool(p.stderr),
+                            file.read_bytes() if file.exists() else None))
+        assert results[0] == results[1], (size, initial, no_create, reference, results)
+        checks += 1
+
+    for unit in ['K', 'KB', 'KiB', 'kB']:
+        for modifier in ['', '<', '>', '/', '%']:
+            for initial in [None, 7, 1500]:
+                compare_unit(modifier+unit, initial)
+            compare_unit(' '+modifier+' '+unit, 1500)
+            compare_unit(modifier+unit, 7, reference=True)
+    # Validate larger units with -c and a missing operand: never allocate a
+    # large sparse file merely to test the parser.
+    for unit in units:
+        if unit:
+            for modifier in ['', '<', '>', '/', '%']:
+                compare_unit(modifier+unit, no_create=True)
+    for size in ['', ' ', '+K', '-K', '+ K', '>+K', '/-K', 'K ', 'Ki', 'KIB',
+                 '<', '>', '/', '%', 'c', 'b', 'junk']:
+        for initial in [None, 7]:
+            compare_unit(size, initial)
+
     for suffix, multiplier in units.items():
         lower = -((-minimum)//multiplier)
         upper = maximum//multiplier

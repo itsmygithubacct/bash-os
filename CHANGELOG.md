@@ -9,6 +9,9 @@ The release gate requires every recorded FAIL to be fixed and every required
 static and dynamic qualification case to PASS. This target is not yet met;
 the historical 0.1.3 evidence remains available separately.
 
+- `truncate` accepts unit-only sizes such as `K` and `KB`, including
+  minimum, maximum, and rounding modifiers, while rejecting signed forms
+  without digits.
 - `truncate` rejects overflowing negative size multipliers without negating
   the minimum signed integer, while accepting exact minimum-value products.
 - Added 20 Docker parity cases for binary records, stream boundaries, command

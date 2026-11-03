@@ -72,8 +72,9 @@ bt_suffix_mult (const char *suf)
 }
 
 /* Parse a SIZE operand: an optional leading relational modifier followed by a
-   signed/unsigned integer with an optional suffix. On success sets *mode and
-   *mag (the magnitude; signed for +/-). Returns 0, or -1 on a bad number. */
+   signed/unsigned integer with an optional suffix, or a unit meaning one.
+   On success sets *mode and *mag (the magnitude; signed for +/-).
+   Returns 0, or -1 on a bad number. */
 static int
 bt_parse_size (const char *s, bt_relmode *mode, long long *mag)
 {
@@ -91,11 +92,17 @@ bt_parse_size (const char *s, bt_relmode *mode, long long *mag)
     char *end = NULL;
     errno = 0;
     long long n = strtoll (s, &end, 10);
-    if (end == s || errno)
+    if (errno)
         return -1;
-
+    int implicit_one = end == s;
+    if (implicit_one) {
+        while (isspace ((unsigned char) *end)) end++;
+        n = 1;
+    }
     long long mult = bt_suffix_mult (end);
-    if (mult == 0)
+    /* Empty input and bare `c` are not units with an implicit count.
+       Signs still require digits: "+K" and "-K" cannot match a suffix. */
+    if (mult == 0 || (implicit_one && mult == 1))
         return -1;
     if (mult > 1) {
         /* Check both signed bounds without negating LLONG_MIN. Its
@@ -308,6 +315,7 @@ char *truncate_doc[] = {
     "                        /N round down to multiple   %N round up to multiple",
     "                      SIZE suffixes: K/KiB=1024, kB/KB=1000, M/MB, G/GB,",
     "                      T, P (lowercase k/m/g/t accepted; c = bytes)",
+    "                      A unit alone means one, including <, >, /, % modes",
     "    -c, --no-create   do not create FILE if it is missing",
     "    -o, --io-blocks   treat SIZE as a number of IO blocks instead of bytes",
     "    -r, --reference REF   base the size on REF (with -s, relative to REF)",

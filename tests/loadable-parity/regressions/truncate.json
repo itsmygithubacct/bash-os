@@ -9,7 +9,8 @@
     "At-most, at-least, round-down, and round-up size modifiers",
     "GNU decimal/binary suffixes and I/O block sizing",
     "Reference-file sizing, no-create behavior, overflow preservation, invalid-size status, and multi-operand error continuation",
-    "Signed unit-multiplication boundaries: reject overflow before touching files and accept an exact minimum signed product."
+    "Signed unit-multiplication boundaries: reject overflow before touching files and accept an exact minimum signed product.",
+    "Implicit unit counts, decimal and binary units, rounding/reference modes, and rejection of signs without digits."
   ],
   "exclusions": [
     "Block-special-file behavior is deferred because it requires a disposable VM with a safely created loop-backed device; no host device path is used.",
@@ -172,6 +173,50 @@
       "script": "printf keep > file\ntruncate -s -9007199254740992K file",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "implicit-unit-sizes",
+      "kind": "parity",
+      "purpose": "Compare implicit unit parsing and file effects with GNU on small fixtures.",
+      "requires": [
+        "truncate"
+      ],
+      "script": "printf '%1500s' '' > file\ntruncate -s K file\ntruncate -s KB file\ntruncate -s KiB created",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "implicit-unit-rounding",
+      "kind": "parity",
+      "purpose": "Compare implicit unit parsing and file effects with GNU on small fixtures.",
+      "requires": [
+        "truncate"
+      ],
+      "script": "printf '%1500s' '' > down\nprintf '%1500s' '' > up\ntruncate -s /K down\ntruncate -s %K up",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "implicit-unit-reference",
+      "kind": "parity",
+      "purpose": "Compare implicit unit parsing and file effects with GNU on small fixtures.",
+      "requires": [
+        "truncate"
+      ],
+      "script": "printf '%1500s' '' > reference\nprintf x > file\ntruncate -r reference -s '% KB' file",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "signed-unit-without-count",
+      "kind": "parity",
+      "purpose": "Compare implicit unit parsing and file effects with GNU on small fixtures.",
+      "requires": [
+        "truncate"
+      ],
+      "script": "printf keep > file\ntruncate -s +K file",
+      "expected_status": 1,
+      "stderr": "nonempty"
     }
   ]
 }
