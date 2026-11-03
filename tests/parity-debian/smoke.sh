@@ -3,7 +3,7 @@
 # Run as a nonroot user inside the Debian reference image.
 set -euo pipefail
 [[ $(id -u) != 0 ]]
-[[ $BASH_VERSION == 5.3.15* ]]
+[[ $BASH_VERSION == 5.3.20* ]]
 [[ $(type -t ls) == file ]]
 [[ -w /work ]]
 cd "$(mktemp -d)"

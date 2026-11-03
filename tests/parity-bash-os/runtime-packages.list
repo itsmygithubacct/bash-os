@@ -1,0 +1,14 @@
+# Runtime libraries and data; command implementations come from bash-os.
+ca-certificates
+fontconfig-config
+fonts-dejavu-core
+libegl-mesa0
+libegl1
+libgbm1
+libgl1-mesa-dri
+libgles2
+libglx-mesa0
+locales
+ncurses-base
+ncurses-term
+tzdata

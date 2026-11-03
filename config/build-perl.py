@@ -153,7 +153,27 @@ def main():
                     if not original.is_file():
                         raise RuntimeError(f'missing static extension: {original}')
                 adapted = install/relative_core/(module.replace('/', '_')+'-bashperl.a')
-                subprocess.run([objcopy, *remap, str(original), str(adapted)], check=True)
+                module_remap = list(remap)
+                if module in ('Compress/Raw/Bzip2', 'Compress/Raw/Zlib'):
+                    # These XS archives include their own compression library.
+                    # Whole-archive linking otherwise collides with the full
+                    # profile's libbz2/libz (including zlib's unprefixed helpers).
+                    # Keep the XS bootstrap and Perl-prefixed API names; give
+                    # the remaining definitions and references a private name.
+                    nm = shutil.which(os.environ.get('NM', 'nm'))
+                    if not nm:
+                        raise RuntimeError('nm is required for compression archive isolation')
+                    symbols = subprocess.check_output(
+                        [nm, '-g', '--defined-only', '-P', str(original)], text=True)
+                    for line in symbols.splitlines():
+                        fields = line.split()
+                        if len(fields) < 2 or len(fields[1]) != 1:
+                            continue  # archive member heading
+                        name = fields[0]
+                        if name.startswith(('boot_', 'Perl_')):
+                            continue
+                        module_remap.append(f'--redefine-sym={name}=bos_perl_compress_{name}')
+                subprocess.run([objcopy, *module_remap, str(original), str(adapted)], check=True)
                 archives.append(adapted)
                 extra = auto/'extralibs.ld'
                 if extra.exists():

@@ -1,0 +1,50 @@
+# Source-built bash-os counterpart to Dockerfile.parity.
+ARG DEBIAN_IMAGE=debian:trixie-20261027-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4
+FROM ${DEBIAN_IMAGE} AS build
+ARG DEBIAN_SNAPSHOT=20261102T000000Z
+ARG BUILD_JOBS=4
+COPY tests/parity-debian/apt-snapshot.sh /usr/local/sbin/parity-apt-snapshot
+RUN /bin/sh /usr/local/sbin/parity-apt-snapshot "$DEBIAN_SNAPSHOT" && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      autoconf automake bison build-essential ca-certificates cmake curl \
+      libcrypt-dev libncurses-dev libtool ninja-build patch perl pkgconf python3 && \
+    rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY VERSION LICENSE build.sh build-deps.sh build-perl.sh build-python.sh ./
+COPY config/ ./config/
+COPY patches/ ./patches/
+COPY loadables/ ./loadables/
+COPY tests/parity-bash-os/prepare-runtimes.sh ./tests/parity-bash-os/prepare-runtimes.sh
+RUN /bin/bash tests/parity-bash-os/prepare-runtimes.sh "$BUILD_JOBS"
+COPY tests/parity-bash-os/build-candidate.sh ./tests/parity-bash-os/build-candidate.sh
+RUN /bin/bash tests/parity-bash-os/build-candidate.sh "$BUILD_JOBS"
+COPY Dockerfile.parity-bash-os ./Dockerfile.parity-bash-os
+COPY docs/PROVENANCE.md docs/sol-sed-regex-LGPL-2.1.txt ./docs/
+COPY tests/parity-bash-os/ ./tests/parity-bash-os/
+RUN python3 tests/parity-bash-os/stage-candidate.py
+
+FROM ${DEBIAN_IMAGE} AS runtime-libraries
+ARG DEBIAN_SNAPSHOT=20261102T000000Z
+COPY tests/parity-debian/apt-snapshot.sh /usr/local/sbin/parity-apt-snapshot
+COPY tests/parity-bash-os/runtime-packages.list /tmp/runtime-packages.list
+COPY tests/parity-bash-os/stage-libraries.sh /tmp/stage-libraries.sh
+RUN /bin/sh /usr/local/sbin/parity-apt-snapshot "$DEBIAN_SNAPSHOT" && \
+    apt-get update && \
+    sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' /tmp/runtime-packages.list | \
+      xargs env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends && \
+    localedef -i en_US -f UTF-8 en_US.UTF-8 && \
+    /bin/sh /tmp/stage-libraries.sh
+
+FROM scratch
+LABEL org.opencontainers.image.title="bash-os parity candidate" \
+      org.opencontainers.image.description="Full bash-os builtins with optional Perl, Python, uv and supporting runtime libraries"
+COPY --from=runtime-libraries /image/ /
+COPY --from=build /image/ /
+ENV PATH=/usr/lib/bash-os/bin HOME=/tmp LANG=C LC_ALL=C TZ=UTC \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt SSL_CERT_DIR=/etc/ssl/certs \
+    UV_PYTHON_DOWNLOADS=never
+WORKDIR /work
+USER 2000:2000
+RUN ["/bin/bash-os", "--noprofile", "--norc", "/usr/share/bash-os/inventory.sh"]
+ENTRYPOINT ["/bin/bash-os", "--noprofile", "--norc"]

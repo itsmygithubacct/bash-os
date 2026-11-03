@@ -130,6 +130,21 @@ and independent language APIs. Every catalog entry has an explicit reference
 mapping. Custom project interfaces retain their contract requirements. The
 image records installed versions and does not establish behavioral parity.
 
+Build the corresponding bash-os image from source, including every standard
+and optional loadable:
+
+```sh
+docker build -f Dockerfile.parity-bash-os -t bash-os:parity-bash-os .
+docker run --rm bash-os:parity-bash-os /usr/share/bash-os/inventory.sh
+docker image inspect bash-os:parity-debian bash-os:parity-bash-os --format '{{index .RepoTags 0}} {{.Size}}'
+```
+
+This image starts from `scratch`, with the full static binary, embedded Perl
+and Python runtime data, uv, and the shared libraries and data needed by optional
+rendering and system interfaces. Its default user is numeric ID 2000. The
+[paired-image workflow](docs/parity-debian.md#paired-bash-os-image) describes
+the command path, runtime inventory and fixture requirements.
+
 Build a minimal local image from the static binary:
 
 ```sh

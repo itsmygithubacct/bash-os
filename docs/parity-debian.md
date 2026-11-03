@@ -89,6 +89,52 @@ no host paths by default. It contains no bash-os candidate, account secrets or
 project authority module. The existing scratch `Dockerfile` remains available
 for running the actual static binary.
 
+## Paired bash-os image
+
+`Dockerfile.parity-bash-os` builds the corresponding candidate directly from
+the checked-out source. Both images use the pinned Bash 5.3.20 source for
+0.1.4 development. It uses the same Debian base digest and signed package
+snapshot during compilation and runtime-library preparation, then assembles a
+`scratch` image with the full static binary and all optional integrations:
+
+```sh
+docker build -f Dockerfile.parity-bash-os -t bash-os:parity-bash-os .
+docker run --rm bash-os:parity-bash-os /usr/share/bash-os/inventory.sh
+docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
+  bash-os:parity-bash-os /usr/share/bash-os/smoke.sh
+docker run --rm bash-os:parity-bash-os -c 'type ls; printf "a\nb\n" | grep b'
+docker image inspect bash-os:parity-debian bash-os:parity-bash-os --format '{{index .RepoTags 0}} {{.Size}}'
+```
+
+`BUILD_JOBS` controls compilation. Perl and Python come from the project's
+`config/perl.json` and `config/python.json` pins; uv uses the same upstream
+artifact as the reference image. Their versions are recorded, so a fixture can
+account for differences from Debian's packaged interpreters. Python and Perl
+standard-library data are kept at the prefixes embedded in the binary.
+Certificates, timezone/locale/terminfo data, fonts and Mesa EGL/GLES libraries
+support the corresponding loadable interfaces. Kernel devices and authority
+services remain properties of the external test environment.
+
+The default user is `2000:2000`, the working directory is writable `/work`, and
+`HOME=/tmp`. `/bin/bash` and `/bin/sh` select bash-os. Its `PATH` contains only
+the bash-os shell launchers; command implementations are the compiled builtins.
+The build checks every selected catalog name with `type -t` and verifies that
+disabling `ls` does not expose an external implementation through `PATH`.
+Peer programs or fixture helpers should be supplied explicitly at known paths.
+The Debian image can be run with `--user 2000:2000` for matching user IDs.
+
+`/usr/share/bash-os/build.json` records the binary size/hash, source input
+hashes, architecture, version and selected loadables. `inventory.sh` checks
+the complete catalog and the optional interpreter/runtime data as a nonroot
+user. `runtime-packages.tsv` identifies the Debian packages from which shared
+libraries/data were staged; it is provenance for those providers, not a package
+database for the scratch image. The nonroot smoke check exercises file/text
+builtins, compression exchange between Perl/Python/bash-os, SQLite, certificates,
+timezones and loading the graphics libraries. These checks establish
+build/runtime availability.
+Behavioral parity requires the actual fixtures on each image, with controlled
+accounts, files, peers and runtime capabilities.
+
 Containers share the host kernel. Tools being installed does not supply
 `CONFIG_UCLAMP_TASK`, kernel audit/keyring/module support, the project authority
 device, real GPU/RTC/serial hardware or the privileges needed by those tests.

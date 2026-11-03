@@ -9,9 +9,15 @@ The release gate requires every recorded FAIL to be fixed and every required
 static and dynamic qualification case to PASS. This target is not yet met;
 the historical 0.1.3 evidence remains available separately.
 
+- Updated the pinned Bash source to 5.3.20 (official patches 001–020).
 - Added a Debian parity-reference Dockerfile with the full loadable scope,
   optional integrations, pinned stock Bash and uv, and a checked reference
   inventory that records Debian package versions and custom-interface limits.
+- Isolated embedded Perl compression symbols so full static builds can include
+  Perl alongside the compression builtins and Python.
+- Added the corresponding source-built bash-os image with the full catalog,
+  optional Perl/Python/uv integrations, runtime library/data staging, and a
+  nonroot check of builtin selection and interpreter availability.
 
 ## 0.1.3 — 2026-11-01
 
