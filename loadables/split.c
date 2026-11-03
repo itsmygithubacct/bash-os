@@ -6,7 +6,8 @@
  * Splits INPUT (or stdin) into pieces named PREFIX{aa,ab,ac,...}.
  * Default: -l 1000 lines per piece, -a 2 (suffix length), PREFIX=x.
  *
- * SIZE accepts POSIX suffixes: c (1), k (1024), m (1024^2), g (1024^3).
+ * SIZE accepts GNU byte units: b (512), K..Q (powers of 1024),
+ * KB..QB (powers of 1000), and KiB..QiB (powers of 1024).
  *
  * --- LICENSE --- MIT, same boilerplate as binhex.c.
  */
@@ -23,28 +24,59 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <limits.h>
+#include <inttypes.h>
 #include <sys/stat.h>
 
 #include "loadables.h"
 
 static long long
-bs_parsenumber (const char *s, int suffix)
+bs_parse_count (const char *s)
 {
     char *end;
     errno = 0;
     long long n = strtoll (s, &end, 10);
     if (errno == ERANGE || end == s || n <= 0) return -1;
-    if (*end == '\0') return n;
-    if (!suffix || end[1]) return -1;
-    long long factor;
-    switch (*end) {
-        case 'c':               factor = 1; break;
-        case 'k': case 'K':     factor = 1024; break;
-        case 'm': case 'M':     factor = 1024LL * 1024; break;
-        case 'g': case 'G':     factor = 1024LL * 1024 * 1024; break;
-        default:                return -1;
+    return *end == '\0' ? n : -1;
+}
+
+static int
+bs_parse_size (const char *s, uintmax_t *size)
+{
+    const char *number = s;
+    char *end;
+    while (isspace ((unsigned char) *number)) number++;
+    if (*number == '-') return -1;
+    errno = 0;
+    uintmax_t n = strtoumax (s, &end, 10);
+    if (end == s) {
+        /* A unit by itself means one; whitespace/signs still need digits. */
+        if (!*s || !strchr ("bkmKMGTPEZYRQ", *s)) return -1;
+        n = 1;
+    } else if (errno && errno != ERANGE) {
+        return -1;
     }
-    return n > LLONG_MAX / factor ? -1 : n * factor;
+    if (!n) return -1;
+
+    unsigned int power = 0;
+    uintmax_t base = 1024;
+    if (*end == 'b' && end[1] == '\0') {
+        base = 512;
+        power = 1;
+    } else if (*end) {
+        const char *units = "KMGTPEZYRQ";
+        int unit = *end == 'k' ? 'K' : *end == 'm' ? 'M' : *end;
+        const char *position = strchr (units, unit);
+        if (!position) return -1;
+        power = (unsigned int) (position - units) + 1;
+        end++;
+        if (!strcmp (end, "B")) base = 1000;
+        else if (*end && strcmp (end, "iB")) return -1;
+    }
+    /* GNU accepts overflowing sizes as an unbounded chunk. Saturation keeps
+       the streaming counters unsigned and never wraps a large size to zero. */
+    while (power--) n = n > UINTMAX_MAX / base ? UINTMAX_MAX : n * base;
+    *size = n;
+    return 0;
 }
 
 /* Compose PREFIX + suffix-of-length-suflen from `index`. Suffix is all
@@ -129,7 +161,7 @@ int
 split_builtin (WORD_LIST *list)
 {
     long line_chunk = 1000;     /* -l N default */
-    long long byte_chunk = 0;   /* -b SIZE; 0 = use lines */
+    uintmax_t byte_chunk = 0;   /* -b SIZE; 0 = use lines */
     int suflen = 2;             /* -a */
     const char *prefix = "x";
     const char *input = NULL;
@@ -140,7 +172,7 @@ split_builtin (WORD_LIST *list)
         if (!strcmp (w, "-l") || !strncmp (w, "-l", 2)) {
             const char *v = w[2] ? w + 2 : (list = list->next, list ? list->word->word : NULL);
             if (!v) { builtin_error ("-l needs N"); builtin_usage (); return EXECUTION_FAILURE; }
-            long long value = bs_parsenumber (v, 0);
+            long long value = bs_parse_count (v);
             if (value <= 0 || value > LONG_MAX) {
                 builtin_error ("-l: invalid line count: %s", v);
                 builtin_usage ();
@@ -154,15 +186,14 @@ split_builtin (WORD_LIST *list)
         if (!strcmp (w, "-b") || !strncmp (w, "-b", 2)) {
             const char *v = w[2] ? w + 2 : (list = list->next, list ? list->word->word : NULL);
             if (!v) { builtin_error ("-b needs SIZE"); builtin_usage (); return EXECUTION_FAILURE; }
-            byte_chunk = bs_parsenumber (v, 1);
-            if (byte_chunk <= 0) { builtin_error ("-b: bad SIZE: %s", v); builtin_usage (); return EXECUTION_FAILURE; }
+            if (bs_parse_size (v, &byte_chunk) < 0) { builtin_error ("-b: bad SIZE: %s", v); builtin_usage (); return EXECUTION_FAILURE; }
             list = list->next;
             continue;
         }
         if (!strcmp (w, "-a") || !strncmp (w, "-a", 2)) {
             const char *v = w[2] ? w + 2 : (list = list->next, list ? list->word->word : NULL);
             if (!v) { builtin_error ("-a needs SUFLEN"); builtin_usage (); return EXECUTION_FAILURE; }
-            long long value = bs_parsenumber (v, 0);
+            long long value = bs_parse_count (v);
             if (value < 1 || value > 6) { builtin_error ("-a: SUFLEN must be in 1..6"); builtin_usage (); return EXECUTION_FAILURE; }
             suflen = (int) value;
             list = list->next;
@@ -202,7 +233,7 @@ split_builtin (WORD_LIST *list)
     if (byte_chunk > 0) {
         /* Byte-based splitting. */
         unsigned char buf[8192];
-        long long left_in_chunk = 0;
+        uintmax_t left_in_chunk = 0;
         FILE *fout = NULL;
         for (;;) {
             /* Read BEFORE opening the next output file. GNU split never
@@ -210,8 +241,8 @@ split_builtin (WORD_LIST *list)
                have a byte to put in it, so an empty input (or an input whose
                size is an exact multiple of the chunk) produces no spurious
                zero-length file. */
-            long long cap_chunk = (left_in_chunk > 0) ? left_in_chunk : byte_chunk;
-            size_t want = ((long long) sizeof buf > cap_chunk) ? (size_t) cap_chunk : sizeof buf;
+            uintmax_t cap_chunk = (left_in_chunk > 0) ? left_in_chunk : byte_chunk;
+            size_t want = sizeof buf > cap_chunk ? (size_t) cap_chunk : sizeof buf;
             size_t r = fread (buf, 1, want, fin);
             if (r == 0) break;
             if (fout == NULL) {
@@ -232,7 +263,7 @@ split_builtin (WORD_LIST *list)
                 rc = EXECUTION_FAILURE;
                 break;
             }
-            left_in_chunk -= (long long) r;
+            left_in_chunk -= r;
             if (left_in_chunk == 0) {
                 int failed = bs_close_output (fout, namebuf);
                 fout = NULL;
@@ -297,7 +328,8 @@ char *split_doc[] = {
     "    split [-l N | -b SIZE] [-a SUFLEN] [INPUT [PREFIX]]",
     "",
     "    -l N        N lines per piece (default 1000)",
-    "    -b SIZE     SIZE bytes per piece. SIZE accepts c/k/m/g suffixes",
+    "    -b SIZE     SIZE bytes per piece; b=512, K=1024, KB=1000, KiB=1024",
+    "                Units K, M, G, T, P, E, Z, Y, R, Q; k/m also accepted",
     "    -a SUFLEN   suffix length (default 2 → aa..zz, max 26^2 = 676)",
     "",
     "INPUT defaults to stdin (or `-`). Output files are named",

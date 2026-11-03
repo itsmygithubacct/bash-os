@@ -7,6 +7,7 @@
     "Line chunk boundaries, a one-character suffix, and an unterminated final record",
     "Byte chunk boundaries over NUL and high-bit bytes, including an exact multiple with no empty trailing piece",
     "The 1k byte-size suffix at the 1024-byte boundary",
+    "Decimal KB versus binary KiB units, implicit unit counts, and overflowing byte sizes",
     "Two redirected stdin invocations in one shell",
     "Truncation of an existing piece and umask-derived modes for a new piece",
     "An output-path directory obstruction",
@@ -106,6 +107,28 @@
       ],
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "decimal_binary_units",
+      "kind": "parity",
+      "purpose": "Decimal and IEC units produce different chunk boundaries and work in repeated invocations.",
+      "script": "printf '%2050s' '' > input; split -b 1KB input decimal_; split -b1KiB input binary_; split -b KB input implicit_",
+      "requires": [
+        "split"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "large_byte_sizes",
+      "kind": "parity",
+      "purpose": "Byte sizes beyond the integer limit remain valid and preserve the entire input.",
+      "script": "printf 'large size, small input' > input; split -b 18446744073709551616 input integer_; split -b 1QB input unit_",
+      "requires": [
+        "split"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
     },
     {
       "id": "type_metadata",

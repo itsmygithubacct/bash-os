@@ -123,6 +123,7 @@ run_case text-paste 0 exact 'printf "a\nb\n" > a; printf "1\n2\n" > b; paste -d:
 run_case text-join 0 exact 'printf "1 alpha\n2 beta\n" > a; printf "1 A\n3 C\n" > b; join -a1 a b'
 run_case text-comm 0 exact 'printf "a\nb\n" > a; printf "b\nc\n" > b; comm a b'
 run_case text-split 0 exact 'printf "a\nb\nc\n" > data; split -l 2 data chunk_; cat chunk_aa chunk_ab'
+run_case text-split-units 0 exact 'printf "%2050s" "" > data; split -b 1KB data decimal_; split -b1KiB data binary_; stat -c "%n %s" decimal_aa decimal_ab decimal_ac binary_aa binary_ab binary_ac'
 run_case text-csplit 0 exact 'printf "a\nb\nc\n" > data; csplit -s data 3; cat xx00 xx01'
 run_case text-fold 0 exact 'printf "abcdefghij\n" | fold -w 4'
 run_case text-expand 0 exact 'printf "a\tb\n" | expand -t 4'

@@ -103,16 +103,57 @@ class SplitSafety(unittest.TestCase):
         self.assertEqual(source.read_bytes(), b"abcdef")
 
     def test_invalid_sizes_are_rejected_before_any_output(self):
-        cases = [("-l", "1junk"), ("-l", "999999999999999999999999"),
-                 ("-a", "2junk"), ("-a", "4294967298"),
-                 ("-b", "1kjunk"), ("-b", "1cjunk"),
-                 ("-b", "9223372036854775807k"), ("-b", "999999999999999999999999")]
+        cases = [("-l", "1junk"), ("-a", "2junk")]
+        cases += [("-b", size) for size in (
+            "", "0", "0KB", "-1", " -1KB", "1kjunk", "1cjunk", "1c", "1w",
+            "1B", "1g", "1t", "1gB", "1kb", "1KIB", "1Ki", "1 KB", "1KBjunk",
+            " K", "+K", "0x10", "999999999999999999999999garbage")]
         for args in cases:
             with self.subTest(args=args):
+                reference = subprocess.run(
+                    ["/usr/bin/split", *args], input=b"leave intact\n",
+                    capture_output=True, timeout=10, env=ENV, cwd=self.root)
+                self.assertEqual(reference.returncode, 1)
                 result = self.shell('split "$@"', *args, data=b"leave intact\n")
-                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.returncode, reference.returncode)
                 self.assertTrue(result.stderr)
                 self.assertEqual(list(self.root.iterdir()), [])
+
+    def test_count_limits_fail_without_output(self):
+        # These implementation limits are not GNU parity assertions: GNU
+        # accepts larger line counts and suffix lengths than this builtin.
+        for args in (("-l", "999999999999999999999999"), ("-a", "4294967298")):
+            with self.subTest(args=args):
+                result = self.shell('split "$@"', *args, data=b"leave intact\n")
+                self.assertEqual(result.returncode, 1)
+                self.assertTrue(result.stderr)
+                self.assertEqual(list(self.root.iterdir()), [])
+
+    def test_byte_units_and_overflow_match_gnu(self):
+        sizes = ["b", "1b", "K", "KB", "KiB", "+1KB", " 1KB", "01K",
+                 "9223372036854775807k", "18446744073709551615",
+                 "18446744073709551616", "999999999999999999999999",
+                 "999999999999999999999999b", "18014398509481983K",
+                 "18014398509481984K"]
+        sizes += ["1" + unit + suffix for unit in "kmKMGTPEZYRQ"
+                  for suffix in ("", "B", "iB")]
+        for number, size in enumerate(sizes):
+            with self.subTest(size=size):
+                actual = self.root / f"actual-{number}"
+                expected = self.root / f"expected-{number}"
+                actual.mkdir()
+                expected.mkdir()
+                # Cross both decimal and binary boundaries, including MiB.
+                data = bytes(range(256)) * (8193 if size[1:2] in ("M", "m") else 9)
+                args = ("-b" + size,) if number % 2 else ("-b", size)
+                reference = subprocess.run(
+                    ["/usr/bin/split", *args, "-", str(expected / "piece")], input=data,
+                    capture_output=True, timeout=10, env=ENV)
+                result = self.shell('split "$@"', *args, "-", actual / "piece", data=data)
+                self.assertEqual((reference.returncode, reference.stderr), (0, b""))
+                self.assertEqual((result.returncode, result.stderr), (0, b""))
+                self.assertEqual({p.name: p.read_bytes() for p in actual.iterdir()},
+                                 {p.name: p.read_bytes() for p in expected.iterdir()})
 
     def test_long_output_prefix_and_repeated_stdin(self):
         directory = self.root / ("a" * 150) / ("b" * 150)
