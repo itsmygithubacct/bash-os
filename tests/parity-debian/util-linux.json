@@ -1,0 +1,6 @@
+{
+  "version": "2.41.5",
+  "url": "https://snapshot.debian.org/archive/debian/20261102T000000Z/pool/main/u/util-linux/util-linux_2.41.5.orig.tar.xz",
+  "sha256": "f586e35d320ff537aab3ffeca37e9ecd482ccbe013590db4429a414d8aa6a728",
+  "programs": ["write", "utmpdump"]
+}

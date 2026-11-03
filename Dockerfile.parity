@@ -1,0 +1,57 @@
+# Debian reference userland for the full loadable catalog and optional integrations.
+# Build from the repository root: docker build -f Dockerfile.parity -t bash-os:parity-debian .
+ARG DEBIAN_IMAGE=debian:trixie-20261027-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4
+FROM ${DEBIAN_IMAGE} AS reference-build
+ARG DEBIAN_SNAPSHOT=20261102T000000Z
+ARG BUILD_JOBS=2
+COPY tests/parity-debian/apt-snapshot.sh /usr/local/sbin/parity-apt-snapshot
+RUN /bin/sh /usr/local/sbin/parity-apt-snapshot "$DEBIAN_SNAPSHOT" && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      build-essential ca-certificates curl libncurses-dev patch python3 && \
+    rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+COPY config/versions.sh config/uv.json config/fetch-uv.py /build/config/
+COPY tests/parity-debian/build-reference.sh /build/build-reference.sh
+COPY tests/parity-debian/util-linux.json /build/util-linux.json
+RUN /bin/bash /build/build-reference.sh "$BUILD_JOBS"
+
+FROM ${DEBIAN_IMAGE}
+ARG DEBIAN_SNAPSHOT=20261102T000000Z
+LABEL org.opencontainers.image.title="bash-os Debian parity references" \
+      org.opencontainers.image.description="Independent Debian tools and API references for the complete bash-os loadable catalog"
+ENV PATH=/opt/bash-reference/bin:/opt/util-linux-reference/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games \
+    MANPATH=/opt/bash-reference/share/man:/opt/util-linux-reference/share/man: \
+    LANG=C LC_ALL=C TZ=UTC HOME=/tmp \
+    UV_PYTHON_DOWNLOADS=never
+COPY tests/parity-debian/apt-snapshot.sh /usr/local/sbin/parity-apt-snapshot
+COPY tests/parity-debian/packages.list /opt/bash-os-parity/tests/parity-debian/packages.list
+# Keep manual pages (including those of dependencies) for man/apropos/whatis.
+# policy-rc.d prevents package installation from starting services.
+RUN /bin/sh /usr/local/sbin/parity-apt-snapshot "$DEBIAN_SNAPSHOT" && \
+    rm -f /etc/dpkg/dpkg.cfg.d/docker && \
+    printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d && \
+    chmod 0755 /usr/sbin/policy-rc.d && \
+    apt-get update && \
+    sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' /opt/bash-os-parity/tests/parity-debian/packages.list | \
+      xargs env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --reinstall && \
+    localedef -i en_US -f UTF-8 en_US.UTF-8 && \
+    mandb -q && \
+    rm -f /etc/ssh/ssh_host_* && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /work
+COPY --from=reference-build /opt/bash-reference/ /opt/bash-reference/
+COPY --from=reference-build /opt/util-linux-reference/ /opt/util-linux-reference/
+COPY --from=reference-build /opt/uv-reference/libexec/uv/uv /usr/local/bin/uv
+COPY config/bash-loadables.list config/bash-loadables-optional.list config/loadables.py config/versions.sh config/uv.json /opt/bash-os-parity/config/
+COPY tests/parity-debian/references.json tests/parity-debian/inventory.py tests/parity-debian/util-linux.json /opt/bash-os-parity/tests/parity-debian/
+RUN chmod -R a+rX /opt/bash-os-parity && \
+    chmod 1777 /work && \
+    chgrp tty /opt/util-linux-reference/bin/write && \
+    chmod 2755 /opt/util-linux-reference/bin/write && \
+    mandb -q && \
+    chmod 0755 /opt/bash-os-parity/tests/parity-debian/inventory.py && \
+    ln -s /opt/bash-os-parity/tests/parity-debian/inventory.py /usr/local/bin/parity-reference-inventory && \
+    parity-reference-inventory --check-image > /opt/bash-os-parity/inventory.json
+WORKDIR /work
+ENTRYPOINT ["/opt/bash-reference/bin/bash", "--noprofile", "--norc"]

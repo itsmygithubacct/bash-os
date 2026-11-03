@@ -3,6 +3,16 @@
 All notable changes to bash-os are recorded here. Versions follow
 [semantic versioning](https://semver.org/); `VERSION` holds the current one.
 
+## 0.1.4 — Unreleased
+
+The release gate requires every recorded FAIL to be fixed and every required
+static and dynamic qualification case to PASS. This target is not yet met;
+the historical 0.1.3 evidence remains available separately.
+
+- Added a Debian parity-reference Dockerfile with the full loadable scope,
+  optional integrations, pinned stock Bash and uv, and a checked reference
+  inventory that records Debian package versions and custom-interface limits.
+
 ## 0.1.3 — 2026-11-01
 
 - Added a disposable KVM test environment with pinned reference Bash, isolated

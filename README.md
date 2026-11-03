@@ -115,6 +115,21 @@ raw-history contract. Both commands are included in `desktop` and `full`.
 
 ## Docker
 
+Build a Debian reference userland covering the full loadable catalog, including
+the optional Perl, Python and uv integrations, for parity testing:
+
+```sh
+docker build -f Dockerfile.parity -t bash-os:parity-debian .
+docker run --rm bash-os:parity-debian -c 'ls --version; jq --version; uv --version'
+docker run --rm bash-os:parity-debian -c 'parity-reference-inventory --check-image' > reference-inventory.json
+```
+
+The [Debian parity image](docs/parity-debian.md) includes GNU tools, networking
+and service counterparts, security tools, editors, terminal/graphics libraries,
+and independent language APIs. Every catalog entry has an explicit reference
+mapping. Custom project interfaces retain their contract requirements. The
+image records installed versions and does not establish behavioral parity.
+
 Build a minimal local image from the static binary:
 
 ```sh

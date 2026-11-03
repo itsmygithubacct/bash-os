@@ -1,0 +1,2323 @@
+{
+  "schema": 1,
+  "claim": "Reference availability and catalog accounting, not a behavioral parity verdict.",
+  "groups": [
+    {
+      "loadables": [
+        "basename",
+        "cat",
+        "chmod",
+        "cut",
+        "dirname",
+        "head",
+        "id",
+        "ln",
+        "logname",
+        "mkdir",
+        "mkfifo",
+        "mktemp",
+        "pathchk",
+        "printenv",
+        "realpath",
+        "rm",
+        "rmdir",
+        "seq",
+        "sleep",
+        "stat",
+        "sync",
+        "tee",
+        "tty",
+        "uname",
+        "unlink",
+        "whoami",
+        "ls",
+        "cp",
+        "mv",
+        "touch",
+        "sort",
+        "tail",
+        "wc",
+        "readlink",
+        "dd",
+        "df",
+        "du",
+        "chown",
+        "chgrp",
+        "tr",
+        "uniq",
+        "nl",
+        "od",
+        "date",
+        "env",
+        "truncate",
+        "fold",
+        "comm",
+        "paste",
+        "nice",
+        "nohup",
+        "link",
+        "expand",
+        "unexpand",
+        "split",
+        "csplit",
+        "join",
+        "pr",
+        "tac",
+        "expr",
+        "who",
+        "timeout",
+        "hostid",
+        "cksum",
+        "base64",
+        "sha256sum"
+      ],
+      "kind": "cli",
+      "packages": [
+        "coreutils"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "blkid",
+        "blockdev",
+        "chrt",
+        "col",
+        "colrm",
+        "column",
+        "dmesg",
+        "fdisk",
+        "fincore",
+        "flock",
+        "fsfreeze",
+        "fstrim",
+        "hwclock",
+        "ionice",
+        "ipcmk",
+        "losetup",
+        "lsblk",
+        "mkswap",
+        "more",
+        "prlimit",
+        "renice",
+        "rev",
+        "script",
+        "setsid",
+        "su",
+        "swapoff",
+        "swapon",
+        "taskset",
+        "uclampset",
+        "wall",
+        "wipefs"
+      ],
+      "kind": "cli",
+      "packages": [
+        "util-linux",
+        "util-linux-extra",
+        "bsdextrautils",
+        "bsdutils",
+        "mount",
+        "fdisk",
+        "login"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "getconf"
+      ],
+      "kind": "cli",
+      "packages": [
+        "libc-bin"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "ps",
+        "free",
+        "pgrep",
+        "pidof",
+        "pkill",
+        "uptime",
+        "w",
+        "top",
+        "slabtop",
+        "vmstat",
+        "sysctl",
+        "watch"
+      ],
+      "kind": "cli",
+      "packages": [
+        "procps"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "killall"
+      ],
+      "kind": "cli",
+      "packages": [
+        "psmisc"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "killall5"
+      ],
+      "kind": "cli",
+      "packages": [
+        "sysvinit-utils"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "find",
+        "xargs"
+      ],
+      "kind": "cli",
+      "packages": [
+        "findutils"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "cmp",
+        "diff"
+      ],
+      "kind": "cli",
+      "packages": [
+        "diffutils"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "grep"
+      ],
+      "kind": "cli",
+      "packages": [
+        "grep"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "sed"
+      ],
+      "kind": "cli",
+      "packages": [
+        "sed"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "awk"
+      ],
+      "kind": "cli",
+      "packages": [
+        "gawk"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture.",
+      "programs": [
+        "awk",
+        "gawk"
+      ]
+    },
+    {
+      "loadables": [
+        "gzip",
+        "zcat"
+      ],
+      "kind": "cli",
+      "packages": [
+        "gzip"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "tar"
+      ],
+      "kind": "cli",
+      "packages": [
+        "tar"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "pax"
+      ],
+      "kind": "cli",
+      "packages": [
+        "pax"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "zstd",
+        "zstdcat"
+      ],
+      "kind": "cli",
+      "packages": [
+        "zstd"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "ar",
+        "strings"
+      ],
+      "kind": "cli",
+      "packages": [
+        "binutils"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "ed"
+      ],
+      "kind": "cli",
+      "packages": [
+        "ed"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "uuencode",
+        "uudecode"
+      ],
+      "kind": "cli",
+      "packages": [
+        "sharutils"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "clear",
+        "tput"
+      ],
+      "kind": "cli",
+      "packages": [
+        "ncurses-bin",
+        "ncurses-term"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "chattr",
+        "lsattr"
+      ],
+      "kind": "cli",
+      "packages": [
+        "e2fsprogs"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "getfacl",
+        "setfacl"
+      ],
+      "kind": "cli",
+      "packages": [
+        "acl"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "hostname"
+      ],
+      "kind": "cli",
+      "packages": [
+        "hostname"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "ip",
+        "ss"
+      ],
+      "kind": "cli",
+      "packages": [
+        "iproute2"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "netstat"
+      ],
+      "kind": "cli",
+      "packages": [
+        "net-tools"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "ping"
+      ],
+      "kind": "cli",
+      "packages": [
+        "iputils-ping"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "lsof"
+      ],
+      "kind": "cli",
+      "packages": [
+        "lsof"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "dmsetup"
+      ],
+      "kind": "cli",
+      "packages": [
+        "dmsetup"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "keyctl"
+      ],
+      "kind": "cli",
+      "packages": [
+        "keyutils"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "curl"
+      ],
+      "kind": "cli",
+      "packages": [
+        "curl"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "sftp",
+        "scp",
+        "ssh"
+      ],
+      "kind": "cli",
+      "packages": [
+        "openssh-client"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "at",
+        "batch"
+      ],
+      "kind": "cli",
+      "packages": [
+        "at"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "crontab"
+      ],
+      "kind": "cli",
+      "packages": [
+        "cron"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "file"
+      ],
+      "kind": "cli",
+      "packages": [
+        "file"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "cal"
+      ],
+      "kind": "cli",
+      "packages": [
+        "ncal"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "man",
+        "apropos",
+        "whatis"
+      ],
+      "kind": "cli",
+      "packages": [
+        "man-db",
+        "manpages"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "less"
+      ],
+      "kind": "cli",
+      "packages": [
+        "less"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "nano"
+      ],
+      "kind": "cli",
+      "packages": [
+        "nano"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "vi"
+      ],
+      "kind": "cli",
+      "packages": [
+        "vim-tiny"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "ncdu"
+      ],
+      "kind": "cli",
+      "packages": [
+        "ncdu"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "dialog"
+      ],
+      "kind": "cli",
+      "packages": [
+        "dialog"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "whiptail"
+      ],
+      "kind": "cli",
+      "packages": [
+        "whiptail"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "jq"
+      ],
+      "kind": "cli",
+      "packages": [
+        "jq"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "bc"
+      ],
+      "kind": "cli",
+      "packages": [
+        "bc"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "git"
+      ],
+      "kind": "cli",
+      "packages": [
+        "git"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "login"
+      ],
+      "kind": "cli",
+      "packages": [
+        "login"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "passwd"
+      ],
+      "kind": "cli",
+      "packages": [
+        "passwd"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "doas"
+      ],
+      "kind": "cli",
+      "packages": [
+        "opendoas"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "sudo"
+      ],
+      "kind": "cli",
+      "packages": [
+        "sudo"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "rsync"
+      ],
+      "kind": "cli",
+      "packages": [
+        "rsync"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "wg"
+      ],
+      "kind": "cli",
+      "packages": [
+        "wireguard-tools"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "uuidgen"
+      ],
+      "kind": "cli",
+      "packages": [
+        "uuid-runtime"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "strace"
+      ],
+      "kind": "cli",
+      "packages": [
+        "strace"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "reboot",
+        "halt",
+        "poweroff"
+      ],
+      "kind": "cli",
+      "packages": [
+        "systemd-sysv"
+      ],
+      "notes": "Installed shutdown interfaces; never invoke these against the container host. Qualification needs a disposable VM."
+    },
+    {
+      "loadables": [
+        "strftime"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "coreutils",
+        "python3"
+      ],
+      "notes": "Adapt GNU date or time.strftime with a fixed format, timestamp, locale and timezone.",
+      "programs": [
+        "date",
+        "python3"
+      ],
+      "python_modules": [
+        "time"
+      ]
+    },
+    {
+      "loadables": [
+        "strptime"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3"
+      ],
+      "notes": "Use datetime.strptime/time.strptime and normalize the documented fields and parse errors.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "datetime",
+        "time"
+      ]
+    },
+    {
+      "loadables": [
+        "fdflags"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3"
+      ],
+      "notes": "fcntl F_GETFD/F_SETFD/F_GETFL/F_SETFL on descriptors owned by the fixture; no matching standalone CLI.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "fcntl",
+        "os"
+      ]
+    },
+    {
+      "loadables": [
+        "finfo"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "coreutils"
+      ],
+      "notes": "Adapt stat fields and readlink output to the loadable attribute API.",
+      "programs": [
+        "stat",
+        "readlink"
+      ]
+    },
+    {
+      "loadables": [
+        "fltexpr"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3",
+        "gawk",
+        "bc"
+      ],
+      "notes": "Select a numeric precision and compare arithmetic values and defined errors.",
+      "programs": [
+        "python3",
+        "gawk",
+        "bc"
+      ],
+      "python_modules": [
+        "math"
+      ]
+    },
+    {
+      "loadables": [
+        "setpgid"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3"
+      ],
+      "notes": "os.setpgid/os.getpgid on a fixture-owned child.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "os"
+      ]
+    },
+    {
+      "loadables": [
+        "bashio"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3",
+        "coreutils"
+      ],
+      "notes": "os.pread/os.pwrite/fdatasync plus GNU sync/touch for matching file operations.",
+      "programs": [
+        "python3",
+        "sync",
+        "touch"
+      ],
+      "python_modules": [
+        "os"
+      ]
+    },
+    {
+      "loadables": [
+        "bashpoll"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3"
+      ],
+      "notes": "Independent Linux epoll/poll/select adapters on private pipes and sockets; shell-local state needs a fixture.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "select",
+        "selectors",
+        "socket"
+      ]
+    },
+    {
+      "loadables": [
+        "bashinotify"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "inotify-tools"
+      ],
+      "notes": "Compare normalized Linux inotify events on private files, with explicit watch lifetimes.",
+      "programs": [
+        "inotifywait",
+        "inotifywatch"
+      ]
+    },
+    {
+      "loadables": [
+        "bashclock"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3",
+        "coreutils"
+      ],
+      "notes": "Clock APIs and absolute/relative sleeps require an adapter and an explicit clock and tolerance.",
+      "programs": [
+        "python3",
+        "sleep"
+      ],
+      "python_modules": [
+        "time"
+      ]
+    },
+    {
+      "loadables": [
+        "bashjson"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "jq"
+      ],
+      "notes": "Adapt the documented query/serialization operations; jq syntax and error reporting differ.",
+      "programs": [
+        "jq"
+      ]
+    },
+    {
+      "loadables": [
+        "binhex"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "xxd",
+        "python3"
+      ],
+      "notes": "Hex encoding and decoding with explicit strictness and output framing.",
+      "programs": [
+        "xxd",
+        "python3"
+      ],
+      "python_modules": [
+        "binascii"
+      ]
+    },
+    {
+      "loadables": [
+        "bashbase64"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "coreutils"
+      ],
+      "notes": "GNU base64 with matching URL alphabet, wrap, padding and invalid-input rules.",
+      "programs": [
+        "base64"
+      ]
+    },
+    {
+      "loadables": [
+        "bashclear"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "ncurses-bin"
+      ],
+      "notes": "ncurses clear for the matching terminal/scrollback mode.",
+      "programs": [
+        "clear"
+      ]
+    },
+    {
+      "loadables": [
+        "bashtermraw"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "coreutils",
+        "ncurses-bin",
+        "python3"
+      ],
+      "notes": "Use a private PTY; compare termios transitions, cursor sequences and input bytes.",
+      "programs": [
+        "stty",
+        "tput",
+        "python3"
+      ],
+      "python_modules": [
+        "termios",
+        "tty",
+        "pty"
+      ]
+    },
+    {
+      "loadables": [
+        "bashkmod"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "kmod"
+      ],
+      "notes": "Kernel/module fixtures require a disposable VM with matching modules; installation alone does not supply a kernel.",
+      "programs": [
+        "modprobe",
+        "insmod",
+        "rmmod",
+        "modinfo",
+        "lsmod"
+      ]
+    },
+    {
+      "loadables": [
+        "bashmount"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "mount",
+        "util-linux"
+      ],
+      "notes": "Mount namespace and filesystem fixtures; normalize the custom verb interface.",
+      "programs": [
+        "mount",
+        "umount",
+        "findmnt",
+        "mountpoint"
+      ]
+    },
+    {
+      "loadables": [
+        "bashlogger"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "bsdutils"
+      ],
+      "notes": "Send to a private syslog receiver and compare framed messages.",
+      "programs": [
+        "logger"
+      ]
+    },
+    {
+      "loadables": [
+        "bashsyslogd"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "rsyslog"
+      ],
+      "notes": "Private socket/configuration and sink; daemon remains stopped until a fixture starts it.",
+      "programs": [
+        "rsyslogd"
+      ]
+    },
+    {
+      "loadables": [
+        "rngseed"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "systemd",
+        "python3"
+      ],
+      "notes": "Seed-file I/O can be compared independently; entropy credit and pool changes require a disposable VM.",
+      "programs": [
+        "/usr/lib/systemd/systemd-random-seed",
+        "python3"
+      ],
+      "python_modules": [
+        "os"
+      ]
+    },
+    {
+      "loadables": [
+        "rtspcat"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "ffmpeg"
+      ],
+      "notes": "Controlled RTSP/RTP stream; normalize access units and timestamps rather than CLI text.",
+      "programs": [
+        "ffmpeg",
+        "ffprobe"
+      ]
+    },
+    {
+      "loadables": [
+        "httpd"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3",
+        "lighttpd"
+      ],
+      "notes": "Private HTTP peer/server; adapt request parsing, connection lifetime and response bytes.",
+      "programs": [
+        "python3",
+        "lighttpd"
+      ],
+      "python_modules": [
+        "http.server"
+      ]
+    },
+    {
+      "loadables": [
+        "bashdhcp",
+        "dhcp6"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "isc-dhcp-client",
+        "dhcpcd-base",
+        "python3-scapy"
+      ],
+      "notes": "DHCPv4/v6 exchanges and packet decoders need a controlled isolated link and peer; client CLIs differ.",
+      "programs": [
+        "dhclient",
+        "dhcpcd",
+        "python3"
+      ],
+      "python_modules": [
+        "scapy.all"
+      ]
+    },
+    {
+      "loadables": [
+        "ipcctl"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "util-linux",
+        "python3"
+      ],
+      "notes": "Adapt Linux System V IPC operations on fixture-owned objects in a disposable VM.",
+      "programs": [
+        "ipcs",
+        "ipcrm",
+        "python3"
+      ],
+      "python_modules": [
+        "ctypes"
+      ]
+    },
+    {
+      "loadables": [
+        "signal"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "procps",
+        "python3"
+      ],
+      "notes": "Normalize signal names/numbers and delivery to an owned child.",
+      "programs": [
+        "kill",
+        "python3"
+      ],
+      "python_modules": [
+        "signal"
+      ]
+    },
+    {
+      "loadables": [
+        "mlock"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3"
+      ],
+      "notes": "libc mlock/munlock through ctypes with explicit limits and faulting policy.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "ctypes",
+        "resource"
+      ]
+    },
+    {
+      "loadables": [
+        "utmp"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "util-linux",
+        "coreutils"
+      ],
+      "notes": "Use private UTMP files; the pinned upstream util-linux utmpdump supplement decodes/encodes records, and GNU who supplies the overlapping query interface.",
+      "programs": [
+        "utmpdump",
+        "who"
+      ]
+    },
+    {
+      "loadables": [
+        "userdb"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "libc-bin"
+      ],
+      "notes": "Controlled passwd/group databases and explicit NSS policy.",
+      "programs": [
+        "getent"
+      ]
+    },
+    {
+      "loadables": [
+        "caps"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "libcap2-bin",
+        "util-linux"
+      ],
+      "notes": "Capability and file-capability semantics in a disposable VM; CLI formats differ.",
+      "programs": [
+        "capsh",
+        "getcap",
+        "setcap",
+        "setpriv"
+      ]
+    },
+    {
+      "loadables": [
+        "cred"
+      ],
+      "kind": "contract-only",
+      "packages": [
+        "python3",
+        "util-linux"
+      ],
+      "notes": "Linux credential fields have independent syscall references; project authority handles and handoff policy have no Debian equivalent. Keep those as explicit contract fixtures.",
+      "programs": [
+        "python3",
+        "setpriv"
+      ],
+      "python_modules": [
+        "os",
+        "ctypes"
+      ]
+    },
+    {
+      "loadables": [
+        "ns"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "util-linux"
+      ],
+      "notes": "Adapt equivalent namespace entry/creation; privileged paths require a disposable VM.",
+      "programs": [
+        "unshare",
+        "nsenter"
+      ]
+    },
+    {
+      "loadables": [
+        "xattr"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "attr"
+      ],
+      "notes": "Match xattr byte values, namespaces, follow-link policy and errors.",
+      "programs": [
+        "getfattr",
+        "setfattr"
+      ]
+    },
+    {
+      "loadables": [
+        "nc"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "netcat-openbsd"
+      ],
+      "notes": "Connect/listen/scan concepts overlap; the bash-os verb CLI needs an adapter.",
+      "programs": [
+        "nc"
+      ]
+    },
+    {
+      "loadables": [
+        "pkt"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3-scapy"
+      ],
+      "notes": "Independent fixed packet encoders/decoders; never transmit on a host interface.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "scapy.all"
+      ]
+    },
+    {
+      "loadables": [
+        "http"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "curl"
+      ],
+      "notes": "Match request/body/headers and connection policy against a private peer.",
+      "programs": [
+        "curl"
+      ]
+    },
+    {
+      "loadables": [
+        "pcap"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "tcpdump"
+      ],
+      "notes": "Fixed capture files or an isolated link; normalize capture API framing and filter output.",
+      "programs": [
+        "tcpdump"
+      ]
+    },
+    {
+      "loadables": [
+        "dhcpd"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "kea-dhcp4-server"
+      ],
+      "notes": "Kea DHCPv4 server on a private isolated link; configurations and lease formats differ.",
+      "programs": [
+        "kea-dhcp4"
+      ]
+    },
+    {
+      "loadables": [
+        "dhcpd6"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "kea-dhcp6-server"
+      ],
+      "notes": "Kea DHCPv6 server on a private isolated link; configurations and lease formats differ.",
+      "programs": [
+        "kea-dhcp6"
+      ]
+    },
+    {
+      "loadables": [
+        "audit"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "auditd"
+      ],
+      "notes": "Independent Linux audit tools; requires the appropriate kernel and a disposable VM for live rules/events.",
+      "programs": [
+        "auditctl",
+        "ausearch",
+        "aureport"
+      ]
+    },
+    {
+      "loadables": [
+        "fail2ban"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "fail2ban"
+      ],
+      "notes": "Private policy/log/firewall fixtures; not a drop-in CLI or state-store equivalent.",
+      "programs": [
+        "fail2ban-client",
+        "fail2ban-server"
+      ]
+    },
+    {
+      "loadables": [
+        "asort"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "gawk"
+      ],
+      "notes": "Adapt gawk asort/asorti to Bash array values and requested index ordering.",
+      "programs": [
+        "gawk"
+      ]
+    },
+    {
+      "loadables": [
+        "totp"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "oathtool"
+      ],
+      "notes": "Fixed public test keys, timestamps, hash and digit counts.",
+      "programs": [
+        "oathtool"
+      ]
+    },
+    {
+      "loadables": [
+        "scrub"
+      ],
+      "kind": "contract-only",
+      "packages": [
+        "python3"
+      ],
+      "notes": "Project text-redaction policy, not a disk eraser. Independently authored redaction vectors are required.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "re"
+      ]
+    },
+    {
+      "loadables": [
+        "bignum"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3",
+        "bc"
+      ],
+      "notes": "Python arbitrary-precision integers; adapt truncating division, shifts and output base.",
+      "programs": [
+        "python3",
+        "bc"
+      ],
+      "python_modules": [
+        "math"
+      ]
+    },
+    {
+      "loadables": [
+        "tz"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "tzdata",
+        "coreutils",
+        "python3"
+      ],
+      "notes": "Independent timezone database and conversion APIs with a fixed timestamp.",
+      "programs": [
+        "date",
+        "python3"
+      ],
+      "python_modules": [
+        "zoneinfo"
+      ]
+    },
+    {
+      "loadables": [
+        "locale"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "libc-bin",
+        "locales",
+        "python3"
+      ],
+      "notes": "Process-locale query/set/validation APIs; C, C.UTF-8 and en_US.UTF-8 are available.",
+      "programs": [
+        "locale",
+        "localedef",
+        "python3"
+      ],
+      "python_modules": [
+        "locale"
+      ]
+    },
+    {
+      "loadables": [
+        "scm"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3"
+      ],
+      "notes": "Unix socket sendmsg/recvmsg and SCM_RIGHTS on private socket pairs.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "socket",
+        "array"
+      ]
+    },
+    {
+      "loadables": [
+        "notify"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "systemd"
+      ],
+      "notes": "A private notification socket; normalize the loadable verbs to sd_notify payloads.",
+      "programs": [
+        "systemd-notify"
+      ]
+    },
+    {
+      "loadables": [
+        "cluster"
+      ],
+      "kind": "contract-only",
+      "packages": [
+        "python3",
+        "openssl"
+      ],
+      "notes": "Project membership/roster protocol has no stock Debian peer. Independently specified authenticated peer and failure fixtures are required.",
+      "programs": [
+        "python3",
+        "openssl"
+      ],
+      "python_modules": [
+        "socket",
+        "json"
+      ]
+    },
+    {
+      "loadables": [
+        "payload",
+        "pkg"
+      ],
+      "kind": "contract-only",
+      "packages": [
+        "dpkg",
+        "xz-utils",
+        "zstd",
+        "python3",
+        "openssl"
+      ],
+      "notes": "Project package/payload formats and repository policy differ from Debian packages. Use independent format/signature fixtures and an explicit project peer/helper.",
+      "programs": [
+        "dpkg-deb",
+        "xz",
+        "zstd",
+        "python3",
+        "openssl"
+      ],
+      "python_modules": [
+        "tarfile",
+        "hashlib"
+      ]
+    },
+    {
+      "loadables": [
+        "fsck",
+        "mkfs"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "e2fsprogs"
+      ],
+      "notes": "Match the ext filesystem version, features and regular-file image; bash-os implements a smaller custom interface.",
+      "programs": [
+        "fsck",
+        "e2fsck",
+        "mkfs",
+        "mke2fs",
+        "dumpe2fs",
+        "debugfs"
+      ]
+    },
+    {
+      "loadables": [
+        "lpr"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "lpr"
+      ],
+      "notes": "Private spool/backend fixtures; submission/list/cancel interfaces differ.",
+      "programs": [
+        "lpr",
+        "lpq",
+        "lprm"
+      ]
+    },
+    {
+      "loadables": [
+        "opt"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "util-linux"
+      ],
+      "notes": "Normalize option tables and parsed values to the shell-local API.",
+      "programs": [
+        "getopt"
+      ]
+    },
+    {
+      "loadables": [
+        "pty",
+        "ptybroker"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3",
+        "socat"
+      ],
+      "notes": "Private PTYs and explicit attach/detach/history models; Debian has no matching ptybroker executable.",
+      "programs": [
+        "python3",
+        "socat"
+      ],
+      "python_modules": [
+        "pty",
+        "termios",
+        "selectors"
+      ]
+    },
+    {
+      "loadables": [
+        "expect"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "expect",
+        "tcl"
+      ],
+      "notes": "Tcl Expect on private children/PTYs with an adapter for the loadable verb interface.",
+      "programs": [
+        "expect",
+        "tclsh"
+      ]
+    },
+    {
+      "loadables": [
+        "termpixel",
+        "termpixel_pong"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3-pil",
+        "chafa"
+      ],
+      "notes": "Independent pixel canvas and encoded terminal bytes; demo input, timing and transport need a fixture.",
+      "programs": [
+        "python3",
+        "chafa"
+      ],
+      "python_modules": [
+        "PIL.Image",
+        "PIL.ImageDraw"
+      ]
+    },
+    {
+      "loadables": [
+        "escdelay",
+        "kgetch",
+        "wgetch",
+        "wget_wch",
+        "mouse"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3",
+        "libncursesw6"
+      ],
+      "notes": "ncurses APIs plus independent ECMA-48/xterm byte vectors. Decoder constants, timeout state and queue API need explicit adapters.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "curses",
+        "termios"
+      ]
+    },
+    {
+      "loadables": [
+        "fifo"
+      ],
+      "kind": "contract-only",
+      "packages": [
+        "python3"
+      ],
+      "notes": "Shell-local in-memory input queue, not a filesystem FIFO. Compare against an independently authored queue model.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "collections"
+      ]
+    },
+    {
+      "loadables": [
+        "buf",
+        "undo",
+        "clip"
+      ],
+      "kind": "contract-only",
+      "packages": [
+        "python3"
+      ],
+      "notes": "Project persistent buffer, undo history and clipboard APIs have no shared CLI. Use an independent byte-buffer/edit-history model.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "collections"
+      ]
+    },
+    {
+      "loadables": [
+        "nano2"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "nano",
+        "python3"
+      ],
+      "notes": "GNU nano supplies an editor reference; the internal piece-table API needs a separate independent model.",
+      "programs": [
+        "nano",
+        "python3"
+      ]
+    },
+    {
+      "loadables": [
+        "vec"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3-numpy"
+      ],
+      "notes": "NumPy arrays with matching dtype, allocation, operation count and floating-point tolerances.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "numpy"
+      ]
+    },
+    {
+      "loadables": [
+        "sv"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "runit"
+      ],
+      "notes": "Private service directory and explicit process ownership; supervisor APIs differ.",
+      "programs": [
+        "sv",
+        "runsv",
+        "runsvdir"
+      ]
+    },
+    {
+      "loadables": [
+        "cron"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "cron",
+        "python3"
+      ],
+      "notes": "Private schedule/spool and bounded clock model. A next-epoch API needs an independent calendar adapter.",
+      "programs": [
+        "cron",
+        "crontab",
+        "python3"
+      ],
+      "python_modules": [
+        "datetime",
+        "calendar"
+      ]
+    },
+    {
+      "loadables": [
+        "fw"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "nftables",
+        "iptables",
+        "ipset"
+      ],
+      "notes": "Backend-specific rules in a private network namespace on a disposable VM.",
+      "programs": [
+        "nft",
+        "iptables",
+        "ip6tables",
+        "ipset"
+      ]
+    },
+    {
+      "loadables": [
+        "coreutils"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "coreutils"
+      ],
+      "notes": "The dispatcher maps to individual GNU coreutils programs; select one subcommand/workload at a time.",
+      "programs": [
+        "factor",
+        "fmt",
+        "install",
+        "mknod",
+        "nproc",
+        "numfmt",
+        "shred",
+        "shuf",
+        "tac",
+        "tsort"
+      ]
+    },
+    {
+      "loadables": [
+        "bsdgames"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "bsdgames",
+        "coreutils"
+      ],
+      "notes": "Compare a matching game or algorithm with fixed inputs/randomness; not a shared dispatcher CLI.",
+      "programs": [
+        "caesar",
+        "rot13",
+        "tr"
+      ]
+    },
+    {
+      "loadables": [
+        "pcre"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "pcre2-utils",
+        "grep",
+        "python3-regex"
+      ],
+      "notes": "Adapt match/search/substitution APIs and set matching UTF/PCRE modes explicitly.",
+      "programs": [
+        "pcre2grep",
+        "pcre2test",
+        "grep",
+        "python3"
+      ],
+      "python_modules": [
+        "regex"
+      ]
+    },
+    {
+      "loadables": [
+        "zlib"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "gzip",
+        "xz-utils",
+        "zstd",
+        "bzip2"
+      ],
+      "notes": "Compare decoded bytes for each codec and level; compressed streams need not be identical.",
+      "programs": [
+        "gzip",
+        "xz",
+        "zstd",
+        "bzip2"
+      ]
+    },
+    {
+      "loadables": [
+        "netids"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "suricata"
+      ],
+      "notes": "Fixed PCAP/rules and normalized alerts; bash-os supports a subset of the Suricata rule language.",
+      "programs": [
+        "suricata"
+      ]
+    },
+    {
+      "loadables": [
+        "tui"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3"
+      ],
+      "notes": "ncurses cell/screen API with a private PTY and independent terminal byte/state observations.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "curses"
+      ]
+    },
+    {
+      "loadables": [
+        "toml"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3"
+      ],
+      "notes": "Independent TOML decoding with normalized values/queries and parse errors.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "tomllib"
+      ]
+    },
+    {
+      "loadables": [
+        "sqlite"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "sqlite3",
+        "python3"
+      ],
+      "notes": "SQLite CLI and CPython sqlite3; adapt persistent handles and parameter/row framing.",
+      "programs": [
+        "sqlite3",
+        "python3"
+      ],
+      "python_modules": [
+        "sqlite3"
+      ]
+    },
+    {
+      "loadables": [
+        "vt"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3-pyte"
+      ],
+      "notes": "Independent terminal parser/model; compare defined cells, cursor, modes and stream handling.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "pyte"
+      ]
+    },
+    {
+      "loadables": [
+        "utf8"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3-regex"
+      ],
+      "notes": "Unicode scalar decoding and regex \\X grapheme segmentation are separate reference APIs; record Unicode data versions in the fixture.",
+      "programs": [
+        "python3"
+      ],
+      "python_modules": [
+        "unicodedata",
+        "regex"
+      ]
+    },
+    {
+      "loadables": [
+        "procstat"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "sysstat",
+        "procps",
+        "psmisc",
+        "libc-bin"
+      ],
+      "notes": "Individual Linux accounting tools; normalize fields and use fixed procfs or a controlled sampling interval.",
+      "programs": [
+        "iostat",
+        "mpstat",
+        "sar",
+        "pidstat",
+        "prtstat",
+        "pmap",
+        "pldd"
+      ]
+    },
+    {
+      "loadables": [
+        "crypto"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "openssl",
+        "argon2",
+        "coreutils",
+        "python3-cryptography"
+      ],
+      "notes": "Independent digest/KDF/public-key APIs and public known-answer vectors; no equivalence for project authority handles.",
+      "programs": [
+        "openssl",
+        "argon2",
+        "sha256sum",
+        "python3"
+      ],
+      "python_modules": [
+        "cryptography"
+      ]
+    },
+    {
+      "loadables": [
+        "claude"
+      ],
+      "kind": "contract-only",
+      "packages": [
+        "curl",
+        "python3"
+      ],
+      "notes": "Provider protocol client has no equivalent stock Debian CLI. Use a controlled HTTP peer and independent JSON/wire-format expectations; no credentials are included.",
+      "programs": [
+        "curl",
+        "python3"
+      ],
+      "python_modules": [
+        "json",
+        "ssl"
+      ]
+    },
+    {
+      "loadables": [
+        "ldap"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "ldap-utils"
+      ],
+      "notes": "Controlled LDAP peer and independent BER/filter vectors; adapt bind/search/update operations.",
+      "programs": [
+        "ldapsearch",
+        "ldapadd",
+        "ldapmodify",
+        "ldapdelete"
+      ]
+    },
+    {
+      "loadables": [
+        "integrity"
+      ],
+      "kind": "contract-only",
+      "packages": [
+        "openssl",
+        "coreutils",
+        "python3"
+      ],
+      "notes": "Project manifest and integrity policy have no Debian equivalent. Use independent byte/hash/signature vectors and explicit policy fixtures.",
+      "programs": [
+        "openssl",
+        "sha256sum",
+        "stat",
+        "python3"
+      ],
+      "python_modules": [
+        "hashlib"
+      ]
+    },
+    {
+      "loadables": [
+        "auth"
+      ],
+      "kind": "contract-only",
+      "packages": [
+        "pamtester",
+        "argon2",
+        "python3"
+      ],
+      "notes": "PAM/Argon2 can reference overlapping credential checks; the project kernel authority/token/policy/handoff ABI has no stock Debian equivalent and needs a separately qualified backend in a disposable VM.",
+      "programs": [
+        "pamtester",
+        "argon2",
+        "python3"
+      ],
+      "python_modules": [
+        "os"
+      ]
+    },
+    {
+      "loadables": [
+        "obj",
+        "index",
+        "pack"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "git"
+      ],
+      "notes": "Git plumbing: hash-object/cat-file, update-index/ls-files and pack-objects/index-pack on fixed objects/indexes.",
+      "programs": [
+        "git"
+      ]
+    },
+    {
+      "loadables": [
+        "ntp"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "chrony"
+      ],
+      "notes": "Controlled time server and normalized wire timestamps; clock-changing paths only in a disposable VM.",
+      "programs": [
+        "chronyc",
+        "chronyd"
+      ]
+    },
+    {
+      "loadables": [
+        "mail"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "exim4-daemon-light",
+        "bsd-mailx"
+      ],
+      "notes": "Private SMTP peer/spool; submission, queue and server operations are distinct fixtures.",
+      "programs": [
+        "sendmail",
+        "mailq",
+        "exim4",
+        "mail"
+      ]
+    },
+    {
+      "loadables": [
+        "acme"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "certbot",
+        "openssl",
+        "python3-cryptography"
+      ],
+      "notes": "Public JWK/JWS/ACME vectors and controlled ACME peer; account/order/certificate lifecycles are not a shared primitive CLI.",
+      "programs": [
+        "certbot",
+        "openssl",
+        "python3"
+      ],
+      "python_modules": [
+        "cryptography"
+      ]
+    },
+    {
+      "loadables": [
+        "screen"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "screen"
+      ],
+      "notes": "GNU Screen and independent PTY observation; bash-os pane verbs/history require an adapter.",
+      "programs": [
+        "screen"
+      ]
+    },
+    {
+      "loadables": [
+        "sshd"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "openssh-server",
+        "openssh-sftp-server"
+      ],
+      "notes": "Private SSH server/keys/port and synthetic accounts in a disposable VM; project authorization is a separate backend.",
+      "programs": [
+        "sshd",
+        "/usr/lib/openssh/sftp-server"
+      ]
+    },
+    {
+      "loadables": [
+        "tiv"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "chafa"
+      ],
+      "notes": "Normalize dimensions, pixel selection and terminal output mode.",
+      "programs": [
+        "chafa"
+      ]
+    },
+    {
+      "loadables": [
+        "kitty"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "kitty"
+      ],
+      "notes": "kitty +kitten icat is a graphics-protocol reference, not a same-verb image loadable CLI; a real terminal receiver is external.",
+      "programs": [
+        "kitty"
+      ]
+    },
+    {
+      "loadables": [
+        "sixel"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "libsixel-bin"
+      ],
+      "notes": "Compare image pixels and documented Sixel transport mode rather than unrelated encoder decisions.",
+      "programs": [
+        "img2sixel",
+        "sixel2png"
+      ]
+    },
+    {
+      "loadables": [
+        "ts"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "tree-sitter-cli",
+        "build-essential"
+      ],
+      "notes": "Stock tree-sitter CLI/runtime; supply each fixture with independently pinned language grammars and queries. The image does not copy candidate grammars or loadables.",
+      "programs": [
+        "tree-sitter",
+        "cc"
+      ]
+    },
+    {
+      "loadables": [
+        "hl"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "highlight"
+      ],
+      "notes": "Normalize language/grammar and highlight spans; output markup/style differs.",
+      "programs": [
+        "highlight"
+      ]
+    },
+    {
+      "loadables": [
+        "gpu"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3-pil",
+        "python3-opengl",
+        "libegl1",
+        "libegl-mesa0",
+        "libgbm1",
+        "libgles2",
+        "libgl1-mesa-dri",
+        "mesa-utils",
+        "xvfb"
+      ],
+      "notes": "Independent canvas/image and Mesa EGL/GLES references. Software rendering is available; physical GPU/terminal transport qualification remains external.",
+      "programs": [
+        "python3",
+        "eglinfo",
+        "glxinfo",
+        "Xvfb"
+      ],
+      "python_modules": [
+        "PIL.Image",
+        "PIL.ImageDraw",
+        "OpenGL.EGL",
+        "OpenGL.GLES2"
+      ]
+    },
+    {
+      "loadables": [
+        "bashperl"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "perl"
+      ],
+      "notes": "Standalone Debian Perl CLI; embedding, interpreter state and version differences are explicit fixture dimensions.",
+      "programs": [
+        "perl"
+      ]
+    },
+    {
+      "loadables": [
+        "bashpython"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "python3",
+        "python3-venv"
+      ],
+      "notes": "Standalone Debian CPython CLI; embedding, interpreter state and version differences are explicit fixture dimensions.",
+      "programs": [
+        "python3"
+      ]
+    },
+    {
+      "loadables": [
+        "uv"
+      ],
+      "kind": "cli",
+      "packages": [],
+      "notes": "Unmodified upstream executable fetched using config/uv.json and verified SHA-256, matching the optional loadable delegation target.",
+      "programs": [
+        "uv"
+      ]
+    },
+    {
+      "loadables": [
+        "dns"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "bind9-dnsutils",
+        "bind9-host"
+      ],
+      "notes": "Controlled resolver/authoritative peer and trust anchors; normalize DNS answer and validation data.",
+      "programs": [
+        "dig",
+        "delv",
+        "host",
+        "nslookup"
+      ]
+    },
+    {
+      "loadables": [
+        "genl"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "iproute2",
+        "python3"
+      ],
+      "notes": "Generic netlink controller and independent socket/message encoding; subsystem-specific fixtures require the appropriate kernel.",
+      "programs": [
+        "genl",
+        "python3"
+      ],
+      "python_modules": [
+        "socket",
+        "struct"
+      ]
+    },
+    {
+      "loadables": [
+        "hexdump"
+      ],
+      "kind": "cli",
+      "packages": [
+        "bsdextrautils"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "tinfo"
+      ],
+      "kind": "adapter",
+      "packages": [
+        "ncurses-bin",
+        "ncurses-term"
+      ],
+      "notes": "Terminfo capabilities with a fixed database/terminal; adapt custom query and enumeration APIs.",
+      "programs": [
+        "infocmp",
+        "tput"
+      ]
+    },
+    {
+      "loadables": [
+        "write"
+      ],
+      "kind": "cli",
+      "packages": [
+        "util-linux"
+      ],
+      "programs": [
+        "write"
+      ],
+      "notes": "Unmodified upstream util-linux write is built from the Debian-pinned source archive because Debian 13 omits the executable. Traditional UTMP and private PTY/session fixtures are required."
+    }
+  ]
+}
