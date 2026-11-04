@@ -373,8 +373,24 @@ bpw_valid_user (const char *u)
   return 1;
 }
 
+/* Bash getenv() reuses one allocation for command-local assignments.
+   Own the account paths and default user for the complete invocation so a
+   later environment lookup cannot invalidate a path retained by a mutation.
+   A stack of snapshots also preserves an outer invocation across a trap. */
+typedef struct bpw_environment {
+  char *passwd_path, *shadow_path, *group_path, *lock_dir, *user;
+  struct bpw_environment *previous;
+} bpw_environment;
+
+static bpw_environment *bpw_current_environment;
+
+static const char *bpw_passwd_path (void) { return bpw_current_environment->passwd_path; }
+static const char *bpw_shadow_path (void) { return bpw_current_environment->shadow_path; }
+static const char *bpw_group_path (void) { return bpw_current_environment->group_path; }
+static const char *bpw_lock_dir (void) { return bpw_current_environment->lock_dir; }
+
 static const char *
-bpw_shadow_path (void)
+bpw_configured_shadow_path (void)
 {
   const char *path = getenv ("PHCLIB_SHADOW");
   if (!path || !*path) path = getenv ("SHADOW_FILE");
@@ -383,7 +399,7 @@ bpw_shadow_path (void)
 }
 
 static const char *
-bpw_passwd_path (void)
+bpw_configured_passwd_path (void)
 {
   const char *path = getenv ("PHCLIB_PASSWD");
   if (!path || !*path) path = getenv ("PASSWD_FILE");
@@ -410,7 +426,7 @@ bpw_passwd_fields (char *line, char *fields[7])
 }
 
 static const char *
-bpw_group_path (void)
+bpw_configured_group_path (void)
 {
   const char *path = getenv ("PHCLIB_GROUP");
   if (!path || !*path) path = getenv ("GROUP_FILE");
@@ -651,7 +667,7 @@ bpw_user_uid_token (const char *user, char *out, size_t outsz)
 }
 
 static const char *
-bpw_lock_dir (void)
+bpw_configured_lock_dir (void)
 {
   const char *d = getenv ("BPW_LOCK_DIR");
   if (!d || !*d) d = "/run/login";
@@ -2238,7 +2254,7 @@ bpw_change_cleanup (void *arg)
 static int
 bpw_change_cmd (WORD_LIST *args)
 {
-  const char *user = args ? args->word->word : getenv ("USER");
+  const char *user = args ? args->word->word : bpw_current_environment->user;
   if (!user || !*user) user = "root";
   if (args && args->next) { builtin_error ("change takes at most USER"); return EX_USAGE; }
   bpw_change_state state = { .auth = { .fd = -1 }, .secret = { -1, 0, 0 }, .old = NULL };
@@ -2415,8 +2431,8 @@ bpw_add_fd_cmd (WORD_LIST *args)
 
 extern char *passwd_doc[];
 
-int
-passwd_builtin (WORD_LIST *list)
+static int
+bpw_dispatch (WORD_LIST *list)
 {
   if (!list) { builtin_usage (); return EX_USAGE; }
   const char *cmd = list->word->word;
@@ -2441,6 +2457,43 @@ passwd_builtin (WORD_LIST *list)
   if (strcmp (cmd, "verify-fd") == 0) return bpw_verify_fd_cmd (args);
   builtin_error ("unknown subcommand: %s", cmd);
   return EX_USAGE;
+}
+
+static void
+bpw_environment_cleanup (void *arg)
+{
+  bpw_environment *environment = arg;
+  bpw_current_environment = environment->previous;
+  free (environment->passwd_path);
+  free (environment->shadow_path);
+  free (environment->group_path);
+  free (environment->lock_dir);
+  free (environment->user);
+}
+
+int
+passwd_builtin (WORD_LIST *list)
+{
+  bpw_environment environment = { .previous = bpw_current_environment };
+  int rc = EXECUTION_FAILURE;
+  begin_unwind_frame ("passwd environment snapshot");
+  add_unwind_protect (bpw_environment_cleanup, &environment);
+  environment.passwd_path = strdup (bpw_configured_passwd_path ());
+  environment.shadow_path = strdup (bpw_configured_shadow_path ());
+  environment.group_path = strdup (bpw_configured_group_path ());
+  environment.lock_dir = strdup (bpw_configured_lock_dir ());
+  const char *user = getenv ("USER");
+  environment.user = strdup (user && *user ? user : "root");
+  if (!environment.passwd_path || !environment.shadow_path ||
+      !environment.group_path || !environment.lock_dir || !environment.user)
+    builtin_error ("cannot copy account environment: out of memory");
+  else
+    {
+      bpw_current_environment = &environment;
+      rc = bpw_dispatch (list);
+    }
+  run_unwind_frame ("passwd environment snapshot");
+  return rc;
 }
 
 char *passwd_doc[] = {
