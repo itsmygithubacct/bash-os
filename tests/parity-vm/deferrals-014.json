@@ -12357,10 +12357,10 @@
       "topic": "dmesg/console-level-change"
     },
     {
-      "coverage": "partial",
-      "current_reason": "Remaining obligation r3: The kernel truncates records written to /dev/kmsg to about 1 KiB, so no record near the 8192-byte read size can exist on the live ring; that boundary is exercised only through the fixture-file path (legacy/dmesg/split-read-boundary)",
-      "migration": null,
-      "notes": "Root batch F on the rented VM host (root-f-87; supersedes root-f-84, where the guest had no /etc/sysctl.conf so the loaders case stopped at setup, and root-f-86, where /run/sysctl.d was absent so that --system tier had no file). privilege=root sides with fresh network and UTS namespaces; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed.",
+      "coverage": "full",
+      "current_reason": "",
+      "migration": "replacement",
+      "notes": "All 23 original dmesg obligations passed on the exact r17 dynamic/static pair under strict raw evidence review. Large-record kernel and bounds-modified util-linux are separately pinned. Completion applies to this candidate pair; future product changes require requalification.",
       "original": {
         "id": "live-ring-buffer",
         "kind": "deferred",
@@ -12373,20 +12373,68 @@
           "coverage": "covered",
           "evidence": [
             {
+              "group": "shell",
+              "id": "migration-dmesg-live-ring-root-014-r2",
+              "assertion": "Live record framing and bounded nonblocking drain to EAGAIN. Respect the util-linux clear point; no earlier user records.",
+              "definition_sha256": "f3cf82bacff6538e2a01254b5f257cee0564828e4e570cff0248afbd1c019726"
+            },
+            {
+              "group": "shell",
+              "id": "qualification-014-dmesg-live-format-r17-r1",
+              "assertion": "Default formatting on live records, as literally stated in r1.",
+              "definition_sha256": "db6343e78cdc12b79ce5d815a49816e1ef119dd3d768eb2a081a52415c3e1023"
+            }
+          ],
+          "gap": "",
+          "id": "r1",
+          "historical_evidence": [
+            {
               "assertion": "The candidate reads live /dev/kmsg records and decodes them in default format, but it ignores the clear point util-linux starts from: after a util-linux clear and four seeded records it also prints earlier user-facility records still in the ring. Parity FAIL.",
               "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a",
               "group": "shell",
               "id": "migration-dmesg-live-ring-root"
             }
           ],
-          "gap": "",
-          "id": "r1",
-          "next_step": "requires_capability"
+          "scope_note": "Fresh r17 evidence: ordinary live, fixture-file, candidate-only hook and native 8191/8192/8193-byte kernel records are separately registered. Earlier failures remain historical."
         },
         {
           "behavior": "Seeded records with known priority/text are reproduced exactly, and filters (-k, -f, -l, -r, -t) behave on live records as on fixtures, compared with pinned util-linux dmesg on the same ring.",
           "coverage": "covered",
           "evidence": [
+            {
+              "group": "shell",
+              "id": "migration-dmesg-live-ring-root-014-r2",
+              "assertion": "Exactly reproduce known seeded priorities/text. Live -k, -f, -l and -t, decoded -x and -r/-t exclusion match pinned stock util-linux.",
+              "definition_sha256": "f3cf82bacff6538e2a01254b5f257cee0564828e4e570cff0248afbd1c019726"
+            },
+            {
+              "group": "shell",
+              "id": "qualification-014-dmesg-live-format-r17-r1",
+              "assertion": "Valid -r output on live records, as covered by the literal live/fixture requirement.",
+              "definition_sha256": "db6343e78cdc12b79ce5d815a49816e1ef119dd3d768eb2a081a52415c3e1023"
+            },
+            {
+              "group": "shell",
+              "id": "qualification-014-dmesg-facility-level-filters-r3",
+              "assertion": "Preserve fixture -f kern,daemon -l warn,err -t and -k -t controls.",
+              "definition_sha256": "b897495087fc60a6fbf0bfa08e17afa53bb8a01d097e53dc1fe93fbfc34c90a1"
+            },
+            {
+              "group": "shell",
+              "id": "qualification-014-dmesg-hook-r2",
+              "assertion": "Retain the old mixed-case fixture hook read-clear obligation.",
+              "definition_sha256": "49eadf6bcb3f119a49d4f49dad960f96726255d315854dbd685e160bd592072f"
+            },
+            {
+              "group": "shell",
+              "id": "qualification-014-dmesg",
+              "assertion": "Versioned raw/notime and raw/decode exclusion in both relevant argument orders.",
+              "definition_sha256": "fcd6e6f7acca297f7367a12f3b6fda228e76701a16cd66af29a1106960384fea"
+            }
+          ],
+          "gap": "",
+          "id": "r2",
+          "historical_evidence": [
             {
               "assertion": "The seeded records' text is reproduced, but every listing carries the extra pre-clear records (r1). -l err,warn filters by level; -r -t, which util-linux rejects as mutually exclusive (status 1), is accepted with <PRI> prefixes; -x is an unknown flag in the candidate (status 2) where util-linux decodes facility and level; -k -t -l emerg is empty in both. Parity FAIL.",
               "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a",
@@ -12394,14 +12442,71 @@
               "id": "migration-dmesg-live-ring-root"
             }
           ],
-          "gap": "",
-          "id": "r2",
-          "next_step": "requires_capability"
+          "scope_note": "Fresh r17 evidence: ordinary live, fixture-file, candidate-only hook and native 8191/8192/8193-byte kernel records are separately registered. Earlier failures remain historical."
         },
         {
           "behavior": "Record decoding, filters, raw prefix, --since/--until and the 8192-byte boundary on the documented /dev/kmsg framing.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
+            {
+              "group": "shell",
+              "id": "qualification-014-dmesg-decoded-records-r3",
+              "assertion": "Default [%5d.%06d] message formatting. Skip malformed record headers including nonnumeric sequence. Skip priorities greater than 2047. Accept canonical extension metadata without damaging message or timestamp. Emit the unterminated final fixture record.",
+              "definition_sha256": "5719e44345485bcdc73e379da7a9c2498be361c4834635ec9c00e2c09abdf19d"
+            },
+            {
+              "group": "shell",
+              "id": "qualification-014-dmesg-facility-level-filters-r3",
+              "assertion": "Original facility and severity lists and kernel-only fixture selection.",
+              "definition_sha256": "b897495087fc60a6fbf0bfa08e17afa53bb8a01d097e53dc1fe93fbfc34c90a1"
+            },
+            {
+              "group": "shell",
+              "id": "qualification-014-dmesg-time-filter-boundaries-r3",
+              "assertion": "Inclusive fixture --since=.999999 --until 2; reject adjacent outside microseconds.",
+              "definition_sha256": "97d1588d9220a5afa649d58fdcbf1325f6cc0336ec1c625e1a4c40ed2c0fe5c8"
+            },
+            {
+              "group": "shell",
+              "id": "qualification-014-dmesg-raw-priority",
+              "assertion": "Corrected valid -r retains priority and timestamp; rejected -r -t remains separately tested.",
+              "definition_sha256": "1112889301ee7cc466c808e58a09398a3ed72903bb41da10d97e1de932bc15a3"
+            },
+            {
+              "group": "shell",
+              "id": "qualification-014-dmesg",
+              "assertion": "Corrected valid -r retains priority and timestamp; rejected -r -t remains separately tested.",
+              "definition_sha256": "fcd6e6f7acca297f7367a12f3b6fda228e76701a16cd66af29a1106960384fea"
+            },
+            {
+              "group": "shell",
+              "id": "qualification-014-dmesg-raw-priority-prefix-r3",
+              "assertion": "Corrected valid -r retains priority and timestamp; rejected -r -t remains separately tested.",
+              "definition_sha256": "14ecf5273bb7374e7b336baef879571af550f8bef64602e934f22a1aef7aaf69"
+            },
+            {
+              "group": "shell",
+              "id": "qualification-014-dmesg-split-read-boundary-r3",
+              "assertion": "Preserve the exact 8200-byte fixture message split-read control.",
+              "definition_sha256": "0c8a4d231a0408f987369a7bf4c89c1f59a84dc2a3facb89ea583e6ecb14279d"
+            },
+            {
+              "group": "shell",
+              "id": "mig-w6-dmesg-since-until-root",
+              "assertion": "Native raw timestamp bounds: inclusive, equal bounds, empty outside. Native 909-byte output equals stock util-linux.",
+              "definition_sha256": "2de3da5bb43d1e17f52c72577484be96d3851a2a407e83ce7d46aa9c90fd0448"
+            },
+            {
+              "group": "shell",
+              "id": "qualification-014-dmesg-native-large-records-r17-r1",
+              "assertion": "Independently sized real /dev/kmsg record of exactly 8191 bytes; plain/include/exclude controls for each release-target build. Independently sized real /dev/kmsg record of exactly 8192 bytes; plain/include/exclude controls for each release-target build. Independently sized real /dev/kmsg record of exactly 8193 bytes; plain/include/exclude controls for each release-target build.",
+              "definition_sha256": "a8f5686ea30e8f59d366279bed158b2cb3624bdb909ee8e73b2145d25ef9b715"
+            }
+          ],
+          "gap": "",
+          "id": "r3",
+          "scope_note": "Fresh r17 evidence: ordinary live, fixture-file, candidate-only hook and native 8191/8192/8193-byte kernel records are separately registered. Earlier failures remain historical.",
+          "historical_evidence": [
             {
               "assertion": "parity vs independent awk encoder: default '[%5d.%06d] msg' format, malformed headers skipped, priority>2047 skipped, unterminated final record printed",
               "definition_sha256": "f9014d458e4295ec0a79439f4e25b57f727b8f991d6c559c2e1f500c6bfe3470",
@@ -12439,12 +12544,100 @@
               "id": "mig-w6-dmesg-since-until-root"
             }
           ],
-          "gap": "The kernel truncates records written to /dev/kmsg to about 1 KiB, so no record near the 8192-byte read size can exist on the live ring; that boundary is exercised only through the fixture-file path (legacy/dmesg/split-read-boundary)",
-          "id": "r3",
-          "scope_note": "Covers the fixture-file path only; it is the shared decoder, not live-device behaviour (kept distinct from r1/r2)."
+          "historical_scope_note": "Covers the fixture-file path only; it is the shared decoder, not live-device behaviour (kept distinct from r1/r2)."
         }
       ],
-      "topic": "dmesg/live-ring-buffer"
+      "topic": "dmesg/live-ring-buffer",
+      "historical_entry": {
+        "coverage": "partial",
+        "current_reason": "Remaining obligation r3: The kernel truncates records written to /dev/kmsg to about 1 KiB, so no record near the 8192-byte read size can exist on the live ring; that boundary is exercised only through the fixture-file path (legacy/dmesg/split-read-boundary)",
+        "migration": null,
+        "notes": "Root batch F on the rented VM host (root-f-87; supersedes root-f-84, where the guest had no /etc/sysctl.conf so the loaders case stopped at setup, and root-f-86, where /run/sysctl.d was absent so that --system tier had no file). privilege=root sides with fresh network and UTS namespaces; root-isolation selfcheck PASS; both builds byte-identical, raw records reviewed.",
+        "original": {
+          "id": "live-ring-buffer",
+          "kind": "deferred",
+          "purpose": "Read and decode records from the live kernel ring buffer.",
+          "reason": "Requires a disposable Linux VM with a seeded private /dev/kmsg ring buffer, known record timestamps, and access sufficient to read it; a regular-file fixture cannot establish live device behavior. Compare against the Linux dev-kmsg ABI and a pinned util-linux dmesg in that VM."
+        },
+        "requirements": [
+          {
+            "behavior": "Read records from the live /dev/kmsg device (one record per read(2), non-blocking drain to EAGAIN) and decode them in default format.",
+            "coverage": "covered",
+            "evidence": [
+              {
+                "assertion": "The candidate reads live /dev/kmsg records and decodes them in default format, but it ignores the clear point util-linux starts from: after a util-linux clear and four seeded records it also prints earlier user-facility records still in the ring. Parity FAIL.",
+                "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a",
+                "group": "shell",
+                "id": "migration-dmesg-live-ring-root"
+              }
+            ],
+            "gap": "",
+            "id": "r1",
+            "next_step": "requires_capability"
+          },
+          {
+            "behavior": "Seeded records with known priority/text are reproduced exactly, and filters (-k, -f, -l, -r, -t) behave on live records as on fixtures, compared with pinned util-linux dmesg on the same ring.",
+            "coverage": "covered",
+            "evidence": [
+              {
+                "assertion": "The seeded records' text is reproduced, but every listing carries the extra pre-clear records (r1). -l err,warn filters by level; -r -t, which util-linux rejects as mutually exclusive (status 1), is accepted with <PRI> prefixes; -x is an unknown flag in the candidate (status 2) where util-linux decodes facility and level; -k -t -l emerg is empty in both. Parity FAIL.",
+                "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a",
+                "group": "shell",
+                "id": "migration-dmesg-live-ring-root"
+              }
+            ],
+            "gap": "",
+            "id": "r2",
+            "next_step": "requires_capability"
+          },
+          {
+            "behavior": "Record decoding, filters, raw prefix, --since/--until and the 8192-byte boundary on the documented /dev/kmsg framing.",
+            "coverage": "partial",
+            "evidence": [
+              {
+                "assertion": "parity vs independent awk encoder: default '[%5d.%06d] msg' format, malformed headers skipped, priority>2047 skipped, unterminated final record printed",
+                "definition_sha256": "f9014d458e4295ec0a79439f4e25b57f727b8f991d6c559c2e1f500c6bfe3470",
+                "group": "legacy",
+                "id": "legacy/dmesg/decoded-records"
+              },
+              {
+                "assertion": "parity vs awk: -f kern,daemon -l warn,err -t and -k -t filtering",
+                "definition_sha256": "399d14244d56827b5a1d49218ddaf49ed13d16714723bfcd8888cac4578ac336",
+                "group": "legacy",
+                "id": "legacy/dmesg/facility-level-filters"
+              },
+              {
+                "assertion": "parity vs awk: inclusive --since=.999999 --until 2 boundaries",
+                "definition_sha256": "e3aa41b8c3f42347a94748cdca676f0646187f42e1b93ea40874cf49398423ed",
+                "group": "legacy",
+                "id": "legacy/dmesg/time-filter-boundaries"
+              },
+              {
+                "assertion": "Parity against an independent AWK encoder: -r retains the raw priority and timestamp; -r -t remains a separately tested invalid combination.",
+                "definition_sha256": "5ce5312ad567bebf99fee673d534eeeb9b216c4d1139f69a274c0928b9b1de0b",
+                "group": "legacy",
+                "id": "legacy/dmesg/raw-priority-prefix"
+              },
+              {
+                "assertion": "parity vs awk: 8200-byte record emitted intact",
+                "definition_sha256": "e8213c0ef10ddc09ce8f82f526d944d0c0bb9e5e4672aaa8732dde222bab6c38",
+                "group": "legacy",
+                "id": "legacy/dmesg/split-read-boundary"
+              },
+              {
+                "assertion": "On the live /dev/kmsg ring (root), --since/--until select exactly the records at and between raw-timestamp bounds (inclusive, empty outside, equal bounds pick one record), and a 909-byte record is decoded identically to util-linux dmesg.",
+                "definition_sha256": "2de3da5bb43d1e17f52c72577484be96d3851a2a407e83ce7d46aa9c90fd0448",
+                "group": "shell",
+                "id": "mig-w6-dmesg-since-until-root"
+              }
+            ],
+            "gap": "The kernel truncates records written to /dev/kmsg to about 1 KiB, so no record near the 8192-byte read size can exist on the live ring; that boundary is exercised only through the fixture-file path (legacy/dmesg/split-read-boundary)",
+            "id": "r3",
+            "scope_note": "Covers the fixture-file path only; it is the shared decoder, not live-device behaviour (kept distinct from r1/r2)."
+          }
+        ],
+        "topic": "dmesg/live-ring-buffer"
+      }
     },
     {
       "coverage": "full",
@@ -54921,7 +55114,7 @@
   "original_sha256": "9f7ea6e79298b73552e1129b1dde7b34378ad0493c2755f8f9412237954442f8",
   "policy": "MIGRATED records point to fully exercised requirements on both builds; they are not additional passing tests. FAIL remains FAIL. Partial, skipped, invalid or stale evidence cannot close a topic.",
   "previous_ledger_sha256": "224841d541a8a0819778b43d480e0abda4cdb1f79cf969ebf77949a978d62ca4",
-  "qualification_status": "UNQUALIFIED: final worker integration r15; no new runtime or topic credit",
+  "qualification_status": "UNQUALIFIED overall: dmesg/live-ring-buffer freshly qualified on r17; one whole topic verified, remaining 599 topics require complete current-pair reconciliation.",
   "release_target": "0.1.4",
   "schema": 1,
   "takeover_parent_mapping_sha256": "34889b404ccbc44a7c68ed6eb6e611714543a9ba3ce784aa60da14c34290ce0c",

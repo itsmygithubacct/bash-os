@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "qualification-014-dmesg-native-large-records-r17-r1",
+      "loadable": "dmesg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Evidence-only index of actual native /dev/kmsg boundary execution on both r17 Bash 5.3.20 candidates.",
+      "oracle": "Independent raw /dev/kmsg framing and pinned util-linux 2.41.5 with 16385-byte storage/16384-byte read; one-byte EINVAL then next-read EAGAIN control.",
+      "comparison": "The immutable data adapter verifies the independently adjudicated native gate, exact raw/source/build/kernel/transport bindings and clean install/qualification lifecycle. ASCII record sizes 8191/8192/8193, plain/included/excluded filters.",
+      "candidate_script": "exit 125 # evidence-only registration; use primary-qualified-dmesg-native-r1 reader\n",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 1,
+      "covers": [
+        "dmesg/live-ring-buffer"
+      ],
+      "artifact_scope": "native-devkmsg-bounded-ascii-8191-8192-8193",
+      "evidence_only": true,
+      "requirement_ids": [
+        "r3"
+      ],
+      "record_bytes": [
+        8191,
+        8192,
+        8193
+      ],
+      "native_binary_executed": true
+    }
+  ]
+}

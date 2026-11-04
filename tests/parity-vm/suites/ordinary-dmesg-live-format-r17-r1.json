@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/dmesg-live-format-r17-r1.py\n",
+      "comparison": "No timestamp normalization: exact tagged line bytes, status and empty stderr for default and -r; raw inventories before/after each command prove target stability; complete observer/cleanup required.",
+      "covers": [
+        "dmesg/live-ring-buffer"
+      ],
+      "diagnostic_files": [
+        "dmesg-live-format-r3.json",
+        "dmesg-format-r3-default-reference.json",
+        "dmesg-format-r3-default-candidate.json",
+        "dmesg-format-r3-raw-reference.json",
+        "dmesg-format-r3-raw-candidate.json"
+      ],
+      "dmesg_revision": "r3",
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/dmesg-live-format-r17-r1.py": "f1e04e646b04dc45da64daf0ebf4a11cfc1bf327a47ab1db1f36be54a7b69b9d"
+      },
+      "id": "qualification-014-dmesg-live-format-r17-r1",
+      "kind": "contract",
+      "loadable": "dmesg",
+      "observation_error_status": 125,
+      "oracle": "Real /dev/kmsg raw headers and two submitted ASCII messages independently encode expected default/raw output; pinned stock util-linux 2.41.5 must match each. Both shell versions are checked as 5.3.20.",
+      "privilege": "root",
+      "purpose": "Explicit default timestamp and valid raw priority/timestamp controls on the same independently observed real kernel records.",
+      "requires": [
+        "python3",
+        "dmesg"
+      ],
+      "stderr": "",
+      "stdout": "PASS\n",
+      "timeout": 60,
+      "original_case_id": "qualification-014-dmesg-live-format-r3",
+      "adjudication": "The original r3 guard correctly rejected r17 binaries before behavioral observations. Only the two explicit candidate hashes change; all reference, identity, namespace, raw framing, byte comparison and cleanup assertions remain identical. Original ERROR retained in dmesg-r17-ordinary-r1."
+    }
+  ]
+}

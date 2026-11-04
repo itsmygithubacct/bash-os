@@ -372,6 +372,12 @@ def retained_overlay_cleanup(spec, directory, summary, provenance, expected_bina
 
 def load_run(spec, expected_binary, expected_build=None, repo=REPO):
     if "evidence_format" in spec:
+        if spec["evidence_format"] == "primary-qualified-dmesg-ordinary-r2":
+            from primary_dmesg_native_evidence_r1 import load_qualified_dmesg_ordinary
+            return load_qualified_dmesg_ordinary(spec, expected_binary, expected_build, repo)
+        if spec["evidence_format"] == "primary-qualified-dmesg-native-r1":
+            from primary_dmesg_native_evidence_r1 import load_qualified_dmesg_native
+            return load_qualified_dmesg_native(spec, expected_binary, expected_build, repo)
         if spec["evidence_format"] == "primary-qualified-vec-i686-r1":
             from primary_vec_i686_evidence_r1 import load_qualified_vec_i686
             return load_qualified_vec_i686(spec, expected_binary, expected_build, repo)
@@ -547,7 +553,7 @@ def reconcile(ledger, configuration, repo=REPO):
         binary = file_digest(spec["binary"])
         evidence, runs = {}, []
         for run in spec["runs"]:
-            if run.get("evidence_format") in ("primary-qualified-vec-i686-r1", "primary-qualified-controller-v1", "primary-qualified-clock342-v1", "primary-qualified-syslog309-v1", "primary-qualified-ncdu294-v1", "primary-qualified-broker286-v1", "primary-qualified-modern293-v1", "primary-qualified-watch293-v1", "primary-qualified-watch337-r3-v1", "primary-qualified-top371-v1", "primary-qualified-device-v8-uclamp-v1", "primary-qualified-device-v8-rtc-effects-v1", "primary-qualified-device-v8-rtc-calendar-v1", "primary-qualified-calendar45-v1", "primary-qualified-su-v7-bounded-v1", "primary-qualified-uclamp-followup40-v1", "primary-qualified-uclamp-setter45-r3-v1", "primary-qualified-ss-multipart-v1", "primary-qualified-broker-owner-r12-v3", "primary-qualified-uclamp-setter55-v1"):
+            if run.get("evidence_format") in ("primary-qualified-dmesg-ordinary-r2", "primary-qualified-dmesg-native-r1", "primary-qualified-vec-i686-r1", "primary-qualified-controller-v1", "primary-qualified-clock342-v1", "primary-qualified-syslog309-v1", "primary-qualified-ncdu294-v1", "primary-qualified-broker286-v1", "primary-qualified-modern293-v1", "primary-qualified-watch293-v1", "primary-qualified-watch337-r3-v1", "primary-qualified-top371-v1", "primary-qualified-device-v8-uclamp-v1", "primary-qualified-device-v8-rtc-effects-v1", "primary-qualified-device-v8-rtc-calendar-v1", "primary-qualified-calendar45-v1", "primary-qualified-su-v7-bounded-v1", "primary-qualified-uclamp-followup40-v1", "primary-qualified-uclamp-setter45-r3-v1", "primary-qualified-ss-multipart-v1", "primary-qualified-broker-owner-r12-v3", "primary-qualified-uclamp-setter55-v1"):
                 check(Path(spec["binary"]).is_absolute()
                       and spec["binary"] == run.get("core_binary_path"),
                       "controller evidence requires the configured recorded core binary")

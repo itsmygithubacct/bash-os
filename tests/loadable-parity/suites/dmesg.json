@@ -104,8 +104,57 @@
     {
       "id": "live-ring-buffer",
       "purpose": "Read and decode records from the live kernel ring buffer.",
-      "kind": "deferred",
-      "reason": "Remaining obligation r3: The kernel truncates records written to /dev/kmsg to about 1 KiB, so no record near the 8192-byte read size can exist on the live ring; that boundary is exercised only through the fixture-file path (legacy/dmesg/split-read-boundary)"
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w6-dmesg-since-until-root"
+        },
+        {
+          "group": "shell",
+          "id": "migration-dmesg-live-ring-root-014-r2"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-dmesg"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-dmesg-decoded-records-r3"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-dmesg-facility-level-filters-r3"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-dmesg-hook-r2"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-dmesg-live-format-r17-r1"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-dmesg-native-large-records-r17-r1"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-dmesg-raw-priority"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-dmesg-raw-priority-prefix-r3"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-dmesg-split-read-boundary-r3"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-dmesg-time-filter-boundaries-r3"
+        }
+      ]
     },
     {
       "id": "console-level-change",
