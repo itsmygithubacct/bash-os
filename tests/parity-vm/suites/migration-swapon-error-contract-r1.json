@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-swapon-error-contract-r1",
+      "loadable": "swapon",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "swapon/request-error-diagnostics"
+      ],
+      "purpose": "Independently assert path-specific Linux errno diagnostics and failure status for EPERM, ENOENT, EINVAL and EBUSY, with seccomp blocking all swapon calls.",
+      "oracle": "Literal C-locale Linux strerror messages and status 1; independent libc control checks each seccomp errno before candidate execution.",
+      "comparison": "One diagnostic line ending in swapon: PATH: MESSAGE, empty stdout, status 1; Bash location prefix permitted.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/swapon-error-contract-r1.py": "c2354982d7ff55b677bee03f65ce24687b9e99e71c61147748e99d22739660ed"
+      },
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/swapon-error-contract-r1.py \"$BASH\"",
+      "expected_status": 0,
+      "stdout": "swapon errno contract: ok\n",
+      "stderr": "",
+      "timeout": 40,
+      "observation_error_status": 125
+    }
+  ]
+}

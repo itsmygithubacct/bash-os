@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "review08-nano2-save-symlink-r1",
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Reject saving over a symbolic link instead of replacing it while leaving its target unchanged.",
+      "oracle": "Independent shell file and symlink readback after failed save.",
+      "comparison": "Nonzero status, error diagnostic, preserved link and data, no temporary file.",
+      "requires": [
+        "ln"
+      ],
+      "script": "printf source > src\nprintf target > target\n/usr/bin/ln -s target dest || exit 125\nrc=0\nnano2 save src dest >out 2>err || rc=$?\n[[ $rc != 0 && -L dest && $(<target) == target && $(<src) == source && ! -s out && -s err ]] || exit 1\ncompgen -G '.nano2.*' >/dev/null && exit 1\nprintf 'symlink preserved and save rejected\\n'\n",
+      "stdout": "symlink preserved and save rejected\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "nano2/piece-table-file-save"
+      ]
+    }
+  ]
+}

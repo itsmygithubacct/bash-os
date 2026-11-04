@@ -181,8 +181,9 @@ There is no fixture substitute for any of the following:
   dmsetup on the same devices.
 - udev cookies, `/dev/mapper` node creation and `--retry` are not
   implemented. The builtin relies on udev or devtmpfs creating the nodes.
-- `info` has no `Read Ahead:` line, because that needs `BLKRAGET` on the
-  device node.
+- `info` reads read-ahead from sysfs, falling back to `BLKRAGET` on the
+  matching device node. Real-device and unavailable-node behavior still need
+  qualification against LVM2.
 - The report options `-c`/`-C`/`-o`/`--columns` are accepted for
   compatibility but ignored. `ls --tree` and `-v` are ignored too.
 - Only `crypt` keys are masked. Keys inside `integrity` optional arguments

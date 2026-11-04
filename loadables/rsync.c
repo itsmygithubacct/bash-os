@@ -2308,10 +2308,15 @@ static int rs_read_long (rs_sess *s, int64_t *v, int vflag) {
 /* rsync proto-27 block checksums. These are distinct from the bRD1 MD5
  * helpers above: checksum1 is rsync's adler-style rolling sum and checksum2
  * is seeded MD4, truncated on the wire to s2length bytes. */
+/* Protocol 27 sums signed octets, independently of the host char default. */
+static uint32_t rs_sum_octet (unsigned char c) {
+    return (uint32_t) (c < 128 ? (int) c : (int) c - 256);
+}
+
 static uint32_t rs_adler32 (const unsigned char *p, size_t len) {
     uint32_t s1 = 0, s2 = 0;
     for (size_t i = 0; i < len; i++) {
-        uint32_t c = (uint32_t) p[i] + RS_CHAR_OFFSET;
+        uint32_t c = rs_sum_octet (p[i]) + RS_CHAR_OFFSET;
         s1 += c;
         s2 += (uint32_t) (len - i) * c;
     }
@@ -2321,8 +2326,8 @@ static uint32_t rs_adler32 (const unsigned char *p, size_t len) {
 static uint32_t rs_adler_roll (uint32_t cs, unsigned char out,
                                unsigned char in, uint32_t blen) {
     uint32_t s1 = cs & 0xffff, s2 = (cs >> 16) & 0xffff;
-    uint32_t outv = (uint32_t) out + RS_CHAR_OFFSET;
-    uint32_t inv = (uint32_t) in + RS_CHAR_OFFSET;
+    uint32_t outv = rs_sum_octet (out) + RS_CHAR_OFFSET;
+    uint32_t inv = rs_sum_octet (in) + RS_CHAR_OFFSET;
     s1 = (s1 - outv + inv) & 0xffff;
     s2 = (s2 - blen * outv + s1) & 0xffff;
     return s1 | (s2 << 16);
@@ -2349,7 +2354,7 @@ static void rs_block_sum2 (int32_t seed, const unsigned char *p,
     rs_seed_bytes (seed, sd);
     MD4_Init (&md);
     MD4_Update (&md, p, (unsigned long) len);
-    MD4_Update (&md, sd, 4);
+    if (seed) MD4_Update (&md, sd, 4);
     MD4_Final (out, &md);
 }
 
@@ -2405,6 +2410,7 @@ static int rs_write_literal (rs_sess *s, MD4_CTX *md, const unsigned char *p,
 static int rs_selftest_checksums (void) {
     const unsigned char a[] = "abcdef";
     const unsigned char b[] = "bcdefg";
+    const unsigned char high[] = { 0x80, 0xff, 0x00, 0x7f, 0x80 };
     unsigned char md[16];
     static const unsigned char want_md[16] = {
         0xe1, 0xb5, 0xb6, 0xda, 0x71, 0x6b, 0x3f, 0x19,
@@ -2415,6 +2421,10 @@ static int rs_selftest_checksums (void) {
     uint32_t wr = rs_adler_roll (wa, 'a', 'g', 6);
     rs_block_sum2 (0x01020304, a, 6, md);
     if (wa != 0x08180255U || wb != 0x082d025bU || wr != wb
+        || rs_adler32 (high, 4) != 0xfe7cfffeU
+        || rs_adler_roll (rs_adler32 (high, 4), high[0], high[4], 4)
+           != 0x007afffeU
+        || rs_adler32 (high + 1, 4) != 0x007afffeU
         || memcmp (md, want_md, sizeof want_md) != 0) {
         builtin_error ("rs checksum selftest failed weak=%08x shifted=%08x roll=%08x",
                        wa, wb, wr);

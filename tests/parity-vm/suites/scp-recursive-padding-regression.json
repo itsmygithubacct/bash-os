@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "scp-recursive-download-padded-archive-regression",
+      "loadable": "scp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "recursive download succeeds when the remote tar stream has trailing record padding",
+      "covers": [
+        "scp/remote-recursive-copy",
+        "scp/remote-protocols"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-copy-ssh-r3.py": "f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4"
+      },
+      "requires": [
+        "python3",
+        "scp",
+        "install",
+        "sha256sum",
+        "stat",
+        "cmp"
+      ],
+      "files": {
+        "remote/source tree/nested/one file": "one\n",
+        "remote/source tree/top": "top\n"
+      },
+      "setup_script": "ADAPTER_SOURCE=/opt/bashos-parity/harness/helpers/transfer-copy-ssh-r3.py\nADAPTER_TARGET=/tmp/parity-case/fixture-copy-adapter\n/usr/bin/install -m 0755 \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\"\n/usr/bin/sha256sum \"$ADAPTER_TARGET\" > \"$HOME/adapter-control.txt\"\n/usr/bin/stat -c \"mode=%a uid=%u\" \"$ADAPTER_TARGET\" >> \"$HOME/adapter-control.txt\"\nread -r adapter_sha adapter_name < \"$HOME/adapter-control.txt\"\n[[ $adapter_sha == f6dee76b2c4bdaa9ac65dae7bee2881d8645d14a3063600665cca2f6a2e927d4 && -x \"$ADAPTER_TARGET\" ]] && /usr/bin/cmp -s \"$ADAPTER_SOURCE\" \"$ADAPTER_TARGET\" || { echo \"CONTROL-FAILED adapter copy/hash/mode\"; exit 98; }\nH=/tmp/parity-case/fixture-copy-adapter\nFIXTURE_REMOTE_ROOT=\"$HOME/control-remote\"\nprintf '%s\\n' '{\"phase\":\"control\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-config.json\"\nmkdir -p \"$FIXTURE_REMOTE_ROOT\" remote\n[[ -x \"$H\" && -x /usr/lib/openssh/sftp-server ]] || { echo 'CONTROL-FAILED missing executable'; exit 98; }\n\"$H\" fixture pwd > \"$HOME/control-command.out\"\n[[ $(/usr/bin/cat \"$HOME/control-command.out\") == \"$FIXTURE_REMOTE_ROOT\" ]] || { echo 'CONTROL-FAILED command adapter'; exit 98; }\nprintf 'control-copy\\n' > \"$HOME/control-input\"\n/usr/bin/scp -S \"$H\" \"$HOME/control-input\" fixture:control-copy > \"$HOME/control-client.out\" 2> \"$HOME/control-client.err\"\n/usr/bin/cmp \"$HOME/control-input\" \"$FIXTURE_REMOTE_ROOT/control-copy\" || { echo 'CONTROL-FAILED OpenSSH scp over sftp-server'; exit 98; }\nmkdir downloads\nchmod 751 'remote/source tree/nested'\nchmod 640 'remote/source tree/nested/one file'\nprintf '%s\\n' '{\"phase\":\"case\",\"mode\":\"scp\",\"fail\":false}' > \"$HOME/copy-case-config.json\"\n/usr/bin/install -m 0600 \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\"\n/usr/bin/cmp -s \"$HOME/copy-case-config.json\" \"$HOME/copy-config.json\" || { echo 'CONTROL-FAILED configuration copy'; exit 98; }\n/usr/bin/cp \"$HOME/copy-invocations.jsonl\" \"$HOME/control-invocations.jsonl\"\n: > \"$HOME/copy-invocations.jsonl\"\n/usr/bin/cat > /tmp/parity-case/padded-copy-adapter <<'PYADAPTER'\n#!/usr/bin/python3\nimport os, subprocess, sys\nadapter = '/tmp/parity-case/fixture-copy-adapter'\nif sys.argv[-1].startswith('tar -cf - -C '):\n    result = subprocess.run([adapter, *sys.argv[1:]], stdout=subprocess.PIPE)\n    sys.stdout.buffer.write(result.stdout)\n    if result.returncode == 0:\n        sys.stdout.buffer.write(bytes(1024 * 1024))\n    sys.exit(result.returncode)\nos.execv(adapter, [adapter, *sys.argv[1:]])\nPYADAPTER\n/usr/bin/chmod 0755 /tmp/parity-case/padded-copy-adapter\n",
+      "setup_timeout": 60,
+      "timeout": 30,
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "client.stdout",
+        "client.stderr",
+        "peer.jsonl",
+        "protocol.bin",
+        "control-peer.jsonl",
+        "control-protocol.bin",
+        "control-brt1.bin",
+        "control-command.out",
+        "control-client.out",
+        "control-client.err",
+        "adapter-control.txt",
+        "copy-invocations.jsonl",
+        "control-invocations.jsonl",
+        "copy-config.json"
+      ],
+      "comparison": "Compare status, tree paths, contents and modes against OpenSSH; candidate transport adds 1 MiB of zero padding after the tar archive.",
+      "oracle": "OpenSSH scp over the independent OpenSSH sftp-server via a local SSH-shaped adapter; candidate uses its command-stream adapter. The setup separately proves both adapter paths, with no network or authentication claim.",
+      "candidate_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/padded-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\nbuiltin scp --openssh -r \"fixture:source tree\" downloads > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "reference_script": "export PATH=/usr/bin:/bin\nH=/tmp/parity-case/fixture-copy-adapter\nexport BASHSSH_OPENSSH_BIN=\"$H\"\n/usr/bin/scp -S \"$H\" -r \"fixture:source tree\" downloads > \"$HOME/client.stdout\" 2> \"$HOME/client.stderr\"\nrc=$?\nprintf \"status=%s\\n\" \"$rc\"\n/usr/bin/python3 - <<'PYP'\nimport json,pathlib\np=pathlib.Path('/tmp/parity-home'); e=[json.loads(x) for x in (p/'copy-invocations.jsonl').read_text().splitlines()]\nstages=[x['event'] for x in e]\nvalid='invoked' in stages and 'configured' in stages and 'error' not in stages\nvalid=valid and any(x in stages for x in ('command','sftp-server','tree-stream','stock-proxy'))\nvalid=valid and all(x.get('error') is None and x.get('status')==0 for x in e if x['event']=='proxy-finished')\nprint('peer-stage=observed' if valid else 'peer-stage=unobserved')\nPYP\n",
+      "stdout": "status=0\npeer-stage=observed\n",
+      "expected_files": {
+        "downloads/source tree/nested/one file": "one\n",
+        "downloads/source tree/top": "top\n"
+      }
+    }
+  ]
+}

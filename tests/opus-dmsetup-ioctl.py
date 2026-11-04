@@ -210,6 +210,19 @@ def t_create(fx):
         f.write("0 64 zero\n64 64 linear 7:3 9\n")
     r = fx.run(f"dmsetup create fromfile {f.name}; dmsetup table fromfile", STATE)
     check(r.rc == 0 and r.out == "0 64 zero \n64 64 linear 7:3 9\n", "table read from a file", r.out + r.err)
+    relative = os.path.join(fx.tmp, "relative.table")
+    lines = [(0, 8, "zero", ""), (8, 8, "error", ""),
+             (16, 8, "linear", "7:3 0"), (24, 8, "zero", ""),
+             (32, 8, "linear", "7:3 8")]
+    with open(relative, "w") as f:
+        for start, length, kind, params in lines:
+            f.write(f"{start} {length} {kind} {params}\n")
+    r = fx.run('cd "$TD"; dmsetup create relative relative.table', STATE, env={"TD": fx.tmp})
+    check(r.rc == 0 and r.cmds() == ["create", "reload", "resume"],
+          "relative table file creates and activates", r.err + str(r.cmds()))
+    if len(r.reqs) >= 2:
+        check(r.reqs[1].target_count == 5 and r.reqs[1].payload == expected_load_payload(lines),
+              "relative five-target file has exact aligned load payload")
     r = fx.run("dmsetup create fromstdin; dmsetup table fromstdin", STATE, stdin="0 5 zero\n")
     check(r.rc == 0 and r.out == "0 5 zero \n", "table read from stdin", r.out + r.err)
     r = fx.run("dmsetup create inline '0 9 zero'; dmsetup table inline", STATE)
@@ -225,6 +238,8 @@ def t_create(fx):
     check("pinned\t(253:77)" in r.out, "persistent minor appears in ls", r.out)
     r = fx.run("dmsetup create half -n -j 253", STATE)
     check(r.rc == 1 and not r.reqs, "--major without --minor rejected before any ioctl")
+    r = fx.run("dmsetup create half -n -m 77", STATE)
+    check(r.rc == 1 and not r.reqs, "--minor without --major rejected before any ioctl")
 
     print("== create: failures revert ==")
     r = fx.run("dmsetup create bad --table '0 10 bogus'", STATE)
@@ -264,6 +279,46 @@ def t_malformed_tables(fx):
         f.write("0 1 zero\0\n")
     r = fx.run(f"dmsetup load alpha {nul}", STATE)
     check(r.rc == 1 and "NUL byte" in r.err and not r.reqs, "NUL in table file rejected", r.err)
+    for verb in ("create nulstdin", "load alpha"):
+        r = fx.run(f"dmsetup {verb}", STATE, stdin="0 1 zero\0\n")
+        check(r.rc == 1 and "NUL byte" in r.err and not r.reqs,
+              f"{verb} rejects NUL on stdin", r.err)
+
+    # The parser accepts these values; the mapper may reject the resulting table.
+    for row, start, length in (("0 0 zero", 0, 0),
+                               ("18446744073709551615 1 zero", 2**64 - 1, 1),
+                               ("0 18446744073709551615 zero", 0, 2**64 - 1)):
+        r = fx.run("dmsetup load alpha --table \"$T\"", STATE,
+                   env={"T": "# comment\n\n" + row})
+        check(r.cmds() == ["reload"] and r.reqs[0].specs()[0]["start"] == start
+              and r.reqs[0].specs()[0]["length"] == length,
+              f"comments and boundary values reach the mapper: {row}", r.err)
+
+    cap = 16 * 1024 * 1024
+    path = os.path.join(fx.tmp, "limit.table")
+    for size in (cap - 1, cap, cap + 1):
+        with open(path, "wb") as f:
+            f.write(b"#" + b" " * (size - 1))
+        for verb in ("create limit", "load alpha"):
+            r = fx.run(f"dmsetup {verb} {path}", STATE)
+            if size <= cap:
+                expected = "create" if verb.startswith("create") else "reload"
+                check(r.cmds() == [expected], f"{verb}: {size} bytes accepted", r.err)
+            else:
+                check(r.rc == 1 and "exceeds" in r.err and not r.reqs,
+                      f"{verb}: {size} bytes rejected before ioctl", r.err)
+    r = fx.run("dmsetup load alpha", STATE, stdin="#" + " " * cap)
+    check(r.rc == 1 and "exceeds" in r.err and not r.reqs,
+          "oversized stdin rejected before ioctl", r.err)
+
+    # Short rows expand to 48-byte specs and exceed the ioctl limit while
+    # the source text stays below its separate 16 MiB limit.
+    with open(path, "wb") as f:
+        f.write(b"0 0 z\n" * ((64 * 1024 * 1024) // 48 + 1))
+    for verb in ("create huge", "load alpha"):
+        r = fx.run(f"dmsetup {verb} {path}", STATE)
+        check(r.rc == 1 and "table too large" in r.err and not r.reqs,
+              f"{verb}: expanded table rejected before ioctl", r.err)
     r = fx.run("dmsetup create " + "n" * 128 + " -n", STATE)
     check(r.rc == 1 and "too long" in r.err and not r.reqs, "128-byte name rejected, not truncated", r.err)
     r = fx.run("dmsetup create ok -n -u " + "u" * 129, STATE)
@@ -274,6 +329,9 @@ def t_malformed_tables(fx):
 
 def t_load_cycle(fx):
     print("== load / reload / clear / inactive tables ==")
+    r = fx.run("dmsetup load -r alpha --table '0 8 zero'; dmsetup resume alpha", STATE)
+    check(r.rc == 0 and r.cmds() == ["reload", "resume"] and r.reqs[0].flags & F_READONLY,
+          "readonly load followed by resume", r.err + str(r.cmds()))
     r = fx.run("dmsetup reload alpha --table '0 200 zero'; dmsetup info alpha; "
                "dmsetup table --inactive alpha; dmsetup table alpha; dmsetup resume alpha; dmsetup table alpha",
                STATE)
@@ -319,6 +377,15 @@ def t_load_cycle(fx):
 
 def t_suspend_remove(fx):
     print("== suspend / resume / remove: flags and multi-device errors ==")
+    for option, flag in (("", 0), ("--noflush", F_NOFLUSH),
+                         ("--nolockfs", F_SKIP_LOCKFS)):
+        r = fx.run(f"dmsetup suspend {option} alpha; dmsetup info alpha; "
+                   "dmsetup resume alpha; dmsetup info alpha", STATE)
+        check(r.rc == 0 and r.cmds() == ["suspend", "info", "resume", "info"]
+              and r.reqs[0].flags == F_SUSPEND | flag and r.reqs[2].flags == 0,
+              f"suspend {option or 'plain'} and resume request flags", r.cmds())
+        check("State:             SUSPENDED" in r.out and "State:             ACTIVE" in r.out,
+              f"suspend {option or 'plain'} and resume state readback", r.out)
     r = fx.run("dmsetup suspend --noflush --nolockfs alpha gamma; dmsetup info alpha", STATE)
     check(r.rc == 0 and all(q.flags == F_SUSPEND | F_NOFLUSH | F_SKIP_LOCKFS for q in r.reqs[:2]),
           "suspend flags", [q.flags for q in r.reqs])
@@ -339,6 +406,10 @@ def t_suspend_remove(fx):
     check(r.rc == 0 and r.cmds() == ["table", "reload", "resume", "remove"], "remove --force wipes first",
           r.cmds())
     check(r.reqs[1].payload == expected_load_payload([(0, 150, "error", "")]), "force wipe loads one error target")
+    r = fx.run("dmsetup remove -f beta; rc=$?; dmsetup table beta; exit $rc", STATE)
+    check(r.rc == 1 and r.cmds() == ["table", "reload", "resume", "remove", "table"]
+          and "Device or resource busy" in r.err and r.out == "0 10 error \n",
+          "forced remove of an open device leaves an error table on EBUSY", r.out + r.err)
     r = fx.run("dmsetup remove -f gamma", STATE)
     check(r.rc == 0 and r.err == "" and r.cmds() == ["table", "remove"], "remove -f of a table-less device",
           r.err)
@@ -379,7 +450,7 @@ def t_rename(fx):
     check("omega\t(253:0)" in r.out, "renamed device listed", r.out)
     r = fx.run("dmsetup rename gamma --setuuid NEWU; dmsetup info gamma", STATE)
     check(r.rc == 0 and r.reqs[0].flags == F_UUID and r.reqs[0].payload == b"NEWU\0", "setuuid payload/flag")
-    check("UUID:              NEWU" in r.out, "uuid set", r.out)
+    check("UUID: NEWU" in r.out, "uuid set", r.out)
     r = fx.run("dmsetup rename beta --setuuid X", STATE)
     check(r.rc == 1 and "rename ioctl on beta  failed: Invalid argument" in r.err, "uuid cannot change twice")
     r = fx.run("dmsetup rename alpha beta", STATE)
@@ -411,8 +482,29 @@ def t_message(fx):
     check([q.data_size for q in r.reqs] == [16384, 32768, 65536], "message retried 16->32->64 KiB",
           [q.data_size for q in r.reqs])
     check(all(q.payload[8:].rstrip(b"\0") == b"dump 40000" for q in r.reqs), "payload rebuilt on every retry")
+    # A request larger than 16 KiB must grow from its actual allocation,
+    # preserving the entire request on the retry. The fixture accepts trailing
+    # text after dump's length and returns a 40,000-byte response.
+    message = "dump 40000 " + "x" * 20000
+    r = fx.run('dmsetup message alpha 0 "$M"', STATE, env={"M": message})
+    initial = HDR.size + align8(8 + len(message) + 1)
+    check(r.rc == 0 and len(r.out) == 40001, "large message receives complete reply", r.err)
+    check([q.data_size for q in r.reqs] == [initial, initial * 2],
+          "large request doubles actual allocation", [q.data_size for q in r.reqs])
+    check(all(q.payload[8:].rstrip(b"\0") == message.encode() for q in r.reqs),
+          "large message preserved on retry")
+    balanced(r, "large message retry")
     r = fx.run("dmsetup message -u UUID-BETA 3 ping", STATE)
     check(r.rc == 0 and r.reqs[0].uuid == "UUID-BETA" and r.out == "pong sector=3\n", "message -u UUID", r.err)
+    for script, payload, uuid in (
+        ("dmsetup message alpha 0 --noflush", b"--noflush", ""),
+        ("dmsetup message alpha 0 ping -- --target -x", b"ping -- --target -x", ""),
+        ("dmsetup message -u UUID-BETA 3 -x", b"-x", "UUID-BETA"),
+    ):
+        r = fx.run(script, STATE)
+        check(r.rc == 1 and len(r.reqs) == 1 and r.reqs[0].cmd == "message"
+              and r.reqs[0].uuid == uuid and r.reqs[0].payload[8:].split(b"\0", 1)[0] == payload,
+              "option-like message words reach the target unchanged", r.err)
     r = fx.run("dmsetup message alpha 999 ping", STATE)
     check(r.rc == 1 and "message ioctl on alpha  failed: Invalid argument" in r.err, "sector outside table")
     for args in ("alpha x ping", "alpha -1 ping", "alpha 5", "alpha"):
@@ -429,7 +521,7 @@ def t_queries(fx):
             "Name:              alpha\nState:             ACTIVE\nTables present:    LIVE\nOpen count:        0\n"
             "Event number:      0\nMajor, minor:      253, 0\nNumber of targets: 2\n\n"
             "Name:              beta\nState:             ACTIVE\nTables present:    LIVE\nOpen count:        1\n"
-            "Event number:      0\nMajor, minor:      253, 1\nNumber of targets: 1\nUUID:              UUID-BETA\n\n"
+            "Event number:      0\nMajor, minor:      253, 1\nNumber of targets: 1\nUUID: UUID-BETA\n\n"
             "2 dependencies\t: (8, 0) (8, 16)\n"
             "alpha: 2 dependencies\t: (8, 0) (8, 16)\nbeta: 0 dependencies\t:\ngamma: 0 dependencies\t:\n"
             "0 10 zero \n"
@@ -441,7 +533,7 @@ def t_queries(fx):
     check(st[0].cmd == "status" and not st[0].flags & F_TABLE and st[1].flags & F_TABLE, "status vs table flag")
     r = fx.run("dmsetup table --target zero; dmsetup ls --target linear; dmsetup status --target=linear alpha",
                STATE)
-    check(r.out == "beta: 0 10 zero \nalpha\t(253:0)\n0 100 linear \n100 50 linear \n", "--target filters", r.out)
+    check(r.out == "beta: 0 10 zero \nalpha\t(253, 0)\n0 100 linear \n100 50 linear \n", "--target filters", r.out)
     r = fx.run("dmsetup info nope; dmsetup table nope; dmsetup deps nope", STATE)
     check(r.rc == 1 and r.err == "Device does not exist.\nCommand failed.\n" * 3, "missing device wording",
           r.err)

@@ -80,6 +80,7 @@ def main():
         ('unknown option', ['--invalid'], 'unknown option'),
         ('unknown short option', ['-x', '/fixture/mount'], 'unknown option'),
         ('no action after delimiter', ['--', '-mount'], 'exactly one'),
+        ('action word after delimiter', ['--', '-f'], 'exactly one'),
         ('empty operand', ['-f', ''], 'mountpoint'),
     ]
     for name, argv, diagnostic in usage:
@@ -95,10 +96,10 @@ def main():
          expected=counts(1, 1, 0, 1, 1, 'stat,open,thaw,close,'))
     for kind in ('regular', 'block'):
         case('reject ' + kind, ['-f', '/fixture/mount'], 1, kind,
-             counts(stat=1, trace='stat,'), 'not a directory')
+             counts(stat=1, trace='stat,'), '/fixture/mount: not a directory')
     for e in ('ENOENT', 'EACCES', 'ENOTDIR'):
         case('stat ' + e, ['-u', '/fixture/mount'], 1, 'stat-' + e,
-             counts(stat=1, trace='stat,'), os.strerror(getattr(errno, e)))
+             counts(stat=1, trace='stat,'), '/fixture/mount: ' + os.strerror(getattr(errno, e)))
     for e in ('EACCES', 'EPERM', 'EMFILE', 'ENOTDIR'):
         case('open ' + e, ['-f', '/fixture/mount'], 1, 'open-' + e,
              counts(stat=1, open=1, trace='stat,open,'), os.strerror(getattr(errno, e)))
@@ -108,7 +109,7 @@ def main():
             case(f'ioctl {action} {e}', [action, '/fixture/mount'], 1, 'ioctl-' + e,
                  counts(1, 1, int(freeze), int(not freeze), 1,
                         'stat,open,' + ('freeze,' if freeze else 'thaw,') + 'close,'),
-                 ('freeze: ' if freeze else 'unfreeze: ') + os.strerror(getattr(errno, e)))
+                 '/fixture/mount: ' + ('freeze: ' if freeze else 'unfreeze: ') + os.strerror(getattr(errno, e)))
 
     # A bounded descriptor table makes leaks fail quickly. Inspect actual shell
     # descriptor counts as well as independent fixture call counters.

@@ -1,0 +1,75 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-timeout-path-missing",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Missing command searched through a private PATH",
+      "oracle": "GNU timeout in the locked disposable VM with the same private fixture and PATH.",
+      "comparison": "Exact status and output; diagnostic is checked for the failed command name.",
+      "script": "PATH=\"$PWD/bin\"; export PATH; timeout 2 absent-command >out 2>err; rc=$?; [[ -s err && $(<err) == *absent-command* ]] && diagnostic=yes || diagnostic=no; [[ ! -s out ]] && empty=yes || empty=no; printf \"status=%s diagnostic=%s empty=%s\\n\" \"$rc\" \"$diagnostic\"",
+      "stdout": "status=127 diagnostic=yes empty=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout"
+      ],
+      "covers": [
+        "timeout/deferred-child-status-and-lookup"
+      ],
+      "files": {
+        "bin/placeholder": "fixture\n"
+      },
+      "reference_script": "PATH=\"$PWD/bin\"; export PATH; /usr/bin/timeout 2 absent-command >out 2>err; rc=$?; [[ -s err && $(<err) == *absent-command* ]] && diagnostic=yes || diagnostic=no; [[ ! -s out ]] && empty=yes || empty=no; printf \"status=%s diagnostic=%s empty=%s\\n\" \"$rc\" \"$diagnostic\""
+    },
+    {
+      "id": "repair-timeout-path-nonexecutable",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "A PATH entry found without execute permission returns 126",
+      "oracle": "GNU timeout in the locked disposable VM with the same private fixture and PATH.",
+      "comparison": "Exact status and output; diagnostic is checked for the failed command name.",
+      "script": "PATH=\"$PWD/bin\"; export PATH; timeout 2 denied-command >out 2>err; rc=$?; [[ -s err && $(<err) == *denied-command* ]] && diagnostic=yes || diagnostic=no; [[ ! -s out ]] && empty=yes || empty=no; printf \"status=%s diagnostic=%s empty=%s\\n\" \"$rc\" \"$diagnostic\"",
+      "stdout": "status=126 diagnostic=yes empty=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout"
+      ],
+      "covers": [
+        "timeout/deferred-child-status-and-lookup"
+      ],
+      "files": {
+        "bin/denied-command": "fixture\n"
+      },
+      "setup_script": "/bin/chmod 0644 bin/denied-command",
+      "reference_script": "PATH=\"$PWD/bin\"; export PATH; /usr/bin/timeout 2 denied-command >out 2>err; rc=$?; [[ -s err && $(<err) == *denied-command* ]] && diagnostic=yes || diagnostic=no; [[ ! -s out ]] && empty=yes || empty=no; printf \"status=%s diagnostic=%s empty=%s\\n\" \"$rc\" \"$diagnostic\""
+    },
+    {
+      "id": "repair-timeout-missing-interpreter",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "An executable whose interpreter is missing reports exec ENOENT",
+      "oracle": "GNU timeout in the locked disposable VM with the same private fixture and PATH.",
+      "comparison": "Exact status and output; diagnostic is checked for the failed command name.",
+      "script": "timeout 2 ./bad-interpreter >out 2>err; rc=$?; [[ -s err && $(<err) == *bad-interpreter* ]] && diagnostic=yes || diagnostic=no; [[ ! -s out ]] && empty=yes || empty=no; printf \"status=%s diagnostic=%s empty=%s\\n\" \"$rc\" \"$diagnostic\"",
+      "stdout": "status=127 diagnostic=yes empty=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "timeout"
+      ],
+      "covers": [
+        "timeout/deferred-child-status-and-lookup"
+      ],
+      "files": {
+        "bad-interpreter": "#!/nonexistent-parity-interpreter\n"
+      },
+      "setup_script": "/bin/chmod 0755 bad-interpreter"
+    }
+  ]
+}

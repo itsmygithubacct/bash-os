@@ -1,0 +1,123 @@
+Safeedit v2 r2: sealed-byte qualification source, incomplete release qualification
+
+This is an additive qualification operation on the new PRIVCMD v2 endpoint.
+Production Kbuild, old ABI behavior and feature advertisements are unchanged.
+There is no root-UID approval shortcut. Every caller, including root, needs a
+fresh policy decision and any required native verification for each phase.
+
+The implemented transaction supports 1..16 existing protected ordinary files,
+each at most 1 MiB. The selected policy target UID must be zero; original files
+must be root-owned, single-link, non-setid and not group/world writable. All
+absolute path components must be canonical and free of symlinks. The retained
+parent ancestry must be administrator-owned and not group/world writable.
+Mountpoint substitution, idmapped, remote and layered filesystems are refused.
+Only direct ext2/3/4, XFS, Btrfs and tmpfs are supported. Original files and
+uploads with xattrs (including ACL/security-label metadata) are refused. The
+initial implementation does not create missing targets or edit non-root-owned
+targets. These restrictions are release scope limits, not coverage of those
+operations. Administrative raw-device/kernel mutation is outside the boundary.
+
+OPEN consumes one five-second task/fd-bound grant. It preflights the complete
+original vector and complete empty caller-owned 0600 read/write fd vector
+before copying the first file. Original inode, parent/mount, owner/group/mode,
+ctime, length and SHA-256 remain in a kernel-owned session with the original
+request digest. Duplicates and source/destination overlap are refused. Original
+write-denial references prevent content changes during the initial copy and
+are released while the caller edits. The session retains exact actor task,
+exec, credentials, session, namespace, root and cwd binding for at most one
+hour. The session is not itself a copyback grant.
+
+The Bash consumer creates a private 0700 caller directory and 0600 copies, then
+executes its selected editor as that caller. No authority fd reaches the editor.
+After successful editor completion it opens the edited copies read-only and
+submits EDIT_SEAL with OPEN's correlation id and original request digest. The
+kernel retains those exact open-file objects and write-denies the complete
+vector before computing its transaction digest. Existing writable aliases make
+SEAL fail. Seal replay, malformed input or a reply-copy fault destroy the edit
+session and release its pins. SEAL itself cannot write or rename an original.
+
+The client then submits the original owned request again. PREPARE requires the
+sealed session and matching original request, and returns its transaction
+digest as the authorized request.request_digest. The client checks that value
+against SEAL's result before starting native verification. The kernel passes
+that same digest into the private verifier channel and checks it in the one-use
+verified event. VERIFY and COMMIT must present it with the new correlation id.
+Default timestamp_timeout=0
+requires a second password verification under PASSWD rules; an explicit
+NOPASSWD rule or configured positive timestamp follows the general protocol.
+The client retains the same read-only copy fds from SEAL through COMMIT. It reports exact structured
+commit counts and cleanup failures; an inaccessible/malformed response reports
+an unknown count. Usage errors for 0/17 targets or relative/overlong paths are
+status 2, before device access. An edit failure is status 1.
+
+COMMIT consumes both its fresh grant and its old edit session on every path.
+It rejects substitution of any pinned open-file object and rechecks all upload
+metadata and every original before creating any replacement. The edited bytes
+have remained write-denied since SEAL, across policy and password verification.
+It stages and fsyncs
+all replacements in their protected original directories, preserving the
+supported owner/group/mode. The private regular-file writer is synchronously
+released before its stage is reopened read-only and write-denied. No VFS inode
+or parent lock is held during that release. Staged files are never placed in a
+user fd table. Each final rename uses the retained parent and verifies the
+original dentry/inode again. One complete same-parent rename is atomic.
+Several renames do not make one filesystem transaction: a late failure reports
+the exact committed prefix, including a rename whose later directory fsync
+failed. Uncommitted stages are removed; cleanup errors are separately visible.
+
+The sealed transaction digest binds the original request/target vector, every
+original content digest and every edited content digest/length. The session also
+retains original inode/parent/mount/metadata identities. Those identities remain
+mandatory at COMMIT even when a replacement inode has identical contents. A
+fresh grant cannot execute a command or open a new edit session, and an OPEN
+grant cannot be used for COMMIT. Session expiry, cancellation, last-close,
+malformed requests and verification failures release all retained upload pins.
+The original published ABI is unchanged. Qualification source packets are
+paired: r2 clients require EDIT_SEAL and the r2 module rejects an unsealed
+copyback flow. Historical r1 source/receipts remain separate and unchanged.
+
+The transaction digest is SHA256 of this exact concatenation:
+  ASCII "bashos-safeedit-v2" (18 bytes, no NUL)
+  original owned request SHA-256 (32 bytes)
+  count (u32 little endian)
+  for each target in order:
+    original content SHA-256 (32 bytes)
+    pinned edited content SHA-256 (32 bytes)
+    edited byte length (u64 little endian)
+It is computed in the kernel at SEAL and checked again while copying pinned bytes.
+The caller cannot supply a replacement transaction hash or a success flag.
+
+PREPARE reserves 4+2*count records in the bounded audit ring; SEAL reserves one.
+An EDIT_COMMIT intent must be recorded before its rename. EDIT_OPEN with
+result_kind EDIT_OPENED (8) carries the original request digest. Successful
+SEAL uses EDIT_OPEN with result_kind EDIT_SEALED (11) and its transaction
+digest. Subsequent PREPARE/VERIFY records and EDIT_COMMIT/EDIT_RESULT carry that
+sealed digest. A failure before sealing carries the original request digest.
+outcome and result_kind select this meaning. target_count/committed_count
+always describe this edit. The intent result_kind is the zero-based target
+index and command is that target path; result_code is zero or the selected
+intent denial. EDIT_RESULT result_kind is the edit result enum and result_code
+is its errno. A post-rename reporting failure never proves that no file changed.
+The ring is authenticated within its live instance, not durable storage.
+
+The test-only module parameter test_edit_fail_index defaults to -1. An explicit
+0..15 selects an EIO denial from that intent callback before the selected rename.
+It never invents an allow, native verification, filesystem result or audit
+record, and is absent from production Kbuild. Its controls are labelled as
+synthetic denial within otherwise real device/filesystem consumer operations.
+
+The guest controls retain independent before/after inode, content and metadata
+observations, live invoking Bash and editor IDs/lineage, their open descriptors,
+private editor paths,
+password echo restoration, all audit records, transaction digest calculations,
+temporary-file checks and dmesg deltas. They include 1/2/16 successes, fresh
+password success/failure, write-denied bytes observed before the second password,
+replacement of private pathnames while pinned bytes remain authoritative,
+policy denial of one target, editor/copy failures,
+original drift, audit backpressure, committed-prefix denial and raw negative
+grant/fd/replay controls. The 20 actual-consumer and 20 device-binding controls
+are authored and require actual guest
+execution. Exhaustive path/metadata races, each filesystem failure point,
+whole-process lifetime/race observations and the complete
+original release matrix remain unqualified. Never replace those obligations
+with a source hash, feature probe or device-only success.

@@ -14,6 +14,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+#include <time.h>
 
 #include "loadables.h"
 
@@ -535,9 +537,131 @@ bgit_sshsig_check (const char *armoured, const char *name_space,
     return rc;
 }
 
+/* OpenSSH pattern lists use '*' and '?' and give a matching negative
+   pattern priority over every positive one. Bracket expressions are not
+   wildcard syntax here. */
+static int
+bgit_signer_pattern (const char *pattern, const char *text)
+{
+    const char *star = NULL, *retry = NULL;
+    while (*text) {
+        if (*pattern == '?' || *pattern == *text) { pattern++; text++; }
+        else if (*pattern == '*') { star = pattern++; retry = text; }
+        else if (star) { pattern = star + 1; text = ++retry; }
+        else return 0;
+    }
+    while (*pattern == '*') pattern++;
+    return *pattern == '\0';
+}
+
+static int
+bgit_signer_namespace (const char *list, const char *name_space)
+{
+    int matched = 0;
+    const char *p = list;
+    if (!p || !*p || !name_space || !*name_space) return 0;
+    for (;;) {
+        const char *end = strchr (p, ',');
+        size_t len = end ? (size_t) (end - p) : strlen (p);
+        int negative = len && *p == '!';
+        if (negative) { p++; len--; }
+        if (!len || len >= 8192) return 0;
+        char pattern[8192];
+        memcpy (pattern, p, len); pattern[len] = '\0';
+        if (bgit_signer_pattern (pattern, name_space)) {
+            if (negative) return 0;
+            matched = 1;
+        }
+        if (!end) return matched;
+        p = end + 1;
+    }
+}
+
+/* The documented OpenSSH absolute-time forms use local time unless Z/UTC
+   is supplied. Reject malformed or normalized dates rather than silently
+   relaxing a restriction. */
+static int
+bgit_signer_time (const char *value, long long *out)
+{
+    size_t n = strlen (value);
+    int utc = 0;
+    if (n && (value[n - 1] == 'Z' || value[n - 1] == 'z')) { utc = 1; n--; }
+    else if (n >= 3 && !strcasecmp (value + n - 3, "UTC")) { utc = 1; n -= 3; }
+    if (n != 8 && n != 12 && n != 14) return -1;
+    for (size_t i = 0; i < n; i++) if (value[i] < '0' || value[i] > '9') return -1;
+#define TWO(i) ((value[(i)] - '0') * 10 + value[(i) + 1] - '0')
+    struct tm tm = { 0 }, check;
+    tm.tm_year = (value[0]-'0')*1000 + (value[1]-'0')*100 + TWO(2) - 1900;
+    tm.tm_mon = TWO(4) - 1; tm.tm_mday = TWO(6);
+    if (n >= 12) { tm.tm_hour = TWO(8); tm.tm_min = TWO(10); }
+    if (n == 14) tm.tm_sec = TWO(12);
+#undef TWO
+    struct tm wanted = tm;
+    tzset ();
+    tm.tm_isdst = utc ? 0 : -1;
+    time_t t = utc ? timegm (&tm) : mktime (&tm);
+    if (t <= 0 || !(utc ? gmtime_r (&t, &check) : localtime_r (&t, &check))) return -1;
+    if (check.tm_year != wanted.tm_year || check.tm_mon != wanted.tm_mon ||
+        check.tm_mday != wanted.tm_mday || check.tm_hour != wanted.tm_hour ||
+        check.tm_min != wanted.tm_min || check.tm_sec != wanted.tm_sec) return -1;
+    *out = (long long) t;
+    return 0;
+}
+
+/* Consume a quoted option value, including OpenSSH's escaped quote form. */
+static int
+bgit_signer_value (const char **cursor, char *value, size_t size)
+{
+    const char *p = *cursor;
+    size_t n = 0;
+    if (*p++ != '"') return -1;
+    while (*p && *p != '"') {
+        if (p[0] == '\\' && p[1] == '"') p++;
+        if (n + 1 >= size) return -1;
+        value[n++] = *p++;
+    }
+    if (*p++ != '"') return -1;
+    value[n] = '\0'; *cursor = p;
+    return 0;
+}
+
+static int
+bgit_signer_options (const char **cursor, const char *name_space,
+                     long long verify_time)
+{
+    const char *p = *cursor;
+    int seen_namespace = 0, seen_after = 0, seen_before = 0;
+    long long after = 0, before = 0;
+    for (;;) {
+        char value[8192];
+        int kind;
+        if (!strncasecmp (p, "namespaces=", 11)) { kind = 1; p += 11; }
+        else if (!strncasecmp (p, "valid-after=", 12)) { kind = 2; p += 12; }
+        else if (!strncasecmp (p, "valid-before=", 13)) { kind = 3; p += 13; }
+        else return 0; /* Unknown options and unsupported CA keys fail closed. */
+        if (bgit_signer_value (&p, value, sizeof value) < 0) return 0;
+        if (kind == 1) {
+            if (seen_namespace++ || !bgit_signer_namespace (value, name_space)) return 0;
+        } else if (kind == 2) {
+            if (seen_after++ || bgit_signer_time (value, &after) < 0) return 0;
+        } else {
+            if (seen_before++ || bgit_signer_time (value, &before) < 0) return 0;
+        }
+        if (*p == ' ' || *p == '\t') break;
+        if (*p++ != ',' || !*p || *p == ' ' || *p == '\t') return 0;
+    }
+    if (after && before && before <= after) return 0;
+    if ((after || before) && verify_time <= 0) return 0;
+    if ((after && verify_time < after) || (before && verify_time > before)) return 0;
+    while (*p == ' ' || *p == '\t') p++;
+    *cursor = p;
+    return 1;
+}
+
 int
-bgit_ssh_allowed_signer (const char *path, const bgit_ssh_key *key, char *out,
-                         size_t outsz)
+bgit_ssh_allowed_signer (const char *path, const bgit_ssh_key *key,
+                         const char *name_space, long long verify_time,
+                         char *out, size_t outsz)
 {
     unsigned char *file = NULL;
     size_t file_len = 0;
@@ -549,23 +673,32 @@ bgit_ssh_allowed_signer (const char *path, const bgit_ssh_key *key, char *out,
         char *stop = memchr (line, '\n', (size_t) (end - line));
         size_t len = stop ? (size_t) (stop - line) : (size_t) (end - line);
         char entry[8192];
-        if (len && len < sizeof entry && *line != '#') {
-            memcpy (entry, line, len);
-            entry[len] = '\0';
-            /* "<principal>[,<principal>...] [options] <keytype> <key>" */
-            char *space = strchr (entry, ' ');
-            if (space) {
-                *space = '\0';
-                bgit_ssh_key theirs;
-                const char *rest = space + 1;
-                while (*rest == ' ') rest++;
-                if (bgit_ssh_key_public (rest, &theirs) == 0 &&
-                    !memcmp (theirs.public_key, key->public_key, 32)) {
-                    snprintf (out, outsz, "%s", entry);
-                    found = 1;
+        if (len && len < sizeof entry && !memchr (line, '\0', len)) {
+            memcpy (entry, line, len); entry[len] = '\0';
+            char *principal = entry + strspn (entry, " \t\r");
+            if (*principal && *principal != '#') {
+                char *space = principal + strcspn (principal, " \t\r");
+                if (*space) {
+                    *space++ = '\0';
+                    while (*space == ' ' || *space == '\t') space++;
+                    const char *rest = space;
+                    /* A concrete signer identity is required. Principal
+                       pattern lists need their own matching implementation;
+                       never treat an unvalidated list as a trusted identity. */
+                    if (strpbrk (principal, "*,?!")) goto next;
+                    bgit_ssh_key theirs;
+                    if (strncmp (rest, "ssh-ed25519", 11) &&
+                        !bgit_signer_options (&rest, name_space, verify_time))
+                        goto next;
+                    if (bgit_ssh_key_public (rest, &theirs) == 0 &&
+                        !memcmp (theirs.public_key, key->public_key, 32)) {
+                        snprintf (out, outsz, "%s", principal);
+                        found = 1;
+                    }
                 }
             }
         }
+next:
         line = stop ? stop + 1 : end;
     }
     free (file);

@@ -637,7 +637,6 @@ pr_single (bl_output *out, pr_input *in, const pr_opts *o)
             if (n < 0) break;
         }
         if (line_in_page >= o->body_lines) {
-            if (page_no >= o->first_page && page_no <= o->last_page) pr_footer (out, o, line_in_page);
             page_no++;
             line_in_page = 0;
         }
@@ -675,9 +674,17 @@ pr_single (bl_output *out, pr_input *in, const pr_opts *o)
             line_in_page = 0;
             if (page_no == o->last_page) break;
             page_no++;
+        } else if (line_in_page >= o->body_lines && page_no >= o->first_page) {
+            /* Finish the page before attempting another potentially blocking
+               read. Keep line_in_page at the boundary so the next record's
+               leading form feed is still handled as before. */
+            pr_footer (out, o, line_in_page);
+            bl_output_flush (out);
         }
     }
-    if (line_in_page > 0 && page_no >= o->first_page && page_no <= o->last_page) pr_footer (out, o, line_in_page);
+    if (line_in_page > 0 && line_in_page < o->body_lines
+        && page_no >= o->first_page && page_no <= o->last_page)
+        pr_footer (out, o, line_in_page);
     free (line);
     return in->failed ? -1 : 0;
 }

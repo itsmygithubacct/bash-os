@@ -9,7 +9,7 @@
  *   enter / j      next line
  *   /pattern       search forward to the next matching line
  *   q              quit
- *   anything else  next screen (with help hint if -d is set)
+ *   anything else  remain at the prompt
  *
  * Flags:
  *   -d        emit help hint on prompt ("Press space to continue, q to quit")
@@ -36,6 +36,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <poll.h>
+#include <regex.h>
 #include <signal.h>
 #include <termios.h>
 #include <sys/ioctl.h>
@@ -117,6 +118,8 @@ typedef struct {
     struct sigaction old_winch;
     char *line;
     size_t cap;
+    regex_t search;
+    int have_search;
 } bm_session;
 
 static void
@@ -126,6 +129,7 @@ bm_cleanup (void *arg)
     if (s->have_termios) tcsetattr (s->tty, TCSANOW, &s->saved);
     if (s->tty >= 0) close (s->tty);
     bm_restore_sigwinch (&s->old_winch, s->have_winch);
+    if (s->have_search) regfree (&s->search);
     free (s->line);
 }
 
@@ -187,11 +191,12 @@ bm_wait (int fd, short events)
 }
 
 static int
-bm_get_key (bm_session *s, int hint)
+bm_get_key (bm_session *s, int hint, const char *next_file)
 {
     if (bm_cbreak (s) < 0) return -1;
-    if (hint) fputs ("--More-- (space=page, enter=line, q=quit)", stderr);
-    else fputs ("--More--", stderr);
+    fputs ("--More--", stderr);
+    if (next_file) fprintf (stderr, "(Next file: %s)", next_file);
+    if (hint) fputs ("[Press space to continue, 'q' to quit.]", stderr);
     fflush (stderr);
     for (;;) {
         int c = bl_read_key_checked (s->tty, bm_check_interrupt);
@@ -350,7 +355,7 @@ bm_pager (FILE *f, int rows, int hint)
         for (;;) {
             /* A non-newline final record must be visible before the prompt. */
             if (fflush (stdout) == EOF) goto write_error;
-            int k = bm_get_key (&s, hint);
+            int k = bm_get_key (&s, hint, NULL);
             tcsetattr (s.tty, TCSANOW, &s.saved);
             bm_erase_prompt ();
             if (bm_resize_seen) {
@@ -366,16 +371,28 @@ bm_pager (FILE *f, int rows, int hint)
             if (k == '/') {
                 char pat[128];
                 if (bm_prompt_search (&s, pat, sizeof pat) < 0) continue;
+                int regex_error = regcomp (&s.search, pat, REG_NEWLINE);
+                if (regex_error) {
+                    char message[256];
+                    regerror (regex_error, &s.search, message, sizeof message);
+                    fprintf (stderr, "%s\r\n", message);
+                    continue;
+                }
+                s.have_search = 1;
                 int found = 0;
                 while ((n = bm_read_line (&s, f)) != -1) {
-                    /* Literal byte search includes text after embedded NULs. */
-                    if (memmem (s.line, (size_t) n, pat, strlen (pat))) {
+                    /* REG_STARTEND also searches past embedded NUL bytes. */
+                    regmatch_t bounds = { .rm_so = 0, .rm_eo = (regoff_t) n };
+                    if (n <= INT_MAX && regexec (&s.search, s.line, 1, &bounds,
+                                                 REG_STARTEND) == 0) {
                         if (fwrite (s.line, 1, (size_t) n, stdout) != (size_t) n)
                             goto write_error;
                         found = 1;
                         break;
                     }
                 }
+                regfree (&s.search);
+                s.have_search = 0;
                 if (!found) {
                     fputs ("Pattern not found\r\n", stderr);
                     goto input_done;
@@ -384,6 +401,8 @@ bm_pager (FILE *f, int rows, int hint)
                 shown = 1;
                 break;
             }
+            if (k != ' ' && k != 'f' && k != '\n' && k != '\r' && k != 'j')
+                continue;
             single_line = k == '\n' || k == '\r' || k == 'j';
             shown = 0;
             break;
@@ -402,6 +421,31 @@ write_error:
     }
     run_unwind_frame ("more session");
     return rc;
+}
+
+/* Pause between interactive operands, including when the previous file was
+   shorter than a screen. Keep this session unwind-safe just like the pager. */
+static int
+bm_next_file (const char *name, int hint)
+{
+    bm_session s = { .tty = -1 };
+    int result = EXECUTION_SUCCESS;
+    begin_unwind_frame ("more next file");
+    add_unwind_protect (bm_cleanup, &s);
+    if (bm_open_terminal (&s)) {
+        if (fflush (stdout) == EOF) result = EXECUTION_FAILURE;
+        else for (;;) {
+            int k = bm_get_key (&s, hint, name);
+            tcsetattr (s.tty, TCSANOW, &s.saved);
+            bm_erase_prompt ();
+            if (k == 'q' || k == 'Q') { result = BM_QUIT; break; }
+            if (k < 0 || k == ' ' || k == 'f' || k == '\n' ||
+                k == '\r' || k == 'j') break;
+            if (k == 'h' || k == 'H' || k == '?') bm_show_key_help ();
+        }
+    }
+    run_unwind_frame ("more next file");
+    return result;
 }
 
 static void
@@ -520,6 +564,11 @@ more_builtin (WORD_LIST *list)
         if (result == BM_QUIT) break;
         /* Output already failed: later files could only repeat the error. */
         if (ferror (stdout)) break;
+        if (p->next && isatty (STDOUT_FILENO)) {
+            result = bm_next_file (p->next->word->word, hint);
+            if (result == BM_QUIT) break;
+            if (result != EXECUTION_SUCCESS) { rc = EXECUTION_FAILURE; break; }
+        }
     }
     return rc;
 }

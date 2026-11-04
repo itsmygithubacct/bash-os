@@ -1,0 +1,172 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-whiptail-tailbox-long-follow",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Tailbox starts at the last six lines of a longer file and follows an appended line.",
+      "script": "( read -t 1.5 <> gate; echo appended-w8 >> log ) & feeder=$!\nwhiptail --tailbox log 12 40 2>res; echo \"rc=$?\" > rc\nkill $feeder 2>/dev/null; wait $feeder 2>/dev/null; :\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "line-05",
+              "line-10"
+            ],
+            "lacks": [
+              "line-04",
+              "appended-w8"
+            ]
+          }
+        },
+        {
+          "screen": {
+            "contains": [
+              "line-06",
+              "appended-w8"
+            ],
+            "lacks": [
+              "line-05"
+            ]
+          }
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "whiptail/deferred-terminal-rendering"
+      ],
+      "files": {
+        "log": "line-01\nline-02\nline-03\nline-04\nline-05\nline-06\nline-07\nline-08\nline-09\nline-10\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": "",
+        "log": "line-01\nline-02\nline-03\nline-04\nline-05\nline-06\nline-07\nline-08\nline-09\nline-10\nappended-w8\n"
+      },
+      "oracle": "The reference whiptail 0.52.25 has no --tailbox (it reports unknown option), so there is no reference executable. Expectation follows the documented tail -f style behaviour of dialog --tailbox: the display follows lines appended to the file. Screen decoded by pyte.",
+      "comparison": "Screen first shows only the original lines, then also shows appended-w8; status 0; the log has exactly the appended line.",
+      "requires": [
+        "mkfifo"
+      ],
+      "setup_script": "/usr/bin/mkfifo gate\n",
+      "timeout": 15,
+      "kind": "contract"
+    },
+    {
+      "id": "repair-whiptail-resize-grow",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A message box recenters after the terminal grows while waiting for input.",
+      "script": "whiptail --msgbox 'Hello after resize' 8 30 2>res; echo \"rc=$?\" > rc\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Hello after resize"
+            ],
+            "rows": {
+              "5": "^ {10}\\S.*Hello after resize"
+            }
+          }
+        },
+        {
+          "resize": [
+            24,
+            80
+          ]
+        },
+        {
+          "screen": {
+            "rows": {
+              "10": "^ {25}\\S.*Hello after resize"
+            }
+          }
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        14,
+        50
+      ],
+      "expected_status": 0,
+      "covers": [
+        "whiptail/deferred-terminal-rendering"
+      ],
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": ""
+      },
+      "kind": "contract",
+      "oracle": "Debian 13 whiptail 0.52.25 (newt) on the reference PATH, run in the same PTY (xterm-256color, fixed size) as the candidate whiptail builtin; screen contents decoded independently by pyte.",
+      "comparison": "Before: the text row sits at row 10, column 25 (centred 8x30 window on 24x80, as the reference whiptail draws it). After the resize to 14x50 the text must be on row 5 at column 10 (centre of the new geometry); the reference whiptail redraws only on the next key, so this is asserted against the candidate as a contract.",
+      "requires": [
+        "whiptail"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "review-whiptail-tailbox-fifo-replacement-r1",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Following a file survives replacement by a FIFO and follows a later regular replacement without blocking terminal input.",
+      "oracle": "Bounded guest fixture replaces a private file by a FIFO and then by a regular file.",
+      "comparison": "Screen transitions to the recovered regular content; Enter exits successfully and terminal remains usable.",
+      "covers": [
+        "whiptail/deferred-terminal-rendering"
+      ],
+      "requires": [
+        "sleep",
+        "mkfifo",
+        "rm"
+      ],
+      "files": {
+        "log": "initial-tailbox-line\n"
+      },
+      "script": "( /usr/bin/sleep 1; /usr/bin/rm -f log; /usr/bin/mkfifo log; /usr/bin/sleep 1; /usr/bin/rm -f log; printf \"recovered-tailbox-line\\n\" > log ) & feeder=$!\nwhiptail --tailbox log 12 40 2>res; printf \"rc=%s\\n\" \"$?\" >rc\nwait \"$feeder\"\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "initial-tailbox-line"
+            ]
+          }
+        },
+        {
+          "screen": {
+            "contains": [
+              "recovered-tailbox-line"
+            ]
+          }
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "rc": "rc=0\n",
+        "res": "",
+        "log": "recovered-tailbox-line\n"
+      },
+      "timeout": 15
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import tempfile
@@ -55,6 +56,12 @@ def cases():
     yield dict(name='named-partial-errors', args=['/good', '/denied', '/missing', '/last'],
                expected=['/good', '/denied', '/missing', '/last'], fails=[('/denied', 13), ('/missing', 19)],
                rc=1, stderr=['/denied: Permission denied', '/missing: No such device'])
+    yield dict(name='named-errno-order-and-repeat',
+               args=['--', '-missing', '/nonswap', '/active', '-missing', '', '/last'],
+               expected=['-missing', '/nonswap', '/active', '-missing', '/last'],
+               fails=[('-missing', 2), ('/nonswap', 22)], rc=1,
+               stderr_lines=['-missing: No such file or directory', '/nonswap: Invalid argument',
+                             '-missing: No such file or directory', 'empty device name'])
     yield dict(name='named-permission', args=['/root-only'], expected=['/root-only'], fails=[('/root-only', 1)],
                rc=1, stderr=['Operation not permitted'])
     yield dict(name='empty-name-partial', args=['', '/last'], expected=['/last'], rc=1, stderr=['empty device name'])
@@ -146,7 +153,12 @@ def run_suite(args):
             proc = subprocess.run([args.binary, '--noprofile', '--norc', '-c', script], env=env, capture_output=True)
             stderr = proc.stderr.decode(errors='replace')
             ok = proc.returncode == 0 and all(s in stderr for s in case.get('stderr', []))
-            if not case.get('stderr') and not case.get('allow_stderr'):
+            if 'stderr_lines' in case:
+                lines = stderr.splitlines()
+                normalized = [re.sub(r'^.*\bswapoff: ', '', line, count=1) for line in lines]
+                ok = ok and normalized == case['stderr_lines'] and all(
+                    re.match(r'^.*\bswapoff: ', line) for line in lines)
+            if not case.get('stderr') and 'stderr_lines' not in case and not case.get('allow_stderr'):
                 ok = ok and not proc.stderr
             ok = ok and ('stdout' not in case or case['stdout'].encode() in proc.stdout)
             if 'stdout' not in case:

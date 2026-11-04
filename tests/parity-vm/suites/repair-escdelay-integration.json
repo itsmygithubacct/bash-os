@@ -1,0 +1,118 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "escdelay",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "",
+      "covers": [
+        "escdelay/decoder-timing-integration"
+      ],
+      "kind": "contract",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "tw.py": "import os, sys, time\n# Timed writer: each argument is hex bytes to write, or sNNN to sleep NNN ms.\nfor arg in sys.argv[1:]:\n    if arg.startswith('s'):\n        time.sleep(int(arg[1:]) / 1000)\n    else:\n        os.write(1, bytes.fromhex(arg))\n"
+      },
+      "timeout": 30,
+      "id": "repair-escdelay-live-updates",
+      "purpose": "Change global settings between reads in the same decoder process, including both bounds.",
+      "script": "unset BASHESCDELAY BASHKGETCH_ESCDELAY\nfor r in kgetch wgetch; do\n if [[ $r == kgetch ]]; then rd='kgetch read'; else rd='wgetch read 0'; fi\n /usr/bin/python3 tw.py 1b s200 5b41 s100 1b s200 5b41 | {\n   escdelay set 5000; $rd\n   escdelay set 0; $rd; $rd; $rd; $rd\n } > \"$r-keys\"\ndone\n",
+      "oracle": "escdelay documented screen/global precedence and 0..5000 bounds; kgetch retains its legacy environment override.",
+      "comparison": "exact key records from timed pipe feeds with wide timing margins",
+      "expected_files": {
+        "kgetch-keys": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n",
+        "wgetch-keys": "key_up 257\nesc 27\nchar 91\nchar 65\nnone 0\n"
+      }
+    },
+    {
+      "loadable": "escdelay",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "",
+      "covers": [
+        "escdelay/decoder-timing-integration"
+      ],
+      "kind": "contract",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "tw.py": "import os, sys, time\n# Timed writer: each argument is hex bytes to write, or sNNN to sleep NNN ms.\nfor arg in sys.argv[1:]:\n    if arg.startswith('s'):\n        time.sleep(int(arg[1:]) / 1000)\n    else:\n        os.write(1, bytes.fromhex(arg))\n"
+      },
+      "timeout": 30,
+      "id": "repair-escdelay-screen-precedence",
+      "purpose": "Screen state and environment override global values, including a 63-character name and invalid screen environment fallback.",
+      "script": "unset BASHESCDELAY BASHKGETCH_ESCDELAY\nname=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nescdelay set 0\nexport BASHESCDELAY=0\nescdelay set --screen \"$name\" 1000\n/usr/bin/python3 tw.py 1b s200 5b41 | { wgetch open 0 \"$name\" > h; read -r h < h; wgetch read \"$h\"; wgetch read \"$h\"; } > state\nexport BASHESCDELAY_SCREEN_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=0\n/usr/bin/python3 tw.py 1b s200 5b41 | { wgetch open 0 \"$name\" > h; read -r h < h; wgetch read \"$h\"; wgetch read \"$h\"; wgetch read \"$h\"; wgetch read \"$h\"; } > env\nexport BASHESCDELAY_SCREEN_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=invalid\n/usr/bin/python3 tw.py 1b s200 5b41 | { wgetch open 0 \"$name\" > h; read -r h < h; wgetch read \"$h\"; wgetch read \"$h\"; } > invalid\n",
+      "oracle": "escdelay documented screen/global precedence and 0..5000 bounds; kgetch retains its legacy environment override.",
+      "comparison": "exact key records from timed pipe feeds with wide timing margins",
+      "expected_files": {
+        "state": "key_up 257\nnone 0\n",
+        "env": "esc 27\nchar 91\nchar 65\nnone 0\n",
+        "invalid": "key_up 257\nnone 0\n"
+      }
+    },
+    {
+      "loadable": "escdelay",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "",
+      "covers": [
+        "escdelay/decoder-timing-integration"
+      ],
+      "kind": "contract",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "tw.py": "import os, sys, time\n# Timed writer: each argument is hex bytes to write, or sNNN to sleep NNN ms.\nfor arg in sys.argv[1:]:\n    if arg.startswith('s'):\n        time.sleep(int(arg[1:]) / 1000)\n    else:\n        os.write(1, bytes.fromhex(arg))\n"
+      },
+      "timeout": 30,
+      "id": "repair-escdelay-legacy-override",
+      "purpose": "The kgetch legacy variable remains effective and a nonempty global environment variable takes precedence.",
+      "script": "unset BASHESCDELAY\nexport BASHKGETCH_ESCDELAY=1000\nescdelay set 0\n/usr/bin/python3 tw.py 1b s200 5b41 | { kgetch read; kgetch read; } > legacy\nexport BASHESCDELAY=0\n/usr/bin/python3 tw.py 1b s200 5b41 | { kgetch read; kgetch read; kgetch read; kgetch read; } > global\n",
+      "oracle": "escdelay documented screen/global precedence and 0..5000 bounds; kgetch retains its legacy environment override.",
+      "comparison": "exact key records from timed pipe feeds with wide timing margins",
+      "expected_files": {
+        "legacy": "key_up 257\nnone 0\n",
+        "global": "esc 27\nchar 91\nchar 65\nnone 0\n"
+      }
+    },
+    {
+      "loadable": "escdelay",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "",
+      "covers": [
+        "escdelay/decoder-timing-integration"
+      ],
+      "kind": "contract",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "tw.py": "import os, sys, time\n# Timed writer: each argument is hex bytes to write, or sNNN to sleep NNN ms.\nfor arg in sys.argv[1:]:\n    if arg.startswith('s'):\n        time.sleep(int(arg[1:]) / 1000)\n    else:\n        os.write(1, bytes.fromhex(arg))\n"
+      },
+      "timeout": 30,
+      "id": "repair-escdelay-decoder-without-enabled-builtin",
+      "purpose": "The decoders retain their independent environment/default behavior when escdelay is disabled.",
+      "script": "enable -n escdelay\nexport BASHESCDELAY=1000\nfor r in kgetch wgetch; do\n if [[ $r == kgetch ]]; then rd='kgetch read'; else rd='wgetch read 0'; fi\n /usr/bin/python3 tw.py 1b s200 5b41 | { $rd; $rd; } > \"$r-keys\"\ndone\n",
+      "oracle": "escdelay documented screen/global precedence and 0..5000 bounds; kgetch retains its legacy environment override.",
+      "comparison": "exact key records from timed pipe feeds with wide timing margins",
+      "expected_files": {
+        "kgetch-keys": "key_up 257\nnone 0\n",
+        "wgetch-keys": "key_up 257\nnone 0\n"
+      }
+    }
+  ]
+}

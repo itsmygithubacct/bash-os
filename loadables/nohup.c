@@ -3,7 +3,7 @@
  * Closes the POSIX gap noted in POSIX-CONFORMANCE-RESEARCH.md §4.1.
  * Runs CMD with SIGHUP ignored and (when stdout/stderr is a tty)
  * redirected to ./nohup.out (or $HOME/nohup.out as POSIX fallback).
- * stdin gets redirected from /dev/null when it's a tty.
+ * Terminal stdin is redirected to write-only /dev/null, so reads fail.
  *
  *   bashnohup CMD [ARGS...]
  *
@@ -44,7 +44,7 @@ extern char *nohup_doc[];
    Behaviour matches GNU coreutils nohup 9.x exactly (verified empirically
    against /usr/bin/nohup across all eight tty(stdin,stdout,stderr) combos):
 
-     - stdin  is a tty -> reopen from /dev/null  ("ignoring input")
+     - stdin  is a tty -> reopen /dev/null write-only ("ignoring input")
      - stdout is a tty -> append to ./nohup.out (or $HOME/nohup.out per POSIX)
      - stderr is a tty -> dup2 onto stdout (whatever stdout now is)
 
@@ -66,9 +66,9 @@ bn_redirect_tty (void)
     const int out_tty = isatty (STDOUT_FILENO);
     const int err_tty = isatty (STDERR_FILENO);
 
-    /* stdin: /dev/null if tty. */
+    /* GNU opens /dev/null write-only so reads fail with EBADF. */
     if (in_tty) {
-        int devnull = open ("/dev/null", O_RDONLY | O_CLOEXEC);
+        int devnull = open ("/dev/null", O_WRONLY | O_CLOEXEC);
         if (devnull < 0) {
             builtin_error ("open /dev/null: %s", strerror (errno));
             return -1;
@@ -275,9 +275,10 @@ char *nohup_doc[] = {
     "",
     "    bashnohup CMD [ARGS...]",
     "",
-    "If stdin is a terminal, it is reopened from /dev/null. If stdout",
-    "or stderr is a terminal, it is appended to ./nohup.out (or",
-    "$HOME/nohup.out as POSIX fallback). SIGHUP is set to SIG_IGN so",
+    "If stdin is a terminal, it is reopened write-only on /dev/null.",
+    "If stdout is a terminal, output is appended to ./nohup.out (or",
+    "$HOME/nohup.out as POSIX fallback); terminal stderr follows stdout.",
+    "SIGHUP is set to SIG_IGN so",
     "the child survives controlling-terminal disconnect.",
     "",
     "Exit codes: CMD's status normally; 126 if CMD found but not",

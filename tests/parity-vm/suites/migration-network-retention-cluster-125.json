@@ -17,11 +17,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/network-retention-cluster-125.py": "40a524cce0c0f37dab0587a200be9ab5d922b4fbd76f25b25dce2cf0bc23e4c5"
+        "helpers/network-retention-cluster-125-bash5320.py": "a2c09a98e2cc1981ef793d801a39d2526f38ad04a83bc1527b627dfb5554ba35"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/network-retention-cluster-125.py setup packet-rejection",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/network-retention-cluster-125-bash5320.py setup packet-rejection",
       "setup_timeout": 50,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/network-retention-cluster-125.py \"$BASH\" packet-rejection",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/network-retention-cluster-125-bash5320.py \"$BASH\" packet-rejection",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "size-violations rejected-silently=yes roster-unchanged=yes later-ping-ok=yes no-queue-drops=yes\nformat-violations rejected-silently=yes roster-unchanged=yes later-ping-ok=yes no-queue-drops=yes\nmac-violations rejected-silently=yes roster-unchanged=yes later-ping-ok=yes no-queue-drops=yes\ncount-and-node-violations rejected-silently=yes roster-unchanged=yes later-ping-ok=yes no-queue-drops=yes\ncombined-sequence all-silent=yes roster-unchanged=yes files-unchanged=yes listener-alive=yes candidate-ping-ok=yes oracle-ping-ok=yes\n",
@@ -43,11 +43,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/network-retention-cluster-125.py": "40a524cce0c0f37dab0587a200be9ab5d922b4fbd76f25b25dce2cf0bc23e4c5"
+        "helpers/network-retention-cluster-125-bash5320.py": "a2c09a98e2cc1981ef793d801a39d2526f38ad04a83bc1527b627dfb5554ba35"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/network-retention-cluster-125.py setup roster-heartbeats",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/network-retention-cluster-125-bash5320.py setup roster-heartbeats",
       "setup_timeout": 50,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/network-retention-cluster-125.py \"$BASH\" roster-heartbeats",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/network-retention-cluster-125-bash5320.py \"$BASH\" roster-heartbeats",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "three-peer-convergence joins-ok=yes identities-on-wire=yes rosters-converge=yes members-commands-agree=yes c-left-status=yes leave-removed-everywhere=yes survivors-intact=yes c-state-cleaned=yes\nexpiry-and-refresh oracles-joined=yes silent-expires-not-early=yes silent-expires-in-bound=yes beating-oracle-retained=yes beating-peers-retained=yes retention-ends-after-last-beat=yes expiry-propagates-to-peers=yes\nseed-loss peers-joined=yes seed-left-status=yes leaf-disconnected=yes leaf-roster-self-only=yes leaf-listener-alive=yes leaf-stopped-after-kill=yes\n",

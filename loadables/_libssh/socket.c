@@ -271,6 +271,7 @@ void ssh_socket_set_callbacks(ssh_socket s, ssh_socket_callbacks callbacks)
  */
 void ssh_socket_set_connected(ssh_socket s, struct ssh_poll_handle_struct *p)
 {
+    s->session->read_eof = 0;
     s->state = SSH_SOCKET_CONNECTED;
     /* `POLLOUT` is the event to wait for in a non-blocking connect */
     if (p != NULL) {

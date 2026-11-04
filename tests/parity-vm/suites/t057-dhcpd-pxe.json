@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "t057-dhcpd-pxe-gating-menu",
+      "loadable": "dhcpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcpd/relay-proxy-pxe"
+      ],
+      "purpose": "Check the complete vendor gate, gate disabled, and exact structured PXE menu encoding.",
+      "oracle": "Fixed independent BOOTP field and option byte assertions.",
+      "comparison": "Offline responses to three vendor classes with gate on and off.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcpd.py": "1d8b71c2b56e8f8c98caa7154a06ecc547fa9a5ed3f2bfc81a1fb6c96fe12bd2",
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792",
+        "helpers/t057-dhcpd-pxe.py": "cb83e9497e41b35c7bb9a2d59ffd337d72b3e076761b203ae4eefa8af9c08f39"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-dhcpd.py mkreq\n",
+      "setup_timeout": 10,
+      "files": {
+        "on.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\nserver_id 192.0.2.1\nnext-server 192.0.2.99\ntftp-server tftp.lab.test\nbootfile pxelinux.0\npxe-discovery-control 8\npxe-boot-server 7 192.0.2.8\npxe-menu-item 7 \"Boot Menu\"\npxe-menu-prompt 3 Select\npxe-vendor-match on\n",
+        "off.conf": "pool 192.0.2.100 192.0.2.150\nnetmask 255.255.255.0\nserver_id 192.0.2.1\nnext-server 192.0.2.99\ntftp-server tftp.lab.test\nbootfile pxelinux.0\npxe-discovery-control 8\npxe-boot-server 7 192.0.2.8\npxe-menu-item 7 \"Boot Menu\"\npxe-menu-prompt 3 Select\npxe-vendor-match off\n"
+      },
+      "script": "for mode in on off; do\n  for vendor in none msft pxe; do\n    dhcpd respond \"$(< req-$vendor.hex)\" -c \"$mode.conf\" -l \"leases-$mode-$vendor\" > \"reply-$mode-$vendor.hex\" || exit 1\n  done\ndone\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/t057-dhcpd-pxe.py\n",
+      "diagnostic_files": [
+        "reply-on-none.hex",
+        "reply-on-msft.hex",
+        "reply-on-pxe.hex",
+        "reply-off-none.hex",
+        "reply-off-msft.hex",
+        "reply-off-pxe.hex"
+      ],
+      "expected_status": 0,
+      "stdout": "t057-pxe-gating-and-menu-verified\n",
+      "stderr": "",
+      "timeout": 20
+    }
+  ]
+}

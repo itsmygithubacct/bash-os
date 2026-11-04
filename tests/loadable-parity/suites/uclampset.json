@@ -87,23 +87,23 @@
       "replacement_cases": [
         {
           "group": "shell",
-          "id": "devices-uclamp-query-r1"
+          "id": "clamp-r2-devices-uclamp-query"
         },
         {
           "group": "shell",
-          "id": "uclamp-followup-query-empty"
+          "id": "clamp-r2-uclamp-followup-query-empty"
         },
         {
           "group": "shell",
-          "id": "uclamp-followup-query-p0"
+          "id": "clamp-r2-uclamp-followup-query-p0"
         },
         {
           "group": "shell",
-          "id": "uclamp-followup-query-self"
+          "id": "clamp-r2-uclamp-followup-query-self"
         },
         {
           "group": "shell",
-          "id": "uclamp-followup-query-threads"
+          "id": "clamp-r2-uclamp-followup-query-threads"
         }
       ]
     },
@@ -113,36 +113,32 @@
       "purpose": "Check one-sided and paired clamp updates, reset values, -R, and preservation of unrelated scheduler attributes.",
       "replacement_cases": [
         {
-          "group": "legacy",
-          "id": "legacy/uclampset/defer_cli_validation"
+          "group": "shell",
+          "id": "clamp-r2-devices-uclamp-setter"
         },
         {
           "group": "shell",
-          "id": "devices-uclamp-setter-r1"
+          "id": "clamp-r2-uclamp-followup-setter-fork-direct"
         },
         {
           "group": "shell",
-          "id": "uclamp-followup-setter-fork-direct-r2"
+          "id": "clamp-r2-uclamp-followup-setter-mock-deadline"
         },
         {
           "group": "shell",
-          "id": "uclamp-followup-setter-mock-deadline"
+          "id": "clamp-r2-uclamp-followup-setter-mock-rt"
         },
         {
           "group": "shell",
-          "id": "uclamp-followup-setter-mock-rt"
+          "id": "clamp-r2-uclamp-followup-setter-owned-updates"
         },
         {
           "group": "shell",
-          "id": "uclamp-followup-setter-owned-updates"
+          "id": "clamp-r2-uclamp-followup-setter-policy"
         },
         {
           "group": "shell",
-          "id": "uclamp-followup-setter-policy"
-        },
-        {
-          "group": "shell",
-          "id": "uclamp-followup-setter-reset"
+          "id": "clamp-r2-uclamp-followup-setter-reset"
         }
       ]
     },
@@ -153,23 +149,48 @@
       "replacement_cases": [
         {
           "group": "shell",
-          "id": "uclamp-followup-alltasks-readfail"
+          "id": "clamp-r2-uclamp-followup-alltasks-readfail"
         },
         {
           "group": "shell",
-          "id": "uclamp-followup-alltasks-success"
+          "id": "clamp-r2-uclamp-followup-alltasks-success"
         },
         {
           "group": "shell",
-          "id": "uclamp-followup-alltasks-validation"
+          "id": "clamp-r2-uclamp-followup-alltasks-validation"
         }
       ]
     },
     {
       "id": "defer_system_files",
       "purpose": "Qualify live system sysctl semantics and injected write/open failures, ordering and rollback beyond the private regular-file model.",
-      "kind": "deferred",
-      "reason": "Remaining obligation r5: The guest kernel is built without CONFIG_UCLAMP_TASK, so /proc/sys/kernel/sched_util_clamp_min and sched_util_clamp_max do not exist"
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "clamp-r2-live-sysctl"
+        },
+        {
+          "group": "shell",
+          "id": "clamp-r2-system-query-private-model"
+        },
+        {
+          "group": "shell",
+          "id": "clamp-r2-uclampset-system-open-fail"
+        },
+        {
+          "group": "shell",
+          "id": "clamp-r2-uclampset-system-order"
+        },
+        {
+          "group": "shell",
+          "id": "clamp-r2-uclampset-system-rollback"
+        },
+        {
+          "group": "shell",
+          "id": "clamp-r2-uclampset-system-short-write"
+        }
+      ]
     },
     {
       "id": "defer_command_mode",
@@ -178,11 +199,11 @@
       "replacement_cases": [
         {
           "group": "shell",
-          "id": "devices-uclamp-command-r1"
+          "id": "clamp-r2-devices-uclamp-command"
         },
         {
           "group": "shell",
-          "id": "uclamp-followup-command-dispatch"
+          "id": "clamp-r2-uclamp-followup-command-dispatch"
         }
       ]
     },

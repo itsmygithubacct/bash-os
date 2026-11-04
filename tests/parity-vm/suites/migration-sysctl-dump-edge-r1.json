@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-sysctl-dump-edge-r1",
+      "loadable": "sysctl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "sysctl/recursive-dump"
+      ],
+      "purpose": "Compare recursive dump and names/value filters with empty, multiline, unterminated, and write-only files in a private tmpfs tree; include named reads. Probe EACCES as an unprivileged user separately from mode-bit write-only handling.",
+      "oracle": "procps-ng 4.0 sysctl",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix. The tree is a tmpfs created by the fixture; the real /proc/sys returns when the side ends.",
+      "requires": [
+        "sysctl",
+        "mount",
+        "umount",
+        "mkdir",
+        "chmod",
+        "setpriv",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nT=/tmp/ptree; /usr/bin/mkdir -p $T && /usr/bin/mount -t tmpfs -o size=1M rf-sys $T || echo SETUP-FAILED\ncd $T && /usr/bin/mkdir -p abi kernel/random net/ipv4/conf/lo vm\necho 1 > abi/vsyscall32; echo Linux > kernel/ostype; echo 'rf.domain' > kernel/domainname\nprintf '4\\t4\\t1\\t7\\n' > kernel/printk; : > kernel/random/empty; printf 'line one\\nline two\\n' > vm/multi\necho 0 > net/ipv4/ip_forward; echo 1 > net/ipv4/conf/lo/forwarding; echo secret > kernel/wo; /usr/bin/chmod 0200 kernel/wo\necho denied > vm/denied; /usr/bin/chmod 0400 vm/denied\nprintf 'unterminated' > vm/no_newline; printf 'first\\nlast' > vm/mixed; echo hidden > vm/no_owner_read; /usr/bin/chmod 0044 vm/no_owner_read\ncd /tmp; /usr/bin/mount --bind $T /proc/sys || echo SETUP-FAILED\nN=\"/usr/bin/setpriv --bounding-set=-dac_override,-dac_read_search -- $BASH --noprofile --norc -c\"\nd() { $N \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nd all \"sysctl -a\"\nd all-upper \"sysctl -A\"\nd names \"sysctl -a -N\"\nd values \"sysctl -a -n\"\nd pattern \"sysctl -a -r '^net\\.'\"\nd pattern-names \"sysctl -a -N -r 'o(stype|main)'\"\nu denied-dump \"sysctl -a -r '^vm\\.denied$'\"\nu denied-names \"sysctl -a -N -r '^vm\\.denied$'\"\nd write-only \"sysctl kernel.wo\"\nd no-owner-read \"sysctl vm.no_owner_read\"\nd empty \"sysctl vm.no_newline kernel.random.empty\"\nd value-unterminated \"sysctl -n vm.no_newline\"\nd mixed \"sysctl vm.mixed\"\nd names-hidden \"sysctl -a -N -r '^(kernel\\.wo|vm\\.no_owner_read|vm\\.no_newline)$'\"\n/usr/bin/umount /proc/sys; /usr/bin/umount $T\n",
+      "expected_status": 0,
+      "timeout": 45
+    }
+  ]
+}

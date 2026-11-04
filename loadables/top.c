@@ -237,18 +237,19 @@ btop_read_stat (int pid, btop_proc *p)
 }
 
 /* Read /proc/stat first 'cpu' line; sum the first eight fields (guest is already in user/nice). */
-static long
-btop_read_cpu_total (void)
+static int
+btop_read_cpu_total (long *result)
 {
     int fd = open ("/proc/stat", O_RDONLY | O_CLOEXEC);
-    if (fd < 0) return 0;
+    if (fd < 0) return -1;
     char buf[BTOP_BUF];
     ssize_t n = read (fd, buf, sizeof buf - 1);
+    int saved_errno = n < 0 ? errno : EIO;
     close (fd);
-    if (n <= 0) return 0;
+    if (n <= 0) { errno = saved_errno; return -1; }
     buf[n] = '\0';
     /* First line: "cpu  user nice system idle iowait irq softirq steal guest guest_nice" */
-    if (strncmp (buf, "cpu ", 4) != 0 && strncmp (buf, "cpu\t", 4) != 0) return 0;
+    if (strncmp (buf, "cpu ", 4) != 0 && strncmp (buf, "cpu\t", 4) != 0) { *result = 0; return 0; }
     char *p = buf + 3;
     long total = 0;
     char *end;
@@ -260,21 +261,23 @@ btop_read_cpu_total (void)
         total += v;
         p = end;
     }
-    return total;
+    *result = total;
+    return 0;
 }
 
 /* Read /proc/meminfo into sys. Robust: parse line-by-line. */
-static void
+static int
 btop_read_meminfo (btop_sys *sys)
 {
     sys->mem_total_kb = sys->mem_avail_kb = 0;
     sys->swap_total_kb = sys->swap_free_kb = 0;
     int fd = open ("/proc/meminfo", O_RDONLY | O_CLOEXEC);
-    if (fd < 0) return;
+    if (fd < 0) return -1;
     char buf[BTOP_BUF];
     ssize_t n = read (fd, buf, sizeof buf - 1);
+    int saved_errno = n < 0 ? errno : EIO;
     close (fd);
-    if (n <= 0) return;
+    if (n <= 0) { errno = saved_errno; return -1; }
     buf[n] = '\0';
     char *line = buf;
     while (*line) {
@@ -288,6 +291,7 @@ btop_read_meminfo (btop_sys *sys)
         if (!nl) break;
         line = nl + 1;
     }
+    return 0;
 }
 
 static void
@@ -312,12 +316,18 @@ btop_read_loadavg (btop_sys *sys)
 static int
 btop_sample (btop_proc *procs, int cap, btop_sys *sys)
 {
-    sys->cpu_jiffies_total = btop_read_cpu_total ();
-    btop_read_meminfo (sys);
+    if (btop_read_cpu_total (&sys->cpu_jiffies_total) < 0) {
+        builtin_error ("/proc/stat: %s", strerror (errno));
+        return -1;
+    }
+    if (btop_read_meminfo (sys) < 0) {
+        builtin_error ("/proc/meminfo: %s", strerror (errno));
+        return -1;
+    }
     btop_read_loadavg (sys);
 
     DIR *d = opendir ("/proc");
-    if (!d) return -1;
+    if (!d) { builtin_error ("opendir /proc: %s", strerror (errno)); return -1; }
     int n = 0;
     struct dirent *de;
     while ((de = readdir (d)) && n < cap) {
@@ -518,7 +528,6 @@ btop_run_once (btop_sort sort, int row_cap)
     int n = btop_sample (procs, BTOP_MAX_PROCS, &sys);
     if (n < 0) {
         free (procs);
-        builtin_error ("opendir /proc: %s", strerror (errno));
         return EXECUTION_FAILURE;
     }
     long cpu_total_1 = sys.cpu_jiffies_total;
@@ -530,7 +539,6 @@ btop_run_once (btop_sort sort, int row_cap)
     n = btop_sample (procs, BTOP_MAX_PROCS, &sys);
     if (n < 0) {
         free (procs);
-        builtin_error ("opendir /proc: %s", strerror (errno));
         return EXECUTION_FAILURE;
     }
     btop_compute_pcpu (procs, n, sys.cpu_jiffies_total);
@@ -583,8 +591,10 @@ btop_run_interactive (int delay_sec, btop_sort sort, int max_iters, int row_cap)
     bls_timeout (delay_sec * 1000);
 
     /* Prime previous snapshot so the first redraw has %CPU numbers. */
+    int rc = EXECUTION_SUCCESS;
     int n = btop_sample (procs, BTOP_MAX_PROCS, &sys);
-    if (n >= 0) btop_prev_store (procs, n, sys.cpu_jiffies_total);
+    if (n < 0) { rc = EXECUTION_FAILURE; goto out; }
+    btop_prev_store (procs, n, sys.cpu_jiffies_total);
 
     int iter = 0;
     int redraw = 1;
@@ -592,7 +602,6 @@ btop_run_interactive (int delay_sec, btop_sort sort, int max_iters, int row_cap)
     int last_n = n;          /* last n seen by redraw (for clamping) */
     int last_window = 1;     /* last visible window size (for PgUp/PgDn) */
     char extra[160] = "";
-    int rc = EXECUTION_SUCCESS;
 
     for (;;) {
         if (redraw) {
@@ -840,6 +849,9 @@ top_builtin (WORD_LIST *list)
     if (list) { builtin_error ("unexpected operand: %s", list->word->word); return EX_USAGE; }
     /* Previous samples belong only to this invocation, including failure paths. */
     btop_prev_n = 0; btop_prev_total = 0;
+    /* In batch mode -n caps rows; honor the tighter explicit -r cap. */
+    if (once && iters > 0 && (row_cap == 0 || iters < row_cap))
+        row_cap = iters;
     int rc = once ? btop_run_once (sort, row_cap)
                   : btop_run_interactive (delay, sort, iters, row_cap);
     free (btop_prev_tbl); btop_prev_tbl = NULL;
@@ -853,7 +865,7 @@ char *top_doc[] = {
     "    top [--once|-b] [-n COUNT] [-d SEC] [-o COL] [-r N]",
     "",
     "    --once / -b   one snapshot, write to stdout, exit (batch).",
-    "    -n COUNT      run COUNT interactive redraws then exit (0: unlimited).",
+    "    -n COUNT      interactive redraws or batch row cap (0: unlimited).",
     "    -d SEC        refresh interval (integer 1..3599 seconds, default 2).",
     "    -o COL        initial sort: cpu | mem | pid | time (default cpu).",
     "    -r N          cap process rows shown (0: available terminal rows).",

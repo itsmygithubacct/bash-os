@@ -1,0 +1,5 @@
+INT=default
+QUIT=default
+term=143
+kill=137
+usr1=138

@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "status": "proposed; pinned and signature-verified as data on 2026-10-26; NOT executed anywhere yet",
+  "status": "proposed; Bash inputs updated to 5.3.20; execution results must be collected on fresh targets",
   "purpose": "Upstream regression corpora for complete Bash/GNU parity scope. Expected outputs come from upstream (bash tests/*.right, coreutils test assertions), not from the candidate.",
-  "verification": "gpgv against gnu-keyring.gpg (GNU keyring, sha256 below): all 17 signatures Good. bash-5.3.tar.gz and patches 001-015 are byte-identical to the build inputs in dl/.",
+  "verification": "gpgv against gnu-keyring.gpg (GNU keyring, sha256 below): all 17 signatures Good. bash-5.3.tar.gz and patches 001-015 are byte-identical to the build inputs in dl/. Patches 016-020 independently verified with gpgv on 2026-11-03; see bash_patch_update_verification.",
   "keyring": {
     "url": "https://ftp.gnu.org/gnu/gnu-keyring.gpg",
     "sha256": "0fe55175b96a8ea1c4b670cc3fe11d56b341e4eff81b161ea49958ae550be6ca",
@@ -15,7 +15,7 @@
   "corpora": [
     {
       "name": "bash",
-      "version": "5.3 + patches 001-015 (5.3.15, the candidate's base)",
+      "version": "5.3 + patches 001-020 (5.3.20, the candidate's base)",
       "license": "GPL-3.0-or-later",
       "url": "https://ftp.gnu.org/gnu/bash/bash-5.3.tar.gz",
       "sha256": "0d5cd86965f869a26cf64f4b71be7b96f90a3ba8b3d74e27e8e9d9d5550f31ba",
@@ -126,6 +126,41 @@
           "sha256": "55b79ceee2fc27f6767eed697e939a7eb2fe2a28c01556bd75f18d581014f46e",
           "bytes": 2151,
           "signature_sha256": "8a432fbe5bd1f0d4f5ecbcb7a462009fe7f780a8c5cf0e71b423692aaf22bfc5"
+        },
+        {
+          "name": "bash53-016",
+          "url": "https://ftp.gnu.org/gnu/bash/bash-5.3-patches/bash53-016",
+          "sha256": "9ea29b266b7d24cb34d0ff3f1c4631e4d527bfe2d1ef15d17cdb924bf31ef767",
+          "bytes": 4185,
+          "signature_sha256": "32ac4ea86d9dc5490e21b796613e521f6e36b497ced531e84a171d76d081c89d"
+        },
+        {
+          "name": "bash53-017",
+          "url": "https://ftp.gnu.org/gnu/bash/bash-5.3-patches/bash53-017",
+          "sha256": "443b927b45c1558ca72052410f8b8f6e5152b617ed707061a2781d4375b0d1c3",
+          "bytes": 2229,
+          "signature_sha256": "0de05a5ba02262f62ebad3e9f7b923944fba58c306e4fda6d3f7badce856a909"
+        },
+        {
+          "name": "bash53-018",
+          "url": "https://ftp.gnu.org/gnu/bash/bash-5.3-patches/bash53-018",
+          "sha256": "ae715d76c50341d7d7095e9a8d2eeed1ca9546152c2ac7289206f90cf30ac697",
+          "bytes": 2660,
+          "signature_sha256": "beff31d6e900af42d06626833ecab340cf649ba3ed238193602e7a9979039437"
+        },
+        {
+          "name": "bash53-019",
+          "url": "https://ftp.gnu.org/gnu/bash/bash-5.3-patches/bash53-019",
+          "sha256": "a25c581e4d0057dea3833918438a930e2e86ee4c6dc17fe15267b7f04cbc4e3d",
+          "bytes": 5061,
+          "signature_sha256": "05eb5b6c1f659492f1ebad1ead46ec0e7d28744550aae8994dda00a1fa0c235f"
+        },
+        {
+          "name": "bash53-020",
+          "url": "https://ftp.gnu.org/gnu/bash/bash-5.3-patches/bash53-020",
+          "sha256": "df217ed3a9122aa2286d9b67bbe348661b6a9db262b580c29150dae55d532896",
+          "bytes": 1591,
+          "signature_sha256": "213451d780ae071a602cbff157b1d43ece5b8e11ba730fd8e3e8ba34d08a0569"
         }
       ],
       "inventory": {
@@ -136,7 +171,7 @@
       },
       "proposed_execution": [
         "VM only: unpack, apply patches, configure and build helper programs (support/recho, zecho, printenv, xcase) as the parity user.",
-        "Run tests/run-all with THIS_SH=/opt/bashos-parity/candidate and separately with the VM's /opt/bash-5.3.15 reference; record per-run-* pass/fail and diffs against .right.",
+        "Run tests/run-all with THIS_SH=/opt/bashos-parity/candidate and separately with the VM's /opt/bash-5.3.20 reference; record per-run-* pass/fail and diffs against .right.",
         "Differences explained by intentional bash-os builtins (286 injected) must be recorded per test, never folded into PASS."
       ]
     },
@@ -171,5 +206,11 @@
   ],
   "not_available": [
     "No freely licensed POSIX conformance suite (the Open Group VSC/PCTS suites are not redistributable); POSIX shell/utility semantics must come from the bash and coreutils corpora plus written contracts."
-  ]
+  ],
+  "bash_patch_update_verification": {
+    "patches": "016-020",
+    "keyring_sha256": "8013de59880f7a59f53b6bd207f4d2a408d67b84a82fa9cba1dbbf443428e2db",
+    "signer": "7C0135FB088AAF6C66C650B9BB5869F064EA74AB",
+    "method": "gpgv; all five signatures verified"
+  }
 }

@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-uname-efault-selectors-r1",
+      "loadable": "uname",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "uname/deferred-syscall-error"
+      ],
+      "purpose": "Under an EFAULT uname syscall, exercise the remaining individual selectors and a long selector, preserving per-call failure status, empty command stdout, GNU diagnostics, shell continuation, and an unfiltered success control.",
+      "oracle": "GNU coreutils 9.7 uname(1) under the identical per-side seccomp ERRNO rule (pinned helpers/system-seccomp.py)",
+      "comparison": "Byte parity with GNU, including each diagnostic; bracketed stdout and stderr and per-invocation status expose partial output or failure to continue. The pinned seccomp helper and its setup control are shared with migration-uname-efault.",
+      "requires": [
+        "python3",
+        "uname"
+      ],
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "files": {
+        "inner.sh": "mark() { printf '[%s]\\n' \"$1\"; printf '[%s]\\n' \"$1\" >&2; }\nfor args in -n -r -v -p -i -o --machine; do\n  label=\"uname${args:+ $args}\"\n  mark \"$label\"\n  uname $args\n  printf '[%s] status=%d\\n' \"$label\" \"$?\"\ndone\nmark after\nprintf 'shell-continues\\n'\n"
+      },
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1 H=/opt/bashos-parity/harness/helpers/system-seccomp.py\nout=$(/usr/bin/python3 \"$H\" --errno uname:EFAULT -- /usr/bin/uname -s 2>&1) && { echo \"CONTROL-FAILED uname rule not applied\"; exit 98; }\n[[ $out == *\"Bad address\"* ]] || { echo \"CONTROL-FAILED unexpected control diagnostic\"; exit 98; }\n",
+      "script": "export PYTHONDONTWRITEBYTECODE=1 H=/opt/bashos-parity/harness/helpers/system-seccomp.py\n/usr/bin/python3 \"$H\" --errno uname:EFAULT -- \"$BASH\" --noprofile --norc inner.sh\nprintf 'filtered-shell-status=%d\\n' \"$?\"\nuname -s\nprintf 'unfiltered status=%d\\n' \"$?\"\n",
+      "expected_status": 0,
+      "stdout": "[uname -n]\n[uname -n] status=1\n[uname -r]\n[uname -r] status=1\n[uname -v]\n[uname -v] status=1\n[uname -p]\n[uname -p] status=1\n[uname -i]\n[uname -i] status=1\n[uname -o]\n[uname -o] status=1\n[uname --machine]\n[uname --machine] status=1\n[after]\nshell-continues\nfiltered-shell-status=0\nLinux\nunfiltered status=0\n",
+      "timeout": 20
+    }
+  ]
+}

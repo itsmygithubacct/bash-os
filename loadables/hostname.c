@@ -125,6 +125,44 @@ print_fixture_tokens (const char *name)
     return 1;
 }
 
+/* Keep all distinct results in discovery order, without a fixed result limit. */
+struct hostname_seen {
+    struct hostname_seen *next;
+    char value[1];
+};
+
+static int
+hostname_print_unique (struct hostname_seen **seen, const char *value)
+{
+    struct hostname_seen *entry;
+    size_t len;
+
+    for (entry = *seen; entry; entry = entry->next)
+        if (strcmp (entry->value, value) == 0)
+            return 0;
+    len = strlen (value);
+    entry = malloc (sizeof *entry + len);
+    if (!entry) {
+        builtin_error ("out of memory");
+        return -1;
+    }
+    memcpy (entry->value, value, len + 1);
+    printf ("%s%s", *seen ? " " : "", value);
+    entry->next = *seen;
+    *seen = entry;
+    return 0;
+}
+
+static void
+hostname_free_seen (struct hostname_seen *seen)
+{
+    while (seen) {
+        struct hostname_seen *next = seen->next;
+        free (seen);
+        seen = next;
+    }
+}
+
 int
 hostname_builtin (WORD_LIST *list)
 {
@@ -239,21 +277,26 @@ hostname_builtin (WORD_LIST *list)
             return EX_USAGE;
         }
         size_t nlen = strlen (name);
-        if (nlen >= (size_t)HOST_NAME_MAX) {
-            builtin_error ("hostname too long (max %d characters)",
-                           HOST_NAME_MAX - 1);
-            return EXECUTION_FAILURE;
-        }
         if (strchr (name, '/')) {
             builtin_error ("invalid hostname: '%s'", name);
             return EXECUTION_FAILURE;
         }
         if (dry_run) {
+            if (nlen > (size_t)HOST_NAME_MAX) {
+                builtin_error ("hostname too long (max %d bytes)",
+                               HOST_NAME_MAX);
+                return EXECUTION_FAILURE;
+            }
             fprintf (stderr, "bashhostname: dry-run: would set hostname to '%s'\n",
                      name);
             return EXECUTION_SUCCESS;
         }
         if (sethostname (name, nlen) < 0) {
+            if (errno == EINVAL) {
+                /* Debian hostname reports the kernel length error this way. */
+                fprintf (stderr, "hostname: name too long\n");
+                return EXECUTION_FAILURE;
+            }
             builtin_error ("sethostname: %s", strerror (errno));
             return EXECUTION_FAILURE;
         }
@@ -331,11 +374,10 @@ hostname_builtin (WORD_LIST *list)
         hints.ai_family = AF_UNSPEC;
         hints.ai_socktype = SOCK_STREAM;
 
-        int printed = 0;
-        char seen[32][INET6_ADDRSTRLEN];
-        int seen_n = 0;
+        struct hostname_seen *seen = NULL;
+        int failed = 0;
         if (getaddrinfo (hostbuf, NULL, &hints, &res) == 0) {
-            for (struct addrinfo *ai = res; ai && seen_n < 32; ai = ai->ai_next) {
+            for (struct addrinfo *ai = res; ai; ai = ai->ai_next) {
                 char addrbuf[INET6_ADDRSTRLEN];
                 const void *src = NULL;
                 if (ai->ai_family == AF_INET)
@@ -346,20 +388,16 @@ hostname_builtin (WORD_LIST *list)
                     continue;
                 if (!inet_ntop (ai->ai_family, src, addrbuf, sizeof addrbuf))
                     continue;
-                int dup = 0;
-                for (int i = 0; i < seen_n; i++)
-                    if (strcmp (seen[i], addrbuf) == 0) { dup = 1; break; }
-                if (dup)
-                    continue;
-                snprintf (seen[seen_n], sizeof seen[seen_n], "%s", addrbuf);
-                printf ("%s%s", printed ? " " : "", seen[seen_n]);
-                printed = 1;
-                seen_n++;
+                if (hostname_print_unique (&seen, addrbuf) < 0) {
+                    failed = 1;
+                    break;
+                }
             }
             freeaddrinfo (res);
         }
+        hostname_free_seen (seen);
         putchar ('\n');
-        return EXECUTION_SUCCESS;
+        return failed ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
     }
 
     if (all_fqdns) {
@@ -370,9 +408,8 @@ hostname_builtin (WORD_LIST *list)
             return EXECUTION_FAILURE;
 
         char hostbuf[256];
-        int printed = 0;
-        char seen[16][NI_MAXHOST];
-        int seen_n = 0;
+        struct hostname_seen *seen = NULL;
+        int failed = 0;
 
         if (gethostname (hostbuf, sizeof hostbuf) < 0) {
             builtin_error ("gethostname: %s", strerror (errno));
@@ -388,39 +425,28 @@ hostname_builtin (WORD_LIST *list)
         hints.ai_flags = AI_CANONNAME;
 
         if (getaddrinfo (hostbuf, NULL, &hints, &res) == 0) {
-            for (struct addrinfo *ai = res; ai && seen_n < 16; ai = ai->ai_next) {
+            for (struct addrinfo *ai = res; ai; ai = ai->ai_next) {
                 char namebuf[NI_MAXHOST];
-                const char *name = NULL;
 
-                if (ai->ai_canonname && strchr (ai->ai_canonname, '.'))
-                    name = ai->ai_canonname;
-                else if (getnameinfo (ai->ai_addr, ai->ai_addrlen,
-                                      namebuf, sizeof namebuf, NULL, 0,
-                                      NI_NAMEREQD) == 0 && strchr (namebuf, '.'))
-                    name = namebuf;
-
-                if (!name || !*name)
-                    continue;
-
-                int dup = 0;
-                for (int i = 0; i < seen_n; i++)
-                    if (strcmp (seen[i], name) == 0)
-                        { dup = 1; break; }
-                if (dup)
-                    continue;
-
-                snprintf (seen[seen_n], sizeof seen[seen_n], "%s", name);
-                printf ("%s%s", printed ? " " : "", seen[seen_n]);
-                printed = 1;
-                seen_n++;
+                if (ai->ai_canonname && strchr (ai->ai_canonname, '.') &&
+                    hostname_print_unique (&seen, ai->ai_canonname) < 0) {
+                    failed = 1;
+                    break;
+                }
+                if (getnameinfo (ai->ai_addr, ai->ai_addrlen,
+                                 namebuf, sizeof namebuf, NULL, 0,
+                                 NI_NAMEREQD) == 0 && strchr (namebuf, '.') &&
+                    hostname_print_unique (&seen, namebuf) < 0) {
+                    failed = 1;
+                    break;
+                }
             }
             freeaddrinfo (res);
         }
 
-        if (!printed && strchr (hostbuf, '.'))
-            printf ("%s", hostbuf);
+        hostname_free_seen (seen);
         putchar ('\n');
-        return EXECUTION_SUCCESS;
+        return failed ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
     }
 
     /* Print form. */

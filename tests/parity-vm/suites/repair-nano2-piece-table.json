@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "nano2-piece-boundary-binary-history",
+      "purpose": "Edits across original and added pieces preserve NULs and redo is discarded by a new edit.",
+      "script": "nano2 apply input i@1:0058 d@2:2 undo redo i@2:ff > out; echo \"rc=$?\" > rc\nnano2 apply input i@0:41 undo i@0:42 redo > /dev/null 2>/dev/null; echo \"branch=$?\" >> rc\n",
+      "files": {
+        "input": {
+          "base64": "YWJj"
+        }
+      },
+      "expected_files": {
+        "input": {
+          "base64": "YWJj"
+        },
+        "out": {
+          "base64": "YQD/Yw=="
+        },
+        "rc": "rc=0\nbranch=1\n"
+      },
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-operations"
+      ],
+      "kind": "contract",
+      "oracle": "Hand-calculated byte-array operations and exit statuses.",
+      "timeout": 15
+    },
+    {
+      "id": "nano2-piece-bounds-errors",
+      "purpose": "Missing inputs, malformed and overflowing offsets, invalid hex, out-of-range positions, and unavailable history fail.",
+      "script": "for args in \"flatten missing\" \"range input 4 5\" \"offset input 0 0\" \"offset input 1 4\" \"apply input i@4:aa\" \"apply input i@0:0z\" \"apply input d@184467440737095516160:1\" \"apply input undo\"; do nano2 $args >/dev/null 2>/dev/null; echo \"$?\"; done > rc\n",
+      "files": {
+        "input": "abc"
+      },
+      "expected_files": {
+        "input": "abc",
+        "rc": "1\n1\n1\n1\n1\n1\n1\n1\n"
+      },
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-operations"
+      ],
+      "kind": "contract",
+      "oracle": "Hand-calculated byte-array operations and exit statuses.",
+      "timeout": 15
+    },
+    {
+      "id": "nano2-piece-empty-and-end",
+      "purpose": "Empty and clipped ranges, end insertion, and zero-length deletion retain byte semantics.",
+      "script": "nano2 apply empty i@0:000a d@2:9 > out; echo \"apply=$?\" > rc\nnano2 range out 1 99 > range; echo \"range=$?\" >> rc\nnano2 offset out 2 0 > offset; echo \"offset=$?\" >> rc\n",
+      "files": {
+        "empty": ""
+      },
+      "expected_files": {
+        "empty": "",
+        "out": {
+          "base64": "AAo="
+        },
+        "range": "\n",
+        "offset": "2\n",
+        "rc": "apply=0\nrange=0\noffset=0\n"
+      },
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-operations"
+      ],
+      "kind": "contract",
+      "oracle": "Hand-calculated byte-array operations and exit statuses.",
+      "timeout": 15
+    }
+  ]
+}

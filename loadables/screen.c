@@ -3813,9 +3813,13 @@ bscreen_remote_frame_cmd (WORD_LIST *args)
             builtin_error ("remote-frame decode: short payload");
             return EXECUTION_FAILURE;
         }
-        payload[len] = '\0';
-        printf ("type=%s\nlen=%u\npayload=%s\n",
-                bs_remote_frame_type_name (h.type), (unsigned) len, payload);
+        if (printf ("type=%s\nlen=%u\npayload=",
+                    bs_remote_frame_type_name (h.type), (unsigned) len) < 0 ||
+            (len && fwrite (payload, 1, len, stdout) != len) ||
+            putchar ('\n') == EOF || fflush (stdout) == EOF) {
+            free (payload);
+            return EXECUTION_FAILURE;
+        }
         free (payload);
         return EXECUTION_SUCCESS;
     }

@@ -202,9 +202,9 @@ bdu_print (uint64_t amount, const char *path, const bdu_opts *o)
             bdu_human (o->apparent ? amount : amount * 512, h, sizeof h);
         printf ("%s\t%s%c", h, path, o->null_terminate ? '\0' : '\n');
     } else {
-        /* POSIX default = 512-byte blocks; -k = 1024. */
+        /* GNU default = 1024-byte blocks (512 with POSIXLY_CORRECT). */
         uint64_t out, bytes, unit;
-        unit = o->block_size ? o->block_size : 512;
+        unit = o->block_size ? o->block_size : (getenv ("POSIXLY_CORRECT") ? 512 : 1024);
         bytes = o->apparent ? amount : amount * 512;
         out = (bytes + unit - 1) / unit;
         printf ("%" PRIu64 "\t%s%c", out, path, o->null_terminate ? '\0' : '\n');
@@ -610,7 +610,7 @@ char *du_doc[] = {
     "    -b   apparent size in bytes",
     "    -c   print a grand total",
     "    -h   human-readable sizes",
-    "    -k   1024-byte blocks (POSIX default = 512)",
+    "    -k   1024-byte blocks (default; 512 with POSIXLY_CORRECT)",
     "    -l   count sizes many times if hard linked",
     "    -m   1MiB blocks",
     "    -H, -D  follow symlinks named on the command line",

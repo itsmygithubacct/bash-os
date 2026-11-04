@@ -1,0 +1,97 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-curl-remote-name-query-slash",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing"
+      ],
+      "script": "curl -s -O \"http://127.0.0.1:$FIXTURE_PORT/dir/name.txt?next=/other\"",
+      "stderr": "",
+      "stdout": "",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/dir/name.txt?next=/other",
+          "request_line": "GET /dir/name.txt?next=/other HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "curl/response-file-effects"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112, RFC 3986 and curl(1)",
+      "comparison": "exact stdout/stderr bytes, status and fixture tree vs upstream curl, plus decoded request fields",
+      "requires": [
+        "curl"
+      ]
+    },
+    {
+      "id": "repair-curl-cookie-jar-umask",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "script": "umask 000; curl -s -c jar.txt \"http://127.0.0.1:$FIXTURE_PORT/cookie\" && curl -s -b jar.txt \"http://127.0.0.1:$FIXTURE_PORT/show-cookie\"",
+      "stderr": "",
+      "stdout": "ok\nsession=abc123\n",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/cookie",
+          "request_line": "GET /cookie HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        },
+        {
+          "method": "GET",
+          "path": "/show-cookie",
+          "request_line": "GET /show-cookie HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none",
+          "header:cookie": "session=abc123"
+        }
+      ],
+      "expected_status": 0,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing"
+      ],
+      "covers": [
+        "curl/request-wire-shape",
+        "curl/response-file-effects"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112 and curl(1); the jar file itself is compared with the reference tree",
+      "comparison": "Exact streams, status, requests, and complete cookie jar bytes and mode against upstream under umask 000."
+    }
+  ]
+}

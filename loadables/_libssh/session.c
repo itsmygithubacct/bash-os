@@ -934,6 +934,10 @@ int ssh_get_status(ssh_session session) {
 
   socketstate = ssh_socket_get_status(session->socket);
 
+  if (session->read_eof) {
+    r |= SSH_READ_EOF;
+  }
+
   if (session->session_state == SSH_SESSION_STATE_DISCONNECTED) {
     r |= SSH_CLOSED;
   }
@@ -1029,6 +1033,10 @@ void ssh_socket_exception_callback(int code, int errno_code, void *user){
             "Socket exception callback: %d (%d)",
             code,
             errno_code);
+    /* An EOF after a prior protocol/crypto error cannot erase that failure.
+     * Existing ERROR state and legacy status bits remain unchanged. */
+    session->read_eof = (code == SSH_SOCKET_EXCEPTION_EOF && errno_code == 0 &&
+                        session->session_state != SSH_SESSION_STATE_ERROR);
     session->session_state = SSH_SESSION_STATE_ERROR;
     if (errno_code == 0 && code == SSH_SOCKET_EXCEPTION_EOF) {
         ssh_set_error(session, SSH_FATAL, "Socket error: disconnected");

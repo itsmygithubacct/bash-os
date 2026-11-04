@@ -2568,6 +2568,53 @@
       }
     },
     {
+      "id": "ed-modified-quit-help-status",
+      "loadable": "ed",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "After a modified-buffer warning, h explains it, a subsequent q warns again, and the consecutive q exits without writing.",
+      "script": "ed note",
+      "steps": [
+        {
+          "expect": "\\A4\\r\\n"
+        },
+        {
+          "send": "a\rtwo\r.\r"
+        },
+        {
+          "send": "q\r"
+        },
+        {
+          "expect": "q\\r\\n\\?\\r\\n"
+        },
+        {
+          "send": "h\r"
+        },
+        {
+          "expect": "h\\r\\nWarning: buffer modified\\r\\n"
+        },
+        {
+          "send": "q\r"
+        },
+        {
+          "expect": "q\\r\\n\\?\\r\\n"
+        },
+        {
+          "send": "q\r"
+        }
+      ],
+      "expected_status": 1,
+      "covers": [
+        "ed/modified_quit_prompt_pty"
+      ],
+      "files": {
+        "note": "one\n"
+      },
+      "expected_files": {
+        "note": "one\n"
+      }
+    },
+    {
       "id": "ed-append-write",
       "loadable": "ed",
       "group": "terminal",

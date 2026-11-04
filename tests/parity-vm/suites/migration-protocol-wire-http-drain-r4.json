@@ -1,0 +1,140 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Capture exact response bytes, terminal EOF or reset, shell accept status and raw diagnostic independently; exact bytes, clean EOF and nonzero accept remain required.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-drain-r4.py": "baa888b2e525b071d4b18c85a33463d2f0897b367d7691c2a37abc7772b4510b"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-overlarge-terminated-drain-r4",
+      "purpose": "Require exact error response, clean EOF, nonzero accept and unbound variables with pending input: overlarge-terminated.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-drain-r4.py \"$BASH\" overlarge-terminated",
+      "stdout": "http-overlarge-terminated=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Capture exact response bytes, terminal EOF or reset, shell accept status and raw diagnostic independently; exact bytes, clean EOF and nonzero accept remain required.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-drain-r4.py": "baa888b2e525b071d4b18c85a33463d2f0897b367d7691c2a37abc7772b4510b"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-overlarge-halfclose-drain-r4",
+      "purpose": "Require exact error response, clean EOF, nonzero accept and unbound variables with pending input: overlarge-halfclose.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-drain-r4.py \"$BASH\" overlarge-halfclose",
+      "stdout": "http-overlarge-halfclose=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Capture exact response bytes, terminal EOF or reset, shell accept status and raw diagnostic independently; exact bytes, clean EOF and nonzero accept remain required.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-drain-r4.py": "baa888b2e525b071d4b18c85a33463d2f0897b367d7691c2a37abc7772b4510b"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-bad-line-pending-drain-r4",
+      "purpose": "Require exact error response, clean EOF, nonzero accept and unbound variables with pending input: bad-line-pending.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-drain-r4.py \"$BASH\" bad-line-pending",
+      "stdout": "http-bad-line-pending=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Capture exact response bytes, terminal EOF or reset, shell accept status and raw diagnostic independently; exact bytes, clean EOF and nonzero accept remain required.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-drain-r4.py": "baa888b2e525b071d4b18c85a33463d2f0897b367d7691c2a37abc7772b4510b"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-large-length-pending-drain-r4",
+      "purpose": "Require exact error response, clean EOF, nonzero accept and unbound variables with pending input: large-length-pending.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-drain-r4.py \"$BASH\" large-length-pending",
+      "stdout": "http-large-length-pending=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    },
+    {
+      "loadable": "httpd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "HTTP/1.1 response framing and status reasons from RFC 9110/9112; documented httpd API, limits and unchanged ten-second total deadline; exact independently constructed bytes and loopback socket EOF, descriptor inode and shell variable assertions.",
+      "comparison": "Capture exact response bytes, terminal EOF or reset, shell accept status and raw diagnostic independently; exact bytes, clean EOF and nonzero accept remain required.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/protocol-wire-http-drain-r4.py": "baa888b2e525b071d4b18c85a33463d2f0897b367d7691c2a37abc7772b4510b"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "id": "protocol-wire-http-overlarge-open-drain-r4",
+      "purpose": "Require clean EOF and bounded accept completion when the rejected client keeps its write side open.",
+      "covers": [
+        "httpd/deferred_request_errors"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/protocol-wire-http-drain-r4.py \"$BASH\" overlarge-open",
+      "stdout": "http-overlarge-open=ok\n",
+      "timeout": 12,
+      "diagnostic_files": [
+        "http-trace.json"
+      ]
+    }
+  ]
+}

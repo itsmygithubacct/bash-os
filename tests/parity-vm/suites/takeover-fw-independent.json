@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "takeover-fw-real-restore",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Independent firewall real-restore control in a disposable namespace",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Real ipset reference commands and explicit state snapshots for restore; separately injected failing backend verifies error propagation. Raw per-check results are retained.",
+      "comparison": "Candidate contract with independent positive and negative controls; setup failures are not product passes.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables",
+        "ipset"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/takeover-fw-independent.py real-restore\n",
+      "stdout": "scenario real-restore: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/takeover-fw-independent.py": "169851ad833aba1a2f5523da1b11badec23d24e14b872b1ad641a3ece4db481a",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "takeover-fw-failing-backend",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Independent firewall failing-backend control in a disposable namespace",
+      "covers": [
+        "fw/deferred_live_filter_state"
+      ],
+      "oracle": "Real ipset reference commands and explicit state snapshots for restore; separately injected failing backend verifies error propagation. Raw per-check results are retained.",
+      "comparison": "Candidate contract with independent positive and negative controls; setup failures are not product passes.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/takeover-fw-independent.py failing-backend\n",
+      "stdout": "scenario failing-backend: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/takeover-fw-independent.py": "169851ad833aba1a2f5523da1b11badec23d24e14b872b1ad641a3ece4db481a",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    }
+  ]
+}

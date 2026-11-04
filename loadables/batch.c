@@ -12,10 +12,12 @@
 #endif
 
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <time.h>
 
@@ -106,48 +108,91 @@ batch_builtin (WORD_LIST *list)
         return EXECUTION_FAILURE;
     }
 
-    /* jobid = <sec>.<pid>.<seq>. The per-process atomic counter
-       guarantees that two `batch` invocations from the same bash
-       session (same pid) within the same wall-clock second still get
-       distinct jobids — and the lexicographic sort order matches
-       submission order, which is exactly the FIFO contract cron's
-       atjobs scanner relies on. seq wraps every 10^6 calls; for an
-       at-job poll cadence of seconds that's effectively unbounded. */
-    static unsigned long bb_submit_seq;
+    /* One stable locked append-only journal per wall-clock second.  A clock
+       rollback can revisit an older second, so a single current-second
+       counter is insufficient.  A short trailing record was never published
+       and may be discarded after an interrupted writer. */
+    char counter[32], tmp[PATH_MAX], state[8];
+    int rootfd = -1, dirfd = -1, lockfd = -1, fd = -1;
+    FILE *f = NULL;
     time_t run_at = time (NULL);
-    snprintf (jobid, sizeof jobid, "%lld.%ld.%06lu",
-              (long long) run_at, (long) getpid (), bb_submit_seq++ % 1000000UL);
-    if (snprintf (path, sizeof path, "%s/%s.job", dir, jobid) >= (int) sizeof path) {
-        free (script);
-        builtin_error ("job path too long");
-        return EXECUTION_FAILURE;
+    unsigned long seq;
+    struct stat st;
+    ssize_t n;
+    int saved;
+    if (run_at == (time_t) -1) goto fail;
+    if (snprintf (counter, sizeof counter, "%lld", (long long) run_at) >= (int) sizeof counter) {
+        errno = ENAMETOOLONG;
+        goto fail;
     }
-
-    FILE *f = fopen (path, "wx");
-    if (!f) {
-        free (script);
-        builtin_error ("create job: %s", strerror (errno));
-        return EXECUTION_FAILURE;
+    rootfd = open (bb_spool_root (), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (rootfd < 0) goto fail;
+    if (mkdirat (rootfd, ".batch-sequence.d", 0700) < 0 && errno != EEXIST) goto fail;
+    dirfd = openat (rootfd, ".batch-sequence.d", O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (dirfd < 0) goto fail;
+    /* Preserve the directory entry before reserving and publishing a job. */
+    if (fsync (rootfd) < 0) goto fail;
+    close (rootfd); rootfd = -1;
+    lockfd = openat (dirfd, counter, O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
+    if (lockfd < 0 || flock (lockfd, LOCK_EX) < 0) goto fail;
+    if (fstat (lockfd, &st) < 0) goto fail;
+    if (!S_ISREG (st.st_mode) || st.st_size < 0 || st.st_size > 7000006) {
+        errno = EINVAL;
+        goto fail;
     }
-    chmod (path, 0600);
-    fprintf (f, "# run_at=%lld\n", (long long) run_at);
-    if (len && fwrite (script, 1, len, f) != len) {
-        fclose (f);
-        unlink (path);
-        free (script);
-        builtin_error ("write job: %s", strerror (errno));
-        return EXECUTION_FAILURE;
+    off_t complete = st.st_size - st.st_size % 7;
+    if (complete != st.st_size && ftruncate (lockfd, complete) < 0) goto fail;
+    seq = (unsigned long) (complete / 7);
+    if (seq) {
+        char expected[8];
+        n = pread (lockfd, state, 7, complete - 7);
+        snprintf (expected, sizeof expected, "%06lu\n", seq - 1);
+        if (n != 7 || memcmp (state, expected, 7)) { errno = EINVAL; goto fail; }
     }
+    if (seq >= 1000000UL) { errno = EOVERFLOW; goto fail; }
+    snprintf (state, sizeof state, "%06lu\n", seq);
+    n = pwrite (lockfd, state, 7, complete);
+    if (n != 7) {
+        saved = n < 0 ? errno : EIO;
+        (void) ftruncate (lockfd, complete);
+        errno = saved;
+        goto fail;
+    }
+    /* Reserve the sequence before publishing the job, including when the
+       process dies between these two steps. */
+    if (fsync (lockfd) < 0 || fsync (dirfd) < 0) goto fail;
+    close (dirfd); dirfd = -1;
+    snprintf (jobid, sizeof jobid, "%lld.%ld.%06lu", (long long) run_at, (long) getpid (), seq);
+    if (snprintf (path, sizeof path, "%s/%s.job", dir, jobid) >= (int) sizeof path ||
+        snprintf (tmp, sizeof tmp, "%s/.batch.XXXXXX", dir) >= (int) sizeof tmp) {
+        errno = ENAMETOOLONG;
+        goto fail;
+    }
+    fd = mkstemp (tmp);
+    if (fd < 0) goto fail;
+    f = fdopen (fd, "w");
+    if (!f) { saved = errno; close (fd); unlink (tmp); errno = saved; goto fail; }
+    int bad = fprintf (f, "# run_at=%lld\n", (long long) run_at) < 0;
+    if (len && fwrite (script, 1, len, f) != len) bad = 1;
     if (len == 0 || script[len - 1] != '\n')
-        fputc ('\n', f);
+        if (fputc ('\n', f) == EOF) bad = 1;
+    if (fclose (f) != 0) bad = 1;
+    if (bad) { saved = errno; unlink (tmp); errno = saved; goto fail; }
+    if (link (tmp, path) < 0) { saved = errno; unlink (tmp); errno = saved; goto fail; }
+    if (unlink (tmp) < 0) builtin_warning ("remove job temp: %s", strerror (errno));
+    close (lockfd);
     free (script);
-    if (fclose (f) != 0) {
-        unlink (path);
-        builtin_error ("close job: %s", strerror (errno));
-        return EXECUTION_FAILURE;
-    }
     printf ("job %s scheduled for %lld\n", jobid, (long long) run_at);
     return EXECUTION_SUCCESS;
+
+fail:
+    saved = errno;
+    if (lockfd >= 0) close (lockfd);
+    if (dirfd >= 0) close (dirfd);
+    if (rootfd >= 0) close (rootfd);
+    free (script);
+    builtin_error ("queue job: %s", strerror (saved));
+    return EXECUTION_FAILURE;
 }
 
 char *batch_doc[] = {
@@ -157,9 +202,8 @@ char *batch_doc[] = {
     "",
     "Jobs are written to ${BASHCRON_SPOOL_DIR:-/var/spool/cron}/atjobs.",
     "Jobid format is <seconds-since-epoch>.<pid>.<seq>; cron's atjobs",
-    "scanner processes ready jobs in lexicographic-by-jobid order, which",
-    "is equivalent to submission order (FIFO) for two jobs queued for the",
-    "same fire time.",
+    "scanner processes batch jobs with the same fire time in submission",
+    "order (FIFO), including jobs from different shell processes.",
     (char *)NULL
 };
 

@@ -1,0 +1,353 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "control-fw-iptables-allow-deny",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Explicit iptables backend control retaining original assertions: fw allow and deny (with proto/port, CIDR) apply live to the kernel BASHFW_IN chain; ruleset read back with iptables -S.",
+      "covers": [
+        "fw/deferred_live_filter_state"
+      ],
+      "oracle": "Fresh mapped user+network namespace; the candidate fw builtin drives the guest's iptables (nf_tables backend); the live ruleset is read back with /usr/sbin/iptables and ip6tables and compared with expected iptables-save canonical text, and packet effects are observed from a TCP peer in a second network namespace. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/control-fw-iptables.py allow-deny\n",
+      "stdout": "scenario allow-deny: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/control-fw-iptables.py": "73dca01dcb0dcbb445115c138e7ad53aa2fdc822d4769c061982024ad537b7a9",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "control-fw-iptables-deny-v6",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Explicit iptables backend control retaining original assertions: fw deny of an IPv6 prefix applies to the kernel ip6tables BASHFW_IN chain.",
+      "covers": [
+        "fw/deferred_live_filter_state"
+      ],
+      "oracle": "Fresh mapped user+network namespace; the candidate fw builtin drives the guest's iptables (nf_tables backend); the live ruleset is read back with /usr/sbin/iptables and ip6tables and compared with expected iptables-save canonical text, and packet effects are observed from a TCP peer in a second network namespace. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/control-fw-iptables.py deny-v6\n",
+      "stdout": "scenario deny-v6: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/control-fw-iptables.py": "73dca01dcb0dcbb445115c138e7ad53aa2fdc822d4769c061982024ad537b7a9",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "control-fw-iptables-list",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Explicit iptables backend control retaining original assertions: fw list and list -l report the applied rules exactly as iptables -L BASHFW_IN -n -v does.",
+      "covers": [
+        "fw/deferred_live_filter_state"
+      ],
+      "oracle": "Fresh mapped user+network namespace; the candidate fw builtin drives the guest's iptables (nf_tables backend); the live ruleset is read back with /usr/sbin/iptables and ip6tables and compared with expected iptables-save canonical text, and packet effects are observed from a TCP peer in a second network namespace. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/control-fw-iptables.py list\n",
+      "stdout": "scenario list: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/control-fw-iptables.py": "73dca01dcb0dcbb445115c138e7ad53aa2fdc822d4769c061982024ad537b7a9",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "control-fw-iptables-unban",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Explicit iptables backend control retaining original assertions: fw unban deletes only the matching deny rule (by address, proto and port) and fails without change when absent.",
+      "covers": [
+        "fw/deferred_live_filter_state"
+      ],
+      "oracle": "Fresh mapped user+network namespace; the candidate fw builtin drives the guest's iptables (nf_tables backend); the live ruleset is read back with /usr/sbin/iptables and ip6tables and compared with expected iptables-save canonical text, and packet effects are observed from a TCP peer in a second network namespace. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/control-fw-iptables.py unban\n",
+      "stdout": "scenario unban: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/control-fw-iptables.py": "73dca01dcb0dcbb445115c138e7ad53aa2fdc822d4769c061982024ad537b7a9",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "control-fw-iptables-flush",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Explicit iptables backend control retaining original assertions: fw flush empties the selected fw chain, leaving the other fw chain and unrelated chains.",
+      "covers": [
+        "fw/deferred_live_filter_state"
+      ],
+      "oracle": "Fresh mapped user+network namespace; the candidate fw builtin drives the guest's iptables (nf_tables backend); the live ruleset is read back with /usr/sbin/iptables and ip6tables and compared with expected iptables-save canonical text, and packet effects are observed from a TCP peer in a second network namespace. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/control-fw-iptables.py flush\n",
+      "stdout": "scenario flush: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/control-fw-iptables.py": "73dca01dcb0dcbb445115c138e7ad53aa2fdc822d4769c061982024ad537b7a9",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "control-fw-iptables-reset",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Explicit iptables backend control retaining original assertions: fw reset creates the fw-owned chains from nothing and returns populated chains to empty.",
+      "covers": [
+        "fw/deferred_live_filter_state"
+      ],
+      "oracle": "Fresh mapped user+network namespace; the candidate fw builtin drives the guest's iptables (nf_tables backend); the live ruleset is read back with /usr/sbin/iptables and ip6tables and compared with expected iptables-save canonical text, and packet effects are observed from a TCP peer in a second network namespace. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/control-fw-iptables.py reset\n",
+      "stdout": "scenario reset: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/control-fw-iptables.py": "73dca01dcb0dcbb445115c138e7ad53aa2fdc822d4769c061982024ad537b7a9",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "control-fw-iptables-packet-unhooked",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Explicit iptables backend control retaining original assertions: A fw deny of a peer's address blocks, and unban restores, a real TCP connection between two namespaces without any extra INPUT hook.",
+      "covers": [
+        "fw/deferred_live_filter_state"
+      ],
+      "oracle": "Fresh mapped user+network namespace; the candidate fw builtin drives the guest's iptables (nf_tables backend); the live ruleset is read back with /usr/sbin/iptables and ip6tables and compared with expected iptables-save canonical text, and packet effects are observed from a TCP peer in a second network namespace. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/control-fw-iptables.py packet-unhooked\n",
+      "stdout": "scenario packet-unhooked: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/control-fw-iptables.py": "73dca01dcb0dcbb445115c138e7ad53aa2fdc822d4769c061982024ad537b7a9",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "control-fw-iptables-packet-hooked",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Explicit iptables backend control retaining original assertions: With BASHFW_IN hooked from INPUT by the fixture, fw deny blocks and fw unban/flush restore a real TCP connection.",
+      "covers": [
+        "fw/deferred_live_filter_state"
+      ],
+      "oracle": "Fresh mapped user+network namespace; the candidate fw builtin drives the guest's iptables (nf_tables backend); the live ruleset is read back with /usr/sbin/iptables and ip6tables and compared with expected iptables-save canonical text, and packet effects are observed from a TCP peer in a second network namespace. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/control-fw-iptables.py packet-hooked\n",
+      "stdout": "scenario packet-hooked: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/control-fw-iptables.py": "73dca01dcb0dcbb445115c138e7ad53aa2fdc822d4769c061982024ad537b7a9",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "control-fw-iptables-sets-live",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Explicit iptables backend control retaining original assertions: fw set create/add/del/list/destroy drive a stateful ipset stand-in; sets and members observed in its state.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Fresh mapped user+network namespace; the candidate fw builtin drives the guest's iptables (nf_tables backend); the live ruleset is read back with /usr/sbin/iptables and ip6tables and compared with expected iptables-save canonical text, and packet effects are observed from a TCP peer in a second network namespace. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/control-fw-iptables.py sets-live\n",
+      "stdout": "scenario sets-live: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/control-fw-iptables.py": "73dca01dcb0dcbb445115c138e7ad53aa2fdc822d4769c061982024ad537b7a9",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "control-fw-iptables-save",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Explicit iptables backend control retaining original assertions: fw save writes iptables-save content of the live ruleset, plus the marked ipset section when ipset is present.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Fresh mapped user+network namespace; the candidate fw builtin drives the guest's iptables (nf_tables backend); the live ruleset is read back with /usr/sbin/iptables and ip6tables and compared with expected iptables-save canonical text, and packet effects are observed from a TCP peer in a second network namespace. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/control-fw-iptables.py save\n",
+      "stdout": "scenario save: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/control-fw-iptables.py": "73dca01dcb0dcbb445115c138e7ad53aa2fdc822d4769c061982024ad537b7a9",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "control-fw-iptables-restore",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Explicit iptables backend control retaining original assertions: fw restore after wiping or resetting reproduces the saved kernel rules and the ipset-stand-in set membership.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Fresh mapped user+network namespace; the candidate fw builtin drives the guest's iptables (nf_tables backend); the live ruleset is read back with /usr/sbin/iptables and ip6tables and compared with expected iptables-save canonical text, and packet effects are observed from a TCP peer in a second network namespace. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/control-fw-iptables.py restore\n",
+      "stdout": "scenario restore: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/control-fw-iptables.py": "73dca01dcb0dcbb445115c138e7ad53aa2fdc822d4769c061982024ad537b7a9",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    },
+    {
+      "id": "control-fw-iptables-restore-drift-fake",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Explicit iptables with separate fake ipset supporting swap; inject drift and preserve original exact membership expectation.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Fresh mapped user+network namespace; the candidate fw builtin drives the guest's iptables (nf_tables backend); the live ruleset is read back with /usr/sbin/iptables and ip6tables and compared with expected iptables-save canonical text, and packet effects are observed from a TCP peer in a second network namespace. Per-check detail is in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/control-fw-iptables-swap.py restore\n",
+      "stdout": "scenario restore: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/control-fw-iptables-swap.py": "cbcbcba70eb68121577757cf19c0997272529b3703a3a90856633e6dc3921faa",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    }
+  ]
+}

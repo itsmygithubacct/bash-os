@@ -1,0 +1,387 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-t157-passwd-sigint-set-new-restores-terminal-partial",
+      "loadable": "passwd",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "passwd/interactive_password_prompts"
+      ],
+      "purpose": "Interrupt after partial input; restore the original terminal and do not echo the partial input. Use the memory-backed secret path.",
+      "oracle": "Controlling-terminal contract (termios(3)/tty_ioctl): a program that clears ECHO and ICANON for a read must leave them restored when interrupted; the oracle is GNU bash's own `read -s` run on the same PTY (restores on SIGINT), the recorded initial modes of the PTY and the driver's termios_after.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_KERNEL_SECRETS=0\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd set w5user\n",
+      "expected_status": 130,
+      "timeout": 40,
+      "steps": [
+        {
+          "expect": "New password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "send": "part-t157-7392"
+        },
+        {
+          "send_base64": "Aw=="
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON",
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "output_lacks": "part-t157-7392"
+        }
+      ],
+      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
+      "setup_timeout": 45,
+      "restore_terminal": true
+    },
+    {
+      "id": "repair-t157-passwd-sigint-set-new-restores-terminal-kernel",
+      "loadable": "passwd",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "passwd/interactive_password_prompts"
+      ],
+      "purpose": "Interrupt after partial input; restore the original terminal and do not echo the partial input. Require the kernel secret device.",
+      "oracle": "Controlling-terminal contract (termios(3)/tty_ioctl): a program that clears ECHO and ICANON for a read must leave them restored when interrupted; the oracle is GNU bash's own `read -s` run on the same PTY (restores on SIGINT), the recorded initial modes of the PTY and the driver's termios_after.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_REQUIRE_KERNEL_SECRETS=1\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd set w5user\n",
+      "expected_status": 130,
+      "timeout": 40,
+      "steps": [
+        {
+          "expect": "New password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "send": "part-t157-7392"
+        },
+        {
+          "send_base64": "Aw=="
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON",
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "output_lacks": "part-t157-7392"
+        }
+      ],
+      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
+      "setup_timeout": 45,
+      "restore_terminal": true
+    },
+    {
+      "id": "repair-t157-passwd-sigint-set-retype-restores-terminal-partial",
+      "loadable": "passwd",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "passwd/interactive_password_prompts"
+      ],
+      "purpose": "Interrupt after partial input; restore the original terminal and do not echo the partial input. Use the memory-backed secret path.",
+      "oracle": "Controlling-terminal contract (termios(3)/tty_ioctl): a program that clears ECHO and ICANON for a read must leave them restored when interrupted; the oracle is GNU bash's own `read -s` run on the same PTY (restores on SIGINT), the recorded initial modes of the PTY and the driver's termios_after.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_KERNEL_SECRETS=0\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd set w5user\n",
+      "expected_status": 130,
+      "timeout": 40,
+      "steps": [
+        {
+          "expect": "New password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "send": "aaa-first-4410\r"
+        },
+        {
+          "expect": "Retype new password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "send": "part-t157-7392"
+        },
+        {
+          "send_base64": "Aw=="
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON",
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "output_lacks": "aaa-first-4410"
+        },
+        {
+          "output_lacks": "part-t157-7392"
+        }
+      ],
+      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
+      "setup_timeout": 45,
+      "restore_terminal": true
+    },
+    {
+      "id": "repair-t157-passwd-sigint-set-retype-restores-terminal-kernel",
+      "loadable": "passwd",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "passwd/interactive_password_prompts"
+      ],
+      "purpose": "Interrupt after partial input; restore the original terminal and do not echo the partial input. Require the kernel secret device.",
+      "oracle": "Controlling-terminal contract (termios(3)/tty_ioctl): a program that clears ECHO and ICANON for a read must leave them restored when interrupted; the oracle is GNU bash's own `read -s` run on the same PTY (restores on SIGINT), the recorded initial modes of the PTY and the driver's termios_after.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_REQUIRE_KERNEL_SECRETS=1\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd set w5user\n",
+      "expected_status": 130,
+      "timeout": 40,
+      "steps": [
+        {
+          "expect": "New password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "send": "aaa-first-4410\r"
+        },
+        {
+          "expect": "Retype new password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "send": "part-t157-7392"
+        },
+        {
+          "send_base64": "Aw=="
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON",
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "output_lacks": "aaa-first-4410"
+        },
+        {
+          "output_lacks": "part-t157-7392"
+        }
+      ],
+      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
+      "setup_timeout": 45,
+      "restore_terminal": true
+    },
+    {
+      "id": "repair-t157-passwd-sigint-change-current-restores-terminal-partial",
+      "loadable": "passwd",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "passwd/interactive_password_prompts"
+      ],
+      "purpose": "Interrupt after partial input; restore the original terminal and do not echo the partial input. Use the memory-backed secret path.",
+      "oracle": "Controlling-terminal contract (termios(3)/tty_ioctl): a program that clears ECHO and ICANON for a read must leave them restored when interrupted; the oracle is GNU bash's own `read -s` run on the same PTY (restores on SIGINT), the recorded initial modes of the PTY and the driver's termios_after.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_KERNEL_SECRETS=0\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd change w5user\n",
+      "expected_status": 130,
+      "timeout": 40,
+      "steps": [
+        {
+          "expect": "Current password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "send": "part-t157-7392"
+        },
+        {
+          "send_base64": "Aw=="
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON",
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "output_lacks": "part-t157-7392"
+        }
+      ],
+      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
+      "setup_timeout": 45,
+      "restore_terminal": true
+    },
+    {
+      "id": "repair-t157-passwd-sigint-change-current-restores-terminal-kernel",
+      "loadable": "passwd",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "passwd/interactive_password_prompts"
+      ],
+      "purpose": "Interrupt after partial input; restore the original terminal and do not echo the partial input. Require the kernel secret device.",
+      "oracle": "Controlling-terminal contract (termios(3)/tty_ioctl): a program that clears ECHO and ICANON for a read must leave them restored when interrupted; the oracle is GNU bash's own `read -s` run on the same PTY (restores on SIGINT), the recorded initial modes of the PTY and the driver's termios_after.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_REQUIRE_KERNEL_SECRETS=1\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd change w5user\n",
+      "expected_status": 130,
+      "timeout": 40,
+      "steps": [
+        {
+          "expect": "Current password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ],
+            "set": [
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "send": "part-t157-7392"
+        },
+        {
+          "send_base64": "Aw=="
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON",
+              "ISIG"
+            ]
+          }
+        },
+        {
+          "output_lacks": "part-t157-7392"
+        }
+      ],
+      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
+      "setup_timeout": 45,
+      "restore_terminal": true
+    }
+  ]
+}

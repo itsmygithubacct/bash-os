@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-fsfreeze-relative-symlink-lifecycle-root",
+      "loadable": "fsfreeze",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "fsfreeze/deferred-symlink-mountpoint"
+      ],
+      "purpose": "Isolate relative symlink freeze and thaw on a disposable ext4 loop mount; verify frozen state with the reference ioctl and a blocked writer, then verify thaw and resumed writes.",
+      "oracle": "util-linux fsfreeze and independently checked EBUSY and writer lifecycle",
+      "comparison": "Each side must independently assert freeze, EBUSY, blocked writer, thaw, resumed writer and successful teardown before parity comparison.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "losetup",
+        "mkdir",
+        "fsfreeze",
+        "dd",
+        "sleep",
+        "stat",
+        "ln",
+        "grep",
+        "cat"
+      ],
+      "script": "export LC_ALL=C\nRT=/tmp/rt; M=$RT/mnt; dev=; wp=; mounted=0\ncleanup() {\n  local prior=$? bad=0 i\n  trap - EXIT\n  if (( mounted )); then /usr/sbin/fsfreeze -u \"$M\" >/dev/null 2>&1 || :; fi\n  if [[ -n $wp ]]; then kill \"$wp\" 2>/dev/null || :; wait \"$wp\" 2>/dev/null || :; fi\n  if (( mounted )); then /usr/bin/umount \"$M\" || bad=1; fi\n  if [[ -n $dev ]]; then\n    /usr/sbin/losetup -d \"$dev\" || bad=1\n    for ((i=0;i<50;i++)); do [[ -e /sys/block/${dev#/dev/}/loop/backing_file ]] || break; /usr/bin/sleep 0.1; done\n    [[ ! -e /sys/block/${dev#/dev/}/loop/backing_file ]] || bad=1\n  fi\n  (( bad == 0 )) || { echo 'teardown failed' >&2; exit 98; }\n  exit \"$prior\"\n}\ntrap cleanup EXIT\n/usr/bin/mkdir -p \"$M\" || exit 99\n/usr/bin/truncate -s 8M \"$RT/img\" || exit 99\n/usr/sbin/mkfs.ext4 -q -F -O ^has_journal -E nodiscard,lazy_itable_init=0 \"$RT/img\" || exit 99\ndev=$(/usr/sbin/losetup -f --show --nooverlap \"$RT/img\") || exit 99\n[[ $dev =~ ^/dev/loop[0-9]+$ ]] || exit 99\n/usr/bin/mount \"$dev\" \"$M\" || exit 99\nmounted=1\ncd \"$RT\" || exit 99\n/usr/bin/ln -s mnt lnk || exit 99\nfsfreeze -f lnk || { echo 'freeze-link failed' >&2; exit 1; }\nif /usr/sbin/fsfreeze -f \"$M\" >probe.out 2>probe.err; then\n  echo 'probe unexpectedly froze filesystem' >&2; exit 1\nfi\n/usr/bin/grep -Fq 'Device or resource busy' probe.err || { cat probe.err >&2; exit 1; }\necho 'freeze-link=ok probe=busy'\n/usr/bin/dd if=/dev/zero of=\"$M/w\" bs=4k count=1 conv=fsync status=none & wp=$!\n/usr/bin/sleep 1\nkill -0 \"$wp\" 2>/dev/null || { echo 'writer finished before thaw' >&2; exit 1; }\necho 'writer=blocked'\nfsfreeze -u lnk || { echo 'thaw-link failed' >&2; exit 1; }\nwait \"$wp\" || { wp=; echo 'writer failed after thaw' >&2; exit 1; }\nwp=\n[[ $(/usr/bin/stat -c %s \"$M/w\") == 4096 ]] || exit 1\n/usr/sbin/fsfreeze -f \"$M\" || exit 1\n/usr/sbin/fsfreeze -u \"$M\" || exit 1\necho 'thaw-link=ok writer=completed probe=unfrozen'\ncd /tmp/parity-case || exit 99\n/usr/bin/umount \"$M\" || exit 98\nmounted=0\n/usr/sbin/losetup -d \"$dev\" || exit 98\nfor ((i=0;i<50;i++)); do [[ -e /sys/block/${dev#/dev/}/loop/backing_file ]] || break; /usr/bin/sleep 0.1; done\n[[ ! -e /sys/block/${dev#/dev/}/loop/backing_file ]] || exit 98\ndev=\necho 'teardown=ok'\n",
+      "expected_status": 0,
+      "timeout": 60
+    }
+  ]
+}

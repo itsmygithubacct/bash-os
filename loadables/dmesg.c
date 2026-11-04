@@ -10,7 +10,8 @@
  *   dmesg            print decoded ring buffer (default output)
  *   dmesg -k         kernel-facility messages only
  *   dmesg -T         human-readable timestamps via boot offset
- *   dmesg -r         raw "<priority>,seq,us;message" lines
+ *   dmesg -r         raw "<priority>[timestamp] message" lines
+ *   dmesg -x         decode facility and level names
  *   dmesg -t         suppress timestamp column
  *   dmesg -l LEVELS  comma list: emerg/alert/crit/err/warn/notice/info/debug
  *   dmesg -f FACILS  comma list: kern/user/mail/daemon/... facilities
@@ -68,23 +69,29 @@
 #ifndef SYSLOG_ACTION_CONSOLE_LEVEL
 #  define SYSLOG_ACTION_CONSOLE_LEVEL 8
 #endif
+#ifndef SEEK_DATA
+#  define SEEK_DATA 3
+#endif
 
 #include "loadables.h"
 
 /* Linux ABI: priority byte = (facility << 3) | level. */
 #define BD_LEVEL(p)    ((p) & 0x07)
 #define BD_FACILITY(p) ((p) >> 3)
+/* Reserve for the complete record on the first read: on Linux, an EINVAL
+   for a short buffer may already advance the reader's sequence cursor. */
+#define BD_RECORD_CAP (64U * 1024U)
 
 static const char * const bd_level_names[8] = {
     "emerg", "alert", "crit", "err",
     "warn",  "notice","info", "debug"
 };
 
-static const char * const bd_facility_names[16] = {
-    "kern", "user", "mail", "daemon",
-    "auth", "syslog", "lpr", "news",
-    "uucp", "cron", "authpriv", "ftp",
-    "ntp", "security", "console", "solaris-cron"
+#define BD_FACILITY_COUNT 24
+static const char * const bd_facility_names[BD_FACILITY_COUNT] = {
+    "kern", "user", "mail", "daemon", "auth", "syslog", "lpr", "news",
+    "uucp", "cron", "authpriv", "ftp", "res0", "res1", "res2", "res3",
+    "local0", "local1", "local2", "local3", "local4", "local5", "local6", "local7"
 };
 
 /* Resolve a level token (numeric or name) to 0..7, or -1 on unknown. */
@@ -102,7 +109,7 @@ bd_level_index (const char *tok)
     return -1;
 }
 
-/* Resolve a facility token (numeric or name) to 0..15, or -1 on unknown. */
+/* Resolve a facility token (numeric or name) to 0..23, or -1 on unknown. */
 static int
 bd_facility_index (const char *tok)
 {
@@ -110,11 +117,11 @@ bd_facility_index (const char *tok)
     if (isdigit ((unsigned char) tok[0])) {
         char *end = NULL;
         long v = strtol (tok, &end, 10);
-        if (end && *end == '\0' && v >= 0 && v < 16)
+        if (end && *end == '\0' && v >= 0 && v < BD_FACILITY_COUNT)
             return (int) v;
         return -1;
     }
-    for (int i = 0; i < 16; i++)
+    for (int i = 0; i < BD_FACILITY_COUNT; i++)
         if (!strcmp (tok, bd_facility_names[i]))
             return i;
     /* Common alias; util-linux accepts the canonical authpriv spelling. */
@@ -143,7 +150,7 @@ bd_parse_level_mask (const char *spec)
 }
 
 /* Parse comma-separated list of facility names/numbers into a bitmask
-   over 0..15. Returns -1 if any token is unknown. */
+   over 0..23. Returns -1 if any token is unknown. */
 static int
 bd_parse_facility_mask (const char *spec)
 {
@@ -202,7 +209,9 @@ static const char *
 bd_kmsg_path (void)
 {
     const char *e = getenv ("BASHDMESG_DEV_KMSG_FILE");
-    return (e && *e) ? e : "/dev/kmsg";
+    /* Presence of the hook also suppresses clearing and selects fixture
+       parsing.  An empty value must not silently select the live device. */
+    return e ? e : "/dev/kmsg";
 }
 
 /* Decode one /dev/kmsg record line into priority/seq/time_us + pointer
@@ -239,7 +248,7 @@ bd_parse_record (const char *line, unsigned int *pri,
    the ';' delimiter; the trailing newline (if any) is stripped. */
 static void
 bd_emit (unsigned int pri, unsigned long long us, const char *text,
-         int raw, int no_ts, int human_ts, time_t boot_epoch)
+         int raw, int no_ts, int human_ts, time_t boot_epoch, int decode)
 {
     char tbuf[64];
     tbuf[0] = '\0';
@@ -266,6 +275,9 @@ bd_emit (unsigned int pri, unsigned long long us, const char *text,
     memcpy (copy, text, tl + 1);
     if (tl && copy[tl - 1] == '\n') copy[tl - 1] = '\0';
 
+    if (decode && BD_FACILITY (pri) < BD_FACILITY_COUNT)
+        printf ("%-6s:%-6s: ", bd_facility_names[BD_FACILITY (pri)],
+                bd_level_names[BD_LEVEL (pri)]);
     if (raw) {
         /* "<pri>tbuf<text>" — keeps callers that grep for <N> happy. */
         printf ("<%u>%s%s\n", pri, tbuf, copy);
@@ -282,7 +294,7 @@ bd_process_record (const char *record, int kernel_only, int facility_mask,
                    int level_mask,
                    int raw, int no_ts, int human_ts, time_t boot_epoch,
                    int have_since, unsigned long long since_us,
-                   int have_until, unsigned long long until_us)
+                   int have_until, unsigned long long until_us, int decode)
 {
     unsigned int pri;
     unsigned long long seq, us;
@@ -292,13 +304,13 @@ bd_process_record (const char *record, int kernel_only, int facility_mask,
     (void) seq;
 
     if (kernel_only && BD_FACILITY (pri) != 0) return 0;
-    if (facility_mask && (BD_FACILITY (pri) >= 16 ||
+    if (facility_mask && (BD_FACILITY (pri) >= BD_FACILITY_COUNT ||
                           !((facility_mask >> BD_FACILITY (pri)) & 1))) return 0;
     if (level_mask && !((level_mask >> BD_LEVEL (pri)) & 1)) return 0;
     if (have_since && us < since_us) return 0;
     if (have_until && us > until_us) return 0;
 
-    bd_emit (pri, us, text, raw, no_ts, human_ts, boot_epoch);
+    bd_emit (pri, us, text, raw, no_ts, human_ts, boot_epoch, decode);
     return 1;
 }
 
@@ -308,14 +320,15 @@ bd_drain (int fd, int kernel_only, int facility_mask, int level_mask,
           int human_ts, time_t boot_epoch,
           int have_since, unsigned long long since_us,
           int have_until, unsigned long long until_us,
-          unsigned long long *emitted)
+          unsigned long long *emitted, int decode)
 {
-    char buf[8193];   /* kernel CONSOLE_EXT_LOG_MAX + 1 */
+    char *buf = malloc (BD_RECORD_CAP + 1);
     int fixture_file = getenv ("BASHDMESG_DEV_KMSG_FILE") != NULL;
     char *pending = NULL;
     size_t pending_len = 0;
+    if (!buf) { builtin_error ("out of memory reading %s", bd_kmsg_path ()); return EXECUTION_FAILURE; }
     for (;;) {
-        ssize_t n = read (fd, buf, sizeof buf - 1);
+        ssize_t n = read (fd, buf, BD_RECORD_CAP);
         if (n < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) break;
             /* EPIPE on /dev/kmsg means the record we tried to read
@@ -324,6 +337,7 @@ bd_drain (int fd, int kernel_only, int facility_mask, int level_mask,
             if (errno == EINTR) continue;
             builtin_error ("read %s: %s", bd_kmsg_path (), strerror (errno));
             free (pending);
+            free (buf);
             return EXECUTION_FAILURE;
         }
         if (n == 0) {
@@ -333,7 +347,7 @@ bd_drain (int fd, int kernel_only, int facility_mask, int level_mask,
                                                facility_mask, level_mask,
                                                raw, no_ts, human_ts,
                                                boot_epoch, have_since,
-                                               since_us, have_until, until_us);
+                                               since_us, have_until, until_us, decode);
             }
             break;
         }
@@ -345,6 +359,7 @@ bd_drain (int fd, int kernel_only, int facility_mask, int level_mask,
             if (!grown) {
                 builtin_error ("out of memory reading %s", bd_kmsg_path ());
                 free (pending);
+                free (buf);
                 return EXECUTION_FAILURE;
             }
             pending = grown;
@@ -362,7 +377,7 @@ bd_drain (int fd, int kernel_only, int facility_mask, int level_mask,
                                                raw, no_ts, human_ts,
                                                boot_epoch, have_since,
                                                since_us, have_until,
-                                               until_us);
+                                               until_us, decode);
                 line = nl + 1;
             }
             pending_len -= (size_t)(line - pending);
@@ -373,10 +388,11 @@ bd_drain (int fd, int kernel_only, int facility_mask, int level_mask,
             *emitted += bd_process_record (buf, kernel_only, facility_mask,
                                            level_mask, raw, no_ts, human_ts,
                                            boot_epoch, have_since, since_us,
-                                           have_until, until_us);
+                                           have_until, until_us, decode);
         }
     }
     free (pending);
+    free (buf);
     return EXECUTION_SUCCESS;
 }
 
@@ -434,6 +450,7 @@ dmesg_builtin (WORD_LIST *list)
     int facility_mask = 0;    /* 0 = no filter */
     int level_mask  = 0;       /* 0 = no filter */
     int raw         = 0;
+    int decode      = 0;
     int no_ts       = 0;
     int human_ts    = 0;
     int do_clear    = 0;
@@ -449,6 +466,7 @@ dmesg_builtin (WORD_LIST *list)
         if (!strcmp (w, "-k")) kernel_only = 1;
         else if (!strcmp (w, "-T")) human_ts = 1;
         else if (!strcmp (w, "-r")) raw = 1;
+        else if (!strcmp (w, "-x") || !strcmp (w, "--decode")) decode = 1;
         else if (!strcmp (w, "-t")) no_ts = 1;
         else if (!strcmp (w, "-w") || !strcmp (w, "--follow")) follow = 1;
         else if (!strcmp (w, "-c") || !strcmp (w, "-C")) do_clear = 1;
@@ -513,8 +531,12 @@ dmesg_builtin (WORD_LIST *list)
         else if (!strcmp (w, "-n")) {
             list = list->next;
             if (!list) { builtin_error ("-n: missing LEVEL"); builtin_usage (); return EX_USAGE; }
-            int lvl = bd_level_index (list->word->word);
-            if (lvl < 0) {
+            const char *arg = list->word->word;
+            /* Console thresholds are 1..8; named priorities are 0..7.
+               Numeric arguments already denote the kernel threshold. */
+            int lvl = (arg[0] >= '0' && arg[0] <= '8' && !arg[1])
+                ? arg[0] - '0' : bd_level_index (arg) + 1;
+            if (lvl == 0 && strcmp (arg, "0") != 0) {
                 builtin_error ("-n: unknown level '%s'", list->word->word);
                 builtin_usage ();
                 return EX_USAGE;
@@ -538,14 +560,21 @@ dmesg_builtin (WORD_LIST *list)
         return EX_USAGE;
     }
 
+    /* These output formats are mutually exclusive in dmesg(1), including
+       fixture reads. A test hook must not change option semantics. */
+    if (raw && (no_ts || human_ts || decode)) {
+        builtin_error ("mutually exclusive arguments: --raw %s",
+                       no_ts ? "--notime" : human_ts ? "--ctime" : "--decode");
+        return EXECUTION_FAILURE;
+    }
+
     /* -n LEVEL: set console log level. SYSLOG_ACTION_CONSOLE_LEVEL
        expects level in arg3 (the "len" slot of klogctl). */
     if (set_console >= 0) {
         long rc = syscall (SYS_syslog, SYSLOG_ACTION_CONSOLE_LEVEL,
                            (char *) NULL, set_console);
         if (rc < 0) {
-            builtin_error ("set console level: %s",
-                           errno == EPERM ? "need CAP_SYSLOG" : strerror (errno));
+            builtin_error ("klogctl failed: %s", strerror (errno));
             return EXECUTION_FAILURE;
         }
         return EXECUTION_SUCCESS;
@@ -557,15 +586,21 @@ dmesg_builtin (WORD_LIST *list)
     const char *path = bd_kmsg_path ();
     int fd = open (path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
     if (fd < 0) {
-        builtin_error ("open %s: %s", path, strerror (errno));
+        builtin_error ("read kernel buffer failed: %s", strerror (errno));
         return EXECUTION_FAILURE;
     }
-    /* /dev/kmsg starts at the oldest available record by default after
-       lseek(SEEK_DATA); regular fixture files honor lseek(0,SET). */
-    (void) lseek (fd, 0, SEEK_SET);
+    int fixture_file = getenv ("BASHDMESG_DEV_KMSG_FILE") != NULL;
+    /* SEEK_DATA starts after the last SYSLOG_ACTION_CLEAR. SEEK_SET would
+       replay records that remain physically stored before that clear point. */
+    if (fixture_file)
+        (void) lseek (fd, 0, SEEK_SET);
+    else if (lseek (fd, 0, SEEK_DATA) < 0) {
+        builtin_error ("seek kernel buffer failed: %s", strerror (errno));
+        close (fd);
+        return EXECUTION_FAILURE;
+    }
 
     time_t boot_epoch = human_ts ? bd_boot_epoch () : 0;
-    int fixture_file = getenv ("BASHDMESG_DEV_KMSG_FILE") != NULL;
     unsigned long long emitted = 0;
     unsigned long long follow_max = bd_follow_max_records ();
     int rc;
@@ -573,7 +608,7 @@ dmesg_builtin (WORD_LIST *list)
     for (;;) {
         rc = bd_drain (fd, kernel_only, facility_mask, level_mask, raw, no_ts,
                        human_ts, boot_epoch, have_since, since_us,
-                       have_until, until_us, &emitted);
+                       have_until, until_us, &emitted, decode);
         if (rc != EXECUTION_SUCCESS) break;
         fflush (stdout);
         if (!follow) break;
@@ -602,12 +637,14 @@ dmesg_builtin (WORD_LIST *list)
 char *dmesg_doc[] = {
     "Read / control the kernel ring buffer via /dev/kmsg.",
     "",
-    "    dmesg [-k] [-T] [-r] [-t] [--since S] [--until S]",
+    "    dmesg [-k] [-T] [-r] [-t] [-x] [--since S] [--until S]",
     "               [-f FACILITIES] [-l LEVELS] [-w|--follow] [-n LEVEL] [-c]",
     "",
     "    -k          kernel-facility messages only",
     "    -T          human-readable wall-clock timestamps",
     "    -r          raw output (keeps the leading <priority> column)",
+    "    -x          decode facility and level names (may be combined with -t)",
+    "                -r is incompatible with -t, -T and -x",
     "    -t          suppress the timestamp column",
     "    -f FACILS   comma list: kern,user,mail,daemon,auth,syslog,...",
     "    -l LEVELS   comma list: emerg,alert,crit,err,warn,notice,info,debug",
@@ -630,6 +667,6 @@ struct builtin dmesg_struct = {
     dmesg_builtin,
     BUILTIN_ENABLED,
     dmesg_doc,
-    "dmesg [-k] [-T] [-r] [-t] [--since S] [--until S] [-f FACILITIES] [-l LEVELS] [-w|--follow] [-n LEVEL] [-c]",
+    "dmesg [-k] [-T] [-r] [-t] [-x] [--since S] [--until S] [-f FACILITIES] [-l LEVELS] [-w|--follow] [-n LEVEL] [-c]",
     0
 };

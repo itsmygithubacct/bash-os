@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Private qualification target only. Copy source and this file to a fresh M=
+# directory; never build in a frozen source receipt or change production Kbuild.
+obj-m += bashos_privcmd_v2_test.o
+bashos_privcmd_v2_test-y := reference.o request.o \
+ v2/trusted-input.o v2/verifier-channel.o v2/secrets-under-test.o \
+ v2/policy-snapshot.o v2/identity-snapshot.o v2/program-snapshot.o \
+ v2/request-binding.o v2/environment.o v2/audit-store.o v2/timestamp-store.o \
+ v2/executor-channel.o v2/safeedit.o v2/privcmd-test-device.o
+ccflags-y += -DBA_AUTHORITY_V2

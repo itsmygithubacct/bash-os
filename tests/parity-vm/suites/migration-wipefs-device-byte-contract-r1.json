@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-wipefs-device-byte-contract-r1",
+      "loadable": "wipefs",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "covers": [
+        "wipefs/signature-erasure-deferred"
+      ],
+      "purpose": "Exercise no-act, exact erasure of ext and swap magic through a disposable loop block node, and silent repeat.",
+      "oracle": "Independent synthetic format magic offsets and a full device byte comparison against a saved original; documented builtin output.",
+      "comparison": "Exact builtin output, status, and empty stderr; complete device bytes before and after erasure.",
+      "requires": [
+        "python3",
+        "losetup",
+        "getconf",
+        "cmp",
+        "cp",
+        "mktemp",
+        "rm"
+      ],
+      "files": {
+        "device-bytes.py": "# SPDX-License-Identifier: MIT\nimport os, pathlib, sys\nmode, image, device = sys.argv[1:]\npage = os.sysconf('SC_PAGE_SIZE')\nif not 4096 <= page <= 1048576:\n    raise SystemExit('unsupported guest page size')\nif mode == 'seed':\n    data = bytearray([0xa5]) * 1048576\n    data[0x438:0x43a] = b'\\x53\\xef'\n    data[page-10:page] = b'SWAPSPACE2'\n    pathlib.Path(image).write_bytes(data)\nelse:\n    expected = bytearray(pathlib.Path(image).read_bytes())\n    if mode == 'erased':\n        expected[0x438:0x43a] = bytes(2)\n        expected[page-10:page] = bytes(10)\n    with open(device, 'rb') as f:\n        actual = f.read()\n    if actual != expected:\n        raise SystemExit('device bytes differ from ' + mode + ' expectation')\n"
+      },
+      "script": "set -eu\nwork=$(/usr/bin/mktemp -d /tmp/wipefs-device-contract.XXXXXXXX)\nd=\ncleanup() {\n  if [[ -n $d ]]; then /usr/sbin/losetup -d \"$d\" || exit 1; fi\n  /usr/bin/rm -rf \"$work\"\n}\ntrap cleanup EXIT\n/usr/bin/python3 /tmp/parity-case/device-bytes.py seed \"$work/image\" unused\n/usr/bin/cp \"$work/image\" \"$work/original\"\nd=$(/usr/sbin/losetup --find --show \"$work/image\")\n[[ -b $d ]] || { echo 'loop setup failed' >&2; exit 1; }\npage=$(/usr/bin/getconf PAGESIZE)\nprintf '0x%x\\tswap\\t%s\\n0x438\\text\\t%s\\n' \"$((page - 10))\" \"$d\" \"$d\" > \"$work/expected\"\nwipefs -a -n \"$d\" > \"$work/out\" 2> \"$work/err\"\n/usr/bin/cmp \"$work/expected\" \"$work/out\"\ntest ! -s \"$work/err\"\n/usr/bin/python3 /tmp/parity-case/device-bytes.py original \"$work/original\" \"$d\"\nwipefs -a \"$d\" > \"$work/out\" 2> \"$work/err\"\n/usr/bin/cmp \"$work/expected\" \"$work/out\"\ntest ! -s \"$work/err\"\n/usr/bin/python3 /tmp/parity-case/device-bytes.py erased \"$work/original\" \"$d\"\nwipefs -a \"$d\" > \"$work/out\" 2> \"$work/err\"\ntest ! -s \"$work/out\" && test ! -s \"$work/err\"\n/usr/bin/python3 /tmp/parity-case/device-bytes.py erased \"$work/original\" \"$d\"\nprintf 'device byte contract ok\\n'\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "stdout": "device byte contract ok\n",
+      "stderr": ""
+    }
+  ]
+}

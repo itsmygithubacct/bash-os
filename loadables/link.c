@@ -48,8 +48,9 @@ link_builtin (WORD_LIST *list)
     const char *target = list->word->word;
     const char *linkname = list->next->word->word;
     if (link (target, linkname) < 0) {
-        builtin_error ("cannot create link '%s' to '%s': %s",
-                       linkname, target, strerror (errno));
+        int link_errno = errno;
+        fprintf (stderr, "link: cannot create link '%s' to '%s': %s\n",
+                 linkname, target, strerror (link_errno));
         return EXECUTION_FAILURE;
     }
     return EXECUTION_SUCCESS;

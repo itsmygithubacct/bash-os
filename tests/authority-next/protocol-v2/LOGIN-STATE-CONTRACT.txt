@@ -1,0 +1,59 @@
+Versioned interactive login: persistent failures and retry timing
+
+Scope: login login-v2 only, after CONSUMER-SESSION-V2-R1. The historical login
+entry point and its record format remain available unchanged. The parser now
+rejects lockout maxima larger than INT_MAX instead of truncating them. This
+does not implement a new authority grant or enable a production endpoint.
+
+The administrator-selected BPW_LOCK_DIR (default /run/login) must be absolute.
+Every component is opened relative to the preceding held directory, without
+following symlinks. Ancestors must be root-owned and not writable by others,
+except for root-owned sticky directories. The final directory must be root
+owned, mode 0700. A missing final directory may be created; missing ancestors
+are an error. Existing file/directory metadata is never silently repaired.
+
+The existing fail.KEY file uses COUNT, LAST and LOCKED_UNTIL decimal lines.
+Known accounts retain their numeric UID key; unknown names retain the existing
+sanitized-name key. This preserves historical names, including their possible
+aliasing; changing that namespace requires an explicit separate format/migration.
+Records must be root-owned, mode 0600, regular, single-link files with all three
+unique bounded nonnegative fields. Missing records mean zero failures. Other
+read/parse/type/ownership errors deny. Clock rollback relative to LAST denies;
+no clearing or clock repair is inferred from it. Epoch seconds are retained so
+records continue to work across invocations and reboots.
+
+A separate root-owned mode 0600 regular single-link .guard.KEY inode provides
+a nonblocking exclusive flock. It remains present when fail.KEY is removed;
+unlinking/replacing the guard would break serialization. Busy state denies
+without running a verifier. No guard is held while waiting for terminal input.
+The mandatory pre-prompt check applies even when a policy chain has no lockout
+module. After password entry a fresh check holds the guard through native
+verification and any failure update. A new lock set during input is enforced.
+An explicit max=0 disables state enforcement; oversized/non-numeric maxima do
+not select this mode.
+
+Failure updates use a random exclusive temporary file in the held directory,
+complete writes, checked file sync/close, atomic rename and checked directory
+sync. Any error denies and is reported. A directory-sync error after rename
+can leave the new record present; no rollback is claimed. Success is cleared
+only after authentication and all policy phases accept, after reacquiring the
+guard and rechecking a possible concurrent lock. Unlink and directory sync are
+checked. Subsequent accounting/exec errors can occur after state clearing.
+
+All versioned writers must use the stable guard. A concurrently running old
+binary or privileged administrator that ignores the guard is outside that
+serialization contract; on-disk data is not automatically migrated. This
+login change does not silently change passwd, SU, doas or sudo writers.
+
+Versioned --max-tries accepts only decimal 1..10. Existing retry delays remain
+1, 5 and then 30 seconds, including the final failed attempt when max-tries>1.
+Absolute CLOCK_MONOTONIC deadlines prevent unrelated EINTR from shortening a
+delay. HUP/TERM/INT cancel the invocation, restore its terminal/handlers, and
+do not start another attempt. A single-attempt invocation has no added delay.
+
+Qualification requires both fresh Bash 5.3.20 variants in the coordinator's
+attested disposable guest. Source parsing and compiler checks are not runtime
+or original-topic PASS. The legacy API, full accounting logout lifecycle,
+production endpoint, broader policy/audit/child-flow, and encrypted SSH matrix
+remain separate gates. Storage fault injection only denies actual syscalls;
+no positive auth/proof result is fabricated.

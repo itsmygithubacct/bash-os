@@ -1,0 +1,42 @@
+{
+  "cases": [
+    {
+      "comparison": "Require secure good answer, SERVFAIL without AD or A under the changed anchor, and secure answer after restoring the original.",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "diagnostic_files": [
+        "srv.err",
+        "resolver.err",
+        "good1.out",
+        "wrong.out",
+        "good2.out",
+        "dnssec-queries.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/dnssec-cname-chain-peer.py": "ddac6b6ae8f6231d5334f20feb67462272639f9e6cf148cfd544bc41e6b0a261"
+      },
+      "id": "repair-dns-cache-anchor-replacement-bounded-r15",
+      "kind": "contract",
+      "loadable": "dns",
+      "oracle": "Independent BIND delv verifies good and wrong anchors; dig observes the same name before replacement, under a wrong anchor, and after restoration in one resolver process.",
+      "purpose": "Do not reuse cached AD data when the trust anchor file at the same path changes.",
+      "requires": [
+        "python3",
+        "delv",
+        "dig",
+        "mkfifo"
+      ],
+      "script": "H=/opt/bashos-parity/harness/helpers/dnssec-cname-chain-peer.py\n/usr/bin/python3 \"$H\" prep || exit 98\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> srv.err & srv=$!\ntrap 'kill \"$res\" \"$srv\" 2>/dev/null; wait \"$res\" \"$srv\" 2>/dev/null' EXIT\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340 || exit 98\ncontrol=$(/usr/bin/python3 \"$H\" control 127.0.0.2 5340 ok anchor) || exit 98\n[[ $control == control-ok ]] || { printf '%s\\n' \"$control\"; exit 98; }\necho control-ok\n/bin/cp anchor.ds active.ds || exit 98\nexport PATH=\"$HOME/pbin\" BASHDNS_TRUST_ANCHOR=\"$PWD/active.ds\" BASHDNS_SERVER_PORT=5340\ndns resolver-serve --listen 127.0.0.1 --port 5320 --root-hints 127.0.0.2 --max-queries 3 --timeout 3000 </dev/null 2> resolver.err & res=$!\n/usr/bin/python3 \"$H\" waitudp 127.0.0.1 5320 || exit 98\n/usr/bin/dig +dnssec +adflag +tries=1 +time=15 -p 5320 @127.0.0.1 ok.test A > good1.out 2>&1 || exit 1\n/bin/cp anchor.wrong.ds active.ds || exit 1\n/usr/bin/dig +dnssec +adflag +tries=1 +time=15 -p 5320 @127.0.0.1 ok.test A > wrong.out 2>&1 || exit 1\n/bin/cp anchor.ds active.ds || exit 1\n/usr/bin/dig +dnssec +adflag +tries=1 +time=15 -p 5320 @127.0.0.1 ok.test A > good2.out 2>&1 || exit 1\nwait \"$res\" || exit 1\n/usr/bin/python3 -c 'import re; a,b,c=(open(x).read() for x in (\"good1.out\",\"wrong.out\",\"good2.out\")); ad=lambda x: bool(re.search(r\";; flags: [^;]*\\bad\\b\",x)); good=lambda x: \"status: NOERROR\" in x and \"192.0.2.60\" in x and ad(x); print(\"good-before=accepted\" if good(a) else \"good-before=incorrect\"); print(\"changed-anchor=rejected\" if \"status: SERVFAIL\" in b and not ad(b) and \"192.0.2.60\" not in b else \"changed-anchor=incorrect\"); print(\"good-restored=accepted\" if good(c) else \"good-restored=incorrect\")'\n",
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\nprintf \"nameserver 127.0.0.2\\n\" > resolv.conf\nmkfifo w.fifo\n",
+      "setup_timeout": 20,
+      "stderr": "",
+      "stdout": "control-ok\ngood-before=accepted\nchanged-anchor=rejected\ngood-restored=accepted\n",
+      "timeout": 60
+    }
+  ],
+  "schema": 1
+}

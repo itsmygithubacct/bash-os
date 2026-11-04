@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "review-fw-reset-inventory-r1",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Check dual-stack reset, stable hooks, unrelated rules, malformed and failed inventories, and nft deletion failures.",
+      "covers": [
+        "fw/deferred_live_filter_state"
+      ],
+      "oracle": "Independent guest iptables and ip6tables ruleset inventories in fresh mapped user and network namespaces; a wrapper injects a failed IPv6 inventory.",
+      "comparison": "Exact success marker; candidate status, both full rulesets, hook count and unrelated-chain state are independently checked.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables",
+        "ip6tables"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/review-fw-reset-inventory-r1.py\n",
+      "stdout": "reset inventory checks passed\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/review-fw-reset-inventory-r1.py": "05a2d5fe79a231e0b4697b5106e37578673b8843ff1c9a4d124bdd7ef9055175"
+      }
+    }
+  ]
+}

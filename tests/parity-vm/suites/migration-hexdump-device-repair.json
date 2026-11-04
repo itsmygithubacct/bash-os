@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-hexdump-device-input-repair-root",
+      "loadable": "hexdump",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "hexdump/device-input-boundary"
+      ],
+      "purpose": "Focused device parity with explicit setup validation, read-error and later-operand checks in canonical, default and shortcut formats.",
+      "oracle": "util-linux 2.41 hexdump",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; stdout of each read is shown verbatim (newlines as |). Loop devices are attached to per-side images under /tmp/rt (outside the compared tree), detached by the fixture, and checked by the harness for leftovers after each side. The dm device is removed by the fixture and by the harness cleanup.",
+      "requires": [
+        "hexdump",
+        "losetup",
+        "dmsetup",
+        "python3",
+        "sed",
+        "tr"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\ncd $RT; seed img 65536\nr zero-n hexdump -n 40 /dev/zero\nr zero-skip-C hexdump -C -s 7 -n 21 /dev/zero\nr null hexdump /dev/null\nr null-C hexdump -C /dev/null\nr tty-then-zero hexdump -n 4 /dev/tty /dev/zero\nd=$(att -f --show img) || exit 90\n[[ -b $d ]] || exit 91\nr loop-C hexdump -C -n 64 -s 512 $d\nr loop-tail hexdump -C -s 65520 $d\nprintf '0 16 linear %s 0\\n16 16 error\\n' $d | /usr/sbin/dmsetup create --noudevsync rf-err || { detach $d; exit 92; }\nm=$(/usr/sbin/dmsetup info -c --noheadings -o minor rf-err) || exit 93\nm=${m//[[:space:]]/}; [[ $m =~ ^[0-9]+$ && -b /dev/dm-$m ]] || exit 94\necho \"fixture dm-$m\"\nr dm-eio hexdump -C -s 8160 /dev/dm-$m\nr dm-eio-n hexdump -n 16 -s 8184 /dev/dm-$m\nr dm-eio-shortcut hexdump -x -s 8184 /dev/dm-$m\nr dm-eio-then-zero hexdump -C -s 8184 -n 24 /dev/dm-$m /dev/zero\nr tty-then-zero-shortcut hexdump -x -n 4 /dev/tty /dev/zero\n/usr/sbin/dmsetup remove --noudevsync rf-err; detach $d\n",
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}

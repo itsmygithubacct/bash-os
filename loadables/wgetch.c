@@ -13,6 +13,8 @@
  *   wgetch unget HANDLE CODE
  *   wgetch peek HANDLE
  *   wgetch list
+ *   wgetch define-key NAME CODE SEQUENCE
+ *   wgetch undefine-key NAME
  */
 
 #include <config.h>
@@ -28,9 +30,11 @@
 #include <time.h>
 
 #include "loadables.h"
+#include "escdelay-resolve.h"
 
 #define BW_MAX_SCREENS 16
 #define BW_FIFO_CAP 64
+#define BW_MAX_CUSTOM_KEYS 32
 
 enum {
   BW_NONE = 0,
@@ -72,7 +76,7 @@ typedef struct {
   int used;
   int handle;
   int fd;
-  char name[32];
+  char name[64];
   int ring[BW_FIFO_CAP];
   int head;
   int tail;
@@ -126,12 +130,33 @@ static const bw_keydef bw_keys[] = {
   { NULL, 0, NULL }
 };
 
+/* Applications can describe keys sent by their terminal without recompiling
+   the default table. Prefix ambiguity is resolved by the same timed reader. */
+static struct {
+  bw_keydef key;
+  char name[32];
+  char seq[64];
+} bw_custom_keys[BW_MAX_CUSTOM_KEYS];
+
+#define BW_BUILTIN_KEYS ((int) (sizeof bw_keys / sizeof bw_keys[0]) - 1)
+#define BW_ALL_KEYS (BW_BUILTIN_KEYS + BW_MAX_CUSTOM_KEYS)
+
+static const bw_keydef *
+bw_key_at (int i)
+{
+  if (i < BW_BUILTIN_KEYS) return &bw_keys[i];
+  i -= BW_BUILTIN_KEYS;
+  return bw_custom_keys[i].key.code ? &bw_custom_keys[i].key : NULL;
+}
+
 static const char *
 bw_name_for_code (int code)
 {
-  for (int i = 0; bw_keys[i].name; i++)
-    if (bw_keys[i].code == code)
-      return bw_keys[i].name;
+  for (int i = 0; i < BW_ALL_KEYS; i++)
+    {
+      const bw_keydef *key = bw_key_at (i);
+      if (key && key->code == code) return key->name;
+    }
   switch (code) {
   case BW_NONE: return "none";
   case BW_ESC: return "esc";
@@ -170,35 +195,41 @@ bw_read_to (int fd, int ms, unsigned char *out)
 static int
 bw_exact (const unsigned char *buf, size_t len)
 {
-  for (int i = 0; bw_keys[i].name; i++)
-    if (strlen (bw_keys[i].seq) == len
-        && memcmp (bw_keys[i].seq, buf, len) == 0)
-      return bw_keys[i].code;
+  for (int i = 0; i < BW_ALL_KEYS; i++)
+    {
+      const bw_keydef *key = bw_key_at (i);
+      if (key && strlen (key->seq) == len && memcmp (key->seq, buf, len) == 0)
+        return key->code;
+    }
   return 0;
 }
 
 static int
 bw_has_prefix (const unsigned char *buf, size_t len)
 {
-  for (int i = 0; bw_keys[i].name; i++)
-    if (strlen (bw_keys[i].seq) >= len
-        && memcmp (bw_keys[i].seq, buf, len) == 0)
-      return 1;
+  for (int i = 0; i < BW_ALL_KEYS; i++)
+    {
+      const bw_keydef *key = bw_key_at (i);
+      if (key && strlen (key->seq) >= len && memcmp (key->seq, buf, len) == 0)
+        return 1;
+    }
   return 0;
 }
 
 static int
 bw_has_longer (const unsigned char *buf, size_t len)
 {
-  for (int i = 0; bw_keys[i].name; i++)
-    if (strlen (bw_keys[i].seq) > len
-        && memcmp (bw_keys[i].seq, buf, len) == 0)
-      return 1;
+  for (int i = 0; i < BW_ALL_KEYS; i++)
+    {
+      const bw_keydef *key = bw_key_at (i);
+      if (key && strlen (key->seq) > len && memcmp (key->seq, buf, len) == 0)
+        return 1;
+    }
   return 0;
 }
 
 static int
-bw_read_key_fd (int fd)
+bw_read_key_fd (int fd, const char *screen)
 {
   unsigned char b;
   ssize_t n;
@@ -214,15 +245,7 @@ bw_read_key_fd (int fd)
       return (int) b;
     }
 
-  int escdelay = 50;
-  const char *ed = getenv ("BASHESCDELAY");
-  if (ed && *ed)
-    {
-      char *end = NULL;
-      long v = strtol (ed, &end, 10);
-      if (end && *end == '\0' && v >= 0 && v <= 5000)
-        escdelay = (int) v;
-    }
+  int escdelay = bashos_escdelay_resolve (screen, 0);
   int cap = escdelay * 8;
   if (cap < 400) cap = 400;
 
@@ -276,6 +299,38 @@ bw_parse_int (const char *s, int *out)
 }
 
 static int
+bw_define_key (const char *name, int code, const char *seq)
+{
+  if (!name || !*name || strlen (name) >= sizeof bw_custom_keys[0].name ||
+      code < 1024 || code > 65535 || !seq || seq[0] != '\033' ||
+      strlen (seq) < 2 || strlen (seq) >= sizeof bw_custom_keys[0].seq)
+    return EX_USAGE;
+  for (const unsigned char *p = (const unsigned char *) name; *p; ++p)
+    if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+          (*p >= '0' && *p <= '9') || *p == '_')) return EX_USAGE;
+  if (!strcmp (name,"none") || !strcmp (name,"esc") || !strcmp (name,"char") ||
+      !strcmp (name,"backspace") || !strcmp (name,"enter") || !strcmp (name,"tab"))
+    return EX_USAGE;
+  for (int i = 0; i < BW_ALL_KEYS; ++i)
+    {
+      const bw_keydef *key = bw_key_at (i);
+      if (key && (key->code == code || !strcmp (key->name,name) || !strcmp (key->seq,seq)))
+        return EX_USAGE;
+    }
+  for (int i = 0; i < BW_MAX_CUSTOM_KEYS; ++i)
+    if (!bw_custom_keys[i].key.code)
+      {
+        strcpy (bw_custom_keys[i].name,name);
+        strcpy (bw_custom_keys[i].seq,seq);
+        bw_custom_keys[i].key.name = bw_custom_keys[i].name;
+        bw_custom_keys[i].key.seq = bw_custom_keys[i].seq;
+        bw_custom_keys[i].key.code = code;
+        return EXECUTION_SUCCESS;
+      }
+  return EXECUTION_FAILURE;
+}
+
+static int
 bw_unget (bw_screen *s, int code)
 {
   if (s->count >= BW_FIFO_CAP)
@@ -322,6 +377,27 @@ wgetch_builtin (WORD_LIST *list)
     {
       builtin_usage ();
       return EXECUTION_SUCCESS;
+    }
+
+  if (!strcmp (cmd, "define-key"))
+    {
+      const char *name = bw_next (&list), *number = bw_next (&list), *seq = bw_next (&list);
+      int code;
+      if (!name || !number || !seq || list || bw_parse_int (number,&code) < 0)
+        { builtin_error ("usage: wgetch define-key NAME CODE SEQUENCE"); return EX_USAGE; }
+      int rc = bw_define_key (name,code,seq);
+      if (rc) builtin_error (rc == EX_USAGE ? "invalid or duplicate key definition" : "key table full");
+      return rc;
+    }
+  if (!strcmp (cmd, "undefine-key"))
+    {
+      const char *name = bw_next (&list);
+      if (!name || list)
+        { builtin_error ("usage: wgetch undefine-key NAME"); return EX_USAGE; }
+      for (int i = 0; i < BW_MAX_CUSTOM_KEYS; ++i)
+        if (bw_custom_keys[i].key.code && !strcmp (bw_custom_keys[i].name,name))
+          { memset (&bw_custom_keys[i],0,sizeof bw_custom_keys[i]); return EXECUTION_SUCCESS; }
+      return EXECUTION_FAILURE;
     }
 
   if (!strcmp (cmd, "open"))
@@ -402,12 +478,12 @@ wgetch_builtin (WORD_LIST *list)
             }
           if (bw_pull (s, &code) == 0)
             { bw_print (code); return EXECUTION_SUCCESS; }
-          bw_print (bw_read_key_fd (s->fd));
+          bw_print (bw_read_key_fd (s->fd, s->name));
           return EXECUTION_SUCCESS;
         }
       if (!strcmp (cmd, "peek"))
         return EXECUTION_FAILURE;
-      bw_print (bw_read_key_fd (h));
+      bw_print (bw_read_key_fd (h, NULL));
       return EXECUTION_SUCCESS;
     }
 
@@ -425,6 +501,12 @@ char *wgetch_doc[] = {
   "    wgetch peek HANDLE",
   "    wgetch close HANDLE",
   "    wgetch list",
+  "    wgetch define-key NAME CODE SEQUENCE",
+  "    wgetch undefine-key NAME",
+  "Custom keys: at most 32, unique names/codes/sequences; CODE 1024..65535.",
+  "NAME is 1..31 ASCII letters/digits/underscores; SEQUENCE is 2..63 bytes",
+  "beginning with ESC. Definitions are local to this shell; defaults cannot",
+  "be replaced. A removed key's queued numeric codes retain their value.",
   "",
   "The decoder keeps bash-os timing invariants: 50 ms ESC grace and",
   "a total ESC-sequence cap of max(400 ms, ESCDELAY*8).",
@@ -436,6 +518,6 @@ struct builtin wgetch_struct = {
   wgetch_builtin,
   BUILTIN_ENABLED,
   wgetch_doc,
-  "wgetch open|read|unget|peek|close|list ...",
+  "wgetch open|read|unget|peek|close|list|define-key|undefine-key ...",
   0
 };

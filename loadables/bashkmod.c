@@ -8,7 +8,7 @@
  *
  * Verbs:
  *   bashkmod load PATH [PARAMS]
- *       open(PATH), finit_module(fd, params, 0). Needs CAP_SYS_MODULE
+ *       open(PATH), finit_module(fd, params, flags). Needs CAP_SYS_MODULE
  *       (root in default cap set). PARAMS is a single space-separated
  *       string passed through verbatim.
  *
@@ -51,10 +51,15 @@
 #include <sys/wait.h>
 
 #include "loadables.h"
+#include "bashkmod-inventory.h"
 
 #define BK_MAX_CHAIN 256
 #define BK_MAX_SOFTDEPS 32
 #define BK_SOFTDEP_DEPTH_MAX 8
+
+#ifndef MODULE_INIT_COMPRESSED_FILE
+#  define MODULE_INIT_COMPRESSED_FILE 4
+#endif
 
 #ifndef SYS_finit_module
 #  ifdef __x86_64__
@@ -185,7 +190,12 @@ bk_finit_path (const char *verb, const char *path, const char *params)
         builtin_error ("%s: open %s: %s", verb, path, strerror (errno));
         return EXECUTION_FAILURE;
     }
-    if (syscall (SYS_finit_module, fd, params ? params : "", 0) != 0) {
+    size_t len = strlen (path);
+    int compressed = (len >= 6 && !strcmp (path + len - 6, ".ko.xz")) ||
+                     (len >= 6 && !strcmp (path + len - 6, ".ko.gz")) ||
+                     (len >= 7 && !strcmp (path + len - 7, ".ko.zst"));
+    if (syscall (SYS_finit_module, fd, params ? params : "",
+                 compressed ? MODULE_INIT_COMPRESSED_FILE : 0) != 0) {
         int e = errno;
         close (fd);
         builtin_error ("%s: %s: %s", verb, path, bk_errno_msg (e));
@@ -248,18 +258,13 @@ bk_list_cmd (WORD_LIST *args)
         builtin_error ("/proc/modules: %s", strerror (errno));
         return EXECUTION_FAILURE;
     }
-    char line[1024];
-    while (fgets (line, sizeof (line), f)) {
-        char name[64], deps[256], state[32];
-        unsigned long size; int refcnt;
-        /* /proc/modules per kernel docs always has 5 fields plus an
-           optional address column. Require all 5 — accepting fewer
-           would print uninitialized 'state'. */
-        if (sscanf (line, "%63s %lu %d %255s %31s",
-                    name, &size, &refcnt, deps, state) == 5)
-            printf ("%s %lu %d %s %s\n", name, size, refcnt, deps, state);
+    int result = bk_list_stream (f, stdout);
+    if (fclose (f) != 0)
+        result = -1;
+    if (result != 0) {
+        builtin_error ("list: cannot read or write module inventory");
+        return EXECUTION_FAILURE;
     }
-    fclose (f);
     return EXECUTION_SUCCESS;
 }
 
@@ -1745,7 +1750,7 @@ char *bashkmod_doc[] = {
     "Load/unload/list kernel modules without forking modprobe.",
     "",
     "    bashkmod load PATH [PARAMS]",
-    "        finit_module(open(PATH), PARAMS, 0). Needs CAP_SYS_MODULE.",
+    "        finit_module(open(PATH), PARAMS, flags). Needs CAP_SYS_MODULE.",
     "    bashkmod modprobe [-n|--dry-run] [-r] NAME [PARAMS...]",
     "        Resolve NAME through modprobe.d/modules.alias policy and emit the",
     "        action plan. Alias-driven autoload is blocked by blacklist policy;",

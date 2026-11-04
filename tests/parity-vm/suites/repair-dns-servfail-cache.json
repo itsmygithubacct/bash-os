@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-dns-resolver-servfail-not-cached",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/dns-servfail-cache-control.py": "8fa5cf2f6313ca6196c5afb524f2bb87da21fa2dbd0546ae34ca26d80703e2d6"
+      },
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/dns-servfail-cache-control.py \"$BASH\"\n",
+      "expected_status": 0,
+      "stdout": "servfail-upstream-queries=2\n",
+      "stderr": "",
+      "timeout": 20,
+      "purpose": "SERVFAIL with an SOA is not cached as an NXDOMAIN or NODATA answer.",
+      "oracle": "Independent loopback UDP peer sends two identical SERVFAIL+SOA responses and counts forwarded requests.",
+      "comparison": "Both replies retain SERVFAIL and two requests reach the upstream peer."
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-t236-pong-external-sigint",
+      "loadable": "termpixel_pong",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "termpixel_pong/ai-and-terminal-loop"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/pong-signal-restoration.py": "2fa64823d43156cf31c5538c1f25e4ed9f5541871da52d534af2e8e55fdf68bf"
+      },
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/pong-signal-restoration.py \"$BASH\" SIGINT\n",
+      "expected_status": 0,
+      "stdout": "signal-restoration=ok\n",
+      "stderr": "",
+      "timeout": 20,
+      "purpose": "External SIGINT exits the live loop and restores the original PTY settings.",
+      "oracle": "Independent PTY controller snapshots termios, waits for raw rendering, sends the signal and verifies exit and exact restoration.",
+      "comparison": "Process exit and exact pre/post termios, with bounded setup and cleanup."
+    },
+    {
+      "id": "repair-t236-pong-external-sigterm",
+      "loadable": "termpixel_pong",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "termpixel_pong/ai-and-terminal-loop"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/pong-signal-restoration.py": "2fa64823d43156cf31c5538c1f25e4ed9f5541871da52d534af2e8e55fdf68bf"
+      },
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/pong-signal-restoration.py \"$BASH\" SIGTERM\n",
+      "expected_status": 0,
+      "stdout": "signal-restoration=ok\n",
+      "stderr": "",
+      "timeout": 20,
+      "purpose": "External SIGTERM exits the live loop and restores the original PTY settings.",
+      "oracle": "Independent PTY controller snapshots termios, waits for raw rendering, sends the signal and verifies exit and exact restoration.",
+      "comparison": "Process exit and exact pre/post termios, with bounded setup and cleanup."
+    }
+  ]
+}

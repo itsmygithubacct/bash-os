@@ -115,6 +115,28 @@
    "group": "shell",
    "driver": "plain",
    "timeout": 20,
+   "id": "repair-setfacl-mask-and-validation",
+   "loadable": "setfacl",
+   "purpose": "Exercise mask recomputation across edits, explicit mask preservation, absent removal and atomic rejection of malformed entries.",
+   "oracle": "GNU setfacl and GNU getfacl -n on an ACL-capable tmpfs in the initial user namespace.",
+   "comparison": "Exact operation statuses, diagnostic presence, modes and ACL listings.",
+   "setup_script": ": > \"$HOME/acl-probe\"\n/usr/bin/setfacl -m u:2001:r \"$HOME/acl-probe\"\n/usr/bin/getfacl -n \"$HOME/acl-probe\" 2> /dev/null | /usr/bin/grep -qx 'user:2001:r--'\n/usr/bin/rm \"$HOME/acl-probe\"\n",
+   "script": "umask 022\n: > f\nstep() {\n  local label=$1; shift\n  setfacl \"$@\" f 2> \"$HOME/err\"; local rc=$? d=no\n  [[ -s $HOME/err ]] && d=yes\n  printf '== %s rc=%d diag=%s mode=%s\\n' \"$label\" \"$rc\" \"$d\" \"$(/usr/bin/stat -c %a f)\"\n  /usr/bin/getfacl -n --absolute-names f\n}\nstep create -m u:2001:rw,g:2002:r\nstep mask -m m::r\nstep recalc -m u:2001:rwx\nstep explicit -m u:2003:rw,m::r\nstep remove -x u:2001\nstep missing -x u:2009\nstep no-perms -m u:2003\nstep empty -m ''\nstep bad-id -m u:2001xyz:r\nstep bad-list -m u:2004:r,u:2005:q\nstep remove-perms -x u:2003:r\nstep strip -b\nstep base -m g::rwx\n/usr/bin/rm -f \"$HOME/err\"\n",
+   "expected_status": 0,
+   "requires": [
+    "setfacl",
+    "getfacl",
+    "grep",
+    "stat"
+   ],
+   "covers": [
+    "setfacl/extended_acl_semantics_deferred"
+   ]
+  },
+  {
+   "group": "shell",
+   "driver": "plain",
+   "timeout": 20,
    "id": "migration-setfacl-extended-acl-sequence",
    "loadable": "setfacl",
    "purpose": "Named user/group entry creation, explicit and automatically recalculated masks, named-entry modification and removal, -b followed by a base edit, combined -b -m, and --set with named entries.",

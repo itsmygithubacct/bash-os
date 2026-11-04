@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-whoami-unmapped-euid-diagnostic-r1",
+      "loadable": "whoami",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "whoami/unmapped-effective-uid"
+      ],
+      "purpose": "Verify exact GNU diagnostic and status for an unmapped effective UID at top level and inside a shell function; the shell continues.",
+      "oracle": "GNU coreutils 9.7 whoami(1) in an identically built user namespace",
+      "comparison": "Exact status, stdout and stderr parity with GNU, including the whoami diagnostic prefix and UID; setup verifies namespace identity and absence of a passwd/NSS entry inside the namespace.",
+      "requires": [
+        "unshare",
+        "getent",
+        "id"
+      ],
+      "features": [
+        "userns"
+      ],
+      "files": {
+        "inner.sh": "mark() { printf \"[%s]\\n\" \"$1\"; printf \"[%s]\\n\" \"$1\" >&2; }\nrun() { mark \"$1\"; shift; whoami \"$@\"; printf \"status=%d\\n\" \"$?\"; }\nmark direct\nwhoami\nprintf \"status=%d\\n\" \"$?\"\nrun function --\nmark after\nprintf \"shell-continues\\n\"\n"
+      },
+      "setup_script": "! /usr/bin/getent passwd 4242 >/dev/null || { echo \"CONTROL-FAILED uid 4242 has a passwd entry\"; exit 98; }\n[[ $(/usr/bin/unshare --user --map-user=4242 --map-group=4242 /usr/bin/id -u) == 4242 ]] || { echo \"CONTROL-FAILED userns map\"; exit 98; }\n/usr/bin/unshare --user --map-user=4242 --map-group=4242 /usr/bin/sh -c '/usr/bin/getent passwd 4242 >/dev/null; [ \"$?\" -eq 2 ]' || { echo \"CONTROL-FAILED namespace NSS lookup\"; exit 98; }\n",
+      "script": "/usr/bin/unshare --user --map-user=4242 --map-group=4242 \"$BASH\" --noprofile --norc inner.sh\nprintf 'namespace-shell-status=%d\\n' \"$?\"\n",
+      "expected_status": 0,
+      "stdout": "[direct]\nstatus=1\n[function]\nstatus=1\n[after]\nshell-continues\nnamespace-shell-status=0\n",
+      "timeout": 20,
+      "stderr": "[direct]\nwhoami: cannot find name for user ID 4242\n[function]\nwhoami: cannot find name for user ID 4242\n[after]\n"
+    }
+  ]
+}

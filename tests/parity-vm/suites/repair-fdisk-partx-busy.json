@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-fdisk-partx-busy-delete-root",
+      "loadable": "fdisk",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Hold a loop partition open, verify BLKPG delete reports EBUSY without removing it, then close it and verify delete and add succeed.",
+      "covers": [
+        "fdisk/defer-kernel-partx"
+      ],
+      "oracle": "Linux BLKPG rejects deletion of an open partition with EBUSY; sysfs independently exposes partition presence and geometry.",
+      "comparison": "Assert candidate status and busy diagnostic, then sysfs presence and geometry across delete and add.",
+      "requires": [
+        "losetup",
+        "sfdisk",
+        "truncate",
+        "udevadm",
+        "grep"
+      ],
+      "privilege": "root",
+      "script": "set -o pipefail\nexport LC_ALL=C\nloop=\ncleanup() { exec 9<&-; [[ -z $loop ]] || /usr/sbin/losetup -d \"$loop\"; }\ntrap cleanup EXIT\nfail() { printf 'FAIL: %s\\n' \"$1\" >&2; exit 1; }\nsett() { /usr/bin/udevadm settle -t 10 || fail udev-settle; }\n/usr/bin/truncate -s 8M disk.img || fail truncate\nloop=$(/usr/sbin/losetup -fP --show disk.img) || fail losetup\n/usr/sbin/sfdisk -q disk.img <<'EOF' || fail sfdisk\nlabel: dos\nstart=2048, size=2048, type=83\nstart=4096, size=2048, type=83\nEOF\nsett\nfdisk --partx-kernel add \"$loop\" >out 2>err || fail add\nsett\npart=\"${loop}p2\"\nsys=\"/sys/block/${loop#/dev/}/${loop#/dev/}p2\"\n[[ -b $part && -e $sys ]] || fail missing-partition\nexec 9<\"$part\" || fail hold-open\nfdisk --partx-kernel delete \"$loop\" 2 2 >out 2>err\nrc=$?\n[[ $rc == 1 ]] || fail busy-status\n/usr/bin/grep -F 'BLKPG partition 2: Device or resource busy' err >/dev/null || fail busy-error\n[[ -e $sys ]] || fail busy-deleted\nprintf 'busy delete refused and partition remains\\n'\nexec 9<&-\nsett\nfdisk --partx-kernel delete \"$loop\" 2 2 >out 2>err || fail delete-after-close\n[[ ! -e $sys ]] || fail partition-remains\nprintf 'delete succeeds after close\\n'\nsett\nfdisk --partx-kernel add \"$loop\" 2 2 >out 2>err || fail restore\n[[ -e $sys ]] || fail restore-missing\nread -r start < \"$sys/start\" || fail start\nread -r size < \"$sys/size\" || fail size\n[[ $start == 4096 && $size == 2048 ]] || fail geometry\nprintf 'partition restored with expected geometry\\n'\n",
+      "stdout": "busy delete refused and partition remains\ndelete succeeds after close\npartition restored with expected geometry\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "file_size_limit": 67108864
+    }
+  ]
+}

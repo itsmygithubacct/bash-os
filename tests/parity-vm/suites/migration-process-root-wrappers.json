@@ -346,6 +346,44 @@
       "timeout": 12
     },
     {
+      "id": "migration-timeout-stopped-default",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "A stopped command resumes to handle the default expiration signal",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; the signal handler exits only after the stopped child resumes.",
+      "script": "timeout 1 /usr/bin/python3 stopped.py; printf 'status=%s\\n' \"$?\"; echo continued",
+      "stdout": "ready\nsignal=15\nstatus=124\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": ["timeout", "python3"],
+      "covers": ["timeout/deferred-default-expiration"],
+      "files": {
+        "stopped.py": "import os,signal,sys\ndef received(sig,frame):\n print('signal='+str(sig),flush=True);sys.exit(3)\nsignal.signal(signal.SIGTERM,received)\nprint('ready',flush=True)\nos.kill(os.getpid(),signal.SIGSTOP)\nwhile True: signal.pause()\n"
+      },
+      "timeout": 8
+    },
+    {
+      "id": "migration-timeout-stopped-foreground",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Foreground mode also resumes a stopped command for default expiration",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; the signal handler exits only after the stopped child resumes.",
+      "script": "timeout --foreground 1 /usr/bin/python3 stopped.py; printf 'status=%s\\n' \"$?\"; echo continued",
+      "stdout": "ready\nsignal=15\nstatus=124\ncontinued\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": ["timeout", "python3"],
+      "covers": ["timeout/deferred-default-expiration"],
+      "files": {
+        "stopped.py": "import os,signal,sys\ndef received(sig,frame):\n print('signal='+str(sig),flush=True);sys.exit(3)\nsignal.signal(signal.SIGTERM,received)\nprint('ready',flush=True)\nos.kill(os.getpid(),signal.SIGSTOP)\nwhile True: signal.pause()\n"
+      },
+      "timeout": 8
+    },
+    {
       "id": "migration-timeout-signal-usr1-short",
       "loadable": "timeout",
       "group": "shell",
@@ -428,6 +466,30 @@
       "script": "timeout --verbose -s USR1 0.6 /usr/bin/python3 handler.py 10; printf \"status=%s\\n\" \"$?\"; echo continued",
       "stdout": "signal=10\nstatus=124\ncontinued\n",
       "stderr": "timeout: sending signal USR1 to command \u2018/usr/bin/python3\u2019\n",
+      "expected_status": 0,
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-custom-signal-verbose"
+      ],
+      "files": {
+        "handler.py": "import signal,sys\ndef received(sig,frame):\n print(\"signal=\"+str(sig),flush=True);sys.exit(3)\nsignal.signal(int(sys.argv[1]),received)\nsignal.alarm(8)\nwhile True: signal.pause()\n"
+      },
+      "timeout": 12
+    },
+    {
+      "id": "repair-timeout-signal-usr1-verbose-c-locale",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Verbose custom signal diagnostic in the C locale",
+      "oracle": "Upstream timeout from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child signal receipt, status and GNU diagnostic bytes with LC_ALL=C.",
+      "script": "export LC_ALL=C; timeout --verbose -s USR1 0.6 /usr/bin/python3 handler.py 10; printf \"status=%s\\n\" \"$?\"; echo continued",
+      "stdout": "signal=10\nstatus=124\ncontinued\n",
+      "stderr": "timeout: sending signal USR1 to command '/usr/bin/python3'\n",
       "expected_status": 0,
       "requires": [
         "timeout",

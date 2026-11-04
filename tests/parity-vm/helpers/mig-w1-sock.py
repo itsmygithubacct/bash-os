@@ -86,6 +86,15 @@ class World:
             ("udp6", "UNCONN", 0, 0, self.ep(self.u6), ":::*"),
         }
 
+    def ss_inet_rows(self):
+        # ss brackets IPv6 endpoints; netstat retains its legacy spelling.
+        def bracket(ep):
+            addr, port = ep.rsplit(":", 1)
+            return "[%s]:%s" % (addr, port)
+        return {(net, state, rq, sq, bracket(local), bracket(peer))
+                if net.endswith("6") else (net, state, rq, sq, local, peer)
+                for net, state, rq, sq, local, peer in self.inet_rows()}
+
     def close(self):
         for s in self.socks + [self.t4l, self.t6l, self.u4, self.u6]:
             try:
@@ -149,13 +158,13 @@ def sc_ss_default():
     L.check("ss default rc0", rc == 0, err)
     rows = parse_ss(out)
     L.check("ss default shows only TCP rows", netids(rows) <= {"tcp", "tcp6"} and rows, "netids=%s" % sorted(netids(rows)))
-    eqset("ss default TCP rows equal the fixture's TCP sockets", inet_set_ss(rows), {r for r in w.inet_rows() if r[0].startswith("tcp")})
+    eqset("ss default TCP rows equal the fixture's TCP sockets", inet_set_ss(rows), {r for r in w.ss_inet_rows() if r[0].startswith("tcp")})
     w.close()
 
 
 def sc_ss_families():
     w = World()
-    want = w.inet_rows()
+    want = w.ss_inet_rows()
     tcp = {r for r in want if r[0].startswith("tcp")}
     udp = {r for r in want if r[0].startswith("udp")}
     for flags, fams in (("-t", {"tcp"}), ("-u", {"udp"}), ("-x", {"unix"}), ("-tu", {"tcp", "udp"}), ("-tx", {"tcp", "unix"}), ("-ux", {"udp", "unix"}), ("-tux", {"tcp", "udp", "unix"})):
@@ -178,7 +187,7 @@ def sc_ss_families():
 
 def sc_ss_listen_all():
     w = World()
-    want = w.inet_rows()
+    want = w.ss_inet_rows()
     for flags, pred in (("-tl", lambda r: r[0].startswith("tcp") and r[1] == "LISTEN"), ("-ta", lambda r: r[0].startswith("tcp")),
                         ("-ul", lambda r: r[0].startswith("udp") and r[1] == "UNCONN"), ("-ua", lambda r: r[0].startswith("udp"))):
         rc, out, err = cand_ss(flags)
@@ -195,6 +204,7 @@ def sc_ss_listen_all():
 def sc_ss_numeric():
     w = World()
     rc, out, err = cand_ss("-tuna")
+    L.check("ss numeric exits 0", rc == 0, err)
     rows = parse_ss(out)
     local4 = w.ep(w.t4l)
     L.check("ss IPv4 TCP listener endpoint numeric 127.0.0.1:PORT", any(r["local"] == local4 and r["state"] == "LISTEN" for r in rows), out)
@@ -473,7 +483,7 @@ def sc_annot_denied():
         h = row(rows, hidden["port"])
         L.check("the unreadable owner's listener row is still listed", h is not None, out)
         L.check("the unreadable owner's row carries no annotation", h is not None and "users:" not in h["rest"], str(h))
-        eqset("every fixture TCP row is still listed under denial", inet_set_ss(rows) & {r for r in w.inet_rows() if r[0].startswith("tcp")}, {r for r in w.inet_rows() if r[0].startswith("tcp")})
+        eqset("every fixture TCP row is still listed under denial", inet_set_ss(rows) & {r for r in w.ss_inet_rows() if r[0].startswith("tcp")}, {r for r in w.ss_inet_rows() if r[0].startswith("tcp")})
         rc, out, err = cand_ns("-tp", preexec=drop_caps)
         nrows = parse_netstat(out)
         hn = next((r for r in nrows if r["local"].endswith(":%d" % hidden["port"])), None)
@@ -602,7 +612,7 @@ def sc_fallback():
     L.check("fallback: filtered ss -tuxa exits 0", rc == 0, "rc=%s err=%s" % (rc, err))
     rows = parse_ss(out)
     rs = inet_set_ss(rows)
-    want = w.inet_rows()
+    want = w.ss_inet_rows()
     # /proc tables do not carry the listen backlog separately in sock_diag form; compare identity and state only
     idr = lambda s: {(r[0], r[1], r[4], r[5]) for r in s}
     L.check("fallback IPv4 TCP/UDP rows (identity+state) equal the fixture sockets", idr({r for r in rs if r[0] in ("tcp", "udp")}) == idr({r for r in want if r[0] in ("tcp", "udp")}),

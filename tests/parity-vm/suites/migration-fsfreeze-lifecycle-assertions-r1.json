@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-fsfreeze-lifecycle-assertions-r1",
+      "loadable": "fsfreeze",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "fsfreeze/deferred-freeze-supported-filesystem"
+      ],
+      "purpose": "Assert both freeze spellings, independent EBUSY and blocked-write oracles, thaw and failure-path cleanup on a disposable ext4 loop mount.",
+      "oracle": "util-linux fsfreeze with C-locale EBUSY diagnostic and a bounded writer",
+      "comparison": "Both sides must complete all assertions with the same output and status; setup and cleanup failures are failures.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "losetup",
+        "fsfreeze",
+        "dd",
+        "sleep",
+        "cat",
+        "stat",
+        "grep",
+        "timeout",
+        "mktemp"
+      ],
+      "file_size_limit": 33554432,
+      "script": "export LC_ALL=C\nD=$(/usr/bin/mktemp -d /tmp/fsfreeze-regression.XXXXXXXX) || exit 90\nM=$D/mnt\ndev=\nmounted=0\ncleanup() {\n  local rc=$?\n  trap - EXIT\n  if (( mounted )); then\n    /usr/sbin/fsfreeze -u \"$M\" >/dev/null 2>&1 || :\n    if /usr/bin/umount \"$M\"; then mounted=0; else rc=91; fi\n  fi\n  if [[ -n $dev ]]; then /usr/sbin/losetup -d \"$dev\" || rc=92; fi\n  if (( ! mounted )); then /usr/bin/rm -rf \"$D\" || rc=93; fi\n  exit \"$rc\"\n}\ntrap cleanup EXIT\nfail() { printf 'FAIL: %s\\n' \"$1\" >&2; exit 1; }\n/usr/bin/mkdir \"$M\" || exit 90\n/usr/bin/truncate -s 8M \"$D/image\" || exit 90\n/usr/sbin/mkfs.ext4 -q -F -O ^has_journal -E nodiscard,lazy_itable_init=0 \"$D/image\" || exit 90\ndev=$(/usr/sbin/losetup -f --show \"$D/image\") || exit 90\n/usr/bin/mount \"$dev\" \"$M\" || exit 90\nmounted=1\nprintf data > \"$M/read\" || exit 90\nsilent() {\n  \"$@\" >\"$D/out\" 2>\"$D/err\" || fail \"$1 $2 failed\"\n  [[ ! -s $D/out && ! -s $D/err ]] || fail \"$1 $2 produced output\"\n}\nbusy() {\n  /usr/sbin/fsfreeze -f \"$M\" >\"$D/probe.out\" 2>\"$D/probe.err\" && fail 'probe unexpectedly froze filesystem'\n  [[ ! -s $D/probe.out ]] || fail 'probe stdout'\n  /usr/bin/grep -Fq 'Device or resource busy' \"$D/probe.err\" || fail 'probe failed for reason other than EBUSY'\n}\nfor flag in -f --freeze; do\n  silent fsfreeze \"$flag\" \"$M\"\n  busy\n  [[ $(/usr/bin/cat \"$M/read\") == data ]] || fail 'read during freeze'\n  /usr/bin/timeout 8 /usr/bin/dd if=/dev/zero of=\"$M/write\" bs=4096 count=2 conv=fsync status=none >\"$D/wout\" 2>\"$D/werr\" &\n  writer=$!\n  /usr/bin/sleep 1\n  kill -0 \"$writer\" 2>/dev/null || fail 'writer did not block'\n  if [[ $flag == -f ]]; then thaw=-u; else thaw=--unfreeze; fi\n  silent fsfreeze \"$thaw\" \"$M\"\n  wait \"$writer\" || fail 'writer did not resume'\n  [[ $(/usr/bin/stat -c %s \"$M/write\") == 8192 ]] || fail 'wrong write size'\ndone\n# Simulate an assertion failure while frozen. The nested EXIT trap must thaw.\n(\n  trap '/usr/sbin/fsfreeze -u \"$M\" >/dev/null 2>&1' EXIT\n  silent fsfreeze -f \"$M\"\n  busy\n  exit 42\n)\n[[ $? == 42 ]] || fail 'simulated assertion failure did not propagate'\n# A successful independent freeze proves the failure path thawed the mount.\n/usr/sbin/fsfreeze -f \"$M\" >\"$D/probe.out\" 2>\"$D/probe.err\" || fail 'cleanup left filesystem frozen'\n/usr/sbin/fsfreeze -u \"$M\" >\"$D/probe.out\" 2>\"$D/probe.err\" || fail 'final probe thaw failed'\nprintf 'freeze lifecycle and failure cleanup verified\\n'\n",
+      "expected_status": 0,
+      "stdout": "freeze lifecycle and failure cleanup verified\n",
+      "stderr": "",
+      "timeout": 60
+    }
+  ]
+}

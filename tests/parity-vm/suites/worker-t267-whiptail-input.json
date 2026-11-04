@@ -1,0 +1,187 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "worker-t267-whiptail-input-stderr-exact",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Default stderr result preserves edited text without a trailing newline.",
+      "script": "whiptail --inputbox 'Choose text' 9 40 2>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "send": "abcd"
+        },
+        {
+          "key": "backspace"
+        },
+        {
+          "key": "left"
+        },
+        {
+          "send": "X"
+        },
+        {
+          "screen": {
+            "contains": [
+              "abXc"
+            ]
+          }
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "result": "abXc"
+      },
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-input-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 in a private controlling PTY.",
+      "comparison": "Check exact result-file bytes, exit status, ordered screen predicates and terminal restoration on both sides."
+    },
+    {
+      "id": "worker-t267-whiptail-input-cancel",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Tab from the field through OK to Cancel returns 1 and emits no result.",
+      "script": "whiptail --output-fd 3 --inputbox 'Choose text' 9 40 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "send": "discard"
+        },
+        {
+          "key": "tab"
+        },
+        {
+          "key": "tab"
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "expected_status": 1,
+      "expected_files": {
+        "result": ""
+      },
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-input-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 in a private controlling PTY.",
+      "comparison": "Check exact result-file bytes, exit status, ordered screen predicates and terminal restoration on both sides."
+    },
+    {
+      "id": "worker-t267-whiptail-password-exact",
+      "loadable": "whiptail",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "parity",
+      "purpose": "Password stays out of the terminal transcript and is returned without a trailing newline.",
+      "script": "whiptail --output-fd 3 --passwordbox 'Choose password' 9 40 3>result",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Choose"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ICANON",
+              "ECHO"
+            ]
+          }
+        },
+        {
+          "send": "s3cret!"
+        },
+        {
+          "quiet_ms": 300
+        },
+        {
+          "screen": {
+            "lacks": [
+              "s3cret!"
+            ]
+          }
+        },
+        {
+          "output_lacks": "s3cret!"
+        },
+        {
+          "key": "enter"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "result": "s3cret!"
+      },
+      "timeout": 15,
+      "covers": [
+        "whiptail/deferred-keyed-input-widgets"
+      ],
+      "requires": [
+        "whiptail"
+      ],
+      "oracle": "Pinned newt whiptail 0.52.25 in a private controlling PTY.",
+      "comparison": "Check exact result-file bytes, exit status, ordered screen predicates and terminal restoration on both sides."
+    }
+  ]
+}

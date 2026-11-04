@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "worker-sftp-pwd-after-cd-native-frames",
+      "loadable": "sftp",
+      "group": "network",
+      "driver": "network",
+      "peer": "bashssh",
+      "kind": "contract",
+      "purpose": "Verify pwd uses the tracked remote cwd after a quoted cd, including native command framing.",
+      "oracle": "Existing independent BASHSSH1 fixture decoder; hand-specified framing and literal canned pwd/cd/list replies. This is project-native plaintext framing, not encrypted SSH.",
+      "comparison": "Exact stdout, stderr, status, four ordered commands, header lengths, empty stdin and no trailing request bytes.",
+      "covers": [
+        "sftp/session-navigation-listing"
+      ],
+      "files": {
+        "commands.batch": "cd \"space dir\"\npwd\nls\nbye\n"
+      },
+      "candidate_script": "builtin sftp --native -p \"$FIXTURE_PORT\" -b commands.batch 127.0.0.1",
+      "peer_replies": [
+        {
+          "cmd": "pwd",
+          "rc": 0,
+          "stdout": "/srv/fixture\n",
+          "stderr": ""
+        },
+        {
+          "cmd": "cd '/srv/fixture' && cd 'space dir' && pwd",
+          "rc": 0,
+          "stdout": "/srv/fixture/space dir\n",
+          "stderr": ""
+        },
+        {
+          "cmd": "cd '/srv/fixture/space dir' && pwd",
+          "rc": 0,
+          "stdout": "/srv/fixture/space dir\n",
+          "stderr": ""
+        },
+        {
+          "cmd": "cd '/srv/fixture/space dir' && ls -la",
+          "rc": 0,
+          "stdout": "navigation-needle\n",
+          "stderr": ""
+        }
+      ],
+      "expected_requests": [
+        {
+          "cmd": "pwd",
+          "header_lines": [
+            "cmd-len 3",
+            "stdin-len 0"
+          ],
+          "stdin_base64": "",
+          "trailing_bytes": 0
+        },
+        {
+          "cmd": "cd '/srv/fixture' && cd 'space dir' && pwd",
+          "header_lines": [
+            "cmd-len 42",
+            "stdin-len 0"
+          ],
+          "stdin_base64": "",
+          "trailing_bytes": 0
+        },
+        {
+          "cmd": "cd '/srv/fixture/space dir' && pwd",
+          "header_lines": [
+            "cmd-len 34",
+            "stdin-len 0"
+          ],
+          "stdin_base64": "",
+          "trailing_bytes": 0
+        },
+        {
+          "cmd": "cd '/srv/fixture/space dir' && ls -la",
+          "header_lines": [
+            "cmd-len 37",
+            "stdin-len 0"
+          ],
+          "stdin_base64": "",
+          "trailing_bytes": 0
+        }
+      ],
+      "stdout": "Remote working directory: /srv/fixture\nRemote working directory: /srv/fixture/space dir\nnavigation-needle\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15
+    }
+  ]
+}

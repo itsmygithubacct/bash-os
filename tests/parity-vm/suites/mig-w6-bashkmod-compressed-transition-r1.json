@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-bashkmod-compressed-transition-r1",
+      "loadable": "bashkmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashkmod/defer-kernel-module-transitions"
+      ],
+      "purpose": "Load and remove the real xz-compressed nbd module with parameters through non-dry modprobe",
+      "oracle": "Kernel module inventory and nbd sysfs parameters",
+      "comparison": "Successful transition and parameter value, followed by removal; missing kernel decompression support or preloaded nbd is a prerequisite failure",
+      "requires": [
+        "modinfo",
+        "rmmod"
+      ],
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t bashkmod) == builtin ]] || exit 125\nhas() { local n; while read -r n _; do [[ $n == nbd ]] && return 0; done </proc/modules; return 1; }\nhas && exit 125\npath=$(/usr/sbin/modinfo -n nbd) || exit 125\n[[ $path == *.ko.xz ]] || exit 125\n[[ -r /sys/module/compression && $(</sys/module/compression) == xz ]] || exit 125\ncleanup() { if has; then /usr/sbin/rmmod nbd || exit 1; fi; }\ntrap cleanup EXIT\nbashkmod modprobe nbd nbds_max=4 || exit 1\nhas || exit 1\n[[ $(</sys/module/nbd/parameters/nbds_max) == 4 ]] || exit 1\nbashkmod modprobe -r nbd || exit 1\nhas && exit 1\necho 'compressed transition and parameters: ok'\n",
+      "expected_status": 0,
+      "stdout": "compressed transition and parameters: ok\n",
+      "stderr": "",
+      "timeout": 50
+    }
+  ]
+}

@@ -113,8 +113,21 @@
     {
       "id": "unicode17-exhaustive-grapheme-reference",
       "purpose": "Exercise the complete Unicode grapheme boundary corpus through length and slice operations.",
-      "kind": "deferred",
-      "reason": "The NUL subset cannot be expressed through the builtin interface."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "qualification-014-grapheme-control"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-unicode"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-unicode-text"
+        }
+      ]
     },
     {
       "id": "empty-strings-and-slice-boundaries",

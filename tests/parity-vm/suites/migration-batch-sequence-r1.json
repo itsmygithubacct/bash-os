@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-batch-sequence-across-polls-mixed-at-r1",
+      "loadable": "batch",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Two processes submit in the same second across a consumer poll; the sequence persists and an ordinary at job is still consumed once.",
+      "oracle": "Submission and poll order are controlled by the observer; both submissions have the same observed second, the second sequence must increase, and the log and empty queue establish execution and removal.",
+      "comparison": "Record both IDs and run_at values, poll between submissions, then poll with a manually queued at job and poll again.",
+      "covers": [
+        "batch/cron-consumer-semantics"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/batch-sequence-r1.py": "2474ceb16b38ee37367e882070430c007123633a59d81962ad526be7ec2371fa",
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/batch-sequence-r1.py setup",
+      "setup_timeout": 30,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/batch-sequence-r1.py \"$BASH\"",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "across-poll same-second=yes sequence=increasing mixed-at=executed once=yes queue=empty\n",
+      "stderr": ""
+    }
+  ]
+}

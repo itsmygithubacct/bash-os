@@ -1885,6 +1885,8 @@ bcu_mknod_cmd (WORD_LIST *list)
 
   if (strcmp (type, "p") == 0)
     {
+      if (npos != 2)
+        { builtin_error ("mknod: p does not take MAJ MIN"); bcu_usage ("mknod"); rc = EX_USAGE; goto mknod_out; }
       /* An explicit FIFO mode is independent of the caller's umask. Apply
          it at creation, without chmod on a pathname that may already exist. */
       mode_t saved_mask = explicit_mode ? umask (0) : 0;
@@ -1897,13 +1899,23 @@ bcu_mknod_cmd (WORD_LIST *list)
     }
   else if (strcmp (type, "b") == 0 || strcmp (type, "c") == 0)
     {
-      if (npos < 4) { builtin_error ("mknod: %s requires MAJ MIN", type); bcu_usage ("mknod"); rc = EX_USAGE; goto mknod_out; }
+      if (npos != 4) { builtin_error ("mknod: %s requires MAJ MIN", type); bcu_usage ("mknod"); rc = EX_USAGE; goto mknod_out; }
       long long maj, min_;
       if (!bcu_parse_ll (pos->next->next->word->word, &maj)
-          || !bcu_parse_ll (pos->next->next->next->word->word, &min_))
+          || !bcu_parse_ll (pos->next->next->next->word->word, &min_)
+          || maj < 0 || min_ < 0 || (unsigned long long) maj > UINT_MAX
+          || (unsigned long long) min_ > UINT_MAX)
         { builtin_error ("mknod: bad MAJ/MIN"); bcu_usage ("mknod"); rc = EX_USAGE; goto mknod_out; }
       mode_t kind = (type[0] == 'b') ? S_IFBLK : S_IFCHR;
-      if (mknod (path, mode | kind, makedev ((unsigned) maj, (unsigned) min_)) < 0)
+      dev_t device = makedev ((unsigned) maj, (unsigned) min_);
+      if (major (device) != (unsigned) maj || minor (device) != (unsigned) min_)
+        { builtin_error ("mknod: bad MAJ/MIN"); rc = EX_USAGE; goto mknod_out; }
+      mode_t saved_mask = explicit_mode ? umask (0) : 0;
+      int result = mknod (path, mode | kind, device);
+      int saved_errno = errno;
+      if (explicit_mode) umask (saved_mask);
+      errno = saved_errno;
+      if (result < 0)
         { builtin_error ("mknod: %s: %s", path, strerror (errno)); rc = EXECUTION_FAILURE; }
     }
   else

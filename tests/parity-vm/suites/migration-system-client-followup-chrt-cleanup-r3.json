@@ -13,7 +13,7 @@
         "chrt"
       ],
       "helpers_sha256": {
-        "helpers/system-client-followup-chrt-cleanup-r3.py": "a766d85f353dc728221c50267037c5702f90883b4e9eb5a77e04b579f168aedf"
+        "helpers/system-client-followup-chrt-cleanup-r3-bash5320.py": "5acad715d66cb90b2acb79e1138bddd5d7b00caf347d5b221028fa1192dc4617"
       },
       "setup_timeout": 60,
       "expected_status": 0,
@@ -24,8 +24,8 @@
       "covers": [
         "chrt/deferred-policy-command"
       ],
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-chrt-cleanup-r3.py setup command",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-chrt-cleanup-r3.py \"$BASH\" command",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-chrt-cleanup-r3-bash5320.py setup command",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-chrt-cleanup-r3-bash5320.py \"$BASH\" command",
       "stdout": "chrt-command other=yes batch=yes idle=yes reset=yes args=yes exit-signal=yes invalid=yes privileged-deny=yes parent=yes\n",
       "diagnostic_files": [
         "chrt-followup-observations.jsonl"
@@ -43,7 +43,7 @@
         "chrt"
       ],
       "helpers_sha256": {
-        "helpers/system-client-followup-chrt-cleanup-r3.py": "a766d85f353dc728221c50267037c5702f90883b4e9eb5a77e04b579f168aedf"
+        "helpers/system-client-followup-chrt-cleanup-r3-bash5320.py": "5acad715d66cb90b2acb79e1138bddd5d7b00caf347d5b221028fa1192dc4617"
       },
       "setup_timeout": 60,
       "expected_status": 0,
@@ -54,8 +54,8 @@
       "covers": [
         "chrt/deferred-pid-deadline"
       ],
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-chrt-cleanup-r3.py setup pid",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-chrt-cleanup-r3.py \"$BASH\" pid",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-chrt-cleanup-r3-bash5320.py setup pid",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-client-followup-chrt-cleanup-r3-bash5320.py \"$BASH\" pid",
       "stdout": "chrt-pid single=yes all-tasks=yes reset=yes deadline=yes failures=yes\n",
       "diagnostic_files": [
         "chrt-followup-observations.jsonl"

@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "timeout": 30,
+      "id": "su-private-lookup-row-boundaries-r1",
+      "loadable": "su",
+      "purpose": "Reject extra fields and embedded NUL bytes without damaging subsequent lookups; distinguish a directory read failure from an empty database.",
+      "oracle": "Seven colon-separated passwd fields; physical rows with embedded NUL or extra fields are malformed. Directory reads fail.",
+      "comparison": "Exact status and diagnostic class for each lookup, with the shell still alive.",
+      "requires": [
+        "mkdir",
+        "rm"
+      ],
+      "script": "[[ $(type -t su) == builtin ]] || exit 99\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=rows\nprintf 'extra:x:1:1::/:/bin/sh:tail\\nother:x:1:1::/:/bin/sh:tail\\nnul:x:1:1::/:/bin/sh\\0:tail\\nshort:x:1:1::/\\n' > rows\ntry() {\n  local label=$1 user=$2 rc e c\n  su \"$user\" >out 2>err; rc=$?\n  e=$(<err); c=other\n  case $e in *\"no such user: \"*) c=absent;; *\"cannot read passwd database\"*) c=unreadable;; esac\n  [[ ! -s out ]] || c=unexpected-stdout\n  printf '%s rc=%d diag=%s\\n' \"$label\" \"$rc\" \"$c\"\n}\ntry extra extra\ntry nul nul\ntry short short\ntry absent absent\n/usr/bin/mkdir dbdir\nPHCLIB_PASSWD=dbdir; try directory absent\n: > empty; PHCLIB_PASSWD=empty; try empty absent\nprintf 'shell=alive\\n'\n/usr/bin/rm -rf rows out err dbdir empty\n",
+      "expected_status": 0,
+      "stdout": "extra rc=1 diag=absent\nnul rc=1 diag=absent\nshort rc=1 diag=absent\nabsent rc=1 diag=absent\ndirectory rc=1 diag=unreadable\nempty rc=1 diag=absent\nshell=alive\n",
+      "covers": [
+        "su/private-account-lookup"
+      ]
+    }
+  ]
+}

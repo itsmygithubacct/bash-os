@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Explicit private-build target only. The production module is unchanged.
+obj-m += bashos_auth_v2_test.o
+bashos_auth_v2_test-y := reference.o v2/trusted-input.o v2/verifier-channel.o v2/identity-transport.o v2/test-device.o v2/secrets-under-test.o
+ccflags-y += -DBA_AUTHORITY_V2

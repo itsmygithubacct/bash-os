@@ -159,8 +159,11 @@ bmv_copy_regular (const char *src, const char *dst, const struct stat *sst)
     int sfd = open (src, O_RDONLY);
     if (sfd < 0) { builtin_error ("open %s: %s", src, strerror (errno)); return -1; }
     if (unlink (dst) < 0 && errno != ENOENT) {
+        int saved_errno = errno;
         close (sfd);
-        builtin_error ("unlink %s: %s", dst, strerror (errno));
+        errno = saved_errno;
+        fprintf (stderr, "mv: inter-device move failed: '%s' to '%s'; unable to remove target: %s\n",
+                 src, dst, strerror (errno));
         return -1;
     }
     int dfd = open (dst, O_WRONLY | O_CREAT | O_TRUNC, sst->st_mode & 0777);
@@ -211,7 +214,8 @@ bmv_copy_symlink (const char *src, const char *dst, const struct stat *sst)
     if (n < 0) { builtin_error ("readlink %s: %s", src, strerror (errno)); return -1; }
     target[n] = '\0';
     if (unlink (dst) < 0 && errno != ENOENT) {
-        builtin_error ("unlink %s: %s", dst, strerror (errno));
+        fprintf (stderr, "mv: inter-device move failed: '%s' to '%s'; unable to remove target: %s\n",
+                 src, dst, strerror (errno));
         return -1;
     }
     if (symlink (target, dst) < 0) {
@@ -238,9 +242,17 @@ bmv_copy_dir (const char *src, const char *dst, const struct stat *sst, bmv_opts
         /* Match rename's directory replacement rules: only an empty
            directory may be replaced. Never merge and delete source entries
            into an existing tree after rename reports EXDEV. */
-        if (errno != EEXIST || rmdir (dst) < 0 ||
-            mkdir (dst, sst->st_mode & 0777) < 0) {
-            builtin_error ("cannot replace directory %s: %s", dst, strerror (errno));
+        if (errno != EEXIST) {
+            builtin_error ("cannot create directory %s: %s", dst, strerror (errno));
+            return -1;
+        }
+        if (rmdir (dst) < 0) {
+            fprintf (stderr, "mv: inter-device move failed: '%s' to '%s'; unable to remove target: %s\n",
+                     src, dst, strerror (errno));
+            return -1;
+        }
+        if (mkdir (dst, sst->st_mode & 0777) < 0) {
+            builtin_error ("cannot create directory %s: %s", dst, strerror (errno));
             return -1;
         }
     }

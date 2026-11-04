@@ -1,0 +1,208 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "t168-pidof-separator-short",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Verify separator short between exactly two controlled live PIDs.",
+      "oracle": "Requirement and exact fixture PIDs; both process enumeration orders accepted.",
+      "comparison": "Exact bytes, status and stderr against owned PIDs and chosen separator.",
+      "covers": [
+        "pidof/pidof-custom-separator"
+      ],
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "supervisor.py": "import json,os,pathlib,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren=[]\ntry:\n for i in range(2):\n  ready='ready-'+str(i)\n  env=dict(os.environ,FIXTURE_COMM='pds168target',FIXTURE_READY=ready)\n  p=subprocess.Popen(['pds168target'],executable='./holder',env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children.append(p)\n  deadline=time.monotonic()+4\n  while not pathlib.Path(ready).exists():\n   if p.poll() is not None: raise RuntimeError('holder exited early')\n   if time.monotonic()>deadline: raise RuntimeError('holder readiness timeout')\n   time.sleep(.01)\n  assert pathlib.Path('/proc/%d/comm'%p.pid).read_text()=='pds168target\\n'\n  assert pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes()==b'pds168target\\0'\n args=config['arguments']\n script='pidof '+shlex.join(args)+'; exit $?'\n result=subprocess.run([sys.argv[1],'--noprofile','--norc','-c',script],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=4)\n pids=[str(p.pid).encode() for p in children]\n sep=config['separator'].encode()\n valid=[pids[0]+sep+pids[1]+b'\\n',pids[1]+sep+pids[0]+b'\\n']\n if result.returncode!=0 or result.stdout not in valid or result.stderr:\n  raise AssertionError((result.returncode,result.stdout,result.stderr,valid))\n print('owned PIDs and separator verified')\nfinally:\n for p in children:\n  if p.poll() is None: p.terminate()\n for p in children:\n  try: p.wait(timeout=2)\n  except subprocess.TimeoutExpired: p.kill(); p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-S\", \"::\", \"pds168target\"], \"separator\": \"::\"}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "stdout": "owned PIDs and separator verified\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15
+    },
+    {
+      "id": "t168-pidof-separator-alias",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Verify separator alias between exactly two controlled live PIDs.",
+      "oracle": "Requirement and exact fixture PIDs; both process enumeration orders accepted.",
+      "comparison": "Exact bytes, status and stderr against owned PIDs and chosen separator.",
+      "covers": [
+        "pidof/pidof-custom-separator"
+      ],
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "supervisor.py": "import json,os,pathlib,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren=[]\ntry:\n for i in range(2):\n  ready='ready-'+str(i)\n  env=dict(os.environ,FIXTURE_COMM='pds168target',FIXTURE_READY=ready)\n  p=subprocess.Popen(['pds168target'],executable='./holder',env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children.append(p)\n  deadline=time.monotonic()+4\n  while not pathlib.Path(ready).exists():\n   if p.poll() is not None: raise RuntimeError('holder exited early')\n   if time.monotonic()>deadline: raise RuntimeError('holder readiness timeout')\n   time.sleep(.01)\n  assert pathlib.Path('/proc/%d/comm'%p.pid).read_text()=='pds168target\\n'\n  assert pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes()==b'pds168target\\0'\n args=config['arguments']\n script='pidof '+shlex.join(args)+'; exit $?'\n result=subprocess.run([sys.argv[1],'--noprofile','--norc','-c',script],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=4)\n pids=[str(p.pid).encode() for p in children]\n sep=config['separator'].encode()\n valid=[pids[0]+sep+pids[1]+b'\\n',pids[1]+sep+pids[0]+b'\\n']\n if result.returncode!=0 or result.stdout not in valid or result.stderr:\n  raise AssertionError((result.returncode,result.stdout,result.stderr,valid))\n print('owned PIDs and separator verified')\nfinally:\n for p in children:\n  if p.poll() is None: p.terminate()\n for p in children:\n  try: p.wait(timeout=2)\n  except subprocess.TimeoutExpired: p.kill(); p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-d\", \"::\", \"pds168target\"], \"separator\": \"::\"}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "stdout": "owned PIDs and separator verified\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15
+    },
+    {
+      "id": "t168-pidof-separator-attached",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Verify separator attached between exactly two controlled live PIDs.",
+      "oracle": "Requirement and exact fixture PIDs; both process enumeration orders accepted.",
+      "comparison": "Exact bytes, status and stderr against owned PIDs and chosen separator.",
+      "covers": [
+        "pidof/pidof-custom-separator"
+      ],
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "supervisor.py": "import json,os,pathlib,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren=[]\ntry:\n for i in range(2):\n  ready='ready-'+str(i)\n  env=dict(os.environ,FIXTURE_COMM='pds168target',FIXTURE_READY=ready)\n  p=subprocess.Popen(['pds168target'],executable='./holder',env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children.append(p)\n  deadline=time.monotonic()+4\n  while not pathlib.Path(ready).exists():\n   if p.poll() is not None: raise RuntimeError('holder exited early')\n   if time.monotonic()>deadline: raise RuntimeError('holder readiness timeout')\n   time.sleep(.01)\n  assert pathlib.Path('/proc/%d/comm'%p.pid).read_text()=='pds168target\\n'\n  assert pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes()==b'pds168target\\0'\n args=config['arguments']\n script='pidof '+shlex.join(args)+'; exit $?'\n result=subprocess.run([sys.argv[1],'--noprofile','--norc','-c',script],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=4)\n pids=[str(p.pid).encode() for p in children]\n sep=config['separator'].encode()\n valid=[pids[0]+sep+pids[1]+b'\\n',pids[1]+sep+pids[0]+b'\\n']\n if result.returncode!=0 or result.stdout not in valid or result.stderr:\n  raise AssertionError((result.returncode,result.stdout,result.stderr,valid))\n print('owned PIDs and separator verified')\nfinally:\n for p in children:\n  if p.poll() is None: p.terminate()\n for p in children:\n  try: p.wait(timeout=2)\n  except subprocess.TimeoutExpired: p.kill(); p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-S:\", \"pds168target\"], \"separator\": \":\"}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "stdout": "owned PIDs and separator verified\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15
+    },
+    {
+      "id": "t168-pidof-separator-long",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Verify separator long between exactly two controlled live PIDs.",
+      "oracle": "Requirement and exact fixture PIDs; both process enumeration orders accepted.",
+      "comparison": "Exact bytes, status and stderr against owned PIDs and chosen separator.",
+      "covers": [
+        "pidof/pidof-custom-separator"
+      ],
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "supervisor.py": "import json,os,pathlib,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren=[]\ntry:\n for i in range(2):\n  ready='ready-'+str(i)\n  env=dict(os.environ,FIXTURE_COMM='pds168target',FIXTURE_READY=ready)\n  p=subprocess.Popen(['pds168target'],executable='./holder',env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children.append(p)\n  deadline=time.monotonic()+4\n  while not pathlib.Path(ready).exists():\n   if p.poll() is not None: raise RuntimeError('holder exited early')\n   if time.monotonic()>deadline: raise RuntimeError('holder readiness timeout')\n   time.sleep(.01)\n  assert pathlib.Path('/proc/%d/comm'%p.pid).read_text()=='pds168target\\n'\n  assert pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes()==b'pds168target\\0'\n args=config['arguments']\n script='pidof '+shlex.join(args)+'; exit $?'\n result=subprocess.run([sys.argv[1],'--noprofile','--norc','-c',script],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=4)\n pids=[str(p.pid).encode() for p in children]\n sep=config['separator'].encode()\n valid=[pids[0]+sep+pids[1]+b'\\n',pids[1]+sep+pids[0]+b'\\n']\n if result.returncode!=0 or result.stdout not in valid or result.stderr:\n  raise AssertionError((result.returncode,result.stdout,result.stderr,valid))\n print('owned PIDs and separator verified')\nfinally:\n for p in children:\n  if p.poll() is None: p.terminate()\n for p in children:\n  try: p.wait(timeout=2)\n  except subprocess.TimeoutExpired: p.kill(); p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"--separator=::\", \"pds168target\"], \"separator\": \"::\"}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "stdout": "owned PIDs and separator verified\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15
+    },
+    {
+      "id": "t168-pidof-separator-empty",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Verify separator empty between exactly two controlled live PIDs.",
+      "oracle": "Requirement and exact fixture PIDs; both process enumeration orders accepted.",
+      "comparison": "Exact bytes, status and stderr against owned PIDs and chosen separator.",
+      "covers": [
+        "pidof/pidof-custom-separator"
+      ],
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "supervisor.py": "import json,os,pathlib,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren=[]\ntry:\n for i in range(2):\n  ready='ready-'+str(i)\n  env=dict(os.environ,FIXTURE_COMM='pds168target',FIXTURE_READY=ready)\n  p=subprocess.Popen(['pds168target'],executable='./holder',env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children.append(p)\n  deadline=time.monotonic()+4\n  while not pathlib.Path(ready).exists():\n   if p.poll() is not None: raise RuntimeError('holder exited early')\n   if time.monotonic()>deadline: raise RuntimeError('holder readiness timeout')\n   time.sleep(.01)\n  assert pathlib.Path('/proc/%d/comm'%p.pid).read_text()=='pds168target\\n'\n  assert pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes()==b'pds168target\\0'\n args=config['arguments']\n script='pidof '+shlex.join(args)+'; exit $?'\n result=subprocess.run([sys.argv[1],'--noprofile','--norc','-c',script],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=4)\n pids=[str(p.pid).encode() for p in children]\n sep=config['separator'].encode()\n valid=[pids[0]+sep+pids[1]+b'\\n',pids[1]+sep+pids[0]+b'\\n']\n if result.returncode!=0 or result.stdout not in valid or result.stderr:\n  raise AssertionError((result.returncode,result.stdout,result.stderr,valid))\n print('owned PIDs and separator verified')\nfinally:\n for p in children:\n  if p.poll() is None: p.terminate()\n for p in children:\n  try: p.wait(timeout=2)\n  except subprocess.TimeoutExpired: p.kill(); p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"--separator=\", \"pds168target\"], \"separator\": \"\"}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "stdout": "owned PIDs and separator verified\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15
+    },
+    {
+      "id": "t168-pidof-separator-cluster",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Verify separator cluster between exactly two controlled live PIDs.",
+      "oracle": "Requirement and exact fixture PIDs; both process enumeration orders accepted.",
+      "comparison": "Exact bytes, status and stderr against owned PIDs and chosen separator.",
+      "covers": [
+        "pidof/pidof-custom-separator"
+      ],
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "supervisor.py": "import json,os,pathlib,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren=[]\ntry:\n for i in range(2):\n  ready='ready-'+str(i)\n  env=dict(os.environ,FIXTURE_COMM='pds168target',FIXTURE_READY=ready)\n  p=subprocess.Popen(['pds168target'],executable='./holder',env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children.append(p)\n  deadline=time.monotonic()+4\n  while not pathlib.Path(ready).exists():\n   if p.poll() is not None: raise RuntimeError('holder exited early')\n   if time.monotonic()>deadline: raise RuntimeError('holder readiness timeout')\n   time.sleep(.01)\n  assert pathlib.Path('/proc/%d/comm'%p.pid).read_text()=='pds168target\\n'\n  assert pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes()==b'pds168target\\0'\n args=config['arguments']\n script='pidof '+shlex.join(args)+'; exit $?'\n result=subprocess.run([sys.argv[1],'--noprofile','--norc','-c',script],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=4)\n pids=[str(p.pid).encode() for p in children]\n sep=config['separator'].encode()\n valid=[pids[0]+sep+pids[1]+b'\\n',pids[1]+sep+pids[0]+b'\\n']\n if result.returncode!=0 or result.stdout not in valid or result.stderr:\n  raise AssertionError((result.returncode,result.stdout,result.stderr,valid))\n print('owned PIDs and separator verified')\nfinally:\n for p in children:\n  if p.poll() is None: p.terminate()\n for p in children:\n  try: p.wait(timeout=2)\n  except subprocess.TimeoutExpired: p.kill(); p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-cS\", \"|x|\", \"pds168target\"], \"separator\": \"|x|\"}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "stdout": "owned PIDs and separator verified\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15
+    },
+    {
+      "id": "t168-pidof-separator-last-wins",
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Verify separator last-wins between exactly two controlled live PIDs.",
+      "oracle": "Requirement and exact fixture PIDs; both process enumeration orders accepted.",
+      "comparison": "Exact bytes, status and stderr against owned PIDs and chosen separator.",
+      "covers": [
+        "pidof/pidof-custom-separator"
+      ],
+      "files": {
+        "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
+        "supervisor.py": "import json,os,pathlib,shlex,subprocess,sys,time\nconfig=json.loads(pathlib.Path('config.json').read_text())\nchildren=[]\ntry:\n for i in range(2):\n  ready='ready-'+str(i)\n  env=dict(os.environ,FIXTURE_COMM='pds168target',FIXTURE_READY=ready)\n  p=subprocess.Popen(['pds168target'],executable='./holder',env=env,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)\n  children.append(p)\n  deadline=time.monotonic()+4\n  while not pathlib.Path(ready).exists():\n   if p.poll() is not None: raise RuntimeError('holder exited early')\n   if time.monotonic()>deadline: raise RuntimeError('holder readiness timeout')\n   time.sleep(.01)\n  assert pathlib.Path('/proc/%d/comm'%p.pid).read_text()=='pds168target\\n'\n  assert pathlib.Path('/proc/%d/cmdline'%p.pid).read_bytes()==b'pds168target\\0'\n args=config['arguments']\n script='pidof '+shlex.join(args)+'; exit $?'\n result=subprocess.run([sys.argv[1],'--noprofile','--norc','-c',script],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=4)\n pids=[str(p.pid).encode() for p in children]\n sep=config['separator'].encode()\n valid=[pids[0]+sep+pids[1]+b'\\n',pids[1]+sep+pids[0]+b'\\n']\n if result.returncode!=0 or result.stdout not in valid or result.stderr:\n  raise AssertionError((result.returncode,result.stdout,result.stderr,valid))\n print('owned PIDs and separator verified')\nfinally:\n for p in children:\n  if p.poll() is None: p.terminate()\n for p in children:\n  try: p.wait(timeout=2)\n  except subprocess.TimeoutExpired: p.kill(); p.wait()\n  p.stderr.close()\n",
+        "config.json": "{\"arguments\": [\"-S\", \":\", \"-d\", \"--\", \"pds168target\"], \"separator\": \"--\"}\n"
+      },
+      "setup_script": "/usr/bin/cc -O2 -Wall -Wextra holder.c -o holder",
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "requires": [
+        "cc",
+        "python3",
+        "pidof"
+      ],
+      "stdout": "owned PIDs and separator verified\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15
+    }
+  ]
+}

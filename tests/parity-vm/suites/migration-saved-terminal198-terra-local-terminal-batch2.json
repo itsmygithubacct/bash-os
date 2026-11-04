@@ -640,7 +640,7 @@
       "driver": "plain",
       "kind": "contract",
       "purpose": "right descends into adir and backspace returns to its parent.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -655,7 +655,7 @@
         "tree/a_sparse": "",
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"rows\": {\n          \"0\": \"ncdu.*tree\",\n          \"1\": \"zlarge\",\n          \"2\": \"mmedium\",\n          \"3\": \"adir/\",\n          \"4\": \"a_sparse\"\n        }\n      }\n    },\n    {\n      \"key\": \"down\"\n    },\n    {\n      \"key\": \"down\"\n    },\n    {\n      \"screen\": {\n        \"rows\": {\n          \"3\": \"^ >.*adir\"\n        }\n      }\n    },\n    {\n      \"key\": \"right\"\n    },\n    {\n      \"screen\": {\n        \"rows\": {\n          \"0\": \"tree/adir\"\n        },\n        \"contains\": [\n          \"inner\"\n        ]\n      }\n    },\n    {\n      \"key\": \"backspace\"\n    },\n    {\n      \"screen\": {\n        \"rows\": {\n          \"0\": \"ncdu.*tree\"\n        },\n        \"contains\": [\n          \"zlarge\",\n          \"mmedium\"\n        ]\n      }\n    },\n    {\n      \"send\": \"q\"\n    }\n  ],\n  \"candidate_script\": \"ncdu tree\",\n  \"reference_script\": \"ncdu tree\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"cQ==\",\n  \"answer_queries\": false\n}\n"
       },
-      "setup_script": "/usr/bin/truncate -s 32768 tree/a_sparse\nread -r a unused < <(/usr/bin/du -s -B1 tree/a_sparse)\nread -r d unused < <(/usr/bin/du -s -B1 tree/adir)\nread -r m unused < <(/usr/bin/du -s -B1 tree/mmedium)\nread -r z unused < <(/usr/bin/du -s -B1 tree/zlarge)\nprintf 'a_sparse=%s\\nadir=%s\\nmmedium=%s\\nzlarge=%s\\n' \"$a\" \"$d\" \"$m\" \"$z\" > \"$HOME/ncdu-allocation.txt\"\n/usr/bin/du -s --apparent-size -B1 tree/a_sparse tree/adir tree/mmedium tree/zlarge > \"$HOME/ncdu-apparent.txt\"\n/usr/bin/stat -c '%n size=%s blocks=%b block_size=%B device=%d' tree/a_sparse tree/adir tree/mmedium tree/zlarge > \"$HOME/ncdu-stat.txt\"\n(( a < d && d < m && m < z && z < 32768 ))\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py control\n",
+      "setup_script": "/usr/bin/truncate -s 32768 tree/a_sparse\nread -r a unused < <(/usr/bin/du -s -B1 tree/a_sparse)\nread -r d unused < <(/usr/bin/du -s -B1 tree/adir)\nread -r m unused < <(/usr/bin/du -s -B1 tree/mmedium)\nread -r z unused < <(/usr/bin/du -s -B1 tree/zlarge)\nprintf 'a_sparse=%s\\nadir=%s\\nmmedium=%s\\nzlarge=%s\\n' \"$a\" \"$d\" \"$m\" \"$z\" > \"$HOME/ncdu-allocation.txt\"\n/usr/bin/du -s --apparent-size -B1 tree/a_sparse tree/adir tree/mmedium tree/zlarge > \"$HOME/ncdu-apparent.txt\"\n/usr/bin/stat -c '%n size=%s blocks=%b block_size=%B device=%d' tree/a_sparse tree/adir tree/mmedium tree/zlarge > \"$HOME/ncdu-stat.txt\"\n(( a < d && d < m && m < z && z < 32768 ))\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py control\n",
       "requires": [
         "du",
         "truncate",
@@ -670,12 +670,12 @@
         "pty-repair.raw",
         "pty-repair.json"
       ],
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py run \"$BASH\" candidate",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terra-local-terminal-pty-repair.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terra-local-terminal-pty-repair-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       }
     },
     {
@@ -778,7 +778,7 @@
       "driver": "plain",
       "kind": "contract",
       "purpose": "enter descends into adir and backspace returns to its parent.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -793,7 +793,7 @@
         "tree/a_sparse": "",
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"rows\": {\n          \"0\": \"ncdu.*tree\",\n          \"1\": \"zlarge\",\n          \"2\": \"mmedium\",\n          \"3\": \"adir/\",\n          \"4\": \"a_sparse\"\n        }\n      }\n    },\n    {\n      \"key\": \"down\"\n    },\n    {\n      \"key\": \"down\"\n    },\n    {\n      \"screen\": {\n        \"rows\": {\n          \"3\": \"^ >.*adir\"\n        }\n      }\n    },\n    {\n      \"key\": \"enter\"\n    },\n    {\n      \"screen\": {\n        \"rows\": {\n          \"0\": \"tree/adir\"\n        },\n        \"contains\": [\n          \"inner\"\n        ]\n      }\n    },\n    {\n      \"key\": \"backspace\"\n    },\n    {\n      \"screen\": {\n        \"rows\": {\n          \"0\": \"ncdu.*tree\"\n        },\n        \"contains\": [\n          \"zlarge\",\n          \"mmedium\"\n        ]\n      }\n    },\n    {\n      \"send\": \"q\"\n    }\n  ],\n  \"candidate_script\": \"ncdu tree\",\n  \"reference_script\": \"ncdu tree\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"cQ==\",\n  \"answer_queries\": false\n}\n"
       },
-      "setup_script": "/usr/bin/truncate -s 32768 tree/a_sparse\nread -r a unused < <(/usr/bin/du -s -B1 tree/a_sparse)\nread -r d unused < <(/usr/bin/du -s -B1 tree/adir)\nread -r m unused < <(/usr/bin/du -s -B1 tree/mmedium)\nread -r z unused < <(/usr/bin/du -s -B1 tree/zlarge)\nprintf 'a_sparse=%s\\nadir=%s\\nmmedium=%s\\nzlarge=%s\\n' \"$a\" \"$d\" \"$m\" \"$z\" > \"$HOME/ncdu-allocation.txt\"\n/usr/bin/du -s --apparent-size -B1 tree/a_sparse tree/adir tree/mmedium tree/zlarge > \"$HOME/ncdu-apparent.txt\"\n/usr/bin/stat -c '%n size=%s blocks=%b block_size=%B device=%d' tree/a_sparse tree/adir tree/mmedium tree/zlarge > \"$HOME/ncdu-stat.txt\"\n(( a < d && d < m && m < z && z < 32768 ))\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py control\n",
+      "setup_script": "/usr/bin/truncate -s 32768 tree/a_sparse\nread -r a unused < <(/usr/bin/du -s -B1 tree/a_sparse)\nread -r d unused < <(/usr/bin/du -s -B1 tree/adir)\nread -r m unused < <(/usr/bin/du -s -B1 tree/mmedium)\nread -r z unused < <(/usr/bin/du -s -B1 tree/zlarge)\nprintf 'a_sparse=%s\\nadir=%s\\nmmedium=%s\\nzlarge=%s\\n' \"$a\" \"$d\" \"$m\" \"$z\" > \"$HOME/ncdu-allocation.txt\"\n/usr/bin/du -s --apparent-size -B1 tree/a_sparse tree/adir tree/mmedium tree/zlarge > \"$HOME/ncdu-apparent.txt\"\n/usr/bin/stat -c '%n size=%s blocks=%b block_size=%B device=%d' tree/a_sparse tree/adir tree/mmedium tree/zlarge > \"$HOME/ncdu-stat.txt\"\n(( a < d && d < m && m < z && z < 32768 ))\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py control\n",
       "requires": [
         "du",
         "truncate",
@@ -808,12 +808,12 @@
         "pty-repair.raw",
         "pty-repair.json"
       ],
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py run \"$BASH\" candidate",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terra-local-terminal-pty-repair.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terra-local-terminal-pty-repair-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       }
     },
     {

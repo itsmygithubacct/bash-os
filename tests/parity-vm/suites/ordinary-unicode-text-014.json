@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "qualification-014-unicode-text",
+      "loadable": "utf8",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "All 692 non-NUL Unicode 17 rows through the existing TEXT interface: grapheme, codepoint and byte lengths and each individual grapheme slice; explicit argument roundtrip controls.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-unicode-text-r1.py unicode-text\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "timeout": 60,
+      "file_size_limit": 33554432,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-unicode-text-r1.py": "435498b3265f12662ec9ee39a3a463cb0c8ca23c46fcd09fefdc541d30316d82"
+      },
+      "files": {
+        "qualification-inputs.json": "{\"assets\": {\"GraphemeBreakTest.txt\": \"e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec\"}, \"sources\": {\"qualification-limits/guest.py\": \"f03af0128fdecc553f31e1065b5648d4c1403c85d673a9fd759b7767ea423b1a\", \"qualification-limits/unicode-corpus.py\": \"5c9f28db2556168f946fd4e78ecc91950087be3037c53e45e04853522c08f5cb\", \"qualification-limits/unicode-text-r1.py\": \"ff0331a1d727ff975977edf56706aa6f39318d8357caf91f2212af663a8f468e\"}}\n"
+      },
+      "diagnostic_files": [
+        "qualification-report.json",
+        "qualification-transport.json"
+      ]
+    }
+  ]
+}

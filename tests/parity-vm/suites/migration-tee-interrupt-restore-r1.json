@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-tee-sigint-disposition-restore-r1",
+      "loadable": "tee",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "tee/interrupt-ignore-deferred"
+      ],
+      "purpose": "Verify tee -i restores the caller's trapped and ignored SIGINT dispositions, and a normal tee invocation does not leak its immediate-interrupt state into later shell commands.",
+      "oracle": "GNU coreutils tee under the same Bash shell",
+      "comparison": "Byte parity and status; self-signals target only the fixture shell after tee has returned. A trapped signal must execute its trap, and an ignored signal must leave the shell running.",
+      "script": "trap 'printf \"trap-ran\\n\"' INT\ntee -i </dev/null >/dev/null\nprintf 'ignore-status=%d\\n' \"$?\"\nkill -INT \"$$\"\nprintf 'after-trap\\n'\ntee </dev/null >/dev/null\nprintf 'plain-status=%d\\n' \"$?\"\nkill -INT \"$$\"\nprintf 'after-plain-trap\\n'\ntrap '' INT\ntee -i </dev/null >/dev/null\nkill -INT \"$$\"\nprintf 'after-ignored\\n'\n",
+      "expected_status": 0,
+      "timeout": 20
+    }
+  ]
+}

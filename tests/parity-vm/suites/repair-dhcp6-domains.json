@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-dhcp6-inforequest-reply-bind-domains",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_inforequest_exchange"
+      ],
+      "purpose": "A live matching REPLY binds both domain names to the associative array and emits no stdout.",
+      "oracle": "RFC 8415 message and option layouts decoded by an independent Python codec over the datagrams a Python DHCPv6 peer received; the peer replies with values chosen by the fixture.",
+      "comparison": "Candidate dhcp6 in a mapped user namespace on a veth pair; an independent Python DHCPv6 peer in a second network namespace answers on veth1. Each failing assertion prints one line; the summary line must report failed=0.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp6.py": "0eb20c45302bd2b8cda906b13877b6cd307988547b84706b13b865c0515d6029",
+        "helpers/mig-w2-d6lib.py": "a0e30ae7d2ae6d6c1c1366c3da8ef8c4ee8b48ac32cd936b6c68c6b419028b2a"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp6.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\nexec 7<>sync.fifo\nW2_SERVER_PORT=547 \"$PY\" \"$H\" server info sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP link set veth0 addrgenmode none || die agm\n$IP addr add fe80::a01/64 dev veth0 nodad || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nfor i in {1..100}; do $IP -6 route show table local dev veth0 > routes.txt; [[ $(< routes.txt) == *ff00::/8* ]] && break; settle 0.05; done\n[[ $(< routes.txt) == *ff00::/8* ]] || die multicast-route\nsettle() { read -t \"$1\" -u 7 line; }\ndeclare -A R\ndhcp6 inforequest -i veth0 -w 2 -V R > out.txt 2> err.txt; rc=$?\necho \"inforequest-rc=$rc\"\necho \"stdout=[$(< out.txt)]\"\nfor k in \"${!R[@]}\"; do echo \"$k=${R[$k]}\"; done > bind.txt\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\"$PY\" \"$H\" verify inforequest-domains bind.txt\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer6.json"
+      ],
+      "expected_status": 0,
+      "stdout": "inforequest-rc=0\nstdout=[]\nverified inforequest-domains failed=0\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "repair-dhcp6-domain-decode-boundaries",
+      "loadable": "dhcp6",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dhcp6/deferred_inforequest_exchange"
+      ],
+      "purpose": "Decode multiple domain names and escaped label bytes; reject truncated labels, missing terminators, and compression pointers.",
+      "comparison": "Candidate parser with literal DHCPv6 REPLY hex and explicit expected output.",
+      "oracle": "Option 24 is a sequence of uncompressed DNS label sequences; the fixture checks safe comma-separated presentation and malformed encodings.",
+      "script": "declare -A R\ndhcp6 parse 0701020300180017076c61622d6f6e65047465737400076578616d706c6500 -V R >out 2>err || exit 1\n[[ ! -s out && ! -s err && ${R[domains]} == 'lab-one.test,example' ]] || exit 2\ndhcp6 parse 070102030018000402612c00 -V R >out 2>err || exit 3\n[[ ${R[domains]} == 'a\\044' ]] || exit 4\nfor packet in 070102030018000403616200 0701020300180002c000 07010203001800020161; do\n  dhcp6 parse \"$packet\" >out 2>err && exit 5\n  [[ ! -s out && -s err ]] || exit 6\ndone\nprintf 'domain-decode=ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "domain-decode=ok\n",
+      "stderr": "",
+      "timeout": 10
+    }
+  ]
+}

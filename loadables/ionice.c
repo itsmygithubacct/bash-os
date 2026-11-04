@@ -136,8 +136,12 @@ ionice_builtin (WORD_LIST *list)
     /* When setting, default the class to best-effort and the level to 4. */
     int eff_class = (klass >= 0) ? klass : IOPRIO_CLASS_BE;
     int eff_level = (level >= 0) ? level : 4;
-    if (eff_class == IOPRIO_CLASS_NONE || eff_class == IOPRIO_CLASS_IDLE)
-        eff_level = 0;
+    if (eff_class == IOPRIO_CLASS_NONE || eff_class == IOPRIO_CLASS_IDLE) {
+        if (level >= 0 && !ignore_fail)
+            fprintf (stderr, "ionice: ignoring given class data for %s class\n",
+                     class_names[eff_class]);
+        eff_level = (eff_class == IOPRIO_CLASS_IDLE) ? 7 : 0;
+    }
 
     if (npid > 0) {
         int rc = EXECUTION_SUCCESS;

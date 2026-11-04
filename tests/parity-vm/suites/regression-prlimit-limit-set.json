@@ -1,0 +1,320 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "regression-prlimit-set-numeric",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set numeric",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=32; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "stdout": "status=0\nlimits=32,32\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "regression-prlimit-set-pair",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set pair",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=32:96; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "stdout": "status=0\nlimits=32,96\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "regression-prlimit-set-soft-only",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set soft only",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=32:; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "stdout": "status=0\nlimits=32,128\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "regression-prlimit-set-hard-only",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set hard only",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=:96; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "stdout": "status=0\nlimits=64,96\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "regression-prlimit-set-unlimited",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set unlimited",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit -p \"$child\" --rss=unlimited; printf \"status=%s\\n\" \"$?\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" RSS",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "stdout": "status=0\nlimits=unlimited,unlimited\n",
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      }
+    },
+    {
+      "id": "regression-prlimit-set-reversed",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set reversed",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact failure status, diagnostic presence, empty setter stdout, and independent kernel read-back.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=96:64 > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE\n[[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "stdout": "status=1 diagnostic=yes\nlimits=64,128\nstdout=empty\n"
+    },
+    {
+      "id": "regression-prlimit-set-invalid-word",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set invalid word",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact failure status, diagnostic presence, empty setter stdout, and independent kernel read-back.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=nope > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE\n[[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "stdout": "status=1 diagnostic=yes\nlimits=64,128\nstdout=empty\n"
+    },
+    {
+      "id": "regression-prlimit-set-invalid-suffix",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set invalid suffix",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact failure status, diagnostic presence, empty setter stdout, and independent kernel read-back.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=64x > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE\n[[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "stdout": "status=1 diagnostic=yes\nlimits=64,128\nstdout=empty\n"
+    },
+    {
+      "id": "regression-prlimit-set-invalid-range",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set invalid range",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact failure status, diagnostic presence, empty setter stdout, and independent kernel read-back.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=1:2:3 > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE\n[[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "stdout": "status=1 diagnostic=yes\nlimits=64,128\nstdout=empty\n"
+    },
+    {
+      "id": "regression-prlimit-set-negative",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "prlimit set negative",
+      "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
+      "comparison": "Exact failure status, diagnostic presence, empty setter stdout, and independent kernel read-back.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile=-1 > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE\n[[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "stdout": "status=1 diagnostic=yes\nlimits=64,128\nstdout=empty\n"
+    },
+    {
+      "id": "regression-prlimit-set-whitespace-negative",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Reject whitespace-negative without changing limits",
+      "oracle": "Malformed or negative decimal values must fail without changing the owned child limits; Python resource.prlimit independently reads the kernel state.",
+      "comparison": "Exact failure status, diagnostic presence, empty setter stdout, and independent kernel read-back.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" '--nofile= -1' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE\n[[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "stdout": "status=1 diagnostic=yes\nlimits=64,128\nstdout=empty\n",
+      "kind": "contract"
+    },
+    {
+      "id": "regression-prlimit-set-overflow",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Reject overflow without changing limits",
+      "oracle": "Malformed or negative decimal values must fail without changing the owned child limits; Python resource.prlimit independently reads the kernel state.",
+      "comparison": "Exact failure status, diagnostic presence, empty setter stdout, and independent kernel read-back.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" '--nofile=18446744073709551616' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE\n[[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "stdout": "status=1 diagnostic=yes\nlimits=64,128\nstdout=empty\n",
+      "kind": "contract"
+    },
+    {
+      "id": "regression-prlimit-set-empty-range",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Reject empty-range without changing limits",
+      "oracle": "Malformed or negative decimal values must fail without changing the owned child limits; Python resource.prlimit independently reads the kernel state.",
+      "comparison": "Exact failure status, diagnostic presence, empty setter stdout, and independent kernel read-back.",
+      "script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" '--nofile=:' > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"\n/usr/bin/python3 -c 'import resource,sys;v=resource.prlimit(int(sys.argv[1]),getattr(resource,\"RLIMIT_\"+sys.argv[2]));print(\"limits=\"+\",\".join(\"unlimited\" if n==resource.RLIM_INFINITY else str(n) for n in v))' \"$child\" NOFILE\n[[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/limit-set-and-validation"
+      ],
+      "files": {
+        "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
+      },
+      "stdout": "status=1 diagnostic=yes\nlimits=64,128\nstdout=empty\n",
+      "kind": "contract"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "screen-remote-frame-binary-all-types-t191",
+      "loadable": "screen",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Preserve leading, embedded and trailing NUL, newline and high-bit bytes in decoded frames of all types.",
+      "covers": [
+        "screen/remote-attach-mock"
+      ],
+      "requires": [
+        "python3",
+        "cmp"
+      ],
+      "script": "/usr/bin/python3 - <<'PYEND'\nimport struct\nfrom pathlib import Path\npayload = bytes([0, 65, 255, 0, 10, 66, 0])\nfor kind, name in enumerate(('pty', 'query', 'control'), 1):\n    Path(name + '.frame').write_bytes(b'BSCR' + bytes([1, kind]) + struct.pack('>I', len(payload)) + payload)\n    Path(name + '.expected').write_bytes(('type=%s\\nlen=%d\\npayload=' % (name, len(payload))).encode() + payload + b'\\n')\nPYEND\nfor type in pty query control; do\n    screen remote-frame decode < \"$type.frame\" > \"$type.actual\" || exit 1\n    /usr/bin/cmp -s \"$type.expected\" \"$type.actual\" || exit 1\n    printf '%s-binary=PASS\\n' \"$type\"\ndone\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "stdout": "pty-binary=PASS\nquery-binary=PASS\ncontrol-binary=PASS\n",
+      "stderr": "",
+      "oracle": "Independent struct-packed frames and length-delimited expected output, compared byte for byte.",
+      "comparison": "Compare complete binary output and exit status for each frame type."
+    }
+  ]
+}

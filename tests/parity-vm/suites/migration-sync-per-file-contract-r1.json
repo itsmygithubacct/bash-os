@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-sync-per-file-contract-r1",
+      "loadable": "sync",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "sync/per-file-failures"
+      ],
+      "purpose": "Check mode-000 open failure, /dev/null fsync EINVAL and injected middle-operand EIO using the Bash diagnostic contract, aggregate status, fd lifetime and observed continuation.",
+      "oracle": "Bash sync loadable contract and seccomp notification log; fixed C locale and unprivileged uid 2000",
+      "comparison": "Exact contract output; each failure must name only the failing operand. The EIO injection observes three fsync calls and checks the fd table after the failure.",
+      "requires": [
+        "python3",
+        "chmod"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "files": {
+        "first": "a\n",
+        "middle": "b\n",
+        "last": "c\n",
+        "denied": "d\n",
+        "inner.sh": "fds() { local f; FDS=; for f in /proc/self/fd/*; do FDS+=\" ${f##*/}\"; done; }\nfds; before=$FDS\nsync first middle last 2>eio.err\nrc=$?\nfds\nprintf 'eio-status=%s fd-table=' \"$rc\"\n[[ $FDS == \"$before\" ]] && printf 'unchanged\\n' || printf 'changed\\n'\n"
+      },
+      "setup_script": "/usr/bin/chmod 0000 denied\n",
+      "script": "export LC_ALL=C PYTHONDONTWRITEBYTECODE=1\n[[ $EUID == 2000 ]] && echo uid=2000 || echo uid=WRONG\nsync first denied last 2>open.err\nrc=$?\nprintf 'open-status=%s\\n' \"$rc\"\nmapfile -t lines <open.err\n[[ ${#lines[@]} == 1 && ${lines[0]} == *denied* && ${lines[0]} == *'Permission denied'* ]] && echo open-diagnostic=ok || echo open-diagnostic=BAD\nsync first /dev/null last 2>null.err\nrc=$?\nprintf 'null-status=%s\\n' \"$rc\"\nmapfile -t lines <null.err\n[[ ${#lines[@]} == 1 && ${lines[0]} == *'/dev/null'* && ${lines[0]} == *'cannot sync'* && ${lines[0]} == *'Invalid argument'* ]] && echo null-diagnostic=ok || echo null-diagnostic=BAD\n: >\"$HOME/eio.jsonl\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/system-sequence.py --notify fsync --reply-seq fsync=continue,EIO,continue --log \"$HOME/eio.jsonl\" -- \"$BASH\" --noprofile --norc inner.sh\nprintf 'helper-status=%s\\n' \"$?\"\nmapfile -t lines <eio.err\n[[ ${#lines[@]} == 1 && ${lines[0]} == *middle* && ${lines[0]} == *'cannot sync'* && ${lines[0]} == *'Input/output error'* ]] && echo eio-diagnostic=ok || echo eio-diagnostic=BAD\ncalls=0 injected=0\nwhile IFS= read -r line; do\n  [[ $line == *'\"syscall\": \"fsync\"'* ]] || continue\n  ((calls++))\n  [[ $line == *'\"reply\": \"continue\"'* ]] || ((injected++))\ndone <\"$HOME/eio.jsonl\"\nprintf 'fsync-calls=%d injected=%d\\n' \"$calls\" \"$injected\"\n",
+      "expected_status": 0,
+      "stdout": "uid=2000\nopen-status=1\nopen-diagnostic=ok\nnull-status=1\nnull-diagnostic=ok\neio-status=1 fd-table=unchanged\nhelper-status=0\neio-diagnostic=ok\nfsync-calls=3 injected=1\n",
+      "stderr": "",
+      "timeout": 40
+    }
+  ]
+}

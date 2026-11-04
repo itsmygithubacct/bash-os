@@ -90,7 +90,8 @@ setsid_builtin (WORD_LIST *list)
         }
         if (set_ctty) {
             if (ioctl (STDIN_FILENO, TIOCSCTTY, 0) < 0) {
-                fprintf (stderr, "setsid: TIOCSCTTY: %s\n", strerror (errno));
+                fprintf (stderr, "setsid: failed to set the controlling terminal: %s\n",
+                         strerror (errno));
                 _exit (EXECUTION_FAILURE);
             }
         }

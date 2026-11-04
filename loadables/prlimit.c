@@ -161,14 +161,23 @@ bpl_find_short_alias (char opt)
 
 static int
 bpl_select_resource (const char **res_name, const char **set_spec,
+                     unsigned char *selected, int *nselected,
                      const char *new_res, const char *new_spec)
 {
-  if (*res_name && strcasecmp (*res_name, new_res) != 0)
+  const bpl_res *res = bpl_find_res (new_res);
+  size_t index;
+  if (!res)
     {
-      builtin_error ("only one resource may be selected");
+      builtin_error ("unknown resource: %s", new_res);
       return EX_USAGE;
     }
-  *res_name = new_res;
+  index = (size_t) (res - bpl_resources);
+  if (!selected[index])
+    {
+      selected[index] = 1;
+      ++*nselected;
+    }
+  *res_name = res->name;
   if (new_spec)
     {
       if (*set_spec)
@@ -200,14 +209,18 @@ static int
 bpl_parse_limit_value (const char *s, rlim_t *out)
 {
   char *end = NULL;
+  const unsigned char *p;
   unsigned long long v;
   if (strcasecmp (s, "unlimited") == 0 || strcmp (s, "inf") == 0)
     { *out = RLIM_INFINITY; return 0; }
-  if (*s == '\0' || *s == '-')
+  if (*s == '\0')
     return -1;
+  for (p = (const unsigned char *) s; *p; p++)
+    if (*p < '0' || *p > '9')
+      return -1;
   errno = 0;
   v = strtoull (s, &end, 10);
-  if (errno || !end || *end != '\0')
+  if (errno || !end || *end != '\0' || (unsigned long long) (rlim_t) v != v)
     return -1;
   *out = (rlim_t) v;
   return 0;
@@ -367,7 +380,7 @@ bpl_show_one (pid_t pid, const bpl_res *res, int json, int raw)
 }
 
 static int
-bpl_show_all (pid_t pid, int json, int raw)
+bpl_show_all (pid_t pid, int json, int raw, const unsigned char *selected)
 {
   int rc = EXECUTION_SUCCESS;
   int first = 1;
@@ -376,6 +389,8 @@ bpl_show_all (pid_t pid, int json, int raw)
   for (const bpl_res *r = bpl_resources; r->name; r++)
     {
       struct rlimit oldlim;
+      if (selected && !selected[r - bpl_resources])
+        continue;
       if (bpl_prlimit (pid, r->resource, NULL, &oldlim) < 0)
         {
           builtin_error ("pid %ld %s: %s", (long) pid, r->name, strerror (errno));
@@ -403,37 +418,24 @@ bpl_show_all (pid_t pid, int json, int raw)
 }
 
 static int
-bpl_set_one (pid_t pid, const bpl_res *res, const char *spec, int json,
-             int raw)
+bpl_set_one (pid_t pid, const bpl_res *res, const char *spec)
 {
-  struct rlimit newlim, oldlim;
+  struct rlimit newlim;
   int found;
   if (bpl_parse_limit_pair (spec, &newlim, &found) < 0)
     {
       builtin_error ("invalid limit: %s", spec);
-      return EX_USAGE;
+      return EXECUTION_FAILURE;
     }
   if (bpl_fill_unspecified (pid, res, &newlim, found) < 0)
     return EXECUTION_FAILURE;
   if (bpl_check_soft_le_hard (res, &newlim) < 0)
     return EXECUTION_FAILURE;
-  if (bpl_prlimit (pid, res->resource, &newlim, &oldlim) < 0)
+  if (bpl_prlimit (pid, res->resource, &newlim, NULL) < 0)
     {
       builtin_error ("set pid %ld %s: %s", (long) pid, res->name,
                      strerror (errno));
       return EXECUTION_FAILURE;
-    }
-  if (json)
-    {
-      bpl_print_json_one (pid, res, &newlim);
-      putchar ('\n');
-    }
-  else
-    {
-      if (raw)
-        bpl_print_raw_one (res, &newlim);
-      else
-        bpl_print_one (res, &newlim);
     }
   return EXECUTION_SUCCESS;
 }
@@ -471,7 +473,7 @@ bpl_spawn (const bpl_res *res, const char *spec, WORD_LIST *cmd)
   if (bpl_parse_limit_pair (spec, &newlim, &found) < 0)
     {
       builtin_error ("invalid limit: %s", spec);
-      return EX_USAGE;
+      return EXECUTION_FAILURE;
     }
   /* An omitted side is taken from the calling process's current limit,
    * which the child inherits — matching prlimit(1) COMMAND mode. */
@@ -567,6 +569,8 @@ prlimit_builtin (WORD_LIST *list)
   WORD_LIST *command = NULL;
   int json = 0;
   int raw = 0;
+  unsigned char selected[sizeof bpl_resources / sizeof bpl_resources[0]] = { 0 };
+  int nselected = 0;
   const bpl_res *res;
 
   /* No args is not an error: prlimit(1) prints every limit of the
@@ -594,20 +598,26 @@ prlimit_builtin (WORD_LIST *list)
         {
           p = p->next;
           if (bpl_parse_pid (p->word->word, &pid) < 0)
-            { builtin_error ("invalid pid: %s", p->word->word); return EX_USAGE; }
+            { builtin_error ("invalid pid: %s", p->word->word); return EXECUTION_FAILURE; }
         }
       else if (strncmp (w, "--pid=", 6) == 0)
         {
           if (bpl_parse_pid (w + 6, &pid) < 0)
-            { builtin_error ("invalid pid: %s", w + 6); return EX_USAGE; }
+            { builtin_error ("invalid pid: %s", w + 6); return EXECUTION_FAILURE; }
         }
       else if ((strcmp (w, "-r") == 0 || strcmp (w, "--resource") == 0) && p->next)
         {
           p = p->next;
-          res_name = p->word->word;
+          if (bpl_select_resource (&res_name, &set_spec, selected, &nselected,
+                                   p->word->word, NULL) != EXECUTION_SUCCESS)
+            return EX_USAGE;
         }
       else if (strncmp (w, "--resource=", 11) == 0)
-        res_name = w + 11;
+        {
+          if (bpl_select_resource (&res_name, &set_spec, selected, &nselected,
+                                   w + 11, NULL) != EXECUTION_SUCCESS)
+            return EX_USAGE;
+        }
       else if (strncmp (w, "--", 2) == 0)
         {
           const char *name = w + 2;
@@ -615,7 +625,8 @@ prlimit_builtin (WORD_LIST *list)
           const bpl_alias *a = bpl_find_long_alias (name, eq ? (size_t)(eq - name) : strlen (name));
           if (!a)
             { builtin_error ("unknown option: %s", w); return EX_USAGE; }
-          if (bpl_select_resource (&res_name, &set_spec, a->resource_name,
+          if (bpl_select_resource (&res_name, &set_spec, selected, &nselected,
+                                   a->resource_name,
                                    eq ? eq + 1 : NULL) != EXECUTION_SUCCESS)
             return EX_USAGE;
         }
@@ -624,7 +635,8 @@ prlimit_builtin (WORD_LIST *list)
           const bpl_alias *a = bpl_find_short_alias (w[1]);
           if (!a)
             { builtin_error ("unknown option: %s", w); return EX_USAGE; }
-          if (bpl_select_resource (&res_name, &set_spec, a->resource_name,
+          if (bpl_select_resource (&res_name, &set_spec, selected, &nselected,
+                                   a->resource_name,
                                    NULL) != EXECUTION_SUCCESS)
             return EX_USAGE;
         }
@@ -654,7 +666,16 @@ prlimit_builtin (WORD_LIST *list)
     {
       if (set_spec)
         { builtin_error ("limit value requires -r RES"); return EX_USAGE; }
-      return bpl_show_all (pid, json, raw);
+      return bpl_show_all (pid, json, raw, NULL);
+    }
+  if (nselected > 1)
+    {
+      if (set_spec || command)
+        {
+          builtin_error ("only one resource may be set");
+          return EX_USAGE;
+        }
+      return bpl_show_all (pid, json, raw, selected);
     }
   res = bpl_find_res (res_name);
   if (!res)
@@ -666,7 +687,7 @@ prlimit_builtin (WORD_LIST *list)
       return bpl_spawn (res, set_spec, command);
     }
   if (set_spec)
-    return bpl_set_one (pid, res, set_spec, json, raw);
+    return bpl_set_one (pid, res, set_spec);
   return bpl_show_one (pid, res, json, raw);
 }
 

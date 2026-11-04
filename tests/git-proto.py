@@ -372,6 +372,11 @@ with tempfile.TemporaryDirectory(prefix='git-proto-') as name:
                     cwd=diverged, status=1, env=with_path)
     check(b'! [rejected]' in rejected.stderr and b'(non-fast-forward)' in rejected.stderr,
           'a push that would lose commits', rejected.stderr[:300])
+    reference = git(diverged, 'push', f'--receive-pack={THEIRS_RECEIVE}',
+                    theirs_bare, 'main', check_status=False, env=with_path)
+    check((rejected.returncode, rejected.stdout, rejected.stderr) ==
+          (reference.returncode, reference.stdout, reference.stderr),
+          'non-fast-forward diagnostics match git', rejected.stderr, reference.stderr)
 
     stale = tmp/'stale'
     git(tmp, 'clone', '-q', str(theirs_bare), str(stale))
@@ -385,6 +390,11 @@ with tempfile.TemporaryDirectory(prefix='git-proto-') as name:
                     cwd=stale, status=1, env=with_path)
     check(b'! [rejected]' in rejected.stderr and b'(fetch first)' in rejected.stderr,
           'a tip this end has never seen', rejected.stderr[:300])
+    reference = git(stale, 'push', f'--receive-pack={THEIRS_RECEIVE}',
+                    theirs_bare, 'main', check_status=False, env=with_path)
+    check((rejected.returncode, rejected.stdout, rejected.stderr) ==
+          (reference.returncode, reference.stdout, reference.stderr),
+          'fetch-first diagnostics match git', rejected.stderr, reference.stderr)
 
     # The commands and the pack are one stream, and a reader that takes
     # its input in chunks will have the front of the pack in hand before

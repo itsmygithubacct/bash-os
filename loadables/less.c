@@ -26,6 +26,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -234,7 +235,7 @@ bl_render_line (const char *line, size_t linelen, int chop, int numbers, size_t 
 {
     int prefix = 0;
     if (numbers)
-        prefix = printf ("%6zu  ", lineno + 1);
+        prefix = printf ("%7zu ", lineno + 1);
     int room = cols > prefix ? cols - prefix : cols;
     size_t len = linelen;
     if (len && line[len - 1] == '\n') len--;
@@ -292,7 +293,8 @@ bl_prompt_line (int tty, const char *label, char *buf, size_t bufsz)
 }
 
 static int
-bl_interactive (const bl_lines *ls, int rows, int chop, int numbers, int quit_if_one)
+bl_interactive (const bl_lines *ls, int rows, int chop, int numbers, int quit_if_one,
+                const char *name)
 {
     if (ls->n == 0) return EXECUTION_SUCCESS;
     if (!isatty (STDOUT_FILENO))
@@ -346,11 +348,13 @@ bl_interactive (const bl_lines *ls, int rows, int chop, int numbers, int quit_if
     struct winsize ws;
     struct sigaction old_winch;
     int have_winch = 0;
+    int first_prompt = 1;
     if (ioctl (STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0)
         cols = (int) ws.ws_col;
 
     bl_resize_seen = 0;
     bl_install_sigwinch (&old_winch, &have_winch);
+    bl_key_reset ();
 
     for (;;)
     {
@@ -368,13 +372,22 @@ bl_interactive (const bl_lines *ls, int rows, int chop, int numbers, int quit_if
         for (int r = 0; r < rows && top + (size_t) r < ls->n; r++)
             bl_render_line (ls->v[top + (size_t) r], ls->len[top + (size_t) r],
                             chop, numbers, top + (size_t) r, cols);
-
-        char prompt[96];
-        int pct = (int) (((top + 1) * 100) / ls->n);
-        snprintf (prompt, sizeof prompt,
-                  "\033[7m less %zu/%zu %d%% (q quit, h help) \033[m",
-                  top + 1, ls->n, pct);
-        bl_write (STDERR_FILENO, prompt);
+        /* Place the prompt on the terminal's last row even when fewer than
+           a screenful of lines remain or -n changes the page size. Flush the
+           stdio content before writing control sequences through write(2). */
+        fflush (stdout);
+        int prompt_row = 24;
+        if (ioctl (STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0)
+            prompt_row = (int) ws.ws_row;
+        char position[32];
+        snprintf (position, sizeof position, "\033[%d;1H\033[K\033[7m", prompt_row);
+        bl_write (STDERR_FILENO, position);
+        if (ls->n - top <= (size_t) rows)
+            bl_write (STDERR_FILENO, "(END)");
+        else
+            bl_write (STDERR_FILENO, first_prompt && name ? name : ":");
+        bl_write (STDERR_FILENO, "\033[m");
+        first_prompt = 0;
 
         /* One keystroke. bl_read_key() blocks on the first byte and
          * (when it sees ESC) assembles the CSI/SS3 follow-up burst
@@ -382,10 +395,24 @@ bl_interactive (const bl_lines *ls, int rows, int chop, int numbers, int quit_if
          * back as their byte value; specials come back as BL_KEY_*
          * constants ≥ 0x100, which we fold into the legacy ASCII
          * dispatch below so the rest of the loop is unchanged. */
-        int c = bl_read_key (tty);
-        bl_write (STDERR_FILENO, "\r\033[K");
+        /* The shared decoder retries EINTR internally. Wait here first so a
+           WINCH can trigger a redraw without requiring a keypress. A bounded
+           timeout closes the race between checking the flag and entering poll. */
+        int input_error = 0;
+        while (!bl_resize_seen && !bl_key_pending ())
+        {
+            struct pollfd pfd = { .fd = tty, .events = POLLIN, .revents = 0 };
+            int ready = poll (&pfd, 1, 100);
+            if (ready > 0) break;
+            if (ready < 0 && errno != EINTR) { input_error = 1; break; }
+        }
         if (bl_resize_seen)
-            continue;  /* redraw with the fresh size at the top of the loop */
+        {
+            bl_write (STDERR_FILENO, "\r\033[K");
+            continue;
+        }
+        int c = input_error ? BL_KEY_NONE : bl_read_key (tty);
+        bl_write (STDERR_FILENO, "\r\033[K");
         if (c == BL_KEY_NONE) break;
 
         switch (c)
@@ -562,7 +589,9 @@ less_builtin (WORD_LIST *list)
             rc = EXECUTION_FAILURE;
         }
     } else if (rc == EXECUTION_SUCCESS)
-        rc = bl_interactive (&ls, rows, chop, numbers, quit_if_one);
+        rc = bl_interactive (&ls, rows, chop, numbers, quit_if_one,
+                             list && !list->next && strcmp (list->word->word, "-")
+                             ? list->word->word : NULL);
     bl_lines_free (&ls);
     return rc;
 }

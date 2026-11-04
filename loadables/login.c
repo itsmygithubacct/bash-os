@@ -75,6 +75,7 @@
 #include <termios.h>
 #include <time.h>
 #include <signal.h>
+#include <poll.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -93,6 +94,8 @@
 #include "_bashauth_cred_exec.h"
 #include "_bashauth_passwd_lookup.h"
 #include "_bashauth_secure_read.h"
+#include "auth-v2-client.h"
+#include "login-lock-state.h"
 #include "loadables.h"
 /* Stage 23 v1: shared priv-drop primitives. The setgroups/setresgid/
    setresuid sequence + getresuid verify lives in bc_privdrop_to_user
@@ -195,6 +198,219 @@ bl_login_signal (int sig)
 {
   (void) sig;
   bl_login_hup_seen = 1;
+}
+
+/* One interactive invocation owns these resources, including on denial or
+   cancellation. The versioned path never authenticates one terminal and then
+   reopens a caller-named terminal after authentication. */
+typedef struct {
+  int tty_fd;
+  char tty_name[256];
+  struct sigaction saved[3];
+  unsigned installed;
+  int old_dumpable;
+  int dumpable_changed;
+} bl_login_scope;
+
+static int
+bl_same_tty (int fd, const struct stat *tty)
+{
+  struct stat st;
+  return fstat (fd, &st) == 0 && S_ISCHR (st.st_mode) &&
+         st.st_dev == tty->st_dev && st.st_ino == tty->st_ino &&
+         st.st_rdev == tty->st_rdev && isatty (fd);
+}
+
+static int
+bl_pin_login_tty (bl_login_scope *scope, const char **requested)
+{
+  struct stat st;
+  char named[256];
+  int check_fd = -1, n;
+  if (fstat (STDIN_FILENO, &st) < 0 || !S_ISCHR (st.st_mode) ||
+      ttyname_r (STDIN_FILENO, scope->tty_name, sizeof scope->tty_name) != 0 ||
+      strncmp (scope->tty_name, "/dev/", 5) != 0 ||
+      !bl_same_tty (STDOUT_FILENO, &st) ||
+      !bl_same_tty (STDERR_FILENO, &st) ||
+      tcgetsid (STDIN_FILENO) != getsid (0))
+    goto invalid;
+  if (*requested)
+    {
+      n = snprintf (named, sizeof named, "%s%s",
+                    strncmp (*requested, "/dev/", 5) ? "/dev/" : "",
+                    *requested);
+      if (n < 0 || (size_t) n >= sizeof named ||
+          strcmp (named, scope->tty_name) != 0)
+        goto invalid;
+    }
+  /* Check the name used by securetty/accounting against the held descriptor.
+     Subsequent password I/O and exec use the descriptor, never this path. */
+  check_fd = open (scope->tty_name, O_RDWR | O_NOCTTY | O_NOFOLLOW |
+                   O_NONBLOCK | O_CLOEXEC);
+  if (check_fd < 0 || !bl_same_tty (check_fd, &st))
+    goto invalid;
+  /* Keep this independent, nonblocking open description. A signal arriving
+     between poll and read must not leave a blocking read behind, and changing
+     its flags must not affect the launcher's inherited stdio descriptions. */
+  scope->tty_fd = check_fd;
+  *requested = scope->tty_name;
+  return 0;
+invalid:
+  if (check_fd >= 0) close (check_fd);
+  errno = ENOTTY;
+  builtin_error ("login-v2: stdio and -t must identify the controlling terminal");
+  return -1;
+}
+
+static int
+bl_login_scope_begin (bl_login_scope *scope)
+{
+  const int signals[] = { SIGHUP, SIGTERM, SIGINT };
+  struct sigaction sa;
+  scope->old_dumpable = prctl (PR_GET_DUMPABLE, 0, 0, 0, 0);
+  /* Linux accepts only 0/1 for PR_SET_DUMPABLE. Refuse a state we cannot
+     restore, before changing it or reading a password. */
+  if (scope->old_dumpable < 0 || scope->old_dumpable > 1 ||
+      prctl (PR_SET_DUMPABLE, 0, 0, 0, 0) < 0)
+    return -1;
+  scope->dumpable_changed = 1;
+  bl_login_hup_seen = 0;
+  memset (&sa, 0, sizeof sa);
+  sa.sa_handler = bl_login_signal;
+  sigemptyset (&sa.sa_mask);
+  for (unsigned i = 0; i < sizeof signals / sizeof signals[0]; i++)
+    {
+      if (sigaction (signals[i], &sa, &scope->saved[i]) < 0) return -1;
+      scope->installed++;
+    }
+  return 0;
+}
+
+static void
+bl_login_scope_end (bl_login_scope *scope)
+{
+  const int signals[] = { SIGHUP, SIGTERM, SIGINT };
+  int failed = 0;
+  while (scope->installed)
+    {
+      unsigned i = --scope->installed;
+      if (sigaction (signals[i], &scope->saved[i], NULL) < 0) failed = 1;
+    }
+  if (scope->tty_fd >= 0) close (scope->tty_fd);
+  if (scope->dumpable_changed &&
+      prctl (PR_SET_DUMPABLE, scope->old_dumpable, 0, 0, 0) < 0)
+    failed = 1;
+  if (failed)
+    {
+      builtin_error ("login: cannot restore invocation state");
+      _exit (126);
+    }
+}
+
+static int
+bl_login_tty_byte (int fd, unsigned char *byte)
+{
+  while (!bl_login_hup_seen)
+    {
+      struct pollfd ready = { .fd = fd, .events = POLLIN };
+      int r = poll (&ready, 1, 200);
+      if (r < 0 && errno == EINTR) continue;
+      if (r < 0) return -1;
+      if (!r) continue;
+      if (bl_login_hup_seen) break;
+      if (ready.revents & (POLLERR | POLLHUP | POLLNVAL))
+        { errno = EIO; return -1; }
+      ssize_t got = read (fd, byte, 1);
+      if (got < 0 && (errno == EINTR || errno == EAGAIN)) continue;
+      if (got == 1) return 0;
+      if (!got) errno = EIO;
+      return -1;
+    }
+  errno = EINTR;
+  return -1;
+}
+
+static int
+bl_read_login_name_v2 (int fd, char *user, size_t capacity)
+{
+  size_t used = 0;
+  int overflow = 0;
+  for (;;)
+    {
+      unsigned char byte;
+      if (bl_login_tty_byte (fd, &byte) < 0) return -1;
+      if (byte == '\n' || byte == '\r') break;
+      if (!byte) overflow = 1;
+      if (used + 1 < capacity) user[used++] = byte;
+      else overflow = 1;
+    }
+  user[used] = 0;
+  /* Overlong input follows the same invalid-name/password-denial path, after
+     consuming its entire line; no leftover name bytes become a password. */
+  if (overflow) { user[0] = '/'; user[1] = 0; }
+  return 0;
+}
+
+static int
+bl_read_password_v2 (int fd, unsigned char **out, size_t *length)
+{
+  struct termios saved, hidden, actual;
+  unsigned char *password = MAP_FAILED;
+  size_t used = 0;
+  int changed = 0, error = 0;
+  *out = NULL;
+  *length = 0;
+  if (tcgetattr (fd, &saved) < 0) return -1;
+  password = mmap (NULL, BASHOS_AUTH_PASSWORD_MAX, PROT_READ | PROT_WRITE,
+                   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (password == MAP_FAILED) return -1;
+  if (mlock (password, BASHOS_AUTH_PASSWORD_MAX) < 0 ||
+      madvise (password, BASHOS_AUTH_PASSWORD_MAX, MADV_DONTDUMP) < 0)
+    { error = errno; goto done; }
+  hidden = saved;
+  hidden.c_lflag &= ~(ECHO | ECHONL | ICANON);
+  hidden.c_cc[VMIN] = 1;
+  hidden.c_cc[VTIME] = 0;
+  /* Restore even if tcsetattr partially changed the terminal then failed. */
+  changed = 1;
+  if (tcsetattr (fd, TCSAFLUSH, &hidden) < 0 ||
+      tcgetattr (fd, &actual) < 0)
+    { error = errno; goto done; }
+  if ((actual.c_lflag & (ECHO | ECHONL | ICANON)) ||
+      actual.c_cc[VMIN] != 1 || actual.c_cc[VTIME] != 0)
+    { error = EIO; goto done; }
+  if (bl_login_hup_seen)
+    { error = EINTR; goto done; }
+  if (write (fd, "Password: ", 10) != 10)
+    { error = EIO; goto done; }
+  while (!bl_login_hup_seen)
+    {
+      unsigned char byte = 0;
+      if (bl_login_tty_byte (fd, &byte) < 0) { error = errno; break; }
+      int end = byte == '\n' || byte == '\r';
+      if (!end && used < BASHOS_AUTH_PASSWORD_MAX) password[used++] = byte;
+      else if (!end) error = E2BIG;
+      *(volatile unsigned char *) &byte = 0;
+      if (end || error) break;
+    }
+  if (bl_login_hup_seen) error = EINTR;
+done:
+  if (changed)
+    {
+      int r;
+      do r = tcsetattr (fd, TCSANOW, &saved); while (r < 0 && errno == EINTR);
+      if (r < 0) error = errno;
+      (void) write (fd, "\n", 1);
+    }
+  if (error)
+    {
+      bashos_secure_free_password (password);
+      errno = error;
+      return -1;
+    }
+  *out = password;
+  *length = used;
+  return 0;
 }
 
 static void
@@ -387,6 +603,36 @@ bl_login_kernel_proof (const bl_user *u)
   bl_wipe (&req, sizeof req);
   close (fd);
   return 0;
+}
+
+static int
+bl_consume_v2 (const bl_user *user, int fd, unsigned encoding)
+{
+  struct bashos_auth_v2_identity identity;
+  int rc;
+  if (bashos_v2_identity (&identity, BASHOS_AUTH_V2_LOGIN,
+                          user->uid, user->gid, user->name, encoding)) return -1;
+  rc = bashos_v2_consume (fd, &identity);
+  bashos_v2_wipe (&identity, sizeof identity);
+  return rc;
+}
+
+static int
+bl_verify_v2_password (const bl_user *user, const unsigned char *password,
+                       size_t length, unsigned encoding, int qualification_only)
+{
+  struct bashos_auth_v2_identity identity;
+  int fd, rc, saved;
+  if (bashos_v2_identity (&identity, BASHOS_AUTH_V2_LOGIN,
+                          user->uid, user->gid, user->name, encoding)) return -1;
+  fd = bashos_v2_open (qualification_only);
+  if (fd < 0) { bashos_v2_wipe (&identity, sizeof identity); return -1; }
+  rc = bashos_v2_verify_password (fd, password, length, &identity);
+  if (!rc) rc = bashos_v2_consume (fd, &identity);
+  saved = errno;
+  close (fd); bashos_v2_wipe (&identity, sizeof identity);
+  errno = saved;
+  return rc;
 }
 
 static int
@@ -691,6 +937,46 @@ bl_policy_name_matches (const char *pat, const char *name, size_t namelen)
 }
 
 static int
+bl_policy_add_securetty_csv (bl_login_policy *policy, const char *csv)
+{
+  char *copy, *remaining, *token;
+  if (!csv || !*csv || !(copy = strdup (csv))) return -1;
+  remaining = copy;
+  while ((token = strsep (&remaining, ",")) != NULL)
+    {
+      token = bl_trim (token);
+      size_t length = strlen (token);
+      /* Terminal names are exact relative paths (e.g. pts/3), not user-name
+         patterns. Reject malformed entries rather than silently dropping them. */
+      if (!length || length >= BL_POLICY_NAME_MAX ||
+          !bl_policy_tty_pattern_ok (token) || strchr (token, '*'))
+        goto invalid;
+      const char *component = token;
+      for (const char *at = token;; at++)
+        if (*at == '/' || *at == '\0')
+          {
+            size_t n = (size_t) (at - component);
+            if (!n || (n == 1 && *component == '.') ||
+                (n == 2 && component[0] == '.' && component[1] == '.'))
+              goto invalid;
+            if (!*at) break;
+            component = at + 1;
+          }
+      size_t index;
+      for (index = 0; index < policy->n_securetty_ttys; index++)
+        if (!strcmp (policy->securetty_ttys[index], token)) break;
+      if (index < policy->n_securetty_ttys) continue;
+      if (policy->n_securetty_ttys == BL_POLICY_MAX_TTYS) goto invalid;
+      memcpy (policy->securetty_ttys[policy->n_securetty_ttys++], token, length + 1);
+    }
+  free (copy);
+  return 0;
+invalid:
+  free (copy);
+  return -1;
+}
+
+static int
 bl_policy_parse_securetty (bl_login_policy *p, char **argv, int argc)
 {
   p->securetty = 1;
@@ -702,10 +988,14 @@ bl_policy_parse_securetty (bl_login_policy *p, char **argv, int argc)
       else if (bl_streq (a, "on") || bl_streq (a, "required"))
         p->securetty = 1;
       else if (strncmp (a, "file=", 5) == 0 && a[5] == '/')
-        snprintf (p->securetty_file, sizeof p->securetty_file, "%s", a + 5);
+        {
+          if (strlen (a + 5) >= sizeof p->securetty_file) return -1;
+          strcpy (p->securetty_file, a + 5);
+        }
       else if (strncmp (a, "tty=", 4) == 0)
-        bl_policy_add_csv (p->securetty_ttys, &p->n_securetty_ttys,
-                           BL_POLICY_MAX_TTYS, a + 4);
+        {
+          if (bl_policy_add_securetty_csv (p, a + 4) < 0) return -1;
+        }
       else
         return -1;
     }
@@ -742,7 +1032,10 @@ bl_policy_parse_lockout (bl_login_policy *p, char **argv, int argc)
       if (bl_parse_long_arg (v, &n) < 0) return -1;
       if (bl_streq (a, "max") || bl_streq (a, "fail_max") ||
           bl_streq (a, "deny"))
-        p->lock_fail_max = (int) n;
+        {
+          if (n < 0 || n > INT_MAX) return -1;
+          p->lock_fail_max = (int) n;
+        }
       else if (bl_streq (a, "window") || bl_streq (a, "fail_interval"))
         p->lock_window = n;
       else if (bl_streq (a, "duration") || bl_streq (a, "lock_time") ||
@@ -895,6 +1188,8 @@ bl_policy_parse_directive (bl_login_policy *p, char **argv, int argc)
   if (ph == BL_PH_PASSWORD && mod != BL_MOD_EXPIRY)
     return -1;
   if (r < 0) return -1;
+  if (p->n_chain >= BL_POLICY_MAX_CHAIN)
+    return -1;
   if (p->n_chain < BL_POLICY_MAX_CHAIN)
     {
       p->chain[p->n_chain].phase   = ph;
@@ -922,6 +1217,12 @@ bl_policy_load (bl_login_policy *p)
   while (fgets (line, sizeof line, f))
     {
       lno++;
+      if (!strchr (line, '\n') && !feof (f))
+        {
+          builtin_error ("login policy: line %u exceeds input bound", lno);
+          fclose (f);
+          return -1;
+        }
       char *hash = strchr (line, '#');
       if (hash) *hash = '\0';
       char *s = bl_trim (line);
@@ -930,10 +1231,17 @@ bl_policy_load (bl_login_policy *p)
       char *argv[32];
       int argc = 0;
       char *save = NULL;
-      for (char *tok = strtok_r (s, " \t\r\n", &save);
+      char *tok;
+      for (tok = strtok_r (s, " \t\r\n", &save);
            tok && argc < (int) (sizeof argv / sizeof argv[0]);
            tok = strtok_r (NULL, " \t\r\n", &save))
         argv[argc++] = tok;
+      if (tok)
+        {
+          builtin_error ("login policy: line %u has too many fields", lno);
+          fclose (f);
+          return -1;
+        }
       if (argc == 0) continue;
       if (argc == 1 && bl_streq (argv[0], "chain"))
         {
@@ -962,7 +1270,9 @@ bl_policy_load (bl_login_policy *p)
           return -1;
         }
     }
-  fclose (f);
+  int read_error = ferror (f);
+  if (fclose (f) != 0 || read_error)
+    return -1;
   if (p->lock_fail_max < 0 || p->lock_window < 0 || p->lock_duration < 0)
     {
       builtin_error ("login: policy %s: invalid lockout values", path);
@@ -1157,6 +1467,57 @@ bl_record_success (const char *user, const bl_user *u)
   char path[256];
   bl_lock_path (user, u, path, sizeof path);
   unlink (path);
+}
+
+/* The versioned path uses the existing record format under a stable per-key
+   guard. A missing record is empty state; every other storage error denies.
+   Return 1 for a live lock, -1 for an unusable store, and 0 with the guard
+   held. No guard is held while waiting for terminal input. */
+static int
+bl_v2_lock_begin (const char *user, const bl_user *u,
+                  const bl_login_policy *policy, struct bls_state *state)
+{
+  char key[64];
+  long now;
+  *state = (struct bls_state) { .directory = -1, .guard = -1 };
+  if (policy->lock_fail_max == 0) return 0;
+  bl_lock_token (user, u, key, sizeof key);
+  if (bls_begin (bl_lock_dir (), key, state) < 0 || bls_now (state, &now) < 0)
+    {
+      bls_close (state);
+      builtin_error ("login-v2: persistent failure state unavailable: %s", strerror (errno));
+      return -1;
+    }
+  if (state->until > now)
+    {
+      fprintf (stderr, "Account locked. Try again in %ld seconds.\n", state->until - now);
+      bls_close (state);
+      return 1;
+    }
+  return 0;
+}
+
+static int
+bl_v2_lock_check (const char *user, const bl_user *u, const bl_login_policy *policy)
+{
+  struct bls_state state;
+  int result = bl_v2_lock_begin (user, u, policy, &state);
+  bls_close (&state);
+  return result;
+}
+
+static int
+bl_v2_lock_success (const char *user, const bl_user *u, const bl_login_policy *policy)
+{
+  struct bls_state state;
+  int result = bl_v2_lock_begin (user, u, policy, &state);
+  if (result == 0 && state.guard >= 0 && bls_success (&state) < 0)
+    {
+      builtin_error ("login-v2: cannot clear persistent failure state: %s", strerror (errno));
+      result = -1;
+    }
+  bls_close (&state);
+  return result == 0 ? 0 : -1;
 }
 
 static void
@@ -1461,13 +1822,28 @@ bl_rebind_tty_stdio (const char *tty_name)
 }
 
 static int
+bl_rebind_pinned_tty (int fd)
+{
+  int flags = fcntl (fd, F_GETFL);
+  if (flags < 0 || tcgetsid (fd) != getsid (0) ||
+      fcntl (fd, F_SETFL, flags & ~O_NONBLOCK) < 0 ||
+      dup2 (fd, STDIN_FILENO) < 0 || dup2 (fd, STDOUT_FILENO) < 0 ||
+      dup2 (fd, STDERR_FILENO) < 0)
+    {
+      builtin_error ("login-v2: controlling terminal lost");
+      return -1;
+    }
+  return 0;
+}
+
+static int
 bl_exec_user (const bl_user *u, int keep_env, int login_shell,
               int show_motd,
               const char *cmd, int extra_argc, const char **extra_argv,
               const char *tty_name,
               int with_supplementary, int no_new_privs,
               const char *caps_keep,
-              const bl_login_policy *policy)
+              const bl_login_policy *policy, int pinned_tty_fd)
 {
   if (extra_argc < 0 || extra_argc > 64)
     {
@@ -1479,7 +1855,8 @@ bl_exec_user (const bl_user *u, int keep_env, int login_shell,
      direct expect harness and getty both know the slave path; rebind
      before the uid/gid drop so non-root logins do not need permission to
      reopen the pty after authentication. */
-  if (bl_rebind_tty_stdio (tty_name) < 0)
+  if ((pinned_tty_fd >= 0 ? bl_rebind_pinned_tty (pinned_tty_fd) :
+                          bl_rebind_tty_stdio (tty_name)) < 0)
     return EXECUTION_FAILURE;
 
   if (bl_policy_apply_limits (policy) < 0)
@@ -1513,7 +1890,9 @@ bl_exec_user (const bl_user *u, int keep_env, int login_shell,
       if (bc_caps_clear (caps_keep, err, sizeof err) < 0)
         {
           builtin_error ("become: %s", err[0] ? err : strerror (errno));
-          return EXECUTION_FAILURE;
+          /* Bounding/capability sets may already have changed. As with a
+             partial uid/gid drop, never return to the interpreter. */
+          _exit (126);
         }
     }
 
@@ -1544,17 +1923,16 @@ bl_exec_user (const bl_user *u, int keep_env, int login_shell,
      (setgroups → setresgid → setresuid → getresuid+getresgid verify).
      Passing n_groups=0 collapses to a single-element {primary gid}
      setgroups call inside the helper, matching prior behavior.
-     If the helper returns -1 the identity is *not yet* transformed
-     (every step short-circuits on first failure), so EXECUTION_FAILURE
-     is still safe — the _exit(126) rule below kicks in only AFTER the
-     drop has succeeded but the post-drop exec or env-build fails. */
+     The helper can fail after setgroups, setresgid or setresuid succeeded.
+     There is no safe rollback: never return to interpreter code after an
+     attempted transition, including failed saved-ID verification. */
   {
     char err[BC_PD_ERR_MAX];
     if (bc_privdrop_to_user (u->uid, u->gid, groups_ptr, n_groups,
                              err, sizeof err) < 0)
       {
         builtin_error ("become: %s", err[0] ? err : strerror (errno));
-        return EXECUTION_FAILURE;
+        _exit (126);
       }
   }
 
@@ -1622,6 +2000,8 @@ bl_become_cmd (WORD_LIST *args)
   const char *cmd = NULL;
   const char *auth_token = NULL;
   int auth_fd = -1;   /* --auth-fd N: -1 means "not set" */
+  int auth_v2_fd = -1;
+  unsigned auth_v2_encoding = BASHOS_AUTH_V2_STANDARD_PHC;
   int keep_env = 0;
   int login_shell = 1;   /* default: interactive login shell */
   int with_supplementary = 0;
@@ -1637,7 +2017,11 @@ bl_become_cmd (WORD_LIST *args)
       const char *w = p->word->word;
       if (saw_dashdash)
         {
-          if (extra_argc < 63) extra_argv[extra_argc++] = w;
+          if (extra_argc >= 64) {
+            builtin_error ("become: too many exec arguments");
+            return EX_USAGE;
+          }
+          extra_argv[extra_argc++] = w;
         }
       else if (strcmp (w, "--unsafe-keep-env") == 0) keep_env = 1;
       else if (strcmp (w, "--keep-env") == 0) {
@@ -1673,6 +2057,17 @@ bl_become_cmd (WORD_LIST *args)
             return EX_USAGE;
           }
           auth_fd = (int) n; }
+      else if (strcmp (w, "--auth-v2-fd") == 0)
+        { if (!p->next) { builtin_error ("--auth-v2-fd needs N"); return EX_USAGE; }
+          p = p->next;
+          char *end = NULL;
+          errno = 0;
+          long n = strtol (p->word->word, &end, 10);
+          if (errno || end == p->word->word || !end || *end || n < 0 || n > INT_MAX)
+            { builtin_error ("--auth-v2-fd: invalid fd"); return EX_USAGE; }
+          auth_v2_fd = (int) n; }
+      else if (strcmp (w, "--auth-v2-legacy-hex") == 0)
+        auth_v2_encoding = BASHOS_AUTH_V2_LEGACY_HEX;
       else if (strcmp (w, "--caps-clear") == 0)
         caps_keep = "";   /* clear all */
       else if (strncmp (w, "--caps-clear=", 13) == 0)
@@ -1685,12 +2080,16 @@ bl_become_cmd (WORD_LIST *args)
       else { builtin_error ("become: extra arg %s", w); return EX_USAGE; }
     }
   if (!user) { builtin_error ("become needs USER"); return EX_USAGE; }
+  if ((auth_v2_fd >= 0 && (auth_fd >= 0 || auth_token)) ||
+      (auth_v2_fd < 0 && auth_v2_encoding != BASHOS_AUTH_V2_STANDARD_PHC)) {
+    builtin_error ("become: select one authority protocol"); return EX_USAGE;
+  }
 
   bl_user u;
   int r = bl_lookup_user (user, &u);
   if (r == -2) { builtin_error ("cannot read passwd database: %s", strerror (errno)); return EXECUTION_FAILURE; }
   if (r == -1) { builtin_error ("become: no such user: %s", user); return EXECUTION_FAILURE; }
-  if (auth_fd < 0 && (!auth_token || !*auth_token) && bl_kernel_token_required ())
+  if (auth_v2_fd < 0 && auth_fd < 0 && (!auth_token || !*auth_token) && bl_kernel_token_required ())
     {
       /* Message keeps the historical "--auth-token required" phrasing
          for backward compatibility with tests/operators that grep for
@@ -1701,7 +2100,14 @@ bl_become_cmd (WORD_LIST *args)
     }
   /* Prefer --auth-fd over --auth-token when both are present: the fd path
      keeps the token bytes off of /proc/<pid>/cmdline. */
-  if (auth_fd >= 0)
+  if (auth_v2_fd >= 0)
+    {
+      if (bl_consume_v2 (&u, auth_v2_fd, auth_v2_encoding) < 0) {
+        builtin_error ("become: versioned kernel proof rejected");
+        return EXECUTION_FAILURE;
+      }
+    }
+  else if (auth_fd >= 0)
     {
       if (bl_consume_auth_token_via_fd (&u, auth_fd) < 0)
         return EXECUTION_FAILURE;
@@ -1709,7 +2115,7 @@ bl_become_cmd (WORD_LIST *args)
   else if (auth_token && bl_consume_auth_token (&u, auth_token) < 0)
     return EXECUTION_FAILURE;
   return bl_exec_user (&u, keep_env, login_shell, 0, cmd, extra_argc, extra_argv, NULL,
-                       with_supplementary, no_new_privs, caps_keep, NULL);
+                       with_supplementary, no_new_privs, caps_keep, NULL, -1);
 }
 
 static void
@@ -1735,6 +2141,27 @@ bl_sleep_after_failure (int attempt, int max_tries)
 {
   if (max_tries <= 1) return;
   sleep (attempt == 0 ? 1 : (attempt == 1 ? 5 : 30));
+}
+
+static int
+bl_login_retry_delay (int versioned, int attempt, int max_tries)
+{
+  struct timespec deadline;
+  int error;
+  if (!versioned)
+    { bl_sleep_after_failure (attempt, max_tries); return 0; }
+  if (bl_login_hup_seen) { errno = ECANCELED; return -1; }
+  if (max_tries <= 1) return 0;
+  if (clock_gettime (CLOCK_MONOTONIC, &deadline) < 0) return -1;
+  deadline.tv_sec += attempt == 0 ? 1 : (attempt == 1 ? 5 : 30);
+  do
+    {
+      error = clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, NULL);
+      if (bl_login_hup_seen) { errno = ECANCELED; return -1; }
+    }
+  while (error == EINTR);
+  if (error) { errno = error; return -1; }
+  return 0;
 }
 
 static int
@@ -1819,6 +2246,45 @@ bl_policy_check_access (const bl_login_policy *policy, const bl_user *u,
 #define BL_WTMP    "/var/log/wtmp"
 #define BL_LASTLOG "/var/log/lastlog"
 
+/* Administrative accounting files must not redirect writes to a symlink,
+   device, pipe or multiply linked inode. O_NONBLOCK also bounds a FIFO open
+   before its type is known. Traditional group-writable utmp/wtmp are allowed;
+   world-writable or non-root-owned files are not. */
+static int
+bl_accounting_open (const char *path, int flags, mode_t mode)
+{
+  struct stat st;
+  if (lstat (path, &st) == 0)
+    {
+      if (!S_ISREG (st.st_mode) || st.st_uid != 0 || st.st_nlink != 1 ||
+          (st.st_mode & S_IWOTH))
+        { errno = EPERM; return -1; }
+    }
+  else if (errno != ENOENT)
+    return -1;
+  int fd = open (path, flags | O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK,
+                 mode);
+  if (fd < 0) return -1;
+  if (fstat (fd, &st) < 0 || !S_ISREG (st.st_mode) || st.st_uid != 0 ||
+      st.st_nlink != 1 || (st.st_mode & S_IWOTH) || flock (fd, LOCK_EX) < 0)
+    {
+      close (fd);
+      errno = EPERM;
+      return -1;
+    }
+  return fd;
+}
+
+static int
+bl_accounting_finish (int fd)
+{
+  int error = 0;
+  if (fsync (fd) < 0) error = errno;
+  if (close (fd) < 0 && !error) error = errno;
+  if (error) { errno = error; return -1; }
+  return 0;
+}
+
 static void
 bl_fill_utmp (struct utmp *rec, const bl_user *u, const char *line)
 {
@@ -1842,11 +2308,12 @@ bl_fill_utmp (struct utmp *rec, const bl_user *u, const char *line)
 static int
 bl_utmp_write (const struct utmp *rec)
 {
-  int fd = open (BL_UTMP, O_RDWR | O_CREAT | O_CLOEXEC, 0644);
+  int fd = bl_accounting_open (BL_UTMP, O_RDWR, 0644);
   if (fd < 0)
     { builtin_warning ("login: open %s: %s", BL_UTMP, strerror (errno)); return -1; }
-  if (flock (fd, LOCK_EX) < 0 && errno != ENOSYS)
-    { builtin_warning ("login: flock %s: %s", BL_UTMP, strerror (errno)); close (fd); return -1; }
+  struct stat st;
+  if (fstat (fd, &st) < 0 || st.st_size % (off_t) sizeof *rec)
+    { close (fd); errno = EIO; return -1; }
 
   struct utmp tmp;
   off_t pos = 0;
@@ -1858,30 +2325,30 @@ bl_utmp_write (const struct utmp *rec)
           if (lseek (fd, pos, SEEK_SET) < 0 ||
               write (fd, rec, sizeof *rec) != (ssize_t) sizeof *rec)
             { close (fd); return -1; }
-          close (fd);
-          return 0;
+          return bl_accounting_finish (fd);
         }
       pos += sizeof tmp;
     }
-  if (n < 0)
-    { close (fd); return -1; }
+  if (n != 0)
+    { close (fd); errno = EIO; return -1; }
   if (lseek (fd, 0, SEEK_END) < 0 ||
       write (fd, rec, sizeof *rec) != (ssize_t) sizeof *rec)
     { close (fd); return -1; }
-  close (fd);
-  return 0;
+  return bl_accounting_finish (fd);
 }
 
 static int
 bl_wtmp_append (const struct utmp *rec)
 {
-  int fd = open (BL_WTMP, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0664);
+  int fd = bl_accounting_open (BL_WTMP, O_WRONLY | O_APPEND, 0664);
   if (fd < 0)
     { builtin_warning ("login: open %s: %s", BL_WTMP, strerror (errno)); return -1; }
+  struct stat st;
+  if (fstat (fd, &st) < 0 || st.st_size % (off_t) sizeof *rec)
+    { close (fd); errno = EIO; return -1; }
   if (write (fd, rec, sizeof *rec) != (ssize_t) sizeof *rec)
     { close (fd); return -1; }
-  close (fd);
-  return 0;
+  return bl_accounting_finish (fd);
 }
 
 static int
@@ -1905,18 +2372,19 @@ bl_lastlog_write (const bl_user *u, const char *tty_name)
   if (bl_tty_line (tty_name, line, sizeof line) < 0)
     return 0;
 
-  int fd = open (BL_LASTLOG, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
+  int fd = bl_accounting_open (BL_LASTLOG, O_WRONLY, 0644);
   if (fd < 0)
     { builtin_warning ("login: open %s: %s", BL_LASTLOG, strerror (errno)); return -1; }
-  if (flock (fd, LOCK_EX) < 0 && errno != ENOSYS)
-    { builtin_warning ("login: flock %s: %s", BL_LASTLOG, strerror (errno)); close (fd); return -1; }
 
   struct lastlog ll;
   memset (&ll, 0, sizeof ll);
   ll.ll_time = time (NULL);
   strncpy (ll.ll_line, line, sizeof ll.ll_line - 1);
 
-  off_t off = (off_t) u->uid * (off_t) sizeof ll;
+  uintmax_t max_offset = ((uintmax_t) 1 << (sizeof (off_t) * CHAR_BIT - 1)) - 1;
+  if ((uintmax_t) u->uid > max_offset / sizeof ll)
+    { close (fd); errno = EOVERFLOW; return -1; }
+  off_t off = (off_t) ((uintmax_t) u->uid * sizeof ll);
   if (lseek (fd, off, SEEK_SET) < 0 ||
       write (fd, &ll, sizeof ll) != (ssize_t) sizeof ll)
     {
@@ -1924,8 +2392,7 @@ bl_lastlog_write (const bl_user *u, const char *tty_name)
       close (fd);
       return -1;
     }
-  close (fd);
-  return 0;
+  return bl_accounting_finish (fd);
 }
 
 static int
@@ -2176,6 +2643,8 @@ typedef struct {
   int show_motd;
   int motd_done;
   int lastlog_done;
+  int defer_accounting;
+  int authority_v2;
   const bashos_shadow_entry *shadow;
   const char *login_name;
   long today_days;
@@ -2346,7 +2815,9 @@ bl_policy_run_chain (const bl_login_policy *policy, int phase, bl_chain_ctx *ctx
             }
           break;
         case BL_MOD_LOCKOUT:
-          if (ctx->u && bl_check_lockout (ctx->u->name, ctx->u, policy) < 0)
+          if (ctx->u && (ctx->authority_v2 ?
+              bl_v2_lock_check (ctx->u->name, ctx->u, policy) != 0 :
+              bl_check_lockout (ctx->u->name, ctx->u, policy) < 0))
             failed = 1;
           break;
         case BL_MOD_LIMITS:
@@ -2363,7 +2834,7 @@ bl_policy_run_chain (const bl_login_policy *policy, int phase, bl_chain_ctx *ctx
             }
           break;
         case BL_MOD_LASTLOG:
-          if (!ctx->lastlog_done)
+          if (!ctx->lastlog_done && !ctx->defer_accounting)
             {
               failed = bl_lastlog_write (ctx->u, ctx->tty_name) < 0;
               if (!failed)
@@ -2425,7 +2896,7 @@ bl_policy_run_chain (const bl_login_policy *policy, int phase, bl_chain_ctx *ctx
 }
 
 static int
-bl_login_cmd (WORD_LIST *args)
+bl_login_cmd_inner (WORD_LIST *args, int versioned, bl_login_scope *scope)
 {
   const char *tty_name = NULL;
   int max_tries = 3;
@@ -2434,6 +2905,8 @@ bl_login_cmd (WORD_LIST *args)
   int keep_env = 0;
   int with_supplementary = 0;
   int no_new_privs = 0;
+  unsigned v2_encoding = BASHOS_AUTH_V2_STANDARD_PHC;
+  int qualification_only = 0;
   for (WORD_LIST *p = args; p; p = p->next)
     {
       const char *w = p->word->word;
@@ -2449,12 +2922,36 @@ bl_login_cmd (WORD_LIST *args)
       }
       else if (strcmp (w, "--with-supplementary") == 0) with_supplementary = 1;
       else if (strcmp (w, "--no-new-privs")       == 0) no_new_privs       = 1;
+      else if (versioned && strcmp (w, "--legacy-hex") == 0)
+        v2_encoding = BASHOS_AUTH_V2_LEGACY_HEX;
+      else if (versioned && strcmp (w, "--qualification-device") == 0)
+        qualification_only = 1;
       else if (strcmp (w, "--max-tries") == 0)
         { if (!p->next) { builtin_error ("login: --max-tries needs N"); return EX_USAGE; }
-          p = p->next; max_tries = atoi (p->word->word); }
+          p = p->next;
+          if (versioned)
+            {
+              long tries;
+              if (bls_number (p->word->word, 10, &tries) < 0 || tries < 1)
+                { builtin_error ("login-v2: --max-tries must be 1 through 10"); return EX_USAGE; }
+              max_tries = (int) tries;
+            }
+          else max_tries = atoi (p->word->word);
+        }
       else { builtin_error ("login: unexpected arg: %s", w); return EX_USAGE; }
     }
   if (max_tries < 1 || max_tries > 10) max_tries = 3;
+
+  /* This is a credential-drop entry point, not an elevation mechanism.
+     Root is only a prerequisite: the native verifier and same-task one-use
+     reference remain mandatory for every versioned authentication. */
+  if (versioned && (getuid () != 0 || geteuid () != 0))
+    {
+      builtin_error ("login-v2: a privileged session launcher is required");
+      return EXECUTION_FAILURE;
+    }
+  if (versioned && bl_pin_login_tty (scope, &tty_name) < 0)
+    return EXECUTION_FAILURE;
 
   bl_login_policy policy;
   if (bl_policy_load (&policy) < 0)
@@ -2463,19 +2960,12 @@ bl_login_cmd (WORD_LIST *args)
   int policy_password_phase = policy_chain &&
                               bl_policy_phase_has (&policy, BL_PH_PASSWORD);
 
-  /* The login verb reads and verifies password bytes in-process. Avoid
-     writing that address space to a core dump while authentication runs. */
-  if (prctl (PR_SET_DUMPABLE, 0, 0, 0, 0) < 0)
-    builtin_warning ("login: prctl(PR_SET_DUMPABLE,0): %s", strerror (errno));
-
-  bl_login_hup_seen = 0;
-  struct sigaction old_hup, old_term, old_int, sa;
-  memset (&sa, 0, sizeof sa);
-  sa.sa_handler = bl_login_signal;
-  sigemptyset (&sa.sa_mask);
-  sigaction (SIGHUP, &sa, &old_hup);
-  sigaction (SIGTERM, &sa, &old_term);
-  sigaction (SIGINT, &sa, &old_int);
+  if (bl_login_scope_begin (scope) < 0)
+    {
+      builtin_error ("login: cannot protect interactive invocation: %s",
+                     strerror (errno));
+      return EXECUTION_FAILURE;
+    }
 
   bl_cat_file ("/etc/issue");
   char hn[128] = "bash-os";
@@ -2494,42 +2984,55 @@ bl_login_cmd (WORD_LIST *args)
       char user[64];
       printf ("%s login: ", hn);
       fflush (stdout);
-      if (!fgets (user, sizeof user, stdin)) return EXECUTION_FAILURE;
+      if (versioned ? bl_read_login_name_v2 (scope->tty_fd, user, sizeof user) < 0 :
+                      !fgets (user, sizeof user, stdin))
+        return EXECUTION_FAILURE;
       if (bl_login_hup_seen)
         return EXECUTION_FAILURE;
       user[strcspn (user, "\r\n")] = '\0';
-      if (!bl_valid_user_name (user))
-        {
-          bl_sleep_after_failure (attempt, max_tries);
-          printf ("Login incorrect\n");
-          continue;
-        }
+      /* Invalid names follow the same password-prompt/failure path as unknown
+         names, but never reach account lookups or per-user state paths. */
+      int valid_name = bl_valid_user_name (user);
 
 	      bl_user u;
-	      int lr = bl_lookup_user (user, &u);
-	      if (lr != 0 && policy_chain && bl_policy_wants_nss_userdb (&policy))
+	      int lr = valid_name ? bl_lookup_user (user, &u) : -1;
+	      if (valid_name && lr != 0 && policy_chain && bl_policy_wants_nss_userdb (&policy))
 	        lr = bl_lookup_user_nss (user, &u);
 	      bashos_shadow_entry shadow;
-	      int sr = bl_read_shadow_entry (user, &shadow);
+	      int sr = valid_name ? bl_read_shadow_entry (user, &shadow) : -1;
+              if (versioned && valid_name)
+                {
+                  int locked = bl_v2_lock_check (user, lr == 0 ? &u : NULL, &policy);
+                  if (locked < 0) return EXECUTION_FAILURE;
+                  if (locked)
+                    {
+                      if (bl_login_retry_delay (versioned, attempt, max_tries) < 0)
+                        return EXECUTION_FAILURE;
+                      continue;
+                    }
+                }
 	      if (lr == 0 && policy_chain)
 	        {
 	          bl_chain_ctx ctx = {
-	            .u = &u, .tty_name = tty_name, .show_motd = !no_motd
+	            .u = &u, .tty_name = tty_name, .show_motd = !no_motd,
+                    .defer_accounting = versioned, .authority_v2 = versioned
 	          };
 	          if (bl_policy_run_chain (&policy, BL_PH_AUTH, &ctx) < 0)
 	            {
-	              bl_sleep_after_failure (attempt, max_tries);
+	              if (bl_login_retry_delay (versioned, attempt, max_tries) < 0)
+                        return EXECUTION_FAILURE;
 	              continue;
 	            }
 	        }
-	      else if (lr == 0 && bl_check_lockout (user, &u, &policy) < 0)
+	      else if (!versioned && lr == 0 && bl_check_lockout (user, &u, &policy) < 0)
 	        {
 	          bl_sleep_after_failure (attempt, max_tries);
 	          continue;
 	        }
 	      unsigned char *pw = NULL;
 	      size_t pw_len = 0;
-	      if (bl_read_password ("Password: ", &pw, &pw_len) < 0)
+	      if ((versioned ? bl_read_password_v2 (scope->tty_fd, &pw, &pw_len) :
+                           bl_read_password ("Password: ", &pw, &pw_len)) < 0)
 	        return EXECUTION_FAILURE;
 	      if (bl_login_hup_seen)
 	        {
@@ -2541,14 +3044,43 @@ bl_login_cmd (WORD_LIST *args)
 	        }
 
       int ok = 0;
-      if (lr == 0 && sr == 0 && bl_verify_secret (pw, pw_len, shadow.phc) == 0)
+      struct bls_state failure_state = { .directory = -1, .guard = -1 };
+      if (versioned && valid_name)
+        {
+          /* Another invocation may have locked the account while this one
+             waited for its password. Recheck under the guard and keep it
+             through verification and the resulting failure update. */
+          int locked = bl_v2_lock_begin (user, lr == 0 ? &u : NULL, &policy, &failure_state);
+          if (locked != 0)
+            {
+              bashos_secure_free_password (pw);
+              if (locked < 0 || bl_login_retry_delay (versioned, attempt, max_tries) < 0)
+                return EXECUTION_FAILURE;
+              continue;
+            }
+        }
+      if (lr == 0 && sr == 0 &&
+          (versioned ? bl_verify_v2_password (&u, pw, pw_len, v2_encoding, qualification_only) :
+                       bl_verify_secret (pw, pw_len, shadow.phc)) == 0)
         ok = 1;
       bashos_secure_free_password (pw);
 
+      if (!ok && failure_state.guard >= 0 &&
+          bls_failure (&failure_state, policy.lock_fail_max,
+                       policy.lock_window, policy.lock_duration) < 0)
+        {
+          bls_close (&failure_state);
+          builtin_error ("login-v2: cannot persist authentication failure: %s", strerror (errno));
+          return EXECUTION_FAILURE;
+        }
+      bls_close (&failure_state);
+
 	      if (!ok)
 	        {
-	          bl_record_failure (user, lr == 0 ? &u : NULL, &policy);
-	          bl_sleep_after_failure (attempt, max_tries);
+	          if (!versioned && valid_name)
+	            bl_record_failure (user, lr == 0 ? &u : NULL, &policy);
+	          if (bl_login_retry_delay (versioned, attempt, max_tries) < 0)
+                    return EXECUTION_FAILURE;
 	          printf ("Login incorrect\n");
 	          continue;
 	        }
@@ -2560,7 +3092,8 @@ bl_login_cmd (WORD_LIST *args)
 	          bl_chain_ctx ctx = {
 	            .u = &u, .tty_name = tty_name, .show_motd = !no_motd,
 	            .shadow = &shadow, .login_name = user,
-	            .today_days = bl_today_days (), .warn_remaining = -1
+	            .today_days = bl_today_days (), .warn_remaining = -1,
+                    .defer_accounting = versioned, .authority_v2 = versioned
 	          };
 	          if (bl_policy_run_chain (&policy, BL_PH_PASSWORD, &ctx) < 0)
 	            return EXECUTION_FAILURE;
@@ -2584,7 +3117,8 @@ bl_login_cmd (WORD_LIST *args)
 	      if (policy_chain)
 	        {
 	          bl_chain_ctx ctx = {
-	            .u = &u, .tty_name = tty_name, .show_motd = !no_motd
+	            .u = &u, .tty_name = tty_name, .show_motd = !no_motd,
+                    .defer_accounting = versioned, .authority_v2 = versioned
 	          };
 	          if (bl_policy_run_chain (&policy, BL_PH_ACCOUNT, &ctx) < 0)
 	            return EXECUTION_FAILURE;
@@ -2598,31 +3132,59 @@ bl_login_cmd (WORD_LIST *args)
 	            return EXECUTION_FAILURE;
 	        }
 
-	      if (bl_login_kernel_proof (&u) < 0)
+	      if (!versioned && bl_login_kernel_proof (&u) < 0)
 	        return EXECUTION_FAILURE;
 
-	      bl_record_success (user, &u);
+	      if (!versioned) bl_record_success (user, &u);
 	      if (!policy_password_phase && aging_status > 0)
 	        bl_shadow_aging_report (user, aging_status, warn_remaining);
 
-	      if (tty_name && bl_record_utmp_login (&u, tty_name) < 0)
+	      if (!versioned && tty_name && bl_record_utmp_login (&u, tty_name) < 0)
 	        return EXECUTION_FAILURE;
 
 	      if (policy_chain)
 	        {
 	          bl_chain_ctx ctx = {
-	            .u = &u, .tty_name = tty_name, .show_motd = !no_motd
+	            .u = &u, .tty_name = tty_name, .show_motd = !no_motd,
+                    .defer_accounting = versioned, .authority_v2 = versioned
 	          };
 	          if (bl_policy_run_chain (&policy, BL_PH_SESSION, &ctx) < 0)
 	            return EXECUTION_FAILURE;
 	        }
 
+      /* Every versioned session records the actual terminal and actor after
+         all policy phases accept. An explicit lastlog chain entry is deferred
+         to this mandatory write. These three files are not one transaction:
+         any write/sync failure refuses exec and may leave earlier records. */
+      if (versioned && (bl_login_hup_seen ||
+                        tcgetsid (scope->tty_fd) != getsid (0) ||
+                        bl_v2_lock_success (user, &u, &policy) < 0 ||
+                        bl_record_utmp_login (&u, tty_name) < 0 ||
+                        bl_lastlog_write (&u, tty_name) < 0))
+        return EXECUTION_FAILURE;
+
       return bl_exec_user (&u, keep_env, 1, !no_motd && !policy_chain,
                            NULL, 0, NULL, tty_name,
-                           with_supplementary, no_new_privs, NULL, &policy);
+                           with_supplementary, no_new_privs, NULL, &policy,
+                           scope->tty_fd);
     }
   fprintf (stderr, "Maximum number of tries exceeded.\n");
   return EXECUTION_FAILURE;
+}
+
+static int
+bl_login_cmd_mode (WORD_LIST *args, int versioned)
+{
+  bl_login_scope scope = { .tty_fd = -1 };
+  int result = bl_login_cmd_inner (args, versioned, &scope);
+  bl_login_scope_end (&scope);
+  return result;
+}
+
+static int
+bl_login_cmd (WORD_LIST *args)
+{
+  return bl_login_cmd_mode (args, 0);
 }
 
 static int
@@ -2774,6 +3336,7 @@ login_builtin (WORD_LIST *list)
   if (strcmp (cmd, "policy-eval") == 0) return bl_policy_eval_cmd (args);
   if (strcmp (cmd, "become") == 0) return bl_become_cmd (args);
   if (strcmp (cmd, "login")  == 0) return bl_login_cmd (args);
+  if (strcmp (cmd, "login-v2") == 0) return bl_login_cmd_mode (args, 1);
   if (strcmp (cmd, "aging-check") == 0) return bl_aging_check_cmd (args);
   builtin_error ("unknown subcommand: %s (try lookup, become, login, aging-check, or policy-eval)", cmd);
   return EX_USAGE;
@@ -2786,12 +3349,17 @@ char *login_doc[] = {
   "        Print uid:gid:home:shell:gecos for USER, or exit 1.",
   "",
   "    login become USER [--auth-fd N | --auth-token HEX]",
+  "                     [--auth-v2-fd N [--auth-v2-legacy-hex]]",
   "                     [--unsafe-keep-env] [--no-login]",
   "                     [--with-supplementary] [--no-new-privs]",
   "                     [--caps-clear[=KEEP]]",
   "                     [-c CMD] [-- ARGS...]",
   "        Drop privileges to USER and exec their shell.",
   "        Refuses if calling uid != 0.",
+  "        --auth-v2-fd N: redeem the native verified identity on its original",
+  "          fd and task, using the explicit standard PHC protocol. The optional",
+  "          --auth-v2-legacy-hex selects trusted legacy records. Cannot mix",
+  "          these options with the historical auth-fd/auth-token route.",
   "        --auth-fd N: (preferred) read a 32-byte one-use /dev/bashos-auth",
   "          login token for USER from inherited fd N, then consume it via",
   "          ioctl(N) before any uid/gid change. Keeps the token off of",
@@ -2861,6 +3429,14 @@ char *login_doc[] = {
   "          Example: auth required lockout max=5 window=600 duration=900",
   "          Missing policy keeps the historical direct-login behavior;",
   "          parse errors fail closed before password prompting.",
+  "",
+  "    login login-v2 [login options] [--legacy-hex] [--qualification-device]",
+  "        Verify the kernel's pinned account record with the native verifier,",
+  "        then redeem its bound proof before session setup and credential drop.",
+  "        Standard PHC is explicit; --legacy-hex selects recorded compatibility.",
+  "        Existing shadow aging and login policy checks also apply. This route",
+  "        always requires its proof, regardless of the legacy migration flag.",
+  "        --qualification-device uses the separate disposable test endpoint.",
   "",
   "    login aging-check USER TODAY_DAYS",
   "        Offline helper: evaluate stored shadow aging fields for tests.",

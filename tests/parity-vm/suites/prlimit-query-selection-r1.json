@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "prlimit-query-selection-text-raw-r1",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "prlimit/query-output-formats"
+      ],
+      "purpose": "Multiple selected resources preserve the documented single-resource text and raw rows in resource order, including duplicate selectors.",
+      "requires": [
+        "prlimit",
+        "cmp"
+      ],
+      "script": "for mode in text raw; do\n  opts=(); [[ $mode == raw ]] && opts=(--raw --noheadings)\n  { prlimit \"${opts[@]}\" --core; prlimit \"${opts[@]}\" --nofile; prlimit \"${opts[@]}\" --stack; } > expected\n  prlimit \"${opts[@]}\" --stack --core --nofile --core > actual || exit 1\n  cmp -s expected actual || exit 2\ndone\nprintf 'selected rows match\\n'\n",
+      "stdout": "selected rows match\n",
+      "stderr": "",
+      "expected_status": 0,
+      "oracle": "Metamorphic composition of individually queried rows; historical kernel-backed and util-linux-adapted cases independently validate individual rows."
+    },
+    {
+      "id": "prlimit-query-selection-json-r1",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "prlimit/query-output-formats"
+      ],
+      "purpose": "Multiple selected resources produce the existing JSON collection shape with correct ordered values for the same PID.",
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "script": "prlimit --json --pid \"$BASHPID\" --stack --core --nofile > many || exit 1\nfor name in CORE NOFILE STACK; do prlimit --json --pid \"$BASHPID\" -r \"$name\" >> singles || exit 2; done\n/usr/bin/python3 -c 'import json,sys; a=json.load(open(\"many\")); b=[json.loads(x) for x in open(\"singles\")]; assert a == {\"pid\":int(sys.argv[1]),\"limits\":b}; print(\"selected json matches\")' \"$BASHPID\"\n",
+      "stdout": "selected json matches\n",
+      "stderr": "",
+      "expected_status": 0,
+      "oracle": "Metamorphic composition of individual JSON records; historical /proc-backed cases independently validate their values."
+    },
+    {
+      "id": "prlimit-query-selection-set-rejected-r1",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "prlimit/query-output-formats"
+      ],
+      "purpose": "Multiple resource selectors cannot accidentally apply a limit to one resource.",
+      "requires": [
+        "prlimit"
+      ],
+      "script": "before=$(prlimit --raw --noheadings --nofile) || exit 1\nprlimit --core --nofile=1 > out 2> err; rc=$?\nafter=$(prlimit --raw --noheadings --nofile) || exit 2\n[[ $rc != 0 && ! -s out && -s err && $before == \"$after\" ]] || exit 3\nprintf 'multi-set rejected unchanged\\n'\n",
+      "stdout": "multi-set rejected unchanged\n",
+      "stderr": "",
+      "expected_status": 0,
+      "oracle": "A rejected ambiguous set must leave the independently queried NOFILE limit unchanged."
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-hostname-set-length-65-preserves-64",
+      "loadable": "hostname",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "65-byte positional name fails without replacing a 64-byte hostname",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "requires": [
+        "python3",
+        "unshare",
+        "hostname",
+        "uname"
+      ],
+      "covers": [
+        "hostname/set-positional-name"
+      ],
+      "files": {
+        "inside.py": "# SPDX-License-Identifier: MIT\n# Independent UTS observation and Linux sethostname boundary control.\n# https://man7.org/linux/man-pages/man2/sethostname.2.html\nimport ctypes, errno, json, os, pathlib, shlex, subprocess, sys\nlib = ctypes.CDLL(None, use_errno=True)\ndef set_name(value):\n    data = value.encode()\n    result = lib.sethostname(data, len(data))\n    if result:\n        raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))\n    assert os.uname().nodename == value\nif sys.argv[1] == 'control':\n    assert os.geteuid() == 0\n    for size in [63, 64]:\n        set_name('x' * size)\n    try:\n        set_name('x' * 65)\n    except OSError as error:\n        assert error.errno == errno.EINVAL\n    else:\n        raise AssertionError('65-byte hostname was accepted by kernel')\n    assert os.uname().nodename == 'x' * 64\n    set_name('control.fixture')\n    raise SystemExit(0)\nconfig = json.loads(pathlib.Path('config.json').read_text())\nif config['namespace']:\n    assert os.geteuid() == 0\n    set_name('x' * 64)\nelse:\n    assert os.geteuid() == 2000\nbefore = os.uname().nodename\ncommand = 'hostname ' + shlex.join(config['arguments']) + '; rc=$?; exit \"$rc\"'\nresult = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', command], capture_output=True, timeout=4)\nafter = os.uname().nodename\ndiagnostic = result.stderr.decode().replace(sys.argv[2], '$SHELL')\nrecord = dict(status=result.returncode, stdout=result.stdout.decode(), stderr=diagnostic,\n              name=after if config['namespace'] else ('unchanged' if after == before else 'changed'))\nif config.get('contract'):\n    pathlib.Path('observation.json').write_text(json.dumps(record, sort_keys=True) + '\\n')\n    assert result.returncode == config['status'], record\n    assert result.stdout == b'' and config['diagnostic'] in diagnostic, record\n    assert after == before, record\n    print('status=%d name=unchanged stdout=empty diagnostic=verified' % result.returncode)\nelse:\n    query = subprocess.run(['/usr/bin/uname', '-n'], capture_output=True, timeout=2)\n    assert query.returncode == 0 and query.stdout == (after + '\\n').encode()\n    shell_query = subprocess.run([sys.argv[2], '--noprofile', '--norc', '-c', 'hostname'], capture_output=True, timeout=2)\n    record['query_status'] = shell_query.returncode\n    record['query_stdout'] = shell_query.stdout.decode()\n    record['query_stderr'] = shell_query.stderr.decode().replace(sys.argv[2], '$SHELL')\n    print(json.dumps(record, sort_keys=True))\n",
+        "supervisor.py": "# SPDX-License-Identifier: MIT\nimport json, os, pathlib, subprocess, sys\nconfig = json.loads(pathlib.Path('config.json').read_text())\nbefore = os.uname().nodename\nnamespace = os.readlink('/proc/self/ns/uts')\ncommand = ['/usr/bin/python3', 'inside.py', 'run', sys.argv[1]]\nif config['namespace']:\n    command = ['/usr/bin/unshare', '--user', '--map-root-user', '--uts', '--fork'] + command\nresult = subprocess.run(command, timeout=8)\nassert os.uname().nodename == before and os.readlink('/proc/self/ns/uts') == namespace\nprint('outer-uts=unchanged', flush=True)\nraise SystemExit(result.returncode)\n",
+        "config.json": "{\"arguments\": [\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"], \"contract\": true, \"diagnostic\": \"name too long\", \"namespace\": true, \"status\": 1}\n"
+      },
+      "script": "/usr/bin/python3 supervisor.py \"$BASH\"",
+      "comparison": "Exact result status, output and diagnostics plus independent uname read-back; a private user/UTS namespace permits only its own hostname changes, and the surrounding UTS name is checked unchanged.",
+      "features": [
+        "userns"
+      ],
+      "setup_script": "/usr/bin/unshare --user --map-root-user --uts --fork /usr/bin/python3 inside.py control",
+      "kind": "contract",
+      "oracle": "Independent Linux boundary control, then status 1, empty stdout, length diagnostic and unchanged 64-byte UTS name; outer UTS remains unchanged.",
+      "stdout": "status=1 name=unchanged stdout=empty diagnostic=verified\nouter-uts=unchanged\n"
+    }
+  ]
+}

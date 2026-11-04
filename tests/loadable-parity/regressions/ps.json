@@ -149,6 +149,19 @@
       "stderr": "nonempty"
     },
     {
+      "id": "synthetic-live-table-cpu-memory",
+      "kind": "contract",
+      "purpose": "Exercise full-table enumeration, stat fields including a parenthesized comm, lifetime CPU and memory percentages and aux columns with an independent synthetic proc snapshot.",
+      "requires": [
+        "getconf",
+        "date"
+      ],
+      "script": "export BASHOS_PROC_ROOT=procfix LC_ALL=C TZ=UTC\nnow=$(date +%s) || exit 1\nexpected_start=$(date -d \"@$now\" +%H:%M) || exit 1\nhz=$(getconf CLK_TCK) || exit 1\npagesize=$(getconf PAGESIZE) || exit 1\nmkdir -p procfix/9001\nprintf '200.00 0.00\\n' > procfix/uptime\nprintf 'btime %s\\n' \"$((now - 100))\" > procfix/stat\nprintf 'MemTotal: %s kB\\n' \"$((pagesize / 1024 * 400))\" > procfix/meminfo\nprintf '%s\\n' \"9001 (worker ) core) S 1 77 70 0 77 0 0 0 0 0 $((30 * hz)) 0 0 0 20 2 3 0 $((100 * hz)) 8192 4\" > procfix/9001/stat\nprintf 'Name:\\tworker\\nUid:\\t70001\\t70001\\t70001\\t70001\\nVmLck:\\t0 kB\\n' > procfix/9001/status\nprintf 'worker\\0--flag\\0' > procfix/9001/cmdline\nresult=$(ps -e -o pid,stat,%cpu,vsz,rss,comm) || exit 1\n[[ $result == \"PID STAT %CPU VSZ RSS COMMAND\"$'\\n'\"9001 SNl+ 30.0 8 $((4 * pagesize / 1024)) worker ) core\" ]] || { printf 'unexpected custom table: %s\\n' \"$result\"; exit 1; }\nresult=$(ps aux) || exit 1\nread -r user pid cpu mem vsz rss tty stat start elapsed command <<< \"${result#*$'\\n'}\"\n[[ $user == 70001 && $pid == 9001 && $cpu == 30.0 && $mem == 1.0 && $vsz == 8 && $rss == $((4 * pagesize / 1024)) && $tty == '?' && $stat == SNl+ && $start == \"$expected_start\" && $elapsed == 0:30 && $command == 'worker --flag' ]] || { printf 'unexpected aux table: %s\\n' \"$result\"; exit 1; }\nprintf 'synthetic table ok\\n' ",
+      "expected_status": 0,
+      "stdout": "synthetic table ok\n",
+      "stderr": "empty"
+    },
+    {
       "id": "live-table-and-aux-snapshot",
       "kind": "deferred",
       "purpose": "Validate default full-table enumeration and aux layout, percentages, and start times against a stable real procfs process set.",

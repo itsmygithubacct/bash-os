@@ -210,6 +210,42 @@ XS(boot_BashPerlProbe) {
         check('bashperl -e '+shlex.quote(child)+'; printf "shell\\n"',
               b'child\nparent:3\nshell\n')
         parity(['-e', 'system $ARGV[0], "-e", "exit 4"; print $? >> 8', str(reference)])
+        # Process effects are intentionally in the embedding process. Exercise
+        # these in separate shells so exec and descriptor changes are observable.
+        check('bashperl -e \'my $r=system("/bin/sh", "-c", "exit 3"); '
+              'print "rc=", $r >> 8, " q=", $? >> 8, "\\n"\'; '
+              'printf "shell-alive status=%s\\n" "$?"',
+              b'rc=3 q=3\nshell-alive status=0\n')
+        check('(bashperl -e \'exec "/bin/echo", "execd"\'); '
+              'printf "after-subshell status=%s\\n" "$?"',
+              b'execd\nafter-subshell status=0\n')
+        check('bashperl -e \'exec "/bin/echo", "execd"\'; echo notreached', b'execd\n')
+        check('trap \'echo shell-usr1\' USR1; trap "" USR2; '
+              'bashperl -e \'$SIG{USR1}=sub{print "perl-usr1\\n"}; '
+              '$SIG{USR2}=sub{print "perl-usr2\\n"}; '
+              'kill "USR1", $$; kill "USR2", $$; print "perl-done\\n"\'; '
+              'printf "perl-status=%s\\n" "$?"; kill -USR1 "$BASHPID"; '
+              'echo after-usr1; kill -USR2 "$BASHPID"; echo after-usr2',
+              b'perl-usr1\nperl-usr2\nperl-done\nperl-status=0\n'
+              b'shell-usr1\nafter-usr1\nafter-usr2\n')
+        p = run('bashperl -e \'open(my $o, ">", "redir.txt") or die; '
+                'open(STDOUT, ">&", $o) or die; print STDOUT "to-file\\n"; '
+                'close(STDOUT); close(STDERR); close(STDIN)\'; '
+                'echo "rc=$?"; echo stdout-ok; echo stderr-ok >&2; '
+                'read -r line; echo "stdin-ok:$line"; '
+                'read -r line < redir.txt; echo "$line"', data=b'from-input\n')
+        assert (p.returncode, p.stdout, p.stderr) == (
+            0, b'rc=0\nstdout-ok\nstdin-ok:from-input\nto-file\n', b'stderr-ok\n'), p
+        checks += 1
+        check('exec 7>fd7.out; bashperl -MPOSIX -e \'POSIX::close(7)\'; '
+              '{ echo late >&7; } 2>/dev/null; echo "write-rc=$?"', b'write-rc=1\n')
+        check('X=before; cd /; umask 027; '
+              'bashperl -MPOSIX -MList::Util=sum,max -MData::Dumper -e '
+              '\'$Data::Dumper::Terse=1; $Data::Dumper::Indent=0; '
+              'print sum(1..10), " ", max(4,9,2), " ", POSIX::floor(2.7), " ", '
+              'POSIX::strftime("%Y-%m-%d", gmtime(86400*365)), " ", Dumper([1,{a=>2}]), "\\n"\'; '
+              'echo "status=$? X=$X pwd=$PWD umask=$(umask)"',
+              b"55 9 2 1971-01-01 [1,{'a' => 2}]\nstatus=0 X=before pwd=/ umask=0027\n")
         check('bashperl -i.bak -pe \'s/one/ONE/\' one; '
               'read -r line < one; printf "%s\\n" "$line"; '
               'read -r line < one.bak; printf "%s\\n" "$line"', b'ONE\none\n')

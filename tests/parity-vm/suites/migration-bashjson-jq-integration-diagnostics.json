@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-bashjson-jq-control-encoded-string",
+      "kind": "contract",
+      "candidate_script": "printf '%s' '{\"name\":\"alice \\\"q\\\" \\u00e9\"}' | builtin bashjson get .name\n",
+      "stdout": "\"alice \\\"q\\\" \\u00e9\"\n",
+      "oracle": "bashjson get documents JSON-encoded output; its token emitter retains the input spelling.",
+      "comparison": "Checks that bashjson retrieves the raw JSON string token; this does not check wrapper decoding.",
+      "loadable": "bashjson",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0
+    },
+    {
+      "id": "mig-bashjson-jq-control-nested",
+      "reference_script": "printf '%s' '{\"users\":[{\"profile\":{\"meta\":{\"deep\":[10,20,30]}}}]}' | /usr/bin/jq ' .users[0].profile.meta.deep[2] '\n",
+      "candidate_script": "printf '%s' '{\"users\":[{\"profile\":{\"meta\":{\"deep\":[10,20,30]}}}]}' | builtin bashjson get '.users[0].profile.meta.deep[2]'\n",
+      "requires": [
+        "jq"
+      ],
+      "oracle": "Guest jq for nested scalar lookup.",
+      "comparison": "Distinguishes bashjson path resolution from wrapper availability.",
+      "loadable": "bashjson",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0
+    },
+    {
+      "id": "mig-bashjson-jq-wrapper-raw-escapes",
+      "reference_script": "printf '%s' '{\"s\":\"line\\nquote: \\\" slash: \\\\ music: \\ud834\\udd1e\"}' | /usr/bin/jq -r .s\n",
+      "candidate_script": "printf '%s' '{\"s\":\"line\\nquote: \\\" slash: \\\\ music: \\ud834\\udd1e\"}' | \"$BASH\" /bash-os/jq.sh -r .s\n",
+      "requires": [
+        "jq"
+      ],
+      "oracle": "Guest jq raw string output including escapes and a Unicode surrogate pair.",
+      "comparison": "Compares exact output bytes and status; absence of the wrapper remains failure.",
+      "loadable": "bashjson",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0
+    }
+  ]
+}

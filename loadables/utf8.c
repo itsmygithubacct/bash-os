@@ -52,6 +52,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdint.h>
+#include <limits.h>
 #include <locale.h>
 #include <wchar.h>
 
@@ -68,6 +69,104 @@ typedef size_t (*bu_mapper) (const char *, size_t, char *, size_t);
 /* RFC-3629-strict single-codepoint decoder (defined below). Forward-
    declared so bu_length_cmd's codepoint counter can route through it. */
 static uint32_t bu_decode_one (const unsigned char *s, size_t n, size_t *used);
+
+/* Binary-input verbs keep byte counts outside Bash strings. Input is consumed
+   from a caller-owned descriptor through EOF; the descriptor is never closed.
+   The limit bounds allocation, including on pipes with untrusted producers. */
+#define BU_FD_MAX_INPUT (16U * 1024U * 1024U)
+
+static int
+bu_size_arg (const char *s, size_t *value)
+{
+    size_t v = 0;
+    if (!s || !*s) return -1;
+    for (; *s; ++s) {
+        if (*s < '0' || *s > '9' || v > (SIZE_MAX - (unsigned) (*s - '0')) / 10)
+            return -1;
+        v = v * 10 + (unsigned) (*s - '0');
+    }
+    *value = v;
+    return 0;
+}
+
+static int
+bu_read_fd (int fd, char **data, size_t *length)
+{
+    size_t cap = 4096, used = 0;
+    char *buf = malloc (cap);
+    if (!buf) { builtin_error ("binary input: out of memory"); return -1; }
+    for (;;) {
+        if (used == cap) {
+            if (cap == BU_FD_MAX_INPUT) {
+                char extra;
+                ssize_t n;
+                do n = read (fd, &extra, 1); while (n < 0 && errno == EINTR);
+                if (n == 0) break;
+                if (n < 0) builtin_error ("read fd %d: %s", fd, strerror (errno));
+                else builtin_error ("binary input exceeds 16 MiB");
+                free (buf);
+                return -1;
+            }
+            size_t grown_cap = cap * 2;
+            char *grown = realloc (buf, grown_cap);
+            if (!grown) { builtin_error ("binary input: out of memory"); free (buf); return -1; }
+            buf = grown; cap = grown_cap;
+        }
+        ssize_t n = read (fd, buf + used, cap - used);
+        if (n < 0 && errno == EINTR) continue;
+        if (n < 0) {
+            builtin_error ("read fd %d: %s", fd, strerror (errno));
+            free (buf); return -1;
+        }
+        if (n == 0) break;
+        used += (size_t) n;
+    }
+    *data = buf; *length = used;
+    return 0;
+}
+
+static int
+bu_grapheme_fd_cmd (WORD_LIST *args, int slice)
+{
+    size_t fd, start = 0, end = 0;
+    if (!args || bu_size_arg (args->word->word, &fd) < 0 || fd > INT_MAX)
+        goto usage;
+    WORD_LIST *range = args->next;
+    if (slice) {
+        if (!range || !range->next || range->next->next ||
+            bu_size_arg (range->word->word, &start) < 0 ||
+            bu_size_arg (range->next->word->word, &end) < 0 || end < start)
+            goto usage;
+    } else if (range) goto usage;
+    char *text;
+    size_t n;
+    if (bu_read_fd ((int) fd, &text, &n) < 0) return EXECUTION_FAILURE;
+    size_t pos = 0, count = 0, first = n, last = n;
+    for (;;) {
+        if (count == start) first = pos;
+        if (count == end) last = pos;
+        if (pos == n) break;
+        size_t step = grapheme_next_character_break_utf8 (text + pos, n - pos);
+        if (!step || step > n - pos) {
+            builtin_error ("invalid grapheme boundary"); free (text);
+            return EXECUTION_FAILURE;
+        }
+        pos += step; count++;
+    }
+    int rc = EXECUTION_SUCCESS;
+    if (slice) {
+        /* Raw bytes, with no added newline and no Bash variable transport. */
+        if (last < first || fwrite (text + first, 1, last - first, stdout) != last - first)
+            rc = EXECUTION_FAILURE;
+    } else if (printf ("%zu\n", count) < 0) rc = EXECUTION_FAILURE;
+    if (fflush (stdout) == EOF) rc = EXECUTION_FAILURE;
+    free (text);
+    return rc;
+usage:
+    builtin_error (slice ? "slice-fd: FD START END (0 <= START <= END; raw output)"
+                         : "length-fd: FD (grapheme count)");
+    return EX_USAGE;
+}
 
 static int
 bu_emit_or_bind (const char *var, const char *s, size_t n)
@@ -923,6 +1022,10 @@ utf8_builtin (WORD_LIST *list)
         return bu_length_cmd (args);
     if (!strcmp (cmd, "slice"))
         return bu_slice_cmd (args);
+    if (!strcmp (cmd, "length-fd"))
+        return bu_grapheme_fd_cmd (args, 0);
+    if (!strcmp (cmd, "slice-fd"))
+        return bu_grapheme_fd_cmd (args, 1);
     if (!strcmp (cmd, "normalize"))
         return bu_normalize_cmd (args);
     if (!strcmp (cmd, "casefold"))
@@ -930,7 +1033,7 @@ utf8_builtin (WORD_LIST *list)
     if (!strcmp (cmd, "cmp"))
         return bu_cmp_cmd (args);
     builtin_error ("unknown verb: %s "
-                   "(try lower/upper/title/length/slice/normalize/casefold/cmp)", cmd);
+                   "(try lower/upper/title/length/slice/length-fd/slice-fd/normalize/casefold/cmp)", cmd);
     return EX_USAGE;
 }
 
@@ -944,6 +1047,9 @@ char *utf8_doc[] = {
     "                                     count grapheme|codepoint|byte|width",
     "    utf8 slice TEXT START END [-T MODE] [-L wcwidth|eaw-default|locale|libc] [-V VAR]",
     "                                     substring with cluster-aware indexing",
+    "    utf8 length-fd FD                 count graphemes, including embedded NUL",
+    "    utf8 slice-fd FD START END        raw cluster bytes, without added newline",
+    "                                     read through EOF, up to 16 MiB; FD stays open",
     "",
     "    utf8 normalize FORM TEXT [-V VAR]  Unicode 17 NFC/NFD/NFKC/NFKD",
     "    utf8 casefold TEXT [-V VAR]        Unicode 17 full/common casefold",
@@ -960,6 +1066,6 @@ struct builtin utf8_struct = {
     utf8_builtin,
     BUILTIN_ENABLED,
     utf8_doc,
-    "utf8 lower|upper|title|length|slice|normalize|casefold|cmp ARGS",
+    "utf8 lower|upper|title|length|slice|length-fd|slice-fd|normalize|casefold|cmp ARGS",
     0
 };

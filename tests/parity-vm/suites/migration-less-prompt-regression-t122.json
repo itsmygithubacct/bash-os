@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-less-prompt-navigation-regression-t122",
+      "loadable": "less",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "less/pty-navigation-and-quit"
+      ],
+      "purpose": "The prompt follows navigation away from and back to EOF, while remaining on the bottom row.",
+      "oracle": "byte-independent parity vs GNU less (Debian less 668) run by the reference shell; the reference must satisfy the same row-23 assertions",
+      "comparison": "semantic PTY assertion on the decoded prompt row (pyte), reference and candidate each checked; screen bytes are not compared",
+      "requires": [
+        "less"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\n"
+      },
+      "script": "less note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$",
+              "23": "^(note|:)$"
+            }
+          }
+        },
+        {
+          "send": "G"
+        },
+        {
+          "screen": {
+            "rows": {
+              "22": "^line-080$",
+              "23": "^\\(END\\)$"
+            }
+          }
+        },
+        {
+          "send": "g"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$",
+              "23": "^:$"
+            }
+          }
+        },
+        {
+          "send": "j"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-002$",
+              "23": "^:$"
+            }
+          }
+        },
+        {
+          "send": "G"
+        },
+        {
+          "screen": {
+            "rows": {
+              "22": "^line-080$",
+              "23": "^\\(END\\)$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0
+    }
+  ]
+}

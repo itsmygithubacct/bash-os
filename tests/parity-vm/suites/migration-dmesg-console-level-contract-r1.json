@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-dmesg-console-level-contract-r1",
+      "loadable": "dmesg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "covers": [
+        "dmesg/console-level-change"
+      ],
+      "purpose": "Compare every numeric threshold and canonical level name against util-linux on the live kernel; check capability denial and status-2 invalid arguments before syslog with a positive seccomp control. Restore the initial console threshold.",
+      "oracle": "Live util-linux for valid levels; explicit candidate status and seccomp contract for errors.",
+      "candidate_script": "set +e\nread -r original _ < /proc/sys/kernel/printk || exit 125\nrestore() { printf '%s\\n' \"$original\" > /proc/sys/kernel/printk || exit 125; }\ntrap restore EXIT\nprintf '7\\n' > /proc/sys/kernel/printk || exit 125\nfor arg in 1 2 3 4 5 6 7 8 emerg alert crit err warn notice info debug; do\n  printf '7\\n' > /proc/sys/kernel/printk || exit 125\n  /usr/bin/dmesg -n \"$arg\" >/tmp/dmesg-console-ref.out 2>/tmp/dmesg-console-ref.err || exit 125\n  read -r ref _ < /proc/sys/kernel/printk || exit 125\n  printf '7\\n' > /proc/sys/kernel/printk || exit 125\n  dmesg -n \"$arg\" >/tmp/dmesg-console.out 2>/tmp/dmesg-console.err || exit 1\n  read -r got _ < /proc/sys/kernel/printk || exit 125\n  [[ $got == \"$ref\" && ! -s /tmp/dmesg-console.out && ! -s /tmp/dmesg-console.err ]] || exit 1\ndone\nprintf '6\\n' > /proc/sys/kernel/printk || exit 125\n/usr/bin/setpriv --reuid=2000 --regid=2000 --clear-groups -- \"$BASH\" --noprofile --norc -c 'dmesg -n 4' >/tmp/dmesg-console.out 2>/tmp/dmesg-console.err\nrc=$?\nread -r got _ < /proc/sys/kernel/printk || exit 125\n[[ $rc == 1 && $got == 6 && -s /tmp/dmesg-console.err && ! -s /tmp/dmesg-console.out ]] || exit 1\nsec=/opt/bashos-parity/harness/helpers/system-seccomp.py\n/usr/bin/python3 \"$sec\" --kill syslog -- \"$BASH\" --noprofile --norc -c 'dmesg -n 4' >/tmp/dmesg-console.out 2>/tmp/dmesg-console.err\n[[ $? == 159 ]] || exit 125\nfor arg in bogus 9 '' ; do\n  /usr/bin/python3 \"$sec\" --kill syslog -- \"$BASH\" --noprofile --norc -c 'dmesg -n \"$1\"' _ \"$arg\" >/tmp/dmesg-console.out 2>/tmp/dmesg-console.err\n  rc=$?\n  [[ $rc == 2 && -s /tmp/dmesg-console.err && ! -s /tmp/dmesg-console.out ]] || exit 1\ndone\n/usr/bin/python3 \"$sec\" --kill syslog -- \"$BASH\" --noprofile --norc -c 'dmesg -n' >/tmp/dmesg-console.out 2>/tmp/dmesg-console.err\nrc=$?\n[[ $rc == 2 && -s /tmp/dmesg-console.err && ! -s /tmp/dmesg-console.out ]] || exit 1\nread -r got _ < /proc/sys/kernel/printk || exit 125\n[[ $got == 6 ]] || exit 1\nprintf 'PASS\\n'\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "timeout": 60,
+      "requires": [
+        "dmesg",
+        "setpriv",
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      }
+    }
+  ]
+}

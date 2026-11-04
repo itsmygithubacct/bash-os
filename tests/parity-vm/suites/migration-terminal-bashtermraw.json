@@ -302,6 +302,36 @@
       }
     },
     {
+      "id": "migration-bashtermraw-control-byte-boundaries",
+      "loadable": "bashtermraw",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "covers": [
+        "bashtermraw/deferred-key-decoder"
+      ],
+      "purpose": "Check every control letter, special-key precedence, and adjacent non-letter control names in raw mode",
+      "oracle": "Documented lowercase C-a..C-z names with TAB, RET and BS taking precedence; preserve existing C-@, C-\\ and C-_ names",
+      "comparison": "exact keypress output for each input byte",
+      "timeout": 20,
+      "script": "bashtermraw raw; for ((i = 0; i < 30; i++)); do bashtermraw keypress; done > answer; bashtermraw cooked",
+      "steps": [
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000b\f\r\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001c\u001f\u007f"
+        },
+        {
+          "settle_ms": 150
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "answer": "C-@\nC-a\nC-b\nC-c\nC-d\nC-e\nC-f\nC-g\nBS\nTAB\nRET\nC-k\nC-l\nRET\nC-n\nC-o\nC-p\nC-q\nC-r\nC-s\nC-t\nC-u\nC-v\nC-w\nC-x\nC-y\nC-z\nC-\\\nC-_\nBS\n"
+      }
+    },
+    {
       "id": "migration-bashtermraw-control-letters",
       "loadable": "bashtermraw",
       "group": "terminal",

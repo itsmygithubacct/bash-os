@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-swapoff-all-table-contract-root",
+      "loadable": "swapoff",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "covers": [
+        "swapoff/deferred-all-table"
+      ],
+      "purpose": "Check the stated table contract against explicit expected statuses, diagnostics and ordered decoded requests under a non-forwarding seccomp notifier.",
+      "oracle": "Independently specified fixture expectations; EINVAL for every swapoff request.",
+      "comparison": "Contract assertions for each controlled table; no reference utility parity assumption.",
+      "requires": [
+        "swapoff",
+        "mount",
+        "umount",
+        "python3"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/swapoff-all-table-contract.py": "3e4363f8580ba18dfa587d0c3719c8df16ab03e1f9d9012ded1a75b38fe26083",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/swapoff-all-table-contract.py \"$BASH\" /opt/bashos-parity/harness/helpers/system-seccomp.py\n",
+      "expected_status": 0,
+      "stdout": "swapoff-all-table=ok\n",
+      "stderr": "",
+      "timeout": 45
+    }
+  ]
+}

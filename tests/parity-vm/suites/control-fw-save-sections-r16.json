@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "control-fw-save-real-ipset-absent-sections-r16",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Independently establish real ipset absent on candidate PATH and verify rules and kernel set snapshots. Separate exact ipset body from iptables rules; guest comparator rejection canaries.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Real pinned iptables/ip6tables/iptables-save executables and real ipset save/test in a fresh guest network namespace. A private PATH contains symlinks only to the named real tools; no mocked backend output.",
+      "comparison": "Exact success marker; independent PATH and builtin checks, complete rules comparison, rule presence/absence, exact save section and positive/negative kernel membership. Setup failure is not a product pass.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables",
+        "ip6tables",
+        "ipset"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/control-fw-save-sections-r16.py absent\n",
+      "stdout": "scenario save-ipset-section-absent: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74",
+        "helpers/control-fw-save-sections-r16.py": "a7f121bf46142b1b76d1a33abc808d7a0098c8d905f8a12cf5f12ae2230568c8"
+      }
+    },
+    {
+      "id": "control-fw-save-real-ipset-present-sections-r16",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Independently establish real ipset present on candidate PATH and verify rules and kernel set snapshots. Separate exact ipset body from iptables rules; guest comparator rejection canaries.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Real pinned iptables/ip6tables/iptables-save executables and real ipset save/test in a fresh guest network namespace. A private PATH contains symlinks only to the named real tools; no mocked backend output.",
+      "comparison": "Exact success marker; independent PATH and builtin checks, complete rules comparison, rule presence/absence, exact save section and positive/negative kernel membership. Setup failure is not a product pass.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables",
+        "ip6tables",
+        "ipset"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/control-fw-save-sections-r16.py present\n",
+      "stdout": "scenario save-ipset-section-present: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74",
+        "helpers/control-fw-save-sections-r16.py": "a7f121bf46142b1b76d1a33abc808d7a0098c8d905f8a12cf5f12ae2230568c8"
+      }
+    }
+  ]
+}

@@ -842,10 +842,40 @@ bc_parse_env_line (char *s, struct bc_file_env *e)
     return 0;
 }
 
+/* Batch IDs have decimal seconds, PID and a six-digit spool-wide
+   sequence. Other at-job names retain their lexical order as a group. */
+static int
+bc_batch_key (const char *s, unsigned long long *sec, unsigned long *seq)
+{
+    const char *p = s;
+    char *end;
+    if (!isdigit ((unsigned char) *p)) return 0;
+    errno = 0;
+    *sec = strtoull (p, &end, 10);
+    if (errno || *end++ != '.') return 0;
+    p = end;
+    while (isdigit ((unsigned char) *end)) end++;
+    if (end == p || *end++ != '.') return 0;
+    p = end;
+    while (isdigit ((unsigned char) *end)) end++;
+    if (end - p != 6 || strcmp (end, ".job") != 0) return 0;
+    *seq = strtoul (p, NULL, 10);
+    return 1;
+}
+
 static int
 bc_strcmp_cb (const void *a, const void *b)
 {
-    return strcmp (*(const char *const *) a, *(const char *const *) b);
+    const char *x = *(const char *const *) a, *y = *(const char *const *) b;
+    unsigned long long sx, sy;
+    unsigned long qx, qy;
+    int bx = bc_batch_key (x, &sx, &qx), by = bc_batch_key (y, &sy, &qy);
+    if (bx != by) return bx ? -1 : 1;
+    if (bx) {
+        if (sx != sy) return sx < sy ? -1 : 1;
+        if (qx != qy) return qx < qy ? -1 : 1;
+    }
+    return strcmp (x, y);
 }
 
 static void
@@ -862,12 +892,7 @@ bc_poll_atjobs (time_t now)
         close (dfd);
         return;
     }
-    /* Collect job filenames first, then sort lexicographically so the
-       processing order matches submission order. batch uses jobids
-       of the shape <sec>.<pid>.<seq>; lexicographic sort = submission
-       order, satisfying the FIFO guarantee documented in batch's
-       help text. Pre-2026-05-18 implementation walked readdir() order
-       and was filesystem-dependent. */
+    /* Batch sequence numbers order submissions across processes. */
     char **names = NULL;
     size_t n_names = 0, cap_names = 0;
     struct dirent *de;

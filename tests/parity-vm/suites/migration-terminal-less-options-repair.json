@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "less",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "less/pty-options-and-resize"
+      ],
+      "requires": [
+        "less"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\n"
+      },
+      "expected_status": 0,
+      "id": "less-options-repair-numbered-scroll",
+      "purpose": "GNU line-number spacing is retained after scrolling past a single digit",
+      "script": "less -N note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^\\s*1 line-001$",
+              "9": "^\\s*10 line-010$"
+            }
+          }
+        },
+        {
+          "send": "j"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^\\s*2 line-002$",
+              "8": "^\\s*10 line-010$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ]
+    },
+    {
+      "loadable": "less",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "less/pty-options-and-resize"
+      ],
+      "requires": [
+        "less"
+      ],
+      "files": {
+        "note": "line-001\nline-002\nline-003\nline-004\nline-005\nline-006\nline-007\nline-008\nline-009\nline-010\nline-011\nline-012\nline-013\nline-014\nline-015\nline-016\nline-017\nline-018\nline-019\nline-020\nline-021\nline-022\nline-023\nline-024\nline-025\nline-026\nline-027\nline-028\nline-029\nline-030\nline-031\nline-032\nline-033\nline-034\nline-035\nline-036\nline-037\nline-038\nline-039\nline-040\nline-041\nline-042\nline-043\nline-044\nline-045\nline-046\nline-047\nline-048\nline-049\nline-050\nline-051\nline-052\nline-053\nline-054\nline-055\nline-056\nline-057\nline-058\nline-059\nline-060\nline-061\nline-062\nline-063\nline-064\nline-065\nline-066\nline-067\nline-068\nline-069\nline-070\nline-071\nline-072\nline-073\nline-074\nline-075\nline-076\nline-077\nline-078\nline-079\nline-080\n"
+      },
+      "expected_status": 0,
+      "id": "less-options-repair-resize-idle",
+      "purpose": "Shrink and grow an idle pager without a keypress, then scroll using the new page size",
+      "script": "less note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$",
+              "22": "^line-023$"
+            }
+          }
+        },
+        {
+          "resize": [
+            10,
+            80
+          ]
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$",
+              "8": "^line-009$"
+            }
+          }
+        },
+        {
+          "resize": [
+            15,
+            80
+          ]
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-001$",
+              "13": "^line-014$"
+            }
+          }
+        },
+        {
+          "send": " "
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-015$"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ]
+    }
+  ]
+}

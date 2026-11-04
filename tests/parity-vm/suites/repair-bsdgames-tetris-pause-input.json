@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-bsdgames-tetris-pause-input",
+      "loadable": "bsdgames",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A paused seeded game ignores movement, rotation and drop; it resumes gravity and quits with the score and terminal restored.",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-tetris-pause-input-ed98fc7d9318.py run \"$BASH\" pause",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-tetris-pause-input-ed98fc7d9318.py control",
+      "setup_timeout": 10,
+      "expected_status": 0,
+      "stdout": "observer-control=PASS\ngeometry=PASS\nfour-cells=PASS\ntransition=PASS\nquit-status=PASS\nterminal-restored=PASS\ncursor-shown=PASS\n",
+      "stderr": "",
+      "timeout": 16,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-tetris-pause-input-ed98fc7d9318.py": "ed98fc7d9318840a093c779df3306a7356329e4279ccac02f99e8c95c36bdfa4"
+      },
+      "diagnostic_files": [
+        "tetris-pause-input.raw",
+        "tetris-pause-input.json"
+      ],
+      "covers": [
+        "bsdgames/interactive-tetris-pty-session"
+      ],
+      "oracle": "A gravity control precedes pause; the decoded four-cell board remains identical through j, k, l, space and a delay, then gravity resumes after p. Quit must report the score and restore termios and cursor.",
+      "comparison": "Records input bytes, timestamps, decoded cell positions, raw output, exit status and terminal state."
+    }
+  ]
+}

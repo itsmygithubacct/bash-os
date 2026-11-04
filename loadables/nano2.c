@@ -12,6 +12,7 @@
 #endif
 
 #include <errno.h>
+#include <stdint.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <stdio.h>
@@ -166,11 +167,11 @@ pt_init_text (pt_buffer *b, const char *path, const char *data, size_t len)
 }
 
 static int
-pt_load (pt_buffer *b, const char *path)
+pt_load_file (pt_buffer *b, const char *path, int missing_ok)
 {
   int fd = open (path, O_RDONLY);
   if (fd < 0)
-    return pt_init_text (b, path, "", 0);
+    return missing_ok && errno == ENOENT ? pt_init_text (b, path, "", 0) : -1;
 
   struct stat st;
   if (fstat (fd, &st) < 0) { close (fd); return -1; }
@@ -190,6 +191,12 @@ pt_load (pt_buffer *b, const char *path)
   int rc = pt_init_text (b, path, buf ? buf : "", off);
   free (buf);
   return rc;
+}
+
+static int
+pt_load (pt_buffer *b, const char *path)
+{
+  return pt_load_file (b, path, 1);
 }
 
 static int
@@ -281,7 +288,7 @@ pt_insert (pt_buffer *b, pt_cursor *c, const char *s, size_t n)
 static int
 pt_delete (pt_buffer *b, pt_cursor *c, size_t n)
 {
-  if (c->pos + n > b->total_len) return -1;
+  if (c->pos > b->total_len || n > b->total_len - c->pos) return -1;
   return pt_replace_span (b, c->pos, c->pos + n, NULL, 0);
 }
 
@@ -462,24 +469,54 @@ pt_pos_to_lc (const pt_buffer *b, size_t pos, size_t *line, size_t *col)
 static int
 pt_save (const pt_buffer *b, const char *path)
 {
-  char tmp[512];
-  snprintf (tmp, sizeof tmp, "%s.tmp.%ld", path, (long)getpid ());
-  int fd = open (tmp, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-  if (fd < 0) return -1;
+  const char *last_slash = strrchr (path, '/');
+  size_t dirlen = last_slash ? (size_t) (last_slash - path) + 1 : 0;
+  static const char suffix[] = ".nano2.XXXXXX";
+  if (dirlen > (size_t) -1 - sizeof suffix) { errno = ENAMETOOLONG; return -1; }
+  char *tmp = malloc (dirlen + sizeof suffix);
+  if (!tmp) return -1;
+  memcpy (tmp, path, dirlen);
+  memcpy (tmp + dirlen, suffix, sizeof suffix);
+
+  struct stat st;
+  int exists = lstat (path, &st) == 0;
+  if (!exists && errno != ENOENT) { free (tmp); return -1; }
+  /* Replacing the link would silently leave the apparent target unsaved. */
+  if (exists && S_ISLNK (st.st_mode)) { free (tmp); errno = ELOOP; return -1; }
+  int fd = mkstemp (tmp);
+  if (fd < 0) { free (tmp); return -1; }
   for (size_t i = 0; i < b->n_pieces; i++)
     {
       const char *p = pt_piece_data (b, &b->pieces[i]);
       size_t off = 0;
       while (off < b->pieces[i].length)
-	{
-	  ssize_t w = write (fd, p + off, b->pieces[i].length - off);
-	  if (w < 0) { if (errno == EINTR) continue; close (fd); unlink (tmp); return -1; }
-	  off += (size_t)w;
-	}
+        {
+          ssize_t w = write (fd, p + off, b->pieces[i].length - off);
+          if (w < 0) { if (errno == EINTR) continue; goto fail; }
+          if (w == 0) { errno = EIO; goto fail; }
+          off += (size_t) w;
+        }
     }
-  if (fsync (fd) < 0) { close (fd); unlink (tmp); return -1; }
-  if (close (fd) < 0) { unlink (tmp); return -1; }
-  if (rename (tmp, path) < 0) { unlink (tmp); return -1; }
+  if (exists)
+    {
+      struct stat temp_st;
+      if (fstat (fd, &temp_st) < 0
+          || ((temp_st.st_uid != st.st_uid || temp_st.st_gid != st.st_gid)
+              && fchown (fd, st.st_uid, st.st_gid) < 0)
+          || fchmod (fd, st.st_mode & 07777) < 0)
+        goto fail;
+    }
+  else
+    {
+      mode_t mask = umask (0);
+      umask (mask);
+      if (fchmod (fd, 0666 & ~mask) < 0) goto fail;
+    }
+  if (fsync (fd) < 0) goto fail;
+  if (close (fd) < 0) { fd = -1; goto fail; }
+  fd = -1;
+  if (rename (tmp, path) < 0) goto fail;
+  free (tmp);
   /* G03 atomic-save — fsync the parent directory so the rename itself
      is durable across power loss. Without this, POSIX permits a successful
      rename() return to roll back across a crash because the directory
@@ -508,6 +545,16 @@ pt_save (const pt_buffer *b, const char *path)
       }
   }
   return 0;
+
+ fail:
+  {
+    int saved_errno = errno;
+    if (fd >= 0) close (fd);
+    unlink (tmp);
+    free (tmp);
+    errno = saved_errno;
+    return -1;
+  }
 }
 
 static int
@@ -758,15 +805,162 @@ bn2_selftest (void)
   return fails ? 1 : 0;
 }
 
+/* The operation interface uses byte offsets and hex for binary insertions. */
+static int
+bn2_number (const char *s, const char **end, size_t *value)
+{
+  size_t n = 0;
+  const char *p = s;
+  if (*p < '0' || *p > '9') return -1;
+  do
+    {
+      unsigned int d = (unsigned int) (*p++ - '0');
+      if (n > (SIZE_MAX - d) / 10) return -1;
+      n = n * 10 + d;
+    }
+  while (*p >= '0' && *p <= '9');
+  *end = p;
+  *value = n;
+  return 0;
+}
+
+static int
+bn2_hex (int c)
+{
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
+}
+
+static int
+bn2_edit (pt_buffer *b, pt_history *h, const char *op)
+{
+  const char *p;
+  size_t pos, n;
+  pt_cursor c;
+  if (strcmp (op, "undo") == 0) return pt_history_undo (h, b);
+  if (strcmp (op, "redo") == 0) return pt_history_redo (h, b);
+  if ((op[0] != 'i' && op[0] != 'd') || op[1] != '@'
+      || bn2_number (op + 2, &p, &pos) < 0 || *p++ != ':'
+      || pos > b->total_len) return -1;
+  c.pos = pos;
+  if (op[0] == 'd')
+    {
+      const char *end;
+      if (bn2_number (p, &end, &n) < 0 || *end) return -1;
+      if (n > b->total_len - pos) n = b->total_len - pos;
+      if (pt_history_mark (h, b) < 0) return -1;
+      return pt_delete (b, &c, n);
+    }
+  n = strlen (p);
+  if (n % 2) return -1;
+  char *bytes = malloc (n / 2 + 1);
+  if (!bytes) return -1;
+  for (size_t i = 0; i < n; i += 2)
+    {
+      int hi = bn2_hex ((unsigned char) p[i]);
+      int lo = bn2_hex ((unsigned char) p[i + 1]);
+      if (hi < 0 || lo < 0) { free (bytes); return -1; }
+      bytes[i / 2] = (char) ((hi << 4) | lo);
+    }
+  int rc = pt_history_mark (h, b);
+  if (rc == 0) rc = pt_insert (b, &c, bytes, n / 2);
+  free (bytes);
+  return rc;
+}
+
+static int
+bn2_write (const pt_buffer *b, size_t start, size_t end)
+{
+  size_t n;
+  char *bytes = pt_flatten_range (b, start, end, &n);
+  if (!bytes) return -1;
+  int rc = fwrite (bytes, 1, n, stdout) == n ? 0 : -1;
+  free (bytes);
+  return rc;
+}
+
+static int
+bn2_operation (const char *cmd, WORD_LIST *args)
+{
+  pt_buffer b;
+  pt_history h = { 0 };
+  const char *end;
+  size_t a, z;
+  int rc = -1;
+  if (!args || !args->word) return EX_USAGE;
+  /* The editor may create a new empty file, but these read operations must
+     report an inaccessible or missing input instead of silently inventing it. */
+  if (pt_load_file (&b, args->word->word, 0) < 0)
+    { builtin_error ("cannot load %s", args->word->word); return EXECUTION_FAILURE; }
+  args = args->next;
+  if (strcmp (cmd, "flatten") == 0 && !args)
+    rc = bn2_write (&b, 0, b.total_len);
+  else if (strcmp (cmd, "range") == 0 || strcmp (cmd, "offset") == 0)
+    {
+      if (args && args->word && args->next && args->next->word && !args->next->next
+          && bn2_number (args->word->word, &end, &a) == 0 && !*end
+          && bn2_number (args->next->word->word, &end, &z) == 0 && !*end)
+        {
+          if (strcmp (cmd, "range") == 0)
+            {
+              if (z > b.total_len) z = b.total_len;
+              if (a <= z) rc = bn2_write (&b, a, z);
+            }
+          else if (a > 0 && pt_lc_to_pos (&b, a - 1, z, &a) == 0)
+            rc = printf ("%zu\n", a) < 0 ? -1 : 0;
+        }
+    }
+  else if (strcmp (cmd, "apply") == 0 || strcmp (cmd, "history") == 0)
+    {
+      rc = 0;
+      for (; args && rc == 0; args = args->next)
+        {
+          if (!args->word || bn2_edit (&b, &h, args->word->word) < 0)
+            { rc = -1; break; }
+          if (strcmp (cmd, "history") == 0
+              && (bn2_write (&b, 0, b.total_len) < 0 || putchar ('|') == EOF))
+            rc = -1;
+        }
+      if (rc == 0 && strcmp (cmd, "apply") == 0)
+        rc = bn2_write (&b, 0, b.total_len);
+    }
+  if (rc == 0 && fflush (stdout) == EOF) rc = -1;
+  pt_history_free (&h);
+  pt_free (&b);
+  if (rc < 0) builtin_error ("invalid operation or I/O failure");
+  return rc == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+}
+
 int
 nano2_builtin (WORD_LIST *list)
 {
-  if (!list || !list->word || strcmp (list->word->word, "selftest") != 0)
+  if (list && list->word
+      && (strcmp (list->word->word, "flatten") == 0
+          || strcmp (list->word->word, "range") == 0
+          || strcmp (list->word->word, "offset") == 0
+          || strcmp (list->word->word, "apply") == 0
+          || strcmp (list->word->word, "history") == 0))
+    return bn2_operation (list->word->word, list->next);
+  if (list && list->word && strcmp (list->word->word, "selftest") == 0)
+    return bn2_selftest () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+  if (list && list->word && strcmp (list->word->word, "save") == 0
+      && list->next && list->next->word && list->next->next
+      && list->next->next->word && !list->next->next->next)
     {
-      builtin_error ("usage: nano2 selftest");
-      return EX_USAGE;
+      const char *src = list->next->word->word;
+      const char *dst = list->next->next->word->word;
+      pt_buffer b;
+      if (pt_load_file (&b, src, 0) < 0)
+        { builtin_error ("%s: %s", src, strerror (errno)); return EXECUTION_FAILURE; }
+      int rc = pt_save (&b, dst);
+      if (rc < 0) builtin_error ("%s: %s", dst, strerror (errno));
+      pt_free (&b);
+      return rc < 0 ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
     }
-  return bn2_selftest () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+  builtin_error ("usage: nano2 selftest | save SOURCE DESTINATION");
+  return EX_USAGE;
 }
 
 char *nano2_doc[] = {

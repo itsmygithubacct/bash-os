@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-dns-cache-cname-nodata-aging",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/dns-negative-cache-peer.py": "0890146087fc38166c56b7aff64ea6c8f7eefd982445910f6a7539971e542bc9"
+      },
+      "candidate_script": "set -u\nH=/opt/bashos-parity/harness/helpers/dns-negative-cache-peer.py\n/usr/bin/python3 \"$H\" authority \"$HOME/authority.log\" & peer=$!\ntrap 'kill \"$peer\" 2>/dev/null; wait \"$peer\" 2>/dev/null' EXIT\nfor ((i=0;i<100;i++)); do [ -s \"$HOME/authority.log\" ] && break; sleep 0.05; done\n[ -s \"$HOME/authority.log\" ] || exit 98\nexport BASHDNS_SERVER_PORT=5342\ndns resolver-serve --listen 127.0.0.1 --port 5343 --upstream 127.0.0.2 --max-queries 3 </dev/null 2>\"$HOME/server.log\" & srv=$!\nfor ((i=0;i<100;i++)); do\n  ready=0\n  while read -r slot local rest; do [[ $local == 0100007F:14DF ]] && ready=1; done < /proc/net/udp\n  [ \"$ready\" = 1 ] && break\n  kill -0 \"$srv\" 2>/dev/null || exit 98\n  sleep 0.05\ndone\n[ \"$ready\" = 1 ] || { kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null; exit 98; }\n/usr/bin/python3 \"$H\" client \"$HOME/authority.log\" || { kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null; exit 1; }\nwait \"$srv\" || exit 1\n",
+      "stdout": "first-soa-capped=yes\ncached-soa-aged=yes\nsecond-from-cache=yes\nexpired-refetched=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "purpose": "CNAME plus NODATA cache TTL uses SOA MINIMUM, ages on cache hit and refetches after expiry.",
+      "oracle": "Independent minimal UDP authority provides CNAME TTL 10, SOA TTL 9 and SOA MINIMUM 4 and logs received queries; a separate client measures response TTL and upstream counts.",
+      "comparison": "Require all observations including upstream count; setup failure cannot pass.",
+      "diagnostic_files": [
+        "authority.log",
+        "server.log"
+      ]
+    }
+  ]
+}

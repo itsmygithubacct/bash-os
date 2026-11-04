@@ -357,10 +357,8 @@ tiv_builtin (WORD_LIST *list)
     if (is_tty && want_h <= 0 && rows > trows - 1 && trows > 1) {
         rows = trows - 1;
         int nw = (int) ((long) rows * 2 * iw / ih);
-        if (nw > 0 && (want_w <= 0)) {
-            width = full ? (nw < tcols ? nw : tcols) : (nw < width ? nw : width);
-            if (width < 1) width = 1;
-        }
+        if (nw < 1) nw = 1;
+        if (nw < width) width = nw;
     }
     /* Sub-pixel geometry: a cell stays 1-wide x 2-tall *visually* (same font),
        but a denser glyph samples more pixels per cell. ASCII has no blocks, so

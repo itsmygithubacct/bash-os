@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "pidof/pidof-omit-list"
+      ],
+      "requires": [
+        "pidof"
+      ],
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "id": "t169-pidof-omit-parent-contract",
+      "purpose": "Verify %PPID removes the actual builtin caller after a positive control.",
+      "oracle": "Assigned omit-list requirements",
+      "comparison": "Exact contract output and status; diagnostics checked for presence only",
+      "script": "IFS= read -r name < /proc/$BASHPID/comm || exit 10\nself=$BASHPID\npidof \"$name\" >control || exit 11\nread -r -a ids <control\nseen=no\nfor id in \"${ids[@]}\"; do [[ $id == \"$self\" ]] && seen=yes; done\n[[ $seen == yes ]] || exit 12\npidof -o %PPID \"$name\" >omitted\nrc=$?\n[[ $rc == 0 || $rc == 1 ]] || exit 13\nread -r -a ids <omitted || :\nfor id in \"${ids[@]}\"; do [[ $id != \"$self\" ]] || exit 14; done\nprintf 'invoking shell omitted\\n'\n",
+      "stdout": "invoking shell omitted\n"
+    },
+    {
+      "loadable": "pidof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "pidof/pidof-omit-list"
+      ],
+      "requires": [
+        "pidof"
+      ],
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 15,
+      "id": "t169-pidof-omit-invalid-contract",
+      "purpose": "Verify malformed omit lists produce a usage error independently of diagnostic wording.",
+      "oracle": "Assigned omit-list requirements",
+      "comparison": "Exact contract output and status; diagnostics checked for presence only",
+      "script": "for value in 0 not-a-pid '' , 1,,2 1: 1:-2 -1 +1 4294967296 999999999999999999999999; do\n  pidof -o \"$value\" no_such_pidof_7c3e >out 2>err\n  rc=$?\n  [[ $rc == 2 && ! -s out && -s err ]] || { printf 'invalid rejected incorrectly: <%s> status=%s\\n' \"$value\" \"$rc\"; exit 1; }\ndone\nprintf 'invalid lists rejected\\n'\n",
+      "stdout": "invalid lists rejected\n"
+    }
+  ]
+}

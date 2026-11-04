@@ -880,7 +880,18 @@ static int bg_input(const char *variable, int timeout)
 restored:
     tcsetattr(bg.tty, TCSANOW, &saved);
 bind:
-    if (!builtin_bind_variable((char *)variable, event, 0)) return EXECUTION_FAILURE;
+    /* Bash can raise a readonly-assignment error rather than returning from
+       builtin_bind_variable.  Check the resolved target only after restoring
+       the terminal, so a failed assignment remains an ordinary status. */
+    {
+        SHELL_VAR *v = find_variable(variable);
+        if (v && (readonly_p(v) || noassign_p(v))) {
+            builtin_error("%s: variable is not assignable", variable);
+            return EXECUTION_FAILURE;
+        }
+        v = builtin_bind_variable((char *)variable, event, 0);
+        if (!v || readonly_p(v) || noassign_p(v)) return EXECUTION_FAILURE;
+    }
     return rc;
 }
 

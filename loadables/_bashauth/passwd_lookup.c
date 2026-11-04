@@ -79,8 +79,20 @@ bashos_lookup_user (const char *name, bashos_auth_user *out)
   ssize_t n;
   int found = 0;
 
-  while ((n = getline (&line, &cap, f)) > 0)
+  int read_error = 0;
+  for (;;)
     {
+      errno = 0;
+      n = getline (&line, &cap, f);
+      if (n < 0)
+        {
+          if (ferror (f) || !feof (f))
+            read_error = errno ? errno : EIO;
+          break;
+        }
+      /* A NUL within a physical row must not hide trailing fields. */
+      if (memchr (line, '\0', (size_t) n))
+        continue;
       if (line[n - 1] == '\n')
         line[n - 1] = '\0';
       if (line[0] == '#' || line[0] == '\0')
@@ -89,19 +101,21 @@ bashos_lookup_user (const char *name, bashos_auth_user *out)
       char *fields[7] = { 0 };
       int nf = 0;
       char *p = line, *start = line;
-      while (*p && nf < 7)
+      while (*p)
         {
           if (*p == ':')
             {
+              if (nf == 6)
+                break;
               *p = '\0';
               fields[nf++] = start;
               start = p + 1;
             }
           p++;
         }
-      if (nf < 6)
+      if (nf != 6 || *p != '\0')
         continue;
-      fields[nf++] = start;
+      fields[6] = start;
 
       if (strcmp (fields[0], name) != 0)
         continue;
@@ -129,6 +143,11 @@ bashos_lookup_user (const char *name, bashos_auth_user *out)
 
   free (line);
   fclose (f);
+  if (read_error)
+    {
+      errno = read_error;
+      return -2;
+    }
   return found ? 0 : -1;
 }
 

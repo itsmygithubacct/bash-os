@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copy authority/ plus uapi/ into a private kernel subtree; see the phase plan.
+obj-$(CONFIG_BASHOS_AUTH_AUTHORITY_NEXT_KUNIT_TEST) += bashos_auth_authority_next_test.o
+bashos_auth_authority_next_test-y := authority/request.o authority/reference.o authority/tests/kunit.o
+ccflags-y += -DBA_AUTHORITY_KUNIT

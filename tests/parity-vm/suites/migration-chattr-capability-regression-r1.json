@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-chattr-capability-flags-regression-r1",
+      "loadable": "chattr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chattr/capability-flags"
+      ],
+      "purpose": "Assert capability denial and diagnostics, no-op removal, privileged immutable and append effects, and cleanup after a failing inner script. Independent cleanup runs on shell exit.",
+      "oracle": "e2fsprogs chattr and lsattr on private ext4",
+      "comparison": "Byte parity of denied-operation diagnostics and success marker; explicit assertions fail if either side lacks required behavior or prerequisites.",
+      "requires": [
+        "setpriv",
+        "chattr",
+        "lsattr",
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "chown",
+        "chmod",
+        "sed",
+        "rm",
+        "mkdir",
+        "rmdir"
+      ],
+      "script": "set -eu\nI=/tmp/chattr-capability-regression.img M=/tmp/chattr-capability-regression-mnt\nmounted=0\ncleanup() {\n  rc=$?\n  trap - EXIT\n  if (( mounted )); then\n    /usr/bin/chattr -R -ia \"$M\" || rc=1\n    for f in \"$M/f\" \"$M/g\"; do\n      if [[ -e $f ]]; then\n        flags=$(/usr/bin/lsattr -d \"$f\") || rc=1\n        attrs=${flags%% *}\n        [[ $attrs != *i* && $attrs != *a* ]] || rc=1\n      fi\n    done\n    cd /tmp/parity-case\n    /usr/bin/umount \"$M\" || rc=1\n  fi\n  /usr/bin/rm -f \"$I\"\n  /usr/bin/rmdir \"$M\" 2>/dev/null || :\n  exit \"$rc\"\n}\ntrap cleanup EXIT\n/usr/bin/truncate -s 4M \"$I\"\n/usr/sbin/mkfs.ext4 -q -F -O ^has_journal \"$I\"\n/usr/bin/mkdir \"$M\"\n/usr/bin/mount -o loop \"$I\" \"$M\"\nmounted=1\ncd \"$M\"\nprintf 'a\\n' > f; printf 'a\\n' > g\n/usr/bin/chown 2000:2000 f g\n/usr/bin/chmod 0777 .\nattrs() { local x; x=$(/usr/bin/lsattr -d \"$1\"); printf '%s' \"${x%% *}\"; }\nno_flags() { local x; x=$(attrs \"$1\"); [[ $x != *i* && $x != *a* ]]; }\nfor flag in i a; do\n  rc=0\n  /usr/bin/setpriv --reuid=2000 --regid=2000 --clear-groups -- \"$BASH\" --noprofile --norc -c \"chattr +$flag f\" >/tmp/chattr-cap.out 2>/tmp/chattr-cap.err || rc=$?\n  [[ $rc != 0 && -s /tmp/chattr-cap.err && ! -s /tmp/chattr-cap.out ]]\n  printf 'denied +%s status=%s diagnostic=' \"$flag\" \"$rc\"\n  /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' /tmp/chattr-cap.err\n  no_flags f\n  /usr/bin/setpriv --reuid=2000 --regid=2000 --clear-groups -- \"$BASH\" --noprofile --norc -c \"chattr -$flag f\" >/tmp/chattr-cap.out 2>/tmp/chattr-cap.err\n  [[ ! -s /tmp/chattr-cap.out && ! -s /tmp/chattr-cap.err ]]\n  no_flags f\ndone\nchattr +i f\n[[ $(attrs f) == *i* ]]\nif (echo more >> f) 2>/dev/null; then exit 1; fi\nif /usr/bin/rm -f f 2>/dev/null; then exit 1; fi\n[[ -e f ]]\nchattr -i f\nno_flags f\nchattr +a g\n[[ $(attrs g) == *a* ]]\nif (echo over > g) 2>/dev/null; then exit 1; fi\necho more >> g\n[[ $(<g) == $'a\\nmore' ]]\nchattr -a g\nno_flags g\nrc=0\n\"$BASH\" --noprofile --norc -c 'chattr +i f && chattr +a g && exit 3' || rc=$?\n[[ $rc == 3 && $(attrs f) == *i* && $(attrs g) == *a* ]]\nchattr -R -ia .\nno_flags f; no_flags g\nprintf 'capability, effects and failing-script cleanup verified\\n'\n",
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}

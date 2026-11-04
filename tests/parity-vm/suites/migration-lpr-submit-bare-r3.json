@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-lpr-bare-dash-r3",
+      "loadable": "lpr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Bare dash submits binary standard input through the fixture backend",
+      "covers": [
+        "lpr/submit_fixture_backend"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "control-input": "ABCDEF",
+        "data/file with space": {
+          "base64": "cHJpbnQgZml4dHVyZQoA/3NlY29uZCBsaW5lCg=="
+        }
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-lpr.py \"$HOME/backend\"\n/usr/bin/chmod 700 \"$HOME/backend\"\n/usr/bin/mkdir -m 700 \"$HOME/spool\"\nLPR_FIXTURE_MODE=control \"$HOME/backend\" 0123456789abcdef 6 proof < control-input > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/backend\" --check control > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'control-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED print backend' >&2; exit 98; }\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHLPR_SPOOL=\"$HOME/spool\" BASHLPR_BACKEND=\"$HOME/backend\" BASHLPR_TIMEOUT=0\nexport LPR_FIXTURE_MODE=barestdin\nlpr - < 'data/file with space' > \"$HOME/barestdin.out\" 2> \"$HOME/barestdin.err\"; printf 'status=%s\\n' \"$?\"\n\"$HOME/backend\" --check barestdin\n",
+      "stdout": "status=0\nbarestdin-observation=ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "control.events",
+        "control.data",
+        "control.check",
+        "barestdin.events",
+        "barestdin.data",
+        "barestdin.out",
+        "barestdin.err"
+      ],
+      "helpers_sha256": {
+        "helpers/services-lpr.py": "69dcaeb175868709cb4ddef9739ac31548c302da516952c8607904b6c3d4dba1"
+      }
+    },
+    {
+      "id": "migration-lpr-bare-no-backend-r3",
+      "loadable": "lpr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Bare stdin rejects a missing backend before creating spool entries",
+      "covers": [
+        "lpr/submit_fixture_backend"
+      ],
+      "oracle": "Literal operation contract; fixture-owned adapter and independent setup controls supply known bytes, statuses and process identities.",
+      "comparison": "Exact candidate status and observations, with bounded raw inputs, outputs, events and process observations retained separately. Missing later branches remain failures/gaps.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "control-input": "ABCDEF",
+        "data/file with space": {
+          "base64": "cHJpbnQgZml4dHVyZQoA/3NlY29uZCBsaW5lCg=="
+        }
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\n/usr/bin/cp /opt/bashos-parity/harness/helpers/services-lpr.py \"$HOME/backend\"\n/usr/bin/chmod 700 \"$HOME/backend\"\n/usr/bin/mkdir -m 700 \"$HOME/spool\"\nLPR_FIXTURE_MODE=control \"$HOME/backend\" 0123456789abcdef 6 proof < control-input > \"$HOME/control.out\" 2> \"$HOME/control.err\"\n\"$HOME/backend\" --check control > \"$HOME/control.check\"\n[[ $(< \"$HOME/control.check\") == 'control-observation=ok' && ! -s $HOME/control.out && ! -s $HOME/control.err ]] || { echo 'CONTROL-FAILED print backend' >&2; exit 98; }\n",
+      "setup_timeout": 25,
+      "candidate_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home && -O /tmp/parity-case && -O /tmp/parity-home && -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor ]] || { echo 'not a disposable parity guest' >&2; exit 98; }\nmarker=$(< /etc/bashos-parity-vm); vendor=$(< /sys/class/dmi/id/sys_vendor)\n[[ $marker =~ ^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$ && $vendor == QEMU ]] || { echo 'guest identity mismatch' >&2; exit 98; }\nexport BASHLPR_SPOOL=\"$HOME/spool\"\nunset BASHLPR_BACKEND\nlpr < 'data/file with space' > \"$HOME/missing.out\" 2> \"$HOME/missing.err\"; rc=$?\nprintf 'status=%s\\n' \"$rc\"\n[[ ! -s $HOME/missing.out && $(< \"$HOME/missing.err\") == *'no backend configured'* ]] && echo rejection=ok || echo rejection=BAD\nshopt -s nullglob dotglob\nentries=(\"$HOME/spool\"/*)\n[[ ${#entries[@]} == 0 ]] && echo spool=empty || echo spool=BAD\n",
+      "stdout": "status=1\nrejection=ok\nspool=empty\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "control.events",
+        "control.data",
+        "control.check",
+        "missing.out",
+        "missing.err"
+      ],
+      "helpers_sha256": {
+        "helpers/services-lpr.py": "69dcaeb175868709cb4ddef9739ac31548c302da516952c8607904b6c3d4dba1"
+      }
+    }
+  ]
+}

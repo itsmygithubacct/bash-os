@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "review-ps-controlling-tty",
+      "loadable": "ps",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ps/live-table-and-aux-snapshot"
+      ],
+      "purpose": "Aux TTY matches a verified controlling PTY with standard descriptors open and closed.",
+      "oracle": "The kernel PTY slave pathname supplied by the independent fixture.",
+      "comparison": "Exact success marker and zero status after both cases.",
+      "requires": [
+        "python3",
+        "sleep"
+      ],
+      "files": {
+        "tty-fixture.py": "import fcntl, os, pty, signal, sys, termios, time\nmaster, slave = pty.openpty()\nname = os.ttyname(slave).removeprefix('/dev/')\nready_r, ready_w = os.pipe()\npid = os.fork()\nif pid == 0:\n    os.close(ready_r); os.setsid(); fcntl.ioctl(slave, termios.TIOCSCTTY, 0)\n    for fd in (0, 1, 2): os.dup2(slave, fd)\n    if sys.argv[1] == 'closed':\n        for fd in (0, 1, 2): os.close(fd)\n    os.write(ready_w, b'1'); os.close(ready_w)\n    while True: time.sleep(1)\nos.close(ready_w)\nif os.read(ready_r, 1) != b'1': raise SystemExit(1)\nstop = False\ndef term(sig, frame):\n    global stop\n    stop = True\nsignal.signal(signal.SIGTERM, term)\nwith open('tty-info', 'w') as out: print(pid, name, file=out)\ntry:\n    while not stop: time.sleep(.1)\nfinally:\n    os.kill(pid, signal.SIGKILL); os.waitpid(pid, 0); os.close(master); os.close(slave)\n"
+      },
+      "script": "[[ $(type -t ps) == builtin ]] || exit 97\nfor mode in open closed; do\n  /usr/bin/python3 tty-fixture.py \"$mode\" & helper=$!\n  trap 'kill \"$helper\" 2>/dev/null; wait \"$helper\" 2>/dev/null' EXIT\n  for ((i=0; i<100 && ! -s tty-info; i++)); do /usr/bin/sleep .05; done\n  [[ -s tty-info ]] || exit 1\n  read -r want_pid want_tty < tty-info\n  found=0\n  while read -r user pid cpu mem vsz rss tty rest; do\n    if [[ $pid == \"$want_pid\" ]]; then [[ $tty == \"$want_tty\" ]] || exit 1; found=1; break; fi\n  done < <(ps aux)\n  [[ $found == 1 ]] || exit 1\n  kill \"$helper\"; wait \"$helper\" || exit 1; trap - EXIT\n  rm -f tty-info\ndone\nprintf 'tty resolution ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "tty resolution ok\n",
+      "stderr": "",
+      "timeout": 25
+    }
+  ]
+}

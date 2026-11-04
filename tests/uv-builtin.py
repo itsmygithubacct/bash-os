@@ -80,6 +80,10 @@ with tempfile.TemporaryDirectory(prefix='uv-builtin-') as directory:
     run('UV_SIGNAL=TERM uv > /dev/null; echo "status $?"', stdout='status 143\n')
     run('cd / && uv after-cd', stdout='after-cd|\nVISIBLE= HIDDEN=\n')
     (root / 'usr/lib/bash-os/libexec/uv/uv').unlink()
-    run('uv --version', status=127, stderr='(install it with: pkg install uv)')
+    # The loaded builtin must retain its package-relative helper path even
+    # after cd, and must not fall back to a command found through PATH.
+    run('cd /; uv --version', status=127,
+        stderr=str(root / 'usr/lib/bash-os/loadables/../libexec/uv/uv'))
+    run('cd /; uv --version', status=127, stderr='(install it with: pkg install uv)')
 
 print(f'uv-builtin: {checks} checks passed')

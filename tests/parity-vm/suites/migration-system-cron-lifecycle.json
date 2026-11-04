@@ -17,11 +17,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup batch-once",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py setup batch-once",
       "setup_timeout": 30,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" batch-once",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py \"$BASH\" batch-once",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "produced=3 ids=ok submitter-pid=ok files=ok mode=0600 bytes=ok\npoll-1 status=0 executed=3 each-once=yes removed=yes leftovers=none\npoll-2 status=0 executed=3 reexecuted=no\n",
@@ -43,11 +43,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup batch-boundary",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py setup batch-boundary",
       "setup_timeout": 30,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" batch-boundary",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py \"$BASH\" batch-boundary",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "run_at=submission-time header=ok\nclock=run_at-1 status=0 executed=0 queued=1\nclock=run_at status=0 executed=1 queued=0\nclock=real status=0 executed=2 queued=0\n",
@@ -72,12 +72,12 @@
         "seccomp-notify"
       ],
       "helpers_sha256": {
-        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482",
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41",
         "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup batch-load",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py setup batch-load",
       "setup_timeout": 30,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" batch-load",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py \"$BASH\" batch-load",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "control: loadavg-open-detected=yes loadavg-absent-when-unread=yes\nproducer: status=0 loadavg-reads=0\nconsumer: status=0 executed=1 loadavg-reads=0\n",
@@ -99,11 +99,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup batch-fifo-shell",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py setup batch-fifo-shell",
       "setup_timeout": 30,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" batch-fifo-shell",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py \"$BASH\" batch-fifo-shell",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "same-shell jobs=6 same-second=yes executed=123456 fifo=yes\n",
@@ -125,11 +125,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup batch-fifo-cross",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py setup batch-fifo-cross",
       "setup_timeout": 30,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" batch-fifo-cross",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py \"$BASH\" batch-fifo-cross",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "cross-process lower-pid-first same-second=yes order=LOW,HIGH fifo=yes\ncross-process higher-pid-first same-second=yes order=HIGH,LOW fifo=yes\ncross-process higher-pid-first different-second=yes order=HIGH,LOW fifo=yes\n",
@@ -151,11 +151,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup cron-polls",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py setup cron-polls",
       "setup_timeout": 30,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" cron-polls",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py \"$BASH\" cron-polls",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "dispatched=P0,P1,P2 duplicates=none heartbeat-polls=2 spacing=ok\n",
@@ -177,11 +177,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup cron-reboot",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py setup cron-reboot",
       "setup_timeout": 30,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" cron-reboot",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py \"$BASH\" cron-reboot",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "once: status=0 reboot-runs=0 normal-runs=1\ndaemon: reboot-runs-at-start=1 normal-dispatch=yes\ndaemon: after-polls-and-sighup reboot-runs=1\n",
@@ -203,11 +203,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup cron-catchup-configured",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py setup cron-catchup-configured",
       "setup_timeout": 30,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" cron-catchup-configured",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py \"$BASH\" cron-catchup-configured",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "limit=3 gap=3 ran=M0,M1,M2,M3\nlimit=3 gap=4 ran=M0,M4\n",
@@ -229,11 +229,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup cron-catchup-default",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py setup cron-catchup-default",
       "setup_timeout": 30,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" cron-catchup-default",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py \"$BASH\" cron-catchup-default",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "limit=default gap=5 ran=M0,M1,M2,M3,M4,M5\nlimit=default gap=6 ran=M0,M6\n",
@@ -255,11 +255,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup cron-catchup-once",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py setup cron-catchup-once",
       "setup_timeout": 30,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" cron-catchup-once",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py \"$BASH\" cron-catchup-once",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "limit='1' gap=1 status=0 ran=M1\nlimit='1' gap=2 status=0 ran=M2\nlimit='3' gap=3 status=0 ran=M1,M2,M3\nlimit='3' gap=4 status=0 ran=M4\nlimit=default gap=5 status=0 ran=M1,M2,M3,M4,M5\nlimit=default gap=6 status=0 ran=M6\nlimit='1440' gap=9 status=0 ran=M1,M2,M3,M4,M5,M6,M7,M8,M9\nlimit='0' gap=5 status=0 ran=M1,M2,M3,M4,M5\nlimit='0' gap=6 status=0 ran=M6\nlimit='-5' gap=5 status=0 ran=M1,M2,M3,M4,M5\nlimit='-5' gap=6 status=0 ran=M6\nlimit='1441' gap=5 status=0 ran=M1,M2,M3,M4,M5\nlimit='1441' gap=6 status=0 ran=M6\nlimit='abc' gap=5 status=0 ran=M1,M2,M3,M4,M5\nlimit='abc' gap=6 status=0 ran=M6\nlimit='3x' gap=5 status=0 ran=M1,M2,M3,M4,M5\nlimit='3x' gap=6 status=0 ran=M6\nlimit='' gap=5 status=0 ran=M1,M2,M3,M4,M5\nlimit='' gap=6 status=0 ran=M6\n",
@@ -281,11 +281,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup cron-signals",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py setup cron-signals",
       "setup_timeout": 30,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" cron-signals",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py \"$BASH\" cron-signals",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "initial: ran=A\nwithout-signal: ran=A table-change-ignored=yes\nsighup-1: ran=A,B alive=yes\nsighup-2: ran=A,B,C alive=yes\nsigterm: status=0 prompt=yes leftovers=none state-intact=yes\n",
@@ -307,11 +307,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cron-lifecycle-observer.py": "676431fc7c099d29e914ff46f0a72aec8e396294defc473f6242e20805a61482"
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py setup cron-restart",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py setup cron-restart",
       "setup_timeout": 30,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer.py \"$BASH\" cron-restart",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cron-lifecycle-observer-bash5320.py \"$BASH\" cron-restart",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "run-1 ran=BOOT,R0 state=m0+0 mode=0600\nrun-2 ran=BOOT,R1,R2,R3 state=m0+3\nrun-3 ran=BOOT,R9 state=m0+9\nrun-4 ran=BOOT state=m0+9\n",

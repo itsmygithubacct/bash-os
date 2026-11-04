@@ -2550,8 +2550,8 @@ bc_slurp_fd_cap (int fd, unsigned char **out_buf, size_t *out_len, size_t cap_li
 #include "_mbedtls_crypto.h"
 #include "_bashldap_tls.h"
 
-/* I/O callbacks for mbedtls_ssl_set_bio. The opaque ctx is a `int *`
-   pointing at the TCP socket fd. Returns bytes read/written or a
+/* I/O callbacks for mbedtls_ssl_set_bio. The opaque ctx encodes the TCP
+   socket fd via intptr_t. Returns bytes read/written or a
    negative MBEDTLS_ERR_SSL_WANT_* on EAGAIN. */
 static int
 bc_mbedtls_recv (void *ctx, unsigned char *buf, size_t len)
@@ -2654,7 +2654,10 @@ bc_tls_handshake (int sock, const char *sni, const char *ca_path, int insecure,
               fwrite (vrbuf, 1, (size_t) vrlen, stderr);
           }
       }
-      return -1;
+      /* Keep verification distinct for callers that need a protocol-specific
+         status; other users of this shared helper still test for < 0. */
+      return (hs == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED ||
+              hs == MBEDTLS_ERR_SSL_BAD_CERTIFICATE) ? -2 : -1;
   }
 
   return 0;
@@ -2669,6 +2672,8 @@ bc_tls_connect_mbedtls_cmd (WORD_LIST *args)
   const char *sni = NULL;
   int insecure = 0;
   int print_cipher = 0;
+  int curl_status = 0;
+  int read_dns_frame = 0;
   int io_timeout_ms = 0;
   size_t max_request = 1024 * 1024;
 
@@ -2678,6 +2683,8 @@ bc_tls_connect_mbedtls_cmd (WORD_LIST *args)
       else if (strcmp (w, "-s") == 0) { if (!p->next) { builtin_error("-s needs SNI"); return EX_USAGE; } p = p->next; sni = p->word->word; }
       else if (strcmp (w, "-k") == 0) insecure = 1;
       else if (strcmp (w, "--print-cipher") == 0) print_cipher = 1;
+      else if (strcmp (w, "--curl-status") == 0) curl_status = 1;
+      else if (strcmp (w, "--read-dns-frame") == 0) read_dns_frame = 1;
       else if (strcmp (w, "--read-timeout") == 0 || strcmp (w, "--connect-timeout") == 0)
         {
           char *end = NULL;
@@ -2741,8 +2748,9 @@ bc_tls_connect_mbedtls_cmd (WORD_LIST *args)
   mbedtls_x509_crt_init (&ca);
 
   int rc = EXECUTION_SUCCESS;
-  if (bc_tls_handshake (sock, sni, ca_path, insecure, &ssl, &conf, &ca) < 0)
-    { rc = EXECUTION_FAILURE; goto cleanup; }
+  int handshake_rc = bc_tls_handshake (sock, sni, ca_path, insecure, &ssl, &conf, &ca);
+  if (handshake_rc < 0)
+    { rc = curl_status && handshake_rc == -2 ? 60 : EXECUTION_FAILURE; goto cleanup; }
 
   if (print_cipher) {
       const char *cs = mbedtls_ssl_get_ciphersuite (&ssl);
@@ -2763,14 +2771,41 @@ bc_tls_connect_mbedtls_cmd (WORD_LIST *args)
       off += (size_t) w;
   }
 
-  /* Read response until close_notify or peer EOF. */
-  for (;;) {
-      unsigned char buf[8192];
-      int r = mbedtls_ssl_read (&ssl, buf, sizeof buf);
-      if (r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE) continue;
-      if (r == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) break;
-      if (r <= 0) break;
-      bc_write_all (buf, (size_t) r);
+  /* DNS over TLS is a length-framed exchange.  Stop after one complete
+     frame rather than waiting for a reusable server connection to close. */
+  if (read_dns_frame) {
+      unsigned char buf[8192], prefix[2];
+      size_t prefix_len = 0, remaining = 0;
+      while (prefix_len < sizeof prefix || remaining > 0) {
+          size_t cap = prefix_len < sizeof prefix ? sizeof prefix - prefix_len : remaining;
+          if (cap > sizeof buf) cap = sizeof buf;
+          int n = mbedtls_ssl_read (&ssl, buf, cap);
+          if (n == MBEDTLS_ERR_SSL_WANT_READ || n == MBEDTLS_ERR_SSL_WANT_WRITE) continue;
+          if (n <= 0 || bc_write_all (buf, (size_t) n) < 0) {
+              builtin_error ("tls: incomplete DNS frame");
+              rc = EXECUTION_FAILURE; goto cleanup;
+          }
+          if (prefix_len < sizeof prefix) {
+              memcpy (prefix + prefix_len, buf, (size_t) n);
+              prefix_len += (size_t) n;
+              if (prefix_len == sizeof prefix) {
+                  remaining = ((size_t) prefix[0] << 8) | prefix[1];
+                  if (remaining < 12) {
+                      builtin_error ("tls: invalid DNS frame length");
+                      rc = EXECUTION_FAILURE; goto cleanup;
+                  }
+              }
+          } else remaining -= (size_t) n;
+      }
+  } else {
+      /* Generic TLS clients still read through close_notify or peer EOF. */
+      for (;;) {
+          unsigned char buf[8192];
+          int n = mbedtls_ssl_read (&ssl, buf, sizeof buf);
+          if (n == MBEDTLS_ERR_SSL_WANT_READ || n == MBEDTLS_ERR_SSL_WANT_WRITE) continue;
+          if (n == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY || n <= 0) break;
+          if (bc_write_all (buf, (size_t) n) < 0) { rc = EXECUTION_FAILURE; goto cleanup; }
+      }
   }
   mbedtls_ssl_close_notify (&ssl);
 
@@ -2962,9 +2997,13 @@ bc_nts_ke_parse_response (const unsigned char *buf, size_t len,
       off += rlen;
   }
 
-  if (!saw_eom || !saw_ntpv4 || !saw_aead || out->cookie_count == 0 || !out->ntp_host) {
+  if (!saw_eom || !saw_ntpv4 || !saw_aead || !out->ntp_host) {
       bc_nts_ke_result_free (out);
       return -1;
+  }
+  if (out->cookie_count == 0) {
+      bc_nts_ke_result_free (out);
+      return BC_NTS_KE_NO_COOKIE;
   }
   return 0;
 }
@@ -3034,6 +3073,7 @@ bc_nts_ke_run (const char *host_port, const char *ca_path, const char *sni,
   }
   mbedtls_ssl_conf_authmode (&conf, MBEDTLS_SSL_VERIFY_REQUIRED);
   mbedtls_ssl_conf_ca_chain (&conf, &ca, NULL);
+  mbedtls_ssl_conf_min_tls_version (&conf, MBEDTLS_SSL_VERSION_TLS1_3);
   static const char *const nts_alpn[] = { "ntske/1", NULL };
   if (mbedtls_ssl_conf_alpn_protocols (&conf, nts_alpn) != 0) {
       builtin_error ("nts-ke: ALPN setup failed");
@@ -3047,7 +3087,7 @@ bc_nts_ke_run (const char *host_port, const char *ca_path, const char *sni,
       builtin_error ("nts-ke: set_hostname failed");
       goto cleanup_tls;
   }
-  mbedtls_ssl_set_bio (&ssl, &sock, bc_mbedtls_send, bc_mbedtls_recv, NULL);
+  mbedtls_ssl_set_bio (&ssl, (void *) (intptr_t) sock, bc_mbedtls_send, bc_mbedtls_recv, NULL);
 
   int hs;
   while ((hs = mbedtls_ssl_handshake (&ssl)) != 0) {
@@ -3087,8 +3127,10 @@ bc_nts_ke_run (const char *host_port, const char *ca_path, const char *sni,
       response_len += (size_t) r;
       if (bc_nts_ke_response_has_eom (response, response_len)) break;
   }
-  if (bc_nts_ke_parse_response (response, response_len, host, out) < 0) {
+  int parse_rc = bc_nts_ke_parse_response (response, response_len, host, out);
+  if (parse_rc < 0) {
       builtin_error ("nts-ke: invalid response");
+      if (parse_rc == BC_NTS_KE_NO_COOKIE) ret = BC_NTS_KE_NO_COOKIE;
       goto cleanup_tls;
   }
 
@@ -5815,6 +5857,7 @@ char *crypto_doc[] = {
   "                 PKCS#10 CSR (ECDSA-P256 + SAN); PEM by default",
   "    tls connect HOST:PORT [-c CA_PEM] [-s SNI] [-k] [--print-cipher]",
   "        [--connect-timeout MS] [--read-timeout MS] [--max-request BYTES]",
+  "        [--read-dns-frame]  read one two-byte-length-prefixed DNS response",
   "    tls connect-mbedtls HOST:PORT [...]  # explicit alias for connect",
   "    nts-ke HOST[:PORT] [-c CA_PEM] [-s SNI] [--emit-keys]",
   "        NTS-KE over TLS/ALPN ntske/1; default port 4460.",

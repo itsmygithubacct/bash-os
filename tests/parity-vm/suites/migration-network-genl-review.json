@@ -18,11 +18,11 @@
         "genl"
       ],
       "helpers_sha256": {
-        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+        "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-id-record",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup get-id-record",
       "setup_timeout": 45,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-id-record",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" get-id-record",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "name-nlctrl status=0 stderr=empty semantic=yes\nid-hex-0x10 status=0 stderr=empty semantic=yes same-as-name=yes\nid-decimal-16 status=0 stderr=empty semantic=yes same-as-name=yes\nid-octal-020 status=0 stderr=empty semantic=yes same-as-name=yes\n",
@@ -45,11 +45,11 @@
         "genl"
       ],
       "helpers_sha256": {
-        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+        "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-id-unknown",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup get-id-unknown",
       "setup_timeout": 45,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-id-unknown",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" get-id-unknown",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "id-0x3ff failed=yes stdout-empty=yes stderr-exact=yes iproute2-stderr-same=yes\nid-65535 failed=yes stdout-empty=yes stderr-exact=yes iproute2-stderr-same=yes\nid-0 failed=yes stdout-empty=yes stderr-exact=yes iproute2-stderr-same=yes\n",
@@ -72,11 +72,11 @@
         "genl"
       ],
       "helpers_sha256": {
-        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+        "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-id-unknown-status",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup get-id-unknown-status",
       "setup_timeout": 45,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-id-unknown-status",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" get-id-unknown-status",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "id-0x3ff failed=yes iproute2-status-same=yes\nid-65535 failed=yes iproute2-status-same=yes\nid-0 failed=yes iproute2-status-same=yes\n",
@@ -101,12 +101,12 @@
         "seccomp-notify"
       ],
       "helpers_sha256": {
-        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6",
+        "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b",
         "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-id-invalid",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup get-id-invalid",
       "setup_timeout": 45,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-id-invalid",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" get-id-invalid",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "control-valid-16 sockets=1\ncontrol-boundary-0xffff sockets=1 no-invalid-diag=yes\nnonnumeric-abc status=2 stdout-empty=yes diag-exact=yes sockets=0\nnonnumeric-empty status=2 stdout-empty=yes diag-exact=yes sockets=0\nnonnumeric-name status=2 stdout-empty=yes diag-exact=yes sockets=0\nrange-0x10000 status=2 stdout-empty=yes diag-exact=yes sockets=0\nrange-65536 status=2 stdout-empty=yes diag-exact=yes sockets=0\nrange-4294967296 status=2 stdout-empty=yes diag-exact=yes sockets=0\nrange-negative status=2 stdout-empty=yes diag-exact=yes sockets=0\nrange-overflow status=2 stdout-empty=yes diag-exact=yes sockets=0\njunk-16x status=2 stdout-empty=yes diag-exact=yes sockets=0\njunk-0x10g status=2 stdout-empty=yes diag-exact=yes sockets=0\njunk-trailing-space status=2 stdout-empty=yes diag-exact=yes sockets=0\njunk-dot status=2 stdout-empty=yes diag-exact=yes sockets=0\njunk-bare-0x status=2 stdout-empty=yes diag-exact=yes sockets=0\n",
@@ -129,11 +129,11 @@
         "genl"
       ],
       "helpers_sha256": {
-        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+        "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-name-record",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup get-name-record",
       "setup_timeout": 45,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-name-record",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" get-name-record",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "name-nlctrl status=0 stderr=empty exact=yes semantic=yes one-record=yes id-0x10=yes groups-notify=yes\n",
@@ -156,11 +156,11 @@
         "genl"
       ],
       "helpers_sha256": {
-        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+        "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-name-unknown",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup get-name-unknown",
       "setup_timeout": 45,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-name-unknown",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" get-name-unknown",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "name-bashos_nofam failed=yes stdout-empty=yes stderr-exact=yes\nname-NLCTRL failed=yes stdout-empty=yes stderr-exact=yes\n",
@@ -182,11 +182,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+        "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-name-malformed",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup get-name-malformed",
       "setup_timeout": 45,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-name-malformed",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" get-name-malformed",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "missing-kind-and-value status=2 stdout-empty=yes diag-exact=yes\nmissing-value-name status=2 stdout-empty=yes diag-exact=yes\nmissing-value-id status=2 stdout-empty=yes diag-exact=yes\nextra-after-name status=2 stdout-empty=yes diag-exact=yes\nextra-after-id status=2 stdout-empty=yes diag-exact=yes\nunknown-kind status=2 stdout-empty=yes diag-exact=yes\nunknown-kind-case status=2 stdout-empty=yes diag-exact=yes\n",
@@ -209,11 +209,11 @@
         "genl"
       ],
       "helpers_sha256": {
-        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+        "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup list-records",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup list-records",
       "setup_timeout": 45,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" list-records",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" list-records",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "list status=0 stderr=empty families-complete=yes records=yes\n",
@@ -236,11 +236,11 @@
         "genl"
       ],
       "helpers_sha256": {
-        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+        "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup list-capabilities",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup list-capabilities",
       "setup_timeout": 45,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" list-capabilities",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" list-capabilities",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "list status=0 stderr=empty commands=yes caps-hex=yes word-admin=yes word-doit=yes word-dumpit=yes word-haspol=yes\n",
@@ -263,11 +263,11 @@
         "genl"
       ],
       "helpers_sha256": {
-        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+        "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup list-groups",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup list-groups",
       "setup_timeout": 45,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" list-groups",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" list-groups",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "list status=0 stderr=empty families-complete=yes groups=yes\n",
@@ -292,12 +292,12 @@
         "seccomp-notify"
       ],
       "helpers_sha256": {
-        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6",
+        "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b",
         "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup list-multipart",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup list-multipart",
       "setup_timeout": 45,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" list-multipart",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" list-multipart",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "list-traced status=0 stderr=empty families-complete=yes recv-buffers-ge2=yes sockets=1\n",
@@ -319,11 +319,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+        "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup list-extra-argument",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup list-extra-argument",
       "setup_timeout": 45,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" list-extra-argument",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" list-extra-argument",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "extra-word status=2 stdout-empty=yes diag-exact=yes\nextra-empty status=2 stdout-empty=yes diag-exact=yes\nextra-two status=2 stdout-empty=yes diag-exact=yes\n",
@@ -346,11 +346,11 @@
         "genl"
       ],
       "helpers_sha256": {
-        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+        "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup list-exact",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup list-exact",
       "setup_timeout": 45,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" list-exact",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" list-exact",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "list status=0 stderr=empty exact=yes semantic=yes\n",
@@ -374,11 +374,11 @@
         "genl"
       ],
       "helpers_sha256": {
-        "helpers/genl-review-observer.py": "e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6"
+        "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py setup get-dynamic-family",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup get-dynamic-family",
       "setup_timeout": 45,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer.py \"$BASH\" get-dynamic-family",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" get-dynamic-family",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "name-dynamic status=0 stderr=empty exact=yes semantic=yes\nid-dynamic-hex status=0 stderr=empty exact=yes semantic=yes same-as-name=yes\nid-dynamic-decimal status=0 stderr=empty exact=yes semantic=yes same-as-name=yes\n",

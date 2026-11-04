@@ -389,7 +389,7 @@ build_packet (unsigned char *pkt, size_t cap, unsigned type, unsigned xid,
       pkt[p++] = 50; pkt[p++] = 4; memcpy (pkt + p, req_ip, 4); p += 4;
       pkt[p++] = 54; pkt[p++] = 4; memcpy (pkt + p, server, 4); p += 4;
     }
-  else if ((type == 3 || type == 7) && server)
+  else if (type == 7 && server)
     { pkt[p++] = 54; pkt[p++] = 4; memcpy (pkt + p, server, 4); p += 4; }
   if (type != 7)
     {
@@ -587,6 +587,12 @@ inform_cmd (WORD_LIST *args)
     { builtin_error ("SO_BROADCAST: %s", strerror (errno)); close (fd); return EXECUTION_FAILURE; }
   if (setsockopt (fd, SOL_SOCKET, SO_BINDTODEVICE, iface, strlen (iface)) < 0)
     { builtin_error ("SO_BINDTODEVICE %s: %s", iface, strerror (errno)); close (fd); return EXECUTION_FAILURE; }
+  /* INFORM replies are sent to the DHCP client port, not an ephemeral port. */
+  struct sockaddr_in local = { .sin_family = AF_INET,
+                               .sin_port = htons (env_port ("BASHDHCP_CLIENT_PORT", 68)),
+                               .sin_addr.s_addr = htonl (INADDR_ANY) };
+  if (bind (fd, (struct sockaddr *) &local, sizeof local) < 0)
+    { builtin_error ("bind udp/%u: %s", ntohs (local.sin_port), strerror (errno)); close (fd); return EXECUTION_FAILURE; }
   struct sockaddr_in dst = { .sin_family = AF_INET, .sin_port = htons (67), .sin_addr.s_addr = htonl (INADDR_BROADCAST) };
   unsigned char pkt[548], ack[BDHCP_MAX_PACKET];
   size_t plen = build_packet (pkt, sizeof pkt, 8, xid, mac, NULL, NULL, ci);

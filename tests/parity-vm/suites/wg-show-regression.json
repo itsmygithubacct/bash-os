@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "wg-show-regression-singular",
+      "loadable": "wg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Family lookup completes, zero-state peer uses singular keepalive, and an absent device fails.",
+      "covers": [
+        "wg/deferred-show-device-state"
+      ],
+      "oracle": "Fresh mapped user+network namespace with a kernel WireGuard device (ip link add wg0 type wireguard). Kernel state is read back (and for show seeded) with an independent generic-netlink codec written from linux/wireguard.h; public keys are checked against the RFC 7748 section 6.1 X25519 vectors; show text is compared with the wg(8) contract. Per-check detail in stderr of the raw record.",
+      "comparison": "Contract: candidate-only run; per-check detail retained in stderr of the raw record, stdout carries the verdict.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/wg-show-regression.py\n",
+      "stdout": "scenario wg-show-regression: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/wg-show-regression.py": "202334426bba26b4b7369339474e904edc3a01946e8debe98126b4e438e30c5c",
+        "helpers/mig-w1-wg.py": "bbd7f304cee2926825a4a2e55e811d4d5b9c96c059da50824fe960721dc16b48",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    }
+  ]
+}

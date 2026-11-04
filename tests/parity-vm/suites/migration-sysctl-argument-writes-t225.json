@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-sysctl-argument-writes-regression-t225",
+      "loadable": "sysctl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "sysctl/argument-writes"
+      ],
+      "purpose": "Argument write parity, readback, continued processing after errors, and namespace confinement; prerequisites must be present.",
+      "oracle": "procps-ng 4.0 sysctl",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; /proc/sys values after each write. Each side has fresh network and UTS namespaces, so writes to net.* keys and kernel.domainname change only that side; the initial-namespace values are read with nsenter before and after.",
+      "requires": [
+        "sysctl",
+        "nsenter",
+        "cat",
+        "readlink",
+        "setpriv",
+        "sed",
+        "tr"
+      ],
+      "script": "[[ $(/usr/bin/readlink /proc/1/ns/net) != $(/usr/bin/readlink /proc/self/ns/net) && $(/usr/bin/readlink /proc/1/ns/uts) != $(/usr/bin/readlink /proc/self/ns/uts) ]] || { echo NAMESPACE-SETUP-FAILED >&2; exit 1; }\nstrip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\ncd /tmp; K=\"net.ipv4.ip_forward net.ipv4.conf.lo.forwarding net.ipv4.conf.all.forwarding kernel.domainname\"\nv() { local k; for k; do printf '  %s=%s\\n' $k \"$(< /proc/sys/${k//.//})\"; done; }\ninit() { [[ $(/usr/bin/readlink /proc/1/ns/net) != $(/usr/bin/readlink /proc/self/ns/net) ]] && echo \"  initial namespaces distinct: yes\" || echo \"  initial namespaces distinct: no\"\n  local k; for k in $K; do printf '  init %s=%s\\n' $k \"$(/usr/bin/nsenter -t 1 -n -u /usr/bin/cat /proc/sys/${k//.//})\"; done; }\n# Reject guests without working namespace-local kernel writes.\nsysctl -q -w net.ipv4.ip_forward=1 kernel.domainname=rf.prerequisite >/dev/null 2>&1 && [[ $(< /proc/sys/net/ipv4/ip_forward) == 1 && $(< /proc/sys/kernel/domainname) == rf.prerequisite ]] || { echo WRITE-SETUP-FAILED >&2; exit 1; }\ninit; v $K\nr write sysctl -w net.ipv4.ip_forward=1; v net.ipv4.ip_forward\nr write-implicit sysctl net.ipv4.ip_forward=0; v net.ipv4.ip_forward\nr write-quiet sysctl -q -w net.ipv4.conf.lo.forwarding=1; v net.ipv4.conf.lo.forwarding\nr write-uts sysctl -w kernel.domainname=rf.example; v kernel.domainname\nr write-multi sysctl -w net.ipv4.ip_forward=1 kernel.domainname=rf.second; v net.ipv4.ip_forward kernel.domainname\nr write-spaces sysctl -w 'net.ipv4.conf.lo.forwarding = 0'; v net.ipv4.conf.lo.forwarding\nr write-unknown sysctl -w rf.no.such=1\nr write-unknown-ignored sysctl -e -w rf.no.such=1\nr write-readonly sysctl -w kernel.ostype=Other; v kernel.ostype\nu write-unprivileged \"sysctl -w net.ipv4.ip_forward=0\"; v net.ipv4.ip_forward\nr write-noequals sysctl -w net.ipv4.ip_forward\nr write-mixed-errors sysctl -w rf.no.such=1 net.ipv4.ip_forward=0; v net.ipv4.ip_forward\nr write-noequals-then-valid sysctl -w net.ipv4.ip_forward net.ipv4.ip_forward=1; v net.ipv4.ip_forward\ninit\n",
+      "expected_status": 0,
+      "timeout": 45
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "timeout": 60,
+      "loadable": "passwd",
+      "id": "repair-passwd-phc-roundtrip-legacy-mode",
+      "covers": [
+        "passwd/password_hash_updates"
+      ],
+      "purpose": "Verify standard and legacy independent vectors, wrong password refusal, new hash round trip, retained aging and shadow mode.",
+      "files": {
+        "db/passwd": "alice:x:1000:1000:Alice:/home/alice:/bin/bash\n",
+        "db/shadow": "alice:$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc:19000:1:90:14:30:20000:\n",
+        "pw": "password\n",
+        "wrong": "incorrect\n"
+      },
+      "requires": [
+        "chmod",
+        "stat",
+        "awk"
+      ],
+      "script": "export BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=db/passwd PHCLIB_SHADOW=db/shadow PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/chmod 640 db/shadow\npasswd verify-fd alice 3 3<pw >/dev/null 2>&1; printf 'standard=%s\\n' \"$?\"\npasswd verify-fd alice 3 3<wrong >/dev/null 2>&1; (( $? != 0 )) && echo wrong=rejected\nprintf '%s\\n' 'alice:$argon2id$v=19$m=65536,t=2,p=1$736f6d6573616c74$09316115d5cf24ed5a15a31a3ba326e5cf32edc24702987c02b6566f61913cf7:19000:1:90:14:30:20000:' >db/shadow\npasswd verify-fd alice 3 3<pw >/dev/null 2>&1; printf 'legacy=%s\\n' \"$?\"\npasswd set-fd alice 3 3<pw >/dev/null 2>&1; printf 'set=%s\\n' \"$?\"\npasswd verify-fd alice 3 3<pw >/dev/null 2>&1; printf 'new=%s\\n' \"$?\"\n/usr/bin/awk -F: '{print \"aging=\" $4 \":\" $5 \":\" $6 \":\" $7 \":\" $8 \":\" $9}' db/shadow\nprintf 'mode=%s\\n' \"$(/usr/bin/stat -c %a db/shadow)\"\n",
+      "expected_status": 0,
+      "stdout": "standard=0\nwrong=rejected\nlegacy=0\nset=0\nnew=0\naging=1:90:14:30:20000:\nmode=640\n",
+      "oracle": "Pinned independent Argon2 PHC vectors in standard and legacy encodings must verify the known password and reject a wrong password. A newly written hash must verify; independent awk/stat readback must show unchanged aging fields and mode 0640. The new-hash round trip alone is not an independent cryptographic oracle."
+    }
+  ]
+}

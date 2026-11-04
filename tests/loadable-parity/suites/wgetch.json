@@ -52,8 +52,61 @@
     {
       "id": "escape-timing",
       "purpose": "Deferred check of lone ESC grace, delayed continuation, ambiguous exact-prefix sequences, and the max(400 ms, ESCDELAY*8) total cap.",
-      "kind": "deferred",
-      "reason": "Not reachable through the candidate interface: the fixed wgetch.c bw_keys table (no fixture or terminfo loading) contains no exact key that is also a prefix of a longer key (e.g. ESC[20~ and ESC[200~ diverge at byte 5), so the exact-vs-longer resolution path in bw_read_key_fd cannot be triggered by any input. Requires a candidate key-table extension, not a fixture."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w8-wgetch-cap-default-exceeded"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-wgetch-cap-default-within"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-wgetch-cap-floor-400"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-wgetch-cap-scales-exceeded"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w8-wgetch-cap-scales-within"
+        },
+        {
+          "group": "shell",
+          "id": "migration-escdelay-env-grace"
+        },
+        {
+          "group": "shell",
+          "id": "migration-escdelay-pty-env-grace-and-bounds"
+        },
+        {
+          "group": "shell",
+          "id": "migration-wgetch-esc-grace-split"
+        },
+        {
+          "group": "shell",
+          "id": "migration-wgetch-handle-read-timing"
+        },
+        {
+          "group": "shell",
+          "id": "migration-wgetch-pty-esc-grace"
+        },
+        {
+          "group": "shell",
+          "id": "migration-wgetch-pty-handle-timing"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-key-clock"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-wgetch"
+        }
+      ]
     },
     {
       "id": "screen-queue",

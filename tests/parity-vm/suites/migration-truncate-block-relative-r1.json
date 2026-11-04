@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-truncate-block-device-relative-r1",
+      "loadable": "truncate",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "truncate/block_special_file_behavior"
+      ],
+      "purpose": "Exercise block capacity for shrinking, rounding and reference-based sizing, plus continuation after a device error; verify image and capacity after each attempt.",
+      "oracle": "GNU coreutils truncate",
+      "comparison": "Compare status, diagnostics, regular-file effects, block capacity and backing image digest; loop device belongs to this fixture and is detached on exit.",
+      "requires": [
+        "truncate",
+        "losetup",
+        "blockdev",
+        "python3",
+        "sha256sum",
+        "cut",
+        "sed",
+        "tr",
+        "cat"
+      ],
+      "script": "set -u\nRT=/tmp/truncate-block-relative\n/usr/bin/mkdir -p \"$RT\" || exit 1\ncd \"$RT\" || exit 1\n/usr/bin/python3 -c 'open(\"img\", \"wb\").write(bytes((i*7+i//251)%256 for i in range(65536)))' || exit 1\nbefore=$(/usr/bin/sha256sum < img) || exit 1\nd=$(/usr/sbin/losetup -f --show img) || { echo SETUP-FAILED; exit 1; }\n[[ $d == /dev/loop* ]] || { echo SETUP-FAILED; exit 1; }\ncleanup() { /usr/sbin/losetup -d \"$d\" || echo DETACH-FAILED; }\ntrap cleanup EXIT\n/usr/bin/udevadm settle -t 10 >/dev/null 2>&1 || :\nrun() {\n  local label=$1 rc size digest; shift\n  \"$@\" >out 2>err; rc=$?\n  size=$(/usr/sbin/blockdev --getsize64 \"$d\") || exit 1\n  digest=$(/usr/bin/sha256sum < img) || exit 1\n  printf '%s status=%s out=' \"$label\" \"$rc\"; /usr/bin/tr '\\n' '|' <out\n  printf ' err='; /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' err | /usr/bin/tr '\\n' '|'\n  printf ' capacity=%s image-unchanged=' \"$size\"\n  [[ $digest == \"$before\" && $size == 65536 ]] || { echo NO; exit 1; }\n  echo yes\n}\nfor s in -512 /5000 '<70000' '>1' %65536; do run \"size[$s]\" truncate -s \"$s\" \"$d\"; done\nprintf 12345 > ref\nrun ref-relative truncate -r ref -s +2 \"$d\"\nprintf abcdef > regular\nrun multi truncate -s 2 \"$d\" regular\nprintf 'regular='; /usr/bin/cat regular; echo\n[[ $(<regular) == ab ]] || exit 1\n/usr/sbin/losetup -d \"$d\" || exit 1\ntrap - EXIT\n",
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}

@@ -3999,6 +3999,16 @@ bc_run_source (bc_interp *ip, bc_src *src)
         bc_run_item (ip, list);
         ip->err = 0;
         bc_arena_free (&arena);
+        /* A terminal user must see each completed item before we block for
+           the next line.  Drain both our buffer and stdio's buffer. */
+        if (src->in && isatty (src->in->fd)) {
+            bc_out_flush (&ip->out);
+            if (fflush (stdout) == EOF || ferror (stdout)) {
+                ip->failed = 1;
+                ip->fatal = 1;
+                ip->stop = 1;
+            }
+        }
         if (bc_check_interrupt (ip)) break;
     }
     if (p.have) bc_tok_free (&p.tok);

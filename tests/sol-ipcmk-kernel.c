@@ -64,7 +64,7 @@ int ipcmk_check_builtin(WORD_LIST *list)
             CHECK(msgctl(id, IPC_STAT, &ds) == 0);
             CHECK(ds.msg_perm.uid == getuid() && ds.msg_perm.cuid == getuid());
             CHECK(ds.msg_perm.__key == IPC_PRIVATE);
-            CHECK((ds.msg_perm.mode & 0777) == mode && ds.msg_qnum == 0 && ds.msg_qbytes > 0);
+            CHECK((ds.msg_perm.mode & 0777) == mode && ds.msg_qnum == 0 && ds.__msg_cbytes == 0 && ds.msg_qbytes > 0);
             CHECK(msgctl(id, IPC_RMID, NULL) == 0);
             errno = 0; CHECK(msgctl(id, IPC_STAT, &ds) == -1 && (errno == EINVAL || errno == EIDRM));
         } else return 1;

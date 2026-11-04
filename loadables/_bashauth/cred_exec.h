@@ -46,6 +46,14 @@ int bashos_cred_exec_user_shell_policy (const bashos_cred_exec_user *u,
                                         const char **extra_argv,
                                         const bashos_cred_exec_env_policy *env_policy);
 
+/* Login shell argument construction only; performs no environment/credential
+   changes. -c keeps all following words ($0, $1, ...); the default login form
+   is SHELL --login. Returns argc, or -1 with errno on invalid input/capacity. */
+int bashos_cred_exec_shell_argv (const char *shell, int login_shell,
+                                const char *cmd, int extra_argc,
+                                const char **extra_argv,
+                                const char **argv, size_t capacity);
+
 /* Synthesize the authority-owned environment without performing any exec.
    Returns a malloc'd NULL-terminated envp (free with
    bashos_cred_exec_free_env), or NULL on allocation failure. Exposed so the

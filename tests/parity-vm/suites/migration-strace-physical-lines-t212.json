@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-strace-follow-physical-lines-t212",
+      "loadable": "strace",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Each followed syscall remains on one physical line across fork events and concurrent tracees.",
+      "covers": [
+        "strace/exec-trace-status",
+        "strace/follow-children"
+      ],
+      "oracle": "Guest-only parser controls, direct deterministic tracee and independent native ptrace observer run in each case setup. The owned tracee forks one child, records both identities and the child wait status, verifies ECHILD on a second wait and exits 42. The native control records the fork, the child's initial SIGSTOP context and per-PID syscall observations. A failed setup is an infrastructure error. The primary explicitly accepted native ground truth for the literal requirement; GNU strace is not executed or claimed equivalent.",
+      "comparison": "Require the existing independent follow controls and semantic checks, then require zero physical-line failures in their retained observations.",
+      "requires": [
+        "gcc",
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-follow-reviewed.py setup\n",
+      "candidate_script": "printf 'follow\\n' >\"$HOME/candidate.start\" || exit 125\nrc=0\nstrace -f -- ./follow-tracee >\"$HOME/candidate.out\" 2>\"$HOME/candidate.err\" || rc=$?\nprintf '%s\\n' \"$rc\" >\"$HOME/candidate.status\" || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/strace-follow-reviewed.py follow >\"$HOME/follow.verify\" || exit $?\n/usr/bin/python3 -c 'import json, os; from pathlib import Path; r=json.loads((Path(os.environ[\"HOME\"])/\"assertions.json\").read_text()); assert r[\"complete\"] and not r[\"infrastructure_errors\"] and not r[\"product_failures\"] and not r[\"observations\"][\"physical_line_failures\"]' || exit 1\nprintf 'physical-lines-ok\\n'\n",
+      "stdout": "physical-lines-ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 25,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "setup-controls.json",
+        "parser-controls.json",
+        "gcc.out",
+        "gcc.err",
+        "direct.out",
+        "direct.err",
+        "direct.status",
+        "native.out",
+        "native.err",
+        "native.status",
+        "candidate.start",
+        "candidate.out",
+        "candidate.err",
+        "candidate.status",
+        "assertions.json",
+        "follow.verify"
+      ],
+      "helpers_sha256": {
+        "helpers/strace-follow-reviewed.py": "99572ba149cdf007d62257a6e36dc5a4e908015bb8af1537b5656823b883ac27",
+        "helpers/strace-follow-reviewed.tracee.c": "d11a405d3356c054f7682e4a1e813e37df8f5b2489ad18df16618ae9bdc81a8d",
+        "helpers/strace-follow-reviewed.control.c": "5570bb17332d50370037ef42cb212a5efdc60fc361d0e22bafff4f63e1765bbf",
+        "helpers/strace-follow-reviewed.gate.json": "85ed8dda5bbb4dc6e8bb828c1744b2dfe48a70f61df14cc805870e6037e985e3"
+      }
+    }
+  ]
+}

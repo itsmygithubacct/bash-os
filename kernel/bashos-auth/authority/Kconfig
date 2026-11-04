@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config BASHOS_AUTH_AUTHORITY_NEXT_KUNIT_TEST
+    bool "bash-os proposed authority mechanics tests (no live authority)"
+    depends on KUNIT
+    select CRYPTO_LIB_UTILS
+    select CRYPTO_LIB_SHA256
+    default n
+    help
+      Test bounded request snapshots and proposed reference lifetime mechanics.
+      Test grants exist only in this target. It registers no device, trusts no
+      verifier, changes no credentials and enables no authority feature bit.

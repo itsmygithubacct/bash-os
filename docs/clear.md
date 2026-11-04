@@ -54,11 +54,10 @@ This is a fixed terminal table, not a full ncurses implementation. It ignores
 `COLUMNS`. Custom terminal definitions and compiled terminfo entries do not
 override it. For other terminals, select a listed compatible type explicitly.
 
-VT100/VT102 output omits serial-line padding: ncurses may append NUL bytes or
-delay according to the output baud rate. bashclear emits only the visible
-control sequence. It is intended for terminal emulators; actual slow serial
-terminals can require padding. Installed ncurses databases can also differ
-in their clear and scrollback capabilities.
+For VT100/VT102 on terminal output, the clear sequence is followed by NUL
+padding for a 50 ms delay at the output baud rate. Redirected non-terminal
+output has no padding. Installed ncurses databases can differ in their clear
+and scrollback capabilities.
 
 | Status | Meaning |
 | --- | --- |

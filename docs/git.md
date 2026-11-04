@@ -1242,6 +1242,11 @@ without one, armoured and written where git writes it — a `gpgsig`
 header in a commit, after the message in a tag. git reads both back and
 says `Good "git" signature`, which is what the test asks it to do.
 
+For OpenPGP signing, git invokes `gpg.openpgp.program` (or `gpg.program`,
+then `gpg`) with the unsigned object on standard input. The signer must
+provide an armored signature and a `SIG_CREATED` status record. The signing
+key comes from `-S`, `user.signingKey`, or the committer identity.
+
 The reading goes the other way too. `git verify-commit` and `git
 verify-tag` take a signature back out of the object — a `gpgsig` header
 in a commit, the block after the message in a tag — check it against

@@ -1162,6 +1162,8 @@ bl_send_and_read_result (bl_conn *c, const bl_buf *msg, int expect_tag, FILE *ou
     builtin_error ("ldap: unexpected LDAP response op 0x%02x", op);
     goto done;
   }
+  if (rc != 0 && expect_tag == 0x61)
+    builtin_error ("ldap: bind failed with result code %d", rc);
   ret = rc == 0 ? 0 : -1;
 done:
   bl_buf_free (&reply);
@@ -1351,6 +1353,15 @@ bl_cmd_search (int argc, char **argv)
   cfg.nattrs = argc - pos;
 
   bl_conn_init (&c);
+  /* Reject malformed filters before DNS, connection, TLS, or bind.  The
+     final request is encoded after negotiation chooses its message ID. */
+  {
+    bl_buf filter = { 0 };
+    int rc = bl_compile_filter (cfg.filter, &filter);
+    bl_buf_free (&filter);
+    if (rc < 0)
+      goto done;
+  }
   if (bl_open_session (&cfg, &c, &uri) < 0)
     goto done;
   if (bl_maybe_starttls (&cfg, &c, &uri, &msgid) < 0)

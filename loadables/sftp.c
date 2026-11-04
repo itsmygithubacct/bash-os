@@ -251,7 +251,7 @@ static void bsftp_child_guard_child_end (struct bsftp_child_guard *g)
   sigprocmask (SIG_SETMASK, &g->old_mask, NULL);
 }
 
-static int run_local_helper (char *const argv[], const blob *in, blob *out, blob *err, int builtin_ok)
+static int run_local_helper (char *const argv[], const blob *in, blob *out, blob *err, int builtin_ok, int allow_early_input_close)
 {
   int ip[2] = {-1, -1}, op[2] = {-1, -1}, ep[2] = {-1, -1};
   if (in && pipe (ip) < 0) return 127;
@@ -314,8 +314,11 @@ static int run_local_helper (char *const argv[], const blob *in, blob *out, blob
     if (fds[0].fd >= 0 && fds[0].revents) {
       ssize_t n = write (fds[0].fd, in->p + sent, in->n - sent);
       if (n > 0) sent += (size_t) n;
+      else if (n < 0 && errno == EPIPE && allow_early_input_close)
+        { close (fds[0].fd); fds[0].fd = -1; }
       else if (n < 0 && errno != EINTR && errno != EAGAIN) failed = 1;
-      if (sent == in->n || failed) { close (fds[0].fd); fds[0].fd = -1; }
+      if (fds[0].fd >= 0 && (sent == in->n || failed))
+        { close (fds[0].fd); fds[0].fd = -1; }
     }
     for (int i = 1; i < 3; i++) if (fds[i].fd >= 0 && fds[i].revents) {
       ssize_t n = read (fds[i].fd, buf, sizeof buf);
@@ -394,7 +397,7 @@ static int run_remote_openssh (const sftp_session *s, const char *cmd,
   if (s->key[0]) { argv[n++] = "-i"; argv[n++] = (char *) s->key; }
   argv[n++] = target; argv[n++] = (char *) cmd; argv[n] = NULL;
   blob empty = {0};
-  return run_local_helper (argv, in ? in : &empty, out, err, 0);
+  return run_local_helper (argv, in ? in : &empty, out, err, 0, 0);
 }
 
 static int run_remote (const sftp_session *s, const char *cmd,
@@ -444,8 +447,10 @@ static int shquote (const char *in, blob *out)
 
 static int sftp_pwd (sftp_session *s)
 {
+  char cmd[4096];
+  if (build_cmd (s, "pwd", cmd, sizeof cmd) < 0) return EXECUTION_FAILURE;
   blob out = {0}, err = {0};
-  int rc = run_remote (s, "pwd", NULL, &out, &err);
+  int rc = run_remote (s, cmd, NULL, &out, &err);
   if (rc == 0 && out.n)
     {
       /* strip trailing newline before assigning as new rcwd if empty */
@@ -544,7 +549,8 @@ static int sftp_get (sftp_session *s, const char *remote, const char *local)
   return EXECUTION_SUCCESS;
 }
 
-static int sftp_put (sftp_session *s, const char *local, const char *remote)
+static int sftp_put (sftp_session *s, const char *local, const char *remote,
+                     int scp_mode)
 {
   if (!local || !*local) { builtin_error ("put: missing local path"); return EX_USAGE; }
   blob in = {0};
@@ -563,9 +569,25 @@ static int sftp_put (sftp_session *s, const char *local, const char *remote)
   blob q = {0};
   if (shquote (target, &q) < 0)
     { blob_free (&in); blob_free (&q); return EXECUTION_FAILURE; }
-  char verb[2048];
-  snprintf (verb, sizeof verb, "cat > %s", q.p);
+  char verb[4096];
+  int n;
+  blob qb = {0};
+  if (scp_mode)
+    {
+      const char *base = strrchr (local, '/');
+      base = base ? base + 1 : local;
+      if (shquote (base, &qb) < 0)
+        { blob_free (&in); blob_free (&q); blob_free (&qb); return EXECUTION_FAILURE; }
+      n = snprintf (verb, sizeof verb,
+                    "p=%s; if [ -d \"$p\" ]; then p=\"$p\"/%s; fi; cat > \"$p\"",
+                    q.p, qb.p);
+    }
+  else
+    n = snprintf (verb, sizeof verb, "cat > %s", q.p);
   blob_free (&q);
+  blob_free (&qb);
+  if (n < 0 || (size_t) n >= sizeof verb)
+    { blob_free (&in); builtin_error ("put: path too long"); return EXECUTION_FAILURE; }
   char cmd[4096];
   if (build_cmd (s, verb, cmd, sizeof cmd) < 0)
     { blob_free (&in); return EXECUTION_FAILURE; }
@@ -596,7 +618,7 @@ static int sftp_mkdir (sftp_session *s, const char *path)
   blob q = {0};
   if (shquote (path, &q) < 0) { blob_free (&q); return EXECUTION_FAILURE; }
   char verb[2048];
-  snprintf (verb, sizeof verb, "mkdir -p -- %s", q.p);
+  snprintf (verb, sizeof verb, "mkdir -- %s", q.p);
   blob_free (&q);
   return run_simple (s, verb);
 }
@@ -618,7 +640,7 @@ static int sftp_rm (sftp_session *s, const char *path)
   blob q = {0};
   if (shquote (path, &q) < 0) { blob_free (&q); return EXECUTION_FAILURE; }
   char verb[2048];
-  snprintf (verb, sizeof verb, "rm -f -- %s", q.p);
+  snprintf (verb, sizeof verb, "rm -- %s", q.p);
   blob_free (&q);
   return run_simple (s, verb);
 }
@@ -816,7 +838,7 @@ static int sftp_dispatch (sftp_session *s, int argc, char **argv)
         (char *) (argc >= 2 ? argv[1] : "."),
         NULL
       };
-      int rc = run_local_helper (ls_argv, NULL, NULL, NULL, 1);
+      int rc = run_local_helper (ls_argv, NULL, NULL, NULL, 1, 0);
       return rc == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
     }
   if (!strcmp (v, "get"))
@@ -824,7 +846,7 @@ static int sftp_dispatch (sftp_session *s, int argc, char **argv)
                        argc >= 3 ? argv[2] : NULL);
   if (!strcmp (v, "put"))
     return sftp_put (s, argc >= 2 ? argv[1] : NULL,
-                       argc >= 3 ? argv[2] : NULL);
+                     argc >= 3 ? argv[2] : NULL, 0);
   if (!strcmp (v, "mkdir"))
     return sftp_mkdir (s, argc >= 2 ? argv[1] : NULL);
   if (!strcmp (v, "rmdir"))
@@ -948,6 +970,7 @@ sftp_builtin (WORD_LIST *list)
       free_argv (argv, argc);
       if (rc == 1000) { last_rc = EXECUTION_SUCCESS; break; }
       last_rc = rc;
+      if (batch_owned && rc != EXECUTION_SUCCESS) break;
     }
   if (batch_owned) fclose (in);
   return last_rc;
@@ -985,12 +1008,10 @@ static int split_remote (const char *spec, char **host_out, char **path_out)
 {
   *host_out = NULL; *path_out = NULL;
   const char *colon = strchr (spec, ':');
-  if (!colon || colon == spec || strchr (spec, '/') < colon)
+  const char *slash = strchr (spec, '/');
+  if (!colon || colon == spec || (slash && slash < colon))
     {
-      /* No colon, or colon is preceded by /, treat as local. */
-      if (colon && strchr (spec, '/') && strchr (spec, '/') < colon)
-        { *path_out = strdup (spec); return *path_out ? 0 : -1; }
-      if (!colon) { *path_out = strdup (spec); return *path_out ? 0 : -1; }
+      *path_out = strdup (spec); return *path_out ? 0 : -1;
     }
   size_t hn = (size_t) (colon - spec);
   *host_out = malloc (hn + 1);
@@ -1067,7 +1088,7 @@ bashsftp_scp_dispatch (WORD_LIST *list)
             (char *) "tar", (char *) "-cf", (char *) "-",
             (char *) "-C", src_dir, src_base, NULL
           };
-          int trc = run_local_helper (tar_argv, NULL, &in, &err, 1);
+          int trc = run_local_helper (tar_argv, NULL, &in, &err, 1, 0);
           if (err.n) fwrite (err.p, 1, err.n, stderr);
           blob_free (&err);
           if (trc != 0) { blob_free (&in); rc = EXECUTION_FAILURE; goto out; }
@@ -1081,7 +1102,7 @@ bashsftp_scp_dispatch (WORD_LIST *list)
           rc = rrc == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
         }
       else
-        rc = sftp_put (&s, src_path, dst_path);
+        rc = sftp_put (&s, src_path, dst_path, 1);
     }
   else if (src_host && !dst_host)       /* remote → local: get */
     {
@@ -1109,14 +1130,30 @@ bashsftp_scp_dispatch (WORD_LIST *list)
             (char *) "tar", (char *) "-xf", (char *) "-",
             (char *) "-C", dst_path, NULL
           };
-          int prc = run_local_helper (tar_argv, &out, NULL, &tar_err, 1);
+          /* Tar can finish at the archive end marker before consuming record
+             padding.  In that case trust its exit status, not EPIPE. */
+          int prc = run_local_helper (tar_argv, &out, NULL, &tar_err, 1, 1);
           if (tar_err.n) fwrite (tar_err.p, 1, tar_err.n, stderr);
           blob_free (&tar_err);
           blob_free (&out); blob_free (&err);
           rc = prc == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
         }
       else
-        rc = sftp_get (&s, src_path, dst_path);
+        {
+          struct stat st;
+          char *joined = NULL;
+          if (stat (dst_path, &st) == 0 && S_ISDIR (st.st_mode))
+            {
+              const char *base = strrchr (src_path, '/');
+              base = base ? base + 1 : src_path;
+              size_t dl = strlen (dst_path), bl = strlen (base);
+              if (dl > SIZE_MAX - bl - 2 || !(joined = malloc (dl + bl + 2)))
+                { builtin_error ("scp: out of memory"); rc = EXECUTION_FAILURE; goto out; }
+              snprintf (joined, dl + bl + 2, "%s/%s", dst_path, base);
+            }
+          rc = sftp_get (&s, src_path, joined ? joined : dst_path);
+          free (joined);
+        }
     }
   else if (!src_host && !dst_host)
     { builtin_error ("scp: neither path is remote (use cp(1))");

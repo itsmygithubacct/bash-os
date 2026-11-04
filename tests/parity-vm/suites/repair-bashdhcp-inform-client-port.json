@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-bashdhcp-inform-client-port",
+      "loadable": "bashdhcp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashdhcp/defer-inform-ack"
+      ],
+      "purpose": "INFORM originates on UDP 68, receives the matching ACK on UDP 68, and prints its fields.",
+      "oracle": "RFC 2131 s2 and s4.3 field layout and RFC 2132 option encodings, checked by an independent Python decoder over sniffed frames; no GNU reference tool exists for this builtin.",
+      "comparison": "The private peer records both datagrams; check the client source and ACK destination ports and the decoded output.",
+      "requires": [
+        "python3",
+        "unshare",
+        "ip",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dhcp4.py": "2ca4b97aa4e52bfa363d8a26cde3668aa162493f9375cef640d6d6d6110fb792"
+      },
+      "setup_script": "mkfifo sync.fifo\n",
+      "setup_timeout": 10,
+      "files": {
+        "case.sh": "IP=/usr/bin/ip\nPY=/usr/bin/python3\nH=/opt/bashos-parity/harness/helpers/mig-w2-dhcp4.py\ndie() { echo \"SETUP-FAILED $*\"; exit 90; }\n/usr/bin/mount -t sysfs sysfs /sys || die sysfs\n$IP link set lo up || die lo\n$IP link add veth0 address 02:00:00:00:0a:01 type veth peer name veth1 address 02:00:00:00:0a:02 || die veth\necho 0 > /proc/sys/net/ipv4/conf/all/rp_filter || die rpf-all\necho 0 > /proc/sys/net/ipv4/conf/veth0/rp_filter || die rpf-veth0\nexec 7<>sync.fifo\n\"$PY\" \"$H\" peer full sync.fifo 2> peer.err &\npeer=$!\nread -t 20 -u 7 line || die peer-pid\n[[ $line == \"pid=$peer\" ]] || die \"peer-pid-$line\"\n$IP link set veth1 netns \"$peer\" || die move\nread -t 20 -u 7 line || die peer-ready\n[[ $line == ready ]] || die \"peer-$line\"\n$IP addr add 192.0.2.10/24 dev veth0 || die addr\n$IP link set veth0 up || die up\nsettle() { read -t \"$1\" -u 7 line; }\nbashdhcp inform -i veth0 -a 192.0.2.10 -t 1000 > out.txt 2> err.txt; rc=$?\necho \"inform-rc=$rc\"\necho \"$(< out.txt)\"\necho \"stderr=[$(< err.txt)]\"\nsettle 0.3\nkill \"$peer\"; wait \"$peer\" 2>/dev/null\n\n\"$PY\" - <<'PYCODE'\nimport json, os\nwith open(os.path.join(os.environ.get('HOME', '/tmp/parity-home'), 'w2-peer.json')) as f:\n    log = json.load(f)\nincoming = [e for e in log if e['dir'] == 'in']\noutgoing = [e for e in log if e['dir'] == 'out']\nprint('client-port=' + str(incoming[0]['sport']) if len(incoming) == 1 else 'client-packet-count=' + str(len(incoming)))\nprint('ack-port=' + str(outgoing[0]['to'][1]) if len(outgoing) == 1 else 'ack-packet-count=' + str(len(outgoing)))\nPYCODE\n"
+      },
+      "script": "/usr/bin/unshare --user --map-root-user --net --mount \"$BASH\" --noprofile --norc ./case.sh\necho case-status=$?\n",
+      "diagnostic_files": [
+        "w2-peer.json"
+      ],
+      "expected_status": 0,
+      "stdout": "inform-rc=0\nip=0.0.0.0\nnetmask=255.255.255.0\ngateway=192.0.2.254\ndns=192.0.2.53 192.0.2.54\nntp=192.0.2.123\ndomain=lab.test\nserver_id=192.0.2.1\nlease_time=3600\nrenew_time=1800\nstderr=[]\nclient-port=68\nack-port=68\ncase-status=0\n",
+      "stderr": "",
+      "timeout": 40
+    }
+  ]
+}

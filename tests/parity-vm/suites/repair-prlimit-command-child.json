@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-prlimit-command-signal-status",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Check child signal and ordinary exit statuses while the invoking shell survives",
+      "oracle": "POSIX wait status mapping 128 plus signal number and exact ordinary child exit status; compare locked util-linux reference.",
+      "comparison": "Capture shell-generated diagnostics in a grouped redirection; assert the actual statuses independently of diagnostic text.",
+      "script": "{ prlimit --nofile=64:64 /usr/bin/python3 -c 'import os,signal;os.kill(os.getpid(),signal.SIGTERM)'; term=$?; } 2> term.err\n{ prlimit --nofile=64:64 /usr/bin/python3 -c 'import os,signal;os.kill(os.getpid(),signal.SIGKILL)'; killed=$?; } 2> kill.err\n{ prlimit --nofile=64:64 /usr/bin/python3 -c 'import sys;sys.exit(143)'; exited=$?; } 2> exit.err\nprintf 'term=%s kill=%s exit=%s shell=alive\\n' \"$term\" \"$killed\" \"$exited\"\n",
+      "stderr": "",
+      "stdout": "term=143 kill=137 exit=143 shell=alive\n",
+      "expected_status": 0,
+      "requires": [
+        "prlimit",
+        "python3"
+      ],
+      "covers": [
+        "prlimit/command-mode-child"
+      ]
+    }
+  ]
+}

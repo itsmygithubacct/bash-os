@@ -46,12 +46,24 @@ vt feed "$v" $'\e[c'
 # Bind in this shell. A command substitution would drain a forked copy
 # and leave the parent's reply in place for the clone.
 vt response "$v" -V first
-[[ -n "$first" ]]
+[[ "$first" == $'\e[?6c' ]]
 vt clone "$v" -h c
 vt feed "$c" $'\e[c'
 vt response "$c" -V second
 [[ "$second" == "$first" ]]
 vt free "$c"
+vt free "$v"
+""")
+
+    run(r"""
+vt new -h v -W 8 -H 2
+# Split the query across feeds and verify reply ordering and draining.
+vt feed "$v" $'\e['
+vt feed "$v" $'c\e[6n\e[>c'
+vt response "$v" -V replies
+[[ "$replies" == $'\e[?6c\e[1;1R\e[>0;0;0c' ]]
+vt response "$v" -V empty
+[[ -z "$empty" ]]
 vt free "$v"
 """)
 

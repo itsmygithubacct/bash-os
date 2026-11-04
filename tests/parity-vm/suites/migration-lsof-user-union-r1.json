@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-lsof-user-union-r1",
+      "loadable": "lsof",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "lsof/deferred-user-filter"
+      ],
+      "purpose": "Compare user/PID union and intersection with a distinct mapped account, name and numeric UID, and argument order.",
+      "oracle": "Native lsof and procfs on two live owned children; nobody must resolve to a distinct UID.",
+      "comparison": "Native selection is controlled for every case before checking candidate selection; raw observations are retained. Missing account or namespace prerequisites are incomplete.",
+      "requires": [
+        "python3",
+        "unshare",
+        "lsof",
+        "systemd-detect-virt"
+      ],
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/namespace-network-lsof-r1.py": "ef583848c80c7d36a07ffaee902eecf3293369799cdff17d5e59ee4791be7ade",
+        "helpers/lsof-user-union-r1.py": "f7d55240c17d20ce06cff9c550f0a8e85ce579627decdeaf9543f9457642f194"
+      },
+      "setup_script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-lsof-r1.py\n/usr/bin/cat /proc/sys/user/max_user_namespaces >\"$HOME/userns-limit.raw\" || exit 98\nif [[ -r /proc/sys/kernel/unprivileged_userns_clone ]]; then /usr/bin/cat /proc/sys/kernel/unprivileged_userns_clone >\"$HOME/userns-policy.raw\"; else printf 'absent\\n' >\"$HOME/userns-policy.raw\"; fi\n/usr/bin/unshare --user --map-root-user --pid --fork --mount-proc /usr/bin/python3 \"$H\" control\n",
+      "setup_timeout": 60,
+      "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nvirt=$(/usr/bin/systemd-detect-virt --vm) || exit 125\n[[ $virt == qemu || $virt == kvm ]] || exit 125\nH=/opt/bashos-parity/harness/helpers/namespace-network-lsof-r1.py\n/usr/bin/unshare --user --map-root-user --pid --fork --mount-proc /usr/bin/python3 /opt/bashos-parity/harness/helpers/lsof-user-union-r1.py \"$BASH\"\n",
+      "diagnostic_files": [
+        "userns-limit.raw",
+        "userns-policy.raw",
+        "control.json",
+        "user-union.json"
+      ],
+      "expected_status": 0,
+      "stdout": "user_union=ok\n",
+      "timeout": 60
+    }
+  ]
+}

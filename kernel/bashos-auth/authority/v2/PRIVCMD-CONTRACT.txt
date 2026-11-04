@@ -1,0 +1,107 @@
+PRIVCMD protocol v2: qualification implementation, production unavailable
+
+This is an explicitly new protocol, not a reconstruction or reinterpretation of
+the old PRIVCMD/audit ABI. Makefile.privcmd-test builds a separate module and
+/dev/bashos-privcmd-v2-test. The production module, feature bits, account files,
+and old ioctls remain unchanged. Loading requires explicit test_only plus root
+CAP_SYS_ADMIN in the initial user namespace. The public protocol node is 0666;
+only INFO, bounded secret input, policy/verification/execution, own timestamp
+reset, and root-only audit operations exist. There is no mint/approve/export
+operation. A successful version probe is never authentication.
+
+Trust inputs are administrator-established SHA-256 pins for immutable account,
+group, profile and sudoers-subset snapshots and static native verifier/executor
+images. Every input has a root-owned, non-writable ancestry, a root-owned regular
+single-link inode, and a held write-denial reference. Snapshot replacement and
+automatic migration are unsupported. Account generation identifies the complete
+bundle, including profiles; replacing any input requires a new authority instance.
+The PHC record explicitly selects standard base64 or the separately named legacy
+hex verifier operation. No format autodetection or UID-0 authentication shortcut.
+Executable inodes must be on direct ext2/3/4, XFS, Btrfs or tmpfs filesystems.
+Remote and layered executable storage is refused: inode write denial is not a
+remote lease or a lower-layer lock. Administrative raw-device/kernel mutation is
+outside this trust boundary. Owned data snapshots are parsed from their pinned
+copied bytes; no subsequent read of a mutable config pathname can alter them.
+
+The fd owner is an exact task/exec/credential object, retained session object,
+root/cwd, and nine real namespace objects: mount, UTS, IPC, PID-for-children,
+network, active time, time-for-children, cgroup, and active PID. Foreign tasks,
+fork/SCM_RIGHTS copies and exec replacements cannot operate or revoke its state.
+The identity protocol's explicit SSH delegation remains separate; it compares
+all nine namespaces and rejects cross-active-PID delegation. PRIVCMD has no
+delegation operation. Native command execution refuses split active/future PID
+or time namespace tuples. There is no namespace-binding exception.
+
+PREPARE owns bounded argv/environment exactly once and independently hashes the
+existing bashos-privcmd-v1 input framing. Claimed caller/target IDs must agree
+with the actual actor and pinned snapshots. Policy sees real supplementary
+groups and hostname; cwd text must resolve to the captured directory. Executable
+and cwd/root/stdio objects are held. Command paths must fit the complete audit
+field; overlong paths are refused, never logged as a truncated prefix. The
+target is a safely opened native ELF. Its ordinary dynamic dependencies, when
+present, remain part of the administrator-approved program/runtime contract;
+the verifier and executor themselves have no dynamic interpreter/dependencies.
+
+Each request is DENY, AUTH_REQUIRED, or READY. An explicit NOPASSWD rule or a
+valid recent authentication can establish READY after a fresh policy/object
+evaluation. Otherwise the kernel supplies its private native verifier channel
+with the caller's pinned PHC and sealed password; userspace booleans, wait status,
+target tuples and executable names cannot substitute for the verified event.
+Wrong format/password, stale epoch, malformed redemption and relevant copy faults
+are terminal. At most two native verifications run concurrently, each bounded
+to 30 seconds. At most sixteen public contexts exist.
+
+Timestamp timeout defaults to zero. Positive caching requires an explicit policy
+timeout and a real native verifier event. Keys include caller credential values,
+target IDs, explicit PHC encoding, retained session identity and all applicable
+account/policy/group/verifier generations and content pins. A fresh request may
+reuse authentication in the same caller/session scope, including from a new
+task, but must independently pass policy and receive its own task-bound grant.
+That is cache reuse, not transfer of an inherited fd or existing proof. -k resets
+this caller/session; -K resets this caller across retained sessions. Reset and
+redemption have a common locked ordering point. A reset before redemption rejects
+the pending grant; a reset after redemption does not undo an operation already
+started. Grant lifetime is at most five seconds measured by kernel boottime.
+
+RUN irreversibly consumes its fd-bound correlation id/digest before launching.
+The pinned native monitor enters captured namespaces, forks an owned child, and
+does not release its gate until the kernel retains that actual task. The child
+installs held stdio/root/cwd, strict supplementary groups and real/effective/saved
+GID/UID, removes all capabilities including for UID 0, checks filesystem IDs,
+and executes the held native ELF descriptor with the kernel-built environment.
+Setup failure exits 126 immediately. A CLOEXEC error pipe distinguishes setup
+failure from an executed command that returns 126. Real child exit, signal,
+timeout, launch failure and unknown completion after a child existed are distinct
+results. Kernel cancellation uses retained task objects; native cancellation uses
+pidfds. No elevated path returns to requesting Bash code.
+
+This executor is a bounded supervised command path (300-second native timeout,
+310-second helper watchdog), not an in-process interactive shell replacement or
+process-tree sandbox. It does not yet forward caller signals/job control or
+provide an inherited controlling-terminal session. A successful result concerns
+the owned direct child; arbitrary descendants are not a containment claim.
+SHELL/LOGIN requests and the new client's policy-list route are currently
+refused. Existing legacy routes retain their prior behavior. Qualification-only
+SUDOEDIT uses a separate all-target open/copyback state machine, documented in
+SAFEEDIT-CONTRACT.txt; it never invokes the privileged command executor.
+
+Audit v2 is the explicit 800-byte little-endian schema in bashos_audit_v2.h.
+A random kernel-only HMAC-SHA256 key and random epoch belong to one instance.
+The 128-record ring never overwrites evidence. Capacity is reserved before any
+grant/launch, and backpressure denies further work. A required pre-launch audit
+failure prevents launch. A post-launch failure cannot be represented as proof
+that nothing ran. PEEK is non-destructive, VERIFY checks the current epoch/HMAC,
+and ACK requires the exact oldest epoch/sequence. The Bash decoder emits bounded
+JSON with path bytes as hex, flushes successfully, then acknowledges. Failed
+output retains the record. Prior epochs are not independently verifiable after
+teardown; this is not a durable public signature. Passwords, argv/environment
+values, authentication references and pointers are absent from the record.
+
+Every source/compiler/model check and every runtime observation has separate
+evidence. The first guest control set includes real non-root auth/doas/sudo,
+native password/cache/reset paths, observed saved IDs/capabilities, exact request
+hashing and audit integrity/decoding. It is incomplete qualification: independent
+executor credential-fault observation with deliberately faulty controls, full
+safeedit binding/fault coverage, interactive requirements and the complete
+original topic matrix remain blocking. No source identity, feature bit, model test or device-only positive
+control can award the nine original consumer topics or the kernel-erasure gate.

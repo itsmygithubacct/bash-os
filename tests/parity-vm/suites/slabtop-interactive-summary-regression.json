@@ -1,0 +1,165 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "slabtop-interactive-summary-inactive-cache",
+      "loadable": "slabtop",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Interactive totals include an inactive cache and calculate both percentages.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount --bind \"$1\" /proc/slabinfo || exit 97\nslabtop -d 1 \nrc=$?\n[[ -n $h ]] && { kill $h 2>/dev/null; wait $h 2>/dev/null; }\necho \"rc=$rc\" > \"$2\"' x \"$PWD/slabinfo\" \"$PWD/rc\"\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Active / Total Objects \\(% used\\)\\s*:\\s*1450 / 2000 \\(72\\.5%\\)",
+              "Active / Total Caches \\(% used\\)\\s*:\\s*4 / 5 \\(80\\.0%\\)"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "slabtop/deferred-interactive-pty"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 100 200 128 32 1 : tunables 0 0 0 : slabdata 4 7 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 0 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n",
+        "slabinfo2": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 1100 1200 128 32 1 : tunables 0 0 0 : slabdata 35 38 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n"
+      },
+      "kind": "contract",
+      "oracle": "Controlled fixture: 1450 active of 2000 objects; four of five caches have active objects.",
+      "comparison": "Decoded summary lines and successful q exit.",
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "timeout": 20,
+      "features": [
+        "userns"
+      ]
+    },
+    {
+      "id": "slabtop-interactive-summary-timeout-refresh",
+      "loadable": "slabtop",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Unattended redraw recomputes summary totals after the slabinfo fixture changes.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount --bind \"$1\" /proc/slabinfo || exit 97\n( read -t 1.5 <> \"$4\"; d=$(<\"$3\"); printf \"%s\\n\" \"$d\" > \"$1\" ) & h=$!\nslabtop -d 1\nrc=$?\nkill $h 2>/dev/null; wait $h 2>/dev/null\necho \"rc=$rc\" > \"$2\"' x \"$PWD/slabinfo\" \"$PWD/rc\" \"$PWD/slabinfo2\" \"$PWD/gate\"\n",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "5": "gamma_cache$",
+              "6": "beta_cache$",
+              "7": "epsilon_cache$",
+              "8": "alpha_cache$",
+              "9": "delta_cache$"
+            },
+            "contains": [
+              "Active / Total Objects \\(% used\\)\\s*:\\s*1460 / 2000 \\(73\\.0%\\)"
+            ]
+          }
+        },
+        {
+          "screen": {
+            "rows": {
+              "5": "^\\s*1200\\s+1100\\s+91\\.7%.*alpha_cache$",
+              "6": "gamma_cache$"
+            },
+            "contains": [
+              "Active / Total Objects \\(% used\\)\\s*:\\s*2460 / 3000 \\(82\\.0%\\)"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "slabtop/deferred-interactive-pty"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 100 200 128 32 1 : tunables 0 0 0 : slabdata 4 7 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n",
+        "slabinfo2": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 1100 1200 128 32 1 : tunables 0 0 0 : slabdata 35 38 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n"
+      },
+      "kind": "contract",
+      "oracle": "Controlled fixture changes alpha from 100/200 to 1100/1200; totals change from 1460/2000 to 2460/3000.",
+      "comparison": "Decoded summary before and after timed rewrite and successful q exit.",
+      "requires": [
+        "unshare",
+        "mount",
+        "mkfifo"
+      ],
+      "setup_script": "/usr/bin/mkfifo gate\n",
+      "timeout": 25,
+      "features": [
+        "userns"
+      ]
+    },
+    {
+      "id": "slabtop-interactive-summary-zero-objects",
+      "loadable": "slabtop",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A cache with no objects produces zero percentages without division by zero.",
+      "script": "/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '/usr/bin/mount --bind \"$1\" /proc/slabinfo || exit 97\nslabtop -d 1 \nrc=$?\n[[ -n $h ]] && { kill $h 2>/dev/null; wait $h 2>/dev/null; }\necho \"rc=$rc\" > \"$2\"' x \"$PWD/slabinfo\" \"$PWD/rc\"\n",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "Active / Total Objects \\(% used\\)\\s*:\\s*0 / 0 \\(0\\.0%\\)",
+              "Active / Total Caches \\(% used\\)\\s*:\\s*0 / 1 \\(0\\.0%\\)"
+            ]
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "size": [
+        24,
+        80
+      ],
+      "expected_status": 0,
+      "covers": [
+        "slabtop/deferred-interactive-pty"
+      ],
+      "files": {
+        "slabinfo": "slabinfo - version: 2.1\n# fixture rows\nempty_cache 0 0 64 1 1 : tunables 0 0 0 : slabdata 0 0 0\n",
+        "slabinfo2": "slabinfo - version: 2.1\n# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>\nalpha_cache 1100 1200 128 32 1 : tunables 0 0 0 : slabdata 35 38 0\nbeta_cache 400 400 64 64 2 : tunables 0 0 0 : slabdata 7 7 0\ngamma_cache 900 900 256 16 1 : tunables 0 0 0 : slabdata 57 57 0\ndelta_cache 50 100 32 128 2 : tunables 0 0 0 : slabdata 1 1 0\nepsilon_cache 10 400 8 64 1 : tunables 0 0 0 : slabdata 1 7 0\n"
+      },
+      "expected_files": {
+        "rc": "rc=0\n"
+      },
+      "kind": "contract",
+      "oracle": "One parsed cache has zero active and total objects.",
+      "comparison": "Decoded summary lines and successful q exit.",
+      "requires": [
+        "unshare",
+        "mount"
+      ],
+      "timeout": 20,
+      "features": [
+        "userns"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,273 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "worker-nano-utf8-save-burst",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Save UTF-8 burst in an empty file with the default final newline.",
+      "script": "nano note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "send": "\u00e9\u4e2dx"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        },
+        {
+          "settle_ms": 150
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_selection_completion_utf8"
+      ],
+      "files": {
+        "note": ""
+      },
+      "expected_files": {
+        "note": "\u00e9\u4e2dx\n"
+      }
+    },
+    {
+      "id": "worker-nano-utf8-save-nonewlines",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "The GNU --nonewlines option preserves the exact typed bytes.",
+      "script": "nano --nonewlines note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "send": "\u00e9\u4e2dx"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        },
+        {
+          "settle_ms": 150
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_selection_completion_utf8"
+      ],
+      "files": {
+        "note": ""
+      },
+      "expected_files": {
+        "note": "\u00e9\u4e2dx"
+      }
+    },
+    {
+      "id": "worker-nano-utf8-save-existing-newline",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Repeated saves must not duplicate an existing final newline.",
+      "script": "nano note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "send": "\u00e9\u4e2dx"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        },
+        {
+          "settle_ms": 150
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_selection_completion_utf8"
+      ],
+      "files": {
+        "note": "\n"
+      },
+      "expected_files": {
+        "note": "\u00e9\u4e2dx\n"
+      }
+    },
+    {
+      "id": "worker-nano-ascii-save-empty",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Default newline is independent of UTF-8 input.",
+      "script": "nano note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "send": "x"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        },
+        {
+          "settle_ms": 150
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_selection_completion_utf8"
+      ],
+      "files": {
+        "note": ""
+      },
+      "expected_files": {
+        "note": "x\n"
+      }
+    },
+    {
+      "id": "worker-nano-utf8-combining-astral",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Save combining and four-byte UTF-8 input without normalization.",
+      "script": "nano note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "send": "e\u0301\ud83d\ude00"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_selection_completion_utf8"
+      ],
+      "files": {
+        "note": ""
+      },
+      "expected_files": {
+        "note": "e\u0301\ud83d\ude00\n"
+      }
+    }
+  ]
+}

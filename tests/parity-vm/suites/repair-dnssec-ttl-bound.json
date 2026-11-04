@@ -1,0 +1,41 @@
+{
+  "cases": [
+    {
+      "comparison": "Require AD on both replies, first A TTL <= signature lifetime, decreasing second TTL, and exactly one additional upstream A lookup.",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "diagnostic_files": [
+        "srv.err",
+        "resolver.err",
+        "first.out",
+        "second.out",
+        "dnssec-queries.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/dnssec-ttl-bound-peer.py": "162a1d25036dfaba98b489f8b13745a86c14e94e663ba8b80634e7675dc6148d"
+      },
+      "id": "repair-dns-resolver-signature-ttl-bound-bounded-r15",
+      "kind": "contract",
+      "loadable": "dns",
+      "oracle": "Independent ECDSA signed zone uses 300-second record TTL and a 30-second answer-signature lifetime; BIND delv validates first and the peer log counts upstream leaf queries.",
+      "purpose": "A validated response TTL is capped by RRSIG expiration and continues to age on a cache hit.",
+      "requires": [
+        "python3",
+        "delv",
+        "dig",
+        "mkfifo"
+      ],
+      "script": "H=/opt/bashos-parity/harness/helpers/dnssec-ttl-bound-peer.py\n/usr/bin/python3 \"$H\" prep || exit 98\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> srv.err & srv=$!\ntrap 'kill \"$res\" \"$srv\" 2>/dev/null; wait \"$res\" \"$srv\" 2>/dev/null' EXIT\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340 || exit 98\ncontrol=$(/usr/bin/python3 \"$H\" control 127.0.0.2 5340 ttl-bound) || exit 98\n[[ $control == control-ok ]] || { printf '%s\\n' \"$control\"; exit 98; }\necho control-ok\ncount() { /usr/bin/python3 -c 'import json; d=json.load(open(\"dnssec-queries.json\")); print(sum(x[\"name\"]==\"shortttl.test.\" and x[\"type\"]==1 for x in d))'; }\nbefore=$(count) || exit 98\nexport PATH=\"$HOME/pbin\" BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\" BASHDNS_SERVER_PORT=5340\ndns resolver-serve --listen 127.0.0.1 --port 5320 --root-hints 127.0.0.2 --max-queries 2 --timeout 3000 </dev/null 2> resolver.err & res=$!\n/usr/bin/python3 \"$H\" waitudp 127.0.0.1 5320 || exit 98\n/usr/bin/dig +dnssec +adflag +tries=1 +time=10 -p 5320 @127.0.0.1 shortttl.test A > first.out 2>&1 || exit 1\nsleep 1.2\n/usr/bin/dig +dnssec +adflag +tries=1 +time=10 -p 5320 @127.0.0.1 shortttl.test A > second.out 2>&1 || exit 1\nwait \"$res\" || exit 1\nafter=$(count) || exit 1\n/usr/bin/python3 -c 'import re,sys; a,b=(open(x).read() for x in (\"first.out\",\"second.out\")); rx=r\"^\\S+\\s+(\\d+)\\s+IN\\s+A\\s+192\\.0\\.2\\.78$\"; x=re.search(rx,a,re.M); y=re.search(rx,b,re.M); ad=lambda t: bool(re.search(r\";; flags: [^;]*\\bad\\b\",t)); ok=x and y and 0<int(x.group(1))<=30 and 0<=int(y.group(1))<int(x.group(1)) and ad(a) and ad(b); print(\"signed-ttl-aged=yes\" if ok else \"signed-ttl-aged=no\"); print(\"cache-hit=yes\" if int(sys.argv[2])==int(sys.argv[1])+1 else \"cache-hit=no\")' \"$before\" \"$after\"\n",
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\nprintf \"nameserver 127.0.0.2\\n\" > resolv.conf\nmkfifo w.fifo\n",
+      "setup_timeout": 20,
+      "stderr": "",
+      "stdout": "control-ok\nsigned-ttl-aged=yes\ncache-hit=yes\n",
+      "timeout": 60
+    }
+  ],
+  "schema": 1
+}

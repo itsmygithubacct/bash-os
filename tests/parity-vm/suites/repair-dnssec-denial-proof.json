@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-dns-dnssec-negative-proof",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "requires": [
+        "python3",
+        "delv"
+      ],
+      "helpers_sha256": {
+        "helpers/dnssec-denial-proof-peer.py": "e5ea1a7c8742d3d62db4cd195d30e63e94f68a68a90bccc61942e772fcc0f531"
+      },
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\n",
+      "candidate_script": "set -u\nH=/opt/bashos-parity/harness/helpers/dnssec-denial-proof-peer.py\n/usr/bin/python3 \"$H\" prep || exit 98\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> \"$HOME/anchor-peer.err\" & peer=$!\ntrap 'kill \"$peer\" 2>/dev/null; wait \"$peer\" 2>/dev/null' EXIT\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340 || exit 98\ncontrol=$(/usr/bin/python3 \"$H\" control 127.0.0.2 5340 denial) || exit 98\n[[ $control == control-ok ]] || { printf '%s\\n' \"$control\"; exit 98; }\necho control-ok\nexport PATH=\"$HOME/pbin\" BASHDNS_SERVER_PORT=5340 BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\" BASHDNS_0X20=0\nfor item in 'ok.test AAAA' 'nx.ok.test A'; do\n  read -r name typ <<< \"$item\"\n  if dns query \"$name\" \"$typ\" -s 127.0.0.2 -t 3000 --validate > \"$HOME/$name.out\" 2> \"$HOME/$name.err\" && [ ! -s \"$HOME/$name.out\" ]; then echo \"$name=validated-negative\"; else echo \"$name=unexpected\"; exit 1; fi\ndone\nfor item in 'badnegative.test AAAA' 'fake.wildcard.test A'; do\n  read -r name typ <<< \"$item\"\n  if dns query \"$name\" \"$typ\" -s 127.0.0.2 -t 3000 --validate > \"$HOME/$name.out\" 2> \"$HOME/$name.err\"; then echo \"$name=wrongly-accepted\"; exit 1; else echo \"$name=rejected\"; fi\ndone\n",
+      "expected_status": 0,
+      "stdout": "control-ok\nok.test=validated-negative\nnx.ok.test=validated-negative\nbadnegative.test=rejected\nfake.wildcard.test=rejected\n",
+      "stderr": "",
+      "timeout": 60,
+      "purpose": "Validate signed NODATA and NXDOMAIN while rejecting exact-owner NXDOMAIN and wildcard-type NODATA forgeries.",
+      "oracle": "Deterministic independently signed ECDSA zones and BIND delv controls classify both legitimate responses secure and both forged responses bogus before candidate checks.",
+      "comparison": "Require reference control, both valid negative responses, and both forged denials to be rejected.",
+      "diagnostic_files": [
+        "anchor-peer.err",
+        "dnssec-queries.json",
+        "ok.test.err",
+        "nx.ok.test.err",
+        "badnegative.test.err",
+        "fake.wildcard.test.err"
+      ]
+    }
+  ]
+}

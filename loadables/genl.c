@@ -302,9 +302,10 @@ bgenl_talk (int fd, unsigned char *buf, size_t buf_len,
                     break;
                 }
                 errno = -err->error;
+                /* Distinguish a missing family from local transport errors. */
+                rc = errno == ENOENT ? -2 : -1;
                 fprintf (stderr, "RTNETLINK answers: %s\n", strerror (errno));
                 fprintf (stderr, "Error talking to the kernel\n");
-                rc = -1;
                 done = 1;
                 break;
             }
@@ -513,6 +514,9 @@ bgenl_ctrl_query (int dump, const char *name, int by_id, uint16_t id)
     int rc = bgenl_talk (fd, buf, off, bgenl_print_family_cb, &ctx);
     close (fd);
 
+    /* iproute2's numeric lookup returns -1 from main on ENOENT (255). */
+    if (by_id && rc == -2)
+        return 255;
     if (rc < 0)
         return EXECUTION_FAILURE;
     if (ctx.families == 0) {

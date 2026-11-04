@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mkswap-device-rewrite-diagnostics-r1",
+      "loadable": "mkswap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "mkswap/raw-device-and-activation"
+      ],
+      "purpose": "Exercise clean formatting, rejection without mutation, and forced and ordinary rewrites of an existing swap signature on a private loop device.",
+      "oracle": "util-linux 2.41 mkswap",
+      "comparison": "Raw status, stdout and stderr (only Bash location prefix removed), plus complete-device digest after every operation; setup or teardown failure is an error.",
+      "requires": [
+        "mkswap",
+        "losetup",
+        "python3",
+        "sed",
+        "tr",
+        "sha256sum"
+      ],
+      "script": "set -u\nexport LC_ALL=C\n/usr/bin/truncate -s 1048576 /tmp/mkswap-rewrite.img || exit 90\nd=$(/usr/sbin/losetup -f --show /tmp/mkswap-rewrite.img) || exit 91\ncleanup() { /usr/sbin/losetup -d \"$d\" || exit 92; }\ntrap cleanup EXIT\nU=11111111-2222-4333-8444-555555555555\nrun() {\n  local name=$1 expected=$2 rc=0; shift 2\n  \"$@\" >/tmp/mkswap.out 2>/tmp/mkswap.err || rc=$?\n  printf '%s status=%s out=' \"$name\" \"$rc\"; /usr/bin/tr '\\n' '|' </tmp/mkswap.out\n  printf ' err='; /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' /tmp/mkswap.err | /usr/bin/tr '\\n' '|'\n  printf ' sha='; /usr/bin/sha256sum < \"$d\"\n  [[ $rc == \"$expected\" ]] || exit 93\n}\nrun clean 0 mkswap -U \"$U\" -L rootc \"$d\"\nbefore=$(/usr/bin/sha256sum < \"$d\")\nrun reject 1 mkswap -U \"$U\" -L rootc \"$d\" 4096\n[[ $(/usr/bin/sha256sum < \"$d\") == \"$before\" ]] || exit 94\nrun force 0 mkswap -f -U \"$U\" -L rootc \"$d\" 4096\nrun smaller 0 mkswap -U \"$U\" -L rootc \"$d\" 512\n",
+      "expected_status": 0,
+      "timeout": 45
+    }
+  ]
+}

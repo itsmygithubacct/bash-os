@@ -159,7 +159,25 @@ class Suite:
                 'netstat -tnl >/dev/full; a=$?; netstat -tnl >/dev/null; b=$?; netstat --version >/dev/full; c=$?; netstat -tnl >/dev/null; d=$?; printf "%s %s %s %s\\n" "$a" "$b" "$c" "$d"', env, '1 0 1 0\n'))
             self.case(f'{transport} exact output after failed write',lambda env=env:self.check('netstat -tnl >/dev/full; s=$?; netstat -tna; printf "<status>%s\\n" "$s"',env,HEADER+'\n'+expected_inet()+'<status>1\n'))
             self.case(f'{transport} FD cleanup 100 calls',lambda env=env:self.fd_cleanup(env))
-        self.case('both transports and tables denied return failure',lambda:self.check('netstat -ta',environment(self.shim,base,'denied'),code=1))
+        def denied_tables():
+            r = self.check('netstat -tuxa',environment(self.shim,base,'denied'),
+                           output=HEADER+'\n',code=1)
+            for name in ('tcp', 'tcp6', 'udp', 'udp6', 'unix'):
+                assert f'/proc/net/{name}: Permission denied' in r.stderr, r.stderr
+        self.case('both transports and tables denied return failure with diagnostics',denied_tables)
+        for name in ('tcp', 'tcp6', 'udp', 'udp6', 'unix'):
+            def one_denied(name=name):
+                env = environment(self.shim,base,'proc')
+                env['SOL_NETSTAT_DENY_TABLE'] = name
+                r = self.check('netstat -tuxa',env,code=1)
+                assert f'/proc/net/{name}: Permission denied' in r.stderr, r.stderr
+                assert r.stderr.count('/proc/net/') == 1, r.stderr
+                assert len(r.stdout.splitlines()) > 1, r.stdout
+            self.case(f'fallback denied for {name} preserves other tables',one_denied)
+        def fallback_is_silent():
+            r = self.check('netstat -tuxa',environment(self.shim,base,'proc'))
+            assert not r.stderr, r.stderr
+        self.case('successful fallback has no diagnostic',fallback_is_silent)
         for arg in ('--bogus','-z','operand','-','--tcp=bad','--','-tZ'):
             self.case('invalid '+arg,lambda arg=arg:self.check('netstat '+shlex.quote(arg),environment(),output='',code=2))
         for arg in ('--help','-h','--version'):

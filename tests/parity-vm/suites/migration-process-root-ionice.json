@@ -917,6 +917,37 @@
       "timeout": 60
     },
     {
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/argument-validation"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\nif /usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get -- /usr/bin/python3 -c 'import ctypes;ctypes.CDLL(None).syscall(252,1,0)' > control.out 2> control.err; then rc=0; else rc=$?; fi; [[ $rc == 159 ]] || exit 90; rm -f control.out control.err",
+      "kind": "contract",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      },
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "stderr": "",
+      "timeout": 60,
+      "id": "migration-ionice-invalid-after-valid-guard",
+      "purpose": "Reject later invalid arguments before acting on a valid owned PID.",
+      "oracle": "Documented validation contract with seccomp kill on both priority syscalls and independent owned-process read-back.",
+      "comparison": "Usage status, diagnostic presence, empty stdout, no priority syscall, and unchanged owned priority.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 0 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one || exit 90\nfor invalid in '-n 8' '-c bogus' '-p abc' '--classdata'; do\n  /usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill ioprio_get --kill ioprio_set -- \"$BASH\" --noprofile --norc -c 'ionice -c 2 -p \"$1\" $2' fixture \"$child\" \"$invalid\" > out 2> err\n  rc=$?; [[ -s err ]] && d=yes || d=no; [[ ! -s out ]] && o=empty || o=nonempty\n  printf '%s diagnostic=%s stdout=%s\\n' \"$rc\" \"$d\" \"$o\"\ndone\n/usr/bin/python3 -c 'import ioprio,sys;print(\"ioprio=%s,%s\"%ioprio.get(int(sys.argv[1])))' \"$child\"\nrm -f out err",
+      "stdout": "2 diagnostic=yes stdout=empty\n2 diagnostic=yes stdout=empty\n2 diagnostic=yes stdout=empty\n2 diagnostic=yes stdout=empty\nioprio=0,0\n"
+    },
+    {
       "id": "migration-ionice-invalid-reference-guard",
       "loadable": "ionice",
       "group": "shell",

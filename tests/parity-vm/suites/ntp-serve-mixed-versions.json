@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "id": "ntp-serve-mixed-versions-r1",
+      "purpose": "Echo each request version in a two-response server, preserving configured fields and timestamps.",
+      "oracle": "Independent NTP wire-field assertions for versions 3 and 4.",
+      "comparison": "Check response fields and bounded server exit.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/ntp-serve-mixed-versions.py": "1ccc9a1e205871561db1a111a325f4fa122a16b0e63732b3587b6d244d04b783"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 18,
+      "covers": [
+        "ntp/ntp-serve-wire-response"
+      ],
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/ntp-serve-mixed-versions.py \"$BASH\"",
+      "stdout": "ntp-serve-mixed-versions=ok\n"
+    }
+  ]
+}

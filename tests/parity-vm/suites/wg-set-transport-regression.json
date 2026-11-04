@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "wg-set-transport-regression",
+      "loadable": "wg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Family lookup completes, set ACK and error responses are handled, and repeated peer updates reach the kernel.",
+      "covers": [
+        "wg/deferred-set-kernel-apply"
+      ],
+      "oracle": "Independent generic-netlink readback from a WireGuard device in a fresh user and network namespace.",
+      "comparison": "Candidate-only kernel-state contract with per-check details in stderr.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/wg-set-transport-regression.py\n",
+      "stdout": "scenario wg-set-transport-regression: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/wg-set-transport-regression.py": "b410df1863a48883b55a32e2586f8bb03f0c3c5010705aead10112c204b8af2c",
+        "helpers/mig-w1-wg.py": "bbd7f304cee2926825a4a2e55e811d4d5b9c96c059da50824fe960721dc16b48",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-passwd-info-status-regression-r1",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "timeout": 15,
+      "loadable": "passwd",
+      "purpose": "Status queries handle empty names, duplicate shadow entries and long password fields without authentication diagnostics.",
+      "oracle": "The first matching shadow row determines L for ! or *, NP for an empty password field, and P for any other nonempty field; an empty passwd name is not an account. An empty shell reports /bin/sh.",
+      "comparison": "Exact status, output and success diagnostics for private fixture queries.",
+      "files": {
+        "passwd.fixture": ":x:1:1::/:/bin/sh\nempty:x:1:1::/e:\nlocked:x:2:2::/l:/bin/sh\nlonghash:x:3:3::/h:/bin/sh\n",
+        "shadow.fixture": "empty::1::::::\nlocked:*:1::::::\nlocked:hash:1::::::\nlonghash:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1::::::\n"
+      },
+      "script": "[[ $(type -t passwd) == builtin ]] || exit 99\nexport PHCLIB_PASSWD=passwd.fixture PHCLIB_SHADOW=shadow.fixture BASHPASSWD_KERNEL_SECRETS=0\nfor n in empty locked longhash ''; do\n  passwd info \"$n\" > out 2> err; rc=$?\n  [[ -s err ]] && d=yes || d=no\n  printf '%s rc=%d diag=%s out=[%s]\\n' \"${n:-<empty>}\" \"$rc\" \"$d\" \"$(< out)\"\ndone\n",
+      "expected_status": 0,
+      "stdout": "empty rc=0 diag=no out=[empty uid=1 gid=1 home=/e shell=/bin/sh password=NP]\nlocked rc=0 diag=no out=[locked uid=2 gid=2 home=/l shell=/bin/sh password=L]\nlonghash rc=0 diag=no out=[longhash uid=3 gid=3 home=/h shell=/bin/sh password=P]\n<empty> rc=1 diag=yes out=[]\n",
+      "covers": [
+        "passwd/readonly_database_queries"
+      ]
+    }
+  ]
+}

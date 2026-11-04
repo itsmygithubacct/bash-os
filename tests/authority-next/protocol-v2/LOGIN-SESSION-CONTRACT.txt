@@ -1,0 +1,52 @@
+Versioned interactive login session followup
+
+login login-v2 is an explicit credential-drop session entry point. Its launcher
+must already have real/effective uid 0; this is not authentication evidence.
+Every accepted login still uses the pinned native verifier, trusted identity
+snapshot and same-task, one-use authority reference on the actual device.
+No production feature bit or legacy mint operation is enabled by this change.
+
+Versioned login requires stdin/stdout/stderr to identify the same actual
+controlling terminal. An explicit -t must name that terminal (with optional
+/dev/ prefix). It pins a separate nonblocking CLOEXEC descriptor before authentication,
+uses it for name/password input and final blocking stdio binding, and derives securetty and
+accounting names from it. It never switches to a named terminal after proof.
+The legacy login/become command forms and on-disk record layouts are preserved.
+
+Password memory is locked and excluded from dumps. Terminal echo suppression
+must succeed and read back as disabled before the password prompt. HUP, TERM
+and INT cancel the bounded-poll password read. Password bytes are wiped on all
+returns. Prior handlers and dumpability are restored if the builtin returns;
+failure to restore invocation state terminates the process with status 126.
+The original saved-ID/group transition checks and fatal partial-drop rule stay
+in effect. Successful exec closes the held tty descriptor.
+
+After all policy phases accept, versioned login requires utmp, wtmp and lastlog
+records for the actual terminal and actor, even without -t or --policy-chain.
+Explicit lastlog chain entries defer their writes until this mandatory step,
+including entries in auth/account phases. Administrative accounting files must
+be regular, root-owned, singly linked and not world-writable. Opens reject
+symlinks/special objects; writes are locked, record framing is checked, and
+sync/close failures refuse exec. Existing group-writable utmp/wtmp are allowed.
+These three files are not an atomic transaction. A later failure can leave an
+earlier record, and a later credential/exec failure can leave login accounting;
+this entry point does not implement a logout supervisor or DEAD_PROCESS record.
+
+Policy input that exceeds the line, field or 64-entry chain bounds is rejected,
+as are read/close errors. No trailing deny directive may silently disappear.
+
+guest-consumers.py retains its original 39 controls and adds 17 actual Bash
+controls: default terminal/accounting; explicit terminal mismatch; redirected
+stdio; handler restoration on denial; HUP/TERM/INT cancellation; denial of echo
+suppression; auth/session accounting deferral; truncated utmp/wtmp; lastlog
+alias refusal; root securetty allow/deny; chain/field overflow. The independent
+observer still rejects any forbidden target exec attempt, including guard
+denials, and exact credential-fault prefixes/live exit IDs remain required.
+An incomplete observer is ERROR and cannot satisfy a deliberate bad-actor test.
+
+Source/compiler checks do not qualify these controls. Both full Bash 5.3.20
+variants and the real authority devices must execute in attested disposable
+guests. Original legacy-token ABI qualification, persistent-lockout error
+paths, complete retry/timing and supplementary-group matrices, and complete
+encrypted SSH policy coverage remain separate obligations. No topic credit is
+assigned from this source change or from device-only foundation controls.

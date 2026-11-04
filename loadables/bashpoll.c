@@ -441,15 +441,23 @@ bp_wait (WORD_LIST *args)
 }
 
 static int
+bp_parse_fd (const char *text, const char *command, int *fd)
+{
+  char *end;
+  errno = 0;
+  long number = strtol (text, &end, 10);
+  if (errno || !*text || *end || number < 0 || number > INT_MAX)
+    { builtin_error ("%s: invalid FD: %s", command, text); return -1; }
+  *fd = (int) number;
+  return 0;
+}
+
+static int
 bp_close (WORD_LIST *args)
 {
   if (!args || args->next) { builtin_error ("close: needs FD"); return EX_USAGE; }
-  char *end;
-  errno = 0;
-  long number = strtol (args->word->word, &end, 10);
-  if (errno || !*args->word->word || *end || number < 0 || number > INT_MAX)
-    { builtin_error ("close: invalid FD: %s", args->word->word); return EX_USAGE; }
-  int fd = (int) number;
+  int fd;
+  if (bp_parse_fd (args->word->word, "close", &fd) < 0) return EX_USAGE;
   struct bp_signal_fd **slot = &bp_signal_fds;
   while (*slot && (*slot)->fd != fd) slot = &(*slot)->next;
   int rc = close (fd), saved = errno;
@@ -461,8 +469,12 @@ bp_close (WORD_LIST *args)
 static int
 bp_set_nonblock (WORD_LIST *args)
 {
-  if (!args || !args->next) { builtin_error ("set-nonblock: needs FD on|off"); return EX_USAGE; }
-  int fd = atoi (args->word->word);
+  if (!args || !args->next || args->next->next ||
+      (strcmp (args->next->word->word, "on") != 0 &&
+       strcmp (args->next->word->word, "off") != 0))
+    { builtin_error ("set-nonblock: needs FD on|off"); return EX_USAGE; }
+  int fd;
+  if (bp_parse_fd (args->word->word, "set-nonblock", &fd) < 0) return EX_USAGE;
   int on = strcmp (args->next->word->word, "on") == 0;
   int flags = fcntl (fd, F_GETFL);
   if (flags < 0) { builtin_error ("fcntl GETFL: %s", strerror (errno)); return EXECUTION_FAILURE; }
@@ -864,8 +876,9 @@ bp_recv_udp (WORD_LIST *args)
 static int
 bp_clear_cloexec (WORD_LIST *args)
 {
-  if (!args) { builtin_error ("clear-cloexec needs FD"); return EX_USAGE; }
-  int fd = atoi (args->word->word);
+  if (!args || args->next) { builtin_error ("clear-cloexec needs FD"); return EX_USAGE; }
+  int fd;
+  if (bp_parse_fd (args->word->word, "clear-cloexec", &fd) < 0) return EX_USAGE;
   int flags = fcntl (fd, F_GETFD, 0);
   if (flags < 0) { builtin_error ("fcntl GETFD: %s", strerror (errno)); return EXECUTION_FAILURE; }
   if (fcntl (fd, F_SETFD, flags & ~FD_CLOEXEC) < 0)

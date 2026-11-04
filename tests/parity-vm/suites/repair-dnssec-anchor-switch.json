@@ -1,0 +1,39 @@
+{
+  "cases": [
+    {
+      "candidate_script": "set -u\nH=/opt/bashos-parity/harness/helpers/dnssec-cname-chain-peer.py\n/usr/bin/python3 \"$H\" prep || exit 98\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> \"$HOME/anchor-peer.err\" & peer=$!\ntrap 'kill \"$peer\" 2>/dev/null; wait \"$peer\" 2>/dev/null' EXIT\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340 || exit 98\ncontrol=$(/usr/bin/python3 \"$H\" control 127.0.0.2 5340 ok anchor) || exit 98\n[[ $control == control-ok ]] || { printf '%s\\n' \"$control\"; exit 98; }\necho control-ok\nexport PATH=\"$HOME/pbin\" BASHDNS_SERVER_PORT=5340 BASHDNS_0X20=0\ncheck() { dns query ok.test A -s 127.0.0.2 -t 3000 --validate > \"$1.out\" 2> \"$1.err\"; }\nexport BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\"\nif check good1 && [[ $(<good1.out) == 192.0.2.60 ]]; then echo good1=accepted; else echo good1=incorrect; exit 1; fi\nexport BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.wrong.ds\"\nif check wrong; then echo wrong=accepted; exit 1; else echo wrong=rejected; fi\nexport BASHDNS_TRUST_ANCHOR=\"$PWD/missing.anchor\"\nif check missing; then echo missing=accepted; exit 1; else echo missing=rejected; fi\nexport BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\"\nif check good2 && [[ $(<good2.out) == 192.0.2.60 ]]; then echo good2=accepted; else echo good2=incorrect; exit 1; fi\n",
+      "comparison": "The valid anchor succeeds before and after; wrong or missing anchor must fail, with no prior trusted state reused.",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "diagnostic_files": [
+        "anchor-peer.err",
+        "dnssec-queries.json",
+        "good1.err",
+        "wrong.err",
+        "missing.err",
+        "good2.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/dnssec-cname-chain-peer.py": "ddac6b6ae8f6231d5334f20feb67462272639f9e6cf148cfd544bc41e6b0a261"
+      },
+      "id": "repair-dns-live-trust-anchor-switch-bounded-r15",
+      "kind": "contract",
+      "loadable": "dns",
+      "oracle": "Independent BIND delv validates the good root anchor and rejects the wrong anchor before the same-process candidate sequence.",
+      "purpose": "Switch trust-anchor paths in one shell process without retaining stale trusted keys.",
+      "requires": [
+        "python3",
+        "delv"
+      ],
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\n",
+      "stderr": "",
+      "stdout": "control-ok\ngood1=accepted\nwrong=rejected\nmissing=rejected\ngood2=accepted\n",
+      "timeout": 60
+    }
+  ],
+  "schema": 1
+}

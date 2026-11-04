@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-sync-fifo-nonblocking-r1",
+      "loadable": "sync",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "sync/named-file-sync",
+        "sync/per-file-failures"
+      ],
+      "purpose": "FIFO operands terminate without a peer or with a reader; report fsync failure, close descriptors, and continue to a later regular file.",
+      "oracle": "Linux FIFO nonblocking open and fsync semantics in the disposable guest",
+      "comparison": "Exact stdout and empty stderr; watchdog detects blocking, captured diagnostic names FIFO, and a later regular operand succeeds in the same process.",
+      "requires": [
+        "mkfifo"
+      ],
+      "files": {
+        "later.txt": "data\n"
+      },
+      "setup_script": "/usr/bin/mkfifo pipe.fifo pace.fifo\n",
+      "script": "exec 9<>pace.fifo\n( sync pipe.fifo 2>fifo.err; printf 'fifo-status=%d\\n' \"$?\"; sync later.txt; printf 'later-status=%d\\n' \"$?\" ) >result.txt &\np=$!\nfor ((i=0; i<100; i++)); do\n  line=; { read -r line <\"/proc/$p/stat\"; } 2>/dev/null || break\n  a=(${line##*) }); [[ ${a[0]} == Z ]] && break\n  read -r -t 0.02 -u 9 _ || :\ndone\nif [[ -e /proc/$p ]] && { read -r line <\"/proc/$p/stat\"; a=(${line##*) }); [[ ${a[0]} != Z ]]; } 2>/dev/null; then\n  builtin kill -KILL \"$p\"; wait \"$p\" 2>/dev/null; printf 'fifo=blocked\\n'\nelse\n  wait \"$p\"; printf 'fifo=returned\\n'; while IFS= read -r line; do printf '%s\\n' \"$line\"; done <result.txt\nfi\nIFS= read -r line <fifo.err; [[ $line == *pipe.fifo* ]] && printf 'diagnostic=named\\n' || printf 'diagnostic=missing\\n'\nexec 8<>pipe.fifo\nsync pipe.fifo 2>fifo-reader.err\nprintf 'fifo-with-reader-status=%d\\n' \"$?\"\nexec 8>&-\n",
+      "stdout": "fifo=returned\nfifo-status=1\nlater-status=0\ndiagnostic=named\nfifo-with-reader-status=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 15
+    }
+  ]
+}

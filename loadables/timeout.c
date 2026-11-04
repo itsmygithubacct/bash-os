@@ -41,6 +41,7 @@
 #include <time.h>
 #include <fcntl.h>
 #include <math.h>
+#include <langinfo.h>
 
 #include "loadables.h"
 #include "command-run.h"
@@ -176,22 +177,28 @@ static void
 bto_verbose_signal (int sig, const char *cmd)
 {
     const char *nm = bto_signal_name (sig);
+    const char *codeset = nl_langinfo (CODESET);
+    int utf8 = codeset && (strcasecmp (codeset, "UTF-8") == 0
+                           || strcasecmp (codeset, "UTF8") == 0);
+    const char *open_quote = utf8 ? "\342\200\230" : "'";
+    const char *close_quote = utf8 ? "\342\200\231" : "'";
     if (nm)
-        fprintf (stderr, "timeout: sending signal %s to command '%s'\n",
-                 nm, cmd ? cmd : "<unknown>");
+        fprintf (stderr, "timeout: sending signal %s to command %s%s%s\n",
+                 nm, open_quote, cmd ? cmd : "<unknown>", close_quote);
     else
-        fprintf (stderr, "timeout: sending signal %d to command '%s'\n",
-                 sig, cmd ? cmd : "<unknown>");
+        fprintf (stderr, "timeout: sending signal %d to command %s%s%s\n",
+                 sig, open_quote, cmd ? cmd : "<unknown>", close_quote);
     fflush (stderr);
 }
 
-/* Send sig to child (or its process group if setpgid succeeded).
-   Tries process-group kill first (to catch subprocesses); falls
-   back to single-PID when no process group exists (ESRCH). */
+/* Signal only the child in foreground mode; otherwise target its process
+   group, falling back to the child if the group does not exist. */
 static void
-bto_kill_pg (pid_t child, int sig)
+bto_signal_child (pid_t child, int sig, int foreground)
 {
-    if (kill (-child, sig) < 0 && errno == ESRCH)
+    if (foreground)
+        kill (child, sig);
+    else if (kill (-child, sig) < 0 && errno == ESRCH)
         kill (child, sig);
 }
 
@@ -416,9 +423,12 @@ timeout_builtin (WORD_LIST *list)
         }
         bos_run_builtin (argv[0], argv, NULL);
         execvp (argv[0], argv);
-        /* exec failed */
-        if (errno == ENOENT) _exit (127);
-        _exit (126);
+        /* Preserve execvp's error across diagnostic formatting and flushing. */
+        int exec_error = errno;
+        fprintf (stderr, "timeout: failed to run command '%s': %s\n",
+                 argv[0], strerror (exec_error));
+        fflush (stderr);
+        _exit (exec_error == ENOENT ? 127 : 126);
     }
     if (!foreground)
         setpgid (child, child);  /* close parent/child process-group setup race */
@@ -461,12 +471,16 @@ timeout_builtin (WORD_LIST *list)
         if (deadline >= 0 && elapsed >= deadline) {
             if (!timed_out) {
                 if (verbose) bto_verbose_signal (sig, cmd_name);
-                bto_kill_pg (child, sig);
+                bto_signal_child (child, sig, foreground);
+                /* A stopped command cannot act on a pending termination
+                   signal until continued (e.g. after a tty SIGTTIN). */
+                if (sig != SIGKILL && sig != SIGCONT)
+                    bto_signal_child (child, SIGCONT, foreground);
                 timed_out = 1;
                 elapsed_at_signal = elapsed;
             } else {
                 if (verbose) bto_verbose_signal (SIGKILL, cmd_name);
-                bto_kill_pg (child, SIGKILL);
+                bto_signal_child (child, SIGKILL, foreground);
                 killed_hard = 1;
             }
             continue;
@@ -501,6 +515,12 @@ timeout_builtin (WORD_LIST *list)
     bto_restore (&prev_set, pidfd);
 
     if (timed_out) {
+        /* GNU's non-foreground monitor belongs to the group it kills and
+           therefore dies from SIGKILL during escalation.  Our monitor is
+           the calling shell, so report the equivalent status without
+           killing that shell.  Foreground mode only kills the command. */
+        if (killed_hard && !foreground)
+            return 128 + SIGKILL;
         if (preserve_status) {
             if (WIFEXITED (status)) return WEXITSTATUS (status);
             if (WIFSIGNALED (status)) return 128 + WTERMSIG (status);

@@ -1,0 +1,166 @@
+{
+  "cases": [
+    {
+      "candidate_script": "[[ $(type -t git) == builtin ]] || exit 99\nset -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_COMMITTER_NAME=Fixture\nexport GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2026-01-01T00:00:00+0000' GIT_COMMITTER_DATE='2026-01-01T00:00:00+0000'\n/usr/bin/git init -q --bare remote\n/usr/bin/git init -q -b main seed\nprintf 'base\\n' >seed/file\n/usr/bin/git -C seed add file\n/usr/bin/git -C seed commit -qm base\n/usr/bin/git -C seed push -q ../remote main\n/usr/bin/git clone -q -b main remote topic\nprintf 'remote\\n' >>seed/file\n/usr/bin/git -C seed commit -qam remote\n/usr/bin/git -C seed push -q ../remote main\nprintf 'local\\n' >>topic/file\n/usr/bin/git -C topic commit -qam local\nbefore=$(/usr/bin/git --git-dir=remote rev-parse refs/heads/main)\nfor value in unset 0 00 000 false no off 1 true yes on; do\n  if [[ $value == unset ]]; then unset GIT_ADVICE; else export GIT_ADVICE=$value; fi\n  status=0\n  git -C topic push ../remote main >\"$HOME/push-$value.stdout\" 2>\"$HOME/push-$value.stderr\" || status=$?\n  [[ $status != 0 ]] || exit 90\n  hint=no\n  if /usr/bin/grep -q '^hint:' \"$HOME/push-$value.stderr\"; then hint=yes; fi\n  after=$(/usr/bin/git --git-dir=remote rev-parse refs/heads/main)\n  [[ $before == \"$after\" ]] || exit 91\n  printf '%s rejected=yes hint=%s remote=unchanged\\n' \"$value\" \"$hint\"\ndone\n/usr/bin/rm -rf remote seed topic\n",
+      "comparison": "Both participants compare reference Git boolean advice behavior for named false and true values and decimal zero; server ref is independently checked.",
+      "diagnostic_files": [
+        "push-unset.stdout",
+        "push-unset.stderr",
+        "push-0.stdout",
+        "push-0.stderr",
+        "push-00.stdout",
+        "push-00.stderr",
+        "push-000.stdout",
+        "push-000.stderr",
+        "push-false.stdout",
+        "push-false.stderr",
+        "push-no.stdout",
+        "push-no.stderr",
+        "push-off.stdout",
+        "push-off.stderr",
+        "push-1.stdout",
+        "push-1.stderr",
+        "push-true.stdout",
+        "push-true.stderr",
+        "push-yes.stdout",
+        "push-yes.stderr",
+        "push-on.stdout",
+        "push-on.stderr"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "takeover-git-advice-boolean-regression",
+      "kind": "parity",
+      "loadable": "git",
+      "reference_script": "set -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_COMMITTER_NAME=Fixture\nexport GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2026-01-01T00:00:00+0000' GIT_COMMITTER_DATE='2026-01-01T00:00:00+0000'\n/usr/bin/git init -q --bare remote\n/usr/bin/git init -q -b main seed\nprintf 'base\\n' >seed/file\n/usr/bin/git -C seed add file\n/usr/bin/git -C seed commit -qm base\n/usr/bin/git -C seed push -q ../remote main\n/usr/bin/git clone -q -b main remote topic\nprintf 'remote\\n' >>seed/file\n/usr/bin/git -C seed commit -qam remote\n/usr/bin/git -C seed push -q ../remote main\nprintf 'local\\n' >>topic/file\n/usr/bin/git -C topic commit -qam local\nbefore=$(/usr/bin/git --git-dir=remote rev-parse refs/heads/main)\nfor value in unset 0 00 000 false no off 1 true yes on; do\n  if [[ $value == unset ]]; then unset GIT_ADVICE; else export GIT_ADVICE=$value; fi\n  status=0\n  /usr/bin/git -C topic push ../remote main >\"$HOME/push-$value.stdout\" 2>\"$HOME/push-$value.stderr\" || status=$?\n  [[ $status != 0 ]] || exit 90\n  hint=no\n  if /usr/bin/grep -q '^hint:' \"$HOME/push-$value.stderr\"; then hint=yes; fi\n  after=$(/usr/bin/git --git-dir=remote rev-parse refs/heads/main)\n  [[ $before == \"$after\" ]] || exit 91\n  printf '%s rejected=yes hint=%s remote=unchanged\\n' \"$value\" \"$hint\"\ndone\n/usr/bin/rm -rf remote seed topic\n",
+      "requires": [
+        "git",
+        "grep",
+        "rm"
+      ],
+      "stderr": "",
+      "stdout": "unset rejected=yes hint=yes remote=unchanged\n0 rejected=yes hint=no remote=unchanged\n00 rejected=yes hint=no remote=unchanged\n000 rejected=yes hint=no remote=unchanged\nfalse rejected=yes hint=no remote=unchanged\nno rejected=yes hint=no remote=unchanged\noff rejected=yes hint=no remote=unchanged\n1 rejected=yes hint=yes remote=unchanged\ntrue rejected=yes hint=yes remote=unchanged\nyes rejected=yes hint=yes remote=unchanged\non rejected=yes hint=yes remote=unchanged\n",
+      "timeout": 40
+    },
+    {
+      "comparison": "Quiet successful push is silent, and quiet rejected push reports remote rejection, fails, and preserves the server ref.",
+      "covers": [
+        "git/remote_protocol_mock"
+      ],
+      "diagnostic_files": [
+        "quiet-success.out",
+        "quiet-success.err",
+        "quiet-rejected.out",
+        "quiet-rejected.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "takeover-git-quiet-remote-rejection",
+      "kind": "parity",
+      "loadable": "git",
+      "oracle": "System Git creates and updates a fixture-only bare repository, then a pre-receive hook refuses a later update; compare with Git 2.47.3 client.",
+      "requires": [
+        "git",
+        "grep"
+      ],
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-01-02T00:00:00Z' GIT_COMMITTER_DATE='2020-01-02T00:00:00Z'\ngit -C local push -q ../remote main >\"$HOME/quiet-success.out\" 2>\"$HOME/quiet-success.err\"; rc=$?\nif [[ $rc == 0 && ! -s $HOME/quiet-success.out && ! -s $HOME/quiet-success.err ]]; then echo 'quiet-success=yes'; else echo 'quiet-success=no'; fi\nbefore=$(/usr/bin/git --git-dir=remote rev-parse refs/heads/main)\nprintf 'second\\n' >>local/file\n/usr/bin/git -C local commit -qam second\nprintf '#!/bin/sh\\necho rejected-by-hook >&2\\nexit 1\\n' >remote/hooks/pre-receive\n/usr/bin/chmod 755 remote/hooks/pre-receive\ngit -C local push -q ../remote main >\"$HOME/quiet-rejected.out\" 2>\"$HOME/quiet-rejected.err\"; rc=$?\nafter=$(/usr/bin/git --git-dir=remote rev-parse refs/heads/main)\nif [[ $rc == 1 && $after == \"$before\" ]] && /usr/bin/grep -F 'remote rejected' \"$HOME/quiet-rejected.err\" >/dev/null; then echo 'quiet-rejection=yes'; else echo 'quiet-rejection=no'; fi\n/usr/bin/rm -rf remote local\n",
+      "setup_script": "export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=gc.auto GIT_CONFIG_VALUE_0=0 GIT_CONFIG_KEY_1=maintenance.auto GIT_CONFIG_VALUE_1=false\nset -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-01-01T00:00:00Z' GIT_COMMITTER_DATE='2020-01-01T00:00:00Z'\n/usr/bin/git init -q --bare remote\n/usr/bin/git init -q -b main local\nprintf 'first\\n' >local/file\n/usr/bin/git -C local add file\n/usr/bin/git -C local commit -qm first\n",
+      "stderr": "",
+      "stdout": "quiet-success=yes\nquiet-rejection=yes\n",
+      "timeout": 40
+    },
+    {
+      "comparison": "Accept the matching git namespace and bare key; reject unrelated namespace and future validity without ignoring restrictions.",
+      "covers": [
+        "git/signing_and_editor"
+      ],
+      "diagnostic_files": [
+        "verify-bare.out",
+        "verify-bare.err",
+        "verify-git.out",
+        "verify-git.err",
+        "verify-other.out",
+        "verify-other.err",
+        "verify-future.out",
+        "verify-future.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "takeover-git-allowed-signers-namespace-restrictions",
+      "kind": "parity",
+      "loadable": "git",
+      "oracle": "System Git 2.47.3 and OpenSSH validate a system-signed commit using a fixture-generated ED25519 key and explicit allowed-signers restrictions.",
+      "requires": [
+        "git",
+        "ssh-keygen",
+        "grep"
+      ],
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nfor mode in bare git other future; do\n  git -C signed -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=\"$HOME/signers-$mode\" verify-commit HEAD >\"$HOME/verify-$mode.out\" 2>\"$HOME/verify-$mode.err\"; rc=$?\n  good=no; if [[ $rc == 0 ]] && /usr/bin/grep -F 'Good \"git\" signature for fixture@example.test' \"$HOME/verify-$mode.err\" >/dev/null; then good=yes; fi\n  printf '%s verified=%s\\n' \"$mode\" \"$good\"\ndone\n/usr/bin/rm -rf signed\n",
+      "setup_script": "export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=gc.auto GIT_CONFIG_VALUE_0=0 GIT_CONFIG_KEY_1=maintenance.auto GIT_CONFIG_VALUE_1=false\nset -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture -f \"$HOME/key\"\nread -r kt kk kc < \"$HOME/key.pub\"\nprintf 'fixture@example.test %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/signers-bare\"\nprintf 'fixture@example.test namespaces=\"git\" %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/signers-git\"\nprintf 'fixture@example.test namespaces=\"other\" %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/signers-other\"\nprintf 'fixture@example.test namespaces=\"git\",valid-after=\"29990101Z\" %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/signers-future\"\n/usr/bin/git init -q -b main signed\nprintf 'signed\\n' >signed/file\n/usr/bin/git -C signed add file\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" commit -q -S -m signed\n",
+      "stderr": "",
+      "stdout": "bare verified=yes\ngit verified=yes\nother verified=no\nfuture verified=no\n",
+      "timeout": 50
+    },
+    {
+      "comparison": "Both clients must create an SSH-signed commit, and system Git must verify the new commit against the namespace-restricted allowed signer. The independent system verification pins its ssh-keygen executable to the prepared image path.",
+      "covers": [
+        "git/signing_and_editor"
+      ],
+      "diagnostic_files": [
+        "sign.out",
+        "sign.err",
+        "system-verify.out",
+        "system-verify.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "takeover-git-sign-system-verifies",
+      "kind": "parity",
+      "loadable": "git",
+      "oracle": "Fixture-generated key and independently invoked system Git/OpenSSH verify the actual newly created commit signature.",
+      "requires": [
+        "git",
+        "ssh-keygen",
+        "grep"
+      ],
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\nprintf 'candidate\\n' >>signed/file\n/usr/bin/git -C signed add file\ngit -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" commit -q -S -m candidate >\"$HOME/sign.out\" 2>\"$HOME/sign.err\"; rc=$?\nif [[ $rc == 0 ]]; then echo 'sign=yes'; else echo 'sign=no'; fi\n/usr/bin/git -C signed -c gpg.format=ssh -c gpg.ssh.program=/usr/bin/ssh-keygen -c gpg.ssh.allowedSignersFile=\"$HOME/signers-git\" verify-commit HEAD >\"$HOME/system-verify.out\" 2>\"$HOME/system-verify.err\"; verified=$?\nif [[ $rc == 0 && $verified == 0 ]] && /usr/bin/grep -F 'Good \"git\" signature for fixture@example.test' \"$HOME/system-verify.err\" >/dev/null; then echo 'system-verifies=yes'; else echo 'system-verifies=no'; fi\n/usr/bin/rm -rf signed\n",
+      "setup_script": "export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=gc.auto GIT_CONFIG_VALUE_0=0 GIT_CONFIG_KEY_1=maintenance.auto GIT_CONFIG_VALUE_1=false\nset -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture -f \"$HOME/key\"\nread -r kt kk kc < \"$HOME/key.pub\"\nprintf 'fixture@example.test %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/signers-bare\"\nprintf 'fixture@example.test namespaces=\"git\" %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/signers-git\"\nprintf 'fixture@example.test namespaces=\"other\" %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/signers-other\"\nprintf 'fixture@example.test namespaces=\"git\",valid-after=\"29990101Z\" %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/signers-future\"\n/usr/bin/git init -q -b main signed\nprintf 'signed\\n' >signed/file\n/usr/bin/git -C signed add file\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" commit -q -S -m signed\n",
+      "stderr": "",
+      "stdout": "sign=yes\nsystem-verifies=yes\n",
+      "timeout": 50
+    },
+    {
+      "comparison": "Compare quiet success and remote-hook rejection via fake SSH and independent system git-receive-pack; preserve separate original local-path case.",
+      "covers": [
+        "git/remote_protocol_mock"
+      ],
+      "diagnostic_files": [
+        "quiet-success.out",
+        "quiet-success.err",
+        "quiet-rejected.out",
+        "quiet-rejected.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "takeover-git-quiet-ssh-remote-rejection",
+      "kind": "parity",
+      "loadable": "git",
+      "oracle": "System Git over fixture-only fake SSH against independent system git-receive-pack and pre-receive hook; no external network.",
+      "requires": [
+        "git",
+        "grep"
+      ],
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-01-02T00:00:00Z' GIT_COMMITTER_DATE='2020-01-02T00:00:00Z'\nGIT_SSH_COMMAND=/tmp/parity-case/fakessh-quiet git -C local push -q ssh://fixture/tmp/parity-case/remote main >\"$HOME/quiet-success.out\" 2>\"$HOME/quiet-success.err\"; rc=$?\nif [[ $rc == 0 && ! -s $HOME/quiet-success.out && ! -s $HOME/quiet-success.err ]]; then echo 'quiet-success=yes'; else echo 'quiet-success=no'; fi\nbefore=$(/usr/bin/git --git-dir=remote rev-parse refs/heads/main)\nprintf 'second\\n' >>local/file\n/usr/bin/git -C local commit -qam second\nprintf '#!/bin/sh\\n/usr/bin/touch \"$HOME/quiet-hook-ran\"\\necho rejected-by-hook >&2\\nexit 1\\n' >remote/hooks/pre-receive\n/usr/bin/chmod 755 remote/hooks/pre-receive\nGIT_SSH_COMMAND=/tmp/parity-case/fakessh-quiet git -C local push -q ssh://fixture/tmp/parity-case/remote main >\"$HOME/quiet-rejected.out\" 2>\"$HOME/quiet-rejected.err\"; rc=$?\nafter=$(/usr/bin/git --git-dir=remote rev-parse refs/heads/main)\nif [[ $rc == 1 && $after == \"$before\" ]] && /usr/bin/grep -F 'remote rejected' \"$HOME/quiet-rejected.err\" >/dev/null; then echo 'quiet-rejection=yes'; else echo 'quiet-rejection=no'; fi\nif [[ -e $HOME/quiet-hook-ran ]]; then echo 'hook-ran=yes'; else echo 'hook-ran=no'; fi\nprintf 'rejection-rc=%s\\n' \"$rc\"\nif [[ $after == \"$before\" ]]; then echo 'remote-unchanged=yes'; else echo 'remote-unchanged=no'; fi\n/usr/bin/rm -rf remote local /tmp/parity-case/fakessh-quiet\n",
+      "setup_script": "export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=gc.auto GIT_CONFIG_VALUE_0=0 GIT_CONFIG_KEY_1=maintenance.auto GIT_CONFIG_VALUE_1=false\nset -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-01-01T00:00:00Z' GIT_COMMITTER_DATE='2020-01-01T00:00:00Z'\n/usr/bin/git init -q --bare remote\n/usr/bin/git init -q -b main local\nprintf 'first\\n' >local/file\n/usr/bin/git -C local add file\n/usr/bin/git -C local commit -qm first\ncat > /tmp/parity-case/fakessh-quiet <<'EOF'\n#!/bin/sh\nwhile [ $# -gt 2 ]; do case $1 in -o|-p) shift 2;; *) shift;; esac; done\nexec /bin/sh -c \"PATH=/usr/bin:/bin:/usr/lib/git-core; $2\"\nEOF\n/usr/bin/chmod 755 /tmp/parity-case/fakessh-quiet\n",
+      "stderr": "",
+      "stdout": "quiet-success=yes\nquiet-rejection=yes\nhook-ran=yes\nrejection-rc=1\nremote-unchanged=yes\n",
+      "timeout": 40
+    }
+  ],
+  "schema": 1
+}

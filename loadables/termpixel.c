@@ -252,6 +252,12 @@ static void btp_sig (int sig) { (void) sig; btp_signaled = 1;
     if (btp_active_tty) btp_tty_restore (btp_active_tty); }
 
 int
+btp_tty_interrupted (void)
+{
+    return btp_signaled != 0;
+}
+
+int
 btp_tty_enter_raw (btp_tty_state *st, int fd)
 {
     if (!st) return -1;
@@ -276,7 +282,7 @@ int
 btp_tty_restore (btp_tty_state *st)
 {
     if (!st || !st->active) return 0;
-    (void) write (st->fd, "\033[0m\033[?25h", 9);   /* reset color, show cursor */
+    (void) write (st->fd, "\033[0m\033[?25h", sizeof "\033[0m\033[?25h" - 1); /* reset color, show cursor */
     tcsetattr (st->fd, TCSANOW, &st->saved);
     st->active = 0;
     if (btp_active_tty == st) btp_active_tty = NULL;
@@ -441,7 +447,8 @@ termpixel_builtin (WORD_LIST *list)
     }
 
     if (!strcmp (cmd, "key-read")) {
-        int fd = open ("/dev/tty", O_RDONLY);
+        /* The same descriptor supplies input and emits cursor controls. */
+        int fd = open ("/dev/tty", O_RDWR);
         int use = fd >= 0 ? fd : 0;
         btp_tty_state st; int raw = btp_tty_enter_raw (&st, use) == 0;
         char name[32];

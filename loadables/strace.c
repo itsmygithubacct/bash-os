@@ -912,6 +912,7 @@ struct bs_state {
         pid_t pid;
         int in_syscall;
         int printed_entry;
+        char *entry;    /* decoded while the tracee's entry memory is live */
         long last_nr;
         int started;    /* initial auto-attach SIGSTOP already consumed */
         int announced;  /* this pid is included in `alive` */
@@ -995,11 +996,45 @@ bs_slot_for(struct bs_state *st, pid_t pid)
     st->slots[i].pid = pid;
     st->slots[i].in_syscall = 0;
     st->slots[i].printed_entry = 0;
+    st->slots[i].entry = NULL;
     st->slots[i].last_nr = -1;
     st->slots[i].started = 0;
     st->slots[i].announced = 0;
     memset(&st->slots[i].enter_ts, 0, sizeof st->slots[i].enter_ts);
     return i;
+}
+
+/* Keep each entry private until its return stop. Events and other tracees
+ * can otherwise split a physical line between the entry and the result. */
+static int
+bs_save_entry(struct bs_state *st, int slot, pid_t pid,
+              const struct bs_syscall_regs *r)
+{
+    char *entry = NULL;
+    size_t size = 0;
+    FILE *saved = bs_out;
+    FILE *mem = open_memstream(&entry, &size);
+    if (!mem)
+        return -1;
+    bs_out = mem;
+    bs_print_syscall(pid, r, 0, -1.0);
+    bs_out = saved;
+    if (fclose(mem) != 0) {
+        free(entry);
+        return -1;
+    }
+    st->slots[slot].entry = entry;
+    return 0;
+}
+
+static void
+bs_unfinished_entry(struct bs_state *st, int slot)
+{
+    if (slot >= 0 && st->slots[slot].entry) {
+        bs_emit("%s = ?\n", st->slots[slot].entry);
+        free(st->slots[slot].entry);
+        st->slots[slot].entry = NULL;
+    }
 }
 
 static double
@@ -1229,6 +1264,7 @@ bs_trace_loop(struct bs_state *st, pid_t root, int attached_root)
         int slot = bs_slot_for(st, w);
 
         if (WIFEXITED(status)) {
+            bs_unfinished_entry(st, slot);
             if (!st->summary)
                 bs_emit("[pid %d] +++ exited with %d +++\n", (int)w, WEXITSTATUS(status));
             if (w == root) exit_code = WEXITSTATUS(status);
@@ -1237,6 +1273,7 @@ bs_trace_loop(struct bs_state *st, pid_t root, int attached_root)
             continue;
         }
         if (WIFSIGNALED(status)) {
+            bs_unfinished_entry(st, slot);
             if (!st->summary)
                 bs_emit("[pid %d] +++ killed by signal %d +++\n", (int)w, WTERMSIG(status));
             if (w == root) exit_code = 128 + WTERMSIG(status);
@@ -1258,11 +1295,16 @@ bs_trace_loop(struct bs_state *st, pid_t root, int attached_root)
                     if (!st->slots[slot].in_syscall && !entry_stop) {
                         /* Attach can begin with an unpaired syscall-exit stop. */
                     } else if (!st->slots[slot].in_syscall || entry_stop) {
+                        bs_unfinished_entry(st, slot);
                         st->slots[slot].printed_entry = bs_should_print(st, r.nr);
                         if (st->timing && st->slots[slot].printed_entry)
                             clock_gettime(CLOCK_MONOTONIC, &st->slots[slot].enter_ts);
-                        if (st->slots[slot].printed_entry && !st->summary)
-                            bs_print_syscall(w, &r, 0, -1.0);
+                        if (st->slots[slot].printed_entry && !st->summary &&
+                            bs_save_entry(st, slot, w, &r) < 0) {
+                            builtin_error("cannot buffer syscall entry: %s", strerror(errno));
+                            bs_detach_all(st);
+                            return EXECUTION_FAILURE;
+                        }
                         st->slots[slot].in_syscall = 1;
                         st->slots[slot].last_nr = r.nr;
                         /* exit / exit_group never return; flush the
@@ -1272,6 +1314,9 @@ bs_trace_loop(struct bs_state *st, pid_t root, int attached_root)
                                 bs_summary_record(st, r.nr, 0, 0);
                             else
                                 {
+                                    bs_emit("%s", st->slots[slot].entry);
+                                    free(st->slots[slot].entry);
+                                    st->slots[slot].entry = NULL;
                                     bs_emit(" = ?");
                                     if (st->timing)
                                         bs_print_elapsed(bs_elapsed_since(&st->slots[slot].enter_ts));
@@ -1284,9 +1329,13 @@ bs_trace_loop(struct bs_state *st, pid_t root, int attached_root)
                         if (st->slots[slot].printed_entry) {
                             if (st->summary)
                                 bs_summary_record(st, st->slots[slot].last_nr, r.ret, 1);
-                            else
+                            else {
+                                bs_emit("%s", st->slots[slot].entry);
+                                free(st->slots[slot].entry);
+                                st->slots[slot].entry = NULL;
                                 bs_print_syscall(w, &r, 1,
                                                  st->timing ? bs_elapsed_since(&st->slots[slot].enter_ts) : -1.0);
+                            }
                         }
                         st->slots[slot].in_syscall = 0;
                         st->slots[slot].printed_entry = 0;
@@ -1662,6 +1711,8 @@ strace_builtin(WORD_LIST *list)
 
     int rc = attach_pid > 0 ? bs_run_attach(&st, attach_pid) : bs_run_exec(&st, argv);
 
+    for (int i = 0; i < st.nslots; i++)
+        free(st.slots[i].entry);
     if (out_path && bs_out) { fclose(bs_out); bs_out = stderr; }
     free(argv);
     return rc < 0 ? EXECUTION_FAILURE : (rc == 0 ? EXECUTION_SUCCESS : rc);

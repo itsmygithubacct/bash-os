@@ -160,7 +160,7 @@
 +  if (chmod (path, newmode) < 0)
 +    {
 +      if (!(flags & CHMOD_QUIET))
-+        builtin_error ("cannot change mode of '%s': %s", path, strerror (errno));
++        builtin_error ("changing permissions of '%s': %s", path, strerror (errno));
 +      result = EXECUTION_FAILURE;
 +    }
 +  else if (flags & CHMOD_VERBOSE)

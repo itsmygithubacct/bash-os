@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-w6-audit-run-state-regression-root",
+      "loadable": "audit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "audit/deferred-audit-consumer"
+      ],
+      "purpose": "Verify audit run restores disabled and enabled states after a deadline and SIGTERM and leaves an already registered consumer undisturbed.",
+      "oracle": "An independent raw-netlink model (struct.pack/unpack of AUDIT_GET/AUDIT_SET/AUDIT_LIST_RULES/AUDIT_ADD_RULE/AUDIT_DEL_RULE against the guest kernel) as the oracle for kernel state, run as root in the initial namespaces of a KVM guest; the snapshot/restore of audit state is done by the same oracle",
+      "comparison": "Independent AUDIT_GET before, during and after each run; command statuses and child daemon ownership.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-audit-nl.py": "49c7efbe4019e474ce6dce29cd6345f5c0b1d25ad361fed044c70cf06bf92ef6"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nW=/run/w6-audit; /usr/bin/mkdir -p \"$W\"\n/usr/bin/cat >\"$W/inner.sh\" <<'INNER_EOF'\nexport HOME=/run/w6-audit PATH=/usr/bin:/usr/sbin:/bin\ncd \"$HOME\"\n[[ $(type -t audit) == builtin ]] || exit 125\nOR=/opt/bashos-parity/harness/helpers/mig-w6-audit-nl.py\nnl() { /usr/bin/python3 -I \"$OR\" \"$@\"; }\njget() { /usr/bin/python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[sys.argv[2]])' \"$1\" \"$2\"; }\nstable() { /usr/bin/python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); [d.pop(k) for k in (\"lost\",\"backlog\",\"mask\")]; print(json.dumps(d, sort_keys=True))' \"$1\"; }\nSNAP=$HOME/audit-snap.json\nnl snapshot \"$SNAP\" >/dev/null || { echo \"audit netlink unavailable: $(nl status)\"; exit 1; }\ntrap 'nl restore \"$SNAP\" >/dev/null 2>&1' EXIT\nnl flush >/dev/null\nnl set enabled=0 >/dev/null\nnl add '{\"flags\":4,\"action\":2,\"syscalls\":[59],\"fields\":[],\"key\":\"mig-w6-ev\"}' >/dev/null\n/usr/bin/mkfifo \"$HOME/nap\"; exec 7<>\"$HOME/nap\"\nnap() { read -t \"$1\" -u 7; }\nms() { echo $(( ${EPOCHREALTIME/./} / 1000 )); }\nfor initial in 0 1; do\n  nl set enabled=$initial >/dev/null || exit 1\n  audit run -t 1 -o \"$HOME/r.tsv\" >\"$HOME/count\" 2>\"$HOME/err\"; rc=$?\n  after=$(nl status)\n  echo \"deadline-$initial: rc=$rc pid=$(jget \"$after\" pid) enabled=$(jget \"$after\" enabled) stderr-empty=$([[ -s $HOME/err ]] && echo 0 || echo 1)\"\ndone\nnl set enabled=0 >/dev/null || exit 1\naudit run -t 15 -o \"$HOME/r.tsv\" >\"$HOME/count\" 2>\"$HOME/err\" &\nrp=$!\nnl waitpid \"$rp\" 4 >/dev/null || { kill \"$rp\" 2>/dev/null; wait \"$rp\"; exit 1; }\n# A second consumer must not replace the first or alter its enabled state.\naudit run -t 1 -o \"$HOME/r2.tsv\" >\"$HOME/count2\" 2>\"$HOME/err2\"; rc=$?\nduring=$(nl status)\necho \"occupied: rc=$rc owner-preserved=$([[ $(jget \"$during\" pid) == \"$rp\" ]] && echo 1 || echo 0) enabled=$(jget \"$during\" enabled)\"\nkill -TERM \"$rp\"; wait \"$rp\"; rc=$?\nafter=$(nl status)\necho \"signal: rc=$rc pid=$(jget \"$after\" pid) enabled=$(jget \"$after\" enabled) stderr-empty=$([[ -s $HOME/err ]] && echo 0 || echo 1)\"\n\nINNER_EOF\n/usr/bin/systemd-run --wait --pipe --collect --quiet \"$BASH\" --noprofile --norc \"$W/inner.sh\"\nrc=$?\n/usr/bin/cp \"$W/rec.tsv\" /tmp/parity-case/rec.tsv 2>/dev/null\n/usr/bin/rm -rf \"$W\"\nexit $rc\n",
+      "expected_status": 0,
+      "stdout": "deadline-0: rc=0 pid=0 enabled=0 stderr-empty=1\ndeadline-1: rc=0 pid=0 enabled=1 stderr-empty=1\noccupied: rc=1 owner-preserved=1 enabled=1\nsignal: rc=0 pid=0 enabled=0 stderr-empty=1\n",
+      "stderr": "",
+      "timeout": 60
+    }
+  ]
+}

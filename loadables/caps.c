@@ -20,8 +20,8 @@
  *       path on most kernels — surface that as an error.
  *
  *   caps add SET CAP1,CAP2,...
- *       Add caps to SET. Only valid for {inheritable,ambient}. Other
- *       sets reject with 'kernel forbids raising'.
+ *       Add caps to {effective,inheritable,ambient}. Effective caps must
+ *       already be permitted; the kernel checks all requested raises.
  *
  *   caps clear SET
  *       Drop all caps from SET (equivalent to `drop SET <full-list>`).
@@ -258,6 +258,18 @@ bc_modify_cmd (int adding, WORD_LIST *args)
     uint64_t mask = 0;
     if (bc_names_to_mask (list, &mask) != 0) return EXECUTION_FAILURE;
 
+    /* Validate the set after parsing names, before consulting the kernel. */
+    if (strcmp (set, "bounding") && strcmp (set, "ambient") &&
+        strcmp (set, "permitted") && strcmp (set, "effective") &&
+        strcmp (set, "inheritable")) {
+        builtin_error ("%s: unknown set (try permitted/effective/inheritable/ambient/bounding)", set);
+        return EX_USAGE;
+    }
+    if (adding && !strcmp (set, "permitted")) {
+        builtin_error ("kernel forbids raising %s", set);
+        return EX_USAGE;
+    }
+
     if (!strcmp (set, "bounding")) {
         if (adding) {
             builtin_error ("kernel forbids raising bounding set"); return EX_USAGE;
@@ -292,16 +304,11 @@ bc_modify_cmd (int adding, WORD_LIST *args)
         return EXECUTION_FAILURE;
     }
     if (!strcmp (set, "permitted")) {
-        if (adding) { builtin_error ("kernel forbids raising permitted"); return EX_USAGE; }
         prm &= ~mask; eff &= ~mask; inh &= ~mask;     /* dropping permitted clears the others too */
     } else if (!strcmp (set, "effective")) {
-        if (adding) { builtin_error ("kernel forbids raising effective"); return EX_USAGE; }
-        eff &= ~mask;
+        if (adding) eff |= mask; else eff &= ~mask;
     } else if (!strcmp (set, "inheritable")) {
         if (adding) inh |= mask; else inh &= ~mask;
-    } else {
-        builtin_error ("%s: unknown set (try permitted/effective/inheritable/ambient/bounding)", set);
-        return EX_USAGE;
     }
     if (bc_capset (eff, prm, inh) != 0) {
         builtin_error ("capset: %s", strerror (errno));
@@ -352,6 +359,10 @@ bc_clear_cmd (WORD_LIST *args)
                           (unsigned long) i, 0, 0);
         return EXECUTION_SUCCESS;
     }
+    if (strcmp (set, "permitted") && strcmp (set, "effective") &&
+        strcmp (set, "inheritable")) {
+        builtin_error ("clear: unknown set: %s", set); return EX_USAGE;
+    }
     uint64_t eff = 0, prm = 0, inh = 0;
     if (bc_capget (&eff, &prm, &inh) != 0) {
         builtin_error ("capget: %s", strerror (errno));
@@ -360,9 +371,6 @@ bc_clear_cmd (WORD_LIST *args)
     if (!strcmp (set, "permitted"))   { prm = 0; eff = 0; inh = 0; }
     else if (!strcmp (set, "effective"))   eff = 0;
     else if (!strcmp (set, "inheritable")) inh = 0;
-    else {
-        builtin_error ("clear: unknown set: %s", set); return EX_USAGE;
-    }
     if (bc_capset (eff, prm, inh) != 0) {
         builtin_error ("capset: %s", strerror (errno));
         return EXECUTION_FAILURE;
@@ -471,8 +479,8 @@ char *caps_doc[] = {
     "    caps drop SET CAP1,CAP2,...   SET ∈ {permitted,effective,",
     "        inheritable,ambient,bounding}. Kernel forbids dropping",
     "        permitted/effective on most kernels — surfaces error.",
-    "    caps add SET CAP1,CAP2,...    Only inheritable+ambient",
-    "        accept add; raising permitted/effective is impossible.",
+    "    caps add SET CAP1,CAP2,...    Add effective, inheritable, or",
+    "        ambient caps; effective must be a subset of permitted.",
     "    caps clear SET                Drop every cap from SET.",
     "    caps clear all                Drop every cap from every set",
     "        (bounding → ambient → permitted/effective/inheritable, in the",

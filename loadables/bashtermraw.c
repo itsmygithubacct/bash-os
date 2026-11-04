@@ -567,8 +567,9 @@ btr_keypress (void)
 
   if (b < 0x20)
     {
-      /* Other Ctrl-chars: C-A..C-Z map to 0x01..0x1a. */
-      printf ("C-%c\n", b + '@');
+      /* Letter controls use the documented lowercase names.  Preserve the
+         traditional punctuation names for NUL and 0x1c..0x1f. */
+      printf ("C-%c\n", b >= 0x01 && b <= 0x1a ? b + '`' : b + '@');
       if (close_fd) close (fd);
       return 0;
     }

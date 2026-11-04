@@ -41,7 +41,8 @@
 #include <sys/socket.h>
 #include <sys/mman.h>
 #include <sys/time.h>    /* struct timeval */
-#include <sys/wait.h>    /* waitpid for `update` */
+#include <dirent.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -536,7 +537,7 @@ bcl_build_body (sbuf *body, const bcl_opts *o, const char *msg)
 static int
 bcl_status_retryable (int s)
 {
-  return s == 429 || s == 500 || s == 502 || s == 503 || s == 504 || s == 529;
+  return s == 429 || (s >= 500 && s < 600);
 }
 
 /* Honor a server `Retry-After` header from the accumulated response header
@@ -914,45 +915,73 @@ bcl_cmd_unescape (void)
   return EXECUTION_SUCCESS;
 }
 
-/* Self-update: verify + install + reload a signed claude package using
- * the real pkg verbs (signature/ABI/arch/digest gated). Runs the bash
- * orchestration via a child bash login shell so the in-image builtins resolve.
- * An explicit PKGFILE is passed through the environment (not argv-interpolated
- * into the snippet) to avoid injection. */
+/* Package operations must run in this shell: loading in a child cannot
+ * change the invoking shell's builtin table.  Use Bash's variable lookup so
+ * temporary and unexported shell assignments are honored as well. */
+extern WORD_DESC *make_word (const char *);
+extern WORD_LIST *make_word_list (WORD_DESC *, WORD_LIST *);
+extern void dispose_words (WORD_LIST *);
+
+static int
+bcl_pkg_call (struct builtin *pkg, const char *verb, const char *arg)
+{
+  WORD_LIST *words = make_word_list (make_word (verb), NULL);
+  words->next = make_word_list (make_word (arg), NULL);
+  int rc = pkg->function (words);
+  dispose_words (words);
+  return rc;
+}
+
 static int
 bcl_cmd_update (WORD_LIST *l)
 {
   if (l && l->next) { builtin_error ("claude update: at most one PKGFILE argument"); return EX_USAGE; }
-  if (l && l->word && l->word->word) setenv ("BASHCLAUDE_UPDATE_PKG", l->word->word, 1);
-  else unsetenv ("BASHCLAUDE_UPDATE_PKG");
-
-  static const char *snippet =
-    "set -u; dir=${BASHPKG_LOADABLES_DATADIR:-/root/loadables}; "
-    "pkg=${BASHCLAUDE_UPDATE_PKG:-}; "
-    "if [[ -z $pkg ]]; then "
-    "  pkg=$(ls -1t \"$dir\"/bashclaude_*.pkg 2>/dev/null | head -n1); "
-    "fi; "
-    "if [[ -z ${pkg:-} || ! -r $pkg ]]; then "
-    "  printf 'claude update: no bashclaude_*.pkg found in %s (publish with build-loadable-pkg.sh + loadable-fetch.sh)\\n' \"$dir\" >&2; exit 1; "
-    "fi; "
-    "printf 'claude update: installing %s\\n' \"$pkg\" >&2; "
-    "if type -t pkg >/dev/null 2>&1; then "
-    "  pkg install \"$pkg\" && pkg load claude; "
-    "else "
-    "  printf 'claude update: pkg unavailable; this image cannot hot-load .so (needs BASH_OS_DYNAMIC). Rebuild the image to update.\\n' >&2; exit 1; "
-    "fi";
-
-  pid_t pid = fork ();
-  if (pid < 0) { builtin_error ("claude update: fork: %s", strerror (errno)); return EXECUTION_FAILURE; }
-  if (pid == 0)
+  const char *dir = get_string_value ("BASHPKG_LOADABLES_DATADIR");
+  if (!dir || !*dir) dir = "/root/loadables";
+  char *selected = NULL;
+  const char *pkgfile = l && l->word ? l->word->word : NULL;
+  if (!pkgfile || !*pkgfile)
     {
-      execl ("/bin/bash", "bash", "-lc", snippet, (char *) NULL);
-      _exit (127);
+      DIR *d = opendir (dir);
+      struct dirent *entry;
+      struct stat best, st;
+      int have_best = 0;
+      if (d)
+        {
+          while ((entry = readdir (d)) != NULL)
+            {
+              size_t n = strlen (entry->d_name);
+              if (n < 15 || strncmp (entry->d_name, "bashclaude_", 11) ||
+                  strcmp (entry->d_name + n - 4, ".pkg")) continue;
+              size_t len = strlen (dir) + n + 2;
+              char *path = malloc (len);
+              if (!path) { free (selected); closedir (d); builtin_error ("claude update: out of memory"); return EXECUTION_FAILURE; }
+              snprintf (path, len, "%s/%s", dir, entry->d_name);
+              if (stat (path, &st) == 0 &&
+                  (!have_best || st.st_mtim.tv_sec > best.st_mtim.tv_sec ||
+                   (st.st_mtim.tv_sec == best.st_mtim.tv_sec && st.st_mtim.tv_nsec > best.st_mtim.tv_nsec)))
+                { free (selected); selected = path; best = st; have_best = 1; }
+              else free (path);
+            }
+          closedir (d);
+        }
+      pkgfile = selected;
     }
-  int status = 0;
-  while (waitpid (pid, &status, 0) < 0 && errno == EINTR) {}
-  if (WIFEXITED (status) && WEXITSTATUS (status) == 0) return EXECUTION_SUCCESS;
-  return EXECUTION_FAILURE;
+  if (!pkgfile || access (pkgfile, R_OK) != 0)
+    {
+      builtin_error ("claude update: no bashclaude_*.pkg found in %s (publish with build-loadable-pkg.sh + loadable-fetch.sh)", dir);
+      free (selected);
+      return EXECUTION_FAILURE;
+    }
+  fprintf (stderr, "claude update: installing %s\n", pkgfile);
+  struct builtin *pkg = builtin_address_internal ("pkg", 0);
+  if (!pkg || !pkg->function)
+    { builtin_error ("claude update: pkg unavailable"); free (selected); return EXECUTION_FAILURE; }
+  int rc = bcl_pkg_call (pkg, "install", pkgfile);
+  free (selected);
+  if (rc == EXECUTION_SUCCESS)
+    rc = bcl_pkg_call (pkg, "load", "claude");
+  return rc;
 }
 
 static int

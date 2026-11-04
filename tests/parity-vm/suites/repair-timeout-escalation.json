@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-timeout-escalation-preserve",
+      "purpose": "Escalation status and shell continuation: preserve",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "oracle": "GNU timeout in the locked guest with identical child programs.",
+      "comparison": "Exact status and shell continuation; launcher diagnostics are captured separately.",
+      "expected_status": 0,
+      "stderr": "",
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-kill-after-escalation"
+      ],
+      "timeout": 12,
+      "script": "{ timeout --preserve-status -k 0.2 0.6 /usr/bin/python3 -c 'import signal;signal.signal(signal.SIGTERM,signal.SIG_IGN);signal.alarm(8);signal.pause()'; rc=$?; } 2> launcher-diagnostic\nprintf 'status=%s\\ncontinued\\n' \"$rc\"; rm -f launcher-diagnostic",
+      "stdout": "status=137\ncontinued\n"
+    },
+    {
+      "id": "repair-timeout-escalation-foreground",
+      "purpose": "Escalation status and shell continuation: foreground",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "oracle": "GNU timeout in the locked guest with identical child programs.",
+      "comparison": "Exact status and shell continuation; launcher diagnostics are captured separately.",
+      "expected_status": 0,
+      "stderr": "",
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-kill-after-escalation"
+      ],
+      "timeout": 12,
+      "script": "{ timeout --foreground -k 0.2 0.6 /usr/bin/python3 -c 'import signal;signal.signal(signal.SIGTERM,signal.SIG_IGN);signal.alarm(8);signal.pause()'; rc=$?; } 2> launcher-diagnostic\nprintf 'status=%s\\ncontinued\\n' \"$rc\"; rm -f launcher-diagnostic",
+      "stdout": "status=124\ncontinued\n"
+    },
+    {
+      "id": "repair-timeout-escalation-foreground-preserve",
+      "purpose": "Escalation status and shell continuation: foreground-preserve",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "oracle": "GNU timeout in the locked guest with identical child programs.",
+      "comparison": "Exact status and shell continuation; launcher diagnostics are captured separately.",
+      "expected_status": 0,
+      "stderr": "",
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-kill-after-escalation"
+      ],
+      "timeout": 12,
+      "script": "{ timeout --foreground --preserve-status -k 0.2 0.6 /usr/bin/python3 -c 'import signal;signal.signal(signal.SIGTERM,signal.SIG_IGN);signal.alarm(8);signal.pause()'; rc=$?; } 2> launcher-diagnostic\nprintf 'status=%s\\ncontinued\\n' \"$rc\"; rm -f launcher-diagnostic",
+      "stdout": "status=137\ncontinued\n"
+    },
+    {
+      "id": "repair-timeout-term-before-escalation",
+      "purpose": "Initial signal exits before kill-after deadline",
+      "loadable": "timeout",
+      "group": "shell",
+      "driver": "plain",
+      "oracle": "GNU timeout in the locked guest with identical child programs.",
+      "comparison": "Exact status and shell continuation; launcher diagnostics are captured separately.",
+      "expected_status": 0,
+      "stderr": "",
+      "requires": [
+        "timeout",
+        "python3"
+      ],
+      "covers": [
+        "timeout/deferred-kill-after-escalation"
+      ],
+      "timeout": 12,
+      "script": "{ timeout -k 1 0.5 /usr/bin/python3 -c 'import signal,os;signal.signal(signal.SIGTERM,lambda s,f:os._exit(7));signal.alarm(8);signal.pause()'; rc=$?; } 2> launcher-diagnostic\nprintf 'status=%s\\ncontinued\\n' \"$rc\"; rm -f launcher-diagnostic",
+      "stdout": "status=124\ncontinued\n"
+    }
+  ]
+}

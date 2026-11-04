@@ -25,7 +25,7 @@ import terminal_frames
 import schema
 
 ROOT = Path("/opt/bashos-parity")
-REFERENCE_SHELL = Path("/opt/bash-5.3.15/bin/bash")
+REFERENCE_SHELL = Path("/opt/bash-5.3.20/bin/bash")
 SCRATCH = (("/tmp", "128M", "1777"), ("/var/tmp", "64M", "1777"),
            ("/dev/shm", "64M", "1777"), ("/home/parity", "16M", "0755"))
 scratch_mounted = False

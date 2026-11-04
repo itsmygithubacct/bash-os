@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-chattr-operation-errors-links-root",
+      "loadable": "chattr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chattr/operation-errors-and-links"
+      ],
+      "purpose": "Compare usage, missing and mixed operands, ext4 ioctl errors, FIFO, live and dangling symlinks, unknown flags, and explicitly mounted tmpfs flag behavior; verify flag state after each operation.",
+      "oracle": "e2fsprogs 1.47.2 chattr, flags read with e2fsprogs lsattr",
+      "comparison": "Byte parity with e2fsprogs 1.47.2, including statuses, diagnostics and lsattr state; ext4 and tmpfs mounts must succeed or the fixture exits 99.",
+      "requires": [
+        "chattr",
+        "lsattr",
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "mkfifo",
+        "ln",
+        "sed",
+        "tr",
+        "rm"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nI=/tmp/root-fixture.img M=/tmp/root-fixture-mnt\n/usr/bin/truncate -s 4M $I && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal $I && /usr/bin/mkdir $M && /usr/bin/mount -o loop $I $M || { echo SETUP-FAILED; exit 99; }\ncd $M\nlsa() { for f in \"$@\"; do /usr/bin/lsattr -d \"$f\" 2>&1 | /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //'; done | /usr/bin/tr '\\n' '|'; echo; }\nprintf 'a\\n' > f1; printf 'b\\n' > f2; /usr/bin/mkfifo p; /usr/bin/ln -s f1 l; /usr/bin/ln -s missing dangling\nr no-args chattr\nr no-spec chattr f1\nr spec-only chattr +d\nr mixed-missing chattr +d f1 missing f2; echo \"  $(lsa f1 f2)\"\nr clear-extents chattr -e f1;  echo \"  $(lsa f1)\"\nr fifo chattr +A p f2;         echo \"  $(lsa f2)\"\nr symlink chattr +s l;         echo \"  $(lsa f1)\"\nr dangling chattr +d dangling; echo \"  $(lsa f1)\"\nr unknown-letter chattr +Q f2; echo \"  $(lsa f2)\"\nr unknown-then-valid chattr +AQ f1; echo \"  $(lsa f1)\"\nr mixed-link chattr +A f1 l f2; echo \"  $(lsa f1 f2)\"\n/usr/bin/mkdir /tmp/chattr-tmpfs && /usr/bin/mount -t tmpfs tmpfs /tmp/chattr-tmpfs || { echo TMPFS-SETUP-FAILED; exit 99; }\ncd /tmp/chattr-tmpfs; printf 'c\\n' > t\nr tmpfs-sync chattr +S t; echo \"  $(/usr/bin/lsattr t 2>&1 | /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //')\"\nr tmpfs-nodump chattr +d t; echo \"  $(/usr/bin/lsattr t 2>&1 | /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //')\"\ncd /tmp/parity-case && /usr/bin/umount /tmp/chattr-tmpfs || { echo TMPFS-TEARDOWN-FAILED; exit 99; }\ncd /tmp/parity-case && /usr/bin/umount $M && /usr/bin/rm -f $I && echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}

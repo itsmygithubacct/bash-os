@@ -36,14 +36,15 @@
 #include <math.h>
 #include <sys/statvfs.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 
 #include "loadables.h"
 
 typedef struct {
     int aflag, hflag, Hflag, iflag, kflag, lflag, mflag, Pflag, Tflag;
     int totalflag, output_count, block_explicit;
-    const char *type_filter;
-    const char *exclude_type;
+    const char **type_filter, **exclude_type;
+    int ntype, nexclude;
     uint64_t block_size;
     char block_suffix;
     char block_label[32];
@@ -122,29 +123,39 @@ bdf_unescape (char *s)
 }
 
 static int
-bdf_is_remote_type (const char *type)
+bdf_is_remote (const char *source, const char *type)
 {
-    return strcmp (type, "9p") == 0
-        || strcmp (type, "nfs") == 0
-        || strcmp (type, "nfs4") == 0
-        || strcmp (type, "cifs") == 0
-        || strcmp (type, "smbfs") == 0
-        || strcmp (type, "sshfs") == 0
-        || strcmp (type, "fuse.sshfs") == 0
-        || strcmp (type, "fuse.virtiofs") == 0
-        || strcmp (type, "virtiofs") == 0;
+    return strchr (source, ':') != NULL || strcmp (source, "-hosts") == 0
+        || (source[0] == '/' && source[1] == '/'
+            && (strcmp (type, "smbfs") == 0 || strcmp (type, "cifs") == 0));
+}
+
+static int
+bdf_dummy (const char *type)
+{
+    static const char *const types[] = { "autofs", "proc", "subfs", "debugfs",
+        "devpts", "fusectl", "fuse.portal", "mqueue", "rpc_pipefs", "sysfs",
+        "devfs", "kernfs", "none" };
+    for (size_t i = 0; i < sizeof types / sizeof types[0]; i++)
+        if (strcmp (type, types[i]) == 0) return 1;
+    return 0;
 }
 
 static int
 bdf_type_selected (const bdf_opts *o, const char *type)
 {
-    return o->type_filter == NULL || strcmp (o->type_filter, type) == 0;
+    if (!o->ntype) return 1;
+    for (int i = 0; i < o->ntype; i++)
+        if (strcmp (o->type_filter[i], type) == 0) return 1;
+    return 0;
 }
 
 static int
 bdf_type_excluded (const bdf_opts *o, const char *type)
 {
-    return o->exclude_type != NULL && strcmp (o->exclude_type, type) == 0;
+    for (int i = 0; i < o->nexclude; i++)
+        if (strcmp (o->exclude_type[i], type) == 0) return 1;
+    return 0;
 }
 
 static void
@@ -393,7 +404,8 @@ bdf_fill_row (const char *path, const char *fs, const char *type, bdf_row *row)
     if (row->used + row->avail > 0)
         row->use_pct = (int) ((row->used * 100 + row->used + row->avail - 1) / (row->used + row->avail));
     row->inodes = (uint64_t) vfs.f_files;
-    row->ifree = (uint64_t) vfs.f_favail;
+    /* GNU df reports free inodes, not the subset available to non-root. */
+    row->ifree = (uint64_t) vfs.f_ffree;
     row->iused = row->inodes >= (uint64_t) vfs.f_ffree ? row->inodes - (uint64_t) vfs.f_ffree : 0;
     if (row->iused + row->ifree > 0)
         row->iuse_pct = (int) ((row->iused * 100 + row->iused + row->ifree - 1) / (row->iused + row->ifree));
@@ -830,6 +842,13 @@ bdf_emit (bdf_table *table, const bdf_opts *o, int header_emitted, bdf_row *tota
 {
     int rc = 0;
 
+    if (o->output_count) {
+        int has_source = 0;
+        for (int i = 0; i < o->output_count; i++)
+            has_source |= o->output_fields[i] == BDF_OUT_SOURCE;
+        if (!has_source)
+            total->path = "total";
+    }
     if (header_emitted && o->totalflag && bdf_table_add_row (table, o, total) < 0)
         rc = -1;
     bdf_table_print (table);
@@ -840,7 +859,12 @@ bdf_emit (bdf_table *table, const bdf_opts *o, int header_emitted, bdf_row *tota
 int
 df_builtin (WORD_LIST *list)
 {
+    int nargs = 0;
+    for (WORD_LIST *p = list; p; p = p->next) nargs++;
+    const char *types[nargs + 1], *excluded[nargs + 1];
     bdf_opts o = {0};
+    o.type_filter = types;
+    o.exclude_type = excluded;
     bdf_words positional = {0};
     o.block_size = 1024;
     for (WORD_LIST *p = list; p; p = p->next) {
@@ -914,7 +938,7 @@ df_builtin (WORD_LIST *list)
                 builtin_usage ();
                 return EX_USAGE;
             }
-            o.type_filter = w + 7;
+            o.type_filter[o.ntype++] = w + 7;
             continue;
         }
         if (strcmp (w, "--type") == 0) {
@@ -924,8 +948,8 @@ df_builtin (WORD_LIST *list)
                 return EX_USAGE;
             }
             p = p->next;
-            o.type_filter = p->word->word;
-            if (o.type_filter[0] == '\0') {
+            o.type_filter[o.ntype++] = p->word->word;
+            if (o.type_filter[o.ntype - 1][0] == '\0') {
                 builtin_error ("--type: missing filesystem type");
                 builtin_usage ();
                 return EX_USAGE;
@@ -938,7 +962,7 @@ df_builtin (WORD_LIST *list)
                 builtin_usage ();
                 return EX_USAGE;
             }
-            o.exclude_type = w + 15;
+            o.exclude_type[o.nexclude++] = w + 15;
             continue;
         }
         if (strcmp (w, "--exclude-type") == 0) {
@@ -948,8 +972,8 @@ df_builtin (WORD_LIST *list)
                 return EX_USAGE;
             }
             p = p->next;
-            o.exclude_type = p->word->word;
-            if (o.exclude_type[0] == '\0') {
+            o.exclude_type[o.nexclude++] = p->word->word;
+            if (o.exclude_type[o.nexclude - 1][0] == '\0') {
                 builtin_error ("--exclude-type: missing filesystem type");
                 builtin_usage ();
                 return EX_USAGE;
@@ -1004,7 +1028,7 @@ df_builtin (WORD_LIST *list)
                 case 'P': o.Pflag = 1; break;
                 case 't':
                     if (w[i + 1]) {
-                        o.type_filter = w + i + 1;
+                        o.type_filter[o.ntype++] = w + i + 1;
                         i = (int) strlen (w) - 1;
                     } else {
                         if (p->next == NULL) {
@@ -1013,8 +1037,8 @@ df_builtin (WORD_LIST *list)
                             return EX_USAGE;
                         }
                         p = p->next;
-                        o.type_filter = p->word->word;
-                        if (o.type_filter[0] == '\0') {
+                        o.type_filter[o.ntype++] = p->word->word;
+                        if (o.type_filter[o.ntype - 1][0] == '\0') {
                             builtin_error ("-t: missing filesystem type");
                             builtin_usage ();
                             return EX_USAGE;
@@ -1024,7 +1048,7 @@ df_builtin (WORD_LIST *list)
                 case 'T': o.Tflag = 1; break;
                 case 'x':
                     if (w[i + 1]) {
-                        o.exclude_type = w + i + 1;
+                        o.exclude_type[o.nexclude++] = w + i + 1;
                         i = (int) strlen (w) - 1;
                     } else {
                         if (p->next == NULL) {
@@ -1033,8 +1057,8 @@ df_builtin (WORD_LIST *list)
                             return EX_USAGE;
                         }
                         p = p->next;
-                        o.exclude_type = p->word->word;
-                        if (o.exclude_type[0] == '\0') {
+                        o.exclude_type[o.nexclude++] = p->word->word;
+                        if (o.exclude_type[o.nexclude - 1][0] == '\0') {
                             builtin_error ("-x: missing filesystem type");
                             builtin_usage ();
                             return EX_USAGE;
@@ -1079,6 +1103,8 @@ df_builtin (WORD_LIST *list)
                 display_type = type;
                 display_path = mnt;
             }
+            if (o.lflag && bdf_is_remote (display_fs, display_type))
+                continue;
             if (!bdf_type_selected (&o, display_type))
                 continue;
             if (bdf_type_excluded (&o, display_type))
@@ -1098,41 +1124,122 @@ df_builtin (WORD_LIST *list)
     }
     free (positional.v);
 
-    /* Enumerate /proc/mounts. */
-    FILE *mp = fopen ("/proc/mounts", "r");
-    if (!mp) mp = fopen ("/proc/self/mounts", "r");
+    /* mountinfo supplies both the device number and the root within the
+       filesystem, needed to choose between bind mounts. */
+    FILE *mp = fopen ("/proc/self/mountinfo", "r");
     if (!mp) {
-        builtin_error ("/proc/mounts: %s", strerror (errno));
+        builtin_error ("cannot read table of mounted file systems: %s", strerror (errno));
         return EXECUTION_FAILURE;
     }
-    char line[4096];
-    while (fgets (line, sizeof line, mp)) {
-        char dev[512], mnt[512], type[64];
-        if (sscanf (line, "%511s %511s %63s", dev, mnt, type) != 3) continue;
-        bdf_unescape (dev);
-        bdf_unescape (mnt);
-        bdf_unescape (type);
-        if (o.lflag && bdf_is_remote_type (type))
-            continue;
-        if (!bdf_type_selected (&o, type))
-            continue;
-        if (bdf_type_excluded (&o, type))
-            continue;
-        /* Skip pseudo filesystems with no meaningful disk usage unless -a asks for all entries. */
-        if (!o.aflag
-            && (strcmp (type, "proc") == 0 || strcmp (type, "sysfs") == 0
-            || strcmp (type, "cgroup") == 0 || strcmp (type, "cgroup2") == 0
-            || strcmp (type, "devpts") == 0 || strcmp (type, "rpc_pipefs") == 0
-            || strcmp (type, "binfmt_misc") == 0 || strcmp (type, "mqueue") == 0
-            || strcmp (type, "pstore") == 0 || strcmp (type, "configfs") == 0
-            || strcmp (type, "debugfs") == 0 || strcmp (type, "fusectl") == 0
-            || strcmp (type, "securityfs") == 0 || strcmp (type, "tracefs") == 0
-            || strcmp (type, "bpf") == 0 || strcmp (type, "autofs") == 0))
-            continue;
-        if (bdf_one (mnt, dev, type, mnt, &o, &table, &header_emitted, totalp) < 0)
-            rc = EXECUTION_FAILURE;
+    typedef struct {
+        char *source, *path, *type, *root;
+        dev_t dev;
+        int selected;
+    } mount_row;
+    mount_row *mounts = NULL;
+    size_t count = 0, capacity = 0;
+    char *line = NULL;
+    size_t linecap = 0;
+    while (getline (&line, &linecap, mp) >= 0) {
+        char *sep = strstr (line, " - "), *save, *tok;
+        char *root = NULL, *path = NULL, *type, *source;
+        unsigned maj, min;
+        if (!sep) continue;
+        *sep = 0;
+        tok = strtok_r (line, " ", &save); /* mount ID */
+        if (!tok || !(tok = strtok_r (NULL, " ", &save)) /* parent */
+            || !(tok = strtok_r (NULL, " ", &save))
+            || sscanf (tok, "%u:%u", &maj, &min) != 2
+            || !(root = strtok_r (NULL, " ", &save))
+            || !(path = strtok_r (NULL, " ", &save))) continue;
+        type = strtok_r (sep + 3, " ", &save);
+        source = strtok_r (NULL, " ", &save);
+        if (!type || !source) continue;
+        bdf_unescape (root); bdf_unescape (path);
+        bdf_unescape (type); bdf_unescape (source);
+        if (capacity == count) {
+            size_t next = capacity ? capacity * 2 : 32;
+            mount_row *v = realloc (mounts, next * sizeof *v);
+            if (!v) { rc = EXECUTION_FAILURE; break; }
+            mounts = v; capacity = next;
+        }
+        mount_row *m = &mounts[count];
+        m->root = strdup (root); m->path = strdup (path);
+        m->type = strdup (type); m->source = strdup (source);
+        if (!m->root || !m->path || !m->type || !m->source) {
+            free (m->root); free (m->path); free (m->type); free (m->source);
+            rc = EXECUTION_FAILURE; break;
+        }
+        m->dev = makedev (maj, min); m->selected = 1;
+        count++;
     }
-    fclose (mp);
+    if (ferror (mp)) rc = EXECUTION_FAILURE;
+    free (line); fclose (mp);
+
+    for (size_t i = 0; i < count; i++) {
+        mount_row *m = &mounts[i];
+        struct stat st;
+        if ((o.lflag && bdf_is_remote (m->source, m->type))
+            || (!o.aflag && bdf_dummy (m->type))
+            || !bdf_type_selected (&o, m->type)
+            || bdf_type_excluded (&o, m->type)) {
+            m->selected = 0; continue;
+        }
+        if (stat (m->path, &st) == 0) m->dev = st.st_dev;
+        else continue;
+        if (o.aflag) continue;
+        for (size_t j = 0; j < i; j++) {
+            mount_row *prev = &mounts[j];
+            if (!prev->selected || prev->dev != m->dev) continue;
+            if (!o.totalflag && bdf_is_remote (prev->source, prev->type)
+                && bdf_is_remote (m->source, m->type)
+                && strcmp (prev->source, m->source) != 0) continue;
+            if ((strchr (m->source, '/') && !strchr (prev->source, '/'))
+                || (strlen (m->path) < strlen (prev->path)
+                    && strlen (m->root) <= strlen (prev->root))
+                || (strcmp (m->source, prev->source) != 0
+                    && strcmp (m->path, prev->path) == 0)) {
+                /* Keep the original position of the winning device. */
+                mount_row tmp = *prev; *prev = *m; *m = tmp;
+            }
+            m->selected = 0;
+            break;
+        }
+    }
+    for (size_t i = 0; i < count; i++) {
+        mount_row *m = &mounts[i];
+        if (m->selected && m->path[0] == '/') {
+            struct statvfs vfs;
+            if (!o.aflag && statvfs (m->path, &vfs) == 0 && vfs.f_blocks == 0)
+                continue;
+            const char *display_type = m->type;
+            if (o.aflag) {
+                /* Overmounted entries have no usable statistics for their
+                   original device. GNU reports their type as unknown. */
+                for (size_t j = count; j-- > 0; ) {
+                    mount_row *last = &mounts[j];
+                    if (last->dev != m->dev || strcmp (last->path, m->path) != 0) continue;
+                    if (strcmp (last->source, m->source) != 0
+                        && (!bdf_is_remote (last->source, last->type)
+                            || !bdf_is_remote (m->source, m->type)))
+                        display_type = "-";
+                    break;
+                }
+            }
+            if (bdf_one (m->path, m->source, display_type, m->path,
+                         &o, &table, &header_emitted, totalp) < 0)
+                rc = EXECUTION_FAILURE;
+        }
+    }
+    for (size_t i = 0; i < count; i++) {
+        free (mounts[i].source); free (mounts[i].path);
+        free (mounts[i].type); free (mounts[i].root);
+    }
+    free (mounts);
+    if (!header_emitted && rc == EXECUTION_SUCCESS) {
+        builtin_error ("no file systems processed");
+        rc = EXECUTION_FAILURE;
+    }
     if (bdf_emit (&table, &o, header_emitted, &total) < 0)
         rc = EXECUTION_FAILURE;
     return rc;

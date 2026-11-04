@@ -291,6 +291,8 @@ bip_netns_switch (const char *name)
   return EXECUTION_SUCCESS;
 }
 
+static void bip_free_word_nodes (WORD_LIST *list);
+
 static WORD_LIST *
 bip_words_from_argv (char **argv, int argc)
 {
@@ -304,7 +306,8 @@ bip_words_from_argv (char **argv, int argc)
         {
           free (node);
           free (word);
-          return head;
+          bip_free_word_nodes (head);
+          return NULL;
         }
       word->word = argv[i];
       word->flags = 0;
@@ -335,23 +338,31 @@ bip_split_batch_line (char *line, char **argv, int max_argc)
 {
   int argc = 0;
   char *p = line;
+  const char *ws = " \t\r\n";
 
-  while (*p && isspace ((unsigned char) *p))
-    p++;
-  if (*p == '\0' || *p == '\n' || *p == '#')
-    return 0;
-
-  while (*p && argc < max_argc)
+  while (*p)
     {
-      while (*p && isspace ((unsigned char) *p))
-        p++;
-      if (*p == '\0' || *p == '\n')
+      p += strspn (p, ws);
+      if (!*p)
         break;
-      argv[argc++] = p;
-      while (*p && !isspace ((unsigned char) *p))
-        p++;
-      if (*p)
-        *p++ = '\0';
+      if (argc >= max_argc - 1)
+        return -1;
+      if (*p == '\'' || *p == '"')
+        {
+          char quote = *p++;
+          argv[argc++] = p;
+          p = strchr (p, quote);
+          if (!p)
+            return -2;
+        }
+      else
+        {
+          argv[argc++] = p;
+          p += strcspn (p, ws);
+          if (!*p)
+            break;
+        }
+      *p++ = '\0';
     }
 
   if (argc > 0 && (strcmp (argv[0], "ip") == 0 || strcmp (argv[0], "baship") == 0))
@@ -947,6 +958,10 @@ struct bip_iface_item
   unsigned char operstate;
   char address[96];
   char broadcast[96];
+  char qdisc[64];
+  unsigned txqlen, group, link;
+  int have_txqlen, have_group, have_link, have_linkmode;
+  unsigned char linkmode;
   struct bip_addr_item *addrs;
   struct bip_addr_item *addr_tail;
   struct bip_iface_item *next;
@@ -1088,6 +1103,16 @@ bip_collect_links_cb (struct nlmsghdr *h, void *vctx)
     }
   bip_lladdr_string (tb[IFLA_ADDRESS], it->address, sizeof it->address);
   bip_lladdr_string (tb[IFLA_BROADCAST], it->broadcast, sizeof it->broadcast);
+  if (tb[IFLA_QDISC])
+    snprintf (it->qdisc, sizeof it->qdisc, "%.*s", (int) RTA_PAYLOAD (tb[IFLA_QDISC]), (char *) RTA_DATA (tb[IFLA_QDISC]));
+  if (tb[IFLA_TXQLEN] && RTA_PAYLOAD (tb[IFLA_TXQLEN]) >= sizeof (unsigned))
+    { it->have_txqlen = 1; memcpy (&it->txqlen, RTA_DATA (tb[IFLA_TXQLEN]), sizeof (unsigned)); }
+  if (tb[IFLA_GROUP] && RTA_PAYLOAD (tb[IFLA_GROUP]) >= sizeof (unsigned))
+    { it->have_group = 1; memcpy (&it->group, RTA_DATA (tb[IFLA_GROUP]), sizeof (unsigned)); }
+  if (tb[IFLA_LINK] && RTA_PAYLOAD (tb[IFLA_LINK]) >= sizeof (unsigned))
+    { it->have_link = 1; memcpy (&it->link, RTA_DATA (tb[IFLA_LINK]), sizeof (unsigned)); }
+  if (tb[IFLA_LINKMODE] && RTA_PAYLOAD (tb[IFLA_LINKMODE]) >= 1)
+    { it->have_linkmode = 1; it->linkmode = *(unsigned char *) RTA_DATA (tb[IFLA_LINKMODE]); }
   if (ctx->tail)
     ctx->tail->next = it;
   else
@@ -1262,6 +1287,11 @@ bip_emit_json_link (const struct bip_iface_collect_ctx *ctx)
       bip_emit_link_flags_json (it->flags);
       printf (",\"mtu\":%u,\"operstate\":", it->mtu);
       bip_json_string (bip_iface_oper (it, fallback, sizeof fallback));
+      if (it->qdisc[0]) { printf (",\"qdisc\":"); bip_json_string (it->qdisc); }
+      if (it->have_linkmode) printf (",\"linkmode\":\"%s\"", it->linkmode ? "DORMANT" : "DEFAULT");
+      if (it->have_group) { printf (",\"group\":"); if (it->group == 0) bip_json_string ("default"); else printf ("%u", it->group); }
+      if (it->have_txqlen) printf (",\"txqlen\":%u", it->txqlen);
+      if (it->have_link && it->link != it->ifindex) { char name[IFNAMSIZ]; if (if_indextoname (it->link, name)) { printf (",\"link\":"); bip_json_string (name); } }
       printf (",\"link_type\":");
       bip_json_string (it->iftype == ARPHRD_LOOPBACK ? "loopback" : "ether");
       if (it->address[0])
@@ -1332,12 +1362,9 @@ bip_link_show_cb (struct nlmsghdr *h, void *vctx)
       printf (" \n");
       return 0;
     }
-  printf ("%d: %s: <%s%s%s> mtu %u state %s",
-          ifi->ifi_index, ifname,
-          (ifi->ifi_flags & IFF_UP) ? "UP," : "",
-          (ifi->ifi_flags & IFF_BROADCAST) ? "BROADCAST," : "",
-          (ifi->ifi_flags & IFF_LOOPBACK) ? "LOOPBACK" : "MULTICAST",
-          mtu, oper);
+  printf ("%d: %s: ", ifi->ifi_index, ifname);
+  bip_emit_link_flags_text ((unsigned) ifi->ifi_flags);
+  printf (" mtu %u state %s", mtu, oper);
   if (ctx && ctx->oneline)
     printf (" \\ ");
   else
@@ -1981,75 +2008,101 @@ bip_route_show (int family, const char *ifname, int only_default,
   return rc == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
+struct bip_route_flush_item
+{
+  struct bip_route_flush_item *next;
+  struct nlmsghdr *message;
+};
+
 struct bip_route_flush_ctx
 {
   unsigned ifindex;
-  unsigned matches;
+  int family;
+  int failed;
+  struct bip_route_flush_item *items, *tail;
 };
 
 static int
-bip_route_flush_count_cb (struct nlmsghdr *h, void *vctx)
+bip_route_flush_collect_cb (struct nlmsghdr *h, void *vctx)
 {
   struct bip_route_flush_ctx *ctx = vctx;
-  if (h->nlmsg_type != RTM_NEWROUTE)
+  if (h->nlmsg_type != RTM_NEWROUTE ||
+      h->nlmsg_len < NLMSG_LENGTH (sizeof (struct rtmsg)))
     return 0;
   struct rtmsg *r = NLMSG_DATA (h);
   int len = h->nlmsg_len - NLMSG_LENGTH (sizeof *r);
-  if (len < 0)
-    return 0;
-  if (r->rtm_family != AF_INET && r->rtm_family != AF_INET6)
+  if (r->rtm_family != ctx->family)
     return 0;
   struct rtattr *tb[RTA_MAX + 1];
   bip_parse_rta (tb, RTA_MAX, RTM_RTA (r), len);
   unsigned table = r->rtm_table;
-  if (tb[RTA_TABLE])
-    table = *(unsigned *) RTA_DATA (tb[RTA_TABLE]);
-  if (table != RT_TABLE_MAIN)
+  if (tb[RTA_TABLE] && RTA_PAYLOAD (tb[RTA_TABLE]) >= sizeof (unsigned))
+    memcpy (&table, RTA_DATA (tb[RTA_TABLE]), sizeof table);
+  if (table != RT_TABLE_MAIN || !tb[RTA_OIF] ||
+      RTA_PAYLOAD (tb[RTA_OIF]) < sizeof (unsigned))
     return 0;
-  if (ctx->ifindex)
+  unsigned oif;
+  memcpy (&oif, RTA_DATA (tb[RTA_OIF]), sizeof oif);
+  if (oif != ctx->ifindex)
+    return 0;
+  struct bip_route_flush_item *it = calloc (1, sizeof *it);
+  if (it)
+    it->message = malloc (h->nlmsg_len);
+  if (!it || !it->message)
     {
-      if (!tb[RTA_OIF])
-        return 0;
-      if (*(unsigned *) RTA_DATA (tb[RTA_OIF]) != ctx->ifindex)
-        return 0;
+      free (it);
+      ctx->failed = 1;
+      builtin_error ("route flush: out of memory");
+      return 1;
     }
-  ctx->matches++;
+  memcpy (it->message, h, h->nlmsg_len);
+  if (ctx->tail) ctx->tail->next = it;
+  else ctx->items = it;
+  ctx->tail = it;
   return 0;
 }
 
 static int
-bip_route_flush_dev (const char *ifname)
+bip_route_flush_dev (const char *ifname, int family)
 {
-  unsigned idx = if_nametoindex (ifname);
-  if (idx == 0)
-    return EXECUTION_SUCCESS;
-
+  int idx = bip_iface_index (ifname);
+  if (idx < 0) return EXECUTION_FAILURE;
   int fd = bip_open ();
   if (fd < 0) return EXECUTION_FAILURE;
-  struct
-  {
-    struct nlmsghdr n;
-    struct rtmsg r;
-    char attrs[64];
-  } req;
+  struct { struct nlmsghdr n; struct rtmsg r; } req;
   memset (&req, 0, sizeof req);
   req.n.nlmsg_len = NLMSG_LENGTH (sizeof req.r);
   req.n.nlmsg_type = RTM_GETROUTE;
   req.n.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
   req.n.nlmsg_seq = bip_seq ();
-  req.r.rtm_family = AF_UNSPEC;
-  bip_addattr_u32 (&req.n, sizeof req, RTA_OIF, idx);
-  struct bip_route_flush_ctx ctx = { idx, 0 };
-  int rc = bip_talk (fd, &req.n, bip_route_flush_count_cb, &ctx);
+  req.r.rtm_family = (unsigned char) family;
+  struct bip_route_flush_ctx ctx = { (unsigned) idx, family, 0, NULL, NULL };
+  int rc = bip_talk (fd, &req.n, bip_route_flush_collect_cb, &ctx);
   close (fd);
-  if (rc != 0)
-    return EXECUTION_FAILURE;
-  if (ctx.matches == 0)
-    return EXECUTION_SUCCESS;
-
-  builtin_error ("route flush dev %s: matched %u route%s; destructive flush is not implemented",
-                 ifname, ctx.matches, ctx.matches == 1 ? "" : "s");
-  return EXECUTION_FAILURE;
+  int out = rc == 0 && !ctx.failed ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+  for (struct bip_route_flush_item *it = ctx.items; it; )
+    {
+      struct bip_route_flush_item *next = it->next;
+      if (rc == 0 && !ctx.failed)
+        {
+          int dfd = bip_open ();
+          if (dfd < 0) out = EXECUTION_FAILURE;
+          else
+            {
+              it->message->nlmsg_type = RTM_DELROUTE;
+              it->message->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+              it->message->nlmsg_seq = bip_seq ();
+              it->message->nlmsg_pid = 0;
+              if (bip_talk (dfd, it->message, NULL, NULL) != 0)
+                out = EXECUTION_FAILURE;
+              close (dfd);
+            }
+        }
+      free (it->message);
+      free (it);
+      it = next;
+    }
+  return out;
 }
 
 static int
@@ -2185,29 +2238,27 @@ bip_rule_show_cb (struct nlmsghdr *h, void *vctx)
 
   if (ctx && ctx->json)
     {
-      const char *family = frh->family == AF_INET ? "inet" :
-                           (frh->family == AF_INET6 ? "inet6" : "unspec");
       if (!ctx->first)
         printf (",\n");
       ctx->first = 0;
-      printf ("{\"priority\":%u,\"family\":\"%s\"", prio, family);
+      printf ("{\"priority\":%u", prio);
       if (tb[FRA_SRC])
         {
           char src[INET6_ADDRSTRLEN];
           inet_ntop (frh->family, RTA_DATA (tb[FRA_SRC]), src, sizeof src);
-          printf (",\"from\":\"%s\",\"from_prefix\":%u", src, frh->src_len);
+          printf (",\"src\":\"%s\",\"srclen\":%u", src, frh->src_len);
         }
       else
-        printf (",\"from\":\"all\"");
+        printf (",\"src\":\"all\"");
       if (tb[FRA_DST])
         {
           char dst[INET6_ADDRSTRLEN];
           inet_ntop (frh->family, RTA_DATA (tb[FRA_DST]), dst, sizeof dst);
-          printf (",\"to\":\"%s\",\"to_prefix\":%u", dst, frh->dst_len);
+          printf (",\"dst\":\"%s\",\"dstlen\":%u", dst, frh->dst_len);
         }
       if (tb[FRA_FWMARK])
         printf (",\"fwmark\":%u", *(unsigned *) RTA_DATA (tb[FRA_FWMARK]));
-      if (tb[FRA_FWMASK])
+      if (tb[FRA_FWMASK] && *(unsigned *) RTA_DATA (tb[FRA_FWMASK]) != 0xffffffffU)
         printf (",\"fwmask\":%u", *(unsigned *) RTA_DATA (tb[FRA_FWMASK]));
       if (tb[FRA_UID_RANGE])
         {
@@ -2250,7 +2301,7 @@ bip_rule_show_cb (struct nlmsghdr *h, void *vctx)
   if (tb[FRA_FWMARK])
     {
       unsigned mark = *(unsigned *) RTA_DATA (tb[FRA_FWMARK]);
-      if (tb[FRA_FWMASK])
+      if (tb[FRA_FWMASK] && *(unsigned *) RTA_DATA (tb[FRA_FWMASK]) != 0xffffffffU)
         {
           unsigned mask = *(unsigned *) RTA_DATA (tb[FRA_FWMASK]);
           printf (" fwmark 0x%x/0x%x", mark, mask);
@@ -2319,7 +2370,7 @@ bip_rule_modify (int rtm, const char *src_cidr, const char *dst_cidr,
                      rtm == RTM_NEWRULE ? "add" : "del");
       return EX_USAGE;
     }
-  unsigned prio = 0, table = RT_TABLE_MAIN;
+  unsigned prio = 0, table = rtm == RTM_NEWRULE ? RT_TABLE_MAIN : RT_TABLE_UNSPEC;
   if (bip_parse_u32 (prio_s, &prio) < 0)
     {
       builtin_error ("rule: bad priority: %s", prio_s);
@@ -2420,7 +2471,7 @@ bip_rule_modify (int rtm, const char *src_cidr, const char *dst_cidr,
     req.n.nlmsg_flags |= NLM_F_CREATE | NLM_F_EXCL;
   req.n.nlmsg_seq = bip_seq ();
   req.r.family = (unsigned char) fam;
-  req.r.action = FR_ACT_TO_TBL;
+  req.r.action = rtm == RTM_NEWRULE || table_s ? FR_ACT_TO_TBL : FR_ACT_UNSPEC;
   req.r.table = table < 256 ? (unsigned char) table : RT_TABLE_UNSPEC;
   req.r.src_len = (unsigned char) src_prefix;
   req.r.dst_len = (unsigned char) dst_prefix;
@@ -2466,6 +2517,7 @@ struct bip_rule_flush_ctx
   struct bip_rule_flush_item *items;
   struct bip_rule_flush_item *tail;
   unsigned matches;
+  int failed;
 };
 
 static void
@@ -2496,11 +2548,15 @@ bip_rule_flush_collect_cb (struct nlmsghdr *h, void *vctx)
                  (struct rtattr *) ((char *) frh + NLMSG_ALIGN (sizeof *frh)),
                  len);
   unsigned prio = tb[FRA_PRIORITY] ? *(unsigned *) RTA_DATA (tb[FRA_PRIORITY]) : 0;
-  if (prio == 0 || prio == 32766 || prio == 32767)
+  if (prio == 0)
     return 0;
   struct bip_rule_flush_item *it = calloc (1, sizeof *it);
   if (!it)
-    return 1;
+    {
+      ctx->failed = 1;
+      builtin_error ("rule flush: out of memory");
+      return 1;
+    }
   it->family = frh->family;
   it->action = frh->action;
   it->table = tb[FRA_TABLE] ? *(unsigned *) RTA_DATA (tb[FRA_TABLE]) : frh->table;
@@ -2590,7 +2646,7 @@ bip_rule_delete_item (const struct bip_rule_flush_item *it)
 }
 
 static int
-bip_rule_flush (void)
+bip_rule_flush (int family)
 {
   int fd = bip_open ();
   if (fd < 0) return EXECUTION_FAILURE;
@@ -2605,12 +2661,12 @@ bip_rule_flush (void)
   req.n.nlmsg_type = RTM_GETRULE;
   req.n.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
   req.n.nlmsg_seq = bip_seq ();
-  req.r.family = AF_UNSPEC;
+  req.r.family = (unsigned char) family;
   struct bip_rule_flush_ctx ctx;
   memset (&ctx, 0, sizeof ctx);
   int rc = bip_talk (fd, &req.n, bip_rule_flush_collect_cb, &ctx);
   close (fd);
-  if (rc != 0)
+  if (rc != 0 || ctx.failed)
     {
       bip_rule_flush_free (&ctx);
       return EXECUTION_FAILURE;
@@ -2647,10 +2703,17 @@ bip_nud_name (unsigned state)
     }
 }
 
+struct bip_neigh_show_ctx {
+  struct bip_show_ctx show;
+  unsigned nud_mask;
+  int nud_set, nud_none, nud_all;
+};
+
 static int
 bip_neigh_show_cb (struct nlmsghdr *h, void *vctx)
 {
-  struct bip_show_ctx *ctx = vctx;
+  struct bip_neigh_show_ctx *nctx = vctx;
+  struct bip_show_ctx *ctx = &nctx->show;
   if (h->nlmsg_type != RTM_NEWNEIGH)
     return 0;
   struct ndmsg *nd = NLMSG_DATA (h);
@@ -2658,6 +2721,15 @@ bip_neigh_show_cb (struct nlmsghdr *h, void *vctx)
   if (len < 0)
     return 0;
   if (ctx && ctx->family != AF_UNSPEC && nd->ndm_family != ctx->family)
+    return 0;
+  /* Match iproute2's default NUD filter (nud all opts in to these). */
+  if (nctx->nud_set)
+    {
+      if (!nctx->nud_all &&
+          !(nd->ndm_state ? (nd->ndm_state & nctx->nud_mask) : nctx->nud_none))
+        return 0;
+    }
+  else if (nd->ndm_state == NUD_NONE || (nd->ndm_state & NUD_NOARP))
     return 0;
   struct rtattr *tb[NDA_MAX + 1];
   bip_parse_rta (tb, NDA_MAX, (struct rtattr *) ((char *) nd + NLMSG_ALIGN (sizeof *nd)), len);
@@ -2706,7 +2778,8 @@ bip_neigh_show_cb (struct nlmsghdr *h, void *vctx)
 }
 
 static int
-bip_neigh_show (const char *ifname, int family, int json)
+bip_neigh_show (const char *ifname, int family, int json,
+                unsigned nud_mask, int nud_set, int nud_none, int nud_all)
 {
   int fd = bip_open ();
   if (fd < 0) return EXECUTION_FAILURE;
@@ -2722,7 +2795,8 @@ bip_neigh_show (const char *ifname, int family, int json)
   req.n.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
   req.n.nlmsg_seq = bip_seq ();
   req.nd.ndm_family = (unsigned char) family;
-  struct bip_show_ctx ctx = { ifname, family, 0, 0, json, 1, NULL };
+  struct bip_neigh_show_ctx ctx = { { ifname, family, 0, 0, json, 1, NULL },
+                                    nud_mask, nud_set, nud_none, nud_all };
   if (json)
     printf ("[");
   int rc = bip_talk (fd, &req.n, bip_neigh_show_cb, &ctx);
@@ -3135,7 +3209,7 @@ bip_route_cmd (WORD_LIST *args, const struct bip_ip_opts *opts)
             }
           p = p->next;
         }
-      return bip_route_show (bip_opts_family_or (opts, AF_INET), dev, only_default,
+      return bip_route_show (bip_opts_family_or (opts, all_tables ? AF_UNSPEC : AF_INET), dev, only_default,
                              all_tables, table, opts ? opts->brief : 0,
                              opts ? opts->json : 0);
     }
@@ -3164,7 +3238,7 @@ bip_route_cmd (WORD_LIST *args, const struct bip_ip_opts *opts)
         }
       if (!dev)
         { builtin_error ("route flush: dev IFNAME required"); return EX_USAGE; }
-      return bip_route_flush_dev (dev);
+      return bip_route_flush_dev (dev, bip_opts_family_or (opts, AF_INET));
     }
   if (strcmp (verb, "add") == 0 || strcmp (verb, "delete") == 0
       || strcmp (verb, "change") == 0
@@ -3229,7 +3303,7 @@ bip_neigh_cmd (WORD_LIST *args, const struct bip_ip_opts *opts)
 {
   if (!args)
     return bip_neigh_show (NULL, opts ? opts->family : AF_UNSPEC,
-                           opts ? opts->json : 0);
+                           opts ? opts->json : 0, 0, 0, 0, 0);
   static const char *const verbs[] = {
     "show", "list", "add", "delete", "change", "replace", "get", "flush", "help", NULL
   };
@@ -3247,27 +3321,40 @@ bip_neigh_cmd (WORD_LIST *args, const struct bip_ip_opts *opts)
     { bip_print_help (); return EXECUTION_SUCCESS; }
   if (strcmp (verb, "show") == 0 || strcmp (verb, "list") == 0)
     {
-      static const char *const show_selectors[] = { "dev", NULL };
       const char *iface = NULL;
-      if (rest)
+      unsigned nud_mask = 0;
+      int nud_set = 0, nud_none = 0, nud_all = 0;
+      while (rest)
         {
           const char *w = rest->word->word;
-          const char *kw = bip_match_one_quiet (w, show_selectors, "neigh show selector");
-          if (kw && strcmp (kw, "dev") == 0)
+          if (!strcmp (w, "dev"))
             {
-              if (!rest->next)
-                { builtin_error ("neigh show: dev requires an argument"); return EX_USAGE; }
-              iface = rest->next->word->word;
-              if (rest->next->next)
-                { builtin_error ("neigh show: unsupported selector %s", rest->next->next->word->word); return EX_USAGE; }
+              if (!rest->next || iface)
+                { builtin_error ("neigh show: dev requires one argument"); return EX_USAGE; }
+              rest = rest->next;
+              iface = rest->word->word;
             }
-          else if (!rest->next)
-            iface = w;
+          else if (!strcmp (w, "nud"))
+            {
+              unsigned state;
+              if (!rest->next)
+                { builtin_error ("neigh show: nud requires an argument"); return EX_USAGE; }
+              rest = rest->next;
+              w = rest->word->word;
+              nud_set = 1;
+              if (!strcmp (w, "all")) nud_all = 1;
+              else if (bip_parse_nud (w, &state) < 0)
+                { builtin_error ("neigh show: bad nud state %s", w); return EX_USAGE; }
+              else if (state == NUD_NONE) nud_none = 1;
+              else nud_mask |= state;
+            }
+          else if (!iface && !rest->next) iface = w;
           else
-            { builtin_error ("neigh show: unsupported selector %s", rest->next->word->word); return EX_USAGE; }
+            { builtin_error ("neigh show: unsupported selector %s", w); return EX_USAGE; }
+          rest = rest->next;
         }
       return bip_neigh_show (iface, opts ? opts->family : AF_UNSPEC,
-                             opts ? opts->json : 0);
+                             opts ? opts->json : 0, nud_mask, nud_set, nud_none, nud_all);
     }
   if (opts && opts->json)
     {
@@ -3409,7 +3496,7 @@ bip_rule_cmd (WORD_LIST *args, const struct bip_ip_opts *opts)
     {
       if (rest)
         { builtin_error ("rule flush: unsupported selector %s", rest->word->word); return EX_USAGE; }
-      return bip_rule_flush ();
+      return bip_rule_flush (bip_opts_family_or (opts, AF_INET));
     }
   if (strcmp (verb, "add") == 0 || strcmp (verb, "delete") == 0)
     {
@@ -3558,7 +3645,8 @@ static int
 bip_run_batch (const char *path, int force, const struct bip_ip_opts *base)
 {
   FILE *fp = NULL;
-  char line[4096];
+  char *line = NULL;
+  size_t linecap = 0;
   int worst = EXECUTION_SUCCESS;
   unsigned lineno = 0;
 
@@ -3579,18 +3667,54 @@ bip_run_batch (const char *path, int force, const struct bip_ip_opts *base)
         }
     }
 
-  while (fgets (line, sizeof line, fp))
+  while (getline (&line, &linecap, fp) >= 0)
     {
-      char *argv[128];
+      char *argv[128], *comment, *continuation;
       int argc;
       lineno++;
+      comment = strchr (line, '#');
+      if (comment)
+        *comment = '\0';
+      while ((continuation = strstr (line, "\\\n")) != NULL)
+        {
+          char *next = NULL;
+          size_t nextcap = 0, prefix, extra;
+          char *grown;
+          if (getline (&next, &nextcap, fp) < 0)
+            {
+              free (next);
+              builtin_error ("-batch %s:%u: missing continuation line", path, lineno);
+              worst = EXECUTION_FAILURE;
+              goto batch_done;
+            }
+          lineno++;
+          *continuation = '\0';
+          comment = strchr (next, '#');
+          if (comment)
+            *comment = '\0';
+          prefix = strlen (line);
+          extra = strlen (next);
+          grown = realloc (line, prefix + extra + 1);
+          if (!grown)
+            {
+              free (next);
+              builtin_error ("-batch %s:%u: out of memory", path, lineno);
+              worst = EXECUTION_FAILURE;
+              goto batch_done;
+            }
+          line = grown;
+          linecap = prefix + extra + 1;
+          memcpy (line + prefix, next, extra + 1);
+          free (next);
+        }
       argc = bip_split_batch_line (line, argv, 128);
       if (argc == 0)
         continue;
-      if (argc >= 128)
+      if (argc < 0)
         {
-          builtin_error ("-batch %s:%u: too many words", path, lineno);
-          worst = EX_USAGE;
+          builtin_error ("-batch %s:%u: %s", path, lineno,
+                         argc == -1 ? "too many words" : "unterminated quoted string");
+          worst = EXECUTION_FAILURE;
           if (!force)
             break;
           continue;
@@ -3608,6 +3732,7 @@ bip_run_batch (const char *path, int force, const struct bip_ip_opts *base)
       bip_free_word_nodes (words);
       if (rc != EXECUTION_SUCCESS)
         {
+          builtin_error ("command failed %s:%u", path, lineno);
           if (rc > worst)
             worst = rc;
           if (!force)
@@ -3615,6 +3740,8 @@ bip_run_batch (const char *path, int force, const struct bip_ip_opts *base)
         }
     }
 
+batch_done:
+  free (line);
   if (ferror (fp))
     {
       builtin_error ("-batch %s: read error: %s", path, strerror (errno));

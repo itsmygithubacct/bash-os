@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "xargs-prompt-explicit-trace-parallel-t275",
+      "loadable": "xargs",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Prompt exactly once per command; terminal yes executes and no skips, even with explicit trace",
+      "script": "printf '%s\\n' one two | xargs -t -p -P 2 -n 1 touch; rc=$?; test \"$rc\" -eq 0 && test -f one && test ! -e two",
+      "steps": [
+        {
+          "expect": "touch one\\?\\.\\.\\."
+        },
+        {
+          "send": "y\r"
+        },
+        {
+          "expect": "touch two\\?\\.\\.\\."
+        },
+        {
+          "send": "n\r"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^touch one\\?\\.\\.\\.y$",
+              "1": "^touch two\\?\\.\\.\\.n$"
+            }
+          }
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "xargs/prompt-requires-pty"
+      ],
+      "expected_files": {
+        "one": ""
+      }
+    },
+    {
+      "id": "xargs-prompt-replace-trace-t275",
+      "loadable": "xargs",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Prompt exactly once per command; terminal yes executes and no skips, even with explicit trace",
+      "script": "printf '%s\\n' one two | xargs -p -t -I {} touch {}; rc=$?; test \"$rc\" -eq 0 && test -f one && test ! -e two",
+      "steps": [
+        {
+          "expect": "touch one\\?\\.\\.\\."
+        },
+        {
+          "send": "y\r"
+        },
+        {
+          "expect": "touch two\\?\\.\\.\\."
+        },
+        {
+          "send": "n\r"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^touch one\\?\\.\\.\\.y$",
+              "1": "^touch two\\?\\.\\.\\.n$"
+            }
+          }
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "xargs/prompt-requires-pty"
+      ],
+      "expected_files": {
+        "one": ""
+      }
+    }
+  ]
+}

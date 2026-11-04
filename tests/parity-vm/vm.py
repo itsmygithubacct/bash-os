@@ -32,7 +32,8 @@ REPO = HERE.parent.parent
 GUEST_ROOT = "/opt/bashos-parity"
 ACCEL = "kvm"  # set from --accel
 BOOT_SCALE = 1
-REFERENCE_BASH = "/opt/bash-5.3.15"
+REFERENCE_BASH = "/opt/bash-5.3.20"
+REFERENCE_VERSION = "5.3.20"
 # Image specification; set from --image-lock (a file name in this directory).
 IMAGE_LOCK = HERE / "image.lock.json"
 # Whole-VM limits on the host; the guest itself is 2 vCPU / 2 GiB.
@@ -579,6 +580,7 @@ def selinux_mode(lock):
 
 def provision_script(lock):
     sources = lock["reference_bash"]
+    validate_reference_spec(lock)
     patches = " ".join(shlex.quote(Path(p["url"]).name) for p in sources["patches"])
     flavour = kernel_flavour(lock)
     # Only the flavour's metapackage and versioned images stay, so GRUB can boot nothing else.
@@ -617,6 +619,7 @@ for p in """ + patches + """; do patch -p0 -s --no-backup-if-mismatch <../../"$p
 ./configure --prefix=""" + REFERENCE_BASH + """ >../configure.log 2>&1
 make -j2 >../make.log 2>&1
 make install >../install.log 2>&1
+""" + reference_version_command() + """
 """ + REFERENCE_BASH + """/bin/bash --version | head -1 >""" + GUEST_ROOT + """/reference-bash.txt
 cd / && rm -rf /root/bash-src
 dpkg-query -W -f='${Package}\\t${Version}\\n' >""" + GUEST_ROOT + """/packages.tsv
@@ -701,11 +704,31 @@ def prepare(cache, lock):
     print("Prepared and sealed disposable reference VM.", flush=True)
 
 
+def validate_reference_spec(lock):
+    spec = lock["reference_bash"]
+    if (spec["version"] != REFERENCE_VERSION or
+            spec["configure"] != ["--prefix=" + REFERENCE_BASH] or
+            [Path(p["url"]).name for p in spec["patches"]] !=
+            [f"bash53-{n:03}" for n in range(1, 21)]):
+        raise RuntimeError("reference specification must use Bash 5.3.20 and ordered patches 001-020")
+
+
+def reference_version_command():
+    # Execute only inside the guest, before any candidate is uploaded.
+    return (REFERENCE_BASH + "/bin/bash --noprofile --norc -c " +
+            shlex.quote('[[ ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}.${BASH_VERSINFO[2]} == ' +
+                        REFERENCE_VERSION + ' ]]'))
+
+
 def verify_base(cache):
     # Always rehash: a stored manifest is a claim, not evidence.
     info = json.loads((cache / "prepared.json").read_text())
     if info["image_lock_sha256"] != digest(IMAGE_LOCK):
         raise RuntimeError("image/package specification changed; use a fresh cache")
+    validate_reference_spec(json.loads(IMAGE_LOCK.read_text()))
+    if (info.get("reference_bash_path") != REFERENCE_BASH + "/bin/bash" or
+            not info.get("reference_bash", "").startswith("GNU bash, version " + REFERENCE_VERSION + "(")):
+        raise RuntimeError("prepared reference is not Bash 5.3.20; use a fresh cache")
     if info["sha256"] != digest(cache / "prepared.qcow2"):
         raise RuntimeError("prepared image checksum mismatch")
     chain = image_info(cache / "prepared.qcow2")
@@ -715,7 +738,11 @@ def verify_base(cache):
 
 
 def payload(binary, output, reference_cache):
-    ledger = HERE / "deferrals.json"
+    # A release mapping binds fresh fixture definitions; it carries no runtime
+    # results and must never rewrite the historical ledger's hashes.
+    ledger = HERE / "deferrals-014.json"
+    if not ledger.exists():
+        ledger = HERE / "deferrals.json"
     if ledger.exists():
         import deferrals
         deferrals.validate(json.loads(ledger.read_text()), REPO)
@@ -732,7 +759,8 @@ def payload(binary, output, reference_cache):
 
     with tarfile.open(output, "w") as archive:
         archive.add(binary, arcname="candidate", recursive=False, filter=metadata)
-        for root, prefix in [(HERE, "harness"), (REPO / "tests/loadable-parity", "loadable-parity")]:
+        for root, prefix in [(HERE, "harness"), (REPO / "tests/loadable-parity", "loadable-parity"),
+                             (REPO / "tests/qualification-limits", "qualification-limits")]:
             for path in sorted(root.rglob("*")):
                 if path.is_file() and "__pycache__" not in path.parts:
                     archive.add(path, arcname=prefix + "/" + str(path.relative_to(root)), recursive=False, filter=metadata)
@@ -784,6 +812,7 @@ def evaluate(args, cache):
             # Fixed root scaffolding is permitted only after runtime isolation,
             # before either lifecycle-check work or candidate upload.
             vm.attest_identity()
+            vm.ssh(reference_version_command(), check=True, timeout=10)
             if check:
                 # Lifecycle check only: trusted guest tools, no candidate, no fixtures.
                 facts = vm.ssh("unshare --net ip -j link show; echo; "

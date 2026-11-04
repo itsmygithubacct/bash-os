@@ -121,16 +121,18 @@ open_cmd (WORD_LIST *args)
 {
   const char *path = next_word (&args);
   const char *var = NULL, *w;
+  int locking = 0;
   while ((w = next_word (&args)))
     {
       if (!strcmp (w, "-h") && args) var = next_word (&args);
+      else if (!strcmp (w, "--locking")) locking = 1;
       else { builtin_error ("open: unexpected arg: %s", w); return EX_USAGE; }
     }
-  if (!path || !var) { builtin_error ("open PATH -h HANDLE_VAR"); return EX_USAGE; }
+  if (!path || !var) { builtin_error ("open PATH -h HANDLE_VAR [--locking]"); return EX_USAGE; }
 
   sqlite3 *db = NULL;
   int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX;
-  const char *vfs = strcmp (path, ":memory:") ? "unix-none" : NULL;
+  const char *vfs = !locking && strcmp (path, ":memory:") ? "unix-none" : NULL;
   int rc = sqlite3_open_v2 (path, &db, flags, vfs);
   if (rc != SQLITE_OK)
     {
@@ -138,7 +140,9 @@ open_cmd (WORD_LIST *args)
       if (db) sqlite3_close (db);
       return EXECUTION_FAILURE;
     }
-  sqlite3_exec (db, "PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF; PRAGMA foreign_keys=ON", NULL, NULL, NULL);
+  if (!locking)
+    sqlite3_exec (db, "PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF", NULL, NULL, NULL);
+  sqlite3_exec (db, "PRAGMA foreign_keys=ON", NULL, NULL, NULL);
 
   char h[32];
   if (alloc_db (db, h, sizeof h) < 0)
@@ -443,7 +447,7 @@ sqlite_builtin (WORD_LIST *list)
 
 char *sqlite_doc[] = {
   "SQLite handle API for bash-os.",
-  "  sqlite open PATH -h DB_VAR",
+  "  sqlite open PATH -h DB_VAR [--locking]",
   "  sqlite exec DB SQL",
   "  sqlite prepare DB SQL -h STMT_VAR",
   "  sqlite bind STMT N VALUE [-t TEXT|INTEGER|REAL|NULL|BLOB]",
@@ -455,7 +459,7 @@ char *sqlite_doc[] = {
   "  sqlite last-insert-rowid DB",
   "  sqlite --stats             # print active_stmts and max_stmts",
   "",
-  "  (file databases use unix-none VFS, memory SQLITE_OPEN_NOMUTEX; no locking)",
+  "  (file databases default to unix-none; --locking selects the default VFS)",
   "  bind failure auto-finalizes the prepared statement (slot reclaimed).",
   (char *) NULL
 };

@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-chgrp-named-resolution-direct-root-r1",
+      "loadable": "chgrp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chgrp/named-group-resolution"
+      ],
+      "purpose": "Run chgrp in the actual side shell with a controlled database; check distinct named and numeric GIDs and unknown-name failure without requiring diagnostic byte identity.",
+      "oracle": "GNU chgrp in reference shell with the same database and initial file ownership",
+      "comparison": "Status, diagnostic presence, and resulting gid for each call; tree snapshot.",
+      "requires": [
+        "mount",
+        "touch",
+        "chown",
+        "stat"
+      ],
+      "files": {
+        "group.fixture": "root:x:0:\nfixturestaff:x:3050:\n"
+      },
+      "script": "/usr/bin/mount --bind group.fixture /etc/group || { echo SETUP-FAILED; exit 99; }\n/usr/bin/touch named numeric unknown\n/usr/bin/chown 2000:2000 named numeric unknown || exit 99\nrun() {\n  local label=$1 group=$2 file=$3 status\n  chgrp \"$group\" \"$file\" > /tmp/chgrp.out 2> /tmp/chgrp.err\n  status=$?\n  printf '%s status=%s diagnostic=' \"$label\" \"$status\"\n  if [[ -s /tmp/chgrp.err ]]; then printf yes; else printf no; fi\n  printf ' gid='\n  /usr/bin/stat -c '%g' \"$file\"\n}\nrun named fixturestaff named\nrun numeric 3050 numeric\nrun unknown fixture-no-such-group unknown\n",
+      "expected_status": 0,
+      "stdout": "named status=0 diagnostic=no gid=3050\nnumeric status=0 diagnostic=no gid=3050\nunknown status=1 diagnostic=yes gid=2000\n",
+      "stderr": "",
+      "timeout": 30,
+      "observation_error_status": 99
+    }
+  ]
+}

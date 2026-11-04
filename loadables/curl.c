@@ -77,6 +77,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <limits.h>
 #include <string.h>
 #include <strings.h>
 #include <errno.h>
@@ -154,6 +155,8 @@ typedef struct {
 typedef struct {
   int   status;
   char *headers;               /* malloc'd; raw header block (no trailer CRLFCRLF) */
+  unsigned char *informational; /* preceding 1xx heads for -D */
+  size_t informational_len;
   size_t hlen;
   unsigned char *body;         /* malloc'd; raw decoded body */
   size_t blen;
@@ -327,11 +330,7 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
         { bc_error ("-H aggregate exceeds %d bytes", BCURL_HDRBUF_MAX); return NULL; }
     }
 
-  /* Like curl, request data defaults to a form submission. */
-  if (o->body_set && !bc_user_header (o, "Content-Type")
-      && bc_hdr_append (hdrs, sizeof hdrs, "Content-Type: application/x-www-form-urlencoded") < 0)
-    { bc_error ("header buffer exceeded"); return NULL; }
-
+  char auth_hdrs[BCURL_HDRBUF_MAX] = "";
   /* Basic auth: only injected when -u is set and the caller did not
    * already supply an Authorization header. As in curl, a redirect that
    * leaves the first origin drops -u for the rest of the transfer. */
@@ -343,13 +342,12 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
       char line[BCURL_HDRBUF_MAX];
       snprintf (line, sizeof line, "Authorization: Basic %s", b64);
       free (b64);
-      if (bc_hdr_append (hdrs, sizeof hdrs, line) < 0)
+      if (bc_hdr_append (auth_hdrs, sizeof auth_hdrs, line) < 0)
         { bc_error ("header buffer exceeded"); return NULL; }
     }
 
   /* curl -b/--cookie accepts either a literal cookie string or a cookie
-   * jar path. curl's bounded v1 implements the literal request-header
-   * form only; a caller-supplied Cookie: via -H wins. */
+   * jar path; a caller-supplied Cookie: via -H wins. */
   if (o->cookie && !bc_user_header (o, "Cookie"))
     {
       char line[BCURL_HDRBUF_MAX];
@@ -373,6 +371,9 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
   char line[BCURL_HDRBUF_MAX + 16];
   if (!bc_user_header (o, "Host"))
     { snprintf (line, sizeof line, "Host: %s", host); bc_hdr_append (builtin_hdrs, sizeof builtin_hdrs, line); }
+  if (strlen (builtin_hdrs) + strlen (auth_hdrs) >= sizeof builtin_hdrs)
+    { bc_error ("header buffer exceeded"); return NULL; }
+  strcat (builtin_hdrs, auth_hdrs);
   if (!bc_user_header (o, "User-Agent"))
     {
       snprintf (line, sizeof line, "User-Agent: %s", ua);
@@ -383,11 +384,11 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
     bc_hdr_append (builtin_hdrs, sizeof builtin_hdrs, "Accept: */*");
 
   /* The buffer holds the request line, both header blocks, the framing
-     lines (" HTTP/1.1", Content-Length, Connection, CRLFs: under 96
-     bytes) and the body. An -X method of any length is counted. */
+     lines (" HTTP/1.1", Content-Length, Content-Type and CRLFs: under
+     160 bytes) and the body. An -X method of any length is counted. */
   size_t body_len = o->body_set ? o->body_len : 0;
   size_t parts[] = { strlen (o->method), strlen (u->path), strlen (builtin_hdrs),
-                     strlen (hdrs), body_len, 96 };
+                     strlen (hdrs), body_len, 160 };
   size_t need = 1;
   for (size_t i = 0; i < sizeof parts / sizeof parts[0]; i++)
     {
@@ -398,24 +399,13 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
   char *req = malloc (need);
   if (!req) { bc_error ("out of memory"); return NULL; }
 
-  int n;
-  if (o->body_set)
-    n = snprintf (req, need,
-                  "%s %s HTTP/1.1\r\n"
-                  "%s"
-                  "%s"
-                  "Content-Length: %zu\r\n"
-                  "Connection: close\r\n"
-                  "\r\n",
-                  o->method, u->path, builtin_hdrs, hdrs, body_len);
-  else
-    n = snprintf (req, need,
-                  "%s %s HTTP/1.1\r\n"
-                  "%s"
-                  "%s"
-                  "Connection: close\r\n"
-                  "\r\n",
-                  o->method, u->path, builtin_hdrs, hdrs);
+  char framing[128] = "";
+  if (o->body_set && !bc_user_header (o, "Content-Length"))
+    snprintf (framing, sizeof framing, "Content-Length: %zu\r\n", body_len);
+  if (o->body_set && !bc_user_header (o, "Content-Type"))
+    strcat (framing, "Content-Type: application/x-www-form-urlencoded\r\n");
+  int n = snprintf (req, need, "%s %s HTTP/1.1\r\n%s%s%s\r\n",
+                    o->method, u->path, builtin_hdrs, hdrs, framing);
   if (n < 0 || (size_t) n >= need || body_len > need - 1 - (size_t) n)
     { free (req); bc_error ("request framing overflow"); return NULL; }
   if (body_len)
@@ -761,11 +751,14 @@ static int
 bc_save_cookie_jar (const char *path, const bc_url *u, const char *hdrs)
 {
   if (!path) return 0;
-  FILE *fp = fopen (path, "wb");
+  int fd = open (path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+  FILE *fp = fd < 0 ? NULL : fdopen (fd, "wb");
   if (!fp)
-    { bc_error ("%s: %s", path, strerror (errno)); return -1; }
+    { int saved = errno; if (fd >= 0) close (fd);
+      bc_error ("%s: %s", path, strerror (saved)); return -1; }
   fprintf (fp, "# Netscape HTTP Cookie File\n");
-  fprintf (fp, "# Generated by curl; domain/path/secure/HttpOnly/Max-Age/Expires/SameSite parsing is implemented.\n");
+  fprintf (fp, "# https://curl.se/docs/http-cookies.html\n");
+  fprintf (fp, "# This file was generated by libcurl! Edit at your own risk.\n\n");
 
   int wrote = 0;
   const char *p = hdrs;
@@ -939,11 +932,135 @@ bc_write_all (int fd, const char *buf, size_t n)
   return 0;
 }
 
+/* Informational heads precede the final response. Leave incomplete heads in
+   the buffer until the rest arrives; never treat them as the final response. */
+static int
+bc_skip_informational (const unsigned char **data, size_t *len)
+{
+  while (*len >= 12 && memcmp (*data, "HTTP/", 5) == 0 &&
+         (*data)[9] >= '0' && (*data)[9] <= '9' &&
+         (*data)[10] >= '0' && (*data)[10] <= '9' &&
+         (*data)[11] >= '0' && (*data)[11] <= '9')
+    {
+      int code = ((*data)[9] - '0') * 100 + ((*data)[10] - '0') * 10 + ((*data)[11] - '0');
+      if (code < 100 || code >= 200 || code == 101) break;
+      size_t end = 0;
+      for (size_t i = 0; i + 4 <= *len && i < BCURL_HEADER_MAX; i++)
+        if (memcmp (*data + i, "\r\n\r\n", 4) == 0)
+          { end = i + 4; break; }
+      if (!end) return 0;
+      *data += end;
+      *len -= end;
+    }
+  return 1;
+}
+
+/* Return 0 for a valid (or absent) Content-Length, -1 for invalid or
+   conflicting fields. Identical repeated values are safe. */
+static int
+bc_checked_response_length (const char *headers, long long *length)
+{
+  const char *line = strstr (headers, "\r\n");
+  *length = -1;
+  while (line && line[2] && line[2] != '\r')
+    {
+      line += 2;
+      if (strncasecmp (line, "Content-Length:", 15) == 0)
+        {
+          const char *v = line + 15;
+          while (*v == ' ' || *v == '\t') v++;
+          if (!isdigit ((unsigned char) *v)) return -1;
+          char *end;
+          errno = 0;
+          long long n = strtoll (v, &end, 10);
+          if (errno || n < 0) return -1;
+          while (*end == ' ' || *end == '\t') end++;
+          if (end[0] != '\r' || end[1] != '\n' ||
+              (*length >= 0 && *length != n)) return -1;
+          *length = n;
+        }
+      line = strstr (line, "\r\n");
+    }
+  return 0;
+}
+
+/* Detect a complete framed response without waiting for a persistent peer to
+   close. Unframed responses still require EOF. */
+static int
+bc_response_complete (const unsigned char *buf, size_t len, int head_request)
+{
+  if (!bc_skip_informational (&buf, &len)) return 0;
+  size_t body = 0;
+  for (size_t i = 0; i + 4 <= len && i < BCURL_HEADER_MAX; i++)
+    if (memcmp (buf + i, "\r\n\r\n", 4) == 0)
+      { body = i + 4; break; }
+  if (!body || memchr (buf, 0, body)) return 0;
+  char *headers = malloc (body + 1);
+  if (!headers) return 0;
+  memcpy (headers, buf, body); headers[body] = 0;
+  int status = body >= 12 ? atoi (headers + 9) : 0;
+  int chunked = 0;
+  long long length;
+  if (bc_checked_response_length (headers, &length) < 0)
+    { free (headers); return -1; }
+  char *line = strstr (headers, "\r\n");
+  while (line && line[2] && line[2] != '\r')
+    {
+      line += 2;
+      if (strncasecmp (line, "Transfer-Encoding:", 18) == 0)
+        {
+          char *v = line + 18;
+          while (*v == ' ' || *v == '\t') v++;
+          if (strncasecmp (v, "chunked", 7) == 0) chunked = 1;
+        }
+      line = strstr (line, "\r\n");
+    }
+  free (headers);
+  if (head_request || status == 204 || status == 304) return 1;
+  if (status < 200) return 0;
+  if (!chunked) return length >= 0 && (unsigned long long) length <= len - body;
+  size_t p = body;
+  for (;;)
+    {
+      size_t start = p;
+      unsigned long long size = 0;
+      while (p < len && isxdigit (buf[p]))
+        {
+          unsigned int d = isdigit (buf[p]) ? buf[p] - '0' :
+                           (unsigned int) (tolower (buf[p]) - 'a' + 10);
+          if (size > (ULLONG_MAX - d) / 16) return 0;
+          size = size * 16 + d; p++;
+        }
+      if (p == start) return 0;
+      while (p + 1 < len && !(buf[p] == '\r' && buf[p+1] == '\n')) p++;
+      if (p + 1 >= len) return 0;
+      p += 2;
+      if (size == 0)
+        {
+          /* Consume the trailer section, including its empty final line. */
+          for (;;)
+            {
+              size_t start_line = p;
+              while (p + 1 < len && !(buf[p] == '\r' && buf[p+1] == '\n')) p++;
+              if (p + 1 >= len) return 0;
+              p += 2;
+              if (p == start_line + 2) return 1;
+            }
+        }
+      if (size > len - p || len - p - (size_t) size < 2) return 0;
+      p += (size_t) size;
+      if (buf[p] != '\r' || buf[p+1] != '\n') return 0;
+      p += 2;
+    }
+}
+
 static unsigned char *
-bc_read_until_close (int fd, int timeout_s, size_t *out_len)
+bc_read_until_close (int fd, int timeout_s, int head_request,
+                     int *framed, size_t *out_len)
 {
   size_t cap = BCURL_READ_CHUNK;
   size_t got = 0;
+  *framed = 0;
   unsigned char *buf = malloc (cap);
   if (!buf) { bc_error ("out of memory"); return NULL; }
 
@@ -980,6 +1097,8 @@ bc_read_until_close (int fd, int timeout_s, size_t *out_len)
                    free (buf); return NULL; }
       if (r == 0) break;                       /* clean EOF */
       got += (size_t) r;
+      if (bc_response_complete (buf, got, head_request))
+        { *framed = 1; break; }
     }
   *out_len = got;
   return buf;
@@ -989,7 +1108,7 @@ bc_read_until_close (int fd, int timeout_s, size_t *out_len)
 static unsigned char *
 bc_https_exchange (const bc_url *u, const char *req, size_t reqlen,
                    int insecure, const char *cacert, int timeout_s,
-                   size_t *out_len)
+                   int head_request, size_t *out_len)
 {
   /* Build a bash one-liner that:
    *   1. cats the request from FIFO-fd 0 via a here-doc-style printf
@@ -1034,11 +1153,12 @@ bc_https_exchange (const bc_url *u, const char *req, size_t reqlen,
       snprintf (hostport, sizeof hostport, "%s:%s", u->host, u->port);
       /* Run the crypto builtin in this child, so HTTPS works whatever
        * /bin/bash is. The exec below is only for a shell without crypto. */
-      char *argv[10];
+      char *argv[11];
       int argc = 0;
       argv[argc++] = "crypto";
       argv[argc++] = "tls";
       argv[argc++] = "connect";
+      argv[argc++] = "--curl-status";
       argv[argc++] = hostport;
       argv[argc++] = "-s";
       argv[argc++] = (char *) u->host;
@@ -1050,6 +1170,12 @@ bc_https_exchange (const bc_url *u, const char *req, size_t reqlen,
       if (insecure)
         argv[argc++] = "-k";
       argv[argc] = NULL;
+      if (bc_quiet)
+        {
+          int nullfd = open ("/dev/null", O_WRONLY);
+          if (nullfd < 0 || dup2 (nullfd, STDERR_FILENO) < 0) _exit (1);
+          if (nullfd != STDERR_FILENO) close (nullfd);
+        }
       bos_prepare_child ();
       bos_run_builtin ("crypto", argv, NULL);
       /* crypto is a builtin (no PATH binary). Use `builtin` to
@@ -1059,19 +1185,19 @@ bc_https_exchange (const bc_url *u, const char *req, size_t reqlen,
        * fail with "not found", silently dropping the TLS handshake. */
       if (cacert && *cacert && insecure)
         execl ("/bin/bash", "bash", "-c",
-               "builtin crypto tls connect \"$1\" -s \"$2\" -c \"$3\" -k",
+               "builtin crypto tls connect --curl-status \"$1\" -s \"$2\" -c \"$3\" -k",
                "bash", hostport, u->host, cacert, (char *) NULL);
       else if (cacert && *cacert)
         execl ("/bin/bash", "bash", "-c",
-               "builtin crypto tls connect \"$1\" -s \"$2\" -c \"$3\"",
+               "builtin crypto tls connect --curl-status \"$1\" -s \"$2\" -c \"$3\"",
                "bash", hostport, u->host, cacert, (char *) NULL);
       else if (insecure)
         execl ("/bin/bash", "bash", "-c",
-               "builtin crypto tls connect \"$1\" -s \"$2\" -k",
+               "builtin crypto tls connect --curl-status \"$1\" -s \"$2\" -k",
                "bash", hostport, u->host, (char *) NULL);
       else
         execl ("/bin/bash", "bash", "-c",
-               "builtin crypto tls connect \"$1\" -s \"$2\"",
+               "builtin crypto tls connect --curl-status \"$1\" -s \"$2\"",
                "bash", hostport, u->host, (char *) NULL);
       _exit (127);
     }
@@ -1089,8 +1215,11 @@ bc_https_exchange (const bc_url *u, const char *req, size_t reqlen,
     }
   close (in_pipe[1]);
 
-  unsigned char *resp = bc_read_until_close (out_pipe[0], timeout_s, out_len);
+  int framed = 0;
+  unsigned char *resp = bc_read_until_close (out_pipe[0], timeout_s, head_request,
+                                             &framed, out_len);
   close (out_pipe[0]);
+  if (framed) kill (pid, SIGTERM);
 
   int wstat = 0;
   while (waitpid (pid, &wstat, 0) < 0 && errno == EINTR) ;
@@ -1101,7 +1230,13 @@ bc_https_exchange (const bc_url *u, const char *req, size_t reqlen,
    * the response was already piped through and is usable. */
   if (*out_len == 0 && WIFEXITED (wstat) && WEXITSTATUS (wstat) != 0)
     {
-      bc_error ("tls subshell failed (rc=%d)", WEXITSTATUS (wstat));
+      if (WEXITSTATUS (wstat) == 60)
+        {
+          bc_errcode = 60;
+          bc_curl_error (60, "SSL peer certificate verification failed");
+        }
+      else
+        bc_error ("tls subshell failed (rc=%d)", WEXITSTATUS (wstat));
       free (resp);
       return NULL;
     }
@@ -1209,34 +1344,51 @@ bc_dechunk (unsigned char *body, size_t blen)
   size_t in = 0, out = 0;
   while (in < blen)
     {
-      /* find end-of-size-line */
-      size_t i = in;
-      while (i < blen && body[i] != '\n') i++;
-      if (i >= blen) return -1;
-      /* parse hex chunk size (ignore extensions after ';') */
-      char szbuf[32]; size_t sl = i - in;
-      if (sl >= sizeof szbuf) return -1;
-      memcpy (szbuf, body + in, sl); szbuf[sl] = '\0';
-      char *semi = strchr (szbuf, ';'); if (semi) *semi = '\0';
-      long chunk = strtol (szbuf, NULL, 16);
-      in = i + 1; /* past LF */
-      if (chunk < 0) return -1;
-      if (chunk == 0) return (long) out;
-      if (in + (size_t) chunk > blen) return -1;
+      size_t start = in;
+      unsigned long chunk = 0;
+      while (in < blen && isxdigit (body[in]))
+        {
+          unsigned int d = isdigit (body[in]) ? body[in] - '0' :
+                           (unsigned int) (tolower (body[in]) - 'a' + 10);
+          if (chunk > ((unsigned long) LONG_MAX - d) / 16) return -1;
+          chunk = chunk * 16 + d;
+          in++;
+        }
+      if (in == start || in >= blen || (body[in] != ';' && body[in] != '\r')) return -1;
+      if (body[in] == ';')
+        while (in < blen && body[in] != '\r' && body[in] != '\n') in++;
+      if (in + 1 >= blen || body[in] != '\r' || body[in + 1] != '\n') return -1;
+      in += 2;
+      if (chunk == 0)
+        {
+          for (;;)
+            {
+              size_t line = in;
+              while (in + 1 < blen && !(body[in] == '\r' && body[in + 1] == '\n')) in++;
+              if (in + 1 >= blen) return -1;
+              in += 2;
+              if (in == line + 2) return (long) out;
+            }
+        }
+      if (chunk > blen - in || blen - in - (size_t) chunk < 2) return -1;
       memmove (body + out, body + in, (size_t) chunk);
       out += (size_t) chunk;
       in += (size_t) chunk;
-      /* trailing CRLF after chunk */
-      if (in + 2 > blen) return -1;
+      if (body[in] != '\r' || body[in + 1] != '\n') return -1;
       in += 2;
     }
-  return (long) out;
+  return -1;
 }
 
 static int
 bc_parse_response (unsigned char *raw, size_t rawlen, int head_request, bc_response *r)
 {
   memset (r, 0, sizeof *r);
+  const unsigned char *first = raw;
+  const unsigned char *final = raw;
+  if (!bc_skip_informational (&final, &rawlen))
+    { bc_error ("incomplete informational response"); bc_errcode = 8; return -1; }
+  raw = (unsigned char *) final;
   if (rawlen == 0)
     { bc_error ("empty reply from server"); bc_errcode = 52; return -1; }
   if (rawlen < 12 || memcmp (raw, "HTTP/", 5) != 0)
@@ -1262,6 +1414,11 @@ bc_parse_response (unsigned char *raw, size_t rawlen, int head_request, bc_respo
   memcpy (r->headers, raw, hlen);
   r->headers[hlen] = '\0';
   r->hlen = hlen;
+  long long checked_length;
+  if (bc_checked_response_length (r->headers, &checked_length) < 0)
+    { bc_error ("invalid or conflicting Content-Length"); bc_errcode = 8;
+      free (r->headers); r->headers = NULL; return -1; }
+
 
   size_t blen = rawlen - body;
   r->body = malloc (blen ? blen : 1);
@@ -1296,6 +1453,14 @@ bc_parse_response (unsigned char *raw, size_t rawlen, int head_request, bc_respo
       r->location_bad = lrc == -2;
     }
 
+  r->informational_len = (size_t) (final - first);
+  if (r->informational_len)
+    {
+      r->informational = malloc (r->informational_len);
+      if (!r->informational)
+        { free (r->headers); free (r->body); r->headers = NULL; r->body = NULL; return -1; }
+      memcpy (r->informational, first, r->informational_len);
+    }
   return 0;
 }
 
@@ -1303,8 +1468,8 @@ static void
 bc_response_free (bc_response *r)
 {
   if (!r) return;
-  free (r->headers); free (r->body);
-  r->headers = NULL; r->body = NULL;
+  free (r->headers); free (r->body); free (r->informational);
+  r->headers = NULL; r->body = NULL; r->informational = NULL;
 }
 
 /* ---- emit body to outfile/stdout ---- */
@@ -1317,10 +1482,13 @@ bc_emit (const bc_opts *o, const bc_url *u, const bc_response *r)
   char nbuf[BCURL_URL_MAX];
   if (!out && o->use_basename)
     {
-      const char *slash = strrchr (u->path, '/');
-      const char *base = slash ? slash + 1 : u->path;
-      if (!*base) base = "index.html";
-      snprintf (nbuf, sizeof nbuf, "%s", base);
+      const char *end = u->path + strcspn (u->path, "?#");
+      const char *base = end;
+      while (base > u->path && base[-1] != '/') base--;
+      size_t len = (size_t) (end - base);
+      if (!len) { base = "index.html"; len = strlen (base); }
+      memcpy (nbuf, base, len);
+      nbuf[len] = '\0';
       out = nbuf;
     }
   FILE *fp;
@@ -1351,12 +1519,16 @@ bc_emit_headers (const bc_opts *o, const bc_response *r)
       if (!fp)
         { bc_error ("%s: %s", o->dump_headers, strerror (errno)); return -1; }
     }
-  size_t w = fwrite (r->headers, 1, r->hlen, fp);
-  if (w == r->hlen)
+  size_t w = 0;
+  if (r->informational_len)
+    w = fwrite (r->informational, 1, r->informational_len, fp);
+  if (w == r->informational_len)
+    w += fwrite (r->headers, 1, r->hlen, fp);
+  if (w == r->informational_len + r->hlen)
     w += fwrite ("\r\n", 1, 2, fp);
   if (fp != stdout) fclose (fp);
   else fflush (fp);
-  return (w == r->hlen + 2) ? 0 : -1;
+  return (w == r->informational_len + r->hlen + 2) ? 0 : -1;
 }
 
 static int
@@ -1420,7 +1592,7 @@ bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_res
   if (is_https)
     {
       raw = bc_https_exchange (&u, req, reqlen, o->insecure, o->cacert,
-                               timeout, &raw_len);
+                               timeout, strcmp (o->method, "HEAD") == 0, &raw_len);
     }
   else
     {
@@ -1428,7 +1600,9 @@ bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_res
       if (fd < 0) { free (req); return -1; }
       if (bc_write_all (fd, req, reqlen) < 0)
         { bc_error ("write: %s", strerror (errno)); close (fd); free (req); return -1; }
-      raw = bc_read_until_close (fd, timeout, &raw_len);
+      int framed;
+      raw = bc_read_until_close (fd, timeout, strcmp (o->method, "HEAD") == 0,
+                                 &framed, &raw_len);
       close (fd);
     }
   free (req);
@@ -1439,34 +1613,70 @@ bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_res
   return rc;
 }
 
-/* Resolve a relative Location against the current absolute URL.
- * Trivial implementation: absolute (with scheme) wins; otherwise
- * scheme://host[:port] + (loc[0]=='/' ? loc : dir+loc). */
+/* Remove literal dot segments from a merged absolute path (RFC 3986 5.2.4).
+ * Keep empty segments and percent-encoded dots, and leave the query alone. */
+static void
+bc_remove_dot_segments (char *path)
+{
+  char result[BCURL_URL_MAX];
+  const char *in = path;
+  size_t n = 0;
+  while (*in)
+    {
+      if (strncmp (in, "../", 3) == 0) in += 3;
+      else if (strncmp (in, "./", 2) == 0) in += 2;
+      else if (strncmp (in, "/./", 3) == 0) in += 2;
+      else if (strcmp (in, "/.") == 0) { in += 2; result[n++] = '/'; }
+      else if (strncmp (in, "/../", 4) == 0 || strcmp (in, "/..") == 0)
+        {
+          int last = in[3] == '\0';
+          in += 3;
+          while (n && result[n - 1] != '/') n--;
+          if (n) n--;
+          if (last) result[n++] = '/';
+        }
+      else if (strcmp (in, ".") == 0 || strcmp (in, "..") == 0)
+        break;
+      else
+        {
+          if (*in == '/') result[n++] = *in++;
+          while (*in && *in != '/') result[n++] = *in++;
+        }
+    }
+  result[n] = '\0';
+  memcpy (path, result, n + 1);
+}
+
+/* Resolve a relative Location against the current absolute URL. */
 static int
 bc_resolve_redirect (const char *cur, const char *loc, char *out, size_t cap)
 {
   if (strstr (loc, "://"))
-    {
-      snprintf (out, cap, "%s", loc);
-      return 0;
-    }
+    return snprintf (out, cap, "%s", loc) >= (int) cap ? -1 : 0;
   bc_url u;
   if (bc_parse_url (cur, &u) < 0) return -1;
   const char *port_sep = "";
   const char *port_str = "";
-  /* Only emit :port when non-default for the scheme. */
   int is_https = (strcasecmp (u.scheme, "https") == 0);
   if ((is_https && strcmp (u.port, "443") != 0) ||
-      (!is_https && strcmp (u.port, "80")  != 0))
+      (!is_https && strcmp (u.port, "80") != 0))
     { port_sep = ":"; port_str = u.port; }
   if (loc[0] == '/')
     return snprintf (out, cap, "%s://%s%s%s%s", u.scheme, u.host, port_sep, port_str, loc)
            >= (int) cap ? -1 : 0;
-  char dir[BCURL_URL_MAX];
-  snprintf (dir, sizeof dir, "%s", u.path);
-  char *slash = strrchr (dir, '/');
-  if (slash) slash[1] = '\0'; else strcpy (dir, "/");
-  return snprintf (out, cap, "%s://%s%s%s%s%s", u.scheme, u.host, port_sep, port_str, dir, loc)
+
+  /* A query in the base URL is not part of its directory. */
+  char path[BCURL_URL_MAX];
+  size_t base_len = strcspn (u.path, "?#");
+  while (base_len && u.path[base_len - 1] != '/') base_len--;
+  size_t loc_len = strcspn (loc, "?#");
+  if (base_len + loc_len >= sizeof path) return -1;
+  memcpy (path, u.path, base_len);
+  memcpy (path + base_len, loc, loc_len);
+  path[base_len + loc_len] = '\0';
+  bc_remove_dot_segments (path);
+  return snprintf (out, cap, "%s://%s%s%s%s%s", u.scheme, u.host,
+                   port_sep, port_str, path, loc + loc_len)
          >= (int) cap ? -1 : 0;
 }
 
@@ -1881,7 +2091,7 @@ curl_builtin (WORD_LIST *list)
       free (o.body_alloc);
       return 23; /* CURLE_WRITE_ERROR */
     }
-  if (bc_emit (&o, &eu, &r) < 0)
+  if (bc_emit (&o, have_start_url ? &start_url : &eu, &r) < 0)
     {
       bc_response_free (&r);
       free (o.cookie_alloc);

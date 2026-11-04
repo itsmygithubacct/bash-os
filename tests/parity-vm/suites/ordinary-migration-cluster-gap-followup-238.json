@@ -15,7 +15,7 @@
       "expected_status": 0,
       "group": "shell",
       "helpers_sha256": {
-        "helpers/cluster-gap-observer-238.py": "00c63508d0abd003c4a68fe029b861642b3c6cd22a60fb8ee297c126a2b76780"
+        "helpers/cluster-gap-observer-238-bash5320.py": "56947c6ce85022f06195cdce23d3686cd6d56acdae94533db471cb345d8f9014"
       },
       "id": "migration-cluster-gap-dead-pid-238-r1",
       "kind": "contract",
@@ -25,8 +25,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238.py case stale \"$BASH\"",
-      "setup_script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238.py setup stale",
+      "script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238-bash5320.py case stale \"$BASH\"",
+      "setup_script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238-bash5320.py setup stale",
       "setup_timeout": 50,
       "stderr": "",
       "stdout": "cluster238 stale=pass\n",
@@ -46,7 +46,7 @@
       "expected_status": 0,
       "group": "shell",
       "helpers_sha256": {
-        "helpers/cluster-gap-observer-238.py": "00c63508d0abd003c4a68fe029b861642b3c6cd22a60fb8ee297c126a2b76780"
+        "helpers/cluster-gap-observer-238-bash5320.py": "56947c6ce85022f06195cdce23d3686cd6d56acdae94533db471cb345d8f9014"
       },
       "id": "migration-cluster-gap-packet-rejection-238-r1",
       "kind": "contract",
@@ -56,8 +56,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238.py case packets \"$BASH\"",
-      "setup_script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238.py setup packets",
+      "script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238-bash5320.py case packets \"$BASH\"",
+      "setup_script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238-bash5320.py setup packets",
       "setup_timeout": 50,
       "stderr": "",
       "stdout": "cluster238 packets=pass\n",
@@ -78,7 +78,7 @@
       "expected_status": 0,
       "group": "shell",
       "helpers_sha256": {
-        "helpers/cluster-gap-observer-238.py": "00c63508d0abd003c4a68fe029b861642b3c6cd22a60fb8ee297c126a2b76780"
+        "helpers/cluster-gap-observer-238-bash5320.py": "56947c6ce85022f06195cdce23d3686cd6d56acdae94533db471cb345d8f9014"
       },
       "id": "migration-cluster-gap-negative-ping-238-r1",
       "kind": "contract",
@@ -88,8 +88,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238.py case negative \"$BASH\"",
-      "setup_script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238.py setup negative",
+      "script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238-bash5320.py case negative \"$BASH\"",
+      "setup_script": "/usr/bin/python3 -I -B /opt/bashos-parity/harness/helpers/cluster-gap-observer-238-bash5320.py setup negative",
       "setup_timeout": 50,
       "stderr": "",
       "stdout": "cluster238 negative=pass\n",

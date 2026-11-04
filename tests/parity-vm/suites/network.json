@@ -2199,6 +2199,54 @@
         "ssh/ssh-remote-exec-deferred"
       ],
       "oracle": "Project-specific contract: the documented BASHSSH1 framing (sshd.c handle_client, sftp.c). The bashssh peer is an independent decoder that records header lines, command, stdin and trailing bytes and never executes commands. There is no upstream SSH implementation of this protocol; this is not encrypted SSH coverage."
+    },
+    {
+      "id": "curl-cookie-jar-roundtrip-wire-only",
+      "loadable": "curl",
+      "group": "network",
+      "driver": "network",
+      "peer": "http",
+      "peer_port": 20480,
+      "script": "curl -s -c jar.txt \"http://127.0.0.1:$FIXTURE_PORT/cookie\" && curl -s -b jar.txt \"http://127.0.0.1:$FIXTURE_PORT/show-cookie\"; rc=$?; rm -f jar.txt; exit \"$rc\"",
+      "stderr": "",
+      "stdout": "ok\nsession=abc123\n",
+      "expected_requests": [
+        {
+          "method": "GET",
+          "path": "/cookie",
+          "request_line": "GET /cookie HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none"
+        },
+        {
+          "method": "GET",
+          "path": "/show-cookie",
+          "request_line": "GET /show-cookie HTTP/1.1",
+          "header:host": "127.0.0.1:20480",
+          "body_framing": "none",
+          "header:cookie": "session=abc123"
+        }
+      ],
+      "expected_status": 0,
+      "compare_request_keys": [
+        "method",
+        "path",
+        "version",
+        "header:host",
+        "header:accept",
+        "header:content-type",
+        "header:content-length",
+        "header:authorization",
+        "header:cookie",
+        "header:x-fixture",
+        "body_base64",
+        "body_framing"
+      ],
+      "covers": [
+        "curl/request-wire-shape",
+        "curl/response-file-effects"
+      ],
+      "oracle": "upstream curl 8.14.1 (Debian trixie package; curl is not a GNU project) on the same loopback peer; expectations from RFC 9110/9112 and curl(1); jar removed after the round trip to compare cookie behavior independently"
     }
   ]
 }

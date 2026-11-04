@@ -615,8 +615,7 @@ hd_emit_stream (FILE *f, hd_opts *o, long long *off,
                 unsigned char *prev, int *have_prev, int *squeezing)
 {
     int c;
-    while ((c = fgetc (f)) != EOF) {
-        if (*remaining == 0) return 0;
+    while (*remaining != 0 && (c = fgetc (f)) != EOF) {
         rowbuf[(*rowfill)++] = (unsigned char) c;
         if (*remaining > 0) (*remaining)--;
         if (*rowfill == HD_LINE) {
@@ -791,7 +790,7 @@ hexdump_builtin (WORD_LIST *list)
                 }
                 int cr = hd_collect_stream (f, &remaining, &data);
                 if (cr == -2) { builtin_error ("out of memory"); rc = EXECUTION_FAILURE; }
-                else if (cr < 0) { builtin_error ("stdin: read error: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
+                else if (cr < 0) builtin_error ("stdin: %s", strerror (errno));
             }
         } else {
             for (WORD_LIST *p = list; p; p = p->next) {
@@ -810,8 +809,7 @@ hexdump_builtin (WORD_LIST *list)
                     int cr = hd_collect_stream (f, &remaining, &data);
                     if (cr == -2) { builtin_error ("out of memory"); rc = EXECUTION_FAILURE; }
                     else if (cr < 0) {
-                        builtin_error ("%s: read error: %s", p->word->word, strerror (errno));
-                        rc = EXECUTION_FAILURE;
+                        builtin_error ("%s: %s", p->word->word, strerror (errno));
                     }
                 }
                 if (f != input) fclose (f);
@@ -819,7 +817,9 @@ hexdump_builtin (WORD_LIST *list)
         }
         if (input) fclose (input);
 
-        if (rc == EXECUTION_SUCCESS) {
+        /* Open failures affect status, but do not discard later data.  Like
+           util-linux, read errors are diagnostic-only and preserve output. */
+        {
             hd_emit_custom (&prog, data.data, data.len, base);
             /* util-linux emits the final 7-hex-digit offset line at
                end-of-input only for its built-in shortcut formats
@@ -862,9 +862,10 @@ hexdump_builtin (WORD_LIST *list)
                 off += skipped;
                 skip_remaining -= skipped;
             }
-            if (remaining != 0)
-                (void) hd_emit_stream (f, &o, &off, &remaining, rowbuf, &rowfill,
-                                       prev, &have_prev, &squeezing);
+            if (remaining != 0 &&
+                hd_emit_stream (f, &o, &off, &remaining, rowbuf, &rowfill,
+                                prev, &have_prev, &squeezing) < 0)
+                builtin_error ("stdin: %s", strerror (errno));
         }
     } else {
         for (WORD_LIST *p = list; p; p = p->next) {
@@ -882,8 +883,7 @@ hexdump_builtin (WORD_LIST *list)
             if (remaining != 0) {
                 if (hd_emit_stream (f, &o, &off, &remaining, rowbuf, &rowfill,
                                     prev, &have_prev, &squeezing) < 0) {
-                    builtin_error ("%s: read error: %s", p->word->word, strerror (errno));
-                    rc = EXECUTION_FAILURE;
+                    builtin_error ("%s: %s", p->word->word, strerror (errno));
                 }
             }
             if (f != input) fclose (f);

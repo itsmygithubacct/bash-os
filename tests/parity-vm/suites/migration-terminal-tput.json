@@ -2,6 +2,28 @@
  "schema": 1,
  "cases": [
   {
+   "id": "migration-tput-pty-dimension-precedence",
+   "loadable": "tput",
+   "group": "terminal",
+   "driver": "pty",
+   "purpose": "Query dimensions twice in one shell across a resize, then check environment overrides and -T database dimensions.",
+   "script": "unset LINES COLUMNS\nprintf 'FIRST='; tput lines; printf 'FIRSTCOL='; tput cols; printf 'READY\\n'\nIFS= read -r _\nunset LINES COLUMNS\nprintf 'SECOND='; tput lines; printf 'SECONDCOL='; tput cols\nexport LINES=33 COLUMNS=99\nprintf 'ENV='; tput lines; printf 'ENVCOL='; tput cols\nprintf 'EXPLICIT='; tput -T xterm lines; printf 'EXPLICITCOL='; tput -T xterm cols\nprintf 'DONE\\n'\n",
+   "steps": [
+    { "expect": "FIRST=20\\r\\nFIRSTCOL=70\\r\\nREADY" },
+    { "resize": [30, 100] },
+    { "settle_ms": 100 },
+    { "send": "\\r" },
+    { "expect": "SECOND=30\\r\\nSECONDCOL=100\\r\\nENV=33\\r\\nENVCOL=99\\r\\nEXPLICIT=24\\r\\nEXPLICITCOL=80\\r\\nDONE" }
+   ],
+   "expected_status": 0,
+   "covers": ["tput/private-pty-terminal-integration"],
+   "oracle": "ncurses tput on a private PTY, with xterm database dimensions 24 by 80",
+   "comparison": "reference and candidate must satisfy the dimension and precedence assertions",
+   "requires": ["tput"],
+   "size": [20, 70],
+   "timeout": 15
+  },
+  {
    "id": "migration-tput-pty-size",
    "loadable": "tput",
    "group": "terminal",

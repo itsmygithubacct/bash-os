@@ -18,6 +18,8 @@ typedef struct {
     unsigned long long obj_size;
     unsigned long long objs_per_slab;
     unsigned long long pages_per_slab;
+    unsigned long long active_slabs;
+    unsigned long long num_slabs;
 } blp_slabinfo_row;
 
 typedef struct {

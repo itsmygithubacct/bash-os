@@ -73,10 +73,10 @@
     "zstd"
   ],
   "reference_bash": {
-    "version": "5.3.15",
+    "version": "5.3.20",
     "url": "https://ftp.gnu.org/gnu/bash/bash-5.3.tar.gz",
     "sha256": "0d5cd86965f869a26cf64f4b71be7b96f90a3ba8b3d74e27e8e9d9d5550f31ba",
-    "signature_verified": "gpgv against gnu-keyring.gpg (sha256 0fe55175b96a8ea1c4b670cc3fe11d56b341e4eff81b161ea49958ae550be6ca): Good signature from Chet Ramey, base tarball and all patches",
+    "signature_verified": "gpgv against gnu-keyring.gpg (sha256 0fe55175b96a8ea1c4b670cc3fe11d56b341e4eff81b161ea49958ae550be6ca): Good signature from Chet Ramey, base tarball and all patches; patches 016-020 verified with gpgv against GNU keyring sha256 8013de59880f7a59f53b6bd207f4d2a408d67b84a82fa9cba1dbbf443428e2db, signer 7C0135FB088AAF6C66C650B9BB5869F064EA74AB",
     "patches": [
       {
         "url": "https://ftp.gnu.org/gnu/bash/bash-5.3-patches/bash53-001",
@@ -137,10 +137,30 @@
       {
         "url": "https://ftp.gnu.org/gnu/bash/bash-5.3-patches/bash53-015",
         "sha256": "55b79ceee2fc27f6767eed697e939a7eb2fe2a28c01556bd75f18d581014f46e"
+      },
+      {
+        "url": "https://ftp.gnu.org/gnu/bash/bash-5.3-patches/bash53-016",
+        "sha256": "9ea29b266b7d24cb34d0ff3f1c4631e4d527bfe2d1ef15d17cdb924bf31ef767"
+      },
+      {
+        "url": "https://ftp.gnu.org/gnu/bash/bash-5.3-patches/bash53-017",
+        "sha256": "443b927b45c1558ca72052410f8b8f6e5152b617ed707061a2781d4375b0d1c3"
+      },
+      {
+        "url": "https://ftp.gnu.org/gnu/bash/bash-5.3-patches/bash53-018",
+        "sha256": "ae715d76c50341d7d7095e9a8d2eeed1ca9546152c2ac7289206f90cf30ac697"
+      },
+      {
+        "url": "https://ftp.gnu.org/gnu/bash/bash-5.3-patches/bash53-019",
+        "sha256": "a25c581e4d0057dea3833918438a930e2e86ee4c6dc17fe15267b7f04cbc4e3d"
+      },
+      {
+        "url": "https://ftp.gnu.org/gnu/bash/bash-5.3-patches/bash53-020",
+        "sha256": "df217ed3a9122aa2286d9b67bbe348661b6a9db262b580c29150dae55d532896"
       }
     ],
     "configure": [
-      "--prefix=/opt/bash-5.3.15"
+      "--prefix=/opt/bash-5.3.20"
     ]
   }
 }

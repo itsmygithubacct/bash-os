@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "qualification-014-vec-i686-no-sse2",
+      "loadable": "vec",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Evidence-only registration of the reviewed separate i686 portability artifact for vec r4.",
+      "oracle": "Independent exact arithmetic for 408 reductions under each of five backend requests, real SSE2 instruction SIGILL, and an SSE2-enabled prerequisite-rejection control.",
+      "comparison": "The strict data-only reader verifies both complete raw receipts, build/source/image/controller/driver bindings and cleanup. Native r2 source identity maps the portability result; neither ELF64 candidate is claimed to execute on this CPU.",
+      "candidate_script": "exit 125 # evidence-only registration; use primary-qualified-vec-i686-r1 reader\n",
+      "expected_status": 0,
+      "stderr": "",
+      "timeout": 1,
+      "covers": [
+        "vec/simd-cross-cpu-backends"
+      ],
+      "artifact_scope": "separate-i686-source-artifact",
+      "evidence_only": true,
+      "requirement_ids": [
+        "r4"
+      ]
+    }
+  ]
+}

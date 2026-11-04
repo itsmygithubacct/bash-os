@@ -62,6 +62,15 @@
       "stderr": "empty"
     },
     {
+      "id": "default-duration-boundaries",
+      "kind": "contract",
+      "purpose": "Check default minute, hour and day forms at deterministic uptime boundaries, with the wall clock bracketed and all three fixture load averages verified.",
+      "script": "export BASHOS_PROC_ROOT=. LC_ALL=C\nprintf '0.01 1.20 12.34 1/2 3\\n' > loadavg\nfor spec in '0|0 min' '59|0 min' '60|1 min' '3599|59 min' '3600| 1:00' '7380| 2:03' '86400|1 day, 0 min' '93780|1 day,  2:03' '173100|2 days, 5 min' '864300|10 days, 5 min'; do\n  seconds=${spec%%|*}; duration=${spec#*|}\n  printf '%s.00 0.00\\n' \"$seconds\" > uptime\n  printf -v before '%(%H:%M:%S)T' -1\n  row=$(uptime) || exit 1\n  printf -v after '%(%H:%M:%S)T' -1\n  clock=${row:1:8}\n  [[ $clock == \"$before\" || $clock == \"$after\" ]] || exit 1\n  tail=${row:9}\n  [[ $tail == \" up $duration, \"* ]] || exit 1\n  tail=${tail#\" up $duration, \"}\n  [[ $tail =~ ^[[:space:]]*[0-9]+\\ user(s)?,\\ \\ load\\ average:\\ 0\\.01,\\ 1\\.20,\\ 12\\.34$ ]] || exit 1\ndone\nprintf 'default durations, clock and loads verified\\n'",
+      "expected_status": 0,
+      "stdout": "default durations, clock and loads verified\n",
+      "stderr": "empty"
+    },
+    {
       "id": "since-long-stat-line",
       "kind": "contract",
       "purpose": "Verify -s finds the documented btime line even when a preceding /proc/stat line exceeds 4096 bytes; the expected UTC timestamp is independently encoded from epoch 1700000000.",

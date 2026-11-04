@@ -1,0 +1,181 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "sysctl-key-query-dotted-slash",
+      "loadable": "sysctl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "sysctl/key-queries"
+      ],
+      "purpose": "Compare key-query behavior with procps-ng 4.0.4: dotted-slash",
+      "oracle": "procps-ng 4.0.4 sysctl",
+      "comparison": "Compare status, stdout and stderr byte-for-byte; normalize only the Bash location prefix as in the historical case.",
+      "requires": [
+        "sysctl",
+        "sed",
+        "tr"
+      ],
+      "script": "show_query() {\n  \"$@\" > /tmp/t227-sysctl.out 2> /tmp/t227-sysctl.err\n  local status=$?\n  printf 'status=%s out=' \"$status\"\n  /usr/bin/tr '\\n' '|' < /tmp/t227-sysctl.out\n  printf ' err='\n  /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' /tmp/t227-sysctl.err | /usr/bin/tr '\\n' '|'\n  printf '\\n'\n}\nshow_query sysctl kernel.ostype kernel/ostype\n",
+      "timeout": 45,
+      "expected_status": 0
+    },
+    {
+      "id": "sysctl-key-query-names-values",
+      "loadable": "sysctl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "sysctl/key-queries"
+      ],
+      "purpose": "Compare key-query behavior with procps-ng 4.0.4: names-values",
+      "oracle": "procps-ng 4.0.4 sysctl",
+      "comparison": "Compare status, stdout and stderr byte-for-byte; normalize only the Bash location prefix as in the historical case.",
+      "requires": [
+        "sysctl",
+        "sed",
+        "tr"
+      ],
+      "script": "show_query() {\n  \"$@\" > /tmp/t227-sysctl.out 2> /tmp/t227-sysctl.err\n  local status=$?\n  printf 'status=%s out=' \"$status\"\n  /usr/bin/tr '\\n' '|' < /tmp/t227-sysctl.out\n  printf ' err='\n  /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' /tmp/t227-sysctl.err | /usr/bin/tr '\\n' '|'\n  printf '\\n'\n}\nshow_query sysctl -n kernel.ostype net.ipv4.ip_forward\nshow_query sysctl -N kernel/ostype net.ipv4.ip_forward\n",
+      "timeout": 45,
+      "expected_status": 0
+    },
+    {
+      "id": "sysctl-key-query-missing",
+      "loadable": "sysctl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "sysctl/key-queries"
+      ],
+      "purpose": "Compare key-query behavior with procps-ng 4.0.4: missing",
+      "oracle": "procps-ng 4.0.4 sysctl",
+      "comparison": "Compare status, stdout and stderr byte-for-byte; normalize only the Bash location prefix as in the historical case.",
+      "requires": [
+        "sysctl",
+        "sed",
+        "tr"
+      ],
+      "script": "show_query() {\n  \"$@\" > /tmp/t227-sysctl.out 2> /tmp/t227-sysctl.err\n  local status=$?\n  printf 'status=%s out=' \"$status\"\n  /usr/bin/tr '\\n' '|' < /tmp/t227-sysctl.out\n  printf ' err='\n  /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' /tmp/t227-sysctl.err | /usr/bin/tr '\\n' '|'\n  printf '\\n'\n}\nshow_query sysctl kernel.ostype rf.no.such net.ipv4.ip_forward\n",
+      "timeout": 45,
+      "expected_status": 0
+    },
+    {
+      "id": "sysctl-key-query-missing-ignored",
+      "loadable": "sysctl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "sysctl/key-queries"
+      ],
+      "purpose": "Compare key-query behavior with procps-ng 4.0.4: missing-ignored",
+      "oracle": "procps-ng 4.0.4 sysctl",
+      "comparison": "Compare status, stdout and stderr byte-for-byte; normalize only the Bash location prefix as in the historical case.",
+      "requires": [
+        "sysctl",
+        "sed",
+        "tr"
+      ],
+      "script": "show_query() {\n  \"$@\" > /tmp/t227-sysctl.out 2> /tmp/t227-sysctl.err\n  local status=$?\n  printf 'status=%s out=' \"$status\"\n  /usr/bin/tr '\\n' '|' < /tmp/t227-sysctl.out\n  printf ' err='\n  /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' /tmp/t227-sysctl.err | /usr/bin/tr '\\n' '|'\n  printf '\\n'\n}\nshow_query sysctl -e rf.no.such\n",
+      "timeout": 45,
+      "expected_status": 0
+    },
+    {
+      "id": "sysctl-key-query-pattern",
+      "loadable": "sysctl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "sysctl/key-queries"
+      ],
+      "purpose": "Compare key-query behavior with procps-ng 4.0.4: pattern",
+      "oracle": "procps-ng 4.0.4 sysctl",
+      "comparison": "Compare status, stdout and stderr byte-for-byte; normalize only the Bash location prefix as in the historical case.",
+      "requires": [
+        "sysctl",
+        "sed",
+        "tr"
+      ],
+      "script": "show_query() {\n  \"$@\" > /tmp/t227-sysctl.out 2> /tmp/t227-sysctl.err\n  local status=$?\n  printf 'status=%s out=' \"$status\"\n  /usr/bin/tr '\\n' '|' < /tmp/t227-sysctl.out\n  printf ' err='\n  /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' /tmp/t227-sysctl.err | /usr/bin/tr '\\n' '|'\n  printf '\\n'\n}\nshow_query sysctl -r '^kernel\\.(ostype|osrelease)$' kernel/ostype kernel.osrelease net.ipv4.ip_forward\n",
+      "timeout": 45,
+      "expected_status": 0
+    },
+    {
+      "id": "sysctl-key-query-missing-filter",
+      "loadable": "sysctl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "sysctl/key-queries"
+      ],
+      "purpose": "Compare key-query behavior with procps-ng 4.0.4: missing-filter",
+      "oracle": "procps-ng 4.0.4 sysctl",
+      "comparison": "Compare status, stdout and stderr byte-for-byte; normalize only the Bash location prefix as in the historical case.",
+      "requires": [
+        "sysctl",
+        "sed",
+        "tr"
+      ],
+      "script": "show_query() {\n  \"$@\" > /tmp/t227-sysctl.out 2> /tmp/t227-sysctl.err\n  local status=$?\n  printf 'status=%s out=' \"$status\"\n  /usr/bin/tr '\\n' '|' < /tmp/t227-sysctl.out\n  printf ' err='\n  /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' /tmp/t227-sysctl.err | /usr/bin/tr '\\n' '|'\n  printf '\\n'\n}\nshow_query sysctl -r '^kernel\\.ostype$' rf.no.such\n",
+      "timeout": 45,
+      "expected_status": 0
+    },
+    {
+      "id": "sysctl-key-query-pattern-dump",
+      "loadable": "sysctl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "sysctl/key-queries"
+      ],
+      "purpose": "Compare key-query behavior with procps-ng 4.0.4: pattern-dump",
+      "oracle": "procps-ng 4.0.4 sysctl",
+      "comparison": "Compare status, stdout and stderr byte-for-byte; normalize only the Bash location prefix as in the historical case.",
+      "requires": [
+        "sysctl",
+        "sed",
+        "tr"
+      ],
+      "script": "show_query() {\n  \"$@\" > /tmp/t227-sysctl.out 2> /tmp/t227-sysctl.err\n  local status=$?\n  printf 'status=%s out=' \"$status\"\n  /usr/bin/tr '\\n' '|' < /tmp/t227-sysctl.out\n  printf ' err='\n  /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' /tmp/t227-sysctl.err | /usr/bin/tr '\\n' '|'\n  printf '\\n'\n}\nshow_query sysctl -a -N -r '^net\\.ipv4\\.conf\\.lo\\.(forwarding|rp_filter)$'\n",
+      "timeout": 45,
+      "expected_status": 0
+    },
+    {
+      "id": "sysctl-key-query-notation-missing",
+      "loadable": "sysctl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "sysctl/key-queries"
+      ],
+      "purpose": "Compare key-query behavior with procps-ng 4.0.4: notation-missing",
+      "oracle": "procps-ng 4.0.4 sysctl",
+      "comparison": "Compare status, stdout and stderr byte-for-byte; normalize only the Bash location prefix as in the historical case.",
+      "requires": [
+        "sysctl",
+        "sed",
+        "tr"
+      ],
+      "script": "show_query() {\n  \"$@\" > /tmp/t227-sysctl.out 2> /tmp/t227-sysctl.err\n  local status=$?\n  printf 'status=%s out=' \"$status\"\n  /usr/bin/tr '\\n' '|' < /tmp/t227-sysctl.out\n  printf ' err='\n  /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' /tmp/t227-sysctl.err | /usr/bin/tr '\\n' '|'\n  printf '\\n'\n}\nshow_query sysctl net.ipv4.conf.no_such/123.forwarding\n",
+      "timeout": 45,
+      "expected_status": 0
+    }
+  ]
+}

@@ -562,7 +562,8 @@ bntp_build_response (const struct bntp_pkt *req,
                      struct bntp_pkt *out)
 {
   memset (out, 0, sizeof *out);
-  out->li_vn_mode = (unsigned char) (((cfg->leap & 0x03) << 6) | (4 << 3) | 4);
+  out->li_vn_mode = (unsigned char) (((cfg->leap & 0x03) << 6) |
+                                      (req->li_vn_mode & 0x38) | 4);
   out->stratum = cfg->stratum;
   out->poll = req->poll;
   out->precision = cfg->precision;
@@ -685,9 +686,13 @@ bntp_nts_bootstrap (struct bntp_nts_state *st, const char *server,
   bntp_nts_state_clear (st);
   struct bc_nts_ke_result nts;
   memset (&nts, 0, sizeof nts);
-  if (bc_nts_ke_run (server, NULL, NULL, timeout_ms, &nts) < 0)
+  int ke_rc = bc_nts_ke_run (server, NULL, NULL, timeout_ms, &nts);
+  if (ke_rc < 0)
     {
-      builtin_error ("query: nts-ke failed for %s", server);
+      if (ke_rc == BC_NTS_KE_NO_COOKIE)
+        builtin_error ("query: nts-ke returned no NTP cookie");
+      else
+        builtin_error ("query: nts-ke failed for %s", server);
       return -1;
     }
   if (nts.cookie_count == 0 || !nts.ntp_host)

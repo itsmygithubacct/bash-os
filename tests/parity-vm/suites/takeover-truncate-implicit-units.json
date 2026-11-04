@@ -1,0 +1,85 @@
+{
+  "cases": [
+    {
+      "candidate_script": "{\n[[ $(type -t truncate) == builtin ]] || exit 99\nprintf '%1500s' '' > file\ntruncate -s K file\ntruncate -s KB file\ntruncate -s KiB created\n} 2>\"$HOME/truncate-raw.stderr\"\nstatus=$?\nif [[ -s $HOME/truncate-raw.stderr ]]; then printf \"stderr=nonempty\\n\"; else printf \"stderr=empty\\n\"; fi\nexit \"$status\"\n",
+      "comparison": "Original committed scenario, status and exact file effects; legacy diagnostic-presence policy measured explicitly, raw diagnostics retained.",
+      "diagnostic_files": [
+        "truncate-raw.stderr"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "takeover-truncate-implicit-unit-sizes-projection-r2",
+      "kind": "parity",
+      "loadable": "truncate",
+      "purpose": "Compare implicit unit parsing and file effects with GNU on small fixtures.",
+      "reference_script": "{\nprintf '%1500s' '' > file\ntruncate -s K file\ntruncate -s KB file\ntruncate -s KiB created\n} 2>\"$HOME/truncate-raw.stderr\"\nstatus=$?\nif [[ -s $HOME/truncate-raw.stderr ]]; then printf \"stderr=nonempty\\n\"; else printf \"stderr=empty\\n\"; fi\nexit \"$status\"\n",
+      "requires": [
+        "truncate"
+      ],
+      "stderr": "",
+      "stdout": "stderr=empty\n"
+    },
+    {
+      "candidate_script": "{\n[[ $(type -t truncate) == builtin ]] || exit 99\nprintf '%1500s' '' > down\nprintf '%1500s' '' > up\ntruncate -s /K down\ntruncate -s %K up\n} 2>\"$HOME/truncate-raw.stderr\"\nstatus=$?\nif [[ -s $HOME/truncate-raw.stderr ]]; then printf \"stderr=nonempty\\n\"; else printf \"stderr=empty\\n\"; fi\nexit \"$status\"\n",
+      "comparison": "Original committed scenario, status and exact file effects; legacy diagnostic-presence policy measured explicitly, raw diagnostics retained.",
+      "diagnostic_files": [
+        "truncate-raw.stderr"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "takeover-truncate-implicit-unit-rounding-projection-r2",
+      "kind": "parity",
+      "loadable": "truncate",
+      "purpose": "Compare implicit unit parsing and file effects with GNU on small fixtures.",
+      "reference_script": "{\nprintf '%1500s' '' > down\nprintf '%1500s' '' > up\ntruncate -s /K down\ntruncate -s %K up\n} 2>\"$HOME/truncate-raw.stderr\"\nstatus=$?\nif [[ -s $HOME/truncate-raw.stderr ]]; then printf \"stderr=nonempty\\n\"; else printf \"stderr=empty\\n\"; fi\nexit \"$status\"\n",
+      "requires": [
+        "truncate"
+      ],
+      "stderr": "",
+      "stdout": "stderr=empty\n"
+    },
+    {
+      "candidate_script": "{\n[[ $(type -t truncate) == builtin ]] || exit 99\nprintf '%1500s' '' > reference\nprintf x > file\ntruncate -r reference -s '% KB' file\n} 2>\"$HOME/truncate-raw.stderr\"\nstatus=$?\nif [[ -s $HOME/truncate-raw.stderr ]]; then printf \"stderr=nonempty\\n\"; else printf \"stderr=empty\\n\"; fi\nexit \"$status\"\n",
+      "comparison": "Original committed scenario, status and exact file effects; legacy diagnostic-presence policy measured explicitly, raw diagnostics retained.",
+      "diagnostic_files": [
+        "truncate-raw.stderr"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "takeover-truncate-implicit-unit-reference-projection-r2",
+      "kind": "parity",
+      "loadable": "truncate",
+      "purpose": "Compare implicit unit parsing and file effects with GNU on small fixtures.",
+      "reference_script": "{\nprintf '%1500s' '' > reference\nprintf x > file\ntruncate -r reference -s '% KB' file\n} 2>\"$HOME/truncate-raw.stderr\"\nstatus=$?\nif [[ -s $HOME/truncate-raw.stderr ]]; then printf \"stderr=nonempty\\n\"; else printf \"stderr=empty\\n\"; fi\nexit \"$status\"\n",
+      "requires": [
+        "truncate"
+      ],
+      "stderr": "",
+      "stdout": "stderr=empty\n"
+    },
+    {
+      "candidate_script": "{\n[[ $(type -t truncate) == builtin ]] || exit 99\nprintf keep > file\ntruncate -s +K file\n} 2>\"$HOME/truncate-raw.stderr\"\nstatus=$?\nif [[ -s $HOME/truncate-raw.stderr ]]; then printf \"stderr=nonempty\\n\"; else printf \"stderr=empty\\n\"; fi\nexit \"$status\"\n",
+      "comparison": "Original committed scenario, status and exact file effects; legacy diagnostic-presence policy measured explicitly, raw diagnostics retained.",
+      "diagnostic_files": [
+        "truncate-raw.stderr"
+      ],
+      "driver": "plain",
+      "expected_status": 1,
+      "group": "shell",
+      "id": "takeover-truncate-signed-unit-without-count-projection-r2",
+      "kind": "parity",
+      "loadable": "truncate",
+      "purpose": "Compare implicit unit parsing and file effects with GNU on small fixtures.",
+      "reference_script": "{\nprintf keep > file\ntruncate -s +K file\n} 2>\"$HOME/truncate-raw.stderr\"\nstatus=$?\nif [[ -s $HOME/truncate-raw.stderr ]]; then printf \"stderr=nonempty\\n\"; else printf \"stderr=empty\\n\"; fi\nexit \"$status\"\n",
+      "requires": [
+        "truncate"
+      ],
+      "stderr": "",
+      "stdout": "stderr=nonempty\n"
+    }
+  ],
+  "schema": 1
+}

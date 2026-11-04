@@ -1,0 +1,98 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "termpixel-pty-cursor-key-cleanup-t235",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Verify ordered cursor hide and complete reset/show controls on key exit.",
+      "script": "termpixel key-read --timeout 5000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "expect": "\\x1b\\[\\?25l"
+        },
+        {
+          "send": "A"
+        },
+        {
+          "expect": "\\x1b\\[0m\\x1b\\[\\?25hA\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    },
+    {
+      "id": "termpixel-pty-cursor-timeout-cleanup-t235",
+      "loadable": "termpixel",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "purpose": "Verify ordered cursor hide and complete reset/show controls on timeout exit.",
+      "script": "termpixel key-read --timeout 1000",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "termios": {
+            "set": [
+              "ISIG"
+            ],
+            "clear": [
+              "ICANON",
+              "ECHO",
+              "ICRNL",
+              "INLCR"
+            ],
+            "cc": {
+              "VMIN": 0,
+              "VTIME": 0
+            }
+          }
+        },
+        {
+          "expect": "\\x1b\\[\\?25l"
+        },
+        {
+          "expect": "\\x1b\\[0m\\x1b\\[\\?25hTIMEOUT\\r?\\n"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 15,
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Documented BashOS termpixel key-read interface and raw TTY contract; ECMA-48 cursor visibility and named XTerm CSI/SS3 key codes. No external termpixel CLI is assumed.",
+      "comparison": "The private PTY driver captures raw output, step events and terminal modes with bounded time/output; each fixed contract predicate and natural status is checked independently in both builds."
+    }
+  ]
+}

@@ -30,7 +30,7 @@
  *
  * Interactive keys:
  *   Up/Down       move selection            Right/Enter   descend into dir
- *   Left          ascend to parent          PgUp/PgDn     page
+ *   Left/Backspace ascend to parent         PgUp/PgDn     page
  *   Home/End      first / last              s             sort by size (default)
  *   n             sort by name              a             toggle apparent/disk
  *   q / ESC       quit
@@ -472,6 +472,7 @@ ndu_browse (ndu_node *root, ndu_opt *o)
                 }
                 break;
             case BL_KEY_LEFT:
+            case BL_KEY_BS:
                 if (cur->parent) {
                     ndu_node *child = cur;
                     cur = cur->parent;
@@ -515,7 +516,7 @@ ndu_help (void)
     puts ("    -h, --help            show this help");
     puts ("    -V, --version         show version");
     puts ("");
-    puts ("Keys: up/dn move, right/enter descend, left up, s/n sort, a apparent, q quit.");
+    puts ("Keys: up/dn move, right/enter descend, left/backspace up, s/n sort, a apparent, q quit.");
 }
 
 int

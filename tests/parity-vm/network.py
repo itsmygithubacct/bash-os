@@ -203,6 +203,14 @@ def route(request, body, port):
         data = response(302, "Found", [("Location", "../body?from=relative")])
     elif path == "/dir/redirect-sibling":
         data = response(302, "Found", [("Location", "sub/../../echo")])
+    elif path == "/dir/redirect-query-base":
+        data = response(302, "Found", [("Location", "../echo?next=/../kept")])
+    elif path == "/dir/redirect-trailing-dot":
+        data = response(302, "Found", [("Location", "./target/.")])
+    elif path == "/dir/redirect-encoded-dot":
+        data = response(302, "Found", [("Location", "%2e%2e/echo")])
+    elif path in ("/dir/target/", "/dir/%2e%2e/echo"):
+        data = response(200, "OK", octets, BODY)
     elif path == "/redirect-long":
         # A deterministic multi-kilobyte target: /echo?sig= followed by 3000 octets.
         data = response(302, "Found", [("Location", "/echo?sig=" + "a" * 3000)])

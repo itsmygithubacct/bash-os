@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "ntp",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "ntp/ntp-nts-ke-query"
+      ],
+      "requires": [
+        "python3",
+        "openssl",
+        "unshare",
+        "mount",
+        "mkfifo"
+      ],
+      "features": [
+        "userns"
+      ],
+      "setup_script": "mkfifo w.fifo\nprintf 'subjectAltName=DNS:trace.test,IP:127.0.0.1\\nextendedKeyUsage=serverAuth\\nbasicConstraints=critical,CA:FALSE\\nkeyUsage=critical,digitalSignature,keyEncipherment\\n' > \"$HOME/server.ext\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/ca.key\" -out \"$HOME/ca.pem\" -days 1 -sha256 -subj '/CN=W2 Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' >/dev/null 2>&1\n/usr/bin/openssl req -new -newkey rsa:2048 -nodes -keyout \"$HOME/server.key\" -out \"$HOME/server.csr\" -subj '/CN=trace.test' >/dev/null 2>&1\n/usr/bin/openssl x509 -req -in \"$HOME/server.csr\" -CA \"$HOME/ca.pem\" -CAkey \"$HOME/ca.key\" -set_serial 2 -days 1 -sha256 -extfile \"$HOME/server.ext\" -out \"$HOME/server.pem\" >/dev/null 2>&1\n",
+      "setup_timeout": 40,
+      "files": {
+        "q.sh": "t=/etc/ssl/certs/ca-certificates.crt\n[[ -e /etc/ssl/cert.pem ]] && t=/etc/ssl/cert.pem\n/usr/bin/mount --bind \"$HOME/ca.pem\" \"$t\" || exit 90\nntp query nts:127.0.0.1 -t 5000\n"
+      },
+      "timeout": 50,
+      "id": "repair-ntp-nts-tls12-rejected",
+      "purpose": "NTS-KE rejects a TLS 1.2-only server even when it offers ntske/1.",
+      "oracle": "RFC 8915 requires TLS 1.3 or later; the TLS 1.2-only OpenSSL server must observe a protocol-version failure.",
+      "comparison": "Run the candidate against a local TLS 1.2-only OpenSSL peer with the fixture CA mounted in the guest namespace.",
+      "script": "exec 7<>w.fifo\n/usr/bin/openssl s_server -accept 127.0.0.1:4460 -cert \"$HOME/server.pem\" -key \"$HOME/server.key\" -tls1_2 -alpn ntske/1 -state > peer.out 2> peer.err &\nsrv=$!\nready=0\nfor i in {1..100}; do\n  if /usr/bin/grep -q ACCEPT peer.out; then ready=1; break; fi\n  kill -0 \"$srv\" 2>/dev/null || break\n  read -t 0.05 -u 7 l\ndone\nif [[ $ready != 1 ]]; then kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null; echo peer-not-ready; exit 1; fi\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > query-out.txt 2> query-err.txt\nrc=$?\nread -t 0.3 -u 7 l\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\nif [[ $rc == 0 ]] || ! /usr/bin/grep -q 'nts-ke failed' query-err.txt || /usr/bin/grep -q 'offset=' query-out.txt || ! /usr/bin/grep -qi 'unsupported protocol' peer.err; then\n  echo tls12-rejection-failed\n  exit 1\nfi\necho tls12-rejected\n",
+      "expected_status": 0,
+      "stdout": "tls12-rejected\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "peer.out",
+        "peer.err",
+        "query-out.txt",
+        "query-err.txt"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "t274-user-tty-guarded-pty",
+      "loadable": "write",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "write/pty-banner-eof-and-faults"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "purpose": "Exercise explicit user/tty selection and reject unsafe utmp paths with owned PTYs.",
+      "oracle": "Two independently allocated PTYs and synthetic utmp records; only the selected terminal receives the message.",
+      "helpers_sha256": {
+        "helpers/t274-user-tty.py": "ed952c8b02dead43f434621182b611fc98710d9835440d07c624cb0ac9ad216c"
+      },
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/t274-user-tty.py \"$BASH\"",
+      "expected_status": 0,
+      "stdout": "explicit-tty=ok\ninvalid-tty=ok\nunsafe-utmp=ok\n",
+      "stderr": "",
+      "timeout": 30
+    }
+  ]
+}

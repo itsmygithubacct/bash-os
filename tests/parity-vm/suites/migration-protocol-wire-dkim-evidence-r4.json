@@ -7,13 +7,13 @@
       "driver": "plain",
       "kind": "contract",
       "oracle": "RFC 8463 Appendix A published Ed25519 and RSA signatures/public keys, RFC 6376 relaxed DKIM canonicalization and SHA-256; OpenSSL verifies Ed25519 or RSA cryptography independently of the candidate.",
-      "comparison": "Retain exact RFC message bytes, public key, independent original/body/header verification, all three candidate argv and raw outputs/statuses. Candidate original must accept and both mutations must reject; every invocation is recorded before comparisons.",
+      "comparison": "Retain exact RFC message bytes, public key, independent original/body/header/duplicate-header verification, all candidate argv and raw outputs/statuses. Candidate original must accept and all mutations must reject; every invocation is recorded before comparisons.",
       "requires": [
         "python3",
         "openssl"
       ],
       "helpers_sha256": {
-        "helpers/protocol-wire-dkim-evidence-r4.py": "61ebea06a6d076967325b13109570231db33b932a9fda8453ef801fb430fb627"
+        "helpers/protocol-wire-dkim-evidence-r4.py": "7f49a1902816ebcac9aeb7873979da8d275cda0f297eda6accfeaba16f765709"
       },
       "expected_status": 0,
       "stderr": "",
@@ -33,13 +33,13 @@
       "driver": "plain",
       "kind": "contract",
       "oracle": "RFC 8463 Appendix A published Ed25519 and RSA signatures/public keys, RFC 6376 relaxed DKIM canonicalization and SHA-256; OpenSSL verifies Ed25519 or RSA cryptography independently of the candidate.",
-      "comparison": "Retain exact RFC message bytes, public key, independent original/body/header verification, all three candidate argv and raw outputs/statuses. Candidate original must accept and both mutations must reject; every invocation is recorded before comparisons.",
+      "comparison": "Retain exact RFC message bytes, public key, independent original/body/header/duplicate-header verification, all candidate argv and raw outputs/statuses. Candidate original must accept and all mutations must reject; every invocation is recorded before comparisons.",
       "requires": [
         "python3",
         "openssl"
       ],
       "helpers_sha256": {
-        "helpers/protocol-wire-dkim-evidence-r4.py": "61ebea06a6d076967325b13109570231db33b932a9fda8453ef801fb430fb627"
+        "helpers/protocol-wire-dkim-evidence-r4.py": "7f49a1902816ebcac9aeb7873979da8d275cda0f297eda6accfeaba16f765709"
       },
       "expected_status": 0,
       "stderr": "",

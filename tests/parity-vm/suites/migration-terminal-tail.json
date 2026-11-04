@@ -171,6 +171,82 @@
         "log": "c\n",
         "log.1": "a\n"
       }
+    },
+    {
+      "id": "migration-tail-follow-diagnostics-appearance-r1",
+      "loadable": "tail",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "tail/follow-append-and-rotation"
+      ],
+      "purpose": "An initially missing name reports its opening error and appearance once, emits its data, and terminates on SIGINT.",
+      "oracle": "Exact stderr file and PTY behavior compared with GNU coreutils 9.7 in the reference shell",
+      "comparison": "stderr file tree parity, ordered PTY output, status",
+      "requires": [
+        "sleep",
+        "tail"
+      ],
+      "timeout": 20,
+      "script": "{ /usr/bin/sleep 0.8; printf 'new\\n' > late; } &\ntail -F late 2> diag",
+      "steps": [
+        {
+          "expect": "new\r\n"
+        },
+        {
+          "settle_ms": 400
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "settle_ms": 200
+        }
+      ],
+      "expected_status": 130,
+      "expected_files": {
+        "late": "new\n"
+      }
+    },
+    {
+      "id": "migration-tail-follow-diagnostics-replaced-r1",
+      "loadable": "tail",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "tail/follow-append-and-rotation"
+      ],
+      "purpose": "An atomic replacement of an existing followed name reports replacement and prints the new file.",
+      "oracle": "Exact stderr file and PTY behavior compared with GNU coreutils 9.7 in the reference shell",
+      "comparison": "stderr file tree parity, ordered PTY output, status",
+      "requires": [
+        "mv",
+        "sleep",
+        "tail"
+      ],
+      "timeout": 20,
+      "script": "printf 'old\\n' > log\nprintf 'new\\n' > next\n{ /usr/bin/sleep 0.8; mv next log; } &\ntail -F log 2> diag",
+      "steps": [
+        {
+          "expect": "old\r\n"
+        },
+        {
+          "expect": "new\r\n"
+        },
+        {
+          "settle_ms": 400
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "settle_ms": 200
+        }
+      ],
+      "expected_status": 130,
+      "expected_files": {
+        "log": "new\n"
+      }
     }
   ]
 }

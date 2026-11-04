@@ -1,0 +1,152 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-terminal-platform-vt-reverse-index-margins-repair260",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Independent pyte regression: reverse-index-margins",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/external-terminal-conformance"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"width\": 12,\n  \"height\": 5,\n  \"chunks_base64\": [\n    \"G1syShtbSEhFQUQbWzI7MUhvbmUbWzM7MUh0d28bWzQ7MUh0aHJlZRtbNTsxSEZPT1Q=\",\n    \"G1syOzRyG1syOzFIGw==\",\n    \"TQ==\",\n    \"G1szOzFIG00=\"\n  ],\n  \"family\": \"reverse-index-margins\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-vt-insert-delete-char-edges-repair260",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Independent pyte regression: insert-delete-char-edges",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/external-terminal-conformance"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"width\": 12,\n  \"height\": 5,\n  \"chunks_base64\": [\n    \"G1syShtbSGFiY2RlZmdoaWo=\",\n    \"G1sxOzNIG1syQFhZ\",\n    \"G1sxOzdIG1syUA==\",\n    \"G1sxOzRIG1szWA==\",\n    \"G1sxOzExSBtbMjBA\",\n    \"G1sxOzExSBtbMjBQ\"\n  ],\n  \"family\": \"insert-delete-char-edges\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    },
+    {
+      "id": "migration-terminal-platform-vt-da-dsr-split-drain-repair260",
+      "loadable": "vt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Independent pyte regression: da-dsr-split-drain",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py vt candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-vt-tiv-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "covers": [
+        "vt/external-terminal-conformance"
+      ],
+      "requires": [
+        "python3",
+        "stty"
+      ],
+      "helpers_sha256": {
+        "helpers/terminal-platform-vt-tiv-audit121-r3.py": "701148a8b08b81e735d99ca2bdf38900b421d7bce3988ecd3bcb27cc9b6567eb"
+      },
+      "files": {
+        "scenario.json": "{\n  \"width\": 12,\n  \"height\": 5,\n  \"chunks_base64\": [\n    \"G1szOzVIG1s2bhtbNW4bWw==\",\n    \"Yw==\",\n    \"G1s2bg==\"\n  ],\n  \"family\": \"da-dsr-split-drain\"\n}\n"
+      },
+      "diagnostic_files": [
+        "setup.json",
+        "setup-terminal.json",
+        "setup-client.json",
+        "image-control.json",
+        "assertions.json",
+        "oracle.json",
+        "render.raw",
+        "responses.raw",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "terminal.json",
+        "terminal.raw",
+        "client.json",
+        "client-writes.raw",
+        "vt-stages.json"
+      ],
+      "oracle": "Independent sealed python3-pyte0.8.0 (official source read as data), with literal grid/SGR/DA/DSR setup controls; native owned Python PTY echo/geometry/modes controls. VT profile uses VT102 primary DA, common pyte cell attributes and a declared xterm16 default white/black palette. PNG RGB8 filter0 CRC/zlib decode and fixed dimension expectations plus independent area-average half-block color math provide the tiv contract; no GNU tiv equivalence is asserted. No reference output is seeded from candidate data.",
+      "comparison": "result.json preserves complete per-cell text/attributes/cursor/reply bytes or exact truecolor image bytes. Every model command status, directional PTY/client I/O, termios, geometry, time, shell commands, child writes/reads and independent controls remain in HOME diagnostics. Reference and candidate use separate owned children. Candidate FAIL remains FAIL; future VM raw review must distinguish unreached phases. No GPU/physical terminal or exhaustive xterm claim."
+    }
+  ]
+}

@@ -427,6 +427,9 @@ bnc_connect (WORD_LIST *args)
       else { builtin_error ("connect: extra arg %s", w); return EX_USAGE; }
     }
   if (!host || !port) { builtin_error ("connect needs HOST PORT [-u] [-w SECS]"); return EX_USAGE; }
+  int port_number;
+  if (bnc_number (port, 1, 65535, &port_number) < 0)
+    { builtin_error ("connect: invalid port %s", port); return EX_USAGE; }
 
   struct sockaddr_storage ss;
   socklen_t sl;
@@ -491,6 +494,9 @@ bnc_listen (WORD_LIST *args)
     }
   if (!port) { builtin_error ("listen needs PORT -s ADDR [-u] [-w SECS]"); return EX_USAGE; }
   if (!addr) { builtin_error ("listen needs explicit -s ADDR"); return EX_USAGE; }
+  int port_number;
+  if (bnc_number (port, 1, 65535, &port_number) < 0)
+    { builtin_error ("listen: invalid port %s", port); return EX_USAGE; }
 
   struct sockaddr_storage ss;
   socklen_t sl;

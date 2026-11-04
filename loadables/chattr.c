@@ -70,59 +70,88 @@ char_to_bit (char c, unsigned int *bit)
     return -1;
 }
 
-static int
-apply_to_path (const char *path, char op, unsigned int mask, int recurse);
+struct chattr_change {
+    unsigned int add, remove, set;
+    int assignment;
+};
 
+/* Descend through held directory descriptors; never reopen a child through a
+   pathname whose parent can be replaced during recursive traversal. */
 static int
-apply_one (const char *path, char op, unsigned int mask)
+apply_to_path_at (int parent, const char *name, const char *display,
+                  const struct chattr_change *change, int recurse)
 {
-    int fd = open (path, O_RDONLY | O_NONBLOCK);
-    if (fd < 0) { builtin_error ("%s: %s", path, strerror (errno)); return -1; }
-
-    unsigned int flags = 0;
-    if (ioctl (fd, FS_IOC_GETFLAGS, &flags) < 0) {
-        builtin_error ("%s: reading flags: %s", path, strerror (errno));
-        close (fd);
+    struct stat st;
+    if (fstatat (parent, name, &st, AT_SYMLINK_NOFOLLOW) < 0) {
+        fprintf (stderr, "chattr: %s while trying to stat %s\n", strerror (errno), display);
         return -1;
     }
-    unsigned int newflags = flags;
-    if      (op == '+') newflags |= mask;
-    else if (op == '-') newflags &= ~mask;
-    else /* '=' */      newflags = mask;
-
-    if (newflags != flags) {
-        if (ioctl (fd, FS_IOC_SETFLAGS, &newflags) < 0) {
-            builtin_error ("%s: setting flags: %s", path, strerror (errno));
+    if (!S_ISREG (st.st_mode) && !S_ISDIR (st.st_mode)) {
+        fprintf (stderr, "chattr: %s while reading flags on %s\n", strerror (EOPNOTSUPP), display);
+        return -1;
+    }
+    int fd = openat (parent, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0) {
+        int e = errno;
+        if (e == ELOOP || e == ENXIO) e = EOPNOTSUPP;
+        fprintf (stderr, "chattr: %s while reading flags on %s\n", strerror (e), display);
+        return -1;
+    }
+    if (fstat (fd, &st) < 0) {
+        int e = errno; close (fd);
+        fprintf (stderr, "chattr: %s while reading flags on %s\n", strerror (e), display);
+        return -1;
+    }
+    if (!S_ISREG (st.st_mode) && !S_ISDIR (st.st_mode)) {
+        close (fd);
+        fprintf (stderr, "chattr: %s while reading flags on %s\n", strerror (EOPNOTSUPP), display);
+        return -1;
+    }
+    unsigned int flags = 0;
+    if (ioctl (fd, FS_IOC_GETFLAGS, &flags) < 0) {
+        int e = errno == ENOTTY ? EOPNOTSUPP : errno; close (fd);
+        fprintf (stderr, "chattr: %s while reading flags on %s\n", strerror (e), display);
+        return -1;
+    }
+    unsigned int newflags = change->assignment ? change->set :
+        (flags & ~change->remove) | change->add;
+    if (!change->assignment && !S_ISDIR (st.st_mode)) newflags &= ~0x00010000u;
+    if (ioctl (fd, FS_IOC_SETFLAGS, &newflags) < 0) {
+        int e = errno == ENOTTY ? EOPNOTSUPP : errno;
+        if (change->assignment) {
+            fprintf (stderr, "%s: %s\n", display, strerror (e));
+        } else {
+            fprintf (stderr, "chattr: %s while setting flags on %s\n", strerror (e), display);
             close (fd);
             return -1;
         }
     }
-    close (fd);
-    return 0;
-}
-
-static int
-apply_to_path (const char *path, char op, unsigned int mask, int recurse)
-{
-    int rc = apply_one (path, op, mask);
-
-    if (recurse) {
-        struct stat st;
-        if (lstat (path, &st) == 0 && S_ISDIR (st.st_mode)) {
-            DIR *d = opendir (path);
-            if (d) {
-                struct dirent *de;
-                while ((de = readdir (d))) {
-                    if (!strcmp (de->d_name, ".") || !strcmp (de->d_name, ".."))
-                        continue;
-                    char child[4096];
-                    snprintf (child, sizeof child, "%s/%s", path, de->d_name);
-                    if (apply_to_path (child, op, mask, recurse) < 0) rc = -1;
-                }
-                closedir (d);
-            }
-        }
+    if (!recurse || !S_ISDIR (st.st_mode)) { close (fd); return 0; }
+    DIR *dir = fdopendir (fd);
+    if (!dir) {
+        int e = errno; close (fd);
+        fprintf (stderr, "chattr: %s while reading directory %s\n", strerror (e), display);
+        return -1;
     }
+    int rc = 0;
+    for (;;) {
+        errno = 0;
+        struct dirent *de = readdir (dir);
+        if (!de) {
+            if (errno) { fprintf (stderr, "chattr: %s while reading directory %s\n", strerror (errno), display); rc = -1; }
+            break;
+        }
+        if (!strcmp (de->d_name, ".") || !strcmp (de->d_name, "..")) continue;
+        size_t a = strlen (display), b = strlen (de->d_name);
+        if (b > (size_t)-1 - 2 || a > (size_t)-1 - b - 2) { errno = ENAMETOOLONG; rc = -1; break; }
+        char *child = malloc (a + b + 2);
+        if (!child) { rc = -1; break; }
+        memcpy (child, display, a); child[a] = '/';
+        memcpy (child + a + 1, de->d_name, b + 1);
+        if (apply_to_path_at (dirfd (dir), de->d_name, child, change, recurse) < 0) rc = -1;
+        free (child);
+    }
+    if (closedir (dir) < 0) rc = -1;
     return rc;
 }
 
@@ -130,8 +159,8 @@ int
 chattr_builtin (WORD_LIST *list)
 {
     int recurse = 0;
-    char op = 0;
-    unsigned int mask = 0;
+    struct chattr_change change = { 0, 0, 0, 0 };
+    int have_add = 0, have_remove = 0;
 
     while (list) {
         const char *w = list->word->word;
@@ -146,14 +175,17 @@ chattr_builtin (WORD_LIST *list)
             /* A flag-spec token. (A bare "-" with no following letters is not
                valid here; "-R" was handled above.) */
             if (w[0] == '-' && w[1] == '\0') break;
-            op = w[0];
+            unsigned int *mask;
+            if (w[0] == '+') { have_add = 1; mask = &change.add; }
+            else if (w[0] == '-') { have_remove = 1; mask = &change.remove; }
+            else { change.assignment = 1; mask = &change.set; }
             for (const char *c = w + 1; *c; c++) {
                 unsigned int bit;
                 if (char_to_bit (*c, &bit) < 0) {
-                    builtin_error ("unknown attribute: %c", *c);
-                    return EX_USAGE;
+                    fprintf (stderr, "Usage: chattr [-RVf] [-+=aAcCdDeijPsStTuFx] [-p project] [-v version] files...\n");
+                    return EXECUTION_FAILURE;
                 }
-                mask |= bit;
+                *mask |= bit;
             }
             list = list->next;
             continue;
@@ -161,20 +193,27 @@ chattr_builtin (WORD_LIST *list)
         break;  /* first non-option, non-flagspec token → start of file list */
     }
 
-    if (op == 0) {
-        builtin_error ("missing +-= attribute specification");
-        builtin_usage ();
-        return EX_USAGE;
-    }
     if (!list) {
-        builtin_error ("no files specified");
-        builtin_usage ();
-        return EX_USAGE;
+        fprintf (stderr, "Usage: chattr [-RVf] [-+=aAcCdDeijPsStTuFx] [-p project] [-v version] files...\n");
+        return EXECUTION_FAILURE;
+    }
+    if (!change.assignment && !have_add && !have_remove) {
+        fputs ("Must use '-v', =, - or +\n", stderr);
+        return EXECUTION_FAILURE;
+    }
+
+    if (change.assignment && (have_add || have_remove)) {
+        fputs ("= is incompatible with - and +\n", stderr);
+        return EXECUTION_FAILURE;
+    }
+    if (change.add & change.remove) {
+        fputs ("Can't both set and unset same flag.\n", stderr);
+        return EXECUTION_FAILURE;
     }
 
     int rc = EXECUTION_SUCCESS;
     for (WORD_LIST *p = list; p; p = p->next)
-        if (apply_to_path (p->word->word, op, mask, recurse) < 0)
+        if (apply_to_path_at (AT_FDCWD, p->word->word, p->word->word, &change, recurse) < 0)
             rc = EXECUTION_FAILURE;
     return rc;
 }

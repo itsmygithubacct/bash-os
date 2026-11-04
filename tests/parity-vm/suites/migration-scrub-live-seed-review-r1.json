@@ -1,0 +1,127 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "covers": [
+        "scrub/live-history-deferred"
+      ],
+      "driver": "pty",
+      "expected_status": 0,
+      "group": "terminal",
+      "interactive_shell": true,
+      "kind": "contract",
+      "loadable": "scrub",
+      "requires": [
+        "grep"
+      ],
+      "script": ":",
+      "timeout": 25,
+      "id": "migration-scrub-history-s-replacement-control-r1",
+      "purpose": "Demonstrate consecutive history -s calls replace the preceding added record before scrub runs.",
+      "comparison": "Capture the history immediately after the exact seed pattern used by the historical trace, with no scrub pruning; compare whole records.",
+      "oracle": "Bash history -s removes the last history entry before adding its arguments.",
+      "diagnostic_files": [
+        "history-control",
+        "history-first"
+      ],
+      "expected_files": {
+        "control-check": "replacement observed\n"
+      },
+      "setup_script": ": > \"$HOME/history-control\"; : > \"$HOME/history-first\"",
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125; IFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125; IFS= read -r u </etc/bashos-parity-vm || exit 125; [[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "history -c || exit 125; history -s private_secret_a; history > \"$HOME/history-first\"; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+private_secret_a$' \"$HOME/history-first\" || exit 125; history -s safe_anchor_a; history > \"$HOME/history-control\"; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+private_secret_a$' \"$HOME/history-control\" && exit 11; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+safe_anchor_a$' \"$HOME/history-control\" || exit 12; printf 'replacement observed\\n' > control-check; exit 0\r"
+        }
+      ],
+      "observation_error_status": 125
+    },
+    {
+      "covers": [
+        "scrub/live-history-deferred"
+      ],
+      "driver": "pty",
+      "expected_status": 0,
+      "group": "terminal",
+      "interactive_shell": true,
+      "kind": "contract",
+      "loadable": "scrub",
+      "requires": [
+        "grep"
+      ],
+      "script": ":",
+      "timeout": 25,
+      "id": "migration-scrub-live-combined-seeded-r1",
+      "purpose": "Check the original combined live history contract with verified independent history seeds.",
+      "comparison": "Verify each seed before pruning; capture exact prompt hook and restoration, prompt-boundary history and explicit count. Missing seed exits 125.",
+      "oracle": "Private history -r fixtures, whole-record assertions, literal hook and count.",
+      "diagnostic_files": [
+        "before-a",
+        "before-b",
+        "after-b",
+        "before-c",
+        "after-c"
+      ],
+      "expected_files": {
+        "pc-enabled": "scrub live prune >/dev/null; :\n",
+        "hook-check": "hook ok\n",
+        "prune-count": "1\n",
+        "pc-restored": ":\n",
+        "histfile": "/dev/null\n"
+      },
+      "files": {
+        "seed-a": "private_secret_a\nsafe_anchor_a\n",
+        "seed-b": "private_secret_b\nsafe_anchor_b\n",
+        "seed-c": "private_secret_c\nsafe_anchor_c\n"
+      },
+      "setup_script": ": > \"$HOME/before-a\"; : > \"$HOME/before-b\"; : > \"$HOME/after-b\"; : > \"$HOME/before-c\"; : > \"$HOME/after-c\"",
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125; IFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125; IFS= read -r u </etc/bashos-parity-vm || exit 125; [[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "[[ $HISTFILE == /dev/null ]] || exit 125; PROMPT_COMMAND=':'; scrub clear-patterns; scrub add-pattern '^private_secret_'; history -c || exit 125; history -r seed-a || exit 125; history > \"$HOME/before-a\"; for x in private_secret_a safe_anchor_a; do /usr/bin/grep -Eq \"^[[:space:]]*[0-9]+[[:space:]]+$x$\" \"$HOME/before-a\" || exit 125; done; scrub live enable || exit 11; scrub live enable || exit 11; printf '%s\\n' \"$PROMPT_COMMAND\" > pc-enabled\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "history -r seed-b || exit 125; history > \"$HOME/before-b\"; for x in private_secret_b safe_anchor_b; do /usr/bin/grep -Eq \"^[[:space:]]*[0-9]+[[:space:]]+$x$\" \"$HOME/before-b\" || exit 125; done\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "history > \"$HOME/after-b\"; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+private_secret_[ab]$' \"$HOME/after-b\" && exit 12; for x in safe_anchor_a safe_anchor_b; do /usr/bin/grep -Eq \"^[[:space:]]*[0-9]+[[:space:]]+$x$\" \"$HOME/after-b\" || exit 13; done; printf 'hook ok\\n' > hook-check\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "history -r seed-c || exit 125; history > \"$HOME/before-c\"; for x in private_secret_c safe_anchor_c; do /usr/bin/grep -Eq \"^[[:space:]]*[0-9]+[[:space:]]+$x$\" \"$HOME/before-c\" || exit 125; done; scrub live prune > prune-count || exit 14; history > \"$HOME/after-c\"; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+private_secret_c$' \"$HOME/after-c\" && exit 15; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+safe_anchor_c$' \"$HOME/after-c\" || exit 16\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "scrub live disable || exit 17; printf '%s\\n' \"$PROMPT_COMMAND\" > pc-restored; [[ $HISTFILE == /dev/null ]] || exit 18; printf '%s\\n' \"$HISTFILE\" > histfile; exit 0\r"
+        }
+      ],
+      "observation_error_status": 125
+    }
+  ]
+}

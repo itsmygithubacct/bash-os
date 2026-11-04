@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "review-fw-staged-ipset-malformed",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Independently verify failed saved-set restoration leaves kernel set and rule state unchanged.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Real guest ipset and iptables-save observations before and after a deliberately invalid saved member or an injected second swap failure.",
+      "comparison": "Exact success marker and nonzero candidate status for injected errors, with all sets and rules compared independently.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables",
+        "ipset"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/review-fw-staged-ipset-r1.py malformed\n",
+      "stdout": "staged ipset malformed checks passed\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/review-fw-staged-ipset-r1.py": "43ec5fab4b247df4591be06642be1bbbe8d33c601c62fe66f98e04ecb8bc14a9"
+      }
+    },
+    {
+      "id": "review-fw-staged-ipset-swap-failure",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Independently verify failed saved-set restoration leaves kernel set and rule state unchanged.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Real guest ipset and iptables-save observations before and after a deliberately invalid saved member or an injected second swap failure.",
+      "comparison": "Exact success marker and nonzero candidate status for injected errors, with all sets and rules compared independently.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables",
+        "ipset"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/review-fw-staged-ipset-r1.py swap-failure\n",
+      "stdout": "staged ipset swap-failure checks passed\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/review-fw-staged-ipset-r1.py": "43ec5fab4b247df4591be06642be1bbbe8d33c601c62fe66f98e04ecb8bc14a9"
+      }
+    },
+    {
+      "id": "review-fw-staged-ipset-malformed-markers",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Duplicate set section markers are rejected before kernel state changes.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Real guest ipset and iptables-save before and after candidate rejection of duplicate section markers.",
+      "comparison": "Nonzero restore status with unchanged independently inspected set and rule state.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables",
+        "ipset"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/review-fw-staged-ipset-r1.py malformed-markers\n",
+      "stdout": "staged ipset malformed-markers checks passed\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/review-fw-staged-ipset-r1.py": "43ec5fab4b247df4591be06642be1bbbe8d33c601c62fe66f98e04ecb8bc14a9"
+      }
+    },
+    {
+      "id": "review-fw-staged-ipset-embedded-nul",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "NUL in the saved rules section is rejected before kernel state changes.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Real guest ipset and iptables-save before and after rejection of a saved rules stream with an embedded NUL.",
+      "comparison": "Nonzero restore status with unchanged independently inspected set and rule state.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables",
+        "ipset"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/review-fw-staged-ipset-r1.py embedded-nul\n",
+      "stdout": "staged ipset embedded-nul checks passed\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/review-fw-staged-ipset-r1.py": "43ec5fab4b247df4591be06642be1bbbe8d33c601c62fe66f98e04ecb8bc14a9"
+      }
+    },
+    {
+      "id": "review-fw-staged-ipset-oversized-line",
+      "loadable": "fw",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Oversized saved rules lines are rejected before kernel state changes.",
+      "covers": [
+        "fw/deferred_sets_persistence_roundtrip"
+      ],
+      "oracle": "Real guest ipset and iptables-save before and after rejection of a saved rules stream containing a line above the documented bound.",
+      "comparison": "Nonzero restore status with unchanged independently inspected set and rule state.",
+      "requires": [
+        "unshare",
+        "python3",
+        "iptables",
+        "ipset"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/review-fw-staged-ipset-r1.py oversized-line\n",
+      "stdout": "staged ipset oversized-line checks passed\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/review-fw-staged-ipset-r1.py": "43ec5fab4b247df4591be06642be1bbbe8d33c601c62fe66f98e04ecb8bc14a9"
+      }
+    }
+  ]
+}

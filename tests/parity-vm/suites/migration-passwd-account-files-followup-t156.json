@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "timeout": 30,
+      "loadable": "passwd",
+      "covers": [
+        "passwd/account_file_mutations"
+      ],
+      "id": "migration-passwd-shadow-markers-and-missing-t156",
+      "purpose": "Lock idempotently, remove exactly one lock marker, preserve aging and reject missing users without changing bytes.",
+      "oracle": "shadow password field lock marker and aging field preservation",
+      "comparison": "Exact status and file contents",
+      "files": {
+        "db/passwd": "alice:x:1000:1000::/home/alice:/bin/sh\n",
+        "db/group": "alice:x:1000:\n",
+        "db/shadow": "alice:!!hash:123:1:90:7:4:999:\n"
+      },
+      "requires": [
+        "cp",
+        "cmp",
+        "cat"
+      ],
+      "script": "export PHCLIB_PASSWD=db/passwd PHCLIB_GROUP=db/group PHCLIB_SHADOW=db/shadow BASHPASSWD_KERNEL_SECRETS=0\npasswd lock alice; printf 'lock=%d ' \"$?\"; /usr/bin/cat db/shadow\npasswd unlock alice; printf 'unlock=%d ' \"$?\"; /usr/bin/cat db/shadow\n/usr/bin/cp db/shadow snap\npasswd lock missing 2>/dev/null; r=$?; /usr/bin/cmp -s db/shadow snap; printf 'missing-lock=%d unchanged=%d\\n' \"$r\" \"$?\"\npasswd expire missing 2>/dev/null; r=$?; /usr/bin/cmp -s db/shadow snap; printf 'missing-expire=%d unchanged=%d\\n' \"$r\" \"$?\"\n",
+      "expected_status": 0,
+      "stdout": "lock=0 alice:!!hash:123:1:90:7:4:999:\nunlock=0 alice:!hash:123:1:90:7:4:999:\nmissing-lock=1 unchanged=0\nmissing-expire=1 unchanged=0\n"
+    }
+  ]
+}

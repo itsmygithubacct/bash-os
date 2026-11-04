@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-fsfreeze-thaw-resume-root",
+      "loadable": "fsfreeze",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "fsfreeze/deferred-thaw-and-resume",
+        "fsfreeze/deferred-freeze-supported-filesystem"
+      ],
+      "purpose": "Independently assert both thaw spellings resume a blocked writer and preserve its content; require EBUSY for the frozen probe and EINVAL for a subsequent thaw.",
+      "oracle": "util-linux 2.41 fsfreeze; util-linux fsfreeze -f as the frozen-state probe",
+      "comparison": "Each side asserts the kernel and content outcomes and emits the same success markers; any failed assertion fails the case.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "losetup",
+        "mkdir",
+        "fsfreeze",
+        "dd",
+        "sleep",
+        "cmp",
+        "cp",
+        "grep",
+        "timeout",
+        "python3",
+        "udevadm"
+      ],
+      "script": "RT=/tmp/rt; /usr/bin/mkdir -p \"$RT\" || exit 99\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\" >&2; return 1; }\ndetach() { /usr/sbin/losetup -d \"$1\" && gone \"$1\"; }\nmkext() {\n  /usr/bin/truncate -s 8M img && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal -E nodiscard,lazy_itable_init=0 -U 0b0e0e0e-1111-4222-8333-444444444441 img || exit 99\n  dev=$(/usr/sbin/losetup -f --show img) || exit 99\n  settle || exit 99\n  /usr/bin/mkdir -p \"$M\" && /usr/bin/mount \"$dev\" \"$M\" || exit 99\n  mounted=1\n}\nfail() { echo \"FAIL: $*\" >&2; exit 1; }\nM=/tmp/rt/mnt; dev=; wp=; mounted=0\ncleanup() {\n  local rc=$? bad=0\n  trap - EXIT\n  if (( mounted )); then /usr/sbin/fsfreeze -u \"$M\" >/dev/null 2>&1 || :; fi\n  if [[ -n $wp ]]; then kill \"$wp\" 2>/dev/null || :; wait \"$wp\" 2>/dev/null || :; fi\n  cd /tmp/parity-case || bad=1\n  if (( mounted )); then /usr/bin/umount \"$M\" || bad=1; fi\n  if [[ -n $dev ]]; then detach \"$dev\" || bad=1; fi\n  if (( bad )); then echo \"FAIL: teardown\" >&2; exit 1; fi\n  exit \"$rc\"\n}\ntrap cleanup EXIT\ncd \"$RT\" || fail cd\nmkext\nseed /tmp/fsfreeze-input 8192 || fail seed\n/usr/bin/cp /tmp/fsfreeze-input \"$M/read\" || fail initial-write\nfor pair in short long; do\n  if [[ $pair == short ]]; then freeze=-f; thaw=-u; else freeze=--freeze; thaw=--unfreeze; fi\n  fsfreeze \"$freeze\" \"$M\" >/tmp/rf.out 2>/tmp/rf.err || fail \"$pair freeze\"\n  [[ ! -s /tmp/rf.out && ! -s /tmp/rf.err ]] || fail \"$pair freeze output\"\n  /usr/sbin/fsfreeze -f \"$M\" >/tmp/probe.out 2>/tmp/probe.err\n  rc=$?\n  [[ $rc == 1 && ! -s /tmp/probe.out ]] && /usr/bin/grep -Fq 'Device or resource busy' /tmp/probe.err || fail \"$pair frozen probe\"\n  /usr/bin/cmp /tmp/fsfreeze-input \"$M/read\" || fail \"$pair frozen read\"\n  /usr/bin/timeout -k 2 15 /usr/bin/dd if=/tmp/fsfreeze-input of=\"$M/write-$pair\" bs=4096 conv=fsync status=none & wp=$!\n  /usr/bin/sleep 1\n  kill -0 \"$wp\" 2>/dev/null || fail \"$pair writer finished while frozen\"\n  fsfreeze \"$thaw\" \"$M\" >/tmp/rf.out 2>/tmp/rf.err || fail \"$pair thaw\"\n  [[ ! -s /tmp/rf.out && ! -s /tmp/rf.err ]] || fail \"$pair thaw output\"\n  wait \"$wp\" || fail \"$pair writer did not complete\"; wp=\n  /usr/bin/cmp /tmp/fsfreeze-input \"$M/write-$pair\" || fail \"$pair content\"\n  /usr/bin/cp /tmp/fsfreeze-input \"$M/after-$pair\" || fail \"$pair later write\"\n  /usr/bin/cmp /tmp/fsfreeze-input \"$M/after-$pair\" || fail \"$pair later content\"\n  echo \"$pair freeze-thaw-resume=ok\"\ndone\nfsfreeze -u \"$M\" >/tmp/rf.out 2>/tmp/rf.err; rc=$?\n[[ $rc == 1 && ! -s /tmp/rf.out ]] && /usr/bin/grep -Fq unfreeze /tmp/rf.err && /usr/bin/grep -Fq 'Invalid argument' /tmp/rf.err || fail unfrozen-thaw\necho unfrozen-thaw=ok\n",
+      "expected_status": 0,
+      "timeout": 60
+    }
+  ]
+}

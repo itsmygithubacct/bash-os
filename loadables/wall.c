@@ -470,6 +470,8 @@ bw_banner_write (char *buf, size_t cap)
    This blocks a sender from injecting raw escape sequences (e.g. ESC →
    "^[") into the recipient's terminal. Writes the escaped bytes to FD;
    returns 0 on success, -1 on write error. */
+static int bw_write_all (int, const char *, size_t);
+
 static int
 bw_careful_write (int fd, const char *msg, size_t msg_len)
 {
@@ -497,11 +499,29 @@ bw_careful_write (int fd, const char *msg, size_t msg_len)
   int rc = 0;
   if (o)
     {
-      ssize_t w = write (fd, out, o);
-      if (w != (ssize_t) o) rc = -1;
+      if (bw_write_all (fd, out, o) < 0) rc = -1;
     }
   free (out);
   return rc;
+}
+
+/* Complete each buffer even when a terminal accepts only a prefix. */
+static int
+bw_write_all (int fd, const char *buf, size_t len)
+{
+  while (len)
+    {
+      ssize_t n = write (fd, buf, len);
+      if (n < 0)
+        {
+          if (errno == EINTR) continue;
+          return -1;
+        }
+      if (n == 0) { errno = EIO; return -1; }
+      buf += n;
+      len -= (size_t) n;
+    }
+  return 0;
 }
 
 /* Write banner + message to one tty path. Returns 0 on success,
@@ -518,12 +538,13 @@ bw_emit_one (const char *path, const char *banner, size_t banner_len,
   if (fd < 0) return -1;
   if (banner_len)
     {
-      ssize_t w = write (fd, banner, banner_len);
-      if (w != (ssize_t) banner_len) { close (fd); return -1; }
+      if (bw_write_all (fd, banner, banner_len) < 0)
+        { int saved = errno; close (fd); errno = saved; return -1; }
     }
   if (msg_len)
     {
-      if (bw_careful_write (fd, msg, msg_len) < 0) { close (fd); return -1; }
+      if (bw_careful_write (fd, msg, msg_len) < 0)
+        { int saved = errno; close (fd); errno = saved; return -1; }
     }
   close (fd);
   return 0;
@@ -690,6 +711,83 @@ wall_builtin (WORD_LIST *list)
  *  write builtin (single-target)
  * ------------------------------------------------------------------- */
 
+
+/* Open a utmp tty relative to the configured device directory without
+   following symlinks. The returned fd is verified to be a terminal. */
+static int
+bw_open_utmp_tty (const char *line, struct stat *st)
+{
+  if (!line || !*line || *line == '/') { errno = EINVAL; return -1; }
+  char *copy = strdup (line), *save = NULL;
+  if (!copy) return -1;
+  int dir = open (bw_env ("BASHWALL_DEV_DIR", BW_DEV_DIR_DEFAULT),
+                  O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+  int fd = -1, saved;
+  if (dir < 0) goto out;
+  char *part = strtok_r (copy, "/", &save);
+  while (part)
+    {
+      if (!strcmp (part, ".") || !strcmp (part, ".."))
+        { errno = EINVAL; goto out; }
+      char *next = strtok_r (NULL, "/", &save);
+      if (next)
+        {
+          int child = openat (dir, part, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+          if (child < 0) goto out;
+          close (dir); dir = child;
+        }
+      else
+        {
+          fd = openat (dir, part, O_WRONLY | O_NOCTTY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
+          if (fd < 0) goto out;
+          if (fstat (fd, st) < 0 || !S_ISCHR (st->st_mode) || !isatty (fd))
+            { saved = errno ? errno : ENOTTY; close (fd); fd = -1; errno = saved; goto out; }
+          int flags = fcntl (fd, F_GETFL);
+          if (flags < 0 || fcntl (fd, F_SETFL, flags & ~O_NONBLOCK) < 0)
+            { saved = errno; close (fd); fd = -1; errno = saved; goto out; }
+        }
+      part = next;
+    }
+out:
+  saved = errno; if (dir >= 0) close (dir); free (copy); errno = saved; return fd;
+}
+
+/* Match user and optional line in utmp, choosing the least idle enabled tty.
+   Keep the checked fd open so the final write cannot follow a changed path. */
+static int
+bw_find_user_tty (const char *name, const char *requested, char *path, size_t pathsz)
+{
+  FILE *fp = fopen (bw_env ("BASHWALL_UTMP", BW_UTMP_DEFAULT), "rb");
+  if (!fp) return -1;
+  if (requested && !strncmp (requested, "/dev/", 5)) requested += 5;
+  struct utmp u; int best = -1, found = 0; time_t newest = 0;
+  while (fread (&u, sizeof u, 1, fp) == 1)
+    {
+      char user[UT_NAMESIZE + 1], line[UT_LINESIZE + 1]; struct stat st;
+      if (u.ut_type != USER_PROCESS) continue;
+      memcpy (user, u.ut_user, UT_NAMESIZE); user[UT_NAMESIZE] = 0;
+      memcpy (line, u.ut_line, UT_LINESIZE); line[UT_LINESIZE] = 0;
+      if (strcmp (user, name) || !*line || (requested && strcmp (line, requested))) continue;
+      found = 1;
+      int fd = bw_open_utmp_tty (line, &st);
+      if (fd < 0) continue;
+      if (!(geteuid () == 0 && !bw_env_bool ("BASHWALL_FORCE_MESG")) &&
+          !(st.st_mode & (S_IWGRP | S_IWOTH))) { close (fd); continue; }
+      if (best < 0 || st.st_atime > newest)
+        {
+          if (best >= 0) close (best);
+          best = fd; newest = st.st_atime;
+          bw_resolve_tty (line, path, pathsz);
+        }
+      else close (fd);
+    }
+  int err = ferror (fp) ? (errno ? errno : EIO) : 0;
+  fclose (fp);
+  if (err) { if (best >= 0) close (best); errno = err; return -1; }
+  if (best < 0) errno = found ? EACCES : ENOENT;
+  return best;
+}
+
 int
 write_builtin (WORD_LIST *list)
 {
@@ -703,27 +801,38 @@ write_builtin (WORD_LIST *list)
   /* Reject empty / unresolved paths and obvious symlink-escape vectors. */
   if (!path[0]) { builtin_error ("empty TTY"); return EX_USAGE; }
   struct stat st;
+  int fd = -1;
   if (stat (path, &st) < 0)
-    { builtin_error ("%s: %s", path, strerror (errno)); return EXECUTION_FAILURE; }
-
-  int gate = bw_messages_enabled (path);
-  if (gate < 0)
-    { builtin_error ("stat %s: %s", path, strerror (errno)); return EXECUTION_FAILURE; }
-  if (gate == 0)
-    { builtin_error ("%s has messages disabled", path); return EXECUTION_FAILURE; }
+    {
+      if (errno != ENOENT || strchr (raw, '/'))
+        { builtin_error ("%s: %s", path, strerror (errno)); return EXECUTION_FAILURE; }
+      if (args && args->next) { builtin_error ("usage: write USER [TTY]"); return EX_USAGE; }
+      const char *requested = args ? args->word->word : NULL;
+      fd = bw_find_user_tty (raw, requested, path, sizeof path);
+      if (fd < 0) { builtin_error ("%s: %s", raw, strerror (errno)); return EXECUTION_FAILURE; }
+      args = NULL; /* USER [TTY] reads the message from stdin. */
+    }
+  else
+    {
+      int gate = bw_messages_enabled (path);
+      if (gate < 0)
+        { builtin_error ("stat %s: %s", path, strerror (errno)); return EXECUTION_FAILURE; }
+      if (gate == 0)
+        { builtin_error ("%s has messages disabled", path); return EXECUTION_FAILURE; }
+    }
 
   char *msg = NULL;
   size_t msg_len = 0;
   if (bw_compose_message (args, &msg, &msg_len) < 0)
-    return EXECUTION_FAILURE;
+    { if (fd >= 0) close (fd); return EXECUTION_FAILURE; }
 
   char banner[512];
   size_t banner_len = bw_banner_write (banner, sizeof banner);
 
-  int fd = open (path, O_WRONLY | O_APPEND | O_NOCTTY);
+  if (fd < 0) fd = open (path, O_WRONLY | O_APPEND | O_NOCTTY);
   if (fd < 0)
     { builtin_error ("open %s: %s", path, strerror (errno)); free (msg); return EXECUTION_FAILURE; }
-  if (banner_len && write (fd, banner, banner_len) != (ssize_t) banner_len)
+  if (banner_len && bw_write_all (fd, banner, banner_len) < 0)
     { builtin_error ("write %s: %s", path, strerror (errno)); close (fd); free (msg); return EXECUTION_FAILURE; }
   /* Escape control/high bytes (ESC -> ^[, etc.) like util-linux write(1)'s
      fputs_careful(), so a sender can't inject terminal escape sequences. */
@@ -731,8 +840,9 @@ write_builtin (WORD_LIST *list)
     { builtin_error ("write %s: %s", path, strerror (errno)); close (fd); free (msg); return EXECUTION_FAILURE; }
   /* write(1) prints a trailing "EOF\r\n" when stdin reaches end-of-file;
      emit the same so consumers can detect the message boundary. */
-  if (!bw_env_bool ("BASHWALL_NOBANNER"))
-    (void) write (fd, "EOF\r\n", 5);
+  if (!bw_env_bool ("BASHWALL_NOBANNER") &&
+      bw_write_all (fd, "EOF\r\n", 5) < 0)
+    { builtin_error ("write %s: %s", path, strerror (errno)); close (fd); free (msg); return EXECUTION_FAILURE; }
   close (fd);
   free (msg);
   return EXECUTION_SUCCESS;
@@ -776,7 +886,7 @@ struct builtin wall_struct = {
 char *write_doc[] = {
   "Send a message to a single terminal (write(1)).",
   "",
-  "    write TTY [MSG ...]  TTY is a /dev/* path or a basename",
+  "    write TTY [MSG ...] | write USER [TTY]  select a terminal or utmp session",
   "                             resolved under $BASHWALL_DEV_DIR.",
   "",
   "Writes a banner (\"Message from USER@HOST on SRCTTY at HH:MM ...\")",
@@ -784,7 +894,7 @@ char *write_doc[] = {
   "destination has messages disabled (S_IWGRP|S_IWOTH both clear), except",
   "for root unless BASHWALL_FORCE_MESG=1 is set.",
   "",
-  "Env: BASHWALL_DEV_DIR, BASHWALL_NOBANNER, BASHWALL_HOST,",
+  "Env: BASHWALL_UTMP, BASHWALL_DEV_DIR, BASHWALL_NOBANNER, BASHWALL_HOST,",
   "     BASHWALL_USER, BASHWALL_FORCE_MESG.",
   (char *) NULL
 };

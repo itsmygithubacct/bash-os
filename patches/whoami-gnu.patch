@@ -1,6 +1,6 @@
 --- a/whoami.c
 +++ b/whoami.c
-@@ -22,45 +22,80 @@
+@@ -22,45 +22,83 @@
  
  #include <config.h>
  #include <stdio.h>
@@ -22,6 +22,7 @@
 +  size_t len;
 +  int end_options, posix_options;
 +  struct passwd *pwd;
++  uid_t uid;
  
 -  reset_internal_getopt ();
 -  while ((opt = internal_getopt (list, "")) != -1)
@@ -80,10 +81,12 @@
 -    get_current_user_info ();
 -  printf ("%s\n", current_user.user_name);
 -  return (EXECUTION_SUCCESS);
-+  pwd = getpwuid (geteuid ());
++  uid = geteuid ();
++  pwd = getpwuid (uid);
 +  if (pwd == 0)
 +    {
-+      builtin_error ("cannot find name for user ID %lu", (unsigned long) geteuid ());
++      fprintf (stderr, "whoami: cannot find name for user ID %lu\n",
++               (unsigned long) uid);
 +      return (EXECUTION_FAILURE);
 +    }
 +  printf ("%s\n", pwd->pw_name);
@@ -99,7 +102,7 @@
  	(char *)NULL
  };
  
-@@ -69,6 +104,6 @@
+@@ -69,6 +107,6 @@
  	whoami_builtin,
  	BUILTIN_ENABLED,
  	whoami_doc,

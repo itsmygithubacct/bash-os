@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "transfer-ldap-invalid-filter-compound-starttls-bind-r4",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Reject compound-starttls-bind filter before any connection or bind side effects",
+      "covers": [
+        "ldap/deferred-plain-search"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Failure with a filter diagnostic and no accepted connection, including with TLS and bind options.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve invalid-filter > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap search -H \"ldap://127.0.0.1:$port\" -b dc=ex -ZZ -D cn=alice -y /nonexistent/ldap-password \"(&)\" cn > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check invalid-filter\n/bin/grep -q \"LDAP filter\" \"$HOME/client.err\" && printf \"diagnostic=yes\\n\" || printf \"diagnostic=no\\n\"\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "stdout": "status=1\npeer-status=0\npeer=ok\ndiagnostic=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "transfer-ldap-invalid-filter-trailing-bind-r4",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Reject trailing-bind filter before any connection or bind side effects",
+      "covers": [
+        "ldap/deferred-plain-search"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Failure with a filter diagnostic and no accepted connection, including with TLS and bind options.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve invalid-filter > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap search -H \"ldap://127.0.0.1:$port\" -b dc=ex -D cn=alice -w unused \"(cn=x)junk\" cn > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check invalid-filter\n/bin/grep -q \"LDAP filter\" \"$HOME/client.err\" && printf \"diagnostic=yes\\n\" || printf \"diagnostic=no\\n\"\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "stdout": "status=1\npeer-status=0\npeer=ok\ndiagnostic=yes\n",
+      "stderr": ""
+    },
+    {
+      "id": "transfer-ldap-invalid-filter-missing-attribute-r4",
+      "loadable": "ldap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Reject missing-attribute filter before any connection or bind side effects",
+      "covers": [
+        "ldap/deferred-plain-search"
+      ],
+      "oracle": "Independent RFC 4511/4532 BER vectors and bounded one-connection loopback peer. The peer records exact requests, supplies predetermined result messages, and checks close/ordering. OpenSSL validates the throwaway TLS certificate in TLS cases.",
+      "comparison": "Failure with a filter diagnostic and no accepted connection, including with TLS and bind options.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-ldap-peer-r2.py": "9a2883102e0a7888f478066e77d62bc5bf90b77e617a059c4405a8d01b08a365"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py selfcheck\n",
+      "setup_timeout": 50,
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/transfer-ldap-peer-r2.py\n/usr/bin/python3 \"$H\" serve invalid-filter > \"$HOME/peer.out\" 2> \"$HOME/peer.err\" &\npeer=$!\nfor ((i=0;i<80;i++)); do [[ -s \"$HOME/peer-port\" ]] && break; /bin/sleep 0.05; done\n[[ -s \"$HOME/peer-port\" ]] || { wait \"$peer\"; echo 'peer did not bind'; exit 98; }\nport=$(<\"$HOME/peer-port\")\nbuiltin ldap search -H \"ldap://127.0.0.1:$port\" -b dc=ex  \"(=x)\" cn > \"$HOME/client.out\" 2> \"$HOME/client.err\"\nrc=$?\nprintf 'status=%s\\n' \"$rc\"\nwait \"$peer\"; printf 'peer-status=%s\\n' \"$?\"\n/usr/bin/python3 \"$H\" check invalid-filter\n/bin/grep -q \"LDAP filter\" \"$HOME/client.err\" && printf \"diagnostic=yes\\n\" || printf \"diagnostic=no\\n\"\n",
+      "expected_status": 0,
+      "timeout": 20,
+      "diagnostic_files": [
+        "peer-result.json",
+        "peer.out",
+        "peer.err",
+        "client.out",
+        "client.err"
+      ],
+      "stdout": "status=1\npeer-status=0\npeer=ok\ndiagnostic=yes\n",
+      "stderr": ""
+    }
+  ]
+}

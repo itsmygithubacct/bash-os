@@ -251,7 +251,7 @@ bts_run_command (const cpu_set_t *set, WORD_LIST *cmd)
       if (sched_setaffinity (0, sizeof *set, set) < 0)
         {
           fprintf (stderr, "taskset: sched_setaffinity: %s\n", strerror (errno));
-          _exit (125);
+          _exit (EXECUTION_FAILURE);
         }
       execvp (argv[0], argv);
       int err = errno;
@@ -300,7 +300,12 @@ taskset_builtin (WORD_LIST *list)
     { puts ("taskset 0.1"); return EXECUTION_SUCCESS; }
 
   int cpu_list = 0;
-  if (strcmp (w, "-c") == 0 || strcmp (w, "--cpu-list") == 0)
+  if (strcmp (w, "-cp") == 0)
+    {
+      cpu_list = 1;
+      w = "-p";
+    }
+  else if (strcmp (w, "-c") == 0 || strcmp (w, "--cpu-list") == 0)
     {
       cpu_list = 1;
       list = list->next;
@@ -355,6 +360,9 @@ taskset_builtin (WORD_LIST *list)
           if ((cpu_list ? bts_parse_cpu_list : bts_parse_mask) (list->next->word->word, &newset) < 0)
             { builtin_error ("invalid %s: %s", cpu_list ? "cpu list" : "mask", list->next->word->word); return EXECUTION_FAILURE; }
           if (bts_set_affinity (pid, &newset) != EXECUTION_SUCCESS)
+            return EXECUTION_FAILURE;
+          /* Linux intersects the request with online and permitted CPUs. */
+          if (bts_get_affinity (pid, &newset) != EXECUTION_SUCCESS)
             return EXECUTION_FAILURE;
           char newbuf[CPU_SETSIZE * 6 + 2];
           if (cpu_list)

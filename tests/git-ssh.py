@@ -110,6 +110,19 @@ with tempfile.TemporaryDirectory(prefix='git-ssh-') as name:
     simple = {'GIT_SSH_COMMAND': str(tmp/'simple')}
     theirs = {'GIT_SSH_COMMAND': str(to_ours)}
 
+    # The announcement precedes a remote failure, including for a missing
+    # repository. Reuse the destination so the complete diagnostics compare.
+    missing = f'example.com:{tmp}/missing.git'
+    for flags in ((), ('--quiet',), ('--bare',)):
+        args = ('clone', *flags, missing, 'missing-clone')
+        reference = git(tmp, *args, check_status=False, env=ours)
+        candidate = bgit(*args, cwd=tmp, status=reference.returncode, env=ours)
+        check(reference.returncode == 128 and candidate.stdout == reference.stdout
+              and candidate.stderr == reference.stderr,
+              'missing remote clone diagnostics', flags, reference.stderr,
+              candidate.stderr)
+        check(not (tmp/'missing-clone').exists(), 'failed clone cleans up')
+
     # --- something to fetch ----------------------------------------------
     origin = tmp/'origin.git'
     git(tmp, 'init', '-q', '-b', 'main', '--bare', str(origin))

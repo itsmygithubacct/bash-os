@@ -1,0 +1,101 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "qualification-gpu-input-readonly-key-recovery-t095",
+      "loadable": "gpu",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Readonly key binding fails after terminal restoration; a subsequent input succeeds and fullscreen stop restores modes.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-graphics-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-graphics-audit121-r3.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-graphics-audit121-r3.py run candidate \"$BASH\"\n",
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 50,
+      "covers": [
+        "gpu/terminal-input-and-restoration"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "scenario.json": "{\n  \"kind\": \"gpu\",\n  \"description\": \"Readonly key binding fails after terminal restoration; a subsequent input succeeds and fullscreen stop restores modes.\",\n  \"geometry\": [\n    12,\n    40,\n    400,\n    240\n  ],\n  \"width\": 4,\n  \"height\": 3,\n  \"transport\": \"inline\",\n  \"fullscreen\": true,\n  \"peer\": {\n    \"kilix_frames\": true\n  },\n  \"query_transports\": [\n    \"d\"\n  ],\n  \"operations\": [],\n  \"inputs\": [\n    {\n      \"event_base64\": \"U1RBTEU=\",\n      \"wait\": true,\n      \"readonly\": true,\n      \"status\": 1,\n      \"send_base64\": \"Wg==\"\n    },\n    {\n      \"event_base64\": \"WA==\",\n      \"wait\": true,\n      \"status\": 0,\n      \"send_base64\": \"WA==\"\n    }\n  ],\n  \"expected_result\": {\n    \"frames\": [],\n    \"inputs\": [\n      {\n        \"status\": 1,\n        \"event_base64\": \"U1RBTEU=\"\n      },\n      {\n        \"status\": 0,\n        \"event_base64\": \"WA==\"\n      }\n    ]\n  }\n}\n"
+      },
+      "helpers_sha256": {
+        "helpers/terminal-platform-graphics-audit121-r3.py": "48d2b09b319d5c93caa9277bd34b8c5275d2503e94478c40800dd620002803e9"
+      },
+      "diagnostic_files": [
+        "assertions.json",
+        "phases.json",
+        "oracle.json",
+        "terminal.raw",
+        "terminal.json",
+        "protocol.json",
+        "shared-memory.json",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "model-control.json",
+        "shm-control.json",
+        "native.json",
+        "setup-terminal.json",
+        "setup-protocol.json",
+        "reference-control.json"
+      ],
+      "oracle": "Independent finite Kitty direct RGB/RGBA and POSIX shared-memory consumer follows the official graphics protocol; query success/rejection, m continuation, q quiet replies, complete-image placement, C cursor policy and typed geometry are decoded from actual PTY bytes. Frame1 a=f replacement and a=c/N=2 composition are explicitly a Kilix profile, not general Kitty conformance. Native guarded Python PTY query/reply and owned shm read/unlink, literal positive/negative consumer controls, independently decoded PNG/PPM assets, Python Unicode and separate canvas math validate expectations in setup. No GNU GPU API, GLES, shader, DMABUF or physical rendering equivalence is claimed.",
+      "comparison": "Exact result.json pixels/cursor/geometry/input-variable bytes and canvas.rgba versus independently authored fixture data rechecked by guest reference math. Full untouched PTY wire, per-packet payloads and intermediate composition pixels, actual helper replies/suppression, owned shm inode/data/unlink observations, geometry, syscall readiness, modes before/during/after input, elapsed intervals and original shell output stay in diagnostics. No sent key or FAIL implies an unexecuted later phase."
+    },
+    {
+      "id": "qualification-gpu-input-readonly-timeout-recovery-t095",
+      "loadable": "gpu",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Readonly timeout binding fails after terminal restoration; a subsequent input succeeds and fullscreen stop restores modes.",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-graphics-audit121-r3.py setup\n",
+      "setup_timeout": 15,
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-graphics-audit121-r3.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-platform-graphics-audit121-r3.py run candidate \"$BASH\"\n",
+      "expected_status": 0,
+      "stdout": "all-explicit-assertions=PASS\n",
+      "stderr": "",
+      "timeout": 50,
+      "covers": [
+        "gpu/terminal-input-and-restoration"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "scenario.json": "{\n  \"kind\": \"gpu\",\n  \"description\": \"Readonly timeout binding fails after terminal restoration; a subsequent input succeeds and fullscreen stop restores modes.\",\n  \"geometry\": [\n    12,\n    40,\n    400,\n    240\n  ],\n  \"width\": 4,\n  \"height\": 3,\n  \"transport\": \"inline\",\n  \"fullscreen\": true,\n  \"peer\": {\n    \"kilix_frames\": true\n  },\n  \"query_transports\": [\n    \"d\"\n  ],\n  \"operations\": [],\n  \"inputs\": [\n    {\n      \"event_base64\": \"U1RBTEU=\",\n      \"wait\": true,\n      \"readonly\": true,\n      \"status\": 1,\n      \"timeout_ms\": 200\n    },\n    {\n      \"event_base64\": \"WA==\",\n      \"wait\": true,\n      \"status\": 0,\n      \"send_base64\": \"WA==\"\n    }\n  ],\n  \"expected_result\": {\n    \"frames\": [],\n    \"inputs\": [\n      {\n        \"status\": 1,\n        \"event_base64\": \"U1RBTEU=\"\n      },\n      {\n        \"status\": 0,\n        \"event_base64\": \"WA==\"\n      }\n    ]\n  }\n}\n"
+      },
+      "helpers_sha256": {
+        "helpers/terminal-platform-graphics-audit121-r3.py": "48d2b09b319d5c93caa9277bd34b8c5275d2503e94478c40800dd620002803e9"
+      },
+      "diagnostic_files": [
+        "assertions.json",
+        "phases.json",
+        "oracle.json",
+        "terminal.raw",
+        "terminal.json",
+        "protocol.json",
+        "shared-memory.json",
+        "shell.json",
+        "shell.stdout.raw",
+        "shell.stderr.raw",
+        "model-control.json",
+        "shm-control.json",
+        "native.json",
+        "setup-terminal.json",
+        "setup-protocol.json",
+        "reference-control.json"
+      ],
+      "oracle": "Independent finite Kitty direct RGB/RGBA and POSIX shared-memory consumer follows the official graphics protocol; query success/rejection, m continuation, q quiet replies, complete-image placement, C cursor policy and typed geometry are decoded from actual PTY bytes. Frame1 a=f replacement and a=c/N=2 composition are explicitly a Kilix profile, not general Kitty conformance. Native guarded Python PTY query/reply and owned shm read/unlink, literal positive/negative consumer controls, independently decoded PNG/PPM assets, Python Unicode and separate canvas math validate expectations in setup. No GNU GPU API, GLES, shader, DMABUF or physical rendering equivalence is claimed.",
+      "comparison": "Exact result.json pixels/cursor/geometry/input-variable bytes and canvas.rgba versus independently authored fixture data rechecked by guest reference math. Full untouched PTY wire, per-packet payloads and intermediate composition pixels, actual helper replies/suppression, owned shm inode/data/unlink observations, geometry, syscall readiness, modes before/during/after input, elapsed intervals and original shell output stay in diagnostics. No sent key or FAIL implies an unexecuted later phase."
+    }
+  ]
+}

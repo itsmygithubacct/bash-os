@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-zlib-boundary-and-encode-zero-write",
+      "loadable": "zlib",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "zlib/short-write-and-eintr-faults"
+      ],
+      "purpose": "Retry EINTR at gzip member boundaries including EOF and a concatenated member; reject zero writes during encoding for all formats and allow a subsequent invocation.",
+      "oracle": "Python gzip creates independent members and plaintext; pinned seccomp notification helper records injected calls. A zero write must fail once with a diagnostic.",
+      "comparison": "Exact status and stdout; log assertions verify fault delivery and no repeated zero write.",
+      "requires": [
+        "python3",
+        "cmp"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "files": {
+        "fixture.py": "import gzip, json, sys\nif sys.argv[1] == \"make\":\n    a, b = b\"first member\\n\", b\"second member\\n\"\n    g = bytearray(gzip.compress(a, mtime=0))\n    extra = 65536 - len(g) - 2\n    assert 0 <= extra <= 65535\n    g[3] |= 4\n    g = g[:10] + extra.to_bytes(2, \"little\") + bytes(extra) + g[10:]\n    assert len(g) == 65536 and gzip.decompress(g) == a\n    open(\"single.gz\", \"wb\").write(gzip.compress(a, mtime=0))\n    open(\"concat.gz\", \"wb\").write(g + gzip.compress(b, mtime=0))\n    open(\"single.want\", \"wb\").write(a)\n    open(\"concat.want\", \"wb\").write(a + b)\n    open(\"plain\", \"wb\").write(bytes(range(256)) * 1024)\nelif sys.argv[1] == \"reads\":\n    calls = [json.loads(line) for line in open(sys.argv[2])]\n    assert len(calls) >= 3 and calls[0][\"reply\"] == \"continue\" and calls[1][\"reply\"] == \"errno:4\" and calls[2][\"reply\"] == \"continue\", calls\nelif sys.argv[1] == \"writes\":\n    calls = [json.loads(line) for line in open(sys.argv[2])]\n    assert len(calls) == 1 and calls[0][\"reply\"] == \"value:0\", calls\n"
+      },
+      "script": "H=/opt/bashos-parity/harness/helpers/system-sequence.py\n/usr/bin/python3 fixture.py make || exit 1\nfor name in single concat; do\n  /usr/bin/python3 \"$H\" --notify read:0=0 --reply-seq read=continue,EINTR --log \"$HOME/read.jsonl\" -- \"$BASH\" --noprofile --norc -c \"zlib < $name.gz > out\" || exit 1\n  /usr/bin/python3 fixture.py reads \"$HOME/read.jsonl\" || exit 1\n  /usr/bin/cmp -s out \"$name.want\" || exit 1\n  /usr/bin/rm \"$HOME/read.jsonl\"\n  printf '%s boundary retry ok\\n' \"$name\"\ndone\nfor fmt in gzip zlib deflate xz lzma zstd bzip2; do\n  /usr/bin/python3 \"$H\" --notify write:0=1 --reply-seq write=0 --log \"$HOME/write.jsonl\" -- \"$BASH\" --noprofile --norc -c \"zlib -e -f $fmt < plain > out 2> err; : > status-\\$?\" || exit 1\n  [[ -f status-1 && -s err ]] || exit 1\n  /usr/bin/python3 fixture.py writes \"$HOME/write.jsonl\" || exit 1\n  /usr/bin/rm \"$HOME/write.jsonl\" status-1\n  zlib -e -f \"$fmt\" < plain > encoded || exit 1\n  zlib -d -f \"$fmt\" < encoded > decoded || exit 1\n  /usr/bin/cmp -s plain decoded || exit 1\n  printf '%s encode zero and recovery ok\\n' \"$fmt\"\ndone\n",
+      "stdout": "single boundary retry ok\nconcat boundary retry ok\ngzip encode zero and recovery ok\nzlib encode zero and recovery ok\ndeflate encode zero and recovery ok\nxz encode zero and recovery ok\nlzma encode zero and recovery ok\nzstd encode zero and recovery ok\nbzip2 encode zero and recovery ok\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30
+    }
+  ]
+}

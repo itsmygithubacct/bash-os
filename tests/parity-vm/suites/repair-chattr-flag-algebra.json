@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-chattr-flag-algebra-composition-root",
+      "loadable": "chattr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chattr/flag-set-algebra"
+      ],
+      "purpose": "Retain the historical ext4 algebra sequence and independently snapshot ioctl flags on both files after each operation; also exercise reversed operators, conflicting masks, and incompatible assignment without modifying files.",
+      "oracle": "e2fsprogs 1.47.2 chattr, flags read with e2fsprogs lsattr",
+      "comparison": "Byte parity with e2fsprogs 1.47.2 status and diagnostics, lsattr output, and independent FS_IOC_GETFLAGS snapshots for both files; setup or snapshot failure is not a pass.",
+      "requires": [
+        "chattr",
+        "lsattr",
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "sed",
+        "tr",
+        "rm",
+        "python3"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nI=/tmp/root-fixture.img M=/tmp/root-fixture-mnt\n/usr/bin/truncate -s 4M $I && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal $I && /usr/bin/mkdir $M && /usr/bin/mount -o loop $I $M || { echo SETUP-FAILED; exit 99; }\ncd $M\nlsa() { for f in \"$@\"; do /usr/bin/lsattr -d \"$f\" 2>&1 | /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //'; done | /usr/bin/tr '\\n' '|'; echo; }\nsnapshot() { /usr/bin/python3 -c 'import fcntl, struct, sys; fmt = \"@l\"; request = (2 << 30) | (struct.calcsize(fmt) << 16) | (ord(\"f\") << 8) | 1\nfor p in sys.argv[1:]:\n with open(p, \"rb\") as f:\n  data = fcntl.ioctl(f.fileno(), request, struct.pack(fmt, 0))\n  print(\"%s flags=%08x\" % (p, struct.unpack(fmt, data)[0]))' f1 f2 || exit 98; }\nprintf 'a\\n' > f1; printf 'b\\n' > f2; snapshot\necho \"initial: $(lsa f1 f2)\"\nr add-two chattr +dA f1 f2;  echo \"  $(lsa f1 f2)\"; snapshot\nr remove-one chattr -A f1;   echo \"  $(lsa f1 f2)\"; snapshot\nr assign chattr =d f2;       echo \"  $(lsa f1 f2)\"; snapshot\nr assign-with-e chattr =de f2; echo \"  $(lsa f2)\"; snapshot\nr compose chattr +d -A f1;   echo \"  $(lsa f1)\"; snapshot\nr compose2 chattr -d +A f1;  echo \"  $(lsa f1)\"; snapshot\nr repeat-1 chattr +d f1;     echo \"  $(lsa f1)\"; snapshot\nr repeat-2 chattr +d f1;     echo \"  $(lsa f1)\"; snapshot\nr multi-op chattr +s +S f2;  echo \"  $(lsa f2)\"; snapshot\nr assign-empty chattr = f1;  echo \"  $(lsa f1)\"; snapshot\nr reverse chattr -A +d f1; snapshot\nr conflict chattr +d -d f1; snapshot\nr conflict-reverse chattr -A +A f1; snapshot\nr assignment-mixed chattr =d +A f1; snapshot\nr assignment-multiple chattr =d =A f1; snapshot\ncd /tmp/parity-case && /usr/bin/umount $M && /usr/bin/rm -f $I && echo teardown=ok\n",
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}

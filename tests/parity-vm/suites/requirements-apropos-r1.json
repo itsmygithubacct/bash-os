@@ -1,0 +1,585 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "Independent man-db apropos over equivalent private pages freshly indexed by mandb. Expected page identities come from fixed page data; no expected result is derived from the candidate.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos"
+      ],
+      "timeout": 20,
+      "setup_timeout": 45,
+      "observation_error_status": 125,
+      "helpers_sha256": {
+        "helpers/apropos-requirements-r1.py": "0e3282c0f46885e33dc1bdf5b6fd25aeebe9a709c03a6363c7ee49cd537b7ac6"
+      },
+      "files": {
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/alpha-x.1": ".TH ALPHA-X 1\n.SH NAME\nalpha-x \\- longer name\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/both.1": ".TH BOTH 1\n.SH NAME\nboth \\- alpha and beta together\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n",
+        "man/whatis": "alpha, aleph (1) - first apple\nalpha-x (1) - longer name\nbeta (1) - second berry\nboth (1) - alpha and beta together\ndash (1) - option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py setup\n",
+      "id": "requirements-apropos-regex-dot-r1",
+      "purpose": "Original apropos requirement control: regex-dot. Retain all historical fixtures and failures unchanged.",
+      "comparison": "Exact status/stderr and fixed complete page-identity set on each side; retain raw stdout and parsed names/section/description. Normalize presentation padding and distinct aliases for one page only; reject malformed, duplicate, missing or extra records.",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py candidate regex-dot\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py reference regex-dot\n",
+      "expected_status": 0,
+      "stdout": "regex-dot: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-controls.json",
+        "apropos-corpus.json",
+        "apropos-mandb.json",
+        "apropos-preflight.json",
+        "apropos-preflight-miss.json",
+        "apropos-reference-version.json",
+        "apropos-observation-error.json",
+        "apropos-query.json",
+        "apropos-query-verdict.json"
+      ]
+    },
+    {
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "Independent man-db apropos over equivalent private pages freshly indexed by mandb. Expected page identities come from fixed page data; no expected result is derived from the candidate.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos"
+      ],
+      "timeout": 20,
+      "setup_timeout": 45,
+      "observation_error_status": 125,
+      "helpers_sha256": {
+        "helpers/apropos-requirements-r1.py": "0e3282c0f46885e33dc1bdf5b6fd25aeebe9a709c03a6363c7ee49cd537b7ac6"
+      },
+      "files": {
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/alpha-x.1": ".TH ALPHA-X 1\n.SH NAME\nalpha-x \\- longer name\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/both.1": ".TH BOTH 1\n.SH NAME\nboth \\- alpha and beta together\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n",
+        "man/whatis": "alpha, aleph (1) - first apple\nalpha-x (1) - longer name\nbeta (1) - second berry\nboth (1) - alpha and beta together\ndash (1) - option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py setup\n",
+      "id": "requirements-apropos-regex-anchor-r1",
+      "purpose": "Original apropos requirement control: regex-anchor. Retain all historical fixtures and failures unchanged.",
+      "comparison": "Exact status/stderr and fixed complete page-identity set on each side; retain raw stdout and parsed names/section/description. Normalize presentation padding and distinct aliases for one page only; reject malformed, duplicate, missing or extra records.",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py candidate regex-anchor\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py reference regex-anchor\n",
+      "expected_status": 0,
+      "stdout": "regex-anchor: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-controls.json",
+        "apropos-corpus.json",
+        "apropos-mandb.json",
+        "apropos-preflight.json",
+        "apropos-preflight-miss.json",
+        "apropos-reference-version.json",
+        "apropos-observation-error.json",
+        "apropos-query.json",
+        "apropos-query-verdict.json"
+      ]
+    },
+    {
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "Independent man-db apropos over equivalent private pages freshly indexed by mandb. Expected page identities come from fixed page data; no expected result is derived from the candidate.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos"
+      ],
+      "timeout": 20,
+      "setup_timeout": 45,
+      "observation_error_status": 125,
+      "helpers_sha256": {
+        "helpers/apropos-requirements-r1.py": "0e3282c0f46885e33dc1bdf5b6fd25aeebe9a709c03a6363c7ee49cd537b7ac6"
+      },
+      "files": {
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/alpha-x.1": ".TH ALPHA-X 1\n.SH NAME\nalpha-x \\- longer name\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/both.1": ".TH BOTH 1\n.SH NAME\nboth \\- alpha and beta together\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n",
+        "man/whatis": "alpha, aleph (1) - first apple\nalpha-x (1) - longer name\nbeta (1) - second berry\nboth (1) - alpha and beta together\ndash (1) - option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py setup\n",
+      "id": "requirements-apropos-regex-alias-anchor-r1",
+      "purpose": "Original default-regex control: the anchored regular expression must match a complete alias name independently of the formatted record.",
+      "comparison": "Exact status/stderr and fixed complete page-identity set on each side; retain raw stdout and parsed names/section/description. Normalize presentation padding and distinct aliases for one page only; reject malformed, duplicate, missing or extra records.",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py candidate regex-alias-anchor\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py reference regex-alias-anchor\n",
+      "expected_status": 0,
+      "stdout": "regex-alias-anchor: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-controls.json",
+        "apropos-corpus.json",
+        "apropos-mandb.json",
+        "apropos-preflight.json",
+        "apropos-preflight-miss.json",
+        "apropos-reference-version.json",
+        "apropos-observation-error.json",
+        "apropos-query.json",
+        "apropos-query-verdict.json"
+      ]
+    },
+    {
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "Independent man-db apropos over equivalent private pages freshly indexed by mandb. Expected page identities come from fixed page data; no expected result is derived from the candidate.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos"
+      ],
+      "timeout": 20,
+      "setup_timeout": 45,
+      "observation_error_status": 125,
+      "helpers_sha256": {
+        "helpers/apropos-requirements-r1.py": "0e3282c0f46885e33dc1bdf5b6fd25aeebe9a709c03a6363c7ee49cd537b7ac6"
+      },
+      "files": {
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/alpha-x.1": ".TH ALPHA-X 1\n.SH NAME\nalpha-x \\- longer name\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/both.1": ".TH BOTH 1\n.SH NAME\nboth \\- alpha and beta together\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n",
+        "man/whatis": "alpha, aleph (1) - first apple\nalpha-x (1) - longer name\nbeta (1) - second berry\nboth (1) - alpha and beta together\ndash (1) - option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py setup\n",
+      "id": "requirements-apropos-default-or-r1",
+      "purpose": "Original apropos requirement control: default-or. Retain all historical fixtures and failures unchanged.",
+      "comparison": "Exact status/stderr and fixed complete page-identity set on each side; retain raw stdout and parsed names/section/description. Normalize presentation padding and distinct aliases for one page only; reject malformed, duplicate, missing or extra records.",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py candidate default-or\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py reference default-or\n",
+      "expected_status": 0,
+      "stdout": "default-or: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-controls.json",
+        "apropos-corpus.json",
+        "apropos-mandb.json",
+        "apropos-preflight.json",
+        "apropos-preflight-miss.json",
+        "apropos-reference-version.json",
+        "apropos-observation-error.json",
+        "apropos-query.json",
+        "apropos-query-verdict.json"
+      ]
+    },
+    {
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "Independent man-db apropos over equivalent private pages freshly indexed by mandb. Expected page identities come from fixed page data; no expected result is derived from the candidate.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos"
+      ],
+      "timeout": 20,
+      "setup_timeout": 45,
+      "observation_error_status": 125,
+      "helpers_sha256": {
+        "helpers/apropos-requirements-r1.py": "0e3282c0f46885e33dc1bdf5b6fd25aeebe9a709c03a6363c7ee49cd537b7ac6"
+      },
+      "files": {
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/alpha-x.1": ".TH ALPHA-X 1\n.SH NAME\nalpha-x \\- longer name\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/both.1": ".TH BOTH 1\n.SH NAME\nboth \\- alpha and beta together\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n",
+        "man/whatis": "alpha, aleph (1) - first apple\nalpha-x (1) - longer name\nbeta (1) - second berry\nboth (1) - alpha and beta together\ndash (1) - option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py setup\n",
+      "id": "requirements-apropos-explicit-and-r1",
+      "purpose": "Original apropos requirement control: explicit-and. Retain all historical fixtures and failures unchanged.",
+      "comparison": "Exact status/stderr and fixed complete page-identity set on each side; retain raw stdout and parsed names/section/description. Normalize presentation padding and distinct aliases for one page only; reject malformed, duplicate, missing or extra records.",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py candidate explicit-and\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py reference explicit-and\n",
+      "expected_status": 0,
+      "stdout": "explicit-and: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-controls.json",
+        "apropos-corpus.json",
+        "apropos-mandb.json",
+        "apropos-preflight.json",
+        "apropos-preflight-miss.json",
+        "apropos-reference-version.json",
+        "apropos-observation-error.json",
+        "apropos-query.json",
+        "apropos-query-verdict.json"
+      ]
+    },
+    {
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "Independent man-db apropos over equivalent private pages freshly indexed by mandb. Expected page identities come from fixed page data; no expected result is derived from the candidate.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos"
+      ],
+      "timeout": 20,
+      "setup_timeout": 45,
+      "observation_error_status": 125,
+      "helpers_sha256": {
+        "helpers/apropos-requirements-r1.py": "0e3282c0f46885e33dc1bdf5b6fd25aeebe9a709c03a6363c7ee49cd537b7ac6"
+      },
+      "files": {
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/alpha-x.1": ".TH ALPHA-X 1\n.SH NAME\nalpha-x \\- longer name\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/both.1": ".TH BOTH 1\n.SH NAME\nboth \\- alpha and beta together\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n",
+        "man/whatis": "alpha, aleph (1) - first apple\nalpha-x (1) - longer name\nbeta (1) - second berry\nboth (1) - alpha and beta together\ndash (1) - option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py setup\n",
+      "id": "requirements-apropos-long-and-r1",
+      "purpose": "Original apropos requirement control: long-and. Retain all historical fixtures and failures unchanged.",
+      "comparison": "Exact status/stderr and fixed complete page-identity set on each side; retain raw stdout and parsed names/section/description. Normalize presentation padding and distinct aliases for one page only; reject malformed, duplicate, missing or extra records.",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py candidate long-and\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py reference long-and\n",
+      "expected_status": 0,
+      "stdout": "long-and: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-controls.json",
+        "apropos-corpus.json",
+        "apropos-mandb.json",
+        "apropos-preflight.json",
+        "apropos-preflight-miss.json",
+        "apropos-reference-version.json",
+        "apropos-observation-error.json",
+        "apropos-query.json",
+        "apropos-query-verdict.json"
+      ]
+    },
+    {
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "Independent man-db apropos over equivalent private pages freshly indexed by mandb. Expected page identities come from fixed page data; no expected result is derived from the candidate.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos"
+      ],
+      "timeout": 20,
+      "setup_timeout": 45,
+      "observation_error_status": 125,
+      "helpers_sha256": {
+        "helpers/apropos-requirements-r1.py": "0e3282c0f46885e33dc1bdf5b6fd25aeebe9a709c03a6363c7ee49cd537b7ac6"
+      },
+      "files": {
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/alpha-x.1": ".TH ALPHA-X 1\n.SH NAME\nalpha-x \\- longer name\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/both.1": ".TH BOTH 1\n.SH NAME\nboth \\- alpha and beta together\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n",
+        "man/whatis": "alpha, aleph (1) - first apple\nalpha-x (1) - longer name\nbeta (1) - second berry\nboth (1) - alpha and beta together\ndash (1) - option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py setup\n",
+      "id": "requirements-apropos-whole-alias-r1",
+      "purpose": "Original apropos requirement control: whole-alias. Retain all historical fixtures and failures unchanged.",
+      "comparison": "Exact status/stderr and fixed complete page-identity set on each side; retain raw stdout and parsed names/section/description. Normalize presentation padding and distinct aliases for one page only; reject malformed, duplicate, missing or extra records.",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py candidate whole-alias\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py reference whole-alias\n",
+      "expected_status": 0,
+      "stdout": "whole-alias: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-controls.json",
+        "apropos-corpus.json",
+        "apropos-mandb.json",
+        "apropos-preflight.json",
+        "apropos-preflight-miss.json",
+        "apropos-reference-version.json",
+        "apropos-observation-error.json",
+        "apropos-query.json",
+        "apropos-query-verdict.json"
+      ]
+    },
+    {
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "Independent man-db apropos over equivalent private pages freshly indexed by mandb. Expected page identities come from fixed page data; no expected result is derived from the candidate.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos"
+      ],
+      "timeout": 20,
+      "setup_timeout": 45,
+      "observation_error_status": 125,
+      "helpers_sha256": {
+        "helpers/apropos-requirements-r1.py": "0e3282c0f46885e33dc1bdf5b6fd25aeebe9a709c03a6363c7ee49cd537b7ac6"
+      },
+      "files": {
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/alpha-x.1": ".TH ALPHA-X 1\n.SH NAME\nalpha-x \\- longer name\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/both.1": ".TH BOTH 1\n.SH NAME\nboth \\- alpha and beta together\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n",
+        "man/whatis": "alpha, aleph (1) - first apple\nalpha-x (1) - longer name\nbeta (1) - second berry\nboth (1) - alpha and beta together\ndash (1) - option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py setup\n",
+      "id": "requirements-apropos-alias-glob-r1",
+      "purpose": "Original apropos requirement control: alias-glob. Retain all historical fixtures and failures unchanged.",
+      "comparison": "Exact status/stderr and fixed complete page-identity set on each side; retain raw stdout and parsed names/section/description. Normalize presentation padding and distinct aliases for one page only; reject malformed, duplicate, missing or extra records.",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py candidate alias-glob\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py reference alias-glob\n",
+      "expected_status": 0,
+      "stdout": "alias-glob: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-controls.json",
+        "apropos-corpus.json",
+        "apropos-mandb.json",
+        "apropos-preflight.json",
+        "apropos-preflight-miss.json",
+        "apropos-reference-version.json",
+        "apropos-observation-error.json",
+        "apropos-query.json",
+        "apropos-query-verdict.json"
+      ]
+    },
+    {
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "Independent man-db apropos over equivalent private pages freshly indexed by mandb. Expected page identities come from fixed page data; no expected result is derived from the candidate.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos"
+      ],
+      "timeout": 20,
+      "setup_timeout": 45,
+      "observation_error_status": 125,
+      "helpers_sha256": {
+        "helpers/apropos-requirements-r1.py": "0e3282c0f46885e33dc1bdf5b6fd25aeebe9a709c03a6363c7ee49cd537b7ac6"
+      },
+      "files": {
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/alpha-x.1": ".TH ALPHA-X 1\n.SH NAME\nalpha-x \\- longer name\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/both.1": ".TH BOTH 1\n.SH NAME\nboth \\- alpha and beta together\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n",
+        "man/whatis": "alpha, aleph (1) - first apple\nalpha-x (1) - longer name\nbeta (1) - second berry\nboth (1) - alpha and beta together\ndash (1) - option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py setup\n",
+      "id": "requirements-apropos-whole-hyphen-name-r1",
+      "purpose": "Original apropos requirement control: whole-hyphen-name. Retain all historical fixtures and failures unchanged.",
+      "comparison": "Exact status/stderr and fixed complete page-identity set on each side; retain raw stdout and parsed names/section/description. Normalize presentation padding and distinct aliases for one page only; reject malformed, duplicate, missing or extra records.",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py candidate whole-hyphen-name\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py reference whole-hyphen-name\n",
+      "expected_status": 0,
+      "stdout": "whole-hyphen-name: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-controls.json",
+        "apropos-corpus.json",
+        "apropos-mandb.json",
+        "apropos-preflight.json",
+        "apropos-preflight-miss.json",
+        "apropos-reference-version.json",
+        "apropos-observation-error.json",
+        "apropos-query.json",
+        "apropos-query-verdict.json"
+      ]
+    },
+    {
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "Independent man-db apropos over equivalent private pages freshly indexed by mandb. Expected page identities come from fixed page data; no expected result is derived from the candidate.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos"
+      ],
+      "timeout": 20,
+      "setup_timeout": 45,
+      "observation_error_status": 125,
+      "helpers_sha256": {
+        "helpers/apropos-requirements-r1.py": "0e3282c0f46885e33dc1bdf5b6fd25aeebe9a709c03a6363c7ee49cd537b7ac6"
+      },
+      "files": {
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/alpha-x.1": ".TH ALPHA-X 1\n.SH NAME\nalpha-x \\- longer name\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/both.1": ".TH BOTH 1\n.SH NAME\nboth \\- alpha and beta together\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n",
+        "man/whatis": "alpha, aleph (1) - first apple\nalpha-x (1) - longer name\nbeta (1) - second berry\nboth (1) - alpha and beta together\ndash (1) - option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py setup\n",
+      "id": "requirements-apropos-leading-dash-r1",
+      "purpose": "Original apropos requirement control: leading-dash. Retain all historical fixtures and failures unchanged.",
+      "comparison": "Exact status/stderr and fixed complete page-identity set on each side; retain raw stdout and parsed names/section/description. Normalize presentation padding and distinct aliases for one page only; reject malformed, duplicate, missing or extra records.",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py candidate leading-dash\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py reference leading-dash\n",
+      "expected_status": 0,
+      "stdout": "leading-dash: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "apropos-parser-controls.json",
+        "apropos-corpus.json",
+        "apropos-mandb.json",
+        "apropos-preflight.json",
+        "apropos-preflight-miss.json",
+        "apropos-reference-version.json",
+        "apropos-observation-error.json",
+        "apropos-query.json",
+        "apropos-query-verdict.json"
+      ]
+    },
+    {
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "Independent man-db apropos over equivalent private pages freshly indexed by mandb. Expected page identities come from fixed page data; no expected result is derived from the candidate.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos"
+      ],
+      "timeout": 20,
+      "setup_timeout": 45,
+      "observation_error_status": 125,
+      "helpers_sha256": {
+        "helpers/apropos-requirements-r1.py": "0e3282c0f46885e33dc1bdf5b6fd25aeebe9a709c03a6363c7ee49cd537b7ac6"
+      },
+      "files": {
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/alpha-x.1": ".TH ALPHA-X 1\n.SH NAME\nalpha-x \\- longer name\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/both.1": ".TH BOTH 1\n.SH NAME\nboth \\- alpha and beta together\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n",
+        "man/whatis": "alpha, aleph (1) - first apple\nalpha-x (1) - longer name\nbeta (1) - second berry\nboth (1) - alpha and beta together\ndash (1) - option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py setup\n",
+      "id": "requirements-apropos-no-match-channels-r1",
+      "purpose": "Compare original no-match status and channels directly; preserve the unwrapped command status.",
+      "comparison": "Exact exit status 16 and byte-for-byte stdout/stderr parity against private man-db. Do not redirect, suppress or normalize either channel.",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nexport MANPATH=\"$PWD/man\" BASHMAN_STALE_QUIET=1\napropos -- nofixturehit\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/apropos -M \"$HOME/reference-man\" -- nofixturehit\n",
+      "expected_status": 16,
+      "diagnostic_files": [
+        "apropos-parser-controls.json",
+        "apropos-corpus.json",
+        "apropos-mandb.json",
+        "apropos-preflight.json",
+        "apropos-preflight-miss.json",
+        "apropos-reference-version.json",
+        "apropos-observation-error.json"
+      ]
+    },
+    {
+      "loadable": "apropos",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "apropos/man-db-query-reference-unavailable"
+      ],
+      "oracle": "Independent man-db apropos over equivalent private pages freshly indexed by mandb. Expected page identities come from fixed page data; no expected result is derived from the candidate.",
+      "requires": [
+        "python3",
+        "mandb",
+        "apropos"
+      ],
+      "timeout": 20,
+      "setup_timeout": 45,
+      "observation_error_status": 125,
+      "helpers_sha256": {
+        "helpers/apropos-requirements-r1.py": "0e3282c0f46885e33dc1bdf5b6fd25aeebe9a709c03a6363c7ee49cd537b7ac6"
+      },
+      "files": {
+        "pages/alpha.1": ".TH ALPHA 1\n.SH NAME\nalpha, aleph \\- first apple\n",
+        "pages/alpha-x.1": ".TH ALPHA-X 1\n.SH NAME\nalpha-x \\- longer name\n",
+        "pages/beta.1": ".TH BETA 1\n.SH NAME\nbeta \\- second berry\n",
+        "pages/both.1": ".TH BOTH 1\n.SH NAME\nboth \\- alpha and beta together\n",
+        "pages/dash.1": ".TH DASH 1\n.SH NAME\ndash \\- option -x feature\n",
+        "man/whatis": "alpha, aleph (1) - first apple\nalpha-x (1) - longer name\nbeta (1) - second berry\nboth (1) - alpha and beta together\ndash (1) - option -x feature\n"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/apropos-requirements-r1.py setup\n",
+      "id": "requirements-apropos-whole-alias-prefix-miss-r1",
+      "purpose": "Compare original no-match status and channels directly; preserve the unwrapped command status.",
+      "comparison": "Exact exit status 16 and byte-for-byte stdout/stderr parity against private man-db. Do not redirect, suppress or normalize either channel.",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nexport MANPATH=\"$PWD/man\" BASHMAN_STALE_QUIET=1\napropos -w -- ale\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/apropos -M \"$HOME/reference-man\" -w -- ale\n",
+      "expected_status": 16,
+      "diagnostic_files": [
+        "apropos-parser-controls.json",
+        "apropos-corpus.json",
+        "apropos-mandb.json",
+        "apropos-preflight.json",
+        "apropos-preflight-miss.json",
+        "apropos-reference-version.json",
+        "apropos-observation-error.json"
+      ]
+    }
+  ]
+}

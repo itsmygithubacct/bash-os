@@ -49,6 +49,7 @@ typedef struct btp_tty_state {
 
 int btp_tty_enter_raw(btp_tty_state *st, int fd);   /* hides cursor, raw mode */
 int btp_tty_restore(btp_tty_state *st);             /* shows cursor, resets    */
+int btp_tty_interrupted(void);                     /* signal seen in raw mode */
 /* Read one key into name[] (e.g. "UP_ARROW","ENTER","SPACE","ESCAPE", or the
  * literal UTF-8/ascii char). Returns 1 on a key, 0 on timeout, -1 on EOF/error.
  * timeout_ms < 0 blocks. A lone ESC resolves to ESCAPE after ~50ms. */

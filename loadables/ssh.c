@@ -4624,7 +4624,7 @@ static int run_cmd (WORD_LIST *args)
 
   int id = libssh_connect_session (host, port, user, key, forward_agent, jump);
   if (id < 0)
-    return EXECUTION_FAILURE;                 /* it has said why already */
+    return 255;                               /* SSH connection failure */
   ssh_handle sh;
   memset (&sh, 0, sizeof sh);
   sh.libssh = 1;
@@ -4641,7 +4641,7 @@ static int run_cmd (WORD_LIST *args)
       }
   }
 #endif
-  return rc < 0 ? EXECUTION_FAILURE : rc;
+  return rc < 0 ? 255 : rc;                 /* SSH transport failure */
 }
 
 /* Interactive PTY shell on an established (libssh) handle. F06 item 3 slice 3.

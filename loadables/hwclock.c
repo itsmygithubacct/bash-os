@@ -295,9 +295,14 @@ bhc_parse_adjtime (const char *path, struct bhc_adjtime *adj)
       return -1;
     }
 
-  if (strcmp (line3, "LOCAL") == 0)
+  cursor = bhc_skip_space (line3);
+  char *end = cursor + strlen (cursor);
+  while (end > cursor && isspace ((unsigned char) end[-1]))
+    end--;
+  *end = '\0';
+  if (strcmp (cursor, "LOCAL") == 0)
     adj->mode = BHC_LOCALTIME;
-  else if (strcmp (line3, "UTC") == 0)
+  else if (strcmp (cursor, "UTC") == 0)
     adj->mode = BHC_UTC;
   else
     {

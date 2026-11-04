@@ -50,11 +50,12 @@ killall_builtin (WORD_LIST *list)
 char *killall_doc[] = {
     "Signal every process with comm exactly equal to any NAME.",
     "",
-    "    bashkillall [-SIGNAL] [-e|--exact] [-f] [-u USER] NAME [NAME ...]",
+    "    bashkillall [-SIGNAL | -s SIGNAL | --signal SIGNAL] [-e|--exact] [-f] [-u USER] NAME [NAME ...]",
     "    bashkillall -h | --help | -V | --version",
     "",
     "    -SIGNAL    signal name (TERM, KILL, HUP, USR1, ...) or number;",
     "               with or without leading SIG. Default: TERM",
+    "    -s SIGNAL, --signal SIGNAL  select a signal",
     "    -e, --exact",
     "               accepted psmisc compatibility no-op; exact matching",
     "               is already the default",
@@ -63,8 +64,8 @@ char *killall_doc[] = {
     "    -u USER    only signal processes whose real uid is USER",
     "               (numeric or /etc/passwd name)",
     "",
-    "Each NAME is matched exactly against /proc/PID/comm (kernel-truncated",
-    "to 15 chars). Self is never signalled. Use bashpkill for substring.",
+    "Names match comm exactly; long names also use argv[0] when comm is",
+    "truncated to 15 bytes. Self is never signalled. Use bashpkill for substring.",
     "Returns 0 if any process was signalled, 1 if none or output failed,",
     "2 on usage error, 3 on a fatal proc error. Fixture roots are read-only.",
     (char *)NULL
@@ -75,6 +76,6 @@ struct builtin bashkillall_struct = {
     killall_builtin,
     BUILTIN_ENABLED,
     killall_doc,
-    "bashkillall [-SIGNAL] [-e|--exact] [-f] [-u USER] NAME [NAME ...] [-h|--help|-V|--version]",
+    "bashkillall [-SIGNAL | -s SIGNAL | --signal SIGNAL] [-e|--exact] [-f] [-u USER] NAME [NAME ...] [-h|--help|-V|--version]",
     0
 };

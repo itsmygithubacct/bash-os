@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-bashpoll-descriptor-invalid-arguments",
+      "loadable": "bashpoll",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Reject malformed, negative and overflowing descriptors and invalid setter arguments without changing fd 0.",
+      "oracle": "Shell status and diagnostics, plus Linux /proc fdinfo observed independently before and after invalid calls.",
+      "comparison": "Every invalid descriptor returns usage status 2 with its own invalid diagnostic; invalid modes and extra arguments return 2; fd 0 flags remain unchanged.",
+      "covers": [
+        "bashpoll/descriptor-flags-and-close"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "script": "set -u\nowner=$BASHPID\nobserve() { /usr/bin/python3 -c 'import sys; print(next(line.split()[1] for line in open(\"/proc/%s/fdinfo/0\" % sys.argv[1]) if line.startswith(\"flags:\")))' \"$owner\"; }\nbefore=$(observe) || exit 10\nfor value in nonsense '' -1 2147483648 999999999999999999999999 1x; do\n  for cmd in set-nonblock clear-cloexec close; do\n    if [[ $cmd == set-nonblock ]]; then\n      builtin bashpoll \"$cmd\" \"$value\" on 2>diagnostic; rc=$?\n    else\n      builtin bashpoll \"$cmd\" \"$value\" 2>diagnostic; rc=$?\n    fi\n    [[ $rc == 2 ]] && [[ $(<diagnostic) == *invalid* ]] || exit 11\n  done\ndone\nafter=$(observe) || exit 12\n[[ $before == \"$after\" ]] || exit 13\nfor mode in invalid '' ON; do\n  builtin bashpoll set-nonblock 0 \"$mode\" 2>diagnostic; rc=$?\n  [[ $rc == 2 ]] && [[ -s diagnostic ]] || exit 14\ndone\nbuiltin bashpoll set-nonblock 0 on extra 2>diagnostic; rc=$?\n[[ $rc == 2 ]] || exit 15\nbuiltin bashpoll clear-cloexec 0 extra 2>diagnostic; rc=$?\n[[ $rc == 2 ]] || exit 16\nafter=$(observe) || exit 17\n[[ $before == \"$after\" ]] || exit 18\nprintf 'invalid descriptor and mode rejected; fd 0 unchanged\\n'\n",
+      "expected_status": 0,
+      "timeout": 30,
+      "stdout": "invalid descriptor and mode rejected; fd 0 unchanged\n",
+      "stderr": ""
+    }
+  ]
+}

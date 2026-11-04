@@ -103,7 +103,7 @@ bu_count_users (void)
     int n = 0;
     struct utmp u;
     while (read (fd, &u, sizeof u) == sizeof u)
-        if (u.ut_type == USER_PROCESS) n++;
+        if (u.ut_type == USER_PROCESS && u.ut_user[0]) n++;
     close (fd);
     return n;
 }
@@ -181,16 +181,15 @@ uptime_builtin (WORD_LIST *list)
     double load[3] = { 0, 0, 0 };
     bu_read_loadavg (load);
 
+    printf (" %s up ", timebuf);
     if (days > 0)
-        printf (" %s up %ld day%s, %2ld:%02ld,  %d user%s,  load average: %.2f, %.2f, %.2f\n",
-                timebuf, days, days == 1 ? "" : "s", hh, mm,
-                users, users == 1 ? "" : "s",
-                load[0], load[1], load[2]);
+        printf ("%ld day%s, ", days, days == 1 ? "" : "s");
+    if (hh > 0)
+        printf ("%2ld:%02ld", hh, mm);
     else
-        printf (" %s up %2ld:%02ld,  %d user%s,  load average: %.2f, %.2f, %.2f\n",
-                timebuf, hh, mm,
-                users, users == 1 ? "" : "s",
-                load[0], load[1], load[2]);
+        printf ("%ld min", mm);
+    printf (", %2d user%s,  load average: %.2f, %.2f, %.2f\n",
+            users, users == 1 ? "" : "s", load[0], load[1], load[2]);
     return EXECUTION_SUCCESS;
 }
 

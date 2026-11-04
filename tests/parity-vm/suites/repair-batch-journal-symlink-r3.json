@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-batch-journal-symlink-r3",
+      "loadable": "batch",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Reject a journal-directory symlink without writing outside the spool.",
+      "oracle": "Private target directory and independent directory listing, marker, status and queue observations.",
+      "comparison": "Nonzero submission, no target modifications and no queued job.",
+      "covers": [
+        "batch/cron-consumer-semantics"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/batch-journal-symlink-r3.py": "b35b3c4cd943017eb3690d85601820c413f8fdcdda8ca1f72acfe18f915f7746",
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/batch-journal-symlink-r3.py \"$BASH\"",
+      "expected_status": 0,
+      "timeout": 30,
+      "stdout": "journal-symlink-rejected=ok\n",
+      "stderr": ""
+    }
+  ]
+}

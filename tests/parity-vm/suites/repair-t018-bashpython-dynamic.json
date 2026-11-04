@@ -1,0 +1,163 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-t018-dynamic-bashpython-prompt-primary",
+      "loadable": "bashpython",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "bashpython/interactive-prompt"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
+      "timeout": 12,
+      "steps": [
+        {
+          "expect": ">>> "
+        },
+        {
+          "send": "\u0004"
+        },
+        {
+          "expect": "after=0"
+        }
+      ],
+      "expected_status": 0,
+      "comparison": "Dynamically load the prepared bashpython module before exercising the same prompt, execution, continuation, or EOF and terminal restoration contract as the historical case.",
+      "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
+      "candidate_script": "enable -f /opt/t018-python/usr/lib/bash-os/loadables/bashpython.so bashpython || exit 125\n[[ $(type -t bashpython) == builtin ]] || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "files": {
+        "inputrc": "set enable-bracketed-paste off\n"
+      }
+    },
+    {
+      "id": "repair-t018-dynamic-bashpython-prompt-exec-line",
+      "loadable": "bashpython",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "bashpython/interactive-prompt"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
+      "timeout": 12,
+      "steps": [
+        {
+          "expect": ">>> "
+        },
+        {
+          "send": "print(6*7)\r"
+        },
+        {
+          "expect": "\\r\\n42\\r\\n(?:\\x1b\\[\\?2004[hl])*>>> "
+        },
+        {
+          "send": "\u0004"
+        },
+        {
+          "expect": "after=0"
+        }
+      ],
+      "expected_status": 0,
+      "comparison": "Dynamically load the prepared bashpython module before exercising the same prompt, execution, continuation, or EOF and terminal restoration contract as the historical case.",
+      "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
+      "candidate_script": "enable -f /opt/t018-python/usr/lib/bash-os/loadables/bashpython.so bashpython || exit 125\n[[ $(type -t bashpython) == builtin ]] || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "files": {
+        "inputrc": "set enable-bracketed-paste off\n"
+      }
+    },
+    {
+      "id": "repair-t018-dynamic-bashpython-prompt-continuation",
+      "loadable": "bashpython",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "bashpython/interactive-prompt"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
+      "timeout": 12,
+      "steps": [
+        {
+          "expect": ">>> "
+        },
+        {
+          "send": "for i in range(2):\r"
+        },
+        {
+          "expect": "\\.\\.\\. "
+        },
+        {
+          "send": "    print(i)\r"
+        },
+        {
+          "expect": "\\.\\.\\. "
+        },
+        {
+          "send": "\r"
+        },
+        {
+          "expect": "0\\r\\n1\\r\\n(?:\\x1b\\[\\?2004[hl])*>>> "
+        },
+        {
+          "send": "\u0004"
+        },
+        {
+          "expect": "after=0"
+        }
+      ],
+      "expected_status": 0,
+      "comparison": "Dynamically load the prepared bashpython module before exercising the same prompt, execution, continuation, or EOF and terminal restoration contract as the historical case.",
+      "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
+      "candidate_script": "enable -f /opt/t018-python/usr/lib/bash-os/loadables/bashpython.so bashpython || exit 125\n[[ $(type -t bashpython) == builtin ]] || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "files": {
+        "inputrc": "set enable-bracketed-paste off\n"
+      }
+    },
+    {
+      "id": "repair-t018-dynamic-bashpython-prompt-eof",
+      "loadable": "bashpython",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "bashpython/interactive-prompt"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
+      "timeout": 12,
+      "steps": [
+        {
+          "expect": ">>> "
+        },
+        {
+          "send": "print('marker')\r"
+        },
+        {
+          "expect": "marker\\r\\n(?:\\x1b\\[\\?2004[hl])*>>> "
+        },
+        {
+          "send": "\u0004"
+        },
+        {
+          "expect": "after=0\\r\\n"
+        }
+      ],
+      "expected_status": 0,
+      "comparison": "Dynamically load the prepared bashpython module before exercising the same prompt, execution, continuation, or EOF and terminal restoration contract as the historical case.",
+      "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
+      "candidate_script": "enable -f /opt/t018-python/usr/lib/bash-os/loadables/bashpython.so bashpython || exit 125\n[[ $(type -t bashpython) == builtin ]] || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "files": {
+        "inputrc": "set enable-bracketed-paste off\n"
+      }
+    }
+  ]
+}

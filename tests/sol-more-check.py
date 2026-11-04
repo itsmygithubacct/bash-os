@@ -186,7 +186,9 @@ def main():
 
         def hint(t):
             t.start('more -d -n 3 '+source)
-            require(b'line-0003\r\n' in t.until(b'(space=page, enter=line, q=quit)'))
+            require(b'line-0003\r\n' in t.until(b"[Press space to continue, 'q' to quit.]"))
+            t.send(b'x')
+            require(b'line-0004' not in t.until(b"[Press space to continue, 'q' to quit.]"))
             t.send(b'Q')
             t.done()
         check('PTY -d hint and Q restoration', lambda: terminal_test(hint))
@@ -204,6 +206,15 @@ def main():
             t.send(b'q')
             require(PROMPT not in t.done())
         check('PTY quit stops the full operand list', lambda: terminal_test(quit_files))
+
+        def quit_next_file(t):
+            (root/'short-a').write_text('first\n')
+            (root/'short-b').write_text('second\n')
+            t.start('more '+shlex.quote(str(root/'short-a'))+' '+shlex.quote(str(root/'short-b')))
+            require(b'first\r\n' in t.until(b'Next file: '))
+            t.send(b'q')
+            require(b'second\r\n' not in t.done())
+        check('PTY quit at next-file prompt restores terminal', lambda: terminal_test(quit_next_file))
 
         def help_search(t):
             t.start('more -n 3 '+source)

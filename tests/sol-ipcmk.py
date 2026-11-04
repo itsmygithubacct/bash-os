@@ -81,6 +81,20 @@ def main():
             invalid.append(['-Q', '-p', value])
         invalid.extend([['-S', '2147483648'], ['-S', '2147483647'], ['-M', '18446744073709551615'], ['-m', '18446744073709551615', '-n', f'/sol_ipcmk_range_{os.getpid()}']])
         script = start
+        # Exact C-locale diagnostics shared by the historical SysV case.
+        for args, error in [
+            (['-M', 'x'], "ipcmk: failed to parse size: 'x': Invalid argument\n"),
+            (['-M', '0'], 'ipcmk: create share memory failed: Invalid argument\n'),
+            (['-S', 'x'], "ipcmk: failed to parse elements: 'x'\n"),
+            (['-S', '0'], 'ipcmk: create semaphore failed: Invalid argument\n'),
+            (['-Q', '-p', '999'], 'ipcmk: failed to parse mode: Success\n'),
+            (['-Z'], "ipcmk: invalid option -- 'Z'\nTry 'ipcmk --help' for more information.\n"),
+            (['-M'], "ipcmk: option requires an argument -- 'M'\nTry 'ipcmk --help' for more information.\n"),
+        ]:
+            command = shlex.join(['ipcmk'] + args)
+            script += f'if {command} >{out} 2>{out}.err; then exit 30; fi\n'
+            script += f'IFS= read -r -d "" actual <{out}.err || :\n'
+            script += f'[[ ! -s {out} && $actual == {shlex.quote(error)} ]] || exit 31\n'
         for args in invalid:
             command = shlex.join(['ipcmk'] + args)
             script += f'if {command} >{out} 2>{out}.err; then echo {shlex.quote("unexpected success: " + command)}; exit 20; fi\n[[ ! -s {out} && -s {out}.err ]] || exit 21\n'

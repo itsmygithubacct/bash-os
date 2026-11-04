@@ -452,8 +452,7 @@ bashpcap_capture_frames (const struct bashpcap_capture_opts *opts,
         }
     }
 
-    /* Capacity: snaplen + a margin for headers we never see at this
-       layer (raw frame already comes in). */
+    /* Keep a small minimum buffer while limiting exposed data to snaplen. */
     size_t bufcap = (size_t) snaplen;
     if (bufcap < 64)    bufcap = 64;
     if (bufcap > 65535) bufcap = 65535;
@@ -489,7 +488,9 @@ bashpcap_capture_frames (const struct bashpcap_capture_opts *opts,
                      got, count);
             break;
         }
-        ssize_t r = recv (sock, buf, bufcap, 0);
+        /* Linux AF_PACKET returns the wire length with MSG_TRUNC even when
+           the supplied buffer holds only a prefix of the frame. */
+        ssize_t r = recv (sock, buf, bufcap, MSG_TRUNC);
         if (r < 0) {
             if (errno == EINTR) continue;
             builtin_error ("capture: recv: %s", strerror (errno));
@@ -500,7 +501,7 @@ bashpcap_capture_frames (const struct bashpcap_capture_opts *opts,
         struct timespec ts;
         clock_gettime (CLOCK_REALTIME, &ts);
         uint32_t incl = (uint32_t) r;
-        uint32_t orig = incl;            /* AF_PACKET gives us full frame */
+        uint32_t orig = incl;
         if (incl > (uint32_t) snaplen) incl = (uint32_t) snaplen;
         struct bashpcap_frame frame;
         memset (&frame, 0, sizeof frame);

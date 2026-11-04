@@ -147,8 +147,8 @@ char *tar_doc[] = {
     "Create (-c), list (-t), or extract (-x) ustar/PAX archives; -f selects the archive.",
     "Supports -C directory, -z gzip, -v, -O stdout, -p permissions, --strip-components.",
     "Uses the pax engine. Unsupported options fail instead of being ignored.",
-    "Preserves regular-file hardlinks with nonconflicting member names; supports FIFOs.",
-    "No append/update, sparse/device entries, absolute member names or automatic compression detection.", NULL
+    "Preserves regular-file hardlinks with nonconflicting member names; supports FIFOs and devices.",
+    "No append/update, sparse entries, absolute member names or automatic compression detection.", NULL
 };
 struct builtin tar_struct = {
     "tar", tar_builtin, BUILTIN_ENABLED, tar_doc, "tar -c|-t|-x [-zv] [-f ARCHIVE] [-C DIR] [FILE...]", 0

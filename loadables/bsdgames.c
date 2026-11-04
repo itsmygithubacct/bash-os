@@ -21536,9 +21536,11 @@ static void bg_tetris_draw(const bg_tetris_game *g) {
 /* Interactive loop: gravity on a wall clock, keys via poll, signal-safe restore. */
 static int bg_tetris_run_interactive(bg_tetris_game *g) {
     long fallrate;              /* microseconds between gravity ticks */
-    long acc_ms = 0;
-    int step_ms = 50;
+    long long acc_ns = 0;
+    int step_ms = 50, paused = 0;
+    struct timespec last, now;
 
+    bg_tetris_sig_caught = 0;
     signal(SIGHUP,  bg_tetris_onsig);
     signal(SIGINT,  bg_tetris_onsig);
     signal(SIGTERM, bg_tetris_onsig);
@@ -21550,19 +21552,31 @@ static int bg_tetris_run_interactive(bg_tetris_game *g) {
     fallrate = 1000000L / g->level;     /* oracle: 1e6 / level microseconds */
 
     bg_tetris_draw(g);
+    clock_gettime(CLOCK_MONOTONIC, &last);
     while (!g->over && !g->quit && !bg_tetris_sig_caught) {
         int got = 0;
         int b = bg_tetris_getbyte_poll(&got, step_ms);
         if (b < 0) break;               /* EOF on the tty: stop cleanly */
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        if (!paused)
+            acc_ns += (now.tv_sec - last.tv_sec) * 1000000000LL +
+                      (now.tv_nsec - last.tv_nsec);
+        last = now;
         if (got) {
-            if (b == ' ') b = g->keys[3];
-            if (!bg_tetris_apply(g, b))
+            if (b == g->keys[4]) {
+                paused = !paused;
+                /* Resume with a full fall interval, independent of pause time. */
+                acc_ns = 0;
+            } else if (b == g->keys[5]) {
+                bg_tetris_apply(g, b);
                 break;
+            } else if (!paused && !bg_tetris_apply(g, b)) {
+                break;
+            }
             bg_tetris_draw(g);
         }
-        acc_ms += step_ms;
-        if (acc_ms * 1000L >= fallrate) {
-            acc_ms = 0;
+        if (!paused && acc_ns >= fallrate * 1000LL) {
+            acc_ns = 0;
             bg_tetris_tick(g);
             /* speed up a touch each tick, bounded, like the oracle faster() */
             fallrate -= fallrate / 3000;
@@ -21574,6 +21588,7 @@ static int bg_tetris_run_interactive(bg_tetris_game *g) {
     fputs(BG_TETRIS_CLR, stdout);
     fputs(BG_TETRIS_HOME, stdout);
     bg_tetris_restore_tty();
+    bg_tetris_print_score(g);
     return 0;
 }
 

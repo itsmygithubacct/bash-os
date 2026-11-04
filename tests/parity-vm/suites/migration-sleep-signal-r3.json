@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-sleep-sigint-trap-bounded-r3",
+      "loadable": "sleep",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "sleep/sleep_signal_interruption"
+      ],
+      "purpose": "Verify process-group SIGINT interrupts both default and trapped sleep promptly, preserves the sibling group, and reports the external sleep status to the trap-following script.",
+      "oracle": "GNU coreutils 9.7 sleep(1) driven by the identical GNU Bash 5.3.15 job-control script",
+      "comparison": "The historical process-group fixture with an explicit trapped sleep status assertion and a four-second upper bound; compare both candidate and GNU reference outputs and exit status. Readiness and group isolation remain as in migration-sleep-sigint-group-r2.",
+      "requires": [
+        "mkfifo"
+      ],
+      "setup_script": "/usr/bin/mkfifo pace.fifo\n",
+      "script": "exec 2>>\"$HOME/shell-stderr.log\"\nset -m\nexec 9<>pace.fifo\npause() { read -r -t 0.02 -u 9 _; return 0; }\nstat_fields() { local line; read -r line <\"/proc/$1/stat\" 2>/dev/null || return 1; printf '%s' \"${line##*) }\"; }\nmember_sleeping() {\n  local f pid w a\n  for f in /proc/[0-9]*/stat; do\n    pid=${f#/proc/}; pid=${pid%/stat}\n    a=($(stat_fields \"$pid\")) || continue\n    [[ ${a[2]} == \"$1\" && ${a[0]} == S ]] || continue\n    w=$(<\"/proc/$pid/wchan\") 2>/dev/null || continue\n    [[ $w == *sleep* || $w == *select* || $w == *poll* || $w == *hrtimer* ]] && return 0\n  done\n  return 1\n}\nawait() { local i; for ((i = 0; i < 250; i++)); do member_sleeping \"$1\" && return 0; pause; done; return 1; }\nown_group() { local a; a=($(stat_fields \"$1\")); [[ ${a[2]} == \"$1\" ]]; }\nprintf '[default-int]\\n'\nsleep 20 &\nsib=$!\nawait \"$sib\" && printf 'sibling-ready\\n' || printf 'sibling-not-ready\\n'\nsleep 20 &\ntarget=$!\nawait \"$target\" && printf 'target-ready\\n' || printf 'target-not-ready\\n'\nown_group \"$target\" && own_group \"$sib\" && [[ $target != \"$sib\" ]] && printf 'separate-groups=yes\\n' || printf 'separate-groups=no\\n'\nbuiltin kill -INT -- \"-$target\"\nwait \"$target\"\nprintf 'target-status=%d\\n' \"$?\"\nmember_sleeping \"$sib\" && printf 'sibling-unaffected\\n' || printf 'sibling-disturbed\\n'\nbuiltin kill -TERM -- \"-$sib\"\nwait \"$sib\"\nprintf 'sibling-status=%d\\n' \"$?\"\nprintf '[trapped]\\n'\n( trap 'printf \"trap-ran\\n\"' INT; start=${EPOCHREALTIME/./}; sleep 10; rc=$?; end=${EPOCHREALTIME/./}; printf 'sleep-returned=%d\\n' \"$rc\"; (( rc == 130 && 10#$end - 10#$start < 4000000 )) || exit 99; exit 7 ) &\ntarget=$!\nawait \"$target\" && printf 'target-ready\\n' || printf 'target-not-ready\\n'\nbuiltin kill -INT -- \"-$target\"\nwait \"$target\"\nrc=$?\nprintf 'target-status=%d\\n' \"$rc\"\n(( rc == 7 )) || exit 1\nprintf 'done\\n'\n",
+      "expected_status": 0,
+      "diagnostic_files": [
+        "shell-stderr.log"
+      ],
+      "timeout": 35
+    }
+  ]
+}

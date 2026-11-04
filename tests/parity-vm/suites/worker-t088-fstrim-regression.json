@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "worker-t088-fstrim-options-regression",
+      "loadable": "fstrim",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Repeat version, option and dry-run parity under a proven FITRIM-killing filter; assert candidate child resolves fstrim to the builtin and exercise additional size boundaries.",
+      "oracle": "util-linux 2.41 fstrim(8) on the reference side (same guest, same per-side tmpfs mounts, same fixture tables); the kernel decides mountpoint, permission and FITRIM results identically for both sides.",
+      "comparison": "Byte parity of status, stdout and stderr: each invocation is bracketed by \"[label]\" markers on both streams and followed by its exit status; no normalisation. The whole matrix runs in one shell under a seccomp filter that kills it with SIGSYS on FITRIM (the remaining markers would be missing and the shell status would be 159), so the dry runs and usage errors are shown to make no FITRIM request on either side; setup proves the kill rule. --version output is compared too: a different version string is a real difference. Candidate child verifies builtin resolution and fails control if it is absent.",
+      "covers": [
+        "fstrim/ranges-and-option-errors"
+      ],
+      "requires": [
+        "fstrim",
+        "gcc",
+        "python3",
+        "rm"
+      ],
+      "files": {
+        "fitrimnum.c": "/* SPDX-License-Identifier: MIT */\n/* Prints FITRIM from the guest's <linux/fs.h> (pane 214). */\n#include <stdio.h>\n#include <linux/fs.h>\nint main (void) { printf (\"%#lx\\n\", (unsigned long) FITRIM); return 0; }\n",
+        "fitrim_probe.py": "# SPDX-License-Identifier: MIT\n# Setup control (pane 214): FITRIM on PATH under the caller's seccomp rules\n# must give WANT (ok or an errno name). Usage: fitrim_probe.py PATH WANT\nimport errno, fcntl, os, struct, sys\nfd = os.open(sys.argv[1], os.O_RDONLY | os.O_CLOEXEC)\ntry:\n    fcntl.ioctl(fd, 0xc0185879, bytearray(struct.pack('QQQ', 0, 2 ** 64 - 1, 0)))\n    code = 0\nexcept OSError as error:\n    code = error.errno\nos.close(fd)\nwant = 0 if sys.argv[2] == 'ok' else getattr(errno, sys.argv[2])\nif code != want:\n    print('CONTROL-FAILED FITRIM errno %d, wanted %s' % (code, sys.argv[2]))\n    sys.exit(98)\nprint('mechanism control ok')\n",
+        "opts.sh": "if [[ ${FSTRIM_EXPECT_BUILTIN:-0} == 1 ]]; then\n  [[ $(type -t fstrim) == builtin ]] || { echo \"CONTROL-FAILED candidate fstrim is not builtin\"; exit 98; }\nfi\nr() { local label=$1; shift; echo \"[$label]\"; echo \"[$label]\" >&2; \"$@\"; echo \"[$label] status=$?\"; }\nr sizes fstrim -n -o 0x1000 -l 1MiB -m 4KB /tmp\nr fraction fstrim -n -o 1.5K /tmp\nr octal fstrim -n -o 010 -l 0x10 /tmp\nr decimal fstrim -n -l 2MB -m 3KiB /tmp\nr overflow fstrim -n -o 18446744073709551616 /tmp\nr huge fstrim -n -l 16EiB /tmp\nr exa fstrim -n -l 15EiB /tmp\nr suffix fstrim -n -o 12x /tmp\nr empty fstrim -n -o '' /tmp\nr negative fstrim -n -o -1 /tmp\nr half fstrim -n -m 0.5K /tmp\nr space fstrim -n -o '1 K' /tmp\nr after fstrim /tmp -n -v\nr dashdash fstrim -n -- /tmp\nr long fstrim --dry-run --verbose /tmp\nr equals fstrim --offset=4096 --length=8192 --minimum=512 -n /tmp\nr abbrev fstrim --offs=4096 --dry -n /tmp\nr ambiguous fstrim --l=1 -n /tmp\nr bundled fstrim -nv /tmp\nr attached fstrim -nvo4096 /tmp\nr missing fstrim -n\nr all-target fstrim -n -a /tmp\nr all-fstab fstrim -n -a -A\nr unknown fstrim -Z /tmp\nr unknown-long fstrim --bogus /tmp\nr noarg fstrim -o\nr noarg-long fstrim --offset\nr arg-flag fstrim --dry-run=1 /tmp\nr extra fstrim -n /tmp /var/tmp\nr list-noarg fstrim -I\nr types-single fstrim -n -t tmpfs /tmp\nr help fstrim --help\nr version fstrim --version\nr max fstrim -n -o 18446744073709551615 /tmp\nr near-exa fstrim -n -l 15EiB -m 0.05MiB /tmp\nr fraction-ten fstrim -n -o 0.10K /tmp\nr short-terminate fstrim -n -- /tmp -v\nr version-short fstrim -V\n"
+      },
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\nH=/opt/bashos-parity/harness/helpers/system-seccomp.py\n/usr/bin/gcc -O0 -o fitrimnum fitrimnum.c\n[[ $(./fitrimnum) == 0xc0185879 ]] || { echo \"CONTROL-FAILED FITRIM is $(./fitrimnum), table 0xc0185879\"; exit 98; }\n/usr/bin/rm -f fitrimnum\ns=0; /usr/bin/python3 \"$H\" --kill ioctl:1=0xc0185879 -- /usr/bin/python3 fitrim_probe.py /tmp ok || s=$?\n[[ $s == 159 ]] || { echo \"CONTROL-FAILED FITRIM kill rule: status $s\"; exit 98; }\n/usr/bin/python3 \"$H\" --kill ioctl:1=0xc0185879 -- /usr/bin/true || { echo \"CONTROL-FAILED kill rule hit a FITRIM-free program\"; exit 98; }\n",
+      "setup_timeout": 60,
+      "script": "export PYTHONDONTWRITEBYTECODE=1\nH=/opt/bashos-parity/harness/helpers/system-seccomp.py\nr() { local label=$1; shift; echo \"[$label]\"; echo \"[$label]\" >&2; \"$@\"; echo \"[$label] status=$?\"; }\n/usr/bin/python3 \"$H\" --kill ioctl:1=0xc0185879 -- \"$BASH\" --noprofile --norc opts.sh\ns=$?; echo \"shell status=$s\"\n[[ $s == 0 ]] || exit \"$s\"\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "candidate_script": "export FSTRIM_EXPECT_BUILTIN=1\nexport PYTHONDONTWRITEBYTECODE=1\nH=/opt/bashos-parity/harness/helpers/system-seccomp.py\nr() { local label=$1; shift; echo \"[$label]\"; echo \"[$label]\" >&2; \"$@\"; echo \"[$label] status=$?\"; }\n/usr/bin/python3 \"$H\" --kill ioctl:1=0xc0185879 -- \"$BASH\" --noprofile --norc opts.sh\ns=$?; echo \"shell status=$s\"\n[[ $s == 0 ]] || exit \"$s\"\n"
+    }
+  ]
+}

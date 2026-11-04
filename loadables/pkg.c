@@ -3072,6 +3072,20 @@ bp_loadable_reject_nonbundled_needed (const unsigned char *data, size_t len)
         builtin_error ("unsupported ELF loadable format");
         return -1;
     }
+    /* The manifest arch can be "any" and cannot establish the ISA of the
+       object. Compare against the architecture of this Bash executable. */
+#if defined(__x86_64__)
+    if (eh->e_machine != EM_X86_64) {
+#elif defined(__aarch64__)
+    if (eh->e_machine != EM_AARCH64) {
+#elif defined(__riscv) && __riscv_xlen == 64
+    if (eh->e_machine != EM_RISCV) {
+#else
+    {
+#endif
+        builtin_error ("loadable ELF machine mismatch");
+        return -1;
+    }
     if (!bp_range_fits ((size_t) eh->e_phoff,
                         (size_t) eh->e_phnum * sizeof (Elf64_Phdr), len)) {
         builtin_error ("truncated ELF program header table");

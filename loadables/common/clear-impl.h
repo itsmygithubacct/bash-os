@@ -6,12 +6,14 @@
 #include <config.h>
 #include <stdio.h>
 #include <string.h>
+#include <termios.h>
+#include <unistd.h>
 #include "loadables.h"
 #include "bashgetopt.h"
 
 /* A deliberately finite table: no terminal database is needed in a static
    image. Keep the visible-screen and E3 capabilities separate for -x.
-   VT100/VT102 serial-line padding is intentionally omitted. */
+   VT100/VT102 carry a 50ms clear delay on terminal output. */
 static const struct {
   const char *name;
   const char *screen;
@@ -41,6 +43,48 @@ static const struct {
   { "st-256color",           "\033[H\033[2J", 0 },
   { NULL, NULL, 0 }
 };
+
+/* Match the ncurses 50ms VT100 clear padding at the output speed.  A
+   non-terminal output has no baud rate and therefore needs no padding. */
+static void
+bashclear_vt_padding (void)
+{
+  struct termios tio;
+  unsigned long baud = 0, count;
+  if (tcgetattr (STDOUT_FILENO, &tio) < 0)
+    return;
+  switch (cfgetospeed (&tio))
+    {
+    case B50: baud = 50; break;
+    case B75: baud = 75; break;
+    case B110: baud = 110; break;
+    case B134: baud = 134; break;
+    case B150: baud = 150; break;
+    case B200: baud = 200; break;
+    case B300: baud = 300; break;
+    case B600: baud = 600; break;
+    case B1200: baud = 1200; break;
+    case B1800: baud = 1800; break;
+    case B2400: baud = 2400; break;
+    case B4800: baud = 4800; break;
+    case B9600: baud = 9600; break;
+    case B19200: baud = 19200; break;
+    case B38400: baud = 38400; break;
+#ifdef B57600
+    case B57600: baud = 57600; break;
+#endif
+#ifdef B115200
+    case B115200: baud = 115200; break;
+#endif
+#ifdef B230400
+    case B230400: baud = 230400; break;
+#endif
+    default: break;
+    }
+  count = 50 * baud / 9000;
+  while (count--)
+    putchar (0);
+}
 
 static int
 bashclear_version (void)
@@ -91,6 +135,8 @@ bashclear_run (WORD_LIST *list)
     if (!strcmp (term, bashclear_terms[i].name))
       {
         fputs (bashclear_terms[i].screen, stdout);
+        if (!strcmp (term, "vt100") || !strcmp (term, "vt102"))
+          bashclear_vt_padding ();
         if (bashclear_terms[i].scrollback && !keep_scrollback)
           fputs ("\033[3J", stdout);
         /* Flush now, report redirection errors, and recover stdout for the
@@ -111,7 +157,7 @@ bashclear_run (WORD_LIST *list)
     "-V/--version reports bashclear's version, not an ncurses version.", \
     "Writes control bytes to stdout, including when redirected; no newline.", \
     "", \
-    "Built-in terminal names (no external terminfo database or padding):", \
+    "Built-in terminal names (no external terminfo database):", \
     "  xterm, xterm-256color, xterm-color, xterm-kitty, alacritty, foot,", \
     "  foot-direct, screen, screen-256color, screen.xterm-256color, tmux,", \
     "  tmux-256color, linux, vt100, vt102, vt220, ansi, rxvt, rxvt-unicode,", \

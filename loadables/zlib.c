@@ -191,10 +191,11 @@ bz_codec_zlib (int in_fd, int out_fd, int encode, int level, enum bz_format fmt)
               if (s.avail_in > 0)
                 continue;             /* next member already buffered */
               /* Exact buffer boundary — try to read the next member. */
-              n = read (in_fd, inbuf, sizeof inbuf);
+              do
+                n = read (in_fd, inbuf, sizeof inbuf);
+              while (n < 0 && errno == EINTR);
               if (n < 0)
                 {
-                  if (errno == EINTR) continue;
                   builtin_error ("read: %s", strerror (errno));
                   inflateEnd (&s);
                   return 1;
@@ -284,9 +285,10 @@ bz_codec_xz (int in_fd, int out_fd, int encode, int level, enum bz_format fmt)
           while (left > 0)
             {
               ssize_t w = write (out_fd, p, left);
-              if (w < 0)
+              if (w <= 0)
                 {
-                  if (errno == EINTR) continue;
+                  if (w < 0 && errno == EINTR) continue;
+                  if (w == 0) errno = EIO;
                   builtin_error ("write: %s", strerror (errno));
                   lzma_end (&s);
                   return 1;
@@ -352,9 +354,10 @@ bz_codec_zstd (int in_fd, int out_fd, int encode, int level)
               while (left > 0)
                 {
                   ssize_t w = write (out_fd, p, left);
-                  if (w < 0)
+                  if (w <= 0)
                     {
-                      if (errno == EINTR) continue;
+                      if (w < 0 && errno == EINTR) continue;
+                      if (w == 0) errno = EIO;
                       builtin_error ("write: %s", strerror (errno));
                       ZSTD_freeCStream (cctx); return 1;
                     }
@@ -402,9 +405,10 @@ bz_codec_zstd (int in_fd, int out_fd, int encode, int level)
               while (left > 0)
                 {
                   ssize_t w = write (out_fd, p, left);
-                  if (w < 0)
+                  if (w <= 0)
                     {
-                      if (errno == EINTR) continue;
+                      if (w < 0 && errno == EINTR) continue;
+                      if (w == 0) errno = EIO;
                       builtin_error ("write: %s", strerror (errno));
                       ZSTD_freeDStream (dctx); return 1;
                     }
@@ -495,9 +499,10 @@ bz_codec_bzip2 (int in_fd, int out_fd, int encode, int level)
               while (left > 0)
                 {
                   ssize_t w = write (out_fd, p, left);
-                  if (w < 0)
+                  if (w <= 0)
                     {
-                      if (errno == EINTR) continue;
+                      if (w < 0 && errno == EINTR) continue;
+                      if (w == 0) errno = EIO;
                       builtin_error ("write: %s", strerror (errno));
                       (encode ? BZ2_bzCompressEnd : BZ2_bzDecompressEnd) (&s);
                       return 1;

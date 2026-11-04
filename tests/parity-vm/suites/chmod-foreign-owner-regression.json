@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "regression-chmod-foreign-owner-diagnostic-root",
+      "loadable": "chmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chmod/foreign-owner-and-group"
+      ],
+      "purpose": "Check EPERM diagnostics and unchanged foreign-owned files and directories, kernel setgid clearing for non-member groups, member-group control and mixed operands. Explicit status and mode assertions reject a shared setup or execution failure.",
+      "oracle": "GNU coreutils chmod under uid/gid 2000 with supplementary groups cleared",
+      "comparison": "Compare normalized diagnostics, per-command status and modes and final fixture tree; assertions enforce the expected effects on each side.",
+      "requires": [
+        "setpriv",
+        "stat",
+        "chown",
+        "chmod",
+        "sed",
+        "tr",
+        "touch",
+        "mkdir"
+      ],
+      "setup_script": "/usr/bin/mkdir -m 0755 fixtures fixtures/foreign-dir fixtures/other-group-dir\n/usr/bin/touch fixtures/foreign fixtures/root-file fixtures/other-group fixtures/member\n/usr/bin/chown 2002:3002 fixtures/foreign fixtures/foreign-dir\n/usr/bin/chown 0:0 fixtures/root-file\n/usr/bin/chown 2000:3002 fixtures/other-group fixtures/other-group-dir\n/usr/bin/chown 2000:2000 fixtures/member\n/usr/bin/chmod 0644 fixtures/foreign fixtures/root-file fixtures/other-group fixtures/member\n/usr/bin/chmod 0755 fixtures/foreign-dir fixtures/other-group-dir\n",
+      "script": "run() {\n  local label=$1 command=$2 want_status=$3 path=$4 want_mode=$5 rc actual\n  /usr/bin/setpriv --reuid=2000 --regid=2000 --clear-groups -- \"$BASH\" --noprofile --norc -c \"$command\" >/tmp/chmod-reg.out 2>/tmp/chmod-reg.err\n  rc=$?\n  actual=$(/usr/bin/stat -c %a \"$path\") || exit 97\n  printf '%s status=%s mode=%s out=' \"$label\" \"$rc\" \"$actual\"\n  /usr/bin/tr '\\n' '|' </tmp/chmod-reg.out\n  printf ' err='\n  /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' /tmp/chmod-reg.err | /usr/bin/tr '\\n' '|'\n  echo\n  [[ $rc == \"$want_status\" && $actual == \"$want_mode\" ]] || exit 98\n  if [[ $want_status != 0 ]]; then [[ -s /tmp/chmod-reg.err ]] || exit 98; else [[ ! -s /tmp/chmod-reg.err ]] || exit 98; fi\n}\nrun foreign-file 'chmod 0600 fixtures/foreign' 1 fixtures/foreign 644\nrun foreign-dir 'chmod g+s fixtures/foreign-dir' 1 fixtures/foreign-dir 755\nrun root-file 'chmod u+x fixtures/root-file' 1 fixtures/root-file 644\nrun other-group-symbolic 'chmod g+s fixtures/other-group' 0 fixtures/other-group 644\nrun other-group-octal 'chmod 2755 fixtures/other-group' 0 fixtures/other-group 755\nrun other-group-dir 'chmod 2775 fixtures/other-group-dir' 0 fixtures/other-group-dir 775\nrun member-group 'chmod 2755 fixtures/member' 0 fixtures/member 2755\nrun mixed 'chmod 0640 fixtures/member fixtures/foreign fixtures/other-group' 1 fixtures/foreign 644\n[[ $(/usr/bin/stat -c %a fixtures/member) == 640 && $(/usr/bin/stat -c %a fixtures/other-group) == 640 ]] || exit 98\n",
+      "expected_status": 0,
+      "timeout": 30
+    }
+  ]
+}

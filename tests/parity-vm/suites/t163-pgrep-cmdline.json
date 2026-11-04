@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "t163-pgrep-cmdline-synthetic",
+      "loadable": "pgrep",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Exercise byte normalization, long command lines, listing, delimiters, and no-match status on controlled proc records.",
+      "oracle": "Literal NUL-separated synthetic proc records and the pgrep command-line output contract.",
+      "covers": [
+        "pgrep/pgrep-cmdline-output"
+      ],
+      "script": "set -e\nmkdir -p proc/810001 proc/810002 proc/810003 proc/810004\nexport BASHOS_PROC_ROOT=$PWD/proc\nprintf 'one\\n' > proc/810001/comm\nprintf 'two\\n' > proc/810002/comm\nprintf 'long\\n' > proc/810003/comm\nprintf 'empty\\n' > proc/810004/comm\nprintf 'one\\000line\\nbreak\\000tab\\there\\000\\000end\\000' > proc/810001/cmdline\nprintf 'two\\000arg\\000' > proc/810002/cmdline\nprintf 'long\\000' > proc/810003/cmdline\nprintf '%06000d' 0 >> proc/810003/cmdline\nprintf 'TAIL\\000' >> proc/810003/cmdline\n: > proc/810004/cmdline\npgrep -af -x $'one line break tab\\there  end'\npgrep -l -x one\npgrep -f 'TAIL$'\npgrep -af 'TAIL$' > long.out\n[[ $(wc -c < long.out) == 6017 ]]\nprintf 'long-output-size=6017\\n'\npgrep -d, -x 'one|two' > joined\nv=$(<joined)\n[[ $v == 810001,810002 || $v == 810002,810001 ]]\nprintf 'delimiter=ok\\n'\npgrep -c -f 'no_such_cmdline' || rc=$?\nprintf 'status=%s\\n' \"${rc:-0}\"\n",
+      "stdout": "810001 one line break tab\there  end\n810001 one\n810003\nlong-output-size=6017\ndelimiter=ok\n0\nstatus=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30
+    }
+  ]
+}

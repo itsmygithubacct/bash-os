@@ -493,12 +493,13 @@ bdhcpd_load_cfg (const char *path, struct bdhcpd_cfg *c)
                   size_t ll = strlen (label);
                   if (ll > 0 && ll <= 240)
                     {
-                      unsigned char b[242];
+                      unsigned char b[243];
                       b[0] = (unsigned char) (type >> 8);
                       b[1] = (unsigned char) type;
-                      memcpy (b + 2, label, ll);
+                      b[2] = (unsigned char) ll;
+                      memcpy (b + 3, label, ll);
                       bdhcpd_pxe43_reset_for_structured (c);
-                      bdhcpd_pxe43_append (c, PXE_BOOT_MENU, b, ll + 2);
+                      bdhcpd_pxe43_append (c, PXE_BOOT_MENU, b, ll + 3);
                     }
                 }
             }
@@ -938,9 +939,12 @@ bdhcpd_build_reply (unsigned char *pkt, size_t cap, unsigned reply_type,
   pkt[10] = 0x80;            /* broadcast */
   if (!offer_only)
     memcpy (pkt + 16, yiaddr, 4);
-  /* siaddr (BOOTP "next server"): the PXE next-server when configured, else
-   * the DHCP server itself (prior behavior). */
-  memcpy (pkt + 20, cfg->have_next_server ? cfg->next_server : cfg->server_id, 4);
+  int vendor_ok = !cfg->pxe_vendor_match
+                  || (req->have_vendor_class
+                      && strncmp (req->vendor_class, "PXEClient", 9) == 0);
+  /* Preserve the ordinary server address when the PXE vendor gate fails. */
+  memcpy (pkt + 20, cfg->have_next_server && vendor_ok
+                    ? cfg->next_server : cfg->server_id, 4);
   memcpy (pkt + 24, req->giaddr, 4);   /* echo giaddr so the relay can route */
   memcpy (pkt + 28, req->chaddr, 6);
   wr32 (pkt + 236, BDHCPD_MAGIC);
@@ -982,13 +986,10 @@ bdhcpd_build_reply (unsigned char *pkt, size_t cap, unsigned reply_type,
     }
   /* PXE boot options (slice 1). Emit when any PXE config is set, gated on the
    * client's vendor-class (opt 60) starting with "PXEClient" iff
-   * pxe-vendor-match is on. siaddr already carries next-server (above). */
+   * pxe-vendor-match is on. siaddr uses the same gate (above). */
   {
     int have_pxe = cfg->tftp_server[0] || cfg->bootfile[0] || cfg->have_next_server
                    || cfg->pxe43_len > 0;
-    int vendor_ok = !cfg->pxe_vendor_match
-                    || (req->have_vendor_class
-                        && strncmp (req->vendor_class, "PXEClient", 9) == 0);
     if (have_pxe && vendor_ok)
       {
         if (offer_only)

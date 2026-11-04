@@ -1,0 +1,212 @@
+{
+  "cases": [
+    {
+      "comparison": "Lock contention returns nonzero within four seconds and files match; after release lock succeeds.",
+      "covers": [
+        "passwd/account_file_mutations"
+      ],
+      "diagnostic_files": [
+        "lock.out",
+        "lock.err",
+        "after.out",
+        "after.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "files": {
+        "db/group": "root:x:0:\nalice:x:1000:\n",
+        "db/passwd": "root:x:0:0:root:/root:/bin/sh\nalice:x:1000:1000:Alice:/home/alice:/bin/sh\n",
+        "db/shadow": "root:*:19000:0:99999:7:::\nalice:hash:19000:1:90:14:30:20000:\n",
+        "hold.py": "import fcntl,os,pathlib,time\nfd=os.open(\"db\",os.O_RDONLY|os.O_DIRECTORY)\nfcntl.flock(fd,fcntl.LOCK_EX)\npathlib.Path(\"held\").write_text(\"ready\")\ndeadline=time.monotonic()+10\nwhile not pathlib.Path(\"release\").exists():\n if time.monotonic()>deadline: raise SystemExit(125)\n time.sleep(.01)\nos.close(fd)\n",
+        "pw": "fixture-password\n"
+      },
+      "group": "shell",
+      "id": "review06-passwd-directory-lock-contention-syntax-r2",
+      "kind": "contract",
+      "loadable": "passwd",
+      "observation_error_status": 125,
+      "oracle": "An independent fcntl.flock holder, byte copies, a bounded clock and the expected locked shadow field.",
+      "purpose": "A cooperating directory lock causes bounded refusal without mutation and permits an update after release.",
+      "requires": [
+        "python3",
+        "cmp",
+        "grep",
+        "sleep"
+      ],
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/chmod 600 db/shadow\n/usr/bin/cp -a db before\n/usr/bin/python3 hold.py & holder=$!\ntrap 'kill \"$holder\" 2>/dev/null || :; wait \"$holder\" 2>/dev/null || :' EXIT\nfor ((i=0; i<300; i++)); do [[ ! -f held ]] || break; /usr/bin/sleep .01; done\n[[ -f held ]] || exit 125\nSECONDS=0\npasswd lock alice > \"$HOME/lock.out\" 2> \"$HOME/lock.err\"; rc=$?\n[[ $rc != 0 && $SECONDS -le 4 ]] || exit 1\nfor f in passwd group shadow; do /usr/bin/cmp -s \"db/$f\" \"before/$f\" || exit 2; done\nprintf 'bounded-contention=unchanged\\n'\n: > release\nwait \"$holder\" || exit 125\ntrap - EXIT\npasswd lock alice > \"$HOME/after.out\" 2> \"$HOME/after.err\" || exit 3\n/usr/bin/grep -q '^alice:!hash:' db/shadow || exit 4\nprintf 'after-release=success\\n'\n",
+      "stderr": "",
+      "stdout": "bounded-contention=unchanged\nafter-release=success\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "Nonzero status, committed-state diagnostic, new shadow and one byte-identical retained backup.",
+      "covers": [
+        "passwd/account_file_mutations"
+      ],
+      "diagnostic_files": [
+        "unlink.log",
+        "cleanup.out",
+        "cleanup.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "features": [
+        "seccomp-notify"
+      ],
+      "files": {
+        "db/group": "root:x:0:\nalice:x:1000:\n",
+        "db/passwd": "root:x:0:0:root:/root:/bin/sh\nalice:x:1000:1000:Alice:/home/alice:/bin/sh\n",
+        "db/shadow": "root:*:19000:0:99999:7:::\nalice:hash:19000:1:90:14:30:20000:\n",
+        "pw": "fixture-password\n"
+      },
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "id": "review06-passwd-snapshot-cleanup-failure",
+      "kind": "contract",
+      "loadable": "passwd",
+      "observation_error_status": 125,
+      "oracle": "Seccomp log proves unlink EIO; private original copy and literal committed shadow field.",
+      "purpose": "A failed backup unlink after a successful shadow replacement is reported and the original backup remains available.",
+      "requires": [
+        "python3",
+        "cmp",
+        "grep"
+      ],
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BASHPASSWD_KERNEL_SECRETS=0\n/usr/bin/chmod 600 db/shadow\n/usr/bin/cp db/shadow before-shadow\nH=/opt/bashos-parity/harness/helpers/system-sequence.py\n/usr/bin/python3 \"$H\" --notify unlink --reply-seq unlink=continue,EIO --log \"$HOME/unlink.log\" -- \"$BASH\" --noprofile --norc -c 'passwd lock alice' > \"$HOME/cleanup.out\" 2> \"$HOME/cleanup.err\"\nrc=$?\n/usr/bin/python3 -c 'import json,sys; a=[json.loads(x) for x in open(sys.argv[1])]; assert len(a)>=2 and a[0][\"reply\"]==\"continue\" and a[1][\"reply\"]==\"errno:5\"' \"$HOME/unlink.log\" || exit 125\n[[ $rc != 0 && $rc != 125 ]] || exit 1\n/usr/bin/grep -q 'committed but backup cleanup failed' \"$HOME/cleanup.err\" || exit 2\n/usr/bin/grep -q '^alice:!hash:' db/shadow || exit 3\nn=0\nfor f in db/.shadow.*; do [[ -f $f ]] || continue; /usr/bin/cmp -s \"$f\" before-shadow || exit 4; n=$((n+1)); done\n[[ $n == 1 ]] || exit 5\nprintf 'cleanup-failure=reported committed=yes backup=retained\\n'\n",
+      "stderr": "",
+      "stdout": "cleanup-failure=reported committed=yes backup=retained\n",
+      "timeout": 30
+    },
+    {
+      "comparison": "Both observed lock attempts occur while an independent holder owns the directory, both writers return zero after release, and both distinct accounts remain.",
+      "covers": [
+        "passwd/account_file_mutations"
+      ],
+      "diagnostic_files": [
+        "ready-a",
+        "ready-b",
+        "rc-a",
+        "rc-b",
+        "a.out",
+        "a.err",
+        "b.out",
+        "b.err",
+        "flock-a.log",
+        "flock-b.log"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "features": [
+        "seccomp-notify"
+      ],
+      "files": {
+        "db/group": "root:x:0:\nalice:x:1000:\n",
+        "db/passwd": "root:x:0:0:root:/root:/bin/sh\nalice:x:1000:1000:Alice:/home/alice:/bin/sh\n",
+        "db/shadow": "root:*:19000:0:99999:7:::\nalice:hash:19000:1:90:14:30:20000:\n",
+        "hold.py": "import fcntl,os,pathlib,time\nfd=os.open(\"db\",os.O_RDONLY|os.O_DIRECTORY)\nfcntl.flock(fd,fcntl.LOCK_EX)\npathlib.Path(\"held\").write_text(\"ready\")\ndeadline=time.monotonic()+10\nwhile not pathlib.Path(\"release\").exists():\n if time.monotonic()>deadline: raise SystemExit(125)\n time.sleep(.01)\nos.close(fd)\n",
+        "pw": "fixture-password\n"
+      },
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "id": "review06-passwd-cooperating-writers-syntax-r2",
+      "kind": "contract",
+      "loadable": "passwd",
+      "observation_error_status": 125,
+      "oracle": "Independent flock holder and pinned seccomp observations prove both writers attempted nonblocking exclusive locks before release; final rows are independently read back.",
+      "purpose": "Two separately invoked writers contend on the same parent directory and retain both accounts.",
+      "requires": [
+        "python3",
+        "grep",
+        "sleep"
+      ],
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/chmod 600 db/shadow\nH=/opt/bashos-parity/harness/helpers/system-sequence.py\n/usr/bin/python3 hold.py & holder=$!\na= b=\ncleanup() {\n for pid in \"$holder\" \"$a\" \"$b\"; do [[ -n $pid ]] || continue; kill \"$pid\" 2>/dev/null || :; done\n for pid in \"$holder\" \"$a\" \"$b\"; do [[ -n $pid ]] || continue; wait \"$pid\" 2>/dev/null || :; done\n}\ntrap cleanup EXIT\nfor ((i=0; i<300; i++)); do [[ ! -f held ]] || break; /usr/bin/sleep .01; done\n[[ -f held ]] || exit 125\n( /usr/bin/python3 \"$H\" --notify flock --log-args flock=1 --log \"$HOME/flock-a.log\" -- \"$BASH\" --noprofile --norc -c 'printf ready > \"$HOME/ready-a\"; passwd add-fd anna 3 -u 2001 3<pw'; printf '%s' \"$?\" > \"$HOME/rc-a\" ) > \"$HOME/a.out\" 2> \"$HOME/a.err\" & a=$!\n( /usr/bin/python3 \"$H\" --notify flock --log-args flock=1 --log \"$HOME/flock-b.log\" -- \"$BASH\" --noprofile --norc -c 'printf ready > \"$HOME/ready-b\"; passwd add-fd betty 3 -u 2002 3<pw'; printf '%s' \"$?\" > \"$HOME/rc-b\" ) > \"$HOME/b.out\" 2> \"$HOME/b.err\" & b=$!\nfor ((i=0;i<70;i++)); do [[ -s $HOME/flock-a.log && -s $HOME/flock-b.log ]] && break; /usr/bin/sleep .01; done\n[[ -s $HOME/flock-a.log && -s $HOME/flock-b.log ]] || exit 125\n/usr/bin/python3 -c 'import json,sys; a=[json.loads(open(x).readline()) for x in sys.argv[1:]]; assert all(x.get(\"syscall\")==\"flock\" and x.get(\"arg1\")==6 for x in a)' \"$HOME/flock-a.log\" \"$HOME/flock-b.log\" || exit 125\nkill -0 \"$a\" 2>/dev/null && kill -0 \"$b\" 2>/dev/null || exit 1\n: > release\nwait \"$holder\" || exit 125\nholder=\nwait \"$a\"; wait \"$b\"\na= b=\ntrap - EXIT\n[[ $(< \"$HOME/rc-a\") == 0 && $(< \"$HOME/rc-b\") == 0 ]] || exit 2\n[[ $(/usr/bin/grep -c '^anna:x:2001:2001:' db/passwd) == 1 && $(/usr/bin/grep -c '^betty:x:2002:2002:' db/passwd) == 1 ]] || exit 3\nfor f in group shadow; do [[ $(/usr/bin/grep -c '^anna:' \"db/$f\") == 1 && $(/usr/bin/grep -c '^betty:' \"db/$f\") == 1 ]] || exit 4; done\nprintf 'two-writers=success entries=distinct\\n'\n",
+      "stderr": "",
+      "stdout": "two-writers=success entries=distinct\n",
+      "timeout": 60
+    },
+    {
+      "comparison": "The existing-group reference must succeed; missing-group reference must reject without changing files. Candidate behavior is compared to that observation; this intentionally exposes the conflict with the unchanged historical add-explicit expectation.",
+      "covers": [
+        "passwd/account_file_mutations"
+      ],
+      "diagnostic_files": [
+        "control.out",
+        "control.err",
+        "reference.out",
+        "reference.err",
+        "candidate.out",
+        "candidate.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "files": {
+        "pristine/group": "root:x:0:\nusers:x:100:\n",
+        "pristine/passwd": "root:x:0:0:root:/root:/bin/sh\n",
+        "pristine/shadow": "root:*:19000:0:99999:7:::\n",
+        "pw": "fixture-password\n"
+      },
+      "group": "shell",
+      "id": "review06-passwd-explicit-gid-reference-control",
+      "kind": "contract",
+      "loadable": "passwd",
+      "observation_error_status": 125,
+      "oracle": "Pinned guest shadow-utils useradd --root in separate minimal private roots, with an existing-group positive control and independent file comparisons.",
+      "privilege": "root",
+      "purpose": "Independently observe shadow-utils and candidate behavior for an explicitly requested nonexistent primary group in private guest files.",
+      "requires": [
+        "useradd",
+        "cmp",
+        "grep"
+      ],
+      "script": "[[ $EUID == 0 && $PWD == /tmp/parity-case ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\numask 077\nroot=$PWD/explicit-gid\n/usr/bin/mkdir -p \"$root/control/etc\" \"$root/missing/etc\" \"$root/candidate\"\nfor dir in \"$root/control/etc\" \"$root/missing/etc\" \"$root/candidate\"; do\n /usr/bin/cp pristine/passwd pristine/group pristine/shadow \"$dir/\" || exit 125\ndone\n/usr/bin/chmod 600 \"$root\"/*/etc/shadow \"$root/candidate/shadow\" || exit 125\n/usr/sbin/useradd -R \"$root/control\" -M -N --no-log-init -u 2201 -g 100 control > \"$HOME/control.out\" 2> \"$HOME/control.err\" || exit 125\n/usr/bin/grep -q '^control:[^:]*:2201:100:' \"$root/control/etc/passwd\" || exit 125\n/usr/bin/cp -a \"$root/missing/etc\" \"$root/reference-before\"\n/usr/sbin/useradd -R \"$root/missing\" -M -N --no-log-init -u 2001 -g 2001 erin > \"$HOME/reference.out\" 2> \"$HOME/reference.err\"; ref=$?\n[[ $ref != 0 ]] || exit 125\nfor f in passwd group shadow; do /usr/bin/cmp -s \"$root/missing/etc/$f\" \"$root/reference-before/$f\" || exit 125; done\nprintf 'reference=reject unchanged=yes\\n'\n/usr/bin/cp -a \"$root/candidate\" \"$root/candidate-before\"\nexport PHCLIB_PASSWD=\"$root/candidate/passwd\" PHCLIB_GROUP=\"$root/candidate/group\" PHCLIB_SHADOW=\"$root/candidate/shadow\" BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\npasswd add-fd erin 3 -u 2001 -g 2001 3<pw > \"$HOME/candidate.out\" 2> \"$HOME/candidate.err\"; rc=$?\n[[ $rc == 0 ]] && result=accept || result=reject\nsame=yes\nfor f in passwd group shadow; do /usr/bin/cmp -s \"$root/candidate/$f\" \"$root/candidate-before/$f\" || same=no; done\nprintf 'candidate=%s unchanged=%s\\n' \"$result\" \"$same\"\n",
+      "stderr": "",
+      "stdout": "reference=reject unchanged=yes\ncandidate=reject unchanged=yes\n",
+      "timeout": 60
+    },
+    {
+      "comparison": "Nonzero status and explicit retained-backup diagnostic; unchanged shadow/group and recoverable passwd backup.",
+      "covers": [
+        "passwd/account_file_mutations"
+      ],
+      "diagnostic_files": [
+        "restore.log",
+        "restore.out",
+        "restore.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "features": [
+        "seccomp-notify"
+      ],
+      "files": {
+        "db/group": "root:x:0:\ncarol:x:1003:\n",
+        "db/passwd": "root:x:0:0:root:/root:/bin/sh\ncarol:x:1003:1003:Carol:/home/carol:/bin/sh\n",
+        "db/shadow": "root:*:19000:0:99999:7:::\ncarol:!:19000:0:99999:7:::\n"
+      },
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "id": "review06-passwd-restore-failure-retains-backup",
+      "kind": "contract",
+      "loadable": "passwd",
+      "observation_error_status": 125,
+      "oracle": "Pinned seccomp log proves second and third renames fail; original file copies independently check the retained backup.",
+      "purpose": "A forced rollback rename failure reports incomplete recovery and retains the original file as a backup.",
+      "requires": [
+        "python3",
+        "cmp",
+        "grep"
+      ],
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BASHPASSWD_KERNEL_SECRETS=0\n/usr/bin/chmod 600 db/shadow\n/usr/bin/cp -a db before\nH=/opt/bashos-parity/harness/helpers/system-sequence.py\n/usr/bin/python3 \"$H\" --notify rename --reply-seq rename=continue,EIO,EIO --log \"$HOME/restore.log\" -- \"$BASH\" --noprofile --norc -c 'passwd delete carol' > \"$HOME/restore.out\" 2> \"$HOME/restore.err\"\nrc=$?\n/usr/bin/python3 -c 'import json,sys; a=[json.loads(x) for x in open(sys.argv[1])]; assert len(a)>=3 and [x[\"reply\"] for x in a[:3]]==[\"continue\",\"errno:5\",\"errno:5\"]' \"$HOME/restore.log\" || exit 125\n[[ $rc != 0 && $rc != 125 ]] || exit 1\n/usr/bin/grep -q 'backup retained at' \"$HOME/restore.err\" || exit 2\n/usr/bin/cmp -s db/shadow before/shadow && /usr/bin/cmp -s db/group before/group || exit 3\n/usr/bin/grep -q '^carol:' db/passwd && exit 4\nn=0\nfor f in db/.passwd.*; do [[ -f $f ]] || continue; /usr/bin/cmp -s \"$f\" before/passwd || exit 5; n=$((n+1)); done\n[[ $n == 1 ]] || exit 6\nprintf 'restore-failure=reported backup=retained\\n'\n",
+      "stderr": "",
+      "stdout": "restore-failure=reported backup=retained\n",
+      "timeout": 30
+    }
+  ],
+  "schema": 1
+}

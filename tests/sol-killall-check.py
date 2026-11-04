@@ -82,6 +82,17 @@ def fixtures(binary, shim, directory):
 
     case('exact-comm', lambda: runner.run(['target'], calls=[(101, 15, 0)]))
     case('multiple-names-deduplicated', lambda: runner.run(['target', 'other', 'target'], calls=[(101, 15, 0), (104, 15, 0)]))
+    entry(root, 108, 'longprocessname', cmdline=b'/tmp/longprocessname-extra\0argument\0')
+    entry(root, 109, 'longprocessname', cmdline=b'/tmp/longprocessname-other\0argument\0')
+    case('long-name-argv0-exact', lambda: runner.run(['longprocessname-extra'], calls=[(108, 15, 0)]))
+    case('long-name-prefix-rejected', lambda: runner.run(['longprocessname-extr'], rc=1,
+         stderr='longprocessname-extr: no process found'))
+    case('long-name-union-duplicate', lambda: runner.run(['longprocessname-extra', 'longprocessname-other', 'longprocessname-extra'],
+         calls=[(108, 15, 0), (109, 15, 0)], stderr=''))
+    case('missing-name-diagnostic', lambda: runner.run(['absent-fixture'], rc=1,
+         stderr='absent-fixture: no process found'))
+    case('partial-name-diagnostic', lambda: runner.run(['absent-fixture', 'target'],
+         calls=[(101, 15, 0)], stderr='absent-fixture: no process found'))
     for flag, sig in [('-HUP', 1), ('-SIGUSR1', 10), ('-usr2', 12), ('-9', 9), ('-15', 15)]:
         case('signal-' + flag, lambda flag=flag, sig=sig: runner.run([flag, 'target'], calls=[(101, sig, 0)]))
     case('full-command-exact', lambda: runner.run(['-f', '/bin/demo arg'], calls=[(n, 15, 0) for n in (101,102,103,104)]))

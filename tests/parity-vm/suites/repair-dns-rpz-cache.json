@@ -1,0 +1,34 @@
+{
+  "cases": [
+    {
+      "comparison": "Allow and cache the first response, deny the second client, and serve the first client again from cache with exactly one upstream query.",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "diagnostic_files": [
+        "upstream.log",
+        "resolver.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/dns-rpz-cache-peer.py": "837540431ed7ab15aa63d215e46c9ad233b841556437bc4cd0a187abe474bfbf"
+      },
+      "id": "repair-dns-resolver-rpz-before-cache-bounded-r15",
+      "kind": "contract",
+      "loadable": "dns",
+      "oracle": "Independent UDP upstream logs requests; a separate source-bound client queries from 127.0.0.1 and 127.0.0.2 and checks DNS rcodes and exact A bytes.",
+      "purpose": "Client-IP RPZ policy applies even when another client has already populated the shared cache.",
+      "requires": [
+        "python3"
+      ],
+      "script": "H=/opt/bashos-parity/harness/helpers/dns-rpz-cache-peer.py\ncat > client-rpz.zone <<'EOF'\n$ORIGIN rpz.local.\n$TTL 60\n@ IN SOA localhost. hostmaster.localhost. 1 3600 600 86400 60\n@ IN NS localhost.\n32.2.0.0.127.rpz-client-ip CNAME .\nEOF\n/usr/bin/python3 \"$H\" serve upstream.log & peer=$!\ntrap 'kill \"$peer\" \"$res\" 2>/dev/null; wait \"$peer\" \"$res\" 2>/dev/null' EXIT\nfor ((i=0;i<100;i++)); do [ -s upstream.log ] && break; sleep 0.05; done\n[ -s upstream.log ] || exit 98\nBASHDNS_SERVER_PORT=5347 dns resolver-serve --listen 127.0.0.1 --port 5348 --upstream 127.0.0.2 --rpz \"$PWD/client-rpz.zone\" --max-queries 3 </dev/null 2>resolver.err & res=$!\nfor ((i=0;i<100;i++)); do\n ready=0\n while read -r slot local rest; do [[ $local == 0100007F:14E4 ]] && ready=1; done < /proc/net/udp\n [ \"$ready\" = 1 ] && break\n kill -0 \"$res\" 2>/dev/null || exit 98\n sleep 0.05\ndone\n[ \"$ready\" = 1 ] || exit 98\n/usr/bin/python3 \"$H\" client upstream.log || exit 1\nwait \"$res\" || exit 1\n",
+      "setup_script": ":\n",
+      "stderr": "",
+      "stdout": "allowed-first=correct\nblocked-after-cache=correct\nallowed-cached=correct\n",
+      "timeout": 30
+    }
+  ],
+  "schema": 1
+}

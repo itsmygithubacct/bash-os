@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-taskset-cp-impossible",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Combined -cp rejects an unavailable CPU without changing the owned child affinity",
+      "oracle": "Upstream taskset from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Assert EINVAL and unchanged child affinity independently with sched_getaffinity.",
+      "script": "/usr/bin/sleep 20 & child=$!\ntrap 'kill -KILL \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\ntaskset -cp 5 \"$child\" > out 2> err; rc=$?; [[ $(<err) == *\"Invalid argument\"* ]] && d=EINVAL || d=other; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; rm -f out err\n/usr/bin/python3 -c 'import os,sys;print(\"cpus=\"+\",\".join(map(str,sorted(os.sched_getaffinity(int(sys.argv[1]))))))' \"$child\"",
+      "stdout": "status=1 diagnostic=EINVAL\ncpus=0,1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3",
+        "sleep"
+      ],
+      "covers": [
+        "taskset/deferred-set-owned-pid"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.sched_getaffinity(0)=={0,1}, os.sched_getaffinity(0)'"
+    },
+    {
+      "id": "repair-taskset-separated-list",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Separate -c -p still sets an owned child affinity",
+      "oracle": "Upstream taskset from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact GNU output after replacing only the independently known owned-child PID in verified line prefixes; all affinity formatting remains compared. Python sched_getaffinity independently asserts the precise resulting CPU set.",
+      "script": "/usr/bin/sleep 20 & child=$!\ntrap 'kill -KILL \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\nout=$(taskset -c -p 1 \"$child\"); rc=$?; [[ $rc == 0 ]] || exit 91\nprintf \"%s\\n\" \"$out\" | /usr/bin/python3 -c 'import sys\nprefix=\"pid \"+sys.argv[1]+\"\\'\"'\"'s \"\nlines=sys.stdin.read().splitlines();assert len(lines)==int(sys.argv[2]),lines\nfor line in lines:\n assert line.startswith(prefix),line\n print(\"pid CHILD\\'\"'\"'s \"+line[len(prefix):])\n' \"$child\" 2 || exit 92\n/usr/bin/python3 -c 'import os,sys\na=os.sched_getaffinity(int(sys.argv[1]));assert a=={1}\nprint(\"cpus=\"+\",\".join(map(str,sorted(a))))' \"$child\"",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3",
+        "sleep"
+      ],
+      "covers": [
+        "taskset/deferred-set-owned-pid"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.sched_getaffinity(0)=={0,1}, os.sched_getaffinity(0)'"
+    },
+    {
+      "id": "repair-taskset-attached-list-wrapper",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Attached -c list remains a command wrapper",
+      "oracle": "Upstream taskset from the locked VM image, with the same controlled child program on each side.",
+      "comparison": "Exact child output and status; dynamic process identifiers are used only in explicit assertions about fixture-owned processes.",
+      "script": "taskset -c1 /usr/bin/python3 -c 'import os,sys,json;print(\"cpus=\"+\",\".join(map(str,sorted(os.sched_getaffinity(0)))));print(json.dumps(sys.argv[1:]));sys.exit(7)' 'a b' ''; printf \"status=%s\\n\" \"$?\"",
+      "stdout": "cpus=1\n[\"a b\", \"\"]\nstatus=7\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3"
+      ],
+      "covers": [
+        "taskset/deferred-command-wrapper"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.sched_getaffinity(0)=={0,1}, os.sched_getaffinity(0)'"
+    }
+  ]
+}

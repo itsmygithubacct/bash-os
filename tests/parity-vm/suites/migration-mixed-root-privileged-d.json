@@ -65,6 +65,39 @@
       "timeout": 45
     },
     {
+      "id": "worker-fsfreeze-usage-root-contract",
+      "loadable": "fsfreeze",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "covers": [
+        "fsfreeze/deferred-ioctl-error-contract"
+      ],
+      "purpose": "fsfreeze pre-request failures as root beside a real freezable ext4 mount: a missing path, a regular file, an empty operand, no operand, no action, both actions, an unknown option, an extra operand and an action word after --; the tested invocations never freeze the mount; the final probe freezes and thaws it.",
+      "oracle": "Bash builtin usage status 2 and fsfreeze pre-ioctl error contract; util-linux 2.41 is not the usage-status oracle",
+      "comparison": "Contract: exact status and empty stdout for each invocation; stderr must include the expected path and error for path failures, and be nonempty for usage failures. The final probe verifies the mount remains unfrozen. Raw streams are retained in /tmp/rt until teardown.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "losetup",
+        "mkdir",
+        "sed",
+        "tr",
+        "fsfreeze",
+        "cat",
+        "udevadm",
+        "sleep"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nRT=/tmp/rt; /usr/bin/mkdir -p $RT\nseed() { /usr/bin/python3 -c 'import sys; n=int(sys.argv[2]); open(sys.argv[1],\"wb\").write(bytes((i*7+i//251)%256 for i in range(n)))' \"$1\" \"$2\"; }\nsz() { /usr/sbin/blockdev --getsize64 \"$1\"; }\nsha() { /usr/bin/sha256sum < \"$1\" | /usr/bin/cut -c1-16; }\n# udev probes each new loop device; settle before detaching so the detach is\n# immediate, and wait for sysfs to drop the association before the next attach.\nsettle() { /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; }\ngone() { local x=${1#/dev/} i; for ((i=0;i<50;i++)); do [[ -e /sys/block/$x/loop/backing_file ]] || return 0; /usr/bin/sleep 0.1; done; echo \"  $x still attached\"; }\natt() { /usr/sbin/losetup \"$@\"; settle; }\ndetach() { local d; for d; do /usr/sbin/losetup -d $d; gone $d; done; }\nnx=0; mkext() { local i=$1 s=$2 m=$3; shift 3; nx=$((nx+1))\n  /usr/bin/truncate -s $s $i && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal -E nodiscard,lazy_itable_init=0 \\\n    -U 0b0e0e0e-1111-4222-8333-44444444444$nx \"$@\" $i && dev=$(att -f --show $i) && /usr/bin/mkdir -p $m &&\n    /usr/bin/mount $dev $m || { echo SETUP-FAILED; exit 99; }; }\nprobe() { if /usr/sbin/fsfreeze -f $M 2>/dev/null; then /usr/sbin/fsfreeze -u \"$M\" || return 1; echo \"  frozen=no\"; else echo \"  frozen=yes\"; fi; }\ntrap '/usr/sbin/fsfreeze -u $M >/dev/null 2>&1' EXIT\ncd $RT; M=$RT/mnt; mkext img 8M $M; echo data > $M/f\n: > $RT/file\ncheck() { local label=$1 want=$2 needle=$3 rc err; shift 3\n  \"$@\" >\"$RT/$label.out\" 2>\"$RT/$label.err\"; rc=$?\n  err=$(<\"$RT/$label.err\")\n  if [[ $rc == \"$want\" && ! -s \"$RT/$label.out\" && -n $err && $err == *\"$needle\"* ]]; then\n    printf '%s status=%s diagnostic=ok\\n' \"$label\" \"$rc\"\n  else\n    printf '%s status=%s diagnostic=FAIL\\n' \"$label\" \"$rc\"\n    /usr/bin/cat \"$RT/$label.err\" >&2\n    return 1\n  fi\n}\nfailed=0\ncheck missing 1 \"$RT/missing: No such file or directory\" fsfreeze -f \"$RT/missing\" || failed=1\ncheck regular 1 \"$RT/file: not a directory\" fsfreeze -f \"$RT/file\" || failed=1\ncheck empty 2 '' fsfreeze -f '' || failed=1\ncheck no-operand 2 '' fsfreeze -f || failed=1\ncheck no-action 2 '' fsfreeze \"$M\" || failed=1\ncheck both 2 '' fsfreeze -f -u \"$M\" || failed=1\ncheck unknown 2 '' fsfreeze -Z \"$M\" || failed=1\ncheck extra 2 '' fsfreeze -f \"$M\" \"$M\" || failed=1\ncheck dashdash 2 '' fsfreeze -- -f || failed=1\nprobe || failed=1\ncd /tmp/parity-case; /usr/bin/umount \"$M\" || exit 99; detach \"$dev\" || exit 99; trap - EXIT; echo teardown=ok\nexit \"$failed\"\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "stdout": "missing status=1 diagnostic=ok\nregular status=1 diagnostic=ok\nempty status=2 diagnostic=ok\nno-operand status=2 diagnostic=ok\nno-action status=2 diagnostic=ok\nboth status=2 diagnostic=ok\nunknown status=2 diagnostic=ok\nextra status=2 diagnostic=ok\ndashdash status=2 diagnostic=ok\n  frozen=no\nteardown=ok\n",
+      "stderr": ""
+    },
+    {
       "id": "migration-blockdev-query-root",
       "loadable": "blockdev",
       "group": "shell",

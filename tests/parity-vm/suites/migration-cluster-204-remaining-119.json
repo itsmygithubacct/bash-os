@@ -17,11 +17,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cluster-followup-observer-r2.py": "98b6b9d2ee4258222371be175f1ca2b7ba90a4a46463cd3d11327648724d72bf"
+        "helpers/cluster-followup-observer-r2-bash5320.py": "e60d24d4241e0dae44bb881d38f564db93d69b917e49034248e8fba23d005447"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2.py setup state-private",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2-bash5320.py setup state-private",
       "setup_timeout": 50,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2.py \"$BASH\" state-private",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2-bash5320.py \"$BASH\" state-private",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "refuse-unsafe-directory modes-refused=yes modes-untouched=yes symlink-refused=yes symlink-untouched=yes file-refused=yes file-untouched=yes not-owned-refused=yes not-owned-untouched=yes join-refused=yes join-no-traffic=yes no-listener-started=yes private-accepted=yes\natomic-state-writes init-status=yes watch-captured=yes final-names-by-rename=yes scratch-then-rename=yes no-scratch-left=yes roster-replaced-atomically=yes files-private=yes\nlock-collision first-started=yes second-shell-refused=yes same-shell-refused=yes state-unchanged=yes first-listener-alive=yes first-listener-serves=yes no-second-listener=yes\nstale-recovery-leave setup-stale=yes stale-status-stopped=yes leave-status=yes state-files-removed=yes scratch-removed=yes lock-and-unrelated-kept=yes forged-pid-not-signaled=yes status-uninitialized=yes\nstale-recovery-init setup-stale=yes init-status=yes ids-regenerated=yes scratch-removed=yes unrelated-kept=yes forged-pid-not-signaled=yes status-initialized=yes serves-after-recovery=yes\nsymlinked-state-names init-status=yes target-unchanged=yes names-replaced-by-files=yes scratch-link-removed=yes\n",
@@ -44,11 +44,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cluster-followup-observer-r2.py": "98b6b9d2ee4258222371be175f1ca2b7ba90a4a46463cd3d11327648724d72bf"
+        "helpers/cluster-followup-observer-r2-bash5320.py": "e60d24d4241e0dae44bb881d38f564db93d69b917e49034248e8fba23d005447"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2.py setup key-syntax",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2-bash5320.py setup key-syntax",
       "setup_timeout": 50,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2.py \"$BASH\" key-syntax",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2-bash5320.py \"$BASH\" key-syntax",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "accepted-keys all-accepted=yes private-key-canonical=yes oracle-ping-ok=yes wrong-key-silent=yes no-extra-state=yes\nrejected-keys all-rejected=yes message=yes no-state=yes no-listener=yes\njoin-key-rejection join-rejected=yes join-no-network=yes\n",
@@ -70,11 +70,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cluster-followup-observer-r2.py": "98b6b9d2ee4258222371be175f1ca2b7ba90a4a46463cd3d11327648724d72bf"
+        "helpers/cluster-followup-observer-r2-bash5320.py": "e60d24d4241e0dae44bb881d38f564db93d69b917e49034248e8fba23d005447"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2.py setup argument-validation",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2-bash5320.py setup argument-validation",
       "setup_timeout": 50,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2.py \"$BASH\" argument-validation",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2-bash5320.py \"$BASH\" argument-validation",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "init-arguments status-codes=yes no-state-written=yes no-listener-started=yes key-message=yes\njoin-arguments status-codes=yes endpoint-message=yes key-message=yes no-state-written=yes no-listener-started=yes no-network-traffic=yes\nping-arguments malformed-status=yes message=yes no-packets=yes arity-status=yes uninitialized-status=yes membership-unchanged=yes\ntimeout-lifecycle invalid-rejected=yes no-state-created=yes no-listener-or-traffic=yes leave-rejection-harmless=yes boundaries-accepted=yes init-boundaries-start=yes ping-boundary-protocol=yes\n",
@@ -96,11 +96,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cluster-followup-observer-r2.py": "98b6b9d2ee4258222371be175f1ca2b7ba90a4a46463cd3d11327648724d72bf"
+        "helpers/cluster-followup-observer-r2-bash5320.py": "e60d24d4241e0dae44bb881d38f564db93d69b917e49034248e8fba23d005447"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2.py setup authenticated-join",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2-bash5320.py setup authenticated-join",
       "setup_timeout": 50,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2.py \"$BASH\" authenticated-join",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2-bash5320.py \"$BASH\" authenticated-join",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "join-with-seed-key seed-started=yes join-status=yes join-output=yes cluster-id-from-wire=yes nodes-distinct=yes key-file-copied=yes rosters-agree=yes members-commands=yes wire-roster=yes\njoin-with-wrong-key join-rejected=yes waited-timeout=yes joiner-state-empty=yes joiner-no-listener=yes seed-roster-unchanged=yes peer-roster-unchanged=yes seed-still-serves=yes\n",
@@ -122,11 +122,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cluster-followup-observer-r2.py": "98b6b9d2ee4258222371be175f1ca2b7ba90a4a46463cd3d11327648724d72bf"
+        "helpers/cluster-followup-observer-r2-bash5320.py": "e60d24d4241e0dae44bb881d38f564db93d69b917e49034248e8fba23d005447"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2.py setup ping-protocol",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2-bash5320.py setup ping-protocol",
       "setup_timeout": 50,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2.py \"$BASH\" ping-protocol",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2-bash5320.py \"$BASH\" ping-protocol",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "ping-resolution by-node=yes by-endpoint=yes requests-received=yes request-size=yes request-header=yes request-identity=yes request-rows-zero=yes request-mac=yes nonces-fresh=yes request-source=yes\nping-unknown-node status=yes message=yes nothing-sent=yes\nping-non-protocol all-fail=yes waits-deadline=yes bounded=yes one-valid-request=yes echo-control=yes deadline-follows=yes\nping-live-listener ping-by-node=yes ping-by-endpoint=yes listener-pong-valid=yes pong-identity=yes\n",
@@ -148,11 +148,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cluster-followup-observer-r2.py": "98b6b9d2ee4258222371be175f1ca2b7ba90a4a46463cd3d11327648724d72bf"
+        "helpers/cluster-followup-observer-r2-bash5320.py": "e60d24d4241e0dae44bb881d38f564db93d69b917e49034248e8fba23d005447"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2.py setup leave-lifecycle",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2-bash5320.py setup leave-lifecycle",
       "setup_timeout": 50,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2.py \"$BASH\" leave-lifecycle",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2-bash5320.py \"$BASH\" leave-lifecycle",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "leave-removes-owned-state leave-status=yes state-files-removed=yes lock-kept=yes unrelated-preserved=yes listener-gone=yes status-after=yes repeat-leave=yes never-initialized-leave=yes\nleave-drops-member peer-left-status=yes seed-dropped-member=yes dropped-by-notice-not-expiry=yes peer-state-removed=yes seed-listener-alive=yes\nowner-exit exit-listener-gone=yes exit-port-released=yes exit-state-cleaned=yes exit-unrelated-kept=yes exit-uninitialized=yes kill-listener-gone=yes kill-port-released=yes kill-state-cleaned=yes kill-unrelated-kept=yes kill-uninitialized=yes peer-owner-death-notifies-seed=yes\n",

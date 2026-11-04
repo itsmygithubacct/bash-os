@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-blkid-parent-symlink-metadata",
+      "loadable": "blkid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Explicit operands and enumeration resolve actual sysfs-style partition links and decode independently encoded DOS and GPT parent IDs; repeated -s selects both tags.",
+      "covers": [
+        "blkid/device-discovery-deferred"
+      ],
+      "oracle": "Fixed independently encoded MBR and GPT bytes.",
+      "comparison": "Exact stdout and status.",
+      "requires": [
+        "python3",
+        "sort",
+        "sed"
+      ],
+      "setup_script": "mkdir -p dev sys tree/disk tree/disk/disk1 tree/gdisk tree/gdisk/gdisk1\nln -s ../tree/disk/disk1 sys/disk1\nln -s ../tree/gdisk/gdisk1 sys/gdisk1\nprintf '1\\n' > tree/disk/disk1/partition\nprintf '1\\n' > tree/gdisk/gdisk1/partition\npython3 - <<'PYFIX'\nimport struct, uuid\nfrom pathlib import Path\nm = bytearray(65536)\nstruct.pack_into('<I', m, 440, 0xc0ffee01)\nm[450] = 0x83\nstruct.pack_into('<II', m, 454, 64, 100)\nm[510:512] = b'\\x55\\xaa'\nPath('dev/disk').write_bytes(m)\ng = bytearray(65536)\ng[512:520] = b'EFI PART'\ng[568:584] = uuid.UUID('44444444-4444-4444-8444-444444444444').bytes_le\nstruct.pack_into('<QII', g, 584, 2, 128, 128)\ng[1024:1040] = uuid.UUID('0fc63daf-8483-4772-8e79-3d69d8477de4').bytes_le\ng[1040:1056] = uuid.UUID('55555555-5555-4555-8555-555555555551').bytes_le\ng[1080:1096] = 'PARTNAME'.encode('utf-16le')\nPath('dev/gdisk').write_bytes(g)\nPath('dev/disk1').write_bytes(bytes(4096))\nPath('dev/gdisk1').write_bytes(bytes(4096))\nPYFIX\n",
+      "script": "set -o pipefail\nexport BASHBLKID_SYS_BLOCK_DIR=$PWD/sys BASHBLKID_DEV_ROOT=$PWD/dev\nblkid -s PARTUUID -o value \"$PWD/dev/disk1\" || exit $?\nblkid -s PARTUUID -o value \"$PWD/dev/gdisk1\" || exit $?\nblkid -s PARTLABEL -o value \"$PWD/dev/gdisk1\" || exit $?\nblkid -s PTUUID -o value \"$PWD/dev/disk\" || exit $?\nblkid -s PTUUID -o value \"$PWD/dev/gdisk\" || exit $?\nblkid -s PTUUID -s PTTYPE \"$PWD/dev/disk\" | sed \"s|$PWD|ROOT|\" || exit $?\nblkid -s PARTUUID -o value | sort || exit $?\n",
+      "stdout": "c0ffee01-01\n55555555-5555-4555-8555-555555555551\nPARTNAME\nc0ffee01\n44444444-4444-4444-8444-444444444444\nROOT/dev/disk: PTUUID=\"c0ffee01\" PTTYPE=\"dos\"\n55555555-5555-4555-8555-555555555551\nc0ffee01-01\n",
+      "expected_status": 0,
+      "timeout": 30
+    }
+  ]
+}

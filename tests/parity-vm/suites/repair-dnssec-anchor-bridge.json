@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-dns-dnskey-trusted-signature",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "requires": [
+        "python3",
+        "delv"
+      ],
+      "helpers_sha256": {
+        "helpers/dnssec-anchor-bridge-peer.py": "7c3a92103f6b9ab104440b32109ef82c0a0aba8ac24aa288eb13c9ce3dfe616c"
+      },
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\n",
+      "candidate_script": "set -u\nH=/opt/bashos-parity/harness/helpers/dnssec-anchor-bridge-peer.py\n/usr/bin/python3 \"$H\" prep || exit 98\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> \"$HOME/anchor-peer.err\" & peer=$!\ntrap 'kill \"$peer\" 2>/dev/null; wait \"$peer\" 2>/dev/null' EXIT\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340 || exit 98\ncontrol=$(/usr/bin/python3 \"$H\" control 127.0.0.2 5340 anchor-bridge) || exit 98\n[[ $control == control-ok ]] || { printf '%s\\n' \"$control\"; exit 98; }\necho control-ok\nexport PATH=\"$HOME/pbin\" BASHDNS_SERVER_PORT=5340 BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\" BASHDNS_0X20=0\nif dns query roguekey.test A -s 127.0.0.2 -t 3000 --validate > \"$HOME/rogue.out\" 2> \"$HOME/rogue.err\"; then echo rogue=accepted; exit 1; else echo rogue=rejected; fi\nif dns query multisig.test A -s 127.0.0.2 -t 3000 --validate > \"$HOME/multi.out\" 2> \"$HOME/multi.err\"; then echo multi=accepted; else echo multi=rejected; exit 1; fi\n",
+      "expected_status": 0,
+      "stdout": "control-ok\nrogue=rejected\nmulti=accepted\n",
+      "stderr": "",
+      "timeout": 60,
+      "purpose": "Only a DS-anchored DNSKEY may authenticate a candidate DNSKEY RRset; an additional untrusted signature before a valid one must not cause rejection.",
+      "oracle": "Independent BIND delv validates/rejects a deterministic ECDSA fixture before the candidate is queried.",
+      "comparison": "Reject the DNSKEY RRset signed solely by a non-anchored key, accept the set with a second anchored signature, and preserve raw peer and candidate diagnostics.",
+      "diagnostic_files": [
+        "anchor-peer.err",
+        "rogue.out",
+        "rogue.err",
+        "multi.out",
+        "multi.err"
+      ]
+    }
+  ]
+}

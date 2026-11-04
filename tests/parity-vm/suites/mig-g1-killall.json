@@ -141,6 +141,30 @@
       "timeout": 30,
       "stdout": "partial rc=0\nstate: x=dead\nnomatch rc=1\nusage rc=2\n",
       "stderr": ""
+    },
+    {
+      "id": "mig-g1-killall-pipeline-invoking-shell",
+      "loadable": "killall",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "The invoking shell is excluded even when killall executes in a pipeline child.",
+      "oracle": "The shell sets its own unique comm and remains alive; no other fixture has that name.",
+      "comparison": "Exact output and status.",
+      "covers": [
+        "killall/exact-comm-and-name-list"
+      ],
+      "requires": [
+        "killall"
+      ],
+      "script": "exec \"$BASH\" --noprofile --norc ./body.sh\n",
+      "files": {
+        "body.sh": "name=ka_self_t118\nprintf \"%s\" \"$name\" > /proc/$$/comm || exit 90\nkillall \"$name\" 2>&1 | /usr/bin/cat\nrc=${PIPESTATUS[0]}\nprintf \"rc=%s shell=alive\\n\" \"$rc\"\n"
+      },
+      "expected_status": 0,
+      "timeout": 30,
+      "stdout": "ka_self_t118: no process found\nrc=1 shell=alive\n",
+      "stderr": ""
     }
   ]
 }

@@ -1,0 +1,395 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "acme-issued-cert-valid-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Verify locally issued certificate and private key",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" valid\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-valid=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-issued-cert-malformed-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Reject malformed certificate while accepting a separately controlled valid issuance.",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" malformed\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-malformed=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-issued-cert-junk-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Reject junk certificate while accepting a separately controlled valid issuance.",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" junk\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-junk=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-issued-cert-wrong-name-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Reject wrong-name certificate while accepting a separately controlled valid issuance.",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" wrong-name\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-wrong-name=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-issued-cert-extra-name-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Reject extra-name certificate while accepting a separately controlled valid issuance.",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" extra-name\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-extra-name=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-issued-cert-no-san-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Reject no-san certificate while accepting a separately controlled valid issuance.",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" no-san\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-no-san=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-issued-cert-expired-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Reject expired certificate while accepting a separately controlled valid issuance.",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" expired\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-expired=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-issued-cert-wrong-key-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Reject wrong-key certificate while accepting a separately controlled valid issuance.",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" wrong-key\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-wrong-key=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-issued-cert-bad-signature-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Reject bad-signature certificate while accepting a separately controlled valid issuance.",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" bad-signature\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-bad-signature=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-issued-cert-bad-chain-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Reject bad-chain certificate while accepting a separately controlled valid issuance.",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" bad-chain\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-bad-chain=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-issued-cert-extra-cert-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Reject extra-cert certificate while accepting a separately controlled valid issuance.",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" extra-cert\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-extra-cert=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-issued-cert-untrusted-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Reject untrusted certificate while accepting a separately controlled valid issuance.",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" untrusted\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-untrusted=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-issued-cert-bad-root-signature-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Reject a tampered returned root signature while accepting a separately controlled valid issuance.",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" bad-root-signature\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-bad-root-signature=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-account-url-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Preserve the original account Location output and independently validated newAccount JWS.",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" account-url\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-account-url=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-issued-cert-cross-signed-r13",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Accept a valid cross-signed intermediate anchored by an independently configured different root.",
+      "oracle": "Independent Python cryptography validation and a fixture-only loopback CA with a separately pinned trust anchor. Each rejected response is delivered after a valid CSR and authorization; a positive issuance runs first.",
+      "comparison": "Require exact result and nonzero certificate-validation failure without output files on the negative path; the positive path verifies the CA signature, domain, issued bytes and stored private key.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-cert-controls-r13.py": "a4cd1e7143f9804f72784a81c3040c94f14b64352085e1e620ae8a36491e6bcc"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-cert-controls-r13.py \"$BASH\" cross-signed\n",
+      "expected_status": 0,
+      "stdout": "acme-certificate-cross-signed=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    }
+  ]
+}

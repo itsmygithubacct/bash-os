@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "runtime06-shadow-utils-explicit-missing-gid-r2-owner-control-syscall-diagnostic-r16",
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "timeout": 60,
+      "requires": [
+        "useradd",
+        "python3",
+        "cmp",
+        "grep",
+        "realpath",
+        "cat",
+        "chown"
+      ],
+      "files": {
+        "reference-missing/etc/passwd": "root:x:0:0:root:/root:/bin/sh\n",
+        "reference-missing/etc/group": "root:x:0:\nusers:x:100:\n",
+        "reference-missing/etc/shadow": "root:*:19000:0:99999:7:::\n",
+        "reference-missing/etc/gshadow": "root:!::\nusers:!::\n",
+        "reference-missing/etc/login.defs": "UID_MIN 1000\nUID_MAX 60000\nPASS_MAX_DAYS 99999\nPASS_MIN_DAYS 0\nPASS_WARN_AGE 7\n",
+        "reference-existing/etc/passwd": "root:x:0:0:root:/root:/bin/sh\n",
+        "reference-existing/etc/group": "root:x:0:\nusers:x:100:\n",
+        "reference-existing/etc/shadow": "root:*:19000:0:99999:7:::\n",
+        "reference-existing/etc/gshadow": "root:!::\nusers:!::\n",
+        "reference-existing/etc/login.defs": "UID_MIN 1000\nUID_MAX 60000\nPASS_MAX_DAYS 99999\nPASS_MIN_DAYS 0\nPASS_WARN_AGE 7\n",
+        "candidate-missing/etc/passwd": "root:x:0:0:root:/root:/bin/sh\n",
+        "candidate-missing/etc/group": "root:x:0:\nusers:x:100:\n",
+        "candidate-missing/etc/shadow": "root:*:19000:0:99999:7:::\n",
+        "candidate-missing/etc/gshadow": "root:!::\nusers:!::\n",
+        "candidate-missing/etc/login.defs": "UID_MIN 1000\nUID_MAX 60000\nPASS_MAX_DAYS 99999\nPASS_MIN_DAYS 0\nPASS_WARN_AGE 7\n",
+        "candidate-existing/etc/passwd": "root:x:0:0:root:/root:/bin/sh\n",
+        "candidate-existing/etc/group": "root:x:0:\nusers:x:100:\n",
+        "candidate-existing/etc/shadow": "root:*:19000:0:99999:7:::\n",
+        "candidate-existing/etc/gshadow": "root:!::\nusers:!::\n",
+        "candidate-existing/etc/login.defs": "UID_MIN 1000\nUID_MAX 60000\nPASS_MAX_DAYS 99999\nPASS_MIN_DAYS 0\nPASS_WARN_AGE 7\n",
+        "pw": "synthetic-reference-control-password\n"
+      },
+      "purpose": "Independently observe explicit missing numeric primary GID versus shadow-utils on isolated guest account roots, with a positive existing-group reference control and both candidate observations retained. Separate owner-corrected repeat: candidate account directories and files are owned by the executing root UID and candidate existing-GID success is a required positive control. Separately named root-only ptrace diagnostic; preserves expected positive outcome, reports syscall return/errno without inspecting secret buffers. Clock and descendant denials retained.",
+      "oracle": "Prepared Debian shadow-utils useradd 1:4.17.4-2 under --root in a private disposable guest fixture, with an existing-group positive control and a missing-group diagnostic plus byte-identical negative control. The original product fixture remains untouched.",
+      "comparison": "Reference asserts missing-group rejection and existing-group success; candidate existing-group must succeed as a validity control. Candidate missing-group return, diagnostics and records remain observations with no imposed outcome.",
+      "script": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t passwd) == builtin ]] || exit 125\nexport LC_ALL=C\nfor d in reference-missing reference-existing candidate-missing candidate-existing; do\n  [[ -d $PWD/$d/etc && ! -L $PWD/$d && ! -L $PWD/$d/etc ]] || exit 125\n  [[ $(/usr/bin/realpath \"$PWD/$d\") == \"$PWD/$d\" ]] || exit 125\n  /usr/bin/chmod 600 \"$d/etc/shadow\" \"$d/etc/gshadow\" || exit 125\ndone\nfor d in candidate-missing candidate-existing; do\n  /usr/bin/chown 0:0 \"$PWD/$d/etc\" \"$PWD/$d/etc/\"* || exit 125\ndone\n/usr/bin/mkdir \"$HOME/before\" || exit 125\nfor f in passwd group shadow gshadow; do /usr/bin/cp \"reference-missing/etc/$f\" \"$HOME/before/$f\" || exit 125; done\n/usr/sbin/useradd --root \"$PWD/reference-missing\" --no-create-home --no-user-group -u 2001 -g 2001 -d /home/erin -s /bin/sh erin > \"$HOME/reference-missing.out\" 2> \"$HOME/reference-missing.err\"\nrmrc=$?\n/usr/sbin/useradd --root \"$PWD/reference-existing\" --no-create-home --no-user-group -u 2001 -g 100 -d /home/erin -s /bin/sh erin > \"$HOME/reference-existing.out\" 2> \"$HOME/reference-existing.err\"\nrerc=$?\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\nfor kind in missing existing; do\n  if [[ $kind == missing ]]; then gid=2001; else gid=100; fi\n  PHCLIB_PASSWD=\"$PWD/candidate-$kind/etc/passwd\" PHCLIB_GROUP=\"$PWD/candidate-$kind/etc/group\" PHCLIB_SHADOW=\"$PWD/candidate-$kind/etc/shadow\" /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/passwd-syscall-diagnostic-r16.py --log \"$HOME/trace-$kind.json\" -- /opt/bashos-parity/candidate --noprofile --norc -c 'passwd add-fd \"$@\"' passwd erin 3 -u 2001 -g \"$gid\" -d /home/erin -s /bin/sh 3< pw > \"$HOME/candidate-$kind.out\" 2> \"$HOME/candidate-$kind.err\"\n  rc=$?\n  [[ $kind != existing ]] || candidate_existing_rc=$rc\n  printf 'candidate-%s-status=%s\\n' \"$kind\" \"$rc\" >> \"$HOME/candidate-observations.txt\"\n  /usr/bin/cat \"candidate-$kind/etc/passwd\" \"candidate-$kind/etc/group\" \"candidate-$kind/etc/shadow\" >> \"$HOME/candidate-observations.txt\" || exit 125\ndone\nprintf 'reference-missing-status=%s\\nreference-existing-status=%s\\n' \"$rmrc\" \"$rerc\" > \"$HOME/reference-status.txt\"\n(( rmrc != 0 )) || exit 10\n/usr/bin/grep -Eiq 'group.*2001.*(exist|not found|unknown)' \"$HOME/reference-missing.err\" || exit 11\nfor f in passwd group shadow gshadow; do /usr/bin/cmp -s \"reference-missing/etc/$f\" \"$HOME/before/$f\" || exit 12; done\n(( rerc == 0 )) || exit 13\n/usr/bin/grep -Eq '^erin:x:2001:100:' reference-existing/etc/passwd || exit 14\n/usr/bin/grep -Eq '^users:[^:]*:100:' reference-existing/etc/group || exit 15\n(( candidate_existing_rc == 0 )) || exit 16\nprintf 'reference-missing=nonzero-group-diagnostic-unchanged\\nreference-existing=success-uid2001-gid100\\ncandidate=observations-recorded\\n'\n",
+      "expected_status": 0,
+      "stdout": "reference-missing=nonzero-group-diagnostic-unchanged\nreference-existing=success-uid2001-gid100\ncandidate=observations-recorded\n",
+      "diagnostic_files": [
+        "reference-missing.out",
+        "reference-missing.err",
+        "reference-existing.out",
+        "reference-existing.err",
+        "reference-status.txt",
+        "candidate-missing.out",
+        "candidate-missing.err",
+        "candidate-existing.out",
+        "candidate-existing.err",
+        "candidate-observations.txt",
+        "trace-missing.json",
+        "trace-existing.json"
+      ],
+      "helpers_sha256": {
+        "helpers/passwd-syscall-diagnostic-r16.py": "8c1875ec7367df4327759a1fde347a4ec80986f2b5d863136907f4e8023454f8"
+      }
+    }
+  ]
+}

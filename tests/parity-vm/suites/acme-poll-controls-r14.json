@@ -1,0 +1,291 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "acme-poll-slow-r14",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Check lifecycle polling slow against a local CA",
+      "oracle": "Local CA records monotonic response times, status, retry headers, accepted CSR, output, and responder cleanup; cryptography verifies the positive issued key and certificate.",
+      "comparison": "Positive controls must issue a valid signed chain while respecting each delay; failure controls must stop without publishing output or leaking the listener.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-poll-controls-r14.py": "c7b7c803e81acb948a8c34243f151af41c0de8a2b0d72287fcb3894ea549d4d3"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-poll-controls-r14.py \"$BASH\" slow\n",
+      "expected_status": 0,
+      "stdout": "acme-poll-slow=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-poll-date-r14",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Check lifecycle polling date against a local CA",
+      "oracle": "Local CA records monotonic response times, status, retry headers, accepted CSR, output, and responder cleanup; cryptography verifies the positive issued key and certificate.",
+      "comparison": "Positive controls must issue a valid signed chain while respecting each delay; failure controls must stop without publishing output or leaking the listener.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-poll-controls-r14.py": "c7b7c803e81acb948a8c34243f151af41c0de8a2b0d72287fcb3894ea549d4d3"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-poll-controls-r14.py \"$BASH\" date\n",
+      "expected_status": 0,
+      "stdout": "acme-poll-date=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-poll-date-rfc850-r14",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Check lifecycle polling date-rfc850 against a local CA",
+      "oracle": "Local CA records monotonic response times, status, retry headers, accepted CSR, output, and responder cleanup; cryptography verifies the positive issued key and certificate.",
+      "comparison": "Positive controls must issue a valid signed chain while respecting each delay; failure controls must stop without publishing output or leaking the listener.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-poll-controls-r14.py": "c7b7c803e81acb948a8c34243f151af41c0de8a2b0d72287fcb3894ea549d4d3"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-poll-controls-r14.py \"$BASH\" date-rfc850\n",
+      "expected_status": 0,
+      "stdout": "acme-poll-date-rfc850=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-poll-date-asctime-r14",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Check lifecycle polling date-asctime against a local CA",
+      "oracle": "Local CA records monotonic response times, status, retry headers, accepted CSR, output, and responder cleanup; cryptography verifies the positive issued key and certificate.",
+      "comparison": "Positive controls must issue a valid signed chain while respecting each delay; failure controls must stop without publishing output or leaking the listener.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-poll-controls-r14.py": "c7b7c803e81acb948a8c34243f151af41c0de8a2b0d72287fcb3894ea549d4d3"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-poll-controls-r14.py \"$BASH\" date-asctime\n",
+      "expected_status": 0,
+      "stdout": "acme-poll-date-asctime=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-poll-terminal-r14",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Check lifecycle polling terminal against a local CA",
+      "oracle": "Local CA records monotonic response times, status, retry headers, accepted CSR, output, and responder cleanup; cryptography verifies the positive issued key and certificate.",
+      "comparison": "Positive controls must issue a valid signed chain while respecting each delay; failure controls must stop without publishing output or leaking the listener.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-poll-controls-r14.py": "c7b7c803e81acb948a8c34243f151af41c0de8a2b0d72287fcb3894ea549d4d3"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-poll-controls-r14.py \"$BASH\" terminal\n",
+      "expected_status": 0,
+      "stdout": "acme-poll-terminal=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-poll-auth-terminal-r14",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Check lifecycle polling auth-terminal against a local CA",
+      "oracle": "Local CA records monotonic response times, status, retry headers, accepted CSR, output, and responder cleanup; cryptography verifies the positive issued key and certificate.",
+      "comparison": "Positive controls must issue a valid signed chain while respecting each delay; failure controls must stop without publishing output or leaking the listener.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-poll-controls-r14.py": "c7b7c803e81acb948a8c34243f151af41c0de8a2b0d72287fcb3894ea549d4d3"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-poll-controls-r14.py \"$BASH\" auth-terminal\n",
+      "expected_status": 0,
+      "stdout": "acme-poll-auth-terminal=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-poll-expiry-r14",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Check lifecycle polling expiry against a local CA",
+      "oracle": "Local CA records monotonic response times, status, retry headers, accepted CSR, output, and responder cleanup; cryptography verifies the positive issued key and certificate.",
+      "comparison": "Positive controls must issue a valid signed chain while respecting each delay; failure controls must stop without publishing output or leaking the listener.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-poll-controls-r14.py": "c7b7c803e81acb948a8c34243f151af41c0de8a2b0d72287fcb3894ea549d4d3"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-poll-controls-r14.py \"$BASH\" expiry\n",
+      "expected_status": 0,
+      "stdout": "acme-poll-expiry=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-poll-request-expiry-r14",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Check lifecycle polling request-expiry against a local CA",
+      "oracle": "Local CA records monotonic response times, status, retry headers, accepted CSR, output, and responder cleanup; cryptography verifies the positive issued key and certificate.",
+      "comparison": "Positive controls must issue a valid signed chain while respecting each delay; failure controls must stop without publishing output or leaking the listener.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-poll-controls-r14.py": "c7b7c803e81acb948a8c34243f151af41c0de8a2b0d72287fcb3894ea549d4d3"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-poll-controls-r14.py \"$BASH\" request-expiry\n",
+      "expected_status": 0,
+      "stdout": "acme-poll-request-expiry=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-poll-interrupt-r14",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Check lifecycle polling interrupt against a local CA",
+      "oracle": "Local CA records monotonic response times, status, retry headers, accepted CSR, output, and responder cleanup; cryptography verifies the positive issued key and certificate.",
+      "comparison": "Positive controls must issue a valid signed chain while respecting each delay; failure controls must stop without publishing output or leaking the listener.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-poll-controls-r14.py": "c7b7c803e81acb948a8c34243f151af41c0de8a2b0d72287fcb3894ea549d4d3"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-poll-controls-r14.py \"$BASH\" interrupt\n",
+      "expected_status": 0,
+      "stdout": "acme-poll-interrupt=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-poll-bad-retry-r14",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Check lifecycle polling bad-retry against a local CA",
+      "oracle": "Local CA records monotonic response times, status, retry headers, accepted CSR, output, and responder cleanup; cryptography verifies the positive issued key and certificate.",
+      "comparison": "Positive controls must issue a valid signed chain while respecting each delay; failure controls must stop without publishing output or leaking the listener.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-poll-controls-r14.py": "c7b7c803e81acb948a8c34243f151af41c0de8a2b0d72287fcb3894ea549d4d3"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-poll-controls-r14.py \"$BASH\" bad-retry\n",
+      "expected_status": 0,
+      "stdout": "acme-poll-bad-retry=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    },
+    {
+      "id": "acme-poll-duplicate-retry-r14",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Check lifecycle polling duplicate-retry against a local CA",
+      "oracle": "Local CA records monotonic response times, status, retry headers, accepted CSR, output, and responder cleanup; cryptography verifies the positive issued key and certificate.",
+      "comparison": "Positive controls must issue a valid signed chain while respecting each delay; failure controls must stop without publishing output or leaking the listener.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-cert-peer-r13.py": "f9b907602a282bd3844e5580115d5d95def8fe47e255e44343aa3b46fd8f16eb",
+        "helpers/acme-poll-controls-r14.py": "c7b7c803e81acb948a8c34243f151af41c0de8a2b0d72287fcb3894ea549d4d3"
+      },
+      "setup_script": "/usr/bin/python3 -c \"import cryptography\"",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-poll-controls-r14.py \"$BASH\" duplicate-retry\n",
+      "expected_status": 0,
+      "stdout": "acme-poll-duplicate-retry=PASS\n",
+      "stderr": "",
+      "timeout": 60
+    }
+  ]
+}

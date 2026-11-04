@@ -322,7 +322,7 @@ bi_collect_rel (int rootfd, const char *rel, const bi_vec *excludes,
     }
 
   if (bi_open_parent (rootfd, rel, &parent, &base) < 0)
-    return -1;
+    return errno == ENOENT ? 0 : -1; /* A missing ancestor is a missing path. */
   if (fstatat (parent, base, &st, AT_SYMLINK_NOFOLLOW) < 0)
     {
       close (parent);

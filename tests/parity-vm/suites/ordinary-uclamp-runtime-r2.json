@@ -1,0 +1,1256 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py query \"$BASH\"\n",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "covers": [
+        "uclampset/defer_pid_query"
+      ],
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "uclamp-before.json",
+        "uclamp-events.json",
+        "uclamp-reference.json",
+        "uclamp-check.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "id": "clamp-r2-devices-uclamp-query",
+      "kind": "contract",
+      "loadable": "uclampset",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "purpose": "Query an owned child and compare exact output with util-linux and unchanged independent attributes.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "stderr": "",
+      "stdout": "uclamp query checks ok\n",
+      "timeout": 50,
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py setter \"$BASH\"\n",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "uclamp-before.json",
+        "uclamp-events.json",
+        "uclamp-reference.json",
+        "uclamp-check.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "id": "clamp-r2-devices-uclamp-setter",
+      "kind": "contract",
+      "loadable": "uclampset",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "purpose": "Exercise one-sided, paired, reset and reversed updates on an owned child with independent readback and util-linux controls.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "stderr": "",
+      "stdout": "uclamp setter checks ok\n",
+      "timeout": 50,
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "candidate_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py --script /tmp/parity-case/clamp-r2-body.sh \"$BASH\"\n",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "covers": [
+        "uclampset/defer_command_mode"
+      ],
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "cmd-before.json",
+        "cmd-after.json",
+        "cmd-child.out",
+        "cmd-child.err",
+        "cmd-child.status",
+        "cmd-missing.out",
+        "cmd-missing.err",
+        "cmd-missing.status",
+        "cmd-builtin.out",
+        "cmd-builtin.err",
+        "cmd-builtin.status",
+        "cmd-check.json",
+        "clamp-profile-control.json",
+        "clamp-observations-r2.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "files": {
+        "command-judge.py": "#!/usr/bin/python3\n\"\"\"Evaluate saved guest command-mode observations after all statuses persisted.\"\"\"\nimport json,os,sys,uuid\nfrom pathlib import Path\nsys.path.insert(0,\"/opt/bashos-parity/harness/helpers\")\nfrom clamp_r2_support import checkpoint, require_program_status\nH=Path('/tmp/parity-home');C=Path('/tmp/parity-case')\nif os.getuid()!=2000 or os.geteuid()!=2000 or Path.cwd()!=C or os.environ.get('HOME')!=str(H): raise SystemExit(125)\nif Path('/sys/class/dmi/id/sys_vendor').read_text().strip()!='QEMU': raise SystemExit(125)\ntry: uuid.UUID(Path('/etc/bashos-parity-vm').read_text().strip())\nexcept (OSError,ValueError): raise SystemExit(125)\ndef read(n): return (H/n).read_text()\nchecks={}\ntry:\n    for key, filename, expected in [('child_status','cmd-child.status',7), ('missing_status','cmd-missing.status',127), ('builtin_status','cmd-builtin.status',0)]:\n        status=int(read(filename))\n        require_program_status(status, 'command:' + key, 'shell')\n        checks[key]=status==expected\n        checkpoint({'control_valid':True,'candidate_checks':checks},'command')\n    (H/'cmd-check.json').write_text(json.dumps(checks,sort_keys=True)+'\\n')\n    before=json.loads(read('cmd-before.json'));after=json.loads(read('cmd-after.json'));child=json.loads(read('cmd-child.out'))\n    checks={'parent_unchanged':before==after,'child_clamps':(child['attr']['util_min'],child['attr']['util_max'])==(100,800),'argv':child['argv']==['a b',''],'child_status':read('cmd-child.status')=='7\\n','child_stderr':read('cmd-child.err')=='','missing_status':read('cmd-missing.status')=='127\\n','missing_diagnostic':bool(read('cmd-missing.err')),'builtin_status':read('cmd-builtin.status')=='0\\n','builtin_output':read('cmd-builtin.out')=='builtin result\\n','builtin_stderr':read('cmd-builtin.err')==''}\nexcept (OSError,ValueError,KeyError) as exc:\n    (H/'cmd-check.json').write_text(json.dumps({'incomplete':str(exc),'reached_checks':checks})+'\\n');sys.exit(1 if False in checks.values() else 125)\ncheckpoint({'control_valid':True,'candidate_checks':checks},'command')\n(H/'cmd-check.json').write_text(json.dumps(checks,sort_keys=True)+'\\n')\nif not all(checks.values()):sys.exit(1)\nprint('uclamp command checks ok')\n",
+        "clamp-r2-body.sh": "set -e\n[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\nprobe=/opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py\n/usr/bin/python3 \"$probe\" read \"$$\" >\"$HOME/cmd-before.json\" || exit 125\nset +e\nuclampset -m 100 -M 800 /usr/bin/python3 -I \"$probe\" child 'a b' '' >\"$HOME/cmd-child.out\" 2>\"$HOME/cmd-child.err\"\nprintf '%s\\n' \"$?\" >\"$HOME/cmd-child.status\"\nuclampset -m 100 /tmp/parity-case/absent-uclamp-command >\"$HOME/cmd-missing.out\" 2>\"$HOME/cmd-missing.err\"\nprintf '%s\\n' \"$?\" >\"$HOME/cmd-missing.status\"\nuclampset -m 100 printf '%s\\n' 'builtin result' >\"$HOME/cmd-builtin.out\" 2>\"$HOME/cmd-builtin.err\"\nprintf '%s\\n' \"$?\" >\"$HOME/cmd-builtin.status\"\n/usr/bin/python3 \"$probe\" read \"$$\" >\"$HOME/cmd-after.json\" || exit 125\nset -e\n/usr/bin/python3 /tmp/parity-case/command-judge.py\nprintf complete > \"$HOME/clamp-body-completed-r2\"\n"
+      },
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "id": "clamp-r2-devices-uclamp-command",
+      "kind": "contract",
+      "loadable": "uclampset",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "purpose": "Compare shell and child clamp snapshots, literal argv, exit 7, lookup status, and documented builtin dispatch.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "stderr": "",
+      "stdout": "uclamp command checks ok\n",
+      "timeout": 50,
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "clamp-r2-uclamp-followup-query-self",
+      "purpose": "Owned nonroot self with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_query"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-query-followup-r2.py self \"$BASH\"\n",
+      "stdout": "owned uclamp query checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "query-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "clamp-r2-uclamp-followup-query-p0",
+      "purpose": "Owned nonroot p0 with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_query"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-query-followup-r2.py p0 \"$BASH\"\n",
+      "stdout": "owned uclamp query checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "query-report.json",
+        "p0-opstatus",
+        "p0-operation.out",
+        "p0-operation.err",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "clamp-r2-uclamp-followup-query-empty",
+      "purpose": "Owned nonroot empty with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_query"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-query-followup-r2.py empty \"$BASH\"\n",
+      "stdout": "owned uclamp query checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "query-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "clamp-r2-uclamp-followup-query-threads",
+      "purpose": "Owned nonroot threads with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_query"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-query-followup-r2.py threads \"$BASH\"\n",
+      "stdout": "owned uclamp query checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "query-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "clamp-r2-uclamp-followup-alltasks-success",
+      "purpose": "Owned nonroot success with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_all_tasks_preflight"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-alltasks-followup-r2.py success \"$BASH\"\n",
+      "stdout": "owned uclamp all-task checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "alltasks-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "clamp-r2-uclamp-followup-alltasks-validation",
+      "purpose": "Owned nonroot validation with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_all_tasks_preflight"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-alltasks-followup-r2.py validation \"$BASH\"\n",
+      "stdout": "owned uclamp all-task checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "alltasks-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "clamp-r2-uclamp-followup-alltasks-readfail",
+      "purpose": "Owned nonroot readfail with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_all_tasks_preflight"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-alltasks-followup-r2.py readfail \"$BASH\"\n",
+      "stdout": "owned uclamp all-task checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "alltasks-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\nchmod 0755 /tmp/parity-case/:\nprintf clean > \"$HOME/dispatch-marker\"\nif PATH=/tmp/parity-case /usr/bin/uclampset -m 100 :; then r=0; else r=$?; fi\nprintf \"%s\\n\" \"$r\" > \"$HOME/dispatch-control-status\"\n/bin/cp \"$HOME/dispatch-marker\" \"$HOME/dispatch-control-marker\"\n[[ $r == 73 && $(<\"$HOME/dispatch-marker\") == external ]] || exit 125\nprintf clean > \"$HOME/dispatch-marker\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "clamp-r2-uclamp-followup-command-dispatch",
+      "purpose": "Distinguish builtin colon from a shadow external colon command",
+      "covers": [
+        "uclampset/defer_command_mode"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "files": {
+        ":": "#!/bin/sh\nprintf external > \"$HOME/dispatch-marker\"\nexit 73\n",
+        "clamp-r2-body.sh": "set -e\n[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\nset +e\nPATH=/tmp/parity-case uclampset -m 100 :\nr=$?\nprintf \"%s\\n\" \"$r\" > \"$HOME/dispatch-status\"\nset -e\n/usr/bin/python3 -I - <<'DISPATCH'\nimport json,sys\nfrom pathlib import Path\nsys.path.insert(0,'/opt/bashos-parity/harness/helpers')\nfrom clamp_r2_support import checkpoint, require_program_status\nh=Path('/tmp/parity-home')\nrequire_program_status(int((h/'dispatch-status').read_text()), 'dispatch', 'shell')\nchecks={'status':(h/'dispatch-status').read_text()=='0\\n','builtin_marker':(h/'dispatch-marker').read_text()=='clean'}\ncheckpoint({'control_valid':True,'candidate_checks':checks},'dispatch')\nif not all(checks.values()):raise SystemExit(1)\nDISPATCH\nprintf \"uclamp builtin dispatch ok\\n\"\nprintf complete > \"$HOME/clamp-body-completed-r2\"\n"
+      },
+      "candidate_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py --script /tmp/parity-case/clamp-r2-body.sh \"$BASH\"\n",
+      "stdout": "uclamp builtin dispatch ok\n",
+      "timeout": 50,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "dispatch-control-status",
+        "dispatch-control-marker",
+        "dispatch-status",
+        "dispatch-marker",
+        "clamp-profile-control.json",
+        "clamp-observations-r2.json"
+      ],
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, util-linux setup preflight, direct native sched_setattr without KEEP_POLICY, independent parent readback and fork-child self-read.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "clamp-r2-uclamp-followup-setter-fork-direct",
+      "purpose": "Reset-on-fork with independent direct native control and owned task",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-setter45-r2.py fork \"$BASH\"\n",
+      "stdout": "owned uclamp setter checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "setter-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Six independently owned UID-2000 children, separate util-linux positive controls and candidate actions; PID birth/pidfd and child self-read plus independent sched_getattr.",
+      "comparison": "Native and candidate child readbacks before/after prove each update and preserved other clamp; all observations retained. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "clamp-r2-uclamp-followup-setter-owned-updates",
+      "purpose": "Owned children self-read min-only, max-only and paired updates",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-update-observer-r2.py \"$BASH\"\n",
+      "stdout": "owned child setter updates ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "setter-update-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "clamp-r2-uclamp-followup-setter-reset",
+      "purpose": "Owned nonroot reset with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-setter55-r2.py reset \"$BASH\"\n",
+      "stdout": "owned uclamp setter checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "setter-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "clamp-r2-uclamp-followup-setter-policy",
+      "purpose": "Owned nonroot policy with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-setter55-r2.py policy \"$BASH\"\n",
+      "stdout": "owned uclamp setter checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "setter-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Synthetic sched_getattr and sched_setattr replies with raw request-byte preservation checks; native scheduling not changed.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "clamp-r2-uclamp-followup-setter-mock-rt",
+      "purpose": "Owned nonroot rt with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-scheduler-mock-r2.py rt \"$BASH\"\n",
+      "stdout": "synthetic uclamp scheduler checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "scheduler-mock-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Synthetic sched_getattr and sched_setattr replies with raw request-byte preservation checks; native scheduling not changed.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement. R2 requires independent notification completion/ack receipts; qualified product mismatches and cleanup disposition are retained separately.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r2.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "clamp-r2-uclamp-followup-setter-mock-deadline",
+      "purpose": "Owned nonroot deadline with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-scheduler-mock-r2.py deadline \"$BASH\"\n",
+      "stdout": "synthetic uclamp scheduler checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "scheduler-mock-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json",
+        "clamp-observations-r2.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125,
+      "clamp_revision": "r2"
+    },
+    {
+      "id": "clamp-r2-uclampset-system-open-fail",
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "uclampset/defer_system_files"
+      ],
+      "purpose": "A read-only target file (EACCES as uid 2000) gives 'cannot open ... for writing' and leaves every file unchanged",
+      "oracle": "Documented uclampset --system contract (open all changed files before the first write, raise the ceiling first when the new floor exceeds it, roll back in reverse order, short write is EIO), a private BASHOS_PROC_ROOT tree and a seccomp-notify syscall log (helpers/clamp-system-sequence-r2.py)",
+      "comparison": "Diagnostic text, unchanged file values and the absence of any write for a read-only ceiling and a read-only floor.",
+      "requires": [
+        "python3",
+        "rm",
+        "mkdir",
+        "chmod"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "expected_status": 0,
+      "stdout": "omax: rc=1 min=32 max=512\n  trace: open min | open max | open min | open max\n  err: uclampset: cannot open P/sched_util_clamp_max for writing: Permission denied\nomin: rc=1 min=32 max=512\n  trace: open min | open max | open min\n  err: uclampset: cannot open P/sched_util_clamp_min for writing: Permission denied\n",
+      "stderr": "",
+      "timeout": 45,
+      "clamp_revision": "r2",
+      "observation_error_status": 125,
+      "files": {
+        "clamp-r2-body.sh": "set -e\n[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\nSEQ=/opt/bashos-parity/harness/helpers/clamp-system-sequence-r2.py\nP=/tmp/parity-case/proc/sys/kernel\nmkproc() { /usr/bin/rm -rf /tmp/parity-case/proc; /usr/bin/mkdir -p \"$P\"; printf '32\\n' >\"$P/sched_util_clamp_min\"; printf '512\\n' >\"$P/sched_util_clamp_max\"; }\n# run LABEL \"SEQ-RULES\" \"COMMAND\" ; prints status, stderr probes, file values and the ordered open/write trace\nrun() {\n  local T=$HOME/$1 rules=$2 cmd=$3\n  /usr/bin/rm -f \"$T\".log \"$T\".err \"$T\".rc\n  BASHOS_PROC_ROOT=/tmp/parity-case/proc /usr/bin/python3 \"$SEQ\" --notify openat --log-string openat=1 --notify write --log-args write=0,2 --log-mem write=1:4 $rules --log \"$T.log\" -- \"$BASH\" --noprofile --norc -c \"$cmd 2>$T.err; printf 'rc=%s\\\\n' \\$? >$T.rc\"\n  /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp_r2_support.py --verify-outcome \"$T.log\" || exit 125\n  local rc=$(<\"$T.rc\") mn mx; read -r mn <\"$P/sched_util_clamp_min\"; read -r mx <\"$P/sched_util_clamp_max\"\n  echo \"$1: ${rc} min=$mn max=$mx\"\n  /usr/bin/python3 -I - \"$T\" <<'PY'\nimport json, re, sys\nt = sys.argv[1]\nev = []\nfor l in open(t + \".log\"):\n    r = json.loads(l)\n    if r[\"syscall\"] == \"openat\":\n        s = str(r.get(\"string1\", \"\"))\n        if \"sched_util_clamp_\" in s:\n            ev.append(\"open \" + s.rsplit(\"_\", 1)[1])\n    elif r[\"syscall\"] == \"write\":\n        data = bytes.fromhex(r[\"memory1\"][\"hex\"])[:r[\"arg2\"]]\n        if re.fullmatch(rb\"[0-9]+\\n\", data):\n            ev.append(\"write %s%s\" % (data.decode().strip(), \"\" if r[\"reply\"] == \"continue\" else \"[\" + r[\"reply\"] + \"]\"))\nprint(\"  trace: \" + (\" | \".join(ev) or \"(none)\"))\nerr = open(t + \".err\").read().strip().splitlines()\nfor line in err:\n    print(\"  err: \" + line.replace(\"/tmp/parity-case/proc/sys/kernel/\", \"P/\"))\nPY\n}\nmkproc; /usr/bin/chmod 444 \"$P/sched_util_clamp_max\"\nrun omax \"\" \"uclampset -m 64 -M 768 --system\"\nmkproc; /usr/bin/chmod 444 \"$P/sched_util_clamp_min\"\nrun omin \"\" \"uclampset -m 64 -M 768 --system\"\nprintf complete > \"$HOME/clamp-body-completed-r2\"\n"
+      },
+      "candidate_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py --script /tmp/parity-case/clamp-r2-body.sh \"$BASH\"\n",
+      "diagnostic_files": [
+        "clamp-observations-r2.json",
+        "clamp-runtime-outcome.json"
+      ]
+    },
+    {
+      "id": "clamp-r2-uclampset-system-order",
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "uclampset/defer_system_files"
+      ],
+      "purpose": "Write ordering: the ceiling is written first when the new floor exceeds the current ceiling, otherwise the floor first; unchanged members are not written",
+      "oracle": "Documented uclampset --system contract (open all changed files before the first write, raise the ceiling first when the new floor exceeds it, roll back in reverse order, short write is EIO), a private BASHOS_PROC_ROOT tree and a seccomp-notify syscall log (helpers/clamp-system-sequence-r2.py)",
+      "comparison": "Open and write order from the syscall log plus the final private file values for three requests.",
+      "requires": [
+        "python3",
+        "rm",
+        "mkdir",
+        "chmod"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "expected_status": 0,
+      "stdout": "raise: rc=0 min=600 max=800\n  trace: open min | open max | open max | open min | write 800 | write 600\nlower: rc=0 min=64 max=768\n  trace: open min | open max | open min | open max | write 64 | write 768\nceil: rc=0 min=32 max=100\n  trace: open min | open max | open max | write 100\n",
+      "stderr": "",
+      "timeout": 45,
+      "clamp_revision": "r2",
+      "observation_error_status": 125,
+      "files": {
+        "clamp-r2-body.sh": "set -e\n[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\nSEQ=/opt/bashos-parity/harness/helpers/clamp-system-sequence-r2.py\nP=/tmp/parity-case/proc/sys/kernel\nmkproc() { /usr/bin/rm -rf /tmp/parity-case/proc; /usr/bin/mkdir -p \"$P\"; printf '32\\n' >\"$P/sched_util_clamp_min\"; printf '512\\n' >\"$P/sched_util_clamp_max\"; }\n# run LABEL \"SEQ-RULES\" \"COMMAND\" ; prints status, stderr probes, file values and the ordered open/write trace\nrun() {\n  local T=$HOME/$1 rules=$2 cmd=$3\n  /usr/bin/rm -f \"$T\".log \"$T\".err \"$T\".rc\n  BASHOS_PROC_ROOT=/tmp/parity-case/proc /usr/bin/python3 \"$SEQ\" --notify openat --log-string openat=1 --notify write --log-args write=0,2 --log-mem write=1:4 $rules --log \"$T.log\" -- \"$BASH\" --noprofile --norc -c \"$cmd 2>$T.err; printf 'rc=%s\\\\n' \\$? >$T.rc\"\n  /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp_r2_support.py --verify-outcome \"$T.log\" || exit 125\n  local rc=$(<\"$T.rc\") mn mx; read -r mn <\"$P/sched_util_clamp_min\"; read -r mx <\"$P/sched_util_clamp_max\"\n  echo \"$1: ${rc} min=$mn max=$mx\"\n  /usr/bin/python3 -I - \"$T\" <<'PY'\nimport json, re, sys\nt = sys.argv[1]\nev = []\nfor l in open(t + \".log\"):\n    r = json.loads(l)\n    if r[\"syscall\"] == \"openat\":\n        s = str(r.get(\"string1\", \"\"))\n        if \"sched_util_clamp_\" in s:\n            ev.append(\"open \" + s.rsplit(\"_\", 1)[1])\n    elif r[\"syscall\"] == \"write\":\n        data = bytes.fromhex(r[\"memory1\"][\"hex\"])[:r[\"arg2\"]]\n        if re.fullmatch(rb\"[0-9]+\\n\", data):\n            ev.append(\"write %s%s\" % (data.decode().strip(), \"\" if r[\"reply\"] == \"continue\" else \"[\" + r[\"reply\"] + \"]\"))\nprint(\"  trace: \" + (\" | \".join(ev) or \"(none)\"))\nerr = open(t + \".err\").read().strip().splitlines()\nfor line in err:\n    print(\"  err: \" + line.replace(\"/tmp/parity-case/proc/sys/kernel/\", \"P/\"))\nPY\n}\nmkproc; run raise \"\" \"uclampset -m 600 -M 800 --system\"\nmkproc; run lower \"\" \"uclampset -m 64 -M 768 --system\"\nmkproc; run ceil \"\" \"uclampset -M 100 --system\"\nprintf complete > \"$HOME/clamp-body-completed-r2\"\n"
+      },
+      "candidate_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py --script /tmp/parity-case/clamp-r2-body.sh \"$BASH\"\n",
+      "diagnostic_files": [
+        "clamp-observations-r2.json",
+        "clamp-runtime-outcome.json"
+      ]
+    },
+    {
+      "id": "clamp-r2-uclampset-system-rollback",
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "uclampset/defer_system_files"
+      ],
+      "purpose": "A write failure (ENOSPC) rolls earlier writes back in reverse order, restores file contents, names the file and returns 1",
+      "oracle": "Documented uclampset --system contract (open all changed files before the first write, raise the ceiling first when the new floor exceeds it, roll back in reverse order, short write is EIO), a private BASHOS_PROC_ROOT tree and a seccomp-notify syscall log (helpers/clamp-system-sequence-r2.py)",
+      "comparison": "ENOSPC injected on the second write of each order: reverse-order restore writes, final values equal the originals, diagnostic names the failing file. (A /dev/full symlink cannot be used: the pre-read of that file must parse.)",
+      "requires": [
+        "python3",
+        "rm",
+        "mkdir",
+        "chmod"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "expected_status": 0,
+      "stdout": "rb1: rc=1 min=32 max=512\n  trace: open min | open max | open min | open max | write 64 | write 768[errno:28] | write 512 | write 32\n  err: uclampset: cannot write P/sched_util_clamp_max: No space left on device\nrb2: rc=1 min=32 max=512\n  trace: open min | open max | open max | open min | write 800 | write 600[errno:28] | write 32 | write 512\n  err: uclampset: cannot write P/sched_util_clamp_min: No space left on device\n",
+      "stderr": "",
+      "timeout": 45,
+      "clamp_revision": "r2",
+      "observation_error_status": 125,
+      "files": {
+        "clamp-r2-body.sh": "set -e\n[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\nSEQ=/opt/bashos-parity/harness/helpers/clamp-system-sequence-r2.py\nP=/tmp/parity-case/proc/sys/kernel\nmkproc() { /usr/bin/rm -rf /tmp/parity-case/proc; /usr/bin/mkdir -p \"$P\"; printf '32\\n' >\"$P/sched_util_clamp_min\"; printf '512\\n' >\"$P/sched_util_clamp_max\"; }\n# run LABEL \"SEQ-RULES\" \"COMMAND\" ; prints status, stderr probes, file values and the ordered open/write trace\nrun() {\n  local T=$HOME/$1 rules=$2 cmd=$3\n  /usr/bin/rm -f \"$T\".log \"$T\".err \"$T\".rc\n  BASHOS_PROC_ROOT=/tmp/parity-case/proc /usr/bin/python3 \"$SEQ\" --notify openat --log-string openat=1 --notify write --log-args write=0,2 --log-mem write=1:4 $rules --log \"$T.log\" -- \"$BASH\" --noprofile --norc -c \"$cmd 2>$T.err; printf 'rc=%s\\\\n' \\$? >$T.rc\"\n  /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp_r2_support.py --verify-outcome \"$T.log\" || exit 125\n  local rc=$(<\"$T.rc\") mn mx; read -r mn <\"$P/sched_util_clamp_min\"; read -r mx <\"$P/sched_util_clamp_max\"\n  echo \"$1: ${rc} min=$mn max=$mx\"\n  /usr/bin/python3 -I - \"$T\" <<'PY'\nimport json, re, sys\nt = sys.argv[1]\nev = []\nfor l in open(t + \".log\"):\n    r = json.loads(l)\n    if r[\"syscall\"] == \"openat\":\n        s = str(r.get(\"string1\", \"\"))\n        if \"sched_util_clamp_\" in s:\n            ev.append(\"open \" + s.rsplit(\"_\", 1)[1])\n    elif r[\"syscall\"] == \"write\":\n        data = bytes.fromhex(r[\"memory1\"][\"hex\"])[:r[\"arg2\"]]\n        if re.fullmatch(rb\"[0-9]+\\n\", data):\n            ev.append(\"write %s%s\" % (data.decode().strip(), \"\" if r[\"reply\"] == \"continue\" else \"[\" + r[\"reply\"] + \"]\"))\nprint(\"  trace: \" + (\" | \".join(ev) or \"(none)\"))\nerr = open(t + \".err\").read().strip().splitlines()\nfor line in err:\n    print(\"  err: \" + line.replace(\"/tmp/parity-case/proc/sys/kernel/\", \"P/\"))\nPY\n}\nmkproc; run rb1 \"--reply-seq write=continue,ENOSPC\" \"uclampset -m 64 -M 768 --system\"\nmkproc; run rb2 \"--reply-seq write=continue,ENOSPC\" \"uclampset -m 600 -M 800 --system\"\nprintf complete > \"$HOME/clamp-body-completed-r2\"\n"
+      },
+      "candidate_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py --script /tmp/parity-case/clamp-r2-body.sh \"$BASH\"\n",
+      "diagnostic_files": [
+        "clamp-observations-r2.json",
+        "clamp-runtime-outcome.json"
+      ]
+    },
+    {
+      "id": "clamp-r2-uclampset-system-short-write",
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "uclampset/defer_system_files"
+      ],
+      "purpose": "A short write(2) (2 of 4 bytes, synthetic) is EIO and the remainder is not written",
+      "oracle": "Documented uclampset --system contract (open all changed files before the first write, raise the ceiling first when the new floor exceeds it, roll back in reverse order, short write is EIO), a private BASHOS_PROC_ROOT tree and a seccomp-notify syscall log (helpers/clamp-system-sequence-r2.py)",
+      "comparison": "Status, EIO text, and no continuation write of the unsent tail in the syscall log; the earlier file is restored.",
+      "requires": [
+        "python3",
+        "rm",
+        "mkdir",
+        "chmod"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "expected_status": 0,
+      "stdout": "sw: rc=1 min=32 max=512\n  trace: open min | open max | open min | open max | write 100[value:2] | write 32\n  err: uclampset: cannot write P/sched_util_clamp_min: Input/output error\n",
+      "stderr": "",
+      "timeout": 45,
+      "clamp_revision": "r2",
+      "observation_error_status": 125,
+      "files": {
+        "clamp-r2-body.sh": "set -e\n[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\nSEQ=/opt/bashos-parity/harness/helpers/clamp-system-sequence-r2.py\nP=/tmp/parity-case/proc/sys/kernel\nmkproc() { /usr/bin/rm -rf /tmp/parity-case/proc; /usr/bin/mkdir -p \"$P\"; printf '32\\n' >\"$P/sched_util_clamp_min\"; printf '512\\n' >\"$P/sched_util_clamp_max\"; }\n# run LABEL \"SEQ-RULES\" \"COMMAND\" ; prints status, stderr probes, file values and the ordered open/write trace\nrun() {\n  local T=$HOME/$1 rules=$2 cmd=$3\n  /usr/bin/rm -f \"$T\".log \"$T\".err \"$T\".rc\n  BASHOS_PROC_ROOT=/tmp/parity-case/proc /usr/bin/python3 \"$SEQ\" --notify openat --log-string openat=1 --notify write --log-args write=0,2 --log-mem write=1:4 $rules --log \"$T.log\" -- \"$BASH\" --noprofile --norc -c \"$cmd 2>$T.err; printf 'rc=%s\\\\n' \\$? >$T.rc\"\n  /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp_r2_support.py --verify-outcome \"$T.log\" || exit 125\n  local rc=$(<\"$T.rc\") mn mx; read -r mn <\"$P/sched_util_clamp_min\"; read -r mx <\"$P/sched_util_clamp_max\"\n  echo \"$1: ${rc} min=$mn max=$mx\"\n  /usr/bin/python3 -I - \"$T\" <<'PY'\nimport json, re, sys\nt = sys.argv[1]\nev = []\nfor l in open(t + \".log\"):\n    r = json.loads(l)\n    if r[\"syscall\"] == \"openat\":\n        s = str(r.get(\"string1\", \"\"))\n        if \"sched_util_clamp_\" in s:\n            ev.append(\"open \" + s.rsplit(\"_\", 1)[1])\n    elif r[\"syscall\"] == \"write\":\n        data = bytes.fromhex(r[\"memory1\"][\"hex\"])[:r[\"arg2\"]]\n        if re.fullmatch(rb\"[0-9]+\\n\", data):\n            ev.append(\"write %s%s\" % (data.decode().strip(), \"\" if r[\"reply\"] == \"continue\" else \"[\" + r[\"reply\"] + \"]\"))\nprint(\"  trace: \" + (\" | \".join(ev) or \"(none)\"))\nerr = open(t + \".err\").read().strip().splitlines()\nfor line in err:\n    print(\"  err: \" + line.replace(\"/tmp/parity-case/proc/sys/kernel/\", \"P/\"))\nPY\n}\nmkproc; run sw \"--reply-seq write=2\" \"uclampset -m 100 -M 800 --system\"\nprintf complete > \"$HOME/clamp-body-completed-r2\"\n"
+      },
+      "candidate_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py --script /tmp/parity-case/clamp-r2-body.sh \"$BASH\"\n",
+      "diagnostic_files": [
+        "clamp-observations-r2.json",
+        "clamp-runtime-outcome.json"
+      ]
+    },
+    {
+      "id": "clamp-r2-system-query-private-model",
+      "kind": "contract",
+      "purpose": "Use the documented relative proc-root seam to read/write only private regular files, checking paired updates and -1 keep-current. This is a file-model contract, not a live scheduler/sysctl test.",
+      "expected_status": 0,
+      "stderr": "",
+      "stdout": "System util_clamp: min: 32 max: 512\nSystem util_clamp: min: 64 max: 768\nSystem util_clamp: min: 64 max: 900\n",
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "clamp_revision": "r2",
+      "observation_error_status": 125,
+      "timeout": 45,
+      "covers": [
+        "uclampset/defer_system_files"
+      ],
+      "oracle": "Same private-file operations as frozen lowercase contract; System capitalization corrected to upstream util-linux v2.41.5 schedutils/uclampset.c:130 for 0.1.4.",
+      "files": {
+        "private-proc/sys/kernel/sched_util_clamp_min": "32\n",
+        "private-proc/sys/kernel/sched_util_clamp_max": "512\n"
+      },
+      "candidate_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r2.py /opt/bashos-parity/harness/helpers/clamp-runtime-private-model-r2.py \"$BASH\"\n",
+      "diagnostic_files": [
+        "clamp-observations-r2.json",
+        "clamp-runtime-outcome.json",
+        "private-model-report-r2.json"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      }
+    }
+  ]
+}

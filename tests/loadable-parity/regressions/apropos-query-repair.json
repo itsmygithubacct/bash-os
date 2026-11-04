@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "loadable": "apropos",
+  "reference": "Focused candidate contracts; man-db comparison is provided by the parity VM cases.",
+  "cases": [
+    {
+      "id": "query-regex-dot",
+      "kind": "contract",
+      "purpose": "Exercise apropos query semantics on a private whatis index.",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha, aleph (1) - first apple' 'alpha-x (1) - longer name' 'beta (1) - second berry' 'both (1) - alpha and beta' > whatis\napropos -- \"^al.ha, \"",
+      "expected_status": 0,
+      "stdout": "alpha, aleph (1) - first apple\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "query-or",
+      "kind": "contract",
+      "purpose": "Exercise apropos query semantics on a private whatis index.",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha, aleph (1) - first apple' 'alpha-x (1) - longer name' 'beta (1) - second berry' 'both (1) - alpha and beta' > whatis\napropos -- \"^alpha, \" \"^beta \"",
+      "expected_status": 0,
+      "stdout": "alpha, aleph (1) - first apple\nbeta (1) - second berry\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "query-and",
+      "kind": "contract",
+      "purpose": "Exercise apropos query semantics on a private whatis index.",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha, aleph (1) - first apple' 'alpha-x (1) - longer name' 'beta (1) - second berry' 'both (1) - alpha and beta' > whatis\napropos -a -- alpha beta",
+      "expected_status": 0,
+      "stdout": "both (1) - alpha and beta\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "query-word-glob-alias",
+      "kind": "contract",
+      "purpose": "Exercise apropos query semantics on a private whatis index.",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha, aleph (1) - first apple' 'alpha-x (1) - longer name' 'beta (1) - second berry' 'both (1) - alpha and beta' > whatis\napropos -w -- \"ale*\"",
+      "expected_status": 0,
+      "stdout": "alpha, aleph (1) - first apple\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "query-word-hyphen",
+      "kind": "contract",
+      "purpose": "Exercise apropos query semantics on a private whatis index.",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha, aleph (1) - first apple' 'alpha-x (1) - longer name' 'beta (1) - second berry' 'both (1) - alpha and beta' > whatis\napropos -w -- alpha-x",
+      "expected_status": 0,
+      "stdout": "alpha-x (1) - longer name\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "query-miss",
+      "kind": "contract",
+      "purpose": "Exercise apropos query semantics on a private whatis index.",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha, aleph (1) - first apple' 'alpha-x (1) - longer name' 'beta (1) - second berry' 'both (1) - alpha and beta' > whatis\napropos -- nofixturehit",
+      "expected_status": 16,
+      "stdout": "nofixturehit: nothing appropriate.\n",
+      "stderr": "empty"
+    }
+  ]
+}

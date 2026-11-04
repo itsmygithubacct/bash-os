@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "runtime-uclamp-live-sysctl-r1",
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "covers": [
+        "uclampset/defer_system_files"
+      ],
+      "purpose": "Real scheduler sysctl updates, independent EINVAL controls and verified restoration",
+      "oracle": "Real procfs read/write and independently observed util-linux --system, with direct invalid writes bypassing CLI validation. Every path restores the original system clamp pair.",
+      "comparison": "Compare valid live updates and query bytes with qualified util-linux; reject reversed/oversized inputs without mutation. Direct writes independently require kernel EINVAL. Kernel-global restoration failure is ERROR; retained candidate checks preserve reached mismatches.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r1.py": "0fc008fab6ad5e72b13c261da15e970597b81fa6bf0a899a324b0c634e11c9a6",
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102"
+      },
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-live-sysctl-r1.py --preflight\n",
+      "candidate_script": "[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-live-sysctl-r1.py --candidate \"$BASH\"\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "live uclamp sysctl checks ok\n",
+      "stderr": "",
+      "timeout": 60,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "clamp-live-control.json",
+        "clamp-live-report.json"
+      ]
+    }
+  ]
+}

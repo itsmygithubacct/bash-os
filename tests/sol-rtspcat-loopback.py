@@ -210,6 +210,18 @@ def invoke(binary, server, args=(), standalone=False, shell_suffix='', stdout=No
     return proc
 
 
+def closed_low_fd(binary):
+    # The RTSP socket can reuse the descriptor closed by the shell.
+    server = Server(good_stream(1)[0])
+    script = ('exec 3>&-; rtspcat ' + shlex.quote(server.client_url) +
+              ' -n 1 -o 3; r=$?; [[ $r == 1 ]] || exit 90; printf shell-alive')
+    proc = subprocess.run([binary, '--noprofile', '--norc', '-c', script],
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=12)
+    server.finish()
+    assert proc.returncode == 0 and proc.stdout == b'shell-alive' and b'write to fd 3' in proc.stderr, (proc.returncode, proc.stdout, proc.stderr)
+    assert server.methods == ['OPTIONS', 'DESCRIBE', 'SETUP', 'PLAY', 'TEARDOWN'], server.methods
+
+
 def run_suite(binary, standalone=False):
     cases = []
     def check(name, data, expected, args=('-n', '1'), status=0, teardown=True, **kw):
@@ -306,6 +318,9 @@ def run_suite(binary, standalone=False):
         assert proc.returncode == 0 and proc.stdout == b'' and target.read() == good_stream(3)[1], proc.stderr
     server.finish()
     cases.append('explicit-output-fd'); print('PASS', cases[-1], flush=True)
+    if not standalone:
+        closed_low_fd(binary)
+        cases.append('output-closed-low-fd-reused-by-socket'); print('PASS', cases[-1], flush=True)
     for fd in ('9999', '1'):
         server = Server(good_stream(1)[0])
         args = ['-n', '1', '-o', fd]
@@ -378,8 +393,14 @@ def main():
     parser.add_argument('--binary', required=True)
     parser.add_argument('--standalone', action='store_true')
     parser.add_argument('--report')
+    parser.add_argument('--case', choices=['output-closed-low-fd-reused-by-socket'])
     args = parser.parse_args()
-    cases = run_suite(str(Path(args.binary).resolve()), args.standalone)
+    if args.case:
+        if args.standalone: parser.error('--case requires a Bash builtin')
+        closed_low_fd(str(Path(args.binary).resolve()))
+        cases = [args.case]
+    else:
+        cases = run_suite(str(Path(args.binary).resolve()), args.standalone)
     if args.report:
         Path(args.report).write_text(json.dumps({'status': 'pass', 'cases': cases, 'count': len(cases)}, indent=2) + '\n')
     print(f'PASS {len(cases)} cases')

@@ -117,10 +117,11 @@ bm_all_cmd (WORD_LIST *args)
     return EXECUTION_FAILURE;
   if (mlockall (MCL_CURRENT | MCL_FUTURE) < 0)
     {
-      builtin_error ("mlockall: %s", strerror (errno));
-      /* Print the current limit on EAGAIN so operators can diagnose
-         a setrlimit-downgrade or restrictive default. */
-      if (errno == EAGAIN)
+      int saved = errno;
+      builtin_error ("mlockall: %s", strerror (saved));
+      /* Both errors can indicate that the active limit is insufficient.
+         Save errno before reporting, since diagnostics may change it. */
+      if (saved == EAGAIN || saved == ENOMEM)
         {
           struct rlimit r;
           if (getrlimit (RLIMIT_MEMLOCK, &r) == 0)
@@ -128,9 +129,13 @@ bm_all_cmd (WORD_LIST *args)
               if (r.rlim_cur == RLIM_INFINITY)
                 builtin_error ("  current RLIMIT_MEMLOCK: unlimited");
               else
-                builtin_error ("  current RLIMIT_MEMLOCK: soft=%llu hard=%llu",
-                               (unsigned long long) r.rlim_cur,
-                               (unsigned long long) r.rlim_max);
+                {
+                  char soft[64], hard[64];
+                  bm_print_rlimit_value (soft, sizeof soft, r.rlim_cur);
+                  bm_print_rlimit_value (hard, sizeof hard, r.rlim_max);
+                  builtin_error ("  current RLIMIT_MEMLOCK: soft=%s hard=%s",
+                                 soft, hard);
+                }
             }
         }
       return EXECUTION_FAILURE;

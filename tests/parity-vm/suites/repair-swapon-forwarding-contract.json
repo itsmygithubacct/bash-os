@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-swapon-forwarding-contract-root",
+      "loadable": "swapon",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "covers": [
+        "swapon/operand-and-flag-forwarding"
+      ],
+      "purpose": "Assert literal ordered operands and Linux priority/discard bits with every swapon syscall answered by seccomp notification, without enabling swap.",
+      "oracle": "Explicit Linux ABI values and literal operand contract; not util-linux path normalization.",
+      "comparison": "Exact ordered syscall records, success responses, empty output, and unchanged /proc/swaps.",
+      "requires": [
+        "python3",
+        "cat",
+        "cmp"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "script": "set -u\nH=/opt/bashos-parity/harness/helpers/system-seccomp.py\nD=/tmp/parity-case\n[[ $(type -t swapon) == builtin ]] || exit 125\n/usr/bin/cat /proc/swaps > \"$D/swapon-before\" || exit 125\n: > \"$D/swapon-log\"\nPYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 \"$H\" --notify swapon --reply swapon=0 --log-string swapon=0 --log-args swapon=1 --log \"$D/swapon-log\" -- \"$BASH\" --noprofile --norc -c '\n  [[ $(type -t swapon) == builtin ]] || exit 125\n  swapon /fixture/plain &&\n  swapon -p 0 /fixture/p0 &&\n  swapon -p 1 /fixture/p1 &&\n  swapon -p 32767 /fixture/pmax &&\n  swapon -d /fixture/discard &&\n  swapon -d -p 5 /fixture/both &&\n  swapon -- -name s1\n' > \"$D/swapon-out\" 2> \"$D/swapon-err\" || exit $?\n[[ ! -s \"$D/swapon-out\" && ! -s \"$D/swapon-err\" ]] || exit 1\n/usr/bin/cmp -s \"$D/swapon-before\" /proc/swaps || exit 1\n/usr/bin/python3 - \"$D/swapon-log\" <<'PY_CHECK'\nimport json, sys\nexpected = [('/fixture/plain', 0), ('/fixture/p0', 0x8000),\n            ('/fixture/p1', 0x8001), ('/fixture/pmax', 0xffff),\n            ('/fixture/discard', 0x10000), ('/fixture/both', 0x18005),\n            ('-name', 0), ('s1', 0)]\nwith open(sys.argv[1]) as f:\n    records = [json.loads(line) for line in f]\nactual = [(r.get('string0'), r.get('arg1')) for r in records]\nif actual != expected or any(r.get('syscall') != 'swapon' or r.get('reply') != 'value:0' for r in records):\n    print('unexpected supervisor records:', records, file=sys.stderr)\n    sys.exit(1)\nPY_CHECK\n",
+      "expected_status": 0,
+      "stdout": "",
+      "stderr": "",
+      "timeout": 30
+    }
+  ]
+}

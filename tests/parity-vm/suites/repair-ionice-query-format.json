@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-ionice-query-multiple-contract",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Multiple PID query order and accumulated errors, with failure in each position",
+      "oracle": "Explicit query-format requirement: query all PIDs in order and retain failure status; independently configured owned children have distinct priorities.",
+      "comparison": "Exact stdout and status, with ESRCH diagnostic normalized.",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 worker.py one 2 3 & first=$!\n/usr/bin/python3 worker.py two 3 0 & last=$!\ntrap 'kill -TERM \"$first\" \"$last\" 2>/dev/null; wait \"$first\" \"$last\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py one two || exit 90\n/usr/bin/true & dead=$!; wait \"$dead\"\nfor position in middle first last; do\n  case $position in\n    middle) ionice -p \"$first\" -p \"$dead\" -p \"$last\" > out 2> err; rc=$? ;;\n    first)  ionice -p \"$dead\" -p \"$first\" -p \"$last\" > out 2> err; rc=$? ;;\n    last)   ionice -p \"$first\" -p \"$last\" -p \"$dead\" > out 2> err; rc=$? ;;\n  esac\n  printf '%s:\\n' \"$position\"\n  /usr/bin/cat out\n  diagnostic=$(<err)\n  [[ $diagnostic == *\"No such process\"* ]] && d=ESRCH || d=other\n  printf 'status=%s diagnostic=%s\\n' \"$rc\" \"$d\"\ndone\nrm -f out err\n",
+      "expected_status": 0,
+      "requires": [
+        "ionice",
+        "python3",
+        "true",
+        "cat"
+      ],
+      "covers": [
+        "ionice/query-format"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
+      "stdout": "middle:\nbest-effort: prio 3\nidle\nstatus=1 diagnostic=ESRCH\nfirst:\nbest-effort: prio 3\nidle\nstatus=1 diagnostic=ESRCH\nlast:\nbest-effort: prio 3\nidle\nstatus=1 diagnostic=ESRCH\n",
+      "stderr": "",
+      "files": {
+        "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",
+        "worker.py": "import pathlib,signal,sys\nimport ioprio\nlabel=sys.argv[1];ioprio.set(0,int(sys.argv[2]),int(sys.argv[3]))\npathlib.Path('ready-'+label).write_text('ready\\n')\nsignal.alarm(15)\nwhile True:signal.pause()\n",
+        "ready.py": "import pathlib,sys,time\ndeadline=time.monotonic()+3\nwhile not all(pathlib.Path('ready-'+s).exists() for s in sys.argv[1:]):\n if time.monotonic()>deadline:raise RuntimeError('owned I/O-priority child not ready')\n time.sleep(.01)\n"
+      }
+    }
+  ]
+}

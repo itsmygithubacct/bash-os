@@ -1,0 +1,299 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "vi-repair-mode-preserved",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "An interactive write keeps the existing 0640 mode.",
+      "setup_script": "chmod 640 note",
+      "script": "vi note; rc=$?; /usr/bin/stat -c %a note > mode; exit \"$rc\"",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "A!\u001b"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "alpha\n"
+      },
+      "expected_files": {
+        "note": "alpha!\n",
+        "mode": "640\n"
+      }
+    },
+    {
+      "id": "vi-repair-substitute-range-undo",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "A ranged global basic-regex substitution is one undoable edit.",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": ":%s/o/0/g\r"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "u:%s/o/0/g\r"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "foo\nboo\n"
+      },
+      "expected_files": {
+        "note": "f00\nb00\n"
+      }
+    },
+    {
+      "id": "vi-repair-command-cancel",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Command input appears as it is typed, and Escape cancels it.",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": ":w"
+        },
+        {
+          "screen": {
+            "rows": {
+              "23": "^:w"
+            }
+          }
+        },
+        {
+          "send": "\u001b"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":q!\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "one\n"
+      },
+      "expected_files": {
+        "note": "one\n"
+      }
+    },
+    {
+      "id": "vi-repair-change-word-boundary",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Changing a word preserves the following space and is undoable.",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "cwNEW\u001b"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "u"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "cwNEW\u001b"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "old word\n"
+      },
+      "expected_files": {
+        "note": "NEW word\n"
+      }
+    },
+    {
+      "id": "vi-review-change-word-dot-repeat",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "After a change-word, dot repeats that change rather than an earlier line deletion.",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "ddcwX\u001bj0.:wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "one\nalpha beta\ngamma delta\n"
+      },
+      "expected_files": {
+        "note": "X beta\nX delta\n"
+      }
+    },
+    {
+      "id": "vi-review-count-change-word",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Counted change-word and repeat preserve the following separator.",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "2cwX\u001bj0.:wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "one two three\nfour five six\n"
+      },
+      "expected_files": {
+        "note": "X three\nX six\n"
+      }
+    },
+    {
+      "id": "vi-review-count-join-dot",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Counted join and dot repeat join the requested number of lines.",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "3Jj0.:wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "a\nb\nc\nd\ne\nf\n"
+      },
+      "expected_files": {
+        "note": "a b c\nd e f\n"
+      }
+    },
+    {
+      "id": "vi-review-change-word-whitespace",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Change-word on whitespace replaces the run, preserving following text.",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "3lcw_\u001b:wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/interactive-pty-edit"
+      ],
+      "files": {
+        "note": "one   two\n"
+      },
+      "expected_files": {
+        "note": "one_two\n"
+      }
+    }
+  ]
+}

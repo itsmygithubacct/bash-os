@@ -8,7 +8,7 @@
       "driver": "plain",
       "kind": "parity",
       "purpose": "Yes/Enter selects the default Yes with status 0.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -26,14 +26,14 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"key\": \"enter\"\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --yesno 'Choose now' 9 40 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --yesno 'Choose now' 9 40 3>result\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
-      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" reference",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -48,7 +48,7 @@
       "driver": "plain",
       "kind": "parity",
       "purpose": "Tab then Enter selects No with status 1.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -66,14 +66,14 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"key\": \"tab\"\n    },\n    {\n      \"key\": \"enter\"\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --yesno 'Choose now' 9 40 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --yesno 'Choose now' 9 40 3>result\",\n  \"expected_status\": 1,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
-      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" reference",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -88,7 +88,7 @@
       "driver": "plain",
       "kind": "parity",
       "purpose": "Escape cancels the yes/no widget with status 255.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -106,14 +106,14 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"key\": \"escape\"\n    },\n    {\n      \"quiet_ms\": 400\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --yesno 'Choose now' 9 40 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --yesno 'Choose now' 9 40 3>result\",\n  \"expected_status\": 255,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
-      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" reference",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -128,7 +128,7 @@
       "driver": "plain",
       "kind": "parity",
       "purpose": "Backspace and Left followed by insertion return abXc on the selected result fd.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -146,14 +146,14 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"send\": \"abcd\"\n    },\n    {\n      \"key\": \"backspace\"\n    },\n    {\n      \"key\": \"left\"\n    },\n    {\n      \"send\": \"X\"\n    },\n    {\n      \"screen\": {\n        \"contains\": [\n          \"abXc\"\n        ]\n      }\n    },\n    {\n      \"key\": \"enter\"\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --inputbox 'Choose text' 9 40 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --inputbox 'Choose text' 9 40 3>result\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
-      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" reference",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -168,7 +168,7 @@
       "driver": "plain",
       "kind": "parity",
       "purpose": "Escape cancels inputbox without a result.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -186,14 +186,14 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"send\": \"edited\"\n    },\n    {\n      \"screen\": {\n        \"contains\": [\n          \"edited\"\n        ]\n      }\n    },\n    {\n      \"key\": \"escape\"\n    },\n    {\n      \"quiet_ms\": 400\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --inputbox 'Choose text' 9 40 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --inputbox 'Choose text' 9 40 3>result\",\n  \"expected_status\": 255,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
-      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" reference",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -208,7 +208,7 @@
       "driver": "plain",
       "kind": "parity",
       "purpose": "Password input is not rendered and the full value is returned on the result fd.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -226,14 +226,14 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"send\": \"p4ssW0rd!\"\n    },\n    {\n      \"quiet_ms\": 300\n    },\n    {\n      \"screen\": {\n        \"lacks\": [\n          \"p4ssW0rd!\"\n        ]\n      }\n    },\n    {\n      \"output_lacks\": \"p4ssW0rd!\"\n    },\n    {\n      \"key\": \"enter\"\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --passwordbox 'Choose password' 9 40 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --passwordbox 'Choose password' 9 40 3>result\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
-      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" reference",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -248,7 +248,7 @@
       "driver": "plain",
       "kind": "parity",
       "purpose": "Down followed by Enter selects the second menu tag.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -266,14 +266,14 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"key\": \"down\"\n    },\n    {\n      \"key\": \"enter\"\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --menu 'Choose item' 12 50 3 alpha First beta Second gamma Third 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --menu 'Choose item' 12 50 3 alpha First beta Second gamma Third 3>result\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
-      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" reference",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -288,7 +288,7 @@
       "driver": "plain",
       "kind": "parity",
       "purpose": "--default-item beta preselects the second menu tag.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -306,14 +306,14 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"key\": \"enter\"\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --default-item beta --menu 'Choose item' 12 50 3 alpha First beta Second gamma Third 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --default-item beta --menu 'Choose item' 12 50 3 alpha First beta Second gamma Third 3>result\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
-      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" reference",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -328,7 +328,7 @@
       "driver": "plain",
       "kind": "parity",
       "purpose": "Space switches initial alpha off, then beta on; untouched gamma stays on and selected tags are quoted.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -346,14 +346,14 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"send\": \" \"\n    },\n    {\n      \"key\": \"down\"\n    },\n    {\n      \"send\": \" \"\n    },\n    {\n      \"key\": \"enter\"\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --checklist 'Choose items' 14 50 3 alpha First ON beta Second OFF gamma Third ON 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --checklist 'Choose items' 14 50 3 alpha First ON beta Second OFF gamma Third ON 3>result\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
-      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" reference",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -368,7 +368,7 @@
       "driver": "plain",
       "kind": "parity",
       "purpose": "The same toggles with --separate-output yield one unquoted tag per line.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -386,14 +386,14 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"send\": \" \"\n    },\n    {\n      \"key\": \"down\"\n    },\n    {\n      \"send\": \" \"\n    },\n    {\n      \"key\": \"enter\"\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --separate-output --checklist 'Choose items' 14 50 3 alpha First ON beta Second OFF gamma Third ON 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --separate-output --checklist 'Choose items' 14 50 3 alpha First ON beta Second OFF gamma Third ON 3>result\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
-      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" reference",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -408,7 +408,7 @@
       "driver": "plain",
       "kind": "parity",
       "purpose": "Down and Space select beta instead of initially ON alpha; Enter returns beta only.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -426,14 +426,14 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"key\": \"down\"\n    },\n    {\n      \"send\": \" \"\n    },\n    {\n      \"key\": \"enter\"\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --radiolist 'Choose item' 14 50 3 alpha First ON beta Second OFF gamma Third OFF 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --radiolist 'Choose item' 14 50 3 alpha First ON beta Second OFF gamma Third OFF 3>result\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
-      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" reference",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -448,7 +448,7 @@
       "driver": "plain",
       "kind": "parity",
       "purpose": "Escape on the list exits 255 without selection output.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -466,14 +466,14 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"key\": \"escape\"\n    },\n    {\n      \"quiet_ms\": 400\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --menu 'Choose item' 12 50 3 alpha First beta Second 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --menu 'Choose item' 12 50 3 alpha First beta Second 3>result\",\n  \"expected_status\": 255,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
-      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" reference",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -488,7 +488,7 @@
       "driver": "plain",
       "kind": "contract",
       "purpose": "Treeview Down/Space selects a child over the initially selected root.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -505,13 +505,13 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"key\": \"down\"\n    },\n    {\n      \"send\": \" \"\n    },\n    {\n      \"key\": \"enter\"\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --treeview 'Choose item' 14 50 3 root Root ON 0 child Child OFF 1 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --treeview 'Choose item' 14 50 3 root Root ON 0 child Child OFF 1 3>result\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -526,7 +526,7 @@
       "driver": "plain",
       "kind": "contract",
       "purpose": "Inputmenu Down/Enter selects the second tag.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -543,13 +543,13 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"key\": \"down\"\n    },\n    {\n      \"key\": \"enter\"\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --inputmenu 'Choose item' 12 50 3 alpha First beta Second 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --inputmenu 'Choose item' 12 50 3 alpha First beta Second 3>result\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py run \"$BASH\" candidate",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py run \"$BASH\" candidate",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terminal-review112-terminal-pty-repair-cb8921094eb2-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",

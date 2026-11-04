@@ -31,11 +31,13 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <limits.h>
+#include <time.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/sysmacros.h>
 #include <linux/dm-ioctl.h>
+#include <linux/fs.h>
 
 #include "loadables.h"
 
@@ -49,7 +51,7 @@
 #define DMS_MAX_TABLE   (16u << 20)    /* largest table text accepted */
 
 struct dms_opts {
-    int readonly, notable, noflush, nolockfs, inactive, force, deferred;
+    int readonly, notable, noflush, nolockfs, inactive, force, deferred, retry;
     int showkeys, setuuid, has_major, has_minor;
     unsigned long major, minor;
     const char *uuid, *table, *target;
@@ -262,6 +264,17 @@ dms_run (int fd, unsigned long req, const char *name, const char *uuid, uint32_t
 {
     size_t bytes = grow ? DMS_INITIAL_BUF : 0;
     *errp = 0;
+    /* The payload can itself exceed the initial response buffer. Track the
+       actual allocation so a full response always doubles that allocation. */
+    if (grow) {
+        if (payload_len > DMS_MAX_BUF - sizeof (struct dm_ioctl)) {
+            fprintf (stderr, "dmsetup: %s response exceeds %u bytes\n",
+                     dms_cmd_name (req, flags), DMS_MAX_BUF);
+            return NULL;
+        }
+        size_t need = sizeof (struct dm_ioctl) + payload_len;
+        if (bytes < need) bytes = need;
+    }
     for (;;) {
         struct dm_ioctl *io = dms_alloc (bytes, name, uuid, flags, payload, payload_len);
         if (!io) return NULL;
@@ -304,7 +317,7 @@ dms_run (int fd, unsigned long req, const char *name, const char *uuid, uint32_t
                      dms_cmd_name (req, flags), DMS_MAX_BUF);
             return NULL;
         }
-        bytes *= 2;
+        bytes = bytes > DMS_MAX_BUF / 2 ? DMS_MAX_BUF : bytes * 2;
     }
 }
 
@@ -505,8 +518,8 @@ dms_parse_table (char *text, const char *src, struct dms_spec **specs, size_t *n
 
 /* Build the DM_TABLE_LOAD payload: specs back to back, each padded to 8
    bytes, `next` the distance from this spec to the following one. */
-static char *
-dms_table_payload (const struct dms_spec *specs, size_t n, size_t *len)
+static int
+dms_table_size (const struct dms_spec *specs, size_t n, size_t *len)
 {
     size_t total = 0;
     for (size_t i = 0; i < n; i++) {
@@ -514,10 +527,19 @@ dms_table_payload (const struct dms_spec *specs, size_t n, size_t *len)
         if (one > DMS_MAX_BUF - sizeof (struct dm_ioctl)
             || total > DMS_MAX_BUF - sizeof (struct dm_ioctl) - one) {
             fprintf (stderr, "dmsetup: table too large\n");
-            return NULL;
+            return -1;
         }
         total += one;
     }
+    *len = total;
+    return 0;
+}
+
+static char *
+dms_table_payload (const struct dms_spec *specs, size_t n, size_t *len)
+{
+    size_t total;
+    if (dms_table_size (specs, n, &total) < 0) return NULL;
     char *buf = calloc (1, total ? total : 1);
     if (!buf) {
         fprintf (stderr, "dmsetup: out of memory\n");
@@ -568,16 +590,29 @@ dms_read_fd (int fd, const char *src)
     char *buf = malloc (cap);
     if (!buf) return NULL;
     for (;;) {
-        if (len + 1 >= cap) {
-            if (cap >= DMS_MAX_TABLE) {
+        if (len == DMS_MAX_TABLE) {
+            char extra;
+            ssize_t r = read (fd, &extra, 1);
+            if (r < 0 && errno == EINTR) continue;
+            if (r < 0) {
+                fprintf (stderr, "dmsetup: %s: read failed: %s\n", src, strerror (errno));
+                free (buf);
+                return NULL;
+            }
+            if (r > 0) {
                 fprintf (stderr, "dmsetup: table %s exceeds %u bytes\n", src, DMS_MAX_TABLE);
                 free (buf);
                 return NULL;
             }
-            char *nb = realloc (buf, cap * 2);
+            break;
+        }
+        if (len + 1 >= cap) {
+            size_t next = cap * 2;
+            if (next > (size_t) DMS_MAX_TABLE + 1) next = (size_t) DMS_MAX_TABLE + 1;
+            char *nb = realloc (buf, next);
             if (!nb) { free (buf); return NULL; }
             buf = nb;
-            cap *= 2;
+            cap = next;
         }
         ssize_t r = read (fd, buf + len, cap - len - 1);
         if (r < 0) {
@@ -607,6 +642,10 @@ dms_table_text (const struct dms_opts *o, const char *arg, char **text, const ch
     *text = NULL;
     if (o->table) {
         *src = "(--table)";
+        if (strlen (o->table) > DMS_MAX_TABLE) {
+            fprintf (stderr, "dmsetup: table %s exceeds %u bytes\n", *src, DMS_MAX_TABLE);
+            return -1;
+        }
         *text = strdup (o->table);
         return *text ? 0 : -1;
     }
@@ -624,6 +663,10 @@ dms_table_text (const struct dms_opts *o, const char *arg, char **text, const ch
             return *text ? 0 : -1;
         }
         *src = "(argument)";
+        if (strlen (arg) > DMS_MAX_TABLE) {
+            fprintf (stderr, "dmsetup: table %s exceeds %u bytes\n", *src, DMS_MAX_TABLE);
+            return -1;
+        }
         *text = strdup (arg);
         return *text ? 0 : -1;
     }
@@ -646,6 +689,37 @@ dms_status_one (int fd, const char *name, const char *uuid, uint32_t flags, stru
     return *out ? 0 : -1;
 }
 
+/* Read-ahead is in KiB in sysfs and 512-byte sectors in BLKRAGET. */
+static int
+dms_read_ahead (dev_t dev, const char *name, unsigned long *sectors)
+{
+    char path[512], buf[64], *end;
+    unsigned long kb;
+    snprintf (path, sizeof path, "/sys/dev/block/%u:%u/bdi/read_ahead_kb",
+              major (dev), minor (dev));
+    if (dms_read_first_line (path, buf, sizeof buf) == 0) {
+        errno = 0;
+        kb = strtoul (buf, &end, 10);
+        if (!errno && end != buf && *end == '\0' && kb <= ULONG_MAX / 2) {
+            *sectors = kb * 2;
+            return 0;
+        }
+        return -1;
+    }
+    /* Do not follow a response name outside the mapper directory or query a
+       stale node that belongs to a different device. */
+    if (!name[0] || strchr (name, '/')) return -1;
+    if (snprintf (path, sizeof path, "/dev/mapper/%s", name) >= (int) sizeof path)
+        return -1;
+    int node = open (path, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
+    if (node < 0) return -1;
+    struct stat st;
+    int rc = fstat (node, &st) == 0 && S_ISBLK (st.st_mode) && st.st_rdev == dev
+        && ioctl (node, BLKRAGET, sectors) == 0 ? 0 : -1;
+    close (node);
+    return rc;
+}
+
 static int
 dms_info_print (int fd, const char *name, const char *uuid)
 {
@@ -659,13 +733,16 @@ dms_info_print (int fd, const char *name, const char *uuid)
     printf ("State:             %s%s%s\n", (io->flags & DM_SUSPEND_FLAG) ? "SUSPENDED" : "ACTIVE",
             (io->flags & DM_READONLY_FLAG) ? " (READ-ONLY)" : "",
             (io->flags & DM_DEFERRED_REMOVE) ? " (DEFERRED REMOVE)" : "");
+    unsigned long read_ahead;
+    if (dms_read_ahead (dev, io->name, &read_ahead) == 0)
+        printf ("Read Ahead:        %lu\n", read_ahead);
     printf ("Tables present:    %s\n", tables);
     printf ("Open count:        %d\n", io->open_count);
     printf ("Event number:      %u\n", io->event_nr);
     printf ("Major, minor:      %u, %u\n", major (dev), minor (dev));
     if (io->flags & DM_ACTIVE_PRESENT_FLAG)
         printf ("Number of targets: %u\n", io->target_count);
-    if (io->uuid[0]) printf ("UUID:              %s\n", io->uuid);
+    if (io->uuid[0]) printf ("UUID: %s\n", io->uuid);
     putchar ('\n');
     free (io);
     return EXECUTION_SUCCESS;
@@ -816,7 +893,8 @@ dms_list_cb_ls (int fd, const char *name, uint64_t dev, void *arg)
         }
         if (n == 0) return 0;
     }
-    printf ("%s\t(%u:%u)\n", name, major ((dev_t) dev), minor ((dev_t) dev));
+    printf (la->o->target ? "%s\t(%u, %u)\n" : "%s\t(%u:%u)\n",
+            name, major ((dev_t) dev), minor ((dev_t) dev));
     return 0;
 }
 
@@ -1041,6 +1119,12 @@ dms_create_cmd (int fd, const struct dms_opts *o)
             free (text);
             return EXECUTION_FAILURE;
         }
+        size_t payload_len;
+        if (dms_table_size (specs, n, &payload_len) < 0) {
+            free (specs);
+            free (text);
+            return EXECUTION_FAILURE;
+        }
     }
 
     int err;
@@ -1127,7 +1211,26 @@ static int
 dms_op_remove (int fd, const struct dms_opts *o, const char *name, const char *uuid)
 {
     if (o->force) dms_error_device (fd, name, uuid, 1);   /* best effort, as libdevmapper */
-    return dms_simple (fd, DM_DEV_REMOVE, name, uuid, o->deferred ? DM_DEFERRED_REMOVE : 0);
+    uint32_t flags = o->deferred ? DM_DEFERRED_REMOVE : 0;
+    if (!o->retry) return dms_simple (fd, DM_DEV_REMOVE, name, uuid, flags);
+
+    /* EBUSY is transient when another process is closing the device.  Use a
+       fresh request for each attempt: the kernel may have modified the last
+       ioctl buffer.  Do not retry other errors or emit intermediate failures. */
+    for (int attempt = 0; ; attempt++) {
+        struct dm_ioctl *io = dms_alloc (0, name, uuid, flags, NULL, 0);
+        if (!io) return EXECUTION_FAILURE;
+        int result = ioctl (fd, DM_DEV_REMOVE, io);
+        int err = errno;
+        free (io);
+        if (result == 0) return EXECUTION_SUCCESS;
+        if (err != EBUSY || attempt == 49) {
+            dms_report (DM_DEV_REMOVE, flags, name, uuid, err);
+            return EXECUTION_FAILURE;
+        }
+        struct timespec delay = { 0, 100000000L };
+        while (nanosleep (&delay, &delay) < 0 && errno == EINTR) ;
+    }
 }
 
 static int
@@ -1309,6 +1412,13 @@ dms_parse_args (WORD_LIST *list, struct dms_opts *o, int *early)
     for (WORD_LIST *p = list; p; p = p->next) {
         const char *w = p->word ? p->word->word : NULL;
         if (!w) continue;
+        /* Once the device and sector have been read, all remaining words
+           belong to the target, even if they look like dmsetup options. */
+        if (o->npos && !strcmp (o->pos[0], "message")
+            && o->npos >= (o->uuid ? 2 : 3)) {
+            o->pos[o->npos++] = w;
+            continue;
+        }
         if (opts_done || w[0] != '-' || !w[1]) {
             o->pos[o->npos++] = w;
             continue;
@@ -1326,8 +1436,9 @@ dms_parse_args (WORD_LIST *list, struct dms_opts *o, int *early)
         if (!strcmp (w, "--deferred")) { o->deferred = 1; continue; }
         if (!strcmp (w, "--showkeys")) { o->showkeys = 1; continue; }
         if (!strcmp (w, "--setuuid")) { o->setuuid = 1; continue; }
+        if (!strcmp (w, "--retry")) { o->retry = 1; continue; }
         if (!strcmp (w, "-v") || !strcmp (w, "--verbose") || !strcmp (w, "--noopencount")
-            || !strcmp (w, "--tree") || !strcmp (w, "--concise") || !strcmp (w, "--retry")
+            || !strcmp (w, "--tree") || !strcmp (w, "--concise")
             || !strcmp (w, "--noudevsync") || !strcmp (w, "--noudevrules") || !strcmp (w, "-y")
             || !strcmp (w, "--yes") || !strcmp (w, "--verifyudev") || !strcmp (w, "--addnodeoncreate")
             || !strcmp (w, "--addnodeonresume") || !strcmp (w, "--ignorelockingfailure")

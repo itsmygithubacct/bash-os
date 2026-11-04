@@ -17,9 +17,7 @@
  *     watch -d CMD [ARGS...]           highlight cells that differ
  *                                          from the previous iteration
  *                                          (procps watch -d / --differences)
- *     watch -t|--no-title CMD [...]    accept procps no-title flag
- *                                          (no-op: watch never emits a
- *                                          title row)
+ *     watch -t|--no-title CMD [...]    suppress the terminal title row
  *     watch -p|--precise CMD [...]     accept procps precise flag
  *                                          (no-op: cadence is already
  *                                          absolute-deadline based)
@@ -38,8 +36,8 @@
  * semantic as `watch -x`.
  *
  * SEC accepts a fractional value (e.g. 0.5). The inter-iteration delay
- * is computed from CLOCK_MONOTONIC absolute deadlines via
- * clock_nanosleep(TIMER_ABSTIME), so cadence does not drift when a
+ * is computed from CLOCK_MONOTONIC absolute deadlines, so cadence
+ * does not drift when a
  * command takes variable time.
  *
  * SIGINT (Ctrl-C) terminates the watch loop cleanly: the parent
@@ -66,7 +64,6 @@
  * still gets cleared+rewritten as usual.
  *
  * Procps compatibility no-ops:
- *     -t / --no-title    accepted; watch never emits a title row
  *     -p / --precise     accepted; watch already uses TIMER_ABSTIME
  *                         absolute-deadline scheduling
  *
@@ -113,12 +110,21 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
+#include <sys/select.h>
+#include <termios.h>
 
 #include "loadables.h"
 #include "command-run.h"
 
 static volatile sig_atomic_t bw_stop = 0;
 static volatile sig_atomic_t bw_child_pid = 0;
+static volatile sig_atomic_t bw_resized = 0;
+static int bw_tty, bw_no_title;
+static const char *bw_command;
+static struct timespec bw_interval;
+static char *bw_older_buf;
+static size_t bw_older_len;
 
 /* -d / -C state. bw_prev_buf holds the previous iteration's raw
    captured stdout for byte-positional comparison; bw_cap_fd is the
@@ -165,6 +171,73 @@ bw_sigint_handler (int signo)
   pid_t cp = bw_child_pid;
   if (cp > 0)
     (void) kill (cp, SIGTERM);
+}
+
+static void
+bw_winch_handler (int signo)
+{
+  (void) signo;
+  bw_resized = 1;
+}
+
+/* Place the date at the right edge, as watch does, truncating the
+   command when the terminal is too narrow for both fields. */
+static void
+bw_header (void)
+{
+  if (!bw_tty || bw_no_title) return;
+  struct winsize ws;
+  int width = (ioctl (STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col)
+              ? ws.ws_col : 80;
+  char host[256], date[64], right[340], left[1024];
+  if (gethostname (host, sizeof host - 1) < 0) host[0] = '\0';
+  host[sizeof host - 1] = '\0';
+  time_t now = time (NULL);
+  struct tm tm;
+  if (localtime_r (&now, &tm))
+    strftime (date, sizeof date, "%a %b %e %T %Y", &tm);
+  else date[0] = '\0';
+  snprintf (right, sizeof right, "%s: %s", host, date);
+  snprintf (left, sizeof left, "Every %.1fs: %s",
+            (double) bw_interval.tv_sec + bw_interval.tv_nsec / 1e9,
+            bw_command);
+  int rlen = (int) strlen (right);
+  int llen = (int) strlen (left);
+  if (rlen + 1 >= width)
+    dprintf (STDOUT_FILENO, "%.*s\n\n", width, left);
+  else
+    {
+      int available = width - rlen - 1;
+      if (llen > available) llen = available;
+      dprintf (STDOUT_FILENO, "%.*s%*s%s\n\n", llen, left,
+               width - rlen - llen, "", right);
+    }
+}
+
+/* The prompt is interactive only. Preserve the existing non-terminal
+   failure behavior used by scripts and capture consumers. */
+static int
+bw_error_prompt (void)
+{
+  if (!bw_tty || !isatty (STDIN_FILENO)) return EXECUTION_FAILURE;
+  struct termios saved, raw;
+  if (tcgetattr (STDIN_FILENO, &saved) < 0) return EXECUTION_FAILURE;
+  raw = saved;
+  raw.c_lflag &= ~(ICANON | ECHO);
+  raw.c_cc[VMIN] = 1;
+  raw.c_cc[VTIME] = 0;
+  if (tcsetattr (STDIN_FILENO, TCSANOW, &raw) < 0) return EXECUTION_FAILURE;
+  static const char message[] = "\ncommand exit with a non-zero status, press a key to exit\n";
+  (void) write (STDOUT_FILENO, message, sizeof message - 1);
+  char key;
+  while (!bw_stop && read (STDIN_FILENO, &key, 1) < 0 && errno == EINTR)
+    ;
+  if (tcsetattr (STDIN_FILENO, TCSANOW, &saved) < 0)
+    {
+      builtin_error ("restore terminal: %s", strerror (errno));
+      return EXECUTION_FAILURE;
+    }
+  return bw_stop ? EXECUTION_SUCCESS : 8;
 }
 
 /* Parse "<secs>[.<nanos>]" with locale-independent '.' separator into
@@ -350,10 +423,9 @@ bw_output_changed (const char *buf, size_t len)
    Without -e, non-zero child exit status does NOT abort the loop —
    watch(1) intentionally keeps running.
 
-   When -d (diff highlight), -g (chgexit), or -C (capture-file) is in effect,
-   the child's stdout is piped through the parent so we can render diff
-   escapes / tee to the capture file. The cheap path (no -d, no -g, no -C)
-   leaves the child's stdout inherited untouched. */
+   On a terminal, or when -d, -g or -C is in effect, stdout is piped
+   through the parent for rendering, comparisons, capture, and redraw.
+   Otherwise the child inherits stdout unchanged. */
 static int
 bw_run_iteration (char **argv, int exec_form)
 {
@@ -371,7 +443,7 @@ bw_run_iteration (char **argv, int exec_form)
       return -1;
     }
 
-  int capture_pipe = (bw_diff_mode || bw_chgexit_mode || bw_cap_fd >= 0);
+  int capture_pipe = (bw_tty || bw_diff_mode || bw_chgexit_mode || bw_cap_fd >= 0);
   int pfd[2] = { -1, -1 };
   if (capture_pipe && pipe (pfd) < 0)
     {
@@ -450,7 +522,9 @@ bw_run_iteration (char **argv, int exec_form)
               off += (size_t) w;
             }
         }
-      free (bw_prev_buf);
+      free (bw_older_buf);
+      bw_older_buf = bw_prev_buf;
+      bw_older_len = bw_prev_len;
       bw_prev_buf = cur_buf;
       bw_prev_len = cur_len;
     }
@@ -499,27 +573,35 @@ bw_run_iteration (char **argv, int exec_form)
   return 0;
 }
 
-/* clock_nanosleep CLOCK_MONOTONIC TIMER_ABSTIME with EINTR handling.
-   Returns 0 on full sleep, 1 if SIGINT broke the sleep (caller should
-   stop), -1 on an unrecoverable clock_nanosleep error. */
+/* Atomically unblock SIGWINCH while sleeping so a resize between the
+   flag check and the wait cannot postpone redraw until the next tick. */
 static int
 bw_sleep_until (struct timespec *target)
 {
+  sigset_t set, old;
+  sigemptyset (&set);
+  sigaddset (&set, SIGWINCH);
+  sigaddset (&set, SIGINT);
+  if (sigprocmask (SIG_BLOCK, &set, &old) < 0) return -1;
+  int result;
   for (;;)
     {
-      int rc = clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, target, NULL);
-      if (rc == 0) return 0;
-      if (rc == EINTR)
-        {
-          if (bw_stop) return 1;
-          /* Spurious wake (e.g. SIGCHLD reaped by default handler):
-             clock_nanosleep with TIMER_ABSTIME is idempotent — retry
-             against the same absolute target. */
-          continue;
-        }
-      builtin_error ("clock_nanosleep: %s", strerror (rc));
-      return -1;
+      if (bw_stop) { result = 1; break; }
+      if (bw_resized) { result = 2; break; }
+      struct timespec now, delay;
+      if (clock_gettime (CLOCK_MONOTONIC, &now) < 0)
+        { result = -1; break; }
+      delay.tv_sec = target->tv_sec - now.tv_sec;
+      delay.tv_nsec = target->tv_nsec - now.tv_nsec;
+      if (delay.tv_nsec < 0) { delay.tv_sec--; delay.tv_nsec += 1000000000L; }
+      if (delay.tv_sec < 0 || (delay.tv_sec == 0 && delay.tv_nsec == 0))
+        { result = 0; break; }
+      int rc = pselect (0, NULL, NULL, NULL, &delay, &old);
+      if (rc == 0) { result = 0; break; }
+      if (rc < 0 && errno != EINTR) { result = -1; break; }
     }
+  sigprocmask (SIG_SETMASK, &old, NULL);
+  return result;
 }
 
 int
@@ -529,6 +611,9 @@ watch_builtin (WORD_LIST *list)
   int exec_form = 0;
   int opt;
 
+  bw_tty = isatty (STDOUT_FILENO);
+  bw_no_title = 0;
+  free (bw_older_buf); bw_older_buf = NULL; bw_older_len = 0;
   bw_diff_mode = 0;
   bw_beep_mode = 0;
   bw_errexit_mode = 0;
@@ -542,6 +627,7 @@ watch_builtin (WORD_LIST *list)
 #define BW_CLEANUP_AND_RETURN(_rc) do {                                       \
     if (bw_cap_fd >= 0) { close (bw_cap_fd); bw_cap_fd = -1; }                \
     free (bw_prev_buf); bw_prev_buf = NULL; bw_prev_len = 0;                  \
+    free (bw_older_buf); bw_older_buf = NULL; bw_older_len = 0;               \
     return (_rc);                                                             \
   } while (0)
 
@@ -571,9 +657,7 @@ watch_builtin (WORD_LIST *list)
           bw_diff_mode = 1;
           break;
         case 't':
-          /* procps watch -t / --no-title suppresses its header. watch
-             never prints a header, so the short flag is accepted as a
-             compatibility no-op. */
+          bw_no_title = 1;
           break;
         case 'p':
           /* procps watch -p / --precise anchors cadence to the original
@@ -623,7 +707,7 @@ watch_builtin (WORD_LIST *list)
      site is preserved by bash's tokenization — `watch 'ls -la /tmp'`
      comes through as argc=1, argv[0]="ls -la /tmp". */
   char *joined = NULL;
-  if (!exec_form && argc > 1)
+  if (argc > 1)
     {
       size_t total = 0;
       for (int j = 0; j < argc; j++) total += strlen (argv[j]) + 1;
@@ -640,16 +724,26 @@ watch_builtin (WORD_LIST *list)
           if (j > 0) strcat (joined, " ");
           strcat (joined, argv[j]);
         }
-      argv[0] = joined;
-      argv[1] = NULL;
+      if (!exec_form)
+        {
+          argv[0] = joined;
+          argv[1] = NULL;
+        }
     }
 
-  struct sigaction sa, sa_save;
+  bw_command = joined ? joined : argv[0];
+  bw_interval = interval;
+  struct sigaction sa, sa_save, winch, winch_save;
   memset (&sa, 0, sizeof sa);
   sa.sa_handler = bw_sigint_handler;
   sigemptyset (&sa.sa_mask);
-  /* No SA_RESTART so waitpid/clock_nanosleep return EINTR on SIGINT. */
+  /* No SA_RESTART so blocking operations return EINTR on SIGINT. */
   sigaction (SIGINT, &sa, &sa_save);
+  memset (&winch, 0, sizeof winch);
+  winch.sa_handler = bw_winch_handler;
+  sigemptyset (&winch.sa_mask);
+  sigaction (SIGWINCH, &winch, &winch_save);
+  bw_resized = 0;
 
   bw_stop = 0;
   bw_child_pid = 0;
@@ -659,6 +753,7 @@ watch_builtin (WORD_LIST *list)
     {
       builtin_error ("clock_gettime: %s", strerror (errno));
       sigaction (SIGINT, &sa_save, NULL);
+      sigaction (SIGWINCH, &winch_save, NULL);
       free (joined);
       free (argv);
       BW_CLEANUP_AND_RETURN (EXECUTION_FAILURE);
@@ -667,10 +762,12 @@ watch_builtin (WORD_LIST *list)
   int rc = EXECUTION_SUCCESS;
   while (!bw_stop)
     {
+      bw_resized = 0;
       bw_clear_screen ();
+      bw_header ();
       int ir = bw_run_iteration (argv, exec_form);
       if (ir < 0) { rc = EXECUTION_FAILURE; break; }
-      if (ir == 1) { rc = EXECUTION_FAILURE; break; }
+      if (ir == 1) { rc = bw_stop ? EXECUTION_SUCCESS : bw_error_prompt (); break; }
       if (ir == 2) break;
       if (bw_stop) break;
 
@@ -679,12 +776,37 @@ watch_builtin (WORD_LIST *list)
       if (next.tv_nsec >= 1000000000L)
         { next.tv_sec += 1; next.tv_nsec -= 1000000000L; }
 
-      int sr = bw_sleep_until (&next);
-      if (sr == 1) break;            /* SIGINT during sleep */
+      int sr;
+      do
+        {
+          /* Check the flag before sleeping too: SIGWINCH may have arrived
+             during command execution or just before sleeping. */
+          sr = bw_sleep_until (&next);
+          if (sr == 2)
+            {
+              bw_resized = 0;
+              bw_clear_screen ();
+              bw_header ();
+              if (bw_prev_buf)
+                {
+                  char *current = bw_prev_buf;
+                  size_t current_len = bw_prev_len;
+                  bw_prev_buf = bw_older_buf;
+                  bw_prev_len = bw_older_len;
+                  if (bw_diff_mode) (void) bw_write_diff (STDOUT_FILENO, current, current_len);
+                  else (void) write (STDOUT_FILENO, current, current_len);
+                  bw_prev_buf = current;
+                  bw_prev_len = current_len;
+                }
+            }
+        }
+      while (sr == 2 && !bw_stop);
+      if (sr == 1 || bw_stop) break;
       if (sr < 0) { rc = EXECUTION_FAILURE; break; }
     }
 
   sigaction (SIGINT, &sa_save, NULL);
+  sigaction (SIGWINCH, &winch_save, NULL);
   free (joined);
   free (argv);
   BW_CLEANUP_AND_RETURN (rc);
@@ -706,7 +828,7 @@ char *watch_doc[] = {
   "                                         spirit as procps watch -d /",
   "                                         --differences)",
   "    watch -t|--no-title CMD [...]    no-title compatibility flag",
-  "                                         (no-op; watch emits no title)",
+  "                                         (suppress terminal header)",
   "    watch -p|--precise CMD [...]     precise compatibility flag",
   "                                         (no-op; cadence is already",
   "                                         absolute-deadline based)",
@@ -722,7 +844,7 @@ char *watch_doc[] = {
   "(argv[0]=CMD, argv[1..]=ARGS), bypassing the shell.",
   "",
   "SEC accepts a fractional value (e.g. 0.5). Cadence is anchored to",
-  "CLOCK_MONOTONIC absolute deadlines via clock_nanosleep(TIMER_ABSTIME)",
+  "CLOCK_MONOTONIC absolute deadlines",
   "so it does not drift when a command takes variable time.",
   "",
   "-d highlights bytes that differ from the previous iteration with the",
@@ -731,8 +853,8 @@ char *watch_doc[] = {
   "changed. Multi-byte sequences are byte-aligned (good for value-",
   "change pinning; for full grapheme-cluster awareness see procps).",
   "",
-  "SIGINT (Ctrl-C) terminates the loop cleanly. Procps -t/--no-title",
-  "and -p/--precise are accepted as compatibility no-ops.",
+  "SIGINT (Ctrl-C) terminates the loop cleanly. -p/--precise is",
+  "accepted as a compatibility no-op.",
   (char *) NULL
 };
 

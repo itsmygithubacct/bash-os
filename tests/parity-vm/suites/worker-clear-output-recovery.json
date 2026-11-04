@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "worker-clear-clear-repeated-full-recovery",
+      "loadable": "clear",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare repeated ENOSPC results and diagnostics, then verify a complete successful clear in the same shell.",
+      "oracle": "ncurses clear; setup verifies /dev/full returns ENOSPC.",
+      "comparison": "Compare statuses, diagnostic files, and recovery bytes with the reference; independently require the full recovery sequence.",
+      "setup_script": "/usr/bin/python3 -c 'import errno,os; f=os.open(\"/dev/full\",os.O_WRONLY);\ntry:\n os.write(f,b\"x\"); raise AssertionError(\"/dev/full accepted data\")\nexcept OSError as e:\n assert e.errno == errno.ENOSPC\nfinally:\n os.close(f)'",
+      "expected_status": 0,
+      "expected_files": {
+        "recovered.bytes": "\u001b[H\u001b[2J"
+      },
+      "requires": [
+        "clear",
+        "python3",
+        "cat"
+      ],
+      "covers": [
+        "clear/output-failure-and-shell-recovery"
+      ],
+      "script": "clear -T xterm > /dev/full 2> first.err; a=$?\nclear -T xterm > /dev/full 2> second.err; b=$?\nclear -x -T xterm > recovered.bytes 2> recovery.err; c=$?\nprintf 'status=%s,%s,%s\\n' \"$a\" \"$b\" \"$c\"\nprintf \"first.err=\"; cat first.err; printf \"second.err=\"; cat second.err; printf \"recovery.err=\"; cat recovery.err\n"
+    },
+    {
+      "id": "worker-clear-bashclear-repeated-full-recovery",
+      "loadable": "bashclear",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Compare repeated ENOSPC results and diagnostics, then verify a complete successful clear in the same shell.",
+      "oracle": "ncurses clear; setup verifies /dev/full returns ENOSPC.",
+      "comparison": "Compare statuses, diagnostic files, and recovery bytes with the reference; independently require the full recovery sequence.",
+      "setup_script": "/usr/bin/python3 -c 'import errno,os; f=os.open(\"/dev/full\",os.O_WRONLY);\ntry:\n os.write(f,b\"x\"); raise AssertionError(\"/dev/full accepted data\")\nexcept OSError as e:\n assert e.errno == errno.ENOSPC\nfinally:\n os.close(f)'",
+      "expected_status": 0,
+      "expected_files": {
+        "recovered.bytes": "\u001b[H\u001b[2J"
+      },
+      "requires": [
+        "clear",
+        "python3",
+        "cat"
+      ],
+      "covers": [
+        "clear/output-failure-and-shell-recovery"
+      ],
+      "candidate_script": "bashclear -T xterm > /dev/full 2> first.err; a=$?\nbashclear -T xterm > /dev/full 2> second.err; b=$?\nbashclear -x -T xterm > recovered.bytes 2> recovery.err; c=$?\nprintf 'status=%s,%s,%s\\n' \"$a\" \"$b\" \"$c\"\nprintf \"first.err=\"; cat first.err; printf \"second.err=\"; cat second.err; printf \"recovery.err=\"; cat recovery.err\n",
+      "reference_script": "clear -T xterm > /dev/full 2> first.err; a=$?\nclear -T xterm > /dev/full 2> second.err; b=$?\nclear -x -T xterm > recovered.bytes 2> recovery.err; c=$?\nprintf 'status=%s,%s,%s\\n' \"$a\" \"$b\" \"$c\"\nprintf \"first.err=\"; cat first.err; printf \"second.err=\"; cat second.err; printf \"recovery.err=\"; cat recovery.err\n"
+    }
+  ]
+}

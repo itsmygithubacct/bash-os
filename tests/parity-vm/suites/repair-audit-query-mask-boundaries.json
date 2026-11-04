@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-audit-query-mask-boundaries-root",
+      "loadable": "audit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "audit/deferred-kernel-rule-changes",
+        "audit/deferred-kernel-queries"
+      ],
+      "purpose": "Independently install a full syscall mask and a mask missing its final bit; verify canonical rendering and unchanged kernel rules.",
+      "oracle": "An independent raw-netlink model (struct.pack/unpack of AUDIT_GET/AUDIT_SET/AUDIT_LIST_RULES/AUDIT_ADD_RULE/AUDIT_DEL_RULE against the guest kernel) as the oracle for kernel state, run as root in the initial namespaces of a KVM guest; the snapshot/restore of audit state is done by the same oracle",
+      "comparison": "Exact full-mask text; near-full mask has 2047 distinct clauses, retains bit 2046, omits bit 2047, and both queries preserve the raw oracle state.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-audit-nl.py": "49c7efbe4019e474ce6dce29cd6345f5c0b1d25ad361fed044c70cf06bf92ef6"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nW=/run/w6-audit; /usr/bin/mkdir -p \"$W\"\n/usr/bin/cat >\"$W/inner.sh\" <<'INNER_EOF'\nexport HOME=/run/w6-audit PATH=/usr/bin:/usr/sbin:/bin\ncd \"$HOME\"\n[[ $(type -t audit) == builtin ]] || exit 125\nOR=/opt/bashos-parity/harness/helpers/mig-w6-audit-nl.py\nnl() { /usr/bin/python3 -I \"$OR\" \"$@\"; }\njget() { /usr/bin/python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[sys.argv[2]])' \"$1\" \"$2\"; }\nstable() { /usr/bin/python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); [d.pop(k) for k in (\"lost\",\"backlog\",\"mask\")]; print(json.dumps(d, sort_keys=True))' \"$1\"; }\nSNAP=$HOME/audit-snap.json\nnl snapshot \"$SNAP\" >/dev/null || { echo \"audit netlink unavailable: $(nl status)\"; exit 1; }\nrestore_audit() { local rc=$?; trap - EXIT; if ! nl restore \"$SNAP\" >/dev/null; then echo 'audit snapshot restore failed' >&2; exit 1; fi; exit \"$rc\"; }\ntrap restore_audit EXIT\nnl flush >/dev/null || exit 1\nnl add '{\"flags\":4,\"action\":2,\"syscalls\":\"all\",\"fields\":[],\"key\":\"oracle-all\"}' >/dev/null || exit 1\nbefore=$(nl rules) || exit 1\nout=$(audit list-rules); rc=$?\nafter=$(nl rules) || exit 1\necho \"oracle-all: rc=$rc exact=$([[ $out == '-a always,exit -S all -k oracle-all' ]] && echo 1 || echo 0) unchanged=$([[ $before == \"$after\" ]] && echo 1 || echo 0)\"\nnl flush >/dev/null || exit 1\nspec=$(/usr/bin/python3 -I -c 'import json; print(json.dumps(dict(flags=4, action=2, syscalls=list(range(2047)), fields=[], key=\"near-all\")))') || exit 1\nnl add \"$spec\" >/dev/null || exit 1\nbefore=$(nl rules) || exit 1\nout=$(audit list-rules); rc=$?\nafter=$(nl rules) || exit 1\ncount=$(/usr/bin/python3 -I -c 'import sys; print(sys.argv[1].count(\" -S \"))' \"$out\")\necho \"near-all: rc=$rc count=$count last-present=$([[ $out == *' -S 2046 '* ]] && echo 1 || echo 0) missing-absent=$([[ $out != *' -S 2047 '* ]] && echo 1 || echo 0) unchanged=$([[ $before == \"$after\" ]] && echo 1 || echo 0)\"\n\nINNER_EOF\n/usr/bin/systemd-run --wait --pipe --collect --quiet \"$BASH\" --noprofile --norc \"$W/inner.sh\"\nrc=$?\n/usr/bin/cp \"$W/rec.tsv\" /tmp/parity-case/rec.tsv 2>/dev/null\n/usr/bin/rm -rf \"$W\"\nexit $rc\n",
+      "expected_status": 0,
+      "stdout": "oracle-all: rc=0 exact=1 unchanged=1\nnear-all: rc=0 count=2047 last-present=1 missing-absent=1 unchanged=1\n",
+      "stderr": "",
+      "timeout": 60
+    }
+  ]
+}

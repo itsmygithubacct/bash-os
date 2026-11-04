@@ -1,0 +1,265 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "acme-protocol-trusted-r1-v1",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Requirement r1 of the original ACME lifecycle against a fixture authority provisioned independently before candidate execution.",
+      "oracle": "Separate fixture CA and Python reference lifecycle; pre-request fixture CA certificate is supplied by explicit --cert-ca. Actual signed peer JWS/nonce/challenge/CSR and final certificate/key data remain checked.",
+      "comparison": "Candidate issue succeeds; verify the original r1 assertion and independently bind the final issued chain to the pre-request fixture authority.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-protocol-trust-peer-v1.py": "2c6c4cf475c3c6386223d0f8f5be12f4c9004bbfe068a79a5aada3e6dbf15cee",
+        "helpers/acme-fixture-trust-project-v1.py": "2a38d5b8fe9c20cb7394a71afb1abba36819ddaef39e5b5ed9ad297097338513"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/acme-protocol-trust-peer-v1.py\nP=/opt/bashos-parity/harness/helpers/acme-fixture-trust-project-v1.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\n[[ \"$srv\" =~ ^[0-9]+$ ]] && (( srv > 1 )) || exit 1\ntrap 'printf stop > fixture-stop' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nTRUST=$(/usr/bin/python3 \"$P\" prepare) || exit 1\n[[ \"$TRUST\" =~ ^[0-9a-f]{64}:[0-9a-f]{64}$ ]] || exit 1\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory http://127.0.0.1:5810/directory -k 0000000000000000000000000000000000000000000000000000000000000001 --domain fixture.test --out issued --cert-ca \"$PWD/fixture-ca-5810.pem\" > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nprintf stop > fixture-stop\nwait \"$srv\" || exit 1\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r1 5810 || exit 1\n/usr/bin/python3 \"$P\" finish \"$TRUST\" trusted\n",
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nverified r1 failed=0\nfixture-anchor-ok\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "acme-protocol-trusted-r2-v1",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Requirement r2 of the original ACME lifecycle against a fixture authority provisioned independently before candidate execution.",
+      "oracle": "Separate fixture CA and Python reference lifecycle; pre-request fixture CA certificate is supplied by explicit --cert-ca. Actual signed peer JWS/nonce/challenge/CSR and final certificate/key data remain checked.",
+      "comparison": "Candidate issue succeeds; verify the original r2 assertion and independently bind the final issued chain to the pre-request fixture authority.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-protocol-trust-peer-v1.py": "2c6c4cf475c3c6386223d0f8f5be12f4c9004bbfe068a79a5aada3e6dbf15cee",
+        "helpers/acme-fixture-trust-project-v1.py": "2a38d5b8fe9c20cb7394a71afb1abba36819ddaef39e5b5ed9ad297097338513"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/acme-protocol-trust-peer-v1.py\nP=/opt/bashos-parity/harness/helpers/acme-fixture-trust-project-v1.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\n[[ \"$srv\" =~ ^[0-9]+$ ]] && (( srv > 1 )) || exit 1\ntrap 'printf stop > fixture-stop' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nTRUST=$(/usr/bin/python3 \"$P\" prepare) || exit 1\n[[ \"$TRUST\" =~ ^[0-9a-f]{64}:[0-9a-f]{64}$ ]] || exit 1\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory http://127.0.0.1:5810/directory -k 0000000000000000000000000000000000000000000000000000000000000001 --domain fixture.test --out issued --cert-ca \"$PWD/fixture-ca-5810.pem\" > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nprintf stop > fixture-stop\nwait \"$srv\" || exit 1\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r2 5810 || exit 1\n/usr/bin/python3 \"$P\" finish \"$TRUST\" trusted\n",
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nverified r2 failed=0\nfixture-anchor-ok\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "acme-protocol-trusted-r4-v1",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Requirement r4 of the original ACME lifecycle against a fixture authority provisioned independently before candidate execution.",
+      "oracle": "Separate fixture CA and Python reference lifecycle; pre-request fixture CA certificate is supplied by explicit --cert-ca. Actual signed peer JWS/nonce/challenge/CSR and final certificate/key data remain checked.",
+      "comparison": "Candidate issue succeeds; verify the original r4 assertion and independently bind the final issued chain to the pre-request fixture authority.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-protocol-trust-peer-v1.py": "2c6c4cf475c3c6386223d0f8f5be12f4c9004bbfe068a79a5aada3e6dbf15cee",
+        "helpers/acme-fixture-trust-project-v1.py": "2a38d5b8fe9c20cb7394a71afb1abba36819ddaef39e5b5ed9ad297097338513"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/acme-protocol-trust-peer-v1.py\nP=/opt/bashos-parity/harness/helpers/acme-fixture-trust-project-v1.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\n[[ \"$srv\" =~ ^[0-9]+$ ]] && (( srv > 1 )) || exit 1\ntrap 'printf stop > fixture-stop' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nTRUST=$(/usr/bin/python3 \"$P\" prepare) || exit 1\n[[ \"$TRUST\" =~ ^[0-9a-f]{64}:[0-9a-f]{64}$ ]] || exit 1\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory http://127.0.0.1:5810/directory -k 0000000000000000000000000000000000000000000000000000000000000001 --domain fixture.test --out issued --cert-ca \"$PWD/fixture-ca-5810.pem\" > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nprintf stop > fixture-stop\nwait \"$srv\" || exit 1\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r4 5810 || exit 1\n/usr/bin/python3 \"$P\" finish \"$TRUST\" trusted\n",
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nverified r4 failed=0\nfixture-anchor-ok\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "acme-protocol-trusted-r5-v1",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Requirement r5 of the original ACME lifecycle against a fixture authority provisioned independently before candidate execution.",
+      "oracle": "Separate fixture CA and Python reference lifecycle; pre-request fixture CA certificate is supplied by explicit --cert-ca. Actual signed peer JWS/nonce/challenge/CSR and final certificate/key data remain checked.",
+      "comparison": "Candidate issue succeeds; verify the original r5 assertion and independently bind the final issued chain to the pre-request fixture authority.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-protocol-trust-peer-v1.py": "2c6c4cf475c3c6386223d0f8f5be12f4c9004bbfe068a79a5aada3e6dbf15cee",
+        "helpers/acme-fixture-trust-project-v1.py": "2a38d5b8fe9c20cb7394a71afb1abba36819ddaef39e5b5ed9ad297097338513"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/acme-protocol-trust-peer-v1.py\nP=/opt/bashos-parity/harness/helpers/acme-fixture-trust-project-v1.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\n[[ \"$srv\" =~ ^[0-9]+$ ]] && (( srv > 1 )) || exit 1\ntrap 'printf stop > fixture-stop' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nTRUST=$(/usr/bin/python3 \"$P\" prepare) || exit 1\n[[ \"$TRUST\" =~ ^[0-9a-f]{64}:[0-9a-f]{64}$ ]] || exit 1\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory http://127.0.0.1:5810/directory -k 0000000000000000000000000000000000000000000000000000000000000001 --domain fixture.test --out issued --cert-ca \"$PWD/fixture-ca-5810.pem\" > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nprintf stop > fixture-stop\nwait \"$srv\" || exit 1\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r5 5810 || exit 1\n/usr/bin/python3 \"$P\" finish \"$TRUST\" trusted\n",
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nverified r5 failed=0\nfixture-anchor-ok\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "acme-protocol-trusted-r6-v1",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Requirement r6 of the original ACME lifecycle against a fixture authority provisioned independently before candidate execution.",
+      "oracle": "Separate fixture CA and Python reference lifecycle; pre-request fixture CA certificate is supplied by explicit --cert-ca. Actual signed peer JWS/nonce/challenge/CSR and final certificate/key data remain checked.",
+      "comparison": "Candidate issue succeeds; verify the original r6 assertion and independently bind the final issued chain to the pre-request fixture authority.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-protocol-trust-peer-v1.py": "2c6c4cf475c3c6386223d0f8f5be12f4c9004bbfe068a79a5aada3e6dbf15cee",
+        "helpers/acme-fixture-trust-project-v1.py": "2a38d5b8fe9c20cb7394a71afb1abba36819ddaef39e5b5ed9ad297097338513"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/acme-protocol-trust-peer-v1.py\nP=/opt/bashos-parity/harness/helpers/acme-fixture-trust-project-v1.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\n[[ \"$srv\" =~ ^[0-9]+$ ]] && (( srv > 1 )) || exit 1\ntrap 'printf stop > fixture-stop' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nTRUST=$(/usr/bin/python3 \"$P\" prepare) || exit 1\n[[ \"$TRUST\" =~ ^[0-9a-f]{64}:[0-9a-f]{64}$ ]] || exit 1\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory http://127.0.0.1:5810/directory -k 0000000000000000000000000000000000000000000000000000000000000001 --domain fixture.test --out issued --cert-ca \"$PWD/fixture-ca-5810.pem\" > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nprintf stop > fixture-stop\nwait \"$srv\" || exit 1\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r6 5810 || exit 1\n/usr/bin/python3 \"$P\" finish \"$TRUST\" trusted\n",
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nverified r6 failed=0\nfixture-anchor-ok\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "acme-protocol-trusted-r7-v1",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Requirement r7 of the original ACME lifecycle against a fixture authority provisioned independently before candidate execution.",
+      "oracle": "Separate fixture CA and Python reference lifecycle; pre-request fixture CA certificate is supplied by explicit --cert-ca. Actual signed peer JWS/nonce/challenge/CSR and final certificate/key data remain checked.",
+      "comparison": "Candidate issue succeeds; verify the original r7 assertion and independently bind the final issued chain to the pre-request fixture authority.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-protocol-trust-peer-v1.py": "2c6c4cf475c3c6386223d0f8f5be12f4c9004bbfe068a79a5aada3e6dbf15cee",
+        "helpers/acme-fixture-trust-project-v1.py": "2a38d5b8fe9c20cb7394a71afb1abba36819ddaef39e5b5ed9ad297097338513"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/acme-protocol-trust-peer-v1.py\nP=/opt/bashos-parity/harness/helpers/acme-fixture-trust-project-v1.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\n[[ \"$srv\" =~ ^[0-9]+$ ]] && (( srv > 1 )) || exit 1\ntrap 'printf stop > fixture-stop' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nTRUST=$(/usr/bin/python3 \"$P\" prepare) || exit 1\n[[ \"$TRUST\" =~ ^[0-9a-f]{64}:[0-9a-f]{64}$ ]] || exit 1\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory http://127.0.0.1:5810/directory -k 0000000000000000000000000000000000000000000000000000000000000001 --domain fixture.test --out issued --cert-ca \"$PWD/fixture-ca-5810.pem\" > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nprintf stop > fixture-stop\nwait \"$srv\" || exit 1\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r7 5810 || exit 1\n/usr/bin/python3 \"$P\" finish \"$TRUST\" trusted\n",
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nverified r7 failed=0\nfixture-anchor-ok\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "acme-protocol-trusted-full-audit-v1",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Full independent protocol audit against an explicitly provisioned fixture CA.",
+      "oracle": "Fixture CA validates ES256 JWS, nonce, account, kid, challenge and CSR; independent reference and separate trust projection bind the issued chain and key.",
+      "comparison": "Require full issue plus all existing r1-r7 cryptographic assertions and pre-request fixture authority check; no r8 claim.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-protocol-trust-peer-v1.py": "2c6c4cf475c3c6386223d0f8f5be12f4c9004bbfe068a79a5aada3e6dbf15cee",
+        "helpers/acme-fixture-trust-project-v1.py": "2a38d5b8fe9c20cb7394a71afb1abba36819ddaef39e5b5ed9ad297097338513"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/acme-protocol-trust-peer-v1.py\nP=/opt/bashos-parity/harness/helpers/acme-fixture-trust-project-v1.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\n[[ \"$srv\" =~ ^[0-9]+$ ]] && (( srv > 1 )) || exit 1\ntrap 'printf stop > fixture-stop' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nTRUST=$(/usr/bin/python3 \"$P\" prepare) || exit 1\n[[ \"$TRUST\" =~ ^[0-9a-f]{64}:[0-9a-f]{64}$ ]] || exit 1\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory http://127.0.0.1:5810/directory -k 0000000000000000000000000000000000000000000000000000000000000001 --domain fixture.test --out issued --cert-ca \"$PWD/fixture-ca-5810.pem\" > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nprintf stop > fixture-stop\nwait \"$srv\" || exit 1\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r1 5810 || exit 1\n/usr/bin/python3 \"$H\" verify r2 5810 || exit 1\n/usr/bin/python3 \"$H\" verify r3 5810 || exit 1\n/usr/bin/python3 \"$H\" verify r4 5810 || exit 1\n/usr/bin/python3 \"$H\" verify r5 5810 || exit 1\n/usr/bin/python3 \"$H\" verify r6 5810 || exit 1\n/usr/bin/python3 \"$H\" verify r7 5810 || exit 1\n/usr/bin/python3 \"$P\" finish \"$TRUST\" trusted\n",
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nverified r1 failed=0\nverified r2 failed=0\nverified r3 failed=0\nverified r4 failed=0\nverified r5 failed=0\nverified r6 failed=0\nverified r7 failed=0\nfixture-anchor-ok\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "acme-protocol-untrusted-anchor-negative-v1",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Reject a CA response that does not chain to the independently provisioned fixture trust anchor.",
+      "oracle": "Before the lifecycle, the fixture publishes a separate valid but unrelated fixture CA as trust anchor; the server retains a distinct issuing key and returns its real chain.",
+      "comparison": "Require candidate failure, no published key or certificate, and independent proof that the pre-request anchor and issuing root differ.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-protocol-trust-peer-v1.py": "2c6c4cf475c3c6386223d0f8f5be12f4c9004bbfe068a79a5aada3e6dbf15cee",
+        "helpers/acme-fixture-trust-project-v1.py": "2a38d5b8fe9c20cb7394a71afb1abba36819ddaef39e5b5ed9ad297097338513"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/acme-protocol-trust-peer-v1.py\nP=/opt/bashos-parity/harness/helpers/acme-fixture-trust-project-v1.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve-wrong-anchor 5811 5810 ready 2> serve.err &\nsrv=$!\n[[ \"$srv\" =~ ^[0-9]+$ ]] && (( srv > 1 )) || exit 1\ntrap 'printf stop > fixture-stop' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nTRUST=$(/usr/bin/python3 \"$P\" prepare) || exit 1\n[[ \"$TRUST\" =~ ^[0-9a-f]{64}:[0-9a-f]{64}$ ]] || exit 1\nif acme issue --allow-http --http-listen 127.0.0.1:5812 --directory http://127.0.0.1:5810/directory -k 0000000000000000000000000000000000000000000000000000000000000001 --domain fixture.test --out issued --cert-ca \"$PWD/fixture-ca-5810.pem\" > out.txt 2> err.txt; then echo incorrectly-accepted; exit 1; else echo candidate-rejected; fi\nprintf stop > fixture-stop\nwait \"$srv\" || exit 1\ntrap - EXIT\n/usr/bin/python3 \"$P\" finish \"$TRUST\" wrong\n",
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rejected\nfixture-untrusted-anchor-rejected\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "acme-protocol-trusted-oracle-negative-v1",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Guest-only JWS, certificate and key negative controls.",
+      "oracle": "Pinned peer verifier negative controls must reject invalid inputs and report actual status.",
+      "comparison": "Require exact control output and nonzero rejection of the invalid input.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-protocol-trust-peer-v1.py": "2c6c4cf475c3c6386223d0f8f5be12f4c9004bbfe068a79a5aada3e6dbf15cee"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-protocol-trust-peer-v1.py oracle-selftest\n",
+      "expected_status": 0,
+      "stdout": "oracle-negative-controls-ok\n",
+      "stderr": "",
+      "timeout": 30
+    },
+    {
+      "id": "acme-protocol-trusted-empty-log-v1",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "An empty peer log must not satisfy the r3 verifier.",
+      "oracle": "Pinned peer verifier negative controls must reject invalid inputs and report actual status.",
+      "comparison": "Require exact control output and nonzero rejection of the invalid input.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-protocol-trust-peer-v1.py": "2c6c4cf475c3c6386223d0f8f5be12f4c9004bbfe068a79a5aada3e6dbf15cee"
+      },
+      "script": "if /usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-protocol-trust-peer-v1.py verify r3 5810 > empty-check.txt; then exit 1; fi\nprintf \"empty-log-rejected\\n\"\n",
+      "expected_status": 0,
+      "stdout": "empty-log-rejected\n",
+      "stderr": "",
+      "timeout": 30
+    }
+  ]
+}

@@ -1727,17 +1727,36 @@ bm_relax_value (const char *v, char *out, size_t cap)
  * \n-separated headers blob, folds handled. Writes "name:value" to out
  * (lowercased name, no CRLF). Returns 1 if found. */
 static int
-bm_header_canon (const char *headers, const char *name, char *out, size_t cap)
+bm_header_canon_nth (const char *headers, const char *name, char *out, size_t cap,
+                     size_t nth)
 {
-  size_t nl = strlen (name);
+  size_t nl = strlen (name), matches = 0;
   const char *p = headers;
+  /* Find the nth matching field from the bottom, as required by h=. */
+  while (*p)
+    {
+      const char *eol = strchr (p, '\n');
+      if (!eol) eol = p + strlen (p);
+      if (*p != ' ' && *p != '\t')
+        {
+          const char *colon = memchr (p, ':', (size_t) (eol - p));
+          if (colon && (size_t) (colon - p) == nl
+              && strncasecmp (p, name, nl) == 0) matches++;
+        }
+      if (!*eol) break;
+      p = eol + 1;
+    }
+  if (nth >= matches) return 0;
+  size_t target = matches - nth - 1;
+  p = headers;
   while (*p)
     {
       const char *eol = p; while (*eol && *eol != '\n') eol++;
       if (*p != ' ' && *p != '\t')
         {
           const char *colon = memchr (p, ':', (size_t) (eol - p));
-          if (colon && (size_t) (colon - p) == nl && strncasecmp (p, name, nl) == 0)
+          if (colon && (size_t) (colon - p) == nl && strncasecmp (p, name, nl) == 0
+              && target-- == 0)
             {
               char raw[4096]; size_t rn = 0;
               const char *vp = colon + 1;
@@ -1766,6 +1785,12 @@ bm_header_canon (const char *headers, const char *name, char *out, size_t cap)
       p = eol + 1;
     }
   return 0;
+}
+
+static int
+bm_header_canon (const char *headers, const char *name, char *out, size_t cap)
+{
+  return bm_header_canon_nth (headers, name, out, cap, 0);
 }
 
 /* Build a full "DKIM-Signature: ..." header line (no trailing newline),
@@ -2098,10 +2123,11 @@ bm_dkim_verify_cmd (WORD_LIST *args)
   char *sigval = strchr (dsig, ':'); sigval = sigval ? sigval + 1 : dsig;
 
   char a_tag[32], bh_tag[128], b_tag[1024], h_tag[1024];
-  bm_dkim_tag (sigval, "a", a_tag, sizeof a_tag);
-  bm_dkim_tag (sigval, "bh", bh_tag, sizeof bh_tag);
-  bm_dkim_tag (sigval, "b", b_tag, sizeof b_tag);
-  bm_dkim_tag (sigval, "h", h_tag, sizeof h_tag);
+  if (!bm_dkim_tag (sigval, "a", a_tag, sizeof a_tag)
+      || !bm_dkim_tag (sigval, "bh", bh_tag, sizeof bh_tag)
+      || !bm_dkim_tag (sigval, "b", b_tag, sizeof b_tag)
+      || !bm_dkim_tag (sigval, "h", h_tag, sizeof h_tag))
+    { free (msg); return EXECUTION_FAILURE; }
   if (!alg) alg = (strstr (a_tag, "rsa")) ? "rsa" : "ed25519";
 
   /* 1) body hash */
@@ -2115,10 +2141,16 @@ bm_dkim_verify_cmd (WORD_LIST *args)
   /* 2) header hash over the h= headers + DKIM-Signature(b emptied) */
   char hblock[8192]; size_t hn = 0; char line[4096];
   char hlist[1024]; snprintf (hlist, sizeof hlist, "%s", h_tag);
+  char *seen[512]; size_t nseen = 0;
   for (char *tok = strtok (hlist, ":"); tok; tok = strtok (NULL, ":"))
     {
       while (*tok == ' ') tok++;
-      if (bm_header_canon (headers, tok, line, sizeof line))
+      size_t nth = 0;
+      for (size_t i = 0; i < nseen; i++)
+        if (!strcasecmp (seen[i], tok)) nth++;
+      if (nseen == sizeof seen / sizeof seen[0]) { free (msg); return EXECUTION_FAILURE; }
+      seen[nseen++] = tok;
+      if (bm_header_canon_nth (headers, tok, line, sizeof line, nth))
         {
           size_t l = strlen (line);
           if (hn + l + 3 < sizeof hblock) { memcpy (hblock + hn, line, l); hn += l; hblock[hn++] = '\r'; hblock[hn++] = '\n'; }

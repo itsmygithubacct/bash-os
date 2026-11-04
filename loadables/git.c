@@ -46,6 +46,8 @@
 #include <sys/wait.h>
 #include <zlib.h>
 
+extern char **environ;
+
 #include "loadables.h"
 #include "command-run.h"
 #include "child-wait.h"
@@ -4261,6 +4263,77 @@ git_restore_caller_pipe (void)
         sigaction (SIGPIPE, &git_pipe_saved, NULL);
 }
 
+/* OpenPGP signing uses git's gpg protocol: the payload on stdin, armour on
+   stdout and a SIG_CREATED status record on fd 2. Temporary streams avoid
+   blocking when a signer writes before consuming all of a large payload. */
+static int
+git_sign_object (git_context *ctx, const char *named, const char *ident,
+                 const unsigned char *body, size_t len, char **armour)
+{
+    const char *format = bgit_config_get (&ctx->cfg, "gpg.format");
+    if (format && !strcmp (format, "ssh")) {
+        bgit_ssh_key key;
+        if (git_signing_key (ctx, named, &key) < 0) return -1;
+        return bgit_sshsig_sign (&key, "git", body, len, armour);
+    }
+    if (format && strcmp (format, "openpgp")) {
+        git_fatal ("unsupported gpg format '%s'", format);
+        return -1;
+    }
+    const char *program = bgit_config_get (&ctx->cfg, "gpg.openpgp.program");
+    if (!program || !*program) program = bgit_config_get (&ctx->cfg, "gpg.program");
+    if (!program || !*program) program = "gpg";
+    const char *key = named && *named ? named : bgit_config_get (&ctx->cfg, "user.signingKey");
+    char who[1024];
+    if (!key || !*key) { git_ident_who (ident, who, sizeof who); key = who; }
+    FILE *input = tmpfile (), *output = tmpfile (), *status_file = tmpfile ();
+    int ok = 0;
+    if (!input || !output || !status_file) goto done;
+    if (fwrite (body, 1, len, input) != len || fflush (input) || fseek (input, 0, SEEK_SET)) goto done;
+    fflush (stdout); fflush (stderr);
+    pid_t child = fork ();
+    if (child < 0) goto done;
+    if (!child) {
+        git_restore_caller_pipe ();
+        if (dup2 (fileno (input), 0) < 0 || dup2 (fileno (output), 1) < 0 ||
+            dup2 (fileno (status_file), 2) < 0) _exit (127);
+        array_needs_making = 1;
+        maybe_make_export_env ();
+        environ = export_env;
+        execlp (program, program, "--status-fd=2", "-bsau", key, (char *) NULL);
+        _exit (127);
+    }
+    int status;
+    pid_t waited;
+    do { waited = waitpid (child, &status, 0); } while (waited < 0 && errno == EINTR);
+    rewind (status_file);
+    char line[4096];
+    int created = 0;
+    while (fgets (line, sizeof line, status_file))
+        if (!strncmp (line, "[GNUPG:] SIG_CREATED ", 21)) created = 1;
+    if (waited != child || !WIFEXITED (status) || WEXITSTATUS (status) || !created) {
+        rewind (status_file);
+        while (fgets (line, sizeof line, status_file)) fputs (line, stderr);
+        fputs ("error: gpg failed to sign the data\n", stderr);
+        goto done;
+    }
+    if (fseek (output, 0, SEEK_END)) goto done;
+    long size = ftell (output);
+    if (size <= 0 || fseek (output, 0, SEEK_SET)) goto done;
+    *armour = malloc ((size_t) size + 1);
+    if (!*armour) goto done;
+    if (fread (*armour, 1, (size_t) size, output) != (size_t) size) {
+        free (*armour); *armour = NULL; goto done;
+    }
+    (*armour)[size] = '\0';
+    ok = 1;
+done:
+    if (input) fclose (input);
+    if (output) fclose (output);
+    if (status_file) fclose (status_file);
+    return ok ? 0 : -1;
+}
+
 /* Run an editor over PATH, the way git runs one: GIT_EDITOR, then
    core.editor, then VISUAL, then EDITOR, and vi when nothing names one.
    What is named is a command line the shell reads, with the file added at
@@ -4315,7 +4388,7 @@ git_edit_file (git_context *ctx, const char *path, int sequence)
     int status = 0;
     while (waitpid (child, &status, 0) < 0 && errno == EINTR) ;
     if (!WIFEXITED (status) || WEXITSTATUS (status)) {
-        git_fatal ("There was a problem with the editor '%s'.", editor);
+        fprintf (stderr, "error: There was a problem with the editor '%s'.\n", editor);
         return -1;
     }
     return 0;
@@ -4718,7 +4791,8 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
         fclose (out);
         if (git_edit_file (ctx, editmsg, 0) < 0) {
             git_state_release (&state);
-            return GIT_EXIT_FATAL;
+            fputs ("Please supply the message using either -m or -F option.\n", stderr);
+            return 1;
         }
         size_t edited_len = 0;
         char *edited = git_message_body (editmsg, &edited_len);
@@ -4790,11 +4864,9 @@ git_cmd_commit (git_context *ctx, WORD_LIST *args)
        it is made from what has been built and then put back into it. */
     if (sign < 0) sign = bgit_config_bool (&ctx->cfg, "commit.gpgsign", 0);
     if (sign) {
-        bgit_ssh_key key;
         char *armour = NULL;
-        if (git_signing_key (ctx, signing_key, &key) < 0 ||
-            bgit_sshsig_sign (&key, "git", (const unsigned char *) body, len,
-                              &armour) < 0) {
+        if (git_sign_object (ctx, signing_key, committer,
+                             (const unsigned char *) body, len, &armour) < 0) {
             free (body);
             git_state_release (&state);
             return git_fatal ("failed to write commit object");
@@ -6002,6 +6074,52 @@ git_signature_take (enum bgit_type type, const unsigned char *data, size_t len,
     return 1;
 }
 
+/* Git verifies a commit at its committer time and a tag at its tagger
+   time. OpenSSH receives that instant formatted in the local timezone;
+   round-trip it through mktime with automatic DST selection as it does. */
+static int
+git_signature_verify_time (const char *payload, size_t len,
+                           enum bgit_type type, long long *out)
+{
+    const char *field = type == BGIT_COMMIT ? "committer " :
+                        type == BGIT_TAG ? "tagger " : NULL;
+    if (!field) return -1;
+    size_t field_len = strlen (field);
+    const char *p = payload, *end = payload + len;
+    while (p < end) {
+        const char *nl = memchr (p, '\n', (size_t) (end - p));
+        const char *line_end = nl ? nl : end;
+        if (line_end == p) break;
+        if ((size_t) (line_end - p) > field_len && !memcmp (p, field, field_len)) {
+            const char *gt = memchr (p + field_len, '>', (size_t) (line_end - p - field_len));
+            if (!gt || gt + 1 >= line_end || gt[1] != ' ') return -1;
+            const char *number = gt + 2;
+            if (number >= line_end || *number < '0' || *number > '9') return -1;
+            errno = 0;
+            char *after = NULL;
+            unsigned long long stamp = strtoull (number, &after, 10);
+            if (errno || after >= line_end || *after != ' ' ||
+                stamp > (unsigned long long) LLONG_MAX) return -1;
+            const char *zone = after + 1;
+            if (line_end - zone != 5 || (*zone != '+' && *zone != '-')) return -1;
+            for (int i = 1; i < 5; i++) if (zone[i] < '0' || zone[i] > '9') return -1;
+            time_t when = stamp ? (time_t) stamp : time (NULL);
+            if (when <= 0 || (stamp && (unsigned long long) when != stamp)) return -1;
+            struct tm local;
+            tzset ();
+            if (!localtime_r (&when, &local)) return -1;
+            local.tm_isdst = -1;
+            time_t checked = mktime (&local);
+            if (checked <= 0) return -1;
+            *out = (long long) checked;
+            return 0;
+        }
+        if (!nl) break;
+        p = nl + 1;
+    }
+    return -1;
+}
+
 /* Say about a signature what git says about it, on OUT — stderr for
    verify-commit, stdout for log --show-signature. Returns 0 when the
    signature is good and somebody vouches for the key it was made with, and
@@ -6029,6 +6147,8 @@ git_verify_signature (git_context *ctx, FILE *out, const unsigned char *data,
     int checked = bgit_sshsig_check (armour, "git",
                                      (const unsigned char *) payload, size,
                                      &key);
+    long long verify_time = 0;
+    int have_time = git_signature_verify_time (payload, size, type, &verify_time) == 0;
     free (armour);
     if (payload_out) {
         *payload_out = payload;
@@ -6036,7 +6156,7 @@ git_verify_signature (git_context *ctx, FILE *out, const unsigned char *data,
     } else
         free (payload);
 
-    if (checked != 0) {
+    if (checked != 0 || !have_time) {
         fprintf (out, "Could not verify signature.\n");
         if (checked > 0)
             fprintf (out, "Signature verification failed: incorrect "
@@ -6046,6 +6166,38 @@ git_verify_signature (git_context *ctx, FILE *out, const unsigned char *data,
 
     char fingerprint[128] = "";
     bgit_ssh_key_fingerprint (&key, fingerprint, sizeof fingerprint);
+
+    /* An actually empty regular file cannot revoke a key.  Other formats,
+       unreadable paths and non-regular files remain fail-closed until the
+       OpenSSH revocation formats are implemented. */
+    const char *revocation = bgit_config_get (&ctx->cfg, "gpg.ssh.revocationFile");
+    if (revocation && *revocation) {
+        char path[4096];
+        int n;
+        if (revocation[0] == '~' && revocation[1] == '/' && getenv ("HOME"))
+            n = snprintf (path, sizeof path, "%s/%s", getenv ("HOME"), revocation + 2);
+        else
+            n = snprintf (path, sizeof path, "%s", revocation);
+        int empty = 0;
+        if (n >= 0 && (size_t) n < sizeof path) {
+            int fd = open (path, O_RDONLY | O_NONBLOCK);
+            if (fd >= 0) {
+                struct stat st;
+                unsigned char byte;
+                if (fstat (fd, &st) == 0 && S_ISREG (st.st_mode)) {
+                    ssize_t got;
+                    do { got = read (fd, &byte, 1); }
+                    while (got < 0 && errno == EINTR);
+                    empty = got == 0;
+                }
+                close (fd);
+            }
+        }
+        if (!empty) {
+            fprintf (out, "Cannot verify SSH signature with a configured revocation file.\n");
+            return 1;
+        }
+    }
 
     /* Whom the key belongs to, if gpg.ssh.allowedSignersFile says. */
     char principal[256] = "";
@@ -6058,8 +6210,8 @@ git_verify_signature (git_context *ctx, FILE *out, const unsigned char *data,
             snprintf (path, sizeof path, "%s/%s", getenv ("HOME"), named + 2);
         else
             snprintf (path, sizeof path, "%s", named);
-        vouched = bgit_ssh_allowed_signer (path, &key, principal,
-                                           sizeof principal) == 1;
+        vouched = bgit_ssh_allowed_signer (path, &key, "git", verify_time,
+                                           principal, sizeof principal) == 1;
     }
     if (vouched)
         fprintf (out, "Good \"git\" signature for %s with ED25519 key %s\n",
@@ -6107,9 +6259,12 @@ git_print_commit (git_context *ctx, FILE *out, const struct git_commit *commit,
         git_abbrev (ctx, commit->id, 7, abbreviated, sizeof abbreviated);
         git_subject (commit, subject, sizeof subject);
         if (*decoration)
-            fprintf (out, "%s (%s) %s\n", abbreviated, decoration, subject);
-        else fprintf (out, "%s %s\n", abbreviated, subject);
+            fprintf (out, "%s (%s) ", abbreviated, decoration);
+        else fprintf (out, "%s ", abbreviated);
+        if (show_signature) git_show_commit_signature (ctx, out, commit->id);
+        fprintf (out, "%s\n", subject);
     } else if (format) {
+        if (show_signature) git_show_commit_signature (ctx, out, commit->id);
         git_format_commit (ctx, out, commit, format, date,
                            decorate == GIT_DECORATE_FULL);
     } else {
@@ -15341,11 +15496,10 @@ git_cmd_tag (git_context *ctx, WORD_LIST *args)
         char *signed_body = NULL;
         if (!sign) sign = bgit_config_bool (&ctx->cfg, "tag.gpgSign", 0);
         if (sign) {
-            bgit_ssh_key key;
             char *armour = NULL;
-            if (git_signing_key (ctx, signing_key, &key) < 0 ||
-                bgit_sshsig_sign (&key, "git", (const unsigned char *) body,
-                                  (size_t) len, &armour) < 0)
+            if (git_sign_object (ctx, signing_key, tagger,
+                                 (const unsigned char *) body, (size_t) len,
+                                 &armour) < 0)
                 return git_fatal ("failed to write tag object");
             size_t room = (size_t) len + strlen (armour) + 1;
             signed_body = malloc (room);
@@ -19330,6 +19484,111 @@ git_push_want (git_context *ctx, struct git_push_want **wants, size_t *n,
     return 0;
 }
 
+/* Resolve hook paths before changing the child's working directory.  Git
+   runs receive hooks from the repository's git directory, and relative
+   core.hooksPath values are relative to that directory. */
+static int
+git_receive_hook_path (const bgit_repo *repo, const bgit_config *cfg,
+                       const char *name, char *path, size_t size)
+{
+    const char *hooks = bgit_config_get (cfg, "core.hooksPath");
+    char expanded[4096];
+    if (!hooks) {
+        int n = snprintf (path, size, "%s/hooks/%s", repo->common_dir, name);
+        return n < 0 || (size_t) n >= size ? -1 : 0;
+    }
+    if (!*hooks) return -1;
+    if (hooks[0] == '~') {
+        const char *home = getenv ("HOME");
+        if (hooks[1] != '/' || !home ||
+            snprintf (expanded, sizeof expanded, "%s/%s", home, hooks + 2)
+                >= (int) sizeof expanded) return -1;
+        hooks = expanded;
+    }
+    int n = hooks[0] == '/'
+        ? snprintf (path, size, "%s/%s", hooks, name)
+        : snprintf (path, size, "%s/%s/%s", repo->git_dir, hooks, name);
+    return n < 0 || (size_t) n >= size ? -1 : 0;
+}
+
+/* 0: hook accepted or absent, 1: hook declined, -1: protocol/I/O error.
+   Use temporary streams so a hook can emit output before reading all input
+   without deadlocking the receive process.  The child alone changes cwd and
+   environment; both output streams are forwarded over the progress band. */
+static int
+git_receive_hook (const bgit_repo *repo, const bgit_config *cfg,
+                  const char *name, const struct git_push_command *commands,
+                  size_t n_commands, int side_band)
+{
+    char path[8192];
+    if (git_receive_hook_path (repo, cfg, name, path, sizeof path) < 0)
+        return 1;
+    if (access (path, X_OK) < 0) return 0;
+    FILE *input = tmpfile (), *output = tmpfile ();
+    if (!input || !output) {
+        if (input) fclose (input);
+        if (output) fclose (output);
+        return 1;
+    }
+    int result = 1;
+    if (strcmp (name, "update")) {
+        for (size_t i = 0; i < n_commands; i++)
+            if (fprintf (input, "%s %s %s\n", commands[i].old_id,
+                         commands[i].new_id, commands[i].name) < 0)
+                goto done;
+    }
+    if (fflush (input) || fseek (input, 0, SEEK_SET)) goto done;
+    fflush (stdout); fflush (stderr);
+    pid_t child = fork ();
+    if (child < 0) goto done;
+    if (!child) {
+        git_restore_caller_pipe ();
+        if (chdir (repo->git_dir) < 0 || dup2 (fileno (input), 0) < 0 ||
+            dup2 (fileno (output), 1) < 0 || dup2 (fileno (output), 2) < 0)
+            _exit (127);
+        array_needs_making = 1;
+        maybe_make_export_env ();
+        environ = export_env;
+        if (setenv ("GIT_DIR", ".", 1) < 0 ||
+            unsetenv ("GIT_WORK_TREE") < 0 ||
+            unsetenv ("GIT_INDEX_FILE") < 0 ||
+            unsetenv ("GIT_OBJECT_DIRECTORY") < 0 ||
+            unsetenv ("GIT_ALTERNATE_OBJECT_DIRECTORIES") < 0)
+            _exit (127);
+        if (!strcmp (name, "update"))
+            execl (path, path, commands[0].name, commands[0].old_id,
+                   commands[0].new_id, (char *) NULL);
+        else
+            execl (path, path, (char *) NULL);
+        _exit (127);
+    }
+    int child_status;
+    pid_t waited;
+    do { waited = waitpid (child, &child_status, 0); }
+    while (waited < 0 && errno == EINTR);
+    if (fseek (output, 0, SEEK_SET)) goto done;
+    char buf[4096];
+    size_t n;
+    while ((n = fread (buf, 1, sizeof buf, output)) != 0) {
+        if (side_band) {
+            if (bgit_pkt_write_band (1, 2, buf, n) < 0) {
+                result = -1;
+                goto done;
+            }
+        } else if (fwrite (buf, 1, n, stderr) != n) {
+            result = -1;
+            goto done;
+        }
+    }
+    if (ferror (output)) goto done;
+    if (waited == child && WIFEXITED (child_status) &&
+        WEXITSTATUS (child_status) == 0) result = 0;
+ done:
+    fclose (input);
+    fclose (output);
+    return result;
+}
+
 /* git receive-pack: the far end of a push. This is git's first protocol,
    and the one it still uses for a push: the refs this repository has,
    then the changes the other end wants, then a pack, then what became of
@@ -19447,21 +19706,46 @@ git_cmd_receive_pack (git_context *ctx, WORD_LIST *args)
     /* A push that would lose commits is the pushing end's to refuse: git
        lets one through here unless it has been told not to. */
     bgit_config far_config;
-    bgit_config_load (&far_config, &repo, NULL, 0);
+    int config_ok = bgit_config_load (&far_config, &repo, NULL, 0) == 0;
     int deny_non_fast_forwards = bgit_config_bool (&far_config,
                                                    "receive.denyNonFastForwards", 0);
-    bgit_config_release (&far_config);
+    /* Do not silently bypass hooks or receive routing that this receiver
+       cannot yet honor.  Refuse the push before any ref is updated. */
+    char transaction_hook[8192];
+    int unsupported = !config_ok ||
+        git_receive_hook_path (&repo, &far_config, "reference-transaction",
+                               transaction_hook, sizeof transaction_hook) < 0 ||
+        access (transaction_hook, X_OK) == 0 ||
+        bgit_config_get (&far_config, "receive.procReceiveRefs") != NULL;
+    int pre_hook = 0;
+    if (!status && n_commands && !unsupported)
+        pre_hook = git_receive_hook (&repo, &far_config, "pre-receive",
+                                     commands, n_commands, side_band);
+    if (pre_hook < 0) status = GIT_EXIT_FATAL;
     for (size_t i = 0; !status && i < n_commands; i++) {
+        if (unsupported) {
+            commands[i].refused = "unsupported receive hook configuration";
+            continue;
+        }
+        if (pre_hook) {
+            commands[i].refused = "pre-receive hook declined";
+            continue;
+        }
         struct git_push_command *command = &commands[i];
         int unmaking = !strcmp (command->new_id, GIT_NULL_ID);
         char current[41] = "";
         int have = bgit_ref_read (&repo, command->name, current) == 0;
         if (head && !strcmp (head, command->name)) {
             command->refused = "branch is currently checked out";
-            aside_len += (size_t) snprintf (aside + aside_len,
-                                            sizeof aside - aside_len,
-                                            "error: refusing to update checked "
-                                            "out branch: %s\n", command->name);
+            if (aside_len < sizeof aside - 1) {
+                int n = snprintf (aside + aside_len, sizeof aside - aside_len,
+                                  "error: refusing to update checked "
+                                  "out branch: %s\n", command->name);
+                if (n > 0) {
+                    size_t room = sizeof aside - aside_len;
+                    aside_len += (size_t) n < room ? (size_t) n : room - 1;
+                }
+            }
         }
         else if (have && strcmp (current, command->old_id))
             command->refused = "fetch first";
@@ -19474,12 +19758,20 @@ git_cmd_receive_pack (git_context *ctx, WORD_LIST *args)
                  bgit_is_ancestor (&odb, current, command->new_id) <= 0)
             command->refused = "non-fast-forward";
         if (command->refused) continue;
+        int update_hook = git_receive_hook (&repo, &far_config, "update",
+                                            command, 1, side_band);
+        if (update_hook < 0) { status = GIT_EXIT_FATAL; break; }
+        if (update_hook) {
+            command->refused = "hook declined";
+            continue;
+        }
         int wrote = unmaking
             ? bgit_ref_delete (&repo, command->name, have ? current : NULL, NULL)
             : bgit_ref_update (&repo, command->name, command->new_id,
                                have ? current : "", "push");
         if (wrote < 0) command->refused = "failed to update ref";
     }
+    bgit_config_release (&far_config);
     free (head);
 
     /* And what became of each: the report is packets of its own, sent
@@ -19735,6 +20027,63 @@ git_report_push (git_context *ctx, const struct git_push_want *want)
                  new_short, from, to);
     else
         fprintf (stderr, "   %s..%s  %s -> %s\n", old_short, new_short, from, to);
+}
+
+/* Git gives one piece of advice for the first locally rejected update. */
+static void
+git_push_rejection_advice (git_context *ctx, const struct git_push_want *wants,
+                           size_t n, const char *branch)
+{
+    char held_advice[16];
+    const char *enabled = bgit_env ("GIT_ADVICE", held_advice,
+                                    sizeof held_advice);
+    /* Git accepts the usual boolean spellings and decimal integers.  Keep
+       bgit_env's buffer-argument contract; use the full environment value
+       when it is empty or does not fit that buffer. */
+    const char *raw_advice = getenv ("GIT_ADVICE");
+    if (raw_advice && (!enabled || strlen (raw_advice) >= sizeof held_advice))
+        enabled = raw_advice;
+    if (enabled) {
+        int disabled = !*enabled || !strcasecmp (enabled, "false") ||
+                       !strcasecmp (enabled, "no") || !strcasecmp (enabled, "off");
+        if (!disabled) {
+            char *end = NULL;
+            int saved_errno = errno;
+            errno = 0;
+            long long value = strtoll (enabled, &end, 10);
+            disabled = errno == 0 && end != enabled && *end == '\0' && value == 0;
+            errno = saved_errno;
+        }
+        if (disabled) return;
+    }
+    if (!git_advice_wanted (ctx, "pushUpdateRejected")) return;
+    for (size_t i = 0; i < n; i++) {
+        const struct git_push_want *w = &wants[i];
+        if (!w->refused || w->remote_refused) continue;
+        if (!strcmp (w->refused, "fetch first")) {
+            if (git_advice_wanted (ctx, "pushFetchFirst"))
+                fputs ("hint: Updates were rejected because the remote contains work that you do\n"
+                       "hint: not have locally. This is usually caused by another repository pushing\n"
+                       "hint: to the same ref. You may want to first integrate the remote changes\n"
+                       "hint: (e.g., 'git pull ...') before pushing again.\n"
+                       "hint: See the 'Note about fast-forwards' in 'git push --help' for details.\n", stderr);
+            return;
+        }
+        if (!strcmp (w->refused, "non-fast-forward")) {
+            int current = branch && !strcmp (w->src, branch);
+            if (!git_advice_wanted (ctx, current ? "pushNonFFCurrent" : "pushNonFFMatching")) return;
+            if (current)
+                fputs ("hint: Updates were rejected because the tip of your current branch is behind\n"
+                       "hint: its remote counterpart. Integrate the remote changes (e.g.\n"
+                       "hint: 'git pull ...') before pushing again.\n", stderr);
+            else
+                fputs ("hint: Updates were rejected because a pushed branch tip is behind its remote\n"
+                       "hint: counterpart. Check out this branch and integrate the remote changes\n"
+                       "hint: (e.g. 'git pull ...') before pushing again.\n", stderr);
+            fputs ("hint: See the 'Note about fast-forwards' in 'git push --help' for details.\n", stderr);
+            return;
+        }
+    }
 }
 
 /* One side of a refspec, with the star that stands for the rest. A
@@ -20359,6 +20708,9 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
        configuration to read: what the far end wants said, and where a
        credential for it is kept. */
     bgit_config_load (&ctx->cfg, NULL, git_overrides, git_n_overrides);
+    if (!quiet)
+        fprintf (stderr, bare ? "Cloning into bare repository '%s'...\n"
+                              : "Cloning into '%s'...\n", target);
     git_conn conn;
     if (git_far_end_open (&conn, ctx, absolute, NULL, 1) < 0) return GIT_EXIT_FATAL;
 
@@ -20372,10 +20724,6 @@ git_cmd_clone (git_context *ctx, WORD_LIST *args)
         git_conn_close (&conn);
         return GIT_EXIT_FATAL;
     }
-
-    if (!quiet)
-        fprintf (stderr, bare ? "Cloning into bare repository '%s'...\n"
-                              : "Cloning into '%s'...\n", target);
 
     /* A fresh repository, then everything the far end has. */
     WORD_LIST *init = make_word_list (make_word ((char *) target), NULL);
@@ -20703,8 +21051,10 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
         for (size_t i = 0; i < n_wants; i++)
             if (wants[i].refused || !wants[i].is_new || *wants[i].id)
                 git_report_push (ctx, &wants[i]);
-        if (refused_any)
+        if (refused_any) {
             fprintf (stderr, "error: failed to push some refs to '%s'\n", url);
+            git_push_rejection_advice (ctx, wants, n_wants, state.branch);
+        }
         bgit_proto_refs_release (theirs, n_theirs);
         free (capabilities);
         free (wants);
@@ -20741,6 +21091,7 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
         for (size_t i = 0; i < n_wants; i++)
             if (wants[i].refused) git_report_push (ctx, &wants[i]);
         fprintf (stderr, "error: failed to push some refs to '%s'\n", url);
+        git_push_rejection_advice (ctx, wants, n_wants, state.branch);
         bgit_proto_refs_release (theirs, n_theirs);
         free (capabilities);
         free (wants);
@@ -20841,14 +21192,16 @@ git_cmd_push (git_context *ctx, WORD_LIST *args)
     if (!status && !unpacked)
         status = git_fatal ("the far end did not say what it did");
 
-    if (!status && !quiet) {
+    if (!status && (!quiet || refused_any)) {
         fflush (stdout);
         fprintf (stderr, "To %s\n", url);
         for (size_t i = 0; i < n_wants; i++)
-            git_report_push (ctx, &wants[i]);
+            if (!quiet || wants[i].refused)
+                git_report_push (ctx, &wants[i]);
     }
     if (!status && refused_any) {
         fprintf (stderr, "error: failed to push some refs to '%s'\n", url);
+        git_push_rejection_advice (ctx, wants, n_wants, state.branch);
         status = 1;
     }
 

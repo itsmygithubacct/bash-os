@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "acme-r3-account-wire-projection-v1",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "acme/acme-protocol-lifecycle-deferred"
+      ],
+      "purpose": "Original r3: account creation uses a flattened ES256 JWS with fixture JWK, target URL, fresh nonce, and valid signature.",
+      "oracle": "Independent fixture peer records raw JWS and headers; a separate projector re-parses the exact wire bytes, checks the successful nonce HEAD and nonce continuity, independently verifies the P-256 signature, and runs on a separate Python reference client as positive control.",
+      "comparison": "Candidate account command must succeed and candidate and reference wire projections must validate; account command output is retained but not interpreted.",
+      "requires": [
+        "python3",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-r3-wire-peer-v1.py": "07416f848922bf51f4cb4ecf53c0bb351b971eabf8274895398742b7185d783a",
+        "helpers/acme-r3-wire-project-v1.py": "d495e7b7a8955a0561ebc25c6ec946cbc85ab37d8ea697dd77a959d16cf7e668"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/acme-r3-wire-peer-v1.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme account --allow-http --directory \"$U/directory\" -k \"$K\" > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-r3-wire-project-v1.py project 5811 reference || exit 1\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-r3-wire-project-v1.py project 5810 candidate\n",
+      "expected_status": 0,
+      "stdout": "control-ok\ncandidate-rc=0\nr3-wire-reference-ok\nr3-wire-candidate-ok\n",
+      "stderr": "",
+      "timeout": 40
+    },
+    {
+      "id": "acme-r3-wire-projector-negative-v1",
+      "loadable": "acme",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Guest-only negative controls for the independent r3 wire projector.",
+      "oracle": "Known good fixture JWS and mutated signature, nonce, URL, content type, algorithm, JWK and malformed structure.",
+      "comparison": "Require all invalid inputs to be rejected and the signed valid input to be accepted.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/acme-r3-wire-project-v1.py": "d495e7b7a8955a0561ebc25c6ec946cbc85ab37d8ea697dd77a959d16cf7e668"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/acme-r3-wire-project-v1.py selftest\n",
+      "expected_status": 0,
+      "stdout": "r3-wire-negative-controls-ok\n",
+      "stderr": "",
+      "timeout": 30
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "claude-update-selection-shell-variable-t041",
+      "loadable": "claude",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "claude/update_package_mock"
+      ],
+      "requires": [
+        "touch"
+      ],
+      "setup_script": "set -e\n",
+      "script": "mkdir -p 'packages with spaces' empty\n: > 'packages with spaces/bashclaude_old.pkg'\n: > 'packages with spaces/bashclaude_new.pkg'\n: > 'explicit ; literal.pkg'\n/usr/bin/touch -d '2020-01-01' 'packages with spaces/bashclaude_old.pkg'\n/usr/bin/touch -d '2025-01-01' 'packages with spaces/bashclaude_new.pkg'\nunset BASHPKG_LOADABLES_DATADIR\nBASHPKG_LOADABLES_DATADIR=\"$PWD/packages with spaces\"\nclaude update 2>e1; r1=$?\nclaude update './explicit ; literal.pkg' 2>e2; r2=$?\nBASHPKG_LOADABLES_DATADIR=\"$PWD/empty\" claude update 2>e3; r3=$?\n[[ $(<e1) == *\"claude update: installing $PWD/packages with spaces/bashclaude_new.pkg\"* ]] && echo newest=yes || echo newest=NO\n[[ $(<e2) == *\"claude update: installing ./explicit ; literal.pkg\"* ]] && echo explicit=yes || echo explicit=NO\n[[ $r1 != 0 && $r2 != 0 && $r3 == 1 && $(<e3) == *\"no bashclaude_*.pkg found in $PWD/empty\"* ]] && echo failures=yes || echo failures=NO\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "stdout": "newest=yes\nexplicit=yes\nfailures=yes\n",
+      "oracle": "Unexported and temporary shell variables select paths including spaces; metacharacters in an explicit filename are literal. Empty packages fail verification and an empty directory fails selection.",
+      "comparison": "Selection and failure behavior in the invoking shell."
+    }
+  ]
+}

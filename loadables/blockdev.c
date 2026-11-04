@@ -86,7 +86,12 @@ run_action (int fd, int act, const char *dev)
     }
     return 0;
 err:
-    builtin_error ("%s: ioctl: %s", dev, strerror (errno));
+    if (act == A_FLUSH || act == A_REREAD)
+        builtin_error ("ioctl error on %s: %s",
+                       act == A_FLUSH ? "BLKFLSBUF" : "BLKRRPART",
+                       strerror (errno));
+    else
+        builtin_error ("%s: ioctl: %s", dev, strerror (errno));
     return -1;
 }
 

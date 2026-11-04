@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "takeover-curl-interim-persistent",
+      "loadable": "curl",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Compare 100 and 103 interim responses followed by a framed final response on a persistent local connection.",
+      "covers": [
+        "curl/http-body-framing"
+      ],
+      "oracle": "A controlled local peer records each request, sends fixed interim and final heads and keeps the connection open beyond the client timeout. Independently compare reference curl and candidate status, bytes and stderr.",
+      "comparison": "Positive control requires upstream curl to receive the expected body successfully; candidate must match. Setup and peer failures are not product passes.",
+      "requires": [
+        "unshare",
+        "python3",
+        "curl",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/takeover-curl-interim.py\n",
+      "stdout": "scenario interim: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 25,
+      "helpers_sha256": {
+        "helpers/takeover-curl-interim.py": "cdc2d64e5bce922278e15f199a0a2e7d733877424856ab3c930496f8c2968a1c",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    }
+  ]
+}

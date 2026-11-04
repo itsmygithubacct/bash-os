@@ -67,15 +67,22 @@
 #include <sys/prctl.h>
 #include <sys/stat.h>
 #include <termios.h>
+#include <poll.h>
+#include <signal.h>
 #include <pwd.h>
 #include <grp.h>
+#include <endian.h>
 
 #include "_monocypher_monocypher-ed25519.h"
 #include "_bashos_authcrypto_argon2id.h"
 #include "_bashauth_pwverify.h"
 #include "_mbedtls_sha256.h"
 #include "_bashos_auth_uapi.h"
+#include "auth-v2-client.h"
+#include "privcmd-v2-client.h"
+#include "argon2-phc-record.h"
 #include "loadables.h"
+#include "unwind_prot.h"
 
 /* The UAPI struct, ioctl, and constant definitions live in
  * _bashos_auth_uapi.h, a flattened userspace mirror of
@@ -354,11 +361,26 @@ ba_privcmd_exec_verify_child (int fd, const struct bashos_auth_privcmd *r)
 	_exit (0);
 }
 
+/* A zero-initialized wait status is not a child result. */
+static int
+ba_wait_child_status (pid_t pid)
+{
+	int status;
+	pid_t waited;
+
+	do {
+		waited = waitpid (pid, &status, 0);
+	} while (waited < 0 && errno == EINTR);
+	if (waited != pid)
+		return EXECUTION_FAILURE;
+	return WIFEXITED (status) ? WEXITSTATUS (status)
+	     : WIFSIGNALED (status) ? 128 + WTERMSIG (status) : EXECUTION_FAILURE;
+}
+
 static int
 ba_privcmd_run_verify_once (int fd, const struct bashos_auth_privcmd *r)
 {
 	pid_t pid = fork ();
-	int status = 0;
 
 	if (pid < 0) {
 		builtin_error ("privcmd-exec: verifier fork: %s", strerror (errno));
@@ -366,10 +388,7 @@ ba_privcmd_run_verify_once (int fd, const struct bashos_auth_privcmd *r)
 	}
 	if (pid == 0)
 		ba_privcmd_exec_verify_child (fd, r);
-	while (waitpid (pid, &status, 0) < 0 && errno == EINTR)
-		;
-	return WIFEXITED (status) ? WEXITSTATUS (status)
-	     : WIFSIGNALED (status) ? 128 + WTERMSIG (status) : EXECUTION_FAILURE;
+	return ba_wait_child_status (pid);
 }
 
 static void
@@ -403,6 +422,142 @@ ba_parse_uint_arg (const char *s, unsigned int *out)
 		return -1;
 	*out = (unsigned int) v;
 	return 0;
+}
+
+static int
+ba_privcmd_v2_cmd (WORD_LIST *args, int execute)
+{
+	struct bashos_privcmd_v2_prepare prepared = {0};
+	struct bashos_privcmd_v2_run result = {0};
+	struct bashos_auth_privcmd *r = &prepared.request;
+	struct passwd *account;
+	unsigned int target_uid, target_gid, argv_bytes = 0;
+	int qualification = 0, legacy = 0, noninteractive = 0, argc = 0, fd = -1, rc = EXECUTION_FAILURE;
+	char *blob = NULL, digest[65];
+	while (args && args->word->word[0] == '-') {
+		const char *option = args->word->word;
+		if (!strcmp(option, "--qualification")) qualification = 1;
+		else if (!strcmp(option, "--legacy-hex")) legacy = 1;
+		else if (!strcmp(option, "-n")) noninteractive = 1;
+		else return EX_USAGE;
+		args = args->next;
+	}
+	if (!args || !args->next || ba_parse_uint_arg(args->word->word, &target_uid) ||
+	    ba_parse_uint_arg(args->next->word->word, &target_gid)) return EX_USAGE;
+	args = args->next->next;
+	if (args && !strcmp(args->word->word, "--")) args = args->next;
+	if (!args || args->word->word[0] != '/') return EX_USAGE;
+	account = getpwuid(getuid());
+	if (!account || !account->pw_name || strlen(account->pw_name) >= sizeof(r->caller_user)) { errno = ENOENT; goto failed; }
+	strcpy(r->caller_user, account->pw_name);
+	account = getpwuid((uid_t)target_uid);
+	if (!account || !account->pw_name || strlen(account->pw_name) >= sizeof(r->target_user)) { errno = ENOENT; goto failed; }
+	strcpy(r->target_user, account->pw_name);
+	if ((gid_t)target_gid != account->pw_gid) r->flags = BASHOS_AUTH_PRIVCMD_FLAG_EXPLICIT_GROUP;
+	r->size = sizeof(*r); r->mode = BASHOS_AUTH_PRIVCMD_MODE_EXEC; r->non_interactive = noninteractive;
+	r->caller_uid = getuid(); r->caller_gid = getgid(); r->target_uid = target_uid; r->target_gid = target_gid;
+	if (!getcwd(r->cwd, sizeof(r->cwd))) goto failed;
+	blob = ba_words_blob(args, &argc, &argv_bytes);
+	if (!blob) goto failed;
+	r->argc = argc; r->argv_bytes = argv_bytes; r->argv_user_ptr = (uint64_t)(uintptr_t)blob;
+	if (ba_privcmd_fill_digest(r, blob)) { errno = EIO; goto failed; }
+	prepared.size = sizeof(prepared); prepared.version = BASHOS_PRIVCMD_V2_VERSION;
+	fd = bpv2_open(qualification);
+	if (fd < 0 || ioctl(fd, BASHOS_PRIVCMD_V2_PREPARE, &prepared)) goto failed;
+	if (prepared.size != sizeof(prepared) || prepared.version != BASHOS_PRIVCMD_V2_VERSION ||
+	    prepared.reserved[0] || prepared.reserved[1] || !prepared.audit_sequence) { errno = EPROTO; goto failed; }
+	if (!execute) {
+		ba_hex_encode(prepared.request.request_digest, 32, digest);
+		if (printf("decision=%u reason=%u request_sha256=%s audit_sequence=%llu cache_hit=%u\n",
+		    prepared.decision, prepared.reason, digest, (unsigned long long)prepared.audit_sequence, prepared.cache_hit) < 0 ||
+		    fflush(stdout) || ferror(stdout)) goto done;
+		rc = prepared.decision == BASHOS_PRIVCMD_V2_READY ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+		goto done;
+	}
+	if (prepared.decision == BASHOS_PRIVCMD_V2_AUTH_REQUIRED) {
+		if (noninteractive) { errno = EACCES; goto failed; }
+		if (bpv2_authenticate(fd, &prepared, legacy)) goto failed;
+	}
+	if (prepared.decision != BASHOS_PRIVCMD_V2_READY) { errno = EACCES; goto failed; }
+	if (bpv2_run(fd, &prepared, &result)) goto failed;
+	if (result.result == BASHOS_PRIVCMD_V2_VALIDATED) { errno = EPROTO; goto failed; }
+	rc = bpv2_exit_status(&result);
+	if (result.result >= BASHOS_PRIVCMD_V2_SETUP_ERROR)
+		builtin_error("privcmd-v2: execution result=%u step=%u error=%u", result.result, result.failed_step, result.error);
+	goto done;
+failed:
+	builtin_error("privcmd-v2: %s", strerror(errno));
+done:
+	if (fd >= 0) close(fd);
+	if (blob) { ba_wipe(blob, argv_bytes); free(blob); }
+	ba_wipe(&prepared, sizeof(prepared)); ba_wipe(&result, sizeof(result));
+	return rc;
+}
+
+static int
+ba_audit_v2_drain_cmd (WORD_LIST *args)
+{
+	static const char *const outcomes[] = {NULL, "denied", "auth-required", "verify-denied", "authorized",
+		"exec-start", "exec-result", "reset", "validated", "edit-open", "edit-commit", "edit-result", "rejected"};
+	static const char *const reasons[] = {NULL, "policy", "auth", "noninteractive", "binding", "expired",
+		"reset", "exec", "edit", "malformed", "internal"};
+	struct bashos_audit_v2_record record;
+	struct bashos_privcmd_v2_audit_ack ack;
+	char command[513], cwd[513], request[65], policy_hash[65], normalized[65], cwd_hash[65], hmac[65], line[4096];
+	unsigned int count = 128, seen = 0;
+	int qualification = 0, fd, rc = EXECUTION_FAILURE;
+	if (args && !strcmp(args->word->word, "--qualification")) { qualification = 1; args = args->next; }
+	if (args) {
+		if (ba_parse_uint_arg(args->word->word, &count) || !count || count > 128 || args->next) return EX_USAGE;
+	}
+	fd = bpv2_open(qualification);
+	if (fd < 0) goto failed;
+	for (; seen < count; seen++) {
+		unsigned int outcome, reason, command_length, cwd_length;
+		int length;
+		memset(&record, 0, sizeof(record));
+		if (ioctl(fd, BASHOS_PRIVCMD_V2_AUDIT_PEEK, &record)) {
+			if (errno == EAGAIN) { rc = EXECUTION_SUCCESS; goto done; }
+			goto failed;
+		}
+		if (ioctl(fd, BASHOS_PRIVCMD_V2_AUDIT_VERIFY, &record)) goto failed;
+		outcome = le32toh(record.outcome); reason = le32toh(record.reason);
+		command_length = le32toh(record.command_length); cwd_length = le32toh(record.cwd_length);
+		if (le32toh(record.size) != sizeof(record) || le32toh(record.version) != BASHOS_AUDIT_V2_VERSION ||
+		    !outcome || outcome >= sizeof(outcomes)/sizeof(outcomes[0]) || !reason || reason >= sizeof(reasons)/sizeof(reasons[0]) ||
+		    command_length >= sizeof(record.command) || cwd_length >= sizeof(record.cwd)) { errno = EPROTO; goto failed; }
+		ba_hex_encode(record.command, command_length, command); ba_hex_encode(record.cwd, cwd_length, cwd);
+		ba_hex_encode(record.request_digest, 32, request); ba_hex_encode(record.policy_digest, 32, policy_hash);
+		ba_hex_encode(record.normalized_policy_digest, 32, normalized); ba_hex_encode(record.cwd_digest, 32, cwd_hash);
+		ba_hex_encode(record.hmac, 32, hmac);
+		length = snprintf(line, sizeof(line),
+			"{\"version\":2,\"epoch\":%llu,\"sequence\":%llu,\"boottime_ns\":%llu,"
+			"\"account_generation\":%llu,\"policy_generation\":%llu,\"group_generation\":%llu,\"verifier_generation\":%llu,"
+			"\"outcome\":\"%s\",\"reason\":\"%s\",\"mode\":%u,\"caller_uid\":%u,\"caller_gid\":%u,\"target_uid\":%u,\"target_gid\":%u,"
+			"\"rule_index\":%u,\"cache_hit\":%u,\"result_kind\":%u,\"result_code\":%u,\"target_count\":%u,\"committed_count\":%u,"
+			"\"request_sha256\":\"%s\",\"policy_sha256\":\"%s\",\"normalized_policy_sha256\":\"%s\",\"cwd_sha256\":\"%s\","
+			"\"command_hex\":\"%s\",\"cwd_hex\":\"%s\",\"hmac_sha256\":\"%s\",\"hmac_verified\":true}\n",
+			(unsigned long long)le64toh(record.epoch), (unsigned long long)le64toh(record.sequence), (unsigned long long)le64toh(record.boottime_ns),
+			(unsigned long long)le64toh(record.account_generation), (unsigned long long)le64toh(record.policy_generation),
+			(unsigned long long)le64toh(record.group_generation), (unsigned long long)le64toh(record.verifier_generation),
+			outcomes[outcome], reasons[reason], le32toh(record.mode), le32toh(record.caller_uid), le32toh(record.caller_gid),
+			le32toh(record.target_uid), le32toh(record.target_gid), le32toh(record.rule_index), le32toh(record.cache_hit),
+			le32toh(record.result_kind), le32toh(record.result_code), le32toh(record.target_count), le32toh(record.committed_count),
+			request, policy_hash, normalized, cwd_hash, command, cwd, hmac);
+		if (length < 0 || (size_t)length >= sizeof(line)) { errno = EOVERFLOW; goto failed; }
+		/* Failed decoding or output retains the oldest record. Exact epoch and
+		 * sequence acknowledge only this complete, independently verified row. */
+		if (fwrite(line, 1, (size_t)length, stdout) != (size_t)length || fflush(stdout) || ferror(stdout)) goto failed;
+		ack.epoch = le64toh(record.epoch); ack.sequence = le64toh(record.sequence);
+		if (ioctl(fd, BASHOS_PRIVCMD_V2_AUDIT_ACK, &ack)) goto failed;
+	}
+	rc = EXECUTION_SUCCESS;
+	goto done;
+failed:
+	builtin_error("audit-v2-drain: %s", strerror(errno));
+done:
+	if (fd >= 0) close(fd);
+	ba_wipe(&record, sizeof(record)); return rc;
 }
 
 static int
@@ -512,6 +667,16 @@ ba_privcmd_authz_cmd (WORD_LIST *args)
  * AUTHZ returns DENY (no handle) so this verb reports the denial and stops.
  * Prints a stable, parseable line for the QEMU matrix.
  */
+static int
+ba_handoff_result_status (const struct bashos_auth_exec_handoff_req *hr)
+{
+	if ((hr->approval_status != BASHOS_AUTH_EXEC_HANDOFF_APPROVAL_ALLOWED &&
+	     hr->approval_status != BASHOS_AUTH_EXEC_HANDOFF_APPROVAL_FORCED_UMH) ||
+	    hr->exit_code > 255)
+		return EXECUTION_FAILURE;
+	return (int) hr->exit_code;
+}
+
 static int
 ba_privcmd_exec_cmd (WORD_LIST *args)
 {
@@ -632,8 +797,7 @@ ba_privcmd_exec_cmd (WORD_LIST *args)
 	printf ("decision=%s handle_id=%llu approval=%s exit_code=%u reject_stage=%u\n",
 	        ba_privcmd_decision_name (r.decision), r.handle_id, appr,
 	        hr.exit_code, hr.reject_stage);
-	return (hr.approval_status == BASHOS_AUTH_EXEC_HANDOFF_APPROVAL_DENIED)
-	       ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+	return ba_handoff_result_status (&hr);
 	}
 
 static const char *
@@ -976,14 +1140,10 @@ ba_privcmd_exec_interactive_cmd (WORD_LIST *args)
 	}
 
 	/* PARENT — reap the child (the elevated program, on success) + report. */
-	int status = 0;
-	while (waitpid (pid, &status, 0) < 0 && errno == EINTR)
-		;
+	int childrc = ba_wait_child_status (pid);
 	free (argv_blob);
-	int childrc = WIFEXITED (status) ? WEXITSTATUS (status)
-		    : WIFSIGNALED (status) ? 128 + WTERMSIG (status) : -1;
 	printf ("approval=interactive child_exit=%d\n", childrc);
-	return (childrc == 0) ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+	return childrc;
 }
 
 /*
@@ -1107,12 +1267,8 @@ ba_privcmd_interactive_lineage_test_cmd (WORD_LIST *args)
 		       hr.reject_stage == BASHOS_AUTH_EXEC_REJECT_LINEAGE ? 0 : 126);
 	}
 
-	int status = 0;
-	while (waitpid (pid, &status, 0) < 0 && errno == EINTR)
-		;
+	int childrc = ba_wait_child_status (pid);
 	free (argv_blob);
-	int childrc = WIFEXITED (status) ? WEXITSTATUS (status)
-		    : WIFSIGNALED (status) ? 128 + WTERMSIG (status) : -1;
 	printf ("phase=parent child_exit=%d expected_reject_stage=%u\n",
 	        childrc, BASHOS_AUTH_EXEC_REJECT_LINEAGE);
 	return childrc == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
@@ -1266,14 +1422,23 @@ ba_audit_read_text_cmd (WORD_LIST *args)
 		builtin_error ("ioctl AUDIT_READ_TEXT: %s", strerror (errno));
 		return EXECUTION_FAILURE;
 	}
-	if (req.bytes_written)
-		fwrite (ba_audit_textbuf, 1, (size_t) req.bytes_written, stdout);
-	printf ("# returned=%u bytes=%llu next_cursor=%llu dropped=%llu total_written=%llu\n",
+	/* Bound the relay by our allocation and original request, never by reply
+	 * fields. This checks transport safety without inventing a record decoder. */
+	if (req.bytes_written > sizeof ba_audit_textbuf || req.returned_count > max) {
+		builtin_error ("audit-read-text: invalid authority response bounds");
+		return EXECUTION_FAILURE;
+	}
+	if (req.bytes_written &&
+	    fwrite (ba_audit_textbuf, 1, (size_t) req.bytes_written, stdout) !=
+	    (size_t) req.bytes_written)
+		return EXECUTION_FAILURE;
+	if (printf ("# returned=%u bytes=%llu next_cursor=%llu dropped=%llu total_written=%llu\n",
 	        req.returned_count,
 	        (unsigned long long) req.bytes_written,
 	        (unsigned long long) req.next_cursor,
 	        (unsigned long long) req.dropped,
-	        (unsigned long long) req.total_written);
+	        (unsigned long long) req.total_written) < 0 || ferror (stdout))
+		return EXECUTION_FAILURE;
 	return EXECUTION_SUCCESS;
 }
 
@@ -1456,7 +1621,13 @@ ba_export_secret_once (int fd, unsigned int handle, unsigned char **out, size_t 
 	                           MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if (buf == MAP_FAILED)
 		return -1;
-	(void) mlock (buf, BASHOS_AUTH_MAX_SECRET);
+	if (mlock (buf, BASHOS_AUTH_MAX_SECRET) < 0 ||
+	    madvise (buf, BASHOS_AUTH_MAX_SECRET, MADV_DONTDUMP) < 0) {
+		int saved = errno;
+		ba_free_secret_buf (buf);
+		errno = saved;
+		return -1;
+	}
 
 	struct bashos_auth_secret_export e;
 	memset (&e, 0, sizeof e);
@@ -1499,142 +1670,205 @@ ba_argon2id_raw (const unsigned char *pass, size_t pass_len,
 	                                 1, NULL);
 }
 
-/* Signal-caught state for ba_read_password.  When SIGINT / SIGTERM /
- * SIGHUP arrives during the password prompt, the handler only sets a
- * flag; the read loop (interrupted with EINTR) checks the flag and
- * exits.  The caller then restores termios + signal handlers BEFORE
- * raising the original signal, so the terminal is never left in an
- * echo-off state.  Single-threaded only — bash builtins run serially. */
+/* A single unwind owner covers the tty, plaintext and unpublished kernel
+ * handle. Only our three cancellation handlers run during input; other signals
+ * retain their entry mask/pending state and are deferred until cleanup. No Bash
+ * handler can run during setup, handoff, or partial handler restoration. */
 static volatile sig_atomic_t ba_sig_caught = 0;
-static volatile sig_atomic_t ba_sig_signo  = 0;
+static const int ba_reader_signals[] = { SIGINT, SIGTERM, SIGHUP };
+
+struct ba_reader_scope {
+	int tty, auth_fd, mask_saved, changed, prompted, installed, fatal;
+	int handle_live, published;
+	sigset_t entry_mask;
+	struct sigaction old_actions[3];
+	struct termios original;
+	unsigned char *secret;
+	size_t length;
+	struct bashos_auth_handle handle;
+};
 
 static void
 ba_sig_handler (int signo)
 {
-	ba_sig_caught = 1;
-	ba_sig_signo  = signo;
+	for (unsigned i = 0; i < sizeof ba_reader_signals / sizeof ba_reader_signals[0]; i++)
+		if (signo == ba_reader_signals[i]) ba_sig_caught |= (sig_atomic_t)(1U << i);
 }
 
 static int
-ba_read_password (const char *prompt, unsigned char **out, size_t *out_len)
+ba_reader_block (sigset_t *old)
 {
-	*out = NULL;
-	*out_len = 0;
-	int fd = open ("/dev/tty", O_RDWR | O_CLOEXEC);
-	if (fd < 0) {
-		if (!isatty (STDIN_FILENO)) {
-			errno = ENOTTY;
-			return -1;
+	sigset_t all;
+	if (sigfillset (&all) < 0) return -1;
+	return sigprocmask (SIG_BLOCK, &all, old);
+}
+
+/* Handoff calls this with every catchable signal blocked. The input loop also
+ * polls it with only our cancellation handlers unblocked, so other pending
+ * signals cannot strand input. Previously blocked signals remain pending for
+ * their original owner; any newly deliverable signal cancels before publication. */
+static int
+ba_reader_pending (const struct ba_reader_scope *s)
+{
+	sigset_t pending;
+	if (ba_sig_caught) { errno = EINTR; return -1; }
+	if (sigpending (&pending) < 0) return -1;
+	for (int n = 1; n < NSIG; n++)
+		if (sigismember (&pending, n) == 1 && sigismember (&s->entry_mask, n) == 0) {
+			errno = EINTR; return -1;
 		}
-		fd = STDIN_FILENO;
-	}
+	return 0;
+}
 
-	struct termios oldt, newt;
-	int have_termios = (tcgetattr (fd, &oldt) == 0);
-	if (have_termios) {
-		newt = oldt;
-		newt.c_lflag &= ~(ECHO | ICANON);
-		newt.c_cc[VMIN] = 1;
-		newt.c_cc[VTIME] = 0;
-		if (tcsetattr (fd, TCSAFLUSH, &newt) < 0)
-			have_termios = 0;
-	}
+static int
+ba_reader_restore_terminal (struct ba_reader_scope *s, int flush)
+{
+	struct termios actual;
+	if (!s->changed) return 0;
+	if (tcsetattr (s->tty, flush ? TCSAFLUSH : TCSANOW, &s->original) < 0 ||
+	    tcgetattr (s->tty, &actual) < 0 ||
+	    actual.c_iflag != s->original.c_iflag || actual.c_oflag != s->original.c_oflag ||
+	    actual.c_cflag != s->original.c_cflag || actual.c_lflag != s->original.c_lflag ||
+	    memcmp (actual.c_cc, s->original.c_cc, sizeof actual.c_cc) ||
+	    cfgetispeed (&actual) != cfgetispeed (&s->original) ||
+	    cfgetospeed (&actual) != cfgetospeed (&s->original)) { errno = EIO; return -1; }
+	return 0;
+}
 
-	int prompt_fd = (fd == STDIN_FILENO) ? STDERR_FILENO : fd;
-	int prompted = 0;
-	if (prompt && *prompt) {
-		(void) write (prompt_fd, prompt, strlen (prompt));
-		prompted = 1;
+static void
+ba_reader_cleanup (void *opaque)
+{
+	struct ba_reader_scope *s = opaque;
+	int saved = errno;
+	if (!s->mask_saved) return; /* Initial mask acquisition failed: no resources. */
+	if (ba_reader_block (NULL) < 0) {
+		/* Even an unmaskable cleanup error cannot return a live secret. */
+		if (s->secret) { ba_free_secret_buf (s->secret); s->secret = NULL; }
+		if (s->handle_live && !s->published)
+			(void)ioctl (s->auth_fd, BASHOS_AUTH_IOC_CLEAR_SECRET, &s->handle);
+		(void)ba_reader_restore_terminal (s, 1);
+		if (s->tty >= 0) close (s->tty);
+		_exit (126);
 	}
-
-	/* Install handlers for SIGINT / SIGTERM / SIGHUP for the duration
-	 * of the password read.  SA_RESTART is intentionally NOT set —
-	 * read() must EINTR-exit on signal so we can restore termios.
-	 * Handlers themselves are minimal: set a flag, nothing more. */
-	struct sigaction sa, old_int, old_term, old_hup;
-	memset (&sa, 0, sizeof sa);
-	sa.sa_handler = ba_sig_handler;
-	sigemptyset (&sa.sa_mask);
-	sa.sa_flags = 0;
+	if (s->secret) { ba_free_secret_buf (s->secret); s->secret = NULL; }
+	if (s->handle_live && !s->published) {
+		if (ioctl (s->auth_fd, BASHOS_AUTH_IOC_CLEAR_SECRET, &s->handle) < 0) s->fatal = 1;
+		s->handle_live = 0;
+	}
+	/* Keep tty ownership through publication. A late failed handoff flushes
+	 * unread password bytes even if echo was already restored successfully. */
+	if (ba_reader_restore_terminal (s, !s->published) < 0) s->fatal = 1;
+	if (s->prompted) (void)write (s->tty, "\n", 1);
+	if (s->tty >= 0) { close (s->tty); s->tty = -1; }
+	int caught = (int)ba_sig_caught;
 	ba_sig_caught = 0;
-	ba_sig_signo  = 0;
-	sigaction (SIGINT,  &sa, &old_int);
-	sigaction (SIGTERM, &sa, &old_term);
-	sigaction (SIGHUP,  &sa, &old_hup);
-
-	unsigned char *buf = mmap (NULL, BASHOS_AUTH_MAX_SECRET,
-	                           PROT_READ | PROT_WRITE,
-	                           MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if (buf == MAP_FAILED) {
-		int saved = errno;
-		if (have_termios) tcsetattr (fd, TCSANOW, &oldt);
-		if (prompted) (void) write (prompt_fd, "\n", 1);
-		sigaction (SIGINT,  &old_int,  NULL);
-		sigaction (SIGTERM, &old_term, NULL);
-		sigaction (SIGHUP,  &old_hup,  NULL);
-		if (fd != STDIN_FILENO) close (fd);
-		errno = saved;
-		return -1;
+	while (s->installed) {
+		unsigned i = (unsigned)--s->installed;
+		if (sigaction (ba_reader_signals[i], &s->old_actions[i], NULL) < 0) s->fatal = 1;
 	}
-	(void) mlock (buf, BASHOS_AUTH_MAX_SECRET);
+	/* Queue caught signals while still blocked. Kernel-pending signals are not
+	 * consumed or replayed; restoring the exact original mask delivers them. */
+	for (unsigned i = 0; i < sizeof ba_reader_signals / sizeof ba_reader_signals[0]; i++)
+		if ((caught & (1U << i)) && raise (ba_reader_signals[i]) != 0) s->fatal = 1;
+	if (s->fatal) _exit (126);
+	s->mask_saved = 0;
+	if (sigprocmask (SIG_SETMASK, &s->entry_mask, NULL) < 0) _exit (126);
+	errno = saved;
+}
 
-	size_t len = 0;
+/* Returns with catchable signals blocked on every acquired-scope path. The
+ * caller's already registered unwind frame owns all memory and terminal state.
+ * No plaintext is ever returned to an unmasked or unowned caller. */
+static int
+ba_read_password (const char *prompt, struct ba_reader_scope *s)
+{
+	struct sigaction action;
+	struct termios hidden, actual;
+	sigset_t input_mask;
 	int saved = 0;
+	if (ba_reader_block (&s->entry_mask) < 0) return -1;
+	s->mask_saved = 1;
+	ba_sig_caught = 0;
+	s->tty = open ("/dev/tty", O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC);
+	if (s->tty < 0) {
+		char name[256];
+		struct stat before, after;
+		if (!isatty (STDIN_FILENO) || tcgetsid (STDIN_FILENO) != getsid (0) ||
+		    ttyname_r (STDIN_FILENO, name, sizeof name) != 0 ||
+		    fstat (STDIN_FILENO, &before) < 0) { saved = ENOTTY; goto done; }
+		s->tty = open (name, O_RDWR | O_NOCTTY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC);
+		if (s->tty < 0) { saved = errno; goto done; }
+		if (fstat (s->tty, &after) < 0 || !S_ISCHR (after.st_mode) ||
+		    before.st_dev != after.st_dev || before.st_ino != after.st_ino ||
+		    before.st_rdev != after.st_rdev) { saved = ENOTTY; goto done; }
+	}
+	if (tcgetattr (s->tty, &s->original) < 0) { saved = errno; goto done; }
+	s->secret = mmap (NULL, BASHOS_AUTH_MAX_SECRET, PROT_READ | PROT_WRITE,
+	                  MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (s->secret == MAP_FAILED) { s->secret = NULL; saved = errno; goto done; }
+	if (mlock (s->secret, BASHOS_AUTH_MAX_SECRET) < 0 ||
+	    madvise (s->secret, BASHOS_AUTH_MAX_SECRET, MADV_DONTDUMP) < 0) {
+		saved = errno; goto done;
+	}
+	memset (&action, 0, sizeof action);
+	action.sa_handler = ba_sig_handler;
+	if (sigfillset (&action.sa_mask) < 0 || sigfillset (&input_mask) < 0) { saved = errno; goto done; }
+	for (unsigned i = 0; i < sizeof ba_reader_signals / sizeof ba_reader_signals[0]; i++) {
+		if (sigaction (ba_reader_signals[i], &action, &s->old_actions[i]) < 0) { saved = errno; goto done; }
+		s->installed++;
+		if (sigismember (&s->entry_mask, ba_reader_signals[i]) == 0 &&
+		    sigdelset (&input_mask, ba_reader_signals[i]) < 0) { saved = errno; goto done; }
+	}
+	hidden = s->original;
+	hidden.c_lflag &= ~(ECHO | ECHONL | ICANON);
+	hidden.c_cc[VMIN] = 1;
+	hidden.c_cc[VTIME] = 0;
+	s->changed = 1;
+	if (tcsetattr (s->tty, TCSAFLUSH, &hidden) < 0 || tcgetattr (s->tty, &actual) < 0) {
+		saved = errno; goto done;
+	}
+	if ((actual.c_lflag & (ECHO | ECHONL | ICANON)) ||
+	    actual.c_cc[VMIN] != 1 || actual.c_cc[VTIME] != 0) { saved = EIO; goto done; }
+	if (ba_reader_pending (s) < 0) { saved = errno; goto done; }
+	if (prompt && *prompt) {
+		size_t length = strlen (prompt);
+		ssize_t written = write (s->tty, prompt, length);
+		if (written < 0 || (size_t)written != length) { saved = EIO; goto done; }
+		s->prompted = 1;
+	}
+	if (sigprocmask (SIG_SETMASK, &input_mask, NULL) < 0) { saved = errno; goto done; }
 	for (;;) {
-		unsigned char c;
-		ssize_t r;
-		/* EINTR retry — but break out if our own handler caught the
-		 * signal (the user-visible Ctrl-C / SIGTERM / SIGHUP). */
-		do { r = read (fd, &c, 1); } while (r < 0 && errno == EINTR && !ba_sig_caught);
+		struct pollfd watch = { .fd = s->tty, .events = POLLIN };
+		unsigned char byte = 0;
+		ssize_t got;
+		int ready;
+		if (ba_reader_pending (s) < 0) { saved = errno; break; }
+		ready = poll (&watch, 1, 200);
 		if (ba_sig_caught) { saved = EINTR; break; }
-		if (r < 0) { saved = errno; break; }
-		if (r == 0 || c == '\n' || c == '\r') break;
-		/* Backspace (BS / DEL) erases the most recent byte if any.
-		 * Standard readpassphrase(3) behavior; the terminal is in
-		 * no-echo so there is no on-screen artifact to undo. */
-		if (c == 0x08 || c == 0x7f) {
-			if (len > 0) len--;
-			continue;
+		if (ready < 0 && errno == EINTR) continue;
+		if (ready < 0) { saved = errno; break; }
+		if (!ready) continue;
+		if (watch.revents & (POLLERR | POLLHUP | POLLNVAL)) { saved = EIO; break; }
+		if (!(watch.revents & POLLIN)) continue;
+		got = read (s->tty, &byte, 1);
+		if (got < 0 && (errno == EINTR || errno == EAGAIN)) continue;
+		if (got <= 0) { saved = got < 0 ? errno : EIO; break; }
+		if (ba_sig_caught) {
+			*(volatile unsigned char *)&byte = 0;
+			saved = EINTR; break;
 		}
-		if (len >= BASHOS_AUTH_MAX_SECRET) { saved = E2BIG; break; }
-		buf[len++] = c;
+		if (byte == '\n' || byte == '\r') { *(volatile unsigned char *)&byte = 0; break; }
+		if (byte == 0x08 || byte == 0x7f) {
+			if (s->length) s->secret[--s->length] = 0;
+		} else if (s->length == BASHOS_AUTH_MAX_SECRET) saved = E2BIG;
+		else s->secret[s->length++] = byte;
+		*(volatile unsigned char *)&byte = 0;
+		if (saved) break;
 	}
-
-	if (have_termios) tcsetattr (fd, TCSANOW, &oldt);
-	if (prompted) (void) write (prompt_fd, "\n", 1);
-	sigaction (SIGINT,  &old_int,  NULL);
-	sigaction (SIGTERM, &old_term, NULL);
-	sigaction (SIGHUP,  &old_hup,  NULL);
-	if (fd != STDIN_FILENO) close (fd);
-
-	/* If a signal was caught, terminal + handlers are restored;
-	 * re-raise the original signal so the shell sees the cancellation
-	 * it would have seen with the default handler.  buf is wiped
-	 * below via the `saved` cleanup path. */
-	int caught_signo = 0;
-	if (ba_sig_caught) {
-		caught_signo = (int) ba_sig_signo;
-		ba_sig_caught = 0;
-		ba_sig_signo  = 0;
-	}
-
-	if (saved) {
-		ba_free_secret_buf (buf);
-		if (caught_signo) {
-			/* Re-raise the cancellation signal. With the original
-			 * disposition restored above, this will invoke the
-			 * shell's handler (typically SIG_DFL → process exit
-			 * for SIGTERM/SIGHUP, longjmp out of read-line for
-			 * SIGINT in interactive bash).  If raise() returns
-			 * (signal blocked, etc.), fall through with EINTR. */
-			(void) raise (caught_signo);
-		}
-		errno = saved;
-		return -1;
-	}
-
-	*out = buf;
-	*out_len = len;
+done:
+	if (ba_reader_block (NULL) < 0) { s->fatal = 1; saved = EIO; }
+	if (!saved && ba_reader_pending (s) < 0) saved = errno;
+	if (saved) { errno = saved; return -1; }
 	return 0;
 }
 
@@ -1650,7 +1884,6 @@ ba_read_secret_cmd (WORD_LIST *args)
 		builtin_error ("read-secret: invalid fd: %s", args->word->word);
 		return EX_USAGE;
 	}
-
 	const char *prompt = "Password: ";
 	WORD_LIST *p = args->next;
 	if (p && p->word && p->word->word && strcmp (p->word->word, "-p") == 0) {
@@ -1666,55 +1899,41 @@ ba_read_secret_cmd (WORD_LIST *args)
 		return EX_USAGE;
 	}
 	const char *handle_var = p->word->word;
-
-	struct bashos_auth_handle h;
-	memset (&h, 0, sizeof h);
-	if (ioctl (fd, BASHOS_AUTH_IOC_NEW_SECRET, &h) < 0) {
-		builtin_error ("ioctl NEW_SECRET: %s", strerror (errno));
-		return EXECUTION_FAILURE;
-	}
-
-	unsigned char *secret = NULL;
-	size_t secret_len = 0;
-	if (ba_read_password (prompt, &secret, &secret_len) < 0) {
-		int saved = errno;
-		(void) ioctl (fd, BASHOS_AUTH_IOC_CLEAR_SECRET, &h);
-		builtin_error ("read-secret: %s", strerror (saved));
-		errno = saved;
-		return EXECUTION_FAILURE;
-	}
-
-	struct bashos_auth_secret_write w;
-	memset (&w, 0, sizeof w);
-	w.id = h.id;
-	w.len = (unsigned int) secret_len;
-	w.user_ptr = (unsigned long long) (uintptr_t) secret;
-	if (ioctl (fd, BASHOS_AUTH_IOC_WRITE_SECRET, &w) < 0) {
-		int saved = errno;
-		ba_free_secret_buf (secret);
-		(void) ioctl (fd, BASHOS_AUTH_IOC_CLEAR_SECRET, &h);
-		builtin_error ("ioctl WRITE_SECRET: %s", strerror (saved));
-		errno = saved;
-		return EXECUTION_FAILURE;
-	}
-	ba_free_secret_buf (secret);
-
-	if (ioctl (fd, BASHOS_AUTH_IOC_SEAL_SECRET, &h) < 0) {
-		int saved = errno;
-		(void) ioctl (fd, BASHOS_AUTH_IOC_CLEAR_SECRET, &h);
-		builtin_error ("ioctl SEAL_SECRET: %s", strerror (saved));
-		errno = saved;
-		return EXECUTION_FAILURE;
-	}
-
-	char buf[32];
-	snprintf (buf, sizeof buf, "%u", h.id);
-	if (!builtin_bind_variable ((char *) handle_var, buf, 0)) {
-		(void) ioctl (fd, BASHOS_AUTH_IOC_CLEAR_SECRET, &h);
-		builtin_error ("could not bind: %s", handle_var);
-		return EXECUTION_FAILURE;
-	}
-	return EXECUTION_SUCCESS;
+	struct ba_reader_scope scope = { .tty = -1, .auth_fd = fd };
+	struct bashos_auth_secret_write w = {0};
+	int saved = 0, rc = EXECUTION_FAILURE;
+	char handle_text[32];
+	/* Register before acquiring any terminal, mask, plaintext or kernel slot. */
+	begin_unwind_frame ("auth read secret");
+	add_unwind_protect (ba_reader_cleanup, &scope);
+	if (ba_read_password (prompt, &scope) < 0) { saved = errno; goto done; }
+	if (ioctl (fd, BASHOS_AUTH_IOC_NEW_SECRET, &scope.handle) < 0) { saved = errno; goto done; }
+	scope.handle_live = 1;
+	if (ba_reader_pending (&scope) < 0) { saved = errno; goto done; }
+	w.id = scope.handle.id;
+	w.len = (unsigned int)scope.length;
+	w.user_ptr = (unsigned long long)(uintptr_t)scope.secret;
+	if (ioctl (fd, BASHOS_AUTH_IOC_WRITE_SECRET, &w) < 0) { saved = errno; goto done; }
+	ba_free_secret_buf (scope.secret);
+	scope.secret = NULL;
+	w.user_ptr = 0;
+	if (ba_reader_pending (&scope) < 0) { saved = errno; goto done; }
+	if (ioctl (fd, BASHOS_AUTH_IOC_SEAL_SECRET, &scope.handle) < 0) { saved = errno; goto done; }
+	if (ba_reader_restore_terminal (&scope, 0) < 0) { scope.fatal = 1; saved = errno; goto done; }
+	if (scope.prompted && write (scope.tty, "\n", 1) != 1) { saved = EIO; goto done; }
+	scope.prompted = 0;
+	if (ba_reader_pending (&scope) < 0) { saved = errno; goto done; }
+	snprintf (handle_text, sizeof handle_text, "%u", scope.handle.id);
+	if (!builtin_bind_variable ((char *)handle_var, handle_text, 0)) { saved = EINVAL; goto done; }
+	/* Publication commits the opaque handle. Signals arriving after this point
+	 * retain ordinary Bash semantics, with plaintext already wiped. A binding
+	 * longjmp before commit instead runs the same fail-closed cleanup owner. */
+	scope.published = 1;
+	rc = EXECUTION_SUCCESS;
+done:
+	run_unwind_frame ("auth read secret");
+	if (saved) { builtin_error ("read-secret: %s", strerror (saved)); errno = saved; }
+	return rc;
 }
 
 static int
@@ -1801,7 +2020,7 @@ ba_stats_cmd (WORD_LIST *args)
 }
 
 static int
-ba_hash_secret_cmd (WORD_LIST *args)
+ba_hash_secret_cmd_format (WORD_LIST *args, enum bashos_phc_encoding encoding)
 {
 	const char *vals[8];
 	WORD_LIST *p = args;
@@ -1833,6 +2052,11 @@ ba_hash_secret_cmd (WORD_LIST *args)
 	if (!end || *end) { builtin_error ("hash-secret: bad P"); return EX_USAGE; }
 	unsigned long hash_len = strtoul (vals[6], &end, 10);
 	if (!end || *end || hash_len > 128) { builtin_error ("hash-secret: bad HASHLEN"); return EX_USAGE; }
+	if (encoding == BASHOS_PHC_STANDARD_BASE64 &&
+	    (t < 1 || t > 10 || m < 1024 || m > 262144 || lanes < 1 || lanes > 8 || hash_len < 16)) {
+		builtin_error ("hash-secret-v2: parameters exceed the trusted record bounds");
+		return EX_USAGE;
+	}
 	const char *outvar = vals[7];
 	if (!*outvar) { builtin_error ("hash-secret: empty OUTVAR"); return EX_USAGE; }
 
@@ -1863,8 +2087,13 @@ ba_hash_secret_cmd (WORD_LIST *args)
 
 	char salt_hex[sizeof salt * 2 + 1];
 	char hash_hex[sizeof hash * 2 + 1];
-	ba_hex_encode (salt, (size_t) salt_len, salt_hex);
-	ba_hex_encode (hash, (size_t) hash_len, hash_hex);
+	if (bashos_phc_encode_field (salt, (size_t) salt_len, encoding, salt_hex, sizeof salt_hex) ||
+	    bashos_phc_encode_field (hash, (size_t) hash_len, encoding, hash_hex, sizeof hash_hex)) {
+		ba_wipe (salt, sizeof salt); ba_wipe (hash, sizeof hash);
+		ba_wipe (salt_hex, sizeof salt_hex); ba_wipe (hash_hex, sizeof hash_hex);
+		return EXECUTION_FAILURE;
+	}
+	ba_wipe (salt, sizeof salt);
 	ba_wipe (hash, sizeof hash);
 
 	char *phc = NULL;
@@ -1884,6 +2113,14 @@ ba_hash_secret_cmd (WORD_LIST *args)
 	}
 	free (phc);
 	return EXECUTION_SUCCESS;
+}
+
+static int
+ba_hash_secret_cmd (WORD_LIST *args)
+{
+	/* Historical command/records remain explicitly compatible. The versioned
+	 * producer below writes standard PHC; neither path migrates account files. */
+	return ba_hash_secret_cmd_format (args, BASHOS_PHC_LEGACY_HEX);
 }
 
 static int
@@ -1967,6 +2204,55 @@ ba_verify_login_cmd (WORD_LIST *args)
 	}
 	ba_wipe (hex, sizeof hex);
 	return EXECUTION_SUCCESS;
+}
+
+/* Versioned fd-only route. The caller supplies no PHC or success result and
+ * receives no shell-visible proof bytes. Existing compatibility verbs retain
+ * their old ABI; they cannot manufacture a v2 verifier event. */
+static int
+ba_open_v2_cmd (WORD_LIST *args, int qualification_only)
+{
+	char number[32];
+	int fd;
+	if (!args || !args->word || !args->word->word || !*args->word->word || args->next) {
+		builtin_error ("open-v2: one FDVAR required");
+		return EX_USAGE;
+	}
+	fd = bashos_v2_open (qualification_only);
+	if (fd < 0) { builtin_error ("open-v2: %s", strerror (errno)); return EXECUTION_FAILURE; }
+	snprintf (number, sizeof number, "%d", fd);
+	if (!builtin_bind_variable (args->word->word, number, 0)) {
+		close (fd); return EXECUTION_FAILURE;
+	}
+	return EXECUTION_SUCCESS;
+}
+
+static int
+ba_verify_login_v2_cmd (WORD_LIST *args, unsigned encoding)
+{
+	const char *values[3];
+	struct bashos_auth_v2_identity identity;
+	struct passwd *account;
+	unsigned handle;
+	int fd, rc;
+	for (unsigned i = 0; i < 3; i++) {
+		if (!args || !args->word || !args->word->word) goto usage;
+		values[i] = args->word->word; args = args->next;
+	}
+	if (args || ba_parse_fd (values[0], &fd) || ba_parse_handle (values[1], &handle)) goto usage;
+	account = getpwnam (values[2]);
+	if (!account || bashos_v2_identity (&identity, BASHOS_AUTH_V2_LOGIN,
+		account->pw_uid, account->pw_gid, values[2], encoding)) return EXECUTION_FAILURE;
+	rc = bashos_v2_verify_handle (fd, handle, &identity);
+	bashos_v2_wipe (&identity, sizeof identity);
+	if (rc) {
+		builtin_error ("verify-login-v2: authentication refused");
+		return EXECUTION_FAILURE;
+	}
+	return EXECUTION_SUCCESS;
+usage:
+	builtin_error ("verify-login-v2: usage: FD HANDLE USER");
+	return EX_USAGE;
 }
 
 /* ── per-user failed-attempt cap ──────────────────────────────────────
@@ -2122,677 +2408,6 @@ ba_peruser_cmd (WORD_LIST *args)
 	return EX_USAGE;
 }
 
-static char *
-ba_policy_trim (char *s)
-{
-	while (*s && isspace ((unsigned char) *s)) s++;
-	char *e = s + strlen (s);
-	while (e > s && isspace ((unsigned char) e[-1])) *--e = '\0';
-	return s;
-}
-
-static int
-ba_policy_has_glob_or_negation (const char *s)
-{
-	for (; *s; s++)
-		if (*s == '*' || *s == '?' || *s == '[' || *s == ']' || *s == '!')
-			return 1;
-	return 0;
-}
-
-static int
-ba_policy_has_negation (const char *s)
-{
-	for (; *s; s++)
-		if (*s == '!')
-			return 1;
-	return 0;
-}
-
-static int
-ba_policy_path_has_glob (const char *s)
-{
-	int esc = 0;
-
-	for (; *s; s++) {
-		if (esc) {
-			if (*s == '*' || *s == '?' || *s == '[' ||
-			    *s == ']' || *s == '\\')
-				return 1;
-			esc = 0;
-			continue;
-		}
-		if (*s == '\\') {
-			esc = 1;
-			continue;
-		}
-		if (*s == '*' || *s == '?' || *s == '[' || *s == ']')
-			return 1;
-	}
-	return 0;
-}
-
-static int
-ba_policy_glob_syntax_ok (const char *s)
-{
-	int esc = 0, in_class = 0, class_has_char = 0;
-
-	for (; *s; s++) {
-		if (esc) {
-			esc = 0;
-			if (in_class)
-				class_has_char = 1;
-			continue;
-		}
-		if (*s == '\\') {
-			esc = 1;
-			continue;
-		}
-		if (*s == '!')
-			return 0;
-		if (*s == '[' && !in_class) {
-			in_class = 1;
-			class_has_char = 0;
-			continue;
-		}
-		if (*s == ']' && in_class) {
-			if (!class_has_char)
-				return 0;
-			in_class = 0;
-			continue;
-		}
-		if (in_class)
-			class_has_char = 1;
-	}
-	return !in_class;
-}
-
-static int
-ba_policy_path_has_dot_component (const char *s, size_t len)
-{
-	size_t start = 0;
-
-	while (start < len) {
-		size_t end = start;
-
-		while (start < len && s[start] == '/')
-			start++;
-		end = start;
-		while (end < len && s[end] != '/')
-			end++;
-		if (end > start &&
-		    ((end - start == 1 && s[start] == '.') ||
-		     (end - start == 2 && s[start] == '.' && s[start + 1] == '.')))
-			return 1;
-		start = end;
-	}
-	return 0;
-}
-
-static int
-ba_policy_normalize_cmd_path (const char *in, char *out, size_t cap)
-{
-	size_t i, pos = 0, len;
-
-	if (!in || !out || cap < 2 || in[0] != '/')
-		return -1;
-	len = strnlen (in, 256);
-	if (len == 0 || len >= 256)
-		return -1;
-	if (ba_policy_path_has_dot_component (in, len))
-		return -1;
-	for (i = 0; in[i]; i++) {
-		if (in[i] == '/' && pos > 0 && out[pos - 1] == '/')
-			continue;
-		if (pos + 1 >= cap)
-			return -1;
-		out[pos++] = in[i];
-	}
-	while (pos > 1 && out[pos - 1] == '/')
-		pos--;
-	out[pos] = '\0';
-	return pos ? 0 : -1;
-}
-
-static int
-ba_policy_class_match (const char **patp, char c)
-{
-	const char *p = *patp;
-	int matched = 0, any = 0, negate = 0;
-
-	/* FNM_PATHNAME: a class never matches '/' or the empty string. '!' as
-	   the first class character negates; a leading ']' stays literal. */
-	if (!c || c == '/')
-		return 0;
-	if (*p == '!') {
-		negate = 1;
-		p++;
-	}
-	if (*p == ']') {
-		matched = c == ']';
-		any = 1;
-		p++;
-	}
-	while (*p && *p != ']') {
-		char first, last;
-
-		if (*p == '\\' && p[1])
-			p++;
-		first = *p++;
-		any = 1;
-		if (*p == '-' && p[1] && p[1] != ']') {
-			p++;
-			if (*p == '\\' && p[1])
-				p++;
-			last = *p++;
-			if ((first <= last && c >= first && c <= last) ||
-			    (last < first && c >= last && c <= first))
-				matched = 1;
-		} else if (c == first) {
-			matched = 1;
-		}
-	}
-	if (*p != ']' || !any)
-		return 0;
-	*patp = p + 1;
-	return negate ? !matched : matched;
-}
-
-static int
-ba_policy_fnmatch_inner (const char *pat, const char *str, unsigned int depth)
-{
-	if (depth > 512)
-		return 0;
-	while (*pat) {
-		char pc = *pat++;
-
-		if (pc == '\\' && *pat) {
-			pc = *pat++;
-			if (*str++ != pc)
-				return 0;
-			continue;
-		}
-		if (pc == '?') {
-			if (!*str || *str == '/')
-				return 0;
-			str++;
-			continue;
-		}
-		if (pc == '*') {
-			const char *scan = str;
-
-			while (*pat == '*')
-				pat++;
-			do {
-				if (ba_policy_fnmatch_inner (pat, scan, depth + 1))
-					return 1;
-				if (!*scan || *scan == '/')
-					break;
-				scan++;
-			} while (1);
-			return 0;
-		}
-		if (pc == '[') {
-			if (!ba_policy_class_match (&pat, *str))
-				return 0;
-			str++;
-			continue;
-		}
-		if (*str++ != pc)
-			return 0;
-	}
-	return *str == '\0';
-}
-
-static int
-ba_policy_fnmatch (const char *pat, const char *str)
-{
-	if (!pat || !str)
-		return 0;
-	return ba_policy_fnmatch_inner (pat, str, 0);
-}
-
-static int
-ba_policy_name_ok (const char *s, int alias)
-{
-	if (!s || !*s) return 0;
-	if (alias && !isupper ((unsigned char) *s)) return 0;
-	if (!alias && !(isalnum ((unsigned char) *s) || *s == '_' || *s == '%' || *s == '.'))
-		return 0;
-	for (const char *p = s + 1; *p; p++) {
-		if (isalnum ((unsigned char) *p) || *p == '_' || *p == '-' || *p == '.')
-			continue;
-		return 0;
-	}
-	return 1;
-}
-
-static int
-ba_policy_ident_ok (const char *s)
-{
-	if (!s || !((*s >= 'A' && *s <= 'Z') || (*s >= 'a' && *s <= 'z') || *s == '_'))
-		return 0;
-	for (const char *p = s + 1; *p; p++)
-		if (!(isalnum ((unsigned char) *p) || *p == '_'))
-			return 0;
-	return 1;
-}
-
-static int
-ba_policy_uint_ok (const char *s)
-{
-	if (!s || !*s)
-		return 0;
-	for (const char *p = s; *p; p++)
-		if (!isdigit ((unsigned char) *p))
-			return 0;
-	return 1;
-}
-
-static int
-ba_policy_bool_value (const char *s, const char **normalized)
-{
-	if (!s || !*s)
-		return 0;
-	if (strcmp (s, "true") == 0 || strcmp (s, "on") == 0) {
-		if (normalized) *normalized = "true";
-		return 1;
-	}
-	if (strcmp (s, "false") == 0 || strcmp (s, "off") == 0) {
-		if (normalized) *normalized = "false";
-		return 1;
-	}
-	return 0;
-}
-
-static int
-ba_policy_secure_path_ok (const char *s)
-{
-	if (!s || s[0] != '/')
-		return 0;
-	if (ba_policy_has_glob_or_negation (s))
-		return 0;
-	for (const char *p = s; *p; p++)
-		if (isspace ((unsigned char) *p))
-			return 0;
-	return 1;
-}
-
-static int
-ba_policy_env_name_dangerous (const char *s)
-{
-	/* Keep in sync with bashos_ce_env_name_is_dangerous
-	   (_bashauth/cred_exec.c), the canonical runtime scrub. */
-	static const char *const exact[] = {
-		"BASH_ENV", "CDPATH", "ENV", "GETCONF_DIR", "GLOBIGNORE",
-		"GCONV_PATH", "HOSTALIASES", "IFS", "LOCPATH", "NLSPATH",
-		"NODE_OPTIONS", "NODE_PATH", "PERL5LIB", "PERL5OPT",
-		"PROMPT_COMMAND", "PYTHONHOME", "PYTHONINSPECT", "PYTHONPATH",
-		"PYTHONSTARTUP", "RES_OPTIONS", "RUBYLIB", "RUBYOPT",
-		"TERMCAP", "TZDIR",
-		/* Bash startup-influencing family + interpreter extras (added
-		   2026-06-28 to match the canonical cred_exec.c list). */
-		"SHELLOPTS", "BASHOPTS", "PS4", "BASH_XTRACEFD",
-		"PERLLIB", "PERL5DB", "PYTHONUSERBASE", "PYTHONNOUSERSITE",
-		"PYTHONOPTIMIZE", "RUBYPATH",
-	};
-	static const char *const prefix[] = {
-		"BASH_FUNC_", "DYLD_", "LD_",
-	};
-
-	for (size_t i = 0; i < sizeof (exact) / sizeof (exact[0]); i++)
-		if (strcmp (s, exact[i]) == 0)
-			return 1;
-	for (size_t i = 0; i < sizeof (prefix) / sizeof (prefix[0]); i++)
-		if (strncmp (s, prefix[i], strlen (prefix[i])) == 0)
-			return 1;
-	return 0;
-}
-
-static int
-ba_policy_env_list_ok (const char *value)
-{
-	char *copy = strdup (value);
-	if (!copy)
-		return 0;
-	char *v = ba_policy_trim (copy);
-	size_t len = strlen (v);
-	if (len >= 2 && ((v[0] == '"' && v[len - 1] == '"') ||
-	                 (v[0] == '\'' && v[len - 1] == '\''))) {
-		v[len - 1] = '\0';
-		v++;
-	}
-	int n = 0;
-	char *save = NULL;
-	for (char *tok = strtok_r (v, " \t,", &save); tok; tok = strtok_r (NULL, " \t,", &save)) {
-		if (!ba_policy_ident_ok (tok) || ba_policy_has_glob_or_negation (tok) ||
-		    ba_policy_env_name_dangerous (tok)) {
-			free (copy);
-			return 0;
-		}
-		n++;
-	}
-	free (copy);
-	return n > 0;
-}
-
-static int
-ba_policy_sha256_cmd_ok (const char *s)
-{
-	if (strncmp (s, "sha256:", 7) != 0) return 0;
-	const char *hex = s + 7;
-	for (int i = 0; i < 64; i++)
-		if (!isxdigit ((unsigned char) hex[i]))
-			return 0;
-	return hex[64] == ':' && hex[65] == '/';
-}
-
-enum ba_policy_command_args_mode {
-	BA_POLICY_COMMAND_ANY_ARGS = 0,
-	BA_POLICY_COMMAND_NO_ARGS,
-	BA_POLICY_COMMAND_EXACT_ARGS
-};
-
-enum ba_policy_token_type {
-	BA_POLICY_TOKEN_ALL = 1,
-	BA_POLICY_TOKEN_ALIAS_REF = 2,
-	BA_POLICY_TOKEN_SHA256_PATH = 3,
-	BA_POLICY_TOKEN_ABSOLUTE_PATH = 4,
-	BA_POLICY_TOKEN_SUDOEDIT_EDIT = 5,
-	BA_POLICY_TOKEN_GLOB_PATH = 6
-};
-
-struct ba_policy_command_spec {
-	int type;
-	enum ba_policy_command_args_mode args_mode;
-	char cmd[256];
-	char args[256];
-};
-
-static int
-ba_policy_arg_text_ok (const char *s)
-{
-	if (!s || !*s)
-		return 0;
-	if (strcmp (s, "\"\"") == 0)
-		return 1;
-	for (const char *p = s; *p; p++) {
-		unsigned char c = (unsigned char) *p;
-		if (c == '"' || c == '\'' || c == '\\' || c == ',' ||
-		    c == ';' || c == '&' || c == '|' || c == '`' ||
-		    c == '$' || c == '<' || c == '>' || c == '(' || c == ')' ||
-		    c == '*' || c == '?' || c == '[' || c == ']' || c == '!')
-			return 0;
-		if (c < 0x20 && !isspace (c))
-			return 0;
-	}
-	return 1;
-}
-
-static int
-ba_policy_parse_command_spec (const char *tok, struct ba_policy_command_spec *spec)
-{
-	char buf[256];
-	char norm[256];
-	char *p, *args = NULL, *scan;
-	size_t cmd_len;
-	int ret;
-
-	if (!tok || !spec)
-		return -1;
-	memset (spec, 0, sizeof *spec);
-	snprintf (buf, sizeof buf, "%s", tok);
-	p = ba_policy_trim (buf);
-	if (!*p)
-		return -1;
-	if (strcmp (p, "ALL") == 0) {
-		spec->type = BA_POLICY_TOKEN_ALL;
-		spec->args_mode = BA_POLICY_COMMAND_ANY_ARGS;
-		snprintf (spec->cmd, sizeof spec->cmd, "%s", p);
-		return 0;
-	}
-	if (ba_policy_name_ok (p, 1)) {
-		spec->type = BA_POLICY_TOKEN_ALIAS_REF;
-		spec->args_mode = BA_POLICY_COMMAND_ANY_ARGS;
-		snprintf (spec->cmd, sizeof spec->cmd, "%s", p);
-		return 0;
-	}
-	/* `sudoedit <abs-path>`: an EDIT-ONLY command spec. Must mirror the kernel
-	 * parser in kernel/bashos-auth/bashos_auth.c exactly (the kernel re-parses
-	 * the raw policy text; this validator + the kernel must agree). Single
-	 * absolute target per spec, no command args. type 5 = SUDOEDIT_EDIT. */
-	if (strncmp (p, "sudoedit", 8) == 0 && (p[8] == ' ' || p[8] == '\t')) {
-		char *t = ba_policy_trim (p + 8);
-		if (t[0] != '/')
-			return -1;
-		if (ba_policy_has_glob_or_negation (t))
-			return -1;
-		for (const char *q = t; *q; q++)
-			if (isspace ((unsigned char) *q))
-				return -1;
-		if (ba_policy_normalize_cmd_path (t, norm, sizeof norm) < 0)
-			return -1;
-		if (!norm[0] || strlen (norm) >= sizeof spec->cmd)
-			return -1;
-		spec->type = BA_POLICY_TOKEN_SUDOEDIT_EDIT;
-		spec->args_mode = BA_POLICY_COMMAND_ANY_ARGS;
-		snprintf (spec->cmd, sizeof spec->cmd, "%s", norm);
-		return 0;
-	}
-
-	scan = p;
-	if (ba_policy_sha256_cmd_ok (p))
-		scan = p + 72;
-	else if (p[0] != '/')
-		return -1;
-	for (; *scan && !isspace ((unsigned char) *scan); scan++)
-		;
-	if (*scan) {
-		*scan++ = '\0';
-		args = ba_policy_trim (scan);
-	}
-	if (ba_policy_sha256_cmd_ok (p)) {
-		spec->type = BA_POLICY_TOKEN_SHA256_PATH;
-		if (p[72] != '/')
-			return -1;
-		if (ba_policy_has_glob_or_negation (p))
-			return -1;
-		if (ba_policy_normalize_cmd_path (p + 72, norm, sizeof norm) < 0)
-			return -1;
-		ret = snprintf (spec->cmd, sizeof spec->cmd, "%.72s%s", p, norm);
-		if (ret < 0 || ret >= (int) sizeof spec->cmd)
-			return -1;
-	} else {
-		if (ba_policy_has_negation (p))
-			return -1;
-		if (ba_policy_normalize_cmd_path (p, norm, sizeof norm) < 0)
-			return -1;
-		if (ba_policy_path_has_glob (norm)) {
-			if (!ba_policy_glob_syntax_ok (norm))
-				return -1;
-			spec->type = BA_POLICY_TOKEN_GLOB_PATH;
-		} else {
-			spec->type = BA_POLICY_TOKEN_ABSOLUTE_PATH;
-		}
-	}
-	if (spec->type != BA_POLICY_TOKEN_SHA256_PATH)
-		snprintf (spec->cmd, sizeof spec->cmd, "%s", norm);
-	cmd_len = strlen (spec->cmd);
-	if (cmd_len == 0 || cmd_len >= sizeof spec->cmd)
-		return -1;
-	if (!args || !*args) {
-		spec->args_mode = BA_POLICY_COMMAND_ANY_ARGS;
-		return 0;
-	}
-	if (!ba_policy_arg_text_ok (args) || strlen (args) >= sizeof spec->args)
-		return -1;
-	if (strcmp (args, "\"\"") == 0) {
-		spec->args_mode = BA_POLICY_COMMAND_NO_ARGS;
-		return 0;
-	}
-	spec->args_mode = BA_POLICY_COMMAND_EXACT_ARGS;
-	snprintf (spec->args, sizeof spec->args, "%s", args);
-	return 0;
-}
-
-static int
-ba_policy_append_text (char *out, size_t cap, size_t *pos, const char *s)
-{
-	size_t len;
-
-	if (!out || !pos || !s)
-		return -1;
-	len = strlen (s);
-	if (*pos + len >= cap)
-		return -1;
-	memcpy (out + *pos, s, len);
-	*pos += len;
-	out[*pos] = '\0';
-	return 0;
-}
-
-static int
-ba_policy_normalize_command_spec_text (const char *tok, char *out, size_t cap)
-{
-	struct ba_policy_command_spec spec;
-	size_t pos = 0;
-	int ret;
-
-	if (!out || cap == 0)
-		return -1;
-	out[0] = '\0';
-	ret = ba_policy_parse_command_spec (tok, &spec);
-	if (ret)
-		return ret;
-	if (spec.type == BA_POLICY_TOKEN_SUDOEDIT_EDIT) {
-		ret = snprintf (out, cap, "sudoedit %s", spec.cmd);
-		if (ret < 0 || ret >= (int) cap)
-			return -1;
-	} else if (ba_policy_append_text (out, cap, &pos, spec.cmd) < 0) {
-		return -1;
-	}
-	if (spec.args_mode == BA_POLICY_COMMAND_NO_ARGS)
-		return ba_policy_append_text (out, cap, &pos, " \"\"");
-	if (spec.args_mode == BA_POLICY_COMMAND_EXACT_ARGS) {
-		if (ba_policy_append_text (out, cap, &pos, " ") < 0)
-			return -1;
-		return ba_policy_append_text (out, cap, &pos, spec.args);
-	}
-	return 0;
-}
-
-static int
-ba_policy_normalize_command_list (const char *list, char *out, size_t cap)
-{
-	char *copy, *save = NULL;
-	size_t pos = 0;
-	int n = 0, ret = 0;
-
-	if (!list || !out || cap == 0)
-		return -1;
-	out[0] = '\0';
-	copy = strdup (list);
-	if (!copy)
-		return -1;
-	for (char *tok = strtok_r (copy, ",", &save); tok;
-	     tok = strtok_r (NULL, ",", &save)) {
-		char one[256];
-
-		tok = ba_policy_trim (tok);
-		if (!*tok)
-			continue;
-		ret = ba_policy_normalize_command_spec_text (tok, one, sizeof one);
-		if (ret)
-			break;
-		if (n++ > 0 && ba_policy_append_text (out, cap, &pos, ",") < 0) {
-			ret = -1;
-			break;
-		}
-		if (ba_policy_append_text (out, cap, &pos, one) < 0) {
-			ret = -1;
-			break;
-		}
-	}
-	free (copy);
-	return ret ? ret : (n > 0 ? 0 : -1);
-}
-
-/* Join a comma-separated name list with no whitespace. sudoers treats
-   whitespace around ',' as insignificant. */
-static int
-ba_policy_normalize_name_list (const char *list, char *out, size_t cap)
-{
-	char *copy, *save = NULL;
-	size_t pos = 0;
-	int n = 0;
-
-	if (!list || !out || cap == 0)
-		return -1;
-	out[0] = '\0';
-	copy = strdup (list);
-	if (!copy)
-		return -1;
-	for (char *tok = strtok_r (copy, ",", &save); tok;
-	     tok = strtok_r (NULL, ",", &save)) {
-		tok = ba_policy_trim (tok);
-		if (!*tok)
-			continue;
-		if (n++ > 0 && ba_policy_append_text (out, cap, &pos, ",") < 0) {
-			free (copy);
-			return -1;
-		}
-		if (ba_policy_append_text (out, cap, &pos, tok) < 0) {
-			free (copy);
-			return -1;
-		}
-	}
-	free (copy);
-	return n > 0 ? 0 : -1;
-}
-
-static int
-ba_policy_value_ok (const char *s, int command)
-{
-	if (!s || !*s) return 0;
-	if (command) {
-		struct ba_policy_command_spec spec;
-		return ba_policy_parse_command_spec (s, &spec) == 0;
-	}
-	if (ba_policy_has_glob_or_negation (s)) return 0;
-	if (strcmp (s, "ALL") == 0) return 1;
-	/* sudoers #uid user form. A leading '#' is otherwise a comment. */
-	if (s[0] == '#' && ba_policy_uint_ok (s + 1))
-		return 1;
-	return ba_policy_name_ok (s, 1) || ba_policy_name_ok (s, 0);
-}
-
-static int
-ba_policy_list_ok (char *list, int command)
-{
-	char *save = NULL;
-	int n = 0;
-	for (char *tok = strtok_r (list, ",", &save); tok; tok = strtok_r (NULL, ",", &save)) {
-		tok = ba_policy_trim (tok);
-		if (!ba_policy_value_ok (tok, command))
-			return 0;
-		n++;
-	}
-	return n > 0;
-}
-
-static int
-ba_policy_host_ok (const char *host)
-{
-	if (strcmp (host, "ALL") == 0) return 1;
-	char local[128];
-	if (gethostname (local, sizeof local) < 0)
-		local[0] = '\0';
-	local[sizeof local - 1] = '\0';
-	if (local[0] && strcmp (host, local) == 0) return 1;
-	if (ba_policy_name_ok (host, 1)) return 1;
-	return ba_policy_name_ok (host, 0) && host[0] != '%';
-}
-
 typedef int (*ba_policy_record_cb) (void *arg, const char *record);
 
 struct ba_policy_parse_ctx {
@@ -2852,401 +2467,43 @@ ba_policy_emit (struct ba_policy_parse_ctx *ctx, const char *fmt, ...)
 	return 0;
 }
 
-static int
-ba_policy_parse_alias (struct ba_policy_parse_ctx *ctx,
-                       const char *kind, char *line, unsigned int lineno)
-{
-	char *name = line + strlen (kind);
-	name = ba_policy_trim (name);
-	char *eq = strchr (name, '=');
-	if (!eq) {
-		builtin_error ("policy-parse:%u: alias missing '='", lineno);
-		return -1;
-	}
-	*eq++ = '\0';
-	name = ba_policy_trim (name);
-	char *values = ba_policy_trim (eq);
-	char normalized_values[256];
-	if (!ba_policy_name_ok (name, 1)) {
-		builtin_error ("policy-parse:%u: invalid alias name", lineno);
-		return -1;
-	}
-	char *copy = strdup (values);
-	if (!copy) return -1;
-	int command = strcmp (kind, "Cmnd_Alias") == 0;
-	int ok = ba_policy_list_ok (copy, command);
-	free (copy);
-	if (!ok) {
-		builtin_error ("policy-parse:%u: invalid alias list", lineno);
-		return -1;
-	}
-	if (command) {
-		if (ba_policy_normalize_command_list (values, normalized_values,
-		                                      sizeof normalized_values) < 0) {
-			builtin_error ("policy-parse:%u: invalid alias list", lineno);
-			return -1;
-		}
-	} else if (ba_policy_normalize_name_list (values, normalized_values,
-	                                          sizeof normalized_values) < 0) {
-		builtin_error ("policy-parse:%u: invalid alias list", lineno);
-		return -1;
-	}
-	values = normalized_values;
-	return ba_policy_emit (ctx, "alias type=%s name=%s values=%s",
-	                       kind, name, values);
-}
+#define BA_POLICY_DUP(s) strdup(s)
+#define BA_POLICY_FREE(p) free(p)
+#define BA_POLICY_SPLIT(s, d, save) strtok_r(s, d, save)
+#define BA_POLICY_HOSTNAME(p, n) gethostname(p, n)
+#define BA_POLICY_ERROR(...) builtin_error(__VA_ARGS__)
+#include "auth-policy-parser.h"
+#undef BA_POLICY_DUP
+#undef BA_POLICY_FREE
+#undef BA_POLICY_SPLIT
+#undef BA_POLICY_HOSTNAME
+#undef BA_POLICY_ERROR
 
-enum ba_policy_default_bind_kind {
-	BA_POLICY_DEFAULT_BIND_GLOBAL = 0,
-	BA_POLICY_DEFAULT_BIND_USER,
-	BA_POLICY_DEFAULT_BIND_HOST,
-	BA_POLICY_DEFAULT_BIND_RUNAS,
-	BA_POLICY_DEFAULT_BIND_CMND
+/* Do not publish a valid prefix before discovering a malformed policy tail. */
+struct ba_policy_output {
+	char *bytes;
+	size_t length;
+	unsigned int records;
 };
 
-static const char *
-ba_policy_default_bind_name (enum ba_policy_default_bind_kind bind_kind)
-{
-	switch (bind_kind) {
-	case BA_POLICY_DEFAULT_BIND_USER: return "user";
-	case BA_POLICY_DEFAULT_BIND_HOST: return "host";
-	case BA_POLICY_DEFAULT_BIND_RUNAS: return "runas";
-	case BA_POLICY_DEFAULT_BIND_CMND: return "cmnd";
-	default: return "global";
-	}
-}
-
 static int
-ba_policy_default_scope_ok (enum ba_policy_default_bind_kind bind_kind,
-                            const char *scope)
+ba_policy_buffer_record (void *arg, const char *record)
 {
-	if (!scope || !*scope)
-		return 0;
-	switch (bind_kind) {
-	case BA_POLICY_DEFAULT_BIND_USER:
-	case BA_POLICY_DEFAULT_BIND_RUNAS:
-		return ba_policy_value_ok (scope, 0);
-	case BA_POLICY_DEFAULT_BIND_HOST:
-		return ba_policy_host_ok (scope);
-	case BA_POLICY_DEFAULT_BIND_CMND:
-		return ba_policy_name_ok (scope, 1);
-	default:
-		return strcmp (scope, "global") == 0;
-	}
-}
-
-static int
-ba_policy_default_key_boolean (const char *key)
-{
-	return strcmp (key, "requiretty") == 0 || strcmp (key, "env_reset") == 0;
-}
-
-static int
-ba_policy_emit_default (struct ba_policy_parse_ctx *ctx,
-                        enum ba_policy_default_bind_kind bind_kind,
-                        const char *scope, const char *key, const char *op,
-                        const char *value)
-{
-	if (bind_kind != BA_POLICY_DEFAULT_BIND_GLOBAL) {
-		const char *bind = ba_policy_default_bind_name (bind_kind);
-		if (strcmp (op, "=") != 0)
-			return ba_policy_emit (ctx,
-			                       "defaults scope=%s key=%s op=%s value=%s bind=%s bind_scope=%s",
-			                       scope, key, op, value, bind, scope);
-		return ba_policy_emit (ctx,
-		                       "defaults scope=%s key=%s value=%s bind=%s bind_scope=%s",
-		                       scope, key, value, bind, scope);
-	}
-	if (strcmp (op, "=") != 0)
-		return ba_policy_emit (ctx, "defaults scope=%s key=%s op=%s value=%s",
-		                       scope, key, op, value);
-	return ba_policy_emit (ctx, "defaults scope=%s key=%s value=%s",
-	                       scope, key, value);
-}
-
-static int
-ba_policy_parse_defaults (struct ba_policy_parse_ctx *ctx,
-                          char *line, unsigned int lineno)
-{
-	char *p = line + 8;
-	enum ba_policy_default_bind_kind bind_kind = BA_POLICY_DEFAULT_BIND_GLOBAL;
-	char *scope = "global";
-	if (*p == ':' || *p == '@' || *p == '>' || *p == '!') {
-		char sigil = *p;
-
-		*p++ = '\0';
-		scope = p;
-		while (*p && !isspace ((unsigned char) *p)) p++;
-		if (*p) *p++ = '\0';
-		if (sigil == ':')
-			bind_kind = BA_POLICY_DEFAULT_BIND_USER;
-		else if (sigil == '@')
-			bind_kind = BA_POLICY_DEFAULT_BIND_HOST;
-		else if (sigil == '>')
-			bind_kind = BA_POLICY_DEFAULT_BIND_RUNAS;
-		else
-			bind_kind = BA_POLICY_DEFAULT_BIND_CMND;
-		if (!ba_policy_default_scope_ok (bind_kind, scope)) {
-			builtin_error ("policy-parse:%u: invalid Defaults scope", lineno);
-			return -1;
-		}
-	}
-	p = ba_policy_trim (p);
-	if (!*p) {
-		builtin_error ("policy-parse:%u: Defaults requires assignment", lineno);
+	struct ba_policy_output *out = arg;
+	size_t n = strlen (record);
+	char *bytes;
+	if (n > 4 * BA_POLICY_MAX_INPUT ||
+	    out->length >= 4 * BA_POLICY_MAX_INPUT - n)
 		return -1;
-	}
-	int negated = 0;
-	if (*p == '!') {
-		negated = 1;
-		p = ba_policy_trim (p + 1);
-		if (!*p) {
-			builtin_error ("policy-parse:%u: Defaults requires assignment", lineno);
-			return -1;
-		}
-	}
-	char *eq = strchr (p, '=');
-	const char *op = "=";
-	char *key;
-	char *value;
-	char bool_buf[6];
-	if (eq) {
-		if (negated) {
-			builtin_error ("policy-parse:%u: invalid Defaults assignment", lineno);
-			return -1;
-		}
-		*eq++ = '\0';
-		key = ba_policy_trim (p);
-		size_t keylen = strlen (key);
-		while (keylen > 0 && isspace ((unsigned char) key[keylen - 1]))
-			key[--keylen] = '\0';
-		if (keylen > 0 && (key[keylen - 1] == '+' || key[keylen - 1] == '-')) {
-			op = key[keylen - 1] == '+' ? "+=" : "-=";
-			key[--keylen] = '\0';
-			while (keylen > 0 && isspace ((unsigned char) key[keylen - 1]))
-				key[--keylen] = '\0';
-		}
-		value = ba_policy_trim (eq);
-	} else {
-		key = ba_policy_trim (p);
-		size_t keylen = strlen (key);
-		while (keylen > 0 && isspace ((unsigned char) key[keylen - 1]))
-			key[--keylen] = '\0';
-		if (!ba_policy_default_key_boolean (key)) {
-			builtin_error ("policy-parse:%u: Defaults requires key=value", lineno);
-			return -1;
-		}
-		snprintf (bool_buf, sizeof bool_buf, "%s", negated ? "false" : "true");
-		value = bool_buf;
-	}
-	if (!ba_policy_ident_ok (key) || !*value) {
-		builtin_error ("policy-parse:%u: invalid Defaults assignment", lineno);
+	bytes = realloc (out->bytes, out->length + n + 1);
+	if (!bytes)
 		return -1;
-	}
-	if (strcmp (key, "timestamp_timeout") == 0) {
-		if (strcmp (op, "=") != 0 || ba_policy_has_glob_or_negation (value) ||
-		    !ba_policy_uint_ok (value)) {
-			builtin_error ("policy-parse:%u: invalid Defaults assignment", lineno);
-			return -1;
-		}
-	} else if (strcmp (key, "passwd_timeout") == 0) {
-		if (strcmp (op, "=") != 0 || ba_policy_has_glob_or_negation (value) ||
-		    !ba_policy_uint_ok (value)) {
-			builtin_error ("policy-parse:%u: invalid Defaults assignment", lineno);
-			return -1;
-		}
-	} else if (strcmp (key, "env_keep") == 0) {
-		if (negated || !eq) {
-			builtin_error ("policy-parse:%u: invalid Defaults assignment", lineno);
-			return -1;
-		}
-		if (!ba_policy_env_list_ok (value)) {
-			builtin_error ("policy-parse:%u: invalid Defaults assignment", lineno);
-			return -1;
-		}
-	} else if (ba_policy_default_key_boolean (key)) {
-		const char *normalized = NULL;
-		if (strcmp (op, "=") != 0 || !ba_policy_bool_value (value, &normalized)) {
-			builtin_error ("policy-parse:%u: invalid Defaults assignment", lineno);
-			return -1;
-		}
-		value = (char *) normalized;
-	} else if (strcmp (key, "secure_path") == 0) {
-		if (strcmp (op, "=") != 0 || !eq || !ba_policy_secure_path_ok (value)) {
-			builtin_error ("policy-parse:%u: invalid Defaults assignment", lineno);
-			return -1;
-		}
-	} else {
-		builtin_error ("policy-parse:%u: unsupported Defaults key", lineno);
-		return -1;
-	}
-	return ba_policy_emit_default (ctx, bind_kind, scope, key, op, value);
-}
-
-static int
-ba_policy_parse_rule (struct ba_policy_parse_ctx *ctx,
-                      char *line, unsigned int lineno)
-{
-	char *eq = strchr (line, '=');
-	if (!eq) {
-		builtin_error ("policy-parse:%u: rule missing '='", lineno);
-		return -1;
-	}
-	*eq++ = '\0';
-	char *left = ba_policy_trim (line);
-	char *right = ba_policy_trim (eq);
-	char *save = NULL;
-	char *user = strtok_r (left, " \t", &save);
-	char *host = strtok_r (NULL, " \t", &save);
-	if (!user || !host || strtok_r (NULL, " \t", &save)) {
-		builtin_error ("policy-parse:%u: rule left side must be 'user host'", lineno);
-		return -1;
-	}
-	if (!ba_policy_value_ok (user, 0) || !ba_policy_host_ok (host)) {
-		builtin_error ("policy-parse:%u: invalid user or host", lineno);
-		return -1;
-	}
-	if (*right != '(') {
-		builtin_error ("policy-parse:%u: rule requires '(runas)'", lineno);
-		return -1;
-	}
-	char *closep = strchr (right, ')');
-	if (!closep) {
-		builtin_error ("policy-parse:%u: unterminated runas list", lineno);
-		return -1;
-	}
-	*closep++ = '\0';
-	char *runas = ba_policy_trim (right + 1);
-	/* Split the (users:groups) runas spec; a bare (users) has no group half.
-	 * Mirrors the kernel parser so offline validation and the normalized
-	 * digest agree (the canonical (ALL:ALL) must parse). */
-	char *runas_group = strchr (runas, ':');
-	if (runas_group) {
-		*runas_group++ = '\0';
-		runas = ba_policy_trim (runas);
-		runas_group = ba_policy_trim (runas_group);
-	}
-	char *runas_copy = strdup (runas);
-	if (!runas_copy) return -1;
-	int runas_ok = ba_policy_list_ok (runas_copy, 0);
-	free (runas_copy);
-	if (!runas_ok) {
-		builtin_error ("policy-parse:%u: invalid runas list", lineno);
-		return -1;
-	}
-	if (runas_group) {
-		char *group_copy = strdup (runas_group);
-		if (!group_copy) return -1;
-		int group_ok = ba_policy_list_ok (group_copy, 0);
-		free (group_copy);
-		if (!group_ok) {
-			builtin_error ("policy-parse:%u: invalid runas group list", lineno);
-			return -1;
-		}
-	}
-	char runas_norm[256], group_norm[256];
-	if (ba_policy_normalize_name_list (runas, runas_norm, sizeof runas_norm) < 0) {
-		builtin_error ("policy-parse:%u: invalid runas list", lineno);
-		return -1;
-	}
-	runas = runas_norm;
-	if (runas_group) {
-		if (ba_policy_normalize_name_list (runas_group, group_norm,
-		                                   sizeof group_norm) < 0) {
-			builtin_error ("policy-parse:%u: invalid runas group list", lineno);
-			return -1;
-		}
-		runas_group = group_norm;
-	}
-	char *cmds = ba_policy_trim (closep);
-	char normalized_cmds[256];
-	int nopasswd = 0, setenv = 0;
-	for (;;) {
-		if (strncmp (cmds, "NOPASSWD:", 9) == 0) { nopasswd = 1; cmds = ba_policy_trim (cmds + 9); continue; }
-		if (strncmp (cmds, "SETENV:", 7) == 0) { setenv = 1; cmds = ba_policy_trim (cmds + 7); continue; }
-		break;
-	}
-	char *cmd_copy = strdup (cmds);
-	if (!cmd_copy) return -1;
-	int cmd_ok = ba_policy_list_ok (cmd_copy, 1);
-	free (cmd_copy);
-	if (!cmd_ok) {
-		builtin_error ("policy-parse:%u: invalid command list", lineno);
-		return -1;
-	}
-	if (ba_policy_normalize_command_list (cmds, normalized_cmds,
-	                                      sizeof normalized_cmds) < 0) {
-		builtin_error ("policy-parse:%u: invalid command list", lineno);
-		return -1;
-	}
-	/* Emit the group half only when present, matching the kernel parser so a
-	 * bare (users) rule keeps its prior normalized digest. */
-	if (runas_group)
-		return ba_policy_emit (ctx,
-		                       "rule user=%s host=%s runas=%s runas_group=%s nopasswd=%d setenv=%d commands=%s",
-		                       user, host, runas, runas_group, nopasswd, setenv,
-		                       normalized_cmds);
-	return ba_policy_emit (ctx,
-	                       "rule user=%s host=%s runas=%s nopasswd=%d setenv=%d commands=%s",
-	                       user, host, runas, nopasswd, setenv, normalized_cmds);
-}
-
-static int
-ba_policy_include_directive (const char *line)
-{
-	static const char *const words[] = {
-		"@includedir", "@include", "#includedir", "#include", NULL
-	};
-
-	for (int i = 0; words[i]; i++) {
-		size_t n = strlen (words[i]);
-		if (strncmp (line, words[i], n) == 0 &&
-		    (line[n] == '\0' || isspace ((unsigned char) line[n])))
-			return 1;
-	}
+	out->bytes = bytes;
+	memcpy (bytes + out->length, record, n);
+	bytes[out->length + n] = '\n';
+	out->length += n + 1;
+	out->records++;
 	return 0;
-}
-
-static int
-ba_policy_parse_line (struct ba_policy_parse_ctx *ctx,
-                      char *line, unsigned int lineno)
-{
-	char *hash;
-
-	/* sudoers: '#' starts a comment, except '#include'/'#includedir'
-	   (unsupported directives) and a '#uid' user id. '@include' and
-	   '@includedir' are the same directives. A command path that merely
-	   contains the letters "include" is not one. */
-	line = ba_policy_trim (line);
-	if (!*line)
-		return 0;
-	if (ba_policy_include_directive (line)) {
-		builtin_error ("policy-parse:%u: includes are not supported", lineno);
-		return -1;
-	}
-	if (line[0] == '#' && !isdigit ((unsigned char) line[1])) {
-		line[0] = '\0';
-		return 0;
-	}
-	hash = strchr (line[0] == '#' ? line + 1 : line, '#');
-	if (hash)
-		*hash = '\0';
-	line = ba_policy_trim (line);
-	if (!*line)
-		return 0;
-	if (strncmp (line, "User_Alias", 10) == 0 && isspace ((unsigned char) line[10]))
-		return ba_policy_parse_alias (ctx, "User_Alias", line, lineno);
-	if (strncmp (line, "Runas_Alias", 11) == 0 && isspace ((unsigned char) line[11]))
-		return ba_policy_parse_alias (ctx, "Runas_Alias", line, lineno);
-	if (strncmp (line, "Cmnd_Alias", 10) == 0 && isspace ((unsigned char) line[10]))
-		return ba_policy_parse_alias (ctx, "Cmnd_Alias", line, lineno);
-	if (strncmp (line, "Host_Alias", 10) == 0 && isspace ((unsigned char) line[10]))
-		return ba_policy_parse_alias (ctx, "Host_Alias", line, lineno);
-	if (strncmp (line, "Defaults", 8) == 0 &&
-	    (line[8] == ':' || line[8] == '@' || line[8] == '>' ||
-	     line[8] == '!' || isspace ((unsigned char) line[8])))
-		return ba_policy_parse_defaults (ctx, line, lineno);
-	return ba_policy_parse_rule (ctx, line, lineno);
 }
 
 static int
@@ -3265,7 +2522,9 @@ ba_policy_parse_cmd (WORD_LIST *args)
 	char *line = NULL;
 	size_t cap = 0;
 	ssize_t n;
-	unsigned int lineno = 0, records = 0;
+	unsigned int lineno = 0;
+	size_t total = 0;
+	struct ba_policy_output out = {0};
 	int rc = EXECUTION_SUCCESS;
 	struct ba_policy_parse_ctx ctx;
 	memset (&ctx, 0, sizeof ctx);
@@ -3277,16 +2536,22 @@ ba_policy_parse_cmd (WORD_LIST *args)
 		return EXECUTION_FAILURE;
 	}
 	ctx.sha_ready = 1;
+	ctx.suppress_output = 1;
+	ctx.record_cb = ba_policy_buffer_record;
+	ctx.record_arg = &out;
 	while ((n = getline (&line, &cap, fp)) >= 0) {
-		(void) n;
 		lineno++;
-		char *before = line;
+		if (!ba_policy_line_bytes_ok (line, (size_t) n) ||
+		    (size_t) n > BA_POLICY_MAX_INPUT - total) {
+			builtin_error ("policy-parse:%u: invalid or overlong policy input", lineno);
+			rc = EXECUTION_FAILURE;
+			break;
+		}
+		total += (size_t) n;
 		if (ba_policy_parse_line (&ctx, line, lineno) < 0) {
 			rc = EXECUTION_FAILURE;
 			break;
 		}
-		if (*ba_policy_trim (before))
-			records++;
 	}
 	free (line);
 	if (ferror (fp)) {
@@ -3303,11 +2568,15 @@ ba_policy_parse_cmd (WORD_LIST *args)
 		} else {
 			ctx.sha_ready = 0;
 			ba_policy_hex (digest, sizeof digest, hex);
-			printf ("summary records=%u digest_sha256=%s\n", records, hex);
+			if ((out.length && fwrite (out.bytes, 1, out.length, stdout) != out.length) ||
+			    printf ("summary records=%u digest_sha256=%s\n", out.records, hex) < 0 ||
+			    fflush (stdout) == EOF)
+				rc = EXECUTION_FAILURE;
 		}
 		ba_wipe (digest, sizeof digest);
 	}
 	mbedtls_sha256_free (&ctx.sha);
+	free (out.bytes);
 	return rc;
 }
 
@@ -3618,6 +2887,7 @@ bashos_auth_policy_list (FILE *fp, const char *subject, int long_mode,
 	size_t cap = 0;
 	ssize_t n;
 	unsigned int lineno = 0, records = 0;
+	size_t total = 0;
 	int rc = EXECUTION_SUCCESS;
 	struct ba_policy_list_state st;
 	memset (&st, 0, sizeof st);
@@ -3636,8 +2906,14 @@ bashos_auth_policy_list (FILE *fp, const char *subject, int long_mode,
 	}
 	ctx.sha_ready = 1;
 	while ((n = getline (&line, &cap, fp)) >= 0) {
-		(void) n;
 		lineno++;
+		if (!ba_policy_line_bytes_ok (line, (size_t) n) ||
+		    (size_t) n > BA_POLICY_MAX_INPUT - total) {
+			builtin_error ("policy-list:%u: invalid or overlong policy input", lineno);
+			rc = EXECUTION_FAILURE;
+			break;
+		}
+		total += (size_t) n;
 		char *before = line;
 		if (ba_policy_parse_line (&ctx, line, lineno) < 0) {
 			rc = EXECUTION_FAILURE;
@@ -3852,6 +3128,9 @@ auth_builtin (WORD_LIST *list)
 	WORD_LIST *args = list->next;
 	if (strcmp (cmd, "probe")       == 0) return ba_probe_cmd       (args);
 	if (strcmp (cmd, "privcmd-probe") == 0) return ba_privcmd_probe_cmd (args);
+	if (strcmp (cmd, "privcmd-v2-authz") == 0) return ba_privcmd_v2_cmd (args, 0);
+	if (strcmp (cmd, "privcmd-v2-exec") == 0) return ba_privcmd_v2_cmd (args, 1);
+	if (strcmp (cmd, "audit-v2-drain") == 0) return ba_audit_v2_drain_cmd (args);
 	if (strcmp (cmd, "privcmd-authz") == 0) return ba_privcmd_authz_cmd (args);
 	if (strcmp (cmd, "privcmd-exec") == 0) return ba_privcmd_exec_cmd (args);
 	if (strcmp (cmd, "privcmd-handoff-test") == 0) return ba_privcmd_handoff_test_cmd (args);
@@ -3865,12 +3144,18 @@ auth_builtin (WORD_LIST *list)
 	if (strcmp (cmd, "policy-list") == 0) return ba_policy_list_cmd (args);
 	if (strcmp (cmd, "policy-fnmatch") == 0) return ba_policy_fnmatch_cmd (args);
 	if (strcmp (cmd, "open")        == 0) return ba_open_cmd        (args);
+	if (strcmp (cmd, "open-v2") == 0) return ba_open_v2_cmd (args, 0);
+	if (strcmp (cmd, "open-v2-qualification") == 0) return ba_open_v2_cmd (args, 1);
 	if (strcmp (cmd, "read-secret") == 0) return ba_read_secret_cmd (args);
 	if (strcmp (cmd, "clear")       == 0) return ba_clear_cmd       (args);
 	if (strcmp (cmd, "same-secret") == 0) return ba_same_secret_cmd (args);
 	if (strcmp (cmd, "stats")       == 0) return ba_stats_cmd       (args);
 	if (strcmp (cmd, "hash-secret") == 0) return ba_hash_secret_cmd (args);
+	if (strcmp (cmd, "hash-secret-legacy-hex") == 0) return ba_hash_secret_cmd (args);
+	if (strcmp (cmd, "hash-secret-v2") == 0) return ba_hash_secret_cmd_format (args, BASHOS_PHC_STANDARD_BASE64);
 	if (strcmp (cmd, "verify-login") == 0) return ba_verify_login_cmd (args);
+	if (strcmp (cmd, "verify-login-v2") == 0) return ba_verify_login_v2_cmd (args, BASHOS_AUTH_V2_STANDARD_PHC);
+	if (strcmp (cmd, "verify-login-v2-legacy-hex") == 0) return ba_verify_login_v2_cmd (args, BASHOS_AUTH_V2_LEGACY_HEX);
 	if (strcmp (cmd, "peruser")     == 0) return ba_peruser_cmd     (args);
 	builtin_error ("unknown subcommand: %s (try probe/privcmd-probe/privcmd-authz/privcmd-exec/privcmd-handoff-test/privcmd-exec-interactive/privcmd-interactive-lineage-test/privcmd-token/policy-info/policy-parse/policy-list/policy-fnmatch/open/read-secret/clear/same-secret/stats/hash-secret/verify-login/peruser)", cmd);
 	return EX_USAGE;
@@ -3881,6 +3166,12 @@ char *auth_doc[] = {
 	"",
 	"    auth probe              print 'abi=MAJOR.MINOR features=0xHEX'",
 	"    auth privcmd-probe      require v2 sudo/doas authority support",
+	"    auth privcmd-v2-authz [--qualification] [-n] UID GID -- /absolute/command [args...]",
+	"                               evaluate and close a new-protocol request without execution",
+	"    auth privcmd-v2-exec [--qualification] [--legacy-hex] [-n] UID GID -- /absolute/command [args...]",
+	"                               authenticate and run through the pinned native executor",
+	"    auth audit-v2-drain [--qualification] [COUNT]",
+	"                               root-only HMAC-verified JSON drain; acknowledge after output",
 	"    auth privcmd-authz FD MODE TARGET_UID TARGET_GID [--] command [args...]",
 	"                               request v2 sudo/doas authorization",
 	"    auth privcmd-token FD HANDLE",
@@ -3893,6 +3184,8 @@ char *auth_doc[] = {
 	"    auth policy-fnmatch PATTERN PATH",
 	"                               test mirror command-path glob matching",
 	"    auth open FDVAR         open the device, bind fd into FDVAR",
+	"    auth open-v2 FDVAR      open the versioned native-verifier authority",
+	"    auth open-v2-qualification FDVAR  open the disposable qualification endpoint",
 	"    auth read-secret FD [-p PROMPT] HANDLEVAR",
 	"                               read a tty secret into a sealed kernel slot",
 	"    auth clear FD HANDLE    clear a kernel secret slot",
@@ -3900,9 +3193,17 @@ char *auth_doc[] = {
 	"                               compare sealed slots in the kernel",
 	"    auth stats FD          print per-fd secret/token counters",
 	"    auth hash-secret FD HANDLE SALT_HEX T M P HASHLEN OUTVAR",
-	"                               bind an Argon2id PHC string into OUTVAR",
+	"                               historical legacy-hex encoding (compatibility)",
+	"    auth hash-secret-legacy-hex FD HANDLE SALT_HEX T M P HASHLEN OUTVAR",
+	"                               explicitly named legacy-hex producer",
+	"    auth hash-secret-v2 FD HANDLE SALT_HEX T M P HASHLEN OUTVAR",
+	"                               bind standard unpadded-base64 Argon2id PHC output",
 	"    auth verify-login FD HANDLE USER PHC TOKENVAR",
 	"                               verify PHC and bind a kernel login token",
+	"    auth verify-login-v2 FD HANDLE USER",
+	"                               verify the trusted standard record; proof stays on FD",
+	"    auth verify-login-v2-legacy-hex FD HANDLE USER",
+	"                               explicit trusted legacy-record compatibility route",
 	"    auth privcmd-interactive-lineage-test FD MODE UID GID -- CMD [ARG...]",
 	"                               test-only: prove interactive minting lineage",
 	"    auth peruser bump USER  count a failed attempt for USER",

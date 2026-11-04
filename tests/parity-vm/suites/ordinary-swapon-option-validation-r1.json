@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "qualification-swapon-option-validation-r1",
+      "loadable": "swapon",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "oracle": "Documented builtin priority and option contract; seccomp user notification supplies EPERM and records each request without forwarding it.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/swapon-option-validation-r1.py \"$BASH\"\n",
+      "expected_status": 0,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "setpriv"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/swapon-option-validation-r1.py": "dca4edeba26150bf9674e454d3e9a521d0c20cb5271623e5b37adfa5ddb97271",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      }
+    }
+  ]
+}

@@ -113,7 +113,7 @@ OPUS_FSTRIM_PLAN='m1=err:95' run -v $B/m1
 OPUS_FSTRIM_PLAN='m1=err:95' run --quiet-unsupported $B/m1
 OPUS_FSTRIM_PLAN='m1=err:9' run $B/m1
 OPUS_FSTRIM_PLAN='m1=err:22' run $B/m1
-for v in 0 1 4096 1M 2G 1.5K 0.5K 1KB 0x10 010 1.25M 0.001G 1.05M 0X1fk 0.25G 1E 1.999999999999999999999K 18446744073709551615; do
+for v in 0 1 4096 1M 2G 1.5K 0.5K 0.10K 0.05M 1KB 2MB 3KiB 0x10 010 1.25M 0.001G 1.05M 0X1fk 0.25G 1E 15EiB 1.999999999999999999999K 18446744073709551615; do
   run -o "$v" $B/m1; run -l "$v" $B/m1; run -m "$v" $B/m1; done
 run -o 1M -l 2G -m 64k -v $B/m1
 run -o 1M -l 2G -m 64k -v -I $L/live

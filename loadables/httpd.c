@@ -172,15 +172,25 @@ reason (int s)
     }
 }
 
-/* Answer a request the handler will never see, and close. Best-effort. */
+/* Answer a request the handler will never see.  Closing a TCP socket with
+   unread request bytes can turn the response into a reset at the peer.  Send
+   FIN first, then discard pending input while the peer observes it.  Bound the
+   drain so a peer that never closes cannot hold the accept loop indefinitely. */
 static void
 refuse (int cfd, int status)
 {
   char h[160];
+  char discard[4096];
   int n = snprintf (h, sizeof h,
 		    "HTTP/1.1 %d %s\r\nContent-Type: text/plain\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
 		    status, reason (status));
   send_all (cfd, h, (size_t) n);
+  if (shutdown (cfd, SHUT_WR) == 0)
+    {
+      long deadline = mono_ms () + 250;
+      while (read_by (cfd, discard, sizeof discard, deadline) > 0)
+	;
+    }
   close (cfd);
 }
 

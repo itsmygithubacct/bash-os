@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-chown-invalid-user-diagnostic-r1",
+      "loadable": "chown",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chown/distinct_identity_transfer"
+      ],
+      "purpose": "Check the invalid-user diagnostic and failure status separately from successful distinct-identity transfers, and verify the existing ownership is preserved.",
+      "oracle": "GNU coreutils chown under the same guest and locale",
+      "comparison": "Byte parity of status marker, normalized diagnostic, and numeric ownership.",
+      "requires": [
+        "touch",
+        "stat",
+        "sed",
+        "tr"
+      ],
+      "script": "/usr/bin/touch diagnostic-item\nrc=0\nchown no_such_user_bashos_suite_987654 diagnostic-item 2>diagnostic.err || rc=$?\nprintf 'status=%s err=' \"$rc\"\n/usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' diagnostic.err | /usr/bin/tr '\\n' '|'\nprintf '\\n'\n/usr/bin/stat -c '%u:%g' diagnostic-item\n",
+      "expected_status": 0,
+      "timeout": 30
+    }
+  ]
+}

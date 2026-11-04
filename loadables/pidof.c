@@ -9,8 +9,8 @@
  *   -o   omit PID(s) from output; accepts comma/semicolon/colon lists and %PPID
  *   -S   separator between PIDs (-d is a sysvinit-compatible alias)
  *
- * Walks /proc/[pid]/comm and /proc/[pid]/cmdline; if CMD matches comm,
- * argv[0], or (with -x) argv[1] for script interpreters, the PID joins
+ * Walks /proc process records; if CMD matches argv[0], the executable,
+ * or (with -x) argv[1] for script interpreters, the PID joins
  * the output. Returns 0 if any PID found, 1 otherwise.
  *
  * --- LICENSE --- MIT, same boilerplate as binhex.c.
@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <sys/types.h>
@@ -83,8 +84,10 @@ bp_read_cmdline (int pid, char *out, size_t cap)
         return -1;
     if ((size_t)n < cap)
         out[n] = '\0';
-    else
+    else {
         out[cap - 1] = '\0';
+        n = (ssize_t)cap - 1; /* Do not treat a truncated argument as complete. */
+    }
     return (int)n;
 }
 
@@ -96,9 +99,9 @@ bp_basename (const char *s)
 }
 
 static int
-bp_match_cmdline (int pid, const char *want, const char *base, int scripts_too)
+bp_match_cmdline (int pid, const char *comm, const char *want, const char *base, int scripts_too)
 {
-    char cmdline[1024];
+    char cmdline[1024], exe[1024];
     char *arg0, *arg1;
     const char *arg0base;
     int n;
@@ -106,6 +109,13 @@ bp_match_cmdline (int pid, const char *want, const char *base, int scripts_too)
     n = bp_read_cmdline (pid, cmdline, sizeof cmdline);
     if (n <= 0 || cmdline[0] == '\0')
         return 0;
+
+    /* Executable identity remains usable even if argv[0] is truncated. */
+    if (bp_read_proc_link (pid, "exe", exe, sizeof exe) == 0 &&
+        (!strcmp (want, exe) || !strcmp (want, bp_basename (exe))))
+        return 1;
+    if (memchr (cmdline, '\0', (size_t)n) == NULL)
+        return 0; /* argv[0] is incomplete, so do not match its prefix. */
 
     arg0 = cmdline;
     if (arg0[0] == '-')
@@ -115,13 +125,23 @@ bp_match_cmdline (int pid, const char *want, const char *base, int scripts_too)
         !strcmp (arg0, want) || !strcmp (arg0, base))
         return 1;
 
+    /* procps uses comm for processes that changed their argv title. */
+    if (strchr (arg0, ' ') && !strcmp (want, comm))
+        return 1;
+
     if (!scripts_too)
         return 0;
 
     arg1 = memchr (cmdline, '\0', (size_t)n);
-    if (arg1 != NULL && ++arg1 < cmdline + n && *arg1 != '\0') {
+    if (arg1 != NULL && ++arg1 < cmdline + n && *arg1 != '\0' &&
+        memchr (arg1, '\0', (size_t)(cmdline + n - arg1)) != NULL) {
         const char *arg1base = bp_basename (arg1);
-        if (!strcmp (arg1base, base) || !strcmp (arg1, want))
+        size_t len = strlen (arg1base);
+        size_t commlen = len < 15 ? len : 15;
+
+        /* Linux task names hold at most 15 bytes, excluding the NUL. */
+        if (strlen (comm) == commlen && !strncmp (comm, arg1base, commlen) &&
+            (!strcmp (arg1base, base) || !strcmp (arg1, want)))
             return 1;
     }
 
@@ -145,11 +165,17 @@ bp_add_omit_pid (bp_omit_list *omit, const char *s)
     pid_t pid;
 
     if (!strcmp (s, "%PPID")) {
-        pid = getppid ();
+        /* The external pidof would be a child of the invoking shell. */
+        pid = getpid ();
     } else {
+        const char *p;
+
+        for (p = s; *p; p++)
+            if (*p < '0' || *p > '9')
+                return -1;
         errno = 0;
         v = strtoul (s, &end, 10);
-        if (errno != 0 || end == s || *end != '\0' || v == 0)
+        if (errno != 0 || end == s || *end != '\0' || v == 0 || v > INT_MAX)
             return -1;
         pid = (pid_t)v;
     }
@@ -168,6 +194,13 @@ bp_parse_omit (bp_omit_list *omit, const char *arg)
 
     if (arg == NULL || *arg == '\0')
         return -1;
+
+    /* strtok_r skips empty fields; reject them before tokenizing. */
+    if (strchr (",;:", *arg) || strchr (",;:", arg[strlen (arg) - 1]))
+        return -1;
+    for (const char *p = arg; *p; p++)
+        if (strchr (",;:", *p) && p[1] && strchr (",;:", p[1]))
+            return -1;
 
     copy = strdup (arg);
     if (copy == NULL)
@@ -327,8 +360,8 @@ pidof_builtin (WORD_LIST *list)
     DIR *d = opendir ("/proc");
     if (!d) { builtin_error ("opendir /proc: %s", strerror (errno)); return EXECUTION_FAILURE; }
 
-    int found = 0;
-    int first_print = 1;
+    pid_t *matches = NULL;
+    size_t found = 0, capacity = 0;
     struct dirent *de;
     while ((de = readdir (d))) {
         if (de->d_name[0] < '0' || de->d_name[0] > '9') continue;
@@ -347,26 +380,40 @@ pidof_builtin (WORD_LIST *list)
         for (WORD_LIST *p = list; p; p = p->next) {
             const char *want = p->word->word;
             const char *base = bp_basename (want);
-            int match = !strcmp (comm, base);
-
-            if (!match)
-                match = bp_match_cmdline (pid, want, base, scripts_too);
+            int match = bp_match_cmdline (pid, comm, want, base, scripts_too);
 
             if (match) {
-                if (!quiet) {
-                    if (!first_print) fputs (separator, stdout);
-                    printf ("%d", pid);
-                    first_print = 0;
+                if (found == capacity) {
+                    size_t next = capacity ? capacity * 2 : 64;
+                    pid_t *grown;
+                    if (next < capacity || next > (size_t)-1 / sizeof *matches ||
+                        (grown = realloc (matches, next * sizeof *matches)) == NULL) {
+                        free (matches);
+                        closedir (d);
+                        builtin_error ("cannot allocate process list");
+                        return EXECUTION_FAILURE;
+                    }
+                    matches = grown;
+                    capacity = next;
                 }
-                found++;
-                if (single) goto done;
+                matches[found++] = (pid_t)pid;
                 break;
             }
         }
     }
-done:
     closedir (d);
-    if (!quiet && found > 0) putchar ('\n');
+    if (!quiet && found > 0) {
+        size_t i = found;
+        int first_print = 1;
+        while (i > 0) {
+            if (!first_print) fputs (separator, stdout);
+            printf ("%ld", (long)matches[--i]);
+            first_print = 0;
+            if (single) break;
+        }
+        putchar ('\n');
+    }
+    free (matches);
     return found > 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
@@ -383,9 +430,9 @@ char *pidof_doc[] = {
     "    -S   separator between PIDs (-d is an alias)",
     "    --version   print version information and exit",
     "",
-    "Walks /proc and prints space-separated PIDs whose `comm` or argv[0]",
-    "matches CMD (basename of CMD if it contains a slash). With -x, argv[1]",
-    "is also checked for shell-script interpreters. Returns 0 if any PID",
+    "Walks /proc and matches argv[0], executable, or changed-title comm.",
+    "With -x, argv[1] is also checked when its basename matches comm.",
+    "Returns 0 if any PID",
     "is found, 1 otherwise — usable in `if bashpidof daemon; then ...`.",
     (char *)NULL
 };

@@ -30,6 +30,7 @@
 
 #include "loadables.h"
 #include "command-run.h"
+#include "child-wait.h"
 
 #define UV_PROGRAM "/usr/lib/bash-os/libexec/uv/uv"
 
@@ -105,16 +106,15 @@ uv_builtin (WORD_LIST *list)
     for (WORD_LIST *p = list; p; p = p->next)
         argv[i++] = p->word->word;
 
-    /* bash's asynchronous SIGCHLD handler must not reap the child first. */
-    struct sigaction chld_dfl, chld_save;
-    memset (&chld_dfl, 0, sizeof chld_dfl);
-    chld_dfl.sa_handler = SIG_DFL;
-    sigemptyset (&chld_dfl.sa_mask);
-    sigaction (SIGCHLD, &chld_dfl, &chld_save);
-    sigset_t chld_set, old_set;
-    sigemptyset (&chld_set);
-    sigaddset (&chld_set, SIGCHLD);
-    sigprocmask (SIG_BLOCK, &chld_set, &old_set);
+    /* Block SIGCHLD before changing its disposition, and restore the
+       handler before unblocking, so unrelated Bash jobs are not stranded. */
+    bos_child_wait child_wait;
+    if (bos_child_wait_begin (&child_wait) < 0) {
+        int err = errno;
+        free (argv);
+        builtin_error ("sigchld: %s", strerror (err));
+        return EXECUTION_FAILURE;
+    }
 
     maybe_make_export_env ();
     fflush (stdout);
@@ -122,7 +122,7 @@ uv_builtin (WORD_LIST *list)
     pid_t pid = fork ();
     if (pid == 0) {
         bos_prepare_child ();
-        sigprocmask (SIG_SETMASK, &old_set, NULL);
+        bos_child_wait_child (&child_wait);
         uv_reset_job_signals ();
         execve (program, argv, export_env);
         int err = errno;
@@ -137,8 +137,7 @@ uv_builtin (WORD_LIST *list)
             ;
     else
         errno = err;
-    sigprocmask (SIG_SETMASK, &old_set, NULL);
-    sigaction (SIGCHLD, &chld_save, NULL);
+    bos_child_wait_end (&child_wait);
     if (rc < 0) {
         builtin_error ("%s: %s", pid < 0 ? "fork" : "waitpid", strerror (errno));
         return EXECUTION_FAILURE;

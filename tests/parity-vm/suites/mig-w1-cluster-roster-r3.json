@@ -17,11 +17,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cluster-roster-observer-r3.py": "d20c56c2970a6dfbf06b630b5b1e5b10f7014fcb7f1126edd16573d2dda74b0b"
+        "helpers/cluster-roster-observer-r3-bash5320.py": "c3309b9246b114da3feb2208142b4e3ae24e4a023361d7db3d4db802141f35fa"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-roster-observer-r3.py setup roster-heartbeats",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-roster-observer-r3-bash5320.py setup roster-heartbeats",
       "setup_timeout": 50,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-roster-observer-r3.py \"$BASH\" roster-heartbeats",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-roster-observer-r3-bash5320.py \"$BASH\" roster-heartbeats",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "three-peer-convergence joins-ok=yes identities-on-wire=yes rosters-converge=yes members-commands-agree=yes c-left-status=yes leave-removed-everywhere=yes survivors-intact=yes c-state-cleaned=yes\nexpiry-and-refresh oracles-joined=yes silent-expires-not-early=yes silent-expires-in-bound=yes beating-oracle-retained=yes beating-peers-retained=yes retention-ends-after-last-beat=yes expiry-propagates-to-peers=yes\nseed-loss peers-joined=yes seed-left-status=yes leaf-disconnected=yes leaf-roster-self-only=yes leaf-listener-alive=yes leaf-stopped-after-kill=yes\n",

@@ -1,0 +1,40 @@
+{
+  "cases": [
+    {
+      "comparison": "Require reference insecure control and candidate NOERROR with the exact unsigned A response and no AD.",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "diagnostic_files": [
+        "srv.err",
+        "resolver.err",
+        "dig.out",
+        "dnssec-queries.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/dnssec-insecure-delegation-peer.py": "579b3cfcfc347b13c04e7adb2d074bd08beb01956f14f5781a494aaeebe67612"
+      },
+      "id": "repair-dns-resolver-unsigned-delegation-bounded-r15",
+      "kind": "contract",
+      "loadable": "dns",
+      "oracle": "Independent BIND delv accepts the unsigned child A record without calling it fully validated; the parent delegation NSEC is independently signed.",
+      "purpose": "An authenticated parent denial of DS at an unsigned delegation returns its answer without AD rather than falsely marking it secure or SERVFAIL.",
+      "requires": [
+        "python3",
+        "delv",
+        "dig",
+        "mkfifo"
+      ],
+      "script": "H=/opt/bashos-parity/harness/helpers/dnssec-insecure-delegation-peer.py\n/usr/bin/python3 \"$H\" prep || exit 98\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> srv.err & srv=$!\ntrap 'kill \"$res\" \"$srv\" 2>/dev/null; wait \"$res\" \"$srv\" 2>/dev/null' EXIT\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340 || exit 98\ncontrol=$(/usr/bin/python3 \"$H\" control 127.0.0.2 5340 insecure) || exit 98\n[[ $control == control-ok ]] || { printf '%s\\n' \"$control\"; exit 98; }\necho control-ok\nexport PATH=\"$HOME/pbin\" BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\" BASHDNS_SERVER_PORT=5340\ndns resolver-serve --listen 127.0.0.1 --port 5320 --root-hints 127.0.0.2 --max-queries 1 --timeout 3000 </dev/null 2> resolver.err & res=$!\n/usr/bin/python3 \"$H\" waitudp 127.0.0.1 5320 || exit 98\n/usr/bin/dig +dnssec +adflag +tries=1 +time=10 -p 5320 @127.0.0.1 unsigned.test A > dig.out 2>&1 || exit 1\n/usr/bin/python3 -c 'import re; t=open(\"dig.out\").read(); s=re.search(r\"status: (\\w+)\",t); f=re.search(r\";; flags: ([a-z ]+);\",t); a=re.findall(r\"^\\S+\\s+\\d+\\s+IN\\s+A\\s+(\\S+)$\",t,re.M); print(\"insecure=correct\" if s and s.group(1)==\"NOERROR\" and f and \"ad\" not in f.group(1).split() and a==[\"192.0.2.77\"] else \"insecure=incorrect\")'\nwait \"$res\" || exit 1\n",
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\nprintf \"nameserver 127.0.0.2\\n\" > resolv.conf\nmkfifo w.fifo\n",
+      "setup_timeout": 20,
+      "stderr": "",
+      "stdout": "control-ok\ninsecure=correct\n",
+      "timeout": 60
+    }
+  ],
+  "schema": 1
+}

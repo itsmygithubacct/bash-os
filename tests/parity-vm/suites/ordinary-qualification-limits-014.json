@@ -1,0 +1,229 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "qualification-014-unicode",
+      "loadable": "utf8",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Complete pinned Unicode 17 GraphemeBreakTest byte corpus and explicit descriptor error/ownership controls.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-limits-r1.py unicode\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "timeout": 60,
+      "file_size_limit": 33554432,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-limits-r1.py": "183f5e70f5dfb3b442d76c01fd3d7306a711b48a00c8951398b91c02a06db9fb"
+      },
+      "files": {
+        "qualification-inputs.json": "{\"assets\": {\"GraphemeBreakTest.txt\": \"e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec\", \"bash-stock\": \"2b8c0984d97b563d0b3bf3f447c7ba7a27fab8dcb69a4050ed98f33a8b672357\", \"bashpoll-omitted-hook.so\": \"c9c68f47c86b33f20df95f2c6f751be71191a013360d532cb9f7845d5cd6f95c\", \"bashpoll.so\": \"e660431d859f88e41e24620994714e33a360362bbc7a777f979ab75f77c50fef\", \"dmesg-record-probe\": \"0377f9c084ba80425340a880b8143943c1a6e57078c34e9db7b9941d4da52099\", \"grapheme-real\": \"77c51169c8d92f61d3368d376bd4a87917cad62fbcc95e0034e424c65dca242d\", \"grapheme-truncating\": \"7880d623101c77dff84c4831ea5723042c5410cdcacda8b805b7e3222ffb6e3f\", \"wgetch-original\": \"81469b33b5425eaa3d8c50a40b639e351a5eeeacf083288c0876070b5d940a8d\", \"wgetch-runtime\": \"f3a666718d6befb2618db12bf5662762a2562e147a0710fcb00e4a3a5c96b3ec\"}, \"sources\": {\"qualification-limits/dmesg-hook.py\": \"6d76b29ee1ca900cc3ddcd0c80872cf58d877c94771a2c6583877f5dfd6fff1c\", \"qualification-limits/dmesg-interface.py\": \"8d31b7917bcccf8ac767f1563ec201f9e999fa04cbbdc4b962a5e710b95d8de5\", \"qualification-limits/dmesg-record-cases.py\": \"d2d4647f7097e6c1ece7a562001ea6cd71907dd67e3684f06e0c3793f1c4b186\", \"qualification-limits/guest.py\": \"f03af0128fdecc553f31e1065b5648d4c1403c85d673a9fd759b7767ea423b1a\", \"qualification-limits/kmsg-abi.py\": \"a9e505a79a986ae8ec252d96c3c4e59e0eee0506548c86d765fafe63758a8013\", \"qualification-limits/kmsg-boundary.py\": \"9a78424fb600619b7b5fef8a8dcd4cf43c632033cc2d4d4db8018aabb3e82b05\", \"qualification-limits/prepare.py\": \"03994327ff5e7ae54341e58e0ec22e922b6f8b43c9c95cb8c315c961aadd8bc4\", \"qualification-limits/signalfd-unload.py\": \"e78e9c5b46244f03bc822232bd7ed23420ece3a53e7d7b756e7222ea783bf21b\", \"qualification-limits/tput-interface.py\": \"83b2182f7ac59ef50b40aeedc9fbe71ecfc3b1dbec3ed529bb5d818d806d5335\", \"qualification-limits/unicode-corpus.py\": \"5c9f28db2556168f946fd4e78ecc91950087be3037c53e45e04853522c08f5cb\", \"qualification-limits/unicode-interface.py\": \"81fa6e8d1d1e9eb3aededfc1a1c335ce92f6ef0ce4d57cad35323141714c3c2b\", \"qualification-limits/vec-nosse2.py\": \"492563df7a23e2973dc230ce9fc7ea1a4ad86453af9fe8cb73c0f9010292df1c\", \"qualification-limits/wgetch-cases.py\": \"d0a7f5327c7b3f594fa3fed8f4de6a4108ea0a1f8b8f70c727892d28939467b1\", \"qualification-limits/wgetch-interface.py\": \"eaa9488f1da9f0ab2de4abc40265e7992ff4c6a40f48e456096508761bb6a93d\"}}\n"
+      },
+      "diagnostic_files": [
+        "qualification-report.json",
+        "qualification-transport.json"
+      ]
+    },
+    {
+      "id": "qualification-014-wgetch",
+      "loadable": "wgetch",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Registered key IDs, prefix/longest matching, removal, limits and timeout observations through the actual builtin.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-limits-r1.py wgetch\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "timeout": 60,
+      "file_size_limit": 33554432,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-limits-r1.py": "183f5e70f5dfb3b442d76c01fd3d7306a711b48a00c8951398b91c02a06db9fb"
+      },
+      "files": {
+        "qualification-inputs.json": "{\"assets\": {\"GraphemeBreakTest.txt\": \"e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec\", \"bash-stock\": \"2b8c0984d97b563d0b3bf3f447c7ba7a27fab8dcb69a4050ed98f33a8b672357\", \"bashpoll-omitted-hook.so\": \"c9c68f47c86b33f20df95f2c6f751be71191a013360d532cb9f7845d5cd6f95c\", \"bashpoll.so\": \"e660431d859f88e41e24620994714e33a360362bbc7a777f979ab75f77c50fef\", \"dmesg-record-probe\": \"0377f9c084ba80425340a880b8143943c1a6e57078c34e9db7b9941d4da52099\", \"grapheme-real\": \"77c51169c8d92f61d3368d376bd4a87917cad62fbcc95e0034e424c65dca242d\", \"grapheme-truncating\": \"7880d623101c77dff84c4831ea5723042c5410cdcacda8b805b7e3222ffb6e3f\", \"wgetch-original\": \"81469b33b5425eaa3d8c50a40b639e351a5eeeacf083288c0876070b5d940a8d\", \"wgetch-runtime\": \"f3a666718d6befb2618db12bf5662762a2562e147a0710fcb00e4a3a5c96b3ec\"}, \"sources\": {\"qualification-limits/dmesg-hook.py\": \"6d76b29ee1ca900cc3ddcd0c80872cf58d877c94771a2c6583877f5dfd6fff1c\", \"qualification-limits/dmesg-interface.py\": \"8d31b7917bcccf8ac767f1563ec201f9e999fa04cbbdc4b962a5e710b95d8de5\", \"qualification-limits/dmesg-record-cases.py\": \"d2d4647f7097e6c1ece7a562001ea6cd71907dd67e3684f06e0c3793f1c4b186\", \"qualification-limits/guest.py\": \"f03af0128fdecc553f31e1065b5648d4c1403c85d673a9fd759b7767ea423b1a\", \"qualification-limits/kmsg-abi.py\": \"a9e505a79a986ae8ec252d96c3c4e59e0eee0506548c86d765fafe63758a8013\", \"qualification-limits/kmsg-boundary.py\": \"9a78424fb600619b7b5fef8a8dcd4cf43c632033cc2d4d4db8018aabb3e82b05\", \"qualification-limits/prepare.py\": \"03994327ff5e7ae54341e58e0ec22e922b6f8b43c9c95cb8c315c961aadd8bc4\", \"qualification-limits/signalfd-unload.py\": \"e78e9c5b46244f03bc822232bd7ed23420ece3a53e7d7b756e7222ea783bf21b\", \"qualification-limits/tput-interface.py\": \"83b2182f7ac59ef50b40aeedc9fbe71ecfc3b1dbec3ed529bb5d818d806d5335\", \"qualification-limits/unicode-corpus.py\": \"5c9f28db2556168f946fd4e78ecc91950087be3037c53e45e04853522c08f5cb\", \"qualification-limits/unicode-interface.py\": \"81fa6e8d1d1e9eb3aededfc1a1c335ce92f6ef0ce4d57cad35323141714c3c2b\", \"qualification-limits/vec-nosse2.py\": \"492563df7a23e2973dc230ce9fc7ea1a4ad86453af9fe8cb73c0f9010292df1c\", \"qualification-limits/wgetch-cases.py\": \"d0a7f5327c7b3f594fa3fed8f4de6a4108ea0a1f8b8f70c727892d28939467b1\", \"qualification-limits/wgetch-interface.py\": \"eaa9488f1da9f0ab2de4abc40265e7992ff4c6a40f48e456096508761bb6a93d\"}}\n"
+      },
+      "diagnostic_files": [
+        "qualification-report.json",
+        "qualification-transport.json"
+      ]
+    },
+    {
+      "id": "qualification-014-tput",
+      "loadable": "tput",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Independent ncurses tput byte output and terminal-mode observations on PTYs; excludes physical terminal qualification.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-limits-r1.py tput\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "timeout": 60,
+      "file_size_limit": 33554432,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-limits-r1.py": "183f5e70f5dfb3b442d76c01fd3d7306a711b48a00c8951398b91c02a06db9fb"
+      },
+      "files": {
+        "qualification-inputs.json": "{\"assets\": {\"GraphemeBreakTest.txt\": \"e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec\", \"bash-stock\": \"2b8c0984d97b563d0b3bf3f447c7ba7a27fab8dcb69a4050ed98f33a8b672357\", \"bashpoll-omitted-hook.so\": \"c9c68f47c86b33f20df95f2c6f751be71191a013360d532cb9f7845d5cd6f95c\", \"bashpoll.so\": \"e660431d859f88e41e24620994714e33a360362bbc7a777f979ab75f77c50fef\", \"dmesg-record-probe\": \"0377f9c084ba80425340a880b8143943c1a6e57078c34e9db7b9941d4da52099\", \"grapheme-real\": \"77c51169c8d92f61d3368d376bd4a87917cad62fbcc95e0034e424c65dca242d\", \"grapheme-truncating\": \"7880d623101c77dff84c4831ea5723042c5410cdcacda8b805b7e3222ffb6e3f\", \"wgetch-original\": \"81469b33b5425eaa3d8c50a40b639e351a5eeeacf083288c0876070b5d940a8d\", \"wgetch-runtime\": \"f3a666718d6befb2618db12bf5662762a2562e147a0710fcb00e4a3a5c96b3ec\"}, \"sources\": {\"qualification-limits/dmesg-hook.py\": \"6d76b29ee1ca900cc3ddcd0c80872cf58d877c94771a2c6583877f5dfd6fff1c\", \"qualification-limits/dmesg-interface.py\": \"8d31b7917bcccf8ac767f1563ec201f9e999fa04cbbdc4b962a5e710b95d8de5\", \"qualification-limits/dmesg-record-cases.py\": \"d2d4647f7097e6c1ece7a562001ea6cd71907dd67e3684f06e0c3793f1c4b186\", \"qualification-limits/guest.py\": \"f03af0128fdecc553f31e1065b5648d4c1403c85d673a9fd759b7767ea423b1a\", \"qualification-limits/kmsg-abi.py\": \"a9e505a79a986ae8ec252d96c3c4e59e0eee0506548c86d765fafe63758a8013\", \"qualification-limits/kmsg-boundary.py\": \"9a78424fb600619b7b5fef8a8dcd4cf43c632033cc2d4d4db8018aabb3e82b05\", \"qualification-limits/prepare.py\": \"03994327ff5e7ae54341e58e0ec22e922b6f8b43c9c95cb8c315c961aadd8bc4\", \"qualification-limits/signalfd-unload.py\": \"e78e9c5b46244f03bc822232bd7ed23420ece3a53e7d7b756e7222ea783bf21b\", \"qualification-limits/tput-interface.py\": \"83b2182f7ac59ef50b40aeedc9fbe71ecfc3b1dbec3ed529bb5d818d806d5335\", \"qualification-limits/unicode-corpus.py\": \"5c9f28db2556168f946fd4e78ecc91950087be3037c53e45e04853522c08f5cb\", \"qualification-limits/unicode-interface.py\": \"81fa6e8d1d1e9eb3aededfc1a1c335ce92f6ef0ce4d57cad35323141714c3c2b\", \"qualification-limits/vec-nosse2.py\": \"492563df7a23e2973dc230ce9fc7ea1a4ad86453af9fe8cb73c0f9010292df1c\", \"qualification-limits/wgetch-cases.py\": \"d0a7f5327c7b3f594fa3fed8f4de6a4108ea0a1f8b8f70c727892d28939467b1\", \"qualification-limits/wgetch-interface.py\": \"eaa9488f1da9f0ab2de4abc40265e7992ff4c6a40f48e456096508761bb6a93d\"}}\n"
+      },
+      "diagnostic_files": [
+        "qualification-report.json",
+        "qualification-transport.json"
+      ]
+    },
+    {
+      "id": "qualification-014-dmesg",
+      "loadable": "dmesg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Explicit fixture decoder, facility, raw option and stream boundary contracts; excludes live-ring and kernel-record-size qualification.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-limits-r1.py dmesg\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "timeout": 60,
+      "file_size_limit": 33554432,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-limits-r1.py": "183f5e70f5dfb3b442d76c01fd3d7306a711b48a00c8951398b91c02a06db9fb"
+      },
+      "files": {
+        "qualification-inputs.json": "{\"assets\": {\"GraphemeBreakTest.txt\": \"e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec\", \"bash-stock\": \"2b8c0984d97b563d0b3bf3f447c7ba7a27fab8dcb69a4050ed98f33a8b672357\", \"bashpoll-omitted-hook.so\": \"c9c68f47c86b33f20df95f2c6f751be71191a013360d532cb9f7845d5cd6f95c\", \"bashpoll.so\": \"e660431d859f88e41e24620994714e33a360362bbc7a777f979ab75f77c50fef\", \"dmesg-record-probe\": \"0377f9c084ba80425340a880b8143943c1a6e57078c34e9db7b9941d4da52099\", \"grapheme-real\": \"77c51169c8d92f61d3368d376bd4a87917cad62fbcc95e0034e424c65dca242d\", \"grapheme-truncating\": \"7880d623101c77dff84c4831ea5723042c5410cdcacda8b805b7e3222ffb6e3f\", \"wgetch-original\": \"81469b33b5425eaa3d8c50a40b639e351a5eeeacf083288c0876070b5d940a8d\", \"wgetch-runtime\": \"f3a666718d6befb2618db12bf5662762a2562e147a0710fcb00e4a3a5c96b3ec\"}, \"sources\": {\"qualification-limits/dmesg-hook.py\": \"6d76b29ee1ca900cc3ddcd0c80872cf58d877c94771a2c6583877f5dfd6fff1c\", \"qualification-limits/dmesg-interface.py\": \"8d31b7917bcccf8ac767f1563ec201f9e999fa04cbbdc4b962a5e710b95d8de5\", \"qualification-limits/dmesg-record-cases.py\": \"d2d4647f7097e6c1ece7a562001ea6cd71907dd67e3684f06e0c3793f1c4b186\", \"qualification-limits/guest.py\": \"f03af0128fdecc553f31e1065b5648d4c1403c85d673a9fd759b7767ea423b1a\", \"qualification-limits/kmsg-abi.py\": \"a9e505a79a986ae8ec252d96c3c4e59e0eee0506548c86d765fafe63758a8013\", \"qualification-limits/kmsg-boundary.py\": \"9a78424fb600619b7b5fef8a8dcd4cf43c632033cc2d4d4db8018aabb3e82b05\", \"qualification-limits/prepare.py\": \"03994327ff5e7ae54341e58e0ec22e922b6f8b43c9c95cb8c315c961aadd8bc4\", \"qualification-limits/signalfd-unload.py\": \"e78e9c5b46244f03bc822232bd7ed23420ece3a53e7d7b756e7222ea783bf21b\", \"qualification-limits/tput-interface.py\": \"83b2182f7ac59ef50b40aeedc9fbe71ecfc3b1dbec3ed529bb5d818d806d5335\", \"qualification-limits/unicode-corpus.py\": \"5c9f28db2556168f946fd4e78ecc91950087be3037c53e45e04853522c08f5cb\", \"qualification-limits/unicode-interface.py\": \"81fa6e8d1d1e9eb3aededfc1a1c335ce92f6ef0ce4d57cad35323141714c3c2b\", \"qualification-limits/vec-nosse2.py\": \"492563df7a23e2973dc230ce9fc7ea1a4ad86453af9fe8cb73c0f9010292df1c\", \"qualification-limits/wgetch-cases.py\": \"d0a7f5327c7b3f594fa3fed8f4de6a4108ea0a1f8b8f70c727892d28939467b1\", \"qualification-limits/wgetch-interface.py\": \"eaa9488f1da9f0ab2de4abc40265e7992ff4c6a40f48e456096508761bb6a93d\"}}\n"
+      },
+      "diagnostic_files": [
+        "qualification-report.json",
+        "qualification-transport.json"
+      ]
+    },
+    {
+      "id": "qualification-014-unload",
+      "loadable": "bashpoll",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Stock Bash dynamically loads and unloads the exact module; omitted unload hook is an adversarial control. Separate artifact coverage.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-limits-r1.py unload\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "timeout": 60,
+      "file_size_limit": 33554432,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-limits-r1.py": "183f5e70f5dfb3b442d76c01fd3d7306a711b48a00c8951398b91c02a06db9fb"
+      },
+      "files": {
+        "qualification-inputs.json": "{\"assets\": {\"GraphemeBreakTest.txt\": \"e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec\", \"bash-stock\": \"2b8c0984d97b563d0b3bf3f447c7ba7a27fab8dcb69a4050ed98f33a8b672357\", \"bashpoll-omitted-hook.so\": \"c9c68f47c86b33f20df95f2c6f751be71191a013360d532cb9f7845d5cd6f95c\", \"bashpoll.so\": \"e660431d859f88e41e24620994714e33a360362bbc7a777f979ab75f77c50fef\", \"dmesg-record-probe\": \"0377f9c084ba80425340a880b8143943c1a6e57078c34e9db7b9941d4da52099\", \"grapheme-real\": \"77c51169c8d92f61d3368d376bd4a87917cad62fbcc95e0034e424c65dca242d\", \"grapheme-truncating\": \"7880d623101c77dff84c4831ea5723042c5410cdcacda8b805b7e3222ffb6e3f\", \"wgetch-original\": \"81469b33b5425eaa3d8c50a40b639e351a5eeeacf083288c0876070b5d940a8d\", \"wgetch-runtime\": \"f3a666718d6befb2618db12bf5662762a2562e147a0710fcb00e4a3a5c96b3ec\"}, \"sources\": {\"qualification-limits/dmesg-hook.py\": \"6d76b29ee1ca900cc3ddcd0c80872cf58d877c94771a2c6583877f5dfd6fff1c\", \"qualification-limits/dmesg-interface.py\": \"8d31b7917bcccf8ac767f1563ec201f9e999fa04cbbdc4b962a5e710b95d8de5\", \"qualification-limits/dmesg-record-cases.py\": \"d2d4647f7097e6c1ece7a562001ea6cd71907dd67e3684f06e0c3793f1c4b186\", \"qualification-limits/guest.py\": \"f03af0128fdecc553f31e1065b5648d4c1403c85d673a9fd759b7767ea423b1a\", \"qualification-limits/kmsg-abi.py\": \"a9e505a79a986ae8ec252d96c3c4e59e0eee0506548c86d765fafe63758a8013\", \"qualification-limits/kmsg-boundary.py\": \"9a78424fb600619b7b5fef8a8dcd4cf43c632033cc2d4d4db8018aabb3e82b05\", \"qualification-limits/prepare.py\": \"03994327ff5e7ae54341e58e0ec22e922b6f8b43c9c95cb8c315c961aadd8bc4\", \"qualification-limits/signalfd-unload.py\": \"e78e9c5b46244f03bc822232bd7ed23420ece3a53e7d7b756e7222ea783bf21b\", \"qualification-limits/tput-interface.py\": \"83b2182f7ac59ef50b40aeedc9fbe71ecfc3b1dbec3ed529bb5d818d806d5335\", \"qualification-limits/unicode-corpus.py\": \"5c9f28db2556168f946fd4e78ecc91950087be3037c53e45e04853522c08f5cb\", \"qualification-limits/unicode-interface.py\": \"81fa6e8d1d1e9eb3aededfc1a1c335ce92f6ef0ce4d57cad35323141714c3c2b\", \"qualification-limits/vec-nosse2.py\": \"492563df7a23e2973dc230ce9fc7ea1a4ad86453af9fe8cb73c0f9010292df1c\", \"qualification-limits/wgetch-cases.py\": \"d0a7f5327c7b3f594fa3fed8f4de6a4108ea0a1f8b8f70c727892d28939467b1\", \"qualification-limits/wgetch-interface.py\": \"eaa9488f1da9f0ab2de4abc40265e7992ff4c6a40f48e456096508761bb6a93d\"}}\n"
+      },
+      "diagnostic_files": [
+        "qualification-report.json",
+        "qualification-transport.json"
+      ]
+    },
+    {
+      "id": "qualification-014-key-clock",
+      "loadable": "wgetch",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Compiled production key-reader seam versus original implementation with timed input. Separate native control coverage.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-limits-r1.py key-clock\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "timeout": 60,
+      "file_size_limit": 33554432,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-limits-r1.py": "183f5e70f5dfb3b442d76c01fd3d7306a711b48a00c8951398b91c02a06db9fb"
+      },
+      "files": {
+        "qualification-inputs.json": "{\"assets\": {\"GraphemeBreakTest.txt\": \"e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec\", \"bash-stock\": \"2b8c0984d97b563d0b3bf3f447c7ba7a27fab8dcb69a4050ed98f33a8b672357\", \"bashpoll-omitted-hook.so\": \"c9c68f47c86b33f20df95f2c6f751be71191a013360d532cb9f7845d5cd6f95c\", \"bashpoll.so\": \"e660431d859f88e41e24620994714e33a360362bbc7a777f979ab75f77c50fef\", \"dmesg-record-probe\": \"0377f9c084ba80425340a880b8143943c1a6e57078c34e9db7b9941d4da52099\", \"grapheme-real\": \"77c51169c8d92f61d3368d376bd4a87917cad62fbcc95e0034e424c65dca242d\", \"grapheme-truncating\": \"7880d623101c77dff84c4831ea5723042c5410cdcacda8b805b7e3222ffb6e3f\", \"wgetch-original\": \"81469b33b5425eaa3d8c50a40b639e351a5eeeacf083288c0876070b5d940a8d\", \"wgetch-runtime\": \"f3a666718d6befb2618db12bf5662762a2562e147a0710fcb00e4a3a5c96b3ec\"}, \"sources\": {\"qualification-limits/dmesg-hook.py\": \"6d76b29ee1ca900cc3ddcd0c80872cf58d877c94771a2c6583877f5dfd6fff1c\", \"qualification-limits/dmesg-interface.py\": \"8d31b7917bcccf8ac767f1563ec201f9e999fa04cbbdc4b962a5e710b95d8de5\", \"qualification-limits/dmesg-record-cases.py\": \"d2d4647f7097e6c1ece7a562001ea6cd71907dd67e3684f06e0c3793f1c4b186\", \"qualification-limits/guest.py\": \"f03af0128fdecc553f31e1065b5648d4c1403c85d673a9fd759b7767ea423b1a\", \"qualification-limits/kmsg-abi.py\": \"a9e505a79a986ae8ec252d96c3c4e59e0eee0506548c86d765fafe63758a8013\", \"qualification-limits/kmsg-boundary.py\": \"9a78424fb600619b7b5fef8a8dcd4cf43c632033cc2d4d4db8018aabb3e82b05\", \"qualification-limits/prepare.py\": \"03994327ff5e7ae54341e58e0ec22e922b6f8b43c9c95cb8c315c961aadd8bc4\", \"qualification-limits/signalfd-unload.py\": \"e78e9c5b46244f03bc822232bd7ed23420ece3a53e7d7b756e7222ea783bf21b\", \"qualification-limits/tput-interface.py\": \"83b2182f7ac59ef50b40aeedc9fbe71ecfc3b1dbec3ed529bb5d818d806d5335\", \"qualification-limits/unicode-corpus.py\": \"5c9f28db2556168f946fd4e78ecc91950087be3037c53e45e04853522c08f5cb\", \"qualification-limits/unicode-interface.py\": \"81fa6e8d1d1e9eb3aededfc1a1c335ce92f6ef0ce4d57cad35323141714c3c2b\", \"qualification-limits/vec-nosse2.py\": \"492563df7a23e2973dc230ce9fc7ea1a4ad86453af9fe8cb73c0f9010292df1c\", \"qualification-limits/wgetch-cases.py\": \"d0a7f5327c7b3f594fa3fed8f4de6a4108ea0a1f8b8f70c727892d28939467b1\", \"qualification-limits/wgetch-interface.py\": \"eaa9488f1da9f0ab2de4abc40265e7992ff4c6a40f48e456096508761bb6a93d\"}}\n"
+      },
+      "diagnostic_files": [
+        "qualification-report.json",
+        "qualification-transport.json"
+      ]
+    },
+    {
+      "id": "qualification-014-decoder",
+      "loadable": "dmesg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Native decoder probe on explicit record inputs. Separate native control coverage.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-limits-r1.py decoder\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "timeout": 60,
+      "file_size_limit": 33554432,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-limits-r1.py": "183f5e70f5dfb3b442d76c01fd3d7306a711b48a00c8951398b91c02a06db9fb"
+      },
+      "files": {
+        "qualification-inputs.json": "{\"assets\": {\"GraphemeBreakTest.txt\": \"e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec\", \"bash-stock\": \"2b8c0984d97b563d0b3bf3f447c7ba7a27fab8dcb69a4050ed98f33a8b672357\", \"bashpoll-omitted-hook.so\": \"c9c68f47c86b33f20df95f2c6f751be71191a013360d532cb9f7845d5cd6f95c\", \"bashpoll.so\": \"e660431d859f88e41e24620994714e33a360362bbc7a777f979ab75f77c50fef\", \"dmesg-record-probe\": \"0377f9c084ba80425340a880b8143943c1a6e57078c34e9db7b9941d4da52099\", \"grapheme-real\": \"77c51169c8d92f61d3368d376bd4a87917cad62fbcc95e0034e424c65dca242d\", \"grapheme-truncating\": \"7880d623101c77dff84c4831ea5723042c5410cdcacda8b805b7e3222ffb6e3f\", \"wgetch-original\": \"81469b33b5425eaa3d8c50a40b639e351a5eeeacf083288c0876070b5d940a8d\", \"wgetch-runtime\": \"f3a666718d6befb2618db12bf5662762a2562e147a0710fcb00e4a3a5c96b3ec\"}, \"sources\": {\"qualification-limits/dmesg-hook.py\": \"6d76b29ee1ca900cc3ddcd0c80872cf58d877c94771a2c6583877f5dfd6fff1c\", \"qualification-limits/dmesg-interface.py\": \"8d31b7917bcccf8ac767f1563ec201f9e999fa04cbbdc4b962a5e710b95d8de5\", \"qualification-limits/dmesg-record-cases.py\": \"d2d4647f7097e6c1ece7a562001ea6cd71907dd67e3684f06e0c3793f1c4b186\", \"qualification-limits/guest.py\": \"f03af0128fdecc553f31e1065b5648d4c1403c85d673a9fd759b7767ea423b1a\", \"qualification-limits/kmsg-abi.py\": \"a9e505a79a986ae8ec252d96c3c4e59e0eee0506548c86d765fafe63758a8013\", \"qualification-limits/kmsg-boundary.py\": \"9a78424fb600619b7b5fef8a8dcd4cf43c632033cc2d4d4db8018aabb3e82b05\", \"qualification-limits/prepare.py\": \"03994327ff5e7ae54341e58e0ec22e922b6f8b43c9c95cb8c315c961aadd8bc4\", \"qualification-limits/signalfd-unload.py\": \"e78e9c5b46244f03bc822232bd7ed23420ece3a53e7d7b756e7222ea783bf21b\", \"qualification-limits/tput-interface.py\": \"83b2182f7ac59ef50b40aeedc9fbe71ecfc3b1dbec3ed529bb5d818d806d5335\", \"qualification-limits/unicode-corpus.py\": \"5c9f28db2556168f946fd4e78ecc91950087be3037c53e45e04853522c08f5cb\", \"qualification-limits/unicode-interface.py\": \"81fa6e8d1d1e9eb3aededfc1a1c335ce92f6ef0ce4d57cad35323141714c3c2b\", \"qualification-limits/vec-nosse2.py\": \"492563df7a23e2973dc230ce9fc7ea1a4ad86453af9fe8cb73c0f9010292df1c\", \"qualification-limits/wgetch-cases.py\": \"d0a7f5327c7b3f594fa3fed8f4de6a4108ea0a1f8b8f70c727892d28939467b1\", \"qualification-limits/wgetch-interface.py\": \"eaa9488f1da9f0ab2de4abc40265e7992ff4c6a40f48e456096508761bb6a93d\"}}\n"
+      },
+      "diagnostic_files": [
+        "qualification-report.json",
+        "qualification-transport.json"
+      ]
+    },
+    {
+      "id": "qualification-014-grapheme-control",
+      "loadable": "utf8",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Pinned Unicode corpus using native production implementation and deliberately truncating negative control. Separate artifact coverage.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-limits-r1.py grapheme-control\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "timeout": 60,
+      "file_size_limit": 33554432,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-limits-r1.py": "183f5e70f5dfb3b442d76c01fd3d7306a711b48a00c8951398b91c02a06db9fb"
+      },
+      "files": {
+        "qualification-inputs.json": "{\"assets\": {\"GraphemeBreakTest.txt\": \"e2d134d2c52919bace503ebb6a551c1855fe1a1faec18478c78fff254a1793ec\", \"bash-stock\": \"2b8c0984d97b563d0b3bf3f447c7ba7a27fab8dcb69a4050ed98f33a8b672357\", \"bashpoll-omitted-hook.so\": \"c9c68f47c86b33f20df95f2c6f751be71191a013360d532cb9f7845d5cd6f95c\", \"bashpoll.so\": \"e660431d859f88e41e24620994714e33a360362bbc7a777f979ab75f77c50fef\", \"dmesg-record-probe\": \"0377f9c084ba80425340a880b8143943c1a6e57078c34e9db7b9941d4da52099\", \"grapheme-real\": \"77c51169c8d92f61d3368d376bd4a87917cad62fbcc95e0034e424c65dca242d\", \"grapheme-truncating\": \"7880d623101c77dff84c4831ea5723042c5410cdcacda8b805b7e3222ffb6e3f\", \"wgetch-original\": \"81469b33b5425eaa3d8c50a40b639e351a5eeeacf083288c0876070b5d940a8d\", \"wgetch-runtime\": \"f3a666718d6befb2618db12bf5662762a2562e147a0710fcb00e4a3a5c96b3ec\"}, \"sources\": {\"qualification-limits/dmesg-hook.py\": \"6d76b29ee1ca900cc3ddcd0c80872cf58d877c94771a2c6583877f5dfd6fff1c\", \"qualification-limits/dmesg-interface.py\": \"8d31b7917bcccf8ac767f1563ec201f9e999fa04cbbdc4b962a5e710b95d8de5\", \"qualification-limits/dmesg-record-cases.py\": \"d2d4647f7097e6c1ece7a562001ea6cd71907dd67e3684f06e0c3793f1c4b186\", \"qualification-limits/guest.py\": \"f03af0128fdecc553f31e1065b5648d4c1403c85d673a9fd759b7767ea423b1a\", \"qualification-limits/kmsg-abi.py\": \"a9e505a79a986ae8ec252d96c3c4e59e0eee0506548c86d765fafe63758a8013\", \"qualification-limits/kmsg-boundary.py\": \"9a78424fb600619b7b5fef8a8dcd4cf43c632033cc2d4d4db8018aabb3e82b05\", \"qualification-limits/prepare.py\": \"03994327ff5e7ae54341e58e0ec22e922b6f8b43c9c95cb8c315c961aadd8bc4\", \"qualification-limits/signalfd-unload.py\": \"e78e9c5b46244f03bc822232bd7ed23420ece3a53e7d7b756e7222ea783bf21b\", \"qualification-limits/tput-interface.py\": \"83b2182f7ac59ef50b40aeedc9fbe71ecfc3b1dbec3ed529bb5d818d806d5335\", \"qualification-limits/unicode-corpus.py\": \"5c9f28db2556168f946fd4e78ecc91950087be3037c53e45e04853522c08f5cb\", \"qualification-limits/unicode-interface.py\": \"81fa6e8d1d1e9eb3aededfc1a1c335ce92f6ef0ce4d57cad35323141714c3c2b\", \"qualification-limits/vec-nosse2.py\": \"492563df7a23e2973dc230ce9fc7ea1a4ad86453af9fe8cb73c0f9010292df1c\", \"qualification-limits/wgetch-cases.py\": \"d0a7f5327c7b3f594fa3fed8f4de6a4108ea0a1f8b8f70c727892d28939467b1\", \"qualification-limits/wgetch-interface.py\": \"eaa9488f1da9f0ab2de4abc40265e7992ff4c6a40f48e456096508761bb6a93d\"}}\n"
+      },
+      "diagnostic_files": [
+        "qualification-report.json",
+        "qualification-transport.json"
+      ]
+    }
+  ]
+}

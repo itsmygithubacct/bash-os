@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "payload-image-real-install-r1",
+      "loadable": "payload",
+      "kind": "contract",
+      "group": "shell",
+      "driver": "plain",
+      "covers": [
+        "payload/image-helper-integration"
+      ],
+      "requires": [
+        "sha256sum",
+        "find",
+        "sort",
+        "cmp",
+        "grep"
+      ],
+      "setup_script": "set -e\nfixture=/opt/bashos-parity/payload-image-tiny\n[ -f /bash-os/bl-pkg.sh ] && [ -r /bash-os/bl-pkg.sh ] || { echo 'CONTROL-FAILED image helper unavailable' >&2; exit 98; }\n[ -f \"$fixture/repo/INDEX\" ] && [ -f \"$fixture/SHA256SUMS\" ] || { echo 'CONTROL-FAILED image-owned fixture unavailable' >&2; exit 98; }\n(cd \"$fixture\" && /usr/bin/sha256sum -c SHA256SUMS) >/dev/null || { echo 'CONTROL-FAILED fixture digest' >&2; exit 98; }\n/usr/bin/cp -a \"$fixture/repo\" repo\nmkdir -p root/usr/share/payload-image-tiny root/var/lib/bl-pkg/installed root/usr/share/unrelated\nprintf 'keep\\n' > root/usr/share/unrelated/keep\nprintf 'payload image fixture\\n' > \"$HOME/payload-expected\"\n",
+      "setup_timeout": 60,
+      "timeout": 60,
+      "candidate_script": "unset PAYLOAD_INSTALLER\nexport PAYLOAD_REPO=\"$PWD/repo\" PAYLOAD_ROOT=\"$PWD/root\"\npayload install tiny > \"$HOME/payload-install.out\" 2> \"$HOME/payload-install.err\"\ninstall_rc=$?\nprintf 'install=%s\\n' \"$install_rc\"\nif [ -f root/usr/share/payload-image-tiny/message ] && [ ! -L root/usr/share/payload-image-tiny/message ] && /usr/bin/cmp -s \"$HOME/payload-expected\" root/usr/share/payload-image-tiny/message; then echo file=exact; else echo file=wrong; fi\nif [ -f root/var/lib/bl-pkg/installed/tiny ] && /usr/bin/grep -Eq '^txn=[^[:space:]]+$' root/var/lib/bl-pkg/installed/tiny; then echo state=txn; else echo state=missing; fi\n",
+      "stdout": "install=0\nfile=exact\nstate=txn\n",
+      "expected_status": 0,
+      "observation_error_status": 98,
+      "oracle": "Image-owner-provided actual bl-pkg helper and locally generated real tiny package; fixed expected installed bytes and a before/after independent root tree and content snapshot.",
+      "comparison": "Real default helper installs tiny with txn state and exact payload bytes.",
+      "diagnostic_files": [
+        "payload-install.out",
+        "payload-install.err"
+      ]
+    },
+    {
+      "id": "payload-image-real-remove-r1",
+      "loadable": "payload",
+      "kind": "contract",
+      "group": "shell",
+      "driver": "plain",
+      "covers": [
+        "payload/image-helper-integration"
+      ],
+      "requires": [
+        "sha256sum",
+        "find",
+        "sort",
+        "cmp",
+        "grep"
+      ],
+      "setup_script": "set -e\nfixture=/opt/bashos-parity/payload-image-tiny\n[ -f /bash-os/bl-pkg.sh ] && [ -r /bash-os/bl-pkg.sh ] || { echo 'CONTROL-FAILED image helper unavailable' >&2; exit 98; }\n[ -f \"$fixture/repo/INDEX\" ] && [ -f \"$fixture/SHA256SUMS\" ] || { echo 'CONTROL-FAILED image-owned fixture unavailable' >&2; exit 98; }\n(cd \"$fixture\" && /usr/bin/sha256sum -c SHA256SUMS) >/dev/null || { echo 'CONTROL-FAILED fixture digest' >&2; exit 98; }\n/usr/bin/cp -a \"$fixture/repo\" repo\nmkdir -p root/usr/share/payload-image-tiny root/var/lib/bl-pkg/installed root/usr/share/unrelated\nprintf 'keep\\n' > root/usr/share/unrelated/keep\nprintf 'payload image fixture\\n' > \"$HOME/payload-expected\"\n",
+      "setup_timeout": 60,
+      "timeout": 60,
+      "candidate_script": "snapshot() { ( cd root || exit; /usr/bin/find . -mindepth 1 -printf '%P %y %l\\n' | LC_ALL=C /usr/bin/sort; /usr/bin/find . -type f -exec /usr/bin/sha256sum {} + | LC_ALL=C /usr/bin/sort ); }\nsnapshot > \"$HOME/payload-before\"\nunset PAYLOAD_INSTALLER\nexport PAYLOAD_REPO=\"$PWD/repo\" PAYLOAD_ROOT=\"$PWD/root\"\npayload install tiny > \"$HOME/payload-install.out\" 2> \"$HOME/payload-install.err\"\ninstall_rc=$?\nprintf 'install=%s\\n' \"$install_rc\"\nif [ -f root/usr/share/payload-image-tiny/message ] && [ ! -L root/usr/share/payload-image-tiny/message ] && /usr/bin/cmp -s \"$HOME/payload-expected\" root/usr/share/payload-image-tiny/message; then echo file=exact; else echo file=wrong; fi\nif [ -f root/var/lib/bl-pkg/installed/tiny ] && /usr/bin/grep -Eq '^txn=[^[:space:]]+$' root/var/lib/bl-pkg/installed/tiny; then echo state=txn; else echo state=missing; fi\nif [ \"$install_rc\" -ne 0 ]; then echo 'CONTROL-FAILED install did not complete' >&2; exit 98; fi\npayload remove tiny > \"$HOME/payload-remove.out\" 2> \"$HOME/payload-remove.err\"\nprintf 'remove=%s\\n' \"$?\"\nif /usr/bin/grep -Fxq 'payload: removed tiny' \"$HOME/payload-remove.out\"; then echo message=present; else echo message=missing; fi\nsnapshot > \"$HOME/payload-after\"\nif /usr/bin/cmp -s \"$HOME/payload-before\" \"$HOME/payload-after\"; then echo root=restored; else echo root=changed; /usr/bin/diff -u \"$HOME/payload-before\" \"$HOME/payload-after\" >&2 || :; fi\n",
+      "stdout": "install=0\nfile=exact\nstate=txn\nremove=0\nmessage=present\nroot=restored\n",
+      "expected_status": 0,
+      "observation_error_status": 98,
+      "oracle": "Image-owner-provided actual bl-pkg helper and locally generated real tiny package; fixed expected installed bytes and a before/after independent root tree and content snapshot.",
+      "comparison": "Real default helper installs tiny with txn state and exact payload bytes then rollback restores the private root including unrelated data.",
+      "diagnostic_files": [
+        "payload-install.out",
+        "payload-install.err",
+        "payload-remove.out",
+        "payload-remove.err",
+        "payload-before",
+        "payload-after"
+      ]
+    }
+  ]
+}

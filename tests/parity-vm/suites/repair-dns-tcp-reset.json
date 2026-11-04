@@ -1,0 +1,38 @@
+{
+  "cases": [
+    {
+      "comparison": "Require observed TCP fallback, failed DNS query, unchanged trap, and continued shell execution.",
+      "covers": [
+        "dns/dns-query-udp-tcp"
+      ],
+      "diagnostic_files": [
+        "peer.log",
+        "peer.err",
+        "query.out",
+        "query.err",
+        "before.trap",
+        "after.trap"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/dns-tcp-reset-peer.py": "de73b7f609d0273f736105e1489e8dfad8e11a5b6203dd59c4a301859cb0ad93"
+      },
+      "id": "repair-dns-tcp-reset-signal-state-bounded-r15",
+      "kind": "contract",
+      "loadable": "dns",
+      "oracle": "Independent UDP/TCP peer returns a truncated response, records TCP accept, then closes with an immediate reset; shell trap is inspected before and after.",
+      "purpose": "A TCP reset during fallback must not kill the shell or change its PIPE trap.",
+      "requires": [
+        "python3"
+      ],
+      "script": "H=/opt/bashos-parity/harness/helpers/dns-tcp-reset-peer.py\n/usr/bin/python3 \"$H\" peer.log 2>peer.err & peer=$!\ntrap 'kill \"$peer\" 2>/dev/null; wait \"$peer\" 2>/dev/null' EXIT\nfor ((i=0;i<100;i++)); do [ -s peer.log ] && break; sleep 0.05; done\n[ -s peer.log ] || exit 98\nprintf 'nameserver 127.0.0.2\\noptions attempts:1 timeout:1\\n' > resolv.conf\nexport BASHDNS_SERVER_PORT=5349 BASHDNS_RESOLV_CONF=\"$PWD/resolv.conf\"\ntrap 'echo unexpected-sigpipe' PIPE\ntrap -p PIPE > before.trap\nif dns query example.test A -s 127.0.0.2 -t 1000 > query.out 2> query.err; then echo reset=wrongly-accepted; exit 1; else echo reset=rejected; fi\ntrap -p PIPE > after.trap\nif /usr/bin/cmp -s before.trap after.trap; then echo signal-disposition=preserved; else echo signal-disposition=changed; exit 1; fi\nwait \"$peer\" || exit 1\nif [[ $(<peer.log) == *'udp-query'*'tcp-accepted'* ]]; then echo tcp-reset=observed; else echo tcp-reset=missing; exit 1; fi\necho shell=alive\n",
+      "setup_script": ":\n",
+      "stderr": "",
+      "stdout": "reset=rejected\nsignal-disposition=preserved\ntcp-reset=observed\nshell=alive\n",
+      "timeout": 30
+    }
+  ],
+  "schema": 1
+}

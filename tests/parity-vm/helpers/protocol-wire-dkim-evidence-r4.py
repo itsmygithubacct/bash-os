@@ -169,16 +169,18 @@ def main(shell, scenario):
         message=ED_SIGNATURE+RFC_MESSAGE
         inputs={'original':message,
                 'body':message.replace(b'We lost the game.',b'We won the game.'),
-                'header':message.replace(b'Subject: Is dinner ready?',b'Subject: Is breakfast ready?')}
+                'header':message.replace(b'Subject: Is dinner ready?',b'Subject: Is breakfast ready?'),
+                'duplicate':message.replace(b'From: Joe SixPack', b'From: Added <added@example.test>\r\nFrom: Joe SixPack')}
         trace['inputs']={name:{'message_hex':b.hex(),'sha256':hashlib.sha256(b).hexdigest()}
                          for name,b in inputs.items()}
-        check(all(inputs[n]!=message for n in ('body','header')), 'mutation did not change bytes')
+        check(all(inputs[n]!=message for n in ('body','header','duplicate')), 'mutation did not change bytes')
         for name,b in inputs.items():
             info={}; trace['inputs'][name]['independent']=info
             trace['inputs'][name]['independent_valid']=verify(b,'ed25519',info)
         check(trace['inputs']['original']['independent_valid'], 'independent published positive failed')
         check(not trace['inputs']['body']['independent_valid'], 'independent body negative failed')
         check(not trace['inputs']['header']['independent_valid'], 'independent header negative failed')
+        check(not trace['inputs']['duplicate']['independent_valid'], 'independent duplicate header negative failed')
         if scenario=='published':
             option='--pubkey-b64 '+ED_PUBLIC+' --alg ed25519'
             # Record every invocation before judging any candidate result.
@@ -192,6 +194,7 @@ def main(shell, scenario):
             check(trace['inputs']['original']['candidate']['status']==0, 'published valid DKIM vector rejected')
             check(trace['inputs']['body']['candidate']['status']==1, 'published body tamper not rejected')
             check(trace['inputs']['header']['candidate']['status']==1, 'published signed header tamper not rejected')
+            check(trace['inputs']['duplicate']['candidate']['status']==1, 'added oversigned header not rejected')
         elif scenario!='control': raise ValueError('unknown scenario')
         print('dkim-'+scenario+'=ok')
     except Exception as exc:

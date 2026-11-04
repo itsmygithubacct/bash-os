@@ -37,7 +37,7 @@ RFC_VECTORS = DATA / "rfc-vectors.json"
 WORKDIR = Path("/tmp/parity-reference")
 
 PARITY_UID = 2000
-TRUSTED_SHELLS = ("/opt/bash-5.3.15/bin/bash", "/bin/bash")   # argv probe only; never the oracle
+TRUSTED_SHELLS = ("/opt/bash-5.3.20/bin/bash", "/bin/bash")   # argv probe only; never the oracle
 BATCH_TUPLES = 4096
 BATCH_ARG_BYTES = 768 * 1024
 BATCH_TIMEOUT = 120

@@ -1,15 +1,56 @@
 --- builtins/tee.c
 +++ builtins/tee.c
-@@ -87,5 +87,5 @@
- 	default:
+@@ -43,2 +43,3 @@
+ #include "common.h"
++#include "../unwind_prot.h"
+ 
+@@ -62,2 +63,8 @@
+ 
++static void
++tee_restore_sigint (void *saved)
++{
++  sigaction (SIGINT, (struct sigaction *)saved, (struct sigaction *)0);
++}
++
+ int
+@@ -70,3 +77,3 @@
+ 
+-  char *t;
++  struct sigaction saved_int, ignore_int;
+ 
+@@ -88,3 +95,3 @@
  	  builtin_usage ();
 -	  return (EX_USAGE);
 +	  return (EXECUTION_FAILURE);
  	}
-     }
-@@ -125,23 +125,44 @@
+@@ -93,3 +100,23 @@
  
-   while ((nr = read(0, buf, TEE_BUFSIZE)) > 0)
+-  if (nointr == 0)
++  begin_unwind_frame ("tee signals");
++  unwind_protect_var (interrupt_immediately);
++  if (nointr)
++    {
++      if (sigaction (SIGINT, (struct sigaction *)0, &saved_int) < 0)
++        {
++          builtin_error ("sigaction: %s", strerror (errno));
++          run_unwind_frame ("tee signals");
++          return (EXECUTION_FAILURE);
++        }
++      add_unwind_protect (tee_restore_sigint, &saved_int);
++      ignore_int = saved_int;
++      ignore_int.sa_handler = SIG_IGN;
++      if (sigaction (SIGINT, &ignore_int, (struct sigaction *)0) < 0)
++        {
++          builtin_error ("sigaction: %s", strerror (errno));
++          run_unwind_frame ("tee signals");
++          return (EXECUTION_FAILURE);
++        }
++    }
++  else
+     interrupt_immediately++;
+@@ -125,22 +152,52 @@
+ 
+-  while ((nr = read(0, buf, TEE_BUFSIZE)) > 0)
 -    for (fl = tee_flist; fl; fl = fl->next)
 -      {
 -	n = nr;
@@ -27,7 +68,17 @@
 -	  }
 -	while (n -= nw);
 -      }
++  while (1)
 +    {
++      nr = read (0, buf, TEE_BUFSIZE);
++      if (nr < 0 && errno == EINTR)
++        {
++          QUIT;
++          continue;
++        }
++      if (nr <= 0)
++        break;
++
 +      int live = 0;
 +      for (fl = tee_flist; fl; fl = fl->next)
 +	{
@@ -69,11 +120,15 @@
 +      rval = EXECUTION_FAILURE;
 +    }
  
-   /* Deallocate resources -- this is a builtin command. */
-@@ -150,5 +171,5 @@
-     {
+@@ -151,3 +208,3 @@
        fl = tee_flist;
 -      if (close (fl->fd) < 0)
 +      if (fl->fd >= 0 && close (fl->fd) < 0)
  	{
- 	  builtin_error ("%s: close_error: %s", fl->fname, strerror (errno));
+@@ -160,3 +217,5 @@
+ 
+-  QUIT;  
++  free (buf);
++  run_unwind_frame ("tee signals");
++  QUIT;
+   return (rval);

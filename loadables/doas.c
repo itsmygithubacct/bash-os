@@ -17,6 +17,7 @@
 #endif
 
 #include <errno.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
@@ -35,6 +36,7 @@
 #include "bashcred_privdrop.h"
 #include "loadables.h"
 #include "child-wait.h"
+#include "privcmd-v2-client.h"
 
 extern char **export_env;
 extern void maybe_make_export_env (void);
@@ -63,6 +65,7 @@ extern int bashos_auth_policy_list (FILE *, const char *, int, FILE *, unsigned 
 
 typedef struct {
   int is_sudo;
+  int authority_v2, authority_v2_qualification, authority_v2_legacy;
   int non_interactive;
   int shell_mode;
   int login_mode;
@@ -2282,6 +2285,311 @@ bda_refuse (const char *prog, const char *flag)
   return EX_USAGE;
 }
 
+/* Explicit new protocol. These flags never change the legacy ABI route and
+ * never fall back to an external program or the historical root shortcut. */
+static int
+bda_versioned_option (bda_opts *o, const char *option)
+{
+  if (strcmp (option, "--authority-v2") == 0)
+    o->authority_v2 = 1;
+  else if (strcmp (option, "--authority-v2-qualification") == 0)
+    o->authority_v2 = o->authority_v2_qualification = 1;
+  else if (strcmp (option, "--authority-v2-legacy-hex") == 0)
+    o->authority_v2 = o->authority_v2_legacy = 1;
+  else return 0;
+  return 1;
+}
+
+static int
+bda_edit_directory_cleanup (int directory)
+{
+  int copied = fcntl (directory, F_DUPFD_CLOEXEC, 3), error = 0;
+  unsigned int count = 0;
+  DIR *stream;
+  struct dirent *entry;
+  if (copied < 0) return -1;
+  stream = fdopendir (copied);
+  if (!stream) { int saved = errno; close (copied); errno = saved; return -1; }
+  for (;;)
+    {
+      errno = 0; entry = readdir (stream);
+      if (!entry) { if (errno && !error) error = errno; break; }
+      if (!strcmp (entry->d_name, ".") || !strcmp (entry->d_name, "..")) continue;
+      if (++count > 256) { error = E2BIG; break; }
+      /* Remove only entries inside the pinned, caller-owned temp directory.
+       * Symlinks are unlinked, never followed; nested nonempty dirs fail. */
+      if (unlinkat (directory, entry->d_name, 0) &&
+          !((errno == EISDIR || errno == EPERM) && !unlinkat (directory, entry->d_name, AT_REMOVEDIR)))
+        if (!error) error = errno;
+    }
+  closedir (stream);
+  errno = error;
+  return error ? -1 : 0;
+}
+
+static int
+bda_versioned_edit (int authority, const bda_opts *o,
+                    const struct bashos_auth_privcmd *original,
+                    struct bashos_privcmd_v2_prepare *prepared)
+{
+  char directory[] = "/tmp/bashos-edit-v2.XXXXXX";
+  char names[BASHOS_PRIVCMD_V2_EDIT_MAX_TARGETS][16];
+  char paths[BASHOS_PRIVCMD_V2_EDIT_MAX_TARGETS][BASHOS_AUTH_PATH_BYTES];
+  char *arguments[BASHOS_PRIVCMD_V2_EDIT_MAX_TARGETS];
+  int files[BASHOS_PRIVCMD_V2_EDIT_MAX_TARGETS], dirfd = -1, created = 0;
+  struct bashos_privcmd_v2_edit reply = {0};
+  unsigned char sealed_digest[32] = {0};
+  struct stat anchor, named, made;
+  unsigned int count = original->argc, i;
+  int rc = EXECUTION_FAILURE, editor;
+  for (i = 0; i < BASHOS_PRIVCMD_V2_EDIT_MAX_TARGETS; i++) { files[i] = -1; names[i][0] = 0; }
+  if (!count || count > BASHOS_PRIVCMD_V2_EDIT_MAX_TARGETS) { errno = E2BIG; goto failure; }
+  if (!mkdtemp (directory)) goto failure;
+  created = 1;
+  if (lstat (directory, &made) || !S_ISDIR (made.st_mode) || made.st_uid != getuid ())
+    { created = 0; errno = EPERM; goto failure; }
+  dirfd = open (directory, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+  if (dirfd < 0 || fstat (dirfd, &anchor) || anchor.st_uid != getuid () ||
+      !S_ISDIR (anchor.st_mode) || (anchor.st_mode & 0777) != 0700) goto failure;
+  for (i = 0; i < count; i++)
+    {
+      snprintf (names[i], sizeof names[i], "copy-%02u", i);
+      snprintf (paths[i], sizeof paths[i], "%s/%s", directory, names[i]);
+      arguments[i] = paths[i];
+      files[i] = openat (dirfd, names[i], O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC | O_RDWR, 0600);
+      if (files[i] < 0 || fchmod (files[i], 0600)) goto failure;
+    }
+  if (bpv2_edit (authority, 0, prepared, files, count, &reply)) goto failure;
+  if (reply.result != BASHOS_PRIVCMD_V2_EDIT_OPENED)
+    { errno = reply.error; goto failure; }
+  for (i = 0; i < count; i++) { close (files[i]); files[i] = -1; }
+  editor = bda_spawn_editor (arguments, (int) count);
+  if (editor != 0)
+    {
+      builtin_error ("sudoedit: editor exited %d; originals unchanged", editor);
+      goto cleanup;
+    }
+  /* Pin the edited byte vector in the kernel before obtaining new proof.
+   * Retain these same read-only open-file objects through COMMIT. */
+  for (i = 0; i < count; i++)
+    {
+      files[i] = openat (dirfd, names[i], O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+      if (files[i] < 0) goto failure;
+    }
+  if (bpv2_edit (authority, 2, prepared, files, count, &reply)) goto failure;
+  if (reply.result != BASHOS_PRIVCMD_V2_EDIT_SEALED) { errno = reply.error; goto failure; }
+  memcpy (sealed_digest, reply.transaction_digest, sizeof sealed_digest);
+  /* Recreate the same owned input after the first response zeroed its user
+   * pointers. The editor never receives the authority fd. Its completion is
+   * not authorization: a new kernel grant must be obtained for copyback. */
+  memset (prepared, 0, sizeof *prepared);
+  prepared->size = sizeof *prepared; prepared->version = BASHOS_PRIVCMD_V2_VERSION;
+  prepared->request = *original;
+  if (ioctl (authority, BASHOS_PRIVCMD_V2_PREPARE, prepared)) goto failure;
+  if (prepared->size != sizeof *prepared || prepared->version != BASHOS_PRIVCMD_V2_VERSION ||
+      prepared->reserved[0] || prepared->reserved[1] || !prepared->audit_sequence ||
+      memcmp (prepared->request.request_digest, sealed_digest, sizeof sealed_digest))
+    { errno = EPROTO; goto failure; }
+  if (prepared->decision == BASHOS_PRIVCMD_V2_AUTH_REQUIRED)
+    {
+      if (o->non_interactive) { errno = EACCES; goto failure; }
+      if (bpv2_authenticate (authority, prepared, o->authority_v2_legacy)) goto failure;
+    }
+  if (prepared->decision != BASHOS_PRIVCMD_V2_READY) { errno = EACCES; goto failure; }
+  if (bpv2_edit (authority, 1, prepared, files, count, &reply))
+    {
+      builtin_error ("sudoedit: copyback response unavailable: %s; committed count unknown", strerror (errno));
+      goto cleanup;
+    }
+  if (reply.result != BASHOS_PRIVCMD_V2_EDIT_COMMITTED)
+    {
+      builtin_error ("sudoedit: copyback committed=%u/%u, failed target=%u: %s",
+                     reply.committed_count, count, reply.failed_index, strerror ((int) reply.error));
+      if (reply.cleanup_error)
+        builtin_error ("sudoedit: staging cleanup: %s", strerror ((int) reply.cleanup_error));
+      goto cleanup;
+    }
+  rc = EXECUTION_SUCCESS;
+  goto cleanup;
+failure:
+  builtin_error ("sudoedit: %s", strerror (errno));
+cleanup:
+  (void) ioctl (authority, BASHOS_PRIVCMD_V2_CANCEL);
+  for (i = 0; i < BASHOS_PRIVCMD_V2_EDIT_MAX_TARGETS; i++)
+    {
+      if (files[i] >= 0) close (files[i]);
+      if (dirfd >= 0 && names[i][0]) (void) unlinkat (dirfd, names[i], 0);
+    }
+  if (dirfd >= 0 && (fchmod (dirfd, 0700) || bda_edit_directory_cleanup (dirfd)))
+    { builtin_error ("sudoedit: temporary directory cleanup: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
+  if (created && !lstat (directory, &named) && S_ISDIR (named.st_mode) &&
+      named.st_dev == made.st_dev && named.st_ino == made.st_ino && rmdir (directory))
+    { builtin_error ("sudoedit: temporary directory cleanup: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
+  if (dirfd >= 0) close (dirfd);
+  bpv2_wipe (&reply, sizeof reply);
+  bpv2_wipe (sealed_digest, sizeof sealed_digest);
+  return rc;
+}
+
+static int
+bda_versioned_edit_path (const char *cwd, const char *word,
+                         char result[BASHOS_AUTH_PATH_BYTES])
+{
+  size_t prefix, length;
+  const char *part;
+  if (word[0] == '/')
+    {
+      length = strlen (word);
+      if (length >= BASHOS_AUTH_PATH_BYTES) { errno = ENAMETOOLONG; return -1; }
+      memcpy (result, word, length + 1);
+      return 0;
+    }
+  /* Anchor relative operands to the same cwd sent to the authority. Do not
+   * realpath an edit operand: resolving a symlink here would hide it from the
+   * kernel's no-symlink check. Leading ./ is only a spelling convenience;
+   * parent traversal remains outside this bounded interface. */
+  while (word[0] == '.' && word[1] == '/') word += 2;
+  if (!*word) { errno = EINVAL; return -1; }
+  for (part = word; *part; )
+    {
+      size_t size = strcspn (part, "/");
+      if (!size || (size == 1 && part[0] == '.') ||
+          (size == 2 && part[0] == '.' && part[1] == '.'))
+        { errno = EINVAL; return -1; }
+      part += size;
+      if (*part && !*++part) { errno = EINVAL; return -1; }
+    }
+  prefix = strlen (cwd); length = strlen (word);
+  if (!prefix || cwd[0] != '/' || prefix + (prefix > 1) + length >= BASHOS_AUTH_PATH_BYTES)
+    { errno = ENAMETOOLONG; return -1; }
+  memcpy (result, cwd, prefix);
+  if (prefix > 1) result[prefix++] = '/';
+  memcpy (result + prefix, word, length + 1);
+  return 0;
+}
+
+static int
+bda_run_versioned (const bda_opts *o)
+{
+  struct bashos_privcmd_v2_prepare prepared = {0};
+  struct bashos_privcmd_v2_run result = {0};
+  struct bashos_auth_privcmd original = {0};
+  struct bashos_auth_privcmd *r = &prepared.request;
+  bc_user_info target, caller;
+  char caller_number[24], resolved[PATH_MAX], canonical[PATH_MAX];
+  char *argv_blob = NULL, *env_blob = NULL, **command = NULL;
+  char (*edit_paths)[BASHOS_AUTH_PATH_BYTES] = NULL;
+  unsigned int argv_bytes = 0, env_bytes = 0, envc = 0;
+  gid_t selected_gid;
+  int fd = -1, rc = EXECUTION_FAILURE, saved = 0;
+  if (o->shell_mode || o->login_mode || o->list_mode)
+    {
+      builtin_error ("authority-v2: this operation is not yet qualified");
+      return EXECUTION_FAILURE;
+    }
+  if (o->edit_mode)
+    {
+      if (o->cmdc < 1 || o->cmdc > (int) BASHOS_PRIVCMD_V2_EDIT_MAX_TARGETS || o->envc)
+        { builtin_error ("sudoedit: 1..16 file arguments required"); return EX_USAGE; }
+      if (!getcwd (r->cwd, sizeof r->cwd))
+        { builtin_error ("sudoedit: cwd: %s", strerror (errno)); return EXECUTION_FAILURE; }
+      edit_paths = calloc ((size_t) o->cmdc, sizeof *edit_paths);
+      if (!edit_paths) return EXECUTION_FAILURE;
+      for (int i = 0; i < o->cmdc; i++)
+        if (bda_versioned_edit_path (r->cwd, o->cmd[i], edit_paths[i]))
+          {
+            builtin_error ("sudoedit: bounded file path without parent traversal required");
+            free (edit_paths); return EX_USAGE;
+          }
+    }
+  fd = bpv2_open (o->authority_v2_qualification);
+  if (fd < 0) { builtin_error ("authority-v2: open: %s", strerror (errno)); goto done; }
+  if (o->reset || o->reset_first)
+    {
+      if (bpv2_reset (fd, o->reset_all)) goto failed;
+      if (o->reset) { rc = EXECUTION_SUCCESS; goto done; }
+    }
+  snprintf (caller_number, sizeof caller_number, "%lu", (unsigned long) getuid ());
+  if (bda_lookup_user (caller_number, &caller) || bda_lookup_user (o->target ? o->target : "root", &target))
+    { errno = ENOENT; goto failed; }
+  selected_gid = target.gid;
+  if (o->target_group && bda_group_to_gid (o->target_group, &selected_gid)) { errno = ENOENT; goto failed; }
+  r->size = sizeof *r;
+  r->mode = o->validate ? BASHOS_AUTH_PRIVCMD_MODE_VALIDATE :
+    o->edit_mode ? BASHOS_AUTH_PRIVCMD_MODE_SUDOEDIT : BASHOS_AUTH_PRIVCMD_MODE_EXEC;
+  if (o->target_group) r->flags = BASHOS_AUTH_PRIVCMD_FLAG_EXPLICIT_GROUP;
+  r->non_interactive = (unsigned int) o->non_interactive;
+  r->caller_uid = (unsigned int) getuid (); r->caller_gid = (unsigned int) getgid ();
+  r->target_uid = (unsigned int) target.uid; r->target_gid = (unsigned int) selected_gid;
+  if (strlen (caller.name) >= sizeof r->caller_user || strlen (target.name) >= sizeof r->target_user)
+    { errno = ENAMETOOLONG; goto failed; }
+  strcpy (r->caller_user, caller.name); strcpy (r->target_user, target.name);
+  if (!o->edit_mode && !getcwd (r->cwd, sizeof r->cwd)) goto failed;
+  if (!o->validate)
+    {
+      if (o->cmdc < 1 || o->cmdc > 256) { errno = EINVAL; goto failed; }
+      command = calloc ((size_t) o->cmdc + 1, sizeof *command);
+      if (!command) goto failed;
+      for (int i = 0; i < o->cmdc; i++) command[i] = o->edit_mode ? edit_paths[i] : o->cmd[i];
+      if (!o->edit_mode && command[0][0] != '/')
+        {
+          if (bda_resolve_command (command[0], resolved, sizeof resolved)) { rc = 127; goto done; }
+          command[0] = resolved;
+        }
+      /* Kernel capture refuses symlinks. Resolve only the UI's spelling here;
+       * the kernel independently opens/pins/evaluates the resulting object. */
+      if (!o->edit_mode)
+        {
+          if (!realpath (command[0], canonical)) goto failed;
+          command[0] = canonical;
+        }
+      argv_blob = bda_argv_blob (command, o->cmdc, &argv_bytes);
+      if (!argv_blob) goto failed;
+      r->argc = (unsigned int) o->cmdc;
+    }
+  errno = 0;
+  /* SUDOEDIT authorizes file paths, never an execution environment. The
+   * editor still runs as the caller with its ordinary inherited environment;
+   * no environment vector belongs in the kernel edit request. */
+  if (!o->edit_mode)
+    env_blob = bda_authority_env_blob (o, r->mode, &env_bytes, &envc);
+  if (!env_blob && errno) goto failed;
+  r->envc = envc; r->argv_bytes = argv_bytes; r->env_bytes = env_bytes;
+  r->argv_user_ptr = argv_bytes ? (uint64_t) (uintptr_t) argv_blob : 0;
+  r->env_user_ptr = env_bytes ? (uint64_t) (uintptr_t) env_blob : 0;
+  if (bda_fill_request_digest (r, argv_blob, env_blob)) { errno = EIO; goto failed; }
+  original = *r;
+  prepared.size = sizeof prepared; prepared.version = BASHOS_PRIVCMD_V2_VERSION;
+  if (ioctl (fd, BASHOS_PRIVCMD_V2_PREPARE, &prepared)) goto failed;
+  if (prepared.size != sizeof prepared || prepared.version != BASHOS_PRIVCMD_V2_VERSION ||
+      prepared.reserved[0] || prepared.reserved[1] || !prepared.audit_sequence)
+    { errno = EPROTO; goto failed; }
+  if (prepared.decision == BASHOS_PRIVCMD_V2_AUTH_REQUIRED)
+    {
+      if (o->non_interactive) { errno = EACCES; goto failed; }
+      if (bpv2_authenticate (fd, &prepared, o->authority_v2_legacy)) goto failed;
+    }
+  if (prepared.decision != BASHOS_PRIVCMD_V2_READY) { errno = EACCES; goto failed; }
+  if (o->edit_mode) { rc = bda_versioned_edit (fd, o, &original, &prepared); goto done; }
+  if (bpv2_run (fd, &prepared, &result)) goto failed;
+  if (!!o->validate != (result.result == BASHOS_PRIVCMD_V2_VALIDATED)) { errno = EPROTO; goto failed; }
+  rc = bpv2_exit_status (&result);
+  if (result.result >= BASHOS_PRIVCMD_V2_SETUP_ERROR && result.result <= BASHOS_PRIVCMD_V2_CONTROL_ERROR)
+    builtin_error ("authority-v2: execution result=%u step=%u error=%u", result.result, result.failed_step, result.error);
+  goto done;
+failed:
+  saved = errno;
+  builtin_error ("authority-v2: %s", strerror (saved));
+done:
+  if (fd >= 0) close (fd);
+  if (argv_blob) { bpv2_wipe (argv_blob, argv_bytes); free (argv_blob); }
+  if (env_blob) { bpv2_wipe (env_blob, env_bytes); free (env_blob); }
+  free (command); free (edit_paths);
+  bpv2_wipe (&prepared, sizeof prepared); bpv2_wipe (&result, sizeof result);
+  bpv2_wipe (&original, sizeof original);
+  return rc;
+}
+
 static int
 bda_parse_doas (bda_opts *o, char **argv, int argc)
 {
@@ -2290,6 +2598,7 @@ bda_parse_doas (bda_opts *o, char **argv, int argc)
     {
       char *a = argv[i];
       if (strcmp (a, "--") == 0) { i++; break; }
+      if (bda_versioned_option (o, a)) continue;
       if (strcmp (a, "-n") == 0) o->non_interactive = 1;
       else if (strcmp (a, "-s") == 0) o->shell_mode = 1;
       else if (strcmp (a, "-L") == 0) o->reset = 1;
@@ -2392,6 +2701,7 @@ bda_parse_sudo (bda_opts *o, char **argv, int argc)
       char opt;
       if (a[0] != '-' || a[1] == '\0') break;
       if (strcmp (a, "--") == 0) { i++; break; }
+      if (bda_versioned_option (o, a)) continue;
       if (a[1] == '-')
         {
           const char *eq = strchr (a + 2, '=');
@@ -2501,7 +2811,9 @@ bashdoas_dispatch (int is_sudo, WORD_LIST *list)
   int rc = is_sudo ? bda_parse_sudo (&o, argv, argc) : bda_parse_doas (&o, argv, argc);
   if (rc == EXECUTION_SUCCESS)
     {
-      if (is_sudo && o.list_mode)
+      if (o.authority_v2)
+        rc = bda_run_versioned (&o);
+      else if (is_sudo && o.list_mode)
         rc = bda_run_list (&o, argv, argc);
       else if (geteuid () == 0)
         rc = bda_run_root (&o);
@@ -2527,6 +2839,9 @@ char *doas_doc[] = {
   "doas - conservative doas front-end",
   "usage: doas [-n] [-u USER] [-g GROUP] [-s] [--] command [args...]",
   "       doas -L",
+  "Use --authority-v2 for the separately configured native protocol.",
+  "--authority-v2-qualification selects its disposable guest endpoint.",
+  "--authority-v2-legacy-hex explicitly selects a trusted legacy PHC record.",
   "Supports -g/--group as an explicit runas group when policy permits it.",
   "Non-root callers use v2 authority when available, otherwise external doas.",
   "Root callers drop and exec with scrubbed environment and child hygiene.",

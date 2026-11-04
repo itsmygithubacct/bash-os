@@ -26,7 +26,7 @@
       "script": "type -t sqlite\nhelp sqlite\n",
       "expected_status": 0,
       "stderr": "empty",
-      "stdout": "builtin\nsqlite: sqlite\n    SQLite handle API for bash-os.\n      sqlite open PATH -h DB_VAR\n      sqlite exec DB SQL\n      sqlite prepare DB SQL -h STMT_VAR\n      sqlite bind STMT N VALUE [-t TEXT|INTEGER|REAL|NULL|BLOB]\n      sqlite step STMT [-V ROW_VAR]\n      sqlite reset|finalize STMT\n      sqlite close DB\n      sqlite transaction DB BEGIN|COMMIT|ROLLBACK\n      sqlite changes DB\n      sqlite last-insert-rowid DB\n      sqlite --stats             # print active_stmts and max_stmts\n    \n      (file databases use unix-none VFS, memory SQLITE_OPEN_NOMUTEX; no locking)\n      bind failure auto-finalizes the prepared statement (slot reclaimed).\n"
+      "stdout": "builtin\nsqlite: sqlite\n    SQLite handle API for bash-os.\n      sqlite open PATH -h DB_VAR [--locking]\n      sqlite exec DB SQL\n      sqlite prepare DB SQL -h STMT_VAR\n      sqlite bind STMT N VALUE [-t TEXT|INTEGER|REAL|NULL|BLOB]\n      sqlite step STMT [-V ROW_VAR]\n      sqlite reset|finalize STMT\n      sqlite close DB\n      sqlite transaction DB BEGIN|COMMIT|ROLLBACK\n      sqlite changes DB\n      sqlite last-insert-rowid DB\n      sqlite --stats             # print active_stmts and max_stmts\n    \n      (file databases default to unix-none; --locking selects the default VFS)\n      bind failure auto-finalizes the prepared statement (slot reclaimed).\n"
     },
     {
       "id": "typed-bindings",

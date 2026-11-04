@@ -96,10 +96,6 @@
  *   - DNS64 (resolver): --dns64 PREFIX/96. On an AAAA query with no native
  *     AAAA (NODATA/NXDOMAIN), re-query A and synthesize AAAA into the /96
  *     prefix. TTL preserved; private/special IPv4 space is not synthesized.
- *   Limitation: the TLS-wrapped transports (DoH/DoT/DoQ) carry no peer
- *   sockaddr in struct bda_conn, so split-horizon view selection and RPZ
- *   CLIENT-IP triggers do not match on those transports in this slice
- *   (peer is NULL). RPZ QNAME triggers still apply on all transports.
  *
  * Companion docs:
  *     /docs/bash/dns.txt
@@ -138,6 +134,7 @@
 #include <dirent.h>
 
 #include "loadables.h"
+#include "command-run.h"
 #include "_mbedtls_ssl.h"
 #include "_mbedtls_x509_crt.h"
 #include "_mbedtls_pk.h"
@@ -253,9 +250,12 @@ typedef struct {
 #define BD_TRUST_MAX 16
 static bd_trust_t bd_trust_set[BD_TRUST_MAX];
 static int        bd_trust_count = 0;
+static bd_trust_t bd_explicit_trust_set[BD_TRUST_MAX];
+static int        bd_explicit_trust_count = 0;
 
 static int bd_tc_bit (const unsigned char *reply, size_t rlen);
-static int bd_validate_reply (const unsigned char *reply, size_t rlen, uint16_t id);
+static int bd_validate_reply (const unsigned char *reply, size_t rlen, uint16_t id,
+                              int allow_nxdomain);
 static void bd_note_final_rcode (const unsigned char *reply, size_t rlen,
                                  uint16_t id, const char *verify_qname);
 
@@ -1356,13 +1356,17 @@ bd_load_trust_anchor_line (const char *path, char *out, size_t out_sz)
   char first_meta[512];
   first_meta[0] = '\0';
   int saw_structured = 0;
-  /* Reset the structured trust set; trust-anchor-load is a wholesale
-     replacement, not an append. */
-  bd_trust_count = 0;
+  /* Parse to a temporary set; a malformed replacement must not leave a
+     partially loaded trust set behind. */
+  bd_trust_t parsed[BD_TRUST_MAX]; int parsed_count = 0;
+  memset (parsed, 0, sizeof parsed);
 
   char line[2048];
   while (fgets (line, sizeof line, f))
     {
+      size_t line_len = strlen (line);
+      if (line_len && line[line_len - 1] != '\n' && !feof (f))
+        { builtin_error ("trust-anchor: %s: line too long", path); fclose (f); return -1; }
       bd_rstrip (line);
       if (!*line) continue;
       if (line[0] == '#' || line[0] == ';') continue;
@@ -1370,7 +1374,7 @@ bd_load_trust_anchor_line (const char *path, char *out, size_t out_sz)
         if ((unsigned char) *p < 0x09 || (unsigned char) *p > 0x7e)
           { builtin_error ("trust-anchor: %s: non-printable byte", path); fclose (f); return -1; }
 
-      if (bd_trust_count >= BD_TRUST_MAX)
+      if (parsed_count >= BD_TRUST_MAX)
         { builtin_error ("trust-anchor: %s: too many entries (max %d)", path, BD_TRUST_MAX);
           fclose (f); return -1; }
       bd_trust_t entry;
@@ -1380,7 +1384,7 @@ bd_load_trust_anchor_line (const char *path, char *out, size_t out_sz)
         { builtin_error ("trust-anchor: %s: malformed DS/DNSKEY line", path); fclose (f); return -1; }
       if (r == 0)
         {
-          bd_trust_set[bd_trust_count++] = entry;
+          parsed[parsed_count++] = entry;
           saw_structured = 1;
           if (!*first_meta)
             snprintf (first_meta, sizeof first_meta,
@@ -1407,6 +1411,7 @@ bd_load_trust_anchor_line (const char *path, char *out, size_t out_sz)
             }
         }
     }
+  if (ferror (f)) { builtin_error ("trust-anchor: %s: read failed", path); fclose (f); return -1; }
   fclose (f);
 
   if (!saw_structured && !*first_meta)
@@ -1414,6 +1419,8 @@ bd_load_trust_anchor_line (const char *path, char *out, size_t out_sz)
   if (strlen (first_meta) + 1 > out_sz)
     { builtin_error ("trust-anchor: %s: metadata too long", path); return -1; }
   strcpy (out, first_meta);
+  memcpy (bd_trust_set, parsed, (size_t) parsed_count * sizeof parsed[0]);
+  bd_trust_count = parsed_count;
   return 0;
 }
 
@@ -1497,6 +1504,8 @@ bd_trust_anchor_load_cmd (WORD_LIST *args)
   char buf[512];
   if (bd_load_trust_anchor_line (args->word->word, buf, sizeof buf) < 0)
     return EXECUTION_FAILURE;
+  memcpy (bd_explicit_trust_set, bd_trust_set, (size_t) bd_trust_count * sizeof bd_trust_set[0]);
+  bd_explicit_trust_count = bd_trust_count;
   strcpy (bd_runtime_trust_anchor, buf);
   return EXECUTION_SUCCESS;
 }
@@ -2042,11 +2051,26 @@ static int bd_make_sockaddr (const char *addr, int port,
                              socklen_t *slen);
 static int bd_sock_family (const struct sockaddr_storage *ss);
 
+static int
+bd_reply_question_matches (const unsigned char *reply, size_t rlen,
+                           const char *qname, uint16_t qtype)
+{
+  if (rlen < 12 || bd_rd16 (reply + 4) != 1) return -1;
+  size_t off = 12; char got[256], actual[256], expected[256];
+  if (bd_decode_name (reply, rlen, &off, got, sizeof got, 0) < 0 || off + 4 > rlen ||
+      bd_rd16 (reply + off) != qtype || bd_rd16 (reply + off + 2) != 1 ||
+      bd_canon_owner (got, actual, sizeof actual) < 0 ||
+      bd_canon_owner (qname, expected, sizeof expected) < 0 || strcmp (actual, expected))
+    { builtin_error ("response question mismatch"); return -1; }
+  return 0;
+}
+
 /* Send query, recv response. Caller-allocated reply buffer.
    Returns reply length, -1 on error (with builtin_error called). */
 static int
 bd_query (const char *qname, uint16_t qtype, const char *server,
-          int dnssec, int timeout_ms, unsigned char *reply, size_t reply_sz)
+          int dnssec, int timeout_ms, int allow_nxdomain,
+          unsigned char *reply, size_t reply_sz)
 {
   unsigned char query[768];
   char mixed_qname[256];
@@ -2072,21 +2096,24 @@ bd_query (const char *qname, uint16_t qtype, const char *server,
   setsockopt (s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
   setsockopt (s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
 
-  ssize_t n = sendto (s, query, (size_t) qlen, 0,
-                      (struct sockaddr *) &sa, sl);
+  if (connect (s, (struct sockaddr *) &sa, sl) < 0)
+    { builtin_error ("connect %s: %s", server, strerror (errno)); close (s); return -1; }
+  ssize_t n = send (s, query, (size_t) qlen, 0);
   if (n < 0) { builtin_error ("sendto %s: %s", server, strerror (errno)); close (s); return -1; }
 
-  n = recvfrom (s, reply, reply_sz, 0, NULL, NULL);
+  n = recv (s, reply, reply_sz, 0);
   close (s);
   if (n < 0) { builtin_error ("recvfrom: %s", strerror (errno)); return -1; }
-  if (bd_validate_reply (reply, (size_t) n, id) < 0)
+  if (bd_reply_question_matches (reply, (size_t) n, qname, qtype) < 0) return -1;
+  if (bd_validate_reply (reply, (size_t) n, id, allow_nxdomain) < 0)
     { bd_note_final_rcode (reply, (size_t) n, id, verify_qname); return -1; }
   if (bd_0x20_verify (reply, (size_t) n, verify_qname) < 0) return -1;
   if (bd_tc_bit (reply, (size_t) n))
     {
       int tn = bd_query_tcp (query, (size_t) qlen, server, timeout_ms, reply, reply_sz);
       if (tn < 0) return -1;
-      if (bd_validate_reply (reply, (size_t) tn, id) < 0)
+      if (bd_reply_question_matches (reply, (size_t) tn, qname, qtype) < 0) return -1;
+      if (bd_validate_reply (reply, (size_t) tn, id, allow_nxdomain) < 0)
         { bd_note_final_rcode (reply, (size_t) tn, id, verify_qname); return -1; }
       if (bd_0x20_verify (reply, (size_t) tn, verify_qname) < 0) return -1;
       return tn;
@@ -2107,13 +2134,16 @@ bd_tc_bit (const unsigned char *reply, size_t rlen)
 }
 
 static int
-bd_validate_reply (const unsigned char *reply, size_t rlen, uint16_t id)
+bd_validate_reply (const unsigned char *reply, size_t rlen, uint16_t id,
+                   int allow_nxdomain)
 {
   if (rlen < 12) { builtin_error ("short reply"); return -1; }
   uint16_t rid = bd_rd16 (reply);
   if (rid != id) { builtin_error ("response id mismatch"); return -1; }
+  if (!(reply[2] & 0x80) || (reply[2] & 0x78) != 0)
+    { builtin_error ("invalid response header"); return -1; }
   int rcode = reply[3] & 0xf;
-  if (rcode != 0)
+  if (rcode != 0 && !(allow_nxdomain && rcode == 3))
     {
       static const char *rcodes[] = {
         "NOERROR", "FORMERR", "SERVFAIL", "NXDOMAIN", "NOTIMP", "REFUSED"
@@ -2137,6 +2167,13 @@ bd_note_final_rcode (const unsigned char *reply, size_t rlen, uint16_t id,
 static int
 bd_write_all (int fd, const unsigned char *buf, size_t len)
 {
+  sigset_t block, oldmask, pending;
+  sigemptyset (&block); sigaddset (&block, SIGPIPE);
+  if (sigprocmask (SIG_BLOCK, &block, &oldmask) < 0) return -1;
+  if (sigpending (&pending) < 0) { int saved = errno; sigprocmask (SIG_SETMASK, &oldmask, NULL); errno = saved; return -1; }
+  int had_pending = sigismember (&pending, SIGPIPE);
+  int was_blocked = sigismember (&oldmask, SIGPIPE);
+  int rc = 0, saved = 0;
   size_t off = 0;
   while (off < len)
     {
@@ -2144,12 +2181,20 @@ bd_write_all (int fd, const unsigned char *buf, size_t len)
       if (n < 0)
         {
           if (errno == EINTR) continue;
-          return -1;
+          saved = errno; rc = -1; break;
         }
-      if (n == 0) return -1;
+      if (n == 0) { saved = EIO; rc = -1; break; }
       off += (size_t) n;
     }
-  return 0;
+  /* Consume only the SIGPIPE generated by this write when the caller did
+     not already have one pending or deliberately blocked. */
+  if (rc < 0 && saved == EPIPE && !had_pending && !was_blocked) {
+    struct timespec zero = { 0, 0 };
+    while (sigtimedwait (&block, NULL, &zero) < 0 && errno == EINTR) ;
+  }
+  if (sigprocmask (SIG_SETMASK, &oldmask, NULL) < 0 && rc == 0) { saved = errno; rc = -1; }
+  if (rc < 0) errno = saved;
+  return rc;
 }
 
 static int
@@ -2448,12 +2493,9 @@ bd_query_tcp (const unsigned char *query, size_t qlen, const char *server,
 /* ---- DNS-over-TLS (RFC 7858) -------------------------------------- *
  *
  * Wraps a TCP-framed DNS query in a TLS 1.2/1.3 session against an
- * authenticating resolver. We dispatch via `bash -c "builtin crypto
- * tls connect HOST:PORT [-c CA]"` for the same reason DNSSEC dispatches
- * to crypto verify verbs (see the comment block above
- * bd_run_verifier): the TLS state machine and trust-anchor parsing live
- * in crypto.c, and a fork-and-pipe keeps dns.c free of mbedTLS
- * baggage while giving crash isolation.
+ * authenticating resolver. A forked child dispatches the enabled crypto
+ * builtin directly, preserving dynamically loaded builtins and avoiding
+ * any dependency on PATH. The child isolates the TLS state machine.
  *
  * Trust contract: crypto's `tls connect` defaults to
  * MBEDTLS_SSL_VERIFY_REQUIRED, auto-loads /etc/ssl/cert.pem when -c is
@@ -2513,22 +2555,22 @@ bd_query_dot (const unsigned char *query, size_t qlen, const char *dot_host,
       if (dup2 (pin[0], 0) < 0) _exit (127);
       if (dup2 (pout[1], 1) < 0) _exit (127);
       close (pin[0]); close (pout[1]);
-      /* Keep stderr connected so handshake/verification diagnostics
-       * still reach the user even though we route the answer parsing
-       * through stdout.
-       *
-       * Default path is a constant `-c` script body; dot_host (and the
-       * optional CA path) arrive as POSITIONAL parameters via "$@" so
-       * bash never re-parses caller-supplied hostnames as shell. The
-       * override branch is reserved for the documented BASHDNS_DOT_CMD
-       * test hook (e.g. `python3 '/tmp/dot_stub.py'`); operator-set, not
-       * part of the production execution path. */
+      /* Overrides are shell commands; production dispatch uses argv directly. */
       if (override && *override)
         execlp ("bash", "bash", "-c", override, (char *) NULL);
-      else if (ca_path && *ca_path)
-        execlp ("bash", "bash", "-c", "builtin crypto tls connect \"$1\" -s \"$2\" -c \"$3\"", "_", hostport, dot_host, ca_path, (char *) NULL);
       else
-        execlp ("bash", "bash", "-c", "builtin crypto tls connect \"$1\" -s \"$2\"", "_", hostport, dot_host, (char *) NULL);
+        {
+          char *argv[10];
+          int n = 0;
+          argv[n++] = "crypto"; argv[n++] = "tls"; argv[n++] = "connect";
+          argv[n++] = hostport; argv[n++] = "-s"; argv[n++] = (char *) dot_host;
+          argv[n++] = "--read-dns-frame";
+          if (ca_path && *ca_path) { argv[n++] = "-c"; argv[n++] = (char *) ca_path; }
+          argv[n] = NULL;
+          bos_prepare_child ();
+          bos_run_builtin ("crypto", argv, NULL);
+          builtin_error ("dot: crypto builtin unavailable");
+        }
       _exit (127);
     }
   close (pin[0]); close (pout[1]);
@@ -2618,10 +2660,8 @@ bd_query_dot (const unsigned char *query, size_t qlen, const char *dot_host,
  *
  * Minimal explicit transport: dns still owns DNS packet creation,
  * reply-size bounds, and response-id validation; HTTP/TLS is delegated
- * to curl/crypto in a child process. The production child uses a
- * constant shell body with the endpoint URL passed as a positional
- * parameter. The endpoint is validated before this point to keep
- * curl's HTTPS child command away from shell-significant host text.
+ * to the enabled curl builtin in a child process. The endpoint is
+ * passed directly as an argument, without shell parsing.
  *
  * Tests use BASHDNS_DOH_CMD to substitute a stub that reads the raw DNS
  * query on stdin and writes the raw DNS reply on stdout.
@@ -2981,12 +3021,13 @@ bd_query_doh (const unsigned char *query, size_t qlen, const char *url,
           int timeout_s = (timeout_ms + 999) / 1000;
           if (timeout_s < 1) timeout_s = 1;
           snprintf (sec, sizeof sec, "%d", timeout_s);
-          execlp ("bash", "bash", "-c",
-                  "builtin curl -fsS --max-time \"$1\" "
-                  "-H 'Accept: application/dns-message' "
-                  "-H 'Content-Type: application/dns-message' "
-                  "--data-binary @- \"$2\"",
-                  "_", sec, url, (char *) NULL);
+          char *argv[] = { "curl", "-fsS", "--max-time", sec,
+                           "-H", "Accept: application/dns-message",
+                           "-H", "Content-Type: application/dns-message",
+                           "--data-binary", "@-", (char *) url, NULL };
+          bos_prepare_child ();
+          bos_run_builtin ("curl", argv, NULL);
+          builtin_error ("doh: curl builtin unavailable");
         }
       _exit (127);
     }
@@ -3449,7 +3490,7 @@ bd_fixture_load (const char *qname, uint16_t qtype,
 /* Wire fetch with fixture override. Returns reply length or -1. */
 static int
 bd_fetch (const char *qname, uint16_t qtype, const char *server,
-          int dnssec, int timeout_ms,
+          int dnssec, int timeout_ms, int allow_nxdomain,
           unsigned char *reply, size_t reply_sz)
 {
   const char *fixture_dir = getenv ("BASHDNS_FIXTURE_DIR");
@@ -3480,7 +3521,8 @@ bd_fetch (const char *qname, uint16_t qtype, const char *server,
                                ? bd_dot_ctx.ca_path : NULL,
                              timeout_ms, reply, reply_sz);
       if (dn < 0) return -1;
-      if (bd_validate_reply (reply, (size_t) dn, id) < 0)
+      if (bd_reply_question_matches (reply, (size_t) dn, qname, qtype) < 0) return -1;
+      if (bd_validate_reply (reply, (size_t) dn, id, allow_nxdomain) < 0)
         { bd_note_final_rcode (reply, (size_t) dn, id, verify_qname); return -1; }
       if (bd_0x20_verify (reply, (size_t) dn, verify_qname) < 0) return -1;
       return dn;
@@ -3501,18 +3543,19 @@ bd_fetch (const char *qname, uint16_t qtype, const char *server,
       int hn = bd_query_doh (query, (size_t) qlen, bd_doh_ctx.url,
                              timeout_ms, reply, reply_sz);
       if (hn < 0) return -1;
-      if (bd_validate_reply (reply, (size_t) hn, id) < 0)
+      if (bd_reply_question_matches (reply, (size_t) hn, qname, qtype) < 0) return -1;
+      if (bd_validate_reply (reply, (size_t) hn, id, allow_nxdomain) < 0)
         { bd_note_final_rcode (reply, (size_t) hn, id, verify_qname); return -1; }
       if (bd_0x20_verify (reply, (size_t) hn, verify_qname) < 0) return -1;
       return hn;
     }
   bd_ratelimit_acquire (server);
-  return bd_query (qname, qtype, server, dnssec, timeout_ms, reply, reply_sz);
+  return bd_query (qname, qtype, server, dnssec, timeout_ms, allow_nxdomain, reply, reply_sz);
 }
 
 static int
 bd_fetch_attempts (const char *qname, uint16_t qtype, const char *server,
-                   int dnssec, int timeout_ms, int attempts,
+                   int dnssec, int timeout_ms, int attempts, int allow_nxdomain,
                    unsigned char *reply, size_t reply_sz)
 {
   if (attempts < 1) attempts = 1;
@@ -3520,7 +3563,7 @@ bd_fetch_attempts (const char *qname, uint16_t qtype, const char *server,
   bd_final_rcode = 0;
   for (int a = 0; a < attempts; a++)
     {
-      rlen = bd_fetch (qname, qtype, server, dnssec, timeout_ms,
+      rlen = bd_fetch (qname, qtype, server, dnssec, timeout_ms, allow_nxdomain,
                        reply, reply_sz);
       if (rlen >= 0 || bd_final_rcode)
         break;
@@ -3606,6 +3649,11 @@ bd_collect_rrs (const unsigned char *pkt, size_t pkt_len,
             case BD_T_CNAME:
             case BD_T_DNAME:
             case BD_T_PTR:
+            case 3:  /* MD */
+            case 4:  /* MF */
+            case 7:  /* MB */
+            case 8:  /* MG */
+            case 9:  /* MR */
               {
                 char tgt[256];
                 if (bd_decode_name (pkt, pkt_len, &roff, tgt, sizeof tgt, 0) < 0) return -1;
@@ -3615,6 +3663,9 @@ bd_collect_rrs (const unsigned char *pkt, size_t pkt_len,
                 break;
               }
             case BD_T_MX:
+            case 18: /* AFSDB */
+            case 21: /* RT */
+            case 36: /* KX */
               {
                 if (rdlen < 3) return -1;
                 if (olen + 2 > sizeof r->rdata) return -1;
@@ -3626,6 +3677,19 @@ bd_collect_rrs (const unsigned char *pkt, size_t pkt_len,
                 int wn = bd_name_to_wire (tgt, o + olen, sizeof r->rdata - olen);
                 if (wn < 0) return -1;
                 olen += (size_t) wn;
+                break;
+              }
+            case 14: /* MINFO */
+            case 17: /* RP */
+              {
+                size_t toff = roff; char a[256], b[256];
+                if (bd_decode_name (pkt, pkt_len, &toff, a, sizeof a, 0) < 0 ||
+                    bd_decode_name (pkt, pkt_len, &toff, b, sizeof b, 0) < 0 || toff > rend) return -1;
+                int w1 = bd_name_to_wire (a, o, sizeof r->rdata);
+                if (w1 < 0) return -1;
+                int w2 = bd_name_to_wire (b, o + w1, sizeof r->rdata - (size_t) w1);
+                if (w2 < 0) return -1;
+                olen = (size_t) w1 + (size_t) w2;
                 break;
               }
             case BD_T_SOA:
@@ -3998,10 +4062,13 @@ bd_run_verifier (char *const argv[], const unsigned char *msg, size_t msg_len)
           ov[oi] = NULL;
           execvp ("bash", ov);
         }
-      else if (argc == 10)
-        execlp ("bash", "bash", "-c", "builtin \"$@\"", "_", argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6], argv[7], argv[8], argv[9], (char *) NULL);
-      else /* argc == 6 (validated above) */
-        execlp ("bash", "bash", "-c", "builtin \"$@\"", "_", argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], (char *) NULL);
+      else
+        {
+          /* Preserve the enabled builtin in the forked shell; a new Bash
+             found through PATH need not be this candidate or have its modules. */
+          bos_prepare_child ();
+          bos_run_builtin (argv[0], (char **) argv, NULL);
+        }
       _exit (127);
     }
   close (p[0]);
@@ -4153,6 +4220,7 @@ bd_run_hash_match (const char *hashverb,
                    const unsigned char *want_digest, size_t want_len)
 {
   const char *override = getenv ("BASHDNS_HASH_CMD");
+  if (fflush (stdout) == EOF) return -1;
   int p[2]; int q[2];
   if (pipe (p) < 0) return -1;
   if (pipe (q) < 0) { close (p[0]); close (p[1]); return -1; }
@@ -4176,7 +4244,11 @@ bd_run_hash_match (const char *hashverb,
       if (override && *override)
         execlp ("bash", "bash", "-c", override, "_", hashverb, "-x", (char *) NULL);
       else
-        execlp ("bash", "bash", "-c", "builtin crypto \"$@\"", "_", hashverb, "-x", (char *) NULL);
+        {
+          char *av[] = { "crypto", (char *) hashverb, "-x", NULL };
+          bos_prepare_child ();
+          bos_run_builtin ("crypto", av, NULL);
+        }
       _exit (127);
     }
   close (p[0]); close (q[1]);
@@ -4217,6 +4289,7 @@ bd_run_hash_bytes (const char *hashverb,
                    unsigned char *out, size_t out_sz, size_t *out_len)
 {
   const char *override = getenv ("BASHDNS_HASH_CMD");
+  if (fflush (stdout) == EOF) return -1;
 
   int p[2]; int q[2];
   if (pipe (p) < 0) return -1;
@@ -4241,7 +4314,11 @@ bd_run_hash_bytes (const char *hashverb,
       if (override && *override)
         execlp ("bash", "bash", "-c", override, "_", hashverb, "-x", (char *) NULL);
       else
-        execlp ("bash", "bash", "-c", "builtin crypto \"$@\"", "_", hashverb, "-x", (char *) NULL);
+        {
+          char *av[] = { "crypto", (char *) hashverb, "-x", NULL };
+          bos_prepare_child ();
+          bos_run_builtin ("crypto", av, NULL);
+        }
       _exit (127);
     }
   close (p[0]); close (q[1]);
@@ -4359,37 +4436,16 @@ bd_install_dnskeys (const bd_rr_t *rrs, int n, const char *zone,
   return 0;
 }
 
-/* Locate the trust-set DNSKEY entry matching (owner, key_tag, algo). */
-static const bd_trust_t *
-bd_find_signing_key (const bd_trust_t *ts, int n,
-                     const char *owner, uint16_t key_tag, uint8_t algo)
-{
-  char canon[256];
-  if (bd_canon_owner (owner, canon, sizeof canon) < 0) return NULL;
-  for (int i = 0; i < n; i++)
-    {
-      if (ts[i].kind != BD_T_DNSKEY) continue;
-      if (strcmp (ts[i].owner, canon) != 0) continue;
-      if (ts[i].key_tag != key_tag) continue;
-      if (ts[i].algorithm != algo) continue;
-      return &ts[i];
-    }
-  return NULL;
-}
-
 /* Verify an RRset (already collected, sorted later by build) by
  * locating its RRSIG, checking time window, building signed message,
  * dispatching to crypto. Returns 0 on success, -1 on failure
  * (with bd_validate_fail called by caller). */
 static int
-bd_verify_rrset (bd_rr_t *rrs, int rrs_n,
-                 const char *owner, uint16_t type,
-                 const bd_trust_t *signing_keys, int signing_n,
-                 int skew_sec, char *err, size_t err_sz)
+bd_verify_one_rrsig (bd_rr_t *rrs, int rrs_n,
+                     const char *owner, uint16_t type, const bd_rr_t *rrsig,
+                     const bd_trust_t *signing_keys, int signing_n,
+                     int skew_sec, char *err, size_t err_sz)
 {
-  const bd_rr_t *rrsig = bd_find_rrsig (rrs, rrs_n, owner, type);
-  if (!rrsig)
-    { snprintf (err, err_sz, "no RRSIG covers %s/%s", owner, bd_type_name (type)); return -1; }
   if (rrsig->rdata_len < 18)
     { snprintf (err, err_sz, "RRSIG too short for %s/%s", owner, bd_type_name (type)); return -1; }
   uint8_t  algo    = rrsig->rdata[2];
@@ -4446,11 +4502,14 @@ bd_verify_rrset (bd_rr_t *rrs, int rrs_n,
     { snprintf (err, err_sz, "RRSIG expired (expiration %lu < now %lu)",
                 (unsigned long) exp, (unsigned long) now); return -1; }
 
-  const bd_trust_t *key = bd_find_signing_key (signing_keys, signing_n,
-                                               signer, key_tag, algo);
-  if (!key)
-    { snprintf (err, err_sz, "no DNSKEY for signer=%s tag=%u algo=%u in trust set",
-                signer, key_tag, algo); return -1; }
+  char signer_canon[256];
+  if (bd_canon_owner (signer, signer_canon, sizeof signer_canon) < 0)
+    { snprintf (err, err_sz, "bad RRSIG signer name"); return -1; }
+  size_t owner_len = strlen (owner), signer_len = strlen (signer_canon);
+  if (strcmp (signer_canon, ".") != 0 && strcmp (owner, signer_canon) != 0 &&
+      (owner_len <= signer_len || owner[owner_len - signer_len - 1] != '.' ||
+       strcmp (owner + owner_len - signer_len, signer_canon) != 0))
+    { snprintf (err, err_sz, "RRSIG signer is outside the owner zone"); return -1; }
 
   /* Build the canonical RRset (excluding RRSIG itself). */
   bd_rr_t set[BD_RR_MAX]; int set_n = 0;
@@ -4464,10 +4523,72 @@ bd_verify_rrset (bd_rr_t *rrs, int rrs_n,
   if (bd_build_signed_msg (rrsig, set, set_n, msg, sizeof msg, &msg_len) < 0)
     { snprintf (err, err_sz, "build signed-message overflow"); return -1; }
 
-  if (bd_verify_sig (algo, key->rdata, key->rdata_len, sig, sig_len, msg, msg_len) < 0)
-    { snprintf (err, err_sz, "RRSIG signature verification failed (algo=%u tag=%u)",
-                algo, key_tag); return -1; }
-  return 0;
+  /* Key tags are not unique: every matching authenticated DNSKEY must be
+     tried. Only protocol 3 zone keys are eligible. */
+  int matched = 0;
+  for (int i = 0; i < signing_n; i++)
+    {
+      const bd_trust_t *key = &signing_keys[i];
+      if (key->kind != BD_T_DNSKEY || strcmp (key->owner, signer_canon) ||
+          key->key_tag != key_tag || key->algorithm != algo ||
+          key->rdata_len < 4 || key->rdata[2] != 3 ||
+          !(bd_rd16 (key->rdata) & 0x0100))
+        continue;
+      matched = 1;
+      if (bd_verify_sig (algo, key->rdata, key->rdata_len,
+                         sig, sig_len, msg, msg_len) == 0) return 0;
+    }
+  snprintf (err, err_sz, matched ? "RRSIG signature verification failed (algo=%u tag=%u)"
+                               : "no eligible DNSKEY (algo=%u tag=%u)", algo, key_tag);
+  return -1;
+}
+
+/* DNSKEY rollovers can supply several signatures. Accept only if at least
+ * one signature verifies with an authenticated key, regardless of order. */
+static int
+bd_verify_rrset_bound (bd_rr_t *rrs, int rrs_n,
+                       const char *owner, uint16_t type,
+                       const bd_trust_t *signing_keys, int signing_n,
+                       int skew_sec, char *err, size_t err_sz, uint32_t *bound)
+{
+  char canon[256]; int seen = 0;
+  if (bd_canon_owner (owner, canon, sizeof canon) < 0)
+    { snprintf (err, err_sz, "bad owner %s", owner); return -1; }
+  for (int i = 0; i < rrs_n; i++)
+    {
+      if (rrs[i].type != BD_T_RRSIG || strcmp (rrs[i].owner, canon) != 0 ||
+          rrs[i].rdata_len < 18 || bd_rd16 (rrs[i].rdata) != type)
+        continue;
+      seen = 1;
+      if (bd_verify_one_rrsig (rrs, rrs_n, canon, type, &rrs[i],
+                               signing_keys, signing_n, skew_sec,
+                               err, err_sz) == 0) {
+        if (bound) {
+          uint32_t limit = rrs[i].ttl, original = bd_rd32 (rrs[i].rdata + 4);
+          uint32_t expiration = bd_rd32 (rrs[i].rdata + 8); time_t now = time (NULL);
+          if (original < limit) limit = original;
+          uint32_t remaining = now < 0 || (uint64_t) now >= expiration ? 0 : expiration - (uint32_t) now;
+          if (remaining < limit) limit = remaining;
+          for (int j = 0; j < rrs_n; j++)
+            if (rrs[j].type == type && !strcmp (rrs[j].owner, canon) && rrs[j].ttl < limit)
+              limit = rrs[j].ttl;
+          if (limit < *bound) *bound = limit;
+        }
+        return 0;
+      }
+    }
+  if (!seen)
+    snprintf (err, err_sz, "no RRSIG covers %s/%s", owner, bd_type_name (type));
+  return -1;
+}
+
+static int
+bd_verify_rrset (bd_rr_t *rrs, int rrs_n, const char *owner, uint16_t type,
+                 const bd_trust_t *signing_keys, int signing_n, int skew_sec,
+                 char *err, size_t err_sz)
+{
+  return bd_verify_rrset_bound (rrs, rrs_n, owner, type, signing_keys, signing_n,
+                                skew_sec, err, err_sz, NULL);
 }
 
 static int
@@ -4614,8 +4735,12 @@ bd_dname_validate (bd_rr_t *rrs, int rrs_n, const char *qname, uint16_t qtype,
           snprintf (err, err_sz, "malformed synthesized CNAME at %s", qcanon);
           return -1;
         }
-      if (strcmp (actual, best_expected) == 0)
-        matched_cname = 1;
+      if (strcmp (actual, best_expected) != 0)
+        {
+          snprintf (err, err_sz, "DNAME synthesis mismatch: expected %s got %s", best_expected, actual);
+          return -1;
+        }
+      matched_cname = 1;
     }
 
   if (!saw_cname)
@@ -4645,6 +4770,17 @@ bd_dname_validate (bd_rr_t *rrs, int rrs_n, const char *qname, uint16_t qtype,
                     best_expected, bd_type_name (qtype), verr);
           return -1;
         }
+    }
+
+  /* The synthesized CNAME is authenticated by its DNAME. All remaining
+     RRsets returned with it must authenticate independently. */
+  for (int i = 0; i < rrs_n; i++)
+    {
+      if (rrs[i].type == BD_T_RRSIG ||
+          (rrs[i].type == BD_T_CNAME && !strcmp (rrs[i].owner, qcanon))) continue;
+      if (bd_verify_rrset (rrs, rrs_n, rrs[i].owner, rrs[i].type,
+                           active, active_n, skew_sec, verr, sizeof verr) < 0)
+        { snprintf (err, err_sz, "unauthenticated DNAME response RRset: %s", verr); return -1; }
     }
 
   return 0;
@@ -4704,7 +4840,7 @@ bd_nsec_range_covers (const char *owner, const char *next, const char *qname)
   int qn = bd_name_wire_cmp (qname, next);
   if (on < 0) return oq < 0 && qn < 0;
   if (on > 0) return oq < 0 || qn < 0;
-  return 0;
+  return oq != 0;  /* one-owner circular NSEC chain */
 }
 
 static int
@@ -4843,7 +4979,7 @@ bd_nsec3_parse (const bd_rr_t *rr,
   if (*next_len == 0 || off + *next_len > rr->rdata_len) return -1;
   *next = rr->rdata + off;
   off += *next_len;
-  if (off >= rr->rdata_len) return -1;
+  if (off > rr->rdata_len) return -1;
   *bitmap = rr->rdata + off;
   *bitmap_len = rr->rdata_len - off;
   return 0;
@@ -4872,7 +5008,7 @@ bd_nsec3_range_covers_hash (const unsigned char *owner, size_t owner_len,
   int hn = bd_nsec3_hash_cmp (hash, hash_len, next, next_len);
   if (on < 0) return oh < 0 && hn < 0;
   if (on > 0) return oh < 0 || hn < 0;
-  return 0;
+  return oh != 0;  /* one-owner circular NSEC3 chain */
 }
 
 
@@ -4887,261 +5023,396 @@ bd_nsec3_owner_hash_label (const char *owner, char *out, size_t out_sz)
 }
 
 static int
+bd_nsec3_name_label (const char *name, uint8_t alg, const unsigned char *salt,
+                     size_t salt_len, uint16_t iterations, char *out, size_t out_sz)
+{
+  unsigned char hash[64]; size_t hash_len = 0;
+  if (bd_nsec3_hash_name (name, alg, salt, salt_len, iterations,
+                          hash, sizeof hash, &hash_len) < 0) return -1;
+  return bd_nsec3_base32hex (hash, hash_len, out, out_sz);
+}
+
+/* Names are canonical lower-case without a trailing dot, except root. */
+static int
+bd_name_under (const char *name, const char *zone)
+{
+  size_t n = strlen (name), z = strlen (zone);
+  if (!strcmp (zone, ".") || !strcmp (name, zone)) return 1;
+  return n > z && name[n - z - 1] == '.' && !strcmp (name + n - z, zone);
+}
+
+#define BD_VALIDATE_INSECURE 2
+static int
+bd_response_has_delegation (const unsigned char *reply, size_t rlen, const char *name)
+{
+  bd_rr_t rrs[BD_RR_MAX]; char canon[256];
+  if (bd_canon_owner (name, canon, sizeof canon) < 0) return 0;
+  int n = bd_collect_answer_authority (reply, rlen, rrs, BD_RR_MAX);
+  if (n < 0) return 0;
+  for (int i = 0; i < n; i++)
+    if (rrs[i].type == BD_T_NS && rrs[i].cls == BD_C_IN && !strcmp (rrs[i].owner, canon))
+      return 1;
+  return 0;
+}
+
+static int
 bd_wildcard_validate (const bd_rr_t *rrs, int n,
                       const char *qname, uint16_t qtype,
                       const bd_trust_t *active, int active_n,
-                      int skew_sec, char *err, size_t err_sz)
+                      int skew_sec, char *err, size_t err_sz, uint32_t *ttl_bound,
+                      int *wildcard_used)
 {
-  char qcanon[256], wildcard[256], suffix[256];
+  char qcanon[256];
   if (bd_canon_owner (qname, qcanon, sizeof qcanon) < 0)
     { snprintf (err, err_sz, "wildcard qname canonicalization failed"); return -1; }
-
-  const bd_rr_t *rrsig = bd_find_rrsig (rrs, n, qcanon, qtype);
-  if (!rrsig || rrsig->rdata_len < 18) return 0;
-  unsigned sig_labels = rrsig->rdata[3];
-  int q_labels = bd_label_count (qcanon);
-  if (q_labels < 0)
-    { snprintf (err, err_sz, "wildcard qname label count failed"); return -1; }
-  if (q_labels <= (int) sig_labels) return 0;
-
-  if (bd_wildcard_owner_from_labels (qcanon, sig_labels, wildcard, sizeof wildcard) < 0
-      || bd_suffix_labels (qcanon, sig_labels, suffix, sizeof suffix) < 0)
-    { snprintf (err, err_sz, "wildcard owner reconstruction failed"); return -1; }
-
-  int saw_nsec = 0, saw_nsec3 = 0;
+  /* Choose the signature that actually verifies. A preceding forged RRSIG
+     must not determine whether the wildcard proof is required. */
+  const bd_rr_t *rrsig = NULL;
+  for (int i = 0; i < n; i++)
+    if (rrs[i].type == BD_T_RRSIG && !strcmp (rrs[i].owner, qcanon) &&
+        rrs[i].rdata_len >= 18 && bd_rd16 (rrs[i].rdata) == qtype &&
+        bd_verify_one_rrsig ((bd_rr_t *) rrs, n, qcanon, qtype, &rrs[i],
+                             active, active_n, skew_sec, err, err_sz) == 0)
+      { rrsig = &rrs[i]; break; }
+  if (!rrsig) { snprintf (err, err_sz, "no verified answer signature"); return -1; }
+  unsigned sig_labels = rrsig->rdata[3]; int q_labels = bd_label_count (qcanon);
+  if (q_labels < 0 || (unsigned) q_labels < sig_labels)
+    { snprintf (err, err_sz, "invalid wildcard labels"); return -1; }
+  if ((unsigned) q_labels == sig_labels) return 0;
+  if (wildcard_used) *wildcard_used = 1;
+  char next_closer[256], signer_raw[256], signer[256]; size_t signer_off = 18;
+  if (bd_suffix_labels (qcanon, sig_labels + 1, next_closer, sizeof next_closer) < 0 ||
+      bd_decode_name (rrsig->rdata, rrsig->rdata_len, &signer_off, signer_raw, sizeof signer_raw, 0) < 0 ||
+      bd_canon_owner (signer_raw, signer, sizeof signer) < 0 || !bd_name_under (next_closer, signer))
+    { snprintf (err, err_sz, "invalid wildcard signer or next-closer name"); return -1; }
+  int secure_gap = 0, insecure_gap = 0;
   for (int i = 0; i < n; i++)
     {
       if (rrs[i].type != BD_T_NSEC && rrs[i].type != BD_T_NSEC3) continue;
-      if (bd_verify_rrset ((bd_rr_t *) rrs, n, rrs[i].owner, rrs[i].type,
-                           active, active_n, skew_sec, err, err_sz) < 0)
+      if (bd_verify_rrset_bound ((bd_rr_t *) rrs, n, rrs[i].owner, rrs[i].type,
+                                 active, active_n, skew_sec, err, err_sz, ttl_bound) < 0)
         return -1;
-      if (rrs[i].type == BD_T_NSEC) saw_nsec = 1;
-      if (rrs[i].type == BD_T_NSEC3) saw_nsec3 = 1;
-    }
-
-  if (saw_nsec)
-    {
-      int q_covered = 0, ce_seen = 0, malformed = 0;
-      for (int i = 0; i < n; i++)
+      if (rrs[i].type == BD_T_NSEC)
         {
-          if (rrs[i].type != BD_T_NSEC) continue;
-          char next[256];
-          const unsigned char *bm = NULL;
-          size_t bm_len = 0;
-          int nsec_present = 0;
-          if (bd_nsec_parse (&rrs[i], next, sizeof next, &bm, &bm_len) < 0)
-            { malformed = 1; continue; }
-          if (bd_nsec_bitmap_has_type (bm, bm_len, BD_T_NSEC, &nsec_present) < 0)
-            { malformed = 1; continue; }
-          if (bd_nsec_range_covers (rrs[i].owner, next, qcanon)) q_covered = 1;
-          if (strcmp (rrs[i].owner, suffix) == 0 && nsec_present) ce_seen = 1;
+          char next_raw[256], next[256]; const unsigned char *bm; size_t bm_len; int dummy;
+          if (bd_nsec_parse (&rrs[i], next_raw, sizeof next_raw, &bm, &bm_len) < 0 ||
+              bd_canon_owner (next_raw, next, sizeof next) < 0 ||
+              !bd_name_under (rrs[i].owner, signer) || !bd_name_under (next, signer) ||
+              bd_nsec_bitmap_has_type (bm, bm_len, BD_T_NSEC, &dummy) < 0)
+            { snprintf (err, err_sz, "invalid wildcard NSEC proof"); return -1; }
+          if (bd_nsec_range_covers (rrs[i].owner, next, next_closer)) secure_gap = 1;
         }
-      if (malformed)
-        { snprintf (err, err_sz, "wildcard NSEC bitmap malformed"); return -1; }
-      if (ce_seen && q_covered) return 0;
-      if (!ce_seen)
-        { snprintf (err, err_sz, "wildcard closest-encloser proof missing for %s via %s", qcanon, wildcard); return -1; }
-      snprintf (err, err_sz, "wildcard NSEC proof missing for %s via %s", qcanon, wildcard);
-      return -1;
-    }
-
-  if (saw_nsec3)
-    {
-      uint8_t ref_alg = 0, ref_flags = 0;
-      uint16_t ref_iter = 0;
-      const unsigned char *ref_salt = NULL;
-      size_t ref_salt_len = 0;
-      int params_set = 0, q_covered = 0, wildcard_hash_seen = 0, ce_seen = 0;
-      unsigned char q_hash[64], wc_hash[64], ce_hash[64];
-      size_t q_hash_len = 0, wc_hash_len = 0, ce_hash_len = 0;
-      char q_label[64], wc_label[64], ce_label[64];
-
-      for (int i = 0; i < n; i++)
+      else
         {
-          if (rrs[i].type != BD_T_NSEC3) continue;
-          uint8_t alg, flags;
-          uint16_t iterations;
-          const unsigned char *salt, *next, *bm;
-          size_t salt_len, next_len, bm_len;
-          if (bd_nsec3_parse (&rrs[i], &alg, &flags, &iterations,
-                              &salt, &salt_len, &next, &next_len,
-                              &bm, &bm_len) < 0)
-            { snprintf (err, err_sz, "wildcard NSEC3 bitmap malformed"); return -1; }
-          if (alg < 1 || alg > 3)
-            { snprintf (err, err_sz, "NSEC3 unsupported hash algorithm %u", (unsigned) alg); return -1; }
-          if (iterations > BD_NSEC3_MAX_ITERATIONS)
-            { snprintf (err, err_sz, "NSEC3 iteration count %u exceeds RFC 9276 cap %u",
-                        (unsigned) iterations, (unsigned) BD_NSEC3_MAX_ITERATIONS); return -1; }
-          if (flags != 0)
-            { snprintf (err, err_sz, "NSEC3 opt-out unsupported"); return -1; }
-          int dummy = 0;
-          if (bd_nsec_bitmap_has_type (bm, bm_len, BD_T_NSEC3, &dummy) < 0)
-            { snprintf (err, err_sz, "wildcard NSEC3 bitmap malformed"); return -1; }
-          if (!params_set)
-            {
-              ref_alg = alg; ref_flags = flags; ref_iter = iterations;
-              ref_salt = salt; ref_salt_len = salt_len; params_set = 1;
-              if (bd_nsec3_hash_name (qcanon, ref_alg, ref_salt, ref_salt_len, ref_iter,
-                                      q_hash, sizeof q_hash, &q_hash_len) < 0
-                  || bd_nsec3_hash_name (wildcard, ref_alg, ref_salt, ref_salt_len, ref_iter,
-                                         wc_hash, sizeof wc_hash, &wc_hash_len) < 0
-                  || bd_nsec3_hash_name (suffix, ref_alg, ref_salt, ref_salt_len, ref_iter,
-                                         ce_hash, sizeof ce_hash, &ce_hash_len) < 0
-                  || bd_nsec3_base32hex (q_hash, q_hash_len, q_label, sizeof q_label) < 0
-                  || bd_nsec3_base32hex (wc_hash, wc_hash_len, wc_label, sizeof wc_label) < 0
-                  || bd_nsec3_base32hex (ce_hash, ce_hash_len, ce_label, sizeof ce_label) < 0)
-                { snprintf (err, err_sz, "wildcard NSEC3 hash failed"); return -1; }
-            }
-          else if (alg != ref_alg || flags != ref_flags || iterations != ref_iter
-                   || salt_len != ref_salt_len || memcmp (salt, ref_salt, salt_len) != 0)
-            { snprintf (err, err_sz, "wildcard NSEC3 parameter mismatch"); return -1; }
-
-          char owner_hash[128], next_label[128];
-          if (bd_nsec3_owner_hash_label (rrs[i].owner, owner_hash, sizeof owner_hash) < 0
-              || bd_nsec3_base32hex (next, next_len, next_label, sizeof next_label) < 0)
-            { snprintf (err, err_sz, "wildcard NSEC3 owner-name canonicalization failed"); return -1; }
-          if (strcmp (owner_hash, ce_label) == 0) ce_seen = 1;
-          if (strcmp (owner_hash, wc_label) == 0) wildcard_hash_seen = 1;
-          if (bd_nsec3_range_covers_hash ((const unsigned char *) owner_hash, strlen (owner_hash),
-                                          (const unsigned char *) next_label, strlen (next_label),
-                                          (const unsigned char *) q_label, strlen (q_label)))
-            q_covered = 1;
+          uint8_t alg, flags; uint16_t iterations;
+          const unsigned char *salt, *next, *bm; size_t salt_len, next_len, bm_len;
+          char owner[128], next_label[128], wanted[128]; int dummy;
+          const char *dot = strchr (rrs[i].owner, '.');
+          const char *proof_zone = dot ? dot + 1 : ".";
+          if (strcmp (proof_zone, signer) ||
+              bd_nsec3_parse (&rrs[i], &alg, &flags, &iterations, &salt, &salt_len,
+                              &next, &next_len, &bm, &bm_len) < 0 ||
+              alg < 1 || alg > 3 || flags > 1 || iterations > BD_NSEC3_MAX_ITERATIONS ||
+              bd_nsec_bitmap_has_type (bm, bm_len, BD_T_NSEC3, &dummy) < 0 ||
+              bd_nsec3_owner_hash_label (rrs[i].owner, owner, sizeof owner) < 0 ||
+              bd_nsec3_base32hex (next, next_len, next_label, sizeof next_label) < 0 ||
+              bd_nsec3_name_label (next_closer, alg, salt, salt_len, iterations, wanted, sizeof wanted) < 0 ||
+              strlen (owner) != strlen (wanted) || strlen (next_label) != strlen (wanted))
+            { snprintf (err, err_sz, "invalid wildcard NSEC3 proof"); return -1; }
+          if (bd_nsec3_range_covers_hash ((unsigned char *) owner, strlen (owner),
+                                          (unsigned char *) next_label, strlen (next_label),
+                                          (unsigned char *) wanted, strlen (wanted)))
+            { if (flags & 1) insecure_gap = 1; else secure_gap = 1; }
         }
-      if (ce_seen && wildcard_hash_seen && q_covered) return 0;
-      snprintf (err, err_sz, "wildcard NSEC3 proof missing for %s via %s", qcanon, wildcard);
-      return -1;
     }
-
-  snprintf (err, err_sz, "wildcard expansion proof missing for %s via %s", qcanon, wildcard);
+  if (secure_gap) return 0;
+  if (insecure_gap) return BD_VALIDATE_INSECURE;
+  snprintf (err, err_sz, "wildcard next-closer proof missing for %s", qcanon);
   return -1;
 }
-
 static int
 bd_negative_validate (const unsigned char *reply, size_t rlen,
                       const char *qname, uint16_t qtype,
                       const bd_trust_t *active, int active_n,
-                      int skew_sec)
+                      int skew_sec, uint32_t *ttl_bound)
 {
   char qcanon[256], err[256];
   if (bd_canon_owner (qname, qcanon, sizeof qcanon) < 0)
     return bd_validate_fail ("cannot canonicalise %s", qname);
+  if (rlen < 12 || ((reply[3] & 15) != 0 && (reply[3] & 15) != 3))
+    return bd_validate_fail ("negative response has invalid RCODE");
+  int nxdomain = (reply[3] & 15) == 3;
+  const char *zone = NULL;
+  for (int i = 0; i < active_n; i++)
+    if (active[i].kind == BD_T_DNSKEY && bd_name_under (qcanon, active[i].owner) &&
+        (!zone || strlen (active[i].owner) > strlen (zone))) zone = active[i].owner;
+  if (!zone) return bd_validate_fail ("no authenticated zone for negative response");
 
   bd_rr_t rrs[BD_RR_MAX];
   int n = bd_collect_answer_authority (reply, rlen, rrs, BD_RR_MAX);
   if (n < 0)
     return bd_validate_fail ("negative response parse failed");
 
-  int saw_nsec = 0, saw_nsec3 = 0;
+  int saw_nsec = 0, saw_nsec3 = 0, extra_insecure = 0;
   for (int i = 0; i < n; i++)
     {
-      if (rrs[i].type != BD_T_NSEC && rrs[i].type != BD_T_NSEC3) continue;
-      if (bd_verify_rrset (rrs, n, rrs[i].owner, rrs[i].type,
-                           active, active_n, skew_sec, err, sizeof err) < 0)
-        return bd_validate_fail ("%s RRset for %s: %s",
-                                 bd_type_name (rrs[i].type), rrs[i].owner, err);
+      if (rrs[i].type == BD_T_RRSIG) continue;
+      if (bd_verify_rrset_bound (rrs, n, rrs[i].owner, rrs[i].type,
+                                 active, active_n, skew_sec, err, sizeof err, ttl_bound) < 0)
+        {
+          if (rrs[i].type == BD_T_NSEC || rrs[i].type == BD_T_NSEC3 || rrs[i].type == BD_T_SOA)
+            return bd_validate_fail ("%s RRset for %s: %s",
+                                     bd_type_name (rrs[i].type), rrs[i].owner, err);
+          extra_insecure = 1; continue;
+        }
       if (rrs[i].type == BD_T_NSEC) saw_nsec = 1;
       if (rrs[i].type == BD_T_NSEC3) saw_nsec3 = 1;
     }
 
   if (saw_nsec)
     {
-      int range_ok = 0, nodata_ok = 0, malformed = 0;
+      char next_name[BD_RR_MAX][256];
+      int present[BD_RR_MAX], cname[BD_RR_MAX];
+      memset (next_name, 0, sizeof next_name);
+      memset (present, 0, sizeof present); memset (cname, 0, sizeof cname);
+      int range_ok = 0, nodata_ok = 0, qexact = 0;
       for (int i = 0; i < n; i++)
         {
           if (rrs[i].type != BD_T_NSEC) continue;
-          char next[256];
+          char next[256], canonical[256];
           const unsigned char *bm = NULL;
           size_t bm_len = 0;
-          int q_present = 0, cname_present = 0;
           if (bd_nsec_parse (&rrs[i], next, sizeof next, &bm, &bm_len) < 0)
-            { malformed = 1; continue; }
-          if (bd_nsec_bitmap_has_type (bm, bm_len, qtype, &q_present) < 0
-              || bd_nsec_bitmap_has_type (bm, bm_len, BD_T_CNAME, &cname_present) < 0)
-            { malformed = 1; continue; }
-          if (strcmp (rrs[i].owner, qcanon) == 0 && !q_present && !cname_present)
+            return bd_validate_fail ("NSEC bitmap malformed");
+          if (bd_canon_owner (next, canonical, sizeof canonical) < 0 ||
+              !bd_name_under (rrs[i].owner, zone) || !bd_name_under (canonical, zone))
+            return bd_validate_fail ("NSEC outside authenticated zone");
+          strcpy (next_name[i], canonical);
+          if (bd_nsec_bitmap_has_type (bm, bm_len, qtype, &present[i]) < 0 ||
+              bd_nsec_bitmap_has_type (bm, bm_len, BD_T_CNAME, &cname[i]) < 0)
+            return bd_validate_fail ("NSEC bitmap malformed");
+          if (strcmp (rrs[i].owner, qcanon) == 0 && !present[i] && !cname[i])
             nodata_ok = 1;
-          if (bd_nsec_range_covers (rrs[i].owner, next, qcanon))
+          if (strcmp (rrs[i].owner, qcanon) == 0) qexact = 1;
+          if (bd_nsec_range_covers (rrs[i].owner, canonical, qcanon))
             range_ok = 1;
         }
-      if (malformed)
-        return bd_validate_fail ("NSEC bitmap malformed");
-      if (range_ok || nodata_ok)
+      if (!nxdomain && nodata_ok)
         {
           fprintf (stderr, "dns: VALIDATE OK (NSEC negative proof %s/%s)\n",
                    qname, bd_type_name (qtype));
-          return EXECUTION_SUCCESS;
+          return extra_insecure ? BD_VALIDATE_INSECURE : EXECUTION_SUCCESS;
         }
-      return bd_validate_fail ("NSEC gap mismatch");
+      if (nxdomain && qexact) return bd_validate_fail ("NSEC proves NXDOMAIN name exists");
+      if (!range_ok) return bd_validate_fail ("NSEC qname gap mismatch");
+
+      /* The nearest ancestor established by an authenticated NSEC owner or
+         next name (including an empty nonterminal) is the closest encloser. */
+      char closest[256] = "";
+      for (const char *suffix = qcanon; suffix; )
+        {
+          int exists = 0;
+          for (int i = 0; i < n; i++) if (rrs[i].type == BD_T_NSEC &&
+              (bd_name_under (rrs[i].owner, suffix) || bd_name_under (next_name[i], suffix)))
+            { exists = 1; break; }
+          if (exists) { snprintf (closest, sizeof closest, "%s", suffix); break; }
+          if (!strcmp (suffix, ".")) break;
+          const char *dot = strchr (suffix, '.'); suffix = dot ? dot + 1 : ".";
+        }
+      if (!closest[0]) return bd_validate_fail ("NSEC closest encloser missing");
+      if (!strcmp (closest, qcanon))
+        {
+          if (!nxdomain) return extra_insecure ? BD_VALIDATE_INSECURE : EXECUTION_SUCCESS; /* empty nonterminal */
+          return bd_validate_fail ("NSEC proves NXDOMAIN name exists");
+        }
+      char wildcard[256];
+      if (snprintf (wildcard, sizeof wildcard, !strcmp (closest, ".") ? "*." : "*.%s", closest) >= (int) sizeof wildcard)
+        return bd_validate_fail ("NSEC wildcard name too long");
+      int wildcard_gap = 0, wildcard_nodata = 0, wildcard_exists = 0;
+      for (int i = 0; i < n; i++) if (rrs[i].type == BD_T_NSEC)
+        {
+          if (bd_nsec_range_covers (rrs[i].owner, next_name[i], wildcard)) wildcard_gap = 1;
+          if (!strcmp (rrs[i].owner, wildcard)) wildcard_exists = 1;
+          if (!strcmp (rrs[i].owner, wildcard) && !present[i] && !cname[i]) wildcard_nodata = 1;
+        }
+      if ((nxdomain && wildcard_gap && !wildcard_exists) || (!nxdomain && wildcard_nodata))
+        return extra_insecure ? BD_VALIDATE_INSECURE : EXECUTION_SUCCESS;
+      return bd_validate_fail ("NSEC wildcard denial missing");
     }
 
   if (saw_nsec3)
     {
-      int ce_ok = 0, range_ok = 0;
+      struct proof_rr {
+        char owner[128], next[128];
+        const unsigned char *bitmap;
+        size_t bitmap_len;
+        uint8_t flags;
+      } proof[BD_RR_MAX];
+      int count = 0, have_params = 0;
+      uint8_t ref_alg = 0; uint16_t ref_iter = 0;
+      const unsigned char *ref_salt = NULL; size_t ref_salt_len = 0;
       for (int i = 0; i < n; i++)
         {
           if (rrs[i].type != BD_T_NSEC3) continue;
-          uint8_t alg, flags;
-          uint16_t iterations;
+          uint8_t alg, flags; uint16_t iterations;
           const unsigned char *salt, *next, *bm;
           size_t salt_len, next_len, bm_len;
           if (bd_nsec3_parse (&rrs[i], &alg, &flags, &iterations,
-                              &salt, &salt_len, &next, &next_len,
-                              &bm, &bm_len) < 0)
-            return bd_validate_fail ("NSEC3 bitmap malformed");
-          if (alg < 1 || alg > 3)
-            return bd_validate_fail ("NSEC3 unsupported hash algorithm %u", (unsigned) alg);
-          if (iterations > BD_NSEC3_MAX_ITERATIONS)
-            return bd_validate_fail ("NSEC3 iteration count %u exceeds RFC 9276 cap %u",
-                                     (unsigned) iterations,
-                                     (unsigned) BD_NSEC3_MAX_ITERATIONS);
-          if (flags != 0)
-            return bd_validate_fail ("NSEC3 opt-out unsupported");
-          int dummy = 0;
-          if (bd_nsec_bitmap_has_type (bm, bm_len, qtype, &dummy) < 0)
-            return bd_validate_fail ("NSEC3 bitmap malformed");
-
-          char owner_hash[128], ce_label[128], q_label[128], next_label[128];
-          size_t lab_len = strcspn (rrs[i].owner, ".");
-          if (lab_len == 0 || lab_len >= sizeof owner_hash)
-            return bd_validate_fail ("NSEC3 owner-name canonicalization failed");
-          memcpy (owner_hash, rrs[i].owner, lab_len);
-          owner_hash[lab_len] = '\0';
-
-          unsigned char ce_hash[64], q_hash[64];
-          size_t q_hash_len = 0;
-          if (bd_nsec3_hash_name (qcanon, alg, salt, salt_len, iterations,
-                                  q_hash, sizeof q_hash, &q_hash_len) < 0)
-            return bd_validate_fail ("NSEC3 hash failed");
-          if (bd_nsec3_base32hex (q_hash, q_hash_len, q_label, sizeof q_label) < 0
-              || bd_nsec3_base32hex (next, next_len, next_label, sizeof next_label) < 0)
-            return bd_validate_fail ("NSEC3 owner-name canonicalization failed");
-          for (const char *suffix = qcanon; suffix && *suffix; )
-            {
-              size_t ce_hash_len = 0;
-              if (bd_nsec3_hash_name (suffix, alg, salt, salt_len, iterations,
-                                      ce_hash, sizeof ce_hash, &ce_hash_len) < 0
-                  || bd_nsec3_base32hex (ce_hash, ce_hash_len, ce_label, sizeof ce_label) < 0)
-                return bd_validate_fail ("NSEC3 hash failed");
-              if (strcmp (owner_hash, ce_label) == 0)
-                { ce_ok = 1; break; }
-              const char *dot = strchr (suffix, '.');
-              suffix = dot ? dot + 1 : NULL;
-            }
-          if (bd_nsec3_range_covers_hash ((const unsigned char *) owner_hash, strlen (owner_hash),
-                                          (const unsigned char *) next_label, strlen (next_label),
-                                          (const unsigned char *) q_label, strlen (q_label)))
-            range_ok = 1;
+                              &salt, &salt_len, &next, &next_len, &bm, &bm_len) < 0)
+            return bd_validate_fail ("NSEC3 record malformed");
+          if (alg < 1 || alg > 3 || iterations > BD_NSEC3_MAX_ITERATIONS || flags > 1)
+            return bd_validate_fail ("NSEC3 parameters unsupported");
+          const char *dot = strchr (rrs[i].owner, '.');
+          const char *owner_zone = dot ? dot + 1 : ".";
+          if (strcmp (owner_zone, zone)) return bd_validate_fail ("NSEC3 outside authenticated zone");
+          if (!have_params)
+            { ref_alg = alg; ref_iter = iterations; ref_salt = salt; ref_salt_len = salt_len; have_params = 1; }
+          else if (alg != ref_alg || iterations != ref_iter || salt_len != ref_salt_len ||
+                   memcmp (salt, ref_salt, salt_len))
+            return bd_validate_fail ("NSEC3 parameter mismatch");
+          int dummy;
+          if (bd_nsec_bitmap_has_type (bm, bm_len, qtype, &dummy) < 0 ||
+              bd_nsec3_owner_hash_label (rrs[i].owner, proof[count].owner,
+                                         sizeof proof[count].owner) < 0 ||
+              bd_nsec3_base32hex (next, next_len, proof[count].next,
+                                  sizeof proof[count].next) < 0)
+            return bd_validate_fail ("NSEC3 owner or bitmap malformed");
+          if (strspn (proof[count].owner, "0123456789abcdefghijklmnopqrstuv") != strlen (proof[count].owner))
+            return bd_validate_fail ("NSEC3 owner hash malformed");
+          proof[count].bitmap = bm; proof[count].bitmap_len = bm_len; proof[count].flags = flags; count++;
         }
-      if (!ce_ok)
-        return bd_validate_fail ("NSEC3 missing closest-encloser");
-      if (!range_ok)
-        return bd_validate_fail ("NSEC3 gap mismatch");
-      fprintf (stderr, "dns: VALIDATE OK (NSEC3 negative proof %s/%s)\n",
-               qname, bd_type_name (qtype));
-      return EXECUTION_SUCCESS;
+      char qhash[128];
+      if (!have_params || bd_nsec3_name_label (qcanon, ref_alg, ref_salt, ref_salt_len,
+                                               ref_iter, qhash, sizeof qhash) < 0)
+        return bd_validate_fail ("NSEC3 qname hash failed");
+      size_t hash_len = strlen (qhash);
+      for (int i = 0; i < count; i++)
+        if (strlen (proof[i].owner) != hash_len || strlen (proof[i].next) != hash_len)
+          return bd_validate_fail ("NSEC3 hash length mismatch");
+      for (int i = 0; i < count; i++) if (!strcmp (proof[i].owner, qhash))
+        {
+          if (nxdomain) return bd_validate_fail ("NSEC3 proves NXDOMAIN name exists");
+          int q_present, cname_present;
+          if (bd_nsec_bitmap_has_type (proof[i].bitmap, proof[i].bitmap_len, qtype, &q_present) < 0 ||
+              bd_nsec_bitmap_has_type (proof[i].bitmap, proof[i].bitmap_len, BD_T_CNAME, &cname_present) < 0 ||
+              q_present || cname_present)
+            return bd_validate_fail ("NSEC3 exact-owner type is present");
+          return extra_insecure ? BD_VALIDATE_INSECURE : EXECUTION_SUCCESS;
+        }
+      /* Find the longest matching ancestor and prove its next-closer name
+         absent. Do not use an encloser below DNAME or a delegation. */
+      const char *previous = qcanon, *suffix = strchr (qcanon, '.');
+      suffix = suffix ? suffix + 1 : ".";
+      char closest[256] = "", next_closer[256] = "";
+      while (suffix && bd_name_under (suffix, zone))
+        {
+          char label[128];
+          if (bd_nsec3_name_label (suffix, ref_alg, ref_salt, ref_salt_len,
+                                   ref_iter, label, sizeof label) < 0)
+            return bd_validate_fail ("NSEC3 closest-encloser hash failed");
+          int index = -1;
+          for (int i = 0; i < count; i++) if (!strcmp (proof[i].owner, label)) { index = i; break; }
+          if (index >= 0)
+            {
+              int ns, soa, dname;
+              if (bd_nsec_bitmap_has_type (proof[index].bitmap, proof[index].bitmap_len, BD_T_NS, &ns) < 0 ||
+                  bd_nsec_bitmap_has_type (proof[index].bitmap, proof[index].bitmap_len, BD_T_SOA, &soa) < 0 ||
+                  bd_nsec_bitmap_has_type (proof[index].bitmap, proof[index].bitmap_len, BD_T_DNAME, &dname) < 0 ||
+                  dname || (ns && !soa))
+                return bd_validate_fail ("NSEC3 closest encloser crosses a zone cut");
+              snprintf (closest, sizeof closest, "%s", suffix);
+              snprintf (next_closer, sizeof next_closer, "%s", previous);
+              break;
+            }
+          if (!strcmp (suffix, ".")) break;
+          previous = suffix; const char *dot = strchr (suffix, '.'); suffix = dot ? dot + 1 : ".";
+        }
+      if (!closest[0]) return bd_validate_fail ("NSEC3 closest encloser missing");
+      char next_hash[128], wildcard[256], wildcard_hash[128];
+      if (snprintf (wildcard, sizeof wildcard, !strcmp (closest, ".") ? "*." : "*.%s", closest) >= (int) sizeof wildcard ||
+          bd_nsec3_name_label (next_closer, ref_alg, ref_salt, ref_salt_len, ref_iter, next_hash, sizeof next_hash) < 0 ||
+          bd_nsec3_name_label (wildcard, ref_alg, ref_salt, ref_salt_len, ref_iter, wildcard_hash, sizeof wildcard_hash) < 0)
+        return bd_validate_fail ("NSEC3 wildcard hash failed");
+      int next_gap = 0, next_secure = 0, wildcard_gap = 0, wildcard_nodata = 0, wildcard_exists = 0;
+      for (int i = 0; i < count; i++)
+        {
+          if (bd_nsec3_range_covers_hash ((unsigned char *) proof[i].owner, hash_len,
+                                          (unsigned char *) proof[i].next, hash_len,
+                                          (unsigned char *) next_hash, hash_len)) {
+            next_gap = 1; if (!(proof[i].flags & 1)) next_secure = 1;
+          }
+          if (bd_nsec3_range_covers_hash ((unsigned char *) proof[i].owner, hash_len,
+                                          (unsigned char *) proof[i].next, hash_len,
+                                          (unsigned char *) wildcard_hash, hash_len)) wildcard_gap = 1;
+          if (!strcmp (proof[i].owner, wildcard_hash))
+            {
+              wildcard_exists = 1;
+              int q_present, cname_present;
+              if (bd_nsec_bitmap_has_type (proof[i].bitmap, proof[i].bitmap_len, qtype, &q_present) < 0 ||
+                  bd_nsec_bitmap_has_type (proof[i].bitmap, proof[i].bitmap_len, BD_T_CNAME, &cname_present) < 0)
+                return bd_validate_fail ("NSEC3 wildcard bitmap malformed");
+              if (!q_present && !cname_present) wildcard_nodata = 1;
+            }
+        }
+      if (next_gap && !next_secure && !nxdomain && qtype == BD_T_DS)
+        return BD_VALIDATE_INSECURE;
+      if (next_gap && ((nxdomain && wildcard_gap && !wildcard_exists) || (!nxdomain && wildcard_nodata)))
+        return next_secure && !extra_insecure ? EXECUTION_SUCCESS : BD_VALIDATE_INSECURE;
+      return bd_validate_fail ("NSEC3 next-closer or wildcard proof missing");
     }
 
   return bd_validate_fail ("no signed NSEC/NSEC3 denial proof");
+}
+
+/* Called only after the denial RRsets have been authenticated. An exact
+   delegation bitmap with NS and without SOA or DS identifies an unsigned
+   child: data below it is insecure, not a bogus secure answer. */
+static int
+bd_insecure_delegation (const unsigned char *reply, size_t rlen, const char *name)
+{
+  bd_rr_t rrs[BD_RR_MAX]; char canon[256];
+  if (bd_canon_owner (name, canon, sizeof canon) < 0) return 0;
+  int n = bd_collect_answer_authority (reply, rlen, rrs, BD_RR_MAX);
+  if (n < 0) return 0;
+  for (int i = 0; i < n; i++)
+    {
+      const unsigned char *bm = NULL; size_t bm_len = 0;
+      if (rrs[i].type == BD_T_NSEC && !strcmp (rrs[i].owner, canon))
+        {
+          char next[256];
+          if (bd_nsec_parse (&rrs[i], next, sizeof next, &bm, &bm_len) < 0) continue;
+        }
+      else if (rrs[i].type == BD_T_NSEC3)
+        {
+          uint8_t alg, flags; uint16_t iterations;
+          const unsigned char *salt, *next; size_t salt_len, next_len;
+          char owner_hash[128], wanted[128];
+          if (bd_nsec3_parse (&rrs[i], &alg, &flags, &iterations, &salt, &salt_len,
+                              &next, &next_len, &bm, &bm_len) < 0 || flags > 1 ||
+              bd_nsec3_owner_hash_label (rrs[i].owner, owner_hash, sizeof owner_hash) < 0 ||
+              bd_nsec3_name_label (canon, alg, salt, salt_len, iterations, wanted, sizeof wanted) < 0 ||
+              strcmp (owner_hash, wanted)) continue;
+        }
+      else continue;
+      int ns, soa, ds;
+      if (bd_nsec_bitmap_has_type (bm, bm_len, BD_T_NS, &ns) == 0 &&
+          bd_nsec_bitmap_has_type (bm, bm_len, BD_T_SOA, &soa) == 0 &&
+          bd_nsec_bitmap_has_type (bm, bm_len, BD_T_DS, &ds) == 0 && ns && !soa && !ds)
+        return 1;
+    }
+  return 0;
+}
+
+typedef int (*bd_chain_fetch_fn) (void *, const char *, uint16_t,
+                                  unsigned char *, size_t);
+
+static int
+bd_chain_fetch (bd_chain_fetch_fn fetch, void *fetch_ctx,
+                const char *qname, uint16_t qtype, const char *server,
+                int timeout_ms, int attempts, unsigned char *reply, size_t reply_sz)
+{
+  if (fetch) return fetch (fetch_ctx, qname, qtype, reply, reply_sz);
+  return bd_fetch_attempts (qname, qtype, server, 1, timeout_ms, attempts, 1, reply, reply_sz);
 }
 
 /* Iterative chain walk: descend zone labels from "." down to the
@@ -5149,19 +5420,25 @@ bd_negative_validate (const unsigned char *reply, size_t rlen,
  * DS chain, then verify the leaf RRset. */
 static int
 bd_chain_validate (const char *qname, uint16_t qtype, const char *server,
-                   int timeout_ms, int attempts, int skew_sec)
+                   int timeout_ms, int attempts, int skew_sec,
+                   bd_chain_fetch_fn fetch, void *fetch_ctx,
+                   const unsigned char *supplied_reply, size_t supplied_len,
+                   uint16_t supplied_qtype, int alias_mode,
+                   unsigned char *validated_reply, size_t validated_sz,
+                   int *validated_len, uint32_t *ttl_bound, int *wildcard_used)
 {
-  /* If no trust set was loaded explicitly, try BASHDNS_TRUST_ANCHOR. */
-  if (bd_trust_count == 0)
-    {
-      const char *env_anchor = getenv ("BASHDNS_TRUST_ANCHOR");
-      if (env_anchor && *env_anchor)
-        {
-          char buf[512];
-          if (bd_load_trust_anchor_line (env_anchor, buf, sizeof buf) < 0)
-            return bd_validate_fail ("BASHDNS_TRUST_ANCHOR=%s could not be parsed", env_anchor);
-        }
-    }
+  if (ttl_bound) *ttl_bound = UINT32_MAX;
+  if (wildcard_used) *wildcard_used = 0;
+  const char *env_anchor = getenv ("BASHDNS_TRUST_ANCHOR");
+  if (env_anchor && *env_anchor) {
+    char buf[512];
+    if (bd_load_trust_anchor_line (env_anchor, buf, sizeof buf) < 0)
+      return bd_validate_fail ("BASHDNS_TRUST_ANCHOR=%s could not be parsed", env_anchor);
+  } else {
+    memcpy (bd_trust_set, bd_explicit_trust_set,
+            (size_t) bd_explicit_trust_count * sizeof bd_trust_set[0]);
+    bd_trust_count = bd_explicit_trust_count;
+  }
   if (bd_trust_count == 0)
     return bd_validate_fail ("no trust anchor loaded; call trust-anchor-load PATH first or set BASHDNS_TRUST_ANCHOR");
 
@@ -5190,10 +5467,15 @@ bd_chain_validate (const char *qname, uint16_t qtype, const char *server,
   zones[zc++] = ".";
   int n = (int) strlen (canon);
   int label_starts[64]; int ls_n = 0;
-  for (int i = n - 1; i >= 0; i--)
-    if (canon[i] == '.') label_starts[ls_n++] = i + 1;
-  /* The full canon name (offset 0) is itself the deepest candidate. */
-  label_starts[ls_n++] = 0;
+  if (strcmp (canon, ".")) {
+    for (int i = n - 1; i >= 0; i--)
+      if (canon[i] == '.') {
+        if (ls_n >= BD_CHAIN_MAX_DEPTH - 2) return bd_validate_fail ("chain too deep");
+        label_starts[ls_n++] = i + 1;
+      }
+    /* The full canon name (offset 0) is itself the deepest candidate. */
+    label_starts[ls_n++] = 0;
+  }
   /* label_starts is in descending-zone order: rightmost suffix first. */
   for (int i = 0; i < ls_n; i++)
     {
@@ -5201,6 +5483,9 @@ bd_chain_validate (const char *qname, uint16_t qtype, const char *server,
         return bd_validate_fail ("chain too deep");
       zones[zc++] = canon + label_starts[i];
     }
+  /* A DS is signed by the parent; an owner of a CNAME cannot be a zone
+     apex, so its CNAME is validated with the enclosing zone's keys. */
+  if ((qtype == BD_T_DS || qtype == BD_T_CNAME) && zc > 1) zc--;
   /* If the leaf name itself is queried (qtype=DNSKEY/DS at the same
    * name) we will still attempt to verify the answer RRset against
    * the active set after the loop completes. */
@@ -5211,34 +5496,65 @@ bd_chain_validate (const char *qname, uint16_t qtype, const char *server,
 
   unsigned char reply[8192];
 
-  /* For each zone, fetch DNSKEY, verify DS-chain bridge, install
-   * the new keys as the trust set for the child zone. Names that are
-   * not actually zone cuts (no DNSKEY answer) are skipped silently —
-   * the chain just keeps the parent's trust set. The leaf RRset
-   * still has to be signed by *some* key in the final active set.
-   * The trust anchor at zi==0 (".") MUST always have DNSKEY records
-   * (otherwise we have no chain at all). */
+  /* At each label, require either a parent-signed DS bridge or an
+   * authenticated denial; only a bridge promotes child DNSKEYs. */
   for (int zi = 0; zi < zc; zi++)
     {
       const char *zone = zones[zi];
-      int rlen = bd_fetch_attempts (zone, BD_T_DNSKEY, server, 1, timeout_ms,
-                                    attempts, reply, sizeof reply);
-      if (rlen < 12)
+      if (zi > 0)
         {
-          if (zi == 0)
-            return bd_validate_fail ("DNSKEY fetch failed for root zone");
-          continue;  /* non-zone-cut: keep prior active set */
+          int dlen = bd_chain_fetch (fetch, fetch_ctx, zone, BD_T_DS, server,
+                                     timeout_ms, attempts, reply, sizeof reply);
+          if (dlen < 12) return bd_validate_fail ("DS fetch failed for %s", zone);
+          bd_rr_t drr[BD_RR_MAX];
+          int drr_n = bd_collect_rrset (reply, (size_t) dlen, zone, BD_T_DS, drr, BD_RR_MAX);
+          if (drr_n < 0) return bd_validate_fail ("DS parse failed for %s", zone);
+          int ds_count = 0;
+          for (int i = 0; i < drr_n; i++) if (drr[i].type == BD_T_DS) ds_count++;
+          if (ds_count == 0)
+            {
+              int denial = bd_negative_validate (reply, (size_t) dlen, zone, BD_T_DS,
+                                                 active, active_n, skew_sec, ttl_bound);
+              if (denial == BD_VALIDATE_INSECURE) {
+                if (!bd_response_has_delegation (reply, (size_t) dlen, zone))
+                  return bd_validate_fail ("opt-out DS proof lacks a delegation for %s", zone);
+                return BD_VALIDATE_INSECURE;
+              }
+              if (denial != EXECUTION_SUCCESS)
+                return bd_validate_fail ("unauthenticated DS absence for %s", zone);
+              if (bd_insecure_delegation (reply, (size_t) dlen, zone))
+                return BD_VALIDATE_INSECURE;
+              continue;
+            }
+          if ((reply[3] & 15) != 0 || active_n + ds_count > BD_TRUST_MAX)
+            return bd_validate_fail ("invalid DS response or trust overflow for %s", zone);
+          char ds_err[256];
+          if (bd_verify_rrset_bound (drr, drr_n, zone, BD_T_DS,
+                                     active, active_n, skew_sec, ds_err, sizeof ds_err, ttl_bound) < 0)
+            return bd_validate_fail ("DS RRset for %s: %s", zone, ds_err);
+          for (int i = 0; i < drr_n; i++) if (drr[i].type == BD_T_DS)
+            {
+              if (drr[i].rdata_len < 4 || drr[i].rdata_len - 4 > sizeof active[0].digest)
+                return bd_validate_fail ("malformed DS for %s", zone);
+              bd_trust_t *t = &active[active_n++]; memset (t, 0, sizeof *t);
+              if (bd_canon_owner (drr[i].owner, t->owner, sizeof t->owner) < 0)
+                return bd_validate_fail ("DS owner canonicalise failed");
+              t->kind = BD_T_DS; t->key_tag = bd_rd16 (drr[i].rdata);
+              t->algorithm = drr[i].rdata[2]; t->digest_type = drr[i].rdata[3];
+              t->digest_len = drr[i].rdata_len - 4;
+              memcpy (t->digest, drr[i].rdata + 4, t->digest_len);
+            }
         }
+      int rlen = bd_chain_fetch (fetch, fetch_ctx, zone, BD_T_DNSKEY, server,
+                                 timeout_ms, attempts, reply, sizeof reply);
+      if (rlen < 12)
+        return bd_validate_fail ("DNSKEY fetch failed for %s", zone);
 
       bd_rr_t rrs[BD_RR_MAX];
       int rrs_n = bd_collect_rrset (reply, (size_t) rlen, zone, BD_T_DNSKEY,
                                     rrs, BD_RR_MAX);
       if (rrs_n <= 0)
-        {
-          if (zi == 0)
-            return bd_validate_fail ("no DNSKEY RRset for root zone");
-          continue;
-        }
+        return bd_validate_fail ("no DNSKEY RRset for zone %s", zone);
 
       /* Install the candidate DNSKEYs into a temporary trust set. */
       bd_trust_t cand[BD_TRUST_MAX]; int cand_n = 0;
@@ -5246,101 +5562,65 @@ bd_chain_validate (const char *qname, uint16_t qtype, const char *server,
           || cand_n == 0)
         return bd_validate_fail ("DNSKEY install failed for zone %s", zone);
 
-      /* DS bridge: every candidate DNSKEY must either chain to a DS
-       * already in the active trust set, OR a DNSKEY-form trust anchor
-       * for this zone is in the active set. We require at least one
-       * DS-valid (or DNSKEY-anchor-valid) key per zone — applies at
-       * zi==0 too, where the root trust anchor is normally a DS. */
-      int bridged = 0;
-      /* Direct DNSKEY anchor match (operator pinned a DNSKEY). */
-      for (int i = 0; i < active_n && !bridged; i++)
+      /* Authenticate the DNSKEY RRset with a DNSKEY that itself matches
+       * a trusted DS or DNSKEY anchor.  An untrusted key merely present in
+       * the candidate RRset cannot authorize the other candidate keys. */
+      bd_trust_t bridged[BD_TRUST_MAX]; int bridged_n = 0;
+      for (int i = 0; i < cand_n; i++)
         {
-          if (active[i].kind != BD_T_DNSKEY) continue;
-          if (strcmp (active[i].owner, cand[0].owner) != 0) continue;
-          for (int j = 0; j < cand_n; j++)
-            if (cand[j].rdata_len == active[i].rdata_len
-                && memcmp (cand[j].rdata, active[i].rdata, cand[j].rdata_len) == 0)
-              { bridged = 1; break; }
+          int matched = 0;
+          for (int j = 0; j < active_n && !matched; j++)
+            if (active[j].kind == BD_T_DNSKEY &&
+                strcmp (active[j].owner, cand[i].owner) == 0 &&
+                active[j].rdata_len == cand[i].rdata_len &&
+                memcmp (active[j].rdata, cand[i].rdata, cand[i].rdata_len) == 0)
+              matched = 1;
+          if (!matched && bd_ds_check (cand[i].owner, cand[i].key_tag,
+                                       cand[i].algorithm, cand[i].rdata,
+                                       cand[i].rdata_len, active, active_n) == 0)
+            matched = 1;
+          if (matched) bridged[bridged_n++] = cand[i];
         }
-      /* DS-bridged match. */
-      for (int i = 0; i < cand_n && !bridged; i++)
-        {
-          if (bd_ds_check (cand[i].owner, cand[i].key_tag,
-                           cand[i].algorithm,
-                           cand[i].rdata, cand[i].rdata_len,
-                           active, active_n) == 0)
-            bridged = 1;
-        }
-      if (!bridged)
+      if (bridged_n == 0)
         return bd_validate_fail ("DS digest mismatch for zone %s (no candidate DNSKEY hashes to any active DS)", zone);
 
-      /* Verify the DNSKEY RRset RRSIG using the candidate set itself
-       * (a DNSKEY RRset is self-signed by one of its KSKs). */
       char err[256];
-      if (bd_verify_rrset (rrs, rrs_n, zone, BD_T_DNSKEY,
-                           cand, cand_n, skew_sec, err, sizeof err) < 0)
+      if (bd_verify_rrset_bound (rrs, rrs_n, zone, BD_T_DNSKEY,
+                                 bridged, bridged_n, skew_sec, err, sizeof err, ttl_bound) < 0)
         return bd_validate_fail ("DNSKEY RRset for %s: %s", zone, err);
 
       /* Promote candidate -> active trust set for this zone. */
       memcpy (active, cand, (size_t) cand_n * sizeof active[0]);
       active_n = cand_n;
 
-      /* If this is not the final zone, fetch DS for the *next* zone
-       * and add it to the active set so the next iteration can bridge.
-       * For the root anchor case (only DS in the initial set), we
-       * already bridged via the static DS at zi==0; for descent we
-       * pull DS from the parent's authority section. */
-      if (zi + 1 < zc)
-        {
-          const char *child = zones[zi + 1];
-          int dlen = bd_fetch_attempts (child, BD_T_DS, server, 1, timeout_ms,
-                                        attempts, reply, sizeof reply);
-          if (dlen < 12)
-            continue;  /* no DS for child = not a zone cut; carry on */
-          bd_rr_t drr[BD_RR_MAX];
-          int drr_n = bd_collect_rrset (reply, (size_t) dlen, child, BD_T_DS,
-                                        drr, BD_RR_MAX);
-          if (drr_n <= 0)
-            continue;  /* same — child not delegated */
-          /* Verify DS RRSIG using the parent's active DNSKEYs. */
-          if (bd_verify_rrset (drr, drr_n, child, BD_T_DS,
-                               active, active_n, skew_sec, err, sizeof err) < 0)
-            return bd_validate_fail ("DS RRset for %s: %s", child, err);
-          /* Convert each DS RR into a bd_trust_t and append. */
-          if (active_n + drr_n > BD_TRUST_MAX)
-            return bd_validate_fail ("trust set overflow at zone %s", child);
-          for (int i = 0; i < drr_n; i++)
-            {
-              if (drr[i].type != BD_T_DS) continue;
-              if (drr[i].rdata_len < 4) continue;
-              bd_trust_t *t = &active[active_n++];
-              memset (t, 0, sizeof *t);
-              if (bd_canon_owner (drr[i].owner, t->owner, sizeof t->owner) < 0)
-                return bd_validate_fail ("DS owner canonicalise failed");
-              t->kind = BD_T_DS;
-              t->key_tag     = bd_rd16 (drr[i].rdata);
-              t->algorithm   = drr[i].rdata[2];
-              t->digest_type = drr[i].rdata[3];
-              size_t dl = drr[i].rdata_len - 4;
-              if (dl > sizeof t->digest) dl = sizeof t->digest;
-              memcpy (t->digest, drr[i].rdata + 4, dl);
-              t->digest_len = dl;
-            }
-        }
+
     }
 
   /* Leaf answer. */
-  int rlen = bd_fetch_attempts (qname, qtype, server, 1, timeout_ms,
-                                attempts, reply, sizeof reply);
+  int rlen;
+  if (supplied_reply)
+    {
+      if (supplied_len > sizeof reply || supplied_len < 12 ||
+          bd_reply_question_matches (supplied_reply, supplied_len, qname,
+                                     supplied_qtype ? supplied_qtype : qtype) < 0)
+        return bd_validate_fail ("supplied answer does not match question");
+      memcpy (reply, supplied_reply, supplied_len); rlen = (int) supplied_len;
+    }
+  else rlen = bd_chain_fetch (fetch, fetch_ctx, qname, qtype, server,
+                              timeout_ms, attempts, reply, sizeof reply);
   if (rlen < 12)
     return bd_validate_fail ("answer fetch failed for %s/%s", qname, bd_type_name (qtype));
+  if ((size_t) rlen > validated_sz)
+    return bd_validate_fail ("validated answer exceeds caller buffer");
+  memcpy (validated_reply, reply, (size_t) rlen);
+  *validated_len = rlen;
 
   /* NXDOMAIN / NODATA: rcode != 0, or zero answers. v2 stops here. */
   int rcode = reply[3] & 0xf;
   uint16_t an = bd_rd16 (reply + 6);
-  if (rcode != 0 || an == 0)
+  if ((rcode != 0 && !(alias_mode && rcode == BD_RCODE_NXDOMAIN)) || an == 0)
     return bd_negative_validate (reply, (size_t) rlen, qname, qtype,
-                                 active, active_n, skew_sec);
+                                 active, active_n, skew_sec, ttl_bound);
 
   bd_rr_t all_rrs[BD_RR_MAX];
   int all_n = bd_collect_answer_authority (reply, (size_t) rlen, all_rrs, BD_RR_MAX);
@@ -5348,17 +5628,52 @@ bd_chain_validate (const char *qname, uint16_t qtype, const char *server,
     return bd_validate_fail ("answer parse failed for %s/%s", qname, bd_type_name (qtype));
 
   char err[256];
-  int dname_rc = bd_dname_validate (all_rrs, all_n, qname, qtype,
-                                    active, active_n, skew_sec,
-                                    err, sizeof err);
+  int dname_rc;
+  if (alias_mode) {
+    bd_rr_t dname_rrs[BD_RR_MAX]; int dn = 0;
+    for (int i = 0; i < all_n && dn < BD_RR_MAX; i++) {
+      int keep = all_rrs[i].type == BD_T_DNAME ||
+                 (all_rrs[i].type == BD_T_CNAME && !strcmp (all_rrs[i].owner, canon)) ||
+                 (all_rrs[i].type == BD_T_RRSIG && all_rrs[i].rdata_len >= 2 &&
+                  bd_rd16 (all_rrs[i].rdata) == BD_T_DNAME);
+      if (keep) dname_rrs[dn++] = all_rrs[i];
+    }
+    dname_rc = bd_dname_validate (dname_rrs, dn, qname, qtype,
+                                   active, active_n, skew_sec, err, sizeof err);
+  } else dname_rc = bd_dname_validate (all_rrs, all_n, qname, qtype,
+                                       active, active_n, skew_sec, err, sizeof err);
   if (dname_rc < 0)
     return bd_validate_fail ("DNAME proof: %s", err);
   if (dname_rc == 0)
     {
+      if (alias_mode && wildcard_used) *wildcard_used = 2; /* include authenticated DNAME */
+      if (ttl_bound) *ttl_bound = 0; /* conservative until every alias proof has a bound */
       fprintf (stderr, "dns: VALIDATE OK (chain depth %d, DNAME proof %s/%s)\n",
                zc, qname, bd_type_name (qtype));
       return EXECUTION_SUCCESS;
     }
+
+  /* A validated direct answer must not carry an unrelated or unsigned
+     answer RRset that a caller could mistake for the requested data. */
+  bd_rr_t answer_rrs[BD_RR_MAX]; size_t answer_off = 12;
+  if (an > BD_RR_MAX || bd_skip_question (reply, (size_t) rlen, &answer_off) < 0)
+    return bd_validate_fail ("invalid answer section");
+  int answer_n = bd_collect_rrs (reply, (size_t) rlen, &answer_off, an,
+                                 NULL, 0, answer_rrs, BD_RR_MAX);
+  if (answer_n != an) return bd_validate_fail ("invalid answer section");
+  int alias_records = 0;
+  for (int i = 0; i < answer_n; i++) {
+    if (answer_rrs[i].type == BD_T_RRSIG) continue;
+    if (alias_mode) {
+      if (answer_rrs[i].type == BD_T_CNAME && !strcmp (answer_rrs[i].owner, canon)) {
+        if (answer_rrs[i].cls != BD_C_IN) return bd_validate_fail ("invalid CNAME class");
+        alias_records++;
+      }
+    } else if (answer_rrs[i].cls != BD_C_IN || answer_rrs[i].type != qtype ||
+               strcmp (answer_rrs[i].owner, canon))
+      return bd_validate_fail ("unrelated or unsupported answer RRset");
+  }
+  if (alias_mode && alias_records != 1) return bd_validate_fail ("invalid CNAME RRset cardinality");
 
   bd_rr_t rrs[BD_RR_MAX];
   int rrs_n = bd_collect_rrset (reply, (size_t) rlen, qname, qtype, rrs, BD_RR_MAX);
@@ -5375,16 +5690,74 @@ bd_chain_validate (const char *qname, uint16_t qtype, const char *server,
 
   /* Type-agnostic leaf verify: SVCB/HTTPS/etc. verify here; SVCB/HTTPS
      TargetName canonicalisation is handled in bd_collect_rrs. */
-  if (bd_verify_rrset (rrs, rrs_n, qname, qtype,
-                       active, active_n, skew_sec, err, sizeof err) < 0)
+  if (bd_verify_rrset_bound (rrs, rrs_n, qname, qtype,
+                             active, active_n, skew_sec, err, sizeof err, ttl_bound) < 0)
     return bd_validate_fail ("answer RRset: %s", err);
-  if (bd_wildcard_validate (all_rrs, all_n, qname, qtype,
-                            active, active_n, skew_sec, err, sizeof err) < 0)
+  int was_wildcard = 0;
+  int wildcard_rc = bd_wildcard_validate (all_rrs, all_n, qname, qtype,
+                                          active, active_n, skew_sec, err, sizeof err,
+                                          ttl_bound, &was_wildcard);
+  if (wildcard_used) *wildcard_used = was_wildcard;
+  if (wildcard_rc < 0)
     return bd_validate_fail ("answer wildcard proof: %s", err);
+  if (wildcard_rc == BD_VALIDATE_INSECURE) return BD_VALIDATE_INSECURE;
+
+  /* AD covers authority data too. If an auxiliary authority RRset is not
+     authenticated, relay without AD rather than asserting it is secure. */
+  for (int i = 0; i < all_n; i++)
+    if (all_rrs[i].type != BD_T_RRSIG &&
+        (!alias_mode || (was_wildcard && (all_rrs[i].type == BD_T_NSEC || all_rrs[i].type == BD_T_NSEC3))) &&
+        !(all_rrs[i].type == qtype && !strcmp (all_rrs[i].owner, canon)) &&
+        bd_verify_rrset_bound (all_rrs, all_n, all_rrs[i].owner, all_rrs[i].type,
+                               active, active_n, skew_sec, err, sizeof err, ttl_bound) < 0)
+      return BD_VALIDATE_INSECURE;
 
   fprintf (stderr, "dns: VALIDATE OK (chain depth %d, leaf %s/%s)\n",
            zc, qname, bd_type_name (qtype));
   return EXECUTION_SUCCESS;
+}
+
+/* Resolve and authenticate each CNAME RRset before following its target.
+   The final answer emitted is the exact packet that was validated. */
+static int
+bd_validate_query_chain (const char *qname, uint16_t qtype, const char *server,
+                         int timeout_ms, int attempts, int skew_sec)
+{
+  char name[256], visited[9][256]; int visited_n = 0;
+  if (bd_canon_owner (qname, name, sizeof name) < 0) return EXECUTION_FAILURE;
+  for (int step = 0; step < 9; step++) {
+    for (int i = 0; i < visited_n; i++) if (!strcmp (visited[i], name))
+      return bd_validate_fail ("CNAME loop for %s", name);
+    snprintf (visited[visited_n++], sizeof visited[0], "%s", name);
+    unsigned char packet[8192], verified[8192]; int verified_len = 0;
+    int n = bd_fetch_attempts (name, qtype, server, 1, timeout_ms, attempts, 1,
+                               packet, sizeof packet);
+    if (n < 12) return EXECUTION_FAILURE;
+    char target[256] = "";
+    if (qtype != BD_T_CNAME && ((packet[3] & 15) == 0 || (packet[3] & 15) == BD_RCODE_NXDOMAIN)) {
+      bd_rr_t answer[BD_RR_MAX]; size_t off = 12; uint16_t an = bd_rd16 (packet + 6);
+      if (an > BD_RR_MAX || bd_skip_question (packet, (size_t) n, &off) < 0)
+        return EXECUTION_FAILURE;
+      int count = bd_collect_rrs (packet, (size_t) n, &off, an, NULL, 0, answer, BD_RR_MAX);
+      if (count != an) return EXECUTION_FAILURE;
+      for (int i = 0; i < count; i++)
+        if (answer[i].type == BD_T_CNAME && !strcmp (answer[i].owner, name)) {
+          if (target[0] || bd_rr_rdata_name (&answer[i], target, sizeof target) < 0)
+            return bd_validate_fail ("invalid CNAME RRset for %s", name);
+        }
+    }
+    int alias = target[0] != '\0';
+    int rc = bd_chain_validate (name, alias ? BD_T_CNAME : qtype, server,
+                                timeout_ms, attempts, skew_sec, NULL, NULL,
+                                packet, (size_t) n, alias ? qtype : 0, alias,
+                                verified, sizeof verified, &verified_len, NULL, NULL);
+    if (rc != EXECUTION_SUCCESS || verified_len != n) return EXECUTION_FAILURE;
+    if (alias) { snprintf (name, sizeof name, "%s", target); continue; }
+    if ((verified[3] & 15) != 0 || bd_rd16 (verified + 6) == 0) return EXECUTION_SUCCESS;
+    return bd_emit_answers (verified, (size_t) verified_len, qtype) > 0
+           ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+  }
+  return bd_validate_fail ("CNAME chain too deep");
 }
 
 /* ---- Bash entry ---------------------------------------------------- */
@@ -5553,10 +5926,8 @@ bd_query_cmd (WORD_LIST *args, const char *forced_type)
         {
           if (strlen (dot_ca) >= sizeof bd_dot_ctx.ca_path)
             { builtin_error ("--dot-ca: path too long"); return EX_USAGE; }
-          /* Reject paths containing a single quote so the bash -c
-           * dispatch string in bd_query_dot stays parseable. This
-           * fires here (not only inside bd_query_dot's default branch)
-           * so the validation holds even under BASHDNS_DOT_CMD stubs. */
+          /* Preserve the existing CA path validation for all transports,
+           * including the documented override seam. */
           if (strchr (dot_ca, '\'') != NULL)
             { builtin_error ("--dot-ca: CA path may not contain '"); return EX_USAGE; }
           strcpy (bd_dot_ctx.ca_path, dot_ca);
@@ -5606,23 +5977,9 @@ bd_query_cmd (WORD_LIST *args, const char *forced_type)
           for (int si = 0; si < server_count; si++)
             {
               const char *eff_server = server_list[si];
-              int rc = bd_chain_validate (query_names[qi], qtype, eff_server,
-                                          timeout_ms, resolver_conf.attempts,
-                                          skew_sec);
-              if (rc != EXECUTION_SUCCESS) continue;
-              /* Re-fetch the leaf and emit the answer for the caller's
-               * consumption. */
-              unsigned char rep[8192];
-              int rl = bd_fetch_attempts (query_names[qi], qtype, eff_server, 1,
-                                          timeout_ms, resolver_conf.attempts,
-                                          rep, sizeof rep);
-              if (rl < 12) continue;
-              /* A validated NXDOMAIN/NODATA negative proof has no answer RR
-                 to emit, but validation already succeeded -> return OK. */
-              if ((rep[3] & 0xf) != 0 || bd_rd16 (rep + 6) == 0)
-                return EXECUTION_SUCCESS;
-              int en = bd_emit_answers (rep, (size_t) rl, qtype);
-              if (en > 0) return EXECUTION_SUCCESS;
+              int rc = bd_validate_query_chain (query_names[qi], qtype, eff_server,
+                                                timeout_ms, resolver_conf.attempts, skew_sec);
+              if (rc == EXECUTION_SUCCESS) return rc;
             }
         }
       return EXECUTION_FAILURE;
@@ -5635,7 +5992,7 @@ bd_query_cmd (WORD_LIST *args, const char *forced_type)
         {
           int rlen = bd_fetch_attempts (query_names[qi], qtype, server_list[si],
                                         dnssec, timeout_ms,
-                                        resolver_conf.attempts,
+                                        resolver_conf.attempts, 0,
                                         reply, sizeof reply);
           /* NXDOMAIN is final for this name on every server; the next
            * search-list candidate is still tried, as glibc does. */
@@ -7737,6 +8094,8 @@ struct bdr_cache_ent {
   unsigned char reply[BDR_MSG_MAX];
   size_t        rlen;
   time_t        expiry;
+  time_t        stored_at;
+  unsigned char anchor_hash[32];
   int           used;
 };
 struct bdr_local {
@@ -7826,25 +8185,193 @@ bdr_parse_question (const unsigned char *q, size_t qlen, char *qname, size_t nsz
   return 0;
 }
 
-/* Smallest TTL across the answer + authority sections (cache lifetime). */
+/* Cache lifetime. Negative answers require an authority SOA; RFC 2308
+   bounds its TTL by MINIMUM. Clamp the wire TTL as well as the lifetime. */
 static uint32_t
-bdr_min_ttl (const unsigned char *r, size_t rlen)
+bdr_cache_ttl (unsigned char *r, size_t rlen, int negative)
 {
-  if (rlen < 12) return 60;
+  if (rlen < 12) return 0;
   uint16_t qd = bd_rd16 (r + 4), an = bd_rd16 (r + 6), ns = bd_rd16 (r + 8);
   size_t off = 12;
-  for (int i = 0; i < qd; i++) { if (bd_skip_name (r, rlen, &off) < 0) return 60; off += 4; }
-  uint32_t mn = 0xffffffffu; int seen = 0, total = (int) an + (int) ns;
-  for (int i = 0; i < total; i++) {
-    if (bd_skip_name (r, rlen, &off) < 0) break;
-    if (off + 10 > rlen) break;
-    off += 4;                              /* type + class */
-    uint32_t ttl = bd_rd32 (r + off); off += 4;
-    uint16_t rdl = bd_rd16 (r + off); off += 2; off += rdl;
-    if (ttl < mn) mn = ttl;
-    seen = 1;
+  for (int i = 0; i < qd; i++) {
+    if (bd_skip_name (r, rlen, &off) < 0 || off + 4 > rlen) return 0;
+    off += 4;
   }
-  return seen ? (mn ? mn : 60) : 60;
+  uint32_t mn = 0xffffffffu; int seen = 0, soa = 0;
+  for (int i = 0; i < (int) an + (int) ns; i++) {
+    if (bd_skip_name (r, rlen, &off) < 0 || off + 10 > rlen) return 0;
+    uint16_t type = bd_rd16 (r + off);
+    size_t ttl_off = off + 4;
+    uint32_t ttl = bd_rd32 (r + ttl_off);
+    uint16_t rdl = bd_rd16 (r + off + 8);
+    off += 10;
+    if (rdl > rlen - off) return 0;
+    if (negative && i >= an && type == 6) {
+      size_t p = off, end = off + rdl;
+      if (bd_skip_name (r, rlen, &p) < 0 || p > end ||
+          bd_skip_name (r, rlen, &p) < 0 || p > end || end - p != 20)
+        return 0;
+      uint32_t minimum = bd_rd32 (r + p + 16);
+      if (ttl > minimum) ttl = minimum;
+      if (ttl > 3600) ttl = 3600;
+      r[ttl_off] = (unsigned char) (ttl >> 24);
+      r[ttl_off + 1] = (unsigned char) (ttl >> 16);
+      r[ttl_off + 2] = (unsigned char) (ttl >> 8);
+      r[ttl_off + 3] = (unsigned char) ttl;
+      soa = 1;
+    }
+    if (!negative || i < an || (i >= an && type == 6)) {
+      if (ttl < mn) mn = ttl;
+      seen = 1;
+    }
+    off += rdl;
+  }
+  return seen && (!negative || soa) ? mn : 0;
+}
+
+/* Age the ordinary TTL fields, preserving OPT's extended flags. */
+static int
+bdr_age_reply (unsigned char *r, size_t rlen, time_t age)
+{
+  if (rlen < 12 || age < 0) return -1;
+  unsigned qd = bd_rd16 (r + 4), rr = bd_rd16 (r + 6) +
+                bd_rd16 (r + 8) + bd_rd16 (r + 10);
+  size_t off = 12;
+  for (unsigned i = 0; i < qd; i++) {
+    if (bd_skip_name (r, rlen, &off) < 0 || off + 4 > rlen) return -1;
+    off += 4;
+  }
+  for (unsigned i = 0; i < rr; i++) {
+    if (bd_skip_name (r, rlen, &off) < 0 || off + 10 > rlen) return -1;
+    uint16_t type = bd_rd16 (r + off), len = bd_rd16 (r + off + 8);
+    if (len > rlen - off - 10) return -1;
+    if (type != 41) {
+      uint32_t ttl = bd_rd32 (r + off + 4);
+      ttl = (uint64_t) age >= ttl ? 0 : ttl - (uint32_t) age;
+      r[off + 4] = (unsigned char) (ttl >> 24);
+      r[off + 5] = (unsigned char) (ttl >> 16);
+      r[off + 6] = (unsigned char) (ttl >> 8);
+      r[off + 7] = (unsigned char) ttl;
+    }
+    off += 10 + len;
+  }
+  return off == rlen ? 0 : -1;
+}
+
+static int
+bdr_limit_reply_ttl (unsigned char *r, size_t rlen, uint32_t limit)
+{
+  if (rlen < 12) return -1;
+  unsigned qd = bd_rd16 (r + 4), rr = bd_rd16 (r + 6) + bd_rd16 (r + 8) + bd_rd16 (r + 10);
+  size_t off = 12;
+  for (unsigned i = 0; i < qd; i++) {
+    if (bd_skip_name (r, rlen, &off) < 0 || off + 4 > rlen) return -1;
+    off += 4;
+  }
+  for (unsigned i = 0; i < rr; i++) {
+    if (bd_skip_name (r, rlen, &off) < 0 || off + 10 > rlen) return -1;
+    uint16_t type = bd_rd16 (r + off), len = bd_rd16 (r + off + 8);
+    if (len > rlen - off - 10) return -1;
+    if (type != 41 && bd_rd32 (r + off + 4) > limit) {
+      r[off + 4] = (unsigned char) (limit >> 24); r[off + 5] = (unsigned char) (limit >> 16);
+      r[off + 6] = (unsigned char) (limit >> 8); r[off + 7] = (unsigned char) limit;
+    }
+    off += 10 + len;
+  }
+  return off == rlen ? 0 : -1;
+}
+
+/* Re-encode rather than delete bytes in-place: later compression pointers
+   must not be left pointing into a removed DNSSEC record. */
+static int
+bdr_filter_dnssec (const unsigned char *r, size_t rlen,
+                   const unsigned char *request, size_t request_len,
+                   uint16_t qtype, uint16_t qclass, unsigned char *out, size_t osz)
+{
+  if (rlen < 12 || osz < 12) return -1;
+  uint16_t count[3] = { bd_rd16 (r + 6), bd_rd16 (r + 8), bd_rd16 (r + 10) };
+  size_t input = 12;
+  if (bd_skip_question (r, rlen, &input) < 0) return -1;
+  memcpy (out, r, 12); out[4] = 0; out[5] = 1; size_t used = 12;
+  size_t qoff = 12; char question_name[256];
+  if (request_len < 12 || bd_decode_name (request, request_len, &qoff,
+                                          question_name, sizeof question_name, 0) < 0) return -1;
+  int qn = bd_encode_qname (question_name, out + used, osz - used);
+  if (qn < 0 || (size_t) qn + 4 > osz - used) return -1;
+  used += (size_t) qn; out[used++] = (unsigned char) (qtype >> 8); out[used++] = (unsigned char) qtype;
+  out[used++] = (unsigned char) (qclass >> 8); out[used++] = (unsigned char) qclass;
+  for (int section = 0; section < 3; section++) {
+    if (count[section] > BD_RR_MAX) return -1;
+    bd_rr_t records[BD_RR_MAX];
+    int n = bd_collect_rrs (r, rlen, &input, count[section], NULL, 0, records, BD_RR_MAX);
+    if (n != count[section]) return -1;
+    uint16_t kept = 0;
+    for (int i = 0; i < n; i++) {
+      bd_rr_t *rr = &records[i];
+      int dnssec = rr->type == BD_T_RRSIG || rr->type == BD_T_NSEC || rr->type == BD_T_NSEC3 ||
+                   rr->type == BD_T_DNSKEY || rr->type == BD_T_DS || rr->type == BD_T_NSEC3PARAM;
+      if (dnssec && !(section == 0 && rr->type == qtype)) continue;
+      int wn = bd_name_to_wire (rr->owner, out + used, osz - used);
+      if (wn < 0 || (size_t) wn + 10 + rr->rdata_len > osz - used) return -1;
+      used += (size_t) wn;
+      out[used++] = (unsigned char) (rr->type >> 8); out[used++] = (unsigned char) rr->type;
+      out[used++] = (unsigned char) (rr->cls >> 8); out[used++] = (unsigned char) rr->cls;
+      uint32_t ttl = rr->type == 41 ? rr->ttl & ~0x8000u : rr->ttl;
+      out[used++] = (unsigned char) (ttl >> 24); out[used++] = (unsigned char) (ttl >> 16);
+      out[used++] = (unsigned char) (ttl >> 8); out[used++] = (unsigned char) ttl;
+      out[used++] = (unsigned char) (rr->rdata_len >> 8); out[used++] = (unsigned char) rr->rdata_len;
+      memcpy (out + used, rr->rdata, rr->rdata_len); used += rr->rdata_len; kept++;
+    }
+    out[6 + section * 2] = (unsigned char) (kept >> 8);
+    out[7 + section * 2] = (unsigned char) kept;
+  }
+  return input == rlen ? (int) used : -1;
+}
+
+static void
+bdr_restore_question_case (const unsigned char *q, size_t qlen, unsigned char *r, size_t rlen)
+{
+  if (qlen < 12 || rlen < 12 || bd_rd16 (q + 4) != 1 || bd_rd16 (r + 4) != 1) return;
+  size_t qoff = 12; char name[256]; unsigned char wire[256];
+  if (bd_decode_name (q, qlen, &qoff, name, sizeof name, 0) < 0) return;
+  int wn = bd_encode_qname (name, wire, sizeof wire);
+  if (wn < 0 || (size_t) wn > rlen - 12) return;
+  size_t roff = 12;
+  while (roff < rlen && r[roff]) {
+    unsigned length = r[roff];
+    if ((length & 0xc0) || length > 63 || length + 1 > rlen - roff) return;
+    roff += length + 1;
+  }
+  if (roff >= rlen || roff - 12 + 1 != (size_t) wn) return;
+  for (int i = 0; i < wn; i++)
+    if (tolower ((unsigned char) wire[i]) != tolower ((unsigned char) r[12 + i])) return;
+  memcpy (r + 12, wire, (size_t) wn);
+}
+
+/* A CNAME-only answer accompanied by an SOA is still negative for the
+   requested type. Require the SOA so referrals are not treated as NODATA. */
+static int
+bdr_response_negative (const unsigned char *r, size_t rlen, uint16_t qtype)
+{
+  if (rlen < 12) return 0;
+  int rcode = r[3] & 15;
+  if (rcode == BD_RCODE_NXDOMAIN) return 1;
+  if (rcode != BD_RCODE_NOERROR) return 0;
+  unsigned qd = bd_rd16 (r + 4), an = bd_rd16 (r + 6), ns = bd_rd16 (r + 8);
+  size_t off = 12;
+  for (unsigned i = 0; i < qd; i++) {
+    if (bd_skip_name (r, rlen, &off) < 0 || off + 4 > rlen) return 0;
+    off += 4;
+  }
+  for (unsigned i = 0; i < an + ns; i++) {
+    if (bd_skip_name (r, rlen, &off) < 0 || off + 10 > rlen) return 0;
+    uint16_t type = bd_rd16 (r + off), len = bd_rd16 (r + off + 8);
+    if (len > rlen - off - 10) return 0;
+    if (i < an && type == qtype) return 0;
+    if (i >= an && type == BD_T_SOA) return 1;
+    off += 10 + len;
+  }
+  return an == 0;
 }
 
 /* Forward a raw query to an upstream nameserver; raw reply into `reply`. */
@@ -7861,10 +8388,25 @@ bdr_forward (const unsigned char *q, size_t qlen, const char *upstream,
   struct timeval tv = { timeout_ms / 1000, (timeout_ms % 1000) * 1000 };
   setsockopt (s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
   setsockopt (s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
-  if (sendto (s, q, qlen, 0, (struct sockaddr *) &sa, sl) < 0) { close (s); return -1; }
-  ssize_t n = recvfrom (s, reply, rsz, 0, NULL, NULL);
+  if (connect (s, (struct sockaddr *) &sa, sl) < 0 ||
+      send (s, q, qlen, 0) != (ssize_t) qlen) { close (s); return -1; }
+  ssize_t n = recv (s, reply, rsz, 0);
   close (s);
-  return n < 0 ? -1 : (int) n;
+  if (n < 12 || qlen < 12 || bd_rd16 (reply) != bd_rd16 (q) ||
+      !(reply[2] & 0x80) || (reply[2] & 0x78) || bd_rd16 (reply + 4) != 1) return -1;
+  char expected[256], actual[256]; uint16_t qt, qc, rt, rc;
+  if (bdr_parse_question (q, qlen, expected, sizeof expected, &qt, &qc) < 0 ||
+      bdr_parse_question (reply, (size_t) n, actual, sizeof actual, &rt, &rc) < 0 ||
+      strcmp (expected, actual) || qt != rt || qc != rc) return -1;
+  if (bd_tc_bit (reply, (size_t) n)) {
+    int tn = bd_query_tcp (q, qlen, upstream, timeout_ms, reply, rsz);
+    if (tn < 12 || bd_rd16 (reply) != bd_rd16 (q) || !(reply[2] & 0x80) ||
+        (reply[2] & 0x7a) || bd_rd16 (reply + 4) != 1 ||
+        bdr_parse_question (reply, (size_t) tn, actual, sizeof actual, &rt, &rc) < 0 ||
+        strcmp (expected, actual) || qt != rt || qc != rc) return -1;
+    return tn;
+  }
+  return (int) n;
 }
 
 /* Build a single-answer reply (QR|RA set) from the query header+question for a
@@ -7929,18 +8471,13 @@ bdr_build_chaos (const unsigned char *q, size_t qlen, const char *ver,
    NODATA verbatim — and bypasses the client rate-limiter/fixture path. */
 static int
 bdr_query_raw (const char *qname, uint16_t qtype, const char *server,
-               int timeout_ms, unsigned char *reply, size_t rsz)
+               int timeout_ms, int dnssec, unsigned char *reply, size_t rsz)
 {
-  static uint16_t seq = 0; seq++;
-  unsigned char q[600]; memset (q, 0, 12);
-  q[0] = (unsigned char) (seq >> 8); q[1] = (unsigned char) seq;
-  q[4] = 0; q[5] = 1;                       /* QDCOUNT = 1, flags 0 (RD=0) */
-  size_t off = 12;
-  int wn = bd_name_to_wire (qname, q + off, sizeof q - off);
-  if (wn < 0) return -1; off += (size_t) wn;
-  if (off + 4 > sizeof q) return -1;
-  q[off++] = (unsigned char) (qtype >> 8); q[off++] = (unsigned char) qtype;
-  q[off++] = 0; q[off++] = 1;               /* QCLASS = IN */
+  uint16_t id = bd_random_u16 ();
+  unsigned char q[768];
+  int qlen = bd_build_query (id, qname, qtype, dnssec, q, sizeof q);
+  if (qlen < 0) return -1;
+  q[2] &= (unsigned char) ~1u;               /* iterative: RD=0 */
   struct sockaddr_storage sa;
   socklen_t sl = 0;
   if (bd_make_sockaddr (server, bd_server_port (), &sa, &sl) < 0)
@@ -7950,53 +8487,180 @@ bdr_query_raw (const char *qname, uint16_t qtype, const char *server,
   struct timeval tv = { timeout_ms / 1000, (timeout_ms % 1000) * 1000 };
   setsockopt (s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
   setsockopt (s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
-  if (sendto (s, q, off, 0, (struct sockaddr *) &sa, sl) < 0) { close (s); return -1; }
-  ssize_t n = recvfrom (s, reply, rsz, 0, NULL, NULL);
+  if (connect (s, (struct sockaddr *) &sa, sl) < 0 ||
+      send (s, q, (size_t) qlen, 0) != qlen) { close (s); return -1; }
+  ssize_t n = recv (s, reply, rsz, 0);
   close (s);
-  return n < 0 ? -1 : (int) n;
+  if (n < 12 || bd_rd16 (reply) != id || !(reply[2] & 0x80) || (reply[2] & 0x78) ||
+      bd_reply_question_matches (reply, (size_t) n, qname, qtype) < 0) return -1;
+  if (bd_tc_bit (reply, (size_t) n))
+    {
+      int tn = bd_query_tcp (q, (size_t) qlen, server, timeout_ms, reply, rsz);
+      if (tn < 12 || bd_rd16 (reply) != id || !(reply[2] & 0x80) || (reply[2] & 0x7a) ||
+          bd_reply_question_matches (reply, (size_t) tn, qname, qtype) < 0) return -1;
+      return tn;
+    }
+  return (int) n;
 }
 
-/* Classify one recursion step's reply: 1 = answer present for qtype, 2 = CNAME
-   (target -> cname_out), 3 = referral (NS in authority + A glue collected into
-   glue[]), 0 = negative / no usable progress. Type numbers are raw (the BDA_*
-   enum is defined later in the file): A=1 NS=2 CNAME=5. */
+struct bdr_referral {
+  char zone[256];
+  char hosts[16][256]; int nhost;
+  char glue[16][64]; int nglue;
+};
+
+/* Only glue for a nameserver actually named by the closest enclosing
+   delegation, and within that delegation's bailiwick, is used as a hint. */
 static int
-bdr_classify (const unsigned char *r, size_t rlen, uint16_t qtype,
-              char *cname_out, size_t cname_sz, char glue[][64], int *nglue, int glue_max)
+bdr_classify (const unsigned char *r, size_t rlen, const char *qname, uint16_t qtype,
+              char *cname_out, size_t cname_sz, struct bdr_referral *ref)
 {
-  *nglue = 0; if (cname_out) cname_out[0] = '\0';
+  memset (ref, 0, sizeof *ref); if (cname_out) cname_out[0] = '\0';
   if (rlen < 12) return 0;
   uint16_t qd = bd_rd16 (r + 4), an = bd_rd16 (r + 6), nsc = bd_rd16 (r + 8), arc = bd_rd16 (r + 10);
-  size_t off = 12; char nm[256];
-  for (int i = 0; i < qd; i++) { if (bd_skip_name (r, rlen, &off) < 0) return 0; off += 4; if (off > rlen) return 0; }
+  size_t off = 12; char nm[256], owner[256];
+  for (int i = 0; i < qd; i++) { if (bd_skip_name (r, rlen, &off) < 0 || off + 4 > rlen) return 0; off += 4; }
   int has_answer = 0, got_cname = 0;
   for (int i = 0; i < an; i++) {
-    if (bd_decode_name (r, rlen, &off, nm, sizeof nm, 0) < 0) return 0;
-    if (off + 10 > rlen) return 0;
-    uint16_t t = bd_rd16 (r + off); uint16_t rdl = bd_rd16 (r + off + 8); size_t rdat = off + 10;
-    if (t == qtype) has_answer = 1;
-    else if (t == 5 && !got_cname && cname_out) { size_t c = rdat;
-      if (bd_decode_name (r, rlen, &c, cname_out, cname_sz, 0) >= 0) { bdr_lower (cname_out); got_cname = 1; } }
-    off = rdat + rdl; if (off > rlen) return 0;
+    if (bd_decode_name (r, rlen, &off, nm, sizeof nm, 0) < 0 || off + 10 > rlen ||
+        bd_canon_owner (nm, owner, sizeof owner) < 0) return 0;
+    uint16_t t = bd_rd16 (r + off), cls = bd_rd16 (r + off + 2), len = bd_rd16 (r + off + 8);
+    size_t data = off + 10; if (len > rlen - data) return 0;
+    if (cls == BD_C_IN && !strcmp (owner, qname)) {
+      if (t == qtype) has_answer = 1;
+      else if (t == BD_T_CNAME && !got_cname && cname_out) {
+        size_t p = data;
+        if (bd_decode_name (r, rlen, &p, nm, sizeof nm, 0) < 0 || p > data + len ||
+            bd_canon_owner (nm, cname_out, cname_sz) < 0) return 0;
+        got_cname = 1;
+      }
+    }
+    off = data + len;
   }
   if (has_answer) return 1;
   if (got_cname) return 2;
-  int has_ns = 0;
+  if ((r[3] & 15) != 0) return 0;
   for (int i = 0; i < nsc; i++) {
-    if (bd_decode_name (r, rlen, &off, nm, sizeof nm, 0) < 0) return 0;
-    if (off + 10 > rlen) return 0;
-    if (bd_rd16 (r + off) == 2) has_ns = 1;
-    off += 10 + bd_rd16 (r + off + 8); if (off > rlen) return 0;
+    if (bd_decode_name (r, rlen, &off, nm, sizeof nm, 0) < 0 || off + 10 > rlen ||
+        bd_canon_owner (nm, owner, sizeof owner) < 0) return 0;
+    uint16_t type = bd_rd16 (r + off), cls = bd_rd16 (r + off + 2), len = bd_rd16 (r + off + 8);
+    size_t data = off + 10; if (len > rlen - data) return 0;
+    if (type == BD_T_NS && cls == BD_C_IN && bd_name_under (qname, owner)) {
+      size_t owner_len = strlen (owner), selected_len = strlen (ref->zone);
+      if (!ref->zone[0] || owner_len > selected_len) {
+        snprintf (ref->zone, sizeof ref->zone, "%s", owner); ref->nhost = 0;
+      }
+      if (!strcmp (owner, ref->zone) && ref->nhost < 16) {
+        size_t p = data;
+        if (bd_decode_name (r, rlen, &p, nm, sizeof nm, 0) < 0 || p > data + len ||
+            bd_canon_owner (nm, ref->hosts[ref->nhost], sizeof ref->hosts[0]) < 0) return 0;
+        ref->nhost++;
+      }
+    }
+    off = data + len;
   }
   for (int i = 0; i < arc; i++) {
-    if (bd_decode_name (r, rlen, &off, nm, sizeof nm, 0) < 0) break;
-    if (off + 10 > rlen) break;
-    uint16_t t = bd_rd16 (r + off); uint16_t rdl = bd_rd16 (r + off + 8); size_t rdat = off + 10;
-    if (t == 1 && rdl == 4 && *nglue < glue_max) { struct in_addr a; memcpy (&a, r + rdat, 4);
-      inet_ntop (AF_INET, &a, glue[*nglue], 64); (*nglue)++; }
-    off = rdat + rdl; if (off > rlen) break;
+    if (bd_decode_name (r, rlen, &off, nm, sizeof nm, 0) < 0 || off + 10 > rlen ||
+        bd_canon_owner (nm, owner, sizeof owner) < 0) return 0;
+    uint16_t type = bd_rd16 (r + off), cls = bd_rd16 (r + off + 2), len = bd_rd16 (r + off + 8);
+    size_t data = off + 10; if (len > rlen - data) return 0;
+    int named = 0;
+    for (int j = 0; j < ref->nhost; j++) if (!strcmp (owner, ref->hosts[j])) { named = 1; break; }
+    if (named && bd_name_under (owner, ref->zone) && cls == BD_C_IN && ref->nglue < 16) {
+      int family = type == BD_T_A && len == 4 ? AF_INET : type == BD_T_AAAA && len == 16 ? AF_INET6 : 0;
+      if (family && inet_ntop (family, r + data, ref->glue[ref->nglue], sizeof ref->glue[0])) ref->nglue++;
+    }
+    off = data + len;
   }
-  return (has_ns && *nglue > 0) ? 3 : 0;
+  return ref->nhost > 0 ? 3 : 0;
+}
+
+#define BDR_ALIAS_MAX 8
+struct bdr_alias_trace {
+  int count;
+  struct { char name[256], target[256]; unsigned char packet[8192]; size_t len; int include_proofs; } alias[BDR_ALIAS_MAX];
+  char final_name[256];
+  unsigned char final_packet[8192]; size_t final_len;
+};
+
+static int
+bdr_append_rr (const bd_rr_t *rr, unsigned char *out, size_t osz, size_t *used)
+{
+  int wn = bd_name_to_wire (rr->owner, out + *used, osz - *used);
+  if (wn < 0 || (size_t) wn + 10 + rr->rdata_len > osz - *used) return -1;
+  *used += (size_t) wn;
+  out[(*used)++] = (unsigned char) (rr->type >> 8); out[(*used)++] = (unsigned char) rr->type;
+  out[(*used)++] = (unsigned char) (rr->cls >> 8); out[(*used)++] = (unsigned char) rr->cls;
+  out[(*used)++] = (unsigned char) (rr->ttl >> 24); out[(*used)++] = (unsigned char) (rr->ttl >> 16);
+  out[(*used)++] = (unsigned char) (rr->ttl >> 8); out[(*used)++] = (unsigned char) rr->ttl;
+  out[(*used)++] = (unsigned char) (rr->rdata_len >> 8); out[(*used)++] = (unsigned char) rr->rdata_len;
+  memcpy (out + *used, rr->rdata, rr->rdata_len); *used += rr->rdata_len;
+  return 0;
+}
+
+/* Rebuild a single question and answer/authority/additional sequence. The
+   per-alias wire packets remain available separately for DNSSEC validation. */
+static int
+bdr_compose_alias (const struct bdr_alias_trace *trace, const char *qname, uint16_t qtype,
+                   unsigned char *out, size_t osz)
+{
+  if (trace->final_len < 12 || osz < 12) return -1;
+  memcpy (out, trace->final_packet, 12); out[4] = 0; out[5] = 1;
+  size_t used = 12; int wn = bd_encode_qname (qname, out + used, osz - used);
+  if (wn < 0 || (size_t) wn + 4 > osz - used) return -1;
+  used += (size_t) wn; out[used++] = (unsigned char) (qtype >> 8); out[used++] = (unsigned char) qtype;
+  out[used++] = 0; out[used++] = 1;
+  uint16_t answer_count = 0;
+  bd_rr_t records[BD_RR_MAX];
+  for (int a = 0; a < trace->count; a++) {
+    const unsigned char *pkt = trace->alias[a].packet; size_t len = trace->alias[a].len, off = 12;
+    uint16_t count = bd_rd16 (pkt + 6);
+    if (count > BD_RR_MAX || bd_skip_question (pkt, len, &off) < 0) return -1;
+    int n = bd_collect_rrs (pkt, len, &off, count, NULL, 0, records, BD_RR_MAX);
+    if (n != count) return -1;
+    for (int i = 0; i < n; i++) {
+      bd_rr_t *rr = &records[i];
+      int cname = !strcmp (rr->owner, trace->alias[a].name) &&
+                  (rr->type == BD_T_CNAME || (rr->type == BD_T_RRSIG && rr->rdata_len >= 2 &&
+                                               bd_rd16 (rr->rdata) == BD_T_CNAME));
+      int dname = trace->alias[a].include_proofs == 2 &&
+                  (rr->type == BD_T_DNAME || (rr->type == BD_T_RRSIG && rr->rdata_len >= 2 &&
+                                               bd_rd16 (rr->rdata) == BD_T_DNAME));
+      if (!cname && !dname) continue;
+      if (bdr_append_rr (rr, out, osz, &used) < 0 || answer_count == UINT16_MAX) return -1;
+      answer_count++;
+    }
+  }
+  const unsigned char *pkt = trace->final_packet; size_t len = trace->final_len, off = 12;
+  uint16_t counts[3] = { bd_rd16 (pkt + 6), bd_rd16 (pkt + 8), bd_rd16 (pkt + 10) };
+  if (bd_skip_question (pkt, len, &off) < 0) return -1;
+  for (int section = 0; section < 3; section++) {
+    uint32_t proof_count = 0;
+    if (section == 1) for (int a = 0; a < trace->count; a++) {
+      if (trace->alias[a].include_proofs != 1) continue;
+      const unsigned char *ap = trace->alias[a].packet; size_t alen = trace->alias[a].len, aoff = 12;
+      uint16_t an = bd_rd16 (ap + 6), ns = bd_rd16 (ap + 8);
+      if (an > BD_RR_MAX || ns > BD_RR_MAX || bd_skip_question (ap, alen, &aoff) < 0) return -1;
+      if (bd_collect_rrs (ap, alen, &aoff, an, NULL, 0, records, BD_RR_MAX) != an) return -1;
+      int pn = bd_collect_rrs (ap, alen, &aoff, ns, NULL, 0, records, BD_RR_MAX);
+      if (pn != ns) return -1;
+      for (int i = 0; i < pn; i++) {
+        bd_rr_t *rr = &records[i];
+        int proof = rr->type == BD_T_NSEC || rr->type == BD_T_NSEC3 ||
+                    (rr->type == BD_T_RRSIG && rr->rdata_len >= 2 &&
+                     (bd_rd16 (rr->rdata) == BD_T_NSEC || bd_rd16 (rr->rdata) == BD_T_NSEC3));
+        if (proof) { if (bdr_append_rr (rr, out, osz, &used) < 0) return -1; proof_count++; }
+      }
+    }
+    if (counts[section] > BD_RR_MAX) return -1;
+    int n = bd_collect_rrs (pkt, len, &off, counts[section], NULL, 0, records, BD_RR_MAX);
+    if (n != counts[section]) return -1;
+    for (int i = 0; i < n; i++) if (bdr_append_rr (&records[i], out, osz, &used) < 0) return -1;
+    uint32_t total = counts[section] + (section == 0 ? answer_count : 0) + proof_count;
+    if (total > UINT16_MAX) return -1;
+    out[6 + 2 * section] = (unsigned char) (total >> 8); out[7 + 2 * section] = (unsigned char) total;
+  }
+  return off == len ? (int) used : -1;
 }
 
 /* Iterative recursion: resolve (qname0, qtype) from the root-hint servers,
@@ -8005,37 +8669,116 @@ bdr_classify (const unsigned char *r, size_t rlen, uint16_t qtype,
    bd_fetch() targets `server` at BASHDNS_SERVER_PORT (53 in production), so the
    delegation chain shares one port across distinct server IPs. */
 static int
-bdr_recurse (const char *qname0, uint16_t qtype, char roots[][64], int nroots,
-             int timeout_ms, unsigned char *out, size_t osz)
+bdr_recurse_depth (const char *qname0, uint16_t qtype, char roots[][64], int nroots,
+                   int timeout_ms, int dnssec, unsigned char *out, size_t osz,
+                   int depth, int *budget, struct bdr_alias_trace *trace)
 {
+  if (depth > 8) return -1;
   char srv[8][64]; int nsrv = 0;
   for (int i = 0; i < nroots && i < 8; i++) { strncpy (srv[nsrv], roots[i], 63); srv[nsrv][63] = '\0'; nsrv++; }
   char qname[256]; snprintf (qname, sizeof qname, "%s", qname0);
+  char current_zone[256] = ".";
   unsigned char reply[8192];
   for (int step = 0; step < 24 && nsrv > 0; step++) {
     int got = -1;
     for (int si = 0; si < nsrv; si++) {
-      int rl = bdr_query_raw (qname, qtype, srv[si], timeout_ms, reply, sizeof reply);
+      if (*budget <= 0) return -1;
+      (*budget)--;
+      int rl = bdr_query_raw (qname, qtype, srv[si], timeout_ms, dnssec, reply, sizeof reply);
       if (rl >= 12) { got = rl; break; }
     }
     if (got < 0) return -1;
-    char cname[256], glue[16][64]; int nglue = 0;
-    int kind = bdr_classify (reply, (size_t) got, qtype, cname, sizeof cname, glue, &nglue, 16);
+    char cname[256]; struct bdr_referral ref;
+    int kind = bdr_classify (reply, (size_t) got, qname, qtype, cname, sizeof cname, &ref);
     if (kind == 1 || kind == 0) {                  /* answer or negative -> done */
+      if (trace) {
+        if ((size_t) got > sizeof trace->final_packet) return -1;
+        snprintf (trace->final_name, sizeof trace->final_name, "%s", qname);
+        memcpy (trace->final_packet, reply, (size_t) got); trace->final_len = (size_t) got;
+        if (trace->count) {
+          int combined = bdr_compose_alias (trace, qname0, qtype, out, osz);
+          if (combined < 0) return -1;
+          out[2] &= (unsigned char) ~0x04u; out[3] |= 0x80;
+          return combined;
+        }
+      }
       if ((size_t) got > osz) return -1;
       memcpy (out, reply, (size_t) got);
       out[2] &= ~0x04; out[3] |= 0x80;             /* clear AA, set RA (recursive answer) */
       return got;
     }
     if (kind == 2) {                               /* CNAME -> restart from roots */
+      if (trace) {
+        if (trace->count >= BDR_ALIAS_MAX || (size_t) got > sizeof trace->alias[0].packet || !strcmp (qname, cname)) return -1;
+        for (int i = 0; i < trace->count; i++) if (!strcmp (trace->alias[i].name, cname)) return -1;
+        int i = trace->count++;
+        snprintf (trace->alias[i].name, sizeof trace->alias[i].name, "%s", qname);
+        snprintf (trace->alias[i].target, sizeof trace->alias[i].target, "%s", cname);
+        memcpy (trace->alias[i].packet, reply, (size_t) got); trace->alias[i].len = (size_t) got;
+        trace->alias[i].include_proofs = 1; /* unchecked callers retain supplied proofs */
+        bd_rr_t found[BD_RR_MAX]; size_t poff = 12; uint16_t ac = bd_rd16 (reply + 6);
+        if (ac > BD_RR_MAX || bd_skip_question (reply, (size_t) got, &poff) < 0 ||
+            bd_collect_rrs (reply, (size_t) got, &poff, ac, NULL, 0, found, BD_RR_MAX) != ac) return -1;
+        for (int j = 0; j < ac; j++) if (found[j].type == BD_T_DNAME) {
+          trace->alias[i].include_proofs = 2; break;
+        }
+      }
       snprintf (qname, sizeof qname, "%s", cname);
+      strcpy (current_zone, ".");
       nsrv = 0; for (int i = 0; i < nroots && i < 8; i++) { strncpy (srv[nsrv], roots[i], 63); srv[nsrv][63] = '\0'; nsrv++; }
       continue;
     }
-    nsrv = 0;                                      /* referral -> descend to glue */
-    for (int i = 0; i < nglue && i < 8; i++) { strncpy (srv[nsrv], glue[i], 63); srv[nsrv][63] = '\0'; nsrv++; }
+    if (!bd_name_under (ref.zone, current_zone) || !strcmp (ref.zone, current_zone))
+      return -1;                                   /* referral must descend */
+    nsrv = 0;
+    for (int i = 0; i < ref.nglue && nsrv < 8; i++) {
+      snprintf (srv[nsrv], sizeof srv[nsrv], "%s", ref.glue[i]); nsrv++;
+    }
+    /* Out-of-bailiwick additional records are untrusted. Resolve those
+       nameserver hostnames from the roots rather than following that glue. */
+    for (int i = 0; i < ref.nhost && nsrv < 8; i++) {
+      if (bd_name_under (ref.hosts[i], ref.zone)) continue;
+      for (int family = 0; family < 2 && nsrv < 8; family++) {
+        int before = nsrv;
+        uint16_t typ = family ? BD_T_AAAA : BD_T_A;
+        unsigned char addr_reply[8192];
+        int alen = bdr_recurse_depth (ref.hosts[i], typ, roots, nroots, timeout_ms,
+                                      dnssec, addr_reply, sizeof addr_reply, depth + 1, budget, NULL);
+        if (alen < 12) continue;
+        size_t pos = 12; if (bd_skip_question (addr_reply, (size_t) alen, &pos) < 0) continue;
+        uint16_t answers = bd_rd16 (addr_reply + 6);
+        for (int a = 0; a < answers && nsrv < 8; a++) {
+          if (bd_skip_name (addr_reply, (size_t) alen, &pos) < 0 || pos + 10 > (size_t) alen) break;
+          uint16_t t = bd_rd16 (addr_reply + pos), cls = bd_rd16 (addr_reply + pos + 2);
+          uint16_t len = bd_rd16 (addr_reply + pos + 8); pos += 10;
+          if (len > (size_t) alen - pos) break;
+          int af = t == BD_T_A && len == 4 ? AF_INET : t == BD_T_AAAA && len == 16 ? AF_INET6 : 0;
+          if (cls == BD_C_IN && af && inet_ntop (af, addr_reply + pos, srv[nsrv], sizeof srv[0])) nsrv++;
+          pos += len;
+        }
+        if (nsrv > before) break;
+      }
+    }
+    snprintf (current_zone, sizeof current_zone, "%s", ref.zone);
   }
   return -1;
+}
+
+static int
+bdr_recurse (const char *qname0, uint16_t qtype, char roots[][64], int nroots,
+             int timeout_ms, int dnssec, unsigned char *out, size_t osz)
+{
+  int budget = 48;
+  return bdr_recurse_depth (qname0, qtype, roots, nroots, timeout_ms, dnssec, out, osz, 0, &budget, NULL);
+}
+
+static int
+bdr_recurse_traced (const char *qname, uint16_t qtype, char roots[][64], int nroots,
+                    int timeout_ms, int dnssec, unsigned char *out, size_t osz,
+                    struct bdr_alias_trace *trace)
+{
+  int budget = 48; memset (trace, 0, sizeof *trace);
+  return bdr_recurse_depth (qname, qtype, roots, nroots, timeout_ms, dnssec, out, osz, 0, &budget, trace);
 }
 
 /* ---- EDNS0 COOKIE (RFC 7873) ---- */
@@ -8083,6 +8826,26 @@ bdr_query_udpsize (const unsigned char *q, size_t qlen)
     off += 10 + bd_rd16 (q + off + 8);
   }
   return 512;
+}
+
+static int
+bdr_query_dnssec_ok (const unsigned char *q, size_t qlen)
+{
+  if (qlen < 12) return 0;
+  unsigned qd = bd_rd16 (q + 4), other = bd_rd16 (q + 6) + bd_rd16 (q + 8);
+  unsigned ar = bd_rd16 (q + 10); size_t off = 12;
+  for (unsigned i = 0; i < qd; i++) {
+    if (bd_skip_name (q, qlen, &off) < 0 || off + 4 > qlen) return 0;
+    off += 4;
+  }
+  for (unsigned i = 0; i < other + ar; i++) {
+    if (bd_skip_name (q, qlen, &off) < 0 || off + 10 > qlen) return 0;
+    uint16_t type = bd_rd16 (q + off), len = bd_rd16 (q + off + 8);
+    if (len > qlen - off - 10) return 0;
+    if (i >= other && type == 41) return (bd_rd32 (q + off + 4) & 0x8000) != 0;
+    off += 10 + len;
+  }
+  return 0;
 }
 
 /* Server cookie = FNV-1a(secret || client_cookie || client_ip), 8 bytes. Not a
@@ -8180,6 +8943,46 @@ struct bdr_ctx {
   int dns64_on; unsigned char dns64_prefix[12];
 };
 
+static int
+bdr_anchor_digest (unsigned char digest[32])
+{
+  const char *anchor = getenv ("BASHDNS_TRUST_ANCHOR");
+  if (anchor && *anchor) {
+    char metadata[512];
+    if (bd_load_trust_anchor_line (anchor, metadata, sizeof metadata) < 0) return -1;
+  } else {
+    memcpy (bd_trust_set, bd_explicit_trust_set,
+            (size_t) bd_explicit_trust_count * sizeof bd_trust_set[0]);
+    bd_trust_count = bd_explicit_trust_count;
+  }
+  if (bd_trust_count <= 0) return -1;
+  size_t digest_len = 0;
+  if (bd_run_hash_bytes ("sha256", (const unsigned char *) bd_trust_set,
+                         (size_t) bd_trust_count * sizeof bd_trust_set[0],
+                         digest, 32, &digest_len) < 0 || digest_len != 32) return -1;
+  return 0;
+}
+
+static int
+bdr_servfail (const unsigned char *q, size_t qlen, unsigned char *out, size_t osz)
+{
+  size_t end = 12;
+  if (qlen < 12 || osz < 12 || bd_skip_name (q, qlen, &end) < 0 ||
+      end + 4 > qlen || end + 4 > osz) return -1;
+  end += 4; memcpy (out, q, end); out[2] = 0x80; out[3] = 0x82;
+  out[4] = 0; out[5] = 1;
+  out[6] = out[7] = out[8] = out[9] = out[10] = out[11] = 0;
+  return (int) end;
+}
+
+static int
+bdr_chain_fetch (void *ctx, const char *name, uint16_t type,
+                 unsigned char *out, size_t out_sz)
+{
+  struct bdr_ctx *c = (struct bdr_ctx *) ctx;
+  return bdr_recurse (name, type, c->roots, c->nroots, c->timeout_ms, 1, out, out_sz);
+}
+
 /* RPZ pre-resolution hook (defined after the engine code below). Returns the
    response length on a short-circuiting RPZ action, or BD_RPZ_NO_RESPONSE
    (defined later as -2) to continue normal resolution. */
@@ -8189,7 +8992,7 @@ static int bdr_rpz_hook (struct bdr_ctx *c, const unsigned char *qbuf, size_t qn
 /* DNS64 hook: on an AAAA query with no native AAAA, re-query A and synthesize.
    Returns synthesized rlen (>0) or -1 (nothing synthesized). */
 static int bdr_dns64_hook (struct bdr_ctx *c, const unsigned char *qbuf, size_t qn,
-                           const char *qname, uint16_t qtype,
+                           const char *qname, uint16_t qtype, int validate,
                            unsigned char *resp, size_t rsz);
 /* Load up to `n` RPZ master files into a freshly malloc'd struct bda_rpz[]
    returned via *out (opaque); *nout receives the loaded count. Returns 0 on
@@ -8214,61 +9017,165 @@ bdr_resolve (struct bdr_ctx *c, const unsigned char *qbuf, size_t qn,
       (!strcmp (qname, "version.bind") || !strcmp (qname, "version.server")))
     { rl = bdr_build_chaos (qbuf, qn, c->version, resp, rsz); goto finish; }
 
-  char key[320]; snprintf (key, sizeof key, "%s|%u|%u", qname, qtype, qclass);
-  time_t now = time (NULL);
-
-  for (int i = 0; i < BDR_CACHE_MAX; i++)
-    if (c->cache[i].used && c->cache[i].expiry > now && !strcmp (c->cache[i].key, key))
-      { memcpy (resp, c->cache[i].reply, c->cache[i].rlen); rl = (int) c->cache[i].rlen; *was_hit = 1; goto finish; }
-
-  /* RPZ (F02): consult policy zones before normal resolution. A matching
-     action short-circuits; PASSTHRU/none fall through. Default-off. */
+  int client_do = bdr_query_dnssec_ok (qbuf, qn);
+  int client_cd = (qbuf[3] & 0x10) != 0;
+  int client_ad = (qbuf[3] & 0x20) != 0;
+  const char *anchor = getenv ("BASHDNS_TRUST_ANCHOR");
+  int validate = c->recurse && c->nroots > 0 && !client_cd &&
+                 (bd_explicit_trust_count > 0 || (anchor && *anchor));
+  /* Client-specific policy must run before any shared cache lookup. */
   if (c->nrpz > 0 && qclass == 1) {
     int prl = bdr_rpz_hook (c, qbuf, qn, qname, client, resp, rsz);
     if (prl != -2 /* BD_RPZ_NO_RESPONSE */) { rl = prl; if (rl > 0) goto finish; }
   }
+  unsigned char current_anchor[32] = { 0 };
+  if (validate && bdr_anchor_digest (current_anchor) < 0) {
+    rl = bdr_servfail (qbuf, qn, resp, rsz); goto finish;
+  }
+  char key[320]; snprintf (key, sizeof key, "%s|%u|%u|%d|%d|%d",
+                           qname, qtype, qclass, client_do, client_cd, client_ad);
+  time_t now = time (NULL);
 
-  int answered = 0;
+  for (int i = 0; i < BDR_CACHE_MAX; i++)
+    if (c->cache[i].used && c->cache[i].expiry > now && !strcmp (c->cache[i].key, key) &&
+        !memcmp (c->cache[i].anchor_hash, current_anchor, sizeof current_anchor))
+      {
+        if (c->cache[i].rlen > rsz || now < c->cache[i].stored_at)
+          { c->cache[i].used = 0; continue; }
+        memcpy (resp, c->cache[i].reply, c->cache[i].rlen);
+        if (bdr_age_reply (resp, c->cache[i].rlen, now - c->cache[i].stored_at) < 0)
+          { c->cache[i].used = 0; continue; }
+        rl = (int) c->cache[i].rlen; *was_hit = 1; goto finish;
+      }
+
+  int answered = 0, recursive_answer = 0, trace_used = 0;
+  struct bdr_alias_trace trace;
   if (qclass == 1)
     for (int i = 0; i < c->nlocal; i++)
       if (c->local[i].type == qtype && !strcmp (c->local[i].name, qname))
         { rl = bdr_build_local_reply (qbuf, qn, &c->local[i], resp, rsz); if (rl > 0) answered = 1; break; }
   if (!answered && c->upstream && c->upstream[0])
-    { rl = bdr_forward (qbuf, qn, c->upstream, c->timeout_ms, resp, rsz); if (rl > 0) answered = 1; }
+    {
+      unsigned char upstream_q[768]; const unsigned char *wire_q = qbuf; size_t wire_len = qn;
+      if (validate && qclass == 1 && !client_do) {
+        int built = bd_build_query (bd_rd16 (qbuf), qname, qtype, 1, upstream_q, sizeof upstream_q);
+        if (built < 0) return -1;
+        wire_q = upstream_q; wire_len = (size_t) built;
+      }
+      rl = bdr_forward (wire_q, wire_len, c->upstream, c->timeout_ms, resp, rsz);
+      if (rl > 0) { answered = 1; recursive_answer = validate; }
+    }
   if (!answered && c->recurse && c->nroots > 0)
-    { rl = bdr_recurse (qname, qtype, c->roots, c->nroots, c->timeout_ms, resp, rsz); if (rl > 0) answered = 1; }
+    {
+      rl = bdr_recurse_traced (qname, qtype, c->roots, c->nroots, c->timeout_ms,
+                               validate || client_do, resp, rsz, &trace);
+      if (rl > 0) { answered = 1; recursive_answer = 1; trace_used = 1; }
+    }
+
+  if (recursive_answer && rl >= 12)
+    {
+      resp[3] &= (unsigned char) ~0x20u;
+      if (validate)
+        {
+          unsigned char verified[8192]; int verified_len = 0, insecure = 0, failed = 0;
+          uint32_t ttl_bound = UINT32_MAX, part_bound = UINT32_MAX;
+          if (trace_used && trace.count) {
+            for (int i = 0; i < trace.count; i++) {
+              int rc = bd_chain_validate (trace.alias[i].name, BD_T_CNAME, c->roots[0], c->timeout_ms,
+                                          1, 0, bdr_chain_fetch, c,
+                                          trace.alias[i].packet, trace.alias[i].len, qtype, 1,
+                                          verified, sizeof verified, &verified_len, &part_bound,
+                                          &trace.alias[i].include_proofs);
+              if (rc == BD_VALIDATE_INSECURE) insecure = 1;
+              else if (rc != EXECUTION_SUCCESS || verified_len != (int) trace.alias[i].len) { failed = 1; break; }
+              if (part_bound < ttl_bound) ttl_bound = part_bound;
+            }
+            if (!failed) {
+              int rc = bd_chain_validate (trace.final_name, qtype, c->roots[0], c->timeout_ms,
+                                          1, 0, bdr_chain_fetch, c,
+                                          trace.final_packet, trace.final_len, 0, 0,
+                                          verified, sizeof verified, &verified_len, &part_bound, NULL);
+              if (rc == BD_VALIDATE_INSECURE) insecure = 1;
+              else if (rc != EXECUTION_SUCCESS || verified_len != (int) trace.final_len) failed = 1;
+              if (part_bound < ttl_bound) ttl_bound = part_bound;
+            }
+            if (!failed) {
+              int combined = bdr_compose_alias (&trace, qname, qtype, resp, rsz);
+              if (combined < 0) failed = 1;
+              else { rl = combined; resp[2] &= (unsigned char) ~0x04u; resp[3] |= 0x80; }
+            }
+          } else {
+            int rc = bd_chain_validate (qname, qtype, c->roots[0], c->timeout_ms,
+                                        1, 0, bdr_chain_fetch, c, resp, (size_t) rl, 0, 0,
+                                        verified, sizeof verified, &verified_len, &ttl_bound, NULL);
+            if (rc == BD_VALIDATE_INSECURE) insecure = 1;
+            else if (rc != EXECUTION_SUCCESS || verified_len != rl) failed = 1;
+            else memcpy (resp, verified, (size_t) rl);
+          }
+          if (failed || (size_t) rl > rsz || bdr_limit_reply_ttl (resp, (size_t) rl, ttl_bound) < 0)
+            { answered = 0; rl = -1; }
+          else if (!insecure && (client_do || client_ad)) resp[3] |= 0x20;
+        }
+    }
+
+  if (validate && recursive_answer && answered && !client_do) {
+    unsigned char filtered[BDR_MSG_MAX];
+    int flen = bdr_filter_dnssec (resp, (size_t) rl, qbuf, qn, qtype, qclass,
+                                  filtered, sizeof filtered);
+    if (flen < 0 || (size_t) flen > rsz) { answered = 0; rl = -1; }
+    else { memcpy (resp, filtered, (size_t) flen); rl = flen; }
+  }
 
   /* DNS64 (F02): if this is an AAAA query that produced no native AAAA
      (NODATA / NXDOMAIN / no answer), re-query A and synthesize AAAA into the
      configured /96 prefix. Default-off. */
-  if (c->dns64_on && qclass == 1 && qtype == BD_T_AAAA) {
-    int native_aaaa = (answered && rl > 12 && (resp[3] & 0x0f) == 0 && bd_rd16 (resp + 6) > 0);
-    if (!native_aaaa) {
-      int srl = bdr_dns64_hook (c, qbuf, qn, qname, qtype, resp, rsz);
+  if (c->dns64_on && answered && rl > 12 && (resp[3] & 0x0f) == 0 &&
+      qclass == 1 && qtype == BD_T_AAAA &&
+      bdr_response_negative (resp, (size_t) rl, qtype) && !(validate && client_do)) {
+      int srl = bdr_dns64_hook (c, qbuf, qn, qname, qtype, validate, resp, rsz);
       if (srl > 0) { rl = srl; answered = 1; }
-    }
+      else if (srl == -2) { answered = 0; rl = -1; }
+  }
+
+  if (validate && answered) {
+    unsigned char after_anchor[32];
+    if (bdr_anchor_digest (after_anchor) < 0 || memcmp (current_anchor, after_anchor, sizeof current_anchor))
+      { answered = 0; rl = -1; }
   }
 
   if (answered && rl > 0) {
-    uint32_t ttl = bdr_min_ttl (resp, (size_t) rl);
-    int negative = (resp[3] & 0x0f) != 0 || bd_rd16 (resp + 6) == 0;  /* rcode!=0 or no answers */
-    if (negative && ttl > 3600) ttl = 3600;                           /* RFC 2308 negative cap */
+    int rcode = resp[3] & 0x0f;
+    int negative = bdr_response_negative (resp, (size_t) rl, qtype);
+    /* A transient failure is not an RFC 2308 negative answer, even if it
+       happens to carry an SOA; do not cache SERVFAIL or other errors. */
+    uint32_t ttl = (rcode == BD_RCODE_NOERROR || rcode == BD_RCODE_NXDOMAIN)
+                   ? bdr_cache_ttl (resp, (size_t) rl, negative) : 0;
+    time_t store_now = time (NULL);
     int slot = -1;
-    for (int i = 0; i < BDR_CACHE_MAX; i++) if (!c->cache[i].used || c->cache[i].expiry <= now) { slot = i; break; }
+    for (int i = 0; i < BDR_CACHE_MAX; i++) if (!c->cache[i].used || c->cache[i].expiry <= store_now) { slot = i; break; }
     if (slot < 0) slot = 0;
-    if ((size_t) rl <= sizeof c->cache[slot].reply) {
+    if (ttl > 0 && (size_t) rl <= sizeof c->cache[slot].reply) {
       strncpy (c->cache[slot].key, key, sizeof c->cache[slot].key - 1); c->cache[slot].key[sizeof c->cache[slot].key - 1] = '\0';
       memcpy (c->cache[slot].reply, resp, (size_t) rl);
-      c->cache[slot].rlen = (size_t) rl; c->cache[slot].expiry = now + ttl; c->cache[slot].used = 1;
+      c->cache[slot].rlen = (size_t) rl; c->cache[slot].expiry = store_now + ttl;
+      c->cache[slot].stored_at = store_now;
+      memcpy (c->cache[slot].anchor_hash, current_anchor, sizeof current_anchor);
+      c->cache[slot].used = 1;
     }
-  } else if (rsz >= 12) {                          /* SERVFAIL */
-    memcpy (resp, qbuf, 12); resp[2] = 0x80; resp[3] = 0x82;
-    resp[6] = resp[7] = resp[8] = resp[9] = resp[10] = resp[11] = 0; rl = 12;
+  } else if (rsz >= 12) {                          /* SERVFAIL with question */
+    rl = bdr_servfail (qbuf, qn, resp, rsz);
   }
 
 finish:
   if (rl <= 0) return -1;
   resp[0] = qbuf[0]; resp[1] = qbuf[1];             /* echo client ID */
+  bdr_restore_question_case (qbuf, qn, resp, (size_t) rl);
+  resp[2] = (resp[2] & ~1u) | (qbuf[2] & 1u);    /* echo RD */
+  resp[3] = (resp[3] & (unsigned char) ~0x10u) | (qbuf[3] & 0x10u); /* echo CD */
+  if (qclass != 3) {
+    resp[2] &= (unsigned char) ~0x04u;               /* upstream AA is not ours */
+    resp[3] |= 0x80;                                 /* recursion available */
+  }
   unsigned char cc[8];
   if (bdr_query_cookie (qbuf, qn, cc)) {
     unsigned char sc[8]; bdr_server_cookie_peer (c->secret, cc, client, sc);
@@ -8280,7 +9187,7 @@ finish:
 
 /* ---- ephemeral on-disk cache (RFC-style warm restart) ---- */
 struct bdr_disk_hdr { uint32_t magic; uint32_t n; };
-#define BDR_DISK_MAGIC 0x42435231u                 /* "BCR1" */
+#define BDR_DISK_MAGIC 0x42435233u                 /* "BCR3": insertion time and anchor hash */
 
 static void
 bdr_cache_save (struct bdr_cache_ent *cache, const char *path)
@@ -8297,7 +9204,10 @@ bdr_cache_save (struct bdr_cache_ent *cache, const char *path)
     uint32_t klen = (uint32_t) strlen (cache[i].key);
     uint32_t rlen = (uint32_t) cache[i].rlen;
     int64_t exp = (int64_t) cache[i].expiry;
+    int64_t stored = (int64_t) cache[i].stored_at;
     fwrite (&exp, sizeof exp, 1, f);
+    fwrite (&stored, sizeof stored, 1, f);
+    fwrite (cache[i].anchor_hash, 1, sizeof cache[i].anchor_hash, f);
     fwrite (&klen, sizeof klen, 1, f); fwrite (cache[i].key, 1, klen, f);
     fwrite (&rlen, sizeof rlen, 1, f); fwrite (cache[i].reply, 1, rlen, f);
     n++;
@@ -8316,14 +9226,17 @@ bdr_cache_load (struct bdr_cache_ent *cache, const char *path)
   if (fread (&h, sizeof h, 1, f) != 1 || h.magic != BDR_DISK_MAGIC) { fclose (f); return 0; }
   time_t now = time (NULL); int loaded = 0, slot = 0;
   for (uint32_t i = 0; i < h.n && slot < BDR_CACHE_MAX; i++) {
-    int64_t exp; uint32_t klen, rlen;
+    int64_t exp, stored; uint32_t klen, rlen;
     if (fread (&exp, sizeof exp, 1, f) != 1) break;
+    if (fread (&stored, sizeof stored, 1, f) != 1) break;
+    if (fread (cache[slot].anchor_hash, 1, sizeof cache[slot].anchor_hash, f) != sizeof cache[slot].anchor_hash) break;
     if (fread (&klen, sizeof klen, 1, f) != 1 || klen >= sizeof cache[0].key) break;
     if (fread (cache[slot].key, 1, klen, f) != klen) break; cache[slot].key[klen] = '\0';
     if (fread (&rlen, sizeof rlen, 1, f) != 1 || rlen > sizeof cache[0].reply) break;
     if (fread (cache[slot].reply, 1, rlen, f) != rlen) break;
-    if ((time_t) exp <= now) continue;              /* drop already-expired */
-    cache[slot].rlen = rlen; cache[slot].expiry = (time_t) exp; cache[slot].used = 1;
+    if ((time_t) exp <= now || (time_t) stored > now || stored > exp) continue;
+    cache[slot].rlen = rlen; cache[slot].expiry = (time_t) exp;
+    cache[slot].stored_at = (time_t) stored; cache[slot].used = 1;
     slot++; loaded++;
   }
   fclose (f);
@@ -8993,7 +9906,8 @@ bd_tsig_find (const unsigned char *msg, size_t msg_len, bd_tsig_rr_t *rr)
         return BD_TSIG_FORMERR;
       if (type == BD_T_TSIG)
         {
-          if (i != ar - 1 || off != msg_len) return BD_TSIG_FORMERR;
+          if (class_ != BD_C_ANY || ttl != 0 || i != ar - 1 || off != msg_len)
+            return BD_TSIG_FORMERR;
           return bd_tsig_parse_rdata (msg, msg_len, name, rdata, rdlen, start, rr) == 0
                  ? BD_TSIG_OK : BD_TSIG_FORMERR;
         }
@@ -9081,6 +9995,7 @@ bd_tsig_verify (unsigned char *msg, size_t *msg_len, bd_tsig_store_t *store,
   if (fr == BD_TSIG_NOTAUTH)
     return require ? BD_TSIG_NOTAUTH : BD_TSIG_OK;
   if (fr != BD_TSIG_OK) return fr;
+  if (rr.orig_id != bd_rd16 (msg) || rr.error != 0) return BD_TSIG_NOTAUTH;
   if (strcasecmp (rr.algname, "hmac-sha256") != 0 &&
       strcasecmp (rr.algname, "hmac-sha256.") != 0)
     return BD_TSIG_BADKEY;
@@ -9739,7 +10654,7 @@ bda_build_axfr (struct bda_zone *z, const unsigned char *q, size_t qlen,
 static int bda_readn (int fd, unsigned char *b, size_t n)
 { size_t g = 0; while (g < n) { ssize_t r = read (fd, b + g, n - g); if (r <= 0) return -1; g += (size_t) r; } return 0; }
 static int bda_writen (int fd, const unsigned char *b, size_t n)
-{ size_t p = 0; while (p < n) { ssize_t r = write (fd, b + p, n - p); if (r <= 0) return -1; p += (size_t) r; } return 0; }
+{ size_t p = 0; while (p < n) { ssize_t r = send (fd, b + p, n - p, MSG_NOSIGNAL); if (r < 0 && errno == EINTR) continue; if (r <= 0) return -1; p += (size_t) r; } return 0; }
 
 struct bda_tls_cfg {
   int enabled;
@@ -9755,6 +10670,7 @@ static const char *const bda_doh_alpn[] = { "h2", "http/1.1", NULL };
 struct bda_conn {
   int fd;
   mbedtls_ssl_context *ssl;
+  const struct sockaddr_storage *peer;
 };
 
 static int
@@ -9775,7 +10691,7 @@ bda_tls_send (void *ctx, const unsigned char *buf, size_t len)
 {
   int fd = *(int *) ctx;
   ssize_t w;
-  do { w = write (fd, buf, len); } while (w < 0 && errno == EINTR);
+  do { w = send (fd, buf, len, MSG_NOSIGNAL); } while (w < 0 && errno == EINTR);
   if (w < 0) {
     if (errno == EAGAIN || errno == EWOULDBLOCK) return MBEDTLS_ERR_SSL_WANT_WRITE;
     return MBEDTLS_ERR_NET_SEND_FAILED;
@@ -9889,7 +10805,7 @@ bda_conn_writen (struct bda_conn *c, const unsigned char *b, size_t n)
       if (w <= 0) return -1;
       p += (size_t) w;
     } else {
-      ssize_t w = write (c->fd, b + p, n - p);
+      ssize_t w = send (c->fd, b + p, n - p, MSG_NOSIGNAL);
       if (w < 0 && errno == EINTR) continue;
       if (w <= 0) return -1;
       p += (size_t) w;
@@ -10007,6 +10923,7 @@ bd_notify_send_one (const char *zone, const char *host, int dport,
   for (int attempt = 0; attempt <= retries; attempt++) {
     uint16_t id = (uint16_t) (getpid () ^ (time (NULL) + dport * 7 + attempt * 131));
     wire[0] = (unsigned char) (id >> 8); wire[1] = (unsigned char) id;
+    wire[10] = wire[11] = 0; /* A previous attempt may have appended TSIG. */
     size_t send_len = off;
     unsigned char req_mac[BD_TSIG_MAC_MAX]; size_t req_mac_len = 0;
     if (tsig_key)
@@ -10028,14 +10945,14 @@ bd_notify_send_one (const char *zone, const char *host, int dport,
     close (s);
     if (rn >= 12 && rb[0] == wire[0] && rb[1] == wire[1] && (rb[2] & 0x80))
       {
-        bd_tsig_rr_t rr;
-        if (tsig_key && bd_tsig_find (rb, (size_t) rn, &rr) == BD_TSIG_OK)
+        if (tsig_key)
           {
             size_t rnl = (size_t) rn;
+            bd_tsig_key_t *reply_key = NULL;
             int v = bd_tsig_verify (rb, &rnl, tsig_store, 1,
                                     (uint64_t) bd_tsig_now (),
-                                    req_mac, req_mac_len, NULL, NULL, NULL);
-            if (v != BD_TSIG_OK) continue;
+                                    req_mac, req_mac_len, &reply_key, NULL, NULL);
+            if (v != BD_TSIG_OK || reply_key != tsig_key) continue;
           }
         return 1;                              /* QR=1 echo of our ID */
       }
@@ -10639,7 +11556,7 @@ bda_refused (const unsigned char *q, size_t qlen, unsigned char *resp, size_t rs
   qoff += 4;
   if (qoff > rsz || qoff > qlen) return -1;
   memcpy (resp, q, qoff);
-  resp[2] = 0x84; resp[3] = 0x05;                /* QR=1 AA=1 RCODE=REFUSED */
+  resp[2] = 0x80; resp[3] = 0x05;                /* QR=1 RCODE=REFUSED; not authoritative */
   resp[6] = resp[7] = resp[8] = resp[9] = resp[10] = resp[11] = 0;
   return (int) qoff;
 }
@@ -11022,21 +11939,33 @@ bdr_rpz_hook (struct bdr_ctx *c, const unsigned char *qbuf, size_t qn,
    the query as A through the same forward/recurse path and synthesizes AAAA. */
 static int
 bdr_dns64_hook (struct bdr_ctx *c, const unsigned char *qbuf, size_t qn,
-                const char *qname, uint16_t qtype, unsigned char *resp, size_t rsz)
+                const char *qname, uint16_t qtype, int validate,
+                unsigned char *resp, size_t rsz)
 {
   (void) qtype;
   /* Build an A query reusing the original transaction ID. */
   unsigned char aq[BDR_MSG_MAX];
   uint16_t id = bd_rd16 (qbuf);
-  int aqlen = bd_build_query (id, qname, BDA_A, 0, aq, sizeof aq);
+  int aqlen = bd_build_query (id, qname, BDA_A, validate, aq, sizeof aq);
   if (aqlen < 0) return -1;
   unsigned char areply[BDR_MSG_MAX]; int al = -1;
   if (c->upstream && c->upstream[0])
     al = bdr_forward (aq, (size_t) aqlen, c->upstream, c->timeout_ms, areply, sizeof areply);
   if (al <= 0 && c->recurse && c->nroots > 0)
-    al = bdr_recurse (qname, BDA_A, c->roots, c->nroots, c->timeout_ms, areply, sizeof areply);
+    al = bdr_recurse (qname, BDA_A, c->roots, c->nroots, c->timeout_ms, validate, areply, sizeof areply);
   if (al <= 12) return -1;
   if ((areply[3] & 0x0f) != 0 || bd_rd16 (areply + 6) == 0) return -1;  /* no A data */
+  if (validate) {
+    unsigned char verified[8192]; int verified_len = 0; uint32_t ttl_bound;
+    int rc = bd_chain_validate (qname, BDA_A, c->roots[0], c->timeout_ms, 1, 0,
+                                bdr_chain_fetch, c, areply, (size_t) al, 0, 0,
+                                verified, sizeof verified, &verified_len, &ttl_bound, NULL);
+    if (rc != BD_VALIDATE_INSECURE) {
+      if (rc != EXECUTION_SUCCESS || verified_len != al) return -2;
+      memcpy (areply, verified, (size_t) al);
+      if (bdr_limit_reply_ttl (areply, (size_t) al, ttl_bound) < 0) return -2;
+    }
+  }
   size_t out_len = 0;
   int srl = bd_dns64_synthesize (c->dns64_prefix, areply, (size_t) al,
                                  qbuf, qn, resp, rsz, &out_len);
@@ -11448,6 +12377,8 @@ bd_update_cmd (WORD_LIST *args)
   unsigned char msg[BDR_MSG_MAX], rdata[2048], reply[BDR_MSG_MAX];
   size_t off = 0, reply_len = 0;
   uint16_t pre = 0, upd = 0;
+  unsigned char req_mac[BD_TSIG_MAC_MAX];
+  size_t req_mac_len = 0;
   bd_tsig_store_t tsig_store;
   memset (&tsig_store, 0, sizeof tsig_store);
 
@@ -11461,7 +12392,33 @@ bd_update_cmd (WORD_LIST *args)
       { if (bd_tsig_add_inline (&tsig_store, p->next->word->word) < 0) { builtin_error ("update: bad --tsig-key"); return EX_USAGE; } p = p->next; }
     else if (!strcmp (w, "--tsig-keys") && p->next)
       { if (bd_tsig_load_keys (&tsig_store, p->next->word->word) < 0) return EXECUTION_FAILURE; p = p->next; }
-    else break;
+    else if (!strcmp (w, "--prereq") && p->next)
+      {
+        const char *kind = p->next->word->word;
+        int n = (!strcmp (kind, "rrset-exists") || !strcmp (kind, "rrset-not-exists")) ? 3 : 2;
+        while (n-- && p->next) p = p->next;
+      }
+    else if (!strcmp (w, "--add") && p->next && p->next->next && p->next->next->next)
+      {
+        const char *type = p->next->next->next->word->word;
+        uint16_t typ = 0;
+        (void) bd_type_from_name (type, &typ);
+        int n = 3 + (typ == BD_T_MX ? 2 : typ == BD_T_SOA ? 7 : 1);
+        while (n-- && p->next) p = p->next;
+      }
+    else if (!strcmp (w, "--delete") && p->next)
+      {
+        p = p->next;
+        if (p->next && p->next->word->word[0] != '-')
+          {
+            p = p->next;
+            uint16_t typ = 0;
+            (void) bd_type_from_name (p->word->word, &typ);
+            int n = typ == BD_T_MX ? 2 : typ == BD_T_SOA ? 7 : 1;
+            if (p->next && p->next->word->word[0] != '-')
+              while (n-- && p->next) p = p->next;
+          }
+      }
   }
   if (!server || !zone) { builtin_error ("update: --server IP[:PORT] --zone NAME required"); return EX_USAGE; }
   char host[256];
@@ -11528,11 +12485,9 @@ bd_update_cmd (WORD_LIST *args)
   bd_update_set_counts (msg, pre, upd);
   if (tsig_store.n > 0)
     {
-      unsigned char mac[BD_TSIG_MAC_MAX];
-      size_t mac_len = 0;
       if (bd_tsig_sign (msg, sizeof msg, &off, &tsig_store.keys[0],
                         NULL, 0, (uint64_t) bd_tsig_now (),
-                        BD_TSIG_DEFAULT_FUDGE, mac, &mac_len) < 0)
+                        BD_TSIG_DEFAULT_FUDGE, req_mac, &req_mac_len) < 0)
         {
           builtin_error ("update: TSIG signing failed");
           return EXECUTION_FAILURE;
@@ -11540,6 +12495,18 @@ bd_update_cmd (WORD_LIST *args)
     }
   if (bd_update_send_tcp (host, port, msg, off, timeout_ms, reply, sizeof reply, &reply_len) < 0)
     { builtin_error ("update: send failed"); return EXECUTION_FAILURE; }
+  if (reply_len < 12 || reply[0] != msg[0] || reply[1] != msg[1] ||
+      (reply[2] & 0xf8) != 0xa8)
+    { builtin_error ("update: invalid response"); return EXECUTION_FAILURE; }
+  if (tsig_store.n > 0)
+    {
+      bd_tsig_key_t *reply_key = NULL;
+      int v = bd_tsig_verify (reply, &reply_len, &tsig_store, 1,
+                              (uint64_t) bd_tsig_now (), req_mac, req_mac_len,
+                              &reply_key, NULL, NULL);
+      if (v != BD_TSIG_OK || reply_key != &tsig_store.keys[0])
+        { builtin_error ("update: TSIG response verification failed"); return EXECUTION_FAILURE; }
+    }
   int rcode = reply_len >= 4 ? (reply[3] & 0x0f) : BD_RCODE_FORMERR;
   printf ("rcode=%s\n", bd_update_rcode_name (rcode));
   return rcode == BD_RCODE_NOERROR ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
@@ -11669,12 +12636,8 @@ bda_answer_wire (struct bda_zone *zones, int nz, const unsigned char *q,
                  size_t qlen, unsigned char *resp, size_t rsz,
                  const struct sockaddr_storage *peer)
 {
-  /* peer is the client sockaddr when known (plain UDP/TCP and any transport
-     that threads it through); it is NULL for the TLS-wrapped transports
-     (DoH/DoT/DoQ) in this slice — see bda_conn, which carries no sockaddr.
-     When peer is NULL, split-horizon view selection and RPZ CLIENT-IP
-     triggers simply do not match, so encrypted transports keep their current
-     global-zone behavior. */
+  /* The caller supplies the actual client address for network transports;
+     non-network diagnostic calls may intentionally pass NULL. */
   char qname[256]; uint16_t qt, qc;
   if (bdr_parse_question (q, qlen, qname, sizeof qname, &qt, &qc) < 0)
     return -1;
@@ -11741,34 +12704,112 @@ struct bda_h2_req {
   uint32_t stream_id;
   int saw_headers;
   int end_stream;
+  int have_content_length;
+  size_t content_length;
+  int headers_done, response_ready;
+  unsigned char response[BD_DOH_WIRE_MAX];
+  size_t response_len, response_off;
+  int64_t send_window;
 };
 
-static const char *
-bda_h2_static_name (uint32_t idx)
+/* RFC 7541 Appendix A static table; see docs/licenses/python-hpack.txt. */
+struct bda_hpack_entry { char name[160], value[1200]; size_t bytes; };
+struct bda_hpack_table { struct bda_hpack_entry entry[128]; size_t count, bytes, limit; };
+static const struct { const char *name, *value; } bda_hpack_static[61] = {
+  { ":authority", "" },
+  { ":method", "GET" },
+  { ":method", "POST" },
+  { ":path", "/" },
+  { ":path", "/index.html" },
+  { ":scheme", "http" },
+  { ":scheme", "https" },
+  { ":status", "200" },
+  { ":status", "204" },
+  { ":status", "206" },
+  { ":status", "304" },
+  { ":status", "400" },
+  { ":status", "404" },
+  { ":status", "500" },
+  { "accept-charset", "" },
+  { "accept-encoding", "gzip, deflate" },
+  { "accept-language", "" },
+  { "accept-ranges", "" },
+  { "accept", "" },
+  { "access-control-allow-origin", "" },
+  { "age", "" },
+  { "allow", "" },
+  { "authorization", "" },
+  { "cache-control", "" },
+  { "content-disposition", "" },
+  { "content-encoding", "" },
+  { "content-language", "" },
+  { "content-length", "" },
+  { "content-location", "" },
+  { "content-range", "" },
+  { "content-type", "" },
+  { "cookie", "" },
+  { "date", "" },
+  { "etag", "" },
+  { "expect", "" },
+  { "expires", "" },
+  { "from", "" },
+  { "host", "" },
+  { "if-match", "" },
+  { "if-modified-since", "" },
+  { "if-none-match", "" },
+  { "if-range", "" },
+  { "if-unmodified-since", "" },
+  { "last-modified", "" },
+  { "link", "" },
+  { "location", "" },
+  { "max-forwards", "" },
+  { "proxy-authenticate", "" },
+  { "proxy-authorization", "" },
+  { "range", "" },
+  { "referer", "" },
+  { "refresh", "" },
+  { "retry-after", "" },
+  { "server", "" },
+  { "set-cookie", "" },
+  { "strict-transport-security", "" },
+  { "transfer-encoding", "" },
+  { "user-agent", "" },
+  { "vary", "" },
+  { "via", "" },
+  { "www-authenticate", "" },
+};
+static void
+bda_hpack_evict (struct bda_hpack_table *t)
 {
-  switch (idx) {
-    case 1: return ":authority";
-    case 2: case 3: return ":method";
-    case 4: case 5: return ":path";
-    case 6: case 7: return ":scheme";
-    case 8: case 9: case 10: case 11: case 12: case 13: case 14: return ":status";
-    case 25: return "content-disposition";
-    case 28: return "content-length";
-    case 31: return "content-type";
-    default: return NULL;
+  while (t->count && t->bytes > t->limit) {
+    t->bytes -= t->entry[t->count - 1].bytes;
+    t->count--;
   }
 }
-
 static int
-bda_h2_apply_indexed (struct bda_h2_req *r, uint32_t idx)
+bda_hpack_lookup (const struct bda_hpack_table *t, uint32_t idx,
+                  const char **name, const char **value)
 {
-  switch (idx) {
-    case 2: snprintf (r->method, sizeof r->method, "GET"); return 0;
-    case 3: snprintf (r->method, sizeof r->method, "POST"); return 0;
-    case 4: snprintf (r->path, sizeof r->path, "/"); return 0;
-    case 5: snprintf (r->path, sizeof r->path, "/index.html"); return 0;
-    default: return 0;
+  if (idx == 0) return -1;
+  if (idx <= 61) { *name = bda_hpack_static[idx-1].name; *value = bda_hpack_static[idx-1].value; return 0; }
+  idx -= 62;
+  if (idx >= t->count) return -1;
+  *name = t->entry[idx].name; *value = t->entry[idx].value;
+  return 0;
+}
+static void
+bda_hpack_insert (struct bda_hpack_table *t, const char *name, const char *value)
+{
+  size_t size = strlen (name) + strlen (value) + 32;
+  if (size > t->limit) { t->count = t->bytes = 0; return; }
+  while (t->count && (t->bytes + size > t->limit || t->count == 128)) {
+    t->bytes -= t->entry[t->count - 1].bytes;
+    t->count--;
   }
+  memmove (&t->entry[1], &t->entry[0], t->count * sizeof t->entry[0]);
+  snprintf (t->entry[0].name, sizeof t->entry[0].name, "%s", name);
+  snprintf (t->entry[0].value, sizeof t->entry[0].value, "%s", value);
+  t->entry[0].bytes = size; t->count++; t->bytes += size;
 }
 
 static int
@@ -11781,78 +12822,244 @@ bda_hpack_int (const unsigned char *b, size_t len, size_t *off,
   unsigned shift = 0;
   while (*off < len && shift <= 28) {
     unsigned char c = b[(*off)++];
-    v += (uint32_t) (c & 0x7f) << shift;
+    uint32_t part = c & 0x7fu;
+    if (part > ((UINT32_MAX - v) >> shift)) return -1;
+    v += part << shift;
     if ((c & 0x80) == 0) { *out = v; return 0; }
     shift += 7;
   }
   return -1;
 }
 
+/* RFC 7541 Appendix B codes. Transcribed from python-hpack, MIT license;
+   see docs/licenses/python-hpack.txt for attribution. */
+static const uint32_t bda_hpack_codes[257] = {
+  0x1ff8u, 0x7fffd8u, 0xfffffe2u, 0xfffffe3u, 0xfffffe4u, 0xfffffe5u, 0xfffffe6u, 0xfffffe7u,
+  0xfffffe8u, 0xffffeau, 0x3ffffffcu, 0xfffffe9u, 0xfffffeau, 0x3ffffffdu, 0xfffffebu, 0xfffffecu,
+  0xfffffedu, 0xfffffeeu, 0xfffffefu, 0xffffff0u, 0xffffff1u, 0xffffff2u, 0x3ffffffeu, 0xffffff3u,
+  0xffffff4u, 0xffffff5u, 0xffffff6u, 0xffffff7u, 0xffffff8u, 0xffffff9u, 0xffffffau, 0xffffffbu,
+  0x14u, 0x3f8u, 0x3f9u, 0xffau, 0x1ff9u, 0x15u, 0xf8u, 0x7fau,
+  0x3fau, 0x3fbu, 0xf9u, 0x7fbu, 0xfau, 0x16u, 0x17u, 0x18u,
+  0x0u, 0x1u, 0x2u, 0x19u, 0x1au, 0x1bu, 0x1cu, 0x1du,
+  0x1eu, 0x1fu, 0x5cu, 0xfbu, 0x7ffcu, 0x20u, 0xffbu, 0x3fcu,
+  0x1ffau, 0x21u, 0x5du, 0x5eu, 0x5fu, 0x60u, 0x61u, 0x62u,
+  0x63u, 0x64u, 0x65u, 0x66u, 0x67u, 0x68u, 0x69u, 0x6au,
+  0x6bu, 0x6cu, 0x6du, 0x6eu, 0x6fu, 0x70u, 0x71u, 0x72u,
+  0xfcu, 0x73u, 0xfdu, 0x1ffbu, 0x7fff0u, 0x1ffcu, 0x3ffcu, 0x22u,
+  0x7ffdu, 0x3u, 0x23u, 0x4u, 0x24u, 0x5u, 0x25u, 0x26u,
+  0x27u, 0x6u, 0x74u, 0x75u, 0x28u, 0x29u, 0x2au, 0x7u,
+  0x2bu, 0x76u, 0x2cu, 0x8u, 0x9u, 0x2du, 0x77u, 0x78u,
+  0x79u, 0x7au, 0x7bu, 0x7ffeu, 0x7fcu, 0x3ffdu, 0x1ffdu, 0xffffffcu,
+  0xfffe6u, 0x3fffd2u, 0xfffe7u, 0xfffe8u, 0x3fffd3u, 0x3fffd4u, 0x3fffd5u, 0x7fffd9u,
+  0x3fffd6u, 0x7fffdau, 0x7fffdbu, 0x7fffdcu, 0x7fffddu, 0x7fffdeu, 0xffffebu, 0x7fffdfu,
+  0xffffecu, 0xffffedu, 0x3fffd7u, 0x7fffe0u, 0xffffeeu, 0x7fffe1u, 0x7fffe2u, 0x7fffe3u,
+  0x7fffe4u, 0x1fffdcu, 0x3fffd8u, 0x7fffe5u, 0x3fffd9u, 0x7fffe6u, 0x7fffe7u, 0xffffefu,
+  0x3fffdau, 0x1fffddu, 0xfffe9u, 0x3fffdbu, 0x3fffdcu, 0x7fffe8u, 0x7fffe9u, 0x1fffdeu,
+  0x7fffeau, 0x3fffddu, 0x3fffdeu, 0xfffff0u, 0x1fffdfu, 0x3fffdfu, 0x7fffebu, 0x7fffecu,
+  0x1fffe0u, 0x1fffe1u, 0x3fffe0u, 0x1fffe2u, 0x7fffedu, 0x3fffe1u, 0x7fffeeu, 0x7fffefu,
+  0xfffeau, 0x3fffe2u, 0x3fffe3u, 0x3fffe4u, 0x7ffff0u, 0x3fffe5u, 0x3fffe6u, 0x7ffff1u,
+  0x3ffffe0u, 0x3ffffe1u, 0xfffebu, 0x7fff1u, 0x3fffe7u, 0x7ffff2u, 0x3fffe8u, 0x1ffffecu,
+  0x3ffffe2u, 0x3ffffe3u, 0x3ffffe4u, 0x7ffffdeu, 0x7ffffdfu, 0x3ffffe5u, 0xfffff1u, 0x1ffffedu,
+  0x7fff2u, 0x1fffe3u, 0x3ffffe6u, 0x7ffffe0u, 0x7ffffe1u, 0x3ffffe7u, 0x7ffffe2u, 0xfffff2u,
+  0x1fffe4u, 0x1fffe5u, 0x3ffffe8u, 0x3ffffe9u, 0xffffffdu, 0x7ffffe3u, 0x7ffffe4u, 0x7ffffe5u,
+  0xfffecu, 0xfffff3u, 0xfffedu, 0x1fffe6u, 0x3fffe9u, 0x1fffe7u, 0x1fffe8u, 0x7ffff3u,
+  0x3fffeau, 0x3fffebu, 0x1ffffeeu, 0x1ffffefu, 0xfffff4u, 0xfffff5u, 0x3ffffeau, 0x7ffff4u,
+  0x3ffffebu, 0x7ffffe6u, 0x3ffffecu, 0x3ffffedu, 0x7ffffe7u, 0x7ffffe8u, 0x7ffffe9u, 0x7ffffeau,
+  0x7ffffebu, 0xffffffeu, 0x7ffffecu, 0x7ffffedu, 0x7ffffeeu, 0x7ffffefu, 0x7fffff0u, 0x3ffffeeu,
+  0x3fffffffu,
+};
+static const unsigned char bda_hpack_code_lengths[257] = {
+  13, 23, 28, 28, 28, 28, 28, 28,
+  28, 24, 30, 28, 28, 30, 28, 28,
+  28, 28, 28, 28, 28, 28, 30, 28,
+  28, 28, 28, 28, 28, 28, 28, 28,
+  6, 10, 10, 12, 13, 6, 8, 11,
+  10, 10, 8, 11, 8, 6, 6, 6,
+  5, 5, 5, 6, 6, 6, 6, 6,
+  6, 6, 7, 8, 15, 6, 12, 10,
+  13, 6, 7, 7, 7, 7, 7, 7,
+  7, 7, 7, 7, 7, 7, 7, 7,
+  7, 7, 7, 7, 7, 7, 7, 7,
+  8, 7, 8, 13, 19, 13, 14, 6,
+  15, 5, 6, 5, 6, 5, 6, 6,
+  6, 5, 7, 7, 6, 6, 6, 5,
+  6, 7, 6, 5, 5, 6, 7, 7,
+  7, 7, 7, 15, 11, 14, 13, 28,
+  20, 22, 20, 20, 22, 22, 22, 23,
+  22, 23, 23, 23, 23, 23, 24, 23,
+  24, 24, 22, 23, 24, 23, 23, 23,
+  23, 21, 22, 23, 22, 23, 23, 24,
+  22, 21, 20, 22, 22, 23, 23, 21,
+  23, 22, 22, 24, 21, 22, 23, 23,
+  21, 21, 22, 21, 23, 22, 23, 23,
+  20, 22, 22, 22, 23, 22, 22, 23,
+  26, 26, 20, 19, 22, 23, 22, 25,
+  26, 26, 26, 27, 27, 26, 24, 25,
+  19, 21, 26, 27, 27, 26, 27, 24,
+  21, 21, 26, 26, 28, 27, 27, 27,
+  20, 24, 20, 21, 22, 21, 21, 23,
+  22, 22, 25, 25, 24, 24, 26, 23,
+  26, 27, 26, 26, 27, 27, 27, 27,
+  27, 28, 27, 27, 27, 27, 27, 26,
+  30,
+};
+
+/* Decode into a bounded C string. EOS and non-EOS or overlong padding are
+   invalid. Build a bounded prefix trie so input work is linear in bits. */
+struct bda_hnode { int child[2]; int symbol; };
+
 static int
-bda_hpack_string (const unsigned char *b, size_t len, size_t *off,
+bda_hpack_tree_init (struct bda_hnode tree[1024])
+{
+  for (int i = 0; i < 1024; i++) {
+    tree[i].child[0] = tree[i].child[1] = tree[i].symbol = -1;
+  }
+  int used_nodes = 1;
+  for (int symbol = 0; symbol < 257; symbol++) {
+    int node = 0;
+    for (int bit = bda_hpack_code_lengths[symbol] - 1; bit >= 0; bit--) {
+      int edge = (int) ((bda_hpack_codes[symbol] >> bit) & 1u);
+      if (tree[node].child[edge] < 0) {
+        if (used_nodes >= 1024) return -1;
+        tree[node].child[edge] = used_nodes++;
+      }
+      node = tree[node].child[edge];
+    }
+    if (tree[node].symbol >= 0) return -1;
+    tree[node].symbol = symbol;
+  }
+  return 0;
+}
+
+static int
+bda_hpack_huffman (const struct bda_hnode tree[1024], const unsigned char *in,
+                   size_t len, char *out, size_t out_sz)
+{
+  int node = 0, pending = 0, ones = 1;
+  size_t written = 0;
+  for (size_t i = 0; i < len; i++) {
+    for (int bit = 7; bit >= 0; bit--) {
+      int edge = (in[i] >> bit) & 1;
+      pending++; if (!edge) ones = 0;
+      node = tree[node].child[edge];
+      if (node < 0) return -1;
+      int symbol = tree[node].symbol;
+      if (symbol >= 0) {
+        if (symbol == 256 || symbol == 0 || written + 1 >= out_sz) return -1;
+        out[written++] = (char) symbol;
+        node = 0; pending = 0; ones = 1;
+      }
+    }
+  }
+  if (pending > 7 || !ones) return -1;
+  out[written] = '\0';
+  return 0;
+}
+
+static int
+bda_hpack_string (const struct bda_hnode tree[1024],
+                  const unsigned char *b, size_t len, size_t *off,
                   char *out, size_t out_sz)
 {
   if (*off >= len || out_sz == 0) return -1;
   unsigned char first = b[(*off)++];
-  if (first & 0x80) return -1;                 /* HPACK Huffman is intentionally unsupported here. */
   uint32_t sl = 0;
   if (bda_hpack_int (b, len, off, first, 7, &sl) < 0) return -1;
-  if (sl >= out_sz || *off + sl > len) return -1;
-  memcpy (out, b + *off, sl);
-  out[sl] = '\0';
+  if (*off > len || (size_t) sl > len - *off) return -1;
+  if (first & 0x80) {
+    if (bda_hpack_huffman (tree, b + *off, sl, out, out_sz) < 0) return -1;
+  } else {
+    if (sl >= out_sz) return -1;
+    if (memchr (b + *off, '\0', sl) != NULL) return -1;
+    memcpy (out, b + *off, sl);
+    out[sl] = '\0';
+  }
   *off += sl;
   return 0;
 }
 
-static void
-bda_h2_apply_header (struct bda_h2_req *r, const char *name, const char *value)
+static int
+bda_h2_apply_header (struct bda_h2_req *r, const char *name, const char *value,
+                     unsigned *seen, int *regular)
 {
-  if (!name || !value) return;
-  if (!strcasecmp (name, ":method"))
+  if (!name || !value || !*name || strpbrk (value, "\r\n")) return -1;
+  for (const unsigned char *p = (const unsigned char *) name; *p; p++)
+    if ((*p <= 32 || *p >= 127 || (*p >= 'A' && *p <= 'Z')) ||
+        (*p == ':' && p != (const unsigned char *) name)) return -1;
+  unsigned bit = 0;
+  if (name[0] == ':') {
+    if (*regular) return -1;
+    if (!strcmp (name, ":method")) bit = 1;
+    else if (!strcmp (name, ":path")) bit = 2;
+    else if (!strcmp (name, ":scheme")) bit = 4;
+    else if (!strcmp (name, ":authority")) bit = 8;
+    else return -1;
+    if (*seen & bit) return -1;
+    *seen |= bit;
+  } else *regular = 1;
+  if (!strcmp (name, ":method")) {
+    if (strlen (value) >= sizeof r->method) return -1;
     snprintf (r->method, sizeof r->method, "%s", value);
-  else if (!strcasecmp (name, ":path"))
+  } else if (!strcmp (name, ":path")) {
+    if (strlen (value) >= sizeof r->path) return -1;
     snprintf (r->path, sizeof r->path, "%s", value);
-  else if (!strcasecmp (name, "content-type"))
+  } else if (!strcmp (name, "content-type")) {
+    if (strlen (value) >= sizeof r->ctype || r->ctype[0]) return -1;
     snprintf (r->ctype, sizeof r->ctype, "%s", value);
+  } else if (!strcmp (name, "content-length")) {
+    size_t n = 0;
+    if (!*value) return -1;
+    for (const unsigned char *p = (const unsigned char *) value; *p; p++) {
+      if (*p < '0' || *p > '9' || n > (BD_DOH_WIRE_MAX - (*p - '0')) / 10) return -1;
+      n = n * 10 + (*p - '0');
+    }
+    if (r->have_content_length && n != r->content_length) return -1;
+    r->have_content_length = 1; r->content_length = n;
+  } else if (!strcmp (name, "connection") || !strcmp (name, "transfer-encoding") ||
+             !strcmp (name, "upgrade") || !strcmp (name, "keep-alive") ||
+             !strcmp (name, "proxy-connection") ||
+             (!strcmp (name, "te") && strcasecmp (value, "trailers"))) {
+    return -1;
+  }
+  return 0;
 }
 
 static int
 bda_h2_decode_headers (const unsigned char *block, size_t blen,
-                       struct bda_h2_req *r)
+                       struct bda_h2_req *r, struct bda_hpack_table *table)
 {
-  size_t off = 0;
+  struct bda_hnode tree[1024];
+  if (bda_hpack_tree_init (tree) < 0) return -1;
+  size_t off = 0; int saw_field = 0, regular = 0; unsigned seen = 0;
   while (off < blen) {
     unsigned char first = block[off++];
-    if (first & 0x80) {                         /* indexed field */
-      uint32_t idx = 0;
-      if (bda_hpack_int (block, blen, &off, first, 7, &idx) < 0 || idx == 0)
-        return -1;
-      if (bda_h2_apply_indexed (r, idx) < 0) return -1;
-      continue;
+    if (first & 0x80) {
+      uint32_t idx = 0; const char *name, *value;
+      if (bda_hpack_int (block, blen, &off, first, 7, &idx) < 0 ||
+          bda_hpack_lookup (table, idx, &name, &value) < 0) return -1;
+      if (bda_h2_apply_header (r, name, value, &seen, &regular) < 0) return -1;
+      saw_field = 1; continue;
     }
-    if ((first & 0xe0) == 0x20) {               /* dynamic table size update */
-      uint32_t ignored = 0;
-      if (bda_hpack_int (block, blen, &off, first, 5, &ignored) < 0)
-        return -1;
-      continue;
+    if ((first & 0xe0) == 0x20) {
+      uint32_t limit = 0;
+      if (saw_field || bda_hpack_int (block, blen, &off, first, 5, &limit) < 0 || limit > 4096) return -1;
+      table->limit = limit; bda_hpack_evict (table); continue;
     }
-
-    int prefix = (first & 0xc0) == 0x40 ? 6 : 4;
-    uint32_t name_idx = 0;
-    char name[160], value[1200];
-    if (bda_hpack_int (block, blen, &off, first, prefix, &name_idx) < 0)
-      return -1;
+    int indexed = (first & 0xc0) == 0x40;
+    int prefix = indexed ? 6 : 4;
+    uint32_t name_idx = 0; char name[160], value[1200];
+    if (bda_hpack_int (block, blen, &off, first, prefix, &name_idx) < 0) return -1;
     if (name_idx) {
-      const char *n = bda_h2_static_name (name_idx);
-      if (!n) return -1;
-      snprintf (name, sizeof name, "%s", n);
-    } else if (bda_hpack_string (block, blen, &off, name, sizeof name) < 0)
-      return -1;
-    if (bda_hpack_string (block, blen, &off, value, sizeof value) < 0)
-      return -1;
-    bda_h2_apply_header (r, name, value);
+      const char *n, *unused;
+      if (bda_hpack_lookup (table, name_idx, &n, &unused) < 0 || strlen (n) >= sizeof name) return -1;
+      strcpy (name, n);
+    } else if (bda_hpack_string (tree, block, blen, &off, name, sizeof name) < 0) return -1;
+    if (bda_hpack_string (tree, block, blen, &off, value, sizeof value) < 0) return -1;
+    if (bda_h2_apply_header (r, name, value, &seen, &regular) < 0) return -1;
+    saw_field = 1;
+    if (indexed) bda_hpack_insert (table, name, value);
   }
-  return 0;
+  return (seen & 7) == 7 && r->method[0] && r->path[0] ? 0 : -1;
 }
 
 static int
@@ -11904,22 +13111,20 @@ bda_hpack_put_string (unsigned char *out, size_t out_sz, size_t *off,
 }
 
 static int
-bda_h2_send_doh_response (struct bda_conn *c, uint32_t sid,
-                          const unsigned char *wire, size_t wire_len)
+bda_h2_send_doh_headers (struct bda_conn *c, uint32_t sid, size_t wire_len)
 {
   char clen[32];
   snprintf (clen, sizeof clen, "%zu", wire_len);
   unsigned char hb[128];
   size_t off = 0;
   hb[off++] = 0x88;                             /* indexed :status 200 (static 8) */
-  hb[off++] = 0x40 | 31;                        /* literal content-type (static 31) */
+  hb[off++] = 0x0f; hb[off++] = 16;             /* no indexing, name index 31 */
   if (bda_hpack_put_string (hb, sizeof hb, &off, "application/dns-message") < 0)
     return -1;
-  hb[off++] = 0x40 | 28;                        /* literal content-length (static 28) */
+  hb[off++] = 0x0f; hb[off++] = 13;             /* no indexing, name index 28 */
   if (bda_hpack_put_string (hb, sizeof hb, &off, clen) < 0)
     return -1;
-  if (bda_h2_write_frame (c, 1, 0x04, sid, hb, off) < 0) return -1; /* HEADERS END_HEADERS */
-  return bda_h2_write_frame (c, 0, 0x01, sid, wire, wire_len);      /* DATA END_STREAM */
+  return bda_h2_write_frame (c, 1, 0x04, sid, hb, off);
 }
 
 static int
@@ -11928,9 +13133,9 @@ bda_h2_send_empty_status (struct bda_conn *c, uint32_t sid, int status)
   char st[4], clen[] = "0";
   snprintf (st, sizeof st, "%03d", status);
   unsigned char hb[64]; size_t off = 0;
-  hb[off++] = 0x40 | 8;                         /* literal :status */
+  hb[off++] = 0x08;                             /* literal :status, no indexing */
   if (bda_hpack_put_string (hb, sizeof hb, &off, st) < 0) return -1;
-  hb[off++] = 0x40 | 28;                        /* literal content-length (static 28) */
+  hb[off++] = 0x0f; hb[off++] = 13;             /* name index 28, no indexing */
   if (bda_hpack_put_string (hb, sizeof hb, &off, clen) < 0) return -1;
   return bda_h2_write_frame (c, 1, 0x05, sid, hb, off); /* HEADERS END_HEADERS|END_STREAM */
 }
@@ -11939,64 +13144,142 @@ static int
 bda_h2_handle (struct bda_conn *c, struct bda_zone *zones, int nz,
                const char *doh_path)
 {
-  if (bda_h2_write_frame (c, 4, 0, 0, NULL, 0) < 0) return -1; /* server SETTINGS */
-  struct bda_h2_req req; memset (&req, 0, sizeof req);
-  unsigned char payload[BDA_H2_MAX_FRAME];
-  for (int frames = 0; frames < 64; frames++) {
+  enum { MAX_STREAMS = 8 };
+  unsigned char settings[] = { 0, 3, 0, 0, 0, MAX_STREAMS };
+  if (bda_h2_write_frame (c, 4, 0, 0, settings, sizeof settings) < 0) return -1;
+  struct bda_h2_req streams[MAX_STREAMS]; memset (streams, 0, sizeof streams);
+  struct bda_hpack_table table; memset (&table, 0, sizeof table); table.limit = 4096;
+  unsigned char payload[BDA_H2_MAX_FRAME], headers[BDA_H2_MAX_FRAME];
+  size_t headers_len = 0; int continuation = -1, completed = 0;
+  uint32_t last_sid = 0, peer_max_frame = 16384;
+  int64_t connection_window = 65535, initial_window = 65535;
+  for (int frames = 0; frames < 2048; frames++) {
     uint8_t type = 0, flags = 0; uint32_t sid = 0; size_t plen = 0;
     int rr = bda_h2_read_frame (c, payload, sizeof payload, &type, &flags, &sid, &plen);
-    if (rr < 0) return -1;
-    if (type == 4) {                             /* SETTINGS */
-      if (sid != 0) return -1;
-      if (!(flags & 0x01) && bda_h2_write_frame (c, 4, 0x01, 0, NULL, 0) < 0)
-        return -1;
-      continue;
-    }
-    if (type == 6 && plen == 8) {                /* PING */
-      if (bda_h2_write_frame (c, 6, flags | 0x01, 0, payload, plen) < 0) return -1;
-      continue;
-    }
-    if (type == 8) continue;                     /* WINDOW_UPDATE */
-    if (type == 3) return -1;                    /* RST_STREAM */
-    if (type == 1) {                             /* HEADERS */
-      if (sid == 0 || req.saw_headers || !(flags & 0x04)) return -1;
-      req.stream_id = sid;
-      req.saw_headers = 1;
-      if (bda_h2_decode_headers (payload, plen, &req) < 0)
-        { bda_h2_send_empty_status (c, sid, 400); return -1; }
-      if (flags & 0x01) req.end_stream = 1;
-    } else if (type == 0) {                      /* DATA */
-      if (!req.saw_headers || sid != req.stream_id) return -1;
-      if (req.body_len + plen > sizeof req.body)
-        { bda_h2_send_empty_status (c, sid, 413); return -1; }
-      memcpy (req.body + req.body_len, payload, plen);
-      req.body_len += plen;
-      if (flags & 0x01) req.end_stream = 1;
-    } else {
-      continue;
-    }
-    if (req.saw_headers && req.end_stream) {
-      char path_only[1200];
-      snprintf (path_only, sizeof path_only, "%s", req.path);
-      char *qmark = strchr (path_only, '?');
-      if (qmark) *qmark = '\0';
-      if (doh_path && *doh_path && strcmp (path_only, doh_path))
-        { bda_h2_send_empty_status (c, req.stream_id, 404); return 0; }
-      unsigned char wire[BD_DOH_WIRE_MAX]; size_t wire_len = 0;
-      int st = bd_doh_decode_request (req.method[0] ? req.method : "POST",
-                                      req.path, req.body, req.body_len,
-                                      req.ctype[0] ? req.ctype : NULL,
-                                      wire, sizeof wire, &wire_len);
-      if (st != 200)
-        { bda_h2_send_empty_status (c, req.stream_id, st); return 0; }
-      unsigned char resp[BD_DOH_WIRE_MAX];
-      int rl = bda_answer_wire (zones, nz, wire, wire_len, resp, sizeof resp, NULL);
-      if (rl <= 0)
-        { bda_h2_send_empty_status (c, req.stream_id, 500); return -1; }
-      return bda_h2_send_doh_response (c, req.stream_id, resp, (size_t) rl);
+    if (rr < 0) return completed ? 0 : -1;
+    if (plen > 16384) return -1; /* our advertised inbound frame size */
+    if (continuation >= 0 && (type != 9 || sid != streams[continuation].stream_id)) return -1;
+    int slot = -1;
+    for (int i = 0; i < MAX_STREAMS; i++) if (sid && streams[i].stream_id == sid) { slot = i; break; }
+    if (type == 4) {                                  /* SETTINGS */
+      if (sid || ((flags & 1) && plen) || (!(flags & 1) && plen % 6)) return -1;
+      if (!(flags & 1)) {
+        for (size_t i = 0; i < plen; i += 6) {
+          uint16_t id = bd_rd16 (payload + i); uint32_t val = bd_rd32 (payload + i + 2);
+          if (id == 2 && val > 1) return -1;
+          if (id == 4) {
+            if (val > 0x7fffffffU) return -1;
+            int64_t delta = (int64_t) val - initial_window;
+            for (int j = 0; j < MAX_STREAMS; j++) if (streams[j].stream_id) {
+              streams[j].send_window += delta;
+              if (streams[j].send_window > 0x7fffffffLL || streams[j].send_window < -0x7fffffffLL) return -1;
+            }
+            initial_window = val;
+          }
+          if (id == 5) { if (val < 16384 || val > 16777215) return -1; peer_max_frame = val; }
+        }
+        if (bda_h2_write_frame (c, 4, 1, 0, NULL, 0) < 0) return -1;
+      }
+    } else if (type == 6) {                           /* PING */
+      if (sid || plen != 8) return -1;
+      if (!(flags & 1) && bda_h2_write_frame (c, 6, 1, 0, payload, plen) < 0) return -1;
+    } else if (type == 7) {                           /* GOAWAY */
+      if (sid || plen < 8) return -1;
+      return 0;
+    } else if (type == 8) {                           /* WINDOW_UPDATE */
+      if (plen != 4) return -1;
+      uint32_t inc = bd_rd32 (payload) & 0x7fffffffU;
+      if (!inc) return -1;
+      if (!sid) { connection_window += inc; if (connection_window > 0x7fffffffLL) return -1; }
+      else if (slot >= 0) { streams[slot].send_window += inc; if (streams[slot].send_window > 0x7fffffffLL) return -1; }
+      else if (sid > last_sid) return -1;
+    } else if (type == 3) {                           /* RST_STREAM */
+      if (!sid || plen != 4 || sid > last_sid) return -1;
+      if (slot >= 0) memset (&streams[slot], 0, sizeof streams[slot]);
+    } else if (type == 1 || type == 9) {              /* HEADERS / CONTINUATION */
+      size_t start = 0, pad = 0;
+      if (type == 1) {
+        if (!sid || !(sid & 1) || sid <= last_sid || slot >= 0) return -1;
+        for (int i = 0; i < MAX_STREAMS; i++) if (!streams[i].stream_id) { slot = i; break; }
+        if (slot < 0) return -1;                     /* peer exceeded advertised limit */
+        memset (&streams[slot], 0, sizeof streams[slot]);
+        streams[slot].stream_id = sid; streams[slot].saw_headers = 1;
+        streams[slot].send_window = initial_window; last_sid = sid; headers_len = 0;
+        if (flags & 1) streams[slot].end_stream = 1;
+        if (flags & 8) { if (!plen) return -1; pad = payload[start++]; }
+        if (flags & 0x20) { if (plen - start < 5) return -1; start += 5; }
+      } else if (continuation < 0 || slot != continuation) return -1;
+      if (pad > plen - start || plen - start - pad > sizeof headers - headers_len) return -1;
+      size_t n = plen - start - pad;
+      memcpy (headers + headers_len, payload + start, n); headers_len += n;
+      continuation = (flags & 4) ? -1 : slot;
+      if (continuation < 0) {
+        if (bda_h2_decode_headers (headers, headers_len, &streams[slot], &table) < 0) return -1;
+        streams[slot].headers_done = 1;
+      }
+    } else if (type == 0) {                           /* DATA */
+      if (!sid || slot < 0 || !streams[slot].headers_done || streams[slot].end_stream) return -1;
+      size_t start = 0, pad = 0;
+      if (flags & 8) { if (!plen) return -1; pad = payload[start++]; }
+      if (pad > plen - start) return -1;
+      size_t n = plen - start - pad;
+      if (n > sizeof streams[slot].body - streams[slot].body_len) {
+        if (bda_h2_send_empty_status (c, sid, 413) < 0) return -1;
+        memset (&streams[slot], 0, sizeof streams[slot]); completed++; continue;
+      }
+      memcpy (streams[slot].body + streams[slot].body_len, payload + start, n);
+      streams[slot].body_len += n;
+      if (flags & 1) streams[slot].end_stream = 1;
+      if (plen) {
+        unsigned char credit[4] = { (unsigned char) (plen >> 24), (unsigned char) (plen >> 16),
+                                    (unsigned char) (plen >> 8), (unsigned char) plen };
+        if (bda_h2_write_frame (c, 8, 0, 0, credit, 4) < 0 ||
+            bda_h2_write_frame (c, 8, 0, sid, credit, 4) < 0) return -1;
+      }
+    } else if (type == 2) {                           /* PRIORITY */
+      if (!sid || plen != 5) return -1;
+    } else if (type == 5) return -1;                  /* client cannot PUSH_PROMISE */
+
+    for (int i = 0; i < MAX_STREAMS; i++) {
+      struct bda_h2_req *r = &streams[i];
+      if (!r->stream_id) continue;
+      if (r->headers_done && r->end_stream && !r->response_ready) {
+        int status = 200;
+        if (r->have_content_length && r->content_length != r->body_len) status = 400;
+        char path_only[1200]; snprintf (path_only, sizeof path_only, "%s", r->path);
+        char *qmark = strchr (path_only, '?'); if (qmark) *qmark = '\0';
+        if (status == 200 && doh_path && *doh_path && strcmp (path_only, doh_path)) status = 404;
+        unsigned char wire[BD_DOH_WIRE_MAX]; size_t wire_len = 0;
+        if (status == 200)
+          status = bd_doh_decode_request (r->method, r->path, r->body, r->body_len,
+                                          r->ctype[0] ? r->ctype : NULL, wire, sizeof wire, &wire_len);
+        if (status != 200) {
+          if (bda_h2_send_empty_status (c, r->stream_id, status) < 0) return -1;
+          memset (r, 0, sizeof *r); completed++; continue;
+        }
+        int len = bda_answer_wire (zones, nz, wire, wire_len, r->response, sizeof r->response, c->peer);
+        if (len <= 0) {
+          if (bda_h2_send_empty_status (c, r->stream_id, 500) < 0) return -1;
+          memset (r, 0, sizeof *r); completed++; continue;
+        }
+        r->response_len = (size_t) len; r->response_ready = 1;
+        if (bda_h2_send_doh_headers (c, r->stream_id, r->response_len) < 0) return -1;
+      }
+      while (r->response_ready && r->response_off < r->response_len &&
+             connection_window > 0 && r->send_window > 0) {
+        size_t n = r->response_len - r->response_off;
+        if (n > peer_max_frame) n = peer_max_frame;
+        if ((int64_t) n > connection_window) n = (size_t) connection_window;
+        if ((int64_t) n > r->send_window) n = (size_t) r->send_window;
+        int last = r->response_off + n == r->response_len;
+        if (bda_h2_write_frame (c, 0, last ? 1 : 0, r->stream_id,
+                                r->response + r->response_off, n) < 0) return -1;
+        r->response_off += n; connection_window -= n; r->send_window -= n;
+        if (last) { memset (r, 0, sizeof *r); completed++; break; }
+      }
     }
   }
-  return -1;
+  return completed ? 0 : -1;
 }
 
 static int
@@ -12091,7 +13374,7 @@ bda_doh_handle (struct bda_conn *c, struct bda_zone *zones, int nz,
     return bda_http_error (c, st);
 
   unsigned char resp[BD_DOH_WIRE_MAX];
-  int rl = bda_answer_wire (zones, nz, wire, wire_len, resp, sizeof resp, NULL);
+  int rl = bda_answer_wire (zones, nz, wire, wire_len, resp, sizeof resp, c->peer);
   if (rl <= 0)
     return bda_http_error (c, 500);
 
@@ -12111,7 +13394,7 @@ bda_dot_handle (struct bda_conn *c, struct bda_zone *zones, int nz,
   if (ml < 12 || ml > BDR_MSG_MAX) return -1;
   unsigned char qmsg[BDR_MSG_MAX];
   if (bda_conn_readn (c, qmsg, (size_t) ml) < 0) return -1;
-  int rl = bda_answer_wire (zones, nz, qmsg, (size_t) ml, scratch, scratch_sz, NULL);
+  int rl = bda_answer_wire (zones, nz, qmsg, (size_t) ml, scratch, scratch_sz, c->peer);
   if (rl <= 0 || rl > 65535) return -1;
   unsigned char ol[2] = { (unsigned char) (rl >> 8), (unsigned char) rl };
   if (bda_conn_writen (c, ol, 2) < 0) return -1;
@@ -12129,9 +13412,9 @@ struct bda_doq_conn;
 struct bda_doq_stream {
   int used;
   int64_t id;
-  unsigned char req[BDA_DOQ_MAX_WIRE];
+  unsigned char req[BDA_DOQ_MAX_WIRE + 2];
   size_t req_len;
-  unsigned char resp[BDA_DOQ_MAX_WIRE];
+  unsigned char resp[BDA_DOQ_MAX_WIRE + 2];
   size_t resp_len;
   size_t resp_off;
   int response_ready;
@@ -12145,6 +13428,8 @@ struct bda_doq_srv {
   socklen_t local_addrlen;
   struct bda_zone *zones;
   int nz;
+  char (*acl)[64];
+  int nacl;
   struct bda_doq_conn *conns;
 };
 
@@ -12157,6 +13442,7 @@ struct bda_doq_conn {
   ngtcp2_cid server_scid;
   struct sockaddr_storage remote_addr;
   socklen_t remote_addrlen;
+  struct sockaddr_storage policy_peer;
   struct sockaddr_storage local_addr;
   socklen_t local_addrlen;
   ngtcp2_ccerr last_error;
@@ -12274,25 +13560,34 @@ bda_doq_recv_stream_data_cb (ngtcp2_conn *conn, uint32_t flags,
                              void *user_data, void *stream_user_data)
 {
   struct bda_doq_conn *c = (struct bda_doq_conn *) user_data;
-  (void) conn; (void) offset; (void) stream_user_data;
+  (void) conn; (void) stream_user_data;
   if (!c || (stream_id & 0x03) != 0)            /* client-initiated bidi only */
     return 0;
   struct bda_doq_stream *s = bda_doq_find_stream (c, stream_id, 1);
   if (!s || s->response_ready)
     return 0;
-  if (datalen > sizeof s->req || s->req_len > sizeof s->req - datalen)
+  if (offset != s->req_len || datalen > sizeof s->req || s->req_len > sizeof s->req - datalen)
     return NGTCP2_ERR_CALLBACK_FAILURE;
   memcpy (s->req + s->req_len, data, datalen);
   s->req_len += datalen;
+  if (s->req_len >= 2 && (bd_rd16 (s->req) < 12 ||
+                          bd_rd16 (s->req) > BDA_DOQ_MAX_WIRE ||
+                          s->req_len > (size_t) bd_rd16 (s->req) + 2))
+    return NGTCP2_ERR_CALLBACK_FAILURE;
   ngtcp2_conn_extend_max_stream_offset (c->conn, stream_id, (uint64_t) datalen);
   ngtcp2_conn_extend_max_offset (c->conn, (uint64_t) datalen);
   if (flags & NGTCP2_STREAM_DATA_FLAG_FIN)
     {
-      int rl = bda_answer_wire (c->srv->zones, c->srv->nz, s->req, s->req_len,
-                                s->resp, sizeof s->resp, NULL);
+      if (s->req_len < 14 || s->req_len != (size_t) bd_rd16 (s->req) + 2 ||
+          bd_rd16 (s->req + 2) != 0 || (s->req[4] & 0xf8) != 0 ||
+          bd_rd16 (s->req + 6) != 1)
+        return NGTCP2_ERR_CALLBACK_FAILURE;
+      int rl = bda_answer_wire (c->srv->zones, c->srv->nz, s->req + 2, s->req_len - 2,
+                                s->resp + 2, sizeof s->resp - 2, &c->policy_peer);
       if (rl <= 0)
         return NGTCP2_ERR_CALLBACK_FAILURE;
-      s->resp_len = (size_t) rl;
+      s->resp[0] = (unsigned char) (rl >> 8); s->resp[1] = (unsigned char) rl;
+      s->resp_len = (size_t) rl + 2;
       s->resp_off = 0;
       s->response_ready = 1;
     }
@@ -12379,8 +13674,8 @@ bda_doq_conn_init (struct bda_doq_srv *srv, struct bda_doq_conn *c,
   settings.max_tx_udp_payload_size = BDA_DOQ_UDP_PAYLOAD;
   ngtcp2_transport_params params;
   ngtcp2_transport_params_default (&params);
-  params.initial_max_stream_data_bidi_remote = BDA_DOQ_MAX_WIRE;
-  params.initial_max_stream_data_bidi_local = BDA_DOQ_MAX_WIRE;
+  params.initial_max_stream_data_bidi_remote = BDA_DOQ_MAX_WIRE + 2;
+  params.initial_max_stream_data_bidi_local = BDA_DOQ_MAX_WIRE + 2;
   params.initial_max_stream_data_uni = 4096;
   params.initial_max_data = 1024 * 1024;
   params.initial_max_streams_bidi = BDA_DOQ_STREAM_MAX;
@@ -12531,6 +13826,13 @@ bda_doq_handle_packet (struct bda_doq_srv *srv)
   ssize_t nread = recvmsg (srv->fd, &msg, MSG_DONTWAIT);
   if (nread < 0)
     return (errno == EAGAIN || errno == EWOULDBLOCK) ? 0 : -1;
+  if (msg.msg_namelen > sizeof remote) return -1;
+  if (srv->nacl > 0) {
+    int allowed = 0;
+    for (int i = 0; i < srv->nacl; i++)
+      if (bdr_cidr_match_peer (&remote, srv->acl[i])) { allowed = 1; break; }
+    if (!allowed) return -1;
+  }
 
   ngtcp2_version_cid vc;
   int rv = ngtcp2_pkt_decode_version_cid (&vc, buf, (size_t) nread, BDA_DOQ_SCIDLEN);
@@ -12551,6 +13853,9 @@ bda_doq_handle_packet (struct bda_doq_srv *srv)
         { bda_doq_conn_free (c); return -1; }
     }
   c->last_active = time (NULL);
+  /* Stream callbacks run synchronously while this authenticated packet is
+     processed, so per-query policy follows its actual permitted source. */
+  memcpy (&c->policy_peer, &remote, msg.msg_namelen);
   ngtcp2_path path = {
     .local = { .addr = (struct sockaddr *) &c->local_addr, .addrlen = c->local_addrlen },
     .remote = { .addr = (struct sockaddr *) &remote, .addrlen = msg.msg_namelen },
@@ -13629,21 +14934,24 @@ bda_slave_read_xfr (int fd, unsigned char *stream, size_t stream_sz, size_t *str
 {
   size_t off = 0;
   *stream_len = 0;
+  /* A full zone's worth of bd_rr_t exceeds a typical process stack. */
+  bd_rr_t *rrs = calloc ((size_t) BDA_RR_MAX + 2, sizeof *rrs);
+  if (!rrs) return -1;
   for (;;)
     {
       unsigned char lb[2];
       if (bda_readn (fd, lb, 2) < 0) break;
       uint16_t ml = bd_rd16 (lb);
-      if (ml < 12 || off + 2 + ml > stream_sz) return -1;
+      if (ml < 12 || off + 2 + ml > stream_sz) { free (rrs); return -1; }
       stream[off++] = lb[0]; stream[off++] = lb[1];
-      if (bda_readn (fd, stream + off, ml) < 0) return -1;
+      if (bda_readn (fd, stream + off, ml) < 0) { free (rrs); return -1; }
       off += ml;
-      bd_rr_t rrs[BDA_RR_MAX + 2];
       int n = bda_collect_xfr_answers (stream, off, 1, rrs, BDA_RR_MAX + 2);
       if (n >= 2 && rrs[0].type == BDA_SOA && rrs[n - 1].type == BDA_SOA &&
           bda_rr_same_ptr (&rrs[0], &rrs[n - 1]))
         break;
     }
+  free (rrs);
   *stream_len = off;
   return off > 0 ? 0 : -1;
 }
@@ -13662,6 +14970,48 @@ bda_slave_count_xfr_frames (const unsigned char *stream, size_t stream_len)
       n++;
     }
   return off == stream_len ? n : -1;
+}
+
+/* RFC 2845 TCP transfer continuation: after the first response, the MAC
+   covers the previous MAC, the current message and only the signed time and
+   fudge, not the full TSIG variables used for the first message. */
+static int
+bda_slave_verify_xfr_next (unsigned char *msg, size_t *msg_len,
+                           bd_tsig_store_t *store, bd_tsig_key_t *expected,
+                           const unsigned char *prior, size_t prior_len,
+                           unsigned char *mac, size_t *mac_len)
+{
+  bd_tsig_rr_t rr;
+  int fr = bd_tsig_find (msg, *msg_len, &rr);
+  if (fr != BD_TSIG_OK) return fr;
+  if (rr.orig_id != bd_rd16 (msg) || rr.error != 0 || rr.other_len != 0)
+    return BD_TSIG_NOTAUTH;
+  if (strcasecmp (rr.algname, "hmac-sha256") != 0 &&
+      strcasecmp (rr.algname, "hmac-sha256.") != 0) return BD_TSIG_BADKEY;
+  if (bd_tsig_find_key (store, rr.keyname) != expected) return BD_TSIG_BADKEY;
+  uint64_t now = (uint64_t) bd_tsig_now ();
+  uint64_t delta = now > rr.time_signed ? now - rr.time_signed : rr.time_signed - now;
+  if (delta > rr.fudge) return BD_TSIG_BADTIME;
+  if (rr.rr_start > *msg_len || *msg_len < 12 || prior_len == 0 ||
+      prior_len > BD_TSIG_MAC_MAX || bd_rd16 (msg + 10) == 0)
+    return BD_TSIG_FORMERR;
+  unsigned char save10 = msg[10], save11 = msg[11];
+  bd_tsig_wr16 (msg + 10, (uint16_t) (bd_rd16 (msg + 10) - 1));
+  unsigned char input[70000], want[BD_TSIG_MAC_MAX];
+  size_t n = 0, want_len = 0;
+  int bad = bd_tsig_append_u16 (input, sizeof input, &n, (uint16_t) prior_len) < 0 ||
+            bd_tsig_append (input, sizeof input, &n, prior, prior_len) < 0 ||
+            bd_tsig_append (input, sizeof input, &n, msg, rr.rr_start) < 0 ||
+            bd_tsig_append_u48 (input, sizeof input, &n, rr.time_signed) < 0 ||
+            bd_tsig_append_u16 (input, sizeof input, &n, rr.fudge) < 0 ||
+            bd_tsig_hmac (expected, input, n, want, sizeof want, &want_len) < 0;
+  if (bad || rr.mac_len != want_len || !bd_tsig_ct_eq (rr.mac, want, want_len)) {
+    msg[10] = save10; msg[11] = save11;
+    return bad ? BD_TSIG_FORMERR : BD_TSIG_BADSIG;
+  }
+  *msg_len = rr.rr_start;
+  memcpy (mac, rr.mac, rr.mac_len); *mac_len = rr.mac_len;
+  return BD_TSIG_OK;
 }
 
 static int
@@ -13699,10 +15049,16 @@ bda_slave_verify_xfr_chain (const unsigned char *stream, size_t stream_len,
       off += ml;
       size_t frame_len = ml, mac_len = 0;
       bd_tsig_key_t *used = NULL;
-      int vr = bd_tsig_verify (frame, &frame_len, store, 1,
-                               (uint64_t) bd_tsig_now (),
-                               prior_len ? prior : NULL, prior_len,
-                               &used, mac, &mac_len);
+      int vr;
+      if (verified == 0)
+        vr = bd_tsig_verify (frame, &frame_len, store, 1,
+                             (uint64_t) bd_tsig_now (), prior, prior_len,
+                             &used, mac, &mac_len);
+      else {
+        vr = bda_slave_verify_xfr_next (frame, &frame_len, store, expected,
+                                        prior, prior_len, mac, &mac_len);
+        if (vr == BD_TSIG_OK) used = expected;
+      }
       if (vr != BD_TSIG_OK)
         { free (frame); return -vr; }
       if (used != expected)
@@ -14624,12 +15980,9 @@ bd_auth_serve_cmd (WORD_LIST *args)
     else builtin_warning ("auth-serve: skipping unparseable --rpz: %s", rpz_paths[i]);
   }
 
-  if (nz == 0 && nviews == 0) { builtin_error ("auth-serve: no zones loaded"); return EXECUTION_FAILURE; }
+  if (nz == 0 && nviews == 0 && nslaves == 0) { builtin_error ("auth-serve: no zones loaded"); return EXECUTION_FAILURE; }
 
-  /* Publish engines for the TLS-wrapped transports (DoH/DoT/DoQ) which reach
-     bda_answer_wire without a per-call config handle. peer is NULL there in
-     this slice, so split-horizon/RPZ-CLIENT-IP do not match on encrypted
-     transports; RPZ QNAME triggers still apply. */
+  /* Publish policy engines for the encrypted transport answer paths. */
   g_auth_views = nviews > 0 ? views : NULL; g_auth_nviews = nviews;
   g_auth_rpz   = nrpz   > 0 ? rpz   : NULL; g_auth_nrpz   = nrpz;
 
@@ -14684,6 +16037,7 @@ bd_auth_serve_cmd (WORD_LIST *args)
   if (doq_port > 0 && bda_bind_doq (doq_addr, doq_port, &doq_srv, doq_cert,
                                     doq_key, doq_conns, zones, nz) < 0)
     { if (doh_s >= 0) close (doh_s); if (tls_s >= 0) close (tls_s); bda_tls_cfg_free (&dot_tls); bda_tls_cfg_free (&doh_tls); close (us); close (ts); if (cs >= 0) close (cs); for (int i = 0; i < nz; i++) free (zones[i].rr); return EXECUTION_FAILURE; }
+  if (doq_port > 0) { doq_srv.acl = acl; doq_srv.nacl = nacl; }
 #endif
 
   /* NOTIFY-out (RFC 1996): on load, tell each --also-notify secondary that
@@ -14778,7 +16132,7 @@ bd_auth_serve_cmd (WORD_LIST *args)
               rl += snprintf (reply + rl, sizeof reply - (size_t) rl, "\n");
           }
           else if (!strcmp (cmd, "serial"))
-            rl = snprintf (reply, sizeof reply, "%ld\n", bda_apex_serial (&zones[0]));
+            rl = snprintf (reply, sizeof reply, "%ld\n", (nz > 0 ? bda_apex_serial (&zones[0]) : -1));
           else if (!strcmp (cmd, "reload")) {
             /* Reload every hosted zone from its source file, hot-swapping each
                on success and keeping the prior copy when a file fails. */
@@ -14795,29 +16149,34 @@ bd_auth_serve_cmd (WORD_LIST *args)
                 bda_catalog_runtime_reload (&catalog, zones, &nz, slaves, &nslaves,
                                             &tsig_store, sign_key, use_nsec3) < 0)
               builtin_warning ("auth-serve: catalog reload failed for %s", catalog.path);
-            rl = snprintf (reply, sizeof reply, "reload: zones %d reloaded %d failed %d serial %ld\n", nz, ok, fail, bda_apex_serial (&zones[0]));
+            rl = snprintf (reply, sizeof reply, "reload: zones %d reloaded %d failed %d serial %ld\n", nz, ok, fail, (nz > 0 ? bda_apex_serial (&zones[0]) : -1));
           }
           else if (!strcmp (cmd, "stop") || !strcmp (cmd, "halt")) {
             stop = 1; rl = snprintf (reply, sizeof reply, "stopping\n");
           }
           else
             rl = snprintf (reply, sizeof reply, "error: unknown command: %s\n", cmd);
-          if (rl > 0) { ssize_t wn = write (c, reply, (size_t) rl); (void) wn; }
+          if (rl > 0) { ssize_t wn = send (c, reply, (size_t) rl, MSG_NOSIGNAL); (void) wn; }
         }
         close (c);
       }
     }
 
     if (tls_s >= 0 && FD_ISSET (tls_s, &rf)) {
-      int cfd = accept (tls_s, NULL, NULL);
+      struct sockaddr_storage peer; socklen_t peer_len = sizeof peer;
+      int cfd = accept (tls_s, (struct sockaddr *) &peer, &peer_len);
       if (cfd >= 0) {
         queries++;
+        int allow = nacl == 0;
+        for (int i = 0; i < nacl; i++)
+          if (bdr_cidr_match_peer (&peer, acl[i])) { allow = 1; break; }
+        if (!allow) { denied++; close (cfd); continue; }
         struct timeval tv = { 5, 0 };
         setsockopt (cfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
         setsockopt (cfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
         mbedtls_ssl_context ssl;
         if (bda_tls_handshake (&dot_tls, &ssl, &cfd, "DoT") == 0) {
-          struct bda_conn io = { cfd, &ssl };
+          struct bda_conn io = { cfd, &ssl, &peer };
           if (bda_dot_handle (&io, zones, nz, big, sizeof big) < 0)
             denied++;
           mbedtls_ssl_close_notify (&ssl);
@@ -14828,9 +16187,14 @@ bd_auth_serve_cmd (WORD_LIST *args)
     }
 
     if (doh_s >= 0 && FD_ISSET (doh_s, &rf)) {
-      int cfd = accept (doh_s, NULL, NULL);
+      struct sockaddr_storage peer; socklen_t peer_len = sizeof peer;
+      int cfd = accept (doh_s, (struct sockaddr *) &peer, &peer_len);
       if (cfd >= 0) {
         queries++;
+        int allow = nacl == 0;
+        for (int i = 0; i < nacl; i++)
+          if (bdr_cidr_match_peer (&peer, acl[i])) { allow = 1; break; }
+        if (!allow) { denied++; close (cfd); continue; }
         struct timeval tv = { 5, 0 };
         setsockopt (cfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
         setsockopt (cfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
@@ -14843,7 +16207,7 @@ bd_auth_serve_cmd (WORD_LIST *args)
             denied++;
         }
         if (!doh_tls.enabled || sslp) {
-          struct bda_conn io = { cfd, sslp };
+          struct bda_conn io = { cfd, sslp, &peer };
           if (bda_doh_handle (&io, zones, nz, doh_path) < 0)
             denied++;
           if (sslp)
@@ -14947,6 +16311,10 @@ bd_auth_serve_cmd (WORD_LIST *args)
       int c = accept (ts, (struct sockaddr *) &cl, &cll);
       if (c >= 0) {
         queries++;
+        int allow = nacl == 0;
+        for (int i = 0; i < nacl; i++)
+          if (bdr_cidr_match_peer (&cl, acl[i])) { allow = 1; break; }
+        if (!allow) { denied++; close (c); continue; }
         struct timeval tv = { 5, 0 };
         setsockopt (c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
         unsigned char lb[2];
@@ -14991,6 +16359,17 @@ bd_auth_serve_cmd (WORD_LIST *args)
                                             &tsig_store, transfer_key ? transfer_key : (tsig_store.n > 0 ? &tsig_store.keys[0] : NULL));
                     }
                   }
+                }
+                /* A verified request requires an authenticated response, even
+                   when the update itself is refused or fails prerequisites. */
+                if (rl > 0 && tsig_rc == BD_TSIG_OK && req_key) {
+                  size_t bl = (size_t) rl;
+                  if (bd_tsig_sign (big, sizeof big, &bl, req_key,
+                                    req_mac, req_mac_len,
+                                    (uint64_t) bd_tsig_now (), BD_TSIG_DEFAULT_FUDGE,
+                                    NULL, NULL) < 0)
+                    rl = -1;
+                  else rl = (int) bl;
                 }
               }
               else if (bdr_parse_question (qmsg, (size_t) ml, qn, sizeof qn, &qt, &qc) == 0) {
@@ -15138,7 +16517,7 @@ bd_rfc5011_poll_cmd (WORD_LIST *args)
   if (now < 0) now = (long) time (NULL);
 
   unsigned char reply[8192];
-  int rlen = bd_fetch (zone, BD_T_DNSKEY, server, 1, timeout_ms, reply, sizeof reply);
+  int rlen = bd_fetch (zone, BD_T_DNSKEY, server, 1, timeout_ms, 0, reply, sizeof reply);
   if (rlen < 12) { builtin_error ("rfc5011-poll: DNSKEY fetch for '%s' failed", zone); return EXECUTION_FAILURE; }
 
   bd_rr_t rrs[BD_RR_MAX];

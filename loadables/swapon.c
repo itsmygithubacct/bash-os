@@ -60,7 +60,7 @@ swapon_builtin (WORD_LIST *list)
             if (!list->next) { builtin_error ("-p requires an argument"); return EX_USAGE; }
             list = list->next;
             char *end = NULL; long v = strtol (list->word->word, &end, 10);
-            if (*end || v < 0 || v > 32767) { builtin_error ("invalid priority: %s", list->word->word); return EX_USAGE; }
+            if (end == list->word->word || *end || v < 0 || v > 32767) { builtin_error ("invalid priority: %s", list->word->word); return EX_USAGE; }
             prio = (int) v; list = list->next; continue;
         }
         builtin_error ("unknown option: %s", w); builtin_usage (); return EX_USAGE;

@@ -415,13 +415,13 @@ blpr_wait_child (pid_t child, int pidfd, int *status, long ms,
 }
 
 static int
-blpr_cmd_submit (WORD_LIST *args)
+blpr_cmd_submit (WORD_LIST *args, int implicit_stdin)
 {
-    if (!args || args->next) {
+    if ((!args && !implicit_stdin) || (args && args->next)) {
         builtin_error ("submit: usage: lpr submit FILE|-");
         return EX_USAGE;
     }
-    const char *src = args->word->word;
+    const char *src = args ? args->word->word : "-";
 
     const char *v = get_string_value ("BASHLPR_BACKEND");
     char backend[4096];
@@ -857,19 +857,18 @@ blpr_cmd_cancel (WORD_LIST *args)
 int
 lpr_builtin (WORD_LIST *list)
 {
-    if (!list) { builtin_usage (); return EX_USAGE; }
+    clearerr (stdout);
+    if (!list) return blpr_cmd_submit (NULL, 1);
     const char *cmd = list->word->word;
     WORD_LIST *args = list->next;
-    clearerr (stdout);
     if (!strcmp (cmd, "--help") || !strcmp (cmd, "-h")) {
         builtin_help ();
         return EXECUTION_SUCCESS;
     }
-    if (!strcmp (cmd, "submit")) return blpr_cmd_submit (args);
+    if (!strcmp (cmd, "submit")) return blpr_cmd_submit (args, 0);
     if (!strcmp (cmd, "list"))   return blpr_cmd_list (args);
     if (!strcmp (cmd, "cancel")) return blpr_cmd_cancel (args);
-    builtin_error ("unknown subcommand: %s (try 'submit', 'list', 'cancel', or '--help')", cmd);
-    return EX_USAGE;
+    return blpr_cmd_submit (list, 0);
 }
 
 char *lpr_doc[] = {
@@ -883,6 +882,7 @@ char *lpr_doc[] = {
     "                         failed (rc 1) otherwise; cancelled (rc 3) on",
     "                         `lpr cancel`; 128+N if signal N interrupted",
     "                         the shell. The spool entry is always removed.",
+    "    lpr FILE | lpr       submit FILE or standard input respectively",
     "    lpr list [-l]        one line per *.lpr spool entry; -l prints",
     "                         <id> <active|stale> <bytes>.",
     "    lpr cancel ID        ask the live submitter of ID to cancel and",

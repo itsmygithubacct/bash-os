@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "pkg-rollback-missing-backend-preserves-tree-r4",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "pkg/pkg-install-rollback-remove"
+      ],
+      "purpose": "Verify an unavailable rollback backend fails without altering the package or unrelated state.",
+      "oracle": "The transaction belongs to an external installer; without an executable backend pkg must report failure and leave the fixture bytes intact. This does not establish real installer rollback.",
+      "files": {
+        "root/usr/share/realpkg/file": "installed by txn-real1\n",
+        "root/var/lib/bl-pkg/installed/realpkg": "txn=txn-real1\n",
+        "root/usr/share/unrelated/keep": "keep\n"
+      },
+      "setup_script": "[[ ! -x /bash-os/bl-pkg.sh ]] || { echo \"CONTROL-FAILED image backend takes precedence\" >&2; exit 98; }\n",
+      "candidate_script": "export BASHPKG_BLPKG_PATH=\"$HOME/does-not-exist\"\nbuiltin pkg rollback txn-real1 --root root > \"$HOME/rollback.out\" 2> \"$HOME/rollback.err\"\nprintf \"rollback=%s\\n\" \"$?\"\n[[ $(<root/usr/share/realpkg/file) == \"installed by txn-real1\" && $(<root/var/lib/bl-pkg/installed/realpkg) == \"txn=txn-real1\" && $(<root/usr/share/unrelated/keep) == keep ]] && echo tree=unchanged || echo tree=changed\n[[ -s \"$HOME/rollback.err\" ]] && echo diagnostic=yes || echo diagnostic=no\n",
+      "expected_status": 0,
+      "stdout": "rollback=1\ntree=unchanged\ndiagnostic=yes\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "rollback.out",
+        "rollback.err"
+      ]
+    }
+  ]
+}

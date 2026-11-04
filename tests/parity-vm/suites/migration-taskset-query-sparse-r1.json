@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-taskset-query-encoding-sparse-r1",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Check combined and separate list-query options and independently decode sparse mask and list results for one owned child.",
+      "oracle": "Kernel sched_getaffinity and upstream taskset in the locked VM image.",
+      "comparison": "Validate exact PID and affinity prefixes, decode both representations independently, and compare them to the kernel's sparse affinity set.",
+      "script": "/usr/bin/sleep 20 & child=$!\ntrap 'kill -KILL \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 -c 'import os,sys;os.sched_setaffinity(int(sys.argv[1]),{0,2,3})' \"$child\" || exit 90\nmask=$(taskset -p \"$child\") || exit 91\nlist=$(taskset -cp \"$child\") || exit 92\nseparate=$(taskset -c -p \"$child\") || exit 93\n/usr/bin/python3 - \"$child\" \"$mask\" \"$list\" \"$separate\" <<'CHECK'\nimport os, sys\npid = int(sys.argv[1])\nprefix = \"pid %d's current affinity \" % pid\nmask, listing, separate = sys.argv[2:]\nassert mask.startswith(prefix + 'mask: '), mask\nassert listing.startswith(prefix + 'list: '), listing\nassert listing == separate, (listing, separate)\nmaskbits = int(mask[len(prefix + 'mask: '):], 16)\nmaskset = {i for i in range(maskbits.bit_length()) if maskbits & (1 << i)}\nlistset = set()\nfor item in listing[len(prefix + 'list: '):].split(','):\n    bounds = [int(n) for n in item.split('-')]\n    assert len(bounds) in (1, 2) and bounds[0] <= bounds[-1], item\n    listset.update(range(bounds[0], bounds[-1] + 1))\nassert maskset == listset == os.sched_getaffinity(pid) == {0, 2, 3}, (maskset, listset)\nprint('query encodings agree: 0,2-3')\nCHECK",
+      "stdout": "query encodings agree: 0,2-3\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3",
+        "sleep"
+      ],
+      "covers": [
+        "taskset/deferred-query-mask-and-list"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert {0,1,2,3} <= os.sched_getaffinity(0), os.sched_getaffinity(0)'"
+    }
+  ]
+}

@@ -119,6 +119,27 @@ class LosetupFixtures(unittest.TestCase):
                           (HEADER + row('loop7', 1, 4096, 1, self.image)) * 2 + AUDIT)
         self.run_case('losetup -j /absent; losetup_fixture state', HEADER + AUDIT)
 
+    def test_associated_multiple_aliases_and_no_match(self):
+        hard = self.root / 'hard'
+        os.link(self.image, hard)
+        other = self.root / 'other'
+        other.write_bytes(b'no association')
+        second = self.root / 'sys/loop4'
+        (second / 'loop').mkdir(parents=True)
+        for field, value in [('backing_file', str(self.image)), ('offset', '0'), ('dio', '0')]:
+            (second / 'loop' / field).write_text(value + '\n')
+        (second / 'ro').write_text('0\n')
+        expected = [HEADER.rstrip(), row('loop7', 1, 4096, 1, self.image).rstrip(),
+                    row('loop4', 0, 0, 0, self.image).rstrip()]
+        for option in ('-j', '--associated'):
+            for path in (self.image, self.root / 'alias', hard):
+                r = invoke(ARGS.binary, self.prefix +
+                           f'losetup {option} {shlex.quote(str(path))}', self.root, ARGS.preload)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(sorted(r.stdout.splitlines()), sorted(expected))
+                self.assertEqual(r.stderr, '')
+            self.run_case(f'losetup {option} {shlex.quote(str(other))}', HEADER)
+
     def test_long_backing_path_and_alias(self):
         # A pathname can exceed the old 512-byte reporting buffer without any
         # individual component exceeding NAME_MAX. Both the literal name and
@@ -143,6 +164,28 @@ class LosetupFixtures(unittest.TestCase):
         (self.root / 'sys').touch()
         self.run_case('losetup; s=$?; losetup_fixture state; exit "$s"', HEADER + AUDIT, 1, 'Not a directory')
 
+    def test_listing_malformed_and_optional_attributes(self):
+        import shutil
+        shutil.rmtree(self.root / 'sys')
+        sysfs = self.root / 'sys'
+        for name, backing in [('loop5', '/y'), ('loop6', '/z'),
+                              ('loop7', ''), ('loopX', '/x'),
+                              ('loop', '/x'), ('loop1p1', '/x'), ('vda', '/x')]:
+            loop = sysfs / name / 'loop'
+            loop.mkdir(parents=True)
+            (loop / 'backing_file').write_text(backing + '\n')
+        # loop5 has missing attributes; loop6 has present but empty ones.
+        (sysfs / 'loop6/ro').write_text('')
+        (sysfs / 'loop6/loop/offset').write_text('\n')
+        (sysfs / 'loop6/loop/dio').write_text('')
+        for flag in ['', '-a', '-l', '--list']:
+            r = invoke(ARGS.binary, self.prefix + f'losetup {flag}; losetup_fixture state',
+                       self.root, ARGS.preload)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            expected = HEADER + row('loop5', 0, 0, 0, '/y') + row('loop6', 0, 0, 0, '/z') + AUDIT
+            self.assertEqual(sorted(r.stdout.splitlines()), sorted(expected.splitlines()))
+            self.assertEqual(r.stderr, '')
+
     def test_find_and_selected_attach(self):
         q = shlex.quote(str(self.image))
         self.run_case(f'losetup -f; losetup --find; losetup -f --show -r -P -o 0x1000 --sizelimit 8192 {q} || exit; '
@@ -164,12 +207,57 @@ class LosetupFixtures(unittest.TestCase):
             expected += AUDIT + f'loop2 {self.image} 0 0 {value}\n'
         self.run_case(body + 'losetup_fixture state', expected + AUDIT)
 
+    def test_selected_order_dash_and_busy_preserves_association(self):
+        (self.root / '-dash').write_bytes(b'dash backing')
+        q = shlex.quote(str(self.image))
+        for command, backing in [(f'--show /dev/loop2 {q}', str(self.image)),
+                                 (f'/dev/loop2 {q} --show', str(self.image)),
+                                 ('--show -- /dev/loop2 -dash', '-dash')]:
+            with self.subTest(command=command):
+                r = self.run_case(
+                    f'losetup {command} || exit; losetup /dev/loop2 {q}; s=$?; '
+                    'losetup_fixture trace; losetup_fixture state; exit "$s"',
+                    '/dev/loop2\n' +
+                    f'open {backing} rw\nopen /dev/loop2 rw\nSET_FD loop2\n' +
+                    f'SET_STATUS loop2 offset=0 size=0 flags=0 name={backing[:63]}\n' +
+                    f'close /dev/loop2\nclose {backing}\n' +
+                    f'open {self.image} rw\nopen /dev/loop2 rw\nSET_FD loop2\n' +
+                    f'close /dev/loop2\nclose {self.image}\n' + AUDIT +
+                    f'loop2 {backing} 0 0 0\n', 1, 'Device or resource busy')
+                self.assertNotIn('CLR_FD', r.stdout)
+
     def test_no_free_device(self):
         q = shlex.quote(str(self.image))
         body = ''.join(f'losetup /dev/loop{i} {q} || exit; ' for i in range(1, 8))
         self.run_case(body + 'losetup -f; s=$?; losetup_fixture state; exit "$s"',
                       AUDIT + ''.join(f'loop{i} {self.image} 0 0 0\n' for i in range(1, 8)),
-                      1, 'No space left on device')
+                      1, 'LOOP_CTL_GET_FREE: No space left on device')
+
+    def test_find_control_contract(self):
+        # The contract requires the kernel's selected index and explicit
+        # failures, even when a reference losetup falls back to scanning.
+        for flag in ('-f', '--find'):
+            with self.subTest(flag=flag, scenario='free'):
+                self.run_case(f'losetup {flag}; s=$?; losetup_fixture trace; '
+                              'losetup_fixture assert || exit; exit "$s"',
+                              '/dev/loop1\nopen /dev/loop-control rw\nGET_FREE\n'
+                              'close /dev/loop-control\n')
+            for slot, code, diagnostic, trace in [
+                (0, errno.ENOENT, '/dev/loop-control: No such file or directory',
+                 'open /dev/loop-control rw\n'),
+                (0, errno.EACCES, '/dev/loop-control: Permission denied',
+                 'open /dev/loop-control rw\n'),
+                (1, errno.ENOTTY, 'LOOP_CTL_GET_FREE: Inappropriate ioctl for device',
+                 'open /dev/loop-control rw\nGET_FREE\nclose /dev/loop-control\n'),
+                (1, errno.ENOSPC, 'LOOP_CTL_GET_FREE: No space left on device',
+                 'open /dev/loop-control rw\nGET_FREE\nclose /dev/loop-control\n'),
+            ]:
+                for suffix in ('', f' --show {shlex.quote(str(self.image))}'):
+                    with self.subTest(flag=flag, code=code, suffix=suffix):
+                        self.run_case(f'losetup_fixture fail {slot} {code}; '
+                                      f'losetup {flag}{suffix}; s=$?; losetup_fixture trace; '
+                                      'losetup_fixture assert || exit; exit "$s"',
+                                      trace, 1, diagnostic)
 
     def test_missing_optional_sysfs_fields(self):
         for path in ['loop7/loop/offset', 'loop7/loop/dio', 'loop7/ro']:
@@ -216,6 +304,32 @@ class LosetupFixtures(unittest.TestCase):
                       f'losetup /dev/loop2 {q}; s=$?; losetup_fixture state; exit "$s"',
                       AUDIT + f'loop2 {self.image} 0 0 0\n', 1, 'rollback LOOP_CLR_FD')
 
+    def test_rollback_sequence_and_diagnostics(self):
+        q = shlex.quote(str(self.image))
+        for use_find in (False, True):
+            for clear_fails in (False, True):
+                with self.subTest(use_find=use_find, clear_fails=clear_fails):
+                    command = f'-f --show {q}' if use_find else f'--show /dev/loop2 {q}'
+                    device = 'loop1' if use_find else 'loop2'
+                    control = ('open /dev/loop-control rw\nGET_FREE\n'
+                               'close /dev/loop-control\n') if use_find else ''
+                    inject = f'losetup_fixture fail 6 {errno.EINVAL}; '
+                    if clear_fails:
+                        inject += f'losetup_fixture fail 7 {errno.EIO}; '
+                    expected = (control + f'open {self.image} rw\nopen /dev/{device} rw\n'
+                                f'SET_FD {device}\nSET_STATUS {device} offset=0 size=0 flags=0 '
+                                f'name={str(self.image)[:63]}\nCLR_FD {device}\n'
+                                f'close /dev/{device}\nclose {self.image}\n' + AUDIT)
+                    if clear_fails:
+                        expected += f'{device} {self.image} 0 0 0\n'
+                    r = self.run_case(inject + f'losetup {command}; s=$?; '
+                                      'losetup_fixture trace; losetup_fixture state; exit "$s"',
+                                      expected, 1, 'LOOP_SET_STATUS64: Invalid argument')
+                    if clear_fails:
+                        self.assertIn('rollback LOOP_CLR_FD: Input/output error', r.stderr)
+                    else:
+                        self.assertNotIn('rollback LOOP_CLR_FD', r.stderr)
+
     def test_foreign_ownership_and_detach_failures(self):
         q = shlex.quote(str(self.image))
         r = self.run_case(f'losetup /dev/loop0 {q}; s=$?; losetup_fixture trace; '
@@ -229,12 +343,25 @@ class LosetupFixtures(unittest.TestCase):
             self.run_case(body + '; s=$?; losetup_fixture counts; losetup_fixture state; exit "$s"',
                           'counts ' + counts + '\n' + AUDIT, 1, error)
 
+    def test_detach_error_diagnostics_and_foreign_preservation(self):
+        for body, device, error, counts in [
+            ('losetup -d /dev/loop2', '/dev/loop2', 'No such device or address', '1 1 1'),
+            ('losetup -d /dev/loop-nosuch', '/dev/loop-nosuch', 'No such file or directory', '1 0 0'),
+            ('losetup_fixture fail 4 13; losetup -d /dev/loop0', '/dev/loop0', 'Permission denied', '1 0 0'),
+            ('losetup_fixture fail 7 5; losetup -d /dev/loop0', '/dev/loop0', 'Input/output error', '1 1 1'),
+        ]:
+            with self.subTest(body=body):
+                r = self.run_case(body + '; s=$?; losetup_fixture counts; losetup_fixture state; exit "$s"',
+                                  'counts ' + counts + '\n' + AUDIT, 1, error)
+                self.assertTrue(r.stderr.endswith(f'losetup: {device}: detach failed: {error}\n'), r.stderr)
+
     def test_invalid_input_does_not_touch_devices(self):
         invalid = ['-d', '-f --show', '--unknown', '-o', '--sizelimit', '-j',
                    '-f -l', '-d -f /dev/loop2', '--show', '-l /dev/loop2',
                    '-f a b', '/dev/loop2 a extra', '-d /dev/loop2 extra',
                    '-j a -f', '--show -d /dev/loop2', '-d /dev/loop2 -o 0',
-                   '-d /dev/loop2 --sizelimit 0']
+                   '-d /dev/loop2 --sizelimit 0', '-d /dev/loop2 -r',
+                   '-d /dev/loop2 -P', '-j a /dev/loop2', '--show a']
         for flag in ['-o', '--offset', '--sizelimit']:
             for value in ['', ' ', '-1', '18446744073709551616', '1junk', '2K']:
                 invalid.append(f'{flag} {shlex.quote(value)} --list')
@@ -242,6 +369,20 @@ class LosetupFixtures(unittest.TestCase):
             with self.subTest(args=args):
                 self.run_case(f'losetup {args}; s=$?; losetup_fixture counts; losetup_fixture state; exit "$s"',
                               'counts 0 0 0\n' + AUDIT, 2, 'losetup')
+
+    def test_automatic_attach_invalid_counts_do_not_touch_devices(self):
+        # Exercise the historical automatic-attach form, including a relative
+        # backing name, independently of the list-mode validation above.
+        for flag in ('-o', '--offset', '--sizelimit'):
+            for value in ('-1', '12x', '', '0x'):
+                with self.subTest(flag=flag, value=value):
+                    script = (f'losetup {flag} {shlex.quote(value)} -f --show image; '
+                              's=$?; losetup_fixture counts; losetup_fixture state; '
+                              'test "$s" -eq 2')
+                    r = invoke(ARGS.binary, self.prefix + script, self.root, ARGS.preload)
+                    self.assertEqual(r.returncode, 0, r.stderr)
+                    self.assertEqual(r.stdout, 'counts 0 0 0\n' + AUDIT)
+                    self.assertIn('losetup', r.stderr)
 
     def test_double_dash_numeric_limits_and_name_truncation(self):
         long = self.root / ('x' * 100)

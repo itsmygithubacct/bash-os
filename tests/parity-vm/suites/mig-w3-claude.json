@@ -255,6 +255,74 @@
         "out.txt",
         "err.txt"
       ]
+    },
+    {
+      "id": "mig-w3-claude-retry-other-5xx",
+      "loadable": "claude",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "claude/api_transport_mock"
+      ],
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w3-claude-mock.py": "59aadf769b3f18aeda9737c325372740bc69d1da3c4deab561eed68846201afb"
+      },
+      "files": {
+        "other.script": "[{\"status\": 501, \"chunks\": []}, {\"status\": 599, \"chunks\": []}, {\"status\": 200, \"headers\": [[\"Content-Type\", \"text/event-stream\"]], \"chunks\": [\"ZGF0YTogeyJ0eXBlIjoiY29udGVudF9ibG9ja19kZWx0YSIsImRlbHRhIjp7InR5cGUiOiJ0ZXh0X2RlbHRhIiwidGV4dCI6Im9rIn19Cgo=\"]}]"
+      },
+      "setup_script": "mkfifo \"$HOME/nap.fifo\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py certs\n",
+      "setup_timeout": 40,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py\nnap() { read -t \"$1\" -u 7 7<>\"$HOME/nap.fifo\"; }\nkey=$(<\"$HOME/key.txt\")\nexport ANTHROPIC_API_KEY=$key BASHCLAUDE_HOST=127.0.0.1 BASHCLAUDE_CA=\"$HOME/pki/ca.pem\" BASHCLAUDE_PORT=20761 BASHCLAUDE_MAX_RETRIES=2\n/usr/bin/python3 \"$H\" serve 20761 \"$HOME/pki/server.pem\" \"$HOME/pki/server.key\" \"$PWD/other.script\" \"$HOME/other.jsonl\" 25 & srv=$!\nfor ((i = 0; i < 200; i++)); do [ -e \"$HOME/other.jsonl.ready\" ] && break; nap 0.05; done\nclaude prompt hi > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"; rc=$?\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\ne=$(<\"$HOME/err.txt\")\n[[ $e == *\"claude: server error (HTTP 501); retrying in 1s (attempt 1/2)\"* ]] && a=yes || a=no\n[[ $e == *\"claude: server error (HTTP 599); retrying in 2s (attempt 2/2)\"* ]] && b=yes || b=no\nprintf 'rc=%s stdout=[%s] line501=%s line599=%s requests=%s\\n' \"$rc\" \"$(<\"$HOME/out.txt\")\" \"$a\" \"$b\" \"$(/usr/bin/python3 \"$H\" count \"$HOME/other.jsonl\")\"\n",
+      "stdout": "rc=0 stdout=[ok] line501=yes line599=yes requests=3\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 50,
+      "oracle": "Synthetic PKI (OpenSSL) and a Python ssl loopback mock of POST /v1/messages; the PKI is proven in setup with OpenSSL verify and Python's ssl client (trusted CA and name accepted, wrong CA and wrong name rejected). Expected values come from the documented request contract (x-api-key, anthropic-version 2023-06-01, JSON content type, event-stream accept, connection close, exact content-length), an independently built JSON object, and the response scripts the mock itself serves; no real endpoint or credential is used.",
+      "comparison": "r6: 501 and 599 each retry within the configured limit, report the documented backoff and eventually return the successful response.",
+      "diagnostic_files": [
+        "other.jsonl",
+        "out.txt",
+        "err.txt"
+      ]
+    },
+    {
+      "id": "mig-w3-claude-empty-error-raw",
+      "loadable": "claude",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "claude/api_transport_mock"
+      ],
+      "requires": [
+        "python3",
+        "openssl"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w3-claude-mock.py": "59aadf769b3f18aeda9737c325372740bc69d1da3c4deab561eed68846201afb"
+      },
+      "files": {
+        "empty.script": "[{\"status\": 403, \"reason\": \"Forbidden\", \"chunks\": [], \"chunked\": false}]"
+      },
+      "setup_script": "mkfifo \"$HOME/nap.fifo\"\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py certs\n",
+      "setup_timeout": 40,
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w3-claude-mock.py\nnap() { read -t \"$1\" -u 7 7<>\"$HOME/nap.fifo\"; }\nkey=$(<\"$HOME/key.txt\")\nexport ANTHROPIC_API_KEY=$key BASHCLAUDE_HOST=127.0.0.1 BASHCLAUDE_CA=\"$HOME/pki/ca.pem\" BASHCLAUDE_PORT=20762 BASHCLAUDE_MAX_RETRIES=2\n/usr/bin/python3 \"$H\" serve 20762 \"$HOME/pki/server.pem\" \"$HOME/pki/server.key\" \"$PWD/empty.script\" \"$HOME/empty.jsonl\" 25 & srv=$!\nfor ((i = 0; i < 200; i++)); do [ -e \"$HOME/empty.jsonl.ready\" ] && break; nap 0.05; done\nclaude prompt --raw hi > \"$HOME/out.txt\" 2> \"$HOME/err.txt\"; rc=$?\nkill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null\ne=$(<\"$HOME/err.txt\"); [[ $e == 'claude: HTTP 403 (no response body)' ]] && diag=yes || diag=no\n[ -s \"$HOME/out.txt\" ] && empty=no || empty=yes\nprintf 'rc=%s stdout-empty=%s diag=%s requests=%s\\n' \"$rc\" \"$empty\" \"$diag\" \"$(/usr/bin/python3 \"$H\" count \"$HOME/empty.jsonl\")\"\n",
+      "stdout": "rc=1 stdout-empty=yes diag=yes requests=1\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 40,
+      "oracle": "Synthetic PKI (OpenSSL) and a Python ssl loopback mock of POST /v1/messages; the PKI is proven in setup with OpenSSL verify and Python's ssl client (trusted CA and name accepted, wrong CA and wrong name rejected). Expected values come from the documented request contract (x-api-key, anthropic-version 2023-06-01, JSON content type, event-stream accept, connection close, exact content-length), an independently built JSON object, and the response scripts the mock itself serves; no real endpoint or credential is used.",
+      "comparison": "r5: an empty 403 body in raw mode still reports the HTTP status, produces no stdout and is not retried.",
+      "diagnostic_files": [
+        "empty.jsonl",
+        "out.txt",
+        "err.txt"
+      ]
     }
   ]
 }

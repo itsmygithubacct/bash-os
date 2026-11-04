@@ -23,6 +23,10 @@ HEADER = 'Netid  State       Recv-Q  Send-Q   Local Address:Port     Peer Addres
 def row(proto, recv, send, local, peer, state, owner=''):
     return f'{proto:<6} {state:<11} {recv:<7} {send:<7}  {local:<22} {peer}{owner}\n'
 
+def bracket_endpoint(ep):
+    addr, port = ep.rsplit(':', 1)
+    return f'[{addr}]:{port}'
+
 def convert(text):
     lines = text.splitlines()
     out = ''
@@ -31,6 +35,8 @@ def convert(text):
             out += HEADER + ('  Process' if 'PID/Program' in line else '') + '\n'
         else:
             p = line.split(maxsplit=6)
+            if p[0].endswith('6'):
+                p[3:5] = [bracket_endpoint(ep) for ep in p[3:5]]
             out += row(p[0], int(p[1]), int(p[2]), p[3], p[4], p[5], (' '+p[6]) if len(p)>6 else '')
     return out
 
@@ -105,7 +111,6 @@ class Suite(f.Suite):
             'short error':f.msg(kind=2),
             'oversize length':struct.pack('=IHHII',1000,20,0,0,0)+b'x',
             'partial error':f.inet(2,1,55555,55556)+f.msg(struct.pack('=i',-13)+bytes(16),kind=2),
-            'interrupted':f.inet(2,1,55555,55556)+f.msg(kind=3,flags=16),
             'done error':f.msg(struct.pack('=i',-13),kind=3),
             'short done':f.msg(b'x',kind=3),
             'missing done':f.inet(2,1,55555,55556),
@@ -115,6 +120,27 @@ class Suite(f.Suite):
             base=f.fixtures(Path(tmp)/name)
             (base/'diag/2-6.bin').write_bytes(data)
             self.case(name+' atomic fallback',lambda base=base:self.check('ss -tna',f.environment(self.shim,base,'diag'),HEADER+'\n'+expected()))
+        # An interrupted dump must be reported, not silently converted into a
+        # successful proc snapshot. Exercise both data and DONE flags, including
+        # a separate receive after a valid row; no partial IPv4 row may escape.
+        for name,first,second in [
+            ('done', f.inet(2,1,55555,55556), f.msg(kind=3,flags=16)),
+            ('same-buffer', f.inet(2,1,55555,55556)+f.msg(kind=3,flags=16), None),
+            ('data', f.msg(f.inet(2,1,55555,55556)[16:], flags=16), None),
+        ]:
+            base=f.fixtures(Path(tmp)/('interrupted-'+name))
+            (base/'diag/2-6.bin').write_bytes(first)
+            if second is not None: (base/'diag/2-6.1.bin').write_bytes(second)
+            def interrupted(base=base):
+                r=self.check('ss -tna',f.environment(self.shim,base,'diag'),code=1)
+                assert 'socket diagnostic dump interrupted' in r.stderr, r.stderr
+                assert ':55555' not in r.stdout and ':41001' not in r.stdout, r.stdout
+            self.case('interrupted '+name+' reported without partial or fallback rows',interrupted)
+        base=f.fixtures(Path(tmp)/'interrupted-retry')
+        (base/'diag/2-6.bin').write_bytes(f.inet(2,1,55555,55556)+f.msg(kind=3,flags=16))
+        (base/'diag/retry.bin').write_bytes(f.inet(2,10,41001)+f.inet(2,1,41002,41003,102)+f.msg(kind=3))
+        env=dict(f.environment(self.shim,base,'diag'),SOL_SS_RETRY_FIXTURE='1',SOL_SS_NO_PROC='1')
+        self.case('interrupted dump retries without partial rows',lambda:self.check('ss -tna',env,HEADER+'\n'+expected()))
         base=f.fixtures(Path(tmp)/'states')
         states=['ESTAB','SYN-SENT','SYN-RECV','FIN-WAIT-1','FIN-WAIT-2','TIME-WAIT','UNCONN','CLOSE-WAIT','LAST-ACK','LISTEN','CLOSING']
         (base/'diag/2-6.bin').write_bytes(b''.join(f.inet(2,i,44000+i) for i in range(1,12))+f.msg(kind=3))
@@ -149,7 +175,9 @@ class Suite(f.Suite):
         (base/'diag/1-0.bin').write_bytes(unixmsg(1,'\0private',recv=17,send=23)+f.msg(kind=3))
         self.case('Unix abstract name and nonzero queues',lambda:self.check('ss -xan',dict(f.environment(self.shim,base,'diag'),SOL_SS_NO_PROC='1'),HEADER+'\n'+row('u_str',17,23,'@private','*','ESTAB')))
         (base/'proc/net/tcp').write_text('header\nmalformed row\n'+f.proc_row(1,2,1,41002,41003,102)+'0: Z:1 Z:2 01 0:0 0:0 0 1000 0 555\n')
-        self.case('proc malformed rows preserve valid queues',lambda:self.check('ss -tna',f.environment(self.shim,base,'proc'),HEADER+'\n'+row('tcp',3,5,'127.0.0.1:41002','127.0.0.1:41003','ESTAB')+row('tcp6',3,5,'::1:42001',':::*','LISTEN')))
+        self.case('proc malformed rows preserve valid queues',lambda:self.check('ss -tna',f.environment(self.shim,base,'proc'),HEADER+'\n'+row('tcp',3,5,'127.0.0.1:41002','127.0.0.1:41003','ESTAB')+row('tcp6',3,5,'[::1]:42001','[::]:*','LISTEN')))
+        (base/'proc/net/unix').write_text('header\n00000000: 00000002 00000000 00000000 0001 02 100 /connecting\n00000000: 00000002 00000000 00000000 0001 04 101 /disconnecting\n')
+        self.case('proc unix connecting and disconnecting states',lambda:self.check('ss -xna',f.environment(self.shim,base,'proc'),HEADER+'\n'+row('u_str',0,0,'/connecting','*','SYN-SENT')+row('u_str',0,0,'/disconnecting','*','CLOSING')))
 
     def live(self,tmp):
         with contextlib.ExitStack() as stack:
@@ -182,7 +210,7 @@ class Suite(f.Suite):
                             ref=[x.split() for x in p.stdout.splitlines()[1:]]
                         for s,state,queue in candidates:
                             local=s.getsockname()
-                            endpoint=local if s.family==1 else f'{local[0]}:{local[1]}'
+                            endpoint=local if s.family==1 else (f'[{local[0]}]:{local[1]}' if s.family==10 else f'{local[0]}:{local[1]}')
                             own=f'pid={os.getpid()},fd={s.fileno()}'
                             found=[x for x in records if len(x)>=6 and x[4]==endpoint and own in ' '.join(x)]
                             eligible='l' not in opts or state in ('LISTEN','UNCONN')
@@ -192,8 +220,8 @@ class Suite(f.Suite):
                             assert int(x[2])==(0 if route=='proc' and s.family==1 else queue),x
                             if state=='LISTEN': assert int(x[3])==(8 if route=='diag' else 0),x
                             if s.family!=1:
-                                try:p=s.getpeername();peer=f'{p[0]}:{p[1]}'
-                                except OSError:peer='0.0.0.0:*' if s.family==2 else ':::*'
+                                try:p=s.getpeername();peer=(f'[{p[0]}]:{p[1]}' if s.family==10 else f'{p[0]}:{p[1]}')
+                                except OSError:peer='0.0.0.0:*' if s.family==2 else '[::]:*'
                                 assert x[5]==peer,(x,peer)
                             if ref is not None:
                                 matching=[v for v in ref if own in ' '.join(v)]
@@ -201,7 +229,7 @@ class Suite(f.Suite):
                                 # Single-family ss omits Netid for inet; Unix retains it.
                                 y=matching[0];offset=1 if y[0].startswith('u_') else 0
                                 assert y[offset:offset+3]==x[1:4],(x,y)
-                                assert y[offset+3].replace('[','').replace(']','')==endpoint,(x,y)
+                                assert y[offset+3].replace('[','').replace(']','')==endpoint.replace('[','').replace(']',''),(x,y)
                     self.case(f'owned {route} {opts}'+(' external selected records' if external and route=='diag' else ''),check)
             self.reference=external
 

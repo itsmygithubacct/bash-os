@@ -230,6 +230,31 @@
       "stdout": "add-all: rc=0\nlist: [-a always,exit -S all -k mig-w6-all] syscall-names=1\ndel-all: rc=0 remaining=[]\n",
       "stderr": "",
       "timeout": 60
+    },
+    {
+      "id": "mig-w6-audit-rules-mask-priority-regression-root",
+      "loadable": "audit",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "audit/deferred-kernel-rule-changes"
+      ],
+      "purpose": "Verify prepend insertion and deletion using either priority, and distinguish all syscalls from a near-full kernel mask.",
+      "oracle": "An independent raw-netlink model (struct.pack/unpack of AUDIT_GET/AUDIT_SET/AUDIT_LIST_RULES/AUDIT_ADD_RULE/AUDIT_DEL_RULE against the guest kernel) as the oracle for kernel state, run as root in the initial namespaces of a KVM guest; the snapshot/restore of audit state is done by the same oracle",
+      "comparison": "Kernel order and removal via the independent oracle; canonical all rendering and a mask missing execve must not render as all; snapshot restored.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w6-audit-nl.py": "49c7efbe4019e474ce6dce29cd6345f5c0b1d25ad361fed044c70cf06bf92ef6"
+      },
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nW=/run/w6-audit; /usr/bin/mkdir -p \"$W\"\n/usr/bin/cat >\"$W/inner.sh\" <<'INNER_EOF'\nexport HOME=/run/w6-audit PATH=/usr/bin:/usr/sbin:/bin\ncd \"$HOME\"\n[[ $(type -t audit) == builtin ]] || exit 125\nOR=/opt/bashos-parity/harness/helpers/mig-w6-audit-nl.py\nnl() { /usr/bin/python3 -I \"$OR\" \"$@\"; }\njget() { /usr/bin/python3 -I -c 'import json,sys; print(json.loads(sys.argv[1])[sys.argv[2]])' \"$1\" \"$2\"; }\nstable() { /usr/bin/python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); [d.pop(k) for k in (\"lost\",\"backlog\",\"mask\")]; print(json.dumps(d, sort_keys=True))' \"$1\"; }\nSNAP=$HOME/audit-snap.json\nnl snapshot \"$SNAP\" >/dev/null || { echo \"audit netlink unavailable: $(nl status)\"; exit 1; }\ntrap 'nl restore \"$SNAP\" >/dev/null 2>&1' EXIT\nnl flush >/dev/null\naudit add-rule a always exit execve ';' mig-reg-a; a=$?\naudit add-rule A always exit open ';' mig-reg-b; b=$?\nout=$(audit list-rules)\necho \"ordered: add=$a,$b text=$([[ $out == $'-a always,exit -S open -k mig-reg-b\\n-a always,exit -S execve -k mig-reg-a' ]] && echo 1 || echo 0)\"\naudit del-rule A always exit open ';' mig-reg-b; a=$?\naudit del-rule A always exit execve ';' mig-reg-a; b=$?\necho \"delete-A: rc=$a,$b remaining=$(nl rules)\"\naudit add-rule A always exit execve ';' mig-reg-c; a=$?\naudit del-rule a always exit execve ';' mig-reg-c; b=$?\necho \"delete-a: rc=$a,$b remaining=$(nl rules)\"\naudit add-rule A always exit all ';' mig-reg-all; a=$?\nout=$(audit list-rules)\necho \"all: add=$a text=$([[ $out == '-a always,exit -S all -k mig-reg-all' ]] && echo 1 || echo 0)\"\naudit del-rule A always exit all ';' mig-reg-all; echo \"all-delete: rc=$? remaining=$(nl rules)\"\nspec=$(/usr/bin/python3 -I -c 'import json; print(json.dumps({\"flags\":4,\"action\":2,\"syscalls\":[n for n in range(2032) if n != 59],\"fields\":[],\"key\":\"mig-reg-near\"}))')\nnl add \"$spec\" >/dev/null; a=$?\nout=$(audit list-rules); b=$?\necho \"near-all: add=$a list=$b no-all=$([[ $out != *' -S all'* ]] && echo 1 || echo 0) no-execve=$([[ $out != *' -S execve'* ]] && echo 1 || echo 0) has-open=$([[ $out == *' -S open'* ]] && echo 1 || echo 0)\"\nnl flush >/dev/null\nnl restore \"$SNAP\" >/dev/null; echo \"restored=$(nl matches \"$SNAP\")\"\n\nINNER_EOF\n/usr/bin/systemd-run --wait --pipe --collect --quiet \"$BASH\" --noprofile --norc \"$W/inner.sh\"\nrc=$?\n/usr/bin/cp \"$W/rec.tsv\" /tmp/parity-case/rec.tsv 2>/dev/null\n/usr/bin/rm -rf \"$W\"\nexit $rc\n",
+      "expected_status": 0,
+      "stdout": "ordered: add=0,0 text=1\ndelete-A: rc=0,0 remaining=[]\ndelete-a: rc=0,0 remaining=[]\nall: add=0 text=1\nall-delete: rc=0 remaining=[]\nnear-all: add=0 list=0 no-all=1 no-execve=1 has-open=1\nrestored=1\n",
+      "stderr": "",
+      "timeout": 60
     }
   ]
 }

@@ -10,6 +10,8 @@ struct bc_aead_iov {
 };
 
 #define BC_NTS_MAX_COOKIES 8
+/* A well-formed NTS-KE response selected NTP and AEAD but supplied no cookie. */
+#define BC_NTS_KE_NO_COOKIE (-2)
 
 struct bc_nts_ke_result {
   char *ntp_host;
@@ -32,6 +34,7 @@ int bc_aes_siv_cmac_open(const unsigned char key[32],
                          const unsigned char *in, size_t in_len,
                          unsigned char **pt, size_t *pt_len);
 
+/* Returns 0 on success, BC_NTS_KE_NO_COOKIE for the case above, or -1. */
 int bc_nts_ke_run(const char *host_port,
                   const char *ca_path,
                   const char *sni,

@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "takeover-git-local-hook-lifecycle-r3",
+      "loadable": "git",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "git/remote_protocol_mock"
+      ],
+      "requires": [
+        "git",
+        "grep",
+        "cat",
+        "wc"
+      ],
+      "setup_script": "set -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-01-01T00:00:00Z' GIT_COMMITTER_DATE='2020-01-01T00:00:00Z'\n/usr/bin/git init -q --bare remote\n/usr/bin/git --git-dir=remote config gc.auto 0\n/usr/bin/git --git-dir=remote config maintenance.auto false\n/usr/bin/git --git-dir=remote config core.hooksPath custom-hooks\n/bin/mkdir remote/custom-hooks\n/usr/bin/git init -q -b main local\n/usr/bin/git -C local config gc.auto 0\n/usr/bin/git -C local config maintenance.auto false\nprintf 'first\\n' >local/file\n/usr/bin/git -C local add file\n/usr/bin/git -C local commit -qm first\n",
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-01-02T00:00:00Z' GIT_COMMITTER_DATE='2020-01-02T00:00:00Z'\ncat_hook='#!/bin/sh\nprintf \"called\\\\n\" >> \"$HOME/pre-count\"\n/bin/cat > \"$HOME/pre-input\"\nprintf \"pre-stdout-marker\\\\n\"\nprintf \"pre-stderr-marker\\\\n\" >&2\nexit 0\n'\nprintf '%b' \"$cat_hook\" >remote/custom-hooks/pre-receive\nprintf '%s\\n' '#!/bin/sh' 'printf \"%s %s %s\\n\" \"$1\" \"$2\" \"$3\" >> \"$HOME/update-input\"' 'case \"$1\" in refs/heads/b) exit 1;; esac' 'exit 0' >remote/custom-hooks/update\n/usr/bin/chmod 755 remote/custom-hooks/pre-receive remote/custom-hooks/update\nid=$(/usr/bin/git -C local rev-parse HEAD)\ngit -C local push -q ../remote main:refs/heads/a main:refs/heads/b >\"$HOME/accepted.out\" 2>\"$HOME/accepted.err\"; rc=$?\na=$(/usr/bin/git --git-dir=remote rev-parse --verify refs/heads/a 2>/dev/null)\n/usr/bin/git --git-dir=remote rev-parse --verify refs/heads/b >\"$HOME/b.out\" 2>/dev/null; b_rc=$?\nif [[ $rc == 1 && $a == \"$id\" && $b_rc != 0 ]]; then echo 'partial-update=correct'; else echo 'partial-update=wrong'; fi\nif [[ $(/usr/bin/wc -l < \"$HOME/pre-count\") == 1 && $(/usr/bin/wc -l < \"$HOME/pre-input\") == 2 ]] && /usr/bin/grep -F \"0000000000000000000000000000000000000000 $id refs/heads/a\" \"$HOME/pre-input\" >/dev/null && /usr/bin/grep -F \"0000000000000000000000000000000000000000 $id refs/heads/b\" \"$HOME/pre-input\" >/dev/null; then echo 'pre-input=correct'; else echo 'pre-input=wrong'; fi\nif [[ $(/usr/bin/wc -l < \"$HOME/update-input\") == 2 ]] && /usr/bin/grep -F \"refs/heads/a 0000000000000000000000000000000000000000 $id\" \"$HOME/update-input\" >/dev/null && /usr/bin/grep -F \"refs/heads/b 0000000000000000000000000000000000000000 $id\" \"$HOME/update-input\" >/dev/null; then echo 'update-input=correct'; else echo 'update-input=wrong'; fi\nif /usr/bin/grep -F pre-stdout-marker \"$HOME/accepted.err\" >/dev/null && /usr/bin/grep -F pre-stderr-marker \"$HOME/accepted.err\" >/dev/null; then echo 'hook-output=forwarded'; else echo 'hook-output=missing'; fi\nprintf '%s\\n' '#!/bin/sh' '/bin/cat > \"$HOME/rejected-input\"' 'printf rejected-by-hook >&2' 'exit 1' >remote/custom-hooks/pre-receive\n/usr/bin/chmod 755 remote/custom-hooks/pre-receive\ngit -C local push -q ../remote main:refs/heads/c main:refs/heads/d >\"$HOME/rejected.out\" 2>\"$HOME/rejected.err\"; rc=$?\n/usr/bin/git --git-dir=remote rev-parse --verify refs/heads/c >/dev/null 2>&1; c_rc=$?\n/usr/bin/git --git-dir=remote rev-parse --verify refs/heads/d >/dev/null 2>&1; d_rc=$?\nif [[ $rc == 1 && $c_rc != 0 && $d_rc != 0 && $(/usr/bin/wc -l < \"$HOME/rejected-input\") == 2 ]] && /usr/bin/grep -F 'remote rejected' \"$HOME/rejected.err\" >/dev/null; then echo 'pre-rejection=correct'; else echo 'pre-rejection=wrong'; fi\n/usr/bin/rm -rf remote local\n",
+      "expected_status": 0,
+      "stdout": "partial-update=correct\npre-input=correct\nupdate-input=correct\nhook-output=forwarded\npre-rejection=correct\n",
+      "stderr": "",
+      "timeout": 45,
+      "diagnostic_files": [
+        "pre-count",
+        "pre-input",
+        "update-input",
+        "accepted.out",
+        "accepted.err",
+        "rejected-input",
+        "rejected.out",
+        "rejected.err"
+      ],
+      "oracle": "System Git 2.47.3 and the candidate client each push to a fixture-only bare local receiver with a relative core.hooksPath.",
+      "comparison": "Verify one pre-receive invocation and both proposed tuples, per-ref update arguments and partial rejection, forwarding both hook output streams, and all-or-nothing pre-receive rejection."
+    },
+    {
+      "id": "takeover-git-signer-missing-revocation-r3",
+      "loadable": "git",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "git/signing_and_editor"
+      ],
+      "requires": [
+        "git",
+        "ssh-keygen",
+        "cp"
+      ],
+      "setup_script": "set -e\nexport TZ=UTC0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture -f \"$HOME/key\"\n/usr/bin/git init -q -b main signed\n/usr/bin/git -C signed config gc.auto 0\n/usr/bin/git -C signed config maintenance.auto false\nprintf 'signed\\n' >signed/file\n/usr/bin/git -C signed add file\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" commit -q -S -m signed\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" tag -s -m signed signed-tag\n",
+      "script": "export TZ=UTC0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nread -r kt kk comment < \"$HOME/key.pub\"\nprintf 'fixture@example.test %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/allowed\"\n/usr/bin/rm -f \"$HOME/revoked\"\ngit -C signed -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=\"$HOME/allowed\" -c gpg.ssh.revocationFile=\"$HOME/revoked\" verify-commit HEAD >\"$HOME/revoked.out\" 2>\"$HOME/revoked.err\"; rc=$?\nif [[ $rc != 0 ]]; then echo 'missing=rejected'; else echo 'missing=accepted'; fi\n/usr/bin/rm -rf signed\n",
+      "expected_status": 0,
+      "stdout": "missing=rejected\n",
+      "stderr": "",
+      "timeout": 40,
+      "diagnostic_files": [
+        "revoked.out",
+        "revoked.err"
+      ],
+      "oracle": "System Git and OpenSSH reject verification when the configured revocation file is missing.",
+      "comparison": "The empty-regular-file exception must not turn missing or unreadable revocation data into success."
+    }
+  ]
+}

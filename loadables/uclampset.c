@@ -472,7 +472,7 @@ buclamp_print_system (void)
   if (buclamp_read_sysctl (min_path, minv, sizeof minv, NULL) < 0
       || buclamp_read_sysctl (max_path, maxv, sizeof maxv, NULL) < 0)
     return EXECUTION_FAILURE;
-  printf ("system util_clamp: min: %s max: %s\n", minv, maxv);
+  printf ("System util_clamp: min: %s max: %s\n", minv, maxv);
   return EXECUTION_SUCCESS;
 }
 

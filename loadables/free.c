@@ -34,6 +34,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <time.h>
+#include <math.h>
 
 #include "loadables.h"
 
@@ -81,7 +83,12 @@ bf_read_meminfo (bf_meminfo *m)
         { "SwapFree:",     &m->swap_free  },
     };
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++) {
-        char *p = strstr (buf, map[i].key);
+        char *p = buf;
+        size_t keylen = strlen (map[i].key);
+        while (p && strncmp (p, map[i].key, keylen) != 0) {
+            p = strchr (p, '\n');
+            if (p) p++;
+        }
         if (p) {
             p += strlen (map[i].key);
             *map[i].target = strtol (p, NULL, 10);
@@ -94,18 +101,24 @@ static void
 bf_print_val (long kib, bf_unit u, int human, int si)
 {
     double bytes;
-    double scale;
 
     if (human) {
-        const char *suf[] = { "B", "K", "M", "G", "T" };
-        int i = 0;
+        char hb[64];
         double v = (double) kib * 1024.0;
-        scale = si ? 1000.0 : 1024.0;
-        while (v >= scale && i < 4) { v /= scale; i++; }
-        /* 11-char right-justified field (procps prints scale_size via %11s),
-           so every column is a uniform 12 wide with its leading separator. */
-        char hb[32];
-        snprintf (hb, sizeof hb, "%.1f%s", v, suf[i]);
+        int i;
+        snprintf (hb, sizeof hb, "%.0fB", v);
+        if (strlen (hb) > 4) {
+            for (i = 1; i <= 5; i++) {
+                const char unit = "B K M G T P"[2 * i];
+                v /= si ? 1000.0 : 1024.0;
+                snprintf (hb, sizeof hb, "%.1f%c%s", (double)(float)v,
+                          unit, si ? "" : "i");
+                if (strlen (hb) <= (size_t)(si ? 4 : 5)) break;
+                snprintf (hb, sizeof hb, "%.0f%c%s", (double)(long)v,
+                          unit, si ? "" : "i");
+                if (strlen (hb) <= (size_t)(si ? 4 : 5)) break;
+            }
+        }
         printf ("%11s", hb);
         return;
     }
@@ -145,9 +158,19 @@ bf_parse_count (const char *s, unsigned int *out)
 }
 
 static int
-bf_parse_seconds (const char *s, unsigned int *out)
+bf_parse_seconds (const char *s, struct timespec *out)
 {
-    return bf_parse_count (s, out);
+    char *end;
+    double seconds;
+    if (!s || !*s) return -1;
+    errno = 0;
+    seconds = strtod (s, &end);
+    if (errno || *end || end == s || !isfinite (seconds) ||
+        seconds < 0.000001 || seconds > UINT_MAX)
+        return -1;
+    out->tv_sec = (time_t) seconds;
+    out->tv_nsec = (long)((seconds - out->tv_sec) * 1000000) * 1000;
+    return 0;
 }
 
 static int
@@ -170,9 +193,10 @@ bf_print_snapshot (bf_unit u, int human, int si, int total, int wide, int line)
     buff_cache = m.buffers + cache;
     if (buff_cache < 0)
         buff_cache = 0;
-    used = m.available > 0 ? m.total - m.available
-                            : m.total - m.free - buff_cache;
-    swap_used = m.swap_total - m.swap_free;
+    if (m.available == 0 || m.available > m.total)
+        m.available = m.free;
+    used = m.total - m.available;
+    swap_used = m.swap_total > m.swap_free ? m.swap_total - m.swap_free : 0;
 
     if (line) {
         /* Debian procps free(1) -L/--line prints four fixed labels and
@@ -232,7 +256,7 @@ free_builtin (WORD_LIST *list)
     int repeat = 0;
     int count_set = 0;
     unsigned int count = 1;
-    unsigned int seconds = 1;
+    struct timespec seconds = { 1, 0 };
     while (list && list->word->word[0] == '-') {
         const char *w = list->word->word;
         if (!strcmp (w, "--help")) { builtin_usage (); return EXECUTION_SUCCESS; }
@@ -404,7 +428,11 @@ free_builtin (WORD_LIST *list)
             break;
         putchar ('\n');
         fflush (stdout);
-        sleep (seconds);
+        {
+            struct timespec remaining = seconds;
+            while (nanosleep (&remaining, &remaining) < 0 && errno == EINTR)
+                ;
+        }
     }
 
     return EXECUTION_SUCCESS;

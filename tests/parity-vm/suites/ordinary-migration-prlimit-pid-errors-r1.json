@@ -1,0 +1,113 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "prlimit-pid-short-word-r1",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Reject word PID with short option and preserve util-linux failure status.",
+      "oracle": "Locked util-linux prlimit; status, presence of a diagnostic, and empty stdout.",
+      "comparison": "Normalize diagnostic text only; compare actual command status and whether stderr and stdout are empty.",
+      "script": "prlimit -p abc --nofile > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit"
+      ],
+      "covers": [
+        "prlimit/pid-target-and-errors"
+      ]
+    },
+    {
+      "id": "prlimit-pid-short-negative-r1",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Reject negative PID with short option and preserve util-linux failure status.",
+      "oracle": "Locked util-linux prlimit; status, presence of a diagnostic, and empty stdout.",
+      "comparison": "Normalize diagnostic text only; compare actual command status and whether stderr and stdout are empty.",
+      "script": "prlimit -p -5 --nofile > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit"
+      ],
+      "covers": [
+        "prlimit/pid-target-and-errors"
+      ]
+    },
+    {
+      "id": "prlimit-pid-short-overflow-r1",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Reject overflow PID with short option and preserve util-linux failure status.",
+      "oracle": "Locked util-linux prlimit; status, presence of a diagnostic, and empty stdout.",
+      "comparison": "Normalize diagnostic text only; compare actual command status and whether stderr and stdout are empty.",
+      "script": "prlimit -p 9999999999999999999999999 --nofile > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit"
+      ],
+      "covers": [
+        "prlimit/pid-target-and-errors"
+      ]
+    },
+    {
+      "id": "prlimit-pid-equals-word-r1",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Reject word PID with equals option and preserve util-linux failure status.",
+      "oracle": "Locked util-linux prlimit; status, presence of a diagnostic, and empty stdout.",
+      "comparison": "Normalize diagnostic text only; compare actual command status and whether stderr and stdout are empty.",
+      "script": "prlimit --pid=abc --nofile > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit"
+      ],
+      "covers": [
+        "prlimit/pid-target-and-errors"
+      ]
+    },
+    {
+      "id": "prlimit-pid-equals-negative-r1",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Reject negative PID with equals option and preserve util-linux failure status.",
+      "oracle": "Locked util-linux prlimit; status, presence of a diagnostic, and empty stdout.",
+      "comparison": "Normalize diagnostic text only; compare actual command status and whether stderr and stdout are empty.",
+      "script": "prlimit --pid=-5 --nofile > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit"
+      ],
+      "covers": [
+        "prlimit/pid-target-and-errors"
+      ]
+    },
+    {
+      "id": "prlimit-pid-equals-overflow-r1",
+      "loadable": "prlimit",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Reject overflow PID with equals option and preserve util-linux failure status.",
+      "oracle": "Locked util-linux prlimit; status, presence of a diagnostic, and empty stdout.",
+      "comparison": "Normalize diagnostic text only; compare actual command status and whether stderr and stdout are empty.",
+      "script": "prlimit --pid=9999999999999999999999999 --nofile > out 2> err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -s out ]] && echo stdout=empty; rm -f out err",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "prlimit"
+      ],
+      "covers": [
+        "prlimit/pid-target-and-errors"
+      ]
+    }
+  ]
+}

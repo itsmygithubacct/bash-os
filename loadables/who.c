@@ -87,7 +87,7 @@ who_builtin (WORD_LIST *list)
             case 'H': headers = 1; break;
             case 'q': quiet = 1; break;
             case 's': short_form = 1; break;
-            case 'T': mesg = 1; break;
+            case 'T': case 'w': mesg = 1; break;
             case 'm': my_line = 1; break;
             default:
                 builtin_error ("invalid option: -%c", *c);
@@ -96,7 +96,11 @@ who_builtin (WORD_LIST *list)
         }
         list = list->next;
     }
-    if (list) {
+    if (list && list->next && !list->next->next) {
+        /* GNU's two-operand form selects the current terminal and still
+           reads the default database, regardless of the operand spelling. */
+        my_line = 1;
+    } else if (list) {
         path = list->word->word;
         if (list->next) {
             builtin_error ("extra operand: %s", list->next->word->word);
@@ -112,7 +116,7 @@ who_builtin (WORD_LIST *list)
     if (!mask || quiet) mask = BW_TYPE (USER_PROCESS);
 
     if (headers && !quiet) {
-        printf ("%-8s %s%-12s %-12s", "NAME", mesg ? "  " : "", "LINE", "TIME");
+        printf ("%-8s %s%-12s %-16s", "NAME", mesg ? "  " : "", "LINE", "TIME");
         if (idle) printf (" %-6s", "IDLE");
         if (pid) printf (" %10s", "PID");
         printf (" COMMENT%s\n", exits ? "  EXIT" : "");
@@ -125,7 +129,10 @@ who_builtin (WORD_LIST *list)
     if (tty && !strncmp (tty, "/dev/", 5)) tty += 5;
     struct utmp u;
     int count = 0;
+    time_t boot_time = 0;
     while (fd >= 0 && read (fd, &u, sizeof u) == sizeof u) {
+        /* Boot records affect idle calculations even if -b is not selected. */
+        if (u.ut_type == BOOT_TIME) boot_time = (time_t) u.ut_tv.tv_sec;
         if (u.ut_type < 0 || u.ut_type >= 32 || !(mask & BW_TYPE (u.ut_type))) continue;
         int is_user = u.ut_type == USER_PROCESS;
         if (is_user && !u.ut_user[0]) continue;
@@ -135,7 +142,7 @@ who_builtin (WORD_LIST *list)
         bw_field (line, u.ut_line, sizeof u.ut_line);
         bw_field (host, u.ut_host, sizeof u.ut_host);
         bw_field (id, u.ut_id, sizeof u.ut_id);
-        if (my_line && (!tty || strcmp (tty, line))) continue;
+        if (my_line && !quiet && (!tty || strcmp (tty, line))) continue;
         if (quiet) {
             printf ("%s%s", count++ ? " " : "", name);
             continue;
@@ -143,7 +150,7 @@ who_builtin (WORD_LIST *list)
         char tbuf[64] = "?", idlebuf[32] = "  ?";
         time_t t = (time_t) u.ut_tv.tv_sec;
         struct tm tm;
-        if (localtime_r (&t, &tm)) strftime (tbuf, sizeof tbuf, "%b %e %H:%M", &tm);
+        if (localtime_r (&t, &tm)) strftime (tbuf, sizeof tbuf, "%Y-%m-%d %H:%M", &tm);
         struct stat st;
         char terminal[sizeof u.ut_line + 6];
         snprintf (terminal, sizeof terminal, "/dev/%s", line);
@@ -152,8 +159,8 @@ who_builtin (WORD_LIST *list)
         if (have_stat && idle) {
             time_t now = time (NULL);
             double age = difftime (now, st.st_atime);
-            if (age < 60) strcpy (idlebuf, "  .");
-            else if (age >= 86400) strcpy (idlebuf, " old");
+            if (age < 0 || st.st_atime < boot_time || age >= 86400) strcpy (idlebuf, " old");
+            else if (age < 60) strcpy (idlebuf, "  .");
             else snprintf (idlebuf, sizeof idlebuf, "%02d:%02d", (int)age / 3600, ((int)age / 60) % 60);
         }
         const char *display_name = is_user ? name : u.ut_type == LOGIN_PROCESS ? "LOGIN" : "";
@@ -196,10 +203,10 @@ who_builtin (WORD_LIST *list)
 char *who_doc[] = {
     "List users and selected records from a utmp file.",
     "",
-    "    who [-abdHlmpqrstTu] [--help|--version] [FILE]",
+    "    who [-abdHlmpqrstTuw] [--help|--version] [FILE | ARG1 ARG2]",
     "",
     "    -a all; -b boot; -d dead; -l login; -p init; -r run-level; -t clock change",
-    "    -H headings; -q usernames and count; -s short format; -T terminal status",
+    "    -H headings; -q usernames and count; -s short format; -T/-w terminal status",
     "    -u users with idle time and pid; -m current terminal only",
     "    Long aliases: --all, --boot, --dead, --heading, --login, --process,",
     "    --count, --runlevel, --short, --time, --mesg, --message, --writable, --users.",
@@ -209,5 +216,5 @@ char *who_doc[] = {
 
 struct builtin who_struct = {
     "who", who_builtin, BUILTIN_ENABLED, who_doc,
-    "who [-abdHlmpqrstTu] [--help|--version] [FILE]", 0
+    "who [-abdHlmpqrstTuw] [--help|--version] [FILE | ARG1 ARG2]", 0
 };

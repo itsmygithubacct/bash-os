@@ -1,0 +1,146 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "review06-passwd-delete-rollback-group-fsize",
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "passwd/account_file_mutations"
+      ],
+      "purpose": "Preserve all account files after a later oversized group rewrite fails under RLIMIT_FSIZE.",
+      "oracle": "Byte-for-byte copies and original modes of all three private files; an independent size-limit control establishes EFBIG.",
+      "comparison": "Failure status, exact byte and mode preservation; syscall trace must confirm which replacement failed before treating this as a rollback proof.",
+      "requires": [
+        "python3",
+        "cmp",
+        "stat"
+      ],
+      "timeout": 30,
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nset -u\nmkdir db snap\nchmod 700 db snap\nprintf 'carol:x:1003:1003:Carol:/home/carol:/bin/sh\\n' > db/passwd\nprintf 'carol:!:19000:0:99999:7:::\\n' > db/shadow\n/usr/bin/python3 -c 'f=open(\"db/group\",\"w\"); f.write(\"carol:x:1003:\\n\" + \"staff:x:50:carol\\n\" + \"\".join(\"g%d:x:%d:%s\\n\"%(i,2000+i,\"x\"*120) for i in range(100))); f.close()' || exit 125\nchmod 600 db/shadow\ncp -a db/. snap/\n( trap '' XFSZ; ulimit -f 4; /usr/bin/python3 -c 'import errno,resource,os; assert resource.getrlimit(resource.RLIMIT_FSIZE)[0] == 4096; f=os.open(\"control\",os.O_CREAT|os.O_WRONLY|os.O_TRUNC,0o600); os.write(f,b\"x\"*4096);\ntry: os.write(f,b\"y\")\nexcept OSError as e: assert e.errno == errno.EFBIG\nelse: raise SystemExit(1)\nos.close(f)' ) || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_SHADOW=$PWD/db/shadow PHCLIB_GROUP=$PWD/db/group BASHPASSWD_KERNEL_SECRETS=0\n( trap '' XFSZ; ulimit -f 4; passwd delete carol ) >out 2>err; rc=$?\n[[ $rc != 0 ]] || exit 1\nfor f in passwd shadow group; do cmp -s db/$f snap/$f || exit 2; [[ $(stat -c %a db/$f) == $(stat -c %a snap/$f) ]] || exit 3; done\nprintf 'failure preserved all files and modes\\n'\n",
+      "stdout": "failure preserved all files and modes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "observation_error_status": 125
+    },
+    {
+      "id": "review06-passwd-delete-shared-group",
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "passwd/account_file_mutations"
+      ],
+      "timeout": 30,
+      "purpose": "Delete an account while preserving a same-named group used by another account and removing supplementary membership.",
+      "oracle": "Independent literal private passwd/group/shadow records and userdel semantics for shared primary groups.",
+      "comparison": "Exact group and account rows, preserving another account and membership.",
+      "requires": [
+        "cat"
+      ],
+      "files": {
+        "db/passwd": "carol:x:1003:1003:Carol:/home/carol:/bin/sh\nother:x:1004:1003:Other:/home/other:/bin/sh\n",
+        "db/group": "carol:x:1003:other,carol\nstaff:x:50:other,carol\n",
+        "db/shadow": "carol:!:19000:0:99999:7:::\nother:!:19000:0:99999:7:::\n"
+      },
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=db/passwd PHCLIB_GROUP=db/group PHCLIB_SHADOW=db/shadow BASHPASSWD_KERNEL_SECRETS=0\npasswd delete carol || exit 1\nprintf \"group:\\n\"; /usr/bin/cat db/group\nprintf \"passwd:\\n\"; /usr/bin/cat db/passwd\nprintf \"shadow:\\n\"; /usr/bin/cat db/shadow\n",
+      "stdout": "group:\ncarol:x:1003:other\nstaff:x:50:other\npasswd:\nother:x:1004:1003:Other:/home/other:/bin/sh\nshadow:\nother:!:19000:0:99999:7:::\n",
+      "stderr": "",
+      "expected_status": 0,
+      "observation_error_status": 125
+    },
+    {
+      "id": "review06-passwd-rename-rollback-stages",
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "passwd/account_file_mutations"
+      ],
+      "timeout": 60,
+      "purpose": "Inject EIO at each account-file rename for add and delete and verify byte, mode and residue rollback.",
+      "oracle": "Pinned seccomp notification log proves the exact failed rename; independently copied private account files provide byte and mode oracles.",
+      "comparison": "Each operation must fail, match all original file bytes and modes, and leave no temporary files; missing injected failure exits as an observation error.",
+      "requires": [
+        "python3",
+        "cmp",
+        "stat"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "files": {
+        "orig/passwd": "root:x:0:0:root:/root:/bin/sh\ncarol:x:1003:1003:Carol:/home/carol:/bin/sh\n",
+        "orig/group": "root:x:0:\ncarol:x:1003:\nstaff:x:50:carol\n",
+        "orig/shadow": "root:*:19000:0:99999:7:::\ncarol:!:19000:0:99999:7:::\n",
+        "pw": "fixture-only-password\n"
+      },
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\nH=/opt/bashos-parity/harness/helpers/system-sequence.py\nfor operation in add delete; do\n for step in 1 2 3; do\n  /usr/bin/rm -rf db snap\n  /usr/bin/mkdir db\n  /usr/bin/cp orig/passwd orig/group orig/shadow db/\n  /usr/bin/chmod 600 db/shadow\n  /usr/bin/cp -a db snap\n  case $step in 1) replies=EIO;; 2) replies=continue,EIO;; 3) replies=continue,continue,EIO;; esac\n  log=\"$HOME/rename-$operation-$step.log\"\n  if [[ $operation == add ]]; then cmd='passwd add-fd dave 3 -u 2005 3<pw'; else cmd='passwd delete carol'; fi\n  /usr/bin/python3 \"$H\" --notify rename --reply-seq \"rename=$replies\" --log \"$log\" -- \"$BASH\" --noprofile --norc -c \"$cmd\" >\"$HOME/result.out\" 2>\"$HOME/result.err\"\n  rc=$?\n  /usr/bin/python3 -c 'import json,sys; a=[json.loads(x) for x in open(sys.argv[1])]; i=int(sys.argv[2])-1; assert len(a)>i and all(x[\"reply\"]==\"continue\" for x in a[:i]) and a[i][\"reply\"]==\"errno:5\"' \"$log\" \"$step\" || exit 125\n  [[ $rc != 0 && $rc != 125 ]] || exit 1\n  for f in passwd group shadow; do\n   /usr/bin/cmp -s \"db/$f\" \"snap/$f\" || exit 2\n   [[ $(/usr/bin/stat -c %a \"db/$f\") == $(/usr/bin/stat -c %a \"snap/$f\") ]] || exit 3\n  done\n  for f in db/.[!.]* db/..?*; do [[ ! -e $f && ! -L $f ]] || exit 4; done\n  printf '%s-rename-%s=unchanged\\n' \"$operation\" \"$step\"\n done\ndone\n",
+      "stdout": "add-rename-1=unchanged\nadd-rename-2=unchanged\nadd-rename-3=unchanged\ndelete-rename-1=unchanged\ndelete-rename-2=unchanged\ndelete-rename-3=unchanged\n",
+      "stderr": "",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "diagnostic_files": [
+        "rename-add-1.log",
+        "rename-add-2.log",
+        "rename-add-3.log",
+        "rename-delete-1.log",
+        "rename-delete-2.log",
+        "rename-delete-3.log",
+        "result.out",
+        "result.err"
+      ]
+    },
+    {
+      "id": "review06-passwd-shadow-parent-sync-rollback",
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "passwd/account_file_mutations",
+        "passwd/password_hash_updates"
+      ],
+      "timeout": 60,
+      "purpose": "A parent-directory fsync error after rename restores the old shadow record for set, lock and expire.",
+      "oracle": "Pinned seccomp notification log proves the second fsync fails; byte and mode copies independently check all private files.",
+      "comparison": "Operation status must be nonzero and all database bytes and modes unchanged with no temporary-file residue.",
+      "requires": [
+        "python3",
+        "cmp",
+        "stat"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "files": {
+        "orig/passwd": "alice:x:1000:1000:Alice:/home/alice:/bin/sh\n",
+        "orig/group": "alice:x:1000:\n",
+        "orig/shadow": "alice:hash:19000:1:90:14:30:20000:\n",
+        "pw": "fixture-only-password\n"
+      },
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\nH=/opt/bashos-parity/harness/helpers/system-sequence.py\nfor operation in set lock expire; do\n /usr/bin/rm -rf db snap\n /usr/bin/mkdir db\n /usr/bin/cp orig/passwd orig/group orig/shadow db/\n /usr/bin/chmod 640 db/shadow\n /usr/bin/cp -a db snap\n case $operation in set) cmd='passwd set-fd alice 3 3<pw';; lock) cmd='passwd lock alice';; expire) cmd='passwd expire alice 19500';; esac\n log=\"$HOME/fsync-$operation.log\"\n /usr/bin/python3 \"$H\" --notify fsync --reply-seq fsync=continue,EIO --log \"$log\" -- \"$BASH\" --noprofile --norc -c \"$cmd\" >\"$HOME/sync.out\" 2>\"$HOME/sync.err\"\n rc=$?\n /usr/bin/python3 -c 'import json,sys; a=[json.loads(x) for x in open(sys.argv[1])]; assert len(a)>=2 and a[0][\"reply\"]==\"continue\" and a[1][\"reply\"]==\"errno:5\"' \"$log\" || exit 125\n [[ $rc != 0 && $rc != 125 ]] || exit 1\n for f in passwd group shadow; do /usr/bin/cmp -s \"db/$f\" \"snap/$f\" || exit 2; [[ $(/usr/bin/stat -c %a \"db/$f\") == $(/usr/bin/stat -c %a \"snap/$f\") ]] || exit 3; done\n for f in db/.[!.]* db/..?*; do [[ ! -e $f && ! -L $f ]] || exit 4; done\n printf '%s-parent-sync=unchanged\\n' \"$operation\"\ndone\n",
+      "stdout": "set-parent-sync=unchanged\nlock-parent-sync=unchanged\nexpire-parent-sync=unchanged\n",
+      "stderr": "",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "diagnostic_files": [
+        "fsync-set.log",
+        "fsync-lock.log",
+        "fsync-expire.log",
+        "sync.out",
+        "sync.err"
+      ]
+    }
+  ]
+}

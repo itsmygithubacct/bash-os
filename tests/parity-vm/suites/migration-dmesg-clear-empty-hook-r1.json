@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-dmesg-empty-hook-clear-r1",
+      "loadable": "dmesg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dmesg/clear-ring-buffer"
+      ],
+      "purpose": "An explicitly empty fixture path must fail opening the fixture rather than read the live kernel ring; -c must never call syslog when the hook is present.",
+      "oracle": "Empty pathname fails; seccomp kills any syslog call. Failure must be status 1, with no records printed.",
+      "requires": [
+        "python3",
+        "grep"
+      ],
+      "privilege": "root",
+      "candidate_script": "[[ $(type -t dmesg) == builtin ]] || exit 125\nBASHDMESG_DEV_KMSG_FILE= PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 /opt/bashos-parity/harness/helpers/system-seccomp.py --kill syslog -- \"$BASH\" --noprofile --norc -c '[[ $(type -t dmesg) == builtin ]] || exit 125; dmesg -c -t' >empty-hook.out 2>empty-hook.err\nrc=$?\n[[ $rc == 1 && ! -s empty-hook.out ]] || exit 1\n/usr/bin/grep -q 'read kernel buffer failed:' empty-hook.err || exit 1\nprintf 'PASS\\n'\n",
+      "expected_status": 0,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      }
+    }
+  ]
+}

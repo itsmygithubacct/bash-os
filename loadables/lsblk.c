@@ -60,6 +60,7 @@
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
+#include <sys/sysmacros.h>
 
 #include "loadables.h"
 
@@ -88,6 +89,7 @@ typedef struct {
     char     label[BLB_LABEL_MAX];
     char     uuid[BLB_UUID_MAX];
     char     mountpoint[BLB_MOUNT_MAX];
+    char     mountpoints[BLB_MOUNT_MAX];
     char     partlabel[BLB_PARTLABEL_MAX];
     char     partuuid[BLB_UUID_MAX];
     uint64_t fsavail;
@@ -112,6 +114,7 @@ typedef enum {
     BLB_COL_PARTLABEL,
     BLB_COL_PARTUUID,
     BLB_COL_MOUNTPOINT,
+    BLB_COL_MOUNTPOINTS,
     BLB_COL_FSAVAIL,
     BLB_COL_FSUSE_PCT
 } blb_col_id;
@@ -135,7 +138,7 @@ static const blb_col_def blb_cols[] = {
     { "PARTLABEL",  BLB_COL_PARTLABEL },
     { "PARTUUID",   BLB_COL_PARTUUID },
     { "MOUNTPOINT", BLB_COL_MOUNTPOINT },
-    { "MOUNTPOINTS", BLB_COL_MOUNTPOINT },
+    { "MOUNTPOINTS", BLB_COL_MOUNTPOINTS },
     { "FSAVAIL",    BLB_COL_FSAVAIL },
     { "FSUSE%",     BLB_COL_FSUSE_PCT },
     { NULL, 0 }
@@ -159,7 +162,7 @@ static const char *
 blb_proc_mounts (void)
 {
     const char *e = getenv ("BASHLSBLK_PROC_MOUNTS");
-    return (e && *e) ? e : "/proc/mounts";
+    return (e && *e) ? e : "/proc/self/mounts";
 }
 
 static int
@@ -280,7 +283,7 @@ blb_classify (blb_dev *d)
     char base[BLB_PATH_MAX];
     snprintf (base, sizeof base, "%s/%s", blb_sys_block_dir (), d->name);
 
-    if (d->parent[0] != '\0' || blb_exists (base, "partition")) {
+    if (blb_exists (base, "partition")) {
         strncpy (d->type, "part", sizeof d->type - 1);
         return;
     }
@@ -602,15 +605,21 @@ blb_unescape_mount (const char *in, char *out, size_t outsz)
 }
 
 static int
-blb_mount_dev_matches (const char *field, const char *name)
+blb_mount_dev_matches (const char *field, const blb_dev *d)
 {
     char devpath[BLB_PATH_MAX];
-    if (blb_join2 (devpath, sizeof devpath, blb_dev_root (), name) == 0
+    if (blb_join2 (devpath, sizeof devpath, blb_dev_root (), d->name) == 0
         && strcmp (field, devpath) == 0)
         return 1;
-    if (strncmp (field, "/dev/", 5) == 0 && strcmp (field + 5, name) == 0)
+    if (strncmp (field, "/dev/", 5) == 0 && strcmp (field + 5, d->name) == 0)
         return 1;
-    if (strcmp (field, name) == 0)
+    if (strcmp (field, d->name) == 0)
+        return 1;
+    struct stat st;
+    unsigned int maj, min;
+    if (sscanf (d->majmin, "%u:%u", &maj, &min) == 2
+        && stat (field, &st) == 0 && S_ISBLK (st.st_mode)
+        && major (st.st_rdev) == maj && minor (st.st_rdev) == min)
         return 1;
     return 0;
 }
@@ -618,30 +627,30 @@ blb_mount_dev_matches (const char *field, const char *name)
 static void
 blb_load_mountpoint (blb_dev *d)
 {
-    const char *paths[2];
-    paths[0] = blb_proc_mounts ();
-    paths[1] = "/proc/self/mounts";
-    for (int pi = 0; pi < 2; pi++) {
-        if (!paths[pi] || !*paths[pi]) continue;
-        if (pi == 1 && strcmp (paths[0], paths[1]) == 0) continue;
-        FILE *f = fopen (paths[pi], "r");
-        if (!f) continue;
-        char line[2048];
-        while (fgets (line, sizeof line, f)) {
-            char src[512], mnt[512];
-            if (sscanf (line, "%511s %511s", src, mnt) != 2)
-                continue;
-            char usrc[512], umnt[512];
-            blb_unescape_mount (src, usrc, sizeof usrc);
-            if (!blb_mount_dev_matches (usrc, d->name))
-                continue;
-            blb_unescape_mount (mnt, umnt, sizeof umnt);
-            snprintf (d->mountpoint, sizeof d->mountpoint, "%s", umnt);
-            fclose (f);
-            return;
-        }
-        fclose (f);
+    FILE *f = fopen (blb_proc_mounts (), "r");
+    if (!f) return;
+    char line[2048];
+    while (fgets (line, sizeof line, f)) {
+        char src[512], mnt[512], usrc[512], umnt[512];
+        if (sscanf (line, "%511s %511s", src, mnt) != 2) continue;
+        blb_unescape_mount (src, usrc, sizeof usrc);
+        if (!blb_mount_dev_matches (usrc, d)) continue;
+        blb_unescape_mount (mnt, umnt, sizeof umnt);
+        snprintf (d->mountpoint, sizeof d->mountpoint, "%s", umnt);
+        /* util-linux displays the most recent mount first. */
+        char previous[BLB_MOUNT_MAX];
+        memcpy (previous, d->mountpoints, sizeof previous);
+        if (previous[0]) {
+            size_t used = strlen (umnt);
+            if (used + 1 < sizeof d->mountpoints)
+                snprintf (d->mountpoints, sizeof d->mountpoints, "%s\n%.*s",
+                          umnt, (int) (sizeof d->mountpoints - used - 2), previous);
+            else
+                snprintf (d->mountpoints, sizeof d->mountpoints, "%s", umnt);
+        } else
+            snprintf (d->mountpoints, sizeof d->mountpoints, "%s", umnt);
     }
+    fclose (f);
 }
 
 static void
@@ -660,6 +669,56 @@ blb_load_fs_usage (blb_dev *d)
     d->fsavail = avail;
     if (total > 0)
         d->fsuse_pct = (int) ((used * 100ULL + total - 1ULL) / total);
+}
+
+/* udev exposes filesystem tags to unprivileged readers when device nodes
+ * cannot be opened.  Prefer an actual probe whenever it succeeds. */
+static void
+blb_load_udev (blb_dev *d)
+{
+    const char *root = getenv ("BASHLSBLK_UDEV_DATA_DIR");
+    char path[BLB_PATH_MAX], line[1024];
+    if (!root || !*root) {
+        /* A redirected sysfs fixture must not inherit the host's udev tags. */
+        const char *sys = getenv ("BASHLSBLK_SYS_BLOCK_DIR");
+        if (sys && *sys) return;
+        root = "/run/udev/data";
+    }
+    if (strspn (d->majmin, "0123456789:") != strlen (d->majmin)) return;
+    if (snprintf (path, sizeof path, "%s/b%s", root, d->majmin) >= (int) sizeof path) return;
+    FILE *f = fopen (path, "r");
+    if (!f) return;
+    while (fgets (line, sizeof line, f)) {
+        line[strcspn (line, "\r\n")] = 0;
+        if (!d->fstype[0] && strncmp (line, "E:ID_FS_TYPE=", 13) == 0)
+            snprintf (d->fstype, sizeof d->fstype, "%s", line + 13);
+        else if (!d->label[0] && strncmp (line, "E:ID_FS_LABEL=", 14) == 0)
+            snprintf (d->label, sizeof d->label, "%s", line + 14);
+        else if (!d->uuid[0] && strncmp (line, "E:ID_FS_UUID=", 13) == 0)
+            snprintf (d->uuid, sizeof d->uuid, "%s", line + 13);
+        else if (!d->fsver[0] && strncmp (line, "E:ID_FS_VERSION=", 16) == 0)
+            snprintf (d->fsver, sizeof d->fsver, "%s", line + 16);
+    }
+    fclose (f);
+}
+
+/* A stacked device's slaves identify its underlying devices.  The current
+ * single-parent model chooses a stable first slave for tree presentation. */
+static void
+blb_resolve_slave (blb_dev *d)
+{
+    char path[BLB_PATH_MAX], first[BLB_NAME_MAX] = "";
+    if (d->parent[0]) return;
+    if (snprintf (path, sizeof path, "%s/%s/slaves", blb_sys_block_dir (), d->name) >= (int) sizeof path) return;
+    DIR *dir = opendir (path);
+    if (!dir) return;
+    struct dirent *entry;
+    while ((entry = readdir (dir))) {
+        if (entry->d_name[0] == '.' || strlen (entry->d_name) >= sizeof first) continue;
+        if (!first[0] || strcmp (entry->d_name, first) < 0) strcpy (first, entry->d_name);
+    }
+    closedir (dir);
+    if (strcmp (first, d->name) != 0) strcpy (d->parent, first);
 }
 
 /* ---------- enumerate ---------- */
@@ -691,12 +750,25 @@ blb_load_one (const char *name, blb_dev *d)
     /* ro / removable / hidden — each optional. */
     long long v = 0;
     if (blb_read_int (base, "ro", &v) == 0) d->ro = (v != 0);
-    if (blb_read_int (base, "removable", &v) == 0) d->removable = (v != 0);
+    if (blb_read_int (base, "removable", &v) == 0)
+        d->removable = (v != 0);
+    else if (d->parent[0]) {
+        /* Partition sysfs directories normally omit removable; the property
+         * belongs to the whole disk.  Retain an explicit partition value
+         * when a synthetic tree supplies one. */
+        char parent_base[BLB_PATH_MAX];
+        if (blb_join2 (parent_base, sizeof parent_base, blb_sys_block_dir (),
+                       d->parent) == 0
+            && blb_read_int (parent_base, "removable", &v) == 0)
+            d->removable = (v != 0);
+    }
     if (blb_read_int (base, "hidden", &v) == 0) d->hidden = (v != 0);
 
     blb_classify (d);
+    blb_resolve_slave (d);
     d->fsuse_pct = -1;
     blb_probe_super (d->name, d);
+    blb_load_udev (d);
     blb_probe_part_gpt (d);
     blb_load_mountpoint (d);
     blb_load_fs_usage (d);
@@ -790,7 +862,7 @@ static const char *
 blb_col_name (blb_col_id id)
 {
     for (int i = 0; blb_cols[i].name; i++)
-        if (blb_cols[i].id == id && strcmp (blb_cols[i].name, "MOUNTPOINTS") != 0)
+        if (blb_cols[i].id == id)
             return blb_cols[i].name;
     return "?";
 }
@@ -944,6 +1016,8 @@ blb_col_value (const blb_dev *d, const char *namecol, blb_col_id id,
         return d->partuuid;
     case BLB_COL_MOUNTPOINT:
         return d->mountpoint;
+    case BLB_COL_MOUNTPOINTS:
+        return d->mountpoints;
     case BLB_COL_FSAVAIL:
         if (d->fsavail == 0) return "";
         blb_format_size (d->fsavail, buf, bufsz);
@@ -954,6 +1028,20 @@ blb_col_value (const blb_dev *d, const char *namecol, blb_col_id id,
         return buf;
     }
     return "";
+}
+
+/* util-linux pairs escape whitespace and characters unsafe in a quoted value. */
+static void
+blb_print_pair_value (const char *value)
+{
+    const unsigned char *p = (const unsigned char *) value;
+    while (*p) {
+        if (*p <= 0x20 || *p == 0x7f || *p == '"' || *p == '\\')
+            printf ("\\x%02x", *p);
+        else
+            putchar (*p);
+        p++;
+    }
 }
 
 /* Emit one device row. `prefix` is the tree branch prefix ("", "├─",
@@ -975,7 +1063,9 @@ blb_print_one (const blb_dev *d, const char *prefix, const blb_opts *opt)
                                            opt->cols[i], vbuf, sizeof vbuf);
             if (opt->pairs) {
                 if (i) putchar (' ');
-                printf ("%s=\"%s\"", blb_col_name (opt->cols[i]), v);
+                printf ("%s=\"", blb_col_name (opt->cols[i]));
+                blb_print_pair_value (v);
+                putchar ('"');
             } else {
                 if (i) putchar (' ');
                 fputs (v, stdout);
@@ -1039,27 +1129,42 @@ blb_print_header (const blb_opts *opt)
 /* Tree form: walk disks in order, then for each disk print every part
  * whose parent==disk.name with ASCII branch chars. */
 static void
+blb_emit_branch (const blb_dev *devs, int n, const blb_opts *opt,
+                 int idx, const char *prefix, int depth, unsigned char *active)
+{
+    if (depth >= BLB_MAX_DEVS || active[idx]) return;
+    active[idx] = 1;
+    blb_print_one (&devs[idx], prefix, opt);
+    if (!opt->nodeps) {
+        int last = -1;
+        for (int j = 0; j < n; j++)
+            if (!active[j] && strcmp (devs[j].parent, devs[idx].name) == 0) last = j;
+        for (int j = 0; j < n; j++) {
+            char next[80];
+            if (active[j] || strcmp (devs[j].parent, devs[idx].name) != 0) continue;
+            if (depth == 0) snprintf (next, sizeof next, "%s", j == last ? "`-" : "|-");
+            else {
+                size_t len = strlen (prefix);
+                if (len + 2 >= sizeof next) continue;
+                memcpy (next, prefix, len + 1);
+                if (len >= 2) { next[len-2] = prefix[len-2] == '`' ? ' ' : '|'; next[len-1] = ' '; }
+                strcat (next, j == last ? "`-" : "|-");
+            }
+            blb_emit_branch (devs, n, opt, j, next, depth + 1, active);
+        }
+    }
+    active[idx] = 0;
+}
+
+static void
 blb_emit_tree (const blb_dev *devs, int n, const blb_opts *opt)
 {
+    unsigned char active[BLB_MAX_DEVS] = { 0 };
     for (int i = 0; i < n; i++) {
-        if (devs[i].parent[0] != '\0') continue;     /* not a top-level */
-        blb_print_one (&devs[i], "", opt);
-        if (opt->nodeps) continue;
-
-        /* Find this disk's children. */
-        int child_idxs[BLB_MAX_DEVS];
-        int nchildren = 0;
-        for (int j = 0; j < n; j++) {
-            if (devs[j].parent[0] == '\0') continue;
-            if (strcmp (devs[j].parent, devs[i].name) != 0) continue;
-            if (nchildren < BLB_MAX_DEVS)
-                child_idxs[nchildren++] = j;
-        }
-        for (int k = 0; k < nchildren; k++) {
-            int j = child_idxs[k];
-            const char *pref = (k == nchildren - 1) ? "`-" : "|-";
-            blb_print_one (&devs[j], pref, opt);
-        }
+        int parent_found = 0;
+        for (int j = 0; j < n; j++)
+            if (strcmp (devs[i].parent, devs[j].name) == 0) parent_found = 1;
+        if (!parent_found) blb_emit_branch (devs, n, opt, i, "", 0, active);
     }
 }
 
@@ -1102,25 +1207,24 @@ blb_filter (blb_dev *devs, int n, char **wants, int nwants)
             kept[nkept++] = i;
         }
     }
-    /* Pass 2: include partitions whose parent is in `kept`. */
-    int extra = 0;
-    for (int i = 0; i < n; i++) {
-        if (devs[i].parent[0] == '\0') continue;
-        for (int k = 0; k < nkept; k++) {
-            if (strcmp (devs[i].parent, devs[kept[k]].name) == 0) {
-                /* Avoid double-add if the user also named the partition. */
-                int dup = 0;
-                for (int x = 0; x < nkept + extra; x++) {
-                    if (kept[x] == i) { dup = 1; break; }
-                }
-                if (!dup && nkept + extra < BLB_MAX_DEVS) {
-                    kept[nkept + extra] = i;
-                    extra++;
-                }
-                break;
+    /* Grow the selection until all descendants have been included. */
+    int extra = 0, changed;
+    do {
+        changed = 0;
+        for (int i = 0; i < n; i++) {
+            if (!devs[i].parent[0]) continue;
+            int selected = 0, parent_selected = 0;
+            for (int k = 0; k < nkept + extra; k++) {
+                if (kept[k] == i) selected = 1;
+                if (strcmp (devs[i].parent, devs[kept[k]].name) == 0)
+                    parent_selected = 1;
+            }
+            if (!selected && parent_selected && nkept + extra < BLB_MAX_DEVS) {
+                kept[nkept + extra++] = i;
+                changed = 1;
             }
         }
-    }
+    } while (changed);
     int total = nkept + extra;
     /* Compact: write kept entries to a temp, then back. Allocate on the
      * stack — BLB_MAX_DEVS ceiling caps the size. */

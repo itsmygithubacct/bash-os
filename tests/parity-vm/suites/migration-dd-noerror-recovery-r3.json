@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-dd-noerror-recovery-count-fullblock",
+      "loadable": "dd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "dd/noerror_read_recovery"
+      ],
+      "purpose": "A third-read EIO on seekable stdin tests count-limited recovery, padding, plain failure, and iflag=fullblock against GNU dd.",
+      "oracle": "GNU coreutils dd with the same input and the same pinned helpers/system-sequence.py reply sequence (continue, continue, EIO across the side's stdin read(2) calls)",
+      "comparison": "Compare exit status, diagnostics, record counts, output blocks, and injected-read logs with GNU under identical seccomp replies.",
+      "requires": [
+        "python3",
+        "dd",
+        "rm"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "files": {
+        "blocks.py": "# SPDX-License-Identifier: MIT\n# Trusted block summariser for dd fixtures (takeover root): one letter per\n# 512-byte block (NUL for an all-zero block), and helper-log read counts.\nimport json, sys\nif sys.argv[1] == 'make':\n    open('in.bin', 'wb').write(b''.join(bytes([65 + i]) * 512 for i in range(8)))\nelif sys.argv[1] == 'blocks':\n    data = open(sys.argv[2], 'rb').read()\n    marks = []\n    for k in range(0, len(data), 512):\n        b = data[k:k + 512]\n        marks.append('NUL' if b == bytes(len(b)) else (chr(b[0]) if b == b[:1] * len(b) else 'mixed'))\n    print('%s bytes=%d blocks=%s' % (sys.argv[3], len(data), ','.join(marks)))\nelse:\n    rows = [json.loads(l) for l in open(sys.argv[2]) if json.loads(l).get('syscall') == 'read']\n    print('%s stdin-reads=%d eio-at=%s' % (sys.argv[3], len(rows), [i + 1 for i, r in enumerate(rows) if r['reply'] != 'continue']))\n"
+      },
+      "script": "H=/opt/bashos-parity/harness/helpers/system-sequence.py\nB() { /usr/bin/python3 blocks.py \"$@\"; }\nB make\nfor opts in 'conv=noerror,sync count=4' 'conv=noerror count=4' 'conv=noerror,sync iflag=fullblock count=4' 'count=4'; do\n  printf '[%s]\\n' \"$opts\"; printf '[%s]\\n' \"$opts\" >&2\n  : > \"$HOME/dd.jsonl\"\n  /usr/bin/python3 \"$H\" --notify read:0=0 --reply-seq read=continue,continue,EIO --log \"$HOME/dd.jsonl\" -- \\\n    \"$BASH\" --noprofile --norc -c \"dd bs=512 $opts status=noxfer of=out.bin < in.bin; printf 'status=%d\\n' \\\"\\$?\\\"\"\n  printf 'helper=%d\\n' \"$?\"\n  B blocks out.bin \"$opts\"; B log \"$HOME/dd.jsonl\" \"$opts\"\ndone\n/usr/bin/rm -f in.bin out.bin \"$HOME/dd.jsonl\"\n",
+      "expected_status": 0,
+      "timeout": 60
+    }
+  ]
+}

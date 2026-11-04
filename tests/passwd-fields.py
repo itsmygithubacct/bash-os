@@ -50,7 +50,7 @@ with tempfile.TemporaryDirectory(prefix='bash-os-passwd-') as directory:
     info = run('passwd', 'info', 'alice')
     assert b'home=/srv/test-users/alice shell=/bin/bash' in info, info
     info = run('passwd', 'info', 'bob')
-    assert b'home=/srv/test-users/bob shell=/bin/bash' in info, info
+    assert b'home=/srv/test-users/bob shell=/bin/sh' in info, info
     assert run('login', 'lookup', 'alice') == (
         b'1000:1000:/srv/test-users/alice:/bin/bash:\n')
     # An empty or non-numeric id is not uid 0 or gid 0.

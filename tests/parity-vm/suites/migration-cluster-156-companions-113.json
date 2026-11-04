@@ -17,11 +17,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cluster-followup-observer.py": "0098c2ecee2bb5d0ce1b4fc387d06ea8de49f64e919a8d0627c8a5892f0d8bdf"
+        "helpers/cluster-followup-observer-bash5320.py": "63db1b634b041cc99e5c98785372266e480b9ec1713582e6df1f502aa645dc93"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer.py setup packet-rejection",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-bash5320.py setup packet-rejection",
       "setup_timeout": 50,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer.py \"$BASH\" packet-rejection",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-bash5320.py \"$BASH\" packet-rejection",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "size-violations rejected-silently=yes roster-unchanged=yes later-ping-ok=yes no-queue-drops=yes\nformat-violations rejected-silently=yes roster-unchanged=yes later-ping-ok=yes no-queue-drops=yes\nmac-violations rejected-silently=yes roster-unchanged=yes later-ping-ok=yes no-queue-drops=yes\ncount-and-node-violations rejected-silently=yes roster-unchanged=yes later-ping-ok=yes no-queue-drops=yes\ncombined-sequence all-silent=yes roster-unchanged=yes files-unchanged=yes listener-alive=yes candidate-ping-ok=yes oracle-ping-ok=yes\n",
@@ -43,11 +43,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cluster-followup-observer.py": "0098c2ecee2bb5d0ce1b4fc387d06ea8de49f64e919a8d0627c8a5892f0d8bdf"
+        "helpers/cluster-followup-observer-bash5320.py": "63db1b634b041cc99e5c98785372266e480b9ec1713582e6df1f502aa645dc93"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer.py setup roster-heartbeats",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-bash5320.py setup roster-heartbeats",
       "setup_timeout": 50,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer.py \"$BASH\" roster-heartbeats",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-bash5320.py \"$BASH\" roster-heartbeats",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "three-peer-convergence joins-ok=yes identities-on-wire=yes rosters-converge=yes members-commands-agree=yes c-left-status=yes leave-removed-everywhere=yes survivors-intact=yes c-state-cleaned=yes\nexpiry-and-refresh oracles-joined=yes silent-expires-not-early=yes silent-expires-in-bound=yes beating-oracle-retained=yes beating-peers-retained=yes retention-ends-after-last-beat=yes expiry-propagates-to-peers=yes\nseed-loss peers-joined=yes seed-left-status=yes leaf-disconnected=yes leaf-roster-self-only=yes leaf-listener-alive=yes leaf-stopped-after-kill=yes\n",
@@ -67,11 +67,11 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cluster-followup-observer.py": "0098c2ecee2bb5d0ce1b4fc387d06ea8de49f64e919a8d0627c8a5892f0d8bdf"
+        "helpers/cluster-followup-observer-bash5320.py": "63db1b634b041cc99e5c98785372266e480b9ec1713582e6df1f502aa645dc93"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer.py setup control",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-bash5320.py setup control",
       "setup_timeout": 50,
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer.py \"$BASH\" control",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-bash5320.py \"$BASH\" control",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "candidate-basics builtin=yes version=yes usage-no-verb=yes unknown-verb=yes status-uninitialized=yes members-empty=yes leave-uninitialized=yes\n",

@@ -51,6 +51,7 @@
 #include <signal.h>
 #include <ctype.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <pwd.h>
 #include <grp.h>
 #include <limits.h>
@@ -74,6 +75,9 @@
 #define BP_DELIVERS_SIGNAL(m) ((m) == BP_MODE_KILL || (m) == BP_MODE_KILLALL || (m) == BP_MODE_KILLALL5)
 #define BP_PATH_MAX 1024
 #define BP_OMIT_MAX 256
+
+/* Bash preserves $$ across pipeline and subshell forks. */
+extern pid_t dollar_dollar_pid;
 
 /* ---- /proc helpers ------------------------------------------------------ */
 
@@ -146,6 +150,37 @@ bp_read_comm (int pid, char *out, size_t cap)
     /* Strip trailing newline (always present). */
     if (out[n - 1] == '\n') out[n - 1] = '\0';
     return 0;
+}
+
+/* Read argv[0] without confusing argument separators or spaces in its name. */
+static int
+bp_read_argv0 (int pid, char **out, size_t *cap)
+{
+    char path[BP_PATH_MAX];
+    if (bp_proc_pid_path (path, sizeof path, pid, "cmdline") < 0) return -1;
+    int fd = open (path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return -1;
+    size_t n = 0;
+    for (;;) {
+        if (*cap - n < 2) {
+            size_t next = *cap ? *cap * 2 : 256;
+            if (next <= *cap) { close (fd); errno = ENOMEM; return -1; }
+            char *buf = realloc (*out, next);
+            if (!buf) { close (fd); return -1; }
+            *out = buf;
+            *cap = next;
+        }
+        ssize_t got = read (fd, *out + n, *cap - n - 1);
+        if (got < 0 && errno == EINTR) continue;
+        if (got < 0) { close (fd); return -1; }
+        if (!got) break;
+        char *end = memchr (*out + n, '\0', (size_t)got);
+        if (end) { n = (size_t)(end - *out); break; }
+        n += (size_t)got;
+    }
+    close (fd);
+    (*out)[n] = '\0';
+    return n ? 0 : -1;
 }
 
 /* Reuse a growable buffer across entries: command lines can exceed 4 KiB.
@@ -528,6 +563,11 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
     }
 
     int matched = 0;
+    unsigned char *found = NULL;
+    if (mode == BP_MODE_KILLALL) {
+        found = calloc ((size_t)pattern_count, 1);
+        if (!found) { closedir (d); builtin_error ("out of memory"); return 3; }
+    }
     int first_print = 1;
     struct dirent *de;
     pid_t self_pid = getpid ();
@@ -535,6 +575,8 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
     char comm[64];
     char *cmdline = NULL;
     size_t cmdcap = 0;
+    char *argv0 = NULL;
+    size_t argv0cap = 0;
     int best_pid = 0;
     unsigned long long best_start = 0;
 
@@ -546,7 +588,9 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
         if (errno == ERANGE || lpid <= 0 || lpid > INT_MAX ||
             de->d_name[0] == '0' || (end && *end != '\0')) continue;
         int pid = (int)lpid;
-        if (pid == (int)self_pid) continue;  /* never match self */
+        if (pid == (int)self_pid ||
+            (mode == BP_MODE_KILLALL && pid == (int)dollar_dollar_pid))
+            continue;  /* never signal the invoking shell, including in a pipeline */
 
         if (mode == BP_MODE_KILLALL5) {
             pid_t sid = -1;
@@ -601,7 +645,27 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
         }
 
         {
-            int m = selected && bp_match (hay, patterns, pattern_count, mode, regex);
+            int m = 0;
+            if (selected && mode == BP_MODE_KILLALL) {
+                int i = 0, argv_read = 0;
+                for (WORD_LIST *p = patterns; p && p->word && p->word->word; p = p->next, i++) {
+                    const char *name = p->word->word;
+                    int hit = strcmp (hay, name) == 0;
+                    if (!hit && !by_cmdline && strlen (name) > 15 &&
+                        strlen (comm) == 15 && strncmp (comm, name, 15) == 0) {
+                        if (!argv_read) {
+                            argv_read = bp_read_argv0 (pid, &argv0, &argv0cap) == 0 ? 1 : -1;
+                        }
+                        if (argv_read > 0) {
+                            const char *base = strrchr (argv0, '/');
+                            hit = strcmp (base ? base + 1 : argv0, name) == 0;
+                        }
+                    }
+                    if (hit) { found[i] = 1; m = 1; }
+                }
+            } else if (selected) {
+                m = bp_match (hay, patterns, pattern_count, mode, regex);
+            }
             if (vflag) m = !m;            /* -v: keep the NON-matching processes */
             if (!m) continue;
         }
@@ -636,6 +700,13 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
         }
     }
     free (cmdline);
+    free (argv0);
+    if (found) {
+        int i = 0;
+        for (WORD_LIST *p = patterns; p && p->word && p->word->word; p = p->next, i++)
+            if (!found[i]) fprintf (stderr, "%s: no process found\n", p->word->word);
+        free (found);
+    }
     /* -c/--count: print only the tally (procps-ng prints "0" + exit 1 on
        no match, for both pgrep and pkill). */
     if (count_only)
@@ -652,6 +723,16 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
 }
 
 /* ---- Shared dispatch (called from both bashpgrep and bashpkill) --------- */
+
+extern char *pgrep_doc[];
+
+static int
+bp_pgrep_help (void)
+{
+    for (char **line = pgrep_doc; *line; line++)
+        puts (*line);
+    return sh_chkwrite (EXECUTION_SUCCESS);
+}
 
 int
 bp_dispatch (WORD_LIST *list, int mode)
@@ -686,6 +767,7 @@ bp_dispatch (WORD_LIST *list, int mode)
     if (list && list->word && list->word->word) {
         const char *w = list->word->word;
         if (strcmp (w, "--help") == 0 || strcmp (w, "-h") == 0) {
+            if (mode == BP_MODE_GREP) return bp_pgrep_help ();
             builtin_usage ();
             return EXECUTION_SUCCESS;
         }
@@ -699,6 +781,7 @@ bp_dispatch (WORD_LIST *list, int mode)
         const char *w = list->word->word;
         if (!strcmp (w, "--")) { list = list->next; break; }
         if (!strcmp (w, "--help") || !strcmp (w, "-h")) {
+            if (mode == BP_MODE_GREP) return bp_pgrep_help ();
             builtin_usage ();
             return EXECUTION_SUCCESS;
         }
@@ -812,6 +895,43 @@ bp_dispatch (WORD_LIST *list, int mode)
             if (!strncmp (w, "-d", 2) && w[2]) { odelim = w + 2; list = list->next; continue; }  /* attached -d, */
             if (!strncmp (w, "--delimiter=", 12)) { odelim = w + 12; list = list->next; continue; }
         }
+        if (mode == BP_MODE_KILLALL &&
+            (!strcmp (w, "-s") || (!strncmp (w, "-s", 2) &&
+                                    bp_parse_signal (w + 1) < 0) ||
+             !strcmp (w, "--signal") || !strncmp (w, "--signal=", 9))) {
+            const char *value;
+            int parsed;
+            if (!strcmp (w, "-s") || !strcmp (w, "--signal")) {
+                list = list->next;
+                if (!list || !list->word || !list->word->word) {
+                    builtin_error ("%s: missing signal argument", w);
+                    return EX_USAGE;
+                }
+                value = list->word->word;
+            } else
+                value = w[1] == '-' ? w + 9 : w + 2;
+            parsed = bp_parse_signal (value);
+            if (parsed <= 0) {
+                builtin_error ("invalid signal: %s", value);
+                return EX_USAGE;
+            }
+            sig = parsed;
+            list = list->next;
+            continue;
+        }
+        if (mode == BP_MODE_KILLALL &&
+            (!strcmp (w, "-l") || !strcmp (w, "--list") ||
+             !strcmp (w, "-q") || !strcmp (w, "--quiet") ||
+             !strcmp (w, "-w") || !strcmp (w, "--wait") ||
+             !strcmp (w, "-I") || !strcmp (w, "--ignore-case") ||
+             !strcmp (w, "-r") || !strcmp (w, "--regexp") ||
+             !strcmp (w, "-g") || !strcmp (w, "--process-group") ||
+             !strcmp (w, "-y") || !strcmp (w, "--younger-than") ||
+             !strcmp (w, "-o") || !strcmp (w, "--older-than") ||
+             !strcmp (w, "-v") || !strcmp (w, "--verbose"))) {
+            builtin_error ("unsupported killall option: %s", w);
+            return EX_USAGE;
+        }
         if (mode == BP_MODE_KILLALL && !strcmp (w, "-e")) {
             /* psmisc killall -e asks for exact matching. That is already
                bashkillall's default, so accept it as a compatibility no-op. */
@@ -840,6 +960,11 @@ bp_dispatch (WORD_LIST *list, int mode)
         if ((mode == BP_MODE_GREP || mode == BP_MODE_KILL) && w[0] == '-' && w[1] && w[1] != '-') {
             const char *c;
             for (c = w + 1; *c; c++) {
+                if (mode == BP_MODE_GREP && *c == 'h') return bp_pgrep_help ();
+                if (mode == BP_MODE_GREP && *c == 'V') {
+                    printf ("%s 1.0 (bash-loadable)\n", self);
+                    return sh_chkwrite (EXECUTION_SUCCESS);
+                }
                 if (*c == 'f') { by_cmdline = 1; continue; }
                 if (*c == 'c') { count_only = 1; continue; }
                 if (*c == 'x') { exact = 1; continue; }
@@ -979,12 +1104,47 @@ bp_dispatch (WORD_LIST *list, int mode)
         }
         compiled = 1;
     }
+    /* A standalone pgrep has its own PID, distinct from its caller.  Use a
+       child for live pgrep enumeration so excluding self does not also hide
+       the calling shell.  Fixture trees retain their established convention:
+       their record for the invoking process represents self.  Signal modes
+       must continue to exclude the shell that invoked them. */
+    int child_walk = mode == BP_MODE_GREP && !bp_using_proc_fixture ();
+    pid_t child = -1;
+    if (child_walk) {
+        if (fflush (stdout) == EOF) {
+            builtin_error ("write error: %s", strerror (errno));
+            if (compiled) regfree (&regex);
+            return 3;
+        }
+        child = fork ();
+        if (child < 0) {
+            builtin_error ("fork: %s", strerror (errno));
+            if (compiled) regfree (&regex);
+            return 3;
+        }
+        if (child > 0) {
+            int status;
+            pid_t waited;
+            do { waited = waitpid (child, &status, 0); }
+            while (waited < 0 && errno == EINTR);
+            if (compiled) regfree (&regex);
+            if (waited < 0) {
+                builtin_error ("waitpid: %s", strerror (errno));
+                return 3;
+            }
+            if (WIFEXITED (status)) return WEXITSTATUS (status);
+            if (WIFSIGNALED (status)) return 128 + WTERMSIG (status);
+            return 3;
+        }
+    }
     int result = bp_walk (patterns, pattern_count, by_cmdline, filter_uid_set,
                           want_uid, mode, sig, count_only, compiled ? &regex : NULL,
                           (mode == BP_MODE_GREP || mode == BP_MODE_KILL) ? &selection : NULL,
                           lflag, aflag, vflag, odelim,
                           killall5_dry_run, killall5_sid, omit_pids, omit_count);
     if (compiled) regfree (&regex);
+    if (child_walk) _exit (result);
     return result;
 }
 

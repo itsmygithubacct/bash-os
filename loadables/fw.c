@@ -1921,32 +1921,168 @@ bfw_cmd_list (WORD_LIST *args, struct bfw_opts *o)
     }
 }
 
+/* Read a complete filter-table inventory before changing either family.
+   A failed or truncated inventory is never interpreted as a missing chain. */
+struct bfw_ipt_inventory {
+  int base_in, base_out, chain_in, chain_out, hook_in, hook_out;
+};
+
+static int
+bfw_reset_inventory (const char *prog, struct bfw_ipt_inventory *inv)
+{
+  enum { LIMIT = 1024 * 1024 };
+  char *buf = malloc (LIMIT + 1);
+  if (!buf) { builtin_error ("reset: out of memory"); return -1; }
+  int fd[2];
+  if (pipe (fd) < 0) { free (buf); return -1; }
+  struct bfw_child_guard guard;
+  bfw_child_guard_begin (&guard);
+  pid_t pid = fork ();
+  if (pid < 0)
+    { close (fd[0]); close (fd[1]); bfw_child_guard_parent_end (&guard); free (buf); return -1; }
+  if (pid == 0)
+    {
+      bfw_child_guard_child_end (&guard);
+      close (fd[0]);
+      if (dup2 (fd[1], STDOUT_FILENO) < 0) _exit (127);
+      if (fd[1] != STDOUT_FILENO) close (fd[1]);
+      if (strcmp (prog, "nft") == 0)
+        execlp (prog, prog, "list", "tables", (char *) NULL);
+      else
+        execlp (prog, prog, "-S", (char *) NULL);
+      _exit (127);
+    }
+  close (fd[1]);
+  size_t used = 0;
+  int failed = 0, overflow = 0;
+  char discard[4096];
+  for (;;)
+    {
+      char *dst = used < LIMIT ? buf + used : discard;
+      size_t cap = used < LIMIT ? LIMIT - used : sizeof discard;
+      ssize_t n = read (fd[0], dst, cap);
+      if (n < 0 && errno == EINTR) continue;
+      if (n < 0) { failed = 1; break; }
+      if (n == 0) break;
+      if (used < LIMIT) used += (size_t) n; else overflow = 1;
+    }
+  close (fd[0]);
+  int st = 0, waited;
+  do { waited = waitpid (pid, &st, 0); } while (waited < 0 && errno == EINTR);
+  bfw_child_guard_parent_end (&guard);
+  if (failed || overflow || waited < 0 || !WIFEXITED (st) || WEXITSTATUS (st) != 0 ||
+      (used && buf[used - 1] != '\n') || memchr (buf, '\0', used) != NULL)
+    { builtin_error ("reset: cannot inventory %s filter table", prog); free (buf); return -1; }
+  buf[used] = '\0';
+  memset (inv, 0, sizeof *inv);
+  char *save = NULL;
+  int nft = strcmp (prog, "nft") == 0, malformed = 0;
+  for (char *line = strtok_r (buf, "\n", &save); line; line = strtok_r (NULL, "\n", &save))
+    {
+      char a[256], b[256], extra;
+      if (nft)
+        {
+          if (sscanf (line, "table %255s %255s %c", a, b, &extra) != 2)
+            { malformed = 1; break; }
+          if (strcmp (a, "inet") == 0 && strcmp (b, "fw") == 0) inv->chain_in = 1;
+          continue;
+        }
+      if (strncmp (line, "-P ", 3) == 0)
+        {
+          if (sscanf (line, "-P %255s %255s %c", a, b, &extra) != 2)
+            { malformed = 1; break; }
+          if (strcmp (a, "INPUT") == 0) inv->base_in = 1;
+          if (strcmp (a, "OUTPUT") == 0) inv->base_out = 1;
+        }
+      else if (strncmp (line, "-N ", 3) == 0)
+        {
+          if (sscanf (line, "-N %255s %c", a, &extra) != 1)
+            { malformed = 1; break; }
+          if (strcmp (a, "BASHFW_IN") == 0) inv->chain_in = 1;
+          if (strcmp (a, "BASHFW_OUT") == 0) inv->chain_out = 1;
+        }
+      else if (strncmp (line, "-A ", 3) == 0)
+        {
+          int used_chars = 0;
+          if (sscanf (line, "-A %255s %n", a, &used_chars) != 1 ||
+              used_chars == 0 || !line[used_chars])
+            { malformed = 1; break; }
+          if (strcmp (line, "-A INPUT -j BASHFW_IN") == 0) inv->hook_in = 1;
+          if (strcmp (line, "-A OUTPUT -j BASHFW_OUT") == 0) inv->hook_out = 1;
+        }
+      else { malformed = 1; break; }
+    }
+  free (buf);
+  if (malformed || (!nft && (!inv->base_in || !inv->base_out)))
+    { builtin_error ("reset: incomplete or malformed %s inventory", prog); return -1; }
+  return 0;
+}
+
+static int
+bfw_ipt_reset_one (const char *prog, const char *chain, const char *base,
+                   int exists, int hooked, struct bfw_opts *o)
+{
+  struct bfw_argv a = {0};
+  bfw_push (&a, prog); bfw_push (&a, exists ? "-F" : "-N"); bfw_push (&a, chain);
+  if (bfw_run (&a, o) != 0) return EXECUTION_FAILURE;
+  if (!hooked)
+    {
+      struct bfw_argv hook = {0};
+      bfw_push (&hook, prog); bfw_push (&hook, "-I"); bfw_push (&hook, base);
+      bfw_push (&hook, "-j"); bfw_push (&hook, chain);
+      if (bfw_run (&hook, o) != 0) return EXECUTION_FAILURE;
+    }
+  return EXECUTION_SUCCESS;
+}
+
 static int
 bfw_cmd_reset (struct bfw_opts *o)
 {
   if (o->backend == BFW_NFT)
     {
       const char *w_del[] = { "delete", "table", "inet", "fw" };
-      bfw_nft_simple (o, w_del, 4);
+      if (o->dry_run)
+        bfw_nft_simple (o, w_del, 4);
+      else
+        {
+          struct bfw_ipt_inventory inv;
+          if (bfw_reset_inventory ("nft", &inv) < 0) return EXECUTION_FAILURE;
+          if (inv.chain_in && bfw_nft_simple (o, w_del, 4) != 0) return EXECUTION_FAILURE;
+        }
       const char *w_add[] = { "add", "table", "inet", "fw" };
       if (bfw_nft_simple (o, w_add, 4) != 0) return EXECUTION_FAILURE;
       const char *w_chain_in[] = { "add", "chain", "inet", "fw", "input",
                                    "{ type filter hook input priority 0 ; policy accept ; }" };
-      bfw_nft_simple (o, w_chain_in, 6);
+      if (bfw_nft_simple (o, w_chain_in, 6) != 0) return EXECUTION_FAILURE;
       const char *w_chain_out[] = { "add", "chain", "inet", "fw", "output",
                                     "{ type filter hook output priority 0 ; policy accept ; }" };
-      bfw_nft_simple (o, w_chain_out, 6);
+      if (bfw_nft_simple (o, w_chain_out, 6) != 0) return EXECUTION_FAILURE;
       /* Stage A.10.B: NAT chains in the same inet/fw table. */
       const char *w_chain_pre[] = { "add", "chain", "inet", "fw", "prerouting",
                                     "{ type nat hook prerouting priority -100 ; policy accept ; }" };
-      bfw_nft_simple (o, w_chain_pre, 6);
+      if (bfw_nft_simple (o, w_chain_pre, 6) != 0) return EXECUTION_FAILURE;
       const char *w_chain_post[] = { "add", "chain", "inet", "fw", "postrouting",
                                      "{ type nat hook postrouting priority 100 ; policy accept ; }" };
-      bfw_nft_simple (o, w_chain_post, 6);
+      if (bfw_nft_simple (o, w_chain_post, 6) != 0) return EXECUTION_FAILURE;
       return EXECUTION_SUCCESS;
     }
   else
     {
+      if (!o->dry_run)
+        {
+          const char *programs[] = { "iptables", "ip6tables" };
+          struct bfw_ipt_inventory inv[2];
+          for (int i = 0; i < 2; i++)
+            if (bfw_reset_inventory (programs[i], &inv[i]) < 0)
+              return EXECUTION_FAILURE;
+          for (int i = 0; i < 2; i++)
+            if (bfw_ipt_reset_one (programs[i], "BASHFW_IN", "INPUT",
+                                   inv[i].chain_in, inv[i].hook_in, o) != 0 ||
+                bfw_ipt_reset_one (programs[i], "BASHFW_OUT", "OUTPUT",
+                                   inv[i].chain_out, inv[i].hook_out, o) != 0)
+              return EXECUTION_FAILURE;
+          return EXECUTION_SUCCESS;
+        }
       const char *create_in[] = { "iptables", "-N", "BASHFW_IN" };
       const char *create_out[] = { "iptables", "-N", "BASHFW_OUT" };
       struct bfw_argv a = {0};
@@ -2084,6 +2220,26 @@ bfw_file_has_ipset_section (const char *file)
   return found;
 }
 
+/* Read one complete text line without splitting a marker at a buffer
+   boundary. Reject NULs and oversized lines before invoking a backend. */
+#define BFW_RESTORE_LINE_LIMIT 65536
+static int
+bfw_restore_read_line (FILE *f, char *line, size_t cap)
+{
+  size_t used = 0;
+  int c;
+  while ((c = fgetc (f)) != EOF)
+    {
+      if (c == 0 || used >= cap - 1) return -1;
+      line[used++] = (char) c;
+      if (c == '\n') break;
+    }
+  if (ferror (f)) return -1;
+  if (!used) return 0;
+  line[used] = '\0';
+  return 1;
+}
+
 static int
 bfw_split_iptables_ipset_save (const char *file, char *ipt_path, size_t ipt_sz,
                                char *set_path, size_t set_sz)
@@ -2116,23 +2272,31 @@ bfw_split_iptables_ipset_save (const char *file, char *ipt_path, size_t ipt_sz,
       return -1;
     }
 
-  char line[1024];
-  int in_set = 0;
-  int saw_end = 0;
-  while (fgets (line, sizeof line, in))
+  char line[BFW_RESTORE_LINE_LIMIT + 1];
+  int line_status;
+  int in_set = 0, saw_begin = 0, saw_end = 0, err = 0;
+  while ((line_status = bfw_restore_read_line (in, line, sizeof line)) > 0)
     {
       if (strcmp (line, BFW_IPSET_BEGIN) == 0)
-        { in_set = 1; continue; }
+        {
+          if (saw_begin || saw_end) { err = 1; break; }
+          saw_begin = 1; in_set = 1; continue;
+        }
       if (strcmp (line, BFW_IPSET_END) == 0)
-        { in_set = 0; saw_end = 1; continue; }
-      fputs (line, in_set ? set : ipt);
+        {
+          if (!in_set || saw_end) { err = 1; break; }
+          in_set = 0; saw_end = 1; continue;
+        }
+      if (fputs (line, in_set ? set : ipt) == EOF) { err = 1; break; }
     }
 
-  int err = ferror (in) || fflush (ipt) == EOF || fflush (set) == EOF;
-  fclose (in);
-  fclose (ipt);
-  fclose (set);
-  if (err || !saw_end)
+  if (line_status < 0 || ferror (in)) err = 1;
+  if (fflush (ipt) == EOF || ferror (ipt)) err = 1;
+  if (fflush (set) == EOF || ferror (set)) err = 1;
+  if (fclose (in) == EOF) err = 1;
+  if (fclose (ipt) == EOF) err = 1;
+  if (fclose (set) == EOF) err = 1;
+  if (err || !saw_begin || !saw_end || in_set)
     {
       unlink (ipt_path);
       unlink (set_path);
@@ -2140,6 +2304,271 @@ bfw_split_iptables_ipset_save (const char *file, char *ipt_path, size_t ipt_sz,
       return -1;
     }
   return 0;
+}
+
+/* A saved ipset stream consists of create/add records.  Keep complete lines
+   so the backend, not this parser, validates element and option syntax. */
+#define BFW_SET_LIMIT 128
+#define BFW_SET_LINE_LIMIT 65536
+#define BFW_SET_BYTES_LIMIT (16 * 1024 * 1024)
+struct bfw_saved_set {
+  char name[32], stage[32];
+  char *create, *adds;
+  size_t adds_len;
+  int stage_owned, created, swapped, changed;
+};
+struct bfw_saved_sets { struct bfw_saved_set item[BFW_SET_LIMIT]; int n; };
+
+static void
+bfw_saved_sets_free (struct bfw_saved_sets *sets)
+{
+  for (int i = 0; i < sets->n; i++)
+    { free (sets->item[i].create); free (sets->item[i].adds); }
+  free (sets);
+}
+
+static int
+bfw_saved_find (const struct bfw_saved_sets *sets, const char *name)
+{
+  for (int i = 0; i < sets->n; i++)
+    if (strcmp (sets->item[i].name, name) == 0) return i;
+  return -1;
+}
+
+/* Return the set-name field and the remainder following it. */
+static int
+bfw_saved_line (char *line, const char *verb, char name[32], const char **rest)
+{
+  size_t vlen = strlen (verb);
+  if (strncmp (line, verb, vlen) != 0 || line[vlen] != ' ') return -1;
+  char *p = line + vlen + 1;
+  while (*p == ' ' || *p == '\t') p++;
+  char *end = p;
+  while (*end && *end != ' ' && *end != '\t' && *end != '\r' && *end != '\n') end++;
+  size_t n = (size_t) (end - p);
+  if (!n || n >= 32 || (*end != ' ' && *end != '\t')) return -1;
+  memcpy (name, p, n); name[n] = '\0';
+  if (!bfw_valid_set_name (name)) return -1;
+  *rest = end;
+  return 0;
+}
+
+static struct bfw_saved_sets *
+bfw_read_saved_sets (const char *path)
+{
+  FILE *f = fopen (path, "r");
+  if (!f) return NULL;
+  struct bfw_saved_sets *sets = calloc (1, sizeof *sets);
+  if (!sets) { fclose (f); return NULL; }
+  char *line = NULL; size_t cap = 0, total = 0; ssize_t len;
+  int failed = 0;
+  while ((len = getline (&line, &cap, f)) >= 0)
+    {
+      if (len == 1 && line[0] == '\n') continue;
+      if ((size_t) len > BFW_SET_LINE_LIMIT || total > BFW_SET_BYTES_LIMIT - (size_t) len ||
+          !len || line[len - 1] != '\n' || memchr (line, '\0', (size_t) len))
+        { failed = 1; break; }
+      total += (size_t) len;
+      char name[32]; const char *rest;
+      if (bfw_saved_line (line, "create", name, &rest) == 0)
+        {
+          if (sets->n >= BFW_SET_LIMIT || bfw_saved_find (sets, name) >= 0)
+            { failed = 1; break; }
+          struct bfw_saved_set *item = &sets->item[sets->n++];
+          snprintf (item->name, sizeof item->name, "%s", name);
+          item->create = strdup (line);
+          item->adds = strdup ("");
+          if (!item->create || !item->adds) { failed = 1; break; }
+        }
+      else if (bfw_saved_line (line, "add", name, &rest) == 0)
+        {
+          int i = bfw_saved_find (sets, name);
+          if (i < 0) { failed = 1; break; }
+          struct bfw_saved_set *item = &sets->item[i];
+          char *next = realloc (item->adds, item->adds_len + (size_t) len + 1);
+          if (!next) { failed = 1; break; }
+          item->adds = next;
+          memcpy (item->adds + item->adds_len, line, (size_t) len + 1);
+          item->adds_len += (size_t) len;
+        }
+      else { failed = 1; break; }
+    }
+  if (ferror (f)) failed = 1;
+  free (line); fclose (f);
+  if (failed) { bfw_saved_sets_free (sets); return NULL; }
+  return sets;
+}
+
+static int
+bfw_ipset_op (const char *op, const char *a, const char *b)
+{
+  struct bfw_opts live = { .backend = BFW_IPT, .dry_run = 0, .idempotent = 0 };
+  struct bfw_argv args = {0};
+  bfw_push (&args, "ipset"); bfw_push (&args, op); bfw_push (&args, a);
+  if (b) bfw_push (&args, b);
+  return bfw_run (&args, &live);
+}
+
+/* Write a create or a sequence of add lines with the target name replaced.
+   A single create is run separately so only successfully created sets are
+   subsequently eligible for cleanup. */
+static int
+bfw_ipset_replay (const char *lines, const char *verb, const char *target)
+{
+  char path[] = "/tmp/fw-ipset-stage.XXXXXX";
+  int fd = mkstemp (path);
+  if (fd < 0) return -1;
+  FILE *f = fdopen (fd, "w");
+  if (!f) { close (fd); unlink (path); return -1; }
+  const char *p = lines;
+  int error = 0;
+  while (*p)
+    {
+      const char *end = strchr (p, '\n');
+      if (!end) { error = 1; break; }
+      size_t len = (size_t) (end - p) + 1;
+      char *copy = strndup (p, len);
+      if (!copy) { error = 1; break; }
+      char name[32]; const char *rest;
+      if (bfw_saved_line (copy, verb, name, &rest) < 0 ||
+          fprintf (f, "%s %s%s", verb, target, rest) < 0) error = 1;
+      free (copy);
+      if (error) break;
+      p = end + 1;
+    }
+  if (fclose (f) == EOF) error = 1;
+  int rc = -1;
+  if (!error)
+    {
+      struct bfw_argv args = {0};
+      bfw_push (&args, "ipset"); bfw_push (&args, "restore");
+      rc = bfw_run_stdin_file (&args, path);
+    }
+  unlink (path);
+  return rc;
+}
+
+static int
+bfw_ipset_capture (char path[64])
+{
+  snprintf (path, 64, "/tmp/fw-ipset-before.XXXXXX");
+  int fd = mkstemp (path);
+  if (fd < 0) return -1;
+  struct bfw_argv args = {0};
+  bfw_push (&args, "ipset"); bfw_push (&args, "save");
+  int rc = bfw_run_stdout_fd (&args, fd);
+  if (close (fd) < 0) rc = -1;
+  if (rc != 0) { unlink (path); return -1; }
+  return 0;
+}
+
+/* Fail closed if another writer changed a target since the initial snapshot.
+   The backend has no transaction spanning this check and swap; callers must
+   still serialize external writers to avoid the remaining race. */
+static int
+bfw_ipset_target_unchanged (const struct bfw_saved_sets *initial, const char *name)
+{
+  char path[64];
+  if (bfw_ipset_capture (path) < 0) return 0;
+  struct bfw_saved_sets *now = bfw_read_saved_sets (path);
+  unlink (path);
+  if (!now) return 0;
+  int a = bfw_saved_find (initial, name), b = bfw_saved_find (now, name);
+  int same = a >= 0 && b >= 0 &&
+    strcmp (initial->item[a].create, now->item[b].create) == 0 &&
+    strcmp (initial->item[a].adds, now->item[b].adds) == 0;
+  bfw_saved_sets_free (now);
+  return same;
+}
+
+static int
+bfw_ipset_rollback (struct bfw_saved_sets *want)
+{
+  int failed = 0;
+  for (int i = want->n - 1; i >= 0; i--)
+    {
+      struct bfw_saved_set *item = &want->item[i];
+      if (item->swapped)
+        {
+          if (bfw_ipset_op ("swap", item->name, item->stage) != 0)
+            { builtin_error ("restore: rollback failed for %s; retained %s", item->name, item->stage);
+              item->stage_owned = 0; failed = 1; }
+          else item->swapped = 0;
+        }
+      if (item->created && bfw_ipset_op ("destroy", item->name, NULL) != 0)
+        { builtin_error ("restore: could not remove newly created set %s", item->name); failed = 1; }
+    }
+  return failed ? -1 : 0;
+}
+
+static int
+bfw_ipset_staged_restore (const char *set_path, const char *ipt_path)
+{
+  char before[64];
+  if (bfw_ipset_capture (before) < 0)
+    { builtin_error ("restore: cannot snapshot ipsets"); return EXECUTION_FAILURE; }
+  struct bfw_saved_sets *want = bfw_read_saved_sets (set_path);
+  struct bfw_saved_sets *current = bfw_read_saved_sets (before);
+  unlink (before);
+  if (!want || !current)
+    { builtin_error ("restore: invalid or oversized ipset snapshot");
+      if (want) bfw_saved_sets_free (want);
+      if (current) bfw_saved_sets_free (current);
+      return EXECUTION_FAILURE; }
+  int rc = EXECUTION_FAILURE;
+  unsigned int serial = 0;
+  /* Validate every changed set in an owned staging set before touching targets. */
+  for (int i = 0; i < want->n; i++)
+    {
+      struct bfw_saved_set *item = &want->item[i];
+      int old = bfw_saved_find (current, item->name);
+      if (old >= 0 && strcmp (item->create, current->item[old].create) == 0 &&
+          strcmp (item->adds, current->item[old].adds) == 0) continue;
+      item->changed = 1;
+      do {
+        if (++serial > 10000) { builtin_error ("restore: no staging set name available"); goto done; }
+        snprintf (item->stage, sizeof item->stage, "bfw_%lx_%u", (unsigned long) getpid (), serial);
+      } while (bfw_saved_find (current, item->stage) >= 0 || bfw_saved_find (want, item->stage) >= 0);
+      if (bfw_ipset_replay (item->create, "create", item->stage) != 0) goto done;
+      item->stage_owned = 1;
+      if (item->adds_len && bfw_ipset_replay (item->adds, "add", item->stage) != 0) goto done;
+    }
+  /* Create genuinely absent target sets; never use -exist to claim ownership. */
+  for (int i = 0; i < want->n; i++)
+    {
+      struct bfw_saved_set *item = &want->item[i];
+      if (!item->changed || bfw_saved_find (current, item->name) >= 0) continue;
+      if (bfw_ipset_replay (item->create, "create", item->name) != 0) goto rollback;
+      item->created = 1;
+      if (item->adds_len && bfw_ipset_replay (item->adds, "add", item->name) != 0) goto rollback;
+    }
+  for (int i = 0; i < want->n; i++)
+    {
+      struct bfw_saved_set *item = &want->item[i];
+      if (!item->changed || bfw_saved_find (current, item->name) < 0) continue;
+      if (!bfw_ipset_target_unchanged (current, item->name))
+        { builtin_error ("restore: set %s changed during staging", item->name); goto rollback; }
+      if (bfw_ipset_op ("swap", item->name, item->stage) != 0) goto rollback;
+      item->swapped = 1;
+    }
+  {
+    struct bfw_opts live = { .backend = BFW_IPT, .dry_run = 0, .idempotent = 0 };
+    struct bfw_argv test = {0}, apply = {0};
+    bfw_push (&test, "iptables-restore"); bfw_push (&test, "--test"); bfw_push (&test, ipt_path);
+    bfw_push (&apply, "iptables-restore"); bfw_push (&apply, ipt_path);
+    if (bfw_run (&test, &live) != 0 || bfw_run (&apply, &live) != 0) goto rollback;
+  }
+  rc = EXECUTION_SUCCESS;
+  goto done;
+rollback:
+  (void) bfw_ipset_rollback (want);
+done:
+  for (int i = 0; i < want->n; i++)
+    if (want->item[i].stage_owned && bfw_ipset_op ("destroy", want->item[i].stage, NULL) != 0)
+      { builtin_error ("restore: could not remove staging set %s", want->item[i].stage); rc = EXECUTION_FAILURE; }
+  bfw_saved_sets_free (want);
+  bfw_saved_sets_free (current);
+  return rc;
 }
 
 static int
@@ -2159,22 +2588,7 @@ bfw_ipt_restore_with_sets (const char *file, struct bfw_opts *o)
                                      set_path, sizeof set_path) < 0)
     return EXECUTION_FAILURE;
 
-  struct bfw_argv set_restore = {0};
-  bfw_push (&set_restore, "ipset");
-  bfw_push (&set_restore, "restore");
-  /* `fw reset` clears iptables state but intentionally does not destroy
-     operator ipsets. Replaying a saved set section after reset must therefore
-     tolerate pre-existing sets/elements. ipset restore's -exist flag keeps the
-     restore idempotent while preserving the saved membership payload. */
-  bfw_push (&set_restore, "-exist");
-  int rc = bfw_run_stdin_file (&set_restore, set_path);
-  if (rc == 0)
-    {
-      struct bfw_argv ipt_restore = {0};
-      bfw_push (&ipt_restore, "iptables-restore");
-      bfw_push (&ipt_restore, ipt_path);
-      rc = bfw_run (&ipt_restore, o);
-    }
+  int rc = bfw_ipset_staged_restore (set_path, ipt_path);
   unlink (ipt_path);
   unlink (set_path);
   return rc == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;

@@ -12,6 +12,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #include <linux/netlink.h>
 #include <linux/sock_diag.h>
 #include <linux/inet_diag.h>
@@ -22,6 +23,7 @@ static unsigned request_seq;
 static int request_family, request_proto, delivered;
 static unsigned request_states;
 static int interrupted;
+static int inet_requests;
 
 static const char *root(void) { return getenv("SOL_NETSTAT_FIXTURE"); }
 static int mode(const char *s) {
@@ -91,6 +93,7 @@ ssize_t sendto(int fd, const void *data, size_t size, int flags,
   request_seq = h->nlmsg_seq;
   request_family = r->sdiag_family;
   request_proto = request_family == AF_UNIX ? 0 : r->sdiag_protocol;
+  if (request_family == AF_INET && request_proto == IPPROTO_TCP) inet_requests++;
   request_states = r->idiag_states;
   delivered = 0; interrupted = 0;
   return size;
@@ -101,7 +104,9 @@ ssize_t recv(int fd, void *out, size_t size, int flags) {
   if (getenv("SOL_SS_EINTR") && !interrupted++) { errno = EINTR; return -1; }
   if (getenv("SOL_SS_TRUNC")) return size + 1;
   char path[4096];
-  if (!delivered) snprintf(path, sizeof path, "%s/diag/%d-%d.bin", root(), request_family, request_proto);
+  if (!delivered && getenv("SOL_SS_RETRY_FIXTURE") && request_family == AF_INET && request_proto == IPPROTO_TCP && inet_requests > 1)
+    snprintf(path, sizeof path, "%s/diag/retry.bin", root());
+  else if (!delivered) snprintf(path, sizeof path, "%s/diag/%d-%d.bin", root(), request_family, request_proto);
   else snprintf(path, sizeof path, "%s/diag/%d-%d.%d.bin", root(), request_family, request_proto, delivered);
   delivered++;
   int input = open(path, O_RDONLY | O_CLOEXEC);

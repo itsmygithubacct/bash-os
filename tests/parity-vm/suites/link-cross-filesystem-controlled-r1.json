@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "link-cross-filesystem-rejection-controlled-r1",
+      "loadable": "link",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Prove three separate writable filesystems, then verify EXDEV rejection in both directions, diagnostic, absent destinations and unchanged sources.",
+      "oracle": "GNU coreutils link in the same disposable guest with per-side scratch mounts",
+      "comparison": "Compare status, stdout, stderr and fixture tree; the setup rejects absent or non-distinct filesystem prerequisites. Each invocation must fail with status 1 and nonempty stderr; before/after source snapshots include device, inode, mode, link count, size, mtime and bytes.",
+      "covers": [
+        "link/cross-filesystem-link-rejection"
+      ],
+      "requires": [
+        "link",
+        "python3"
+      ],
+      "files": {
+        "link_control.py": "import os, sys\n\nif sys.argv[1] == \"preflight\":\n    paths = (\".\", \"/var/tmp\", \"/dev/shm\")\n    if len({os.stat(p).st_dev for p in paths}) != len(paths):\n        sys.exit(\"CONTROL-FAILED: fixture filesystems are not distinct\")\n    for parent in paths:\n        path = os.path.join(parent, \"link-control-probe\")\n        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)\n        os.close(fd)\n        os.unlink(path)\nelif sys.argv[1] == \"snapshot\":\n    for path in sys.argv[2:]:\n        s = os.stat(path)\n        with open(path, \"rb\") as f:\n            data = f.read()\n        print(path, s.st_dev, s.st_ino, s.st_mode, s.st_nlink,\n              s.st_size, s.st_mtime_ns, data.hex())\nelse:\n    raise SystemExit(98)\n"
+      },
+      "setup_script": "/usr/bin/python3 link_control.py preflight\nprintf payload >src\nprintf s >/var/tmp/s\n",
+      "setup_timeout": 30,
+      "script": "/usr/bin/python3 link_control.py snapshot src /var/tmp/s >before || exit 90\nr() {\n  local label=$1; shift\n  echo \"[$label]\"; echo \"[$label]\" >&2\n  \"$@\" 2>link-error\n  local rc=$?\n  [[ $rc -eq 1 && -s link-error ]] || exit 91\n  /usr/bin/cat link-error >&2 || exit 92\n  echo \"[$label] status=$rc\"\n}\nr to-var-tmp link src /var/tmp/alias\nr to-dev-shm link src /dev/shm/alias\nr into-case link /var/tmp/s dst\n[[ ! -e /var/tmp/alias && ! -L /var/tmp/alias && ! -e /dev/shm/alias && ! -L /dev/shm/alias && ! -e dst && ! -L dst ]] || exit 93\n/usr/bin/python3 link_control.py snapshot src /var/tmp/s >after || exit 94\n/usr/bin/cmp -s before after || exit 95\n/usr/bin/rm -f before after link-error\nprintf 'destinations absent; sources unchanged\\n'\n",
+      "expected_status": 0,
+      "timeout": 30
+    }
+  ]
+}

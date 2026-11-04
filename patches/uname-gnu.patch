@@ -17,7 +17,7 @@
  
  #include "bashtypes.h"
  
-@@ -47,71 +48,121 @@
+@@ -47,75 +48,127 @@
  #include "bashgetopt.h"
  #include "common.h"
  
@@ -193,7 +193,14 @@
  #ifdef HAVE_UNAME
    if (uname (&uninfo) < 0)
      {
-@@ -123,37 +174,53 @@
+-      builtin_error ("cannot get system name: %s", strerror (errno));
++      int saved_errno = errno;
++      fprintf (stderr, "uname: cannot get system name: %s\n",
++               strerror (saved_errno));
+       return (EXECUTION_FAILURE);
+     }
+ #else
+@@ -123,37 +176,53 @@
    return (EXECUTION_FAILURE);
  #endif
  

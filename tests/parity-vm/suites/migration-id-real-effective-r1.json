@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "mig-id-real-effective-groups-r1",
+      "loadable": "id",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "purpose": "Check default groups and -G with split credentials, real GID absent or supplementary, equal IDs, and unnamed effective IDs. Also verify real/effective options and names.",
+      "oracle": "GNU coreutils id in reference Bash, same credential setup, Bash -p and private passwd/group fixtures.",
+      "comparison": "Byte parity and status with /proc identity and group snapshots; setup or command failure is a nonzero case status.",
+      "covers": [
+        "id/id-real-effective-identity"
+      ],
+      "requires": [
+        "id",
+        "mount",
+        "setpriv"
+      ],
+      "script": "set -u\nP=$PWD\ncat > \"$P/passwd.fx\" <<'X'\nroot:x:0:0:root:/root:/bin/bash\nalice:x:3001:3001:Alice:/tmp:/bin/bash\nbob:x:3002:3002:Bob:/tmp:/bin/bash\nX\ncat > \"$P/group.fx\" <<'X'\nroot:x:0:\nalice:x:3001:\nbob:x:3002:\nstaff:x:4000:\nwheel:x:4001:\nX\n/usr/bin/mount --bind \"$P/passwd.fx\" /etc/passwd || exit 97\n/usr/bin/mount --bind \"$P/group.fx\" /etc/group || exit 97\nrun() {\n  local label=$1 ru=$2 eu=$3 rg=$4 eg=$5 gs=$6\n  echo \"case=$label\"\n  /usr/bin/setpriv --ruid=\"$ru\" --euid=\"$eu\" --rgid=\"$rg\" --egid=\"$eg\" --groups=\"$gs\" \"$BASH\" --noprofile --norc -p -c '\n    want_ru=$1 want_eu=$2 want_rg=$3 want_eg=$4\n    set -f\n    while read -r tag a b rest; do\n      case $tag in\n        Uid:) [[ $a == \"$want_ru\" && $b == \"$want_eu\" ]] || exit 97;;\n        Gid:) [[ $a == \"$want_rg\" && $b == \"$want_eg\" ]] || exit 97;;\n      esac\n    done < /proc/$BASHPID/status\n    while IFS= read -r line; do case $line in Uid:*|Gid:*|Groups:*) echo \"$line\";; esac; done < /proc/$BASHPID/status\n    for q in \"id\" \"id -a\" \"id -ru\" \"id -u\" \"id -rg\" \"id -g\" \"id -G\"; do\n      out=$($q 2>&1); rc=$?; printf \"%s => %s (rc=%s)\\n\" \"$q\" \"$out\" \"$rc\"\n      (( rc == 0 )) || exit 98\n    done\n  ' fixture \"$ru\" \"$eu\" \"$rg\" \"$eg\" || exit 97\n}\nrun split-absent 3001 3002 3001 3002 4000,4001\nrun split-real-member 3001 3002 3001 3002 3001,3002,4000\nrun equal 3001 3001 3001 3001 3001,4000\nrun numeric 3001 3999 3001 3998 3001,4000\n",
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}

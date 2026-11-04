@@ -335,6 +335,59 @@
       "requires": [
         "curl"
       ]
+    },
+    {
+      "id": "request-framed-persistent-peer",
+      "kind": "parity",
+      "purpose": "Content-Length, chunked with trailers, and no-content responses finish while the HTTP/1.1 peer remains open.",
+      "script": "cat > srv.py <<'PY2'\nimport socket, sys\ns = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\ns.bind(('127.0.0.1', 18080)); s.listen(1)\nprint('ready', flush=True)\nc, _ = s.accept(); c.settimeout(4)\ndata = b''\nwhile b'\\r\\n\\r\\n' not in data:\n    part = c.recv(4096)\n    if not part: break\n    data += part\nkind = sys.argv[1]\nif kind == 'length': response = b'HTTP/1.1 200 OK\\r\\nContent-Length: 3\\r\\n\\r\\nok\\n'\nelif kind == 'chunk': response = b'HTTP/1.1 200 OK\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n3\\r\\nok\\n\\r\\n0\\r\\nX-End: yes\\r\\n\\r\\n'\nelse: response = b'HTTP/1.1 204 No Content\\r\\n\\r\\n'\nc.sendall(response)\n# A correct client closes promptly after receiving the complete response.\ntry:\n    while c.recv(4096): pass\nexcept (TimeoutError, ConnectionError): pass\nc.close(); s.close()\nPY2\nfor kind in length chunk empty; do\n  coproc SRV { /usr/bin/python3 srv.py \"$kind\"; }\n  read -r -t 5 ready <&\"${SRV[0]}\"\n  rc=0; curl -sS --max-time 2 http://127.0.0.1:18080/ || rc=$?\n  wait \"$SRV_PID\" || true\n  printf '%s status=%s\\n' \"$kind\" \"$rc\"\ndone\nrm -f srv.py\n",
+      "requires": [
+        "curl",
+        "python3"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 15
+    },
+    {
+      "id": "request-framed-informational-persistent-peer",
+      "kind": "parity",
+      "purpose": "Interim 100 and 103 heads precede the final response on a peer that stays open.",
+      "script": "cat > srv.py <<'PY2'\nimport socket, sys\ns = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\ns.bind(('127.0.0.1', 18080)); s.listen(1)\nprint('ready', flush=True)\nc, _ = s.accept(); c.settimeout(4)\ndata = b''\nwhile b'\\r\\n\\r\\n' not in data:\n    part = c.recv(4096)\n    if not part: break\n    data += part\nkind = sys.argv[1]\nif kind == 'length': response = b'HTTP/1.1 200 OK\\r\\nContent-Length: 3\\r\\n\\r\\nok\\n'\nelif kind == 'info': response = b'HTTP/1.1 100 Continue\\r\\n\\r\\nHTTP/1.1 103 Early Hints\\r\\nLink: </a>\\r\\n\\r\\nHTTP/1.1 200 OK\\r\\nContent-Length: 3\\r\\n\\r\\nok\\n'\nelif kind == 'chunk': response = b'HTTP/1.1 200 OK\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n3\\r\\nok\\n\\r\\n0\\r\\nX-End: yes\\r\\n\\r\\n'\nelse: response = b'HTTP/1.1 204 No Content\\r\\n\\r\\n'\nc.sendall(response)\n# A correct client closes promptly after receiving the complete response.\ntry:\n    while c.recv(4096): pass\nexcept (TimeoutError, ConnectionError): pass\nc.close(); s.close()\nPY2\nfor kind in info; do\n  coproc SRV { /usr/bin/python3 srv.py \"$kind\"; }\n  read -r -t 5 ready <&\"${SRV[0]}\"\n  rc=0; curl -sS --max-time 2 http://127.0.0.1:18080/ || rc=$?\n  wait \"$SRV_PID\" || true\n  printf '%s status=%s\\n' \"$kind\" \"$rc\"\ndone\nrm -f srv.py\n",
+      "requires": [
+        "curl",
+        "python3"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 15
+    },
+    {
+      "id": "request-framed-informational-dump-headers",
+      "kind": "parity",
+      "purpose": "Informational and final headers are all retained in -D output while the peer stays open.",
+      "script": "cat > srv.py <<'PY2'\nimport socket, sys\ns = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\ns.bind(('127.0.0.1', 18080)); s.listen(1)\nprint('ready', flush=True)\nc, _ = s.accept(); c.settimeout(4)\ndata = b''\nwhile b'\\r\\n\\r\\n' not in data:\n    part = c.recv(4096)\n    if not part: break\n    data += part\nkind = sys.argv[1]\nif kind == 'length': response = b'HTTP/1.1 200 OK\\r\\nContent-Length: 3\\r\\n\\r\\nok\\n'\nelif kind == 'info': response = b'HTTP/1.1 100 Continue\\r\\n\\r\\nHTTP/1.1 103 Early Hints\\r\\nLink: </a>\\r\\n\\r\\nHTTP/1.1 200 OK\\r\\nContent-Length: 3\\r\\n\\r\\nok\\n'\nelif kind == 'chunk': response = b'HTTP/1.1 200 OK\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n3\\r\\nok\\n\\r\\n0\\r\\nX-End: yes\\r\\n\\r\\n'\nelse: response = b'HTTP/1.1 204 No Content\\r\\n\\r\\n'\nc.sendall(response)\n# A correct client closes promptly after receiving the complete response.\ntry:\n    while c.recv(4096): pass\nexcept (TimeoutError, ConnectionError): pass\nc.close(); s.close()\nPY2\nfor kind in info; do\n  coproc SRV { /usr/bin/python3 srv.py \"$kind\"; }\n  read -r -t 5 ready <&\"${SRV[0]}\"\n  rc=0; curl -sS -D - --max-time 2 http://127.0.0.1:18080/ || rc=$?\n  wait \"$SRV_PID\" || true\n  printf '%s status=%s\\n' \"$kind\" \"$rc\"\ndone\nrm -f srv.py\n",
+      "requires": [
+        "curl",
+        "python3"
+      ],
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 15
+    },
+    {
+      "id": "request-ambiguous-response-length",
+      "kind": "contract",
+      "purpose": "Reject nondecimal and conflicting response Content-Length fields without emitting body.",
+      "requires": [
+        "curl",
+        "python3"
+      ],
+      "script": "[[ $(type -t curl) == builtin ]] || exit 97\ncat > srv-invalid.py <<'PY2'\nimport socket, sys\ns = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\ns.bind(('127.0.0.1', 18080)); s.listen(1)\nprint('ready', flush=True)\nc, _ = s.accept(); c.settimeout(4)\nrequest = b''\nwhile b'\\r\\n\\r\\n' not in request:\n    part = c.recv(4096)\n    if not part: break\n    request += part\nlength = b'Content-Length: 3x\\r\\n' if sys.argv[1] == 'bad' else b'Content-Length: 3\\r\\nContent-Length: 9\\r\\n'\nc.sendall(b'HTTP/1.1 200 OK\\r\\n' + length + b'\\r\\nok\\n')\ntry:\n    while c.recv(4096): pass\nexcept (TimeoutError, ConnectionError): pass\nc.close(); s.close()\nPY2\nfor kind in bad conflict; do\n  coproc SRV { /usr/bin/python3 srv-invalid.py \"$kind\"; }\n  read -r -t 5 ready <&\"${SRV[0]}\" || exit 1\n  rc=0; curl -sS --max-time 2 http://127.0.0.1:18080/ > body 2> err || rc=$?\n  wait \"$SRV_PID\" || exit 1\n  [[ $rc != 0 && ! -s body && -s err ]] || exit 1\ndone\nrm -f srv-invalid.py body err\nprintf 'invalid framing rejected\\n'\n",
+      "expected_status": 0,
+      "stdout": "invalid framing rejected\n",
+      "stderr": "empty",
+      "timeout": 15
     }
   ]
 }

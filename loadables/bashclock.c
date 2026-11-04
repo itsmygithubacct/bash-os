@@ -65,6 +65,8 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 #include "loadables.h"
 
@@ -126,18 +128,75 @@ bc_since (WORD_LIST *args)
 {
   if (!args)
     { builtin_error ("since: needs T0"); return EX_USAGE; }
-  struct timespec t0, t1;
-  if (bc_parse_ts (args->word->word, &t0) < 0)
-    { builtin_error ("since: bad T0 format (want SECS.NANOS): %s", args->word->word); return EX_USAGE; }
+  if (args->next)
+    { builtin_error ("since: unexpected extra argument"); return EX_USAGE; }
+
+  /* Parse the signed decimal as a magnitude.  A negative fraction cannot
+     be represented by simply negating the seconds field of a timespec. */
+  const char *p = args->word->word;
+  int negative = (*p == '-'), digits = 0, fractional_digits = 0;
+  uintmax_t start_sec = 0;
+  long start_ns = 0;
+  if (negative) p++;
+  while (*p >= '0' && *p <= '9')
+    {
+      unsigned int digit = *p++ - '0';
+      if (start_sec > (UINTMAX_MAX - digit) / 10) goto bad_start;
+      start_sec = start_sec * 10 + digit;
+      digits = 1;
+    }
+  if (*p == '.')
+    {
+      p++;
+      while (*p >= '0' && *p <= '9')
+        {
+          if (fractional_digits < 9)
+            { start_ns = start_ns * 10 + (*p - '0'); fractional_digits++; }
+          p++;
+        }
+      if (!fractional_digits) goto bad_start;
+    }
+  if (!digits || *p) goto bad_start;
+  while (fractional_digits++ < 9) start_ns *= 10;
+
+  struct timespec t1;
   if (clock_gettime (CLOCK_MONOTONIC, &t1) < 0)
     { builtin_error ("clock_gettime: %s", strerror (errno)); return EXECUTION_FAILURE; }
 
-  /* Compute t1 - t0, normalize the borrow. */
-  long long ds = (long long) t1.tv_sec - (long long) t0.tv_sec;
-  long dn = t1.tv_nsec - t0.tv_nsec;
-  if (dn < 0) { dn += 1000000000L; ds -= 1; }
-  printf ("%lld.%09ld\n", ds, dn);
+  uintmax_t now_sec = (uintmax_t) t1.tv_sec, sec;
+  long ns;
+  int result_negative = 0;
+  if (negative)
+    {
+      if (start_sec > UINTMAX_MAX - now_sec)
+        { builtin_error ("since: result out of range"); return EXECUTION_FAILURE; }
+      sec = now_sec + start_sec;
+      ns = t1.tv_nsec + start_ns;
+      if (ns >= 1000000000L)
+        {
+          if (sec == UINTMAX_MAX)
+            { builtin_error ("since: result out of range"); return EXECUTION_FAILURE; }
+          sec++; ns -= 1000000000L;
+        }
+    }
+  else
+    {
+      int start_later = start_sec > now_sec ||
+        (start_sec == now_sec && start_ns > t1.tv_nsec);
+      uintmax_t high_sec = start_later ? start_sec : now_sec;
+      uintmax_t low_sec = start_later ? now_sec : start_sec;
+      long high_ns = start_later ? start_ns : t1.tv_nsec;
+      long low_ns = start_later ? t1.tv_nsec : start_ns;
+      sec = high_sec - low_sec;
+      ns = high_ns - low_ns;
+      if (ns < 0) { sec--; ns += 1000000000L; }
+      result_negative = start_later;
+    }
+  printf ("%s%" PRIuMAX ".%09ld\n", result_negative ? "-" : "", sec, ns);
   return EXECUTION_SUCCESS;
+
+bad_start:
+    { builtin_error ("since: bad T0 format (want SECS.NANOS): %s", args->word->word); return EX_USAGE; }
 }
 
 static int
@@ -149,10 +208,12 @@ bc_sleep (WORD_LIST *args)
   if (bc_parse_ts (args->word->word, &req) < 0)
     { builtin_error ("sleep: bad SECS format: %s", args->word->word); return EX_USAGE; }
   /* Honor SIGINT / Ctrl-C — don't loop EINTR away. */
-  if (clock_nanosleep (CLOCK_MONOTONIC, 0, &req, NULL) != 0)
+  int err = clock_nanosleep (CLOCK_MONOTONIC, 0, &req, NULL);
+  if (err != 0)
     {
-      if (errno == EINTR) return EXECUTION_FAILURE;
-      builtin_error ("clock_nanosleep: %s", strerror (errno));
+      /* Unlike nanosleep, clock_nanosleep returns the error number. */
+      if (err == EINTR) return EXECUTION_FAILURE;
+      builtin_error ("clock_nanosleep: %s", strerror (err));
       return EXECUTION_FAILURE;
     }
   return EXECUTION_SUCCESS;

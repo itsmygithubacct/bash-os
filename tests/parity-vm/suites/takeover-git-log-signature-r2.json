@@ -1,0 +1,40 @@
+{
+  "cases": [
+    {
+      "comparison": "Compare whether each pretty format displays an independently verifiable signature and that later --no-show-signature suppresses it. Preserve full output separately to examine ordering and formatting.",
+      "covers": [
+        "git/signing_and_editor"
+      ],
+      "diagnostic_files": [
+        "log-format.out",
+        "log-format.err",
+        "log-pretty.out",
+        "log-pretty.err",
+        "log-oneline.out",
+        "log-oneline.err",
+        "log-default.out",
+        "log-default.err",
+        "log-disabled.out",
+        "log-disabled.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "takeover-git-log-signature-formats",
+      "kind": "parity",
+      "loadable": "git",
+      "oracle": "Pinned system Git and OpenSSH, with a system-signed fixture commit and isolated signer key.",
+      "requires": [
+        "git",
+        "ssh-keygen",
+        "grep"
+      ],
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nfor mode in format pretty oneline default disabled; do\n  case $mode in\n    format) set -- --show-signature --format=%H ;;\n    pretty) set -- --show-signature --pretty=format:%H ;;\n    oneline) set -- --show-signature --oneline ;;\n    default) set -- --show-signature ;;\n    disabled) set -- --show-signature --no-show-signature --format=%H ;;\n  esac\n  git -C signed -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=\"$HOME/signers\" log -1 \"$@\" >\"$HOME/log-$mode.out\" 2>\"$HOME/log-$mode.err\"; rc=$?\n  sig=no\n  if /usr/bin/grep -F 'Good \"git\" signature for fixture@example.test' \"$HOME/log-$mode.out\" >/dev/null; then sig=yes; fi\n  printf '%s rc=%s signature=%s\\n' \"$mode\" \"$rc\" \"$sig\"\ndone\n/usr/bin/rm -rf signed\n",
+      "setup_script": "export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=gc.auto GIT_CONFIG_VALUE_0=0 GIT_CONFIG_KEY_1=maintenance.auto GIT_CONFIG_VALUE_1=false\nset -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture -f \"$HOME/key\"\nread -r kt kk kc < \"$HOME/key.pub\"\nprintf 'fixture@example.test namespaces=\"git\" %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/signers\"\n/usr/bin/git init -q -b main signed\nprintf 'signed\\n' >signed/file\n/usr/bin/git -C signed add file\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" commit -q -S -m signed\n",
+      "stderr": "",
+      "stdout": "format rc=0 signature=yes\npretty rc=0 signature=yes\noneline rc=0 signature=yes\ndefault rc=0 signature=yes\ndisabled rc=0 signature=no\n",
+      "timeout": 50
+    }
+  ],
+  "schema": 1
+}

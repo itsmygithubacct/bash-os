@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-dns-dnskey-keytag-collision",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "requires": [
+        "python3",
+        "delv"
+      ],
+      "helpers_sha256": {
+        "helpers/dnssec-keytag-collision-peer.py": "b406d2686f21a849f26335453084d13fa935fc7c163ec41681672d4f4617fbff"
+      },
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\n",
+      "candidate_script": "set -u\nH=/opt/bashos-parity/harness/helpers/dnssec-keytag-collision-peer.py\n/usr/bin/python3 \"$H\" prep || exit 98\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> \"$HOME/anchor-peer.err\" & peer=$!\ntrap 'kill \"$peer\" 2>/dev/null; wait \"$peer\" 2>/dev/null' EXIT\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340 || exit 98\ncontrol=$(/usr/bin/python3 \"$H\" control 127.0.0.2 5340 collision) || exit 98\n[[ $control == control-ok ]] || { printf '%s\\n' \"$control\"; exit 98; }\necho control-ok\nexport PATH=\"$HOME/pbin\" BASHDNS_SERVER_PORT=5340 BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\" BASHDNS_0X20=0\nif dns query collision.test A -s 127.0.0.2 -t 3000 --validate > \"$HOME/collision.out\" 2> \"$HOME/collision.err\"; then echo collision=accepted; else echo collision=rejected; exit 1; fi\n",
+      "expected_status": 0,
+      "stdout": "control-ok\ncollision=accepted\n",
+      "stderr": "",
+      "timeout": 60,
+      "purpose": "DNSKEY key tags can collide; the first nonverifying matching key must not hide a later valid authenticated signing key.",
+      "oracle": "Independent BIND delv validates the deterministic signed chain containing two distinct DNSKEYs with the same algorithm and key tag before the candidate is queried.",
+      "comparison": "Reference accepts the chain and the candidate accepts the correct leaf signature; setup or reference failure fails the case.",
+      "diagnostic_files": [
+        "anchor-peer.err",
+        "collision.out",
+        "collision.err",
+        "dnssec-queries.json"
+      ]
+    }
+  ]
+}

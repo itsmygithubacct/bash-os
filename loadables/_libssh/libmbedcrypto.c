@@ -41,6 +41,7 @@ extern char *strdup(const char *);
 
 #ifdef HAVE_LIBMBEDCRYPTO
 #include "_mbedtls_md.h"
+#include "_mbedtls_crypto.h"
 #ifdef MBEDTLS_GCM_C
 #include "_mbedtls_gcm.h"
 #endif /* MBEDTLS_GCM_C */
@@ -64,70 +65,66 @@ int ssh_kdf(struct ssh_crypto_struct *crypto,
                              key_type, output, requested_len);
 }
 
+/* Mbed TLS 4 no longer supports HMAC through mbedtls_md_setup().
+ * Use a volatile PSA key and release it as soon as the operation finishes. */
+struct ssh_mbedtls_hmac_ctx {
+    psa_mac_operation_t operation;
+    mbedtls_svc_key_id_t key;
+};
+
+static void hmac_free(HMACCTX ctx)
+{
+    if (ctx != NULL) {
+        psa_mac_abort(&ctx->operation);
+        psa_destroy_key(ctx->key);
+        free(ctx);
+    }
+}
+
 HMACCTX hmac_init(const void *key, size_t len, enum ssh_hmac_e type)
 {
-    HMACCTX ctx = NULL;
-    const mbedtls_md_info_t *md_info = NULL;
-    int rc;
-
-    ctx = malloc(sizeof(mbedtls_md_context_t));
-    if (ctx == NULL) {
-        return NULL;
-    }
+    psa_algorithm_t hash;
+    psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+    HMACCTX ctx;
+    psa_status_t rc;
 
     switch (type) {
-        case SSH_HMAC_SHA1:
-            md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
-            break;
-        case SSH_HMAC_SHA256:
-            md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-            break;
-        case SSH_HMAC_SHA512:
-            md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA512);
-            break;
-        default:
-            goto error;
+    case SSH_HMAC_SHA1: hash = PSA_ALG_SHA_1; break;
+    case SSH_HMAC_SHA256: hash = PSA_ALG_SHA_256; break;
+    case SSH_HMAC_SHA512: hash = PSA_ALG_SHA_512; break;
+    default: return NULL;
     }
-
-    mbedtls_md_init(ctx);
-
-    if (md_info == NULL) {
-        goto error;
-    }
-
-    rc = mbedtls_md_setup(ctx, md_info, 1);
-    if (rc != 0) {
-        goto error;
-    }
-
-    rc = mbedtls_md_hmac_starts(ctx, key, len);
-    if (rc != 0) {
-        goto error;
-    }
-
+    ctx = calloc(1, sizeof(*ctx));
+    if (ctx == NULL) return NULL;
+    ctx->operation = psa_mac_operation_init();
+    if (psa_crypto_init() != PSA_SUCCESS) goto error;
+    psa_set_key_type(&attr, PSA_KEY_TYPE_HMAC);
+    psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_SIGN_MESSAGE);
+    psa_set_key_algorithm(&attr, PSA_ALG_HMAC(hash));
+    rc = psa_import_key(&attr, key, len, &ctx->key);
+    psa_reset_key_attributes(&attr);
+    if (rc != PSA_SUCCESS) goto error;
+    if (psa_mac_sign_setup(&ctx->operation, ctx->key,
+                           PSA_ALG_HMAC(hash)) != PSA_SUCCESS) goto error;
     return ctx;
-
 error:
-    mbedtls_md_free(ctx);
-    SAFE_FREE(ctx);
+    hmac_free(ctx);
     return NULL;
 }
 
-/* mbedtls returns 0 on success, but in this context
- * success is 1 */
-int hmac_update(HMACCTX c, const void *data, size_t len)
+int hmac_update(HMACCTX ctx, const void *data, size_t len)
 {
-    return !mbedtls_md_hmac_update(c, data, len);
+    if (psa_mac_update(&ctx->operation, data, len) == PSA_SUCCESS) return 1;
+    hmac_free(ctx);
+    return 0;
 }
 
-int hmac_final(HMACCTX c, unsigned char *hashmacbuf, size_t *len)
+int hmac_final(HMACCTX ctx, unsigned char *hashmacbuf, size_t *len)
 {
-    int rc;
-    *len = (unsigned int)mbedtls_md_get_size(c->MBEDTLS_PRIVATE(md_info));
-    rc = !mbedtls_md_hmac_finish(c, hashmacbuf);
-    mbedtls_md_free(c);
-    SAFE_FREE(c);
-    return rc;
+    psa_status_t rc = psa_mac_sign_finish(&ctx->operation, hashmacbuf,
+                                          *len, len);
+    hmac_free(ctx);
+    return rc == PSA_SUCCESS;
 }
 
 static int

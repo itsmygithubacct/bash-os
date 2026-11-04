@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "bc-interactive-sequential-results-t022",
+      "loadable": "bc",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Each completed expression is visible before the next line and before EOF, with state retained.",
+      "script": "bc -q",
+      "steps": [
+        {"send": "x=19\r"},
+        {"send": "x+4\r"},
+        {"expect": "\\r\\n23\\r\\n"},
+        {"send": "x+12\r"},
+        {"expect": "\\r\\n31\\r\\n"},
+        {"send": "quit\r"}
+      ],
+      "expected_status": 0,
+      "covers": ["bc/interactive_terminal_editing"]
+    }
+  ]
+}

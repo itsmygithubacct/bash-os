@@ -49,6 +49,24 @@ static struct rc context(void) {
 static void cleanup(struct rc *c) { close(c->out); rc_free(c); assert(live == 0); }
 static const char sdp[] = "v=0\nm=video 0 RTP/AVP 96\na=control:track\na=rtpmap:96 H264/90000\na=fmtp:96 sprop-parameter-sets=Z0IAHqs=,aM4G4g==\na=fmtp:96 sprop-parameter-sets=Z0IAHqs=,aM4G4g==\n";
 int main(void) {
+    {
+        struct rc c = {0}; size_t len;
+        const char *good = "RTSP/1.0 200 OK\r\nCSeq: 1\r\nX-Test: value\tmore\r\nContent-Length: 0\r\n\r\n";
+        const char *bad[] = {
+            "RTSP/1.0 200 OK\r\nMalformed header\r\nContent-Length: 0\r\n\r\n",
+            "RTSP/1.0 200 OK\r\nBad Name: x\r\n\r\n",
+            "RTSP/1.0 2000 OK\r\n\r\n",
+            "RTSP/1.0 200 OK\r\nField: x\nother\r\n\r\n"
+        };
+        const char embedded_nul[] = "RTSP/1.0 200 OK\r\nX: a\0b\r\n\r\n";
+        assert(validate_headers(&c, good, strlen(good)) == 0);
+        assert(content_length(&c, good, &len) == 0 && len == 0);
+        for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+            assert(validate_headers(&c, bad[i], strlen(bad[i])) == -1);
+        assert(validate_headers(&c, embedded_nul, sizeof embedded_nul - 1) == -1);
+        assert(parse_url(&c, "rtsp://127.0.0.1:1234x/stream") == -1);
+        assert(parse_url(&c, "rtsp://127.0.0.1:1234/stream") == 0);
+    }
     char hash[33]; md5_str("", hash); assert(!strcmp(hash, "d41d8cd98f00b204e9800998ecf8427e"));
     md5_str("abc", hash); assert(!strcmp(hash, "900150983cd24fb0d6963f7d28e17f72"));
     for (int f = 1; f <= 8; f++) {

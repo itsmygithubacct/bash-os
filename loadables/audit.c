@@ -662,19 +662,14 @@ ba_wait_ack (int fd, unsigned seq)
 /* --- status -------------------------------------------------------- */
 
 static int
-ba_cmd_status (const char *var)
+ba_get_status (int fd, struct audit_status *st)
 {
-  int fd = ba_open ();
-  if (fd < 0)
-    { builtin_error ("status: NETLINK_AUDIT socket: %s", strerror (errno));
-      return EXECUTION_FAILURE; }
   unsigned seq = ba_seq ();
   if (ba_send (fd, AUDIT_GET, 0, NULL, 0, seq) < 0)
     { builtin_error ("status: send: %s", strerror (errno));
-      close (fd); return EXECUTION_FAILURE; }
+      return -1; }
 
   char buf[BA_BUFSZ];
-  struct audit_status st;
   int got = 0;
   for (; !got; )
     {
@@ -682,24 +677,43 @@ ba_cmd_status (const char *var)
       if (s < 0)
         { if (errno == EINTR) continue;
           builtin_error ("status: recv: %s", strerror (errno));
-          close (fd); return EXECUTION_FAILURE; }
+          return -1; }
       for (struct nlmsghdr *h = (struct nlmsghdr *) buf;
            NLMSG_OK (h, (size_t) s); h = NLMSG_NEXT (h, s))
         {
+          if (h->nlmsg_seq != seq)
+            continue;
           if (h->nlmsg_type == NLMSG_ERROR)
             { struct nlmsgerr *e = (struct nlmsgerr *) NLMSG_DATA (h);
+              if (NLMSG_PAYLOAD (h, 0) < sizeof *e)
+                { errno = EPROTO; return -1; }
               if (e->error)
                 { errno = -e->error;
                   builtin_error ("status: kernel: %s", strerror (errno));
-                  close (fd); return EXECUTION_FAILURE; } }
+                  return -1; } }
           if (h->nlmsg_type == AUDIT_GET)
-            { memset (&st, 0, sizeof st);
+            { if (NLMSG_PAYLOAD (h, 0) < 4 * sizeof st->mask)
+                { errno = EPROTO; return -1; }
+              memset (st, 0, sizeof *st);
               size_t pl = NLMSG_PAYLOAD (h, 0);
-              if (pl > sizeof st) pl = sizeof st;
-              memcpy (&st, NLMSG_DATA (h), pl);
+              if (pl > sizeof *st) pl = sizeof *st;
+              memcpy (st, NLMSG_DATA (h), pl);
               got = 1; break; }
         }
     }
+  return 0;
+}
+
+static int
+ba_cmd_status (const char *var)
+{
+  int fd = ba_open ();
+  if (fd < 0)
+    { builtin_error ("status: NETLINK_AUDIT socket: %s", strerror (errno));
+      return EXECUTION_FAILURE; }
+  struct audit_status st;
+  if (ba_get_status (fd, &st) < 0)
+    { close (fd); return EXECUTION_FAILURE; }
   close (fd);
 
   if (var)
@@ -772,6 +786,10 @@ ba_cmd_rule (int add, char **a, int n)
     ba_build_rule (a[0], a[1], a[2], a[3], a[4], a[5], &len);
   if (!r)
     return EXECUTION_FAILURE;     /* ba_build_rule already reported why */
+  /* PREPEND controls insertion only.  The kernel clears it on the stored
+     rule and includes flags in deletion matching. */
+  if (!add)
+    r->flags &= ~AUDIT_FILTER_PREPEND;
   int fd = ba_open ();
   if (fd < 0)
     { builtin_error ("%s: socket: %s", add ? "add-rule" : "del-rule",
@@ -806,10 +824,12 @@ ba_render_rule (const struct audit_rule_data *r)
   const char *flag = (r->flags & AUDIT_FILTER_PREPEND) ? "-A" : "-a";
   printf ("%s %s,%s", flag, act, fname);
 
-  /* syscalls: list set bits unless every bit is set ('all'). */
+  /* The kernel expands the high syscall-class bits on input and clears
+     them in a dump.  They are selectors, not syscall numbers. */
   int all = 1;
-  for (int i = 0; i < AUDIT_BITMASK_SIZE; i++)
-    if (r->mask[i] != ~0U) { all = 0; break; }
+  for (int nr = 0; nr < AUDIT_BITMASK_SIZE * 32 - AUDIT_SYSCALL_CLASSES; nr++)
+    if (!(r->mask[nr / 32] & (1U << (nr % 32))))
+      { all = 0; break; }
   if (all)
     printf (" -S all");
   else
@@ -922,6 +942,16 @@ ba_cmd_run (long count, long seconds, const char *outpath)
       if (out != stdout) fclose (out);
       return EXECUTION_FAILURE; }
 
+  /* Preserve the enabled state before changing it.  An existing daemon is
+   * not ours to displace or restore from a different netlink socket. */
+  struct audit_status snapshot;
+  if (ba_get_status (fd, &snapshot) < 0)
+    { close (fd); if (out != stdout) fclose (out); return EXECUTION_FAILURE; }
+  if (snapshot.pid != 0)
+    { builtin_error ("run: audit daemon already registered (pid %u)",
+                     (unsigned) snapshot.pid);
+      close (fd); if (out != stdout) fclose (out); return EXECUTION_FAILURE; }
+
   /* Register as the audit daemon: pid=self, enabled=1. */
   struct audit_status st;
   memset (&st, 0, sizeof st);
@@ -934,12 +964,12 @@ ba_cmd_run (long count, long seconds, const char *outpath)
     { builtin_error ("run: register audit daemon: %s", strerror (errno));
       close (fd); if (out != stdout) fclose (out); return EXECUTION_FAILURE; }
 
-  struct sigaction sa;
+  struct sigaction sa, oldint, oldterm, oldalrm;
   memset (&sa, 0, sizeof sa);
   sa.sa_handler = ba_on_signal;
-  sigaction (SIGINT, &sa, NULL);
-  sigaction (SIGTERM, &sa, NULL);
-  sigaction (SIGALRM, &sa, NULL);
+  sigaction (SIGINT, &sa, &oldint);
+  sigaction (SIGTERM, &sa, &oldterm);
+  sigaction (SIGALRM, &sa, &oldalrm);
   ba_stop = 0;
 
   time_t deadline = (seconds > 0) ? time (NULL) + seconds : 0;
@@ -986,18 +1016,25 @@ ba_cmd_run (long count, long seconds, const char *outpath)
       fflush (out);
     }
 
-  /* Best-effort: deregister as the audit daemon on the way out. */
+  /* Deregister and restore the enabled state captured before registration. */
   memset (&st, 0, sizeof st);
-  st.mask = AUDIT_STATUS_PID;
+  st.mask = AUDIT_STATUS_PID | AUDIT_STATUS_ENABLED;
   st.pid = 0;
+  st.enabled = snapshot.enabled;
   seq = ba_seq ();
-  ba_send (fd, AUDIT_SET, NLM_F_ACK, &st, sizeof st, seq);
-  ba_wait_ack (fd, seq);
+  int rc = EXECUTION_SUCCESS;
+  if (ba_send (fd, AUDIT_SET, NLM_F_ACK, &st, sizeof st, seq) < 0
+      || ba_wait_ack (fd, seq) < 0)
+    { builtin_error ("run: restore audit state: %s", strerror (errno));
+      rc = EXECUTION_FAILURE; }
+  sigaction (SIGINT, &oldint, NULL);
+  sigaction (SIGTERM, &oldterm, NULL);
+  sigaction (SIGALRM, &oldalrm, NULL);
 
   close (fd);
   if (out != stdout) fclose (out);
   printf ("%ld\n", emitted);     /* records emitted */
-  return EXECUTION_SUCCESS;
+  return rc;
 }
 
 /* ----------------------------------------------------------------- */

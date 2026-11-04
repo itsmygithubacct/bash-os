@@ -59,7 +59,10 @@ ipcmk_bad_usage (void)
 static int
 ipcmk_missing_argument (const char *opt)
 {
-    fprintf (stderr, "ipcmk: option '%s' requires an argument\n", opt);
+    if (opt[0] == '-' && opt[1] != '-' && opt[1] && !opt[2])
+        fprintf (stderr, "ipcmk: option requires an argument -- '%c'\n", opt[1]);
+    else
+        fprintf (stderr, "ipcmk: option '%s' requires an argument\n", opt);
     ipcmk_try_help ();
     return EXECUTION_FAILURE;
 }
@@ -67,7 +70,10 @@ ipcmk_missing_argument (const char *opt)
 static int
 ipcmk_unrecognized (const char *opt)
 {
-    fprintf (stderr, "ipcmk: unrecognized option '%s'\n", opt);
+    if (opt[0] == '-' && opt[1] != '-' && opt[1])
+        fprintf (stderr, "ipcmk: invalid option -- '%c'\n", opt[1]);
+    else
+        fprintf (stderr, "ipcmk: unrecognized option '%s'\n", opt);
     ipcmk_try_help ();
     return EXECUTION_FAILURE;
 }
@@ -89,8 +95,11 @@ ipcmk_parse_mode (const char *s, unsigned int *mode_out)
         return -1;
     errno = 0;
     mode = strtoul (s, &end, 8);
-    if (errno != 0 || end == s || *end != '\0' || mode > 0777)
+    if (errno != 0 || end == s || *end != '\0' || mode > 0777) {
+        if (errno == 0)
+            errno = EINVAL;
         return -1;
+    }
     *mode_out = (unsigned int) mode;
     return 0;
 }
@@ -105,7 +114,9 @@ ipcmk_parse_count (const char *s, int *count_out)
         return -1;
     errno = 0;
     count = strtoul (s, &end, 10);
-    if (errno != 0 || end == s || *end != '\0' || count == 0 || count > INT_MAX)
+    if (count > INT_MAX && errno == 0)
+        errno = ERANGE;
+    if (errno != 0 || end == s || *end != '\0' || count == 0)
         return -1;
     *count_out = (int) count;
     return 0;
@@ -273,8 +284,13 @@ ipcmk_builtin (WORD_LIST *list)
                 list = list->next;
                 arg = list->word->word;
             }
+            errno = 0;
             if (ipcmk_parse_size (arg, &shm_size) < 0) {
-                fprintf (stderr, "ipcmk: invalid shared memory size '%s'\n", arg);
+                if (!posix && !strcmp (arg, "0"))
+                    fprintf (stderr, "ipcmk: create share memory failed: %s\n", strerror (EINVAL));
+                else
+                    fprintf (stderr, "ipcmk: failed to parse size: '%s': %s\n", arg,
+                             strerror (errno == ERANGE ? ERANGE : EINVAL));
                 return EXECUTION_FAILURE;
             }
             if (ipcmk_set_kind (&kind, posix ? IPCMK_POSIX_SHM : IPCMK_SHM) < 0)
@@ -295,8 +311,14 @@ ipcmk_builtin (WORD_LIST *list)
                 list = list->next;
                 arg = list->word->word;
             }
+            errno = 0;
             if (ipcmk_parse_count (arg, &sem_count) < 0) {
-                fprintf (stderr, "ipcmk: invalid semaphore count '%s'\n", arg);
+                if (!strcmp (arg, "0"))
+                    fprintf (stderr, "ipcmk: create semaphore failed: %s\n", strerror (EINVAL));
+                else if (errno == ERANGE)
+                    fprintf (stderr, "ipcmk: failed to parse elements: '%s': %s\n", arg, strerror (ERANGE));
+                else
+                    fprintf (stderr, "ipcmk: failed to parse elements: '%s'\n", arg);
                 return EXECUTION_FAILURE;
             }
             if (ipcmk_set_kind (&kind, IPCMK_SEM) < 0)
@@ -317,8 +339,9 @@ ipcmk_builtin (WORD_LIST *list)
                 list = list->next;
                 arg = list->word->word;
             }
+            errno = 0;
             if (ipcmk_parse_mode (arg, &mode) < 0) {
-                fprintf (stderr, "ipcmk: invalid mode '%s'\n", arg);
+                fprintf (stderr, "ipcmk: failed to parse mode: %s\n", strerror (errno));
                 return EXECUTION_FAILURE;
             }
             list = list->next;

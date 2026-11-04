@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "uv-missing-compiled-empty-path",
+      "loadable": "uv",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "uv/missing-helper-diagnostic"
+      ],
+      "setup_script": "test ! -e /usr/lib/bash-os/libexec/uv/uv\n",
+      "script": "PATH=\ncase $(type -t uv) in builtin) echo builtin;; *) echo missing-builtin; exit 1;; esac\nmsg=$(uv --version 2>&1 >/dev/null); status=$?\nprintf 'status=%s\\n' \"$status\"\ncase $msg in *'/usr/lib/bash-os/libexec/uv/uv'*) echo path-present;; *) echo path-absent;; esac\ncase $msg in *'install it with: pkg install uv'*) echo hint-present;; *) echo hint-absent;; esac\n",
+      "stdout": "builtin\nstatus=127\npath-present\nhint-present\n",
+      "stderr": "",
+      "expected_status": 0,
+      "oracle": "The compiled-in uv contract specifies status 127 and the install hint when /usr/lib/bash-os/libexec/uv/uv is absent; type confirms the builtin is being tested.",
+      "comparison": "With an empty PATH and no compiled-in helper, assert builtin availability, status, helper path, and install hint."
+    }
+  ]
+}

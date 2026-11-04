@@ -18,6 +18,7 @@
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
+#include <sys/syscall.h>
 #include <netdb.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -31,10 +32,12 @@
 #include <fnmatch.h>
 #include <glob.h>
 #include <time.h>
+#include <poll.h>
 #include <arpa/inet.h>
 
 #include "loadables.h"
 #include "bashcred_privdrop.h"
+#include "auth-v2-client.h"
 
 #if defined (__has_include)
 # if __has_include ("_libssh_libssh.h")
@@ -582,6 +585,8 @@ static int  g_n_hostkeys = 0;
 /* F06 item 6a: sshd_config security directives. Defaults match the existing
    (un-gated) behaviour so configs without these lines are unaffected. */
 static int  g_permit_root = 1;     /* 0=no, 1=yes (default), 2=prohibit-password */
+static unsigned g_authority_v2_encoding; /* explicit new protocol; zero keeps legacy behavior */
+static int g_authority_v2_qualification;
 static long g_max_auth_tries = 0;  /* 0 = unlimited; >0 = per-connection cap */
 static long g_login_grace_s = 0;   /* 0 = no pre-auth deadline; >0 = seconds */
 static int  g_permit_tty = 1;      /* 0 = refuse PTY requests globally */
@@ -1098,6 +1103,7 @@ bsshd_pump_fd_channel (int fd, ssh_session session, ssh_channel channel)
 {
   char buf[8192];
   int sock_eof = 0;
+  int channel_eof = 0;
   for (;;)
     {
       fd_set rfds;
@@ -1114,13 +1120,16 @@ bsshd_pump_fd_channel (int fd, ssh_session session, ssh_channel channel)
       if (!sock_eof && FD_ISSET (fd, &rfds))
         {
           ssize_t n = read (fd, buf, sizeof buf);
+          if (n < 0 && errno == EINTR)
+            continue;
           if (n <= 0)
             {
               sock_eof = 1;
               ssh_channel_send_eof (channel);
             }
           else
-            bsshd_channel_write_all (channel, buf, (size_t) n, 0);
+            if (bsshd_channel_write_all (channel, buf, (size_t) n, 0) < 0)
+              break;
         }
       int avail = ssh_channel_poll_timeout (channel, 0, 0);
       while (avail > 0)
@@ -1128,10 +1137,16 @@ bsshd_pump_fd_channel (int fd, ssh_session session, ssh_channel channel)
           uint32_t chunk = (uint32_t) (avail < (int) sizeof buf ? avail : (int) sizeof buf);
           int n = ssh_channel_read (channel, buf, chunk, 0);
           if (n <= 0) break;
-          write_all (fd, buf, (size_t) n);
+          if (write_all (fd, buf, (size_t) n) < 0)
+            return -1;
           avail -= n;
         }
-      if (ssh_channel_is_eof (channel) || !ssh_channel_is_open (channel))
+      if (!channel_eof && ssh_channel_is_eof (channel))
+        {
+          channel_eof = 1;
+          shutdown (fd, SHUT_WR);
+        }
+      if (!ssh_channel_is_open (channel) || (sock_eof && channel_eof))
         break;
     }
   return 0;
@@ -1178,32 +1193,41 @@ done:
   return 0;
 }
 
-/* Write the sshd placeholder host key + .pub at PATH with mode 0600.
-   Returns 0 on success, -1 on the primary-file write failure (errno is
-   set by the failing fopen).  The .pub sidecar is best-effort: if its
-   path overflows or its fopen fails, the primary key still counts as
-   written.  Factored out of keygen() so the run() lazy-auto-generation
-   path can call the same writer without going through the WORD_LIST
-   verb-dispatch shape. */
+/* Create each placeholder through its own descriptor, without following a
+   symlink or truncating before the file has been verified and secured. */
+static int
+bsshd_write_placeholder_file (const char *path, const char *format, const char *type)
+{
+  int fd = open (path, O_WRONLY | O_CREAT | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK, 0600);
+  if (fd < 0) return -1;
+  struct stat st;
+  if (fstat (fd, &st) < 0)
+    { int saved = errno; close (fd); errno = saved; return -1; }
+  if (!S_ISREG (st.st_mode))
+    { close (fd); errno = EINVAL; return -1; }
+  if (fchmod (fd, 0600) < 0 || ftruncate (fd, 0) < 0)
+    { int saved = errno; close (fd); errno = saved; return -1; }
+  FILE *f = fdopen (fd, "w");
+  if (!f)
+    { int saved = errno; close (fd); errno = saved; return -1; }
+  if (fprintf (f, format, type) < 0)
+    { int saved = errno ? errno : EIO; fclose (f); errno = saved; return -1; }
+  if (fclose (f) < 0) return -1;
+  return 0;
+}
+
+/* Both the private placeholder and its public sidecar are required. */
 static int
 bsshd_write_placeholder_key (const char *path, const char *type)
 {
   if (!path || !*path) { errno = EINVAL; return -1; }
-  FILE *f = fopen (path, "w");
-  if (!f) return -1;
-  chmod (path, 0600);
-  fprintf (f, "BASHSSHD-HOSTKEY %s\n", type ? type : "ed25519");
-  fclose (f);
   char pub[512];
   int n = snprintf (pub, sizeof pub, "%s.pub", path);
-  if (n <= 0 || (size_t) n >= sizeof pub) return 0;  /* primary written; .pub skipped */
-  f = fopen (pub, "w");
-  if (f)
-    {
-      fprintf (f, "sshd-%s AAAABASHOSHOSTKEY\n", type ? type : "ed25519");
-      fclose (f);
-    }
-  return 0;
+  if (n <= 0 || (size_t) n >= sizeof pub) { errno = ENAMETOOLONG; return -1; }
+  if (!type) type = "ed25519";
+  if (bsshd_write_placeholder_file (path, "BASHSSHD-HOSTKEY %s\n", type) < 0)
+    return -1;
+  return bsshd_write_placeholder_file (pub, "sshd-%s AAAABASHOSHOSTKEY\n", type);
 }
 
 static int
@@ -1445,7 +1469,7 @@ bsshd_spawn_local (const char *cmd, const char *infile,
 
 static int
 bsshd_spawn_pty_shell (const bsshd_target_user *target, int rows, int cols,
-                       int *master_fd)
+                       const char *cmd, int *master_fd)
 {
   int mfd = posix_openpt (O_RDWR | O_NOCTTY | O_CLOEXEC);
   if (mfd < 0)
@@ -1508,7 +1532,7 @@ bsshd_spawn_pty_shell (const bsshd_target_user *target, int rows, int cols,
         }
       /* Interactive login shell via explicit-envp exec (cmd==NULL): login vars +
          AcceptEnv session vars. setenv()+execl() doesn't propagate here. */
-      bsshd_exec_child (shell, NULL, target, NULL, NULL);
+      bsshd_exec_child (shell, cmd, target, NULL, NULL);
       _exit (127);
     }
   bsshd_child_guard_parent_end (&guard);
@@ -1525,20 +1549,22 @@ bsshd_spawn_pty_shell (const bsshd_target_user *target, int rows, int cols,
 static int
 bsshd_encrypted_handle_shell (ssh_session session, ssh_channel ch,
                               const bsshd_target_user *target,
-                              int rows, int cols)
+                              int rows, int cols, const char *cmd)
 {
   int mfd = -1;
-  pid_t pid = bsshd_spawn_pty_shell (target, rows, cols, &mfd);
+  pid_t pid = bsshd_spawn_pty_shell (target, rows, cols, cmd, &mfd);
   if (pid < 0)
     return -1;
 
   char buf[8192];
   int child_done = 0, channel_eof = 0, status = 0;
-  while (!child_done && ssh_channel_is_open (ch))
+  while (ssh_channel_is_open (ch))
     {
-      pid_t w = waitpid (pid, &status, WNOHANG);
-      if (w == pid)
-        { child_done = 1; break; }
+      if (!child_done)
+        {
+          pid_t w = waitpid (pid, &status, WNOHANG);
+          if (w == pid) child_done = 1;
+        }
       if (ssh_channel_is_eof (ch))
         channel_eof = 1;
 
@@ -1822,6 +1848,8 @@ run_local_agent_proxy (ssh_session session, const char *cmd, const char *infile,
   if (out_open) close (ofd);
   if (err_open) close (efd);
   bsshd_agent_proxy_close (&afd, &ach);
+  /* Channel blocking mode belongs to the session, not the individual channel. */
+  ssh_set_blocking (session, 1);
   bsshd_cleanup_agent_listener (lfd, agent_path, agent_dir);
   if (!child_done)
     waitpid (pid, &status, 0);
@@ -1884,7 +1912,12 @@ bsshd_from_allowed (const char *patterns, const char *peer)
   if (!patterns || !*patterns || !peer || !*peer)
     return 0;
   char buf[512];
-  snprintf (buf, sizeof buf, "%s", patterns);
+  size_t length = strlen (patterns);
+  if (length >= sizeof buf || patterns[0] == ',' ||
+      patterns[length - 1] == ',' || strstr (patterns, ",,"))
+    return 0;
+  memcpy (buf, patterns, length + 1);
+  int allowed = 0;
   char *save = NULL;
   for (char *tok = strtok_r (buf, ",", &save); tok; tok = strtok_r (NULL, ",", &save))
     {
@@ -1892,17 +1925,23 @@ bsshd_from_allowed (const char *patterns, const char *peer)
       int neg = 0;
       if (*tok == '!')
         { neg = 1; tok++; }
+      if (!*tok) return 0;
       if (bsshd_host_pattern_match (tok, peer))
-        return neg ? 0 : 1;
+        {
+          /* A matching exclusion vetoes every positive pattern, regardless
+             of their order. Do not admit on a positive prefix of the list. */
+          if (neg) return 0;
+          allowed = 1;
+        }
     }
-  return 0;
+  return allowed;
 }
 
-static void
+static int
 bsshd_dequote_option_value (char *s)
 {
-  if (!s || *s != '"')
-    return;
+  if (!s) return 0;
+  if (*s != '"') return !strchr (s, '"') && !strchr (s, '\\');
   char *r = s + 1, *w = s;
   int esc = 0;
   while (*r)
@@ -1912,10 +1951,14 @@ bsshd_dequote_option_value (char *s)
       if (*r == '\\')
         { esc = 1; r++; continue; }
       if (*r == '"')
-        { r++; break; }
+        {
+          if (r[1]) return 0;
+          *w = '\0';
+          return 1;
+        }
       *w++ = *r++;
     }
-  *w = '\0';
+  return 0; /* Missing closing quote or trailing escape. */
 }
 
 static int
@@ -1925,13 +1968,15 @@ bsshd_apply_authorized_key_options (const char *optspec, const char *peer,
   if (!optspec || !*optspec)
     return 1;
   char buf[2048];
-  snprintf (buf, sizeof buf, "%s", optspec);
+  size_t length = strlen (optspec);
+  if (length >= sizeof buf) return 0;
+  memcpy (buf, optspec, length + 1);
+  int command_seen = 0;
   char *p = buf;
   while (*p)
     {
-      while (*p == ',' || *p == ' ' || *p == '\t') p++;
-      if (!*p)
-        break;
+      while (*p == ' ' || *p == '\t') p++;
+      if (!*p || *p == ',') return 0;
       char *start = p;
       int quote = 0, esc = 0;
       while (*p)
@@ -1946,26 +1991,30 @@ bsshd_apply_authorized_key_options (const char *optspec, const char *peer,
             break;
           p++;
         }
+      if (quote || esc) return 0;
       if (*p)
-        *p++ = '\0';
+        {
+          *p++ = '\0';
+          if (!*p) return 0;
+        }
       char *eq = strchr (start, '=');
       if (eq)
         *eq++ = '\0';
-      if (!strcmp (start, "no-pty"))
+      if (!strcmp (start, "no-pty") && !eq)
         opts->no_pty = 1;
-      else if (!strcmp (start, "no-agent-forwarding"))
+      else if (!strcmp (start, "no-agent-forwarding") && !eq)
         opts->no_agent_forwarding = 1;
-      else if (!strcmp (start, "no-port-forwarding"))
+      else if (!strcmp (start, "no-port-forwarding") && !eq)
         opts->no_port_forwarding = 1;
       else if (!strcmp (start, "command") && eq)
         {
-          bsshd_dequote_option_value (eq);
-          snprintf (opts->forced_command, sizeof opts->forced_command, "%s", eq);
+          if (command_seen++ || !bsshd_dequote_option_value (eq) ||
+              !*eq || strlen (eq) >= sizeof opts->forced_command) return 0;
+          memcpy (opts->forced_command, eq, strlen (eq) + 1);
         }
       else if (!strcmp (start, "from") && eq)
         {
-          bsshd_dequote_option_value (eq);
-          if (!bsshd_from_allowed (eq, peer))
+          if (!bsshd_dequote_option_value (eq) || !bsshd_from_allowed (eq, peer))
             return 0;
         }
       else
@@ -1979,6 +2028,26 @@ bsshd_apply_authorized_key_options (const char *optspec, const char *peer,
   return 1;
 }
 
+/* Read exactly one physical authorized_keys record. An overlong or NUL-bearing
+   record must not become an unrestricted key at the next fgets-sized chunk. */
+static int
+bsshd_read_authorized_key_line (FILE *file, char *line, size_t capacity)
+{
+  size_t used = 0;
+  int ch, invalid = 0, seen = 0;
+  while ((ch = fgetc (file)) != EOF)
+    {
+      seen = 1;
+      if (ch == '\n') break;
+      if (ch == 0 || used + 1 >= capacity) invalid = 1;
+      else if (!invalid) line[used++] = (char)ch;
+    }
+  line[used] = '\0';
+  if (ferror (file)) return -2;
+  if (invalid) return -1;
+  return seen;
+}
+
 static int
 bsshd_authorized_key_match (const char *path, const char *peer, ssh_key offered,
                             bsshd_authz_options *out_opts)
@@ -1988,8 +2057,11 @@ bsshd_authorized_key_match (const char *path, const char *peer, ssh_key offered,
     return 0;
   char line[8192];
   int matched = 0;
-  while (fgets (line, sizeof line, f))
+  int line_status;
+  while ((line_status = bsshd_read_authorized_key_line (f, line, sizeof line)) != 0)
     {
+      if (line_status == -2) break;
+      if (line_status < 0) continue;
       char *p = line;
       char *options = NULL;
       char *type = NULL;
@@ -2225,12 +2297,171 @@ bsshd_auth_password_allowed (const bsshd_target_user *target, const char *user,
     }
   bsshd_child_guard_parent_end (&guard);
   int st = 0;
-  while (waitpid (pid, &st, 0) < 0 && errno == EINTR)
-    ;
+  pid_t waited;
+  do
+    waited = waitpid (pid, &st, 0);
+  while (waited < 0 && errno == EINTR);
   ioctl (afd, BSSHD_AUTH_IOC_CLEAR_SECRET, &h);
   close (afd);
   memset (phc, 0, sizeof phc);
-  return WIFEXITED (st) && WEXITSTATUS (st) == 0;
+  /* A missing/error wait supplies no verifier result. In particular ECHILD
+     must not interpret the initial zero status as successful authentication. */
+  return waited == pid && WIFEXITED (st) && WEXITSTATUS (st) == 0;
+}
+
+/* Apply root policy before replying SSH authentication success, including
+ * Match overrides. A later channel denial is not authentication refusal. */
+static int
+bsshd_root_auth_allowed (const bsshd_target_user *target, const char *user,
+                         const char *peer, int password)
+{
+  bsshd_target_user found;
+  int root = g_permit_root, tty = g_permit_tty, forwarding = 0, agent = 0;
+  if (!target || !target->enabled)
+    {
+      if (bsshd_fill_target_user (user, &found) < 0) return 0;
+      target = &found;
+    }
+  if (!user || strcmp (target->user.name, user)) return 0;
+  bsshd_match_apply (peer, user, &root, &tty, &forwarding, &agent);
+  return target->user.uid != 0 || (root != 0 && !(root == 2 && password));
+}
+
+static int
+bsshd_v2_child_guard_begin (struct bsshd_child_guard *guard)
+{
+  struct sigaction action;
+  sigset_t blocked;
+  int saved;
+  memset (&action, 0, sizeof action);
+  action.sa_handler = SIG_DFL;
+  if (sigemptyset (&action.sa_mask) || sigemptyset (&blocked) ||
+      sigaddset (&blocked, SIGCHLD) ||
+      sigprocmask (SIG_BLOCK, &blocked, &guard->old_mask)) return -1;
+  if (!sigaction (SIGCHLD, &action, &guard->old_action)) return 0;
+  saved = errno;
+  (void)sigprocmask (SIG_SETMASK, &guard->old_mask, NULL);
+  errno = saved;
+  return -1;
+}
+
+/* A stalled parent cannot leave the designated connection child blocked
+ * indefinitely. The kernel still enforces the independently issued deadline. */
+static int
+bsshd_v2_wait_gate (int fd)
+{
+  struct timespec now;
+  struct pollfd watch = {fd, POLLIN, 0};
+  int64_t deadline, remaining;
+  unsigned char byte = 0;
+  ssize_t n;
+  int ready;
+  if (clock_gettime (CLOCK_BOOTTIME, &now)) return -1;
+  deadline = (int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000 + 5000;
+  for (;;)
+    {
+      if (clock_gettime (CLOCK_BOOTTIME, &now)) return -1;
+      remaining = deadline - ((int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000);
+      if (remaining <= 0) { errno = ETIMEDOUT; return -1; }
+      ready = poll (&watch, 1, (int)remaining);
+      if (ready < 0 && errno == EINTR) continue;
+      if (ready <= 0 || !(watch.revents & POLLIN)) return -1;
+      n = recv (fd, &byte, 1, MSG_DONTWAIT);
+      if (n < 0 && errno == EINTR) continue;
+      return n == 1 && byte == 'Y' ? 0 : -1;
+    }
+}
+
+static int
+bsshd_auth_password_v2 (ssh_session session, ssh_message message, const bsshd_target_user *target,
+                        const char *user, const char *password,
+                        bsshd_target_user *verified_target)
+{
+#if defined(SYS_pidfd_open) && defined(SYS_pidfd_send_signal)
+  struct bashos_auth_v2_identity identity;
+  bsshd_target_user found;
+  struct bsshd_child_guard guard;
+  int fd, gate[2], pidfd, status = 0;
+  pid_t pid, waited;
+  unsigned char go = 'N';
+  ssize_t n;
+  if (!user || !password || !verified_target || strlen (password) > BSSHD_AUTH_MAX_SECRET)
+    return 0;
+  if (target && target->enabled)
+    {
+      if (strcmp (target->user.name, user)) return 0;
+      found = *target;
+    }
+  else if (bsshd_fill_target_user (user, &found) < 0) return 0;
+  if (bashos_v2_identity (&identity, BASHOS_AUTH_V2_SSH, found.user.uid,
+                          found.user.gid, user, g_authority_v2_encoding)) return 0;
+  fd = bashos_v2_open (g_authority_v2_qualification);
+  if (fd < 0) { bashos_v2_wipe (&identity, sizeof identity); return 0; }
+  if (bashos_v2_verify_password (fd, (const unsigned char *)password, strlen (password), &identity))
+    { close (fd); bashos_v2_wipe (&identity, sizeof identity); return 0; }
+  if (socketpair (AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, gate))
+    { close (fd); bashos_v2_wipe (&identity, sizeof identity); return 0; }
+  if (bsshd_v2_child_guard_begin (&guard))
+    {
+      close (gate[0]); close (gate[1]); close (fd);
+      bashos_v2_wipe (&identity, sizeof identity);
+      return 0;
+    }
+  pid = fork ();
+  if (pid < 0)
+    {
+      bsshd_child_guard_parent_end (&guard);
+      close (gate[0]); close (gate[1]); close (fd);
+      bashos_v2_wipe (&identity, sizeof identity);
+      return 0;
+    }
+  if (!pid)
+    {
+      if (sigprocmask (SIG_SETMASK, &guard.old_mask, NULL)) _exit (126);
+      close (gate[0]);
+      int gate_ok = !bsshd_v2_wait_gate (gate[1]);
+      close (gate[1]);
+      if (!gate_ok || bashos_v2_consume (fd, &identity))
+        { close (fd); bashos_v2_wipe (&identity, sizeof identity); _exit (126); }
+      close (fd); bashos_v2_wipe (&identity, sizeof identity);
+      *verified_target = found;
+      /* Only this kernel-designated, proof-consuming connection child may
+       * return to the native SSH state machine and acknowledge authentication.
+       * Its outer per-connection path always exits, never returns to Bash. */
+      return 1;
+    }
+  close (gate[1]);
+  pidfd = (int)syscall (SYS_pidfd_open, pid, 0);
+  if (pidfd >= 0 && !bashos_v2_delegate_ssh (fd, pid)) go = 'Y';
+  do { n = send (gate[0], &go, 1, MSG_NOSIGNAL); } while (n < 0 && errno == EINTR);
+  close (gate[0]); close (fd);
+  bashos_v2_wipe (&identity, sizeof identity);
+  /* ssh_message_free burns its password allocation. This parent never returns
+   * to the message loop; do not retain its COW copy for the session lifetime. */
+  ssh_message_free (message);
+  /* The original connection actor has no redemption rights. Release its
+   * network fd and reap the one designated child under the owned-child guard.
+   * Child status is lifetime/status reporting, never authentication evidence. */
+  /* There are no admitted channels at this pre-auth point. Freeing this
+   * parent's session closes only its socket fd; the child's copy stays live. */
+  ssh_free (session);
+  alarm (0);
+  do { waited = waitpid (pid, &status, 0); } while (waited < 0 && errno == EINTR);
+  if (waited != pid && pidfd >= 0)
+    {
+      (void)syscall (SYS_pidfd_send_signal, pidfd, SIGKILL, NULL, 0);
+      do { waited = waitpid (pid, &status, 0); } while (waited < 0 && errno == EINTR);
+      status = 126 << 8;
+    }
+  if (pidfd >= 0) close (pidfd);
+  bsshd_child_guard_parent_end (&guard);
+  if (n != 1 || go != 'Y' || waited != pid) _exit (126);
+  _exit (WIFEXITED (status) ? WEXITSTATUS (status) :
+         WIFSIGNALED (status) ? 128 + WTERMSIG (status) : 126);
+#else
+  (void)session; (void)message; (void)target; (void)user; (void)password; (void)verified_target;
+  return 0;
+#endif
 }
 
 /* F06 item 6a: LoginGraceTime. A SIGALRM in the per-connection child means the
@@ -2273,7 +2504,8 @@ static int
 bsshd_encrypted_auth (ssh_session session, const bsshd_target_user *target,
                       int auth_methods, const char *peer,
                       char *authed_user, size_t authed_user_sz,
-                      bsshd_authz_options *authz, int *authed_by_password)
+                      bsshd_authz_options *authz, int *authed_by_password,
+                      bsshd_target_user *verified_v2_target)
 {
   int ssh_methods = 0;
   long tries = 0;
@@ -2288,6 +2520,8 @@ bsshd_encrypted_auth (ssh_session session, const bsshd_target_user *target,
     bsshd_authz_options_clear (authz);
   if (authed_by_password)
     *authed_by_password = 0;
+  if (verified_v2_target)
+    memset (verified_v2_target, 0, sizeof *verified_v2_target);
   bsshd_send_banner (session);
   for (;;)
     {
@@ -2295,6 +2529,16 @@ bsshd_encrypted_auth (ssh_session session, const bsshd_target_user *target,
       if (!msg)
         return -1;
       int ok = 0;
+      /* The initial method-discovery request carries no credential. Advertise
+         the configured methods without spending a password/key failure. */
+      if (ssh_message_type (msg) == SSH_REQUEST_AUTH &&
+          ssh_message_subtype (msg) == SSH_AUTH_METHOD_NONE)
+        {
+          ssh_message_auth_set_methods (msg, ssh_methods);
+          ssh_message_reply_default (msg);
+          ssh_message_free (msg);
+          continue;
+        }
       if (ssh_message_type (msg) == SSH_REQUEST_AUTH
           && ssh_message_subtype (msg) == SSH_AUTH_METHOD_PUBLICKEY)
         {
@@ -2312,6 +2556,7 @@ bsshd_encrypted_auth (ssh_session session, const bsshd_target_user *target,
           bsshd_authz_options_clear (&candidate);
           ok = pubkey && bsshd_auth_pubkey_allowed (target, user, peer,
                                                     pubkey, &candidate);
+          if (ok && !bsshd_root_auth_allowed (target, user, peer, 0)) ok = 0;
           if (ok && state == SSH_PUBLICKEY_STATE_NONE)
             {
               ssh_message_auth_reply_pk_ok_simple (msg);
@@ -2340,7 +2585,10 @@ bsshd_encrypted_auth (ssh_session session, const bsshd_target_user *target,
         {
           const char *user = ssh_message_auth_user (msg);
           const char *password = ssh_message_auth_password (msg);
-          ok = bsshd_auth_password_allowed (target, user, password);
+          ok = bsshd_root_auth_allowed (target, user, peer, 1) &&
+               (g_authority_v2_encoding ?
+                bsshd_auth_password_v2 (session, msg, target, user, password, verified_v2_target) :
+                bsshd_auth_password_allowed (target, user, password));
           if (ok)
             {
               if (authed_user && authed_user_sz)
@@ -2463,7 +2711,14 @@ bsshd_encrypted_handle_session (ssh_session session,
 static int
 bsshd_encrypted_handle_tcpip_forward (ssh_session session, ssh_message first)
 {
-  const char *bind_addr = ssh_message_global_request_address (first);
+  const char *requested_addr = ssh_message_global_request_address (first);
+  char *bind_addr = strdup (requested_addr ? requested_addr : "127.0.0.1");
+  if (!bind_addr)
+    {
+      ssh_message_reply_default (first);
+      ssh_message_free (first);
+      return -1;
+    }
   int requested_port = ssh_message_global_request_port (first);
   int bound_port = requested_port;
   int lfd = bsshd_listen_forward (bind_addr ? bind_addr : "127.0.0.1",
@@ -2472,6 +2727,7 @@ bsshd_encrypted_handle_tcpip_forward (ssh_session session, ssh_message first)
     {
       ssh_message_reply_default (first);
       ssh_message_free (first);
+      free (bind_addr);
       return -1;
     }
   ssh_message_global_request_reply_success (first, (uint16_t) bound_port);
@@ -2497,9 +2753,18 @@ bsshd_encrypted_handle_tcpip_forward (ssh_session session, ssh_message first)
           if (ssh_message_type (msg) == SSH_REQUEST_GLOBAL
               && ssh_message_subtype (msg) == SSH_GLOBAL_REQUEST_CANCEL_TCPIP_FORWARD)
             {
+              const char *cancel_addr = ssh_message_global_request_address (msg);
+              if (!cancel_addr || strcmp (cancel_addr, bind_addr) != 0
+                  || ssh_message_global_request_port (msg) != bound_port)
+                {
+                  ssh_message_reply_default (msg);
+                  ssh_message_free (msg);
+                  continue;
+                }
               ssh_message_global_request_reply_success (msg, 0);
               ssh_message_free (msg);
               close (lfd);
+              free (bind_addr);
               return 0;
             }
           ssh_message_reply_default (msg);
@@ -2532,6 +2797,7 @@ bsshd_encrypted_handle_tcpip_forward (ssh_session session, ssh_message first)
         }
     }
   close (lfd);
+  free (bind_addr);
   return -1;
 }
 
@@ -2544,6 +2810,7 @@ bsshd_encrypted_handle_direct_tcpip (ssh_session session,
 {
   ssh_channel channel = NULL;
   int rfd = -1;
+  int completed_session = 0;
   if (authz)
     {
       if (authz->no_port_forwarding)
@@ -2555,7 +2822,15 @@ bsshd_encrypted_handle_direct_tcpip (ssh_session session,
     {
       ssh_message msg = ssh_message_get (session);
       if (!msg)
-        return -1;
+        {
+          /* The independent client may close its transport after receiving
+             the final status/EOF/close of a completed channel. Keep serving
+             additional channels on this connection until that real EOF;
+             an idle/auth-only disconnect or protocol error is still failure.
+             This result reports connection lifetime, never grants authority. */
+          return completed_session && (ssh_get_status (session) & SSH_READ_EOF)
+                 ? 0 : -1;
+        }
       if (ssh_message_type (msg) == SSH_REQUEST_GLOBAL
           && ssh_message_subtype (msg) == SSH_GLOBAL_REQUEST_TCPIP_FORWARD)
         {
@@ -2565,7 +2840,9 @@ bsshd_encrypted_handle_direct_tcpip (ssh_session session,
               ssh_message_free (msg);
               continue;
             }
-          return bsshd_encrypted_handle_tcpip_forward (session, msg);
+          if (bsshd_encrypted_handle_tcpip_forward (session, msg) < 0)
+            return -1;
+          continue;
         }
       if (ssh_message_type (msg) == SSH_REQUEST_CHANNEL_OPEN
           && ssh_message_subtype (msg) == SSH_CHANNEL_DIRECT_TCPIP)
@@ -2673,9 +2950,10 @@ bsshd_encrypted_handle_direct_tcpip (ssh_session session,
 	                  ssh_message_channel_request_reply_success (msg);
 	                  ssh_message_free (msg);
 	                  int rc = bsshd_encrypted_handle_shell (session, sch, target,
-	                                                          pty_rows, pty_cols);
+	                                                          pty_rows, pty_cols, NULL);
 	                  ssh_channel_free (sch);
-	                  (void) rc;
+	                  if (rc < 0) return -1;
+	                  completed_session = 1;
 	                  goto bsshd_next_request;
 	                }
 	              if (ssh_message_type (msg) == SSH_REQUEST_CHANNEL
@@ -2689,7 +2967,8 @@ bsshd_encrypted_handle_direct_tcpip (ssh_session session,
 	                      ssh_message_free (msg);
 	                      int rc = bsshd_encrypted_handle_sftp (session, sch, target);
 	                      ssh_channel_free (sch);
-	                      (void) rc;
+	                      if (rc < 0) return -1;
+	                      completed_session = 1;
 	                      goto bsshd_next_request;
 	                    }
 #endif
@@ -2709,6 +2988,16 @@ bsshd_encrypted_handle_direct_tcpip (ssh_session session,
                 }
               ssh_message_reply_default (msg);
               ssh_message_free (msg);
+            }
+          if (pty_granted)
+            {
+              int rc = bsshd_encrypted_handle_shell (session, sch, target,
+                                                    pty_rows, pty_cols, cmd_copy);
+              ssh_channel_free (sch);
+              free (cmd_copy);
+              if (rc < 0) return -1;
+              completed_session = 1;
+              goto bsshd_next_request;
             }
           int rc;
           char inpath[64] = "";
@@ -2736,12 +3025,15 @@ bsshd_encrypted_handle_direct_tcpip (ssh_session session,
             }
           else
             rc = run_local_stream (cmd_copy ? cmd_copy : "", target, sch);
-          ssh_channel_request_send_exit_status (sch, rc);
-          ssh_channel_send_eof (sch);
-          ssh_channel_close (sch);
+          int finished = (rc >= 0 &&
+                          ssh_channel_request_send_exit_status (sch, rc) == SSH_OK &&
+                          ssh_channel_send_eof (sch) == SSH_OK &&
+                          ssh_channel_close (sch) == SSH_OK);
           ssh_channel_free (sch);
           if (inpath[0]) unlink (inpath);
           free (cmd_copy);
+          if (!finished) return -1;
+          completed_session = 1;
           goto bsshd_next_request;
         }
       ssh_message_reply_default (msg);
@@ -2751,44 +3043,7 @@ bsshd_encrypted_handle_direct_tcpip (ssh_session session,
     }
   if (!channel)
     { if (rfd >= 0) close (rfd); return -1; }
-  char buf[8192];
-  int sock_eof = 0;
-  for (;;)
-    {
-      fd_set rfds;
-      FD_ZERO (&rfds);
-      int sfd = ssh_get_fd (session);
-      if (!sock_eof) FD_SET (rfd, &rfds);
-      FD_SET (sfd, &rfds);
-      int maxfd = rfd > sfd ? rfd : sfd;
-      struct timeval tv;
-      tv.tv_sec = 0; tv.tv_usec = 100000;
-      int sel = select (maxfd + 1, &rfds, NULL, NULL, &tv);
-      if (sel < 0 && errno == EINTR) continue;
-      if (sel < 0) break;
-      if (!sock_eof && FD_ISSET (rfd, &rfds))
-        {
-          ssize_t n = read (rfd, buf, sizeof buf);
-          if (n <= 0)
-            {
-              sock_eof = 1;
-              ssh_channel_send_eof (channel);
-            }
-          else
-            bsshd_channel_write_all (channel, buf, (size_t) n, 0);
-        }
-      int avail = ssh_channel_poll_timeout (channel, 0, 0);
-      while (avail > 0)
-        {
-          uint32_t chunk = (uint32_t) (avail < (int) sizeof buf ? avail : (int) sizeof buf);
-          int n = ssh_channel_read (channel, buf, chunk, 0);
-          if (n <= 0) break;
-          write_all (rfd, buf, (size_t) n);
-          avail -= n;
-        }
-      if (ssh_channel_is_eof (channel) || !ssh_channel_is_open (channel))
-        break;
-    }
+  bsshd_pump_fd_channel (rfd, session, channel);
   ssh_channel_close (channel);
   ssh_channel_free (channel);
   close (rfd);
@@ -2863,6 +3118,7 @@ run_encrypted (const char *addr, const char *port, const char *key,
   bsshd_write_pidfile ();
   fprintf (stderr, "sshd encrypted listening addr=%s port=%s\n", addr, port);
   long served = 0;
+  int result = EXECUTION_SUCCESS;
   int lfd = ssh_bind_get_fd (bind);
   while (!stop_server)
     {
@@ -2898,14 +3154,19 @@ run_encrypted (const char *addr, const char *port, const char *key,
         }
 
       struct bsshd_child_guard guard;
-      bsshd_child_guard_begin (&guard);
+      if (once)
+        {
+          if (bsshd_v2_child_guard_begin (&guard) < 0)
+            { close (cfd); result = EXECUTION_FAILURE; break; }
+        }
+      else bsshd_child_guard_begin (&guard);
       pid_t pid = fork ();
       if (pid < 0)
         {
           bsshd_child_guard_parent_end (&guard);
           close (cfd);
           served++;
-          if (once) break;
+          if (once) { result = EXECUTION_FAILURE; break; }
           continue;
         }
 	      if (pid == 0)
@@ -2935,10 +3196,15 @@ run_encrypted (const char *addr, const char *port, const char *key,
 	      && ssh_handle_key_exchange (session) == SSH_OK
 	      && bsshd_encrypted_auth (session, target, auth_methods,
                                        peer_label, auth_user, sizeof auth_user,
-                                       &authz, &authed_by_password) == 0)
+                                       &authz, &authed_by_password, &auth_target) == 0)
             {
               alarm (0);   /* authed within grace; disarm the deadline */
-              if ((!target || !target->enabled) && auth_user[0]
+              if (g_authority_v2_encoding && authed_by_password)
+                {
+                  if (!auth_target.enabled) _exit (126);
+                  session_target = &auth_target;
+                }
+              else if ((!target || !target->enabled) && auth_user[0]
                   && bsshd_fill_target_user (auth_user, &auth_target) == 0
                   && (geteuid () == 0
                       || auth_target.user.uid != geteuid ()
@@ -2982,8 +3248,22 @@ run_encrypted (const char *addr, const char *port, const char *key,
           bsshd_session_remove (sid);
           _exit (hc < 0 ? 1 : 0);
         }
-      bsshd_child_guard_parent_end (&guard);
       close (cfd);
+      if (once)
+        {
+          /* Keep the one-connection launcher alive until its owned child
+             finishes. Restore Bash's SIGCHLD state only after the exact wait;
+             its handler must not steal the child or orphan the connection. */
+          int status = 0;
+          pid_t waited;
+          do { waited = waitpid (pid, &status, 0); } while (waited < 0 && errno == EINTR);
+          bsshd_child_guard_parent_end (&guard);
+          result = waited != pid ? EXECUTION_FAILURE :
+                   WIFEXITED (status) ? WEXITSTATUS (status) :
+                   WIFSIGNALED (status) ? 128 + WTERMSIG (status) : EXECUTION_FAILURE;
+          break;
+        }
+      bsshd_child_guard_parent_end (&guard);
       served++;
       if (auth_fail_max > 0 && slot >= 0)
         bsshd_peer_clear (slot);
@@ -2993,7 +3273,7 @@ run_encrypted (const char *addr, const char *port, const char *key,
     ;
   bsshd_unlink_pidfile ();
   ssh_bind_free (bind);
-  return EXECUTION_SUCCESS;
+  return result;
 }
 #endif
 
@@ -3305,6 +3585,8 @@ bsshd_reload_config_if_requested (const char *config_path,
 
 static int run (WORD_LIST *args)
 {
+  g_authority_v2_encoding = 0;
+  g_authority_v2_qualification = 0;
   /* Default host-key path is overridable via BASHSSHD_HOSTKEY in the
      environment.  Operators can still override per-invocation via -k
      (which also sets key_explicit so missing-key becomes an error
@@ -3343,6 +3625,12 @@ static int run (WORD_LIST *args)
         }
 	      else if ((!strcmp (w, "-u") || !strcmp (w, "--user")) && args) target_user = nw (&args);
 	      else if (!strcmp (w, "--encrypted")) encrypted = 1;
+	      else if (!strcmp (w, "--authority-v2"))
+	        g_authority_v2_encoding = BASHOS_AUTH_V2_STANDARD_PHC;
+	      else if (!strcmp (w, "--authority-v2-legacy-hex"))
+	        g_authority_v2_encoding = BASHOS_AUTH_V2_LEGACY_HEX;
+	      else if (!strcmp (w, "--authority-v2-qualification"))
+	        g_authority_v2_qualification = 1;
 	      else if (!strcmp (w, "--allow-forwarding")) allow_forwarding = 1;
 	      else if (!strcmp (w, "--allow-agent-forwarding")) allow_agent_forwarding = 1;
 	      else if (!strcmp (w, "--auth-method") && args)
@@ -3356,6 +3644,7 @@ static int run (WORD_LIST *args)
 	          puts ("run [-a ADDR] [-p PORT] [-k HOSTKEY] [-F CONFIG] [-u USER] [--once] [--max-conn N]");
 	          puts ("    [--encrypted]");
 	          puts ("    [--auth-method publickey[,password]]");
+	          puts ("    [--authority-v2 | --authority-v2-legacy-hex] [--authority-v2-qualification]");
 	          puts ("    [--allow-forwarding] [--allow-agent-forwarding]");
 	          puts ("    [--auth-fail-max N] [--auth-fail-window-sec SEC] [--auth-fail-cooldown-sec SEC]");
 	          return EXECUTION_SUCCESS;
@@ -3395,6 +3684,11 @@ static int run (WORD_LIST *args)
         }
       else { builtin_error ("run: unknown arg: %s", w); return EX_USAGE; }
     }
+  if ((g_authority_v2_encoding && !encrypted) ||
+      (g_authority_v2_qualification && !g_authority_v2_encoding)) {
+    builtin_error ("run: versioned authority requires encrypted SSH and explicit --authority-v2");
+    return EX_USAGE;
+  }
   if (target_user && target_user[0])
     {
       if (bsshd_fill_target_user (target_user, &target) < 0)

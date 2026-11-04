@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-blockdev-failure-fd-continuation-r1",
+      "loadable": "blockdev",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Check exact shell descriptor-number sets after missing and regular operands, action/device continuation and usage failures.",
+      "covers": [
+        "blockdev/syscall-failures-mock"
+      ],
+      "oracle": "Linux regular files return ENOTTY to block ioctls; a missing path returns ENOENT; builtin contract requires action and device continuation and usage status 2.",
+      "comparison": "Exact status, ordered diagnostic classification, and descriptor-number sets before and after each call in the same shell; no diagnostic wording comparison beyond device and errno.",
+      "requires": [
+        "python3"
+      ],
+      "setup_script": "/usr/bin/python3 -c \"open('img-a','wb').close(); open('img-b','wb').close()\"\n",
+      "script": "export LC_ALL=C\nfds() { local f; REPLY=; for f in /proc/$BASHPID/fd/*; do REPLY+=\"${f##*/} \"; done; }\nfds; before=$REPLY\nblockdev --getsz --getro missing img-a img-b >out 2>err; rc=$?\nfds; [[ $before == \"$REPLY\" ]] && echo 'failure fds unchanged' || echo 'failure fds changed'\nprintf 'failure status=%s\\n' \"$rc\"\nmapfile -t lines <err\nprintf 'failure diagnostics=%s\\n' \"${#lines[@]}\"\n[[ ${lines[0]} == *missing*'No such file or directory'* && ${lines[1]} == *img-a*'Inappropriate ioctl for device'* && ${lines[2]} == *img-a*'Inappropriate ioctl for device'* && ${lines[3]} == *img-b*'Inappropriate ioctl for device'* && ${lines[4]} == *img-b*'Inappropriate ioctl for device'* ]] && echo 'failure order ok' || echo 'failure order wrong'\n[[ ! -s out ]] && echo 'failure stdout empty' || echo 'failure stdout nonempty'\nfds; before=$REPLY\nblockdev --bogus img-a >out 2>err; rc=$?\nfds; [[ $before == \"$REPLY\" ]] && echo 'usage fds unchanged' || echo 'usage fds changed'\nprintf 'usage status=%s\\n' \"$rc\"\n",
+      "stdout": "failure fds unchanged\nfailure status=1\nfailure diagnostics=5\nfailure order ok\nfailure stdout empty\nusage fds unchanged\nusage status=2\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30
+    }
+  ]
+}

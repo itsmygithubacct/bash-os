@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "requirements-termpixel-preloaded-pipe-ascii-r1",
+      "loadable": "termpixel",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Establish pipe readiness before invoking zero-timeout key-read, with no concurrent producer and no controlling terminal.",
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Original ASCII decoding and TIMEOUT output contracts, with independent poll(0) readiness evidence and owned-pipe identity. This headless control does not establish PTY mode, cursor or signal requirements.",
+      "comparison": "Require exact status 0 and raw a newline for a preloaded pipe, or TIMEOUT newline for an empty pipe whose writer remains open. Retain actual child PID/session, input pipe inode/device, readiness and preparation-before-exec timestamps.",
+      "requires": [
+        "python3"
+      ],
+      "timeout": 10,
+      "observation_error_status": 125,
+      "helpers_sha256": {
+        "helpers/termpixel-pipe-requirements-r1.py": "0f7ec9aae3dcac20ea61d617805b69a817490f33b212240b4de8d687ffee3022"
+      },
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/termpixel-pipe-requirements-r1.py preloaded\n",
+      "expected_status": 0,
+      "stdout": "preloaded: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "termpixel-child.json",
+        "termpixel-pipe-observation.json",
+        "termpixel-pipe-error.json",
+        "termpixel.out",
+        "termpixel.err"
+      ]
+    },
+    {
+      "id": "requirements-termpixel-empty-pipe-timeout-r1",
+      "loadable": "termpixel",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Establish pipe readiness before invoking zero-timeout key-read, with no concurrent producer and no controlling terminal.",
+      "covers": [
+        "termpixel/termpixel-pty-input"
+      ],
+      "oracle": "Original ASCII decoding and TIMEOUT output contracts, with independent poll(0) readiness evidence and owned-pipe identity. This headless control does not establish PTY mode, cursor or signal requirements.",
+      "comparison": "Require exact status 0 and raw a newline for a preloaded pipe, or TIMEOUT newline for an empty pipe whose writer remains open. Retain actual child PID/session, input pipe inode/device, readiness and preparation-before-exec timestamps.",
+      "requires": [
+        "python3"
+      ],
+      "timeout": 10,
+      "observation_error_status": 125,
+      "helpers_sha256": {
+        "helpers/termpixel-pipe-requirements-r1.py": "0f7ec9aae3dcac20ea61d617805b69a817490f33b212240b4de8d687ffee3022"
+      },
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/termpixel-pipe-requirements-r1.py empty\n",
+      "expected_status": 0,
+      "stdout": "empty: ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "termpixel-child.json",
+        "termpixel-pipe-observation.json",
+        "termpixel-pipe-error.json",
+        "termpixel.out",
+        "termpixel.err"
+      ]
+    }
+  ]
+}

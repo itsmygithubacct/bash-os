@@ -51,7 +51,6 @@ class ClearChecks(unittest.TestCase):
         cls.host_comparisons = 0
         cls.pty_comparisons = 0
         cls.missing_host = set()
-        cls.padding = {}
 
     @classmethod
     def tearDownClass(cls):
@@ -61,7 +60,6 @@ class ClearChecks(unittest.TestCase):
         if cls.missing_host:
             print('Host terminfo entries unavailable (fixed-byte checks still run): '
                   + ', '.join(sorted(cls.missing_host)))
-        print('Host VT padding bytes omitted by bashclear:', cls.padding)
 
     def invocation(self, name, options=(), script='"$@"', term='xterm'):
         env = dict(self.env)
@@ -201,12 +199,17 @@ printf 'recovered'
                                   stderr=subprocess.PIPE, timeout=10)
         print(f'Host clear /dev/full status: {host.returncode}; bashclear requires 1')
 
-    def pty_run(self, command, env):
+    def pty_run(self, command, env, speed=None):
         master, slave = pty.openpty()
         try:
             tty.setraw(slave)
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 80, 0, 0))
+            if speed is not None:
+                attrs = termios.tcgetattr(slave)
+                attrs[4] = attrs[5] = speed
+                termios.tcsetattr(slave, termios.TCSANOW, attrs)
             before = termios.tcgetattr(slave)
+            winsize = fcntl.ioctl(slave, termios.TIOCGWINSZ, bytes(8))
             p = subprocess.run(command, env=env, stdin=subprocess.DEVNULL,
                                stdout=slave, stderr=subprocess.PIPE, timeout=10)
             data = b''
@@ -214,6 +217,7 @@ printf 'recovered'
                 data += os.read(master, 65536)
                 self.assertLess(len(data), 65536)
             self.assertEqual(termios.tcgetattr(slave), before)
+            self.assertEqual(fcntl.ioctl(slave, termios.TIOCGWINSZ, bytes(8)), winsize)
             return p.returncode, data, p.stderr
         finally:
             os.close(master)
@@ -231,12 +235,36 @@ printf 'recovered'
                     with self.subTest(name=name, term=term, options=opts):
                         command, env = self.invocation(name, opts, term=term)
                         actual = self.pty_run(command, env)
-                        if term in ('vt100', 'vt102'):
-                            self.assertEqual((host[0], host[1].rstrip(b'\0'), host[2]), actual)
-                            self.padding[term] = len(host[1]) - len(actual[1])
-                        else:
-                            self.assertEqual(actual, host)
+                        self.assertEqual(actual, host)
                         type(self).pty_comparisons += 1
+
+    def test_vt_padding_speeds(self):
+        for term in ('vt100', 'vt102'):
+            for speed in (termios.B1200, termios.B9600, termios.B38400):
+                for opts in (['-T', term], ['-x', '-T', term]):
+                    host = self.pty_run([HOST, *opts], dict(self.env, TERM='xterm'), speed)
+                    self.assertEqual(host[0], 0, (term, speed, host))
+                    self.assertTrue(host[1].endswith(b'\0'), (term, speed, host))
+                    for name in COMMANDS:
+                        with self.subTest(name=name, term=term, speed=speed, options=opts):
+                            command, env = self.invocation(name, opts)
+                            self.assertEqual(self.pty_run(command, env, speed), host)
+                            type(self).pty_comparisons += 1
+
+
+    def test_vt_explicit_type_and_speed(self):
+        # Compare every byte, including NUL padding, on separately initialized
+        # PTYs; pty_run checks the complete termios state on both sides.
+        for term in ('vt100', 'vt102'):
+            for speed in (termios.B9600, termios.B38400):
+                for opts in (['-T', term], ['-x', '-T', term]):
+                    with self.subTest(term=term, speed=speed, options=opts):
+                        host = self.pty_run([HOST, *opts], self.env, speed)
+                        self.assertEqual(host[0], 0, (term, host))
+                        for name in COMMANDS:
+                            command, env = self.invocation(name, opts, term='xterm')
+                            self.assertEqual(self.pty_run(command, env, speed), host,
+                                             (name, term, speed, opts))
 
 
 unittest.main(argv=['clear-check'], verbosity=2)

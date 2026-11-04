@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-strptime-localized-de-contract",
+      "loadable": "strptime",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "strptime/localized-month-names"
+      ],
+      "purpose": "Checks German month and weekday names, rejects English names, and verifies in-process LC_ALL changes to C and back. Numeric dates provide epoch controls. Missing locale or builtin is a setup failure.",
+      "oracle": "Fixed acceptance contract and numeric-date epoch controls in UTC.",
+      "comparison": "Exact success marker with empty stderr; any failed assertion or setup fails the case.",
+      "requires": [
+        "localedef",
+        "gzip",
+        "mkdir",
+        "cat"
+      ],
+      "script": "/usr/bin/mkdir loc || exit 97\nPATH=/usr/bin:/bin /usr/bin/localedef -i de_DE -f UTF-8 \"$PWD/loc/de_DE.UTF-8\" >le.out 2>&1 || { echo 'SETUP-INVALID localedef' >&2; exit 97; }\n/usr/bin/cat > localized.sh <<'EOF'\nexport TZ=UTC0\n[[ $(type -t strptime) == builtin ]] || { echo 'SETUP-INVALID strptime unavailable' >&2; exit 97; }\n[[ $(printf '%(%B)T' 0) == Januar ]] || { echo 'SETUP-INVALID German LC_TIME' >&2; exit 97; }\nfail=0\npositive() {\n  local input=$1 fmt=$2 numeric=$3 got expected\n  got=$(strptime -f \"$fmt\" \"$input\" 2>/dev/null) || { printf 'FAIL localized: %s\\n' \"$input\"; fail=1; return; }\n  expected=$(strptime -f '%Y-%m-%d %H:%M' \"$numeric\" 2>/dev/null) || { echo 'FAIL numeric control'; fail=1; return; }\n  [[ $got == \"$expected\" ]] || { printf 'FAIL epoch: %s\\n' \"$input\"; fail=1; }\n}\nnegative() {\n  if strptime -f \"$2\" \"$1\" >/dev/null 2>&1; then printf 'FAIL accepted: %s\\n' \"$1\"; fail=1; fi\n}\npositive '15 März 2024' '%d %B %Y' '2024-03-15 00:00'\npositive '03 Okt 2024' '%d %b %Y' '2024-10-03 00:00'\npositive '1 Dezember 2023 13:45' '%d %B %Y %H:%M' '2023-12-01 13:45'\npositive '15 märz 2024' '%d %B %Y' '2024-03-15 00:00'\npositive 'Mai 7 2024' '%b %d %Y' '2024-05-07 00:00'\npositive 'Freitag 15 März 2024' '%A %d %B %Y' '2024-03-15 00:00'\npositive 'Fr 15 Mär 2024' '%a %d %b %Y' '2024-03-15 00:00'\npositive 'Sonntag, 1. September 2024' '%A, %d. %B %Y' '2024-09-01 00:00'\nnegative '15 March 2024' '%d %B %Y'\nnegative '03 Oct 2024' '%d %b %Y'\nnegative 'Friday 15 März 2024' '%A %d %B %Y'\nnegative 'Fri 15 Mär 2024' '%a %d %b %Y'\nexport LC_ALL=C\n[[ $(printf '%(%B)T' 0) == January ]] || { echo 'SETUP-INVALID C LC_TIME' >&2; exit 97; }\npositive '15 March 2024' '%d %B %Y' '2024-03-15 00:00'\nnegative '15 März 2024' '%d %B %Y'\nexport LC_ALL=de_DE.UTF-8\npositive '15 März 2024' '%d %B %Y' '2024-03-15 00:00'\nnegative '15 March 2024' '%d %B %Y'\n(( fail == 0 )) || exit 1\nprintf 'localized checks passed\\n'\nEOF\nLOCPATH=$PWD/loc LC_ALL=de_DE.UTF-8 \"$BASH\" --noprofile --norc localized.sh\n",
+      "expected_status": 0,
+      "stdout": "localized checks passed\n",
+      "stderr": "",
+      "timeout": 40
+    }
+  ]
+}

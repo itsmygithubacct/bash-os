@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: MIT */
 /* lsof.c — list open file descriptors via /proc/PID/fd.
  *
- *   lsof [-p PID] [-u USER] [PID...]
+ *   lsof [-a] [-p PID] [-u USER] [PID...]
  *
- *   -p PID    restrict to one PID (repeatable)
+ *   -a        intersect selections (default is union)
+ *   -p PID    select one PID (repeatable)
  *   -u USER   restrict to processes owned by USER (name or uid)
  *   PID...    bare PIDs are equivalent to -p PID PID...
  *
@@ -32,6 +33,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <inttypes.h>
+#include <ctype.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <pwd.h>
@@ -39,30 +42,37 @@
 
 #include "loadables.h"
 
+/* Read the real UID, independently of its display name.  A failed read must
+   never match a user selection. */
+static int
+bl_uid_for_pid (int pid, uid_t *uid)
+{
+    char path[64], line[256];
+    snprintf (path, sizeof path, "/proc/%d/status", pid);
+    FILE *f = fopen (path, "r");
+    if (!f) return 0;
+    int found = 0;
+    while (fgets (line, sizeof line, f)) {
+        uintmax_t n;
+        if (strncmp (line, "Uid:", 4) == 0 &&
+            sscanf (line + 4, "%ju", &n) == 1 && (uintmax_t) (uid_t) n == n) {
+            *uid = (uid_t) n;
+            found = 1;
+            break;
+        }
+    }
+    fclose (f);
+    return found;
+}
+
 static const char *
-bl_user_for_pid (int pid)
+bl_user_for_uid (uid_t uid, int known)
 {
     static char buf[64];
-    char path[64];
-    snprintf (path, sizeof path, "/proc/%d/status", pid);
-    int fd = open (path, O_RDONLY | O_CLOEXEC);
-    if (fd < 0) return "?";
-    char raw[1024];
-    ssize_t n = read (fd, raw, sizeof raw - 1);
-    close (fd);
-    if (n <= 0) return "?";
-    raw[n] = '\0';
-    char *u = strstr (raw, "\nUid:");
-    if (!u) return "?";
-    long uid_val = -1;
-    sscanf (u, "\nUid:\t%ld", &uid_val);
-    if (uid_val < 0) return "?";
-    struct passwd *pw = getpwuid ((uid_t) uid_val);
-    if (pw) {
-        snprintf (buf, sizeof buf, "%s", pw->pw_name);
-    } else {
-        snprintf (buf, sizeof buf, "%ld", uid_val);
-    }
+    if (!known) return "?";
+    struct passwd *pw = getpwuid (uid);
+    if (pw) snprintf (buf, sizeof buf, "%s", pw->pw_name);
+    else snprintf (buf, sizeof buf, "%ju", (uintmax_t) uid);
     return buf;
 }
 
@@ -103,10 +113,9 @@ bl_classify (const char *target, const struct stat *st)
 }
 
 static int
-bl_dump_pid (int pid, const char *want_user)
+bl_dump_pid (int pid, uid_t uid, int uid_known)
 {
-    const char *user = bl_user_for_pid (pid);
-    if (want_user && strcmp (want_user, user) != 0) return 0;
+    const char *user = bl_user_for_uid (uid, uid_known);
     const char *comm = bl_comm_for_pid (pid);
 
     char fdpath[64];
@@ -133,18 +142,41 @@ bl_dump_pid (int pid, const char *want_user)
 }
 
 static int
-bl_resolve_user (const char *s, char *out, size_t cap)
+bl_resolve_user (const char *s, uid_t *uid)
 {
-    char *end;
-    long n = strtol (s, &end, 10);
-    if (*end == '\0') {
-        struct passwd *pw = getpwuid ((uid_t) n);
-        if (pw) snprintf (out, cap, "%s", pw->pw_name);
-        else    snprintf (out, cap, "%ld", n);
-    } else {
-        snprintf (out, cap, "%s", s);
+    const unsigned char *p = (const unsigned char *) s;
+    if (!*p) return 0;
+    while (isdigit (*p)) p++;
+    if (!*p) {
+        char *end;
+        errno = 0;
+        uintmax_t n = strtoumax (s, &end, 10);
+        if (errno || *end || (uintmax_t) (uid_t) n != n) return 0;
+        *uid = (uid_t) n;
+        return 1;
     }
-    return 0;
+    struct passwd *pw = getpwnam (s);
+    if (!pw) return 0;
+    *uid = pw->pw_uid;
+    return 1;
+}
+
+static void
+bl_select_pid (int pid, const int *pids, int n_pids, int have_user,
+               uid_t wanted_uid, int and_selection)
+{
+    uid_t uid = 0;
+    int known = bl_uid_for_pid (pid, &uid);
+    int pid_match = 0;
+    for (int i = 0; i < n_pids; i++)
+        if (pids[i] == pid) { pid_match = 1; break; }
+    int user_match = known && uid == wanted_uid;
+    int selected = !n_pids && !have_user;
+    if (n_pids && have_user)
+        selected = and_selection ? pid_match && user_match : pid_match || user_match;
+    else if (n_pids) selected = pid_match;
+    else if (have_user) selected = user_match;
+    if (selected) bl_dump_pid (pid, uid, known);
 }
 
 int
@@ -152,7 +184,8 @@ lsof_builtin (WORD_LIST *list)
 {
     int explicit_pids[256];
     int n_pids = 0;
-    char want_user[64] = "";
+    uid_t want_uid = 0;
+    int have_user = 0, and_selection = 0;
 
     while (list) {
         const char *w = list->word->word;
@@ -164,6 +197,11 @@ lsof_builtin (WORD_LIST *list)
         if (!strcmp (w, "--version") || !strcmp (w, "-v")) {
             puts ("lsof 1.0 (bash-loadable)");
             return EXECUTION_SUCCESS;
+        }
+        if (!strcmp (w, "-a")) {
+            and_selection = 1;
+            list = list->next;
+            continue;
         }
         if (!strcmp (w, "-p")) {
             if (!list->next) {
@@ -188,7 +226,11 @@ lsof_builtin (WORD_LIST *list)
                 return EXECUTION_FAILURE;
             }
             list = list->next;
-            bl_resolve_user (list->word->word, want_user, sizeof want_user);
+            if (!bl_resolve_user (list->word->word, &want_uid)) {
+                builtin_error ("unknown user: %s", list->word->word);
+                return EXECUTION_FAILURE;
+            }
+            have_user = 1;
             list = list->next;
             continue;
         }
@@ -210,9 +252,10 @@ lsof_builtin (WORD_LIST *list)
     printf ("%-12s %5s %-8s %3s %-5s %s\n",
             "COMMAND", "PID", "USER", "FD", "TYPE", "PATH");
 
-    if (n_pids > 0) {
+    if (n_pids > 0 && (!have_user || and_selection)) {
         for (int i = 0; i < n_pids; i++) {
-            bl_dump_pid (explicit_pids[i], want_user[0] ? want_user : NULL);
+            bl_select_pid (explicit_pids[i], explicit_pids, n_pids, have_user,
+                           want_uid, and_selection);
         }
         return EXECUTION_SUCCESS;
     }
@@ -223,7 +266,8 @@ lsof_builtin (WORD_LIST *list)
         if (de->d_name[0] < '0' || de->d_name[0] > '9') continue;
         int pid = atoi (de->d_name);
         if (pid <= 0) continue;
-        bl_dump_pid (pid, want_user[0] ? want_user : NULL);
+        bl_select_pid (pid, explicit_pids, n_pids, have_user,
+                       want_uid, and_selection);
     }
     closedir (d);
     return EXECUTION_SUCCESS;
@@ -232,9 +276,10 @@ lsof_builtin (WORD_LIST *list)
 char *lsof_doc[] = {
     "List open file descriptors via /proc/PID/fd.",
     "",
-    "    lsof [-p PID]... [-u USER] [PID...]",
+    "    lsof [-a] [-p PID]... [-u USER] [PID...]",
     "",
-    "    -p PID    restrict to one PID (repeatable)",
+    "    -a        intersect selections (default is union)",
+    "    -p PID    select one PID (repeatable)",
     "    -u USER   restrict to one user (name or uid)",
     "    PID...    bare numeric PIDs equivalent to -p PID PID...",
     "    --help    print usage information and exit",
@@ -252,6 +297,6 @@ struct builtin lsof_struct = {
     lsof_builtin,
     BUILTIN_ENABLED,
     lsof_doc,
-    "lsof [-p PID]... [-u USER] [PID...]",
+    "lsof [-a] [-p PID]... [-u USER] [PID...]",
     0
 };

@@ -127,8 +127,25 @@
     {
       "id": "simd-cross-cpu-backends",
       "purpose": "Exercise scalar/SSE2/AVX2 backend selection and reduction equivalence on explicitly controlled CPU feature sets.",
-      "kind": "deferred",
-      "reason": "r1-r3 covered; r4 is a limit"
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w7-vec-backend-select"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-vec-no-avx2-cpu-masked"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w7-vec-reductions-agree"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-vec-i686-no-sse2"
+        }
+      ]
     },
     {
       "id": "copy-is-independent",

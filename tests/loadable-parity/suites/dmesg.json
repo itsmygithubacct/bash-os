@@ -7,7 +7,7 @@
     "Named multi-facility and multi-level filtering, plus kernel-only filtering.",
     "Inclusive fractional --since and --until timestamp boundaries.",
     "Deterministic human-readable -T timestamps using a fixed boot epoch and UTC.",
-    "Raw priority prefix combined with timestamp suppression.",
+    "Raw priority prefix with timestamps; raw/notime exclusion has a separate negative control.",
     "A record crossing the implementation's 8192-byte read boundary.",
     "Bash type/help metadata and invalid-level usage status."
   ],
@@ -64,13 +64,13 @@
     {
       "id": "raw-priority-prefix",
       "kind": "parity",
-      "purpose": "Check the documented raw leading priority field together with -t timestamp suppression.",
+      "purpose": "Check the raw leading priority and timestamp against an independent encoder; raw/notime rejection is retained separately.",
       "requires": [
         "awk"
       ],
       "expected_status": 0,
       "stderr": "empty",
-      "script": "cat > fixture <<'EOF'\n0,1,1000000,-;kernel raw\n11,2,2000000,-;user error\nEOF\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -r -t\nelse\n  awk '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      priority = fields[1] + 0\n      if (priority > 2047) next\n      printf \"<%d>%s\\n\", priority, substr(line, semi + 1)\n    }\n  ' fixture\nfi"
+      "script": "cat > fixture <<'EOF'\n0,1,1000000,-;kernel raw\n11,2,2000000,-;user error\nEOF\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -r\nelse\n  awk '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      priority = fields[1] + 0\n      if (priority > 2047) next\n      usec = fields[3] + 0\n      printf \"<%d>[%5d.%06d] %s\\n\", priority, int(usec / 1000000), usec % 1000000, substr(line, semi + 1)\n    }\n  ' fixture\nfi"
     },
     {
       "id": "split-read-boundary",

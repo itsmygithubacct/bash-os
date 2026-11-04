@@ -1,0 +1,146 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "worker-nano-nonewlines",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Explicit -L retains an unterminated line.",
+      "script": "nano -L note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "hello"
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_edit_save"
+      ],
+      "files": {
+        "note": ""
+      },
+      "expected_files": {
+        "note": "hello"
+      }
+    },
+    {
+      "id": "worker-nano-default-final-newline",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Default save appends one final newline.",
+      "script": "nano note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "hello"
+        },
+        {
+          "send": "\u0013"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": "\u0018"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_edit_save"
+      ],
+      "files": {
+        "note": ""
+      },
+      "expected_files": {
+        "note": "hello\n"
+      }
+    },
+    {
+      "id": "worker-nano-exit-save-cancel",
+      "loadable": "nano",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Cancelling the filename prompt keeps the editor and dirty buffer active.",
+      "script": "nano note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "x\u0018"
+        },
+        {
+          "screen": {
+            "contains": [
+              "Save modified buffer"
+            ]
+          }
+        },
+        {
+          "send": "y"
+        },
+        {
+          "screen": {
+            "contains": [
+              "Write to File: note"
+            ]
+          }
+        },
+        {
+          "send": "\u001b"
+        },
+        {
+          "send": "\u0018"
+        },
+        {
+          "screen": {
+            "contains": [
+              "Save modified buffer"
+            ]
+          }
+        },
+        {
+          "send": "n"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "nano/deferred_edit_save"
+      ],
+      "files": {
+        "note": "one\n"
+      },
+      "expected_files": {
+        "note": "one\n"
+      }
+    }
+  ]
+}

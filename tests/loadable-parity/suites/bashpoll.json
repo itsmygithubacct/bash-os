@@ -106,8 +106,17 @@
     {
       "id": "signalfd-ownership",
       "purpose": "Exercise signalfd delivery, accepted signal names, overlapping masks, close/unload restoration, preblocked signals, and invalid signal handling.",
-      "kind": "deferred",
-      "reason": "r5 is a limit"
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-terra-local-io-safety-masks"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-unload"
+        }
+      ]
     },
     {
       "id": "descriptor-flags-and-close",

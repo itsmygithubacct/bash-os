@@ -1,0 +1,67 @@
+Executor observer qualification add-on
+
+This fixture observes the actual kernel-created native executor used by the
+qualification endpoint. The endpoint, policy evaluation, grant consumption and
+private channel are real. A separately pinned static bootstrap installs a seccomp
+user-notification filter, transfers its listener to an independent guest-root
+observer, closes its bootstrap descriptors and calls the production executor
+entry point in the same process. The production translation unit is unchanged
+apart from the entry-point name at compilation. There are no production hooks,
+issuer substitutions, fake policy decisions or credentials supplied by Bash.
+
+The bootstrap is explicitly a test image. Its UID-0 check controls observer setup;
+it is not an authentication or command-policy grant. The test module still needs
+its administrator-owned snapshots and exact executor pin. It is never installed
+as a deployment helper. Production features remain unavailable.
+
+The observer checks the bootstrap peer's real kernel credentials, image hash and
+live task identity. It pins monitor/child pidfds, requires a single-thread direct
+child, validates each live notification identifier before and after bounded memory
+reads, and records all credential calls, target exec attempts and live exit IDs.
+Only the selected fault is replaced. Unselected calls continue into the kernel.
+Kernel object capture, native private-channel framing, and approved program files
+are not replaced. Paths, argv and live target file inode/content are checked at
+the target's execveat attempt. Real/effective/saved/fs IDs, groups, capabilities and
+no_new_privs are read independently from /proc before exec and at live exit.
+
+The expected setup sequence is setgroups, setresgid, setresuid, capset, getresuid,
+getresgid, the setfsuid(-1) query, and the setfsgid(-1) query. Faults cover the first
+six calls, plus a mismatched saved-ID readback at each getres call. The latter
+changes only the returned readback, not actual credentials. A mismatch in the UID
+read is followed by the source's GID read before it compares the returned values.
+The verdict therefore uses the exact expected prefix for each selected fault.
+
+Every post-fault credential continuation or target exec attempt fails the verdict.
+Containment replies are also failures. A target marker's absence cannot make an
+observation pass. Live exit IDs must equal the IDs at the failed syscall; earlier
+successful drops are not described as rollback. Successful controls require one
+actual target image with all target IDs, zero capability sets and exit status 7.
+The monitor must also exit with its original IDs and a completed protocol result.
+
+The same nine controls run through each actual auth, doas and sudo entry point:
+one real success and eight selected faults. Two deliberately broken executor
+variants test the verdict itself. One ignores a setgroups failure and attempts
+the next credential call. The other really retains saved UID 0 and ignores its
+own ID check. The observer lets that one reviewed negative-control UID change
+reach the kernel, then records and denies the target exec attempt with saved UID
+0. Both bad executor verdicts must FAIL, with their raw logs retained separately.
+The containing driver reports successful rejection as a negative-control PASS.
+No deliberately broken image is integrated into production source.
+
+The seccomp CONTINUE interface is not a security-policy boundary. This is bounded
+observation of pinned, single-thread test programs; all mutable pointer reads have
+that explicit scope. The actual authority still enforces its independent binding.
+See Linux v6.12 userspace-api/seccomp_filter.html and include/uapi/linux/seccomp.h.
+
+Prerequisites: an attested disposable x86-64 guest, root CAP_SYS_ADMIN and
+CAP_SYS_PTRACE, seccomp user notification, pidfds, readable procfs, exact pinned
+module/native artifacts, and both full Bash 5.3.20 candidates. No host behavior is
+authorized. Missing observation prerequisites are ERROR, never PASS or a product
+FAIL. Timeout cleanup signals only retained pidfds; module cleanup and a complete
+dmesg before/after warning check are mandatory.
+
+This add-on does not complete the original nine-topic matrix. In particular it
+does not independently trace the absence of a kernel helper on policy denial,
+qualify safeedit, supply an interactive login/session replacement, or substitute
+for the base packet's actual verifier/password/audit controls. Its 29 observations
+and the prior packet remain unexecuted until coordinator guest qualification.

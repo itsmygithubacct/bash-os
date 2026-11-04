@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-who-terminal-state-repair-r1",
+      "loadable": "who",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "covers": [
+        "who/terminal-state"
+      ],
+      "purpose": "Five real pseudo-terminals owned by the side (devpts gid tty) with chosen modes and access times back synthetic USER_PROCESS records: -T/-w message status from the group-write bit (mode 0620 \"+\", 0600 \"-\", /dev/null and a missing pts/999 line), -u idle as \".\" (10 s), HH:MM (3725 s), \"old\" (90000 s), a future access time, and an access time older than a preceding BOOT_TIME record; -m with stdin redirected from a given terminal selects only its record, including with -T, -u, -H and -q. Regression also checks -w combined with -u and both orders of -q and -m, including non-terminal stdin; fixture setup failures are fatal.",
+      "oracle": "GNU coreutils who 9.7 reading the same record files and stat-ing the same terminals",
+      "comparison": "Byte parity of status, stdout and stderr; each invocation is bracketed by markers on both streams and followed by its status. LC_ALL=C fixes the time format. -m runs in a subshell so the session-leader shell never acquires the terminal as its controlling tty. Terminal names come from the same allocation order on each side.",
+      "requires": [
+        "python3",
+        "sed"
+      ],
+      "files": {
+        "ptyhold.py": "# SPDX-License-Identifier: MIT\n# Open pseudo-terminals, set each one's mode and access time, record their\n# names and the time base, then hold them open until killed (takeover root).\nimport json, os, sys, time\nnow = int(time.time())\nheld, names = [], []\nfor mode, age in json.loads(sys.argv[2]):\n    master, slave = os.openpty()\n    name = os.ttyname(slave)\n    os.chmod(name, mode)\n    os.utime(name, (now - age, now - age))\n    held.append((master, slave))\n    names.append(name[5:])\nwith open(sys.argv[1] + '.tmp', 'w') as handle:\n    json.dump({'now': now, 'ptys': names}, handle)\nos.rename(sys.argv[1] + '.tmp', sys.argv[1])\ntime.sleep(55)\n",
+        "mkutmp.py": "# SPDX-License-Identifier: MIT\n# Write glibc x86-64 struct utmp records (384 bytes each) from a JSON list\n# (takeover root). Fields: type, pid, line, id, user, host, term, exit, sec.\nimport json, struct, sys\nFMT = '<h2xi32s4s32s256shhiii4i20s'\nassert struct.calcsize(FMT) == 384\nout = bytearray()\nfor r in json.loads(sys.argv[2]):\n    out += struct.pack(FMT, r['type'], r.get('pid', 0), r.get('line', '').encode(), r.get('id', '').encode(),\n                       r.get('user', '').encode(), r.get('host', '').encode(), r.get('term', 0), r.get('exit', 0),\n                       0, r['sec'], 0, 0, 0, 0, 0, b'')\nwith open(sys.argv[1], 'wb') as handle:\n    handle.write(out)\n"
+      },
+      "script": "export LC_ALL=C\n/usr/bin/python3 ptyhold.py pty.json '[[400, 10], [384, 3725], [400, -7200], [400, 90000], [400, 2000]]' </dev/null >/dev/null 2>&1 &\nhold=$!\nfor ((i = 0; i < 250; i++)); do [[ -s pty.json ]] && break; read -r -t 0.02 _ <> <(:) 2>/dev/null; done\n[[ -s pty.json ]] || { echo SETUP-FAILED-pty; builtin kill \"$hold\" 2>/dev/null; exit 97; }\nmapfile -t L < <(/usr/bin/python3 -c 'import json; [print(p) for p in json.load(open(\"pty.json\"))[\"ptys\"]]')\n[[ ${#L[@]} == 5 ]] || { echo SETUP-FAILED-names; builtin kill \"$hold\" 2>/dev/null; exit 97; }\nnow=$(/usr/bin/python3 -c 'import json; print(json.load(open(\"pty.json\"))[\"now\"])')\nu() { printf '{\"type\":7,\"pid\":%s,\"line\":\"%s\",\"id\":\"%s\",\"user\":\"%s\",\"sec\":1700000000},' \"$@\"; }\n/usr/bin/python3 mkutmp.py plain.utmp \"[$(u 50 \"${L[0]}\" q0 u0)$(u 51 \"${L[1]}\" q1 u1)$(u 52 \"${L[2]}\" q2 u2)$(u 53 \"${L[3]}\" q3 u3)$(u 59 pts/999 q9 gone | /usr/bin/sed 's/,$//')]\"\n/usr/bin/python3 mkutmp.py boot.utmp \"[$(u 60 \"${L[0]}\" b0 before){\\\"type\\\":2,\\\"line\\\":\\\"~\\\",\\\"id\\\":\\\"~\\\",\\\"user\\\":\\\"reboot\\\",\\\"sec\\\":$((now - 1000))},$(u 61 \"${L[4]}\" b4 after)$(u 62 \"${L[0]}\" b0 fresh | /usr/bin/sed 's/,$//')]\"\n/usr/bin/python3 mkutmp.py mesg.utmp \"[$(u 70 \"${L[0]}\" m0 m0)$(u 71 \"${L[1]}\" m1 m1)$(u 72 null mn devnull)$(u 79 pts/999 m9 gone | /usr/bin/sed 's/,$//')]\"\nx() { echo \"[$*]\"; echo \"[$*]\" >&2; \"$@\"; echo \"[status=$?]\"; }\nm() { local k=$1; shift; echo \"[$* < tty$k]\"; echo \"[$* < tty$k]\" >&2; ( \"$@\" < \"/dev/${L[k]}\" ); echo \"[status=$?]\"; }\nx who -T mesg.utmp\nx who -w mesg.utmp\nx who -wu plain.utmp\nx who -T plain.utmp\nx who -u plain.utmp\nx who -Tu plain.utmp\nx who -a plain.utmp\nx who -u boot.utmp\nx who -aH boot.utmp\nx who -m plain.utmp\nm 1 who -m plain.utmp\nm 2 who -mT plain.utmp\nm 0 who -mu boot.utmp\nm 3 who -q -m plain.utmp\nm 3 who -m -q plain.utmp\nx who -q -m plain.utmp </dev/null\nm 0 who -mH plain.utmp\nbuiltin kill \"$hold\"\nwait \"$hold\" 2>/dev/null\n:\n",
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}

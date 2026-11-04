@@ -86,6 +86,9 @@ static int fixture_open(const char *p, int flags, ...)
         kind = 10 + idx; snprintf(mapped, sizeof mapped, "%s/dev/loop%d", root, idx);
     } else if (!strncmp(p, "/sys/block/", 11)) {
         snprintf(mapped, sizeof mapped, "%s/sys/%s", root, p + 11);
+    } else if (!strcmp(p, "-dash")) {
+        if (fail((flags & O_ACCMODE) == O_RDWR ? 2 : 3)) return -1;
+        snprintf(mapped, sizeof mapped, "%s/-dash", root);
     } else if (confined(p)) {
         if (fail((flags & O_ACCMODE) == O_RDWR ? 2 : 3)) return -1;
         snprintf(mapped, sizeof mapped, "%s", p);
@@ -147,7 +150,8 @@ static int fixture_ioctl(int fd, unsigned long req, ...)
         event("SET_FD loop%d\n", idx);
         if (fail(5)) return -1;
         if (d->attached) { errno = EBUSY; return -1; }
-        if (arg < 0 || arg >= NFDS || kinds[arg] != 1 || !confined(names[arg])) {
+        if (arg < 0 || arg >= NFDS || kinds[arg] != 1 ||
+            (!confined(names[arg]) && strcmp(names[arg], "-dash"))) {
             bad++; errno = EBADF; return -1;
         }
         d->attached = 1;

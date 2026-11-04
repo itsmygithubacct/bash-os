@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-ionice-command-signal-term",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Child output and shell status after SIGTERM",
+      "oracle": "Linux wait status and shell convention: termination by signal N yields 128+N; bytes written before termination remain visible.",
+      "comparison": "Exact child stdout, stderr and shell-observed builtin status.",
+      "script": "ionice -c 2 -n 4 /usr/bin/python3 -c 'import os,signal; os.write(1,b\"child-out\\n\"); os.write(2,b\"child-err\\n\"); os.kill(os.getpid(),signal.SIGTERM)'; printf 'status=%s\\n' \"$?\"",
+      "expected_status": 0,
+      "stdout": "child-out\nstatus=143\n",
+      "stderr": "child-err\n",
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/command-wrapper"
+      ]
+    },
+    {
+      "id": "repair-ionice-command-signal-kill",
+      "loadable": "ionice",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Child output and shell status after SIGKILL",
+      "oracle": "Linux wait status and shell convention: termination by signal N yields 128+N; bytes written before termination remain visible.",
+      "comparison": "Exact child stdout, stderr and shell-observed builtin status.",
+      "script": "ionice -c 2 -n 4 /usr/bin/python3 -c 'import os,signal; os.write(1,b\"child-out\\n\"); os.write(2,b\"child-err\\n\"); os.kill(os.getpid(),signal.SIGKILL)'; printf 'status=%s\\n' \"$?\"",
+      "expected_status": 0,
+      "stdout": "child-out\nstatus=137\n",
+      "stderr": "child-err\n",
+      "requires": [
+        "ionice",
+        "python3"
+      ],
+      "covers": [
+        "ionice/command-wrapper"
+      ]
+    }
+  ]
+}

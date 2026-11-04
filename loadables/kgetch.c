@@ -33,6 +33,7 @@
 #include <time.h>
 
 #include "loadables.h"
+#include "escdelay-resolve.h"
 
 enum {
   BK_NONE = 0,
@@ -354,16 +355,7 @@ bk_read_key (int fd)
   if (b != 0x1b)
     return bk_decode_buf (&b, 1);
 
-  int escdelay = 50;
-  const char *ed = getenv ("BASHESCDELAY");
-  if (!ed || !*ed) ed = getenv ("BASHKGETCH_ESCDELAY");
-  if (ed && *ed)
-    {
-      char *end = NULL;
-      long v = strtol (ed, &end, 10);
-      if (end && *end == '\0' && v >= 0 && v <= 5000)
-        escdelay = (int) v;
-    }
+  int escdelay = bashos_escdelay_resolve (NULL, 1);
   int cap = escdelay * 8;
   if (cap < 400) cap = 400;
 

@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-bashpoll-unix-ownership",
+      "loadable": "bashpoll",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Relative listener cleanup after chdir, replacement path preservation, descriptor reuse, and invalid FDVAR.",
+      "oracle": "Original bashpoll deferral requirements, the documented BashOS builtin API, and independent kernel socket, PTY and epoll semantics. The peer controls exact bytes and ephemeral loopback addresses. The independent epoll instance observes each same stable descriptor immediately before the candidate wait; event labels and multiplicities must agree exactly with that kernel observation and include the originally required labels.",
+      "comparison": "A guarded disposable VM runs bounded shell checks and retains child diagnostics.",
+      "covers": [
+        "bashpoll/unix-socket-lifecycle"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/terra-local-io-bashpoll.py": "b2e648c9fde2c320d2be828c5c1061b1b0becf8ab56e6d1dee4ed35f60f407c7",
+        "helpers/bashpoll-unix-lifecycle-regression.py": "0facf93fb19627ae818c9d3922239411af9300d51261087ddaa48d31fcaad243"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashpoll-unix-lifecycle-regression.py setup",
+      "setup_timeout": 20,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/bashpoll-unix-lifecycle-regression.py \"$BASH\"",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "ownership=ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "bashpoll-observations.jsonl"
+      ]
+    }
+  ]
+}

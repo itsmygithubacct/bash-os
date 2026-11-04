@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "bashkmod-policy-compressed-chain-root-r1",
+      "loadable": "bashkmod",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "bashkmod/defer-policy-command-effects"
+      ],
+      "purpose": "Exercise compressed live module loading with parameters and ordered dependency-chain removal.",
+      "oracle": "kmod dry-run plan and kernel module inventory and sysfs, in an isolated disposable guest.",
+      "comparison": "All plan modules must be initially absent; Linux lists newly inserted modules in reverse load order. Check compressed nbd parameters, chain order and removal. Missing prerequisites exit 125.",
+      "requires": [
+        "modprobe"
+      ],
+      "privilege": "root",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ && $(type -t bashkmod) == builtin ]] || exit 125\nhas() { local n; while read -r n _; do [[ $n == \"$1\" ]] && return 0; done </proc/modules; return 1; }\nplan=$(/usr/sbin/modprobe -n -v br_netfilter) || exit 125\norder=(); paths=()\nwhile read -r verb path rest; do\n  [[ $verb == insmod ]] || continue\n  n=${path##*/}; n=${n%%.ko*}; n=${n//-/_}\n  has \"$n\" && exit 125\n  order+=(\"$n\"); paths+=(\"$path\")\ndone <<< \"$plan\"\n(( ${#order[@]} >= 2 )) || exit 125\nhas nbd && exit 125\nnbdplan=$(/usr/sbin/modprobe -n -v nbd) || exit 125\n[[ $nbdplan == 'insmod '*.ko.xz* ]] || exit 125\n[[ -r /sys/module/compression && $(</sys/module/compression) == xz ]] || exit 125\ncleanup() { /usr/sbin/modprobe -r br_netfilter >/dev/null 2>&1; /usr/sbin/modprobe -r nbd >/dev/null 2>&1; }\ntrap cleanup EXIT\nbashkmod modprobe nbd nbds_max=4 || exit 1\nhas nbd || exit 1\n[[ $(</sys/module/nbd/parameters/nbds_max) == 4 ]] || exit 1\nbashkmod modprobe -r nbd || exit 1\nhas nbd && exit 1\nbashkmod modprobe br_netfilter || exit 1\n# Linux /proc/modules lists newly inserted modules in reverse insertion order.\nnew=(); while read -r n _; do for want in \"${order[@]}\"; do [[ $n == \"$want\" ]] && new+=(\"$n\"); done; done </proc/modules\n(( ${#new[@]} == ${#order[@]} )) || exit 1\nfor ((i=0; i<${#order[@]}; i++)); do [[ ${new[i]} == \"${order[${#order[@]}-1-i]}\" ]] || exit 1; done\nbashkmod modprobe -r br_netfilter || exit 1\nfor n in \"${order[@]}\"; do has \"$n\" && exit 1; done\nprintf 'compressed-nbd=params-and-remove-ok chain=load-order-and-remove-ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "compressed-nbd=params-and-remove-ok chain=load-order-and-remove-ok\n",
+      "stderr": "",
+      "timeout": 50
+    }
+  ]
+}

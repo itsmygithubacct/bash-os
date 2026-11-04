@@ -468,6 +468,30 @@ bvt_clear_pending_wrap (bvt_t *t)
     t->pending_wrap = 0;
 }
 
+/* IND and RI scroll only when the cursor is on the corresponding margin.
+   Outside the region they move within the physical screen instead. */
+static void
+bvt_index (bvt_t *t)
+{
+    if (t->cy == t->scroll_bot)
+        bvt_scroll_up (t);
+    else if (t->cy < t->rows - 1)
+        t->cy++;
+}
+
+static void
+bvt_reverse_index (bvt_t *t)
+{
+    if (t->cy == t->scroll_top) {
+        memmove (&t->grid[(t->scroll_top + 1) * t->cols],
+                 &t->grid[t->scroll_top * t->cols],
+                 (size_t) ((t->scroll_bot - t->scroll_top) * t->cols) * sizeof (bvt_cell));
+        for (int col = 0; col < t->cols; col++)
+            bvt_clear_cell (&t->grid[t->scroll_top * t->cols + col]);
+    } else if (t->cy > 0)
+        t->cy--;
+}
+
 static void
 bvt_apply_pending_wrap (bvt_t *t)
 {
@@ -481,11 +505,7 @@ bvt_apply_pending_wrap (bvt_t *t)
         bvt_cell *last = bvt_cell_at (t, t->cy, t->cols - 1);
         if (last) last->flags |= BVT_CELL_FLAG_SOFT_WRAP_NEXT;
         t->cx = 0;
-        t->cy++;
-        if (t->cy > t->scroll_bot) {
-            bvt_scroll_up (t);
-            t->cy = t->scroll_bot;
-        }
+        bvt_index (t);
     }
     t->pending_wrap = 0;
 }
@@ -591,11 +611,7 @@ bvt_print_cluster (bvt_t *t, uint32_t base_cp,
     if (width == 2 && t->cx + 1 >= t->cols) {
         if (t->autowrap) {
             t->cx = 0;
-            t->cy++;
-            if (t->cy > t->scroll_bot) {
-                bvt_scroll_up (t);
-                t->cy = t->scroll_bot;
-            }
+            bvt_index (t);
         } else {
             t->cx = (t->cols > 1) ? t->cols - 2 : 0;
         }
@@ -787,11 +803,7 @@ bvt_execute_c0 (bvt_t *t, unsigned char c)
     case '\v':
     case '\f':
         bvt_clear_pending_wrap (t);
-        t->cy++;
-        if (t->cy > t->scroll_bot) {
-            bvt_scroll_up (t);
-            t->cy = t->scroll_bot;
-        }
+        bvt_index (t);
         break;
     /* BEL ignored. */
     }
@@ -1089,7 +1101,7 @@ bvt_csi_dispatch (bvt_t *t, unsigned char final_byte)
         if (t->csi_private == '>' )
             bvt_response_append (t, "\033[>0;0;0c");
         else
-            bvt_response_append (t, "\033[?1;2c");
+            bvt_response_append (t, "\033[?6c");
         break;
     case 'n': {                                              /* DSR */
         int mode = bvt_p (t, 0, 0);
@@ -1297,6 +1309,14 @@ bvt_feed_byte (bvt_t *t, unsigned char b)
         } else if (b >= 0x20 && b <= 0x2F) {
             t->esc_intermediate = (int) b;
             t->state = VT_ESCAPE_INTERMEDIATE;
+        } else if (b == 'D' || b == 'E' || b == 'M') {
+            bvt_clear_pending_wrap (t);
+            if (b == 'M') bvt_reverse_index (t);
+            else {
+                if (b == 'E') t->cx = 0;
+                bvt_index (t);
+            }
+            t->state = VT_GROUND;
         } else if (b == '7') {
             bvt_clear_pending_wrap (t);
             t->saved_cy = t->cy; t->saved_cx = t->cx; t->state = VT_GROUND;

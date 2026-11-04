@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "ip-read-queries-r1-family-mask",
+      "loadable": "ip",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Compare explicit IPv4 and IPv6 all-table routes and full and partial rule masks, including JSON, against iproute2 in a seeded namespace.",
+      "covers": [
+        "ip/ip-read-only-queries"
+      ],
+      "oracle": "iproute2 in the same disposable network namespace.",
+      "comparison": "Candidate and reference route facts and rule rows; both commands must succeed.",
+      "requires": [
+        "unshare",
+        "python3",
+        "ip"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/ip-read-queries-r1.py\n",
+      "stdout": "scenario ip-read-queries-r1: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 45,
+      "helpers_sha256": {
+        "helpers/ip-read-queries-r1.py": "12678168c320045ef13a20a7a1935dd3e712806c3207f16d192bf5666cd051ad",
+        "helpers/mig-w1-ip.py": "c6aae6db72ec257929bc20fed20310ac46f22cca9507e13ded6ef879d88b9ce1",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    }
+  ]
+}

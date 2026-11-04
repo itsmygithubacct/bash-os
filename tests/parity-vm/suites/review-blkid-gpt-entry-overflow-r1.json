@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "review-blkid-gpt-entry-overflow-r1",
+      "loadable": "blkid",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "blkid/device-discovery-deferred"
+      ],
+      "purpose": "Reject out-of-range GPT entry locations without overflow, false partition tags, or shell failure.",
+      "oracle": "The table LBA overflows 64-bit byte offset multiplication to zero; sentinel nonzero bytes at offset zero must never be treated as a partition entry.",
+      "comparison": "Exact output and status, including shell survival.",
+      "requires": [
+        "python3"
+      ],
+      "setup_script": "mkdir -p dev sys tree/disk tree/disk/disk1\nln -s ../tree/disk/disk1 sys/disk1\nprintf '1\\n' > tree/disk/disk1/partition\npython3 - <<'PYFIX'\nimport struct\nfrom pathlib import Path\np=bytearray(65536)\np[0:32]=bytes(range(1,33))\np[512:520]=b'EFI PART'\nstruct.pack_into('<QII',p,584,1 << 55,128,128)\nPath('dev/disk').write_bytes(p)\nPath('dev/disk1').write_bytes(bytes(4096))\nPYFIX\n",
+      "script": "export BASHBLKID_SYS_BLOCK_DIR=$PWD/sys BASHBLKID_DEV_ROOT=$PWD/dev\nblkid -s PARTUUID -o value \"$PWD/dev/disk1\" || exit 1\nprintf 'survived\\n'\n",
+      "expected_status": 0,
+      "stdout": "survived\n",
+      "stderr": "",
+      "timeout": 15
+    }
+  ]
+}

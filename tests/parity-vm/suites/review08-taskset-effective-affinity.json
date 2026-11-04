@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "review08-taskset-effective-affinity-r1",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Report the actual affinity after a mixed available and unavailable CPU request.",
+      "oracle": "Independent /proc/PID/status Cpus_allowed_list after sched_setaffinity; current guest has exactly two CPUs.",
+      "comparison": "Reported new list and procfs both equal CPU 0; no request or prerequisite is normalized.",
+      "requires": [
+        "python3",
+        "sleep"
+      ],
+      "script": "[[ $(</sys/devices/system/cpu/online) == 0-1 ]] || exit 125\n/usr/bin/python3 -c 'import os; assert 0 in os.sched_getaffinity(0)' || exit 125\n/usr/bin/sleep 30 & child=$!\ntrap 'kill \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\nout=$(taskset -cp 0,1023 \"$child\") || exit 1\n[[ $out == *\"pid $child's new affinity list: 0\" ]] || { printf 'unexpected output: %s\\n' \"$out\" >&2; exit 1; }\n/usr/bin/python3 - \"$child\" <<'PY_CHECK'\nimport pathlib,sys\nlines=pathlib.Path('/proc/'+sys.argv[1]+'/status').read_text().splitlines()\nline=next(x for x in lines if x.startswith('Cpus_allowed_list:'))\nassert line.split(':',1)[1].strip() == '0', line\nPY_CHECK\nprintf 'effective affinity agrees with reported list\\n'\n",
+      "stdout": "effective affinity agrees with reported list\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 20,
+      "covers": [
+        "taskset/deferred-set-owned-pid"
+      ]
+    }
+  ]
+}

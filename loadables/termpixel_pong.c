@@ -220,14 +220,33 @@ termpixel_pong_builtin (WORD_LIST *list)
     }
 
     btp_tty_state tty; int raw = btp_tty_enter_raw (&tty, 0) == 0;
+    if (raw) {
+        /* Pong handles Ctrl-C as a key.  With ISIG set, the terminal
+           consumes that byte and the input loop never sees CTRL_C. */
+        struct termios mode;
+        if (tcgetattr (0, &mode) < 0) {
+            btp_tty_restore (&tty);
+            btp_canvas_free (&canvas);
+            builtin_error ("cannot read terminal mode");
+            return EXECUTION_FAILURE;
+        }
+        mode.c_lflag &= ~ISIG;
+        if (tcsetattr (0, TCSANOW, &mode) < 0) {
+            btp_tty_restore (&tty);
+            btp_canvas_free (&canvas);
+            builtin_error ("cannot set terminal mode");
+            return EXECUTION_FAILURE;
+        }
+    }
     struct timespec prev, frame; clock_gettime (CLOCK_MONOTONIC, &prev); frame = prev;
     long frame_ns = 1000000000L / fps;
     int rendered = 0, quit = 0;
     int up_l = 0, dn_l = 0, up_r = 0, dn_r = 0;
 
-    while (!quit) {
+    while (!quit && (!raw || !btp_tty_interrupted ())) {
         char key[32];
-        while (btp_read_key (0, 0, key, sizeof key) == 1) {
+        while ((!raw || !btp_tty_interrupted ()) &&
+               btp_read_key (0, 0, key, sizeof key) == 1) {
             if      (!strcmp (key, "ESCAPE")) quit = 1;
             else if (!strcmp (key, "CTRL_C")) quit = 1;
             else if (!strcmp (key, "p")) g.paused = !g.paused;

@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-taskset-wrapper-rejected-list",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Rejected affinity fails before executing the command",
+      "oracle": "Upstream taskset in the same two-vCPU VM",
+      "comparison": "Compare status and diagnostic presence; verify the child did not run.",
+      "script": "rm -f marker\ntaskset -c 5 /usr/bin/touch marker >out 2>err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -e marker ]] && echo child-not-run; rm -f marker out err",
+      "stdout": "status=1 diagnostic=yes\nchild-not-run\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3",
+        "touch"
+      ],
+      "covers": [
+        "taskset/deferred-command-wrapper"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.cpu_count()==2;assert os.sched_getaffinity(0)=={0,1}'"
+    },
+    {
+      "id": "repair-taskset-wrapper-rejected-mask",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Rejected affinity fails before executing the command",
+      "oracle": "Upstream taskset in the same two-vCPU VM",
+      "comparison": "Compare status and diagnostic presence; verify the child did not run.",
+      "script": "rm -f marker\ntaskset 20 /usr/bin/touch marker >out 2>err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -e marker ]] && echo child-not-run; rm -f marker out err",
+      "stdout": "status=1 diagnostic=yes\nchild-not-run\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3",
+        "touch"
+      ],
+      "covers": [
+        "taskset/deferred-command-wrapper"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.cpu_count()==2;assert os.sched_getaffinity(0)=={0,1}'"
+    },
+    {
+      "id": "repair-taskset-wrapper-rejected-empty-mask",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Rejected affinity fails before executing the command",
+      "oracle": "Upstream taskset in the same two-vCPU VM",
+      "comparison": "Compare status and diagnostic presence; verify the child did not run.",
+      "script": "rm -f marker\ntaskset 0 /usr/bin/touch marker >out 2>err; rc=$?; [[ -s err ]] && d=yes || d=no; printf \"status=%s diagnostic=%s\\n\" \"$rc\" \"$d\"; [[ ! -e marker ]] && echo child-not-run; rm -f marker out err",
+      "stdout": "status=1 diagnostic=yes\nchild-not-run\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3",
+        "touch"
+      ],
+      "covers": [
+        "taskset/deferred-command-wrapper"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.cpu_count()==2;assert os.sched_getaffinity(0)=={0,1}'"
+    },
+    {
+      "id": "repair-taskset-wrapper-child-125",
+      "loadable": "taskset",
+      "group": "shell",
+      "driver": "plain",
+      "purpose": "Preserve a successfully executed child status of 125",
+      "oracle": "Upstream taskset in the same two-vCPU VM",
+      "comparison": "Exact child output and status",
+      "script": "taskset 1 /usr/bin/python3 -c 'import sys;print(\"child-ran\");sys.exit(125)'; printf 'status=%s\\n' \"$?\"",
+      "stdout": "child-ran\nstatus=125\n",
+      "stderr": "",
+      "expected_status": 0,
+      "requires": [
+        "taskset",
+        "python3"
+      ],
+      "covers": [
+        "taskset/deferred-command-wrapper"
+      ],
+      "setup_script": "/usr/bin/python3 -c 'import os;assert os.cpu_count()==2;assert os.sched_getaffinity(0)=={0,1}'"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "review-unlink-immutable-ext4-contract-r1",
+      "loadable": "unlink",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "unlink/immutable-file-denial"
+      ],
+      "purpose": "On a disposable loop-mounted ext4 filesystem, verify that an immutable relative regular file cannot be unlinked by relative or absolute path, retains its exact bytes, and is cleared during teardown before it can be unlinked. The historical parity case is preserved separately.",
+      "oracle": "GNU coreutils 9.7 unlink",
+      "comparison": "Each side asserts nonzero status and a nonempty diagnostic for both paths, exact retained bytes and entry, successful flag readback and cleanup; canonical observations are compared. Diagnostic wording differs between the Bash builtin and GNU unlink.",
+      "requires": [
+        "chattr",
+        "lsattr",
+        "truncate",
+        "mkfs.ext4",
+        "mkdir",
+        "mount",
+        "umount",
+        "cmp",
+        "rm",
+        "rmdir"
+      ],
+      "script": "I=/tmp/unlink-immutable.img M=/tmp/unlink-immutable-mnt\nmounted=0\ncleanup() {\n  local rc=$?\n  trap - EXIT\n  if (( mounted )); then\n    cd /tmp/parity-case || rc=1\n    /usr/bin/chattr -i \"$M/imm\" 2>/dev/null || { [[ ! -e $M/imm ]] || rc=1; }\n    /usr/bin/umount \"$M\" || rc=1\n  fi\n  /usr/bin/rmdir \"$M\" 2>/dev/null || { [[ ! -d $M ]] || rc=1; }\n  /usr/bin/rm -f \"$I\" || rc=1\n  exit \"$rc\"\n}\ntrap cleanup EXIT\n/usr/bin/truncate -s 4M \"$I\" && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal \"$I\" && /usr/bin/mkdir \"$M\" && /usr/bin/mount -o loop \"$I\" \"$M\" || { echo SETUP-FAILED >&2; exit 99; }\nmounted=1\ncd \"$M\" || exit 99\nprintf 'kept\\n' > imm || exit 99\nprintf 'kept\\n' > expected || exit 99\n/usr/bin/chattr +i imm || { echo SETUP-FAILED-immutable >&2; exit 99; }\nflags=$(/usr/bin/lsattr -d imm) || exit 99\n[[ ${flags%% *} == *i* ]] || { echo SETUP-FAILED-flag >&2; exit 99; }\nfor path in imm \"$PWD/imm\"; do\n  if unlink \"$path\" > /tmp/unlink-immutable.out 2> /tmp/unlink-immutable.err; then\n    echo UNLINK-UNEXPECTED-SUCCESS >&2; exit 1\n  fi\n  [[ ! -s /tmp/unlink-immutable.out && -s /tmp/unlink-immutable.err && -f imm ]] || exit 1\n  /usr/bin/cmp -s imm expected || exit 1\n  echo denial-ok\ndone\n/usr/bin/chattr -i imm || exit 1\nflags=$(/usr/bin/lsattr -d imm) || exit 1\n[[ ${flags%% *} != *i* ]] || exit 1\necho flag-cleared\nunlink imm || exit 1\n[[ ! -e imm && ! -L imm ]] || exit 1\necho cleared-unlink-ok\n",
+      "expected_status": 0,
+      "timeout": 30
+    }
+  ]
+}

@@ -20,10 +20,10 @@
       ],
       "timeout": 45,
       "helpers_sha256": {
-        "helpers/trace-vm-argv-r3.py": "95c6d1dd3563354f6057aea421a29df602d7c66bd78909808ed8001c116baec6"
+        "helpers/trace-vm-argv-r3-bash5320.py": "c221acdcc660c6d0f5774f534010d30baea4fea491784c2d8a4736eecfe1ecb7"
       },
-      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-argv-r3.py ./trace-vm-argv-r3.py\n/bin/chmod 0755 ./trace-vm-argv-r3.py\n./trace-vm-argv-r3.py --control\n",
-      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-argv-r3.py \"$BASH\"\nrc=$?\nexit \"$rc\"\n",
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-argv-r3-bash5320.py ./trace-vm-argv-r3-bash5320.py\n/bin/chmod 0755 ./trace-vm-argv-r3-bash5320.py\n./trace-vm-argv-r3-bash5320.py --control\n",
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-argv-r3-bash5320.py \"$BASH\"\nrc=$?\nexit \"$rc\"\n",
       "expected_status": 0,
       "stdout": "short: ok\ndefault: ok\nempty: ok\nlong: ok\nextra: ok\n",
       "stderr": "",

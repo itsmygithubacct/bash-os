@@ -153,6 +153,9 @@ struct ssh_session_struct {
     int connected;
     /* !=0 when the user got a session handle */
     int alive;
+    /* Preserve the actual socket EOF cause after the error callback closes
+     * the socket. Never infer it from an error string or a child exit code. */
+    int read_eof;
     /* two previous are deprecated */
     /* int auth_service_asked; */
 

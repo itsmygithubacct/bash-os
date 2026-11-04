@@ -1,0 +1,285 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "passwd/password_hash_updates",
+        "passwd/account_file_mutations"
+      ],
+      "timeout": 60,
+      "observation_error_status": 125,
+      "oracle": "Independent pinned Argon2 vector; a private PTY pauses after old-password authentication while a second cooperating process changes, locks, or lock/unlocks the shadow record; byte comparisons and independent follow-up verification check preservation.",
+      "comparison": "Baseline succeeds; stale authorization is rejected and exact peer state is retained; terminal attributes are restored.",
+      "requires": [
+        "python3",
+        "chmod",
+        "mkdir"
+      ],
+      "files": {
+        "db/passwd": "alice:x:1000:1000:Alice:/home/alice:/bin/bash\n",
+        "db/group": "alice:x:1000:\n",
+        "db/shadow": "alice:$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc:19000:1:90:14:30:20000:\n",
+        "race.py": "import fcntl, os, pathlib, pty, select, signal, subprocess, sys, termios, time\nbash = sys.argv[1]\nmode = sys.argv[2]\nshadow = pathlib.Path('db/shadow')\nmaster, slave = pty.openpty()\nold_attrs = termios.tcgetattr(slave)\ndef child_setup():\n    os.setsid()\n    fcntl.ioctl(0, termios.TIOCSCTTY, 0)\nchild = subprocess.Popen([bash, '--noprofile', '--norc', '-c', 'passwd change alice'], stdin=slave, stdout=slave, stderr=slave, preexec_fn=child_setup, close_fds=True)\ntranscript = bytearray()\ndef until(marker):\n    end = time.monotonic() + 15\n    pending = bytearray()\n    while marker not in pending:\n        remaining = end - time.monotonic()\n        if remaining <= 0 or not select.select([master], [], [], max(remaining, 0))[0]:\n            raise RuntimeError('prompt timeout: ' + repr(marker))\n        data = os.read(master, 4096)\n        if not data: raise RuntimeError('early terminal EOF')\n        transcript.extend(data); pending.extend(data)\ndef command(script, input_bytes=None):\n    p = subprocess.run([bash, '--noprofile', '--norc', '-c', script], input=input_bytes, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)\n    pathlib.Path(os.environ['HOME'], 'peer.log').open('ab').write(p.stdout + p.stderr)\n    return p.returncode\ntry:\n    until(b'Current password: ')\n    os.write(master, b'password\\n')\n    until(b'New password: ')\n    original = shadow.read_bytes()\n    initial_stat = shadow.stat()\n    if mode == 'lock':\n        assert command('passwd lock alice') == 0\n    elif mode == 'set':\n        assert command('passwd set-fd alice 0', b'other-password\\n') == 0\n    elif mode == 'aba':\n        assert command('passwd lock alice') == 0\n        assert command('passwd unlock alice') == 0\n        assert shadow.read_bytes() == original\n        st = shadow.stat()\n        assert (st.st_dev, st.st_ino) != (initial_stat.st_dev, initial_stat.st_ino)\n    elif mode != 'none': raise RuntimeError('bad mode')\n    peer_shadow = shadow.read_bytes()\n    os.write(master, b'new-password\\n')\n    until(b'Retype new password: ')\n    os.write(master, b'new-password\\n')\n    rc = child.wait(timeout=15)\n    if mode == 'none':\n        assert rc == 0\n        assert command('passwd verify-fd alice 0', b'new-password\\n') == 0\n    else:\n        assert rc != 0\n        assert shadow.read_bytes() == peer_shadow\n        if mode == 'lock': assert b'alice:!' in peer_shadow\n        if mode == 'set':\n            assert command('passwd verify-fd alice 0', b'other-password\\n') == 0\n            assert command('passwd verify-fd alice 0', b'new-password\\n') != 0\n        if mode == 'aba':\n            assert command('passwd verify-fd alice 0', b'password\\n') == 0\n    assert termios.tcgetattr(slave) == old_attrs\n    print('change-' + mode + '=expected terminal=restored')\nfinally:\n    pathlib.Path(os.environ['HOME'], 'terminal.log').write_bytes(transcript)\n    if child.poll() is None:\n        os.killpg(child.pid, signal.SIGKILL)\n        child.wait(timeout=5)\n    os.close(master); os.close(slave)\n"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "terminal.log",
+        "peer.log"
+      ],
+      "id": "review06-passwd-change-race-memory-none-r3",
+      "purpose": "Exercise none during an interactive password change using memory secrets.",
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BPW_LOCK_DIR=$PWD/locks PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/chmod 600 db/shadow || exit 125\n/usr/bin/mkdir locks || exit 125\n: > \"$HOME/peer.log\"\nexport BASHPASSWD_KERNEL_SECRETS=0\n/usr/bin/python3 race.py \"$BASH\" none\n",
+      "stdout": "change-none=expected terminal=restored\n"
+    },
+    {
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "passwd/password_hash_updates",
+        "passwd/account_file_mutations"
+      ],
+      "timeout": 60,
+      "observation_error_status": 125,
+      "oracle": "Independent pinned Argon2 vector; a private PTY pauses after old-password authentication while a second cooperating process changes, locks, or lock/unlocks the shadow record; byte comparisons and independent follow-up verification check preservation.",
+      "comparison": "Baseline succeeds; stale authorization is rejected and exact peer state is retained; terminal attributes are restored.",
+      "requires": [
+        "python3",
+        "chmod",
+        "mkdir"
+      ],
+      "files": {
+        "db/passwd": "alice:x:1000:1000:Alice:/home/alice:/bin/bash\n",
+        "db/group": "alice:x:1000:\n",
+        "db/shadow": "alice:$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc:19000:1:90:14:30:20000:\n",
+        "race.py": "import fcntl, os, pathlib, pty, select, signal, subprocess, sys, termios, time\nbash = sys.argv[1]\nmode = sys.argv[2]\nshadow = pathlib.Path('db/shadow')\nmaster, slave = pty.openpty()\nold_attrs = termios.tcgetattr(slave)\ndef child_setup():\n    os.setsid()\n    fcntl.ioctl(0, termios.TIOCSCTTY, 0)\nchild = subprocess.Popen([bash, '--noprofile', '--norc', '-c', 'passwd change alice'], stdin=slave, stdout=slave, stderr=slave, preexec_fn=child_setup, close_fds=True)\ntranscript = bytearray()\ndef until(marker):\n    end = time.monotonic() + 15\n    pending = bytearray()\n    while marker not in pending:\n        remaining = end - time.monotonic()\n        if remaining <= 0 or not select.select([master], [], [], max(remaining, 0))[0]:\n            raise RuntimeError('prompt timeout: ' + repr(marker))\n        data = os.read(master, 4096)\n        if not data: raise RuntimeError('early terminal EOF')\n        transcript.extend(data); pending.extend(data)\ndef command(script, input_bytes=None):\n    p = subprocess.run([bash, '--noprofile', '--norc', '-c', script], input=input_bytes, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)\n    pathlib.Path(os.environ['HOME'], 'peer.log').open('ab').write(p.stdout + p.stderr)\n    return p.returncode\ntry:\n    until(b'Current password: ')\n    os.write(master, b'password\\n')\n    until(b'New password: ')\n    original = shadow.read_bytes()\n    initial_stat = shadow.stat()\n    if mode == 'lock':\n        assert command('passwd lock alice') == 0\n    elif mode == 'set':\n        assert command('passwd set-fd alice 0', b'other-password\\n') == 0\n    elif mode == 'aba':\n        assert command('passwd lock alice') == 0\n        assert command('passwd unlock alice') == 0\n        assert shadow.read_bytes() == original\n        st = shadow.stat()\n        assert (st.st_dev, st.st_ino) != (initial_stat.st_dev, initial_stat.st_ino)\n    elif mode != 'none': raise RuntimeError('bad mode')\n    peer_shadow = shadow.read_bytes()\n    os.write(master, b'new-password\\n')\n    until(b'Retype new password: ')\n    os.write(master, b'new-password\\n')\n    rc = child.wait(timeout=15)\n    if mode == 'none':\n        assert rc == 0\n        assert command('passwd verify-fd alice 0', b'new-password\\n') == 0\n    else:\n        assert rc != 0\n        assert shadow.read_bytes() == peer_shadow\n        if mode == 'lock': assert b'alice:!' in peer_shadow\n        if mode == 'set':\n            assert command('passwd verify-fd alice 0', b'other-password\\n') == 0\n            assert command('passwd verify-fd alice 0', b'new-password\\n') != 0\n        if mode == 'aba':\n            assert command('passwd verify-fd alice 0', b'password\\n') == 0\n    assert termios.tcgetattr(slave) == old_attrs\n    print('change-' + mode + '=expected terminal=restored')\nfinally:\n    pathlib.Path(os.environ['HOME'], 'terminal.log').write_bytes(transcript)\n    if child.poll() is None:\n        os.killpg(child.pid, signal.SIGKILL)\n        child.wait(timeout=5)\n    os.close(master); os.close(slave)\n"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "terminal.log",
+        "peer.log"
+      ],
+      "id": "review06-passwd-change-race-memory-set-r3",
+      "purpose": "Exercise set during an interactive password change using memory secrets.",
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BPW_LOCK_DIR=$PWD/locks PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/chmod 600 db/shadow || exit 125\n/usr/bin/mkdir locks || exit 125\n: > \"$HOME/peer.log\"\nexport BASHPASSWD_KERNEL_SECRETS=0\n/usr/bin/python3 race.py \"$BASH\" set\n",
+      "stdout": "change-set=expected terminal=restored\n"
+    },
+    {
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "passwd/password_hash_updates",
+        "passwd/account_file_mutations"
+      ],
+      "timeout": 60,
+      "observation_error_status": 125,
+      "oracle": "Independent pinned Argon2 vector; a private PTY pauses after old-password authentication while a second cooperating process changes, locks, or lock/unlocks the shadow record; byte comparisons and independent follow-up verification check preservation.",
+      "comparison": "Baseline succeeds; stale authorization is rejected and exact peer state is retained; terminal attributes are restored.",
+      "requires": [
+        "python3",
+        "chmod",
+        "mkdir"
+      ],
+      "files": {
+        "db/passwd": "alice:x:1000:1000:Alice:/home/alice:/bin/bash\n",
+        "db/group": "alice:x:1000:\n",
+        "db/shadow": "alice:$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc:19000:1:90:14:30:20000:\n",
+        "race.py": "import fcntl, os, pathlib, pty, select, signal, subprocess, sys, termios, time\nbash = sys.argv[1]\nmode = sys.argv[2]\nshadow = pathlib.Path('db/shadow')\nmaster, slave = pty.openpty()\nold_attrs = termios.tcgetattr(slave)\ndef child_setup():\n    os.setsid()\n    fcntl.ioctl(0, termios.TIOCSCTTY, 0)\nchild = subprocess.Popen([bash, '--noprofile', '--norc', '-c', 'passwd change alice'], stdin=slave, stdout=slave, stderr=slave, preexec_fn=child_setup, close_fds=True)\ntranscript = bytearray()\ndef until(marker):\n    end = time.monotonic() + 15\n    pending = bytearray()\n    while marker not in pending:\n        remaining = end - time.monotonic()\n        if remaining <= 0 or not select.select([master], [], [], max(remaining, 0))[0]:\n            raise RuntimeError('prompt timeout: ' + repr(marker))\n        data = os.read(master, 4096)\n        if not data: raise RuntimeError('early terminal EOF')\n        transcript.extend(data); pending.extend(data)\ndef command(script, input_bytes=None):\n    p = subprocess.run([bash, '--noprofile', '--norc', '-c', script], input=input_bytes, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)\n    pathlib.Path(os.environ['HOME'], 'peer.log').open('ab').write(p.stdout + p.stderr)\n    return p.returncode\ntry:\n    until(b'Current password: ')\n    os.write(master, b'password\\n')\n    until(b'New password: ')\n    original = shadow.read_bytes()\n    initial_stat = shadow.stat()\n    if mode == 'lock':\n        assert command('passwd lock alice') == 0\n    elif mode == 'set':\n        assert command('passwd set-fd alice 0', b'other-password\\n') == 0\n    elif mode == 'aba':\n        assert command('passwd lock alice') == 0\n        assert command('passwd unlock alice') == 0\n        assert shadow.read_bytes() == original\n        st = shadow.stat()\n        assert (st.st_dev, st.st_ino) != (initial_stat.st_dev, initial_stat.st_ino)\n    elif mode != 'none': raise RuntimeError('bad mode')\n    peer_shadow = shadow.read_bytes()\n    os.write(master, b'new-password\\n')\n    until(b'Retype new password: ')\n    os.write(master, b'new-password\\n')\n    rc = child.wait(timeout=15)\n    if mode == 'none':\n        assert rc == 0\n        assert command('passwd verify-fd alice 0', b'new-password\\n') == 0\n    else:\n        assert rc != 0\n        assert shadow.read_bytes() == peer_shadow\n        if mode == 'lock': assert b'alice:!' in peer_shadow\n        if mode == 'set':\n            assert command('passwd verify-fd alice 0', b'other-password\\n') == 0\n            assert command('passwd verify-fd alice 0', b'new-password\\n') != 0\n        if mode == 'aba':\n            assert command('passwd verify-fd alice 0', b'password\\n') == 0\n    assert termios.tcgetattr(slave) == old_attrs\n    print('change-' + mode + '=expected terminal=restored')\nfinally:\n    pathlib.Path(os.environ['HOME'], 'terminal.log').write_bytes(transcript)\n    if child.poll() is None:\n        os.killpg(child.pid, signal.SIGKILL)\n        child.wait(timeout=5)\n    os.close(master); os.close(slave)\n"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "terminal.log",
+        "peer.log"
+      ],
+      "id": "review06-passwd-change-race-memory-lock-r3",
+      "purpose": "Exercise lock during an interactive password change using memory secrets.",
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BPW_LOCK_DIR=$PWD/locks PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/chmod 600 db/shadow || exit 125\n/usr/bin/mkdir locks || exit 125\n: > \"$HOME/peer.log\"\nexport BASHPASSWD_KERNEL_SECRETS=0\n/usr/bin/python3 race.py \"$BASH\" lock\n",
+      "stdout": "change-lock=expected terminal=restored\n"
+    },
+    {
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "passwd/password_hash_updates",
+        "passwd/account_file_mutations"
+      ],
+      "timeout": 60,
+      "observation_error_status": 125,
+      "oracle": "Independent pinned Argon2 vector; a private PTY pauses after old-password authentication while a second cooperating process changes, locks, or lock/unlocks the shadow record; byte comparisons and independent follow-up verification check preservation.",
+      "comparison": "Baseline succeeds; stale authorization is rejected and exact peer state is retained; terminal attributes are restored.",
+      "requires": [
+        "python3",
+        "chmod",
+        "mkdir"
+      ],
+      "files": {
+        "db/passwd": "alice:x:1000:1000:Alice:/home/alice:/bin/bash\n",
+        "db/group": "alice:x:1000:\n",
+        "db/shadow": "alice:$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc:19000:1:90:14:30:20000:\n",
+        "race.py": "import fcntl, os, pathlib, pty, select, signal, subprocess, sys, termios, time\nbash = sys.argv[1]\nmode = sys.argv[2]\nshadow = pathlib.Path('db/shadow')\nmaster, slave = pty.openpty()\nold_attrs = termios.tcgetattr(slave)\ndef child_setup():\n    os.setsid()\n    fcntl.ioctl(0, termios.TIOCSCTTY, 0)\nchild = subprocess.Popen([bash, '--noprofile', '--norc', '-c', 'passwd change alice'], stdin=slave, stdout=slave, stderr=slave, preexec_fn=child_setup, close_fds=True)\ntranscript = bytearray()\ndef until(marker):\n    end = time.monotonic() + 15\n    pending = bytearray()\n    while marker not in pending:\n        remaining = end - time.monotonic()\n        if remaining <= 0 or not select.select([master], [], [], max(remaining, 0))[0]:\n            raise RuntimeError('prompt timeout: ' + repr(marker))\n        data = os.read(master, 4096)\n        if not data: raise RuntimeError('early terminal EOF')\n        transcript.extend(data); pending.extend(data)\ndef command(script, input_bytes=None):\n    p = subprocess.run([bash, '--noprofile', '--norc', '-c', script], input=input_bytes, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)\n    pathlib.Path(os.environ['HOME'], 'peer.log').open('ab').write(p.stdout + p.stderr)\n    return p.returncode\ntry:\n    until(b'Current password: ')\n    os.write(master, b'password\\n')\n    until(b'New password: ')\n    original = shadow.read_bytes()\n    initial_stat = shadow.stat()\n    if mode == 'lock':\n        assert command('passwd lock alice') == 0\n    elif mode == 'set':\n        assert command('passwd set-fd alice 0', b'other-password\\n') == 0\n    elif mode == 'aba':\n        assert command('passwd lock alice') == 0\n        assert command('passwd unlock alice') == 0\n        assert shadow.read_bytes() == original\n        st = shadow.stat()\n        assert (st.st_dev, st.st_ino) != (initial_stat.st_dev, initial_stat.st_ino)\n    elif mode != 'none': raise RuntimeError('bad mode')\n    peer_shadow = shadow.read_bytes()\n    os.write(master, b'new-password\\n')\n    until(b'Retype new password: ')\n    os.write(master, b'new-password\\n')\n    rc = child.wait(timeout=15)\n    if mode == 'none':\n        assert rc == 0\n        assert command('passwd verify-fd alice 0', b'new-password\\n') == 0\n    else:\n        assert rc != 0\n        assert shadow.read_bytes() == peer_shadow\n        if mode == 'lock': assert b'alice:!' in peer_shadow\n        if mode == 'set':\n            assert command('passwd verify-fd alice 0', b'other-password\\n') == 0\n            assert command('passwd verify-fd alice 0', b'new-password\\n') != 0\n        if mode == 'aba':\n            assert command('passwd verify-fd alice 0', b'password\\n') == 0\n    assert termios.tcgetattr(slave) == old_attrs\n    print('change-' + mode + '=expected terminal=restored')\nfinally:\n    pathlib.Path(os.environ['HOME'], 'terminal.log').write_bytes(transcript)\n    if child.poll() is None:\n        os.killpg(child.pid, signal.SIGKILL)\n        child.wait(timeout=5)\n    os.close(master); os.close(slave)\n"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "terminal.log",
+        "peer.log"
+      ],
+      "id": "review06-passwd-change-race-memory-aba-r3",
+      "purpose": "Exercise aba during an interactive password change using memory secrets.",
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BPW_LOCK_DIR=$PWD/locks PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/chmod 600 db/shadow || exit 125\n/usr/bin/mkdir locks || exit 125\n: > \"$HOME/peer.log\"\nexport BASHPASSWD_KERNEL_SECRETS=0\n/usr/bin/python3 race.py \"$BASH\" aba\n",
+      "stdout": "change-aba=expected terminal=restored\n"
+    },
+    {
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "passwd/password_hash_updates",
+        "passwd/account_file_mutations"
+      ],
+      "timeout": 60,
+      "observation_error_status": 125,
+      "oracle": "Independent pinned Argon2 vector; a private PTY pauses after old-password authentication while a second cooperating process changes, locks, or lock/unlocks the shadow record; byte comparisons and independent follow-up verification check preservation.",
+      "comparison": "Baseline succeeds; stale authorization is rejected and exact peer state is retained; terminal attributes are restored.",
+      "requires": [
+        "python3",
+        "chmod",
+        "mkdir"
+      ],
+      "files": {
+        "db/passwd": "alice:x:1000:1000:Alice:/home/alice:/bin/bash\n",
+        "db/group": "alice:x:1000:\n",
+        "db/shadow": "alice:$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc:19000:1:90:14:30:20000:\n",
+        "race.py": "import fcntl, os, pathlib, pty, select, signal, subprocess, sys, termios, time\nbash = sys.argv[1]\nmode = sys.argv[2]\nshadow = pathlib.Path('db/shadow')\nmaster, slave = pty.openpty()\nold_attrs = termios.tcgetattr(slave)\ndef child_setup():\n    os.setsid()\n    fcntl.ioctl(0, termios.TIOCSCTTY, 0)\nchild = subprocess.Popen([bash, '--noprofile', '--norc', '-c', 'passwd change alice'], stdin=slave, stdout=slave, stderr=slave, preexec_fn=child_setup, close_fds=True)\ntranscript = bytearray()\ndef until(marker):\n    end = time.monotonic() + 15\n    pending = bytearray()\n    while marker not in pending:\n        remaining = end - time.monotonic()\n        if remaining <= 0 or not select.select([master], [], [], max(remaining, 0))[0]:\n            raise RuntimeError('prompt timeout: ' + repr(marker))\n        data = os.read(master, 4096)\n        if not data: raise RuntimeError('early terminal EOF')\n        transcript.extend(data); pending.extend(data)\ndef command(script, input_bytes=None):\n    p = subprocess.run([bash, '--noprofile', '--norc', '-c', script], input=input_bytes, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)\n    pathlib.Path(os.environ['HOME'], 'peer.log').open('ab').write(p.stdout + p.stderr)\n    return p.returncode\ntry:\n    until(b'Current password: ')\n    os.write(master, b'password\\n')\n    until(b'New password: ')\n    original = shadow.read_bytes()\n    initial_stat = shadow.stat()\n    if mode == 'lock':\n        assert command('passwd lock alice') == 0\n    elif mode == 'set':\n        assert command('passwd set-fd alice 0', b'other-password\\n') == 0\n    elif mode == 'aba':\n        assert command('passwd lock alice') == 0\n        assert command('passwd unlock alice') == 0\n        assert shadow.read_bytes() == original\n        st = shadow.stat()\n        assert (st.st_dev, st.st_ino) != (initial_stat.st_dev, initial_stat.st_ino)\n    elif mode != 'none': raise RuntimeError('bad mode')\n    peer_shadow = shadow.read_bytes()\n    os.write(master, b'new-password\\n')\n    until(b'Retype new password: ')\n    os.write(master, b'new-password\\n')\n    rc = child.wait(timeout=15)\n    if mode == 'none':\n        assert rc == 0\n        assert command('passwd verify-fd alice 0', b'new-password\\n') == 0\n    else:\n        assert rc != 0\n        assert shadow.read_bytes() == peer_shadow\n        if mode == 'lock': assert b'alice:!' in peer_shadow\n        if mode == 'set':\n            assert command('passwd verify-fd alice 0', b'other-password\\n') == 0\n            assert command('passwd verify-fd alice 0', b'new-password\\n') != 0\n        if mode == 'aba':\n            assert command('passwd verify-fd alice 0', b'password\\n') == 0\n    assert termios.tcgetattr(slave) == old_attrs\n    print('change-' + mode + '=expected terminal=restored')\nfinally:\n    pathlib.Path(os.environ['HOME'], 'terminal.log').write_bytes(transcript)\n    if child.poll() is None:\n        os.killpg(child.pid, signal.SIGKILL)\n        child.wait(timeout=5)\n    os.close(master); os.close(slave)\n"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "terminal.log",
+        "peer.log"
+      ],
+      "id": "review06-passwd-change-race-kernel-none-r3",
+      "purpose": "Exercise none during an interactive password change using kernel secrets.",
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BPW_LOCK_DIR=$PWD/locks PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/chmod 600 db/shadow || exit 125\n/usr/bin/mkdir locks || exit 125\n: > \"$HOME/peer.log\"\n[[ -c /dev/bashos-auth && -r /dev/bashos-auth && -w /dev/bashos-auth ]] || exit 125\nexport BASHPASSWD_REQUIRE_KERNEL_SECRETS=1\nunset BASHPASSWD_KERNEL_SECRETS\n/usr/bin/python3 race.py \"$BASH\" none\n",
+      "stdout": "change-none=expected terminal=restored\n"
+    },
+    {
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "passwd/password_hash_updates",
+        "passwd/account_file_mutations"
+      ],
+      "timeout": 60,
+      "observation_error_status": 125,
+      "oracle": "Independent pinned Argon2 vector; a private PTY pauses after old-password authentication while a second cooperating process changes, locks, or lock/unlocks the shadow record; byte comparisons and independent follow-up verification check preservation.",
+      "comparison": "Baseline succeeds; stale authorization is rejected and exact peer state is retained; terminal attributes are restored.",
+      "requires": [
+        "python3",
+        "chmod",
+        "mkdir"
+      ],
+      "files": {
+        "db/passwd": "alice:x:1000:1000:Alice:/home/alice:/bin/bash\n",
+        "db/group": "alice:x:1000:\n",
+        "db/shadow": "alice:$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc:19000:1:90:14:30:20000:\n",
+        "race.py": "import fcntl, os, pathlib, pty, select, signal, subprocess, sys, termios, time\nbash = sys.argv[1]\nmode = sys.argv[2]\nshadow = pathlib.Path('db/shadow')\nmaster, slave = pty.openpty()\nold_attrs = termios.tcgetattr(slave)\ndef child_setup():\n    os.setsid()\n    fcntl.ioctl(0, termios.TIOCSCTTY, 0)\nchild = subprocess.Popen([bash, '--noprofile', '--norc', '-c', 'passwd change alice'], stdin=slave, stdout=slave, stderr=slave, preexec_fn=child_setup, close_fds=True)\ntranscript = bytearray()\ndef until(marker):\n    end = time.monotonic() + 15\n    pending = bytearray()\n    while marker not in pending:\n        remaining = end - time.monotonic()\n        if remaining <= 0 or not select.select([master], [], [], max(remaining, 0))[0]:\n            raise RuntimeError('prompt timeout: ' + repr(marker))\n        data = os.read(master, 4096)\n        if not data: raise RuntimeError('early terminal EOF')\n        transcript.extend(data); pending.extend(data)\ndef command(script, input_bytes=None):\n    p = subprocess.run([bash, '--noprofile', '--norc', '-c', script], input=input_bytes, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)\n    pathlib.Path(os.environ['HOME'], 'peer.log').open('ab').write(p.stdout + p.stderr)\n    return p.returncode\ntry:\n    until(b'Current password: ')\n    os.write(master, b'password\\n')\n    until(b'New password: ')\n    original = shadow.read_bytes()\n    initial_stat = shadow.stat()\n    if mode == 'lock':\n        assert command('passwd lock alice') == 0\n    elif mode == 'set':\n        assert command('passwd set-fd alice 0', b'other-password\\n') == 0\n    elif mode == 'aba':\n        assert command('passwd lock alice') == 0\n        assert command('passwd unlock alice') == 0\n        assert shadow.read_bytes() == original\n        st = shadow.stat()\n        assert (st.st_dev, st.st_ino) != (initial_stat.st_dev, initial_stat.st_ino)\n    elif mode != 'none': raise RuntimeError('bad mode')\n    peer_shadow = shadow.read_bytes()\n    os.write(master, b'new-password\\n')\n    until(b'Retype new password: ')\n    os.write(master, b'new-password\\n')\n    rc = child.wait(timeout=15)\n    if mode == 'none':\n        assert rc == 0\n        assert command('passwd verify-fd alice 0', b'new-password\\n') == 0\n    else:\n        assert rc != 0\n        assert shadow.read_bytes() == peer_shadow\n        if mode == 'lock': assert b'alice:!' in peer_shadow\n        if mode == 'set':\n            assert command('passwd verify-fd alice 0', b'other-password\\n') == 0\n            assert command('passwd verify-fd alice 0', b'new-password\\n') != 0\n        if mode == 'aba':\n            assert command('passwd verify-fd alice 0', b'password\\n') == 0\n    assert termios.tcgetattr(slave) == old_attrs\n    print('change-' + mode + '=expected terminal=restored')\nfinally:\n    pathlib.Path(os.environ['HOME'], 'terminal.log').write_bytes(transcript)\n    if child.poll() is None:\n        os.killpg(child.pid, signal.SIGKILL)\n        child.wait(timeout=5)\n    os.close(master); os.close(slave)\n"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "terminal.log",
+        "peer.log"
+      ],
+      "id": "review06-passwd-change-race-kernel-set-r3",
+      "purpose": "Exercise set during an interactive password change using kernel secrets.",
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BPW_LOCK_DIR=$PWD/locks PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/chmod 600 db/shadow || exit 125\n/usr/bin/mkdir locks || exit 125\n: > \"$HOME/peer.log\"\n[[ -c /dev/bashos-auth && -r /dev/bashos-auth && -w /dev/bashos-auth ]] || exit 125\nexport BASHPASSWD_REQUIRE_KERNEL_SECRETS=1\nunset BASHPASSWD_KERNEL_SECRETS\n/usr/bin/python3 race.py \"$BASH\" set\n",
+      "stdout": "change-set=expected terminal=restored\n"
+    },
+    {
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "passwd/password_hash_updates",
+        "passwd/account_file_mutations"
+      ],
+      "timeout": 60,
+      "observation_error_status": 125,
+      "oracle": "Independent pinned Argon2 vector; a private PTY pauses after old-password authentication while a second cooperating process changes, locks, or lock/unlocks the shadow record; byte comparisons and independent follow-up verification check preservation.",
+      "comparison": "Baseline succeeds; stale authorization is rejected and exact peer state is retained; terminal attributes are restored.",
+      "requires": [
+        "python3",
+        "chmod",
+        "mkdir"
+      ],
+      "files": {
+        "db/passwd": "alice:x:1000:1000:Alice:/home/alice:/bin/bash\n",
+        "db/group": "alice:x:1000:\n",
+        "db/shadow": "alice:$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc:19000:1:90:14:30:20000:\n",
+        "race.py": "import fcntl, os, pathlib, pty, select, signal, subprocess, sys, termios, time\nbash = sys.argv[1]\nmode = sys.argv[2]\nshadow = pathlib.Path('db/shadow')\nmaster, slave = pty.openpty()\nold_attrs = termios.tcgetattr(slave)\ndef child_setup():\n    os.setsid()\n    fcntl.ioctl(0, termios.TIOCSCTTY, 0)\nchild = subprocess.Popen([bash, '--noprofile', '--norc', '-c', 'passwd change alice'], stdin=slave, stdout=slave, stderr=slave, preexec_fn=child_setup, close_fds=True)\ntranscript = bytearray()\ndef until(marker):\n    end = time.monotonic() + 15\n    pending = bytearray()\n    while marker not in pending:\n        remaining = end - time.monotonic()\n        if remaining <= 0 or not select.select([master], [], [], max(remaining, 0))[0]:\n            raise RuntimeError('prompt timeout: ' + repr(marker))\n        data = os.read(master, 4096)\n        if not data: raise RuntimeError('early terminal EOF')\n        transcript.extend(data); pending.extend(data)\ndef command(script, input_bytes=None):\n    p = subprocess.run([bash, '--noprofile', '--norc', '-c', script], input=input_bytes, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)\n    pathlib.Path(os.environ['HOME'], 'peer.log').open('ab').write(p.stdout + p.stderr)\n    return p.returncode\ntry:\n    until(b'Current password: ')\n    os.write(master, b'password\\n')\n    until(b'New password: ')\n    original = shadow.read_bytes()\n    initial_stat = shadow.stat()\n    if mode == 'lock':\n        assert command('passwd lock alice') == 0\n    elif mode == 'set':\n        assert command('passwd set-fd alice 0', b'other-password\\n') == 0\n    elif mode == 'aba':\n        assert command('passwd lock alice') == 0\n        assert command('passwd unlock alice') == 0\n        assert shadow.read_bytes() == original\n        st = shadow.stat()\n        assert (st.st_dev, st.st_ino) != (initial_stat.st_dev, initial_stat.st_ino)\n    elif mode != 'none': raise RuntimeError('bad mode')\n    peer_shadow = shadow.read_bytes()\n    os.write(master, b'new-password\\n')\n    until(b'Retype new password: ')\n    os.write(master, b'new-password\\n')\n    rc = child.wait(timeout=15)\n    if mode == 'none':\n        assert rc == 0\n        assert command('passwd verify-fd alice 0', b'new-password\\n') == 0\n    else:\n        assert rc != 0\n        assert shadow.read_bytes() == peer_shadow\n        if mode == 'lock': assert b'alice:!' in peer_shadow\n        if mode == 'set':\n            assert command('passwd verify-fd alice 0', b'other-password\\n') == 0\n            assert command('passwd verify-fd alice 0', b'new-password\\n') != 0\n        if mode == 'aba':\n            assert command('passwd verify-fd alice 0', b'password\\n') == 0\n    assert termios.tcgetattr(slave) == old_attrs\n    print('change-' + mode + '=expected terminal=restored')\nfinally:\n    pathlib.Path(os.environ['HOME'], 'terminal.log').write_bytes(transcript)\n    if child.poll() is None:\n        os.killpg(child.pid, signal.SIGKILL)\n        child.wait(timeout=5)\n    os.close(master); os.close(slave)\n"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "terminal.log",
+        "peer.log"
+      ],
+      "id": "review06-passwd-change-race-kernel-lock-r3",
+      "purpose": "Exercise lock during an interactive password change using kernel secrets.",
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BPW_LOCK_DIR=$PWD/locks PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/chmod 600 db/shadow || exit 125\n/usr/bin/mkdir locks || exit 125\n: > \"$HOME/peer.log\"\n[[ -c /dev/bashos-auth && -r /dev/bashos-auth && -w /dev/bashos-auth ]] || exit 125\nexport BASHPASSWD_REQUIRE_KERNEL_SECRETS=1\nunset BASHPASSWD_KERNEL_SECRETS\n/usr/bin/python3 race.py \"$BASH\" lock\n",
+      "stdout": "change-lock=expected terminal=restored\n"
+    },
+    {
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "passwd/password_hash_updates",
+        "passwd/account_file_mutations"
+      ],
+      "timeout": 60,
+      "observation_error_status": 125,
+      "oracle": "Independent pinned Argon2 vector; a private PTY pauses after old-password authentication while a second cooperating process changes, locks, or lock/unlocks the shadow record; byte comparisons and independent follow-up verification check preservation.",
+      "comparison": "Baseline succeeds; stale authorization is rejected and exact peer state is retained; terminal attributes are restored.",
+      "requires": [
+        "python3",
+        "chmod",
+        "mkdir"
+      ],
+      "files": {
+        "db/passwd": "alice:x:1000:1000:Alice:/home/alice:/bin/bash\n",
+        "db/group": "alice:x:1000:\n",
+        "db/shadow": "alice:$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc:19000:1:90:14:30:20000:\n",
+        "race.py": "import fcntl, os, pathlib, pty, select, signal, subprocess, sys, termios, time\nbash = sys.argv[1]\nmode = sys.argv[2]\nshadow = pathlib.Path('db/shadow')\nmaster, slave = pty.openpty()\nold_attrs = termios.tcgetattr(slave)\ndef child_setup():\n    os.setsid()\n    fcntl.ioctl(0, termios.TIOCSCTTY, 0)\nchild = subprocess.Popen([bash, '--noprofile', '--norc', '-c', 'passwd change alice'], stdin=slave, stdout=slave, stderr=slave, preexec_fn=child_setup, close_fds=True)\ntranscript = bytearray()\ndef until(marker):\n    end = time.monotonic() + 15\n    pending = bytearray()\n    while marker not in pending:\n        remaining = end - time.monotonic()\n        if remaining <= 0 or not select.select([master], [], [], max(remaining, 0))[0]:\n            raise RuntimeError('prompt timeout: ' + repr(marker))\n        data = os.read(master, 4096)\n        if not data: raise RuntimeError('early terminal EOF')\n        transcript.extend(data); pending.extend(data)\ndef command(script, input_bytes=None):\n    p = subprocess.run([bash, '--noprofile', '--norc', '-c', script], input=input_bytes, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)\n    pathlib.Path(os.environ['HOME'], 'peer.log').open('ab').write(p.stdout + p.stderr)\n    return p.returncode\ntry:\n    until(b'Current password: ')\n    os.write(master, b'password\\n')\n    until(b'New password: ')\n    original = shadow.read_bytes()\n    initial_stat = shadow.stat()\n    if mode == 'lock':\n        assert command('passwd lock alice') == 0\n    elif mode == 'set':\n        assert command('passwd set-fd alice 0', b'other-password\\n') == 0\n    elif mode == 'aba':\n        assert command('passwd lock alice') == 0\n        assert command('passwd unlock alice') == 0\n        assert shadow.read_bytes() == original\n        st = shadow.stat()\n        assert (st.st_dev, st.st_ino) != (initial_stat.st_dev, initial_stat.st_ino)\n    elif mode != 'none': raise RuntimeError('bad mode')\n    peer_shadow = shadow.read_bytes()\n    os.write(master, b'new-password\\n')\n    until(b'Retype new password: ')\n    os.write(master, b'new-password\\n')\n    rc = child.wait(timeout=15)\n    if mode == 'none':\n        assert rc == 0\n        assert command('passwd verify-fd alice 0', b'new-password\\n') == 0\n    else:\n        assert rc != 0\n        assert shadow.read_bytes() == peer_shadow\n        if mode == 'lock': assert b'alice:!' in peer_shadow\n        if mode == 'set':\n            assert command('passwd verify-fd alice 0', b'other-password\\n') == 0\n            assert command('passwd verify-fd alice 0', b'new-password\\n') != 0\n        if mode == 'aba':\n            assert command('passwd verify-fd alice 0', b'password\\n') == 0\n    assert termios.tcgetattr(slave) == old_attrs\n    print('change-' + mode + '=expected terminal=restored')\nfinally:\n    pathlib.Path(os.environ['HOME'], 'terminal.log').write_bytes(transcript)\n    if child.poll() is None:\n        os.killpg(child.pid, signal.SIGKILL)\n        child.wait(timeout=5)\n    os.close(master); os.close(slave)\n"
+      },
+      "expected_status": 0,
+      "stderr": "",
+      "diagnostic_files": [
+        "terminal.log",
+        "peer.log"
+      ],
+      "id": "review06-passwd-change-race-kernel-aba-r3",
+      "purpose": "Exercise aba during an interactive password change using kernel secrets.",
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BPW_LOCK_DIR=$PWD/locks PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/chmod 600 db/shadow || exit 125\n/usr/bin/mkdir locks || exit 125\n: > \"$HOME/peer.log\"\n[[ -c /dev/bashos-auth && -r /dev/bashos-auth && -w /dev/bashos-auth ]] || exit 125\nexport BASHPASSWD_REQUIRE_KERNEL_SECRETS=1\nunset BASHPASSWD_KERNEL_SECRETS\n/usr/bin/python3 race.py \"$BASH\" aba\n",
+      "stdout": "change-aba=expected terminal=restored\n"
+    }
+  ]
+}

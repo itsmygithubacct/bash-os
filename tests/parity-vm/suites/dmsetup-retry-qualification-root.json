@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "dmsetup-retry-busy-release-root",
+      "loadable": "dmsetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "covers": [
+        "dmsetup/udev-real-device-qualification"
+      ],
+      "purpose": "A busy mapping remains without --retry and is removed with --retry after its holder closes it. Missing device nodes fail the fixture.",
+      "requires": [
+        "dmsetup",
+        "sleep"
+      ],
+      "script": "export BASHOS_DMSETUP_ALLOW_MUTATE=1\nname=qual-retry-$$\ncleanup() { [[ $holder ]] && kill \"$holder\" 2>/dev/null; [[ $holder ]] && wait \"$holder\" 2>/dev/null; /usr/sbin/dmsetup --noudevsync remove \"$name\" >/dev/null 2>&1; rm -f ready; }\ntrap cleanup EXIT\ndmsetup create --noudevsync \"$name\" --table '0 8 zero' || exit 1\nnode=\nfor f in /sys/block/dm-*/dm/name; do\n  [[ -r $f ]] || continue\n  read -r n < \"$f\"\n  if [[ $n == \"$name\" ]]; then node=/dev/${f#/sys/block/}; node=${node%/dm/name}; break; fi\ndone\n[[ -b $node ]] || { echo 'prerequisite: /dev/dm-N unavailable' >&2; exit 1; }\n( exec 7<\"$node\" || exit 1; : > ready; sleep 2 ) & holder=$!\nfor ((i=0;i<100;i++)); do [[ -e ready ]] && break; sleep 0.02; done\n[[ -e ready ]] || { echo 'holder failed' >&2; exit 1; }\nif dmsetup remove --noudevsync \"$name\" >/dev/null 2>&1; then echo 'removed busy device without retry' >&2; exit 1; fi\ndmsetup remove --noudevsync --retry \"$name\" || exit 1\nwait \"$holder\" || exit 1\nholder=\nif /usr/sbin/dmsetup info \"$name\" >/dev/null 2>&1; then echo 'device remains' >&2; exit 1; fi\nprintf 'busy retry succeeded\\n'\n",
+      "expected_status": 0,
+      "stdout": "busy retry succeeded\n",
+      "stderr": "",
+      "timeout": 20,
+      "oracle": "The kernel-backed device node is independently located in sysfs and held open by a separate process. Removal must fail while busy without retry, succeed after the holder closes with retry, and the system dmsetup query must confirm the mapping is absent."
+    }
+  ]
+}

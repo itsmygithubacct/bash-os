@@ -1,0 +1,156 @@
+{
+  "cases": [
+    {
+      "comparison": "Compare candidate and reference status for namespace lists, positive and negative patterns, signing-time validity boundaries, duplicate and unknown options, raw-key CA refusal, UTC/local zones, and a later valid entry.",
+      "covers": [
+        "git/signing_and_editor"
+      ],
+      "diagnostic_files": [
+        "verification.log"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "takeover-git-signer-namespace-validity-r2",
+      "kind": "parity",
+      "loadable": "git",
+      "oracle": "System Git 2.47.3 and OpenSSH check system-signed commit and tag objects against independently constructed allowed-signers entries.",
+      "requires": [
+        "git",
+        "ssh-keygen",
+        "cat"
+      ],
+      "script": "export TZ=UTC0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nread -r kt kk comment < \"$HOME/key.pub\"\ncheck() {\n  local label=$1 opt=$2 command=${3:-verify-commit} object=${4:-HEAD} rc\n  if [[ -n $opt ]]; then printf 'fixture@example.test %s %s %s\\n' \"$opt\" \"$kt\" \"$kk\" > \"$HOME/allowed\"; else printf 'fixture@example.test %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/allowed\"; fi\n  git -C signed -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=\"$HOME/allowed\" \"$command\" \"$object\" >\"$HOME/$label.out\" 2>\"$HOME/$label.err\"; rc=$?\n  printf '[%s] status=%s\\n' \"$label\" \"$rc\" >>\"$HOME/verification.log\"\n  /usr/bin/cat \"$HOME/$label.out\" \"$HOME/$label.err\" >>\"$HOME/verification.log\"\n  if [[ $rc == 0 ]]; then printf '%s=accepted\\n' \"$label\"; else printf '%s=rejected\\n' \"$label\"; fi\n}\ncheck bare ''\ncheck exact 'namespaces=\"git\"'\ncheck wildcard 'namespaces=\"g*\"'\ncheck question 'namespaces=\"gi?\"'\ncheck list 'namespaces=\"file,git\"'\ncheck negated 'namespaces=\"*,!g?t\"'\ncheck missing 'namespaces=\"file\"'\ncheck brackets 'namespaces=\"[g]it\"'\ncheck case 'NaMeSpAcEs=\"git\"'\ncheck window 'valid-after=\"20190101Z\",namespaces=\"git\",valid-before=\"20210101Z\"'\ncheck utc-suffix 'valid-after=\"20190101UTC\",valid-before=\"20210101utc\"'\ncheck equal-after 'valid-after=\"20200301000000Z\"'\ncheck after 'valid-after=\"20200301000001Z\"'\ncheck equal-before 'valid-before=\"20200301000000Z\"'\ncheck before 'valid-before=\"20200229235959Z\"'\ncheck future 'valid-after=\"29990101Z\"'\ncheck backwards 'valid-before=\"20200301000000Z\",valid-after=\"20200301000000Z\"'\ncheck duplicate 'namespaces=\"git\",namespaces=\"git\"'\ncheck unknown 'namespaces=\"git\",unknown=\"x\"'\ncheck ca 'cert-authority'\ncheck noquote 'namespaces=git'\ncheck tag 'valid-after=\"20190101Z\",valid-before=\"20210101Z\"' verify-tag signed-tag\nexport TZ=EST5\ncheck local-boundary 'valid-after=\"20200229190000\",valid-before=\"20200229190001\"'\nexport TZ=UTC0\nprintf 'fixture@example.test namespaces=\"file\" %s %s\\nfixture@example.test namespaces=\"g*\" %s %s\\n' \"$kt\" \"$kk\" \"$kt\" \"$kk\" > \"$HOME/allowed\"\ngit -C signed -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=\"$HOME/allowed\" verify-commit HEAD >\"$HOME/multiline.out\" 2>\"$HOME/multiline.err\"; rc=$?\nprintf '[multiline] status=%s\\n' \"$rc\" >>\"$HOME/verification.log\"\n/usr/bin/cat \"$HOME/multiline.out\" \"$HOME/multiline.err\" >>\"$HOME/verification.log\"\nif [[ $rc == 0 ]]; then echo 'multiline=accepted'; else echo 'multiline=rejected'; fi\n/usr/bin/rm -rf signed\n",
+      "setup_script": "export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=gc.auto GIT_CONFIG_VALUE_0=0 GIT_CONFIG_KEY_1=maintenance.auto GIT_CONFIG_VALUE_1=false\nset -e\nexport TZ=UTC0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture -f \"$HOME/key\"\n/usr/bin/git init -q -b main signed\nprintf 'signed\\n' >signed/file\n/usr/bin/git -C signed add file\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" commit -q -S -m signed\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" tag -s -m signed signed-tag\n",
+      "stderr": "",
+      "stdout": "bare=accepted\nexact=accepted\nwildcard=accepted\nquestion=accepted\nlist=accepted\nnegated=rejected\nmissing=rejected\nbrackets=rejected\ncase=accepted\nwindow=accepted\nutc-suffix=accepted\nequal-after=accepted\nafter=rejected\nequal-before=accepted\nbefore=rejected\nfuture=rejected\nbackwards=rejected\nduplicate=rejected\nunknown=rejected\nca=rejected\nnoquote=rejected\ntag=accepted\nlocal-boundary=accepted\nmultiline=accepted\n",
+      "timeout": 60
+    },
+    {
+      "comparison": "Require both participants to reject the revoked key; do not infer support for non-revoked or KRL cases.",
+      "covers": [
+        "git/signing_and_editor"
+      ],
+      "diagnostic_files": [
+        "revoked.out",
+        "revoked.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "takeover-git-signer-revoked-failclosed-r2",
+      "kind": "parity",
+      "loadable": "git",
+      "oracle": "System Git and OpenSSH reject a signed commit whose public key is in the configured revocation file.",
+      "requires": [
+        "git",
+        "ssh-keygen",
+        "cp"
+      ],
+      "script": "export TZ=UTC0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nread -r kt kk comment < \"$HOME/key.pub\"\nprintf 'fixture@example.test %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/allowed\"\n/usr/bin/cp \"$HOME/key.pub\" \"$HOME/revoked\"\ngit -C signed -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=\"$HOME/allowed\" -c gpg.ssh.revocationFile=\"$HOME/revoked\" verify-commit HEAD >\"$HOME/revoked.out\" 2>\"$HOME/revoked.err\"; rc=$?\nif [[ $rc != 0 ]]; then echo 'revoked=rejected'; else echo 'revoked=accepted'; fi\n/usr/bin/rm -rf signed\n",
+      "setup_script": "export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=gc.auto GIT_CONFIG_VALUE_0=0 GIT_CONFIG_KEY_1=maintenance.auto GIT_CONFIG_VALUE_1=false\nset -e\nexport TZ=UTC0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture -f \"$HOME/key\"\n/usr/bin/git init -q -b main signed\nprintf 'signed\\n' >signed/file\n/usr/bin/git -C signed add file\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" commit -q -S -m signed\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" tag -s -m signed signed-tag\n",
+      "stderr": "",
+      "stdout": "revoked=rejected\n",
+      "timeout": 40
+    },
+    {
+      "comparison": "A reference-positive control for an empty revocation file; the current fail-closed candidate is expected to fail until revocation parsing is implemented.",
+      "covers": [
+        "git/signing_and_editor"
+      ],
+      "diagnostic_files": [
+        "revoked.out",
+        "revoked.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "takeover-git-signer-unrevoked-control-r2",
+      "kind": "parity",
+      "loadable": "git",
+      "oracle": "System Git and OpenSSH accept the signed commit with an empty revocation file.",
+      "requires": [
+        "git",
+        "ssh-keygen",
+        "cp"
+      ],
+      "script": "export TZ=UTC0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nread -r kt kk comment < \"$HOME/key.pub\"\nprintf 'fixture@example.test %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/allowed\"\n: > \"$HOME/revoked\"\ngit -C signed -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=\"$HOME/allowed\" -c gpg.ssh.revocationFile=\"$HOME/revoked\" verify-commit HEAD >\"$HOME/revoked.out\" 2>\"$HOME/revoked.err\"; rc=$?\nif [[ $rc == 0 ]]; then echo 'unrevoked=accepted'; else echo 'unrevoked=rejected'; fi\n/usr/bin/rm -rf signed\n",
+      "setup_script": "export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=gc.auto GIT_CONFIG_VALUE_0=0 GIT_CONFIG_KEY_1=maintenance.auto GIT_CONFIG_VALUE_1=false\nset -e\nexport TZ=UTC0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture -f \"$HOME/key\"\n/usr/bin/git init -q -b main signed\nprintf 'signed\\n' >signed/file\n/usr/bin/git -C signed add file\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" commit -q -S -m signed\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" tag -s -m signed signed-tag\n",
+      "stderr": "",
+      "stdout": "unrevoked=accepted\n",
+      "timeout": 40
+    },
+    {
+      "comparison": "Show signature for default, custom and oneline log and custom show; respect --no-show-signature; do not report a tampered object as trusted and keep unsigned output unchanged.",
+      "covers": [
+        "git/signing_and_editor"
+      ],
+      "diagnostic_files": [
+        "custom.out",
+        "custom.err",
+        "default.out",
+        "default.err",
+        "oneline.out",
+        "oneline.err",
+        "show.out",
+        "show.err",
+        "disabled.out",
+        "disabled.err",
+        "bad.out",
+        "bad.err",
+        "unsigned.out",
+        "unsigned.err",
+        "pretty.out",
+        "pretty.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "takeover-git-log-show-signature-formats-r2",
+      "kind": "parity",
+      "loadable": "git",
+      "oracle": "Reference Git and OpenSSH verify an independently signed commit; the bad object preserves its signature but alters its signed message.",
+      "requires": [
+        "git",
+        "ssh-keygen",
+        "python3",
+        "grep"
+      ],
+      "script": "export TZ=UTC0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\nread -r kt kk comment < \"$HOME/key.pub\"\nprintf 'fixture@example.test namespaces=\"git\" %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/allowed\"\nid=$(/usr/bin/git -C signed rev-parse HEAD)\nrunlog() { local label=$1; shift; git -C signed -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=\"$HOME/allowed\" \"$@\" >\"$HOME/$label.out\" 2>\"$HOME/$label.err\"; }\nrunlog custom log -1 --show-signature --format=%H HEAD\nout=$(<\"$HOME/custom.out\")\nif [[ $out == *'Good \"git\" signature for fixture@example.test'*\"$id\"* ]]; then echo 'custom=signature-before-hash'; else echo 'custom=missing-or-wrong-order'; fi\nrunlog pretty log -1 --show-signature --pretty=format:%H HEAD\nif /usr/bin/grep -F 'Good \"git\" signature for fixture@example.test' \"$HOME/pretty.out\" >/dev/null; then echo 'pretty=signature'; else echo 'pretty=missing'; fi\nrunlog default log -1 --show-signature HEAD\nif /usr/bin/grep -F 'Good \"git\" signature for fixture@example.test' \"$HOME/default.out\" >/dev/null; then echo 'default=signature'; else echo 'default=missing'; fi\nrunlog oneline log -1 --show-signature --oneline HEAD\nif /usr/bin/grep -F 'Good \"git\" signature for fixture@example.test' \"$HOME/oneline.out\" >/dev/null; then echo 'oneline=signature'; else echo 'oneline=missing'; fi\nrunlog show show -s --show-signature --format=%H HEAD\nif /usr/bin/grep -F 'Good \"git\" signature for fixture@example.test' \"$HOME/show.out\" >/dev/null; then echo 'show=signature'; else echo 'show=missing'; fi\nrunlog disabled log -1 --show-signature --no-show-signature --format=%H HEAD\nif [[ $(<\"$HOME/disabled.out\") == \"$id\" ]]; then echo 'disabled=hash-only'; else echo 'disabled=unexpected'; fi\n/usr/bin/git -C signed cat-file commit HEAD > \"$HOME/commit\"\n/usr/bin/python3 -c 'import sys; p=sys.argv[1]; d=open(p,\"rb\").read(); assert b\"\\n\\nsigned\\n\" in d; open(p+\".bad\",\"wb\").write(d.replace(b\"\\n\\nsigned\\n\",b\"\\n\\nchanged\\n\",1))' \"$HOME/commit\"\nbad=$(/usr/bin/git -C signed hash-object -t commit -w --literally \"$HOME/commit.bad\")\nrunlog bad log -1 --show-signature --format=%H \"$bad\"\nif /usr/bin/grep -F 'Good \"git\" signature for fixture@example.test' \"$HOME/bad.out\" >/dev/null; then echo 'bad=trusted'; else echo 'bad=not-trusted'; fi\n/usr/bin/git -C signed commit --allow-empty -qm unsigned\nunsigned=$(/usr/bin/git -C signed rev-parse HEAD)\nrunlog unsigned log -1 --show-signature --format=%H HEAD\nif [[ $(<\"$HOME/unsigned.out\") == \"$unsigned\" ]]; then echo 'unsigned=hash-only'; else echo 'unsigned=unexpected'; fi\n/usr/bin/rm -rf signed\n",
+      "setup_script": "export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=gc.auto GIT_CONFIG_VALUE_0=0 GIT_CONFIG_KEY_1=maintenance.auto GIT_CONFIG_VALUE_1=false\nset -e\nexport TZ=UTC0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture -f \"$HOME/key\"\n/usr/bin/git init -q -b main signed\nprintf 'signed\\n' >signed/file\n/usr/bin/git -C signed add file\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" commit -q -S -m signed\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" tag -s -m signed signed-tag\n",
+      "stderr": "",
+      "stdout": "custom=signature-before-hash\npretty=signature\ndefault=signature\noneline=signature\nshow=signature\ndisabled=hash-only\nbad=not-trusted\nunsigned=hash-only\n",
+      "timeout": 60
+    },
+    {
+      "comparison": "Local receiver must execute the hook, return rejection and preserve the server ref; the marker distinguishes execution from a simulated refusal.",
+      "covers": [],
+      "diagnostic_files": [
+        "quiet-success.out",
+        "quiet-success.err",
+        "quiet-rejected.out",
+        "quiet-rejected.err",
+        "local-hook-ran",
+        "local-observation.txt"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "id": "takeover-git-local-receive-hook-control-r2",
+      "kind": "parity",
+      "loadable": "git",
+      "oracle": "System Git creates and updates a fixture-only bare repository, then a pre-receive hook refuses a later update; compare with Git 2.47.3 client.",
+      "requires": [
+        "git",
+        "grep",
+        "touch"
+      ],
+      "script": "export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-01-02T00:00:00Z' GIT_COMMITTER_DATE='2020-01-02T00:00:00Z'\ngit -C local push -q ../remote main >\"$HOME/quiet-success.out\" 2>\"$HOME/quiet-success.err\"; rc=$?\nif [[ $rc == 0 && ! -s $HOME/quiet-success.out && ! -s $HOME/quiet-success.err ]]; then echo 'quiet-success=yes'; else echo 'quiet-success=no'; fi\nbefore=$(/usr/bin/git --git-dir=remote rev-parse refs/heads/main)\nprintf 'second\\n' >>local/file\n/usr/bin/git -C local commit -qam second\nprintf '#!/bin/sh\\n/usr/bin/touch \"$HOME/local-hook-ran\"\\necho rejected-by-hook >&2\\nexit 1\\n' >remote/hooks/pre-receive\n/usr/bin/chmod 755 remote/hooks/pre-receive\ngit -C local push -q ../remote main >\"$HOME/quiet-rejected.out\" 2>\"$HOME/quiet-rejected.err\"; rc=$?\nafter=$(/usr/bin/git --git-dir=remote rev-parse refs/heads/main)\nprintf 'status=%s\\nbefore=%s\\nafter=%s\\n' \"$rc\" \"$before\" \"$after\" >\"$HOME/local-observation.txt\"\nif [[ $rc == 1 && $after == \"$before\" ]] && /usr/bin/grep -F 'remote rejected' \"$HOME/quiet-rejected.err\" >/dev/null; then echo 'quiet-rejection=yes'; else echo 'quiet-rejection=no'; fi\nif [[ -e $HOME/local-hook-ran ]]; then echo 'hook-ran=yes'; else echo 'hook-ran=no'; fi\n/usr/bin/rm -rf remote local\n",
+      "setup_script": "export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=gc.auto GIT_CONFIG_VALUE_0=0 GIT_CONFIG_KEY_1=maintenance.auto GIT_CONFIG_VALUE_1=false\nset -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-01-01T00:00:00Z' GIT_COMMITTER_DATE='2020-01-01T00:00:00Z'\n/usr/bin/git init -q --bare remote\n/usr/bin/git init -q -b main local\nprintf 'first\\n' >local/file\n/usr/bin/git -C local add file\n/usr/bin/git -C local commit -qm first\n",
+      "stderr": "",
+      "stdout": "quiet-success=yes\nquiet-rejection=yes\nhook-ran=yes\n",
+      "timeout": 40
+    }
+  ],
+  "schema": 1
+}

@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-dns-resolver-outofzone-ns",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "purpose": "Resolve an out-of-bailiwick nameserver independently instead of following its untrusted additional address.",
+      "oracle": "Independent direct queries confirm the out-of-zone NS resolves to the real tier while the referral carries a poisoned additional address, and the real authority returns 192.0.2.10.",
+      "comparison": "Require correct final A response, observed independent NS lookup, and no contact with the poison tier.",
+      "requires": [
+        "python3",
+        "dig",
+        "mkfifo"
+      ],
+      "helpers_sha256": {
+        "helpers/mig-w2-dnsx.py": "4d3daf7b1b7b155e9edc2475e1cf2b54a799c4622ceca3303251503d7e1b9822",
+        "helpers/dns-referral-outofzone-peer.py": "1606091f7c5f19bdb1c8a727955f5cf83f55745911c2c7722d93f33cb4b067bf"
+      },
+      "setup_script": "mkfifo w.fifo\n",
+      "setup_timeout": 10,
+      "script": "H=/opt/bashos-parity/harness/helpers/dns-referral-outofzone-peer.py\n/usr/bin/python3 \"$H\" serve ready 2> tiers.err &\ntiers=$!\nexec 7<>w.fifo\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/dig +norec +tries=1 +time=3 -p 5330 @127.0.0.2 www.x.test A > reference-root.out 2>&1 || exit 98\n/usr/bin/dig +norec +tries=1 +time=3 -p 5330 @127.0.0.4 www.x.test A > reference-auth.out 2>&1 || exit 98\n/usr/bin/dig +norec +tries=1 +time=3 -p 5330 @127.0.0.2 ns.outside A > reference-ns.out 2>&1 || exit 98\nBASHDNS_SERVER_PORT=5330 dns resolver-serve --listen 127.0.0.1 --port 5320 --root-hints 127.0.0.2 --max-queries 1 --timeout 3000 < /dev/null 2> resolver.err &\nres=$!\n/usr/bin/python3 \"$H\" waitudp 5320\n/usr/bin/dig +tries=1 +time=6 -p 5320 @127.0.0.1 www.x.test A > dig.out 2>&1\nwait \"$res\"\necho \"resolver-rc=$?\"\nkill \"$tiers\"; wait \"$tiers\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify\n",
+      "diagnostic_files": [
+        "tiers.err",
+        "resolver.err",
+        "dig.out",
+        "reference-root.out",
+        "reference-auth.out",
+        "recurse-queries.json",
+        "reference-ns.out"
+      ],
+      "expected_status": 0,
+      "stdout": "resolver-rc=0\nverified recurse failed=0\n",
+      "stderr": "",
+      "timeout": 40
+    }
+  ]
+}

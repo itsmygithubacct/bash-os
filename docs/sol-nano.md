@@ -190,14 +190,14 @@ idle loop cannot spin on it.
   if it is still alive. An earlier run against the unchanged starting
   binary, where that check fails, had left one running.
 
-## Intentional difference from GNU nano: no added final newline
+## Final newline on save
 
-By default GNU nano keeps an empty "magic line" at the end of the buffer, so
-a saved file always ends with a newline. This builtin saves exactly the
-typed text, which is GNU nano's `-L`/`--nonewlines` behaviour. The burst and
-movement oracles therefore run GNU nano with `-L`. Without it, they differ
-only after keys that reach the last line: a right-arrow there moves GNU onto
-its magic line.
+By default GNU nano keeps an empty "magic line" at the end of the buffer.
+The builtin adds a final newline when saving nonempty text, unless `-L` or
+`--nonewlines` is specified. Its editing buffer does not acquire GNU nano's
+magic line, so movement at the end of a file can still differ. Earlier burst
+and movement oracles used GNU nano with `-L` to match the old exact-byte save
+behavior; run the builtin with `-L` too when using those comparisons.
 
 ## Second check of the inherited work
 

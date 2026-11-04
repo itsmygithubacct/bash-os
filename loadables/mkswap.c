@@ -157,7 +157,10 @@ mkswap_builtin (WORD_LIST *list)
     }
     uint64_t bytes = size_arg ? requested * 1024 : available;
     if (!force && bytes > available) {
-        builtin_error("requested size exceeds available file or device size"); close(fd); return EXECUTION_FAILURE;
+        builtin_error("error: size %llu KiB is larger than device size %llu KiB",
+                      (unsigned long long)((bytes / ps) * (ps / 1024)),
+                      (unsigned long long)((available / ps) * (ps / 1024)));
+        close(fd); return EXECUTION_FAILURE;
     }
 
     uint64_t npages = bytes / (uint64_t) ps;
@@ -166,6 +169,18 @@ mkswap_builtin (WORD_LIST *list)
 
     uint8_t *hdr = calloc (1, (size_t) ps);
     if (!hdr) { builtin_error ("calloc: %s", strerror (errno)); close (fd); return EXECUTION_FAILURE; }
+
+    /* util-linux reports a swap signature before replacing it.  Probe only
+       after all geometry validation so rejected requests leave it alone. */
+    char old_signature[10];
+    ssize_t nread = pread(fd, old_signature, sizeof old_signature, (off_t)(ps - 10));
+    if (nread < 0) {
+        builtin_error("%s: read: %s", dev, strerror(errno));
+        free(hdr); close(fd); return EXECUTION_FAILURE;
+    }
+    if (nread == (ssize_t)sizeof old_signature &&
+        !memcmp(old_signature, "SWAPSPACE2", sizeof old_signature))
+        builtin_error("%s: warning: wiping old swap signature.", dev);
 
     /* swap_header (union): version@1024, last_page@1028, nr_badpages@1032,
        uuid@1036 (16), label@1052 (16). */

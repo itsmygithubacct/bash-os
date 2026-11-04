@@ -63,6 +63,13 @@ def live(opts, data, terminal=False, finish=False):
         if master is not None: os.close(master)
 
 
+# Single-column pages must include the footer before another input record.
+# Check both newline padding and the non-newline form-feed footer.
+for terminal in (False, True):
+    live(['-l12', '-h', 'HDR', '-D', 'X'], b'a\nb\n', terminal=terminal)
+    live(['-l12', '-h', 'HDR', '-D', 'X', '-f'], b'a\nb\n', terminal=terminal)
+    live(['-l14', '-h', 'HDR', '-D', 'X', '-d'], b'a\nb\n', terminal=terminal)
+
 # Complete pages must arrive through pipes without waiting for another byte.
 for mode in ([], ['-a']):
     live(['-t', '-l2', '-2', *mode], b'a\nb\nc\nd\n')

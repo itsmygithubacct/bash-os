@@ -24,15 +24,15 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-ntp.py": "1f6186424e2036f85358eae0d47b521121124830ffbfcde1ebeb9dbfa721feb7",
-        "helpers/trace-vm-nts-r1.py": "b3e75d687574d19b7a6df536b1a6e8cffda5c38a85f89f795cb855fb0fcb0768"
+        "helpers/mig-w2-ntp-bash5320.py": "be81a180b1f48bb1f8f68cae28e3ccf90cf639ece1a090d24f68c5011ab57bc7",
+        "helpers/trace-vm-nts-r1-bash5320.py": "4e9286f4f6d5cd4520cd51adb77d271806c2dcfd8b6eb9796da644567c5cd688"
       },
       "setup_script": "mkfifo w.fifo\nprintf 'subjectAltName=DNS:trace.test,IP:127.0.0.1\\nextendedKeyUsage=serverAuth\\nbasicConstraints=critical,CA:FALSE\\nkeyUsage=critical,digitalSignature,keyEncipherment\\n' > \"$HOME/server.ext\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/ca.key\" -out \"$HOME/ca.pem\" -days 1 -sha256 -subj '/CN=W2 Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' >/dev/null 2>&1\n/usr/bin/openssl req -new -newkey rsa:2048 -nodes -keyout \"$HOME/server.key\" -out \"$HOME/server.csr\" -subj '/CN=trace.test' >/dev/null 2>&1\n/usr/bin/openssl x509 -req -in \"$HOME/server.csr\" -CA \"$HOME/ca.pem\" -CAkey \"$HOME/ca.key\" -set_serial 2 -days 1 -sha256 -extfile \"$HOME/server.ext\" -out \"$HOME/server.pem\" >/dev/null 2>&1\n",
       "setup_timeout": 40,
       "files": {
         "q.sh": "t=/etc/ssl/certs/ca-certificates.crt\n[[ -e /etc/ssl/cert.pem ]] && t=/etc/ssl/cert.pem\n/usr/bin/mount --bind \"$HOME/ca.pem\" \"$t\" || exit 90\nntp query nts:127.0.0.1 -t 5000\n"
       },
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-ntp.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve good ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > query-out.txt 2> query-err.txt\necho \"query-rc=$?\"\nread -t 0.3 -u 7 l\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r1\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-ntp-bash5320.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve good ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > query-out.txt 2> query-err.txt\necho \"query-rc=$?\"\nread -t 0.3 -u 7 l\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r1\n",
       "diagnostic_files": [
         "ca.pem"
       ],
@@ -64,15 +64,15 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-ntp.py": "1f6186424e2036f85358eae0d47b521121124830ffbfcde1ebeb9dbfa721feb7",
-        "helpers/trace-vm-nts-r1.py": "b3e75d687574d19b7a6df536b1a6e8cffda5c38a85f89f795cb855fb0fcb0768"
+        "helpers/mig-w2-ntp-bash5320.py": "be81a180b1f48bb1f8f68cae28e3ccf90cf639ece1a090d24f68c5011ab57bc7",
+        "helpers/trace-vm-nts-r1-bash5320.py": "4e9286f4f6d5cd4520cd51adb77d271806c2dcfd8b6eb9796da644567c5cd688"
       },
       "setup_script": "mkfifo w.fifo\nprintf 'subjectAltName=DNS:trace.test,IP:127.0.0.1\\nextendedKeyUsage=serverAuth\\nbasicConstraints=critical,CA:FALSE\\nkeyUsage=critical,digitalSignature,keyEncipherment\\n' > \"$HOME/server.ext\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/ca.key\" -out \"$HOME/ca.pem\" -days 1 -sha256 -subj '/CN=W2 Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' >/dev/null 2>&1\n/usr/bin/openssl req -new -newkey rsa:2048 -nodes -keyout \"$HOME/server.key\" -out \"$HOME/server.csr\" -subj '/CN=trace.test' >/dev/null 2>&1\n/usr/bin/openssl x509 -req -in \"$HOME/server.csr\" -CA \"$HOME/ca.pem\" -CAkey \"$HOME/ca.key\" -set_serial 2 -days 1 -sha256 -extfile \"$HOME/server.ext\" -out \"$HOME/server.pem\" >/dev/null 2>&1\n",
       "setup_timeout": 40,
       "files": {
         "q.sh": "t=/etc/ssl/certs/ca-certificates.crt\n[[ -e /etc/ssl/cert.pem ]] && t=/etc/ssl/cert.pem\n/usr/bin/mount --bind \"$HOME/ca.pem\" \"$t\" || exit 90\nntp query nts:127.0.0.1 -t 5000\n"
       },
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-ntp.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve good ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > query-out.txt 2> query-err.txt\necho \"query-rc=$?\"\nread -t 0.3 -u 7 l\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r2\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-ntp-bash5320.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve good ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > query-out.txt 2> query-err.txt\necho \"query-rc=$?\"\nread -t 0.3 -u 7 l\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r2\n",
       "diagnostic_files": [
         "ca.pem"
       ],
@@ -104,15 +104,15 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-ntp.py": "1f6186424e2036f85358eae0d47b521121124830ffbfcde1ebeb9dbfa721feb7",
-        "helpers/trace-vm-nts-r1.py": "b3e75d687574d19b7a6df536b1a6e8cffda5c38a85f89f795cb855fb0fcb0768"
+        "helpers/mig-w2-ntp-bash5320.py": "be81a180b1f48bb1f8f68cae28e3ccf90cf639ece1a090d24f68c5011ab57bc7",
+        "helpers/trace-vm-nts-r1-bash5320.py": "4e9286f4f6d5cd4520cd51adb77d271806c2dcfd8b6eb9796da644567c5cd688"
       },
       "setup_script": "mkfifo w.fifo\nprintf 'subjectAltName=DNS:trace.test,IP:127.0.0.1\\nextendedKeyUsage=serverAuth\\nbasicConstraints=critical,CA:FALSE\\nkeyUsage=critical,digitalSignature,keyEncipherment\\n' > \"$HOME/server.ext\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/ca.key\" -out \"$HOME/ca.pem\" -days 1 -sha256 -subj '/CN=W2 Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' >/dev/null 2>&1\n/usr/bin/openssl req -new -newkey rsa:2048 -nodes -keyout \"$HOME/server.key\" -out \"$HOME/server.csr\" -subj '/CN=trace.test' >/dev/null 2>&1\n/usr/bin/openssl x509 -req -in \"$HOME/server.csr\" -CA \"$HOME/ca.pem\" -CAkey \"$HOME/ca.key\" -set_serial 2 -days 1 -sha256 -extfile \"$HOME/server.ext\" -out \"$HOME/server.pem\" >/dev/null 2>&1\n",
       "setup_timeout": 40,
       "files": {
         "q.sh": "t=/etc/ssl/certs/ca-certificates.crt\n[[ -e /etc/ssl/cert.pem ]] && t=/etc/ssl/cert.pem\n/usr/bin/mount --bind \"$HOME/ca.pem\" \"$t\" || exit 90\nntp query nts:127.0.0.1 -t 5000\n"
       },
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-ntp.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve good ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > query-out.txt 2> query-err.txt\necho \"query-rc=$?\"\nread -t 0.3 -u 7 l\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r3\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-ntp-bash5320.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve good ready 2> serve.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > query-out.txt 2> query-err.txt\necho \"query-rc=$?\"\nread -t 0.3 -u 7 l\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r3\n",
       "diagnostic_files": [
         "ca.pem"
       ],
@@ -144,15 +144,15 @@
         "userns"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-ntp.py": "1f6186424e2036f85358eae0d47b521121124830ffbfcde1ebeb9dbfa721feb7",
-        "helpers/trace-vm-nts-r1.py": "b3e75d687574d19b7a6df536b1a6e8cffda5c38a85f89f795cb855fb0fcb0768"
+        "helpers/mig-w2-ntp-bash5320.py": "be81a180b1f48bb1f8f68cae28e3ccf90cf639ece1a090d24f68c5011ab57bc7",
+        "helpers/trace-vm-nts-r1-bash5320.py": "4e9286f4f6d5cd4520cd51adb77d271806c2dcfd8b6eb9796da644567c5cd688"
       },
       "setup_script": "mkfifo w.fifo\nprintf 'subjectAltName=DNS:trace.test,IP:127.0.0.1\\nextendedKeyUsage=serverAuth\\nbasicConstraints=critical,CA:FALSE\\nkeyUsage=critical,digitalSignature,keyEncipherment\\n' > \"$HOME/server.ext\"\n/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout \"$HOME/ca.key\" -out \"$HOME/ca.pem\" -days 1 -sha256 -subj '/CN=W2 Fixture CA' -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' >/dev/null 2>&1\n/usr/bin/openssl req -new -newkey rsa:2048 -nodes -keyout \"$HOME/server.key\" -out \"$HOME/server.csr\" -subj '/CN=trace.test' >/dev/null 2>&1\n/usr/bin/openssl x509 -req -in \"$HOME/server.csr\" -CA \"$HOME/ca.pem\" -CAkey \"$HOME/ca.key\" -set_serial 2 -days 1 -sha256 -extfile \"$HOME/server.ext\" -out \"$HOME/server.pem\" >/dev/null 2>&1\n",
       "setup_timeout": 40,
       "files": {
         "q.sh": "t=/etc/ssl/certs/ca-certificates.crt\n[[ -e /etc/ssl/cert.pem ]] && t=/etc/ssl/cert.pem\n/usr/bin/mount --bind \"$HOME/ca.pem\" \"$t\" || exit 90\nntp query nts:127.0.0.1 -t 5000\n"
       },
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-ntp.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve ke-error ready-ke-error 2> serve-ke-error.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready-ke-error ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > out-ke-error.txt 2> err-ke-error.txt\necho \"$?\" > rc-ke-error.txt\nread -t 0.3 -u 7 l\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" serve no-cookie ready-no-cookie 2> serve-no-cookie.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready-no-cookie ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > out-no-cookie.txt 2> err-no-cookie.txt\necho \"$?\" > rc-no-cookie.txt\nread -t 0.3 -u 7 l\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" serve bad-auth ready-bad-auth 2> serve-bad-auth.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready-bad-auth ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > out-bad-auth.txt 2> err-bad-auth.txt\necho \"$?\" > rc-bad-auth.txt\nread -t 0.3 -u 7 l\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" serve wrong-uid ready-wrong-uid 2> serve-wrong-uid.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready-wrong-uid ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > out-wrong-uid.txt 2> err-wrong-uid.txt\necho \"$?\" > rc-wrong-uid.txt\nread -t 0.3 -u 7 l\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r4\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-ntp-bash5320.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve ke-error ready-ke-error 2> serve-ke-error.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready-ke-error ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > out-ke-error.txt 2> err-ke-error.txt\necho \"$?\" > rc-ke-error.txt\nread -t 0.3 -u 7 l\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" serve no-cookie ready-no-cookie 2> serve-no-cookie.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready-no-cookie ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > out-no-cookie.txt 2> err-no-cookie.txt\necho \"$?\" > rc-no-cookie.txt\nread -t 0.3 -u 7 l\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" serve bad-auth ready-bad-auth 2> serve-bad-auth.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready-bad-auth ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > out-bad-auth.txt 2> err-bad-auth.txt\necho \"$?\" > rc-bad-auth.txt\nread -t 0.3 -u 7 l\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" serve wrong-uid ready-wrong-uid 2> serve-wrong-uid.err &\nsrv=$!\nfor i in {1..100}; do [[ -e ready-wrong-uid ]] && break; read -t 0.05 -u 7 l; done\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./q.sh > out-wrong-uid.txt 2> err-wrong-uid.txt\necho \"$?\" > rc-wrong-uid.txt\nread -t 0.3 -u 7 l\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\n/usr/bin/python3 \"$H\" verify r4\n",
       "diagnostic_files": [],
       "expected_status": 0,
       "stdout": "verified r4 failed=0\n",

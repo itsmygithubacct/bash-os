@@ -6,8 +6,8 @@
  * compiled terminfo entry is loaded from TERMINFO, ~/.terminfo,
  * TERMINFO_DIRS, or the system database, aliases included. A loaded
  * entry supplies its standard and extended capabilities. Mandatory
- * padding is applied from the output baud rate. init and reset stay on
- * the curated string path and restore disabled terminal special characters.
+ * padding is applied from the output baud rate. init/reset use the compiled
+ * terminal's initialization strings and restore terminal-driver settings.
  */
 
 #include <config.h>
@@ -21,8 +21,12 @@
 #include <stdint.h>
 #include <ctype.h>
 #include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <termios.h>
 #include <sys/ttydefaults.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <time.h>
 
 #include "loadables.h"
@@ -426,8 +430,8 @@ parameter_code (const char *cap)
  * A loaded entry supplies standard and extended capabilities. Mandatory
  * $<N/> delays to a terminal become floor(ms * baud / 9000) pad bytes, or
  * a sleep when the entry sets npc. Non-mandatory $<N> delays are omitted.
- * init, reset, and the environment-backed size queries stay on the curated
- * path. As in ncurses tput, a string given no parameters is written
+ * init/reset have a separate compiled-entry path; environment-backed size
+ * queries stay on the curated path. As in ncurses tput, a string given no parameters is written
  * unexpanded, and clear also writes the entry's E3 when it has one. */
 #define TP_MAX_OUT (512 * 1024)
 /* The longest padding any capability in the ncurses terminfo database
@@ -812,28 +816,51 @@ tp_default_erase (const char *term)
 }
 
 static int
-tp_tty_fd (void)
+tp_tty_fd (int *owned)
 {
   struct termios tio;
   int fds[3] = { STDERR_FILENO, STDOUT_FILENO, STDIN_FILENO };
   int i;
 
+  *owned = 0;
   for (i = 0; i < 3; i++)
     if (tcgetattr (fds[i], &tio) == 0)
       return fds[i];
+  int fd = open ("/dev/tty", O_RDWR | O_CLOEXEC);
+  if (fd >= 0)
+    {
+      if (tcgetattr (fd, &tio) == 0)
+        { *owned = 1; return fd; }
+      int saved = errno;
+      close (fd);
+      errno = saved;
+    }
   return -1;
 }
 
-static void
-tp_restore_specials (const char *term, int do_reset)
+static int
+tp_restore_specials (const char *term, int do_reset, int fd)
 {
   struct termios tio;
-  int fd = tp_tty_fd ();
 
   if (fd < 0 || tcgetattr (fd, &tio) < 0)
-    return;
+    return -1;
   if (do_reset)
     {
+      /* Restore cooked input/output while preserving the configured baud.
+         A real modem keeps CLOCAL; PTYs have no modem-control interface. */
+      tio.c_iflag &= ~(IGNBRK | PARMRK | INPCK | ISTRIP | INLCR | IGNCR |
+                       IUCLC | IXANY | IXOFF);
+      tio.c_iflag |= BRKINT | IGNPAR | ICRNL | IXON | IMAXBEL;
+      tio.c_oflag &= ~(OLCUC | OCRNL | ONOCR | ONLRET | OFILL | OFDEL |
+                       NLDLY | CRDLY | TABDLY | BSDLY | VTDLY | FFDLY);
+      tio.c_oflag |= OPOST | ONLCR;
+      tio.c_cflag &= ~(CSIZE | CSTOPB | PARENB | PARODD);
+      int modem;
+      if (ioctl (fd, TIOCMGET, &modem) < 0) tio.c_cflag &= ~CLOCAL;
+      tio.c_cflag |= CS8 | CREAD;
+      tio.c_lflag &= ~(ECHONL | NOFLSH | TOSTOP | ECHOPRT | XCASE);
+      tio.c_lflag |= ISIG | ICANON | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE;
 #ifdef VDISCARD
       tp_set_if_disabled (&tio, VDISCARD, CDISCARD);
 #endif
@@ -868,7 +895,201 @@ tp_restore_specials (const char *term, int do_reset)
       tp_set_if_disabled (&tio, VINTR, CINTR);
       tp_set_if_disabled (&tio, VKILL, CKILL);
     }
-  tcsetattr (fd, TCSADRAIN, &tio);
+  /* init also applies the terminal's basic newline/echo conversions. */
+  tio.c_iflag |= ICRNL;
+  tio.c_oflag |= ONLCR;
+  tio.c_lflag |= ECHO | ECHOE | ECHOK;
+  char *newline = NULL;
+  if (bt_compiled_lookup (term, "nel", NULL, NULL, &newline, NULL) == 2 &&
+      newline && newline[0] == '\n' && newline[1] == '\0')
+    { tio.c_iflag &= ~ICRNL; tio.c_oflag &= ~ONLCR; }
+  free (newline);
+  return tcsetattr (fd, TCSADRAIN, &tio);
+}
+
+/* The init/reset path uses terminfo data, not a generic clear-screen string.
+   String-only -V queries do not change terminal modes or require a tty. */
+static int
+tp_init_string (struct tp_out *out, const char *s, const char *var, int npc,
+                int count, int first, int second)
+{
+  if (!s) return 0;
+  char a[32], b[32];
+  snprintf (a, sizeof a, "%d", first);
+  snprintf (b, sizeof b, "%d", second);
+  WORD_DESC wa = {a, 0}, wb = {b, 0};
+  WORD_LIST lb = {NULL, &wb}, la = {count > 1 ? &lb : NULL, &wa};
+  if (count && !tp_string_supported (s)) return -1;
+  return tp_expand_compiled (s, count ? &la : NULL, var, npc, count == 0, out);
+}
+
+static int
+tp_init_file (struct tp_out *out, const char *path)
+{
+  if (!path || !*path) return 0;
+  int fd = open (path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+  if (fd < 0) return -1;
+  struct stat st;
+  if (fstat (fd, &st) < 0)
+    { int saved = errno; close (fd); errno = saved; return -1; }
+  if (!S_ISREG (st.st_mode) || st.st_size < 0 || st.st_size > TP_MAX_OUT)
+    { close (fd); errno = EFBIG; return -1; }
+  char buf[4096];
+  int rc = 0;
+  for (;;)
+    {
+      ssize_t n = read (fd, buf, sizeof buf);
+      if (n < 0 && errno == EINTR) continue;
+      if (n < 0) { rc = -1; break; }
+      if (!n) break;
+      if (tp_out_add (out, buf, (size_t) n) < 0)
+        { errno = EFBIG; rc = -1; break; }
+    }
+  int saved = errno;
+  close (fd);
+  errno = saved;
+  return rc;
+}
+
+static int
+tp_initialize (const char *term, int reset, const char *var)
+{
+  enum { IS1, IS2, IS3, RS1, RS2, RS3, IF, RF, IP, MGC, SMLR,
+         SMLP, SMRP, SML, SMR, CUF, CR, TBC, HTS, NSTR };
+  const char *names[NSTR] = {"is1","is2","is3","rs1","rs2","rs3",
+    "if","rf","iprog","mgc","smglr","smglp","smgrp","smgl","smgr",
+    "cuf","cr","tbc","hts"};
+  char *strings[NSTR] = {0};
+  int fd = -1, owned = 0, rc = 0, npc = 0;
+  struct tp_out out = {0};
+  struct termios before, final_modes;
+  int modes_changed = 0;
+  struct winsize before_size;
+  int size_changed = 0;
+  if (!var)
+    {
+      fd = tp_tty_fd (&owned);
+      if (fd < 0 || tcgetattr (fd, &before) < 0)
+        {
+          int saved = errno;
+          fprintf (stderr, "tput: terminal attributes: %s\n\n", strerror (saved));
+          if (owned) close (fd);
+          return 4 + saved;
+        }
+    }
+  if (!safe_term_name (term) ||
+      bt_compiled_lookup (term, "is1", NULL, NULL, &strings[IS1], &npc) < 0)
+    {
+      fprintf (stderr, "tput: unknown terminal \"%s\"\n", term);
+      rc = 3;
+      goto done;
+    }
+  for (int i = 1; i < NSTR; ++i)
+    bt_compiled_lookup (term, names[i], NULL, NULL, &strings[i], NULL);
+  /* Executing arbitrary init_prog shell commands is a separate capability;
+     report it instead of silently claiming that initialization succeeded. */
+  if (strings[IP] && *strings[IP])
+    { builtin_error ("init_prog is unsupported"); rc = 2; goto done; }
+  int32_t columns = 80, tabs = -1;
+  bt_compiled_lookup (term, "cols", NULL, &columns, NULL, NULL);
+  bt_compiled_lookup (term, "it", NULL, &tabs, NULL, NULL);
+  if (columns <= 0 || columns > 4096)
+    { builtin_error ("invalid terminal column count"); rc = 2; goto done; }
+  if (!var)
+    {
+      struct winsize ws;
+      if (ioctl (fd, TIOCGWINSZ, &ws) == 0)
+        {
+          before_size = ws;
+          if (ws.ws_col) columns = ws.ws_col;
+          else
+            {
+              int32_t lines = 24;
+              bt_compiled_lookup (term, "lines", NULL, &lines, NULL, NULL);
+              ws.ws_col = (unsigned short) columns;
+              if (!ws.ws_row && lines > 0 && lines < 65536) ws.ws_row = (unsigned short) lines;
+              if (ioctl (fd, TIOCSWINSZ, &ws) < 0)
+                { rc = 4 + errno; goto done; }
+              size_changed = 1;
+            }
+        }
+      if (columns > 4096)
+        { builtin_error ("invalid terminal column count"); rc = 2; goto done; }
+      if (tp_restore_specials (term, reset, fd) < 0)
+        { rc = 4 + errno; goto done; }
+      modes_changed = 1;
+      if (tcgetattr (fd, &final_modes) < 0)
+        { rc = 4 + errno; goto done; }
+      /* Initialization strings already encode terminal control bytes. Match
+         tput's temporary output mode, then leave the final cooked mode set. */
+      if (before.c_oflag & (TAB3 | ONLCR | OCRNL | ONLRET))
+        {
+          struct termios output_modes = final_modes;
+          output_modes.c_oflag = before.c_oflag & (TAB3 | ONLCR | OCRNL | ONLRET);
+          if (tcsetattr (fd, TCSADRAIN, &output_modes) < 0)
+            { rc = 4 + errno; goto done; }
+        }
+    }
+#define TP_INIT_ADD(s,n,a,b) do { \
+  if (tp_init_string (&out,(s),var,npc,(n),(a),(b)) < 0) \
+    { rc = 2; goto done; } \
+} while (0)
+  TP_INIT_ADD (reset && strings[RS1] ? strings[RS1] : strings[IS1],0,0,0);
+  TP_INIT_ADD (reset && strings[RS2] ? strings[RS2] : strings[IS2],0,0,0);
+  if (strings[MGC]) TP_INIT_ADD (strings[MGC],0,0,0);
+  else if (strings[SMLR]) TP_INIT_ADD (strings[SMLR],2,0,columns-1);
+  else if (strings[SMLP] && strings[SMRP])
+    { TP_INIT_ADD (strings[SMLP],1,0,0); TP_INIT_ADD (strings[SMRP],1,columns-1,0); }
+  else if (strings[SML] && strings[SMR])
+    {
+      TP_INIT_ADD (strings[CR] ? strings[CR] : "\r",0,0,0);
+      TP_INIT_ADD (strings[SML],0,0,0);
+      if (strings[CUF]) TP_INIT_ADD (strings[CUF],1,columns-1,0);
+      else for (int col = 1; col < columns; ++col)
+        if (tp_out_add (&out," ",1) < 0) { rc = 2; goto done; }
+      TP_INIT_ADD (strings[SMR],0,0,0);
+      TP_INIT_ADD (strings[CR] ? strings[CR] : "\r",0,0,0);
+    }
+  /* An entry declaring eight-column hardware tabs needs no programming,
+     matching tput's init_tabs contract. Other valid intervals are explicit. */
+  if (tabs >= 0 && tabs != 8 && strings[TBC] && strings[HTS])
+    {
+      TP_INIT_ADD (strings[CR] ? strings[CR] : "\r",0,0,0);
+      TP_INIT_ADD (strings[TBC],0,0,0);
+      if (tabs > 1)
+        {
+          for (int col = tabs; col < columns; col += tabs)
+            {
+              for (int i = 0; i < tabs; ++i)
+                if (tp_out_add (&out," ",1) < 0) { rc = 2; goto done; }
+              TP_INIT_ADD (strings[HTS],0,0,0);
+            }
+          TP_INIT_ADD (strings[CR] ? strings[CR] : "\r",0,0,0);
+        }
+    }
+  const char *file = reset && strings[RF] ? strings[RF] : strings[IF];
+  if (tp_init_file (&out, file) < 0)
+    { int saved = errno; builtin_error ("%s: %s", file, strerror (saved)); rc = 4 + saved; goto done; }
+  TP_INIT_ADD (reset && strings[RS3] ? strings[RS3] : strings[IS3],0,0,0);
+#undef TP_INIT_ADD
+  if (var) rc = bind_or_print (var, out.data ? out.data : "", 0);
+  else if ((out.len && fwrite (out.data,1,out.len,stdout) != out.len) || fflush (stdout) == EOF)
+    rc = 2;
+  if (!var && !rc && (out.len || out.pad_ms))
+    {
+      /* Real terminals may still be resetting after the last byte is sent. */
+      struct timespec settle = {1,0};
+      while (nanosleep (&settle,&settle) < 0 && errno == EINTR) ;
+    }
+  if (!rc && modes_changed && tcsetattr (fd, TCSADRAIN, &final_modes) < 0)
+    rc = 4 + errno;
+done:
+  if (rc && modes_changed) (void) tcsetattr (fd, TCSADRAIN, &before);
+  if (rc && size_changed) (void) ioctl (fd, TIOCSWINSZ, &before_size);
+  if (owned) close (fd);
+  for (int i = 0; i < NSTR; ++i) free (strings[i]);
+  free (out.data);
+  return rc;
 }
 
 extern char *tput_doc[];   /* forward decl */
@@ -887,6 +1108,8 @@ emit_cap (const char *cap, WORD_LIST *args, const char *var, const char *term, i
       builtin_error ("no terminal type specified");
       return 2;
     }
+  if (!strcmp (cap, "init") || !strcmp (cap, "reset"))
+    return tp_initialize (term, !strcmp (cap, "reset"), var);
   if (!tp_leave_curated (cap))
     {
       int crc = emit_compiled (term, cap, args, var);
@@ -943,12 +1166,6 @@ emit_cap (const char *cap, WORD_LIST *args, const char *var, const char *term, i
         return bind_or_print (var, "\033[H\033[2J\033[3J", 0);
       return bind_or_print (var, !strcmp (term, "linux") || !strcmp (term, "tmux-256color")
                             ? "\033[H\033[J\033[3J" : "\033[H\033[J", 0);
-    }
-  if (!strcmp (cap, "reset") || !strcmp (cap, "init"))
-    {
-      if (!var)
-        tp_restore_specials (term, !strcmp (cap, "reset"));
-      return bind_or_print (var, "\033[0m\033[2J\033[H", 0);
     }
   if (!strcmp (cap, "home") || !strcmp (cap, "cursor_home"))
     return bind_or_print (var, "\033[H", 0);
@@ -1117,10 +1334,26 @@ emit_cap (const char *cap, WORD_LIST *args, const char *var, const char *term, i
       else snprintf (buf, sizeof buf, "\033[%d;5;%dm", fg ? 38 : 48, n);
       return bind_or_print (var, buf, 0);
     }
-  if (!strcmp (cap, "cols") || !strcmp (cap, "columns"))
-    return bind_or_print (var, !explicit_term && getenv ("COLUMNS") ? getenv ("COLUMNS") : "80", 1);
-  if (!strcmp (cap, "lines") || !strcmp (cap, "rows"))
-    return bind_or_print (var, !explicit_term && getenv ("LINES") ? getenv ("LINES") : "24", 1);
+  if (!strcmp (cap, "cols") || !strcmp (cap, "columns") ||
+      !strcmp (cap, "lines") || !strcmp (cap, "rows"))
+    {
+      int columns = !strcmp (cap, "cols") || !strcmp (cap, "columns");
+      const char *value = explicit_term ? NULL : getenv (columns ? "COLUMNS" : "LINES");
+      struct winsize ws;
+
+      if (value)
+        return bind_or_print (var, value, 1);
+      /* -T selects database dimensions independently of the current tty.
+         Read the window on every query so a resize is visible.  A zero
+         dimension means the driver has no value for that dimension. */
+      if (!explicit_term && ioctl (STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 &&
+          (columns ? ws.ws_col : ws.ws_row))
+        {
+          snprintf (buf, sizeof buf, "%u", (unsigned int) (columns ? ws.ws_col : ws.ws_row));
+          return bind_or_print (var, buf, 1);
+        }
+      return bind_or_print (var, columns ? "80" : "24", 1);
+    }
   if (!strcmp (cap, "colors"))
     return bind_or_print (var, !strcmp (term, "vt100") || !strcmp (term, "dumb") ? "-1" :
                           !strcmp (term, "xterm") || !strcmp (term, "linux") ? "8" : "256", 1);

@@ -23,7 +23,7 @@
  #include "bashtypes.h"
  #include <pwd.h>
  #include <grp.h>
-@@ -51,273 +54,432 @@
+@@ -51,273 +54,448 @@
  #include "common.h"
  #include "bashgetopt.h"
  
@@ -180,8 +180,8 @@
 +  return (x > y) - (x < y);
 +}
 +
-+/* Keep the real/effective primary groups first and deduplicate supplementary
-+   IDs, including groups mapped to the same overflow ID in a user namespace. */
++/* For named users retain getgrouplist order and duplicate supplementary IDs.
++   For the current process preserve the existing sorted, deduplicated list. */
 +static int
 +id_groups (const char *name, gid_t **result)
 +{
@@ -260,14 +260,30 @@
 +            }
 +        }
 +    }
-+  qsort (raw, n, sizeof (gid_t), id_gidcmp);
++  /* GNU full current-process output begins with the effective group,
++     followed by supplementary groups; -G has its own ordering below. */
++  if (name == 0 && (id_flags & ID_ALLGROUPS) == 0)
++    {
++      groups = (gid_t *)xmalloc ((n + 1) * sizeof (gid_t));
++      count = 1;
++      groups[0] = egid;
++      for (i = 0; i < n; i++)
++        if (raw[i] != egid && raw[i] != groups[count - 1])
++          groups[count++] = raw[i];
++      free (raw);
++      *result = groups;
++      return count;
++    }
++  if (name == 0)
++    qsort (raw, n, sizeof (gid_t), id_gidcmp);
 +  groups = (gid_t *)xmalloc ((n + 2) * sizeof (gid_t));
 +  count = 0;
 +  groups[count++] = rgid;
 +  if (egid != rgid)
 +    groups[count++] = egid;
 +  for (i = 0; i < n; i++)
-+    if (raw[i] != rgid && raw[i] != egid && (i == 0 || raw[i] != raw[i-1]))
++    if (raw[i] != rgid && raw[i] != egid &&
++        (name || i == 0 || raw[i] != raw[i-1]))
 +      groups[count++] = raw[i];
 +  free (raw);
 +  *result = groups;

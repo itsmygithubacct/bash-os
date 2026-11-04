@@ -295,7 +295,9 @@ def speller(args):
     dictionary = json.loads(Path('dictionary.json').read_text())
     if dictionary != {'teh': 'the'}:
         return 45
-    if mode == 'failure':
+    if mode in ('failure', 'failure-write'):
+        if mode == 'failure-write' and path is not None:
+            path.write_bytes(b'changed by failing helper\n')
         helper_log('exit', code=7)
         return 7
     if mode == 'timeout':
@@ -513,11 +515,12 @@ def run_case(side, shell):
             if mode == 'strict-replace':
                 checks['helper-contract'] = protocol == 'filename'
             if mode in ('strict-replace', 'dual-replace', 'dual-cancel'):
-                target = 'NF SPELL replacement (ESC cancels): teh' if side == 'reference' else 'Edit a replacement: teh'
+                target = ('NF SPELL replacement (ESC cancels): teh' if protocol == 'filename'
+                          else 'Edit a replacement: teh')
                 def prompt_ready():
                     if not session.contains(target):
                         return False
-                    if side == 'candidate':
+                    if protocol != 'filename':
                         return session.ready()
                     started = read_helper_log()
                     return bool(started) and session.ready(started[0]['pid'])
@@ -526,8 +529,8 @@ def run_case(side, shell):
                 if prompted:
                     reply = b'\x1b' if mode == 'dual-cancel' else b'\x7f' * 3 + b'the\r'
                     checks['all-input-operations-sent'] &= session.send(reply, 'correction-reply')
-                    response = ('Nothing changed' if side == 'reference' else 'Spell check cancelled (0 replaced)') \
-                        if mode == 'dual-cancel' else ('the cat the' if side == 'reference' else 'Finished checking spelling (2 replaced)')
+                    response = ('Nothing changed' if protocol == 'filename' else 'Spell check cancelled (0 replaced)') \
+                        if mode == 'dual-cancel' else ('the cat the' if protocol == 'filename' else 'Finished checking spelling (2 replaced)')
                     ended = session.wait(lambda: session.contains(response) and session.ready(), 4)
                     visible('correction-outcome-visible', ended, {'expected': response})
                 else:

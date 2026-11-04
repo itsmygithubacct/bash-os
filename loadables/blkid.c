@@ -60,6 +60,7 @@ typedef struct {
     char uuid[BBLK_UUID_MAX];
     char type[BBLK_TYPE_MAX];
     char pttype[BBLK_PT_MAX];
+    char ptuuid[BBLK_UUID_MAX];
     char partlabel[BBLK_PARTLABEL_MAX];
     char partuuid[BBLK_UUID_MAX];
     char sec_type[BBLK_TYPE_MAX];
@@ -403,11 +404,8 @@ bblk_match_gpt (const unsigned char *p, size_t n, bblk_info *out)
     if (memcmp (p + 512, "EFI PART", 8) != 0) return 0;
     strncpy (out->pttype, "gpt", BBLK_PT_MAX - 1);
     out->pttype[BBLK_PT_MAX - 1] = '\0';
-    /* If FS UUID slot is empty, surface the disk GUID under PTUUID via
-       the formatted output layer. We still emit a regular pttype line
-       even if no fs is present. */
-    if (out->uuid[0] == '\0')
-        bblk_uuid_gpt (out->uuid, p + 512 + 56);
+    /* The disk GUID is distinct from any filesystem UUID. */
+    bblk_uuid_gpt (out->ptuuid, p + 512 + 56);
     return 1;
 }
 
@@ -425,9 +423,15 @@ bblk_match_gpt_partition (const unsigned char *p, size_t n, int partno,
         return 0;
     if ((uint32_t) partno > nents)
         return 0;
-    uint64_t off64 = ents_lba * 512ULL + (uint64_t) (partno - 1) * entsz;
-    if (off64 + entsz > n)
+    /* Validate each operation against the bytes actually read, before any
+       multiplication/addition based on an untrusted on-disk GPT header. */
+    if (ents_lba > n / 512U)
         return 0;
+    uint64_t table = ents_lba * 512ULL;
+    uint64_t entry = (uint64_t) (partno - 1) * entsz;
+    if (entry > n - table || entsz > n - table - entry)
+        return 0;
+    uint64_t off64 = table + entry;
     const unsigned char *e = p + off64;
     if (bblk_guid_zero (e) || bblk_guid_zero (e + 16))
         return 0;
@@ -466,6 +470,7 @@ bblk_match_mbr (const unsigned char *p, size_t n, bblk_info *out)
         strncpy (out->pttype, "dos", BBLK_PT_MAX - 1);
         out->pttype[BBLK_PT_MAX - 1] = '\0';
     }
+    snprintf (out->ptuuid, sizeof out->ptuuid, "%08x", bblk_le32 (p + 440));
     return 1;
 }
 
@@ -530,7 +535,15 @@ bblk_probe_gpt_partition_path (const char *parent_path, int partno, bblk_info *i
     ssize_t n = bblk_read_probe (parent_path, buf);
     if (n <= 0)
         return;
-    bblk_match_gpt_partition (buf, (size_t) n, partno, info);
+    if (bblk_match_gpt_partition (buf, (size_t) n, partno, info))
+        return;
+    bblk_info disk = {0};
+    if (partno <= 4 && bblk_match_mbr (buf, (size_t) n, &disk)) {
+        const unsigned char *e = buf + 446 + 16 * (partno - 1);
+        if (e[4] && bblk_le32 (e + 12))
+            snprintf (info->partuuid, sizeof info->partuuid, "%08x-%02x",
+                      bblk_le32 (buf + 440), partno);
+    }
 }
 
 /* ---------------- output -------------------------------------------- */
@@ -553,7 +566,15 @@ bblk_emit_kv (const char *tag, const char *val, const char *only_tag,
               const char *fmt, int *count)
 {
     if (val[0] == '\0') return;
-    if (only_tag && strcmp (only_tag, tag) != 0) return;
+    if (only_tag) {
+        const char *p = only_tag;
+        size_t len = strlen (tag);
+        while (*p) {
+            if (strncmp (p, tag, len) == 0 && p[len] == '\0') break;
+            p += strlen (p) + 1;
+        }
+        if (!*p) return;
+    }
 
     if (strcmp (fmt, "value") == 0) {
         if (*count > 0) putchar ('\n');
@@ -590,6 +611,7 @@ bblk_emit (const char *dev, const bblk_info *info, const char *only_tag,
         bblk_emit_kv ("UUID",   info->uuid,   only_tag, fmt, &count);
         bblk_emit_kv ("TYPE",   info->type,   only_tag, fmt, &count);
         bblk_emit_kv ("SEC_TYPE", info->sec_type, only_tag, fmt, &count);
+        bblk_emit_kv ("PTUUID", info->ptuuid, only_tag, fmt, &count);
         bblk_emit_kv ("PTTYPE", info->pttype, only_tag, fmt, &count);
         bblk_emit_kv ("PARTLABEL", info->partlabel, only_tag, fmt, &count);
         bblk_emit_kv ("PARTUUID", info->partuuid, only_tag, fmt, &count);
@@ -600,6 +622,7 @@ bblk_emit (const char *dev, const bblk_info *info, const char *only_tag,
     bblk_emit_kv ("UUID",   info->uuid,   only_tag, fmt, &count);
     bblk_emit_kv ("TYPE",   info->type,   only_tag, fmt, &count);
     bblk_emit_kv ("SEC_TYPE", info->sec_type, only_tag, fmt, &count);
+    bblk_emit_kv ("PTUUID", info->ptuuid, only_tag, fmt, &count);
     bblk_emit_kv ("PTTYPE", info->pttype, only_tag, fmt, &count);
     bblk_emit_kv ("PARTLABEL", info->partlabel, only_tag, fmt, &count);
     bblk_emit_kv ("PARTUUID", info->partuuid, only_tag, fmt, &count);
@@ -637,7 +660,19 @@ bblk_read_sys_parent (const char *base, char *out, size_t outsz)
     int n = snprintf (path, sizeof path, "%s/parent", base);
     if (n < 0 || (size_t) n >= sizeof path) return -1;
     int fd = open (path, O_RDONLY | O_CLOEXEC);
-    if (fd < 0) return -1;
+    if (fd < 0) {
+        char *resolved = realpath (base, NULL);
+        if (!resolved) return -1;
+        char *slash = strrchr (resolved, '/');
+        if (!slash) { free (resolved); return -1; }
+        *slash = '\0';
+        slash = strrchr (resolved, '/');
+        const char *name = slash ? slash + 1 : resolved;
+        if (!*name || strlen (name) >= outsz) { free (resolved); return -1; }
+        strcpy (out, name);
+        free (resolved);
+        return 0;
+    }
     ssize_t r = read (fd, out, outsz - 1);
     close (fd);
     if (r <= 0) return -1;
@@ -746,6 +781,25 @@ bblk_probe_one_ex (const char *path, const char *parent_path, int partno,
 static int
 bblk_probe_one (const char *path, bblk_opts *opt)
 {
+    const char *name = strrchr (path, '/');
+    name = name ? name + 1 : path;
+    char sysent[BBLK_PATH_MAX], parent[BBLK_PATH_MAX], parent_name[BBLK_PATH_MAX];
+    char node[BBLK_PATH_MAX];
+    struct stat actual, configured;
+    int partno = 0;
+    int nn = snprintf (node, sizeof node, "%s/%s", bblk_dev_root (), name);
+    if (nn < 0 || (size_t) nn >= sizeof node || stat (path, &actual) < 0
+        || stat (node, &configured) < 0
+        || actual.st_dev != configured.st_dev || actual.st_ino != configured.st_ino)
+        return bblk_probe_one_ex (path, NULL, 0, opt);
+    int n = snprintf (sysent, sizeof sysent, "%s/%s", bblk_sys_block_dir (), name);
+    if (n >= 0 && (size_t) n < sizeof sysent
+        && bblk_read_sys_int (sysent, "partition", &partno) == 0
+        && bblk_read_sys_parent (sysent, parent_name, sizeof parent_name) == 0) {
+        n = snprintf (parent, sizeof parent, "%s/%s", bblk_dev_root (), parent_name);
+        if (n >= 0 && (size_t) n < sizeof parent)
+            return bblk_probe_one_ex (path, parent, partno, opt);
+    }
     return bblk_probe_one_ex (path, NULL, 0, opt);
 }
 
@@ -759,6 +813,8 @@ int
 blkid_builtin (WORD_LIST *list)
 {
     bblk_opts opt = { "default", NULL, NULL, NULL, 0 };
+    char tags[2048] = {0};
+    size_t tags_len = 0;
     int n_pos = 0;
     const char *pos[256];
 
@@ -793,7 +849,14 @@ blkid_builtin (WORD_LIST *list)
         if (strcmp (w, "-s") == 0) {
             if (!p->next) { builtin_error ("-s requires TAG"); return EX_USAGE; }
             p = p->next;
-            opt.tag = p->word->word;
+            size_t len = strlen (p->word->word) + 1;
+            if (tags_len + len >= sizeof tags) {
+                builtin_error ("too many or too long tags");
+                return EX_USAGE;
+            }
+            memcpy (tags + tags_len, p->word->word, len);
+            tags_len += len;
+            opt.tag = tags;
             continue;
         }
         if (strcmp (w, "-L") == 0) {

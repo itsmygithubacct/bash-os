@@ -2,6 +2,24 @@
   "schema": 1,
   "cases": [
     {
+      "id": "mig-g1-pgrep-caller-identity-regression",
+      "loadable": "pgrep",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Verify the caller is listed by name and full command line while the pgrep invocation is excluded, including count and alternatives.",
+      "oracle": "procps-ng pgrep in the same isolated guest profile",
+      "comparison": "Compare normalized assertions and exit statuses, not raw PIDs.",
+      "covers": ["pgrep/pgrep-regex-name-matching"],
+      "requires": ["pgrep"],
+      "script": "/usr/bin/ln -s \"$BASH\" ./g1sh164\nexec ./g1sh164 --noprofile --norc ./body.sh\n",
+      "files": {
+        "body.sh": "check() { local label=$1; shift; pgrep \"$@\" >out; local rc=$? pid found=no; while IFS= read -r pid; do [[ $pid == \"$$\" ]] && found=yes; done <out; printf '%s rc=%s caller=%s\\n' \"$label\" \"$rc\" \"$found\"; }\ncheck exact -x g1sh164\ncheck alternative -x 'g1sh164|no_such_164'\ncheck full -f g1sh164\npgrep -c -x g1sh164 >out; rc=$?; read -r count <out; [[ $count -ge 1 ]] && has=yes || has=no; printf 'count rc=%s caller-included=%s\\n' \"$rc\" \"$has\"\npgrep -P \"$$\" -x g1sh164 >out; rc=$?; [[ -s out ]] && has=yes || has=no; printf 'invocation-excluded rc=%s output=%s\\n' \"$rc\" \"$has\"\n"
+      },
+      "expected_status": 0,
+      "timeout": 60
+    },
+    {
       "id": "mig-g1-pgrep-list-and-delimiter",
       "loadable": "pgrep",
       "group": "shell",

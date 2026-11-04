@@ -241,6 +241,63 @@
       "covers": [
         "nohup/nohup-tty-redirection-deferred"
       ]
+    },
+    {
+      "id": "migration-nohup-stdin-write-only-parent-tty",
+      "loadable": "nohup",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "nohup/nohup-tty-redirection-deferred"
+      ],
+      "purpose": "Terminal stdin is write-only /dev/null in the child and remains a terminal in the calling shell.",
+      "oracle": "GNU nohup with the same Python descriptor probe.",
+      "comparison": "Exact child descriptor access mode, read errno, write result, parent terminal state and diagnostic.",
+      "requires": [
+        "nohup",
+        "python3"
+      ],
+      "script": "nohup /usr/bin/python3 -c 'import errno,fcntl,os\nf=fcntl.fcntl(0,fcntl.F_GETFL)\nprint(\"write_only=%s\" % ((f & os.O_ACCMODE)==os.O_WRONLY))\ntry: os.read(0,1); print(\"read=unexpected\")\nexcept OSError as e: print(\"read=\"+errno.errorcode[e.errno])\nprint(\"write=%d\" % os.write(0,b\"x\"))' > out 2> err\nif test -t 0; then printf 'parent-tty=yes\\n' >> out; else printf 'parent-tty=no\\n' >> out; fi\nprintf 'done\\n' ",
+      "steps": [
+        {
+          "expect": "\\Adone\\r\\n\\Z"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "out": "write_only=True\nread=EBADF\nwrite=1\nparent-tty=yes\n",
+        "err": "nohup: ignoring input\n"
+      }
+    },
+    {
+      "id": "migration-nohup-append-preserves-mode",
+      "loadable": "nohup",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "nohup/nohup-tty-redirection-deferred"
+      ],
+      "purpose": "Appending both streams preserves a pre-existing nohup.out mode despite a restrictive umask.",
+      "oracle": "GNU nohup with the same pre-existing file and umask.",
+      "comparison": "Exact terminal diagnostic, appended bytes, status and resulting file modes via tree parity.",
+      "requires": [
+        "nohup",
+        "chmod",
+        "python3"
+      ],
+      "files": {
+        "nohup.out": "old\n"
+      },
+      "script": "chmod 640 nohup.out\numask 077\nnohup /usr/bin/python3 -c 'import os; os.write(1,b\"out\\n\"); os.write(2,b\"err\\n\")' ",
+      "steps": [
+        {
+          "expect": "\\Anohup: ignoring input and appending output to 'nohup\\.out'\\r\\n\\Z"
+        }
+      ],
+      "expected_status": 0,
+      "expected_files": {
+        "nohup.out": "old\nout\nerr\n"
+      }
     }
   ]
 }

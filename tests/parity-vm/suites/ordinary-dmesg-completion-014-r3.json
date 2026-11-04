@@ -1,0 +1,195 @@
+{
+  "cases": [
+    {
+      "candidate_script": "set -e\nset -o pipefail\numask 022\n[[ ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}.${BASH_VERSINFO[2]} == 5.3.20 ]] || exit 125\n[[ $(builtin type -t dmesg) == builtin ]] || exit 125\ncat > fixture <<'EOF'\n0,1,1000000,-;kernel-one\n8,2,2000000,-;user-two\n2048,3,3000000,-;priority-outside-abi\ngarbage\n8,x,4000000,-;bad-sequence\n0,5,4500000,I,subsys=fixture;extended-record\nEOF\nprintf '%s' '16,6,6000000,-;unterminated-final' >> fixture\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg\nelse\n  awk '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      header = substr(line, 1, semi - 1)\n      message = substr(line, semi + 1)\n      n = split(header, fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      priority = fields[1] + 0\n      usec = fields[3] + 0\n      if (priority > 2047) next\n      printf \"[%5d.%06d] %s\\n\", int(usec / 1000000), usec % 1000000, message\n    }\n  ' fixture\nfi",
+      "comparison": "Unmodified original script after explicit Bash 5.3.20 and builtin/reference dispatch guards; exact status, stdout, stderr and fixture tree. No timestamp or record normalization.",
+      "covers": [
+        "dmesg/live-ring-buffer"
+      ],
+      "dmesg_revision": "r3",
+      "driver": "plain",
+      "expected_files": {
+        "fixture": "0,1,1000000,-;kernel-one\n8,2,2000000,-;user-two\n2048,3,3000000,-;priority-outside-abi\ngarbage\n8,x,4000000,-;bad-sequence\n0,5,4500000,I,subsys=fixture;extended-record\n16,6,6000000,-;unterminated-final"
+      },
+      "expected_status": 0,
+      "group": "shell",
+      "id": "qualification-014-dmesg-decoded-records-r3",
+      "kind": "parity",
+      "loadable": "dmesg",
+      "observation_error_status": 125,
+      "oracle": "Original independent AWK encoder under pinned Bash 5.3.20; exact expected bytes and fixture contents are also asserted.",
+      "original_case_id": "legacy/dmesg/decoded-records",
+      "original_definition_sha256": "f9014d458e4295ec0a79439f4e25b57f727b8f991d6c559c2e1f500c6bfe3470",
+      "original_script_sha256": "50335592dea58fc0935551cccfeedfe48d2866b6474f6ae3ec5b1bd146adcd35",
+      "purpose": "Check default timestamp formatting, accepted extension metadata, malformed-header skipping, and output of a final record without a newline against an independent encoder.",
+      "reference_script": "set -e\nset -o pipefail\numask 022\n[[ ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}.${BASH_VERSINFO[2]} == 5.3.20 ]] || exit 125\n[[ $(builtin type -t dmesg) == file ]] || exit 125\ncat > fixture <<'EOF'\n0,1,1000000,-;kernel-one\n8,2,2000000,-;user-two\n2048,3,3000000,-;priority-outside-abi\ngarbage\n8,x,4000000,-;bad-sequence\n0,5,4500000,I,subsys=fixture;extended-record\nEOF\nprintf '%s' '16,6,6000000,-;unterminated-final' >> fixture\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg\nelse\n  awk '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      header = substr(line, 1, semi - 1)\n      message = substr(line, semi + 1)\n      n = split(header, fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      priority = fields[1] + 0\n      usec = fields[3] + 0\n      if (priority > 2047) next\n      printf \"[%5d.%06d] %s\\n\", int(usec / 1000000), usec % 1000000, message\n    }\n  ' fixture\nfi",
+      "requires": [
+        "awk",
+        "cat"
+      ],
+      "stderr": "",
+      "stdout": "[    1.000000] kernel-one\n[    2.000000] user-two\n[    4.500000] extended-record\n[    6.000000] unterminated-final\n",
+      "timeout": 12
+    },
+    {
+      "candidate_script": "set -e\nset -o pipefail\numask 022\n[[ ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}.${BASH_VERSINFO[2]} == 5.3.20 ]] || exit 125\n[[ $(builtin type -t dmesg) == builtin ]] || exit 125\ncat > fixture <<'EOF'\n0,1,1,-;kern-emerg\n3,2,2,-;kern-err\n4,3,3,-;kern-warn\n6,4,4,-;kern-info\n8,5,5,-;user-emerg\n11,6,6,-;user-err\n27,7,7,-;daemon-err\n29,8,8,-;daemon-notice\nEOF\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -f kern,daemon -l warn,err -t\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -k -t\nelse\n  awk -v pass=filtered '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      priority = fields[1] + 0\n      if (priority > 2047) next\n      facility = int(priority / 8)\n      level = priority % 8\n      if (pass == \"filtered\" &&\n          !((facility == 0 || facility == 3) && (level == 3 || level == 4))) next\n      if (pass == \"kernel\" && facility != 0) next\n      print substr(line, semi + 1)\n    }\n  ' fixture\n  awk -v pass=kernel '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      priority = fields[1] + 0\n      if (priority > 2047 || int(priority / 8) != 0) next\n      print substr(line, semi + 1)\n    }\n  ' fixture\nfi",
+      "comparison": "Unmodified original script after explicit Bash 5.3.20 and builtin/reference dispatch guards; exact status, stdout, stderr and fixture tree. No timestamp or record normalization.",
+      "covers": [
+        "dmesg/live-ring-buffer"
+      ],
+      "dmesg_revision": "r3",
+      "driver": "plain",
+      "expected_files": {
+        "fixture": "0,1,1,-;kern-emerg\n3,2,2,-;kern-err\n4,3,3,-;kern-warn\n6,4,4,-;kern-info\n8,5,5,-;user-emerg\n11,6,6,-;user-err\n27,7,7,-;daemon-err\n29,8,8,-;daemon-notice\n"
+      },
+      "expected_status": 0,
+      "group": "shell",
+      "id": "qualification-014-dmesg-facility-level-filters-r3",
+      "kind": "parity",
+      "loadable": "dmesg",
+      "observation_error_status": 125,
+      "oracle": "Original independent AWK encoder under pinned Bash 5.3.20; exact expected bytes and fixture contents are also asserted.",
+      "original_case_id": "legacy/dmesg/facility-level-filters",
+      "original_definition_sha256": "399d14244d56827b5a1d49218ddaf49ed13d16714723bfcd8888cac4578ac336",
+      "original_script_sha256": "61a20ccac46f24e431d954f1634eaf83745f525dc7ffd88b53da07967a61bc0d",
+      "purpose": "Compare comma-separated facility and level filters, then kernel-only filtering, against an independent priority-field decoder.",
+      "reference_script": "set -e\nset -o pipefail\numask 022\n[[ ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}.${BASH_VERSINFO[2]} == 5.3.20 ]] || exit 125\n[[ $(builtin type -t dmesg) == file ]] || exit 125\ncat > fixture <<'EOF'\n0,1,1,-;kern-emerg\n3,2,2,-;kern-err\n4,3,3,-;kern-warn\n6,4,4,-;kern-info\n8,5,5,-;user-emerg\n11,6,6,-;user-err\n27,7,7,-;daemon-err\n29,8,8,-;daemon-notice\nEOF\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -f kern,daemon -l warn,err -t\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -k -t\nelse\n  awk -v pass=filtered '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      priority = fields[1] + 0\n      if (priority > 2047) next\n      facility = int(priority / 8)\n      level = priority % 8\n      if (pass == \"filtered\" &&\n          !((facility == 0 || facility == 3) && (level == 3 || level == 4))) next\n      if (pass == \"kernel\" && facility != 0) next\n      print substr(line, semi + 1)\n    }\n  ' fixture\n  awk -v pass=kernel '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      priority = fields[1] + 0\n      if (priority > 2047 || int(priority / 8) != 0) next\n      print substr(line, semi + 1)\n    }\n  ' fixture\nfi",
+      "requires": [
+        "awk",
+        "cat"
+      ],
+      "stderr": "",
+      "stdout": "kern-err\nkern-warn\ndaemon-err\nkern-emerg\nkern-err\nkern-warn\nkern-info\n",
+      "timeout": 12
+    },
+    {
+      "candidate_script": "set -e\nset -o pipefail\numask 022\n[[ ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}.${BASH_VERSINFO[2]} == 5.3.20 ]] || exit 125\n[[ $(builtin type -t dmesg) == builtin ]] || exit 125\ncat > fixture <<'EOF'\n0,1,999998,-;before-lower-bound\n0,2,999999,-;at-lower-bound\n0,3,1000000,-;after-lower-bound\n0,4,2000000,-;at-upper-bound\n0,5,2000001,-;after-upper-bound\nEOF\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -t --since=.999999 --until 2\nelse\n  awk '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      usec = fields[3] + 0\n      if (usec < 999999 || usec > 2000000) next\n      print substr(line, semi + 1)\n    }\n  ' fixture\nfi",
+      "comparison": "Unmodified original script after explicit Bash 5.3.20 and builtin/reference dispatch guards; exact status, stdout, stderr and fixture tree. No timestamp or record normalization.",
+      "covers": [
+        "dmesg/live-ring-buffer"
+      ],
+      "dmesg_revision": "r3",
+      "driver": "plain",
+      "expected_files": {
+        "fixture": "0,1,999998,-;before-lower-bound\n0,2,999999,-;at-lower-bound\n0,3,1000000,-;after-lower-bound\n0,4,2000000,-;at-upper-bound\n0,5,2000001,-;after-upper-bound\n"
+      },
+      "expected_status": 0,
+      "group": "shell",
+      "id": "qualification-014-dmesg-time-filter-boundaries-r3",
+      "kind": "parity",
+      "loadable": "dmesg",
+      "observation_error_status": 125,
+      "oracle": "Original independent AWK encoder under pinned Bash 5.3.20; exact expected bytes and fixture contents are also asserted.",
+      "original_case_id": "legacy/dmesg/time-filter-boundaries",
+      "original_definition_sha256": "e3aa41b8c3f42347a94748cdca676f0646187f42e1b93ea40874cf49398423ed",
+      "original_script_sha256": "33a5dc146e3b72969a1518c37ddf6d6c39dbc49a57e037c617b659ffd5320504",
+      "purpose": "Check inclusive --since and --until comparisons at exact microsecond boundaries and exclusion immediately outside them.",
+      "reference_script": "set -e\nset -o pipefail\numask 022\n[[ ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}.${BASH_VERSINFO[2]} == 5.3.20 ]] || exit 125\n[[ $(builtin type -t dmesg) == file ]] || exit 125\ncat > fixture <<'EOF'\n0,1,999998,-;before-lower-bound\n0,2,999999,-;at-lower-bound\n0,3,1000000,-;after-lower-bound\n0,4,2000000,-;at-upper-bound\n0,5,2000001,-;after-upper-bound\nEOF\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -t --since=.999999 --until 2\nelse\n  awk '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      usec = fields[3] + 0\n      if (usec < 999999 || usec > 2000000) next\n      print substr(line, semi + 1)\n    }\n  ' fixture\nfi",
+      "requires": [
+        "awk",
+        "cat"
+      ],
+      "stderr": "",
+      "stdout": "at-lower-bound\nafter-lower-bound\nat-upper-bound\n",
+      "timeout": 12
+    },
+    {
+      "candidate_script": "set -e\nset -o pipefail\numask 022\n[[ ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}.${BASH_VERSINFO[2]} == 5.3.20 ]] || exit 125\n[[ $(builtin type -t dmesg) == builtin ]] || exit 125\ncat > fixture <<'EOF'\n0,1,1000000,-;kernel raw\n11,2,2000000,-;user error\nEOF\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -r\nelse\n  awk '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      priority = fields[1] + 0\n      if (priority > 2047) next\n      usec = fields[3] + 0\n      printf \"<%d>[%5d.%06d] %s\\n\", priority, int(usec / 1000000), usec % 1000000, substr(line, semi + 1)\n    }\n  ' fixture\nfi",
+      "comparison": "Unmodified original script after explicit Bash 5.3.20 and builtin/reference dispatch guards; exact status, stdout, stderr and fixture tree. No timestamp or record normalization.",
+      "covers": [
+        "dmesg/live-ring-buffer"
+      ],
+      "dmesg_revision": "r3",
+      "driver": "plain",
+      "expected_files": {
+        "fixture": "0,1,1000000,-;kernel raw\n11,2,2000000,-;user error\n"
+      },
+      "expected_status": 0,
+      "group": "shell",
+      "id": "qualification-014-dmesg-raw-priority-prefix-r3",
+      "kind": "parity",
+      "loadable": "dmesg",
+      "observation_error_status": 125,
+      "oracle": "Original independent AWK encoder under pinned Bash 5.3.20; exact expected bytes and fixture contents are also asserted.",
+      "original_case_id": "legacy/dmesg/raw-priority-prefix",
+      "original_definition_sha256": "5ce5312ad567bebf99fee673d534eeeb9b216c4d1139f69a274c0928b9b1de0b",
+      "original_script_sha256": "e1c3fdcacc1b29dacd98ab0ade8544327bdc6e220167f72c785351ed1ebb5ff2",
+      "purpose": "Check the raw leading priority and timestamp against an independent encoder; raw/notime rejection is retained separately.",
+      "reference_script": "set -e\nset -o pipefail\numask 022\n[[ ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}.${BASH_VERSINFO[2]} == 5.3.20 ]] || exit 125\n[[ $(builtin type -t dmesg) == file ]] || exit 125\ncat > fixture <<'EOF'\n0,1,1000000,-;kernel raw\n11,2,2000000,-;user error\nEOF\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -r\nelse\n  awk '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      priority = fields[1] + 0\n      if (priority > 2047) next\n      usec = fields[3] + 0\n      printf \"<%d>[%5d.%06d] %s\\n\", priority, int(usec / 1000000), usec % 1000000, substr(line, semi + 1)\n    }\n  ' fixture\nfi",
+      "requires": [
+        "awk",
+        "cat"
+      ],
+      "stderr": "",
+      "stdout": "<0>[    1.000000] kernel raw\n<11>[    2.000000] user error\n",
+      "timeout": 12
+    },
+    {
+      "candidate_script": "set -e\nset -o pipefail\numask 022\n[[ ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}.${BASH_VERSINFO[2]} == 5.3.20 ]] || exit 125\n[[ $(builtin type -t dmesg) == builtin ]] || exit 125\nprintf -v message '%*s' 8200 ''\nmessage=${message// /x}\nprintf '0,1,1000000,-;%s\\n' \"$message\" > fixture\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -t\nelse\n  awk '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      if (fields[1] + 0 > 2047) next\n      print substr(line, semi + 1)\n    }\n  ' fixture\nfi",
+      "comparison": "Unmodified original script after explicit Bash 5.3.20 and builtin/reference dispatch guards; exact status, stdout, stderr and fixture tree. No timestamp or record normalization.",
+      "covers": [
+        "dmesg/live-ring-buffer"
+      ],
+      "dmesg_revision": "r3",
+      "driver": "plain",
+      "expected_files": {
+        "fixture": "0,1,1000000,-;xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n"
+      },
+      "expected_status": 0,
+      "group": "shell",
+      "id": "qualification-014-dmesg-split-read-boundary-r3",
+      "kind": "parity",
+      "loadable": "dmesg",
+      "observation_error_status": 125,
+      "oracle": "Original independent AWK encoder under pinned Bash 5.3.20; exact expected bytes and fixture contents are also asserted.",
+      "original_case_id": "legacy/dmesg/split-read-boundary",
+      "original_definition_sha256": "e8213c0ef10ddc09ce8f82f526d944d0c0bb9e5e4672aaa8732dde222bab6c38",
+      "original_script_sha256": "f573e654ffd46ece1cbbb4233cfbe12c9d109081b8d8085ef1c54822794f4c69",
+      "purpose": "Ensure a valid fixture record longer than one 8192-byte read is emitted intact, comparing with an independent line encoder.",
+      "reference_script": "set -e\nset -o pipefail\numask 022\n[[ ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}.${BASH_VERSINFO[2]} == 5.3.20 ]] || exit 125\n[[ $(builtin type -t dmesg) == file ]] || exit 125\nprintf -v message '%*s' 8200 ''\nmessage=${message// /x}\nprintf '0,1,1000000,-;%s\\n' \"$message\" > fixture\nif [[ $(type -t dmesg) == builtin ]]; then\n  BASHDMESG_DEV_KMSG_FILE=fixture dmesg -t\nelse\n  awk '\n    {\n      line = $0\n      semi = index(line, \";\")\n      if (!semi) next\n      n = split(substr(line, 1, semi - 1), fields, \",\")\n      if (n < 3 || fields[1] !~ /^[0-9]+$/ ||\n          fields[2] !~ /^[0-9]+$/ || fields[3] !~ /^[0-9]+$/) next\n      if (fields[1] + 0 > 2047) next\n      print substr(line, semi + 1)\n    }\n  ' fixture\nfi",
+      "requires": [
+        "awk",
+        "cat"
+      ],
+      "stderr": "",
+      "stdout": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n",
+      "timeout": 12
+    },
+    {
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/dmesg-live-format-r3.py\n",
+      "comparison": "No timestamp normalization: exact tagged line bytes, status and empty stderr for default and -r; raw inventories before/after each command prove target stability; complete observer/cleanup required.",
+      "covers": [
+        "dmesg/live-ring-buffer"
+      ],
+      "diagnostic_files": [
+        "dmesg-live-format-r3.json",
+        "dmesg-format-r3-default-reference.json",
+        "dmesg-format-r3-default-candidate.json",
+        "dmesg-format-r3-raw-reference.json",
+        "dmesg-format-r3-raw-candidate.json"
+      ],
+      "dmesg_revision": "r3",
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/dmesg-live-format-r3.py": "debfc4c3a01d8c02a0459d22e744466ade70418294fcf1494b5ac80f44cc5d2a"
+      },
+      "id": "qualification-014-dmesg-live-format-r3",
+      "kind": "contract",
+      "loadable": "dmesg",
+      "observation_error_status": 125,
+      "oracle": "Real /dev/kmsg raw headers and two submitted ASCII messages independently encode expected default/raw output; pinned stock util-linux 2.41.5 must match each. Both shell versions are checked as 5.3.20.",
+      "privilege": "root",
+      "purpose": "Explicit default timestamp and valid raw priority/timestamp controls on the same independently observed real kernel records.",
+      "requires": [
+        "python3",
+        "dmesg"
+      ],
+      "stderr": "",
+      "stdout": "PASS\n",
+      "timeout": 60
+    }
+  ],
+  "schema": 1
+}

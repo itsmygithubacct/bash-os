@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "rsync-daemon-pull-diagnostic",
+      "loadable": "rsync",
+      "covers": [
+        "rsync/daemon-protocol-requires-server"
+      ],
+      "requires": [
+        "rsync",
+        "unshare",
+        "ip"
+      ],
+      "timeout": 40,
+      "files": {
+        "outer.sh": "/usr/sbin/ip link set lo up || echo loopback-down\necho 0 > /proc/sys/net/ipv4/ip_unprivileged_port_start || echo sysctl-failed\nexec /usr/bin/unshare --user --map-user=2000 --map-group=2000 \"$BASH\" --noprofile --norc /tmp/parity-case/inner.sh\n",
+        "rsyncd.conf": "pid file = /tmp/parity-home/rsyncd.pid\nlog file = /tmp/parity-home/rsyncd.log\nlock file = /tmp/parity-home/rsyncd.lock\nport = 873\naddress = 127.0.0.1\nuse chroot = no\nnumeric ids = yes\nmax connections = 8\n[mod]\n    path = /tmp/parity-case/module\n    read only = no\n[ro]\n    path = /tmp/parity-case/module-ro\n    read only = yes\n[denied]\n    path = /tmp/parity-case/module-ro\n    hosts deny = 127.0.0.1\n",
+        "src/a.txt": "alpha\n",
+        "src/sub/b.txt": "beta\n",
+        "module-ro/x.txt": "from-ro\n",
+        "module-ro/d/y.txt": "nested\n",
+        "module/.keep": "",
+        "inner.sh": "listening() { local _a l _r st _x\n  while read -r _a l _r st _x; do [[ $l == 0100007F:$1 && $st == 0A ]] && return 0; done < /proc/net/tcp\n  return 1; }\nup() { local i\n  for ((i = 0; i < 200; i++)); do\n    listening \"$1\" && return 0\n    kill -0 \"$2\" 2>/dev/null || return 1\n    sleep 0.05\n  done\n  return 1; }\nif [[ $BASH == /opt/bash-5.3.20/bin/bash ]]; then rs() { /usr/bin/rsync \"$@\"; }; else rs() { rsync \"$@\"; }; fi\n/usr/bin/rsync --daemon --no-detach --config=/tmp/parity-case/rsyncd.conf </dev/null >/dev/null 2>>/tmp/parity-home/rsyncd.err & dpid=$!\nup 0369 \"$dpid\" || { echo daemon-not-listening; exit 1; }\nshopt -s globstar nullglob dotglob\ntree() { local f; for f in \"$1\"/**; do if [ -d \"$f\" ]; then echo \"dir:$f\"; else echo \"file:$f:$(<\"$f\")\"; fi; done; }\nrs -rvvv rsync://127.0.0.1:873/ro/ out-url/ > /tmp/parity-home/pull-url.out 2> /tmp/parity-home/pull-url.err; echo \"url-rc=$?\"\nrs -rvvv 127.0.0.1::ro/ out-colon/ > /tmp/parity-home/pull-colon.out 2> /tmp/parity-home/pull-colon.err; echo \"colon-rc=$?\"\ntree out-url\ntree out-colon\nkill \"$dpid\" 2>/dev/null; wait \"$dpid\" 2>/dev/null\necho daemon-stopped\n"
+      },
+      "candidate_script": "/usr/bin/unshare -Urn \"$BASH\" --noprofile --norc \"$PWD/outer.sh\"; echo \"ns-status=$?\"\n",
+      "reference_script": "/usr/bin/unshare -Urn \"$BASH\" --noprofile --norc \"$PWD/outer.sh\"; echo \"ns-status=$?\"\n",
+      "features": [
+        "userns"
+      ],
+      "stdout": "url-rc=0\ncolon-rc=0\ndir:out-url/\ndir:out-url/d\nfile:out-url/d/y.txt:nested\nfile:out-url/x.txt:from-ro\ndir:out-colon/\ndir:out-colon/d\nfile:out-colon/d/y.txt:nested\nfile:out-colon/x.txt:from-ro\ndaemon-stopped\nns-status=0\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "rsyncd.log",
+        "rsyncd.err",
+        "pull-url.out",
+        "pull-url.err",
+        "pull-colon.out",
+        "pull-colon.err"
+      ],
+      "oracle": "GNU rsync 3.5.0 (Debian trixie; the original asks for 3.4) client and daemon in a private user+net namespace on 127.0.0.1:873; the reference side runs /usr/bin/rsync as client against the same daemon configuration, the candidate side its rsync builtin against that GNU daemon (candidate speaks protocol 27; the daemon accepts the downgrade).",
+      "comparison": "Diagnostic reproduction of r2 with verbose client output retained separately for both URL forms; tree and statuses match the historical case.",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0
+    }
+  ]
+}

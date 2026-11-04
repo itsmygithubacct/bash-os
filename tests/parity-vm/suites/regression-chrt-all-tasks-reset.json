@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "loadable": "chrt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Independent Linux sched_getscheduler/sched_getparam and sched_setattr on explicitly owned tasks, util-linux chrt comparisons, exact child argv and real wait status, and same-shell /proc policy snapshots. Only real scheduler calls are used.",
+      "comparison": "Setup checks uid-2000 without CAP_SYS_NICE and RLIMIT_RTPRIO 0, verifies owned three-thread target identity, confirms util-linux single-thread/all-thread BATCH and reset-on-fork behavior, tests real OTHER/BATCH/IDLE child scheduling and an independent kernel DEADLINE EINVAL/EPERM control. The candidate exercises only remembered owned tasks; stdout/stderr, process identities, per-thread policy, child argv and statuses are retained. Privileged FIFO/RR/DEADLINE success is not simulated or claimed.",
+      "requires": [
+        "python3",
+        "chrt"
+      ],
+      "helpers_sha256": {
+        "helpers/chrt-all-tasks-reset-regression.py": "4b1f36d5e9ad9145800702ccbedb1c8f7d4b27eee09df9b6e605a71ff408ac16"
+      },
+      "setup_timeout": 60,
+      "expected_status": 0,
+      "timeout": 60,
+      "stderr": "",
+      "id": "regression-chrt-all-tasks-reset-pid",
+      "purpose": "Long --all-tasks with reset-on-fork changes all owned threads; retain single-thread and deadline failure controls.",
+      "covers": [
+        "chrt/deferred-pid-deadline"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/chrt-all-tasks-reset-regression.py setup pid",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/chrt-all-tasks-reset-regression.py \"$BASH\" pid",
+      "stdout": "chrt-pid single=yes all-tasks=yes reset=yes deadline=yes failures=yes\n",
+      "diagnostic_files": [
+        "chrt-followup-observations.jsonl"
+      ]
+    }
+  ]
+}

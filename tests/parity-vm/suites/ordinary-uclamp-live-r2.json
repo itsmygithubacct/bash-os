@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "clamp-r2-live-sysctl",
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "covers": [
+        "uclampset/defer_system_files"
+      ],
+      "purpose": "Real scheduler sysctl updates, independent EINVAL controls and verified restoration",
+      "oracle": "Real procfs read/write and independently observed util-linux --system, with direct invalid writes bypassing CLI validation. Every path restores the original system clamp pair.",
+      "comparison": "Compare valid live updates and query bytes with qualified util-linux; reject reversed/oversized inputs without mutation. Direct writes independently require kernel EINVAL. Kernel-global restoration failure is ERROR; retained candidate checks preserve reached mismatches.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-live-sysctl-r2.py": "615467089ca2960b99e5eb7665acf33337b440ad687dae675ce54b647252c76a",
+        "helpers/clamp-profile-control-r2.py": "f38b6b5f1ed33931d2ab93f1e11f679b70ca42826a19cd187e66b8d193436b94",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r2.py": "be5c5b9c3c28c6622cf8dcad29c0ae55baaf5ce4ccc41019ced38a2b7d65afcf",
+        "helpers/clamp-runtime-driver-r2.py": "54e91afda5349d6397708682ed149f34382637d81b9ff164fd5777b0723b8fd8",
+        "helpers/clamp-runtime-private-model-r2.py": "bc941b7ae02a849147b27d57d1a89279762f62efb170755fc7a93f7e1fafb6f4",
+        "helpers/clamp-runtime-setter45-r2.py": "ca625b357b571523754474fef198a9365b03bd3429686fd2ed2f55f1dffe54f1",
+        "helpers/clamp-runtime-setter55-r2.py": "2ad8d0fdd3284621de65bc144d45adaa2e3f52e6522c972d41f6d46c834f1916",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r2.py": "fd37cb4c43cfda7d7ec1d2ccc66be6352439d124e00a4e8444ec8699161da3b7",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r2.py": "1265c135201ef89e36812ec25ef9fc17e582bb9458181c20c4ed2ebb5c824f9b",
+        "helpers/clamp-runtime-uclamp-owned-task-r2.py": "308076eb8631de5ac4119f02c3ae9419ed10722a4cfd1048d937b936c636e7da",
+        "helpers/clamp-runtime-uclamp-query-followup-r2.py": "935ee5f388f2257a7834eafa1210ccc8becc6bf208fcb270e2613dacabd6a170",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r2.py": "d7027cb9b10cae3769409366be6f9bc2352e9317257def32d4d389c2d2340d32",
+        "helpers/clamp-runtime-uclamp-selfread-task-r2.py": "f52ffe913cbffbdc81423b0ee14cb8605ca01f98f1bfb5e1314ea7ffca4ab8f1",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r2.py": "3718c10b680834a7e7ec7624f490e6a5571424d72cebb1542a691b614ea0d815",
+        "helpers/clamp-runtime-uclamp-update-observer-r2.py": "fdef8e0e22403917b416e309cb409b2a63839bad91a81033828ed7787a1f94e9",
+        "helpers/clamp-system-sequence-r2.py": "55df7bd13207e55c27d7b96bcf4da3ab7fb67d104c29ab32be451347ab135d91",
+        "helpers/clamp_r2_guard.py": "9479de757a7f06d8bd96f1a601f54ab9ff9a5e6f79edf91de21cab7b9bb01577",
+        "helpers/clamp_r2_model.py": "34033c6c04e0302db11630c3ebea9bf53bc3f6c46be8084e052b787dcc373e0b",
+        "helpers/clamp_r2_support.py": "e3992a7c4394190934c2ff58fb2708db6a8ff9e1d7d4ccc8ee7c48d59825e12e"
+      },
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-live-sysctl-r2.py --preflight\n",
+      "candidate_script": "[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-live-sysctl-r2.py --candidate \"$BASH\"\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "live uclamp sysctl checks ok\n",
+      "stderr": "",
+      "timeout": 60,
+      "setup_timeout": 60,
+      "diagnostic_files": [
+        "clamp-live-control.json",
+        "clamp-live-report.json",
+        "clamp-observations-r2.json"
+      ],
+      "clamp_revision": "r2"
+    }
+  ]
+}

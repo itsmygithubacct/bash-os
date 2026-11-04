@@ -701,7 +701,10 @@ def sc_route_flush():
                                                    ["route", "add", "10.20.0.0/16", "dev", "d0", "table", "100"]], [
         {"ops": [["route", "flush", "dev", "d0"]],
          "expect": [("d0 main routes gone", lambda s: not any(r[2] == "d0" and r[4] == "main" and r[5] == "unicast" for r in routes(s))),
-                    ("d1 routes kept", lambda s: rt(s, "10.31.0.0/16", "198.51.100.254", "d1") and rt(s, "198.51.100.0/24", None, "d1"))]},
+                    ("d1 routes kept", lambda s: rt(s, "10.31.0.0/16", "198.51.100.254", "d1") and rt(s, "198.51.100.0/24", None, "d1")),
+                    ("other table kept", lambda s: rt(s, "10.20.0.0/16", None, "d0", None, "100"))]},
+        {"ops": [["route", "flush", "dev", "d0"], ["route", "flush", "dev", "missing0"]],
+         "expect": [("other table still kept", lambda s: rt(s, "10.20.0.0/16", None, "d0", None, "100"))]},
     ], rand=("d1",))
 
 
@@ -746,17 +749,22 @@ def sc_batch(kind):
     seed = [["link", "add", "d0", "type", "dummy"], ["link", "set", "d0", "address", "02:00:00:00:00:01", "up"]]
     have = lambda s, c: has_addr(s, "d0", c)
     if kind == "tokenize":
-        text = "# leading comment\n\n  addr add 192.0.2.1/24 dev d0\n\n\taddr   add   192.0.2.2/24\tdev  d0   \n   # indented comment\n\n\naddr add 192.0.2.3/24 dev d0\n# last comment without newline"
+        text = "# leading comment\n\n  addr add 192.0.2.1/24 dev d0 # inline comment\n\n\taddr   add   192.0.2.2/24\tdev  d0   \n   # indented comment\n\n\naddr add 192.0.2.3/24 \\\n dev d0\n# last comment without newline"
         scenario_mutation("batch-tokenize", seed, [
             {"ops": [{"batch": text}],
              "expect": [("whitespace-separated commands applied", lambda s: have(s, "192.0.2.1/24") and have(s, "192.0.2.2/24")),
-                        ("comment and blank lines skipped", lambda s: len([a for a in ips(s) if a[1] == "inet"]) >= 2)]}])
+                        ("comment, blank and continuation lines handled", lambda s: have(s, "192.0.2.3/24"))]}])
     elif kind == "quoting":
-        text = 'addr add 192.0.2.1/24 dev "d0"\naddr add 192.0.2.2/24 dev d0\n'
+        text = "addr add 192.0.2.1/24 dev \"d0\"\naddr add 192.0.2.2/24 dev 'd0'\n"
         scenario_mutation("batch-quoting", seed, [
             {"ops": [{"batch": text, "force": True}],
-             "expect": [("second line applied regardless of quoted first line", lambda s: have(s, "192.0.2.2/24"))]}])
-        text2 = "addr add 192.0.2.5/24 dev d0\n"
+             "expect": [("double-quoted device accepted", lambda s: have(s, "192.0.2.1/24")),
+                        ("single-quoted device accepted", lambda s: have(s, "192.0.2.2/24"))]}])
+        # The assigned -force contract continues after a malformed line.
+        malformed = "addr add 192.0.2.4/24 dev 'd0\naddr add 192.0.2.5/24 dev d0\n"
+        scenario_mutation("batch-unterminated-quote", seed, [
+            {"ops": [{"batch": malformed, "force": True}],
+             "expect": [("force continues after unterminated quote", lambda s: have(s, "192.0.2.5/24"))]}])
     elif kind == "stop":
         text = "addr add 192.0.2.1/24 dev d0\nlink set nosuch0 up\naddr add 192.0.2.2/24 dev d0\n"
         scenario_mutation("batch-stop-first-failure", seed, [

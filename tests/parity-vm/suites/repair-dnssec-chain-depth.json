@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-dnssec-long-chain-bound",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "requires": [
+        "python3",
+        "delv"
+      ],
+      "helpers_sha256": {
+        "helpers/dnssec-cname-chain-peer.py": "ddac6b6ae8f6231d5334f20feb67462272639f9e6cf148cfd544bc41e6b0a261"
+      },
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\n",
+      "candidate_script": "H=/opt/bashos-parity/harness/helpers/dnssec-cname-chain-peer.py\n/usr/bin/python3 \"$H\" prep || exit 98\nexport BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\" BASHDNS_FIXTURE_DIR=\"$PWD/fixtures\" BASHDNS_0X20=0\nmkdir -p \"$BASHDNS_FIXTURE_DIR\"\nname=a; for ((i=1;i<70;i++)); do name=\"$name.a\"; done\n/usr/bin/python3 - \"$BASHDNS_FIXTURE_DIR\" \"$name\" <<'PYEOF'\nimport pathlib,struct,sys\nroot,name=sys.argv[1:];q=b''.join(bytes((len(x),))+x.encode() for x in name.split('.'))+b'\\0'+struct.pack('!HH',1,1)\n(rootpath:=pathlib.Path(root)).mkdir(exist_ok=True)\n(rootpath/(name+'.A.bin')).write_bytes(struct.pack('!HHHHHH',0x1234,0x8180,1,0,0,0)+q)\nPYEOF\nif dns query \"$name\" A -s 127.0.0.2 -t 1000 --validate > long.out 2> long.err; then echo depth=wrongly-accepted; exit 1; fi\nif [[ $(<long.err) == *'chain too deep'* ]]; then echo depth=bounded; else echo depth=wrong-error; exit 1; fi\n",
+      "expected_status": 0,
+      "stdout": "depth=bounded\n",
+      "stderr": "",
+      "timeout": 30,
+      "purpose": "Reject over-depth DNSSEC chain candidates before indexing fixed-size label arrays.",
+      "oracle": "An independently constructed syntactically valid 70-label DNS question reaches the chain-depth guard through the fixture path.",
+      "comparison": "Must report the explicit bounded-chain failure rather than accept, crash, or rely on a timeout.",
+      "diagnostic_files": [
+        "long.err"
+      ]
+    }
+  ]
+}

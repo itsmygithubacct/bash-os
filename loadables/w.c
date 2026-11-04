@@ -318,6 +318,48 @@ bw_read_record (int fd, struct utmp *u)
   return (ssize_t) used;
 }
 
+/* The uptime and load files share the process root used for session data. */
+static int
+bw_print_header (size_t users)
+{
+  char path[1024], clockbuf[16];
+  double up, load[3];
+  long long minutes, days, hours;
+  FILE *fp;
+  time_t now = time (NULL);
+  struct tm tm;
+
+  if (now == (time_t) -1 || !localtime_r (&now, &tm)
+      || !strftime (clockbuf, sizeof clockbuf, "%H:%M:%S", &tm))
+    return -1;
+  if (snprintf (path, sizeof path, "%s/uptime", bw_env ("BASHW_PROC_DIR", "/proc")) >= sizeof path)
+    return -1;
+  fp = fopen (path, "r");
+  if (!fp) return -1;
+  if (fscanf (fp, "%lf", &up) != 1 || !(up >= 0 && up < 1e12))
+    { fclose (fp); return -1; }
+  fclose (fp);
+  if (snprintf (path, sizeof path, "%s/loadavg", bw_env ("BASHW_PROC_DIR", "/proc")) >= sizeof path)
+    return -1;
+  fp = fopen (path, "r");
+  if (!fp) return -1;
+  if (fscanf (fp, "%lf %lf %lf", &load[0], &load[1], &load[2]) != 3)
+    { fclose (fp); return -1; }
+  fclose (fp);
+
+  minutes = (long long) ((up + 30) / 60);
+  days = minutes / (24 * 60);
+  hours = minutes / 60 % 24;
+  minutes %= 60;
+  printf (" %s up ", clockbuf);
+  if (days) printf ("%lld day%s, ", days, days == 1 ? "" : "s");
+  if (days || hours) printf ("%2lld:%02lld", hours, minutes);
+  else printf ("%lld min", minutes);
+  printf (",  %zu user%s,  load average: %.2f, %.2f, %.2f\n",
+          users, users == 1 ? "" : "s", load[0], load[1], load[2]);
+  return 0;
+}
+
 int
 w_builtin (WORD_LIST *list)
 {
@@ -334,7 +376,7 @@ w_builtin (WORD_LIST *list)
         {
           puts ("Usage: w [-h|-H|--no-header] [--file FILE] [USER]\n"
                 "List logged-in users with w(1)-shape output.\n\n"
-                "  -h, -H, --no-header  suppress the column header\n"
+                "  -h, -H, --no-header  suppress both header lines\n"
                 "  --file FILE         read an explicit utmp file\n"
                 "  USER                show only this user (never a filename)\n"
                 "  --help              show this help\n"
@@ -385,18 +427,46 @@ w_builtin (WORD_LIST *list)
       return EXECUTION_FAILURE;
     }
 
+  struct utmp *records = NULL, u;
+  size_t count = 0, capacity = 0, users = 0, index = 0;
+  ssize_t n;
+  while ((n = bw_read_record (fd, &u)) == (ssize_t) sizeof u)
+    {
+      if (count == capacity)
+        {
+          size_t next = capacity ? capacity * 2 : 32;
+          struct utmp *tmp;
+          if (next < capacity || next > (size_t) -1 / sizeof *records
+              || !(tmp = realloc (records, next * sizeof *records)))
+            { builtin_error ("out of memory"); free (records); close (fd); return EXECUTION_FAILURE; }
+          records = tmp;
+          capacity = next;
+        }
+      records[count++] = u;
+      if (u.ut_type == USER_PROCESS) users++;
+    }
+  if (n != 0)
+    {
+      builtin_error ("%s: %s", path, n < 0 ? strerror (errno) : "incomplete utmp record");
+      free (records); close (fd); return EXECUTION_FAILURE;
+    }
+  close (fd);
+
   if (!no_header)
-    printf ("%-8s %-8s %-16s %-7s %-5s %-6s %-6s %s\n",
-            "USER", "TTY", "FROM", "LOGIN@", "IDLE", "JCPU", "PCPU", "WHAT");
+    {
+      if (bw_print_header (users) < 0)
+        { builtin_error ("cannot read uptime or load average"); free (records); return EXECUTION_FAILURE; }
+      printf ("%-8s %-8s %-16s %-7s %-5s %-6s %-6s %s\n",
+              "USER", "TTY", "FROM", "LOGIN@", "IDLE", "JCPU", "PCPU", "WHAT");
+    }
 
   long clk_tck = sysconf (_SC_CLK_TCK);
   if (clk_tck <= 0)
     clk_tck = 100;
 
-  struct utmp u;
-  ssize_t n;
-  while ((n = bw_read_record (fd, &u)) == (ssize_t) sizeof u)
+  while (index < count)
     {
+      u = records[index++];
       char user[UT_NAMESIZE + 1];
       char line[UT_LINESIZE + 1];
       char host[UT_HOSTSIZE + 1];
@@ -446,13 +516,7 @@ w_builtin (WORD_LIST *list)
               cmd);
     }
 
-  if (n != 0)
-    {
-      builtin_error ("%s: %s", path, n < 0 ? strerror (errno) : "incomplete utmp record");
-      close (fd);
-      return sh_chkwrite (EXECUTION_FAILURE);
-    }
-  close (fd);
+  free (records);
   return sh_chkwrite (EXECUTION_SUCCESS);
 }
 
@@ -461,7 +525,7 @@ char *w_doc[] = {
   "",
   "    w [-h|-H|--no-header] [--file FILE] [USER]",
   "",
-  "    -h, -H, --no-header  suppress the column header",
+  "    -h, -H, --no-header  suppress both header lines",
   "    --file FILE         alternate utmp path (default /var/run/utmp)",
   "",
   "    USER                exact user selector; never interpreted as a path",

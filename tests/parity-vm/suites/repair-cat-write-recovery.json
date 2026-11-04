@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-cat-partial-pipe-recovery",
+      "loadable": "cat",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Verify buffered and formatted partial writes fail with EPIPE and recover in the same shell.",
+      "oracle": "A bounded Linux pipe is filled after a verified prefix; closing its last reader forces EPIPE with SIGPIPE ignored. The driver checks diagnostic, status and a subsequent cat and marker.",
+      "comparison": "Independent semantic checks on both output paths; no diagnostic-prefix parity assumption.",
+      "script": "/usr/bin/python3 broken-recovery.py \"$BASH\"",
+      "requires": [
+        "python3"
+      ],
+      "expected_status": 0,
+      "timeout": 30,
+      "stdout": "plain: partial output, EPIPE, status and recovery verified\nnumber: partial output, EPIPE, status and recovery verified\n",
+      "stderr": "",
+      "files": {
+        "broken-recovery.py": "import fcntl, os, subprocess, sys\nshell = sys.argv[1]\nwith open(\"payload\", \"wb\") as f:\n    f.write(b\"x\" * (1024 * 1024))\nfor mode in (\"plain\", \"number\"):\n    r, w = os.pipe()\n    try:\n        fcntl.fcntl(w, fcntl.F_SETPIPE_SZ, 4096)\n        if fcntl.fcntl(w, fcntl.F_GETPIPE_SZ) >= 1024 * 1024:\n            raise RuntimeError(\"pipe capacity does not force a blocked writer\")\n        script = r'''[[ $(type -t cat) == builtin ]] || exit 90\ntrap \"\" PIPE\nif [[ $1 == number ]]; then cat -n payload; else cat payload; fi\nrc=$?\nexec > recovery\nprintf 'status=%s\\n' \"$rc\"\ncat <<<'ok'\nprintf 'marker\\n'\n'''\n        p = subprocess.Popen([shell, \"--noprofile\", \"--norc\", \"-c\", script, \"fixture\", mode], stdout=w, stderr=subprocess.PIPE)\n    finally:\n        os.close(w)\n    try:\n        data = b\"\"\n        while len(data) < 4096:\n            part = os.read(r, 4096 - len(data))\n            if not part:\n                break\n            data += part\n    finally:\n        os.close(r)\n    try:\n        _, err = p.communicate(timeout=10)\n    except BaseException:\n        p.kill()\n        p.wait()\n        raise\n    prefix = (b\"     1\\t\" if mode == \"number\" else b\"\")\n    assert data == (prefix + b\"x\" * 4096)[:4096], (mode, len(data), data[:20])\n    assert p.returncode == 0, (mode, p.returncode, err)\n    assert b\"write\" in err and b\"Broken pipe\" in err, (mode, err)\n    with open(\"recovery\", \"rb\") as f:\n        assert f.read() == b\"status=1\\nok\\nmarker\\n\", mode\n    print(mode + \": partial output, EPIPE, status and recovery verified\")\n"
+      },
+      "covers": [
+        "cat/write-error-recovery-deferred"
+      ]
+    }
+  ]
+}

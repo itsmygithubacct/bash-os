@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "losetup-associated-contract-t125",
+      "loadable": "losetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "covers": [
+        "losetup/associated-file-aliases"
+      ],
+      "purpose": "Check both associated options with relative, absolute, symlink and hard-link paths, multiple matching loops, unrelated loop, and header-only no match.",
+      "oracle": "Explicit replacement contract and independently attached guest loop devices.",
+      "comparison": "Assert status, empty stderr, header, exact loop device set and row count.",
+      "requires": [
+        "losetup",
+        "python3"
+      ],
+      "candidate_script": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $(type -t losetup) == builtin ]] || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F-]{36}$ ]] || exit 125\nwork=$PWD/assoc-work\n/usr/bin/mkdir \"$work\" || exit 125\ncd \"$work\" || exit 125\nl1= l2= l3=\ncleanup() { for d in \"$l1\" \"$l2\" \"$l3\"; do [[ -z $d ]] || /usr/sbin/losetup -d \"$d\" || return 1; done; }\ntrap 'cleanup' EXIT\n/usr/bin/truncate -s 65536 a b c || exit 125\n/usr/bin/ln -s a sym && /usr/bin/ln a hard || exit 125\nl1=$(/usr/sbin/losetup -f --show a) || exit 125\nl2=$(/usr/sbin/losetup -f --show a) || exit 125\nl3=$(/usr/sbin/losetup -f --show b) || exit 125\n[[ -n $l1 && -n $l2 && -n $l3 && $l1 != \"$l2\" && $l1 != \"$l3\" && $l2 != \"$l3\" ]] || exit 125\nfor d in \"$l1\" \"$l2\" \"$l3\"; do [[ -s /sys/block/${d#/dev/}/loop/backing_file ]] || exit 125; done\nexpected_a=$(printf '%s\\n%s\\n' \"$l1\" \"$l2\" | /usr/bin/sort)\nheader='NAME              RO    OFFSET  DIO BACK-FILE'\ncheck() {\n    local option=$1 path=$2 expected=$3 out rc first rows\n    losetup \"$option\" \"$path\" >out 2>err; rc=$?\n    [[ $rc == 0 && ! -s err ]] || return 1\n    IFS= read -r first <out\n    [[ $first == \"$header\" ]] || return 1\n    rows=$(/usr/bin/tail -n +2 out | /usr/bin/awk '{print $1}' | /usr/bin/sort)\n    [[ $rows == \"$expected\" ]] || return 1\n    [[ $(/usr/bin/wc -l <out) == $((1 + $(printf '%s' \"$expected\" | /usr/bin/awk 'NF {n++} END {print n+0}'))) ]] || return 1\n}\nfor opt in -j --associated; do\n    for path in a \"$work/a\" sym hard; do check \"$opt\" \"$path\" \"$expected_a\" || exit 1; done\n    check \"$opt\" b \"$l3\" || exit 1\n    check \"$opt\" c '' || exit 1\n    check \"$opt\" missing '' || exit 1\ndone\ncleanup || exit 1\ntrap - EXIT\nprintf 'associated contract ok\\n'\n",
+      "expected_status": 0,
+      "stdout": "associated contract ok\n",
+      "stderr": "",
+      "timeout": 40
+    }
+  ]
+}

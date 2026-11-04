@@ -41,6 +41,7 @@
 #include <ctype.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <langinfo.h>
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -683,6 +684,10 @@ dd_builtin (WORD_LIST *list)
     }
 
     int rc = EXECUTION_SUCCESS;
+    /* Track the intended position: a failed read may itself move the file
+       offset.  ESPIPE means a stream, where seeking past a block is impossible. */
+    off_t input_pos = lseek (ifd, 0, SEEK_CUR);
+    int input_seek_errno = input_pos < 0 ? errno : 0;
     while ((iflag & DDI_COUNT_BYTES)
            ? (count < 0 || bytes_total < count)
            : (count < 0 || (ifull + ipart) < count)) {
@@ -700,12 +705,48 @@ dd_builtin (WORD_LIST *list)
             while (r < 0 && errno == EINTR);
         }
         if (r < 0) {
-            if (conv & DDC_NOERROR) continue;
-            builtin_error ("read: %s", strerror (errno));
-            rc = EXECUTION_FAILURE;
-            break;
+            int read_errno = errno;
+            const char *name = input_owned ? iname : "standard input";
+            const char *codeset = nl_langinfo (CODESET);
+            int utf8 = codeset && (!strcmp (codeset, "UTF-8") || !strcmp (codeset, "UTF8"));
+            if (!(conv & DDC_NOERROR) || !(status & DDS_NONE))
+                fprintf (stderr, "dd: error reading %s%s%s: %s\n",
+                         utf8 ? "‘" : "'", name, utf8 ? "’" : "'",
+                         strerror (read_errno));
+            if (!(conv & DDC_NOERROR)) {
+                rc = EXECUTION_FAILURE;
+                break;
+            }
+            if (!(status & DDS_NONE)) {
+                fprintf (stderr, "%lld+%lld records in\n", ifull, ipart);
+                fprintf (stderr, "%lld+%lld records out\n", ofull, opart);
+                if (!(status & DDS_NOXFER))
+                    dd_print_xfer (bytes_total, dd_now_seconds () - start_time, 0);
+            }
+            if (input_seek_errno != ESPIPE) {
+                int seek_error = input_seek_errno;
+                if (!seek_error) {
+                    off_t current = lseek (ifd, 0, SEEK_CUR);
+                    if (input_pos <= (off_t) (LLONG_MAX - ibs) && current >= 0) {
+                        input_pos += (off_t) ibs;
+                        if (lseek (ifd, input_pos, SEEK_SET) < 0)
+                            seek_error = errno;
+                    } else
+                        seek_error = current < 0 ? errno : EOVERFLOW;
+                }
+                if (seek_error) {
+                    fprintf (stderr, "dd: %s: cannot seek: %s\n", name, strerror (seek_error));
+                    rc = EXECUTION_FAILURE;
+                    input_seek_errno = ESPIPE; /* do not repeat the diagnostic */
+                }
+            }
+            if (!(conv & DDC_SYNC)) continue;
+            r = 0; /* a failed block is a partial input record */
+        } else if (r == 0) break;
+        else if (!input_seek_errno) {
+            if (input_pos <= (off_t) (LLONG_MAX - r)) input_pos += r;
+            else input_seek_errno = EOVERFLOW;
         }
-        if (r == 0) break;
         if (r == ibs) ifull++;
         else          ipart++;
 
@@ -748,9 +789,16 @@ dd_builtin (WORD_LIST *list)
         size_t off = 0;
         while (off < wlen) {
             ssize_t w = write (ofd, wbuf + off, wlen - off);
-            if (w < 0) {
-                if (errno == EINTR) continue;
+            if (w <= 0) {
+                if (w < 0 && errno == EINTR) continue;
+                if (w == 0) errno = EIO; /* avoid looping on no progress */
                 builtin_error ("write: %s", strerror (errno));
+                /* A device can accept a prefix before reporting ENOSPC.
+                   Account for that partial output record and its bytes. */
+                if (off > 0) {
+                    opart++;
+                    bytes_total += (long long) off;
+                }
                 rc = EXECUTION_FAILURE;
                 goto done;
             }

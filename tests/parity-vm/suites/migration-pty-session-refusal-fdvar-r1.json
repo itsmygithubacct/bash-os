@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-pty-session-refusal-fdvar-r1",
+      "loadable": "pty",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Refused TIOCSCTTY leaves the FDVAR and all standard descriptors untouched.",
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-session-control-deferred"
+      ],
+      "timeout": 22,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/pty-session-refusal-fdvar-r1.py": "1c081f5f0b0d09f6096e1e5de61aa39f164aa6f6990e3be4cf6090a5ce46634b"
+      },
+      "oracle": "An independent Python os.setsid and Linux TIOCSCTTY participant supplies the reference; the parent verifies /proc descriptors, session IDs, controlling-device identity and tcgetpgrp on the fixture-owned PTYs.",
+      "comparison": "Exact named predicates and status; bounded dynamic PID, FD, descriptor identities and raw child diagnostics are retained separately.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/pty-session-refusal-fdvar-r1.py reject-fdvar reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/pty-session-refusal-fdvar-r1.py reject-fdvar candidate \"$BASH\"\n",
+      "diagnostic_files": [
+        "session-observation.json"
+      ],
+      "stdout": "refusal-nonzero=PASS\nrefusal-fdvar-unchanged=PASS\nrefusal-stdio-unchanged=PASS\nrefusal-precondition-not-leader=PASS\nparticipant-exited=PASS\n",
+      "stderr": ""
+    },
+    {
+      "id": "migration-pty-readonly-fdvar-r2",
+      "loadable": "pty",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Readonly FDVAR is rejected before acquiring a controlling tty or changing stdio.",
+      "expected_status": 0,
+      "covers": [
+        "pty/pty-session-control-deferred"
+      ],
+      "timeout": 22,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/pty-session-refusal-fdvar-r1.py": "1c081f5f0b0d09f6096e1e5de61aa39f164aa6f6990e3be4cf6090a5ce46634b"
+      },
+      "oracle": "A session leader with no ctty observes that a readonly output variable fails without acquiring the terminal.",
+      "comparison": "Exact named predicates and status; bounded dynamic PID, FD, descriptor identities and raw child diagnostics are retained separately.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/pty-session-refusal-fdvar-r1.py readonly-fdvar reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/pty-session-refusal-fdvar-r1.py readonly-fdvar candidate \"$BASH\"\n",
+      "diagnostic_files": [
+        "session-observation.json"
+      ],
+      "stdout": "invalid-variable-rejected-before-ctty=PASS\ninvalid-variable-stdio-unchanged=PASS\nparticipant-exited=PASS\n",
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-chattr-recursive-symlink-isolation-r1",
+      "loadable": "chattr",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "chattr/recursive-tree"
+      ],
+      "purpose": "Exercise live and dangling links within recursion and explicit links to a file and directory; read every real entry and outside target after add/remove with independent lsattr.",
+      "oracle": "e2fsprogs 1.47.2 chattr and lsattr on disposable ext4",
+      "comparison": "Byte parity of invocation statuses, diagnostics and independent per-entry flag readback. Setup and flag support must succeed.",
+      "requires": [
+        "chattr",
+        "lsattr",
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "ln",
+        "mkdir",
+        "sed",
+        "tr",
+        "rm",
+        "grep"
+      ],
+      "script": "set -u\nI=/tmp/chattr-link-fixture.img M=/tmp/chattr-link-fixture-mnt\ncleanup() { cd /tmp/parity-case; /usr/bin/umount \"$M\" 2>/dev/null || :; /usr/bin/rm -f \"$I\"; }\ntrap cleanup EXIT\n/usr/bin/truncate -s 4M \"$I\" && /usr/sbin/mkfs.ext4 -q -F -O ^has_journal \"$I\" && /usr/bin/mkdir \"$M\" && /usr/bin/mount -o loop \"$I\" \"$M\" || { echo SETUP-FAILED; exit 99; }\ncd \"$M\" || exit 99\n/usr/bin/mkdir -p tree/sub external/dir || exit 99\nprintf x > tree/sub/file; printf x > external/file; printf x > external/dir/file\n/usr/bin/chattr +d external/file || { echo PREREQUISITE-FAILED; exit 99; }\n/usr/bin/lsattr -d external/file | /usr/bin/grep -q -- 'd' || { echo PREREQUISITE-FAILED; exit 99; }\n/usr/bin/ln -s ../external/file tree/live\n/usr/bin/ln -s ../../missing tree/sub/dangling\n/usr/bin/ln -s external/dir dirlink\n/usr/bin/ln -s external/file filelink\nr() { local label=$1; shift; \"$@\" >/tmp/chattr-link-out 2>/tmp/chattr-link-err; local rc=$?; printf '%s status=%s out=' \"$label\" \"$rc\"; /usr/bin/tr '\\n' '|' </tmp/chattr-link-out; printf ' err='; /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' /tmp/chattr-link-err | /usr/bin/tr '\\n' '|'; echo; }\nreadback() { for f in tree tree/sub tree/sub/file external/file external/dir external/dir/file; do /usr/bin/lsattr -d \"$f\" || return 99; done; }\nr recurse-add chattr -R +d tree\nreadback || exit 99\nr recurse-remove chattr -R -d tree\nreadback || exit 99\nr explicit-file-link chattr +A filelink\nr explicit-dir-link chattr -R +A dirlink\nreadback || exit 99\n",
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}

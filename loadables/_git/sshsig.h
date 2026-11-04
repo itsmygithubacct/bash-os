@@ -60,6 +60,7 @@ int bgit_sshsig_check (const char *armoured, const char *name_space,
    OUT when it is there, 0 when it is not, -1 when the file cannot be
    read. */
 int bgit_ssh_allowed_signer (const char *path, const bgit_ssh_key *key,
+                             const char *name_space, long long verify_time,
                              char *out, size_t outsz);
 
 #endif /* BASH_OS_GIT_SSHSIG_H */

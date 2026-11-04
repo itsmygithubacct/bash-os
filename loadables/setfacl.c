@@ -53,20 +53,24 @@ static void wr32 (unsigned char *p, uint32_t v) { p[0]=v&0xff; p[1]=(v>>8)&0xff;
 static uint16_t rd16 (const unsigned char *p) { return (uint16_t)(p[0]|(p[1]<<8)); }
 static uint32_t rd32 (const unsigned char *p) { return (uint32_t)(p[0]|(p[1]<<8)|(p[2]<<16)|((uint32_t)p[3]<<24)); }
 
-static void add_or_replace (uint16_t tag, uint32_t id, uint16_t perm) {
+static int add_or_replace (uint16_t tag, uint32_t id, uint16_t perm) {
     for (int i = 0; i < nent; i++)
         if (ents[i].tag == tag && (tag != ACL_USER && tag != ACL_GROUP ? 1 : ents[i].id == id)) {
-            ents[i].perm = perm; return;
+            ents[i].perm = perm; return 0;
         }
-    if (nent < MAXENT) { ents[nent].tag = tag; ents[nent].id = id; ents[nent].perm = perm; nent++; }
+    if (nent >= MAXENT) { builtin_error ("too many ACL entries"); return -1; }
+    ents[nent].tag = tag; ents[nent].id = id; ents[nent].perm = perm; nent++;
+    return 0;
 }
-static void remove_ent (uint16_t tag, uint32_t id, int has_id) {
+static int remove_ent (uint16_t tag, uint32_t id, int has_id) {
     int w = 0;
     for (int i = 0; i < nent; i++) {
         int match = (ents[i].tag == tag) && (!has_id || ents[i].id == id);
         if (!match) ents[w++] = ents[i];
     }
+    if (w == nent) { builtin_error ("ACL entry not found"); return -2; }
     nent = w;
+    return 0;
 }
 
 /* Load the current ACL into ents[]: from the xattr if present, else the three
@@ -76,11 +80,14 @@ static int load_current (const char *path) {
     unsigned char buf[8192];
     ssize_t n = getxattr (path, XACCESS, buf, sizeof buf);
     if (n >= 8 && rd32 (buf) == 2) {
-        for (ssize_t off = 4; off + 8 <= n && nent < MAXENT; off += 8) {
+        if ((n - 4) % 8 || (n - 4) / 8 > MAXENT) { errno = E2BIG; return -1; }
+        for (ssize_t off = 4; off + 8 <= n; off += 8) {
             ents[nent].tag = rd16 (buf+off); ents[nent].perm = rd16 (buf+off+2); ents[nent].id = rd32 (buf+off+4); nent++;
         }
         return 0;
     }
+    if (n < 0 && errno != ENODATA) return -1;
+    if (n >= 0) { errno = EINVAL; return -1; }
     struct stat st;
     if (stat (path, &st) < 0) return -1;
     add_or_replace (ACL_USER_OBJ,  ACL_UNDEFINED_ID, (st.st_mode>>6)&7);
@@ -104,6 +111,7 @@ static int parse_perm (const char *s) {
 }
 
 /* Parse one ACL entry token. removing=1 means perms may be omitted. */
+static int explicit_mask;
 static int parse_one (char *tok, int removing) {
     /* split on ':' into up to 3 fields */
     char *f[3] = {0,0,0}; int nf = 0;
@@ -115,6 +123,10 @@ static int parse_one (char *tok, int removing) {
     const char *name = (nf >= 2) ? f[1] : "";
     const char *perms = (nf >= 3) ? f[2] : "";
 
+    if (nf < 2 || (removing ? nf != 2 : nf != 3 || !*perms) ||
+        (nf == 3 && strchr (perms, ':'))) {
+        builtin_error ("invalid ACL entry"); return -1;
+    }
     uint16_t tag; uint32_t id = ACL_UNDEFINED_ID;
     int named = (name && *name);
 
@@ -124,43 +136,59 @@ static int parse_one (char *tok, int removing) {
     else if (!strcmp (type, "m") || !strcmp (type, "mask"))  tag = ACL_MASK;
     else { builtin_error ("invalid ACL type: %s", type); return -1; }
 
+    if (named && tag != ACL_USER && tag != ACL_GROUP) {
+        builtin_error ("invalid ACL qualifier: %s", name); return -1;
+    }
     if (named) {
         if (tag == ACL_USER) {
-            if (name[0] >= '0' && name[0] <= '9') id = (uint32_t) strtoul (name, NULL, 10);
+            if (name[0] >= '0' && name[0] <= '9') {
+                char *end; unsigned long value;
+                errno = 0; value = strtoul (name, &end, 10);
+                if (errno || *end || value >= ACL_UNDEFINED_ID) { builtin_error ("invalid ACL id: %s", name); return -1; }
+                id = (uint32_t) value;
+            }
             else { struct passwd *pw = getpwnam (name); if (!pw) { builtin_error ("unknown user: %s", name); return -1; } id = pw->pw_uid; }
         } else if (tag == ACL_GROUP) {
-            if (name[0] >= '0' && name[0] <= '9') id = (uint32_t) strtoul (name, NULL, 10);
+            if (name[0] >= '0' && name[0] <= '9') {
+                char *end; unsigned long value;
+                errno = 0; value = strtoul (name, &end, 10);
+                if (errno || *end || value >= ACL_UNDEFINED_ID) { builtin_error ("invalid ACL id: %s", name); return -1; }
+                id = (uint32_t) value;
+            }
             else { struct group *gr = getgrnam (name); if (!gr) { builtin_error ("unknown group: %s", name); return -1; } id = gr->gr_gid; }
         }
     }
 
-    if (removing) { remove_ent (tag, id, named); return 0; }
+    if (removing) return remove_ent (tag, id, named);
 
     int perm = parse_perm (perms);
     if (perm < 0) { builtin_error ("invalid permissions: %s", perms); return -1; }
-    add_or_replace (tag, id, (uint16_t) perm);
-    return 0;
+    if (tag == ACL_MASK) explicit_mask = 1;
+    return add_or_replace (tag, id, (uint16_t) perm);
 }
 
 static int parse_spec (const char *spec, int removing) {
+    if (!*spec || *spec == ',' || spec[strlen (spec)-1] == ',' || strstr (spec, ",,")) {
+        builtin_error ("invalid ACL specification"); return -1;
+    }
     char *dup = strdup (spec); if (!dup) return -1;
     int rc = 0;
     char *save = NULL, *tok = strtok_r (dup, ",", &save);
-    while (tok) { if (parse_one (tok, removing) < 0) { rc = -1; break; } tok = strtok_r (NULL, ",", &save); }
+    while (tok) { rc = parse_one (tok, removing); if (rc < 0) break; tok = strtok_r (NULL, ",", &save); }
     free (dup);
     return rc;
 }
 
-/* Recompute ACL_MASK as the union of perms over USER/GROUP/GROUP_OBJ when
-   named entries exist and no explicit mask is present. */
-static void fix_mask (void) {
+/* Recompute an existing or required mask unless this operation specifies one. */
+static int fix_mask (void) {
     int has_named = 0, has_mask = 0; unsigned u = 0;
     for (int i = 0; i < nent; i++) {
         if (ents[i].tag == ACL_USER || ents[i].tag == ACL_GROUP) has_named = 1;
         if (ents[i].tag == ACL_USER || ents[i].tag == ACL_GROUP || ents[i].tag == ACL_GROUP_OBJ) u |= ents[i].perm;
         if (ents[i].tag == ACL_MASK) has_mask = 1;
     }
-    if (has_named && !has_mask) add_or_replace (ACL_MASK, ACL_UNDEFINED_ID, (uint16_t) u);
+    if (!explicit_mask && (has_named || has_mask)) return add_or_replace (ACL_MASK, ACL_UNDEFINED_ID, (uint16_t) u);
+    return 0;
 }
 
 static int tag_order (uint16_t t) {
@@ -220,6 +248,7 @@ setfacl_builtin (WORD_LIST *list)
             continue;
         }
 
+        explicit_mask = 0;
         if (setspec) { nent = 0; if (parse_spec (setspec, 0) < 0) return EX_USAGE; }
         else {
             if (load_current (path) < 0) { builtin_error ("%s: %s", path, strerror (errno)); rc = EXECUTION_FAILURE; continue; }
@@ -229,11 +258,15 @@ setfacl_builtin (WORD_LIST *list)
                     if (ents[i].tag == ACL_USER_OBJ || ents[i].tag == ACL_GROUP_OBJ || ents[i].tag == ACL_OTHER) ents[w++] = ents[i];
                 nent = w;
             }
-            if (del && parse_spec (del, 1) < 0) return EX_USAGE;
+            if (del) {
+                int result = parse_spec (del, 1);
+                if (result == -1) return EX_USAGE;
+                if (result == -2) { rc = EXECUTION_FAILURE; continue; }
+            }
             if (mod && parse_spec (mod, 0) < 0) return EX_USAGE;
         }
 
-        fix_mask ();
+        if (fix_mask () < 0) { rc = EXECUTION_FAILURE; continue; }
         if (encode_and_set (path) < 0) rc = EXECUTION_FAILURE;
     }
     return rc;

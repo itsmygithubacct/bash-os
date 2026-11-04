@@ -15,6 +15,7 @@
 #endif
 
 #include <errno.h>
+#include <dirent.h>
 #include <limits.h>
 #include <linux/sched.h>
 #include <sched.h>
@@ -297,7 +298,8 @@ bchrt_set_pid (pid_t pid, int policy, int reset_on_fork, int prio,
       struct bchrt_sched_attr attr;
       memset (&attr, 0, sizeof attr);
       attr.size = sizeof attr;
-      attr.sched_policy = (uint32_t) policy;
+      attr.sched_policy = (uint32_t) base;
+      if (reset_on_fork) attr.sched_flags = 1; /* SCHED_FLAG_RESET_ON_FORK */
       attr.sched_priority = (uint32_t) prio;
       attr.sched_runtime = runtime;
       attr.sched_deadline = deadline;
@@ -321,6 +323,55 @@ bchrt_set_pid (pid_t pid, int policy, int reset_on_fork, int prio,
       return EXECUTION_FAILURE;
     }
   return EXECUTION_SUCCESS;
+}
+
+/* /proc/PID/task lists the individual scheduler targets in the group.  Like
+   chrt(1), apply each operation as it is encountered; threads may disappear
+   or appear while the directory is being read. */
+static int
+bchrt_all_tasks (pid_t pid, int set, int policy, int reset_on_fork, int prio,
+                 uint64_t runtime, uint64_t deadline, uint64_t period)
+{
+  char path[64];
+  DIR *dir;
+  struct dirent *entry;
+  int result = EXECUTION_SUCCESS;
+
+  if (pid == 0)
+    snprintf (path, sizeof path, "/proc/self/task");
+  else
+    snprintf (path, sizeof path, "/proc/%ld/task", (long) pid);
+  dir = opendir (path);
+  if (!dir)
+    {
+      fprintf (stderr, "chrt: failed to %s pid %ld's policy: %s\n",
+               set ? "set" : "get", (long) pid,
+               strerror (errno == ENOENT ? ESRCH : errno));
+      return EXECUTION_FAILURE;
+    }
+  for (;;)
+    {
+      pid_t tid;
+      errno = 0;
+      entry = readdir (dir);
+      if (!entry)
+        {
+          if (errno)
+            {
+              fprintf (stderr, "chrt: failed to read %s: %s\n", path, strerror (errno));
+              result = EXECUTION_FAILURE;
+            }
+          break;
+        }
+      if (bchrt_parse_pid (entry->d_name, &tid) < 0 || tid == 0)
+        continue;
+      result = set ? bchrt_set_pid (tid, policy, reset_on_fork, prio,
+                                    runtime, deadline, period)
+                   : bchrt_print_pid (tid);
+      if (result != EXECUTION_SUCCESS) break;
+    }
+  closedir (dir);
+  return result;
 }
 
 static int
@@ -406,7 +457,7 @@ chrt_builtin (WORD_LIST *list)
     }
 
   int policy = SCHED_RR;
-  int pid_mode = 0, max_mode = 0, reset_on_fork = 0;
+  int pid_mode = 0, max_mode = 0, reset_on_fork = 0, all_tasks = 0;
   uint64_t runtime = 0, deadline = 0, period = 0;
 
   while (list)
@@ -435,8 +486,9 @@ chrt_builtin (WORD_LIST *list)
         { policy = SCHED_DEADLINE; list = list->next; continue; }
       if (strcmp (w, "-R") == 0 || strcmp (w, "--reset-on-fork") == 0)
         { reset_on_fork = 1; list = list->next; continue; }
-      if (strcmp (w, "-a") == 0 || strcmp (w, "--all-tasks") == 0 ||
-          strcmp (w, "-v") == 0 || strcmp (w, "--verbose") == 0)
+      if (strcmp (w, "-a") == 0 || strcmp (w, "--all-tasks") == 0)
+        { all_tasks = 1; list = list->next; continue; }
+      if (strcmp (w, "-v") == 0 || strcmp (w, "--verbose") == 0)
         { list = list->next; continue; }
       if (strcmp (w, "-T") == 0 || strcmp (w, "--sched-runtime") == 0 ||
           strcmp (w, "-P") == 0 || strcmp (w, "--sched-period") == 0 ||
@@ -483,7 +535,9 @@ chrt_builtin (WORD_LIST *list)
               fprintf (stderr, "chrt: invalid PID argument: '%s'\n", list->word->word);
               return EXECUTION_FAILURE;
             }
-          return bchrt_print_pid (pid);
+          return all_tasks ? bchrt_all_tasks (pid, 0, policy, reset_on_fork, 0,
+                                              runtime, deadline, period)
+                           : bchrt_print_pid (pid);
         }
       if (argc == 2)
         {
@@ -496,8 +550,10 @@ chrt_builtin (WORD_LIST *list)
               fprintf (stderr, "chrt: invalid PID argument: '%s'\n", list->next->word->word);
               return EXECUTION_FAILURE;
             }
-          return bchrt_set_pid (pid, policy, reset_on_fork, (int) prio_l,
-                                runtime, deadline, period);
+          return all_tasks ? bchrt_all_tasks (pid, 1, policy, reset_on_fork,
+                                             (int) prio_l, runtime, deadline, period)
+                           : bchrt_set_pid (pid, policy, reset_on_fork, (int) prio_l,
+                                            runtime, deadline, period);
         }
       bchrt_bad_usage ();
       return EXECUTION_FAILURE;

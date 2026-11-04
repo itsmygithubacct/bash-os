@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "pcap-fixed-frames-boundaries",
+      "loadable": "pcap",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Check exact frame counts, headers, bytes and original lengths below, at and above snaplen, including snaplen below the receive buffer minimum.",
+      "covers": [
+        "pcap/capture-write-fixed-frames"
+      ],
+      "oracle": "Inject known Ethernet frames through an isolated veth pair and independently decode and validate every pcap byte and record length.",
+      "comparison": "Candidate-only contract.",
+      "requires": [
+        "unshare",
+        "python3"
+      ],
+      "features": [
+        "userns"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --net --mount --uts /usr/bin/python3 -I /opt/bashos-parity/harness/helpers/pcap-fixed-frames-boundaries.py\n",
+      "stdout": "scenario fixed-frames-boundaries: all checks ok\n",
+      "expected_status": 0,
+      "timeout": 55,
+      "helpers_sha256": {
+        "helpers/pcap-fixed-frames-boundaries.py": "939ba0ca7bdabf3694080814476eaf2924fbaed926e3e9305641b775243a035b",
+        "helpers/mig-w1-pcap.py": "457f376bbf863a10bcb66798bc52d0ed060f24b89b7e3bc30377117818050689",
+        "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
+      }
+    }
+  ]
+}

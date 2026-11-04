@@ -95,10 +95,13 @@ list_loops (int header, const char *only_backing)
         }
         snprintf (path, sizeof path, "/sys/block/%s/loop/offset", de->d_name);
         read_first_line (path, off, sizeof off);
+        if (!off[0]) strcpy (off, "0");
         snprintf (path, sizeof path, "/sys/block/%s/ro", de->d_name);
         read_first_line (path, ro, sizeof ro);
+        if (!ro[0]) strcpy (ro, "0");
         snprintf (path, sizeof path, "/sys/block/%s/loop/dio", de->d_name);
         read_first_line (path, dio, sizeof dio);
+        if (!dio[0]) strcpy (dio, "0");
         printf ("/dev/%-9s %5s %9s %4s %s\n", de->d_name, ro, off, dio, back);
     }
     closedir (d);
@@ -208,11 +211,11 @@ losetup_run (WORD_LIST *list)
         const char *dev = loopdev;
         if (!dev) { builtin_error ("-d requires a loop device"); return EX_USAGE; }
         int fd = open (dev, O_RDONLY | O_CLOEXEC);
-        if (fd < 0) { builtin_error ("%s: %s", dev, strerror (errno)); return EXECUTION_FAILURE; }
+        if (fd < 0) { builtin_error ("%s: detach failed: %s", dev, strerror (errno)); return EXECUTION_FAILURE; }
         int rc = ioctl (fd, LOOP_CLR_FD, 0);
         int saved = errno;
         close (fd);
-        if (rc < 0) { builtin_error ("%s: LOOP_CLR_FD: %s", dev, strerror (saved)); return EXECUTION_FAILURE; }
+        if (rc < 0) { builtin_error ("%s: detach failed: %s", dev, strerror (saved)); return EXECUTION_FAILURE; }
         return EXECUTION_SUCCESS;
     }
 

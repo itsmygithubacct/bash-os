@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "pkg-verify-elf-machine-regression-r1",
+      "loadable": "pkg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Reject signed wrong and unknown ELF machines even with an any architecture manifest",
+      "covers": [
+        "pkg/pkg-package-validation"
+      ],
+      "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "requires": [
+        "python3",
+        "openssl",
+        "gcc",
+        "readelf"
+      ],
+      "helpers_sha256": {
+        "helpers/transfer-pkg-fixtures-r2.py": "e33238c65b4aa581ba7b53176c82fa8a0ee8578dda01ba83fc2db6a5226f342c",
+        "helpers/pkg-machine-regression.py": "bce912557b14f90bfd70c1be68a810c96ce157a99be83567ab92a3da223f1d28"
+      },
+      "files": {},
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/pkg-machine-regression.py\n",
+      "setup_timeout": 60,
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nfor name in valid bad-machine bad-machine-any bad-machine-zero; do\n  builtin pkg verify \"$F/$name.pkg\" --root root > \"$HOME/$name.out\" 2> \"$HOME/$name.err\"\n  rc=$?\n  if /usr/bin/grep -q 'loadable ELF machine mismatch' \"$HOME/$name.err\"; then diag=yes; else diag=no; fi\n  printf '%s status=%s machine-diagnostic=%s\\n' \"$name\" \"$rc\" \"$diag\"\ndone\n",
+      "stdout": "valid status=0 machine-diagnostic=no\nbad-machine status=1 machine-diagnostic=yes\nbad-machine-any status=1 machine-diagnostic=yes\nbad-machine-zero status=1 machine-diagnostic=yes\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 30,
+      "diagnostic_files": [
+        "out.txt",
+        "err.txt",
+        "first.out",
+        "first.err",
+        "second.out",
+        "second.err",
+        "before.json",
+        "after.json",
+        "control-module.out",
+        "control-module.err",
+        "pkg-fixture/public-evidence.json",
+        "valid.out",
+        "valid.err",
+        "bad-machine.out",
+        "bad-machine.err",
+        "bad-machine-any.out",
+        "bad-machine-any.err",
+        "bad-machine-zero.out",
+        "bad-machine-zero.err"
+      ]
+    }
+  ]
+}

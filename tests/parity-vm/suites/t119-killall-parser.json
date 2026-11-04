@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "t119-killall-parser-contract",
+      "loadable": "killall",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Verify signal spellings and signal option forms, invalid signal and usage diagnostics, and distinct rejection of unsupported psmisc options. Uses an absent process name and never intends a delivery.",
+      "oracle": "Documented killall contract; invalid input exits 2 and absent name exits 1.",
+      "comparison": "Exact stdout and status; diagnostics are checked within the script.",
+      "covers": [
+        "killall/signal-and-option-parsing"
+      ],
+      "requires": [
+        "killall"
+      ],
+      "script": "exec \"$BASH\" --noprofile --norc ./body.sh\n",
+      "files": {
+        "body.sh": "check_valid() {\n  killall \"$@\" t119_no_such_process >/dev/null 2>&1\n  rc=$?\n  if [[ $rc != 1 ]]; then echo \"valid signal failed: $* rc=$rc\"; exit 1; fi\n}\ncheck_error() {\n  killall \"$@\" >out 2>err\n  rc=$?\n  if [[ $rc != 2 || ! -s err ]]; then echo \"usage failed: $* rc=$rc\"; exit 1; fi\n}\nfor s in HUP SIGUSR1 usr1 sIgUsR1 10; do check_valid \"-$s\"; check_valid -s \"$s\"; check_valid --signal \"$s\"; done\ncheck_valid -sHUP\ncheck_valid --signal=USR1\ncheck_valid -e\ncheck_valid --exact\ncheck_error --bogus t119_no_such_process\ncheck_error -s BOGUS t119_no_such_process\ncheck_error -s 0 t119_no_such_process\ncheck_error --signal=999999999999999999999 t119_no_such_process\ncheck_error -999999999999999999999 t119_no_such_process\ncheck_error -s\ncheck_error --signal\ncheck_error\nfor opt in -l -q -w -I -r -g -y -o -v; do\n  killall \"$opt\" t119_no_such_process >out 2>err\n  rc=$?\n  if [[ $rc != 2 ]] || ! [[ $(<err) == *\"unsupported killall option: $opt\"* ]]; then\n    echo \"unsupported option failed: $opt rc=$rc\"; exit 1\n  fi\ndone\necho parser-ok\n"
+      },
+      "expected_status": 0,
+      "stdout": "parser-ok\n",
+      "stderr": "",
+      "timeout": 30
+    }
+  ]
+}

@@ -50,6 +50,7 @@
 #include <limits.h>
 #include <signal.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <time.h>
 #include <poll.h>
 #include <netdb.h>
@@ -136,7 +137,7 @@ static size_t b64_decode(const char *in, size_t n, unsigned char *out) {
 #define RC_MAX_UNIT (8u * 1024u * 1024u)
 #define RC_MAX_BODY 65535u
 struct rc {
-    int fd, out;
+    int fd, out, out_closed;
     char host[256], path[512], user[128], pass[128]; int port;
     char url[1024];                 /* the URL as requested, for Digest's uri and DESCRIBE */
     char base[1024];                /* Content-Base or the URL, for relative control */
@@ -277,6 +278,37 @@ static int content_length(struct rc *c, const char *hdrs, size_t *len) {
     return 0;
 bad: rc_err(c, "invalid Content-Length"); return -1;
 }
+/* Validate the entire response before any string-based field lookup. */
+static int validate_headers(struct rc *c, const char *h, size_t n) {
+    size_t i = 0;
+    if (n < 16 || memcmp(h, "RTSP/1.0 ", 9) ||
+        h[9] < '1' || h[9] > '5' || h[10] < '0' || h[10] > '9' ||
+        h[11] < '0' || h[11] > '9' || (h[12] != ' ' && h[12] != '\r')) goto bad;
+    i = 12;
+    for (;;) {
+        if (i + 1 >= n) goto bad;
+        if (h[i] == '\r' && h[i + 1] == '\n') { i += 2; break; }
+        if ((unsigned char)h[i] < 32 || (unsigned char)h[i] == 127) goto bad;
+        i++;
+    }
+    while (i + 1 < n && !(h[i] == '\r' && h[i + 1] == '\n')) {
+        size_t start = i;
+        while (i < n && ((h[i] >= 'a' && h[i] <= 'z') ||
+                         (h[i] >= 'A' && h[i] <= 'Z') ||
+                         (h[i] >= '0' && h[i] <= '9') ||
+                         (h[i] && strchr("!#$%&'*+-.^_`|~", h[i])))) i++;
+        if (i == start || i >= n || h[i++] != ':') goto bad;
+        for (;;) {
+            if (i + 1 >= n) goto bad;
+            if (h[i] == '\r' && h[i + 1] == '\n') { i += 2; break; }
+            if (((unsigned char)h[i] < 32 && h[i] != '\t') || (unsigned char)h[i] == 127) goto bad;
+            i++;
+        }
+    }
+    if (i + 2 != n) goto bad;
+    return 0;
+bad: rc_err(c, "invalid RTSP response headers"); return -1;
+}
 static int read_headers(struct rc *c, char *hdrs, size_t cap, int first) {
     size_t n = 0; int64_t deadline = now_ms() + c->timeout_ms;
     if (first >= 0) hdrs[n++] = (char)first;
@@ -287,7 +319,7 @@ static int read_headers(struct rc *c, char *hdrs, size_t cap, int first) {
         if (left <= 0) { rc_err(c, "server header timeout"); return -1; }
         if (read_exactly(c, &b, 1, (int)left)) return -1;
         hdrs[n++] = (char)b; hdrs[n] = 0;
-        if (n >= 4 && !memcmp(hdrs + n - 4, "\r\n\r\n", 4)) return 0;
+        if (n >= 4 && !memcmp(hdrs + n - 4, "\r\n\r\n", 4)) return validate_headers(c, hdrs, n);
     }
 }
 
@@ -495,6 +527,7 @@ static int au_add_nal(struct rc *c, const unsigned char *nal, size_t n) {
 static int au_flush(struct rc *c) {
     if (c->au_len == 0) return 0;
     unsigned char hdr[4] = { (unsigned char)(c->au_len >> 24), (unsigned char)(c->au_len >> 16), (unsigned char)(c->au_len >> 8), (unsigned char)c->au_len };
+    if (c->out_closed) { rc_err(c, "write to fd %d: %s", c->out, strerror(EBADF)); return -1; }
     if (write_all(c->out, hdr, 4) != 0 || write_all(c->out, c->au, c->au_len) != 0) { rc_err(c, "write to fd %d: %s", c->out, strerror(errno)); return -1; }
     c->units++; c->au_len = 0; c->au_has_ps = 0; c->au_is_idr = 0;
     return 0;
@@ -611,8 +644,14 @@ static int stream_loop(struct rc *c, unsigned long max_units) {
     c->streaming = 0; free(buf); return rc;
 }
 
-static int rtspcat_run(struct rc *c, const char *url, unsigned long max_units) {
-    if (parse_url(c, url) != 0) return -1;
+static int rtspcat_run(struct rc *c, unsigned long max_units) {
+    /* A closed output descriptor must not become valid when socket() reuses it. */
+    int fd_status;
+    do { fd_status = fcntl(c->out, F_GETFD); } while (fd_status < 0 && errno == EINTR);
+    if (fd_status < 0) {
+        if (errno != EBADF) { rc_err(c, "output fd %d: %s", c->out, strerror(errno)); return -1; }
+        c->out_closed = 1;
+    }
     if (tcp_connect(c) != 0) return -1;
     char hdrs[8192]; char *body = NULL; size_t bn = 0;
     int st = rtsp_do(c, "OPTIONS", c->url, NULL, hdrs, sizeof hdrs, &body, &bn); free(body);
@@ -665,11 +704,11 @@ static int option(struct rc *c, int opt, const char *arg, unsigned long *max_uni
 }
 /* A broken output pipe must fail this invocation without killing its shell.
  * Restore the shell's disposition on every path. */
-static int run_guarded(struct rc *c, const char *url, unsigned long max_units) {
+static int run_guarded(struct rc *c, unsigned long max_units) {
     struct sigaction old, ignore; memset(&ignore, 0, sizeof ignore);
     ignore.sa_handler = SIG_IGN; sigemptyset(&ignore.sa_mask);
     if (sigaction(SIGPIPE, &ignore, &old)) { rc_err(c, "sigaction: %s", strerror(errno)); return -1; }
-    int rc = rtspcat_run(c, url, max_units);
+    int rc = rtspcat_run(c, max_units);
     sigaction(SIGPIPE, &old, NULL);
     return rc;
 }
@@ -684,7 +723,8 @@ int main(int argc, char **argv) {
         if (opt != 'v') { if (++i == argc) return 2; arg = argv[i]; }
         if (option(&c, opt, arg, &max_units)) return 2;
     }
-    int rc = run_guarded(&c, argv[1], max_units);
+    if (parse_url(&c, argv[1])) { fprintf(stderr, "rtspcat: %s\n", c.err); return 2; }
+    int rc = run_guarded(&c, max_units);
     if (rc) fprintf(stderr, "rtspcat: %s\n", c.err);
     if (c.verbose) fprintf(stderr, "rtspcat: %lu units, %lu packets, %lu dropped\n", c.units, c.packets, c.dropped);
     rc_free(&c); return rc == 0 ? 0 : 1;
@@ -700,7 +740,8 @@ static int rtspcat_builtin(WORD_LIST *list) {
         if (option(&c, opt, list_optarg, &max_units)) { builtin_usage(); return EX_USAGE; }
     }
     if (loptend) { builtin_usage(); return EX_USAGE; }
-    int rc = run_guarded(&c, url, max_units);
+    if (parse_url(&c, url)) { builtin_error("%s", c.err); return EX_USAGE; }
+    int rc = run_guarded(&c, max_units);
     if (rc) builtin_error("%s (after %lu units, %lu packets, %lu dropped)", c.err, c.units, c.packets, c.dropped);
     else if (c.verbose) fprintf(stderr, "rtspcat: done, %lu units, %lu packets, %lu dropped\n", c.units, c.packets, c.dropped);
     rc_free(&c); return rc == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;

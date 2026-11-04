@@ -67,21 +67,24 @@ harmless, and the selftest pins the difference.
 
 ## Spell check: `^T`
 
-The spell checker uses a word-list helper, the interface of `spell(1)`,
-`aspell list` and `hunspell -l`. The helper reads text on standard input and
-prints the misspelled words, one per line. The command comes from
-`--speller=CMD`, otherwise the exported `NANO_SPELLER` variable, otherwise
-`spell`. GNU nano interactive alternate spellers (such as `aspell -c`)
-and the `$SPELL` variable are not supported. Running it is subject to these limits:
+An explicit `--speller=CMD` runs an interactive alternate speller with a
+private temporary filename appended to its arguments. On successful exit its
+file replaces the checked region as one undoable edit; failure or timeout leaves
+the buffer unchanged. The temporary file is limited to 16 MiB on return.
+
+Without `--speller`, the exported `NANO_SPELLER` variable, or `spell` by
+default, selects a word-list helper. It reads text on standard input and prints
+misspelled words one per line, as with `spell(1)`, `aspell list`, or
+`hunspell -l`. `$SPELL` is not supported. The following limits apply:
 
 - The command is split on blanks and started with `execvp`, never through a
   shell, so quoting and expansion do not apply. More than 31 command words
   are rejected.
-- The helper receives the marked region, or the whole buffer, on a pipe.
+- A word-list helper receives the marked region, or the whole buffer, on a pipe.
   It starts a new session without a controlling terminal; standard error
   goes to `/dev/null`, and that descriptor is closed after redirection.
   It gets the shell's exported variables, like any command bash runs.
-- Output is capped at 1 MiB and 4,096 distinct words of at most 255 bytes.
+- Word-list output is capped at 1 MiB and 4,096 distinct words of at most 255 bytes.
   Carriage returns and blank lines are ignored, and duplicates are dropped.
 - The helper has 10 seconds in total, including the wait after it closes its
   output. When that expires it is killed with SIGKILL; no other process is

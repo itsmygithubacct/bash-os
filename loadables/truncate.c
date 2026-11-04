@@ -234,7 +234,7 @@ truncate_builtin (WORD_LIST *list)
         struct stat st;
         int have_st = 0;
         long long blocks = 1;
-        if (block_mode || mode != RM_ABS) {
+        {
             if (fstat (fd, &st) < 0) {
                 builtin_error ("cannot fstat %s: %s", path, strerror (errno));
                 close (fd); rc = EXECUTION_FAILURE; continue;
@@ -260,6 +260,13 @@ truncate_builtin (WORD_LIST *list)
             ssize = mag;
         /* Base size for relative modes: the reference, else the file itself. */
         long long fsize = (ref_size >= 0) ? ref_size : (have_st ? (long long) st.st_size : 0);
+        if (ref_size < 0 && mode != RM_ABS && S_ISBLK (st.st_mode)) {
+            /* Linux block devices report st_size == 0.  SEEK_END returns the
+               device capacity, which GNU uses for relative size modes. */
+            off_t end = lseek (fd, 0, SEEK_END);
+            if (end >= 0)
+                fsize = (long long) end;
+        }
         long long nsize = 0;
         int overflow = 0;
         switch (mode) {
@@ -296,7 +303,11 @@ truncate_builtin (WORD_LIST *list)
         }
 
         if (ftruncate (fd, (off_t) nsize) < 0) {
-            builtin_error ("cannot truncate %s: %s", path, strerror (errno));
+            if (S_ISBLK (st.st_mode))
+                builtin_error ("failed to truncate '%s' at %lld bytes: %s",
+                               path, nsize, strerror (errno));
+            else
+                builtin_error ("cannot truncate %s: %s", path, strerror (errno));
             rc = EXECUTION_FAILURE;
         }
         close (fd);

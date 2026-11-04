@@ -793,6 +793,7 @@ bf_resolve_tag (const char *spec)
     static const char *const tags[] = { "LABEL", "UUID", "PARTLABEL", "PARTUUID", "ID", NULL };
     static const char *const dirs[] = { "by-label", "by-uuid", "by-partlabel", "by-partuuid", "by-id", NULL };
     char path[PATH_MAX], val[NAME_MAX + 1];
+    struct stat st;
     const char *v;
     size_t n;
 
@@ -811,6 +812,9 @@ bf_resolve_tag (const char *spec)
         memcpy (val, v, n);
         val[n] = '\0';
         snprintf (path, sizeof path, "%s/%s/%s", FSTRIM_DEVDISK_ROOT, dirs[i], val);
+        /* libblkid accepts udev tag links only when they name a block device. */
+        if (stat (path, &st) != 0 || !S_ISBLK (st.st_mode))
+            return NULL;
         return realpath (path, NULL);
     }
     return NULL;
@@ -1025,12 +1029,26 @@ bf_all_from_file (const bf_opts *o, const char *file)
         }
         if (bf_is_tag (fs->src, NULL)) {
             char *r = o->fstab ? bf_resolve_tag (fs->src) : NULL;
+            if (!r && o->fstab && bf_streq_paths (fs->tgt, "/"))
+                r = bf_guess_root ();
             if (!r) {
                 fs->gone = 1;
                 continue;
             }
             free (fs->src);
             fs->src = r;
+        } else if (o->fstab && fs->src[0] == '/'
+                   && bf_streq_paths (fs->tgt, "/")) {
+            struct stat st;
+            if (stat (fs->src, &st) != 0) {
+                char *r = bf_guess_root ();
+                if (!r) {
+                    fs->gone = 1;
+                    continue;
+                }
+                free (fs->src);
+                fs->src = r;
+            }
         }
         if (fs->src[0] != '/' || !bf_is_mountpoint (fs->tgt)
             || !bf_is_directory (fs->tgt, 1) || !bf_has_discard (fs->src))
@@ -1179,7 +1197,7 @@ bf_option (bf_opts *o, int c, const char *arg, int *excl, const char **tabs)
         bf_usage (stdout);
         return -2;
     case 'V':
-        puts ("fstrim from bash-os util-linux parity");
+        puts ("fstrim from util-linux 2.41");
         return -2;
     }
     return 0;

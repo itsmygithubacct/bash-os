@@ -1,0 +1,711 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py query \"$BASH\"\n",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "covers": [
+        "uclampset/defer_pid_query"
+      ],
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "uclamp-before.json",
+        "uclamp-events.json",
+        "uclamp-reference.json",
+        "uclamp-check.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9"
+      },
+      "id": "runtime-devices-uclamp-query-r1",
+      "kind": "contract",
+      "loadable": "uclampset",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "purpose": "Query an owned child and compare exact output with util-linux and unchanged independent attributes.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "stderr": "",
+      "stdout": "uclamp query checks ok\n",
+      "timeout": 50,
+      "observation_error_status": 125
+    },
+    {
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py setter \"$BASH\"\n",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "uclamp-before.json",
+        "uclamp-events.json",
+        "uclamp-reference.json",
+        "uclamp-check.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9"
+      },
+      "id": "runtime-devices-uclamp-setter-r1",
+      "kind": "contract",
+      "loadable": "uclampset",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "purpose": "Exercise one-sided, paired, reset and reversed updates on an owned child with independent readback and util-linux controls.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "stderr": "",
+      "stdout": "uclamp setter checks ok\n",
+      "timeout": 50,
+      "observation_error_status": 125
+    },
+    {
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\nprobe=/opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py\n/usr/bin/python3 \"$probe\" read \"$$\" >\"$HOME/cmd-before.json\" || exit 125\nuclampset -m 100 -M 800 /usr/bin/python3 -I \"$probe\" child 'a b' '' >\"$HOME/cmd-child.out\" 2>\"$HOME/cmd-child.err\"\nprintf '%s\\n' \"$?\" >\"$HOME/cmd-child.status\"\nuclampset -m 100 /tmp/parity-case/absent-uclamp-command >\"$HOME/cmd-missing.out\" 2>\"$HOME/cmd-missing.err\"\nprintf '%s\\n' \"$?\" >\"$HOME/cmd-missing.status\"\nuclampset -m 100 printf '%s\\n' 'builtin result' >\"$HOME/cmd-builtin.out\" 2>\"$HOME/cmd-builtin.err\"\nprintf '%s\\n' \"$?\" >\"$HOME/cmd-builtin.status\"\n/usr/bin/python3 \"$probe\" read \"$$\" >\"$HOME/cmd-after.json\" || exit 125\n/usr/bin/python3 /tmp/parity-case/command-judge.py\n",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "covers": [
+        "uclampset/defer_command_mode"
+      ],
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "cmd-before.json",
+        "cmd-after.json",
+        "cmd-child.out",
+        "cmd-child.err",
+        "cmd-child.status",
+        "cmd-missing.out",
+        "cmd-missing.err",
+        "cmd-missing.status",
+        "cmd-builtin.out",
+        "cmd-builtin.err",
+        "cmd-builtin.status",
+        "cmd-check.json",
+        "clamp-profile-control.json"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "files": {
+        "command-judge.py": "#!/usr/bin/python3\n\"\"\"Evaluate saved guest command-mode observations after all statuses persisted.\"\"\"\nimport json,os,sys,uuid\nfrom pathlib import Path\nH=Path('/tmp/parity-home');C=Path('/tmp/parity-case')\nif os.getuid()!=2000 or os.geteuid()!=2000 or Path.cwd()!=C or os.environ.get('HOME')!=str(H): raise SystemExit(125)\nif Path('/sys/class/dmi/id/sys_vendor').read_text().strip()!='QEMU': raise SystemExit(125)\ntry: uuid.UUID(Path('/etc/bashos-parity-vm').read_text().strip())\nexcept (OSError,ValueError): raise SystemExit(125)\ndef read(n): return (H/n).read_text()\nchecks={}\ntry:\n    checks['child_status']=read('cmd-child.status')=='7\\n'\n    checks['missing_status']=read('cmd-missing.status')=='127\\n'\n    (H/'cmd-check.json').write_text(json.dumps(checks,sort_keys=True)+'\\n')\n    before=json.loads(read('cmd-before.json'));after=json.loads(read('cmd-after.json'));child=json.loads(read('cmd-child.out'))\n    checks={'parent_unchanged':before==after,'child_clamps':(child['attr']['util_min'],child['attr']['util_max'])==(100,800),'argv':child['argv']==['a b',''],'child_status':read('cmd-child.status')=='7\\n','child_stderr':read('cmd-child.err')=='','missing_status':read('cmd-missing.status')=='127\\n','missing_diagnostic':bool(read('cmd-missing.err')),'builtin_status':read('cmd-builtin.status')=='0\\n','builtin_output':read('cmd-builtin.out')=='builtin result\\n','builtin_stderr':read('cmd-builtin.err')==''}\nexcept (OSError,ValueError,KeyError) as exc:\n    (H/'cmd-check.json').write_text(json.dumps({'incomplete':str(exc),'reached_checks':checks})+'\\n');sys.exit(1 if False in checks.values() else 125)\n(H/'cmd-check.json').write_text(json.dumps(checks,sort_keys=True)+'\\n')\nif not all(checks.values()):sys.exit(1)\nprint('uclamp command checks ok')\n"
+      },
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf"
+      },
+      "id": "runtime-devices-uclamp-command-r1",
+      "kind": "contract",
+      "loadable": "uclampset",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "purpose": "Compare shell and child clamp snapshots, literal argv, exit 7, lookup status, and documented builtin dispatch.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "stderr": "",
+      "stdout": "uclamp command checks ok\n",
+      "timeout": 50,
+      "observation_error_status": 125
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "runtime-uclamp-followup-query-self",
+      "purpose": "Owned nonroot self with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_query"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9",
+        "helpers/clamp-runtime-uclamp-owned-task-r1.py": "e3a34018f7e51f262e3b32bc7c41fe29a4ab4e03a4a76b174f541a0b9182c931",
+        "helpers/clamp-runtime-uclamp-query-followup-r1.py": "544c96a16dea2bba3fa7bfd19fd98c5b60cd8f0f365c0d3eac017b5799ac97f5",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-query-followup-r1.py self \"$BASH\"\n",
+      "stdout": "owned uclamp query checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "query-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "observation_error_status": 125
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "runtime-uclamp-followup-query-p0",
+      "purpose": "Owned nonroot p0 with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_query"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9",
+        "helpers/clamp-runtime-uclamp-owned-task-r1.py": "e3a34018f7e51f262e3b32bc7c41fe29a4ab4e03a4a76b174f541a0b9182c931",
+        "helpers/clamp-runtime-uclamp-query-followup-r1.py": "544c96a16dea2bba3fa7bfd19fd98c5b60cd8f0f365c0d3eac017b5799ac97f5",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-query-followup-r1.py p0 \"$BASH\"\n",
+      "stdout": "owned uclamp query checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "query-report.json",
+        "p0-opstatus",
+        "p0-operation.out",
+        "p0-operation.err",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "observation_error_status": 125
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "runtime-uclamp-followup-query-empty",
+      "purpose": "Owned nonroot empty with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_query"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9",
+        "helpers/clamp-runtime-uclamp-owned-task-r1.py": "e3a34018f7e51f262e3b32bc7c41fe29a4ab4e03a4a76b174f541a0b9182c931",
+        "helpers/clamp-runtime-uclamp-query-followup-r1.py": "544c96a16dea2bba3fa7bfd19fd98c5b60cd8f0f365c0d3eac017b5799ac97f5",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-query-followup-r1.py empty \"$BASH\"\n",
+      "stdout": "owned uclamp query checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "query-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "observation_error_status": 125
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "runtime-uclamp-followup-query-threads",
+      "purpose": "Owned nonroot threads with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_query"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9",
+        "helpers/clamp-runtime-uclamp-owned-task-r1.py": "e3a34018f7e51f262e3b32bc7c41fe29a4ab4e03a4a76b174f541a0b9182c931",
+        "helpers/clamp-runtime-uclamp-query-followup-r1.py": "544c96a16dea2bba3fa7bfd19fd98c5b60cd8f0f365c0d3eac017b5799ac97f5",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-query-followup-r1.py threads \"$BASH\"\n",
+      "stdout": "owned uclamp query checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "query-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "observation_error_status": 125
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "runtime-uclamp-followup-alltasks-success",
+      "purpose": "Owned nonroot success with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_all_tasks_preflight"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r1.py": "6d437310c9170cd70a21a200f1c5aadeb256cdbfe7005c8a8b41a3c7ce428fb4",
+        "helpers/clamp-runtime-uclamp-owned-task-r1.py": "e3a34018f7e51f262e3b32bc7c41fe29a4ab4e03a4a76b174f541a0b9182c931",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r1.py": "914b59bd7ed4b3b7a29d29f809141b14d8f65ec45b4df30caeddcfc805bac359",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-alltasks-followup-r1.py success \"$BASH\"\n",
+      "stdout": "owned uclamp all-task checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "alltasks-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "runtime-uclamp-followup-alltasks-validation",
+      "purpose": "Owned nonroot validation with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_all_tasks_preflight"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r1.py": "6d437310c9170cd70a21a200f1c5aadeb256cdbfe7005c8a8b41a3c7ce428fb4",
+        "helpers/clamp-runtime-uclamp-owned-task-r1.py": "e3a34018f7e51f262e3b32bc7c41fe29a4ab4e03a4a76b174f541a0b9182c931",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r1.py": "914b59bd7ed4b3b7a29d29f809141b14d8f65ec45b4df30caeddcfc805bac359",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-alltasks-followup-r1.py validation \"$BASH\"\n",
+      "stdout": "owned uclamp all-task checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "alltasks-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "runtime-uclamp-followup-alltasks-readfail",
+      "purpose": "Owned nonroot readfail with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_all_tasks_preflight"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9",
+        "helpers/clamp-runtime-uclamp-alltasks-followup-r1.py": "6d437310c9170cd70a21a200f1c5aadeb256cdbfe7005c8a8b41a3c7ce428fb4",
+        "helpers/clamp-runtime-uclamp-owned-task-r1.py": "e3a34018f7e51f262e3b32bc7c41fe29a4ab4e03a4a76b174f541a0b9182c931",
+        "helpers/clamp-runtime-uclamp-target-errno-sequence-r1.py": "914b59bd7ed4b3b7a29d29f809141b14d8f65ec45b4df30caeddcfc805bac359",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-alltasks-followup-r1.py readfail \"$BASH\"\n",
+      "stdout": "owned uclamp all-task checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "alltasks-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\nchmod 0755 /tmp/parity-case/:\nprintf clean > \"$HOME/dispatch-marker\"\nif PATH=/tmp/parity-case /usr/bin/uclampset -m 100 :; then r=0; else r=$?; fi\nprintf \"%s\\n\" \"$r\" > \"$HOME/dispatch-control-status\"\n/bin/cp \"$HOME/dispatch-marker\" \"$HOME/dispatch-control-marker\"\n[[ $r == 73 && $(<\"$HOME/dispatch-marker\") == external ]] || exit 125\nprintf clean > \"$HOME/dispatch-marker\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "runtime-uclamp-followup-command-dispatch",
+      "purpose": "Distinguish builtin colon from a shadow external colon command",
+      "covers": [
+        "uclampset/defer_command_mode"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf"
+      },
+      "files": {
+        ":": "#!/bin/sh\nprintf external > \"$HOME/dispatch-marker\"\nexit 73\n"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\nPATH=/tmp/parity-case uclampset -m 100 :\nr=$?\nprintf \"%s\\n\" \"$r\" > \"$HOME/dispatch-status\"\n[[ $r == 0 && $(<\"$HOME/dispatch-marker\") == clean ]] || exit 1\nprintf \"uclamp builtin dispatch ok\\n\"\n",
+      "stdout": "uclamp builtin dispatch ok\n",
+      "timeout": 50,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "dispatch-control-status",
+        "dispatch-control-marker",
+        "dispatch-status",
+        "dispatch-marker",
+        "clamp-profile-control.json"
+      ],
+      "observation_error_status": 125
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, util-linux setup preflight, direct native sched_setattr without KEEP_POLICY, independent parent readback and fork-child self-read.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "runtime-uclamp-followup-setter-fork-direct-r2",
+      "purpose": "Reset-on-fork with independent direct native control and owned task",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9",
+        "helpers/clamp-runtime-setter45-r1.py": "c71611eb3d48b17186cb69213e909e60cfba095c782ebc0dfc7ae30ec9f63252",
+        "helpers/clamp-runtime-uclamp-direct-reset-control-r1.py": "7f3699ad88d4239d09c8e7dac765cbfe968063c2d276a9969233c1b01f9d99db",
+        "helpers/clamp-runtime-uclamp-owned-task-r1.py": "e3a34018f7e51f262e3b32bc7c41fe29a4ab4e03a4a76b174f541a0b9182c931",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-setter45-r1.py fork \"$BASH\"\n",
+      "stdout": "owned uclamp setter checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "setter-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Six independently owned UID-2000 children, separate util-linux positive controls and candidate actions; PID birth/pidfd and child self-read plus independent sched_getattr.",
+      "comparison": "Native and candidate child readbacks before/after prove each update and preserved other clamp; all observations retained. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "runtime-uclamp-followup-setter-owned-updates",
+      "purpose": "Owned children self-read min-only, max-only and paired updates",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9",
+        "helpers/clamp-runtime-uclamp-selfread-task-r1.py": "774f993a2f0f44f44d1b58105ecdb81999aa7867b51167b8e64df7b5f2c7addf",
+        "helpers/clamp-runtime-uclamp-update-observer-r1.py": "e6a9891a6747761ffd6258982cdb7b581372a55f98aecc887474622b25b8dbcd"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-update-observer-r1.py \"$BASH\"\n",
+      "stdout": "owned child setter updates ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "setter-update-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "runtime-uclamp-followup-setter-reset",
+      "purpose": "Owned nonroot reset with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9",
+        "helpers/clamp-runtime-setter55-r1.py": "e9af9752c35c57396c31b80ca4a653df377e243baaf7d5600c1ea3c490f0109d",
+        "helpers/clamp-runtime-uclamp-owned-task-r1.py": "e3a34018f7e51f262e3b32bc7c41fe29a4ab4e03a4a76b174f541a0b9182c931",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-setter55-r1.py reset \"$BASH\"\n",
+      "stdout": "owned uclamp setter checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "setter-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Owned UID-2000 task, independent sched_getattr snapshots and independent util-linux positive controls on the actual qualified guest kernel.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "runtime-uclamp-followup-setter-policy",
+      "purpose": "Owned nonroot policy with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9",
+        "helpers/clamp-runtime-setter55-r1.py": "e9af9752c35c57396c31b80ca4a653df377e243baaf7d5600c1ea3c490f0109d",
+        "helpers/clamp-runtime-uclamp-owned-task-r1.py": "e3a34018f7e51f262e3b32bc7c41fe29a4ab4e03a4a76b174f541a0b9182c931",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-setter55-r1.py policy \"$BASH\"\n",
+      "stdout": "owned uclamp setter checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "setter-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Synthetic sched_getattr and sched_setattr replies with raw request-byte preservation checks; native scheduling not changed.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "runtime-uclamp-followup-setter-mock-rt",
+      "purpose": "Owned nonroot rt with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9",
+        "helpers/clamp-runtime-uclamp-owned-task-r1.py": "e3a34018f7e51f262e3b32bc7c41fe29a4ab4e03a4a76b174f541a0b9182c931",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r1.py": "551246ba82ef886b187ca3fc8dc413aee3a0fd8f9b9e2274e0c60be7f0cf7b59",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-scheduler-mock-r1.py rt \"$BASH\"\n",
+      "stdout": "synthetic uclamp scheduler checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "scheduler-mock-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125
+    },
+    {
+      "loadable": "uclampset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Synthetic sched_getattr and sched_setattr replies with raw request-byte preservation checks; native scheduling not changed.",
+      "comparison": "Save per-invocation candidate status/stdout/stderr and independent before/after scheduler data; unsupported guest preflight is ERROR, never FAIL. Runtime port for the separately qualified 6.12.113-clamp-parity-r1 guest; original expectations are retained. Exit 125 is observer ERROR. Synthetic replies remain distinct from real kernel enforcement.",
+      "requires": [
+        "python3",
+        "uclampset"
+      ],
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-profile-control-r1.py\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py preflight\n/bin/mv \"$HOME/uclamp-events.json\" \"$HOME/uclamp-control.json\"\n/bin/mv \"$HOME/uclamp-before.json\" \"$HOME/uclamp-control-before.json\"\n",
+      "expected_status": 0,
+      "stderr": "",
+      "id": "runtime-uclamp-followup-setter-mock-deadline",
+      "purpose": "Owned nonroot deadline with native controls and retained observations",
+      "covers": [
+        "uclampset/defer_pid_setter"
+      ],
+      "helpers_sha256": {
+        "helpers/clamp-profile-control-r1.py": "5d018117df09e5e6be762b80a4189b5e05f616cb7e6a938e893910fa0764f102",
+        "helpers/clamp-runtime-devices-uclamp-observer-r1-r1.py": "68ee96d9d7055d565f452268484dcaf3ab4c96ff3e43ee8740595cada63af1bf",
+        "helpers/clamp-runtime-driver-r1.py": "ef1891cae01346a01df92ab9929366b99fc4502e0e862e2528d1381e820615b9",
+        "helpers/clamp-runtime-uclamp-owned-task-r1.py": "e3a34018f7e51f262e3b32bc7c41fe29a4ab4e03a4a76b174f541a0b9182c931",
+        "helpers/clamp-runtime-uclamp-scheduler-mock-r1.py": "551246ba82ef886b187ca3fc8dc413aee3a0fd8f9b9e2274e0c60be7f0cf7b59",
+        "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t uclampset) == builtin ]] || exit 125\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clamp-runtime-driver-r1.py /opt/bashos-parity/harness/helpers/clamp-runtime-uclamp-scheduler-mock-r1.py deadline \"$BASH\"\n",
+      "stdout": "synthetic uclamp scheduler checks ok\n",
+      "timeout": 60,
+      "diagnostic_files": [
+        "uclamp-control.json",
+        "uclamp-control-before.json",
+        "scheduler-mock-report.json",
+        "clamp-profile-control.json",
+        "clamp-runtime-outcome.json"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "observation_error_status": 125
+    }
+  ]
+}

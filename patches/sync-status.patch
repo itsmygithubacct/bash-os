@@ -3,3 +3,10 @@
 @@ -46 +46 @@
 -    return (EX_USAGE);
 +    return (EXECUTION_FAILURE);
+@@ -59 +59,2 @@
+-      fd = open (fn, O_WRONLY);
++      /* Avoid waiting for a FIFO peer while preserving the access-mode order. */
++      fd = open (fn, O_WRONLY | O_NONBLOCK);
+@@ -61 +62 @@
+-	fd = open (fn, O_RDONLY);
++	fd = open (fn, O_RDONLY | O_NONBLOCK);

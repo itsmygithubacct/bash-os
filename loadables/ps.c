@@ -33,6 +33,9 @@
 #include <dirent.h>
 #include <pwd.h>
 #include <sys/stat.h>
+#if defined (__linux__)
+#  include <sys/sysmacros.h>
+#endif
 #include <time.h>
 
 #include "loadables.h"
@@ -69,6 +72,7 @@ typedef struct {
 
 typedef struct {
     int pid, ppid, pgrp, sid;
+    int   tty_nr;            /* /proc/[pid]/stat field 7 */
     int   tpgid;             /* /proc/[pid]/stat field 8  (for STAT '+') */
     uid_t uid;
     char  state;
@@ -146,16 +150,16 @@ bps_read_stat (int pid, bps_proc *p)
        We capture tpgid/nice/num_threads for the procps STAT flag chars. */
     int got = sscanf (rest,
         "%c %d %d %d "                  /* state(3) ppid(4) pgrp(5) session(6) */
-        "%*d %d %*u %*u %*u %*u %*u "   /* tty_nr(7) [tpgid(8)] flags..cmajflt (9-13) */
+        "%d %d %*u %*u %*u %*u %*u "   /* tty_nr(7) [tpgid(8)] flags..cmajflt (9-13) */
         "%ld %ld "                      /* utime(14) stime(15) */
         "%*d %*d %*d %ld %ld %*d "      /* cutime cstime priority [nice(19)] [num_threads(20)] itrealvalue */
         "%ld %ld %ld",                  /* starttime(22) vsize(23) rss(24) */
         &p->state, &p->ppid, &p->pgrp, &p->sid,
-        &p->tpgid,
+        &p->tty_nr, &p->tpgid,
         &p->utime, &p->stime,
         &p->nice, &p->num_threads,
         &p->starttime_ticks, &p->vsize_bytes, &p->rss_pages);
-    if (got < 4) return -1;
+    if (got != 13) return -1;
 
     /* uid: read /proc/PID/status. */
     if (bps_proc_pid_path (path, sizeof path, pid, "status") < 0) {
@@ -179,7 +183,7 @@ bps_read_stat (int pid, bps_proc *p)
                 long uid_val = 0;
                 u += 4;
                 while (*u == ' ' || *u == '\t') u++;
-                sscanf (u, "%ld", &uid_val);
+                sscanf (u, "%*u %ld", &uid_val);
                 p->uid = (uid_t) uid_val;
             }
             /* VmLck: locked pages -> STAT 'L' (rarely nonzero). Never the
@@ -428,14 +432,13 @@ bps_print_custom_header (const bps_colspec *cols, int n_cols)
 /* Format a /proc/PID/stat-style starttime (ticks since boot) into the
    ps(1) STIME shape: "HH:MM" if the process started today, otherwise
    "MMMDD" (3-letter abbreviated month + 2-digit day, matching procps).
-   btime is read from /proc/stat once and cached. On failure (no btime
+   btime is read from the current proc root. On failure (no btime
    line, no CLK_TCK, localtime failure) emits "?". */
 static void
 bps_fmt_stime (long ticks_since_boot, char *buf, size_t bufsz)
 {
-    static time_t btime = 0;
-    static int    btime_done = 0;
-    if (!btime_done) {
+    time_t btime = 0;
+    {
         char path[BPS_PATH_MAX];
         if (bps_proc_path (path, sizeof path, "stat") == 0) {
             FILE *f = fopen (path, "r");
@@ -447,7 +450,6 @@ bps_fmt_stime (long ticks_since_boot, char *buf, size_t bufsz)
                 fclose (f);
             }
         }
-        btime_done = 1;
     }
     long hz = sysconf (_SC_CLK_TCK);
     if (hz <= 0) hz = 100;
@@ -482,6 +484,56 @@ bps_build_stat (const bps_proc *p, char *buf, size_t bufsz)
     buf[i] = '\0';
 }
 
+/* Resolve a controlling tty by kernel device number, preferring a matching
+   /proc/PID/fd link and then the ordinary device directories. */
+static void
+bps_tty_name (const bps_proc *p, char *out, size_t size)
+{
+    snprintf (out, size, "?");
+#if defined (__linux__)
+    if (!p->tty_nr) return;
+    unsigned int n = (unsigned int) p->tty_nr;
+    unsigned int want_major = (n >> 8) & 0xfff;
+    unsigned int want_minor = (n & 0xff) | ((n >> 12) & 0xfff00);
+    char path[BPS_PATH_MAX], name[BPS_PATH_MAX];
+    struct stat st;
+    for (int fd = 0; fd < 3; fd++) {
+        char rel[16];
+        snprintf (rel, sizeof rel, "fd/%d", fd);
+        if (bps_proc_pid_path (path, sizeof path, p->pid, rel) < 0 ||
+            stat (path, &st) < 0 || !S_ISCHR (st.st_mode) ||
+            major (st.st_rdev) != want_major || minor (st.st_rdev) != want_minor)
+            continue;
+        ssize_t len = readlink (path, name, sizeof name - 1);
+        if (len <= 0 || (size_t) len >= sizeof name - 1) continue;
+        name[len] = '\0';
+        if (strncmp (name, "/dev/", 5) == 0) {
+            snprintf (out, size, "%s", name + 5);
+            return;
+        }
+    }
+    const char *dirs[] = { "/dev/pts", "/dev" };
+    for (size_t i = 0; i < sizeof dirs / sizeof dirs[0]; i++) {
+        DIR *dir = opendir (dirs[i]);
+        if (!dir) continue;
+        struct dirent *de;
+        while ((de = readdir (dir)) != NULL) {
+            if (de->d_name[0] == '.') continue;
+            int len = snprintf (path, sizeof path, "%s/%s", dirs[i], de->d_name);
+            if (len < 0 || (size_t) len >= sizeof path || stat (path, &st) < 0 ||
+                !S_ISCHR (st.st_mode) || major (st.st_rdev) != want_major ||
+                minor (st.st_rdev) != want_minor) continue;
+            snprintf (out, size, "%s%s", i == 0 ? "pts/" : "", de->d_name);
+            closedir (dir);
+            return;
+        }
+        closedir (dir);
+    }
+#endif
+}
+
+static double bps_cpu_percent (const bps_proc *p);
+
 static void
 bps_print_custom (const bps_proc *p, const bps_colspec *cols, int n_cols)
 {
@@ -504,7 +556,7 @@ bps_print_custom (const bps_proc *p, const bps_colspec *cols, int n_cols)
             case BPS_COL_ARGS:     printf ("%s", p->args[0] ? p->args : p->comm); break;
             case BPS_COL_TIME:     bps_print_time_field (p->utime + p->stime); break;
             case BPS_COL_STIME:    { char sb[16]; bps_fmt_stime (p->starttime_ticks, sb, sizeof sb); fputs (sb, stdout); } break;
-            case BPS_COL_PCPU:     printf ("0.0"); break;
+            case BPS_COL_PCPU:     printf ("%.1f", bps_cpu_percent (p)); break;
             case BPS_COL_RSS:      printf ("%ld", p->rss_pages * page_size / 1024); break;
             case BPS_COL_VSZ:      printf ("%ld", p->vsize_bytes / 1024); break;
         }
@@ -515,11 +567,7 @@ bps_print_custom (const bps_proc *p, const bps_colspec *cols, int n_cols)
 static long
 bps_mem_total_kb (void)
 {
-    static int done = 0;
-    static long mem_total = 0;
-
-    if (done)
-        return mem_total;
+    long mem_total = 0;
 
     char path[BPS_PATH_MAX];
     if (bps_proc_path (path, sizeof path, "meminfo") == 0) {
@@ -537,7 +585,6 @@ bps_mem_total_kb (void)
         }
     }
 
-    done = 1;
     return mem_total;
 }
 
@@ -556,6 +603,54 @@ bps_print_aux_header (void)
     puts ("USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND");
 }
 
+/* Procps reports lifetime CPU usage, truncated to one decimal place. */
+static double
+bps_cpu_percent (const bps_proc *p)
+{
+    char path[BPS_PATH_MAX];
+    double uptime = 0.0;
+    long hz = sysconf (_SC_CLK_TCK);
+    if (hz <= 0) hz = 100;
+    if (bps_proc_path (path, sizeof path, "uptime") == 0) {
+        FILE *f = fopen (path, "r");
+        if (f) { if (fscanf (f, "%lf", &uptime) != 1) uptime = 0.0; fclose (f); }
+    }
+    double elapsed = uptime - (double) p->starttime_ticks / hz;
+    if (elapsed <= 0.0) return 0.0;
+    double tenths = ((double) p->utime + p->stime) * 1000.0 / hz / elapsed;
+    if (tenths > 999999.0) tenths = 999999.0;
+    return (long) tenths / 10.0;
+}
+
+/* procps shows a defunct marker even when the kernel cmdline is empty. */
+static void
+bps_command (const bps_proc *p, int arguments, char *buf, size_t size)
+{
+    if (p->state == 'Z')
+        snprintf (buf, size, arguments ? "[%s] <defunct>" : "%s <defunct>", p->comm);
+    else
+        snprintf (buf, size, "%s", arguments ? (p->args[0] ? p->args : p->comm) : p->comm);
+}
+
+static void
+bps_print_table_row (const bps_proc *p, int full)
+{
+    char command[320], start[32], timebuf[32], tty[128];
+    bps_tty_name (p, tty, sizeof tty);
+    long hz = sysconf (_SC_CLK_TCK);
+    if (hz <= 0) hz = 100;
+    long secs = (p->utime + p->stime) / hz;
+    snprintf (timebuf, sizeof timebuf, "%02ld:%02ld:%02ld", secs / 3600,
+              secs / 60 % 60, secs % 60);
+    bps_command (p, full, command, sizeof command);
+    if (full) {
+        bps_fmt_stime (p->starttime_ticks, start, sizeof start);
+        printf ("%-8s %7d %7d %2d %5s %-8s %s %s\n", bps_user (p->uid),
+                p->pid, p->ppid, (int) bps_cpu_percent (p), start, tty, timebuf, command);
+    } else
+        printf ("%7d %-8s %s %s\n", p->pid, tty, timebuf, command);
+}
+
 static void
 bps_print_aux_row (const bps_proc *p)
 {
@@ -567,18 +662,21 @@ bps_print_aux_row (const bps_proc *p)
     long mem_total = bps_mem_total_kb ();
     double pmem = 0.0;
     if (mem_total > 0 && rss_kb > 0)
-        pmem = ((double) rss_kb * 100.0) / (double) mem_total;
+        pmem = (long) ((double) rss_kb * 1000.0 / (double) mem_total) / 10.0;
 
     char stat[16];
     char start[16];
     char timebuf[32];
+    char command[320], tty[128];
+    bps_tty_name (p, tty, sizeof tty);
+    bps_command (p, 1, command, sizeof command);
     bps_build_stat (p, stat, sizeof stat);
     bps_fmt_stime (p->starttime_ticks, start, sizeof start);
     bps_fmt_aux_time (p->utime + p->stime, timebuf, sizeof timebuf);
 
     printf ("%-10s %5d %4.1f %4.1f %6ld %5ld %-8s %-4s %5s %6s %s\n",
-            bps_user (p->uid), p->pid, 0.0, pmem, vsz_kb, rss_kb,
-            "?", stat, start, timebuf, p->args[0] ? p->args : p->comm);
+            bps_user (p->uid), p->pid, bps_cpu_percent (p), pmem, vsz_kb, rss_kb,
+            tty, stat, start, timebuf, command);
 }
 
 static int
@@ -756,8 +854,11 @@ ps_builtin (WORD_LIST *list)
 
     if (aux_mode) bps_print_aux_header ();
     else if (n_cols > 0) bps_print_custom_header (cols, n_cols);
-    else if (full)  printf ("USER       PID  PPID S TIME     CMD\n");
-    else            printf ("  PID S TIME     CMD\n");
+    else if (n_pids > 0) {
+        if (full) printf ("USER       PID  PPID S TIME     CMD\n");
+        else printf ("  PID S TIME     CMD\n");
+    } else if (full) puts ("UID          PID    PPID  C STIME TTY          TIME CMD");
+    else puts ("    PID TTY          TIME CMD");
 
     if (n_pids > 0) {
         for (int i = 0; i < n_pids; i++) {
@@ -783,7 +884,7 @@ ps_builtin (WORD_LIST *list)
         if (bps_read_stat (pid, &p) == 0) {
             if (aux_mode) bps_print_aux_row (&p);
             else if (n_cols > 0) bps_print_custom (&p, cols, n_cols);
-            else bps_print (&p, full);
+            else bps_print_table_row (&p, full);
         }
         (void) all;
     }
@@ -808,7 +909,7 @@ char *ps_doc[] = {
     "",
     "Without -f, output is `PID STATE TIME CMD`. CMD comes from",
     "/proc/PID/cmdline (or [comm] for kernel threads).",
-    "The aux %CPU column is a fixed 0.0 snapshot placeholder; TTY is `?`.",
+    "TTY is resolved from the controlling device when available.",
     "POSIX-shape — for richer formats use system+ procps.",
     (char *)NULL
 };

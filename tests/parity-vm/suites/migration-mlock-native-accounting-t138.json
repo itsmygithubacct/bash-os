@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-mlock-native-accounting-t138",
+      "loadable": "mlock",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "mlock/all-operation"
+      ],
+      "purpose": "Record native mlockall lifecycle and same-process status/smaps to investigate the literal resident comparison.",
+      "oracle": "Native libc mlockall and munlockall with procfs; the literal VmLck >= VmRSS outcome is recorded, not used to alter the original requirement.",
+      "comparison": "Independent diagnostic control; retain raw status and smaps. A resident comparison failure in the candidate remains a failure.",
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/mlock-native-accounting-t138.py": "a4fc8439da397f51f2ee187c988ce6f4ba232426bc405a704bd438f11307b3ac"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/mlock-native-accounting-t138.py",
+      "stdout": "native-accounting=recorded\n",
+      "stderr": "",
+      "expected_status": 0,
+      "timeout": 45,
+      "diagnostic_files": [
+        "mlock-native-accounting-t138.json"
+      ]
+    }
+  ]
+}

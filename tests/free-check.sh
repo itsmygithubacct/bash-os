@@ -66,6 +66,32 @@ else
   no "could not discriminate fixture from live MemTotal '$live'"
 fi
 
+# Missing and zero availability use procps' free-memory fallback, even when
+# buffers and cache are nonzero.  Put SwapCached first to catch substring keys.
+cat > "$d/proc/meminfo" <<'EOF'
+MemTotal: 100000 kB
+MemFree: 10000 kB
+Buffers: 1111 kB
+SwapCached: 99999 kB
+Cached: 2222 kB
+SReclaimable: 4444 kB
+SwapTotal: 50000 kB
+SwapFree: 40000 kB
+EOF
+legacy=$(BASHOS_PROC_ROOT=$d/proc "$BX" -c 'PATH=; free -k')
+read -r _ _ legacy_used _ _ legacy_cache legacy_available <<< "$(printf '%s\n' "$legacy" | sed -n '2p')"
+[[ $legacy_used == 90000 && $legacy_available == 10000 && $legacy_cache == 7777 ]] \
+  && ok "missing MemAvailable and exact Cached key" || no "legacy fields: $legacy"
+printf 'MemAvailable: 0 kB\n' >> "$d/proc/meminfo"
+zero=$(BASHOS_PROC_ROOT=$d/proc "$BX" -c 'PATH=; free -k')
+[[ $zero == "$legacy" ]] && ok "zero MemAvailable uses fallback" || no "zero availability: $zero"
+human=$(BASHOS_PROC_ROOT=$d/proc "$BX" -c 'PATH=; free -h')
+read -r _ human_total _ _ _ _ _ <<< "$(printf '%s\n' "$human" | sed -n '2p')"
+[[ $human_total == 97Mi ]] && ok "human units use procps compact binary format" || no "human total '$human_total'"
+BASHOS_PROC_ROOT=$d/proc "$BX" -c 'PATH=; free -c 2 -s 0.1' > "$d/repeat" 2> "$d/repeat.err"; rc=$?
+[[ $rc == 0 && $(grep -c '^Mem:' "$d/repeat") == 2 ]] \
+  && ok "fractional interval repeats twice" || no "fractional interval rc=$rc stderr=$(cat "$d/repeat.err")"
+
 B free --help >"$d/help" 2>&1; rc=$?
 [[ $rc == 0 && -s $d/help ]] && ok "--help exits 0 with usage" || no "--help rc=$rc out=$(cat "$d/help")"
 

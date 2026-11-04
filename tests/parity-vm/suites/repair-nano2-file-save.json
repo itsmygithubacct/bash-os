@@ -1,0 +1,112 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-nano2-save-in-place-binary",
+      "purpose": "Save binary content over its own source and retain permissions.",
+      "script": "/usr/bin/chmod 640 data\nnano2 save data data; echo \"rc=$?\" > rc\n/usr/bin/stat -c \"%a\" data > mode\n/usr/bin/ls -A > listing\n",
+      "files": {
+        "data": {
+          "base64": "YQBiDQp6"
+        }
+      },
+      "expected_files": {
+        "data": {
+          "base64": "YQBiDQp6"
+        },
+        "rc": "rc=0\n",
+        "mode": "640\n",
+        "listing": "data\nlisting\nmode\nrc\n"
+      },
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-file-save"
+      ],
+      "kind": "contract",
+      "oracle": "Direct byte, status, directory listing and POSIX file mode expectations.",
+      "comparison": "Compare status and every specified file.",
+      "timeout": 15
+    },
+    {
+      "id": "repair-nano2-save-rename-failure-cleanup",
+      "purpose": "A rename failure after creating the temporary file leaves the target and its parent clean.",
+      "setup_script": "/usr/bin/mkdir target\n",
+      "script": "nano2 save src target 2>/dev/null; echo \"rc=$?\" > rc\n/usr/bin/ls -A > listing\n",
+      "files": {
+        "src": "contents\n"
+      },
+      "expected_files": {
+        "src": "contents\n",
+        "rc": "rc=1\n",
+        "listing": "listing\nrc\nsrc\ntarget\n"
+      },
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-file-save"
+      ],
+      "kind": "contract",
+      "oracle": "Direct byte, status, directory listing and POSIX file mode expectations.",
+      "comparison": "Compare status and every specified file.",
+      "timeout": 15
+    },
+    {
+      "id": "repair-nano2-save-missing-source",
+      "purpose": "A missing input fails without creating or replacing the destination.",
+      "script": "nano2 save absent dst 2>/dev/null; echo \"rc=$?\" > rc\n/usr/bin/ls -A > listing\n",
+      "files": {
+        "dst": "keep\n"
+      },
+      "expected_files": {
+        "dst": "keep\n",
+        "rc": "rc=1\n",
+        "listing": "dst\nlisting\nrc\n"
+      },
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-file-save"
+      ],
+      "kind": "contract",
+      "oracle": "Direct byte, status, directory listing and POSIX file mode expectations.",
+      "comparison": "Compare status and every specified file.",
+      "timeout": 15
+    },
+    {
+      "id": "repair-nano2-save-umask",
+      "purpose": "A new destination respects the caller umask.",
+      "script": "umask 027\nnano2 save src dst; echo \"rc=$?\" > rc\n/usr/bin/stat -c \"%a\" dst > mode\n",
+      "files": {
+        "src": "text\n"
+      },
+      "expected_files": {
+        "src": "text\n",
+        "dst": "text\n",
+        "rc": "rc=0\n",
+        "mode": "640\n"
+      },
+      "loadable": "nano2",
+      "group": "shell",
+      "driver": "plain",
+      "expected_status": 0,
+      "stderr": "",
+      "covers": [
+        "nano2/piece-table-file-save"
+      ],
+      "kind": "contract",
+      "oracle": "Direct byte, status, directory listing and POSIX file mode expectations.",
+      "comparison": "Compare status and every specified file.",
+      "timeout": 15
+    }
+  ]
+}

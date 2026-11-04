@@ -144,9 +144,51 @@ struct d6_msg {
   int have_ia_pd; unsigned pd_iaid, pd_t1, pd_t2;
   int have_prefix; unsigned char prefix[16]; int prefix_len; unsigned pd_pref_life, pd_valid_life;
   unsigned char dns[8][16]; int n_dns;
+  char domains[4 * D6_MAX + 1]; size_t domains_len;
   int have_status; unsigned status_code; char status_msg[128];
   unsigned char oro[64]; int oro_len;
 };
+
+/* OPTION_DOMAIN_LIST uses uncompressed DNS names. Escape bytes that would
+ * make the comma-separated presentation ambiguous or inject output lines. */
+static int d6_parse_domains (const unsigned char *v, unsigned len, struct d6_msg *m)
+{
+  unsigned p = 0;
+  while (p < len)
+    {
+      unsigned wirelen = 0, labels = 0;
+      if (m->domains_len) m->domains[m->domains_len++] = ',';
+      for (;;)
+        {
+          if (p >= len) return -1;
+          unsigned n = v[p++];
+          wirelen++;
+          if (n == 0)
+            {
+              if (!labels) m->domains[m->domains_len++] = '.';
+              break;
+            }
+          if (n > 63 || n > len - p || wirelen + n >= 255) return -1;
+          if (labels++) m->domains[m->domains_len++] = '.';
+          wirelen += n;
+          while (n--)
+            {
+              unsigned c = v[p++];
+              if (c >= 33 && c <= 126 && c != '.' && c != ',' && c != '\\')
+                m->domains[m->domains_len++] = (char) c;
+              else
+                {
+                  m->domains[m->domains_len++] = '\\';
+                  m->domains[m->domains_len++] = '0' + c / 100;
+                  m->domains[m->domains_len++] = '0' + (c / 10) % 10;
+                  m->domains[m->domains_len++] = '0' + c % 10;
+                }
+            }
+        }
+    }
+  m->domains[m->domains_len] = '\0';
+  return 0;
+}
 
 /* walk IA_NA sub-options for an IAADDR. data points past iaid/t1/t2. */
 static void d6_scan_ia_subopts (const unsigned char *d, int len, struct d6_msg *m)
@@ -244,6 +286,9 @@ static int d6_parse (const unsigned char *pkt, int len, struct d6_msg *m)
         case D6O_DNS_SERVERS:
           for (unsigned i = 0; i + 16 <= olen && m->n_dns < 8; i += 16)
             { memcpy (m->dns[m->n_dns], v + i, 16); m->n_dns++; }
+          break;
+        case D6O_DOMAIN_LIST:
+          if (d6_parse_domains (v, olen, m) < 0) return -1;
           break;
         default: break;
         }
@@ -372,6 +417,7 @@ static void d6_emit (const struct d6_msg *m, const char *var)
           o += snprintf (dnslist + o, sizeof dnslist - o, "%s%s", o ? "," : "", ip6);
       PUT ("dns", dnslist);
     }
+  if (m->domains_len) PUT ("domains", m->domains);
   if (m->have_status)
     { snprintf (num, sizeof num, "%u", m->status_code); PUT ("status", num);
       if (m->status_msg[0]) PUT ("status_msg", m->status_msg); }

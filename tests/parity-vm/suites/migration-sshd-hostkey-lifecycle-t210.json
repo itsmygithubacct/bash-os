@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-sshd-native-sidecar-modes-t210",
+      "loadable": "sshd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "requires": [
+        "python3"
+      ],
+      "expected_status": 0,
+      "timeout": 30,
+      "stderr": "",
+      "script": "set -e\numask 0777\nsshd keygen -f \"$HOME/new-key\"\numask 022\nprintf stale > \"$HOME/existing-key.pub\"\nchmod 0644 \"$HOME/existing-key.pub\"\nsshd keygen -f \"$HOME/existing-key\"\n/usr/bin/python3 - \"$HOME\" <<'PYEOF'\nimport os, pathlib, stat, sys\nroot = pathlib.Path(sys.argv[1])\nfor name in ('new-key', 'existing-key'):\n    for suffix, expected in (('', b'BASHSSHD-HOSTKEY ed25519\\n'), ('.pub', b'sshd-ed25519 AAAABASHOSHOSTKEY\\n')):\n        p = root / (name + suffix)\n        print('%s mode=%04o bytes=%s' % (p.name, stat.S_IMODE(p.stat().st_mode), 'exact' if p.read_bytes() == expected else 'different'))\nPYEOF\n",
+      "stdout": "new-key mode=0600 bytes=exact\nnew-key.pub mode=0600 bytes=exact\nexisting-key mode=0600 bytes=exact\nexisting-key.pub mode=0600 bytes=exact\n",
+      "covers": [
+        "sshd/hostkey-lifecycle"
+      ],
+      "oracle": "Documented native placeholder bytes and mode 0600 on both files; restrictive umask and an existing 0644 sidecar exercise creation and overwrite.",
+      "comparison": "Exact private and public bytes and both modes for each invocation; set -e requires successful key generation."
+    },
+    {
+      "id": "migration-sshd-native-key-path-safety-t210",
+      "loadable": "sshd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "requires": [
+        "python3",
+        "ln",
+        "stat",
+        "mkdir",
+        "mkfifo"
+      ],
+      "expected_status": 0,
+      "timeout": 30,
+      "stderr": "",
+      "stdout": "unsafe key paths refused; sentinel intact\n",
+      "covers": [
+        "sshd/hostkey-lifecycle"
+      ],
+      "oracle": "Placeholder generation requires both regular files with mode 0600; a sidecar symlink or directory cannot be used as a key file.",
+      "comparison": "Require failure for each unsafe path and unchanged symlink target content and permissions.",
+      "script": "set -e\nprintf sentinel > \"$HOME/sentinel\"\nchmod 0644 \"$HOME/sentinel\"\nln -s \"$HOME/sentinel\" \"$HOME/symlink-private\"\nif sshd keygen -f \"$HOME/symlink-private\" >out 2>err; then exit 1; fi\n[[ $(<\"$HOME/sentinel\") == sentinel && $(stat -c %a \"$HOME/sentinel\") == 644 ]]\nln -s \"$HOME/sentinel\" \"$HOME/symlink-public.pub\"\nif sshd keygen -f \"$HOME/symlink-public\" >out 2>err; then exit 2; fi\n[[ $(<\"$HOME/sentinel\") == sentinel && $(stat -c %a \"$HOME/sentinel\") == 644 ]]\nmkfifo \"$HOME/fifo-private\"\nif sshd keygen -f \"$HOME/fifo-private\" >out 2>err; then exit 4; fi\nmkdir \"$HOME/dir-public.pub\"\nif sshd keygen -f \"$HOME/dir-public\" >out 2>err; then exit 3; fi\nprintf 'unsafe key paths refused; sentinel intact\\n'\n"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "regression-swapon-multiple-contract-root",
+      "loadable": "swapon",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "covers": [
+        "swapon/multiple-request-failures"
+      ],
+      "purpose": "Verify independently ordered kernel requests, continuation after errors, aggregate status and actual activation of both valid swapfiles.",
+      "oracle": "Fixed operand sequence and Linux errno controls, with seccomp notification and /proc/swaps observations.",
+      "comparison": "Candidate status 1, exact four ordered syscall paths and zero flags, path-specific EINVAL and ENOENT diagnostics, and only the two valid files active; setup and cleanup must succeed.",
+      "requires": [
+        "mkfs.ext4",
+        "mount",
+        "umount",
+        "truncate",
+        "mkswap",
+        "swapon",
+        "swapoff",
+        "dd",
+        "chmod",
+        "python3",
+        "wc"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "script": "set -u\nexport LC_ALL=C PYTHONDONTWRITEBYTECODE=1\nRT=/tmp/rt-swapon-multiple\nM=$RT/mnt\nH=/opt/bashos-parity/harness/helpers/system-seccomp.py\ncleanup() {\n  /usr/sbin/swapoff \"$M/s1\" >/dev/null 2>&1 || :\n  /usr/sbin/swapoff \"$M/s2\" >/dev/null 2>&1 || :\n  /usr/bin/umount \"$M\" >/dev/null 2>&1 || :\n}\ntrap cleanup EXIT\nfail() { echo \"FAIL: $*\" >&2; exit 1; }\n[ \"$(/usr/bin/wc -l < /proc/swaps)\" -eq 1 ] || fail 'guest must start without active swaps'\n/usr/bin/mkdir -p \"$M\" || fail mkdir\n/usr/bin/truncate -s 8M \"$RT/sw.img\" || fail image\n/usr/sbin/mkfs.ext4 -q -F -O ^has_journal \"$RT/sw.img\" || fail mkfs\n/usr/bin/mount -o loop \"$RT/sw.img\" \"$M\" || fail mount\nfor name in nonswap s1 s2; do\n  /usr/bin/dd if=/dev/zero of=\"$M/$name\" bs=64k count=16 status=none || fail create\n  /usr/bin/chmod 0600 \"$M/$name\" || fail chmod\ndone\n/usr/sbin/mkswap -q \"$M/s1\" >/dev/null || fail mkswap1\n/usr/sbin/mkswap -q \"$M/s2\" >/dev/null || fail mkswap2\n# Prove the guest can activate this exact filesystem and that both failing\n# operands produce the expected kernel errno before measuring the candidate.\n/usr/sbin/swapon \"$M/s1\" || fail 'activation prerequisite'\n/usr/sbin/swapoff \"$M/s1\" || fail 'deactivation prerequisite'\n/usr/bin/python3 - \"$M/nonswap\" \"$M/missing\" <<'CONTROL' || fail 'kernel error prerequisites'\nimport ctypes, errno, sys\nlib = ctypes.CDLL(None, use_errno=True)\nlib.swapon.argtypes = [ctypes.c_char_p, ctypes.c_int]\nfor path, expected in zip(sys.argv[1:], (errno.EINVAL, errno.ENOENT)):\n    ctypes.set_errno(0)\n    result = lib.swapon(path.encode(), 0)\n    if result != -1 or ctypes.get_errno() != expected:\n        raise SystemExit('unexpected control errno for ' + path + ': ' + str(ctypes.get_errno()))\nCONTROL\n: > \"$RT/requests.jsonl\"\n/usr/bin/chmod 0666 \"$RT/requests.jsonl\"\n/usr/bin/python3 \"$H\" --notify swapon --reply swapon=continue --log-string swapon=0 --log-args swapon=1 --log \"$RT/requests.jsonl\" -- \"$BASH\" --noprofile --norc -c '[[ $(type -t swapon) == builtin ]] || exit 97; swapon \"$@\"' _ \"$M/nonswap\" \"$M/s1\" \"$M/missing\" \"$M/s2\" >\"$RT/out\" 2>\"$RT/err\"\nstatus=$?\n[ \"$status\" -eq 1 ] || fail \"candidate status $status\"\n/usr/bin/python3 - \"$RT\" \"$M\" <<'CHECK' || fail 'observations differ from contract'\nimport json, pathlib, sys\nrt, mount = map(pathlib.Path, sys.argv[1:])\nrequests = [json.loads(line) for line in (rt / 'requests.jsonl').read_text().splitlines()]\nexpected = [str(mount / name) for name in ('nonswap', 's1', 'missing', 's2')]\nassert [(r['syscall'], r.get('string0'), r.get('arg1')) for r in requests] == [('swapon', name, 0) for name in expected], requests\nassert (rt / 'out').read_bytes() == b''\nerr = (rt / 'err').read_text()\nassert expected[0] in err and 'Invalid argument' in err, err\nassert expected[2] in err and 'No such file or directory' in err, err\nrows = pathlib.Path('/proc/swaps').read_text().splitlines()[1:]\nassert len(rows) == 2 and {row.split()[0] for row in rows} == {expected[1], expected[3]}, rows\nCHECK\n/usr/sbin/swapoff \"$M/s1\" || fail swapoff1\n/usr/sbin/swapoff \"$M/s2\" || fail swapoff2\n[ \"$(/usr/bin/wc -l < /proc/swaps)\" -eq 1 ] || fail 'swap table not restored'\n/usr/bin/umount \"$M\" || fail umount\ntrap - EXIT\nprintf 'multiple requests verified\\n'\n",
+      "expected_status": 0,
+      "stdout": "multiple requests verified\n",
+      "stderr": "",
+      "timeout": 45
+    }
+  ]
+}

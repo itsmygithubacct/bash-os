@@ -17,6 +17,20 @@ import schema
 
 
 class SchemaChecks(unittest.TestCase):
+    def test_reference_rejects_old_or_incomplete_patch_set(self):
+        import vm
+        lock = json.loads((Path(__file__).parent / "image.lock.json").read_text())
+        vm.validate_reference_spec(lock)
+        for mutate in (
+                lambda s: s.update(version="5.3.15"),
+                lambda s: s.update(configure=["--prefix=/opt/bash-5.3.15"]),
+                lambda s: s["patches"].pop(),
+                lambda s: s["patches"].reverse()):
+            bad = copy.deepcopy(lock)
+            mutate(bad["reference_bash"])
+            with self.assertRaisesRegex(RuntimeError, "reference specification"):
+                vm.validate_reference_spec(bad)
+
     def setUp(self):
         self.case = {"id": "example", "loadable": "bash", "group": "shell", "driver": "plain",
                      "script": "printf expected", "expected_status": 0, "stdout": "expected"}

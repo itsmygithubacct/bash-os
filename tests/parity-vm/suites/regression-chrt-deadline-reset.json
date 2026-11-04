@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "regression-chrt-deadline-reset-proc-sched",
+      "loadable": "chrt",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "purpose": "Deadline reset-on-fork is carried in sched_setattr flags and read back on an owned process; invalid updates preserve the attributes.",
+      "oracle": "util-linux 2.41 chrt run by the reference bash side as uid 0 on an owned sleeping Python process; sched_getattr is called directly through the Linux system call (x86-64 number 315) by an independent Python helper.",
+      "comparison": "Byte parity of the set status, the system-call read-back, the /proc/PID/sched policy/priority/deadline lines and the two rejection statuses and diagnostics.",
+      "covers": [
+        "chrt/deferred-pid-deadline"
+      ],
+      "requires": [
+        "chrt",
+        "python3",
+        "tr"
+      ],
+      "script": "P=$PWD\ncat > \"$P/dl.py\" <<'X'\nimport ctypes, os, sys\npid = int(sys.argv[1])\nlibc = ctypes.CDLL(None, use_errno=True)\nbuf = ctypes.create_string_buffer(56)\nr = libc.syscall(315, pid, buf, 56, 0)      # sched_getattr, x86-64\nif r != 0:\n    print('sched_getattr errno', ctypes.get_errno()); sys.exit(1)\nsize, policy, flags = ctypes.c_uint32.from_buffer(buf, 0).value, ctypes.c_uint32.from_buffer(buf, 4).value, ctypes.c_uint64.from_buffer(buf, 8).value\nruntime, deadline, period = (ctypes.c_uint64.from_buffer(buf, o).value for o in (24, 32, 40))\nprint('policy=%d flags=%d runtime=%d deadline=%d period=%d' % (policy, flags, runtime, deadline, period))\nX\n/usr/bin/python3 -c 'import time; time.sleep(25)' & pid=$!\nout=$(chrt -d -R -T 5000000 -D 10000000 -P 16666666 -p 0 $pid 2>&1); rc=$?; echo \"set rc=$rc out=[${out//$pid/PID}]\"\n/usr/bin/python3 \"$P/dl.py\" $pid\nwhile IFS= read -r l; do case $l in 'policy '*|'prio '*) set -f; echo \"proc-sched $l\" | /usr/bin/tr -s ' ';; esac; done < /proc/$pid/sched\nout=$(chrt -d -T 5000000 -D 4000000 -P 16666666 -p 0 $pid 2>&1); rc=$?; echo \"runtime>deadline rc=$rc out=[${out//$pid/PID}]\"\nout=$(chrt -d -T 5000000 -D 20000000 -P 10000000 -p 0 $pid 2>&1); rc=$?; echo \"deadline>period rc=$rc out=[${out//$pid/PID}]\"\n/usr/bin/python3 \"$P/dl.py\" $pid\nkill $pid; wait $pid 2>/dev/null\necho done\n",
+      "expected_status": 0,
+      "timeout": 40
+    }
+  ]
+}

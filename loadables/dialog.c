@@ -50,7 +50,9 @@
  *     ANSI cursor positioning to render boxes; read keypresses from
  *     /dev/tty; honor arrow-keys, Enter, Tab, Esc, space; --inputmenu
  *     additionally accepts r/R to rename the current item.
- *   - Non-interactive (no /dev/tty, OR stdin is a pipe): render-only
+ *   - A gauge may read a pipe while drawing on the controlling terminal.
+ *     An interactive tailbox follows changes to its file.
+ *   - Non-interactive (no /dev/tty, OR stdin is a pipe for other widgets): render-only
  *     to stderr (banner + box body), then consume input tokens from
  *     stdin. --yesno reads first byte ('y'/'Y' → 0, else 1). --menu /
  *     --inputmenu / --radiolist reads a whitespace-delimited tag from stdin and
@@ -108,7 +110,9 @@
 #include <limits.h>
 #include <termios.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <poll.h>
+#include <signal.h>
 
 #include "loadables.h"
 
@@ -138,6 +142,7 @@ typedef struct {
     const char *default_item;   /* --default-item TAG */
     const char *default_button; /* --default-button ok|cancel|yes|no|extra */
     int         notags;         /* --notags: emit/display item text */
+    int         whiptail;       /* interactive whiptail result format */
 } bd_opts;
 
 /* ----------------------------------------------------------------------
@@ -154,9 +159,9 @@ static int   bd_interactive  = 0;
 static int   bd_no_terminal  = 0;  /* set if no tty AND stderr isn't one either */
 
 static void
-bd_open_tty(void)
+bd_open_tty(int gauge)
 {
-    if (!isatty(STDIN_FILENO)) {
+    if (!gauge && !isatty(STDIN_FILENO)) {
         bd_tty_fd = STDERR_FILENO;
         bd_tty_should_close = 0;
         bd_interactive = 0;
@@ -507,7 +512,7 @@ bd_draw_text(const bd_box *b, const char *text)
     if (!bd_interactive) return;
     int max_w = b->w - 4;
     if (max_w < 1) return;
-    int row = b->top + 1;
+    int row = b->top + 2;
     int max_row = b->top + b->h - 3;
     const char *p = text;
     while (*p && row <= max_row) {
@@ -612,40 +617,78 @@ bd_widget_yesno(const bd_opts *o, const char *text, int h, int w)
     }
 }
 
-static int
-bd_widget_msgbox(const bd_opts *o, const char *text, int h, int w, int is_info)
+/* The signal handler only records the event; all drawing stays in normal
+ * execution. Restore Bash's previous disposition before returning. */
+static volatile sig_atomic_t bd_resized;
+
+static void
+bd_winch(int sig)
 {
-    if (!bd_interactive) {
-        /* msgbox waits for input; infobox does not. */
-        if (!is_info) {
-            char line[8];
-            bd_read_line(line, sizeof line);
-        }
-        return 0;
-    }
+    (void) sig;
+    bd_resized = 1;
+}
+
+static void
+bd_draw_msgbox(const bd_opts *o, const char *text, int h, int w, int is_info)
+{
     bd_box b;
     bd_layout(&b, h, w);
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o->title ? o->title : (is_info ? "Info" : "Message"));
     bd_draw_text(&b, text);
-    if (is_info) return 0;
-
-    int btn_row = b.top + b.h - 2;
-    const char *ok_label = bd_label_or(o ? o->ok_label : NULL, "OK");
-    int ok_w = (int) strlen(ok_label) + 4;
-    bd_cup(btn_row, b.left + (b.w - ok_w) / 2);
-    bd_render_button(ok_label, 1);
-    if (bd_enter_raw() < 0) { bd_leave_raw(); return 0; }
-    for (;;) {
-        const char *k = bd_keypress();
-        if (!strcmp(k, "RET") || !strcmp(k, "SPACE")) {
-            bd_leave_raw(); bd_clear_screen(); return 0;
-        }
-        if (!strcmp(k, "ESC")) {
-            bd_leave_raw(); bd_clear_screen(); return 255;
-        }
+    if (!is_info) {
+        const char *label = bd_label_or(o->ok_label, o->whiptail ? "Ok" : "OK");
+        int width = (int) strlen(label) + 4;
+        bd_cup(b.top + b.h - 2, b.left + (b.w - width) / 2);
+        bd_render_button(label, 1);
     }
+}
+
+static int
+bd_widget_msgbox(const bd_opts *o, const char *text, int h, int w, int is_info)
+{
+    if (!bd_interactive) {
+        if (!is_info) {
+            char line[8];
+            bd_read_line(line, sizeof line);
+        }
+        return 0;
+    }
+    bd_draw_msgbox(o, text, h, w, is_info);
+    if (is_info) return 0;
+    if (bd_enter_raw() < 0) { bd_leave_raw(); return 1; }
+
+    struct sigaction sa, old_sa;
+    memset(&sa, 0, sizeof sa);
+    sa.sa_handler = bd_winch;
+    sigemptyset(&sa.sa_mask);
+    bd_resized = 0;
+    int installed = sigaction(SIGWINCH, &sa, &old_sa) == 0;
+    /* Close the interval between the initial layout and handler install. */
+    bd_resized = 1;
+    int rc;
+    for (;;) {
+        if (bd_resized) {
+            bd_resized = 0;
+            bd_draw_msgbox(o, text, h, w, 0);
+        }
+        /* A finite poll also closes the race between testing bd_resized
+         * and sleeping. Pending decoder pushback must be consumed first. */
+        if (!bl_key_pending()) {
+            struct pollfd pfd = { bd_tty_fd, POLLIN, 0 };
+            int ready = poll(&pfd, 1, 100);
+            if (ready == 0 || (ready < 0 && errno == EINTR)) continue;
+            if (ready < 0) { rc = 1; break; }
+        }
+        const char *k = bd_keypress();
+        if (!strcmp(k, "RET") || !strcmp(k, "SPACE")) { rc = 0; break; }
+        if (!strcmp(k, "ESC")) { rc = 255; break; }
+    }
+    if (installed) sigaction(SIGWINCH, &old_sa, NULL);
+    bd_leave_raw();
+    bd_clear_screen();
+    return rc;
 }
 
 static int
@@ -678,8 +721,22 @@ bd_widget_inputbox(const bd_opts *o, const char *text, int h, int w,
     }
     cur = bl;
     int input_row = b.top + b.h - 3;
+    int focus = 0; /* input, OK, Cancel */
+    const char *ok_label = bd_label_or(o->ok_label, "OK");
+    const char *cancel_label = bd_label_or(o->cancel_label, "Cancel");
+    int ok_w = (int) strlen(ok_label) + 4;
+    int cancel_w = (int) strlen(cancel_label) + 4;
+    int total_w = ok_w + (o->no_cancel ? 0 : cancel_w + 2);
+    int ok_col = b.left + (b.w - total_w) / 2;
+    if (ok_col < b.left + 2) ok_col = b.left + 2;
     if (bd_enter_raw() < 0) { bd_leave_raw(); return 1; }
     for (;;) {
+        bd_cup(b.top + b.h - 2, ok_col);
+        bd_render_button(ok_label, focus == 1);
+        if (!o->no_cancel) {
+            bd_cup(b.top + b.h - 2, ok_col + ok_w + 2);
+            bd_render_button(cancel_label, focus == 2);
+        }
         if (cur > bl) cur = bl;
         int field_w = b.w - 4;
         if (field_w < 0) field_w = 0;
@@ -709,11 +766,27 @@ bd_widget_inputbox(const bd_opts *o, const char *text, int h, int w,
         if (!strcmp(k, "RET")) {
             bd_leave_raw();
             bd_clear_screen();
-            bd_emit_line(o, buf);
+            if (focus == 2) return 1;
+            bd_emit(o, buf);
             return 0;
         }
         if (!strcmp(k, "ESC")) {
             bd_leave_raw(); bd_clear_screen(); return 255;
+        }
+        if (!strcmp(k, "TAB")) {
+            focus = (focus + 1) % (o->no_cancel ? 2 : 3);
+            continue;
+        }
+        if (focus != 0) {
+            if (!strcmp(k, "LEFT") || !strcmp(k, "RIGHT")) {
+                if (!o->no_cancel) focus = focus == 1 ? 2 : 1;
+            } else if (!strcmp(k, "SPACE")) {
+                bd_leave_raw(); bd_clear_screen();
+                if (focus == 2) return 1;
+                bd_emit(o, buf);
+                return 0;
+            }
+            continue;
         }
         if (!strcmp(k, "LEFT")) {
             if (cur > 0) cur--;
@@ -945,7 +1018,11 @@ bd_widget_menu_like(const bd_opts *o, const char *text, int h, int w,
     if (viewport <= 0 || viewport > b.h - 6) viewport = b.h - 6;
     if (viewport > nrows) viewport = nrows;
 
-    int cur = default_idx >= 0 ? default_idx : 0, top = 0;
+    int cur = default_idx >= 0 ? default_idx : 0;
+    int top = cur >= viewport ? cur - viewport + 1 : 0;
+    int cancel = !o->no_cancel && o->default_button
+        && (!strcmp(o->default_button, "cancel") || !strcmp(o->default_button, "no"));
+    int button_focus = cancel ? 2 : 0; /* whiptail: list, OK, Cancel */
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o->title ? o->title : "Menu");
@@ -977,8 +1054,30 @@ bd_widget_menu_like(const bd_opts *o, const char *text, int h, int w,
             }
             bd_render_s(itext[idx]);
         }
+        if (o->whiptail) {
+            bd_cup(b.top + b.h - 2, b.left + 2);
+            bd_render_s(button_focus == 1 ? "<OK>" : " OK ");
+            if (!o->no_cancel)
+                bd_render_s(button_focus == 2 ? "  <Cancel>" : "   Cancel ");
+        } else {
+            const char *ok_label = bd_label_or(o->ok_label, "OK");
+            const char *cancel_label = bd_label_or(o->cancel_label, "Cancel");
+            int ok_w = (int) strlen(ok_label) + 4;
+            int cancel_w = o->no_cancel ? 0 : (int) strlen(cancel_label) + 6;
+            int button_col = b.left + (b.w - ok_w - cancel_w) / 2;
+            bd_cup(b.top + b.h - 2, button_col);
+            bd_render_button(ok_label, !cancel);
+            if (!o->no_cancel) {
+                bd_render_s("  ");
+                bd_render_button(cancel_label, cancel);
+            }
+        }
         const char *k = bd_keypress();
-        if (!strcmp(k, "UP")) {
+        if (o->whiptail && !strcmp(k, "TAB")) {
+            button_focus = (button_focus + 1) % (o->no_cancel ? 2 : 3);
+        } else if (!o->whiptail && (!strcmp(k, "TAB") || !strcmp(k, "LEFT") || !strcmp(k, "RIGHT"))) {
+            if (!o->no_cancel) cancel = !cancel;
+        } else if (!strcmp(k, "UP")) {
             if (cur > 0) cur--;
             if (cur < top) top = cur;
         } else if (!strcmp(k, "DOWN")) {
@@ -1040,8 +1139,12 @@ bd_widget_menu_like(const bd_opts *o, const char *text, int h, int w,
             }
         } else if (!strcmp(k, "RET")) {
             bd_leave_raw(); bd_clear_screen();
+            if (o->whiptail ? button_focus == 2 : cancel) {
+                free(tags); free(itext); free(picked); free(depths);
+                return 1;
+            }
             if (mode == 0 || mode == 4) {
-                bd_emit_line(o, bd_menu_result(o, tags[cur], itext[cur]));
+                bd_emit(o, bd_menu_result(o, tags[cur], itext[cur]));
             } else if (mode == 1) {
                 int first = 1;
                 for (int i = 0; i < nrows; i++) {
@@ -1051,15 +1154,17 @@ bd_widget_menu_like(const bd_opts *o, const char *text, int h, int w,
                         bd_emit_line(o, res);
                     } else {
                         if (!first) bd_emit_ch(o, ' ');
-                        bd_emit(o, res); first = 0;
+                        if (o->whiptail) bd_emit_ch(o, '"');
+                        bd_emit(o, res);
+                        if (o->whiptail) bd_emit_ch(o, '"');
+                        first = 0;
                     }
                 }
-                if (!o->separate_out && !first) bd_emit_ch(o, '\n');
             } else {
                 /* radiolist */
                 for (int i = 0; i < nrows; i++) {
                     if (picked[i]) {
-                        bd_emit_line(o, bd_menu_result(o, tags[i], itext[i]));
+                        bd_emit(o, bd_menu_result(o, tags[i], itext[i]));
                         break;
                     }
                 }
@@ -1425,12 +1530,21 @@ bd_widget_pause(const bd_opts *o, const char *text, int h, int w, int seconds)
 }
 
 static int
-bd_read_file_body(const char *file, char **out, size_t *out_len)
+bd_read_file_body(const char *file, char **out, size_t *out_len,
+                  int regular_follow, int quiet)
 {
-    int fd = open(file, O_RDONLY);
+    int fd = open(file, O_RDONLY | (regular_follow ? O_NONBLOCK : 0));
     if (fd < 0) {
-        builtin_error("%s: %s", file, strerror(errno));
+        if (!quiet) builtin_error("%s: %s", file, strerror(errno));
         return -1;
+    }
+    if (regular_follow) {
+        struct stat st;
+        if (fstat(fd, &st) < 0 || !S_ISREG(st.st_mode)) {
+            if (!quiet) builtin_error("%s: not a readable regular file", file);
+            close(fd);
+            return -1;
+        }
     }
 
     size_t cap = 8192;
@@ -1461,7 +1575,7 @@ bd_read_file_body(const char *file, char **out, size_t *out_len)
         ssize_t n = read(fd, buf + len, cap - len);
         if (n < 0) {
             if (errno == EINTR) continue;
-            builtin_error("%s: %s", file, strerror(errno));
+            if (!quiet) builtin_error("%s: %s", file, strerror(errno));
             free(buf);
             close(fd);
             return -1;
@@ -1511,7 +1625,7 @@ bd_draw_textbox_page(const bd_opts *o, const char *data, size_t len,
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o && o->title ? o->title : (follow ? "Tailbox" : "Textbox"));
-    int visible = b.h - 2;
+    int visible = b.h - 6;
     int max_w = b.w - 4;
     if (visible < 1 || max_w < 1) return;
     for (int row = 0; row < visible; row++) {
@@ -1522,6 +1636,10 @@ bd_draw_textbox_page(const bd_opts *o, const char *data, size_t len,
         bd_cup(b.top + 1 + row, b.left + 2);
         bd_render(line, llen);
     }
+    const char *ok_label = bd_label_or(o ? o->ok_label : NULL, "Ok");
+    int ok_w = (int) strlen(ok_label) + 4;
+    bd_cup(b.top + b.h - 2, b.left + (b.w - ok_w) / 2);
+    bd_render_button(ok_label, 1);
 }
 
 static int
@@ -1529,7 +1647,7 @@ bd_widget_textbox(const bd_opts *o, const char *file, int h, int w, int follow)
 {
     char *data = NULL;
     size_t len = 0;
-    if (bd_read_file_body(file, &data, &len) < 0)
+    if (bd_read_file_body(file, &data, &len, follow, 0) < 0)
         return 2;
 
     if (!bd_interactive) {
@@ -1544,7 +1662,7 @@ bd_widget_textbox(const bd_opts *o, const char *file, int h, int w, int follow)
 
     bd_box b;
     bd_layout(&b, h, w);
-    int visible = b.h - 2;
+    int visible = b.h - 6;
     if (visible < 1) visible = 1;
     int line_count = bd_text_line_count(data, len);
     int top_line = 0;
@@ -1556,10 +1674,61 @@ bd_widget_textbox(const bd_opts *o, const char *file, int h, int w, int follow)
         free(data);
         return 1;
     }
+    struct stat follow_seen;
+    int follow_seen_valid = 0;
     for (;;) {
         if (top_line < 0) top_line = 0;
         if (top_line > line_count - 1) top_line = line_count - 1;
+        bd_layout(&b, h, w);
+        visible = b.h - 6;
+        if (visible < 1) visible = 1;
         bd_draw_textbox_page(o, data, len, h, w, top_line, follow);
+wait_for_textbox_input:
+        ;
+        struct pollfd pfd = { bd_tty_fd, POLLIN, 0 };
+        int ready = bl_key_pending() ? 1 : poll(&pfd, 1, 200);
+        if ((ready < 0 && errno != EINTR) ||
+            (ready > 0 && (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)))) {
+            bd_leave_raw();
+            bd_clear_screen();
+            free(data);
+            return 1;
+        }
+        struct stat current;
+        if (follow && stat(file, &current) == 0 && S_ISREG(current.st_mode) &&
+            (!follow_seen_valid || current.st_dev != follow_seen.st_dev ||
+             current.st_ino != follow_seen.st_ino || current.st_size != follow_seen.st_size ||
+             current.st_mtim.tv_sec != follow_seen.st_mtim.tv_sec ||
+             current.st_mtim.tv_nsec != follow_seen.st_mtim.tv_nsec ||
+             current.st_ctim.tv_sec != follow_seen.st_ctim.tv_sec ||
+             current.st_ctim.tv_nsec != follow_seen.st_ctim.tv_nsec)) {
+            char *updated = NULL;
+            size_t updated_len = 0;
+            if (bd_read_file_body(file, &updated, &updated_len, 1, 1) == 0) {
+                /* Record the pre-read snapshot so concurrent writes trigger
+                   another read on the next poll. */
+                follow_seen = current;
+                follow_seen_valid = 1;
+                if (updated_len != len || memcmp(updated, data, len) != 0) {
+                    free(data);
+                    data = updated;
+                    len = updated_len;
+                    line_count = bd_text_line_count(data, len);
+                    bd_layout(&b, h, w);
+                    visible = b.h - 6;
+                    if (visible < 1) visible = 1;
+                    top_line = line_count > visible ? line_count - visible : 0;
+                    continue;
+                }
+                free(updated);
+            }
+        }
+        if (ready <= 0) {
+            int rows, cols;
+            bd_term_size(&rows, &cols);
+            if (rows != b.rows || cols != b.cols) continue;
+            goto wait_for_textbox_input;
+        }
         const char *k = bd_keypress();
         if (!strcmp(k, "RET") || !strcmp(k, "q") || !strcmp(k, "Q")) {
             bd_leave_raw();
@@ -1612,9 +1781,10 @@ bd_pop(WORD_LIST **list)
 }
 
 static int
-bd_dispatch(WORD_LIST *list)
+bd_dispatch(WORD_LIST *list, int whiptail)
 {
     bd_opts o = { 0 };
+    o.whiptail = whiptail;
     o.out_fd = STDERR_FILENO;
 
     /* Leading flags. */
@@ -1688,7 +1858,8 @@ bd_dispatch(WORD_LIST *list)
             o.notags = 1;
             list = list->next;
         } else if (!strcmp(w, "--clear") || !strcmp(w, "--colors")
-                   || !strcmp(w, "--no-shadow") || !strcmp(w, "--ascii-lines")) {
+                   || !strcmp(w, "--no-shadow") || !strcmp(w, "--ascii-lines")
+                   || !strcmp(w, "--scrolltext")) {
             /* No-op compat flags. */
             list = list->next;
         } else {
@@ -1710,7 +1881,7 @@ bd_dispatch(WORD_LIST *list)
             builtin_error("%s: FILE HEIGHT WIDTH required", widget);
             return 2;
         }
-        bd_open_tty();
+        bd_open_tty(0);
         int rc = bd_widget_textbox(&o, file, atoi(hs), atoi(ws),
                                    !strcmp(widget, "--tailbox"));
         bd_close_tty();
@@ -1729,7 +1900,7 @@ bd_dispatch(WORD_LIST *list)
     int h = atoi(hs);
     int w = atoi(ws);
 
-    bd_open_tty();
+    bd_open_tty(!strcmp(widget, "--gauge"));
     int rc;
 
     if (!strcmp(widget, "--yesno")) {
@@ -1815,13 +1986,16 @@ dialog_builtin(WORD_LIST *list)
         for (dp = (char *const *) dialog_doc; *dp; dp++) puts(*dp);
         return EX_USAGE;
     }
-    return bd_dispatch(list);
+    return bd_dispatch(list, 0);
 }
 
 int
 whiptail_builtin(WORD_LIST *list)
 {
-    return dialog_builtin(list);
+    if (!list || !strcmp(list->word->word, "--help") ||
+        !strcmp(list->word->word, "-h"))
+        return dialog_builtin(list);
+    return bd_dispatch(list, 1);
 }
 
 char * const dialog_doc[] = {

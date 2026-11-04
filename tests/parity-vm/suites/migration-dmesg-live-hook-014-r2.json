@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-dmesg-live-ring-root-014-r2",
+      "loadable": "dmesg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "dmesg/live-ring-buffer",
+        "dmesg/clear-ring-buffer"
+      ],
+      "purpose": "Versioned 0.1.4 live-ring parity: preserve every original read, priority/level filter, raw/notime rejection, decoded facility, clear-point and unprivileged read/clear/ring-retention observation. The candidate-only fixture hook is mandatory in the paired qualification-014-dmesg-hook-r2 contract.",
+      "oracle": "Pinned util-linux 2.41.5 on the actual shared guest ring. BASHDMESG_DEV_KMSG_FILE is not an interface of util-linux; its separately controlled invariant is mandatory in qualification-014-dmesg-hook-r2.",
+      "comparison": "Byte parity of status, stdout and stderr: one line per invocation with its status, stdout and the diagnostic minus any \"NAME: line N: \" shell-location prefix; the user-facility ring contents read by util-linux after each clearing step. Timestamps are suppressed with -t. The ring is shared by both sides, so each side clears and reseeds it first.",
+      "requires": [
+        "dmesg",
+        "cut",
+        "tr",
+        "setpriv",
+        "python3",
+        "sed"
+      ],
+      "script": "strip() { /usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' \"$1\" | /usr/bin/tr '\\n' '|'; }\nshow() { printf '%s status=%s out=' \"$1\" \"$2\"; /usr/bin/tr '\\n' '|' < /tmp/rf.out; printf ' err='; strip /tmp/rf.err; echo; }\nr() { local l=$1; shift; \"$@\" >/tmp/rf.out 2>/tmp/rf.err; show \"$l\" $?; }\nu() { local g=--clear-groups; [[ $3 ]] && g=--groups=$3\n  /usr/bin/setpriv --reuid=2000 --regid=2000 $g -- \"$BASH\" --noprofile --norc -c \"$2\" >/tmp/rf.out 2>/tmp/rf.err; show \"$1\" $?; }\nlvl=$(/usr/bin/cut -f1 /proc/sys/kernel/printk)\ntrap 'echo $lvl > /proc/sys/kernel/printk' EXIT\nseed() { local m; for m; do printf '%s\\n' \"$m\" > /dev/kmsg; done; }\nring() { echo \"  ring: $(/usr/bin/dmesg -f user -t | /usr/bin/tr '\\n' '|')\"; }\n/usr/bin/dmesg -C || echo SETUP-FAILED\nseed '<14>rf-seed: info record one' '<11>rf-seed: error record two' '<12>rf-seed: warning record three' '<13>rf-seed: notice record four'\nr user dmesg -f user -t\nr levels dmesg -f user -t -l err,warn\nr raw dmesg -f user -r -t\nr decode dmesg -f user -x -t\nr kernel-only dmesg -k -t -l emerg\nr clear dmesg -c -f user -t; ring\nr after-clear dmesg -f user -t\nseed '<14>rf-seed: kept record'\nu read-unprivileged \"dmesg -f user -t\"\nu clear-unprivileged \"dmesg -c\"; ring\n",
+      "expected_status": 0,
+      "timeout": 45
+    },
+    {
+      "id": "qualification-014-dmesg-hook-r2",
+      "loadable": "dmesg",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dmesg/live-ring-buffer",
+        "dmesg/clear-ring-buffer"
+      ],
+      "purpose": "Mandatory companion to live-ring r2. The candidate file-hook read-clear must preserve the fixture, emit its exact message, and never invoke syslog(2).",
+      "oracle": "Independent pinned seccomp filter kills a util-linux dmesg -C negative control with SIGSYS. The unprivileged capability-free candidate file read must return 0 and exact hook record output, preserving input bytes.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-dmesg-hook-r2.py\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "timeout": 60,
+      "requires": [
+        "python3",
+        "dmesg"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-dmesg-hook-r2.py": "c996d0c39fb6452b68a02d237a73749f121fa256af43533614fbf91e53a95881",
+        "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
+      },
+      "diagnostic_files": [
+        "dmesg-hook-r2.json",
+        "dmesg-hook-r2-transport.json"
+      ]
+    }
+  ]
+}

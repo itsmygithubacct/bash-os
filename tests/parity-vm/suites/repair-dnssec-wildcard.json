@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-dns-dnssec-wildcard-verified-signature",
+      "loadable": "dns",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "requires": [
+        "python3",
+        "delv"
+      ],
+      "helpers_sha256": {
+        "helpers/dnssec-wildcard-peer.py": "2c6eb2cbf2db49c05e5dff1979e3c19cf4f3aa7990ba878e47abc02f63adc22c"
+      },
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\n",
+      "candidate_script": "set -u\nH=/opt/bashos-parity/harness/helpers/dnssec-wildcard-peer.py\n/usr/bin/python3 \"$H\" prep || exit 98\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> \"$HOME/anchor-peer.err\" & peer=$!\ntrap 'kill \"$peer\" 2>/dev/null; wait \"$peer\" 2>/dev/null' EXIT\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340 || exit 98\ncontrol=$(/usr/bin/python3 \"$H\" control 127.0.0.2 5340 wildcard) || exit 98\n[[ $control == control-ok ]] || { printf '%s\\n' \"$control\"; exit 98; }\necho control-ok\nexport PATH=\"$HOME/pbin\" BASHDNS_SERVER_PORT=5340 BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\" BASHDNS_0X20=0\nif dns query valid.wildcard.test A -s 127.0.0.2 -t 3000 --validate > valid.out 2> valid.err && [[ $(<valid.out) == 192.0.2.76 ]]; then echo wildcard=accepted; else echo wildcard=unexpected; exit 1; fi\nif dns query noproof.wildcard.test A -s 127.0.0.2 -t 3000 --validate > invalid.out 2> invalid.err; then echo no-proof=wrongly-accepted; exit 1; else echo no-proof=rejected; fi\n",
+      "expected_status": 0,
+      "stdout": "control-ok\nwildcard=accepted\nno-proof=rejected\n",
+      "stderr": "",
+      "timeout": 60,
+      "purpose": "Select the actually verified RRSIG when checking wildcard expansion and require a next-closer denial proof.",
+      "oracle": "Independent signed wildcard answer includes a forged non-wildcard first signature and correct wildcard second signature; BIND delv validates the proof-bearing case and rejects the proof-free case.",
+      "comparison": "Require reference controls, exact wildcard A answer, and rejection of an otherwise valid wildcard answer without authenticated denial.",
+      "diagnostic_files": [
+        "anchor-peer.err",
+        "dnssec-queries.json",
+        "valid.out",
+        "valid.err",
+        "invalid.out",
+        "invalid.err"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "dmsetup-query-read-ahead-r1",
+      "loadable": "dmsetup",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "privilege": "root",
+      "covers": [
+        "dmsetup/query-list-info"
+      ],
+      "purpose": "Compare info read-ahead in sectors at two non-default settings, UUID formatting, and name/UUID and suspended/inactive state queries.",
+      "oracle": "LVM2 dmsetup",
+      "comparison": "Compare captured status, stdout and stderr byte-for-byte; setup and teardown failures fail the case. Use a disposable isolated guest and settle udev before querying.",
+      "requires": [
+        "dmsetup",
+        "blockdev",
+        "udevadm"
+      ],
+      "timeout": 60,
+      "expected_status": 0,
+      "script": "export BASHOS_DMSETUP_ALLOW_MUTATE=1\nD() { /usr/sbin/dmsetup --noudevsync \"$@\"; }\ncleanup() { D remove --noudevsync rq-read-ahead >/dev/null 2>&1; }\ntrap cleanup EXIT\nD create rq-read-ahead -u RQ-READ-AHEAD --table '0 64 zero' || exit 1\n/usr/bin/udevadm settle -t 10 || exit 1\nnode=/dev/mapper/rq-read-ahead\n[[ -b $node ]] || exit 1\nquery() { \"$@\"; s=$?; printf 'status=%s\\n' \"$s\"; }\nfor n in 32 512; do\n  /usr/sbin/blockdev --setra \"$n\" \"$node\" || exit 1\n  printf 'read-ahead=%s\\n' \"$n\"\n  query dmsetup info rq-read-ahead\n  query dmsetup info -u RQ-READ-AHEAD\ndone\nD suspend rq-read-ahead || exit 1\nquery dmsetup info rq-read-ahead\nD resume rq-read-ahead || exit 1\nD load rq-read-ahead --table '0 64 error' || exit 1\nquery dmsetup info rq-read-ahead\nD clear rq-read-ahead || exit 1\nD remove rq-read-ahead || exit 1\ntrap - EXIT\n"
+    }
+  ]
+}

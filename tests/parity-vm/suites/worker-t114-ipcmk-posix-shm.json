@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "worker-t114-ipcmk-posix-shm-contract",
+      "loadable": "ipcmk",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Verify named POSIX shared memory creation, mode and owner, exclusive collision preservation, invalid names and owned unlink independently of util-linux output.",
+      "comparison": "Explicit contract and independent kernel metadata; VM must provide a private empty /dev/shm. Creation and cleanup occur only in the disposable VM.",
+      "covers": [
+        "ipcmk/posix-shared-memory"
+      ],
+      "requires": [
+        "bash",
+        "id",
+        "python3",
+        "unshare"
+      ],
+      "files": {
+        "inner.sh": "# Run only in a disposable VM with a private, empty /dev/shm and uid 2000.\nexport LC_ALL=C\nset -u\nname=/t114-ipcmk-shm\npath=/dev/shm/${name#/}\nowned=0\ncleanup() {\n    if (( owned )); then\n        /usr/bin/python3 observer.py unlink \"$name\" || echo 'cleanup failed' >&2\n    fi\n}\ntrap cleanup EXIT\n[[ $(/usr/bin/id -u) == 2000 && ! -e $path ]] || { echo 'fixture prerequisite failed' >&2; exit 98; }\n[[ $(type -t ipcmk) == builtin ]] || { echo 'ipcmk builtin missing' >&2; exit 98; }\numask 027\nipcmk -m 8192 -p 0666 --name \"$name\" >create.out 2>create.err\ns=$?\nif (( s == 0 )); then owned=1; fi\n[[ $s == 0 && $(<create.out) == \"Shared memory name: $name\" && ! -s create.err ]] || { echo 'create failed' >&2; exit 1; }\n/usr/bin/python3 observer.py check \"$name\" initial || exit 1\nipcmk -m 4096 -p 0600 --name \"$name\" >collision.out 2>collision.err\ns=$?\n[[ $s == 1 && ! -s collision.out ]] || { echo 'collision status/output wrong' >&2; exit 1; }\n[[ $(<collision.err) == \"ipcmk: POSIX IPC creation failed for $name: File exists\" ]] || { echo 'collision diagnostic wrong' >&2; exit 1; }\n/usr/bin/python3 observer.py check \"$name\" retained || exit 1\nfor invalid in t114-ipcmk-invalid /t114-ipcmk-invalid/x /; do\n    ipcmk -m 10 --name \"$invalid\" >invalid.out 2>invalid.err\n    s=$?\n    [[ $s == 1 && ! -s invalid.out && -s invalid.err && ! -e /dev/shm/t114-ipcmk-invalid ]] || { echo \"invalid name accepted: $invalid\" >&2; exit 1; }\ndone\n/usr/bin/python3 observer.py unlink \"$name\" || exit 1\nowned=0\n[[ ! -e $path ]] || { echo 'object remains' >&2; exit 1; }\nprintf 'POSIX shared memory contract verified\\n'\n",
+        "observer.py": "# SPDX-License-Identifier: MIT\n# Independent kernel metadata and unlink observer; run only in a disposable VM.\nimport ctypes\nimport os\nimport stat\nimport sys\n\ncommand, name = sys.argv[1:3]\nif command == 'unlink':\n    libc = ctypes.CDLL(None, use_errno=True)\n    if libc.shm_unlink(name.encode()) != 0:\n        raise OSError(ctypes.get_errno(), 'shm_unlink')\nelif command == 'check':\n    path = '/dev/shm/' + name[1:]\n    info = os.stat(path)\n    assert (info.st_size, stat.S_IMODE(info.st_mode), info.st_uid) == (8192, 0o640, 2000), (info.st_size, oct(stat.S_IMODE(info.st_mode)), info.st_uid)\n    if sys.argv[3] == 'initial':\n        with open(path, 'r+b') as f:\n            f.write(b't114 sentinel')\n        with open('inode.txt', 'w') as f:\n            f.write(str(info.st_ino))\n    else:\n        with open('inode.txt') as f:\n            assert info.st_ino == int(f.read())\n        with open(path, 'rb') as f:\n            assert f.read(13) == b't114 sentinel'\nelse:\n    raise ValueError(command)\n"
+      },
+      "setup_script": "/usr/bin/unshare --user --map-user=2000 --map-group=2000 --ipc /usr/bin/bash --noprofile --norc -c '[[ $(/usr/bin/id -u) == 2000 && -d /dev/shm && -w /dev/shm ]]' || { echo 'CONTROL-FAILED uid 2000 and writable private shm required'; exit 98; }\n",
+      "script": "/usr/bin/unshare --user --map-user=2000 --map-group=2000 --ipc \"$BASH\" --noprofile --norc inner.sh\n",
+      "expected_status": 0,
+      "stdout": "POSIX shared memory contract verified\n",
+      "stderr": "empty",
+      "timeout": 60,
+      "features": [
+        "userns"
+      ],
+      "oracle": "Explicit assigned POSIX shared-memory contract and Linux metadata; no util-linux parity assumption."
+    }
+  ]
+}

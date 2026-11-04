@@ -449,8 +449,8 @@
       "driver": "plain",
       "kind": "contract",
       "purpose": "o opens a sort prompt and accepts mem.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
-      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py control\n",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py run \"$BASH\" candidate",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py control\n",
       "expected_status": 0,
       "timeout": 28,
       "features": [
@@ -623,12 +623,12 @@
       ],
       "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
       "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence. A guarded owned PTY adapter runs the same ordered predicates, retains full live termios and events, and attempts only bounded cleanup after a failed step; later steps remain unexercised.",
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py run \"$BASH\" candidate",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terra-local-terminal-pty-repair.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terra-local-terminal-pty-repair-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -643,8 +643,8 @@
       "driver": "plain",
       "kind": "contract",
       "purpose": "O opens a sort prompt and rejects an invalid sort name.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
-      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py control\n",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py run \"$BASH\" candidate",
+      "setup_script": "/usr/bin/unshare --user --map-root-user --mount /bin/bash --noprofile --norc -c '/usr/bin/mount -n --bind \"$PWD/snap\" /proc || exit 91; [[ $(< /proc/loadavg) == \"0.25 0.50 1.00 1/30 130\" ]] || exit 92'\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py control\n",
       "expected_status": 0,
       "timeout": 28,
       "features": [
@@ -817,12 +817,12 @@
       ],
       "oracle": "BashOS top documented interactive controls over an independently encoded private proc(5) snapshot; xterm/ECMA-48 controls and PTY modes are decoded independently by the harness.",
       "comparison": "Private snapshot overlay validated in a fresh user namespace; raw PTY bytes, steps, decoded screen, status and initial/final terminal modes retained. Only reached actions are evidence. A guarded owned PTY adapter runs the same ordered predicates, retains full live termios and events, and attempts only bounded cleanup after a failed step; later steps remain unexercised.",
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py run \"$BASH\" candidate",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terra-local-terminal-pty-repair.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terra-local-terminal-pty-repair-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",

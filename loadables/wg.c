@@ -355,10 +355,9 @@ bw_dry_run_enabled (void)
     return e && *e && strcmp (e, "0") != 0;
 }
 
-/* Send @buf bytes of nlmsg; collect reply messages into @rbuf (caller
-   provides BW_BUFSZ-sized).  On dump (NLM_F_DUMP), invoke @cb on each
-   reply message until NLMSG_DONE.  On a single ACK, invoke @cb on the
-   single payload message (excluding the ACK).  */
+/* Send a request and consume its replies.  Dumps end at NLMSG_DONE,
+   ACK requests at NLMSG_ERROR, and ordinary non-multipart requests
+   without an ACK end at their single payload reply.  */
 typedef int (*bw_cb_t) (struct nlmsghdr *, void *);
 
 static int
@@ -378,7 +377,10 @@ bw_talk (int fd, unsigned char *buf, size_t buf_len, bw_cb_t cb, void *ctx)
         return -1;
     }
 
-    unsigned wanted_seq = ((struct nlmsghdr *) buf)->nlmsg_seq;
+    struct nlmsghdr *request = (struct nlmsghdr *) buf;
+    unsigned wanted_seq = request->nlmsg_seq;
+    int wait_for_ack = (request->nlmsg_flags & NLM_F_ACK) != 0;
+    int is_dump = (request->nlmsg_flags & NLM_F_DUMP) == NLM_F_DUMP;
     unsigned char *rbuf = malloc (BW_BUFSZ);
     if (!rbuf) { builtin_error ("malloc"); return -1; }
 
@@ -426,6 +428,9 @@ bw_talk (int fd, unsigned char *buf, size_t buf_len, bw_cb_t cb, void *ctx)
                 rc = -1; done = 1; break;
             }
             if (cb && cb (h, ctx) != 0) { done = 1; break; }
+            if (!wait_for_ack && !is_dump && !(h->nlmsg_flags & NLM_F_MULTI)) {
+                done = 1; break;
+            }
             h = NLMSG_NEXT (h, s);
         }
     }
@@ -639,6 +644,38 @@ bw_print_allowedips (const struct nlattr *outer)
     putchar ('\n');
 }
 
+static void
+bw_print_age (long long seconds)
+{
+    static const struct { const char *name; long long seconds; } units[] = {
+        { "year", 365LL * 86400 }, { "day", 86400 }, { "hour", 3600 },
+        { "minute", 60 }, { "second", 1 }
+    };
+    int first = 1;
+    if (seconds <= 0) { printf ("Now\n"); return; }
+    for (size_t i = 0; i < sizeof units / sizeof units[0]; i++) {
+        long long n = seconds / units[i].seconds;
+        seconds %= units[i].seconds;
+        if (n) {
+            printf ("%s%lld %s%s", first ? "" : ", ", n, units[i].name,
+                    n == 1 ? "" : "s");
+            first = 0;
+        }
+    }
+    printf (" ago\n");
+}
+
+static void
+bw_print_bytes (unsigned long long n)
+{
+    static const char *units[] = { "KiB", "MiB", "GiB", "TiB" };
+    if (n < 1024) { printf ("%llu B", n); return; }
+    double value = (double) n / 1024.0;
+    size_t i = 0;
+    while (value >= 1024.0 && i < 3) { value /= 1024.0; i++; }
+    printf ("%.2f %s", value, units[i]);
+}
+
 static int
 bw_show_cb (struct nlmsghdr *h, void *ctx)
 {
@@ -679,21 +716,16 @@ bw_show_cb (struct nlmsghdr *h, void *ctx)
             if (pa[BW_PEER_A_ENDPOINT]) {
                 printf ("  endpoint: "); bw_print_endpoint (pa[BW_PEER_A_ENDPOINT]);
             }
-            if (pa[BW_PEER_A_ALLOWEDIPS]) {
-                printf ("  allowed ips: ");
-                bw_print_allowedips (pa[BW_PEER_A_ALLOWEDIPS]);
-            }
-            if (pa[BW_PEER_A_PERSISTENT_KEEPALIVE_INTERVAL]) {
-                unsigned short ka;
-                memcpy (&ka, (unsigned char *) pa[BW_PEER_A_PERSISTENT_KEEPALIVE_INTERVAL] + BW_NLA_HDRLEN, 2);
-                if (ka) printf ("  persistent keepalive: %u seconds\n", ka);
-            }
+            printf ("  allowed ips: ");
+            bw_print_allowedips (pa[BW_PEER_A_ALLOWEDIPS]);
             if (pa[BW_PEER_A_LAST_HANDSHAKE_TIME]) {
                 struct { long long sec, nsec; } ts = { 0, 0 };
                 size_t avail = pa[BW_PEER_A_LAST_HANDSHAKE_TIME]->nla_len - BW_NLA_HDRLEN;
                 if (avail >= sizeof ts) memcpy (&ts, (unsigned char *) pa[BW_PEER_A_LAST_HANDSHAKE_TIME] + BW_NLA_HDRLEN, sizeof ts);
-                if (ts.sec)
-                    printf ("  latest handshake: %lld seconds ago\n", (long long) time (NULL) - ts.sec);
+                if (ts.sec) {
+                    printf ("  latest handshake: ");
+                    bw_print_age ((long long) time (NULL) - ts.sec);
+                }
             }
             if (pa[BW_PEER_A_RX_BYTES] || pa[BW_PEER_A_TX_BYTES]) {
                 unsigned long long rx = 0, tx = 0;
@@ -701,7 +733,16 @@ bw_show_cb (struct nlmsghdr *h, void *ctx)
                     memcpy (&rx, (unsigned char *) pa[BW_PEER_A_RX_BYTES] + BW_NLA_HDRLEN, 8);
                 if (pa[BW_PEER_A_TX_BYTES])
                     memcpy (&tx, (unsigned char *) pa[BW_PEER_A_TX_BYTES] + BW_NLA_HDRLEN, 8);
-                printf ("  transfer: %llu B received, %llu B sent\n", rx, tx);
+                if (rx || tx) {
+                    printf ("  transfer: "); bw_print_bytes (rx);
+                    printf (" received, "); bw_print_bytes (tx);
+                    printf (" sent\n");
+                }
+            }
+            if (pa[BW_PEER_A_PERSISTENT_KEEPALIVE_INTERVAL]) {
+                unsigned short ka;
+                memcpy (&ka, (unsigned char *) pa[BW_PEER_A_PERSISTENT_KEEPALIVE_INTERVAL] + BW_NLA_HDRLEN, 2);
+                if (ka) printf ("  persistent keepalive: every %u second%s\n", ka, ka == 1 ? "" : "s");
             }
             size_t step = BW_NLA_ALIGN ((size_t) p->nla_len);
             if (step == 0 || step > left) break;

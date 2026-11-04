@@ -1,0 +1,257 @@
+Proposed authority mechanics and decisions required before activation
+
+Engineering defaults for the next implementation
+
+The choices below narrow the earlier D1-D5 review requests. They do not require
+permission for each reversible implementation step and do not activate grants.
+Protocol, security review and real qualification remain implementation work.
+
+- Use a dedicated fixed verifier/executor, kernel-created one-shot challenges,
+  trusted account/policy generations and exact actor binding. General-purpose
+  Bash identity, root uid, a caller PHC or child exit alone is never proof.
+- Retain same-fd non-bearer references and explicit delegation. New default
+  auth verification should return an fd reference in its output variable, with
+  the 32-byte value kept on the fd stream. Retain login's separately documented
+  deprecated hex consumer, bound to the same live context and actor. The old
+  auth hex-variable producer is incompatible with the literal fd-only auth
+  obligation; its replacement requires an explicit versioned client transition,
+  not weakening that obligation or pretending old binaries are compatible.
+- Keep the root-only secret endpoint unchanged. Propose a separate restricted
+  policy endpoint for non-root clients, with no secret/export/raw-mint rights.
+  Use the existing sudoers subset and /etc/sudoers authority source. Missing,
+  unsafe or unsupported policy denies. Default timestamp lifetime is zero
+  (validate without caching); positive caching requires explicit trusted policy.
+- Use the already documented per-target atomic sudoedit commit and possible
+  committed prefix after a late failure; no multi-target rollback promise.
+  Preflight every target before writes. Audit loss fails before a grant/commit;
+  define a versioned record format rather than guessing the old private layout.
+- Standard PHC output is the required bug fix. Preserve a separately explicit
+  legacy-hex verification/import path and choose account encoding from trusted
+  metadata. Never detect by alphabet or retry another interpretation. The
+  standalone field and record parsers are safe independent preparation; producer
+  and reader/account migration must ship together after qualification.
+
+User policy input is needed only to grant actual installed principals/commands
+or to classify/migrate existing ambiguous account records without trustworthy
+format provenance. Leave those deployments closed and unchanged in the absence
+of that input. Disposable fixtures can specify both policies explicitly now.
+Retiring documented legacy login support or relaxing the fd-only obligation
+would also require an explicit product decision; neither is the chosen default.
+
+Status
+
+This directory is new staged code, not recovered authority source. It adds no
+device, ioctl handler, grant issuer, credential transition or live policy.
+The existing stage-1 module, its storage core/tests and the shipped UAPI are
+unchanged. Runtime remains ABI 1.0, SECRETS|STATS. TOKENS and PRIVCMD stay off;
+unsupported operations continue to fail. These primitives are compiled into
+a separate KUnit target only. No new kernel or guest run is claimed here.
+
+The implementation is useful before a trust decision: request.c makes bounded,
+owned request snapshots and checks the existing client digest; reference.c
+pins kernel objects and enforces proposed read, lifetime, single redemption,
+revocation and erasure rules. Positive grants can be seeded only by code
+compiled with BA_AUTHORITY_KUNIT. There is no production mint API. A matching
+request hash, a uid/gid/name tuple or a test seed is not authentication.
+
+Source-supported facts
+
+1. auth.c:ba_verify_login_cmd exports and erases a sealed secret, verifies a PHC
+   supplied by its caller, resolves the supplied name and sends MINT_TOKEN with
+   uid/gid/user/purpose/expiry. It hex-encodes all 32 returned bytes into a Bash
+   variable. Neither the PHC nor a kernel-observable successful verification is
+   sent to MINT. Trusting this request, even from an approved Bash executable,
+   would let general-purpose interpreter code claim authentication.
+2. login.c:bl_login_kernel_proof opens a fresh authority fd after userspace
+   verification, mints, immediately consumes the returned bytes, and closes
+   that fd before accounting/session/exec. No sealed secret or verifier proof
+   reaches that authority fd. Retrofitting proof by accepting root identity
+   would be a new privileged assertion protocol, not password authentication.
+3. login become --auth-fd reads exactly 32 bytes, handling short reads/EINTR,
+   then consumes on that SAME fd. The deprecated hex path scans existing fds
+   for a successful consume; it does not open a new authority. A separate pipe
+   containing bytes is not compatible with the same-fd ioctl requirement.
+4. sshd forks and execs a new general-purpose shell that calls verify-login on
+   its inherited authority fd. The parent checks only child exit status,
+   clears the slot and closes the fd; it never consumes the minted token.
+   Exact-task binding therefore needs an explicit delegation/result protocol,
+   not a blanket exemption for related processes. The independent source fix
+   in this phase also rejects wait errors rather than treating zero-initialized
+   wait status as authentication success.
+5. auth/doas hash "bashos-privcmd-v1" followed by eleven little-endian u32s:
+   mode, flags, noninteractive, caller uid/gid, target uid/gid, argc/envc,
+   argv_bytes/env_bytes; then length-prefixed caller/target/cwd strings; then
+   the NUL-separated argv and environment blobs. The new snapshot implements
+   exactly that framing. Hashing caller assertions does not authenticate them.
+6. doas EXEC_VERIFY is invoked in a forked child and expects the ioctl to
+   replace that process with a verifier. Success is followed by fresh AUTHZ.
+   MINT_TIMESTAMP has no password in its wire payload. It must redeem a
+   kernel-owned verification event, not trust a process's successful exit or
+   a user-supplied result flag.
+7. EXEC_HANDOFF uses a handle id; exec/edit raw token bytes stay in kernel
+   state. Sudoedit opens 1..16 absolute targets, edits returned private copies
+   as the caller, reauthorizes, and presents a vector of read-only temp fds.
+   The frontend acknowledges that multi-target commit may be partial.
+8. AUDIT_READ deliberately does not publish its record layout. auth audit-read
+   only prints counters, with a 64*256 byte allocation based on a comment about
+   the old private record size. The public privcmd_audit_event is NOT evidence
+   of that private record's layout and is substantially larger. Copying those
+   structs as the old record format would overrun this client allocation.
+   AUDIT_READ_TEXT relays bytes verbatim; it is not a userspace decoder. Its
+   advertised fmt=v1/kind=event framing and HMAC comment do not specify all
+   fields, encoding, pagination/overflow or mandatory audit-failure semantics.
+
+Decision D1: authenticating producer, account database and new protocol
+
+Recommended new design for review: a dedicated, immutable verifier launched
+and tracked by the authority through a private challenge/response channel.
+The administrator establishes the verifier executable and account/policy trust
+roots; arbitrary clients cannot register as verifiers. Pin the opened verifier
+and its identity/content, reject unsafe ownership/writability, pass a clean
+fixed environment, and keep scripts, plugins, PATH and caller-selected PHCLIB
+paths outside the trusted verifier. The verifier alone reads an authority-owned
+sealed credential and trusted account snapshot. Its response is valid only on
+the kernel-created channel for a pending challenge, bound to the requester fd,
+task/credentials/session, purpose, resolved target and policy generation.
+
+Kernel observation of channel ownership and a completed verification protocol
+is required. A root uid, CAP_SYS_ADMIN on a normal client, executable pathname,
+userspace boolean, caller-written PHC or wait status alone is not that protocol.
+An authenticated event may create one bounded reference and is then consumed.
+Verification failure, child death, wrong channel, timeout, request drift,
+account/policy drift or reply-copy failure invalidates the pending event.
+
+An additive, explicitly versioned VERIFY_LOGIN operation should name a sealed
+slot and a target name. Target uid/gid and authoritative account record are
+resolved by the trusted verifier/authority, not taken from request claims.
+Its exact ioctl number/layout, compatibility feature bit and account snapshot
+format require ABI review. Do not repurpose reserved fields or weaken MINT.
+Old MINT may only redeem an already completed matching kernel event; no such
+event is produced by the frozen auth/login clients. Expect incompatibility,
+record it explicitly, and keep new-client evidence separate from old binaries.
+
+Decision D2: reference transport and delegation
+
+Proposed implemented mechanics, pending review:
+- One active LOGIN or SU reference per open-file context; replacing a live
+  reference returns EBUSY. This is a new resource bound, not historical fact.
+- A 32-byte CSPRNG opaque reference is not a stand-alone bearer capability.
+  It is usable only with the same context, exact task, immutable credential
+  object, session pid object, namespace proxy and pinned cwd/root paths.
+  Numeric PID/UID reuse and a duplicated/transferred fd cannot replace these
+  bindings. Credential objects also bind supplementary groups/capabilities.
+- No fork, exec, thread, namespace, credential, cwd or session delegation is
+  implicit. Kernel-managed delegation must designate and pin a specific
+  verifier/consumer, be single-use, and define its parent result channel.
+- Expiry uses boottime including suspend, with an explicit 1ns..5s bound in
+  the core and checked arithmetic. Wire-second/default conversion is not
+  implemented. The exact deadline is expired. Wall-clock changes do not help.
+- Partial stream reads advance one shared fd cursor; after 32 bytes, EOF.
+  Reading does not redeem. A copy fault revokes the whole reference, even if
+  some bytes escaped. A zero-byte read does not advance the cursor.
+- Consume checks reference, target uid/gid/name, purpose and request digest.
+  A matching reference with changed claims is revoked. A random unknown
+  reference cannot consume another grant. Successful consume erases first;
+  replay fails. Policy/timestamp epoch advances and explicit reset revoke;
+  epochs cannot roll back. Final context destruction erases everything.
+- A legacy hex encoding of the same non-bearer reference could coexist with
+  the stream only after explicit review. This does not silently satisfy the
+  historical obligation that references be handled only through the fd. The
+  shipped verify-login binds bytes into a shell variable, and the SSH path
+  does not redeem them; these are concrete compatibility/requirement tensions.
+
+The code's final-release API assumes the VFS adapter owns the final file
+reference, as the existing secret core does. It does not pretend to implement
+a new file_operations table or actual dup/SCM_RIGHTS behavior. KUnit checks
+internal contexts and real kernel task identity; guest VFS tests are separate.
+
+Decision D3: policy and non-root admission
+
+Preserve root-only secret access. Decide explicitly how unprivileged doas/sudo
+clients obtain a policy-only channel: changing the 0600 device admission rule
+or adding a broker/channel is a security contract change. Existing callers
+open the device themselves; silently assuming a passed privileged fd would not
+preserve their behavior. No permission change is included in this phase.
+
+Proposed policy authority must capture kernel-derived caller credentials,
+session/tty and full supplementary groups, then resolve trusted target identity.
+Reject mismatched claimed identities rather than using them to choose a rule.
+Capture bounded argv/env once; resolve and hold cwd/executable/target objects;
+compare the client digest, but authorize the captured snapshot. Keep the
+immutable snapshot until redemption and execute that snapshot, not mutable
+userspace strings. Environment allowlists, exact command/arguments, target
+groups and policy generation belong to the authorization decision.
+
+Use an administrator-owned, safely opened policy snapshot with bounded parse,
+raw/normalized digest and monotonic generation. Initial/missing/unsafe policy
+denies. Existing userspace policy-parse/list code supplies grammar evidence;
+it is not a kernel trust boundary. The missing design/signoff documents do not
+establish complete historical precedence, group/alias/negation or environment
+semantics. Review a deliberately limited grammar and reject unsupported forms;
+never reinterpret malformed input as NOPASSWD or grant to complete coverage.
+
+Timestamp state is authority-owned and keyed to kernel-derived caller,
+resolved target, tty/session object, policy/account generation and verifier
+method. It must survive the intended fd lifecycle; the reference epoch helper
+is NOT a timestamp cache. Specify timeout/defaults/scope before implementing
+one. Successful verification alone inserts; -k resets the selected scope,
+-K the approved caller scopes; -v verifies without executing; reset failure
+prevents a following command. Pending grants and caches invalidate together.
+
+Decision D4: executor, audit and safe edit
+
+Never return elevated credentials to arbitrary Bash code after an ioctl.
+For noninteractive commands, use a trusted bounded executor which consumes
+the exact authorized snapshot and applies supplementary groups, gid, uid,
+cwd, environment, fd and signal policy before exact-path exec. The authority
+must authenticate its result channel and distinguish launch failure, signal
+and child exit. Interactive in-process replacement requires a reviewed atomic
+kernel exec/credential mechanism; do not invent an external-module API or
+substitute an unbound usermode helper and claim equivalent semantics.
+
+Review explicit audit framing/version and loss policy before exporting records.
+Do not use the private legacy record opcode with guessed strides. Prefer a
+new size/versioned record API or an explicitly defined text schema, retain
+legacy unsupported behavior until its layout is recovered, and decide whether
+the old literal decoding obligation requires a new client. Allocate bounded
+audit storage before an allow/commit; define overflow/backpressure, counters,
+cursor reset and reader privilege. Do not log secrets, raw references, argv,
+environment or user pointers. Specify HMAC key lifetime and exact hashed input.
+
+Sudoedit needs pinned target/parent directory objects, no symlinks or magic
+links in any component, no unsafe/hardlinked targets, and authorization for
+each of 1..16 targets. Editor copies are caller-owned and never run as root.
+Before copyback, revalidate target identity/content/metadata, immutable edited
+snapshots and live authorization. Preflight EVERY target before any write.
+One rename is atomic, sixteen independent renames are not a transaction.
+Choose either an explicit partial-commit result with exact committed prefix
+or a stronger filesystem transaction contract. Do not promise rollback of an
+already committed multi-target edit. Missing/expired authorization must abort
+before writes; cleanup must cover every allocated temp and descriptor.
+
+Activation and qualification
+
+The KUnit mechanics tests and source-included client regression tests do not
+close the nine topics. Neither do tests proving unavailable ioctls fail closed.
+Required next steps are trust/ABI review, implementation of the authenticated
+producer and adapters, bounded build, then disposable-guest positive and
+negative controls. Keep the existing twelve storage tests, source-bound
+erasure receipt and real-device controls. Record old-binary failures without
+turning missing prerequisites into product FAIL. All previous evidence and
+original obligations remain intact. No feature bit may advertise a path until
+the whole path and its adversarial controls have qualified.
+
+Release target and password format
+
+The next release gate requires every original obligation PASS on new qualified
+builds. Historical failures stay in historical results; a definite old FAIL
+does not satisfy the new release gate. Baseline policy-normalization fixes and
+new client wait/status/argv/prompt fixes need complete new-build qualification.
+
+An additional format decision is required before the dedicated verifier:
+standard PHC uses unpadded base64 fields, while old project records use hex with
+the same marker. The alphabets overlap. Select the encoding from an explicit
+trusted account schema; never guess or try both password interpretations. The
+new standalone field codec requires an explicit encoding enum and is not wired
+into the existing hash/account readers. Producer and reader migration must be
+reviewed and qualified together, preserving an explicit legacy import route.

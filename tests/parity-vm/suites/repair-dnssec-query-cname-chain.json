@@ -1,0 +1,41 @@
+{
+  "cases": [
+    {
+      "candidate_script": "set -u\nH=/opt/bashos-parity/harness/helpers/dnssec-cname-chain-peer.py\n/usr/bin/python3 \"$H\" prep || exit 98\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> \"$HOME/anchor-peer.err\" & peer=$!\ntrap 'kill \"$peer\" 2>/dev/null; wait \"$peer\" 2>/dev/null' EXIT\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340 || exit 98\ncontrol=$(/usr/bin/python3 \"$H\" control 127.0.0.2 5340 aliases) || exit 98\n[[ $control == control-ok ]] || { printf '%s\\n' \"$control\"; exit 98; }\necho control-ok\nexport PATH=\"$HOME/pbin\" BASHDNS_SERVER_PORT=5340 BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\" BASHDNS_0X20=0\nif dns query alias.x.test A -s 127.0.0.2 -t 3000 --validate > valid.out 2> valid.err && [[ $(<valid.out) == 192.0.2.60 ]]; then echo valid-chain=accepted; else echo valid-chain=incorrect; exit 1; fi\nif dns query badalias.x.test A -s 127.0.0.2 -t 3000 --validate > bogus.out 2> bogus.err; then echo bogus-chain=wrongly-accepted; exit 1; else echo bogus-chain=rejected; fi\nif dns query missingalias.x.test A -s 127.0.0.2 -t 3000 --validate > negative.out 2> negative.err && [[ ! -s negative.out ]]; then echo negative-chain=accepted; else echo negative-chain=incorrect; exit 1; fi\nif dns query loop1.x.test A -s 127.0.0.2 -t 3000 --validate > loop.out 2> loop.err; then echo loop=wrongly-accepted; exit 1; else echo loop=rejected; fi\n",
+      "comparison": "Require the exact terminal A address for valid CNAME and failure for the forged CNAME.",
+      "covers": [
+        "dns/dns-recursive-service"
+      ],
+      "diagnostic_files": [
+        "anchor-peer.err",
+        "dnssec-queries.json",
+        "valid.out",
+        "valid.err",
+        "bogus.out",
+        "bogus.err",
+        "negative.err",
+        "loop.err"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "group": "shell",
+      "helpers_sha256": {
+        "helpers/dnssec-cname-chain-peer.py": "ddac6b6ae8f6231d5334f20feb67462272639f9e6cf148cfd544bc41e6b0a261"
+      },
+      "id": "repair-dns-query-signed-cname-chain-bounded-r15",
+      "kind": "contract",
+      "loadable": "dns",
+      "oracle": "Independent BIND delv validates the correct alias and rejects a forged alias signature before candidate queries.",
+      "purpose": "Locally validated dns query follows a cross-zone CNAME and emits only the validated terminal address.",
+      "requires": [
+        "python3",
+        "delv"
+      ],
+      "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\n",
+      "stderr": "",
+      "stdout": "control-ok\nvalid-chain=accepted\nbogus-chain=rejected\nnegative-chain=accepted\nloop=rejected\n",
+      "timeout": 60
+    }
+  ],
+  "schema": 1
+}

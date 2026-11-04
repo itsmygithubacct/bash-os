@@ -9,7 +9,7 @@
  * checksum validation, and truncation detection on read; directory and
  * symlink emit on write. POSIX PAX headers ('x','g') and GNU long-name /
  * long-link headers ('L','K') are consumed on read. FIFO metadata is
- * supported; character/block device typeflags are rejected explicitly.
+ * supported along with character/block device metadata.
  * Sees `D04` hardening pass for the original
  * `..` rejection (which still applies to all member names and link
  * targets).
@@ -24,6 +24,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/sysmacros.h>
 #include <time.h>
 #include <limits.h>
 #include "loadables.h"
@@ -199,6 +200,9 @@ static int mkpath_parents(const char *path, mode_t dir_mode){
     char buf[512]; size_t n = strlen(path);
     if(n >= sizeof buf) return -1;
     memcpy(buf, path, n+1);
+    /* A directory archive member commonly ends in '/'.  That separator
+       names the member itself, not a parent to create with dir_mode. */
+    while(n > 1 && buf[n-1] == '/') buf[--n] = 0;
     for(char *p = buf+1; *p; p++){
         if(*p == '/'){ *p = 0;
             if(mkdir(buf, dir_mode) < 0 && errno != EEXIST) return -1;
@@ -212,6 +216,81 @@ static int set_mtime(const char *path, time_t mtime, int is_symlink){
     ts[0].tv_sec = 0; ts[0].tv_nsec = UTIME_OMIT;
     ts[1].tv_sec = mtime; ts[1].tv_nsec = 0;
     return utimensat(AT_FDCWD, path, ts, is_symlink ? AT_SYMLINK_NOFOLLOW : 0);
+}
+
+
+/* Ustar device numbers are octal ASCII, optionally padded with spaces or
+   NUL. Reject malformed fields before a privileged filesystem operation. */
+static int pax_device_number(const unsigned char *s, size_t len, unsigned long *out){
+    unsigned long n = 0; int digits = 0, ended = 0;
+    for(size_t i = 0; i < len; i++){
+        if(s[i] >= '0' && s[i] <= '7'){
+            if(ended || n > (ULONG_MAX - (unsigned long)(s[i] - '0')) / 8){ errno = EINVAL; return -1; }
+            n = n * 8 + (unsigned long)(s[i] - '0'); digits = 1;
+        } else if(s[i] == 0 || s[i] == ' '){
+            if(digits || s[i] == 0) ended = 1;
+        } else { errno = EINVAL; return -1; }
+    }
+    *out = n; return 0;
+}
+
+/* Create a device under a directory-fd walk that refuses symlink parents.
+   Build a sibling first so EPERM, bad device numbers and timestamp errors
+   leave any existing destination untouched. */
+static int pax_device_replace(const char *path, mode_t mode, dev_t dev, time_t mtime){
+    char *copy = strdup(path), *save = NULL;
+    int dfd = -1, rc = -1, saved;
+    if(!copy) return -1;
+    char *base = strrchr(copy, '/');
+    if(base) *base++ = 0; else base = copy;
+    if(!*base || !strcmp(base, ".") || !strcmp(base, "..")){ errno = EINVAL; goto out; }
+    dfd = open(".", O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+    if(dfd < 0) goto out;
+    if(base != copy){
+        for(char *part = strtok_r(copy, "/", &save); part; part = strtok_r(NULL, "/", &save)){
+            if(!strcmp(part, ".")) continue;
+            if(!strcmp(part, "..")){ errno = EINVAL; goto out; }
+            int next = openat(dfd, part, O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+            if(next < 0 && errno == ENOENT){
+                if(mkdirat(dfd, part, 0755) < 0 && errno != EEXIST) goto out;
+                next = openat(dfd, part, O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+            }
+            if(next < 0) goto out;
+            close(dfd); dfd = next;
+        }
+    }
+    static unsigned long sequence;
+    char tmp[80]; int made = 0, tfd = -1;
+    for(unsigned i = 0; i < 128; i++){
+        snprintf(tmp, sizeof tmp, ".pax-node-%ld-%lu", (long)getpid(), ++sequence);
+        mode_t mask = umask(0);
+        int r = mkdirat(dfd, tmp, 0700); saved = errno;
+        umask(mask); errno = saved;
+        if(r == 0){ made = 1; break; }
+        if(errno != EEXIST) goto out;
+    }
+    if(!made){ errno = EEXIST; goto out; }
+    tfd = openat(dfd, tmp, O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+    struct stat tempstat;
+    if(tfd < 0 || fstat(tfd, &tempstat) < 0 || tempstat.st_uid != geteuid() ||
+       (tempstat.st_mode & 0777) != 0700){
+        saved = errno ? errno : EACCES; if(tfd >= 0) close(tfd);
+        unlinkat(dfd, tmp, AT_REMOVEDIR); errno = saved; goto out;
+    }
+    mode_t mask = umask(0);
+    int made_node = mknodat(tfd, "node", mode, dev); saved = errno;
+    umask(mask); errno = saved;
+    struct timespec ts[2] = {{0, UTIME_OMIT}, {mtime, 0}};
+    if(made_node < 0 || utimensat(tfd, "node", ts, AT_SYMLINK_NOFOLLOW) < 0 ||
+       renameat(tfd, "node", dfd, base) < 0){
+        saved = errno; if(made_node == 0) unlinkat(tfd, "node", 0);
+        close(tfd); unlinkat(dfd, tmp, AT_REMOVEDIR); errno = saved; goto out;
+    }
+    close(tfd);
+    if(unlinkat(dfd, tmp, AT_REMOVEDIR) < 0) goto out;
+    rc = 0;
+out:
+    saved = errno; if(dfd >= 0) close(dfd); free(copy); errno = saved; return rc;
 }
 
 int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
@@ -300,7 +379,10 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
             pax_meta_free(&eff); continue;
         }
         if(!extract){
-            if(verbose) printf("%c %06o %lu %s\n", typeflag, mode, sz, name);
+            if(verbose && (typeflag == '3' || typeflag == '4'))
+                printf("%c %06o %lu,%lu %s\n", typeflag, mode,
+                       octal((char *)h+329, 8), octal((char *)h+337, 8), name);
+            else if(verbose) printf("%c %06o %lu %s\n", typeflag, mode, sz, name);
             else printf("%s%s\n", name, options->tar_mode && typeflag == '5' && name[strlen(name)-1] != '/' ? "/" : "");
             if(skip_bytes(f, body_padded) < 0) rc = 1;
             pax_meta_free(&eff); continue;
@@ -380,27 +462,37 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
             }
             break;
         }
-        case '6': {  /* FIFO: metadata only; never open its byte stream. */
-            if(mkpath_parents(name, 0755) < 0){
-                builtin_error("%s: mkdir parent: %s", name, strerror(errno)); rc = 1; break;
+        case '3': case '4': {
+            unsigned long devmajor = 0, devminor = 0;
+            int result = -1;
+            if(pax_device_number(h+329, 8, &devmajor) == 0 &&
+               pax_device_number(h+337, 8, &devminor) == 0){
+                dev_t device = makedev(devmajor, devminor);
+                if(major(device) != devmajor || minor(device) != devminor) errno = EOVERFLOW;
+                else result = pax_device_replace(name,
+                       (typeflag == '3' ? S_IFCHR : S_IFBLK) | (mode & 07777), device, mtime);
             }
-            if(unlink(name) < 0 && errno != ENOENT){
-                builtin_error("%s: %s", name, strerror(errno)); rc = 1; break;
-            }
-            /* mode already incorporates tar's default umask, or the -p
-               override. Create exactly that mode and restore the mask. */
-            mode_t saved_mask = umask(0);
-            int result = mkfifo(name, mode & 0777);
-            int saved_errno = errno;
-            umask(saved_mask);
-            if(result < 0){ builtin_error("%s: %s", name, strerror(saved_errno)); rc = 1; break; }
-            if(set_mtime(name, mtime, 0) < 0){ builtin_error("%s: %s", name, strerror(errno)); rc = 1; }
+            if(result < 0){ builtin_error("%s: %s", name, strerror(errno)); rc = 1; }
+            if(skip_bytes(f, body_padded) < 0) rc = 1;
             break;
         }
-        case '3': case '4':
-            builtin_error("%s: unsupported typeflag '%c' (device)", name, typeflag);
-            rc = EXECUTION_FAILURE;
+        case '6': {  /* FIFO: retain the pre-existing extraction behavior. */
+            if(mkpath_parents(name, 0755) < 0){
+                builtin_error("%s: mkdir parent: %s", name, strerror(errno)); rc = 1;
+                if(skip_bytes(f, body_padded) < 0) rc = 1; break;
+            }
+            if(unlink(name) < 0 && errno != ENOENT){
+                builtin_error("%s: %s", name, strerror(errno)); rc = 1;
+                if(skip_bytes(f, body_padded) < 0) rc = 1; break;
+            }
+            mode_t saved_mask = umask(0);
+            int result = mkfifo(name, mode & 0777), saved_errno = errno;
+            umask(saved_mask);
+            if(result < 0){ builtin_error("%s: %s", name, strerror(saved_errno)); rc = 1; }
+            else if(set_mtime(name, mtime, 0) < 0){ builtin_error("%s: %s", name, strerror(errno)); rc = 1; }
+            if(skip_bytes(f, body_padded) < 0) rc = 1;
             break;
+        }
         case 'x': case 'g':
             builtin_error("%s: extended header typeflag '%c' not supported", name, typeflag);
             rc = EXECUTION_FAILURE;
@@ -478,6 +570,13 @@ static int write_header(FILE *out, const char *path, const struct stat *st, char
         size_t llen = strlen(linktarget);
         if(llen > 100){ builtin_error("%s: link target too long for ustar (>100)", path); return -1; }
         memcpy(h+157, linktarget, llen);
+    }
+    if(typeflag == '3' || typeflag == '4'){
+        unsigned long maj = major(st->st_rdev), min = minor(st->st_rdev);
+        if(maj > 07777777UL || min > 07777777UL){
+            builtin_error("%s: device number too large for ustar", path); return -1;
+        }
+        put_octal((char *)h+329, 8, maj); put_octal((char *)h+337, 8, min);
     }
     memcpy(h+257, "ustar", 6); memcpy(h+263, "00", 2);
     unsigned sum = 0; for(int i=0;i<512;i++) sum += h[i];
@@ -621,9 +720,10 @@ static int write_member(FILE *out, const char *path, struct bashos_pax_write_con
         if((need_path_ext || need_link_ext || numext) && write_pax_ext(out, path, need_path_ext, need_link_ext ? tgt : NULL, &st, numext) < 0) return 1;
         return write_header(out, stored_path, &st, '2', need_link_ext ? "" : tgt) < 0 ? 1 : 0;
     }
-    if(S_ISFIFO(st.st_mode)){
+    if(S_ISFIFO(st.st_mode) || S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode)){
         if((need_path_ext || numext) && write_pax_ext(out, path, need_path_ext, NULL, &st, numext) < 0) return 1;
-        return write_header(out, stored_path, &st, '6', NULL) < 0 ? 1 : 0;
+        return write_header(out, stored_path, &st, S_ISFIFO(st.st_mode) ? '6' :
+                            S_ISCHR(st.st_mode) ? '3' : '4', NULL) < 0 ? 1 : 0;
     }
     if(!S_ISREG(st.st_mode)){
         builtin_error("%s: unsupported file type for ustar", path); return 1;

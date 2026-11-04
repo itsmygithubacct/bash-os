@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "takeover-git-push-advice-environment",
+      "loadable": "git",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "timeout": 40,
+      "requires": [
+        "git",
+        "grep",
+        "rm"
+      ],
+      "candidate_script": "[[ $(type -t git) == builtin ]] || exit 99\nset -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=itsmygithubacct GIT_COMMITTER_NAME=itsmygithubacct\nexport GIT_AUTHOR_EMAIL=itsmygithubacct@users.noreply.github.com GIT_COMMITTER_EMAIL=itsmygithubacct@users.noreply.github.com\nexport GIT_AUTHOR_DATE='2026-01-01T00:00:00+0000' GIT_COMMITTER_DATE='2026-01-01T00:00:00+0000'\n/usr/bin/git init -q --bare remote\n/usr/bin/git init -q -b main seed\nprintf 'base\\n' >seed/file\n/usr/bin/git -C seed add file\n/usr/bin/git -C seed commit -qm base\n/usr/bin/git -C seed push -q ../remote main\n/usr/bin/git clone -q -b main remote topic\nprintf 'remote\\n' >>seed/file\n/usr/bin/git -C seed commit -qam remote\n/usr/bin/git -C seed push -q ../remote main\nprintf 'local\\n' >>topic/file\n/usr/bin/git -C topic commit -qam local\nbefore=$(/usr/bin/git --git-dir=remote rev-parse refs/heads/main)\nfor value in unset 0 00; do\n  if [[ $value == unset ]]; then unset GIT_ADVICE; else export GIT_ADVICE=$value; fi\n  status=0\n  git -C topic push ../remote main >\"$HOME/push-$value.stdout\" 2>\"$HOME/push-$value.stderr\" || status=$?\n  [[ $status != 0 ]] || exit 90\n  hint=no\n  if /usr/bin/grep -q '^hint:' \"$HOME/push-$value.stderr\"; then hint=yes; fi\n  after=$(/usr/bin/git --git-dir=remote rev-parse refs/heads/main)\n  [[ $before == \"$after\" ]] || exit 91\n  printf '%s rejected=yes hint=%s remote=unchanged\\n' \"$value\" \"$hint\"\ndone\n/usr/bin/rm -rf remote seed topic\n",
+      "reference_script": "set -e\nexport GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=itsmygithubacct GIT_COMMITTER_NAME=itsmygithubacct\nexport GIT_AUTHOR_EMAIL=itsmygithubacct@users.noreply.github.com GIT_COMMITTER_EMAIL=itsmygithubacct@users.noreply.github.com\nexport GIT_AUTHOR_DATE='2026-01-01T00:00:00+0000' GIT_COMMITTER_DATE='2026-01-01T00:00:00+0000'\n/usr/bin/git init -q --bare remote\n/usr/bin/git init -q -b main seed\nprintf 'base\\n' >seed/file\n/usr/bin/git -C seed add file\n/usr/bin/git -C seed commit -qm base\n/usr/bin/git -C seed push -q ../remote main\n/usr/bin/git clone -q -b main remote topic\nprintf 'remote\\n' >>seed/file\n/usr/bin/git -C seed commit -qam remote\n/usr/bin/git -C seed push -q ../remote main\nprintf 'local\\n' >>topic/file\n/usr/bin/git -C topic commit -qam local\nbefore=$(/usr/bin/git --git-dir=remote rev-parse refs/heads/main)\nfor value in unset 0 00; do\n  if [[ $value == unset ]]; then unset GIT_ADVICE; else export GIT_ADVICE=$value; fi\n  status=0\n  /usr/bin/git -C topic push ../remote main >\"$HOME/push-$value.stdout\" 2>\"$HOME/push-$value.stderr\" || status=$?\n  [[ $status != 0 ]] || exit 90\n  hint=no\n  if /usr/bin/grep -q '^hint:' \"$HOME/push-$value.stderr\"; then hint=yes; fi\n  after=$(/usr/bin/git --git-dir=remote rev-parse refs/heads/main)\n  [[ $before == \"$after\" ]] || exit 91\n  printf '%s rejected=yes hint=%s remote=unchanged\\n' \"$value\" \"$hint\"\ndone\n/usr/bin/rm -rf remote seed topic\n",
+      "expected_status": 0,
+      "stdout": "unset rejected=yes hint=yes remote=unchanged\n0 rejected=yes hint=no remote=unchanged\n00 rejected=yes hint=no remote=unchanged\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "push-unset.stdout",
+        "push-unset.stderr",
+        "push-0.stdout",
+        "push-0.stderr",
+        "push-00.stdout",
+        "push-00.stderr"
+      ],
+      "comparison": "Independent system Git creates divergent histories and observes the remote ref after each rejection. Candidate and system Git must reject without changing the ref. The pinned Git 2.47.3 reference empirically treats both 0 and 00 as false and suppresses advice; unset leaves hints enabled. Original incorrect 00 expectation is retained in the preceding run."
+    }
+  ]
+}

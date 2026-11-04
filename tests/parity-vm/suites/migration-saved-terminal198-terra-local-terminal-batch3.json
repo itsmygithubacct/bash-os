@@ -8,7 +8,7 @@
       "driver": "plain",
       "kind": "parity",
       "purpose": "Header includes interval, command, host/time and the command output below it.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -23,14 +23,14 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"rows\": {\n          \"0\": \"^Every 1\\\\.0s:.*printf.*: [A-Z][a-z]{2} [A-Z][a-z]{2} +[0-9]+ [0-9]{2}:[0-9]{2}:[0-9]{2} [0-9]{4}$\",\n          \"2\": \"^WATCH_PAYLOAD$\"\n        }\n      }\n    },\n    {\n      \"send_base64\": \"Aw==\"\n    }\n  ],\n  \"candidate_script\": \"watch -n 1 'printf WATCH_PAYLOAD'\",\n  \"reference_script\": \"watch -n 1 'printf WATCH_PAYLOAD'\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Aw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
-      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" reference",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terra-local-terminal-pty-repair.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terra-local-terminal-pty-repair-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",
@@ -121,7 +121,7 @@
       "driver": "plain",
       "kind": "parity",
       "purpose": "Ctrl-C on a running watch exits with the procps status and restores terminal modes.",
-      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py run \"$BASH\" candidate",
       "expected_status": 0,
       "timeout": 23,
       "covers": [
@@ -136,14 +136,14 @@
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"rows\": {\n          \"0\": \"^WATCH_PAYLOAD$\"\n        }\n      }\n    },\n    {\n      \"termios\": {\n        \"set\": [\n          \"ISIG\"\n        ]\n      }\n    },\n    {\n      \"send_base64\": \"Aw==\"\n    }\n  ],\n  \"candidate_script\": \"watch -n 1 -t 'printf WATCH_PAYLOAD'\",\n  \"reference_script\": \"watch -n 1 -t 'printf WATCH_PAYLOAD'\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Aw==\",\n  \"answer_queries\": false\n}\n"
       },
-      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" candidate",
-      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py run \"$BASH\" reference",
-      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair.py control\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py run \"$BASH\" candidate",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py run \"$BASH\" reference",
+      "setup_script": "\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/terra-local-terminal-pty-repair-bash5320.py control\n",
       "setup_timeout": 30,
       "stdout": "observer=PASS\nsteps=PASS\nexit=PASS\nrestored=PASS\ncleanup=PASS\n",
       "stderr": "",
       "helpers_sha256": {
-        "helpers/terra-local-terminal-pty-repair.py": "cb8921094eb223dbbbf11dc12053b33298c37763afe741c74f690b1c5f35ef16"
+        "helpers/terra-local-terminal-pty-repair-bash5320.py": "8e1dbec2c6a1e38cd52061e74e11f050eb023619e8fcf7a151cda3f390c3db93"
       },
       "diagnostic_files": [
         "pty-repair-control.json",

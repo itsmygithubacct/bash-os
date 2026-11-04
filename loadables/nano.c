@@ -51,6 +51,7 @@
 #include <string.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdint.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <regex.h>
@@ -1058,6 +1059,10 @@ bn_piece_replace (size_t start, size_t end, const char *ins, size_t ins_len,
     return 0;
 }
 
+/* Selftests exercise exact piece-table writes; interactive invocations reset
+   this to GNU nano's default unless --nonewlines is supplied. */
+static int bn_nonewlines = 1;
+
 static int
 bn_pt_save_file (const char *path)
 {
@@ -1070,16 +1075,27 @@ bn_pt_save_file (const char *path)
     fchmod (fd, have_st ? (st.st_mode & 07777) : 0644);
     if (have_st && geteuid () == 0)
         (void) fchown (fd, st.st_uid, st.st_gid);
+    int last = -1;
     for (size_t i = 0; i < bn_b.pt.n_pieces; i++) {
         const char *p = bn_pt_piece_data (&bn_b.pt, &bn_b.pt.pieces[i]);
         size_t off = 0, n = bn_b.pt.pieces[i].length;
+        if (n) last = (unsigned char) p[n - 1];
         while (off < n) {
             ssize_t w = write (fd, p + off, n - off);
-            if (w < 0) {
-                if (errno == EINTR) continue;
-                close (fd); unlink (tmp); return -1;
+            if (w <= 0) {
+                if (w < 0 && errno == EINTR) continue;
+                int saved = w == 0 ? EIO : errno;
+                close (fd); unlink (tmp); errno = saved; return -1;
             }
             off += (size_t) w;
+        }
+    }
+    if (!bn_nonewlines && last >= 0 && last != '\n') {
+        ssize_t w;
+        do { w = write (fd, "\n", 1); } while (w < 0 && errno == EINTR);
+        if (w != 1) {
+            int saved = w == 0 ? EIO : errno;
+            close (fd); unlink (tmp); errno = saved; return -1;
         }
     }
     if (fdatasync (fd) < 0) { close (fd); unlink (tmp); return -1; }
@@ -1208,11 +1224,15 @@ bn_save_as (const char *path)
     if (!path || !*path) { bn_set_status ("No filename"); return -1; }
     char *dup_path = strdup (path);
     if (!dup_path) { bn_set_status ("write: out of memory"); return -1; }
+    if (bn_pt_save_file (dup_path) < 0) {
+        int e = errno;
+        free (dup_path);
+        bn_set_status ("write: %s", strerror (e));
+        return -1;
+    }
     free (bn_b.path);
     bn_b.path = dup_path;
     bn_detect_language (bn_b.path);
-    if (bn_pt_save_file (bn_b.path) < 0)
-        { bn_set_status ("write: %s", strerror (errno)); return -1; }
     bn_b.dirty = 0;
     bn_b.pt.dirty = 0;
     bn_sync_lines_from_pt ();
@@ -2067,7 +2087,9 @@ bn_cut_line (void)
     else if (bn_cy > 0)
         delete_start--;                /* include previous newline */
     size_t clip_len = 0;
-    char *clip = bn_pt_flatten_range (&bn_b.pt, start, line_end, &clip_len);
+    char *clip = bn_pt_flatten_range (&bn_b.pt, start,
+                                      delete_end > line_end ? delete_end : line_end,
+                                      &clip_len);
     bn_clip_take (clip, clip_len, 1);
     if (bn_clip) {
         bn_piece_replace (delete_start, delete_end, NULL, 0, delete_start);
@@ -2394,7 +2416,7 @@ bn_prompt_save_as (void)
         memcpy (dest, bn_b.path, n);
         dest[n] = '\0';
     }
-    if (bn_modal_prompt ("File Name to Write: ", dest, sizeof dest) != 0) {
+    if (bn_modal_prompt ("Write to File: ", dest, sizeof dest) != 0) {
         bn_set_status ("Save cancelled");
         return -1;
     }
@@ -2822,7 +2844,7 @@ bn_justify (int whole)
 
 /* ---- spell check (^T) ----
 
-   The helper boundary: the command named by --speller=CMD, else the
+   Explicit --speller commands use the alternate file protocol below.  The
    NANO_SPELLER environment variable, else "spell", is split on blanks and
    run with execvp -- never through a shell.  It receives the text being
    checked (the marked region, or the whole buffer) on stdin and must print
@@ -3097,6 +3119,119 @@ bn_spell_run_helper (const char *cmd, const char *text, size_t len,
     return rc;
 }
 
+/* GNU alternate spellers edit a private file on the terminal.  Keep the
+   original bytes until the helper has completed successfully. */
+static int
+bn_spell_file_helper (const char *cmd, const char *text, size_t len,
+                      char **result, size_t *result_len, char *err, size_t errsz)
+{
+    char *copy = strdup (cmd), *path = NULL, *data = NULL;
+    char *argv[33];
+    int argc = 0, fd = -1, rc = -1, status = 0, created = 0;
+    pid_t pid = -1, wr = -1;
+    sigset_t chld, old_mask;
+    struct termios raw;
+    int have_raw = 0, blocked = 0;
+    const char *problem = NULL;
+    if (!copy) { snprintf (err, errsz, "Spell helper: out of memory"); goto done; }
+    for (char *tok = strtok (copy, " \t"); tok; tok = strtok (NULL, " \t")) {
+        if (argc == 31) { snprintf (err, errsz, "Spell helper: at most 31 command words"); goto done; }
+        argv[argc++] = tok;
+    }
+    if (!argc) { snprintf (err, errsz, "No spell helper configured"); goto done; }
+    const char *dir = getenv ("TMPDIR");
+    if (!dir || !*dir) dir = "/tmp";
+    size_t pn = strlen (dir) + sizeof "/nano-spell-XXXXXX";
+    path = malloc (pn);
+    if (!path) { snprintf (err, errsz, "Spell helper: out of memory"); goto done; }
+    snprintf (path, pn, "%s/nano-spell-XXXXXX", dir);
+    fd = mkstemp (path);
+    if (fd < 0) { snprintf (err, errsz, "Spell helper: %s", strerror (errno)); goto done; }
+    created = 1;
+    fcntl (fd, F_SETFD, FD_CLOEXEC);
+    size_t off = 0;
+    while (off < len) {
+        ssize_t n = write (fd, text + off, len - off);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) { snprintf (err, errsz, "Spell helper: temporary file write failed"); goto done; }
+        off += (size_t) n;
+    }
+    argv[argc++] = path; argv[argc] = NULL;
+    if (bn_term_signal) { snprintf (err, errsz, "Spell helper interrupted"); goto done; }
+    if (tcgetattr (STDIN_FILENO, &raw) < 0) {
+        snprintf (err, errsz, "Spell helper: terminal unavailable"); goto done;
+    }
+    have_raw = 1;
+    if (bn_tio_saved && tcsetattr (STDIN_FILENO, TCSANOW, &bn_saved_tio) < 0) {
+        snprintf (err, errsz, "Spell helper: terminal setup failed"); goto done;
+    }
+    sigemptyset (&chld); sigaddset (&chld, SIGCHLD);
+    sigprocmask (SIG_BLOCK, &chld, &old_mask); blocked = 1;
+    maybe_make_export_env ();
+    pid = fork ();
+    if (pid == 0) {
+        if (export_env) environ = export_env;
+        static const int dfl[] = { SIGPIPE, SIGINT, SIGQUIT, SIGTERM, SIGTSTP,
+                                   SIGTTIN, SIGTTOU, SIGWINCH, SIGCHLD, SIGALRM };
+        for (size_t i = 0; i < sizeof dfl / sizeof dfl[0]; i++) signal (dfl[i], SIG_DFL);
+        sigprocmask (SIG_SETMASK, &old_mask, NULL);
+        execvp (argv[0], argv);
+        _exit (errno == ENOENT ? 127 : 126);
+    }
+    if (pid < 0) { snprintf (err, errsz, "Spell helper: fork: %s", strerror (errno)); goto done; }
+    struct timespec t0;
+    clock_gettime (CLOCK_MONOTONIC, &t0);
+    for (;;) {
+        wr = waitpid (pid, &status, WNOHANG);
+        if (wr != 0 && !(wr < 0 && errno == EINTR)) break;
+        struct timespec now, nap = { 0, 5 * 1000 * 1000 };
+        clock_gettime (CLOCK_MONOTONIC, &now);
+        long elapsed = (long) ((now.tv_sec - t0.tv_sec) * 1000
+                               + (now.tv_nsec - t0.tv_nsec) / 1000000);
+        if (bn_term_signal) { problem = "interrupted"; break; }
+        if (elapsed >= bn_spell_timeout_ms) { problem = "timed out"; break; }
+        nanosleep (&nap, NULL);
+    }
+    if (problem) {
+        kill (pid, SIGKILL);
+        while ((wr = waitpid (pid, &status, 0)) < 0 && errno == EINTR) { }
+        snprintf (err, errsz, "Spell helper %s: %s", problem, argv[0]); goto done;
+    }
+    if (wr < 0) { snprintf (err, errsz, "Spell helper: waitpid: %s", strerror (errno)); goto done; }
+    if (WIFSIGNALED (status)) { snprintf (err, errsz, "Spell helper killed by signal %d: %s", WTERMSIG (status), argv[0]); goto done; }
+    if (!WIFEXITED (status)) { snprintf (err, errsz, "Spell helper failed: %s", argv[0]); goto done; }
+    if (WEXITSTATUS (status) == 127) { snprintf (err, errsz, "Spell helper not found: %s", argv[0]); goto done; }
+    if (WEXITSTATUS (status) == 126) { snprintf (err, errsz, "Spell helper cannot run: %s", argv[0]); goto done; }
+    if (WEXITSTATUS (status)) { snprintf (err, errsz, "Spell helper failed (exit %d): %s", WEXITSTATUS (status), argv[0]); goto done; }
+    /* An alternate editor may save by renaming over the temporary file. */
+    close (fd);
+    fd = open (path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    struct stat st;
+    if (fd < 0 || fstat (fd, &st) < 0 || !S_ISREG (st.st_mode)
+        || st.st_uid != geteuid () || st.st_nlink != 1 || st.st_size < 0 || (uintmax_t) st.st_size > (uintmax_t) (16 * 1024 * 1024)
+        || lseek (fd, 0, SEEK_SET) < 0) {
+        snprintf (err, errsz, "Spell helper: invalid temporary file"); goto done;
+    }
+    size_t size = (size_t) st.st_size;
+    data = malloc (size ? size : 1);
+    if (!data) { snprintf (err, errsz, "Spell helper: out of memory"); goto done; }
+    off = 0;
+    while (off < size) {
+        ssize_t n = read (fd, data + off, size - off);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) { snprintf (err, errsz, "Spell helper: temporary file read failed"); goto done; }
+        off += (size_t) n;
+    }
+    *result = data; *result_len = size; data = NULL; rc = 0;
+done:
+    if (blocked) sigprocmask (SIG_SETMASK, &old_mask, NULL);
+    if (have_raw) tcsetattr (STDIN_FILENO, TCSANOW, &raw);
+    if (fd >= 0) close (fd);
+    if (created) unlink (path);
+    free (path); free (data); free (copy);
+    return rc;
+}
+
 /* Offset of the first whole-word occurrence of WORD in [from, end), or -1. */
 static long
 bn_find_whole_word (const char *text, size_t text_len, size_t from,
@@ -3162,6 +3297,22 @@ bn_spell (void)
     char *text = bn_pt_flatten_range (&bn_b.pt, rs, re, &tl);
     if (!text) { bn_set_status ("Spell check: out of memory"); return; }
     bn_set_status ("Invoking spell checker...");
+    if (bn_speller && *bn_speller) {
+        char *corrected = NULL, err[256];
+        size_t corrected_len = 0;
+        int rc = bn_spell_file_helper (bn_speller, text, tl, &corrected,
+                                       &corrected_len, err, sizeof err);
+        if (rc < 0) bn_set_status ("%s", err);
+        else if (corrected_len == tl && (!tl || memcmp (corrected, text, tl) == 0))
+            bn_set_status ("Nothing changed");
+        else if (bn_piece_replace (rs, re, corrected, corrected_len,
+                                   bn_offset_after_edit (keep, rs, re, corrected_len)) < 0)
+            bn_set_status ("Spell check: replace failed");
+        else bn_set_status ("Finished checking spelling");
+        free (corrected);
+        free (text);
+        return;
+    }
     bn_wordlist words = {0};
     char err[256];
     int rc = bn_spell_run_helper (bn_speller_command (), text, tl, &words, err, sizeof err);
@@ -3433,8 +3584,7 @@ bn_dispatch_key (const char *k, int klen)
                 int yn = bn_prompt_key
                     ("Save modified buffer?  Y=save  N=discard  ESC=cancel: ");
                 if (yn == 'Y') {
-                    int saved = (bn_b.path && bn_b.path[0])
-                                ? bn_save () : bn_prompt_save_as ();
+                    int saved = bn_prompt_save_as ();
                     if (saved == 0) return -1;
                     /* save failed or was cancelled — stay in editor so user
                        can retry; bn_save / bn_prompt_save_as already set
@@ -5282,6 +5432,7 @@ bn_st_reset (void)
     bn_want_col = -1;
     bn_fill = -8;
     bn_trimblanks = 0;
+    bn_nonewlines = 1;
     bn_complete_reset ();
     bn_keyq_set (NULL, 0);
 }
@@ -6469,6 +6620,8 @@ int
 nano_builtin (WORD_LIST *list)
 {
     /* v2 — selftest path doesn't need a TTY. */
+    if (list && list->word && strncmp (list->word->word, "selftest", 8) == 0)
+        bn_nonewlines = 1;
     if (list && list->word && strcmp (list->word->word, "selftest") == 0)
         return bn_selftest () ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
     if (list && list->word && strcmp (list->word->word, "selftest-piecetable") == 0)
@@ -6512,6 +6665,7 @@ nano_builtin (WORD_LIST *list)
        shell process and must not leak into the next invocation. */
     bn_fill = -8;
     bn_trimblanks = 0;
+    bn_nonewlines = 0;
     free (bn_speller);
     bn_speller = NULL;
     while (list && list->word && list->word->word[0] == '-' && list->word->word[1]) {
@@ -6522,7 +6676,9 @@ nano_builtin (WORD_LIST *list)
             for (char **line = nano_doc; *line; line++) puts (*line);
             return sh_chkwrite (EXECUTION_SUCCESS);
         }
-        if (strcmp (w, "-M") == 0 || strcmp (w, "--trimblanks") == 0)
+        if (strcmp (w, "-L") == 0 || strcmp (w, "--nonewlines") == 0)
+            bn_nonewlines = 1;
+        else if (strcmp (w, "-M") == 0 || strcmp (w, "--trimblanks") == 0)
             bn_trimblanks = 1;
         else if (strncmp (w, "--fill=", 7) == 0)
             num = w + 7;
@@ -6676,7 +6832,7 @@ nano_builtin (WORD_LIST *list)
 char *nano_doc[] = {
     "Minimal nano-like text editor (bash-os Phase V V-4 v2, Stage 16 piece-table core).",
     "",
-    "    nano [-r N | --fill=N] [-M | --trimblanks] [--speller=CMD] [--] [FILE]",
+    "    nano [-r N | --fill=N] [-M | --trimblanks] [-L | --nonewlines] [--speller=CMD] [--] [FILE]",
     "",
     "    -h, --help shows this builtin's documentation without opening a file.",
     "    Interactive editing requires terminal input and output; otherwise",
@@ -6696,11 +6852,11 @@ char *nano_doc[] = {
     "      ^B/^F left/right, ^P/^N up/down, ^I tab, ^R insert file",
     "      ^J justify the paragraph at or after the cursor (with the mark set:",
     "         the marked lines); M-J justify the whole buffer; one ^Z undoes it",
-    "      ^T spell check (marked region or buffer): a word-list helper --",
-    "         --speller=CMD, else $NANO_SPELLER, else spell -- reads the text on",
-    "         stdin and prints misspelled words; it is run with execvp, without",
-    "         a shell or the terminal, capped at 1 MiB / 4096 words / 10 s.",
-    "         GNU interactive alternate spellers and $SPELL are not supported.",
+    "      ^T spell check (marked region or buffer):",
+    "         --speller=CMD edits a temporary file; $NANO_SPELLER or spell reads",
+    "         stdin and prints misspelled words. Commands use execvp without",
+    "         a shell; word lists are capped at 1 MiB / 4096 words; timeout 10 s.",
+    "         GNU's $SPELL environment variable is not supported.",
     "         Each word opens \"Edit a replacement\": Enter replaces every",
     "         whole-word occurrence, Enter unchanged skips, Esc stops",
     "      ^] complete the word before the cursor from the buffer's words;",
@@ -6717,8 +6873,8 @@ char *nano_doc[] = {
     "      buffer to FILE.save (or FILE.save.N; nano.save without a name),",
     "      never replacing a file, then lets the shell's trap or default",
     "      action take the signal. Ignored signals stay ignored.",
-    "Saved files hold exactly the typed text; no final newline is added",
-    "      (GNU nano's --nonewlines behaviour).",
+    "Saving adds a final newline to nonempty text unless -L/--nonewlines",
+    "      is specified; the editing buffer itself is unchanged by saving.",
     "",
     "v2 — UTF-8 read + grapheme-cluster cursor (left/right arrows step",
     "by clusters not bytes) + cell-width-aware render via libgrapheme.",

@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-df-accounting-total-target",
+      "loadable": "df",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "Two controlled tmpfs filesystems: compare total block and inode values and total-row target with and without a source field.",
+      "oracle": "GNU coreutils 9.7 df(1) on the reference side, same guest and per-side mounts",
+      "comparison": "Byte parity with GNU df; setup and in-namespace mount controls must succeed before data are collected.",
+      "covers": [
+        "df/df-statvfs-accounting-deferred"
+      ],
+      "requires": [
+        "df",
+        "mount",
+        "python3",
+        "unshare"
+      ],
+      "setup_script": "export PYTHONDONTWRITEBYTECODE=1\nmkdir a b\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc -c '. ./mounts.sh && /usr/bin/python3 fsobs.py mounts \"[[\\\"fa\\\", \\\"tmpfs\\\", \\\"a\\\"], [\\\"fb\\\", \\\"tmpfs\\\", \\\"b\\\"]]\"'\n",
+      "setup_timeout": 60,
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc inner.sh\n",
+      "expected_status": 0,
+      "timeout": 60,
+      "features": [
+        "userns"
+      ],
+      "files": {
+        "fsobs.py": "# SPDX-License-Identifier: MIT\n# Trusted observer and setup control for filesystem-boundary fixtures (pane 214).\n# Python stdlib only; never imports or runs the candidate.\n# Usage:\n#   fsobs.py tree PATH...          per entry (sorted walk, no symlink following): relative path, type,\n#                                  mode, mtime_ns, nlink, hardlink group, symlink target or content hex\n#   fsobs.py exists PATH...        lexists and type of each PATH\n#   fsobs.py bytes PATH...         length and hex of each PATH, or absent\n#   fsobs.py fill PATH SIZE        create PATH holding SIZE zero bytes\n#   fsobs.py symlink TARGET LINK   create LINK -> TARGET\n#   fsobs.py mounts JSON           setup control: every [source, fstype, path] is a mount in this namespace\nimport json, os, stat, sys\n\n\ndef kind(info):\n    for test, name in ((stat.S_ISLNK, 'link'), (stat.S_ISDIR, 'dir'), (stat.S_ISREG, 'file'),\n                       (stat.S_ISFIFO, 'fifo'), (stat.S_ISCHR, 'chr'), (stat.S_ISBLK, 'blk')):\n        if test(info.st_mode):\n            return name\n    return 'other'\n\n\ndef describe(path, groups):\n    info = os.lstat(path)\n    key = (info.st_dev, info.st_ino)\n    group = groups.setdefault(key, len(groups) + 1) if info.st_nlink > 1 and not stat.S_ISDIR(info.st_mode) else 0\n    text = '%s %s %04o mtime=%d nlink=%d hl=%d' % (path, kind(info), stat.S_IMODE(info.st_mode), info.st_mtime_ns,\n                                                   info.st_nlink, group)\n    if stat.S_ISLNK(info.st_mode):\n        text += ' -> ' + os.readlink(path)\n    elif stat.S_ISREG(info.st_mode):\n        with open(path, 'rb') as handle:\n            text += ' data=' + handle.read(64).hex()\n    return text\n\n\ndef main():\n    command, args = sys.argv[1], sys.argv[2:]\n    if command == 'tree':\n        groups = {}\n        for root in args:\n            if not os.path.lexists(root):\n                print(root + ' absent')\n                continue\n            print(describe(root, groups))\n            if os.path.isdir(root) and not os.path.islink(root):\n                for parent, dirs, files in os.walk(root):\n                    dirs.sort()\n                    for name in sorted(dirs + files):\n                        print(describe(os.path.join(parent, name), groups))\n    elif command == 'exists':\n        for path in args:\n            print('%s %s' % (path, kind(os.lstat(path)) if os.path.lexists(path) else 'absent'))\n    elif command == 'bytes':\n        for path in args:\n            if os.path.lexists(path):\n                with open(path, 'rb') as handle:\n                    data = handle.read()\n                print('%s len=%d hex=%s' % (path, len(data), data.hex()))\n            else:\n                print(path + ' absent')\n    elif command == 'fill':\n        with open(args[0], 'wb') as handle:\n            handle.write(b'\\0' * int(args[1]))\n    elif command == 'symlink':\n        os.symlink(args[0], args[1])\n    elif command == 'mounts':\n        table = []\n        with open('/proc/self/mountinfo') as handle:\n            for line in handle:\n                left, right = line.split(' - ', 1)\n                fstype, source = right.split()[:2]\n                table.append((source, fstype, os.path.realpath(left.split()[4].encode().decode('unicode_escape'))))\n        for source, fstype, path in json.loads(args[0]):\n            if (source, fstype, os.path.realpath(path)) not in table:\n                print('CONTROL-FAILED mount %s %s on %s not present' % (source, fstype, path))\n                sys.exit(98)\n        print('mount control ok')\n    else:\n        raise AssertionError(command)\n\n\nif __name__ == '__main__':\n    main()\n",
+        "mounts.sh": "/usr/bin/mount -t tmpfs -o size=1M,nr_inodes=64 fa a || exit 97\n/usr/bin/mount -t tmpfs -o size=4M,nr_inodes=128 fb b || exit 97\n",
+        "inner.sh": "set -e\n. ./mounts.sh\n/usr/bin/python3 fsobs.py mounts '[[\"fa\", \"tmpfs\", \"a\"], [\"fb\", \"tmpfs\", \"b\"]]'\n/usr/bin/python3 fsobs.py fill a/x 12288\n/usr/bin/python3 fsobs.py fill b/x 1048576\nfor fields in target,size,used,avail,pcent source,target,size,used,avail,pcent target,itotal,iused,iavail,ipcent; do\n  printf '[%s]\\n' \"$fields\"\n  df --total --output=\"$fields\" a b\ndone\n"
+      }
+    }
+  ]
+}

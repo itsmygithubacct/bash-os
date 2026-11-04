@@ -50,7 +50,7 @@ parse_owner (char *spec, uid_t *uid, gid_t *gid)
 	  long v = strtol (o, &end, 10);
 	  if (errno || end == o || *end || v < 0 ||
               (uintmax_t) (uid_t) v != (uintmax_t) v || (uid_t) v == (uid_t) -1)
-            { builtin_error ("invalid user: %s", o); return -1; }
+	    { builtin_error ("invalid user: '%s'", o); return -1; }
 	  *uid = (uid_t) v;
 	}
     }

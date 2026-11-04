@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-batch-journal-recovery-r2",
+      "loadable": "batch",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "A previously reserved second survives a later-second journal and an interrupted partial record.",
+      "oracle": "Seed independent per-second journal records and an older queued job; observe exact next sequence, ordered execution and removal.",
+      "comparison": "Exact journal bytes, next sequence, FIFO order and repeated poll; controlled same-second setup required.",
+      "covers": [
+        "batch/cron-consumer-semantics"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/batch-journal-recovery-r2.py": "6a544e9135c70c8446cc3313c2d76fff2237e95f0e70c6d8f740c073dc1066ea",
+        "helpers/cron-lifecycle-observer-bash5320.py": "599bcd6e7334eb456dae4742866e661aaed6290995b92d4cfbc2f61f889a9b41"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/batch-journal-recovery-r2.py \"$BASH\"",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "journal-recovery=ok reserved-order=ok consumed-once=ok\n",
+      "stderr": ""
+    }
+  ]
+}

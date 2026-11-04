@@ -348,6 +348,7 @@ struct bt_follow_file {
     int wd;
     int fd;
     int read_from_start;
+    int missing_errno;
 };
 
 static void
@@ -405,7 +406,7 @@ bt_follow_drain_one (struct bt_follow_file *f, int idx, int n_paths,
 }
 
 static int
-bt_follow (char **paths, int n_paths, int retry)
+bt_follow (char **paths, int *initial_errors, int n_paths, int retry)
 {
     /* Open one inotify fd; one watch per path; track per-path the file
        descriptor + last read offset. */
@@ -420,11 +421,21 @@ bt_follow (char **paths, int n_paths, int retry)
         files[i].path = paths[i];
         files[i].wd = -1;
         files[i].fd = -1;
-        files[i].read_from_start = 0;
+        files[i].missing_errno = initial_errors[i];
+        files[i].read_from_start = initial_errors[i] != 0;
         if (bt_follow_open_one (infd, &files[i], retry) < 0) {
             if (!retry)
                 builtin_error ("inotify_add_watch %s: %s", paths[i], strerror (errno));
+            if (retry && !files[i].missing_errno) {
+                files[i].missing_errno = errno;
+                fprintf (stderr, "tail: '%s' has become inaccessible: %s\n",
+                         files[i].path, strerror (errno));
+            }
             files[i].read_from_start = 1;
+        } else if (retry && files[i].missing_errno) {
+            fprintf (stderr, files[i].missing_errno == ENOENT
+                     ? "tail: '%s' has appeared;  following new file\n"
+                     : "tail: '%s' has become accessible\n", files[i].path);
         }
     }
 
@@ -432,11 +443,21 @@ bt_follow (char **paths, int n_paths, int retry)
     int follow_rc = 0;
     char buf[8192];
     char evbuf[4096] __attribute__((aligned (8)));
-    for (;;) {
+    /* A previously missing file can appear during follow setup. */
+    for (int i = 0; i < n_paths; i++)
+        if (files[i].fd >= 0 && files[i].missing_errno &&
+            bt_follow_drain_one (&files[i], i, n_paths, &last_emitted,
+                                 buf, sizeof buf) < 0)
+            follow_rc = -1;
+    for (; follow_rc == 0;) {
         if (retry) {
             for (int i = 0; i < n_paths; i++) {
                 if (files[i].fd < 0 &&
                     bt_follow_open_one (infd, &files[i], retry) == 0) {
+                    fprintf (stderr, files[i].missing_errno == ENOENT
+                             ? "tail: '%s' has appeared;  following new file\n"
+                             : "tail: '%s' has become accessible\n", files[i].path);
+                    files[i].missing_errno = 0;
                     if (bt_follow_drain_one (&files[i], i, n_paths, &last_emitted,
                                              buf, sizeof buf) < 0) {
                         follow_rc = -1;
@@ -473,12 +494,35 @@ bt_follow (char **paths, int n_paths, int retry)
             p += sizeof (struct inotify_event) + e->len;
             if (idx < 0) continue;
 
-            if (e->mask & (IN_MOVE_SELF | IN_DELETE_SELF | IN_IGNORED)) {
+            if ((e->mask & (IN_MOVE_SELF | IN_DELETE_SELF | IN_IGNORED)) ||
+                (retry && (e->mask & IN_ATTRIB))) {
                 /* -f follows the original file descriptor; -F follows the
                    pathname and retries after rotation or disappearance. */
                 if (retry) {
+                    struct stat old_st, new_st;
+                    int old_ok = fstat (files[idx].fd, &old_st) == 0;
+                    int new_ok = stat (files[idx].path, &new_st) == 0;
+                    int err = errno;
+                    if (new_ok && old_ok && old_st.st_dev == new_st.st_dev &&
+                        old_st.st_ino == new_st.st_ino)
+                        continue;
+                    if (new_ok)
+                        fprintf (stderr, "tail: '%s' has been replaced;  following new file\n", files[idx].path);
+                    else
+                        fprintf (stderr, "tail: '%s' has become inaccessible: %s\n", files[idx].path, strerror (err));
+                    inotify_rm_watch (infd, files[idx].wd);
                     bt_follow_close_one (&files[idx]);
                     files[idx].read_from_start = 1;
+                    files[idx].missing_errno = new_ok ? 0 : err;
+                    if (new_ok) {
+                        if (bt_follow_open_one (infd, &files[idx], retry) < 0)
+                            files[idx].missing_errno = errno;
+                        else if (bt_follow_drain_one (&files[idx], idx, n_paths,
+                                                      &last_emitted, buf, sizeof buf) < 0) {
+                            follow_rc = -1;
+                            break;
+                        }
+                    }
                 }
                 continue;
             }
@@ -676,6 +720,12 @@ tail_builtin (WORD_LIST *list)
     } else {
         /* Initial tails. */
         char **paths = follow ? calloc ((size_t) n_files, sizeof (char *)) : NULL;
+        int *initial_errors = follow ? calloc ((size_t) n_files, sizeof (int)) : NULL;
+        if (follow && (!paths || !initial_errors)) {
+            free (paths);
+            free (initial_errors);
+            return EXECUTION_FAILURE;
+        }
         int p_idx = 0;
         int first = 1;
         int initial_zero = !from_start &&
@@ -693,12 +743,15 @@ tail_builtin (WORD_LIST *list)
             }
             if (!f) {
                 /* Match GNU tail's open-failure diagnostic. */
+                int open_error = errno;
                 if (!is_stdin)
-                    builtin_error ("cannot open '%s' for reading: %s",
-                                   p->word->word, strerror (errno));
+                    fprintf (stderr, "tail: cannot open '%s' for reading: %s\n",
+                             p->word->word, strerror (open_error));
                 rc = EXECUTION_FAILURE;
-                if (paths && follow_retry)
+                if (paths && follow_retry) {
+                    initial_errors[p_idx] = open_error;
                     paths[p_idx++] = p->word->word;
+                }
                 continue;
             }
             if (show_headers) {
@@ -721,10 +774,11 @@ tail_builtin (WORD_LIST *list)
             rc = EXECUTION_FAILURE;
         }
         if (follow && p_idx > 0) {
-            if (bt_follow (paths, p_idx, follow_retry) < 0)
+            if (bt_follow (paths, initial_errors, p_idx, follow_retry) < 0)
                 rc = EXECUTION_FAILURE;
         }
         free (paths);
+        free (initial_errors);
     }
     if (stdin_f && bt_close_stdin (stdin_f) < 0)
         rc = EXECUTION_FAILURE;

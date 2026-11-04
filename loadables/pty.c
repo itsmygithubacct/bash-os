@@ -134,12 +134,18 @@ bp_setsid_cmd (WORD_LIST *args)
   return EXECUTION_SUCCESS;
 }
 
+static char *bp_output_name (const char *name);
+static int bp_bind_number (char *name, int value);
+
 static int
 bp_open_tty_cmd (WORD_LIST *args)
 {
   if (!args) { builtin_error ("open-tty needs PATH [FDVAR]"); return EX_USAGE; }
   const char *path = args->word->word;
   const char *fdvar = (args->next) ? args->next->word->word : NULL;
+  /* Reject invalid, readonly, or unsafe output names before acquiring a tty. */
+  char *resolved_fdvar = fdvar ? bp_output_name (fdvar) : NULL;
+  if (fdvar && !resolved_fdvar) return EXECUTION_FAILURE;
 
   /* O_NOCTTY: don't let open() implicitly grab the tty. We do that
      explicitly with TIOCSCTTY below, after verifying we're a session
@@ -148,7 +154,24 @@ bp_open_tty_cmd (WORD_LIST *args)
   if (fd < 0)
     {
       builtin_error ("open %s: %s", path, strerror (errno));
+      free (resolved_fdvar);
       return EXECUTION_FAILURE;
+    }
+
+  /* Keep even initially closed standard descriptors untouched until the
+     controlling-terminal request has succeeded. */
+  if (fd < 3)
+    {
+      int saved_fd = fcntl (fd, F_DUPFD_CLOEXEC, 3);
+      int saved_errno = errno;
+      close (fd);
+      if (saved_fd < 0)
+        {
+          builtin_error ("duplicate tty fd: %s", strerror (saved_errno));
+          free (resolved_fdvar);
+          return EXECUTION_FAILURE;
+        }
+      fd = saved_fd;
     }
 
   /* Acquire the controlling terminal. Fails if we already have one
@@ -156,20 +179,24 @@ bp_open_tty_cmd (WORD_LIST *args)
      not a session leader. Pass 0 to TIOCSCTTY (don't force-steal). */
   if (ioctl (fd, TIOCSCTTY, 0) < 0)
     {
-      /* Note: this can fail with EPERM if we already have a ctty —
-         common in interactive / dev sessions. Don't fail hard; the
-         tty is still usable for reads/writes, just not "controlling". */
-      builtin_error ("TIOCSCTTY %s: %s (continuing without controlling)",
-                     path, strerror (errno));
-      /* Fall through — keep the fd; warn was enough. */
+      int saved_errno = errno;
+      close (fd);
+      builtin_error ("TIOCSCTTY %s: %s", path, strerror (saved_errno));
+      free (resolved_fdvar);
+      return EXECUTION_FAILURE;
     }
 
   if (fdvar)
     {
       /* Caller wants the fd via variable; don't touch 0/1/2. */
-      char buf[32];
-      snprintf (buf, sizeof buf, "%d", fd);
-      builtin_bind_variable ((char *) fdvar, buf, 0);
+      int rc = bp_bind_number (resolved_fdvar, fd);
+      free (resolved_fdvar);
+      if (rc < 0)
+        {
+          close (fd);
+          builtin_error ("cannot bind tty descriptor");
+          return EXECUTION_FAILURE;
+        }
       return EXECUTION_SUCCESS;
     }
 

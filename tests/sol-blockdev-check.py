@@ -92,8 +92,26 @@ def main():
 
     for a in QUERIES:
         command = shlex.join(['blockdev', a] + [d['name'] for d in DEVICES])
-        check(a + ' metadata and exact request', command + '\nblockdev_fixture trace',
+        check(a + ' metadata and exact request', command + '\nrc=$?; blockdev_fixture trace || exit $?; exit "$rc"',
               values([a], DEVICES) + trace([a], DEVICES))
+    # Fixed expectations keep these boundary checks independent of values().
+    # The legacy sector count is deliberately distinct from bytes / 512.
+    for label, metadata, expected in [
+            ('1000 bytes', '1000 4294967297 512 4096 0',
+             '1\n1000\n4294967297\n512\n4096\n0\n'),
+            ('100 bytes', '100 23 4096 8192 7',
+             '0\n100\n23\n4096\n8192\n1\n')]:
+        check('query boundaries ' + label,
+              'blockdev_fixture device /fixture/boundary ' + metadata + ' v1 || exit 92\n'
+              'blockdev --getsz --getsize64 --getsize --getss --getbsz --getro /fixture/boundary\n'
+              'rc=$?; blockdev_fixture trace || exit $?; exit "$rc"',
+              expected + 'open /fixture/boundary ro\n'
+              'ioctl /fixture/boundary BLKGETSIZE64\n'
+              'ioctl /fixture/boundary BLKGETSIZE64\n'
+              'ioctl /fixture/boundary BLKGETSIZE\n'
+              'ioctl /fixture/boundary BLKSSZGET\n'
+              'ioctl /fixture/boundary BLKBSZGET\n'
+              'ioctl /fixture/boundary BLKROGET\nclose /fixture/boundary\n')
     actions = list(REQUESTS)
     for name, acts, devices in [
             ('all advertised actions, two devices', actions, DEVICES),
@@ -142,7 +160,27 @@ def main():
                   shlex.join(['blockdev'] + acts + [d['name'] for d in DEVICES]) +
                   '\nrc=$?; blockdev_fixture trace; exit "$rc"',
                   # If the trailing query has the same request, it also fails.
-                  expected if a != '--getbsz' else out + trace(acts, DEVICES), 1, '/fixture/a: ioctl:')
+                  expected if a != '--getbsz' else out + trace(acts, DEVICES), 1,
+                  ('ioctl error on ' + request + ': ' + os.strerror(code))
+                  if a in ('--flushbufs', '--rereadpt') else '/fixture/a: ioctl:')
+    # Maintenance errors must identify the actual request, while the following
+    # action and device still execute. Check the complete diagnostic suffix.
+    for action, request, codes in [('--flushbufs', 'BLKFLSBUF', (errno.EACCES,)),
+                                    ('--rereadpt', 'BLKRRPART', (errno.EBUSY, errno.EINVAL))]:
+        for code in codes:
+            acts = [action, '--getbsz']
+            body = (f'blockdev_fixture fail /fixture/a {request} {code}\n' +
+                    shlex.join(['blockdev'] + acts + [d['name'] for d in DEVICES]) +
+                    '\nrc=$?; blockdev_fixture trace; exit "$rc"')
+            r = invoke(binary, prefix + body, args.preload)
+            suffix = f'blockdev: ioctl error on {request}: {os.strerror(code)}\n'
+            expected = values(['--getbsz'], DEVICES) + trace(acts, DEVICES)
+            if (r.returncode == 1 and r.stdout == expected and
+                    r.stderr.endswith(suffix) and len(r.stderr.splitlines()) == 1):
+                passed += 1; print('PASS maintenance diagnostic', request, code)
+            else:
+                failed += 1; print('FAIL maintenance diagnostic', request, code,
+                                   r.returncode, repr(r.stdout), repr(r.stderr))
     check('close error continues', 'blockdev_fixture fail /fixture/a close 5\n'
           'blockdev --getss /fixture/a /fixture/b\nrc=$?; blockdev_fixture stats; exit "$rc"',
           '4096\n512\nstats 2 2 2 0 0\nro /fixture/a 0\nro /fixture/b 7\n', 1, '/fixture/a: close:')
@@ -151,6 +189,18 @@ def main():
           'blockdev --setrw /fixture/a || exit 98\nblockdev --getro /fixture/a || exit 98\n'
           'blockdev_fixture stats',
           '1\n0\nstats 4 4 4 0 0\nro /fixture/a 0\nro /fixture/b 7\n')
+    check('readonly state remains per device across calls',
+          'blockdev --setrw /fixture/b || exit 98\n'
+          'blockdev --setro /fixture/a || exit 98\n'
+          'blockdev --getro /fixture/a /fixture/b || exit 98\n'
+          'blockdev_fixture stats',
+          '1\n0\nstats 4 4 4 0 0\nro /fixture/a 1\nro /fixture/b 0\n')
+    check('EACCES setters preserve state and later getters run',
+          f'blockdev_fixture fail /fixture/a BLKROSET {errno.EACCES}\n'
+          'blockdev --getro --setro --getro --setrw --getro /fixture/a\n'
+          'rc=$?; blockdev_fixture stats; exit "$rc"',
+          '0\n0\n0\nstats 1 1 5 0 0\nro /fixture/a 0\nro /fixture/b 7\n',
+          1, 'Permission denied')
     for option in ('--getss /fixture/a', '--help', '--version'):
         check('output failure and recovery ' + option,
               f'blockdev {option} >/dev/full\nrc=$?\nblockdev --getss /fixture/a || exit 93\nexit "$rc"',

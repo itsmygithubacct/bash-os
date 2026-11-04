@@ -214,6 +214,8 @@ enum ssh_publickey_state_e {
 #define SSH_CLOSED_ERROR 0x04
 /** Output buffer not empty */
 #define SSH_WRITE_PENDING 0x08
+/** Transport ended with a zero-error read EOF. This is not authentication. */
+#define SSH_READ_EOF 0x10
 
 enum ssh_server_known_e {
 	SSH_SERVER_ERROR=-1,

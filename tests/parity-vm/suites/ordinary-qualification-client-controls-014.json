@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "qualification-014-client-controls",
+      "loadable": "login",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "oracle": "Exact current extracted functions versus frozen historical baseline: 16 audit/wait cases, nine credential/capability-drop cases, release helpers and explicitly encoded PHC parser controls. Native injected controls only; not full authentication evidence.",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-client-controls-r1.py client-controls\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "timeout": 60,
+      "file_size_limit": 33554432,
+      "requires": [
+        "python3"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-client-controls-r1.py": "6d09c688188130adff1310415699df52532442c3a0d9a543a6ddc4213973109d"
+      },
+      "files": {
+        "qualification-inputs.json": "{\"assets\": {\"client-regressions-baseline\": \"851fbd94562ee3da2b71225585650c9a3ae9742a9b88d364bc1d85b03d468ce1\", \"client-regressions-current\": \"7b44beb12eb644e961dca1cc1ecdc55fd09a360683bb019096721d522ac92a1e\", \"login-drop-baseline\": \"12ce689f64bd4ad4dc1c198b276d535a694fc513f432531fd31a01934e7239b9\", \"login-drop-current\": \"33d51f791db8988b21ff9cd15ed93dc6695d0445270b67136a1bc6893047342f\", \"phc-record-regressions\": \"50577216c2a251e7e87fd97bb2409bc8ab7c883e982cdcdc3cad10120bb1d32a\", \"release-regressions\": \"8a15186f6c9a97cc9e1cf6730d57a52fcb5d02277cdc34378361b9fc89b632d0\"}, \"sources\": {\"qualification-limits/client-controls-r1.py\": \"f0887eecc624685ed68b5dfb9be5d5c11b54e551e86ff92afe981a16dbd4ed5b\", \"qualification-limits/guest.py\": \"f03af0128fdecc553f31e1065b5648d4c1403c85d673a9fd759b7767ea423b1a\"}}\n"
+      },
+      "diagnostic_files": [
+        "qualification-report.json",
+        "qualification-transport.json"
+      ]
+    }
+  ]
+}

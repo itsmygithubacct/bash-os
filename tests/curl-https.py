@@ -96,12 +96,15 @@ def curl(*args, status=0, stdout=None, stderr=None):
     if stdout is not None:
         assert result.stdout == stdout, (args[-1][:80], result.stdout, result.stderr)
     if stderr is not None:
-        assert stderr in result.stderr, (args[-1][:80], result.stderr)
+        assert (result.stderr == '' if stderr == '' else stderr in result.stderr), (args[-1][:80], result.stderr)
     checks += 1
 
 
 with tempfile.TemporaryDirectory(prefix='curl-https-') as directory:
     ca, leaf, key = authority(Path(directory))
+    other_dir = Path(directory) / 'other'
+    other_dir.mkdir()
+    other_ca, _, _ = authority(other_dir)
     server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(leaf, key)
@@ -117,7 +120,18 @@ with tempfile.TemporaryDirectory(prefix='curl-https-') as directory:
         curl('-fsS', '--cacert', ca, f'{base}/too-long', stdout='')
         curl('-fsS', '--cacert', ca, f'{base}/missing', status=22)
         curl('-fsS', '-k', f'{base}/asset?sig=k', stdout='payload 1\n')
-        curl('-fsS', f'{base}/asset?sig=untrusted', status=1, stdout='')
+        curl('-fsS', '-k', '--cacert', other_ca, f'{base}/asset?sig=k',
+             stdout='payload 1\n')
+        # curl reports certificate verification failure as 60, including with
+        # an explicit but unrelated CA. Silent mode must also silence crypto.
+        curl('-fs', f'{base}/asset?sig=untrusted', status=60, stdout='', stderr='')
+        curl('-fs', '--cacert', other_ca, f'{base}/asset?sig=wrong-ca',
+             status=60, stdout='', stderr='')
+        curl('-fsS', '--cacert', other_ca, f'{base}/asset?sig=wrong-ca',
+             status=60, stdout='', stderr='certificate')
+        # A CA file load failure is not a peer certificate rejection.
+        curl('-fs', '--cacert', Path(directory) / 'missing.pem',
+             f'{base}/asset?sig=missing-ca', status=1, stdout='', stderr='')
         curl('-fsS', '--cacert', ca, f'{base}/asset?sig={TOO_LONG}', status=2, stderr='URL is longer than')
     finally:
         server.shutdown()

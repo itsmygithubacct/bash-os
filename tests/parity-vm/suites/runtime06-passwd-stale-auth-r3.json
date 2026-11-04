@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "timeout": 60,
+      "loadable": "passwd",
+      "requires": [
+        "python3",
+        "argon2",
+        "openssl",
+        "mkdir",
+        "cp",
+        "chmod"
+      ],
+      "covers": [],
+      "id": "runtime06-passwd-change-stale-auth-r3",
+      "purpose": "Authenticate against an initial hash, pause at the new-password PTY prompt, allow a cooperating lock or set, then require the older change to fail without altering the winning update; also verify ordinary successful change.",
+      "oracle": "Deterministic PTY prompt barrier and independently verified Argon2/OpenSSL hash; concurrent winner must survive unchanged. The helper executes only inside the guarded disposable guest.",
+      "comparison": "Exact success/failure classes, byte-exact winning shadow records, and OpenSSL KDF verification of the uncontended new PHC.",
+      "files": {
+        "db/passwd": "root:x:0:0:root:/root:/bin/sh\nalice:x:1000:100:Alice:/home/alice:/bin/sh\n",
+        "db/group": "root:x:0:\nusers:x:100:\n",
+        "pw.old": "old-secret-r3",
+        "pw.next": "next-secret-r3",
+        "pw.rival": "rival-secret-r3"
+      },
+      "helpers_sha256": {
+        "helpers/runtime06-auth-race-r3.py": "c56249e4f3ef652858880cbe40e917469184c73f4f504f9f87c12ea8bfdef5cb",
+        "helpers/runtime06-phc-oracle-r3.py": "a8d3c7e0edd2690b85273b8b0c6f212c00f62e6e0056c342d9e0f9c9e1312cfa"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nset -e\n/usr/bin/mkdir seed lock\nold=$(printf %s old-secret-r3 | /usr/bin/argon2 w5saltw5salt1234 -id -t 1 -k 1024 -p 1 -l 32 -e)\nprintf \"alice:%s:19000:0:99999:7:::\\n\" \"$old\" > seed/shadow\n/usr/bin/cp seed/shadow db/shadow\n/usr/bin/chmod 600 seed/shadow db/shadow\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/runtime06-phc-oracle-r3.py seed/shadow alice pw.old > \"$HOME/setup-oracle.txt\"\n",
+      "setup_timeout": 60,
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BPW_LOCK_DIR=$PWD/lock BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/runtime06-auth-race-r3.py \"$BASH\"\n",
+      "expected_status": 0,
+      "stdout": "unchanged=success-independent-kdf\nstale-set=rejected-winner-unchanged\nstale-lock=rejected-winner-unchanged\n",
+      "diagnostic_files": [
+        "setup-oracle.txt"
+      ]
+    },
+    {
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "timeout": 60,
+      "loadable": "passwd",
+      "requires": [
+        "python3",
+        "openssl",
+        "grep",
+        "chmod"
+      ],
+      "covers": [],
+      "id": "runtime06-passwd-add-canonical-phc-kdf-r3",
+      "purpose": "Create an account with an existing primary group, then verify canonical unpadded Base64 Argon2id and the derived key independently.",
+      "oracle": "Independent OpenSSL ARGON2ID with binary-safe hex salt and a known-answer self-check, canonical Base64 round-trip and 16-byte salt/32-byte digest.",
+      "comparison": "Require successful add, a single existing group, no new same-name group, correct account and independent KDF match.",
+      "files": {
+        "db/passwd": "root:x:0:0:root:/root:/bin/sh\n",
+        "db/group": "root:x:0:\nusers:x:100:\n",
+        "db/shadow": "root:*:19000:0:99999:7:::\n",
+        "pw": "synthetic-account-password-r3\n"
+      },
+      "helpers_sha256": {
+        "helpers/runtime06-phc-oracle-r3.py": "a8d3c7e0edd2690b85273b8b0c6f212c00f62e6e0056c342d9e0f9c9e1312cfa"
+      },
+      "script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\nexport PHCLIB_PASSWD=$PWD/db/passwd PHCLIB_GROUP=$PWD/db/group PHCLIB_SHADOW=$PWD/db/shadow BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/chmod 600 db/shadow || exit 125\npasswd add-fd erin 3 -u 2001 -g 100 3< pw > \"$HOME/add.out\" 2> \"$HOME/add.err\" || exit 1\n/usr/bin/grep -Eq \"^erin:x:2001:100:\" db/passwd || exit 2\n! /usr/bin/grep -q \"^erin:\" db/group || exit 3\n[[ $(/usr/bin/grep -c \"^users:.*:100:\" db/group) == 1 ]] || exit 4\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/runtime06-phc-oracle-r3.py db/shadow erin pw || exit 5\nprintf \"account=created-existing-group\\n\"\n",
+      "expected_status": 0,
+      "stdout": "canonical-base64-kdf=match\naccount=created-existing-group\n",
+      "diagnostic_files": [
+        "add.out",
+        "add.err"
+      ]
+    }
+  ]
+}

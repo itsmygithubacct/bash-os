@@ -158,17 +158,21 @@ bx_parse_positive_long (const char *s, long *out)
 }
 
 static int
-bx_prompt_yes (char **argv, int n)
+bx_prompt_yes (char **argv, int n, int *prompt_error)
 {
     FILE *tty = fopen ("/dev/tty", "r");
-    FILE *in = tty ? tty : stdin;
+    if (!tty) {
+        builtin_error ("cannot open /dev/tty: %s", strerror (errno));
+        *prompt_error = 1;
+        return 0;
+    }
     for (int i = 0; i < n; i++) fprintf (stderr, "%s%s", i ? " " : "", argv[i]);
-    fputs (" ?...", stderr);
+    fputs ("?...", stderr);
     fflush (stderr);
 
     char ans[16];
     int yes = 0;
-    if (fgets (ans, sizeof ans, in))
+    if (fgets (ans, sizeof ans, tty))
         yes = (ans[0] == 'y' || ans[0] == 'Y');
     if (tty) fclose (tty);
     return yes;
@@ -1393,6 +1397,7 @@ xargs_builtin (WORD_LIST *list)
 #endif
     bx_batch_buffers buffers = { 0 };
     int rc = BX_OK;
+    int prompt_error = 0;
     int got_any = 0;
     int too_long = 0;         /* a command line exceeded the byte limit */
     int pool_n = 0, pool_fatal = 0;
@@ -1505,7 +1510,7 @@ xargs_builtin (WORD_LIST *list)
                 break;
             }
             int r = BX_OK;
-            if (!pflag || bx_prompt_yes (argv, tmpl_n)) {
+            if (!pflag || bx_prompt_yes (argv, tmpl_n, &prompt_error)) {
                 if (parallel) {
                     while (pool_n >= max_p) {
                         r = bx_wait_one (pool_pids, pool_cmds, &pool_n, &pool_fatal, &spawn_state);
@@ -1513,13 +1518,13 @@ xargs_builtin (WORD_LIST *list)
                         if (pool_fatal) break;
                     }
                     if (!pool_fatal) {
-                        pid_t pid = bx_spawn (argv, tmpl_n, tflag, &spawn_state);
+                        pid_t pid = bx_spawn (argv, tmpl_n, tflag && !pflag, &spawn_state);
                         if (pid < 0) { r = BX_BAD; rc = bx_fold (rc, r); }
                         else bx_record_spawn (pid, argv[0], pool_pids, pool_cmds,
                                               &pool_n, &spawn_state);
                     }
                 } else {
-                    r = bx_run (argv, tmpl_n, tflag, &spawn_state, &prev_mask);
+                    r = bx_run (argv, tmpl_n, tflag && !pflag, &spawn_state, &prev_mask);
                     rc = bx_fold (rc, r);
                 }
             }
@@ -1527,6 +1532,7 @@ xargs_builtin (WORD_LIST *list)
             for (int i = 0; i < tmpl_n; i++) free (argv[i]);
             free (argv);
             free (arg);
+            if (prompt_error) { rc = BX_BAD; goto cleanup; }
             if (spawn_state.mask_error) { rc = BX_BAD; goto cleanup; }
             /* GNU xargs aborts after a fatal child (signaled, 255, or
                exec failure). Drop the rest of stdin and stop. */
@@ -1609,7 +1615,7 @@ xargs_builtin (WORD_LIST *list)
                 for (size_t i = 0; i < batch_n; i++) argv[tmpl_n + i] = buffers.args[i].data;
                 argv[total] = NULL;
                 int r = BX_OK;
-                if (!pflag || bx_prompt_yes (argv, total)) {
+                if (!pflag || bx_prompt_yes (argv, total, &prompt_error)) {
                     if (parallel) {
                         while (pool_n >= max_p) {
                             r = bx_wait_one (pool_pids, pool_cmds, &pool_n, &pool_fatal, &spawn_state);
@@ -1617,17 +1623,18 @@ xargs_builtin (WORD_LIST *list)
                             if (pool_fatal) break;
                         }
                         if (!pool_fatal) {
-                            pid_t pid = bx_spawn (argv, total, tflag, &spawn_state);
+                            pid_t pid = bx_spawn (argv, total, tflag && !pflag, &spawn_state);
                             if (pid < 0) { r = BX_BAD; rc = bx_fold (rc, r); }
                             else bx_record_spawn (pid, argv[0], pool_pids, pool_cmds,
                                               &pool_n, &spawn_state);
                         }
                     } else {
-                        r = bx_run (argv, total, tflag, &spawn_state, &prev_mask);
+                        r = bx_run (argv, total, tflag && !pflag, &spawn_state, &prev_mask);
                         rc = bx_fold (rc, r);
                     }
                 }
                 batch_n = 0; batch_bytes = 0;
+                if (prompt_error) { rc = BX_BAD; goto cleanup; }
                 if (spawn_state.mask_error) { rc = BX_BAD; goto cleanup; }
                 if (bx_is_fatal (r) || pool_fatal) { aborted_fatal = 1; break; }
             }
@@ -1675,7 +1682,7 @@ xargs_builtin (WORD_LIST *list)
             for (size_t i = 0; i < batch_n; i++) argv[tmpl_n + i] = buffers.args[i].data;
             argv[total] = NULL;
             int r = BX_OK;
-            if (!pflag || bx_prompt_yes (argv, total)) {
+            if (!pflag || bx_prompt_yes (argv, total, &prompt_error)) {
                 if (parallel) {
                     while (pool_n >= max_p) {
                         r = bx_wait_one (pool_pids, pool_cmds, &pool_n, &pool_fatal, &spawn_state);
@@ -1683,18 +1690,20 @@ xargs_builtin (WORD_LIST *list)
                         if (pool_fatal) break;
                     }
                     if (!pool_fatal) {
-                        pid_t pid = bx_spawn (argv, total, tflag, &spawn_state);
+                        pid_t pid = bx_spawn (argv, total, tflag && !pflag, &spawn_state);
                         if (pid < 0) { r = BX_BAD; rc = bx_fold (rc, r); }
                         else bx_record_spawn (pid, argv[0], pool_pids, pool_cmds,
                                               &pool_n, &spawn_state);
                     }
                 } else {
-                    r = bx_run (argv, total, tflag, &spawn_state, &prev_mask);
+                    r = bx_run (argv, total, tflag && !pflag, &spawn_state, &prev_mask);
                     rc = bx_fold (rc, r);
                 }
             }
         }
     }
+
+    if (prompt_error) { rc = BX_BAD; goto cleanup; }
 
     /* A successful empty read runs CMD once unless -r or -I suppresses it.
        A parse error must not fall through to an empty-input invocation. */
@@ -1704,16 +1713,17 @@ xargs_builtin (WORD_LIST *list)
         for (int i = 0; i < tmpl_n; i++) argv[i] = tmpl[i];
         argv[tmpl_n] = NULL;
         int r = BX_OK;
-        if (!pflag || bx_prompt_yes (argv, tmpl_n)) {
+        if (!pflag || bx_prompt_yes (argv, tmpl_n, &prompt_error)) {
             /* The existing no-input parallel case runs synchronously
                with the pool's SIGCHLD guard included in its child mask. */
             sigset_t once_mask = prev_mask;
             if (parallel) sigaddset (&once_mask, SIGCHLD);
-            r = bx_run (argv, tmpl_n, tflag, &spawn_state, &once_mask);
+            r = bx_run (argv, tmpl_n, tflag && !pflag, &spawn_state, &once_mask);
             rc = bx_fold (rc, r);
         }
         if (spawn_state.mask_error) bx_mask_interval_cleanup (&spawn_state);
         free (argv);
+        if (prompt_error) rc = BX_BAD;
     }
 
 cleanup:

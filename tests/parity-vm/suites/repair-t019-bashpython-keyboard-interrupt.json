@@ -1,0 +1,171 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-t019-bashpython-ki-caught",
+      "loadable": "bashpython",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "bashpython/keyboard-interrupt"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
+      "timeout": 12,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "case $BASH in /opt/bash-5.3.20/bin/bash) P=/usr/bin/python3;; *) P=bashpython;; esac; export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "$P ki1.py; echo \"status=$?\"\r"
+        },
+        {
+          "expect": "ready\\r\\n"
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "expect": "caught\\r\\nstatus=0\\r\\n"
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "comparison": "Python prints ready after its SIGINT handler is installed; the PTY sends Ctrl-C to its foreground group. Compare the recorded output, shell status and state against standalone Python; a directly invoked builtin may share the interactive shell foreground group.",
+      "interactive_shell": true,
+      "files": {
+        "ki1.py": "import time\ntry:\n    print('ready', flush=True)\n    time.sleep(30)\nexcept KeyboardInterrupt:\n    print('caught', flush=True)\n"
+      }
+    },
+    {
+      "id": "repair-t019-bashpython-ki-unhandled",
+      "loadable": "bashpython",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "bashpython/keyboard-interrupt"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
+      "timeout": 12,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "case $BASH in /opt/bash-5.3.20/bin/bash) P=/usr/bin/python3;; *) P=bashpython;; esac; export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "$P ki2.py\r"
+        },
+        {
+          "expect": "ready\\r\\n"
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "expect": "KeyboardInterrupt\\r\\n"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "echo \"status=$?\"\r"
+        },
+        {
+          "expect": "status=130\\r\\n"
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "comparison": "Python prints ready after its SIGINT handler is installed; the PTY sends Ctrl-C to its foreground group. Compare the recorded output, shell status and state against standalone Python; a directly invoked builtin may share the interactive shell foreground group.",
+      "interactive_shell": true,
+      "files": {
+        "ki2.py": "import time\nprint('ready', flush=True)\ntime.sleep(30)\n"
+      }
+    },
+    {
+      "id": "repair-t019-bashpython-ki-group-scope",
+      "loadable": "bashpython",
+      "group": "terminal",
+      "driver": "pty",
+      "covers": [
+        "bashpython/keyboard-interrupt"
+      ],
+      "requires": [
+        "python3"
+      ],
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
+      "timeout": 12,
+      "steps": [
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "case $BASH in /opt/bash-5.3.20/bin/bash) P=/usr/bin/python3;; *) P=bashpython;; esac; export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "/usr/bin/python3 sentinel.py &\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "until [ -e sentinel.ready ]; do :; done; echo sentinel-up\r"
+        },
+        {
+          "expect": "sentinel-up\\r\\n"
+        },
+        {
+          "send": "$P ki3.py; echo \"status=$? cwd=$PWD x=${KI_X-unset}\"\r"
+        },
+        {
+          "expect": "ready\\r\\n"
+        },
+        {
+          "send": "\u0003"
+        },
+        {
+          "expect": "caught\\r\\nstatus=0 cwd=[^\\r]*parity-case x=unset\\r\\n"
+        },
+        {
+          "send": "kill -USR1 %1; wait %1; echo \"sentinel=$(<sentinel.out)\"\r"
+        },
+        {
+          "expect": "sentinel=no-int\\r\\n"
+        },
+        {
+          "send": "exit\r"
+        }
+      ],
+      "expected_status": 0,
+      "comparison": "Python prints ready after its SIGINT handler is installed; the PTY sends Ctrl-C to its foreground group. Compare the recorded output, shell status and state against standalone Python; a directly invoked builtin may share the interactive shell foreground group.",
+      "interactive_shell": true,
+      "files": {
+        "ki3.py": "import os, time\nos.chdir('/')\nos.environ['KI_X'] = 'py'\ntry:\n    print('ready', flush=True)\n    time.sleep(30)\nexcept KeyboardInterrupt:\n    print('caught', flush=True)\n",
+        "sentinel.py": "import os, signal, sys, time\nos.setpgid(0, 0)\ngot = []\nsignal.signal(signal.SIGINT, lambda *a: got.append(1))\nsignal.signal(signal.SIGUSR1, lambda *a: sys.exit(0))\nopen('sentinel.ready', 'w').close()\nwhile not got:\n    try:\n        time.sleep(0.05)\n    except SystemExit:\n        break\nopen('sentinel.out', 'w').write('got-int\\n' if got else 'no-int\\n')\n"
+      }
+    }
+  ]
+}

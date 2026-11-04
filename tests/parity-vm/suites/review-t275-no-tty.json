@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "review-t275-xargs-no-controlling-tty",
+      "loadable": "xargs",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "xargs/prompt-requires-pty"
+      ],
+      "purpose": "A prompt with no controlling terminal fails without consuming answers from stdin or running the command in normal, replacement, parallel, and empty-input paths.",
+      "oracle": "The assigned terminal-only answer requirement and explicit status and child-output assertions; run only inside a disposable VM.",
+      "requires": [
+        "setsid",
+        "grep"
+      ],
+      "candidate_script": "[[ $(type -t xargs) == builtin ]] || exit 125\nfor mode in normal replace parallel empty; do\n  case $mode in\n    normal) args=(-p -n 1); input=yes;;\n    replace) args=(-p -I X); input=yes;;\n    parallel) args=(-p -P 2 -n 1); input=yes;;\n    empty) args=(-p); input=;;\n  esac\n  if [[ $mode == empty ]]; then printf '' >input; else printf '%s\\n' \"$input\" >input; fi\n  /usr/bin/setsid -w \"$BASH\" --noprofile --norc -c '[[ $(type -t xargs) == builtin ]] || exit 125; xargs \"$@\" /usr/bin/printf \"CHILD:%s\\n\"' _ \"${args[@]}\" <input >out 2>err\n  s=$?\n  [[ $s == 1 && ! -s out ]] || { printf 'failure %s status=%s\\n' \"$mode\" \"$s\"; exit 1; }\n  /usr/bin/grep -q '/dev/tty' err || { printf 'missing diagnostic %s\\n' \"$mode\"; exit 1; }\ndone\nprintf 'no-tty rejected\\n'\n",
+      "expected_status": 0,
+      "stdout": "no-tty rejected\n",
+      "stderr": "",
+      "timeout": 30
+    }
+  ]
+}

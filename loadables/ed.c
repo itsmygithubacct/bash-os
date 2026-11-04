@@ -6,6 +6,7 @@
 #include <string.h>
 #include <errno.h>
 #include <regex.h>
+#include <unistd.h>
 #include "loadables.h"
 
 struct snap { char **v; size_t n; size_t cur; size_t mark[26]; int dirty; };
@@ -25,7 +26,7 @@ static void freebuf_all(struct buf*b){ freeundo(&b->undo); freebuf(b); }
 static int bashed_silent=0;
 static int setfile(struct buf*b,const char*path){ char*p=strdup(path); if(!p)return 1; free(b->file); b->file=p; return 0; }
 static int push(struct buf*b,const char*s,size_t pos){ if(b->n+1>b->cap){size_t nc=b->cap?b->cap*2:64;char**nv=realloc(b->v,nc*sizeof*nv);if(!nv)return 1;b->v=nv;b->cap=nc;} if(pos>b->n)pos=b->n; memmove(b->v+pos+1,b->v+pos,(b->n-pos)*sizeof*b->v); b->v[pos]=strdup(s); if(!b->v[pos])return 1; for(size_t i=0;i<26;i++)if(b->mark[i]>pos)b->mark[i]++; b->n++; b->cur=pos+1; b->dirty=1; return 0; }
-static int load(struct buf*b,const char*path){ FILE*f=fopen(path,"r"); if(!f){ if(errno==ENOENT)return setfile(b,path); builtin_error("%s: %s",path,strerror(errno)); return 1;} char*line=NULL;size_t cap=0;ssize_t r; while((r=getline(&line,&cap,f))!=-1){ if(r&&line[r-1]=='\n')line[r-1]=0; if(push(b,line,b->n)){free(line);fclose(f);return 1;} b->dirty=0;} free(line); fclose(f); if(setfile(b,path))return 1; b->cur=b->n; return 0; }
+static int load(struct buf*b,const char*path){ FILE*f=fopen(path,"r"); if(!f){ if(errno==ENOENT)return setfile(b,path); builtin_error("%s: %s",path,strerror(errno)); return 1;} char*line=NULL;size_t cap=0,bytes=0;ssize_t r; while((r=getline(&line,&cap,f))!=-1){ bytes+=(size_t)r; if(r&&line[r-1]=='\n')line[r-1]=0; if(push(b,line,b->n)){free(line);fclose(f);return 1;} b->dirty=0;} free(line); fclose(f); if(setfile(b,path))return 1; b->cur=b->n; if(!bashed_silent)printf("%zu\n",bytes); return 0; }
 /* POSIX ed: 'w' prints the number of BYTES written, not lines. */
 static int writebuf_mode(struct buf*b,const char*path,const char*mode){ if(!path||!*path)path=b->file; if(!path||!*path){builtin_error("no current filename");return 1;} FILE*f=fopen(path,mode); if(!f){builtin_error("%s: %s",path,strerror(errno));return 1;} size_t bytes=0; for(size_t i=0;i<b->n;i++){ fprintf(f,"%s\n",b->v[i]); bytes+=strlen(b->v[i])+1; } fclose(f); if(setfile(b,path))return 1; if(mode[0]=='w')b->dirty=0; if(!bashed_silent)printf("%zu\n",bytes); return 0; }
 static int writebuf(struct buf*b,const char*path){ return writebuf_mode(b,path,"w"); }
@@ -51,9 +52,22 @@ static int copy_range_after(struct buf*b,size_t a,size_t z,size_t dest,int move)
 
 int ed_builtin(WORD_LIST *list){
     struct buf b={0}; int rc=EXECUTION_SUCCESS; bashed_silent=0; if(list&&(!strcmp(list->word->word,"-s"))){ bashed_silent=1; list=list->next; } if(list && load(&b,list->word->word)){freebuf(&b);return EXECUTION_FAILURE;}
-    char *cmd=NULL; size_t cap=0; ssize_t r;
-    while((r=getline(&cmd,&cap,stdin))!=-1){ if(r&&cmd[r-1]=='\n')cmd[r-1]=0; if(!*cmd)continue; char op=cmd[strlen(cmd)-1]; char spec[128]; strncpy(spec,cmd,sizeof spec-1); spec[sizeof spec-1]=0; spec[strlen(spec)-1]=0; size_t a,z;
-        if(!strcmp(cmd,"q")){ if(b.dirty){fprintf(stderr,"?\n"); b.dirty=0; continue;} break; }
+    char *cmd=NULL; size_t cap=0; ssize_t r; int warning_modified=0, quit_warning=0;
+    for(;;){
+        r=getline(&cmd,&cap,stdin);
+        if(r==-1){
+            if(isatty(fileno(stdin)) && feof(stdin) && b.dirty && !quit_warning){
+                fprintf(stderr,"?\n"); quit_warning=1; warning_modified=1; rc=EXECUTION_FAILURE; clearerr(stdin); continue;
+            }
+            if(isatty(fileno(stdin)) && feof(stdin)){
+                if(warning_modified) rc=2;
+                clearerr(stdin);
+            }
+            break;
+        } if(r&&cmd[r-1]=='\n')cmd[r-1]=0; if(!*cmd)continue; char op=cmd[strlen(cmd)-1]; char spec[128]; strncpy(spec,cmd,sizeof spec-1); spec[sizeof spec-1]=0; spec[strlen(spec)-1]=0; size_t a,z;
+        if(!strcmp(cmd,"q")){ if(b.dirty && !quit_warning){fprintf(stderr,"?\n"); quit_warning=1; warning_modified=1; rc=EXECUTION_FAILURE; continue;} break; }
+        quit_warning=0;
+        if(!strcmp(cmd,"h") && warning_modified){ puts("Warning: buffer modified"); continue; }
         if(!strcmp(cmd,"Q")) break;
         if(cmd[0]=='w' && (cmd[1]==0||cmd[1]==' ')){ if(writebuf(&b,cmd[1]==' '?cmd+2:NULL)) rc=EXECUTION_FAILURE; continue; }
         if(cmd[0]=='W' && (cmd[1]==0||cmd[1]==' ')){ if(writebuf_mode(&b,cmd[1]==' '?cmd+2:NULL,"a")) rc=EXECUTION_FAILURE; continue; }

@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "control-passwd-syscall-tracer-r16",
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "timeout": 60,
+      "requires": [
+        "python3"
+      ],
+      "script": "[[ $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nT=/opt/bashos-parity/harness/helpers/passwd-syscall-diagnostic-r16.py\nC=/opt/bashos-parity/harness/helpers/passwd-trace-canary-target-r16.py\n/usr/bin/python3 -I \"$T\" --log \"$HOME/positive-trace.json\" -- /usr/bin/python3 -I \"$C\" files\nrc=$?\n[[ $rc == 7 ]] || exit 11\n/usr/bin/python3 -I \"$T\" --log \"$HOME/fork-trace.json\" -- /usr/bin/python3 -I \"$C\" fork\nrc=$?\n[[ $rc == 125 ]] || exit 12\n/usr/bin/python3 -I - <<'CHECK'\nimport json, pathlib\np=pathlib.Path('/tmp/parity-home')\nd=json.loads((p/'positive-trace.json').read_text())\nassert d['exec_seen'] and d['exit_status']==7 and 'error' not in d\nr=d['records']\nassert all('return' in x for x in r)\nassert any(x['syscall']=='read' and x['args'][0]==123456 and x['return']==-9 and x['is_error'] for x in r)\nfor names in [('open','openat'),('link','linkat'),('rename','renameat','renameat2'),('unlink','unlinkat'),('fsync',)]:\n    assert any(x['syscall'] in names and x['return']>=0 and not x['is_error'] for x in r),names\nassert d['after_filter']['NoNewPrivs']==1 and d['after_filter']['Seccomp']==2\nn=json.loads((p/'fork-trace.json').read_text())\nassert 'descendant process attempt' in n['error']\nassert any(x['syscall'] in ('fork','vfork','clone','clone3') and x['return']==-1 and x['is_error'] for x in n['records'])\nprint('passwd tracer canaries: complete file observations, EBADF, exit propagation, denied fork verified')\nCHECK\n",
+      "expected_status": 0,
+      "stdout": "passwd tracer canaries: complete file observations, EBADF, exit propagation, denied fork verified\n",
+      "purpose": "Validate diagnostic observer against known file syscall outcomes and forbidden descendant creation in a disposable root guest. No product credit.",
+      "oracle": "Independent Python os calls; exact EBADF and fork EPERM, propagated exit7, successful file operations and complete observer entry/exit records.",
+      "comparison": "Complete structured trace plus exact terminal marker; missing or malformed observations fail.",
+      "helpers_sha256": {
+        "helpers/passwd-trace-canary-target-r16.py": "c397ce424b83866a103851aa17802198515d6a37f8d70372540de41bcd08c7f5",
+        "helpers/passwd-syscall-diagnostic-r16.py": "8c1875ec7367df4327759a1fde347a4ec80986f2b5d863136907f4e8023454f8"
+      },
+      "diagnostic_files": [
+        "positive-trace.json",
+        "fork-trace.json"
+      ]
+    }
+  ]
+}

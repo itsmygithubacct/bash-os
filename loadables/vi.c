@@ -76,11 +76,14 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <regex.h>
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <poll.h>
+#include <signal.h>
+#include <sys/select.h>
 
 /* Shared CSI/SS3 key decoder (the bv_read_key body was lifted here in
  * 2026-05-18 so less/more/nano/top/dialog/whiptail/screen can share
@@ -166,6 +169,7 @@ typedef struct {
     bv_mode mode;
     int show_line_numbers;
     int readonly;
+    int interactive_empty_file; /* initial empty file needs a final newline on write */
     char *yank;          /* clipboard */
     size_t yank_len;
     int yank_is_line;    /* yy/dd vs visual yank */
@@ -582,6 +586,8 @@ bv_pt_save (const bv_pt_buffer *b, const char *path)
     memcpy (tmp, path, plen);
     memcpy (tmp + plen, ".tmp.XXXXXX", sizeof ".tmp.XXXXXX");
 
+    struct stat st;
+    int have_mode = stat (path, &st) == 0;
     int fd = mkstemp (tmp);
     if (fd < 0) { free (tmp); return -1; }
     for (size_t i = 0; i < b->n_pieces; i++) {
@@ -598,6 +604,10 @@ bv_pt_save (const bv_pt_buffer *b, const char *path)
             }
             off += (size_t) w;
         }
+    }
+    if (have_mode && fchmod (fd, st.st_mode & 07777) < 0) {
+        int e = errno; close (fd); unlink (tmp); free (tmp); errno = e;
+        return -1;
     }
     if (fdatasync (fd) < 0) { close (fd); unlink (tmp); free (tmp); return -1; }
     if (close (fd) < 0) { unlink (tmp); free (tmp); return -1; }
@@ -1359,11 +1369,16 @@ bv_ex_write (const char *path_or_null)
         bv_set_status ("E32: No file name");
         return -1;
     }
+    if (bv_st.interactive_empty_file && bv_st.pt.total_len &&
+        bv_byte_at (&bv_st.pt, bv_st.pt.total_len - 1) != '\n') {
+        if (bv_insert_at (bv_st.pt.total_len, "\n", 1) < 0) return -1;
+    }
     if (bv_pt_save (&bv_st.pt, target) < 0) {
         bv_set_status ("E212: write failed: %s", strerror (errno));
         return -1;
     }
     bv_st.pt.dirty = 0;
+    bv_st.interactive_empty_file = 0;
     if (!bv_st.path || strcmp (bv_st.path, target) != 0) {
         free (bv_st.path);
         bv_st.path = strdup (target);
@@ -1566,6 +1581,91 @@ bv_ex_delete (int naddr, size_t a1, size_t a2, const char *rest)
     return rc;
 }
 
+/* Substitute within addressed lines using POSIX basic regular expressions. */
+static int
+bv_ex_substitute (const char *p, size_t first, size_t last)
+{
+    char delim = *p++;
+    if (!delim || isalnum ((unsigned char) delim) || delim == '\\') goto bad;
+    char pattern[1024], replacement[1024];
+    size_t n = 0;
+    while (*p && *p != delim) {
+        if (*p == '\\' && p[1] == delim) p++;
+        if (n + 1 >= sizeof pattern) goto bad;
+        pattern[n++] = *p++;
+    }
+    if (*p++ != delim || n == 0) goto bad;
+    pattern[n] = 0; n = 0;
+    while (*p && *p != delim) {
+        if (n + 2 >= sizeof replacement) goto bad;
+        if (*p == '\\' && p[1]) replacement[n++] = *p++;
+        replacement[n++] = *p++;
+    }
+    if (*p == delim) p++;
+    replacement[n] = 0;
+    int global = 0;
+    if (*p == 'g') { global = 1; p++; }
+    while (*p == ' ') p++;
+    if (*p) goto bad;
+    regex_t re;
+    if (regcomp (&re, pattern, 0) != 0) goto bad;
+    size_t lines = bv_nlines (&bv_st.pt);
+    if (!first || first > last || last > lines) { regfree (&re); goto bad; }
+    int marked = 0, found = 0;
+    for (size_t line = first; line <= last; line++) {
+        size_t start = bv_line_to_pos (&bv_st.pt, line - 1);
+        size_t off = 0;
+        for (;;) {
+            size_t end = bv_line_end (&bv_st.pt, start);
+            size_t len = 0;
+            char *text = bv_flatten_range (&bv_st.pt, start + off, end, &len);
+            if (!text) { regfree (&re); return -1; }
+            regmatch_t m[10];
+            int match = regexec (&re, text, 10, m, off ? REG_NOTBOL : 0);
+            if (match) { free (text); break; }
+            char out[8192]; size_t used = 0;
+            for (size_t j = 0; replacement[j]; j++) {
+                int group = -1;
+                if (replacement[j] == '&') group = 0;
+                else if (replacement[j] == '\\' && replacement[j+1]) {
+                    j++;
+                    if (replacement[j] >= '1' && replacement[j] <= '9') group = replacement[j] - '0';
+                }
+                if (group >= 0) {
+                    if (m[group].rm_so >= 0) {
+                        size_t count = (size_t) (m[group].rm_eo - m[group].rm_so);
+                        if (count > sizeof out - used) { free (text); regfree (&re); goto bad; }
+                        memcpy (out + used, text + m[group].rm_so, count); used += count;
+                    }
+                } else {
+                    if (used == sizeof out) { free (text); regfree (&re); goto bad; }
+                    out[used++] = replacement[j];
+                }
+            }
+            size_t a = start + off + (size_t) m[0].rm_so;
+            size_t b = start + off + (size_t) m[0].rm_eo;
+            free (text);
+            if (!marked) { if (bv_history_mark (&bv_st) < 0) { regfree (&re); return -1; } marked = 1; }
+            if (bv_replace_span (&bv_st.pt, a, b, out, used) < 0) { regfree (&re); return -1; }
+            found = 1;
+            bv_st.last_op_cmd = 0;
+            off = a - start + used;
+            if (!global) break;
+            if (a == b) {
+                if (off >= bv_line_end (&bv_st.pt, start) - start) break;
+                off++;
+            }
+        }
+    }
+    regfree (&re);
+    if (!found) { bv_set_status ("Pattern not found: %s", pattern); return -1; }
+    bv_cursor_normalize ();
+    return 0;
+bad:
+    bv_set_status ("Invalid substitute");
+    return -1;
+}
+
 static int
 bv_ex_command (const char *line)
 {
@@ -1608,6 +1708,11 @@ bv_ex_command (const char *line)
         while (w[wn] >= 'a' && w[wn] <= 'z') wn++;
         if (wn <= 6 && strncmp (w, "delete", wn) == 0)
             return bv_ex_delete (naddr, a1, a2, w + wn);
+    }
+    if (*line == 's' && line[1] && !isalpha ((unsigned char) line[1])) {
+        size_t current = bv_line_number (&bv_st.pt, bv_st.cur) + 1;
+        return bv_ex_substitute (line + 1, naddr == 2 ? a1 : naddr == 1 ? a2 : current,
+                                 naddr ? a2 : current);
     }
     if (naddr) {
         bv_set_status ("E481: No range allowed");
@@ -1680,6 +1785,72 @@ bv_ex_command (const char *line)
     return -1;
 }
 
+/* A word consists of an alphanumeric/underscore run or a punctuation
+ * run. For a count, include whitespace between words, but not after the
+ * last word. Starting on whitespace changes that whitespace first. */
+static int
+bv_change_word (size_t count, int repeating)
+{
+    bv_pt_buffer *b = &bv_st.pt;
+    size_t end = bv_st.cur;
+    if (!count) count = 1;
+    if (end < b->total_len && bv_byte_at (b, end) != '\n') {
+        for (size_t i = 0; i < count && end < b->total_len; i++) {
+            unsigned char c = (unsigned char) bv_byte_at (b, end);
+            if (isspace (c)) {
+                while (end < b->total_len &&
+                       isspace ((unsigned char) bv_byte_at (b, end))) end++;
+            } else {
+                int cls = bv_is_word ((char) c);
+                while (end < b->total_len) {
+                    c = (unsigned char) bv_byte_at (b, end);
+                    if (isspace (c) || bv_is_word ((char) c) != cls) break;
+                    end++;
+                }
+                if (i + 1 < count)
+                    while (end < b->total_len &&
+                           isspace ((unsigned char) bv_byte_at (b, end))) end++;
+            }
+        }
+    }
+    if (bv_history_mark (&bv_st) < 0) return -1;
+    if (bv_delete_range (bv_st.cur, end) < 0) return -1;
+    if (repeating) {
+        size_t n = bv_st.last_insert_len;
+        if (bv_insert_at (bv_st.cur, bv_st.last_insert_text, n) < 0) return -1;
+        bv_st.cur += n;
+        if (n && bv_st.cur > bv_line_start (b, bv_st.cur))
+            bv_st.cur = bv_motion_left (bv_st.cur);
+        bv_cursor_normalize ();
+    } else {
+        bv_st.mode = BV_MODE_INSERT;
+        bv_st.last_insert_len = 0;
+    }
+    return 0;
+}
+
+/* Join COUNT lines, as one undoable edit. A bare J joins two lines. */
+static int
+bv_cmd_join (size_t count)
+{
+    if (count < 2) count = 2;
+    int marked = 0;
+    for (size_t i = 1; i < count; i++) {
+        size_t le = bv_line_end (&bv_st.pt, bv_st.cur);
+        if (le >= bv_st.pt.total_len || le + 1 >= bv_st.pt.total_len) break;
+        size_t end = le + 1;
+        while (end < bv_st.pt.total_len &&
+               (bv_byte_at (&bv_st.pt, end) == ' ' || bv_byte_at (&bv_st.pt, end) == '\t')) end++;
+        if (!marked) {
+            if (bv_history_mark (&bv_st) < 0) return -1;
+            marked = 1;
+        }
+        if (bv_replace_span (&bv_st.pt, le, end, " ", 1) < 0) return -1;
+        bv_st.cur = le;
+    }
+    return marked;
+}
+
 /* ---- repeat (.) --------------------------------------------------- */
 
 /* `count` is the count typed before '.', or 0 to reuse the count of
@@ -1691,6 +1862,10 @@ bv_repeat (size_t count)
     if (count == 0) count = bv_st.last_count ? bv_st.last_count : 1;
     bv_st.last_count = count;
     switch (bv_st.last_op_cmd) {
+    case 'c':
+        return bv_change_word (count, 1);
+    case 'J':
+        return bv_cmd_join (count) < 0 ? -1 : 0;
     case 'x':
         return bv_cmd_x (count);
     case 'd':
@@ -1753,6 +1928,19 @@ bv_repeat (size_t count)
 
 static inline int  bv_read_key (int fd)       { return bl_read_key (fd); }
 static inline void bv_pushback (unsigned char b) { bl_pushback (b); }
+
+/* Pending operator state for two-char commands (dd, yy) and the
+ * count typed before a command ([N]dd) or inside it (d[N]d). */
+typedef struct {
+    char pending;        /* 0, 'd', 'y' */
+    size_t count;        /* digits typed so far, 0 = none */
+    size_t op_count;     /* count typed before the pending operator */
+    char insert_buf[4096];
+    size_t insert_len;
+} bv_pending;
+
+static bv_pending bv_pend;
+
 
 /* ---- render (interactive mode only) ------------------------------ */
 
@@ -1872,6 +2060,12 @@ bv_render (int fd)
               cur_line + 1,
               bv_screen_col (bv_st.cur) + 1,
               bv_st.status[0] ? bv_st.status : "");
+    if (bv_st.mode == BV_MODE_COMMAND) {
+        bv_write_all (fd, "\033[m", 3);
+        bv_write_all (fd, bv_pend.insert_buf, bv_pend.insert_len);
+        bv_writef (fd, "\033[K\033[%d;%zuH", rows, bv_pend.insert_len + 1);
+        return;
+    }
     bv_write_all (fd, status, strlen (status));
     int pad = cols - (int) strlen (status);
     while (pad-- > 0) bv_write_all (fd, " ", 1);
@@ -1885,19 +2079,6 @@ bv_render (int fd)
 }
 
 /* ---- dispatch ---------------------------------------------------- */
-
-/* Pending operator state for two-char commands (dd, yy) and the
- * count typed before a command ([N]dd) or inside it (d[N]d). */
-typedef struct {
-    char pending;        /* 0, 'd', 'y' */
-    size_t count;        /* digits typed so far, 0 = none */
-    size_t op_count;     /* count typed before the pending operator */
-    char insert_buf[4096];
-    size_t insert_len;
-} bv_pending;
-
-static bv_pending bv_pend;
-
 
 /* Apply a single decoded key in NORMAL mode. */
 static void
@@ -1919,6 +2100,12 @@ bv_normal_key (int fd, int key)
             bv_cmd_dd (total);
             bv_st.last_op_cmd = 'd';
             bv_st.last_count = total;
+        } else if (bv_pend.pending == 'c' && key == 'w') {
+            if (bv_change_word (total, 0) == 0) {
+                bv_st.last_op_cmd = 'c';
+                bv_st.last_count = total;
+                bv_pend.insert_len = 0;
+            }
         } else if (bv_pend.pending == 'y' && key == 'y') {
             bv_cmd_yy (total);
         }
@@ -1943,9 +2130,42 @@ bv_normal_key (int fd, int key)
     case 'b': bv_st.cur = bv_motion_b (bv_st.cur); break;
     case '0': case BV_KEY_HOME: bv_st.cur = bv_motion_0 (bv_st.cur); break;
     case '$': case BV_KEY_END:  bv_st.cur = bv_motion_dollar (bv_st.cur); break;
+    case BL_KEY_PGDN: case BL_KEY_PGUP: {
+        /* Keep overlap between pages and put the cursor at the entering
+         * edge, as vi does for full-screen scrolling. */
+        size_t height = bv_st.rows > 1 ? (size_t) bv_st.rows - 1 : 23;
+        size_t step = height > 4 ? height - 4 : 1;
+        size_t last = bv_nlines (&bv_st.pt);
+        last = last ? last - 1 : 0;
+        size_t top = bv_st.top_line;
+        for (size_t i = 0; i < count; i++) {
+            if (key == BL_KEY_PGDN) {
+                if (top >= last || last - top <= step) { top = last; break; }
+                top += step;
+            } else {
+                if (top <= step) { top = 0; break; }
+                top -= step;
+            }
+        }
+        bv_st.top_line = top;
+        size_t line = top;
+        if (key == BL_KEY_PGUP && top > 0)
+            line = last - top < step ? last : top + step;
+        bv_st.cur = bv_line_to_pos (&bv_st.pt, line);
+        break;
+    }
     case 'G': bv_st.cur = bv_motion_G (typed); break;
     case 'x':
         bv_cmd_x (count); bv_st.last_op_cmd = 'x'; bv_st.last_count = count; break;
+    case 'J': {
+        size_t lines = count < 2 ? 2 : count;
+        if (bv_cmd_join (lines) > 0) {
+            bv_st.last_op_cmd = 'J';
+            bv_st.last_count = lines;
+        }
+        break;
+    }
+    case 'c': bv_pend.pending = 'c'; bv_pend.op_count = typed; break;
     case 'd':
         bv_pend.pending = 'd'; bv_pend.op_count = typed; break;
     case 'y':
@@ -2051,8 +2271,7 @@ bv_command_key (int fd, int key)
         if (bv_pend.insert_len > 0) {
             bv_pend.insert_buf[bv_pend.insert_len] = '\0';
             if (bv_pend.insert_buf[0] == ':') {
-                if (bv_ex_command (bv_pend.insert_buf + 1) < 0)
-                    bv_st.rc = 1;
+                (void) bv_ex_command (bv_pend.insert_buf + 1);
             } else if (bv_pend.insert_buf[0] == '/') {
                 bv_cmd_search (bv_pend.insert_buf + 1);
             }
@@ -2128,6 +2347,14 @@ bv_dispatch (int fd, int key)
 
 static struct termios bv_saved_tio;
 static int            bv_saved_valid = 0;
+static volatile sig_atomic_t bv_winch_pending;
+
+static void
+bv_on_winch (int sig)
+{
+    (void) sig;
+    bv_winch_pending = 1;
+}
 
 static int
 bv_raw_mode (int fd)
@@ -2179,17 +2406,66 @@ bv_interactive (const char *path)
     } else {
         bv_pt_init_text (&bv_st.pt, "", 0);
     }
+    bv_st.interactive_empty_file = bv_st.pt.total_len == 0;
     bv_st.mode = BV_MODE_NORMAL;
     bv_st.cur = 0;
     bv_st.top_line = 0;
 
+    /* Block WINCH except during pselect: this closes the race between
+     * checking the flag and sleeping for input. Restore the shell's signal
+     * disposition and mask before returning from the builtin. */
+    struct sigaction sa, old_sa;
+    sigset_t winch_set, old_mask, wait_mask;
+    memset (&sa, 0, sizeof sa);
+    sa.sa_handler = bv_on_winch;
+    sigemptyset (&sa.sa_mask);
+    sigemptyset (&winch_set);
+    sigaddset (&winch_set, SIGWINCH);
+    if (sigprocmask (SIG_BLOCK, &winch_set, &old_mask) < 0) {
+        bv_cooked_mode (fd);
+        if (close_fd) close (fd);
+        return 1;
+    }
+    bv_winch_pending = 0;
+    if (sigaction (SIGWINCH, &sa, &old_sa) < 0) {
+        sigprocmask (SIG_SETMASK, &old_mask, NULL);
+        bv_cooked_mode (fd);
+        if (close_fd) close (fd);
+        return 1;
+    }
+    if (fd >= FD_SETSIZE) {
+        sigaction (SIGWINCH, &old_sa, NULL);
+        sigprocmask (SIG_SETMASK, &old_mask, NULL);
+        bv_cooked_mode (fd);
+        if (close_fd) close (fd);
+        return 1;
+    }
+    wait_mask = old_mask;
+    sigdelset (&wait_mask, SIGWINCH);
     bv_render (fd);
     while (!bv_st.quit) {
+        if (bv_winch_pending) {
+            bv_winch_pending = 0;
+            bv_render (fd);
+        }
+        if (!bl_key_pending ()) {
+            fd_set input;
+            FD_ZERO (&input);
+            FD_SET (fd, &input);
+            int ready = pselect (fd + 1, &input, NULL, NULL, NULL, &wait_mask);
+            if (ready < 0) {
+                if (errno == EINTR) continue;
+                bv_st.rc = 1;
+                break;
+            }
+        }
         int key = bv_read_key (fd);
         if (key == BV_KEY_NONE) break;
         bv_dispatch (fd, key);
         bv_render (fd);
     }
+    sigaction (SIGWINCH, &old_sa, NULL);
+    sigprocmask (SIG_SETMASK, &old_mask, NULL);
     bv_cooked_mode (fd);
     bv_writef (fd, "\033[H\033[2J");
     if (close_fd) close (fd);

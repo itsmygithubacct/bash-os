@@ -132,7 +132,7 @@ bsd_resolve (const char *screen)
 {
     int ms;
     if (screen != NULL) {
-        char envname[16 + BSD_MAX_NAME_LEN + 1];
+        char envname[sizeof "BASHESCDELAY_SCREEN_" + BSD_MAX_NAME_LEN];
         snprintf (envname, sizeof envname, "BASHESCDELAY_SCREEN_%s", screen);
         if (bsd_env_lookup (envname, &ms) == 0) return ms;
         int sm = bsd_screen_lookup (screen);
@@ -230,6 +230,11 @@ escdelay_builtin (WORD_LIST *list)
     }
     const char *cmd = list->word->word;
     WORD_LIST *args = list->next;
+    /* Private in-process decoder protocol: the tagged return value carries
+       the full 0..5000 range without shell variables or a link dependency. */
+    if (strcmp (cmd, "\001bashos-escdelay-resolve-v1") == 0 &&
+        (args == NULL || args->next == NULL))
+        return 0x10000 + bsd_resolve (args ? args->word->word : NULL);
     if (strcmp (cmd, "--help") == 0) { builtin_usage (); return EXECUTION_SUCCESS; }
     if (strcmp (cmd, "--version") == 0) {
         puts ("escdelay 1.0 (bash-loadable)");

@@ -633,6 +633,46 @@ bashos_cred_exec_run (bashos_cred_exec_ctx *ctx, bashos_cred_exec_plan *plan)
 }
 
 int
+bashos_cred_exec_shell_argv (const char *shell, int login_shell,
+                            const char *cmd, int extra_argc,
+                            const char **extra_argv,
+                            const char **argv, size_t capacity)
+{
+  int ai = 0;
+  size_t needed;
+
+  if (!shell || !*shell || !argv || extra_argc < 0 || extra_argc > 64)
+    {
+      errno = EINVAL;
+      return -1;
+    }
+  needed = 2 + (size_t) extra_argc + (cmd ? 2 : login_shell && !extra_argc ? 1 : 0);
+  if (capacity < needed)
+    {
+      errno = E2BIG;
+      return -1;
+    }
+  for (int k = 0; k < extra_argc; k++)
+    if (!extra_argv || !extra_argv[k])
+      {
+        errno = EINVAL;
+        return -1;
+      }
+  argv[ai++] = shell;
+  if (cmd)
+    {
+      argv[ai++] = "-c";
+      argv[ai++] = cmd;
+    }
+  else if (login_shell && !extra_argc)
+    argv[ai++] = "--login";
+  for (int k = 0; k < extra_argc; k++)
+    argv[ai++] = extra_argv[k];
+  argv[ai] = NULL;
+  return ai;
+}
+
+int
 bashos_cred_exec_user_shell_policy (const bashos_cred_exec_user *u,
                                     const char *progname,
                                     int keep_env,
@@ -653,6 +693,11 @@ bashos_cred_exec_user_shell_policy (const bashos_cred_exec_user *u,
       return -1;
     }
 
+  const char *argv[68];
+  if (bashos_cred_exec_shell_argv (u->shell, login_shell, cmd, extra_argc,
+                                  extra_argv, argv, 68) < 0)
+    return -1;
+
   if (chdir (u->home) < 0)
     chdir ("/");
 
@@ -662,26 +707,6 @@ bashos_cred_exec_user_shell_policy (const bashos_cred_exec_user *u,
       fprintf (stderr, "%s: env build: out of memory after drop\n", progname);
       _exit (126);
     }
-
-  const char *argv[68];
-  int ai = 0;
-  argv[ai++] = u->shell;
-  if (cmd)
-    {
-      argv[ai++] = "-c";
-      argv[ai++] = cmd;
-    }
-  else if (extra_argc > 0)
-    {
-      for (int k = 0; k < extra_argc; k++)
-        argv[ai++] = extra_argv[k];
-    }
-  else if (login_shell)
-    {
-      argv[0] = "-bash";
-      argv[ai++] = "-i";
-    }
-  argv[ai] = NULL;
 
   signal (SIGHUP, SIG_DFL);
   signal (SIGINT, SIG_DFL);

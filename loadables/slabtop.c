@@ -13,6 +13,7 @@
 #endif
 
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,17 +43,13 @@ static unsigned long long slab_page_size = 4096;
 static unsigned long long
 slab_total_slabs(const blp_slabinfo_row *r)
 {
-    if (!r->objs_per_slab)
-        return 0;
-    return (r->num_objs + r->objs_per_slab - 1) / r->objs_per_slab;
+    return r->num_slabs;
 }
 
 static unsigned long long
 slab_active_slabs(const blp_slabinfo_row *r)
 {
-    if (!r->objs_per_slab)
-        return 0;
-    return (r->active_objs + r->objs_per_slab - 1) / r->objs_per_slab;
+    return r->active_slabs;
 }
 
 static unsigned long long
@@ -66,7 +63,7 @@ slab_use_pct(const blp_slabinfo_row *r)
 {
     if (!r->num_objs)
         return 0.0;
-    return (100.0 * (double) r->active_objs) / (double) r->num_objs;
+    return (unsigned int) (100 * ((float) r->active_objs / r->num_objs));
 }
 
 static unsigned long long
@@ -81,7 +78,7 @@ slab_sort_value(const blp_slabinfo_row *r, slab_sort sort)
     case SLAB_SORT_OBJECTS:       return r->num_objs;
     case SLAB_SORT_PAGES_PER_SLAB:return r->pages_per_slab;
     case SLAB_SORT_OBJECT_SIZE:   return r->obj_size;
-    case SLAB_SORT_USE:           return r->num_objs ? (10000ULL * r->active_objs / r->num_objs) : 0;
+    case SLAB_SORT_USE:           return (unsigned int) slab_use_pct(r);
     case SLAB_SORT_NAME:          return 0;
     }
     return r->num_objs;
@@ -94,7 +91,7 @@ slab_cmp_rows(const void *a, const void *b)
     const blp_slabinfo_row *rb = (const blp_slabinfo_row *) b;
 
     if (slab_current_sort == SLAB_SORT_NAME)
-        return strcmp(ra->name, rb->name);
+        return strcoll(ra->name, rb->name);
 
     unsigned long long va = slab_sort_value(ra, slab_current_sort);
     unsigned long long vb = slab_sort_value(rb, slab_current_sort);
@@ -102,7 +99,7 @@ slab_cmp_rows(const void *a, const void *b)
         return 1;
     if (va > vb)
         return -1;
-    return strcmp(ra->name, rb->name);
+    return 0;
 }
 
 static int
@@ -189,75 +186,125 @@ slab_usage(FILE *fp)
 static int
 slab_load(blp_slabinfo *slabs)
 {
-    int errnum = 0;
-    int rc = blp_read_slabinfo(slabs, &errnum);
-    if (rc < 0) {
-        fprintf(stderr, "slabtop: Unable to create slabinfo structure: %s\n",
-                strerror(errnum ? errnum : errno));
-        return -1;
+    char path[512], line[4096];
+    FILE *fp;
+    int major, minor, err = 0;
+
+    memset(slabs, 0, sizeof(*slabs));
+    fp = fopen(blp_proc_path("slabinfo", path, sizeof path), "r");
+    if (!fp) {
+        err = errno;
+        goto fail;
     }
-    if (rc > 0) {
-        fprintf(stderr, "slabtop: Unable to create slabinfo structure: No slabinfo entries parsed\n");
-        return -1;
+    if (!fgets(line, sizeof line, fp) ||
+        sscanf(line, "slabinfo - version: %d.%d", &major, &minor) != 2 || major != 2) {
+        err = ERANGE;
+        goto fail;
     }
+    while (fgets(line, sizeof line, fp)) {
+        blp_slabinfo_row r = {0};
+        unsigned int a, n, size, per, pages, active, total;
+        if (line[0] == '#')
+            continue;
+        if (sscanf(line, " %127s %u %u %u %u %u : tunables %*u %*u %*u : slabdata %u %u %*u",
+                   r.name, &a, &n, &size, &per, &pages, &active, &total) < 8) {
+            err = ERANGE;
+            goto fail;
+        }
+        r.active_objs = a; r.num_objs = n; r.obj_size = size;
+        r.objs_per_slab = per; r.pages_per_slab = pages;
+        r.active_slabs = active; r.num_slabs = total;
+        if (slabs->len == slabs->cap) {
+            size_t cap = slabs->cap ? slabs->cap * 2 : 128;
+            blp_slabinfo_row *rows = realloc(slabs->rows, cap * sizeof(*rows));
+            if (!rows) {
+                err = ENOMEM;
+                goto fail;
+            }
+            slabs->rows = rows;
+            slabs->cap = cap;
+        }
+        slabs->rows[slabs->len++] = r;
+    }
+    if (ferror(fp)) {
+        err = errno ? errno : EIO;
+        goto fail;
+    }
+    fclose(fp);
     qsort(slabs->rows, slabs->len, sizeof(slabs->rows[0]), slab_cmp_rows);
     return 0;
+fail:
+    if (fp)
+        fclose(fp);
+    blp_free_slabinfo(slabs);
+    fprintf(stderr, "slabtop: Unable to create slabinfo structure: %s\n", strerror(err));
+    return -1;
+}
+
+typedef struct {
+    unsigned long long active_objs, total_objs;
+    size_t active_caches;
+} slab_summary;
+
+static slab_summary
+slab_summarize(const blp_slabinfo *slabs)
+{
+    slab_summary s = {0, 0, 0};
+    for (size_t i = 0; i < slabs->len; i++) {
+        s.active_objs += slabs->rows[i].active_objs;
+        s.total_objs += slabs->rows[i].num_objs;
+        if (slabs->rows[i].active_objs)
+            s.active_caches++;
+    }
+    return s;
 }
 
 static void
 slab_print_table(FILE *fp, const blp_slabinfo *slabs)
 {
-    unsigned long long active_objs = 0, total_objs = 0;
-    unsigned long long active_slabs = 0, total_slabs = 0;
-    unsigned long long active_size = 0, total_size = 0;
-    unsigned long long min_obj = 0, max_obj = 0, sum_obj = 0;
+    unsigned int active_objs = 0, total_objs = 0;
+    unsigned int active_slabs = 0, total_slabs = 0;
+    unsigned long active_size = 0, total_size = 0;
+    unsigned long long min_obj = INT_MAX, max_obj = 0;
     size_t active_caches = 0;
 
     for (size_t i = 0; i < slabs->len; i++) {
         const blp_slabinfo_row *r = &slabs->rows[i];
         unsigned long long ts = slab_total_slabs(r);
         unsigned long long as = slab_active_slabs(r);
-        unsigned long long cb = slab_cache_bytes(r);
         active_objs += r->active_objs;
         total_objs += r->num_objs;
         active_slabs += as;
         total_slabs += ts;
         active_size += r->active_objs * r->obj_size;
-        total_size += cb;
-        if (r->active_objs)
+        total_size += r->num_objs * r->obj_size;
+        if (r->num_objs)
             active_caches++;
-        if (!min_obj || r->obj_size < min_obj)
+        if (r->obj_size < min_obj)
             min_obj = r->obj_size;
         if (r->obj_size > max_obj)
             max_obj = r->obj_size;
-        sum_obj += r->obj_size;
     }
 
-    double obj_pct = total_objs ? (100.0 * (double) active_objs / (double) total_objs) : 0.0;
-    double slab_pct = total_slabs ? (100.0 * (double) active_slabs / (double) total_slabs) : 0.0;
-    double cache_pct = slabs->len ? (100.0 * (double) active_caches / (double) slabs->len) : 0.0;
-    double size_pct = total_size ? (100.0 * (double) active_size / (double) total_size) : 0.0;
-    unsigned long long avg_obj = slabs->len ? sum_obj / slabs->len : 0;
+    double obj_pct = 100.0 * active_objs / total_objs;
+    double slab_pct = 100.0 * active_slabs / total_slabs;
+    double cache_pct = 100.0 * active_caches / slabs->len;
+    double size_pct = 100.0 * active_size / total_size;
+    unsigned long long avg_obj = total_objs ? total_size / total_objs : 0;
 
-    fprintf(fp, "Active / Total Objects (%% used)    : %llu / %llu (%.1f%%)\n",
-            active_objs, total_objs, obj_pct);
-    fprintf(fp, "Active / Total Slabs (%% used)      : %llu / %llu (%.1f%%)\n",
-            active_slabs, total_slabs, slab_pct);
-    fprintf(fp, "Active / Total Caches (%% used)     : %zu / %zu (%.1f%%)\n",
-            active_caches, slabs->len, cache_pct);
-    fprintf(fp, "Active / Total Size (%% used)       : %.2fK / %.2fK (%.1f%%)\n",
-            (double) active_size / 1024.0, (double) total_size / 1024.0, size_pct);
-    fprintf(fp, "Minimum / Average / Maximum Object : %llu / %llu / %llu\n\n",
-            min_obj, avg_obj, max_obj);
-    fprintf(fp, "  OBJS ACTIVE  USE OBJ SIZE  SLABS OBJ/SLAB CACHE SIZE NAME\n");
+    fprintf(fp, " %-35s: %u / %u (%.1f%%)\n", "Active / Total Objects (% used)", active_objs, total_objs, obj_pct);
+    fprintf(fp, " %-35s: %u / %u (%.1f%%)\n", "Active / Total Slabs (% used)", active_slabs, total_slabs, slab_pct);
+    fprintf(fp, " %-35s: %zu / %zu (%.1f%%)\n", "Active / Total Caches (% used)", active_caches, slabs->len, cache_pct);
+    fprintf(fp, " %-35s: %.2fK / %.2fK (%.1f%%)\n", "Active / Total Size (% used)", (double) active_size / 1024, (double) total_size / 1024, size_pct);
+    fprintf(fp, " %-35s: %.2fK / %.2fK / %.2fK\n\n", "Minimum / Average / Maximum Object", (double) min_obj / 1024, (double) avg_obj / 1024, (double) max_obj / 1024);
+    fprintf(fp, "%-78s\n", "  OBJS ACTIVE  USE OBJ SIZE  SLABS OBJ/SLAB CACHE SIZE NAME");
 
     for (size_t i = 0; i < slabs->len; i++) {
         const blp_slabinfo_row *r = &slabs->rows[i];
-        fprintf(fp, "%6llu %6llu %5.1f%% %7.2fK %6llu %8llu %9.2fK %s\n",
-                r->num_objs, r->active_objs, slab_use_pct(r),
+        fprintf(fp, "%6llu %6llu %3u%% %7.2fK %6llu %8llu %9lluK %-23s\n",
+                r->num_objs, r->active_objs, (unsigned int) slab_use_pct(r),
                 (double) r->obj_size / 1024.0, slab_total_slabs(r),
-                r->objs_per_slab, (double) slab_cache_bytes(r) / 1024.0,
-                r->name);
+                r->objs_per_slab, slab_cache_bytes(r) / 1024, r->name);
     }
 }
 
@@ -292,8 +339,17 @@ slab_draw(bls_win *w, const blp_slabinfo *slabs, int err, const char *errmsg, in
         return;
     }
 
-    bls_mvaddstr(w, 2, 0, "Active / Total Objects (% used)");
-    bls_printw(w, "  rows %zu", slabs->len);
+    slab_summary summary = slab_summarize(slabs);
+    double obj_pct = summary.total_objs ?
+        100.0 * (double) summary.active_objs / (double) summary.total_objs : 0.0;
+    double cache_pct = slabs->len ?
+        100.0 * (double) summary.active_caches / (double) slabs->len : 0.0;
+    bls_move(w, 2, 0);
+    bls_printw(w, "Active / Total Objects (%% used)    : %llu / %llu (%.1f%%)",
+               summary.active_objs, summary.total_objs, obj_pct);
+    bls_move(w, 3, 0);
+    bls_printw(w, "Active / Total Caches (%% used)     : %zu / %zu (%.1f%%)",
+               summary.active_caches, slabs->len, cache_pct);
     bls_mvaddstr(w, 4, 0, "  OBJS ACTIVE  USE OBJ SIZE  SLABS OBJ/SLAB CACHE SIZE NAME");
     for (size_t i = 0; i < slabs->len && (int) i < max_rows; i++) {
         const blp_slabinfo_row *r = &slabs->rows[i];

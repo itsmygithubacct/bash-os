@@ -1,0 +1,155 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "repair-vi-arrow-csi",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Decode explicit CSI down sequences before deleting the third line.",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "\u001b[B"
+        },
+        {
+          "send": "\u001b[B"
+        },
+        {
+          "send": "dd"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/terminal-keys-resize"
+      ],
+      "files": {
+        "note": "one\ntwo\nthree\nfour\n"
+      },
+      "expected_files": {
+        "note": "one\ntwo\nfour\n"
+      },
+      "oracle": "The two down sequences select line three; dd removes it. Expected file is derived from the input."
+    },
+    {
+      "id": "repair-vi-arrow-ss3",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Decode explicit SS3 down sequences before deleting the third line.",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "contains": [
+              "note"
+            ]
+          }
+        },
+        {
+          "send": "\u001bOB"
+        },
+        {
+          "send": "\u001bOB"
+        },
+        {
+          "send": "dd"
+        },
+        {
+          "settle_ms": 150
+        },
+        {
+          "send": ":wq\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/terminal-keys-resize"
+      ],
+      "files": {
+        "note": "one\ntwo\nthree\nfour\n"
+      },
+      "expected_files": {
+        "note": "one\ntwo\nfour\n"
+      },
+      "oracle": "The two down sequences select line three; dd removes it. Expected file is derived from the input."
+    },
+    {
+      "id": "repair-vi-resize-idle-shrink-expand",
+      "loadable": "vi",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Redraw after each resize while idle, without an intervening key.",
+      "script": "vi note",
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-01$",
+              "22": "^line-23$"
+            }
+          }
+        },
+        {
+          "resize": [
+            12,
+            60
+          ]
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-01$",
+              "10": "^line-11$"
+            }
+          }
+        },
+        {
+          "resize": [
+            24,
+            80
+          ]
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "^line-01$",
+              "22": "^line-23$"
+            }
+          }
+        },
+        {
+          "send": ":q\r"
+        }
+      ],
+      "expected_status": 0,
+      "covers": [
+        "vi/terminal-keys-resize"
+      ],
+      "files": {
+        "note": "line-01\nline-02\nline-03\nline-04\nline-05\nline-06\nline-07\nline-08\nline-09\nline-10\nline-11\nline-12\nline-13\nline-14\nline-15\nline-16\nline-17\nline-18\nline-19\nline-20\nline-21\nline-22\nline-23\nline-24\nline-25\nline-26\nline-27\nline-28\nline-29\nline-30\n"
+      },
+      "expected_files": {
+        "note": "line-01\nline-02\nline-03\nline-04\nline-05\nline-06\nline-07\nline-08\nline-09\nline-10\nline-11\nline-12\nline-13\nline-14\nline-15\nline-16\nline-17\nline-18\nline-19\nline-20\nline-21\nline-22\nline-23\nline-24\nline-25\nline-26\nline-27\nline-28\nline-29\nline-30\n"
+      },
+      "size": [
+        24,
+        80
+      ],
+      "oracle": "The same unmodified lines must occupy their original rows after each geometry change; no input is sent between resize and screen observation."
+    }
+  ]
+}

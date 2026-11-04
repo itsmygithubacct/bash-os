@@ -1,14 +1,17 @@
 --- builtins/sleep.c
 +++ builtins/sleep.c
-@@ -44,6 +44,7 @@
+@@ -44,6 +44,10 @@
  #endif
  
  #include <stdio.h>
 +#include <limits.h>
++#include <errno.h>
++#include <time.h>
++#include "trap.h"
  #include "chartypes.h"
  
  #include "loadables.h"
-@@ -121,50 +122,54 @@
+@@ -121,50 +125,80 @@
  int
  sleep_builtin (WORD_LIST *list)
  {
@@ -16,24 +19,12 @@
 -	char	*ep;
 -	int	r, mul;
 -	time_t	t;
-+  long sec, usec, total_sec = 0, total_usec = 0;
-+  char *ep, *arg;
-+  WORD_LIST *word;
-+  int r;
- 
+-
 -	if (list == 0) {
 -		builtin_usage();
 -		return(EX_USAGE);
 -	}
-+  if (list && strcmp (list->word->word, "--help") == 0)
-+    { builtin_help (); return sh_chkwrite (EXECUTION_SUCCESS); }
-+  if (list && strcmp (list->word->word, "--version") == 0)
-+    { printf ("sleep (bash-os builtin)\n"); return sh_chkwrite (EXECUTION_SUCCESS); }
-+  if (list == 0)
-+    { builtin_error ("missing operand"); return EXECUTION_FAILURE; }
-+  if (strcmp (list->word->word, "--") == 0)
-+    list = list->next;
- 
+-
 -	/* Skip over `--' */
 -	if (list->word && ISOPTION (list->word->word, '-'))
 -		list = list->next;
@@ -62,6 +53,20 @@
 -	}
 -	builtin_error("%s: bad sleep interval", list->word->word);
 -	return (EXECUTION_FAILURE);
++  long sec, usec, total_sec = 0, total_usec = 0;
++  char *ep, *arg;
++  WORD_LIST *word;
++  int r;
++
++  if (list && strcmp (list->word->word, "--help") == 0)
++    { builtin_help (); return sh_chkwrite (EXECUTION_SUCCESS); }
++  if (list && strcmp (list->word->word, "--version") == 0)
++    { printf ("sleep (bash-os builtin)\n"); return sh_chkwrite (EXECUTION_SUCCESS); }
++  if (list == 0)
++    { builtin_error ("missing operand"); return EXECUTION_FAILURE; }
++  if (strcmp (list->word->word, "--") == 0)
++    list = list->next;
++
 +  /* Validate and add all operands before waiting. */
 +  for (word = list; word; word = word->next)
 +    {
@@ -83,7 +88,33 @@
 +          total_usec -= 1000000;
 +        }
 +    }
++#if defined (HAVE_NANOSLEEP)
++  {
++    struct timespec req, rem;
++    int result;
++
++    req.tv_sec = total_sec;
++    req.tv_nsec = total_usec * 1000;
++    for (;;)
++      {
++        QUIT;
++        result = nanosleep (&req, &rem);
++        if (result == 0)
++          break;
++        if (errno != EINTR)
++          { builtin_error ("nanosleep: %s", strerror (errno)); return EXECUTION_FAILURE; }
++        QUIT;
++        /* A trapped INT is queued rather than setting interrupt_state.  Do
++           not restart the delay: an external sleep in this process group
++           would have died from the signal, and the shell will run the trap. */
++        if (signal_is_pending (SIGINT))
++          return 128 + SIGINT;
++        req = rem;
++      }
++  }
++#else
 +  fsleep (total_sec, total_usec);
++#endif
 +  QUIT;
 +  return EXECUTION_SUCCESS;
 +invalid:
@@ -100,7 +131,7 @@
  	"As an extension, sleep accepts GNU-style time intervals (e.g., 2m30s).",
  	(char *)NULL
  };
-@@ -174,6 +179,6 @@
+@@ -174,6 +207,6 @@
  	sleep_builtin,
  	BUILTIN_ENABLED,
  	sleep_doc,

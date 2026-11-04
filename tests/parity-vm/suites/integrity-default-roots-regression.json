@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "integrity-default-roots-missing-parent-regression",
+      "loadable": "integrity",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "covers": [
+        "integrity/default-system-roots"
+      ],
+      "purpose": "Independently check ordered default rows and verification when /etc disappears, explicit nested missing paths, and rejection of a non-directory parent.",
+      "oracle": "Python hashlib and stat construct complete independent manifest rows; literal verification report and status.",
+      "comparison": "Exact stdout, status and empty stderr; each candidate operation is checked and unexpected diagnostics fail the case.",
+      "requires": [
+        "python3"
+      ],
+      "files": {
+        "oracle.py": "import hashlib, os\nfrom pathlib import Path\nroot = Path('image')\nrows = []\nfor rel in ('bash-os/two', 'bin/one', 'etc/bash-os/conf'):\n    p = root / rel\n    if not p.exists():\n        continue\n    s = p.stat()\n    data = p.read_bytes()\n    rows.append('\\t'.join(['file', format(s.st_mode & 0o7777, 'o'), str(s.st_size),\n        hashlib.sha256(data).hexdigest(), hashlib.blake2b(data).hexdigest(),\n        str(s.st_uid), str(s.st_gid), str(int(s.st_mtime)), str(int(s.st_ctime)), '-', '/' + rel]))\nPath('expected').write_text(''.join(row + '\\n' for row in rows))\n"
+      },
+      "script": "set -e\nexport LC_ALL=C\numask 022\n/usr/bin/mkdir -p image/bin image/bash-os image/etc/bash-os\nprintf 'one\\n' > image/bin/one\nprintf 'two\\n' > image/bash-os/two\nprintf 'conf\\n' > image/etc/bash-os/conf\n/usr/bin/python3 oracle.py\n/usr/bin/cp expected manifest\nintegrity emit-manifest --no-header --root image > actual\n/usr/bin/cmp expected actual\nintegrity verify manifest --root image > actual\n[[ ! -s actual ]]\n/usr/bin/rm -r image/etc\n/usr/bin/python3 oracle.py\nintegrity emit-manifest --no-header --root image > actual\n/usr/bin/cmp expected actual\nintegrity snapshot --no-header --root image -- > actual\n/usr/bin/cmp expected actual\nintegrity emit-manifest --no-header --root image /absent/deeper > actual\n[[ ! -s actual ]]\nif integrity verify manifest --root image > actual; then exit 1; else rc=$?; fi\n[[ $rc == 1 && $(< actual) == $'missing\\t/etc/bash-os/conf' ]]\nprintf 'not a directory\\n' > image/etc\nif integrity emit-manifest --no-header --root image > actual 2> diagnostic; then exit 1; else rc=$?; fi\n[[ $rc == 1 && -s diagnostic ]]\nprintf 'default roots and missing parent verified\\n'\n",
+      "expected_status": 0,
+      "stderr": "",
+      "stdout": "default roots and missing parent verified\n",
+      "timeout": 30
+    }
+  ]
+}

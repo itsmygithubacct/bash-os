@@ -24,7 +24,7 @@
         "nano/deferred_justify_undo"
       ],
       "helpers_sha256": {
-        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
       },
       "files": {
         "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
@@ -74,7 +74,7 @@
         "nano/deferred_justify_undo"
       ],
       "helpers_sha256": {
-        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
       },
       "files": {
         "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
@@ -124,7 +124,7 @@
         "nano/deferred_justify_undo"
       ],
       "helpers_sha256": {
-        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
       },
       "files": {
         "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
@@ -175,7 +175,7 @@
         "nano/deferred_selection_completion_utf8"
       ],
       "helpers_sha256": {
-        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
       },
       "files": {
         "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
@@ -225,7 +225,7 @@
         "nano/deferred_selection_completion_utf8"
       ],
       "helpers_sha256": {
-        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
       },
       "files": {
         "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
@@ -275,7 +275,7 @@
         "nano/deferred_selection_completion_utf8"
       ],
       "helpers_sha256": {
-        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
       },
       "files": {
         "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
@@ -326,7 +326,7 @@
         "nano/deferred_selection_completion_utf8"
       ],
       "helpers_sha256": {
-        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
       },
       "files": {
         "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
@@ -377,7 +377,7 @@
         "nano/deferred_selection_completion_utf8"
       ],
       "helpers_sha256": {
-        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
       },
       "files": {
         "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
@@ -428,7 +428,7 @@
         "nano/deferred_selection_completion_utf8"
       ],
       "helpers_sha256": {
-        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
       },
       "files": {
         "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
@@ -478,7 +478,7 @@
         "nano/deferred_spell_helper"
       ],
       "helpers_sha256": {
-        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
       },
       "files": {
         "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
@@ -528,7 +528,7 @@
         "nano/deferred_spell_helper"
       ],
       "helpers_sha256": {
-        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
       },
       "files": {
         "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
@@ -578,7 +578,7 @@
         "nano/deferred_spell_helper"
       ],
       "helpers_sha256": {
-        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
       },
       "files": {
         "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
@@ -628,7 +628,7 @@
         "nano/deferred_spell_helper"
       ],
       "helpers_sha256": {
-        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
       },
       "files": {
         "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
@@ -678,7 +678,7 @@
         "nano/deferred_spell_helper"
       ],
       "helpers_sha256": {
-        "helpers/nano-followup-observer.py": "c36896f5f817de3ecac71e1bec253c9d08d4187e592523fbb41d5c0a16a3a979"
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
       },
       "files": {
         "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
@@ -686,6 +686,56 @@
         "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
         "note.txt": "teh cat teh\n",
         "scenario.json": "{\n  \"kind\": \"spell\",\n  \"options\": [\n    \"--speller=./helper\"\n  ],\n  \"spell_mode\": \"timeout\",\n  \"spell_seed_base64\": \"dGVoIGNhdCB0ZWgK\",\n  \"expected_final_base64\": \"dGVoIGNhdCB0ZWgK\"\n}\n"
+      },
+      "expected_files": {
+        "note.txt": "teh cat teh\n",
+        "saved.txt": "teh cat teh\n"
+      },
+      "oracle": "Independent GNU nano8.4, pinned by in-VM --version, with fresh24x80 controlling PTYs and an isolated rcfile. Source read as data from official nano-8.4.tar.xz (sha256 5ad29222bbd55624d87ea677928b3106a743114d6c6f9b41f36c97be2a8e628d). GNU move.c skips zero-width combining characters; text.c scans completion candidates in buffer order and passes a temp filename to custom spellers. The rcfile declares combining acute as a word character and binds ^T directly to GNU speller so the same physical trigger is usable; candidate receives no unsupported rcfile option. Independent native PTY/pselect, Unicode cell/reverse decoder and both fixture-helper interfaces are controlled before behavior. Saved bytes are never normalized.",
+      "comparison": "Exact note.txt/saved.txt and any intermediate file bytes versus GNU and static expected_files. Explicit body text, cursor-cell deltas and reverse-video predicates are recorded per phase. Only pyte display composition uses NFC; file bytes stay decomposed/exact. Full directional raw I/O, modes, readiness syscalls, decoded snapshots and helper protocol/input/decision traces stay in HOME. Actions continue after independent assertion failures; missing modal prompts are recorded as unreached rather than sending replacement text into the main editor.",
+      "diagnostic_files": [
+        "session.raw",
+        "session.json",
+        "observations.json",
+        "setup-tty.raw",
+        "setup-tty.json",
+        "reference-version.raw",
+        "setup-helper.jsonl",
+        "setup-helper-controls.json",
+        "spell-helper.jsonl"
+      ]
+    },
+    {
+      "id": "migration-nano-followup-spell-helper-failure-after-write",
+      "loadable": "nano",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "parity",
+      "purpose": "A custom speller changes its temporary file and exits 7; the saved editor buffer must remain unchanged.",
+      "reference_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run reference \"$BASH\"\n",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py run candidate \"$BASH\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py setup\n",
+      "setup_timeout": 15,
+      "expected_status": 0,
+      "stdout": "editor-ready=PASS\nall-input-operations-sent=PASS\ncausal-input-acknowledgements=PASS\nexplicit-visible-assertions=PASS\nexpected-saved-bytes=PASS\nexit-zero-after-save=PASS\ntermios-restored-before-cleanup=PASS\nhelper-contract=PASS\n",
+      "stderr": "",
+      "timeout": 45,
+      "requires": [
+        "python3",
+        "nano"
+      ],
+      "covers": [
+        "nano/deferred_spell_helper"
+      ],
+      "helpers_sha256": {
+        "helpers/nano-followup-observer.py": "23a3cb8b1c943b5e3d4b65d07bfba9d289b3d8135c3beec2ddd6dec669af8560"
+      },
+      "files": {
+        "helper": "#!/bin/sh\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/nano-followup-observer.py speller \"$@\"\n",
+        "dictionary.json": "{\"teh\": \"the\"}\n",
+        "nano.rc": "# Isolated GNU reference controls; candidate options/keys are otherwise unchanged.\nset wordchars \"\u0301\"\nbind ^T speller main\n",
+        "note.txt": "teh cat teh\n",
+        "scenario.json": "{\n  \"kind\": \"spell\",\n  \"options\": [\n    \"--speller=./helper\"\n  ],\n  \"spell_mode\": \"failure-write\",\n  \"spell_seed_base64\": \"dGVoIGNhdCB0ZWgK\",\n  \"expected_final_base64\": \"dGVoIGNhdCB0ZWgK\"\n}\n"
       },
       "expected_files": {
         "note.txt": "teh cat teh\n",

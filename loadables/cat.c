@@ -16,7 +16,15 @@ struct cat_state {
     unsigned long long line;
 };
 
-static int cat_copy(int fd, struct cat_state *s)
+#define CAT_OUTPUT(call) do { \
+    (call); \
+    if (ferror(stdout)) { \
+        *write_errno = errno ? errno : EIO; \
+        return 1; \
+    } \
+} while (0)
+
+static int cat_copy(int fd, struct cat_state *s, int *write_errno)
 {
     unsigned char buf[16384];
     for (;;) {
@@ -25,7 +33,10 @@ static int cat_copy(int fd, struct cat_state *s)
         if (n < 0) { builtin_error("read: %s", strerror(errno)); return 1; }
         if (!n) return 0;
         if (!(s->number || s->nonblank || s->squeeze || s->ends || s->tabs || s->visible)) {
-            if (fwrite(buf, 1, (size_t)n, stdout) != (size_t)n) return 1;
+            if (fwrite(buf, 1, (size_t)n, stdout) != (size_t)n || ferror(stdout)) {
+                *write_errno = errno ? errno : EIO;
+                return 1;
+            }
             continue;
         }
         for (ssize_t i = 0; i < n; i++) {
@@ -36,22 +47,21 @@ static int cat_copy(int fd, struct cat_state *s)
                     s->blank = 1;
                 } else s->blank = 0;
                 if ((s->number || s->nonblank) && (!s->nonblank || c != '\n'))
-                    printf("%6llu\t", ++s->line);
+                    CAT_OUTPUT(printf("%6llu\t", ++s->line));
                 s->line_start = 0;
             }
             if (c == '\n') {
-                if (s->ends) putchar('$');
-                putchar('\n'); s->line_start = 1;
+                if (s->ends) CAT_OUTPUT(putchar('$'));
+                CAT_OUTPUT(putchar('\n')); s->line_start = 1;
             } else if (c == '\t') {
-                if (s->tabs) fputs("^I", stdout); else putchar(c);
+                if (s->tabs) CAT_OUTPUT(fputs("^I", stdout)); else CAT_OUTPUT(putchar(c));
             } else if (s->visible) {
-                if (c >= 128) { fputs("M-", stdout); c -= 128; }
-                if (c < 32) { putchar('^'); putchar(c + 64); }
-                else if (c == 127) fputs("^?", stdout);
-                else putchar(c);
-            } else putchar(c);
+                if (c >= 128) { CAT_OUTPUT(fputs("M-", stdout)); c -= 128; }
+                if (c < 32) { CAT_OUTPUT(putchar('^')); CAT_OUTPUT(putchar(c + 64)); }
+                else if (c == 127) CAT_OUTPUT(fputs("^?", stdout));
+                else CAT_OUTPUT(putchar(c));
+            } else CAT_OUTPUT(putchar(c));
         }
-        if (ferror(stdout)) return 1;
     }
 }
 
@@ -63,7 +73,7 @@ int cat_builtin(WORD_LIST *list)
     const char **files = calloc(count + 1, sizeof *files);
     if (!files) { builtin_error("out of memory"); return 1; }
     size_t used = 0;
-    int end_options = 0, rc = 0;
+    int end_options = 0, rc = 0, write_errno = 0;
     for (; list; list = list->next) {
         const char *w = list->word->word, *options = NULL;
         if (!end_options && !strcmp(w, "--")) { end_options = 1; continue; }
@@ -107,14 +117,16 @@ int cat_builtin(WORD_LIST *list)
             if (fd) close(fd);
             rc = 1; continue;
         }
-        rc |= cat_copy(fd, &s);
+        rc |= cat_copy(fd, &s, &write_errno);
         if (fd != 0 && close(fd) < 0) rc = 1;
-        if (ferror(stdout)) break;
+        if (write_errno) break;
     }
 done:
     free(files);
-    if (fflush(stdout) || ferror(stdout)) {
-        builtin_error("write: %s", strerror(errno)); clearerr(stdout); rc = 1;
+    int flush_failed = fflush(stdout);
+    if (write_errno || flush_failed || ferror(stdout)) {
+        if (!write_errno) write_errno = errno ? errno : EIO;
+        builtin_error("write: %s", strerror(write_errno)); clearerr(stdout); rc = 1;
     }
     return rc;
 }

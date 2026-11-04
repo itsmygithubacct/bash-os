@@ -1,0 +1,219 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-ncdu-backspace-enter-del-r1",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "loadable": "ncdu",
+      "covers": [
+        "ncdu/interactive-browser-pty"
+      ],
+      "purpose": "enter enters a selected directory and del returns to it; backspace at root is harmless.",
+      "oracle": "Browser navigation contract: backspace returns to parent and restores the selection, including both DEL and BS terminal encodings.",
+      "files": {
+        "tree/aaa": "a",
+        "tree/adir/inner": "i",
+        "tree/zzz": "z"
+      },
+      "script": "ncdu tree",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "ncdu.*tree"
+            }
+          }
+        },
+        {
+          "send": "n"
+        },
+        {
+          "screen": {
+            "rows": {
+              "1": "aaa",
+              "2": "adir/",
+              "3": "zzz"
+            }
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "screen": {
+            "rows": {
+              "2": "^ >.*adir/"
+            }
+          }
+        },
+        {
+          "key": "enter"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "tree/adir",
+              "1": "inner"
+            }
+          }
+        },
+        {
+          "send_base64": "fw=="
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "ncdu.*tree",
+              "2": "^ >.*adir/"
+            },
+            "contains": [
+              "aaa",
+              "zzz"
+            ]
+          }
+        },
+        {
+          "send_base64": "fw=="
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "ncdu.*tree",
+              "2": "^ >.*adir/"
+            }
+          }
+        },
+        {
+          "key": "enter"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "tree/adir",
+              "1": "inner"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 18,
+      "restore_terminal": true
+    },
+    {
+      "id": "migration-ncdu-backspace-right-bs-r1",
+      "group": "terminal",
+      "driver": "pty",
+      "kind": "contract",
+      "loadable": "ncdu",
+      "covers": [
+        "ncdu/interactive-browser-pty"
+      ],
+      "purpose": "right enters a selected directory and bs returns to it; backspace at root is harmless.",
+      "oracle": "Browser navigation contract: backspace returns to parent and restores the selection, including both DEL and BS terminal encodings.",
+      "files": {
+        "tree/aaa": "a",
+        "tree/adir/inner": "i",
+        "tree/zzz": "z"
+      },
+      "script": "ncdu tree",
+      "size": [
+        24,
+        80
+      ],
+      "steps": [
+        {
+          "screen": {
+            "rows": {
+              "0": "ncdu.*tree"
+            }
+          }
+        },
+        {
+          "send": "n"
+        },
+        {
+          "screen": {
+            "rows": {
+              "1": "aaa",
+              "2": "adir/",
+              "3": "zzz"
+            }
+          }
+        },
+        {
+          "key": "down"
+        },
+        {
+          "screen": {
+            "rows": {
+              "2": "^ >.*adir/"
+            }
+          }
+        },
+        {
+          "key": "right"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "tree/adir",
+              "1": "inner"
+            }
+          }
+        },
+        {
+          "send_base64": "CA=="
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "ncdu.*tree",
+              "2": "^ >.*adir/"
+            },
+            "contains": [
+              "aaa",
+              "zzz"
+            ]
+          }
+        },
+        {
+          "send_base64": "CA=="
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "ncdu.*tree",
+              "2": "^ >.*adir/"
+            }
+          }
+        },
+        {
+          "key": "enter"
+        },
+        {
+          "screen": {
+            "rows": {
+              "0": "tree/adir",
+              "1": "inner"
+            }
+          }
+        },
+        {
+          "send": "q"
+        }
+      ],
+      "expected_status": 0,
+      "timeout": 18,
+      "restore_terminal": true
+    }
+  ]
+}
