@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "auth-stage1-real-set-standard-phc-r2",
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Exercise the unchanged release passwd set-fd required-kernel-secret path against the experimental real secret-slot module.",
+      "oracle": "Strict canonical unpadded base64 PHC output, independently recomputed by Debian libargon2; actual Linux ioctl results from the hash-bound stage-1 module, its independent C real-device control, private synthetic data, and Debian libargon2 with a known vector. The storage backend is newly authored from reviewed callers; original kernel source and production policy have not been recovered. Separate KUnit execution is required for internal erasure evidence.",
+      "comparison": "All seccomp-notified calls continue to the real kernel. Require real authority opens and secret-slot ioctls, exact statuses and private-account results. The auth case drives three bounded PTY prompts, checks disabled echo and restoration, sealed comparisons, explicit clear and absent old handles on a fresh fd. The newly generated PHC must use canonical unpadded base64 salt/hash, exact Argon2id version/parameters, 16 salt bytes and 32 hash bytes, independently recomputed with pinned libargon2. Historical hex-input compatibility remains exercised by the unchanged initial private shadow and real verify case.",
+      "requires": [
+        "python3",
+        "insmod",
+        "rmmod",
+        "argon2"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64",
+        "helpers/auth-stage1-standard-phc-r2.py": "43f96f8980b57e213e16e26f5c3d8291ec27ca76d5f97b90660b2bbca2843cbb"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-stage1-standard-phc-r2.py setup",
+      "setup_timeout": 50,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/auth-stage1-standard-phc-r2.py \"$BASH\" set",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 50,
+      "stderr": "",
+      "stdout": "passwd-stage1 set real-device=yes statuses=yes private-accounts=yes independent-kdf=yes\n",
+      "covers": [
+        "passwd/password_hash_updates"
+      ],
+      "diagnostic_files": [
+        "stage1-observations.jsonl",
+        "stage1-device.stdout",
+        "stage1-device.stderr",
+        "stage1-set.trace",
+        "stage1-set.bootstrap",
+        "stage1-set.stdout",
+        "stage1-set.stderr"
+      ],
+      "original_case_id": "auth-stage1-real-set",
+      "adjudication": "The artifacts-r1 run reached the candidate, set=0, valid real secret-slot ioctls, unchanged passwd/group and a newly stored standard-base64 PHC. Its old postcondition parsed only project hex and reported mismatch without trying the independent KDF. Retain that FAIL. This separate control verifies strict canonical PHC and independent KDF, preserving all root, identity, kernel, capability, protocol, cleanup and private-account assertions."
+    }
+  ]
+}

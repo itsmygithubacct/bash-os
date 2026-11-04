@@ -1,0 +1,113 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "migration-farm600-passwd-prompts-reviewed-set-success-terminal-r1",
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe set new and confirmation prompts and restoration after a natural successful update.",
+      "covers": [
+        "passwd/interactive_password_prompts"
+      ],
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "oracle": "Independent Argon2 CLI known vector and recomputation, POSIX PTY termios and exact private account bytes; stateful auth-device peer is a synthetic UAPI mock, not a real kernel device.",
+      "comparison": "Protected guest identity, per-prompt input and terminal observations, EOF-complete PTY capture with a delayed-writer control, synthetic peer trace and private account bytes; primary must apply the pinned data-only gate. Per-read echo and interrupt remain uncovered.",
+      "helpers_sha256": {
+        "helpers/farm600-passwd-prompts-reviewed-guard.py": "a5221ac4f330b547bf90050395c2856301fbeea0919a6265af0a6395867f155d",
+        "helpers/farm600-passwd-prompts-reviewed-bootstrap.py": "07adb332d74345bf8c702785385a78082d7a5457f31da74b982a07429cb491ee",
+        "helpers/farm600-passwd-prompts-reviewed-listener.py": "28dc70fd3382f19aea85fb9f9a2179c535426cf6b8f7f1400274021db7e88390",
+        "helpers/farm600-passwd-prompts-terminal-r1.py": "0e645e008bc350535c47c356cf662ddfacf15f1bed5052ed3282af734a05f26c",
+        "helpers/farm600-passwd-prompts-terminal-r1.gate.json": "cf3b8dacd5f7e915146d1f81c86a6469463b14740799cc4c0a4f728888aa9fb2"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-passwd-prompts-terminal-r1.py setup set-success",
+      "setup_timeout": 60,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-passwd-prompts-terminal-r1.py run set-success",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-passwd-prompts-terminal-r1.py run set-success",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "observation=ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "farm600-passwd-prompts-setup.json",
+        "farm600-passwd-prompts-run.json",
+        "farm600-passwd-prompts-control-tty.raw",
+        "farm600-passwd-prompts-control-trace.jsonl",
+        "farm600-passwd-prompts-control-trace.jsonl.bootstrap",
+        "farm600-passwd-prompts-candidate-tty.raw",
+        "farm600-passwd-prompts-candidate-trace.jsonl",
+        "farm600-passwd-prompts-candidate-trace.jsonl.bootstrap",
+        "farm600-passwd-prompts-passwd-before.raw",
+        "farm600-passwd-prompts-passwd-after.raw",
+        "farm600-passwd-prompts-group-before.raw",
+        "farm600-passwd-prompts-group-after.raw",
+        "farm600-passwd-prompts-shadow-before.raw",
+        "farm600-passwd-prompts-shadow-after.raw"
+      ],
+      "review_gate": "helpers/farm600-passwd-prompts-terminal-r1.gate.json",
+      "original_case_id": "migration-farm600-passwd-prompts-reviewed-set-success",
+      "adjudication": "Original setup ERROR retained. Update the exact terminal helper pin after source/AST review: the only consumed functions set_subreaper, owned_processes and cleanup have byte-equivalent AST bodies; new terminal imports contain data/functions only. Retain protected identity, UID2000, synthetic-device, prompt, EOF-complete capture and teardown gates. No current-pair topic credit from generic runner labels."
+    },
+    {
+      "id": "migration-farm600-passwd-prompts-reviewed-set-mismatch-terminal-r1",
+      "loadable": "passwd",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "purpose": "Observe different new and confirmation values rejected with the private shadow unchanged.",
+      "covers": [
+        "passwd/interactive_password_prompts"
+      ],
+      "requires": [
+        "python3",
+        "argon2"
+      ],
+      "features": [
+        "seccomp-notify"
+      ],
+      "oracle": "Independent Argon2 CLI known vector and recomputation, POSIX PTY termios and exact private account bytes; stateful auth-device peer is a synthetic UAPI mock, not a real kernel device.",
+      "comparison": "Protected guest identity, per-prompt input and terminal observations, EOF-complete PTY capture with a delayed-writer control, synthetic peer trace and private account bytes; primary must apply the pinned data-only gate. Per-read echo and interrupt remain uncovered.",
+      "helpers_sha256": {
+        "helpers/farm600-passwd-prompts-reviewed-guard.py": "a5221ac4f330b547bf90050395c2856301fbeea0919a6265af0a6395867f155d",
+        "helpers/farm600-passwd-prompts-reviewed-bootstrap.py": "07adb332d74345bf8c702785385a78082d7a5457f31da74b982a07429cb491ee",
+        "helpers/farm600-passwd-prompts-reviewed-listener.py": "28dc70fd3382f19aea85fb9f9a2179c535426cf6b8f7f1400274021db7e88390",
+        "helpers/farm600-passwd-prompts-terminal-r1.py": "0e645e008bc350535c47c356cf662ddfacf15f1bed5052ed3282af734a05f26c",
+        "helpers/farm600-passwd-prompts-terminal-r1.gate.json": "cf3b8dacd5f7e915146d1f81c86a6469463b14740799cc4c0a4f728888aa9fb2"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-passwd-prompts-terminal-r1.py setup set-mismatch",
+      "setup_timeout": 60,
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-passwd-prompts-terminal-r1.py run set-mismatch",
+      "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/farm600-passwd-prompts-terminal-r1.py run set-mismatch",
+      "expected_status": 0,
+      "timeout": 60,
+      "stdout": "observation=ok\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "farm600-passwd-prompts-setup.json",
+        "farm600-passwd-prompts-run.json",
+        "farm600-passwd-prompts-control-tty.raw",
+        "farm600-passwd-prompts-control-trace.jsonl",
+        "farm600-passwd-prompts-control-trace.jsonl.bootstrap",
+        "farm600-passwd-prompts-candidate-tty.raw",
+        "farm600-passwd-prompts-candidate-trace.jsonl",
+        "farm600-passwd-prompts-candidate-trace.jsonl.bootstrap",
+        "farm600-passwd-prompts-passwd-before.raw",
+        "farm600-passwd-prompts-passwd-after.raw",
+        "farm600-passwd-prompts-group-before.raw",
+        "farm600-passwd-prompts-group-after.raw",
+        "farm600-passwd-prompts-shadow-before.raw",
+        "farm600-passwd-prompts-shadow-after.raw"
+      ],
+      "review_gate": "helpers/farm600-passwd-prompts-terminal-r1.gate.json",
+      "original_case_id": "migration-farm600-passwd-prompts-reviewed-set-mismatch",
+      "adjudication": "Original setup ERROR retained. Update the exact terminal helper pin after source/AST review: the only consumed functions set_subreaper, owned_processes and cleanup have byte-equivalent AST bodies; new terminal imports contain data/functions only. Retain protected identity, UID2000, synthetic-device, prompt, EOF-complete capture and teardown gates. No current-pair topic credit from generic runner labels."
+    }
+  ]
+}
