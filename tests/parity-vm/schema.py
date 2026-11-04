@@ -102,8 +102,15 @@ def validate(case):
         value = case["observation_error_status"]
         check(type(value) is int and 1 <= value <= 255 and value != case["expected_status"],
               "observation_error_status must be a distinct nonzero exit status")
-    check(type(case.get("timeout", 12)) in (int, float) and 0 < case.get("timeout", 12) <= 60,
-          "timeout must be in (0, 60]")
+    authority_limits = {
+        "qualification-014-takeover-privcmd-r1",
+        "qualification-014-takeover-safeedit-r1",
+        "qualification-014-takeover-command-timestamp-r1",
+        "qualification-014-takeover-executor-r1",
+    }
+    timeout_limit = 650 if case["id"] in authority_limits else 60
+    check(type(case.get("timeout", 12)) in (int, float) and 0 < case.get("timeout", 12) <= timeout_limit,
+          "timeout exceeds the registered case limit")
     for key in ("interactive_shell", "restore_terminal", "compare_screen"):
         if key in case:
             check(type(case[key]) is bool, key + " must be boolean")

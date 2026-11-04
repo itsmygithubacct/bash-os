@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import shlex
 import shutil
 import signal
@@ -752,7 +753,7 @@ def payload(binary, output, reference_cache):
             raise ValueError("payload inputs must be regular files: " + info.name)
         # Source worktrees can be private (0600). The guest's unprivileged
         # historical runner must be able to read these synthetic inputs.
-        info.mode = 0o755 if info.name == "candidate" else 0o644
+        info.mode = 0o755 if info.name == "candidate" or (info.name.startswith("reference-data/") and info.mode & 0o111) else 0o644
         info.uid = info.gid = info.mtime = 0
         info.uname = info.gname = ""
         return info
@@ -765,9 +766,9 @@ def payload(binary, output, reference_cache):
                 if path.is_file() and "__pycache__" not in path.parts:
                     archive.add(path, arcname=prefix + "/" + str(path.relative_to(root)), recursive=False, filter=metadata)
         if reference_cache:
-            for path in sorted(reference_cache.iterdir()):
+            for path in sorted(reference_cache.rglob("*")):
                 if path.is_file():
-                    archive.add(path, arcname="reference-data/" + path.name, recursive=False, filter=metadata)
+                    archive.add(path, arcname="reference-data/" + str(path.relative_to(reference_cache)), recursive=False, filter=metadata)
 
 
 def evaluate(args, cache):
@@ -856,9 +857,30 @@ def evaluate(args, cache):
                 command += ["--case-ids", args.case_ids]
             if args.allow_root_fixtures:
                 command.append("--allow-root-fixtures")
+            if args.ancestor_executor_observer:
+                # Fixed initial-namespace scaffold; guest.py and its isolated
+                # PID1 guard still run under the original unshare invocation.
+                pins = HERE / "executor-observer-pins-r2.json"
+                record["ancestor_observer_source_pins_sha256"] = digest(pins)
+                record["ancestor_observer_python_sha256"] = args.ancestor_observer_python_sha256
+                command = command[:command.index("unshare")] + [
+                    "/usr/bin/python3", "-B", f"{GUEST_ROOT}/harness/executor_observer_launcher_r2.py",
+                    "--vm-token", vm.token, "--python-sha256", args.ancestor_observer_python_sha256,
+                    "--pins-sha256", digest(pins), "--candidate-sha256", before,
+                    "--outer-namespaces", json.dumps(outer_namespaces, sort_keys=True)]
             with (output / "run.log").open("wb") as log:
                 evaluation = vm.ssh(shlex.join(command), stdout=log, stderr=subprocess.STDOUT, timeout=1900)
             result_code = record["guest_exit_status"] = evaluation.returncode
+            if args.ancestor_executor_observer:
+                # Fetch before summary parsing, so an evaluator failure cannot
+                # hide an already-written broker teardown receipt.
+                control_read = vm.ssh(f"cat {GUEST_ROOT}/ancestor-observer-control.json",
+                                      capture_output=True, timeout=10)
+                record["ancestor_observer_control_read_status"] = control_read.returncode
+                control = control_read.stdout
+                if len(control) <= 1024 * 1024:
+                    (output / "ancestor-observer-control.json").write_bytes(control)
+                    record["ancestor_observer_control_sha256"] = digest(output / "ancestor-observer-control.json")
             # Evidence is data. Keep the tarball without extracting guest-controlled paths on the host.
             with (output / "evidence.tar").open("wb") as archive:
                 vm.ssh(f"tar -cf - -C {GUEST_ROOT} results", stdout=archive, check=True, timeout=120)
@@ -868,6 +890,21 @@ def evaluate(args, cache):
             if not record["candidate_matches_guest"]:
                 raise RuntimeError("guest report does not identify the uploaded candidate")
             json_write(output / "summary.json", report)
+            if args.ancestor_executor_observer:
+                # Save raw control evidence before interpreting it. Results and
+                # reached failures above are retained even when cleanup fails.
+                if control_read.returncode != 0 or not control or len(control) > 1024 * 1024:
+                    raise RuntimeError("ancestor observer receipt absent or exceeds bound")
+                receipt = json.loads(control)
+                if (receipt.get("status") != "CLEAN" or receipt.get("fallback_cleanup") is not False
+                        or receipt.get("vm_uuid") != vm.token
+                        or receipt.get("source_pins_sha256") != digest(pins)
+                        or receipt.get("registry", {}).get("candidate_sha256") != before
+                        or receipt.get("registry", {}).get("python_sha256") != args.ancestor_observer_python_sha256
+                        or receipt.get("broker_reaped_at_evaluator_return") is not True
+                        or receipt.get("broker_reaped_after_stop") is not True
+                        or receipt.get("post_stop_cgroup", {}).get("empty") is not True):
+                    raise RuntimeError("ancestor observer placement/cleanup incomplete; retained case evidence remains")
         record["status"] = "completed"
         print(json.dumps(report["summary"], sort_keys=True), flush=True)
     except BaseException as error:
@@ -909,7 +946,11 @@ def main():
     test.add_argument("--case-ids", help="comma-separated modern fixture IDs for a bounded batch")
     test.add_argument("--keep-overlay", action="store_true", help="retain disposable disk for diagnosis")
     test.add_argument("--allow-root-fixtures", action="store_true",
-                      help="run privilege=root fixtures as uid 0 in the guest; for rented hosts only")
+                      help="run privilege=root fixtures as uid 0 in a coordinator-owned disposable guest")
+    test.add_argument("--ancestor-executor-observer", action="store_true",
+                      help="use the pinned ancestor-PID broker in a coordinator-owned disposable guest")
+    test.add_argument("--ancestor-observer-python-sha256",
+                      help="required exact /usr/bin/python3 image SHA256 from the sealed guest receipt")
     parser.add_argument("--accel", choices=("kvm", "tcg"), default="kvm",
                         help="tcg emulates the guest CPU where the host has no usable /dev/kvm")
     parser.add_argument("--image-lock", default="image.lock.json", metavar="NAME",
@@ -924,6 +965,14 @@ def main():
     if args.operation == "check":
         args.groups, args.keep_overlay = "", False
     if args.operation == "run":
+        if args.ancestor_executor_observer:
+            if (args.groups != "shell" or args.case_ids != "qualification-014-takeover-executor-r1"
+                    or not args.allow_root_fixtures or args.references is None
+                    or not args.ancestor_observer_python_sha256
+                    or not re.fullmatch(r"[0-9a-f]{64}", args.ancestor_observer_python_sha256)):
+                parser.error("ancestor broker requires the sole executor case, shell group, root fixtures, references and sealed Python pin")
+        elif args.ancestor_observer_python_sha256 is not None:
+            parser.error("Python broker pin requires --ancestor-executor-observer")
         groups = set(args.groups.split(","))
         if not groups or groups - schema.GROUPS:
             parser.error("unknown groups: " + ",".join(sorted(groups - schema.GROUPS)))
@@ -931,7 +980,7 @@ def main():
             cases, _ = schema.load(HERE / "suites")
             selected = schema.select(cases, groups, set(args.case_ids.split(",")))
             if any(case.get("privilege") == "root" for case in selected) and not args.allow_root_fixtures:
-                parser.error("root fixtures selected; pass --allow-root-fixtures (rented hosts only)")
+                parser.error("root fixtures selected; pass --allow-root-fixtures for a coordinator-owned disposable guest")
     cache = args.cache.resolve()
     if cache == REPO or REPO in cache.parents:
         parser.error("VM images and ephemeral credentials must live outside the checkout")

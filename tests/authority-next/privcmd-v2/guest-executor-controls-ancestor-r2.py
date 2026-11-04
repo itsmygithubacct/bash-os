@@ -147,7 +147,7 @@ def main():
     # Keep the original receipt and its driver intact; bind this additive driver
     # through the root launcher registry and the exact new build receipt chain.
     client_path = Path('/opt/bashos-parity/harness/executor_observer_client_r2.py')
-    initial(client_path, 'a9f218956cb2a549535ab3dbf84134b22eb117f62dfe855d61560c009615cce1')
+    initial(client_path, '99a8ad4bb8a4b8dd325acbe2b8dc4a8c4380f2babb583f5da17e557700bc684a')
     client_module = load('ancestor_observer_client', client_path)
     registry = client_module.c.decode(client_module.t.raw(
         Path(client_module.c.directory(args.expected_uuid)) / 'registry.json', 8192, True))

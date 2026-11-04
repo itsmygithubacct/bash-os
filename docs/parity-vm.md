@@ -306,3 +306,34 @@ including four controller topics still awaiting a helper port: a native
 util-linux control on the available guest receives `Operation not supported`
 when setting clamps on its own child. The other six retain the hardware or
 interface limits listed in the obligation ledger.
+
+## Experimental authority observer
+
+The authority executor fixture can use a separate observer in the guest's
+initial PID namespace. The evaluator keeps its existing isolated PID-1,
+mount and network guards. This lets the observer require a positive native
+peer PID while observing real credential syscalls in the evaluator's private
+mount and network namespaces. The observer never enters its PID or user
+namespace. Native artifacts, the candidate, source registry, namespace
+descriptors and peer identities must match their admitted receipts.
+
+The coordinator enables this path only with `--ancestor-executor-observer`
+and `--ancestor-observer-python-sha256` on an exact executor selection.
+It requires a separately compiled native artifact bundle and the protected
+`executor-observer-pins-r2.json` registry. An ordinary run cannot supply
+missing evidence or silently select this observer.
+
+The launcher pins the original cgroup parent identity. The client derives a
+parent descriptor from the passed live child descriptor, preserving the
+original mount when private sysfs hides the absolute path. It must observe
+the live broker and reject a wrong child name and wrong parent identity
+before cooperative STOP. Final cleanup requires stable parent-relative
+lookups, the original child identity and a reaped broker. A removed child
+also requires its deleted descriptor link and both control files absent;
+missing files alone cannot pass. Intermediate deletion observations remain
+incomplete until these final conditions hold within the bounded deadline.
+
+These controls exercise experimental authority infrastructure. They do not
+qualify complete authorization topics, the legacy ABI, interactive session
+replacement or production deployment. Original consumer obligations and
+failed or incomplete receipts remain in the acceptance ledger.
