@@ -39,6 +39,19 @@
 #define BPW_AUTH_IOC_MAGIC 0xBA
 #define BPW_AUTH_DEV "/dev/bashos-auth"
 #define BPW_AUTH_FEAT_SECRETS (1ull << 0)
+
+/* QUIT exits on a terminating signal without running the general unwind list,
+   and runs an interrupt trap before unwinding.  Release this invocation's
+   registered tty, secret and account resources before either path.  A nested
+   interrupt count greater than one only decrements the count, without jumping. */
+static void
+bpw_check_signals (void)
+{
+  if (terminating_signal || interrupt_state == 1)
+    run_unwind_frame ("passwd environment snapshot");
+  QUIT;
+}
+
 /* RFC 9106 §4 lists two recommended argon2id parameter sets:
  *   - m=2^16 KiB (64 MiB), t=3, p=1  — recommended for high-security
  *     contexts. Was the bash-os default through v3.4.
@@ -1233,7 +1246,7 @@ bpw_lock_dirs (bpw_dir_locks *locks, const char **paths, size_t count)
       int acquired = 0;
       for (int attempt = 0; attempt < 100; attempt++)
         {
-          QUIT;
+          bpw_check_signals ();
           if (flock (locks->fd[i], LOCK_EX | LOCK_NB) == 0) { acquired = 1; break; }
           if (errno != EWOULDBLOCK && errno != EAGAIN && errno != EINTR) return -1;
           struct timespec delay = { .tv_sec = 0, .tv_nsec = 10000000 };
@@ -1484,6 +1497,9 @@ bpw_tty_cleanup (void *arg)
 static int
 bpw_tty_open (bpw_tty_session *s, const char *prompt)
 {
+  /* Noninteractive Bash may still have default terminating dispositions.
+     Like read -s, arrange deferred signal handling before changing the tty. */
+  initialize_terminating_signals ();
   s->fd = open ("/dev/tty", O_RDWR | O_CLOEXEC);
   if (s->fd < 0)
     {
@@ -1521,10 +1537,11 @@ bpw_read_tty_password (const char *prompt, unsigned char **out, size_t *out_len)
   for (;;)
     {
       unsigned char c;
-      QUIT;
+      bpw_check_signals ();
       ssize_t r = read (s.fd, &c, 1);
       int read_errno = errno;
-      QUIT;
+      if (terminating_signal || interrupt_state == 1) bpw_wipe (&c, sizeof c);
+      bpw_check_signals ();
       if (r < 0) { if (read_errno == EINTR) continue; err = read_errno; break; }
       if (r == 0) { err = EIO; break; }
       if (c == '\n' || c == '\r') break;
@@ -1558,10 +1575,11 @@ bpw_read_tty_secret_common (const char *prompt, bpw_secret_ref *secret,
   for (;;)
     {
       unsigned char c = 0;
-      QUIT;
+      bpw_check_signals ();
       ssize_t r = read (s.fd, &c, 1);
       int read_errno = errno;
-      QUIT;
+      if (terminating_signal || interrupt_state == 1) bpw_wipe (&c, sizeof c);
+      bpw_check_signals ();
       if (r < 0) { if (read_errno == EINTR) continue; err = read_errno; break; }
       if (r == 0) { err = EIO; bpw_wipe (&c, sizeof c); break; }
       if (c == '\n' || c == '\r') { bpw_wipe (&c, sizeof c); break; }

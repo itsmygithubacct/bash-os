@@ -55114,7 +55114,7 @@
   "original_sha256": "9f7ea6e79298b73552e1129b1dde7b34378ad0493c2755f8f9412237954442f8",
   "policy": "MIGRATED records point to fully exercised requirements on both builds; they are not additional passing tests. FAIL remains FAIL. Partial, skipped, invalid or stale evidence cannot close a topic.",
   "previous_ledger_sha256": "224841d541a8a0819778b43d480e0abda4cdb1f79cf969ebf77949a978d62ca4",
-  "qualification_status": "UNQUALIFIED overall: dmesg/live-ring-buffer freshly qualified on r17; one whole topic verified, remaining 599 topics require complete current-pair reconciliation.",
+  "qualification_status": "UNQUALIFIED overall: dmesg was verified on the retained r17 pair; the passwd product change and new candidate pair require fresh complete 600-topic reconciliation. No current-pair whole-topic credit.",
   "release_target": "0.1.4",
   "schema": 1,
   "takeover_parent_mapping_sha256": "34889b404ccbc44a7c68ed6eb6e611714543a9ba3ce784aa60da14c34290ce0c",

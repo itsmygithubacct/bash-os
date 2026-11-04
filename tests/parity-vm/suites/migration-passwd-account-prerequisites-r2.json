@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "comparison": "Exact status and record projections (field values, counts, modes, inode replacement) from in-script awk/stat; diagnostics retained in HOME. Separate standard-PHC projection control; original case retained unchanged. Explicit missing-group oracle remains unresolved.",
+      "diagnostic_files": [
+        "err.add-explicit",
+        "err.add-default",
+        "err.add-existing-group",
+        "err.add-duplicate"
+      ],
+      "driver": "plain",
+      "expected_status": 0,
+      "files": {
+        "empty-pw": "",
+        "pristine/group": "root:x:0:\ndaemon:x:1:\nstaff:x:50:alice,carol\nusers:x:100:\nalice:x:1000:\nbob:x:1001:\ncarol:x:1003:\nerin:x:2001:\n",
+        "pristine/passwd": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nalice:x:1000:1000:Alice:/home/alice:/bin/bash\nbob:x:1001:1001:Bob:/home/bob:/bin/bash\ncarol:x:1003:1003:Carol:/home/carol:/bin/bash\n",
+        "pristine/shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\ncarol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:\n",
+        "pw": "synthetic-pass-1\n"
+      },
+      "group": "shell",
+      "id": "migration-passwd-add-records-existing-primary-gid-r2",
+      "kind": "contract",
+      "loadable": "passwd",
+      "oracle": "passwd(5) seven-field and group(5) four-field records, shadow(5) nine fields; shadow-utils semantics as the reference for account tools: useradd(8) (-u/-g/-d/-s, numeric ids in range and not (uid_t)-1, ':' and newline invalid in fields, -g must name an existing group and then no user group is created, the default UID is an unused id >= UID_MIN 1000, a new user's shadow entry uses Debian login.defs PASS_MIN_DAYS 0, PASS_MAX_DAYS 99999, PASS_WARN_AGE 7 with last change = today), userdel(8) (removes passwd, shadow and the user's private group and the user from supplementary member lists; a missing user is an error), passwd -l/-u (prefix or remove a single '!', aging untouched, unlocking to an empty password refused, missing user an error) and chage -d (last-change field only, numeric days). Only private relative PHCLIB_* files are used.",
+      "purpose": "add-fd with explicit -u/-g/-d/-s appends one passwd row, a user private group and a shadow row with an Argon2id PHC and default aging, keeps every existing row, sets passwd/group 0644 and a shadow mode without other access, replaces each file through a new inode without residue; the default uid is unused and >= 1000 with a matching single group; -g with an existing gid uses that group without creating another; a duplicate name changes nothing.",
+      "requires": [
+        "awk",
+        "chmod",
+        "cmp",
+        "cp",
+        "grep",
+        "head",
+        "mkdir",
+        "openssl",
+        "python3",
+        "rm",
+        "stat",
+        "wc"
+      ],
+      "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=db/passwd PHCLIB_SHADOW=db/shadow PHCLIB_GROUP=db/group PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\nreset_db() { /usr/bin/rm -rf db; /usr/bin/mkdir db; /usr/bin/cp pristine/passwd pristine/group pristine/shadow db/; /usr/bin/chmod 600 db/shadow; }\nsnap() { /usr/bin/rm -rf snap; /usr/bin/cp -a db snap; }\nsame() { /usr/bin/cmp -s db/passwd snap/passwd && /usr/bin/cmp -s db/group snap/group && /usr/bin/cmp -s db/shadow snap/shadow && echo unchanged || echo changed; }\nresidue() { local n=0 f; for f in \"$1\"/* \"$1\"/.[!.]*; do [[ -e $f ]] || continue; case ${f##*/} in passwd|group|shadow) ;; *) n=$((n + 1)) ;; esac; done; echo \"$n\"; }\nrc_class() { (( $1 == 0 )) && echo 0 || echo nonzero; }\ntoday=$(( $(printf '%(%s)T' -1) / 86400 ))\nreset_db\nino() { /usr/bin/stat -c %i \"$1\"; }\ni_p=$(ino db/passwd) i_g=$(ino db/group) i_s=$(ino db/shadow)\nsize_p=$(/usr/bin/stat -c %s db/passwd) size_g=$(/usr/bin/stat -c %s db/group)\npasswd add-fd erin 3 -u 2001 -g 2001 -d /srv/erin -s /bin/sh 3< pw 2> \"$HOME/err.add-explicit\"; printf 'add-explicit rc=%d\\n' \"$?\"\n/usr/bin/awk -F: '$1 == \"erin\" { printf \"passwd rows=1 fields=%d uid=%s gid=%s home=%s shell=%s\\n\", NF, $3, $4, $6, $7 }' db/passwd\nprintf 'passwd-erin-rows=%d\\n' \"$(/usr/bin/grep -c '^erin:' db/passwd)\"\nprintf 'group=[%s]\\n' \"$(/usr/bin/grep '^erin:' db/group)\"\n/usr/bin/awk -F: -v t=\"$today\" '$1 == \"erin\" { h = ($2 ~ /^\\$argon2id\\$v=19\\$m=1024,t=1,p=1\\$[A-Za-z0-9+/]{22}\\$[A-Za-z0-9+/]{43}$/) ? \"argon2id-phc\" : \"other\"; printf \"shadow fields=%d hash=%s lastchg=%s min=%s max=%s warn=%s inactive=[%s] expire=[%s] reserved=[%s]\\n\", NF, h, ($3 == t ? \"today\" : $3), $4, $5, $6, $7, $8, $9 }' db/shadow\n/usr/bin/head -c \"$size_p\" db/passwd | /usr/bin/cmp -s - pristine/passwd && p=kept || p=changed\n/usr/bin/head -c \"$size_g\" db/group | /usr/bin/cmp -s - pristine/group && g=kept || g=changed\n/usr/bin/grep -v '^erin:' db/shadow | /usr/bin/cmp -s - pristine/shadow && s=kept || s=changed\nprintf 'existing-rows passwd=%s group=%s shadow=%s\\n' \"$p\" \"$g\" \"$s\"\nprintf 'modes passwd=%s group=%s shadow-other=%s\\n' \"$(/usr/bin/stat -c %a db/passwd)\" \"$(/usr/bin/stat -c %a db/group)\" \"$(( 8#$(/usr/bin/stat -c %a db/shadow) & 7 ))\"\nprintf 'replaced passwd=%s group=%s shadow=%s\\n' \"$([[ $(ino db/passwd) != \"$i_p\" ]] && echo new-inode || echo in-place)\" \"$([[ $(ino db/group) != \"$i_g\" ]] && echo new-inode || echo in-place)\" \"$([[ $(ino db/shadow) != \"$i_s\" ]] && echo new-inode || echo in-place)\"\nprintf 'residue=%s\\n' \"$(residue db)\"\nprintf 'new-account-password=%s\\n' \"$(/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w5-phc-standard-r1.py match db/shadow erin synthetic-pass-1)\"\npasswd add-fd finn 3 3< pw 2> \"$HOME/err.add-default\"; printf 'add-default rc=%d\\n' \"$?\"\nuid=$(/usr/bin/awk -F: '$1 == \"finn\" { print $3 }' db/passwd); gid=$(/usr/bin/awk -F: '$1 == \"finn\" { print $4 }' db/passwd)\nprintf 'default uid-unique=%s uid-range=%s gid-groups=%s home=%s\\n' \\\n  \"$( (( $(/usr/bin/awk -F: -v u=\"$uid\" '$3 == u' db/passwd | /usr/bin/wc -l) == 1 )) && echo yes || echo no)\" \\\n  \"$( [[ $uid =~ ^[0-9]+$ ]] && (( uid >= 1000 && uid < 60000 )) && echo ok || echo bad)\" \\\n  \"$(/usr/bin/awk -F: -v g=\"$gid\" '$3 == g' db/group | /usr/bin/wc -l)\" \\\n  \"$(/usr/bin/awk -F: '$1 == \"finn\" { print $6 }' db/passwd)\"\npasswd add-fd gina 3 -g 100 3< pw 2> \"$HOME/err.add-existing-group\"; printf 'add-existing-group rc=%d\\n' \"$?\"\nprintf 'existing-group primary=%s groups-with-gid-100=%d gina-group=%s users=[%s]\\n' \\\n  \"$(/usr/bin/awk -F: '$1 == \"gina\" { print $4 }' db/passwd)\" \"$(/usr/bin/awk -F: '$3 == 100' db/group | /usr/bin/wc -l)\" \\\n  \"$(/usr/bin/grep -q '^gina:' db/group && echo present || echo absent)\" \"$(/usr/bin/grep '^users:' db/group)\"\nsnap\npasswd add-fd alice 3 3< pw 2> \"$HOME/err.add-duplicate\"; printf 'add-duplicate rc=%s files=%s\\n' \"$(rc_class $?)\" \"$(same)\"\n/usr/bin/rm -rf db snap\n",
+      "stdout": "add-explicit rc=0\npasswd rows=1 fields=7 uid=2001 gid=2001 home=/srv/erin shell=/bin/sh\npasswd-erin-rows=1\ngroup=[erin:x:2001:]\nshadow fields=9 hash=argon2id-phc lastchg=today min=0 max=99999 warn=7 inactive=[] expire=[] reserved=[]\nexisting-rows passwd=kept group=kept shadow=kept\nmodes passwd=644 group=644 shadow-other=0\nreplaced passwd=new-inode group=in-place shadow=new-inode\nresidue=0\nnew-account-password=match\nadd-default rc=0\ndefault uid-unique=yes uid-range=ok gid-groups=1 home=/home/finn\nadd-existing-group rc=0\nexisting-group primary=100 groups-with-gid-100=1 gina-group=absent users=[users:x:100:]\nadd-duplicate rc=nonzero files=unchanged\n",
+      "timeout": 30,
+      "original_case_id": "takeover-passwd-add-records-standard-phc-control",
+      "adjudication": "Original FAIL retained: explicit -g named absent GID2001, while the original account-tool requirement and independent shadow-utils owner control require an existing primary group. Seed that exact group for this positive control, preserve UID, home, shell, PHC, aging, account, inode and residue assertions, and require its unchanged inode. The same script still tests default private-group creation; the independent owner control retains missing-GID rejection.",
+      "helpers_sha256": {
+        "helpers/mig-w5-phc-standard-r1.py": "54239d9e9aedf34cb7e97c5303d01206c87a6d3ad4c3d78e03592fae40c869f4"
+      }
+    },
+    {
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "timeout": 30,
+      "loadable": "passwd",
+      "covers": [
+        "passwd/account_file_mutations"
+      ],
+      "files": {
+        "pristine/passwd": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nalice:x:1000:1000:Alice:/home/alice:/bin/bash\nbob:x:1001:1001:Bob:/home/bob:/bin/bash\ncarol:x:1003:1003:Carol:/home/carol:/bin/bash\n",
+        "pristine/group": "root:x:0:\ndaemon:x:1:\nstaff:x:50:alice,carol\nusers:x:100:\nalice:x:1000:\nbob:x:1001:\ncarol:x:1003:\n",
+        "pristine/shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\ncarol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:\n",
+        "pw": "synthetic-pass-1\n",
+        "empty-pw": ""
+      },
+      "requires": [
+        "awk",
+        "cmp",
+        "cp",
+        "rm",
+        "mkdir",
+        "chmod",
+        "stat",
+        "grep",
+        "wc"
+      ],
+      "id": "migration-passwd-add-unterminated-private-group-r2",
+      "purpose": "passwd and group files whose last row lacks a trailing newline still gain a separate, well-formed row and keep the last existing row intact.",
+      "oracle": "passwd(5)/group(5): one record per line; the existing last record is a complete record even without a terminating newline (POSIX text-file tools such as awk and useradd's line reader treat it as a line).",
+      "comparison": "Exact status, row count, malformed-row count and the preserved root rows.",
+      "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=db/passwd PHCLIB_SHADOW=db/shadow PHCLIB_GROUP=db/group PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/mkdir db\nprintf '%s' 'root:x:0:0:root:/root:/bin/bash' > db/passwd\nprintf '%s' 'root:x:0:' > db/group\nprintf 'root:*:19000:0:99999:7:::\\n' > db/shadow; /usr/bin/chmod 600 db/shadow\npasswd add-fd ivy 3 -u 2005 3< pw 2> \"$HOME/err.add\"; printf 'add rc=%d\\n' \"$?\"\nprintf 'passwd rows=%d bad=%d root=[%s]\\n' \"$(/usr/bin/wc -l < db/passwd)\" \"$(/usr/bin/awk -F: 'NF != 7' db/passwd | /usr/bin/wc -l)\" \"$(/usr/bin/grep '^root:' db/passwd)\"\nprintf 'group rows=%d bad=%d root=[%s]\\n' \"$(/usr/bin/wc -l < db/group)\" \"$(/usr/bin/awk -F: 'NF != 4' db/group | /usr/bin/wc -l)\" \"$(/usr/bin/grep '^root:' db/group)\"\n/usr/bin/rm -rf db\n",
+      "expected_status": 0,
+      "stdout": "add rc=0\npasswd rows=2 bad=0 root=[root:x:0:0:root:/root:/bin/bash]\ngroup rows=2 bad=0 root=[root:x:0:]\n",
+      "diagnostic_files": [
+        "err.add"
+      ],
+      "original_case_id": "migration-passwd-add-fd-unterminated-last-row",
+      "adjudication": "Original missing-explicit-GID rejection is retained. This separately named unterminated-record control chooses the supported default private-group creation by omitting -g; preserve both original exact two-row, field-count and root-record assertions. The explicit UID remains 2005 and both passwd/group inputs retain their original missing final newline."
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "trace-vm-passwd-read-eof-first-r3",
+      "loadable": "passwd",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Observe literal EOF on the first password read; require immediate rejection, unchanged accounts and complete terminal restoration.",
+      "covers": [
+        "passwd/interactive_password_prompts"
+      ],
+      "oracle": "A separate guarded Python termios probe must observe the same injected two zero-length reads and restore its original modes; the parent observer records real tty read arguments and the substituted kernel return.",
+      "comparison": "The PTY driver pauses at each intercepted /dev/tty read, observes ECHO/ICANON clear, releases it, then compares complete termios modes and exact unchanged private shadow bytes. Retain pre-cleanup failure, pidfd, wait/signal, descriptor and cleanup observations.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod"
+      ],
+      "helpers_sha256": {
+        "helpers/trace-vm-supervisor-r2.py": "75398c78e45c87aab5bf780340266e83d3119862a0d418110b04e77ad1f67a0e",
+        "helpers/trace-vm-tty-fault-eof-r3.py": "c774aec5a073a97fa3bd0189c3e9441013c55556a01a7952c7e7bc5c15386cfa"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-tty-fault-eof-r3.py ./trace-vm-tty-fault-eof-r3.py\n/bin/chmod 0755 ./trace-vm-tty-fault-eof-r3.py\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-supervisor-r2.py ./trace-vm-supervisor-r2.py\n/bin/chmod 0755 ./trace-vm-supervisor-r2.py\n./trace-vm-supervisor-r2.py --selftest\n/bin/chmod 0600 db/shadow\n./trace-vm-tty-fault-eof-r3.py --control\n",
+      "files": {
+        "db/passwd": "alice:x:2000:2000:Alice:/tmp:/bin/bash\nroot:x:0:0:root:/root:/bin/bash\n",
+        "db/group": "alice:x:2000:\nroot:x:0:\n",
+        "db/shadow": "root:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=65536,t=2,p=1$736f6d6573616c74$09316115d5cf24ed5a15a31a3ba326e5cf32edc24702987c02b6566f61913cf7:19000:0:99999:7:::\n"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-tty-fault-eof-r3.py candidate \"$BASH\" eof-first\nrc=$?\n[[ $rc == 0 ]] || exit 21\nIFS= read -r ignored </dev/tty || exit 22\nexit 0\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-tty-fault-eof-r3.py reference \"$BASH\" eof-first\nrc=$?\n[[ $rc == 0 ]] || exit 21\nIFS= read -r ignored </dev/tty || exit 22\nexit 0\n",
+      "steps": [
+        {
+          "expect": "New password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "expect": "FAULT-OBSERVER-1\\r\\n"
+        },
+        {
+          "send": "G"
+        },
+        {
+          "expect": "FAULT-READY-END\\r\\n"
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "send": "\r"
+        }
+      ],
+      "timeout": 30,
+      "restore_terminal": true,
+      "expected_status": 0,
+      "expected_files": {
+        "db/passwd": "alice:x:2000:2000:Alice:/tmp:/bin/bash\nroot:x:0:0:root:/root:/bin/bash\n",
+        "db/group": "alice:x:2000:\nroot:x:0:\n",
+        "db/shadow": "root:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=65536,t=2,p=1$736f6d6573616c74$09316115d5cf24ed5a15a31a3ba326e5cf32edc24702987c02b6566f61913cf7:19000:0:99999:7:::\n"
+      },
+      "diagnostic_files": [
+        "tty-fault-probe.json",
+        "tty-fault-observation.json",
+        "trace-supervisor-control.json",
+        "tty-fault-cleanup-control.json",
+        "tty-fault-lifecycle.jsonl"
+      ],
+      "setup_timeout": 60,
+      "original_case_id": "trace-vm-passwd-read-eof-r2",
+      "adjudication": "Original two-EOF-in-one-operation FAIL retained. A failed first read must reject immediately. Separate controls preserve first-read and confirmation-read EOF obligations. Confirmation first injects one successful newline byte with exact owned-tracee buffer write/readback, then literal EOF; independent POSIX probe receives the same returns. Preserve EXITKILL, exact-child/pidfd cleanup controls, original full termios, account bytes and raw failures."
+    },
+    {
+      "id": "trace-vm-passwd-read-eof-confirm-r3",
+      "loadable": "passwd",
+      "group": "terminal",
+      "driver": "pty",
+      "purpose": "Observe literal EOF on confirmation after a separately observed successful newline read; require immediate rejection, unchanged accounts and complete terminal restoration.",
+      "covers": [
+        "passwd/interactive_password_prompts"
+      ],
+      "oracle": "A separate guarded Python termios probe must observe the same injected two zero-length reads and restore its original modes; the parent observer records real tty read arguments and the substituted kernel return.",
+      "comparison": "The PTY driver pauses at each intercepted /dev/tty read, observes ECHO/ICANON clear, releases it, then compares complete termios modes and exact unchanged private shadow bytes. Retain pre-cleanup failure, pidfd, wait/signal, descriptor and cleanup observations.",
+      "requires": [
+        "python3",
+        "cp",
+        "chmod"
+      ],
+      "helpers_sha256": {
+        "helpers/trace-vm-supervisor-r2.py": "75398c78e45c87aab5bf780340266e83d3119862a0d418110b04e77ad1f67a0e",
+        "helpers/trace-vm-tty-fault-eof-r3.py": "c774aec5a073a97fa3bd0189c3e9441013c55556a01a7952c7e7bc5c15386cfa"
+      },
+      "setup_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-tty-fault-eof-r3.py ./trace-vm-tty-fault-eof-r3.py\n/bin/chmod 0755 ./trace-vm-tty-fault-eof-r3.py\n/bin/cp /opt/bashos-parity/harness/helpers/trace-vm-supervisor-r2.py ./trace-vm-supervisor-r2.py\n/bin/chmod 0755 ./trace-vm-supervisor-r2.py\n./trace-vm-supervisor-r2.py --selftest\n/bin/chmod 0600 db/shadow\n./trace-vm-tty-fault-eof-r3.py --control\n",
+      "files": {
+        "db/passwd": "alice:x:2000:2000:Alice:/tmp:/bin/bash\nroot:x:0:0:root:/root:/bin/bash\n",
+        "db/group": "alice:x:2000:\nroot:x:0:\n",
+        "db/shadow": "root:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=65536,t=2,p=1$736f6d6573616c74$09316115d5cf24ed5a15a31a3ba326e5cf32edc24702987c02b6566f61913cf7:19000:0:99999:7:::\n"
+      },
+      "candidate_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-tty-fault-eof-r3.py candidate \"$BASH\" eof-confirm\nrc=$?\n[[ $rc == 0 ]] || exit 21\nIFS= read -r ignored </dev/tty || exit 22\nexit 0\n",
+      "reference_script": "[[ $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r v </sys/class/dmi/id/sys_vendor || exit 125\nIFS= read -r u </etc/bashos-parity-vm || exit 125\n[[ $v == QEMU && $u =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n./trace-vm-tty-fault-eof-r3.py reference \"$BASH\" eof-confirm\nrc=$?\n[[ $rc == 0 ]] || exit 21\nIFS= read -r ignored </dev/tty || exit 22\nexit 0\n",
+      "steps": [
+        {
+          "expect": "New password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "expect": "FAULT-OBSERVER-1\\r\\n"
+        },
+        {
+          "send": "G"
+        },
+        {
+          "expect": "Retype new password: "
+        },
+        {
+          "termios": {
+            "clear": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "expect": "FAULT-OBSERVER-2\\r\\n"
+        },
+        {
+          "send": "H"
+        },
+        {
+          "expect": "FAULT-READY-END\\r\\n"
+        },
+        {
+          "termios": {
+            "set": [
+              "ECHO",
+              "ICANON"
+            ]
+          }
+        },
+        {
+          "send": "\r"
+        }
+      ],
+      "timeout": 30,
+      "restore_terminal": true,
+      "expected_status": 0,
+      "expected_files": {
+        "db/passwd": "alice:x:2000:2000:Alice:/tmp:/bin/bash\nroot:x:0:0:root:/root:/bin/bash\n",
+        "db/group": "alice:x:2000:\nroot:x:0:\n",
+        "db/shadow": "root:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=65536,t=2,p=1$736f6d6573616c74$09316115d5cf24ed5a15a31a3ba326e5cf32edc24702987c02b6566f61913cf7:19000:0:99999:7:::\n"
+      },
+      "diagnostic_files": [
+        "tty-fault-probe.json",
+        "tty-fault-observation.json",
+        "trace-supervisor-control.json",
+        "tty-fault-cleanup-control.json",
+        "tty-fault-lifecycle.jsonl"
+      ],
+      "setup_timeout": 60,
+      "original_case_id": "trace-vm-passwd-read-eof-r2",
+      "adjudication": "Original two-EOF-in-one-operation FAIL retained. A failed first read must reject immediately. Separate controls preserve first-read and confirmation-read EOF obligations. Confirmation first injects one successful newline byte with exact owned-tracee buffer write/readback, then literal EOF; independent POSIX probe receives the same returns. Preserve EXITKILL, exact-child/pidfd cleanup controls, original full termios, account bytes and raw failures."
+    }
+  ]
+}
