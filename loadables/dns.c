@@ -264,6 +264,9 @@ static void bd_note_final_rcode (const unsigned char *reply, size_t rlen,
  * the next nameserver. Only a reply whose ID and 0x20 question case
  * matched counts, so a spoofed or mismatched reply is still retried. */
 static int bd_final_rcode;
+/* A DoT/DoH child that exits non-zero failed verification or the TLS
+ * handshake. That result will not change on a second attempt. */
+static int bd_transport_final;
 static int bd_query_tcp (const unsigned char *query, size_t qlen, const char *server,
                          int timeout_ms, unsigned char *reply, size_t reply_sz);
 static int bd_query_dot (const unsigned char *query, size_t qlen, const char *dot_host,
@@ -2649,6 +2652,10 @@ bd_query_dot (const unsigned char *query, size_t qlen, const char *dot_host,
       builtin_error ("dot: TLS transport failed (rc=%d signal=%d)",
                      WIFEXITED (st) ? WEXITSTATUS (st) : -1,
                      WIFSIGNALED (st) ? WTERMSIG (st) : 0);
+      /* Only a child that exits non-zero by itself failed the handshake or
+         verification. One stopped after a timeout or I/O error is
+         transient, so the next attempt still runs. */
+      bd_transport_final = WIFEXITED (st);
       return -1;
     }
   if (rc < 0)
@@ -3083,6 +3090,10 @@ bd_query_doh (const unsigned char *query, size_t qlen, const char *url,
       builtin_error ("doh: HTTPS transport failed (rc=%d signal=%d)",
                      WIFEXITED (st) ? WEXITSTATUS (st) : -1,
                      WIFSIGNALED (st) ? WTERMSIG (st) : 0);
+      /* Only a child that exits non-zero by itself failed the handshake or
+         verification. One stopped after a timeout or I/O error is
+         transient, so the next attempt still runs. */
+      bd_transport_final = WIFEXITED (st);
       return -1;
     }
   if (rc < 12)
@@ -3561,11 +3572,12 @@ bd_fetch_attempts (const char *qname, uint16_t qtype, const char *server,
   if (attempts < 1) attempts = 1;
   int rlen = -1;
   bd_final_rcode = 0;
+  bd_transport_final = 0;
   for (int a = 0; a < attempts; a++)
     {
       rlen = bd_fetch (qname, qtype, server, dnssec, timeout_ms, allow_nxdomain,
                        reply, reply_sz);
-      if (rlen >= 0 || bd_final_rcode)
+      if (rlen >= 0 || bd_final_rcode || bd_transport_final)
         break;
     }
   return rlen;

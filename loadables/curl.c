@@ -751,7 +751,9 @@ static int
 bc_save_cookie_jar (const char *path, const bc_url *u, const char *hdrs)
 {
   if (!path) return 0;
-  int fd = open (path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+  /* libcurl creates the jar as 0666 and lets the process umask apply,
+   * so umask 022 yields 0644 and umask 000 yields 0666. */
+  int fd = open (path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0666);
   FILE *fp = fd < 0 ? NULL : fdopen (fd, "wb");
   if (!fp)
     { int saved = errno; if (fd >= 0) close (fd);

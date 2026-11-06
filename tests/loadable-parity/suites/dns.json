@@ -6,7 +6,8 @@
     "Bash builtin classification for the statically installed dns loadable.",
     "Short description, synopsis, and documented command-family metadata exposed by Bash help.",
     "Deferred operation coverage is scoped to DNS query transports, client updates, and local resolver/authoritative service exchanges.",
-    "Offline parent-chain calculation, valid/inherited-owner and invalid-address master-file parsing, and a fixed in-memory DoH POST decoder contract."
+    "Offline parent-chain calculation, valid/inherited-owner and invalid-address master-file parsing, and a fixed in-memory DoH POST decoder contract.",
+    "DoT transport retries: timeouts use every resolver attempt, while a failed handshake or verification is final."
   ],
   "exclusions": [
     "All network exchanges, listener/service operations, transfers and polling remain deferred; offline parser/codec cases do not establish network parity.",
@@ -478,6 +479,16 @@
       "expected_status": 0,
       "stderr": "empty",
       "stdout": "status=200\nlen=12\nhex=123401000000000000000000\n"
+    },
+    {
+      "id": "dot-transport-retry",
+      "kind": "contract",
+      "purpose": "A DoT child stopped after the query timeout is transient and is retried for each configured resolver attempt; a child that exits non-zero by itself (a failed handshake or verification) ends the attempts. A test stub replaces the TLS transport and counts its invocations.",
+      "script": "printf 'nameserver 127.0.0.1\\noptions attempts:3\\n' > resolv\nexport BASHDNS_RESOLV_CONF=$PWD/resolv PATH=/usr/bin:/bin\nfor stub in timeout failure; do\n  : > calls\n  if [[ $stub == timeout ]]; then\n    export BASHDNS_DOT_CMD='printf x >> calls; sleep 5'\n  else\n    export BASHDNS_DOT_CMD='printf x >> calls; exit 1'\n  fi\n  rc=0\n  dns query example.com A -t 300 --dot -h 127.0.0.1 2>/dev/null || rc=$?\n  n=$(<calls)\n  printf '%s status=%s calls=%s\\n' \"$stub\" \"$rc\" \"${#n}\"\ndone\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "timeout status=1 calls=3\nfailure status=1 calls=1\n",
+      "timeout": 10
     }
   ]
 }

@@ -5,7 +5,8 @@
   "coverage": [
     "Bash builtin classification for the statically installed dns loadable.",
     "Short description, synopsis, and documented command-family metadata exposed by Bash help.",
-    "Deferred operation coverage is scoped to DNS query transports, client updates, and local resolver/authoritative service exchanges."
+    "Deferred operation coverage is scoped to DNS query transports, client updates, and local resolver/authoritative service exchanges.",
+    "DoT transport retries: timeouts use every resolver attempt, while a failed handshake or verification is final."
   ],
   "exclusions": [
     "All dns operation subcommands are unexecuted under the task's explicit DNS/network safety restriction; DEFERRED cases are not passes.",
@@ -84,6 +85,16 @@
       "kind": "deferred",
       "purpose": "Exercise slave IXFR/AXFR transfer verification and DNSKEY polling used by trust-anchor rollover.",
       "reason": "Transfer and polling paths require a controlled DNS primary and response stream. A future disposable VM must expose only a loopback primary with fixed signed zone/DNSKEY fixtures, injected timestamps, and independently computed TSIG/signature expectations. No transfer or poll is run here."
+    },
+    {
+      "id": "dot-transport-retry",
+      "kind": "contract",
+      "purpose": "A DoT child stopped after the query timeout is transient and is retried for each configured resolver attempt; a child that exits non-zero by itself (a failed handshake or verification) ends the attempts. A test stub replaces the TLS transport and counts its invocations.",
+      "script": "printf 'nameserver 127.0.0.1\\noptions attempts:3\\n' > resolv\nexport BASHDNS_RESOLV_CONF=$PWD/resolv PATH=/usr/bin:/bin\nfor stub in timeout failure; do\n  : > calls\n  if [[ $stub == timeout ]]; then\n    export BASHDNS_DOT_CMD='printf x >> calls; sleep 5'\n  else\n    export BASHDNS_DOT_CMD='printf x >> calls; exit 1'\n  fi\n  rc=0\n  dns query example.com A -t 300 --dot -h 127.0.0.1 2>/dev/null || rc=$?\n  n=$(<calls)\n  printf '%s status=%s calls=%s\\n' \"$stub\" \"$rc\" \"${#n}\"\ndone\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "timeout status=1 calls=3\nfailure status=1 calls=1\n",
+      "timeout": 10
     }
   ]
 }
