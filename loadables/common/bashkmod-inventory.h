@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Shared stream parser for /proc/modules and its regression fixture. */
 #ifndef BASHKMOD_INVENTORY_H
 #define BASHKMOD_INVENTORY_H

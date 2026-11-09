@@ -49,9 +49,25 @@ for file in [*Path('loadables').rglob('*'), *Path('tests').glob('*.c')]:
     count+=1
     if file.as_posix() in vendored: continue
     if len(file.parts)>2 and file.parts[1] in manifest: continue
+    # Userspace mirrors of the kernel module's ABI keep its licence; the
+    # syscall note lets userspace include them.
+    if (re.fullmatch(r'loadables/common/_bashos_[a-z0-9_]+_uapi\.h', file.as_posix()) and
+            file.read_text().startswith('/* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */')):
+        continue
     if not re.search(r'SPDX-License-Identifier: MIT|MIT License|\bMIT\b|Permission is hereby granted, free of charge',file.read_text()):
         problems.append(f'no MIT licence marker: {file}')
 if not Path('LICENSE').is_file(): problems.append('LICENSE missing')
+# The kernel module is a separate GPL-2.0-only work built against a kernel tree.
+kernel_allowed={'GPL-2.0-only','GPL-2.0-only WITH Linux-syscall-note','MIT'}
+for module in Path('kernel').glob('*'):
+    if not module.is_dir(): continue
+    if not (module/'COPYING').is_file(): problems.append(f'missing licence notice: {module}/COPYING')
+    for file in module.rglob('*'):
+        if not file.is_file() or not (file.suffix in ['.c','.h'] or file.name == 'Kconfig' or file.name.startswith('Makefile')): continue
+        count+=1
+        found=re.search(r'SPDX-License-Identifier: (.+?)(?: \*/)?$', file.read_text().split('\n', 1)[0])
+        if not found or found.group(1).strip() not in kernel_allowed:
+            problems.append(f'no kernel SPDX licence identifier: {file}')
 for problem in problems: print(problem)
 print(f'licence-check: {count} files, {len(problems)} problems')
 raise SystemExit(bool(problems))

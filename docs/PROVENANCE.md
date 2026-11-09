@@ -68,7 +68,7 @@ configuration. See [Perl inside Bash](perl.md).
 
 | Files | Licence |
 |---|---|
-| command sources and `loadables/common/` except `sed-regex.h` | MIT (`LICENSE`) |
+| command sources and `loadables/common/` except `sed-regex.h` and the v2 kernel ABI mirrors | MIT (`LICENSE`) |
 | `loadables/common/sed-regex.h` | LGPL-2.1-or-later, GNU sed 4.9 gnulib regex; notice `docs/sol-sed-regex-LGPL-2.1.txt`; registered in `config/vendored-files.json` |
 | `_ptybroker` native client and service | MIT, original project code |
 | `_perl` embedding and environment helpers | MIT, original project code |
@@ -85,12 +85,23 @@ configuration. See [Perl inside Bash](perl.md).
 | `_ts_bash`, `_ts_json`, `_ts_toml`, `_ts_markdown`, `_ts_markdown_inline` | MIT, per-grammar notices |
 | `tests/*.c`, `build.sh`, `config/` | MIT |
 | Stock Bash adaptations listed in `config/stock-patches.json` | GPL-3.0-or-later |
+| `loadables/common/_bashos_auth_v2_uapi.h`, `_bashos_privcmd_v2_uapi.h`, `_bashos_audit_v2_uapi.h` | GPL-2.0-only WITH Linux-syscall-note, userspace mirrors of the kernel module's v2 ABI |
+| `kernel/bashos-auth/` module, authority sources, `Kconfig` and `Makefile`s, KUnit tests | GPL-2.0-only (`kernel/bashos-auth/COPYING`), original project code |
+| `kernel/bashos-auth/uapi/linux/bashos_*_v2.h`, `authority/v2/protocol.h`, `executor-protocol.h`, `test-uapi.h` | GPL-2.0-only WITH Linux-syscall-note |
+| `kernel/bashos-auth/uapi/linux/bashos_auth.h`, the userspace tests (`tests/abi_check.c`, `abi_map.c`, `device_test.c`, `authority/tests/device_boundary.c`) and the native userspace helpers `authority/v2/executor.c` and `verifier.c` | MIT |
 
 The project sources carry an MIT marker. Vendored helpers retain their original
 notices and are registered in `config/helpers.json`. Other vendored files are
 registered in `config/vendored-files.json`. `tests/licence-check.sh`
 checks all C/header/data files and rejects unregistered helper trees. The
 combined executable remains governed by Bash's GPL-3.0-or-later licence.
+
+The experimental `/dev/bashos-auth` module in `kernel/bashos-auth/` is a
+separate work under GPL-2.0-only, the licence of the kernel it is built against.
+It is not linked into the bash-os executable. Builtins reach it
+only through its ABI headers, whose Linux-syscall-note permits userspace use.
+`tests/licence-check.sh` requires an SPDX identifier on every module source,
+header, `Kconfig` and `Makefile`.
 
 ## The util-linux family (imported 2026-09-06)
 

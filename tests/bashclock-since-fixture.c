@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* Run only in a disposable VM. Compile against tests/sol-pgrep-stubs. */
 #include <time.h>
 #include <errno.h>
