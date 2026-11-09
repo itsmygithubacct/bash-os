@@ -8,7 +8,8 @@
     "Deferred operation coverage is scoped to DNS query transports, client updates, and local resolver/authoritative service exchanges.",
     "Offline parent-chain calculation, valid/inherited-owner and invalid-address master-file parsing, and a fixed in-memory DoH POST decoder contract.",
     "DoT transport retries: timeouts use every resolver attempt, while a failed handshake or verification is final.",
-    "Transport settings assigned for a single dns command reach the DoT and DoH children intact."
+    "Transport settings assigned for a single dns command reach the DoT and DoH children intact.",
+    "Transport children see variables exported after the shell started, before any external command runs."
   ],
   "exclusions": [
     "All network exchanges, listener/service operations, transfers and polling remain deferred; offline parser/codec cases do not establish network parity.",
@@ -499,6 +500,16 @@
       "expected_status": 0,
       "stderr": "empty",
       "stdout": "dot status=1 seen=dot\ndoh status=1 seen=doh\ndot-env status=1 seen=dot-env\n",
+      "timeout": 10
+    },
+    {
+      "id": "transport-exported-env",
+      "kind": "contract",
+      "purpose": "A transport child sees variables exported after the shell started, with no external command run in between. Bash rebuilds the environment it hands to children only when it next runs an external command; a child exec'd before that would get the startup environment. The stub records a value exported just before the query.",
+      "script": "printf 'nameserver 127.0.0.1\\n' > resolv\nexport BASHDNS_RESOLV_CONF=$PWD/resolv BASHDNS_FIXTURE_PROBE=exported-after-start PATH=/usr/bin:/bin\nfor mode in dot doh; do\n  : > seen\n  rc=0\n  case $mode in\n    dot) export BASHDNS_DOT_CMD='printf %s \"$BASHDNS_FIXTURE_PROBE\" > seen; exit 1'\n         dns query example.com A -t 300 --dot -h 127.0.0.1 2>/dev/null || rc=$? ;;\n    doh) export BASHDNS_DOH_CMD='printf %s \"$BASHDNS_FIXTURE_PROBE\" > seen; exit 1'\n         dns query example.com A -t 300 --doh https://127.0.0.1/dns-query 2>/dev/null || rc=$? ;;\n  esac\n  printf '%s status=%s seen=%s\\n' \"$mode\" \"$rc\" \"$(<seen)\"\ndone\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "dot status=1 seen=exported-after-start\ndoh status=1 seen=exported-after-start\n",
       "timeout": 10
     }
   ]

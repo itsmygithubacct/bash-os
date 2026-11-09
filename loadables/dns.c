@@ -378,6 +378,12 @@ static void
 bd_child_guard_child_end (struct bd_child_guard *g)
 {
   sigprocmask (SIG_SETMASK, &g->oldmask, NULL);
+  /* Bash refreshes the C environ (its export_env) only when it next runs an
+     external command. Until then a child exec'd after `export PATH=...`
+     searches the old PATH and passes the old environment, so a transport
+     stub could not find its commands or see BASHDNS_* settings. Every child
+     of this builtin starts here. */
+  maybe_make_export_env ();
 }
 
 /* ---- Per-upstream-resolver rate limit (token bucket) -------------- *
