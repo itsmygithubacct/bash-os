@@ -145,6 +145,18 @@ rendering and system interfaces. Its default user is numeric ID 2000. The
 [paired-image workflow](docs/parity-debian.md#paired-bash-os-image) describes
 the command path, runtime inventory and fixture requirements.
 
+To compare the two images, use the [Docker parity runner](docs/docker-parity.md).
+It mirrors scripts or live terminal input into independent containers, records
+replayable inputs, and compares output, exit status, and filesystem changes:
+
+```sh
+python3 scripts/docker-parity.py suite --workspace /path/on/nvme/bash-os-parity --timeout 120
+python3 scripts/docker-parity.py live --workspace /path/on/nvme/bash-os-parity
+```
+
+The defaults are `bash-os:parity-debian` and `bash-os:parity-bash-os`; override
+them with `--reference` and `--candidate`. The reference must run Bash 5.3.20.
+
 Build a minimal local image from the static binary:
 
 ```sh

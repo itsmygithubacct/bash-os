@@ -18,6 +18,9 @@ the historical 0.1.3 evidence remains available separately.
 - Added the corresponding source-built bash-os image with the full catalog,
   optional Perl/Python/uv integrations, runtime library/data staging, and a
   nonroot check of builtin selection and interpreter availability.
+- Added a Docker parity runner that sends identical scripts, stdin, replayed
+  terminal events or live keystrokes to the reference and bash-os images, keeps
+  replayable evidence, and compares output, exit status and `/work` changes.
 
 ## 0.1.3 — 2026-11-01
 
