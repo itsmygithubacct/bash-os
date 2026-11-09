@@ -292,6 +292,56 @@ static struct {
   char       url[2048];
 } bd_doh_ctx;
 
+/* Bash's getenv hands a loadable one shared buffer for a variable set for a
+   single command (VAR=x dns ...) and frees it at the next such lookup, so a
+   value kept past another lookup would dangle.  bd_env keeps its own copy of
+   each name's value.  The copy is replaced only when the same name is read
+   with a different value, so a pointer stays valid for as long as the value
+   it came from. */
+static const char *
+bd_env (const char *name)
+{
+  static struct { const char *name; char *value; } *slot;
+  static size_t nslot;
+  const char *value = getenv (name);
+  size_t i;
+  for (i = 0; i < nslot; i++)
+    if (strcmp (slot[i].name, name) == 0)
+      break;
+  if (i == nslot)
+    {
+      if (!value)
+        return NULL;
+      void *grown = realloc (slot, (nslot + 1) * sizeof *slot);
+      char *copy = strdup (value);
+      if (!grown || !copy)
+        {
+          free (copy);
+          if (grown) slot = grown;
+          builtin_error ("cannot copy %s: out of memory", name);
+          return NULL;
+        }
+      slot = grown;
+      slot[nslot].name = name;
+      slot[nslot].value = copy;
+      return slot[nslot++].value;
+    }
+  if (!value)
+    return NULL;
+  if (strcmp (slot[i].value, value) != 0)
+    {
+      char *copy = strdup (value);
+      if (!copy)
+        {
+          builtin_error ("cannot copy %s: out of memory", name);
+          return NULL;
+        }
+      free (slot[i].value);
+      slot[i].value = copy;
+    }
+  return slot[i].value;
+}
+
 struct bd_child_guard {
   struct sigaction old_chld;
   sigset_t oldmask;
@@ -374,7 +424,7 @@ static unsigned       bd_rl_seq = 0;
 static double
 bd_ratelimit_qps (void)
 {
-  const char *env = getenv ("BASHDNS_RATELIMIT_QPS");
+  const char *env = bd_env ("BASHDNS_RATELIMIT_QPS");
   if (!env || !*env) return 50.0;
   char *end = NULL;
   errno = 0;
@@ -505,7 +555,7 @@ bd_type_name (uint16_t t)
 static const char *
 bd_resolv_conf_path (void)
 {
-  const char *p = getenv ("BASHDNS_RESOLV_CONF");
+  const char *p = bd_env ("BASHDNS_RESOLV_CONF");
   return (p && *p) ? p : "/etc/resolv.conf";
 }
 
@@ -951,7 +1001,7 @@ bd_random_u16 (void)
 static int
 bd_0x20_enabled (void)
 {
-  const char *env = getenv ("BASHDNS_0X20");
+  const char *env = bd_env ("BASHDNS_0X20");
   if (!env || !*env) return 1;
   if (strcmp (env, "0") == 0 ||
       strcasecmp (env, "no") == 0 ||
@@ -1430,7 +1480,7 @@ bd_load_trust_anchor_line (const char *path, char *out, size_t out_sz)
 static const char *
 bd_active_trust_anchor (char *buf, size_t bufsz)
 {
-  const char *env = getenv ("BASHDNS_TRUST_ANCHOR");
+  const char *env = bd_env ("BASHDNS_TRUST_ANCHOR");
   if (env && *env && bd_load_trust_anchor_line (env, buf, bufsz) == 0)
     return buf;
   if (bd_runtime_trust_anchor[0])
@@ -2260,7 +2310,7 @@ bd_read_exact_timeout (int fd, unsigned char *buf, size_t len, int timeout_ms)
 static int
 bd_server_port (void)
 {
-  const char *env = getenv ("BASHDNS_SERVER_PORT");
+  const char *env = bd_env ("BASHDNS_SERVER_PORT");
   if (!env || !*env) return 53;
   char *end = NULL;
   long port = strtol (env, &end, 10);
@@ -2520,7 +2570,7 @@ bd_query_dot (const unsigned char *query, size_t qlen, const char *dot_host,
 {
   if (qlen > 65535) { builtin_error ("dot: query too large"); return -1; }
 
-  const char *override = getenv ("BASHDNS_DOT_CMD");
+  const char *override = bd_env ("BASHDNS_DOT_CMD");
   /* Compose host:port into a single token in the parent; passed to bash
    * as a positional parameter so the script body remains a constant
    * literal and bash never re-parses dot_host as a shell expression. */
@@ -2917,7 +2967,7 @@ bd_dot_accept_filter (const unsigned char *in, size_t in_len,
                       unsigned char *out, size_t out_sz, size_t *out_len,
                       int timeout_ms)
 {
-  const char *override = getenv ("BASHDNS_DOT_ACCEPT_CMD");
+  const char *override = bd_env ("BASHDNS_DOT_ACCEPT_CMD");
   *out_len = 0;
   if (!override || !*override)
     {
@@ -2992,7 +3042,7 @@ bd_query_doh (const unsigned char *query, size_t qlen, const char *url,
   if (!bd_doh_url_valid (url))
     { builtin_error ("doh: URL must be https://HOST[:PORT]/PATH with a simple host"); return -1; }
 
-  const char *override = getenv ("BASHDNS_DOH_CMD");
+  const char *override = bd_env ("BASHDNS_DOH_CMD");
   int pin[2], pout[2];
   if (pipe (pin) < 0)
     { builtin_error ("doh: pipe: %s", strerror (errno)); return -1; }
@@ -3481,7 +3531,7 @@ static int
 bd_fixture_load (const char *qname, uint16_t qtype,
                  unsigned char *reply, size_t reply_sz)
 {
-  const char *dir = getenv ("BASHDNS_FIXTURE_DIR");
+  const char *dir = bd_env ("BASHDNS_FIXTURE_DIR");
   if (!dir || !*dir) return -1;
   char canon[256];
   if (bd_canon_owner (qname, canon, sizeof canon) < 0) return -1;
@@ -3504,7 +3554,7 @@ bd_fetch (const char *qname, uint16_t qtype, const char *server,
           int dnssec, int timeout_ms, int allow_nxdomain,
           unsigned char *reply, size_t reply_sz)
 {
-  const char *fixture_dir = getenv ("BASHDNS_FIXTURE_DIR");
+  const char *fixture_dir = bd_env ("BASHDNS_FIXTURE_DIR");
   int n = bd_fixture_load (qname, qtype, reply, reply_sz);
   if (n >= 12) return n;
   if (fixture_dir && *fixture_dir)
@@ -4034,7 +4084,7 @@ bd_rsa_split (const unsigned char *pubkey, size_t pklen,
 static int
 bd_run_verifier (char *const argv[], const unsigned char *msg, size_t msg_len)
 {
-  const char *override = getenv ("BASHDNS_VERIFIER_CMD");
+  const char *override = bd_env ("BASHDNS_VERIFIER_CMD");
   int argc = 0;
   if (!override || !*override)
     {
@@ -4113,7 +4163,7 @@ bd_verify_sig (uint8_t algo,
   if (dnskey_rdlen < 4) return -1;
   const unsigned char *pk = dnskey_rdata + 4;
   size_t pklen = dnskey_rdlen - 4;
-  const char *verifier = getenv ("BASHDNS_VERIFIER");
+  const char *verifier = bd_env ("BASHDNS_VERIFIER");
   if (!verifier || !*verifier) verifier = "crypto";
 
   switch (algo)
@@ -4231,7 +4281,7 @@ bd_run_hash_match (const char *hashverb,
                    const unsigned char *msg, size_t msg_len,
                    const unsigned char *want_digest, size_t want_len)
 {
-  const char *override = getenv ("BASHDNS_HASH_CMD");
+  const char *override = bd_env ("BASHDNS_HASH_CMD");
   if (fflush (stdout) == EOF) return -1;
   int p[2]; int q[2];
   if (pipe (p) < 0) return -1;
@@ -4300,7 +4350,7 @@ bd_run_hash_bytes (const char *hashverb,
                    const unsigned char *msg, size_t msg_len,
                    unsigned char *out, size_t out_sz, size_t *out_len)
 {
-  const char *override = getenv ("BASHDNS_HASH_CMD");
+  const char *override = bd_env ("BASHDNS_HASH_CMD");
   if (fflush (stdout) == EOF) return -1;
 
   int p[2]; int q[2];
@@ -5441,7 +5491,7 @@ bd_chain_validate (const char *qname, uint16_t qtype, const char *server,
 {
   if (ttl_bound) *ttl_bound = UINT32_MAX;
   if (wildcard_used) *wildcard_used = 0;
-  const char *env_anchor = getenv ("BASHDNS_TRUST_ANCHOR");
+  const char *env_anchor = bd_env ("BASHDNS_TRUST_ANCHOR");
   if (env_anchor && *env_anchor) {
     char buf[512];
     if (bd_load_trust_anchor_line (env_anchor, buf, sizeof buf) < 0)
@@ -5844,20 +5894,20 @@ bd_query_cmd (WORD_LIST *args, const char *forced_type)
   if (bd_type_from_name (qtype_str, &qtype) < 0)
     { builtin_error ("unknown type: %s", qtype_str); return EX_USAGE; }
 
-  if (!dnssec && bd_truthy (getenv ("BASHDNS_VALIDATE")))
+  if (!dnssec && bd_truthy (bd_env ("BASHDNS_VALIDATE")))
     dnssec = 1;
-  if (bd_truthy (getenv ("BASHDNS_REQUIRE_AD")))
+  if (bd_truthy (bd_env ("BASHDNS_REQUIRE_AD")))
     { dnssec = 1; require_ad = 1; }
-  if (bd_truthy (getenv ("BASHDNS_VALIDATE_CHAIN")))
+  if (bd_truthy (bd_env ("BASHDNS_VALIDATE_CHAIN")))
     { dnssec = 1; validate = 1; }
-  if (bd_truthy (getenv ("BASHDNS_DOT")))
+  if (bd_truthy (bd_env ("BASHDNS_DOT")))
     dot = 1;
   if (!dot_host)
-    dot_host = getenv ("BASHDNS_DOT_HOST");
-  if (bd_truthy (getenv ("BASHDNS_DOH")))
+    dot_host = bd_env ("BASHDNS_DOT_HOST");
+  if (bd_truthy (bd_env ("BASHDNS_DOH")))
     doh = 1;
   if (!doh_url)
-    doh_url = getenv ("BASHDNS_DOH_URL");
+    doh_url = bd_env ("BASHDNS_DOH_URL");
   if (doh_url && *doh_url)
     doh = 1;
   if (dot && doh)
@@ -5871,7 +5921,7 @@ bd_query_cmd (WORD_LIST *args, const char *forced_type)
         { builtin_error ("nameserver too long: %s", server); return EX_USAGE; }
       strcpy (server_list[server_count++], server);
     }
-  else if (getenv ("BASHDNS_FIXTURE_DIR") || dot || doh)
+  else if (bd_env ("BASHDNS_FIXTURE_DIR") || dot || doh)
     {
       /* Fixture mode, DoT, and DoH bypass UDP nameserver discovery in bd_fetch().
        * Keep a dummy upstream key so the shared fetch/validation paths have
@@ -7293,7 +7343,7 @@ static int
 sz_run_signer (char *const argv[], const unsigned char *msg, size_t msg_len,
                unsigned char *sig_out, size_t sig_sz, size_t *sig_len)
 {
-  const char *override = getenv ("BASHDNS_SIGNER_CMD");
+  const char *override = bd_env ("BASHDNS_SIGNER_CMD");
   int argc = 0; while (argv[argc]) argc++;
   /* assemble: bash -c <body> _ argv... */
   const char *body = (override && *override) ? override : "builtin \"$@\"";
@@ -7352,7 +7402,7 @@ static int
 sz_sign (const sz_key_t *key, const unsigned char *msg, size_t msg_len,
          unsigned char *sig_out, size_t sig_sz, size_t *sig_len)
 {
-  const char *signer = getenv ("BASHDNS_SIGNER");
+  const char *signer = bd_env ("BASHDNS_SIGNER");
   if (!signer || !*signer) signer = "crypto";
   switch (key->algorithm)
     {
@@ -8958,7 +9008,7 @@ struct bdr_ctx {
 static int
 bdr_anchor_digest (unsigned char digest[32])
 {
-  const char *anchor = getenv ("BASHDNS_TRUST_ANCHOR");
+  const char *anchor = bd_env ("BASHDNS_TRUST_ANCHOR");
   if (anchor && *anchor) {
     char metadata[512];
     if (bd_load_trust_anchor_line (anchor, metadata, sizeof metadata) < 0) return -1;
@@ -9032,7 +9082,7 @@ bdr_resolve (struct bdr_ctx *c, const unsigned char *qbuf, size_t qn,
   int client_do = bdr_query_dnssec_ok (qbuf, qn);
   int client_cd = (qbuf[3] & 0x10) != 0;
   int client_ad = (qbuf[3] & 0x20) != 0;
-  const char *anchor = getenv ("BASHDNS_TRUST_ANCHOR");
+  const char *anchor = bd_env ("BASHDNS_TRUST_ANCHOR");
   int validate = c->recurse && c->nroots > 0 && !client_cd &&
                  (bd_explicit_trust_count > 0 || (anchor && *anchor));
   /* Client-specific policy must run before any shared cache lookup. */
@@ -9601,7 +9651,7 @@ bd_tsig_status_name (int status)
 static long
 bd_tsig_now (void)
 {
-  const char *e = getenv ("BASHDNS_TSIG_NOW");
+  const char *e = bd_env ("BASHDNS_TSIG_NOW");
   if (e && *e)
     {
       char *end = NULL;
@@ -9667,7 +9717,7 @@ bd_tsig_hmac (const bd_tsig_key_t *key, const unsigned char *msg, size_t msg_len
   if (!key || mac_sz < BD_TSIG_HMAC_SHA256_LEN) return -1;
   char keyhex[BD_TSIG_SECRET_MAX * 2 + 1];
   if (bd_tsig_secret_hex (key, keyhex, sizeof keyhex) < 0) return -1;
-  const char *override = getenv ("BASHDNS_TSIG_HMAC_CMD");
+  const char *override = bd_env ("BASHDNS_TSIG_HMAC_CMD");
   if (!override || !*override)
     {
       if (mbedtls_hmac_sha256 (key->secret, key->secret_len,
@@ -15747,7 +15797,7 @@ bd_auth_serve_cmd (WORD_LIST *args)
      or the BASHDNS_SLAVE_DIR environment variable; the first non-empty value
      wins.  When empty, slave_dir stays "" and every persistence call below is
      a no-op via bda_slave_file_path()'s empty-dir guard. */
-  const char *slave_dir = getenv ("BASHDNS_SLAVE_DIR");
+  const char *slave_dir = bd_env ("BASHDNS_SLAVE_DIR");
   if (slave_dir && !*slave_dir) slave_dir = NULL;
   bd_tsig_store_t tsig_store; memset (&tsig_store, 0, sizeof tsig_store);
   int require_tsig = 0;
@@ -16926,7 +16976,7 @@ bd_slave_apply_debug_cmd (WORD_LIST *args)
 static void
 bd_tsig_save_now_env (int *had, char *buf, size_t bufsz)
 {
-  const char *old = getenv ("BASHDNS_TSIG_NOW");
+  const char *old = bd_env ("BASHDNS_TSIG_NOW");
   *had = old != NULL;
   if (old)
     snprintf (buf, bufsz, "%s", old);

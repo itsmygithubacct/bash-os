@@ -6,7 +6,8 @@
     "Bash builtin classification for the statically installed dns loadable.",
     "Short description, synopsis, and documented command-family metadata exposed by Bash help.",
     "Deferred operation coverage is scoped to DNS query transports, client updates, and local resolver/authoritative service exchanges.",
-    "DoT transport retries: timeouts use every resolver attempt, while a failed handshake or verification is final."
+    "DoT transport retries: timeouts use every resolver attempt, while a failed handshake or verification is final.",
+    "Transport settings assigned for a single dns command reach the DoT and DoH children intact."
   ],
   "exclusions": [
     "All dns operation subcommands are unexecuted under the task's explicit DNS/network safety restriction; DEFERRED cases are not passes.",
@@ -94,6 +95,16 @@
       "expected_status": 0,
       "stderr": "empty",
       "stdout": "timeout status=1 calls=3\nfailure status=1 calls=1\n",
+      "timeout": 10
+    },
+    {
+      "id": "transport-command-local-env",
+      "kind": "contract",
+      "purpose": "Transport settings given as assignments for the single dns command (with PATH also assigned there) reach the DoT and DoH children intact. Bash frees its shared getenv buffer for such assignments at the next lookup, which the child's PATH search makes before running the command. A test stub records which transport command ran.",
+      "script": "printf 'nameserver 127.0.0.1\\n' > resolv\nfor mode in dot doh dot-env; do\n  : > seen\n  rc=0\n  case $mode in\n    dot) BASHDNS_RESOLV_CONF=$PWD/resolv BASHDNS_DOT_CMD='printf dot > seen; exit 1' PATH=/usr/bin:/bin dns query example.com A -t 300 --dot -h 127.0.0.1 2>/dev/null || rc=$? ;;\n    doh) BASHDNS_RESOLV_CONF=$PWD/resolv BASHDNS_DOH_CMD='printf doh > seen; exit 1' PATH=/usr/bin:/bin dns query example.com A -t 300 --doh https://127.0.0.1/dns-query 2>/dev/null || rc=$? ;;\n    dot-env) BASHDNS_RESOLV_CONF=$PWD/resolv BASHDNS_DOT=1 BASHDNS_DOT_HOST=127.0.0.1 BASHDNS_DOT_CMD='printf dot-env > seen; exit 1' PATH=/usr/bin:/bin dns query example.com A -t 300 2>/dev/null || rc=$? ;;\n  esac\n  printf '%s status=%s seen=%s\\n' \"$mode\" \"$rc\" \"$(<seen)\"\ndone\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "dot status=1 seen=dot\ndoh status=1 seen=doh\ndot-env status=1 seen=dot-env\n",
       "timeout": 10
     }
   ]
