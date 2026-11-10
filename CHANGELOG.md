@@ -63,6 +63,9 @@ the historical 0.1.3 evidence remains available separately.
   appropriate.` on stderr, and exits 16 only when no keyword matched.
 - `who` prints `%b %e %H:%M` times in a 12-column TIME field when LC_TIME is C
   or POSIX, as GNU who does, and ISO times otherwise.
+- `pgrep` blocks SIGCHLD while its process walker runs, so Bash cannot reap
+  the walker and make `pgrep` fail with ECHILD when the shell has other
+  children.
 
 ## 0.1.3 — 2026-11-01
 

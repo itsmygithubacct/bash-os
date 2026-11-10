@@ -1111,23 +1111,35 @@ bp_dispatch (WORD_LIST *list, int mode)
        must continue to exclude the shell that invoked them. */
     int child_walk = mode == BP_MODE_GREP && !bp_using_proc_fixture ();
     pid_t child = -1;
+    sigset_t chld_block, chld_oldmask;
     if (child_walk) {
         if (fflush (stdout) == EOF) {
             builtin_error ("write error: %s", strerror (errno));
             if (compiled) regfree (&regex);
             return 3;
         }
+        /* Hold SIGCHLD until the walker is reaped here.  Bash's handler
+           (armed whenever the shell has children, such as a coprocess)
+           would otherwise reap it first and leave waitpid with ECHILD.
+           The pending signal reaches Bash once the mask is restored. */
+        sigemptyset (&chld_block);
+        sigaddset (&chld_block, SIGCHLD);
+        sigprocmask (SIG_BLOCK, &chld_block, &chld_oldmask);
         child = fork ();
         if (child < 0) {
+            sigprocmask (SIG_SETMASK, &chld_oldmask, NULL);
             builtin_error ("fork: %s", strerror (errno));
             if (compiled) regfree (&regex);
             return 3;
         }
+        if (child == 0)
+            sigprocmask (SIG_SETMASK, &chld_oldmask, NULL);
         if (child > 0) {
             int status;
             pid_t waited;
             do { waited = waitpid (child, &status, 0); }
             while (waited < 0 && errno == EINTR);
+            sigprocmask (SIG_SETMASK, &chld_oldmask, NULL);
             if (compiled) regfree (&regex);
             if (waited < 0) {
                 builtin_error ("waitpid: %s", strerror (errno));
