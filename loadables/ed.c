@@ -66,8 +66,10 @@ int ed_builtin(WORD_LIST *list){
             break;
         } if(r&&cmd[r-1]=='\n')cmd[r-1]=0; if(!*cmd)continue; char op=cmd[strlen(cmd)-1]; char spec[128]; strncpy(spec,cmd,sizeof spec-1); spec[sizeof spec-1]=0; spec[strlen(spec)-1]=0; size_t a,z;
         if(!strcmp(cmd,"q")){ if(b.dirty && !quit_warning){fprintf(stderr,"?\n"); quit_warning=1; warning_modified=1; rc=EXECUTION_FAILURE; continue;} break; }
-        quit_warning=0;
+        /* h explains the pending modified-buffer warning. It must not clear
+           quit_warning: the next q still exits, as a second q does. */
         if(!strcmp(cmd,"h") && warning_modified){ puts("Warning: buffer modified"); continue; }
+        quit_warning=0;
         if(!strcmp(cmd,"Q")) break;
         if(cmd[0]=='w' && (cmd[1]==0||cmd[1]==' ')){ if(writebuf(&b,cmd[1]==' '?cmd+2:NULL)) rc=EXECUTION_FAILURE; continue; }
         if(cmd[0]=='W' && (cmd[1]==0||cmd[1]==' ')){ if(writebuf_mode(&b,cmd[1]==' '?cmd+2:NULL,"a")) rc=EXECUTION_FAILURE; continue; }

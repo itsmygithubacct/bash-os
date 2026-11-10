@@ -11,9 +11,9 @@
       "steps": [
         {"send": "x=19\r"},
         {"send": "x+4\r"},
-        {"expect": "\\r\\n23\\r\\n"},
+        {"expect": "\\x1b\\[\\?2004l\\r23\\r\\n"},
         {"send": "x+12\r"},
-        {"expect": "\\r\\n31\\r\\n"},
+        {"expect": "\\x1b\\[\\?2004l\\r31\\r\\n"},
         {"send": "quit\r"}
       ],
       "expected_status": 0,

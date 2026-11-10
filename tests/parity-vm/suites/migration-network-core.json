@@ -445,7 +445,7 @@
       ],
       "script": "curl -sL \"http://127.0.0.1:$FIXTURE_PORT/dir/redirect-encoded-dot\"",
       "stderr": "",
-      "stdout_base64": "Zml4dHVyZQBib2R5Cg==",
+      "stdout": "",
       "expected_requests": [
         {
           "method": "GET",
@@ -456,8 +456,8 @@
         },
         {
           "method": "GET",
-          "path": "/dir/%2e%2e/echo",
-          "request_line": "GET /dir/%2e%2e/echo HTTP/1.1",
+          "path": "/echo",
+          "request_line": "GET /echo HTTP/1.1",
           "header:host": "127.0.0.1:20480",
           "body_framing": "none"
         }

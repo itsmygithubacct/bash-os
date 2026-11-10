@@ -2572,7 +2572,7 @@
       "loadable": "ed",
       "group": "terminal",
       "driver": "pty",
-      "purpose": "After a modified-buffer warning, h explains it, a subsequent q warns again, and the consecutive q exits without writing.",
+      "purpose": "After a modified-buffer warning, h explains it and the next q exits without writing.",
       "script": "ed note",
       "steps": [
         {
@@ -2597,10 +2597,7 @@
           "send": "q\r"
         },
         {
-          "expect": "q\\r\\n\\?\\r\\n"
-        },
-        {
-          "send": "q\r"
+          "expect": "q\\r\\n"
         }
       ],
       "expected_status": 1,

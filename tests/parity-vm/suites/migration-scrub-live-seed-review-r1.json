@@ -17,9 +17,9 @@
       "script": ":",
       "timeout": 25,
       "id": "migration-scrub-history-s-replacement-control-r1",
-      "purpose": "Demonstrate consecutive history -s calls replace the preceding added record before scrub runs.",
-      "comparison": "Capture the history immediately after the exact seed pattern used by the historical trace, with no scrub pruning; compare whole records.",
-      "oracle": "Bash history -s removes the last history entry before adding its arguments.",
+      "purpose": "Show that each history -s command replaces its own saved history line with its arguments, and that an earlier argument remains.",
+      "comparison": "Run history -c, then each history -s, as its own command. The listing must contain the argument and must not contain that history -s command as its own line.",
+      "oracle": "Bash history -s removes the last history entry before adding its arguments. In one compound command, history -c leaves the list empty and the following history -s does not add.",
       "diagnostic_files": [
         "history-control",
         "history-first"
@@ -39,7 +39,31 @@
           "expect": "PARITY> "
         },
         {
-          "send": "history -c || exit 125; history -s private_secret_a; history > \"$HOME/history-first\"; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+private_secret_a$' \"$HOME/history-first\" || exit 125; history -s safe_anchor_a; history > \"$HOME/history-control\"; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+private_secret_a$' \"$HOME/history-control\" && exit 11; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+safe_anchor_a$' \"$HOME/history-control\" || exit 12; printf 'replacement observed\\n' > control-check; exit 0\r"
+          "send": "history -c || exit 125\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "history -s private_secret_a || exit 125\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "history > \"$HOME/history-first\"; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+private_secret_a$' \"$HOME/history-first\" || exit 125; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+history -s private_secret_a$' \"$HOME/history-first\" && exit 11\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "history -s safe_anchor_a || exit 125\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "history > \"$HOME/history-control\"; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+safe_anchor_a$' \"$HOME/history-control\" || exit 12; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+history -s safe_anchor_a$' \"$HOME/history-control\" && exit 13; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+private_secret_a$' \"$HOME/history-control\" || exit 14; printf 'replacement observed\\n' > control-check; exit 0\r"
         }
       ],
       "observation_error_status": 125

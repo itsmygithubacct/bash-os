@@ -1615,13 +1615,35 @@ bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_res
   return rc;
 }
 
-/* Remove literal dot segments from a merged absolute path (RFC 3986 5.2.4).
- * Keep empty segments and percent-encoded dots, and leave the query alone. */
+/* Decode %2e/%2E to '.' so a segment that is only an encoded dot is a
+ * dot segment. curl does this unless --path-as-is is set. Other escapes
+ * stay encoded. The query is not part of path. */
+static void
+bc_decode_dot_escapes (char *path)
+{
+  char *read = path, *write = path;
+  while (*read)
+    {
+      if (read[0] == '%' && read[1] == '2' && (read[2] == 'e' || read[2] == 'E'))
+        {
+          *write++ = '.';
+          read += 3;
+        }
+      else
+        *write++ = *read++;
+    }
+  *write = '\0';
+}
+
+/* Remove dot segments from a merged absolute path (RFC 3986 5.2.4).
+ * Keep empty segments. Leave a query, if one was included, in place. */
 static void
 bc_remove_dot_segments (char *path)
 {
   char result[BCURL_URL_MAX];
-  const char *in = path;
+  const char *in;
+  bc_decode_dot_escapes (path);
+  in = path;
   size_t n = 0;
   while (*in)
     {
@@ -1664,8 +1686,16 @@ bc_resolve_redirect (const char *cur, const char *loc, char *out, size_t cap)
       (!is_https && strcmp (u.port, "80") != 0))
     { port_sep = ":"; port_str = u.port; }
   if (loc[0] == '/')
-    return snprintf (out, cap, "%s://%s%s%s%s", u.scheme, u.host, port_sep, port_str, loc)
-           >= (int) cap ? -1 : 0;
+    {
+      char path[BCURL_URL_MAX];
+      size_t plen = strcspn (loc, "?#");
+      if (plen >= sizeof path) return -1;
+      memcpy (path, loc, plen);
+      path[plen] = '\0';
+      bc_remove_dot_segments (path);
+      return snprintf (out, cap, "%s://%s%s%s%s%s", u.scheme, u.host, port_sep,
+                       port_str, path, loc + plen) >= (int) cap ? -1 : 0;
+    }
 
   /* A query in the base URL is not part of its directory. */
   char path[BCURL_URL_MAX];
