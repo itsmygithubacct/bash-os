@@ -454,8 +454,9 @@ w_builtin (WORD_LIST *list)
 
   if (!no_header)
     {
-      if (bw_print_header (users) < 0)
-        { builtin_error ("cannot read uptime or load average"); free (records); return EXECUTION_FAILURE; }
+      /* A process root without uptime or loadavg (a private BASHW_PROC_DIR
+         tree, say) still lists sessions: only the summary line is omitted. */
+      bw_print_header (users);
       printf ("%-8s %-8s %-16s %-7s %-5s %-6s %-6s %s\n",
               "USER", "TTY", "FROM", "LOGIN@", "IDLE", "JCPU", "PCPU", "WHAT");
     }
