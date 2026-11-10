@@ -1,0 +1,71 @@
+[
+  {
+    "expect": "parity> "
+  },
+  {
+    "resize": [
+      30,
+      100
+    ]
+  },
+  {
+    "send": "value=kept; printf 'set=%s\\n' \"$value\"\n"
+  },
+  {
+    "expect": "set=kept\r\n"
+  },
+  {
+    "expect": "parity> "
+  },
+  {
+    "send": "printf 'size=%s,%s state=%s\\n' \"$LINES\" \"$COLUMNS\" \"$value\"\n"
+  },
+  {
+    "expect": "size=30,100 state=kept\r\n"
+  },
+  {
+    "expect": "parity> "
+  },
+  {
+    "send": "read -r reply; printf 'read=<%s>\\n' \"$reply\"\n"
+  },
+  {
+    "expect": "read -r reply; printf"
+  },
+  {
+    "send": "hello terminal\n"
+  },
+  {
+    "expect": "read=<hello terminal>\r\n"
+  },
+  {
+    "expect": "parity> "
+  },
+  {
+    "send": "printf 'edit-okX\u007f\\n'\n"
+  },
+  {
+    "expect": "edit-ok\r\n"
+  },
+  {
+    "expect": "parity> "
+  },
+  {
+    "send": "printf 'interrupted"
+  },
+  {
+    "expect": "interrupted"
+  },
+  {
+    "send": "\u0003"
+  },
+  {
+    "expect": "parity> "
+  },
+  {
+    "send": "printf 'done\\n'; exit 0\n"
+  },
+  {
+    "expect": "done\r\nexit\r\n"
+  }
+]
