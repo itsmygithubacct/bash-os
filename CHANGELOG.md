@@ -68,6 +68,9 @@ the historical 0.1.3 evidence remains available separately.
   children.
 - `w` lists sessions when the process root has no uptime or load average,
   leaving out only the summary line.
+- `slabtop --once` follows procps-ng 4 batch output: whole-percent USE,
+  sorting by it, and tied rows kept in slabinfo order. The interactive display
+  keeps one decimal and orders ties by name.
 
 ## 0.1.3 — 2026-11-01
 

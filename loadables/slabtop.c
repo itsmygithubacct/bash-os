@@ -58,12 +58,20 @@ slab_cache_bytes(const blp_slabinfo_row *r)
     return slab_total_slabs(r) * r->pages_per_slab * slab_page_size;
 }
 
+/* --once follows procps-ng 4: USE is truncated to a whole percent, sorting
+   uses that value and equal rows keep their slabinfo order.  The interactive
+   display keeps its documented contract: one decimal of the exact ratio, and
+   tied rows ordered by name. */
+static int slab_batch;
+
 static double
 slab_use_pct(const blp_slabinfo_row *r)
 {
     if (!r->num_objs)
         return 0.0;
-    return (unsigned int) (100 * ((float) r->active_objs / r->num_objs));
+    if (slab_batch)
+        return (unsigned int) (100 * ((float) r->active_objs / r->num_objs));
+    return (100.0 * (double) r->active_objs) / (double) r->num_objs;
 }
 
 static unsigned long long
@@ -78,7 +86,8 @@ slab_sort_value(const blp_slabinfo_row *r, slab_sort sort)
     case SLAB_SORT_OBJECTS:       return r->num_objs;
     case SLAB_SORT_PAGES_PER_SLAB:return r->pages_per_slab;
     case SLAB_SORT_OBJECT_SIZE:   return r->obj_size;
-    case SLAB_SORT_USE:           return (unsigned int) slab_use_pct(r);
+    case SLAB_SORT_USE:           return slab_batch ? (unsigned int) slab_use_pct(r)
+                                      : r->num_objs ? 10000ULL * r->active_objs / r->num_objs : 0;
     case SLAB_SORT_NAME:          return 0;
     }
     return r->num_objs;
@@ -99,7 +108,7 @@ slab_cmp_rows(const void *a, const void *b)
         return 1;
     if (va > vb)
         return -1;
-    return 0;
+    return slab_batch ? 0 : strcmp(ra->name, rb->name);
 }
 
 static int
@@ -312,6 +321,7 @@ static int
 slab_run_once(void)
 {
     blp_slabinfo slabs;
+    slab_batch = 1;
     if (slab_load(&slabs) < 0)
         return EXECUTION_FAILURE;
     slab_print_table(stdout, &slabs);
@@ -372,6 +382,7 @@ slab_run_interactive(int delay)
     if (bls_init() < 0)
         return slab_run_once();
 
+    slab_batch = 0;
     bls_win *w = bls_stdscr();
     for (;;) {
         blp_slabinfo slabs;
