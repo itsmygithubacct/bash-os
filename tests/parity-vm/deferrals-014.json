@@ -13874,7 +13874,7 @@
           "evidence": [
             {
               "assertion": "resolver-serve --recurse --root-hints 127.0.0.2 resolves www.x.test through a Python root (referral to ns.tld glue 127.0.0.3), TLD (referral to ns.x.test glue 127.0.0.4) and authority chain; dig receives NOERROR with the A record and the peer log shows root, tld, auth in order.",
-              "definition_sha256": "b3f6a42b309265f629c4b55b839b3326dd1ff7d356ade29be32433d5dd62ecd9",
+              "definition_sha256": "17e21f7b4d9c9156d7c6381690238c9a0e8c62008dac6b6adabb6d999c8c3eda",
               "group": "shell",
               "id": "mig-w2-dns-resolver-iterative-referrals"
             }

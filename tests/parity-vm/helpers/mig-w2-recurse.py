@@ -6,8 +6,11 @@
     mig-w2-recurse.py waitudp PORT       # wait until a loopback UDP port is bound
     mig-w2-recurse.py verify             # check the resolver's client answer and the queries each tier saw
 
-Referral layout per RFC 1034 s4.3.2: the root delegates test. to ns.tld. (glue 127.0.0.3), the TLD server
+Referral layout per RFC 1034 s4.3.2: the root delegates test. to ns.test. (glue 127.0.0.3), the TLD server
 delegates x.test. to ns.x.test. (glue 127.0.0.4) and the authority answers www.x.test. A 192.0.2.10.
+Both glue records are in-domain (RFC 9471): each NS name lies inside the zone it serves. The resolver
+resolves an out-of-domain NS name on its own instead of trusting its glue, which
+repair-dns-resolver-outofzone-ns covers.
 """
 import importlib.util
 import json
@@ -27,7 +30,7 @@ _spec.loader.exec_module(dx)
 
 PORT = 5330
 TIERS = {'root': '127.0.0.2', 'tld': '127.0.0.3', 'auth': '127.0.0.4'}
-DELEGATION = {'root': ('test.', 'ns.tld.', '127.0.0.3'), 'tld': ('x.test.', 'ns.x.test.', '127.0.0.4')}
+DELEGATION = {'root': ('test.', 'ns.test.', '127.0.0.3'), 'tld': ('x.test.', 'ns.x.test.', '127.0.0.4')}
 
 
 def referral(query, zone, ns, glue):
