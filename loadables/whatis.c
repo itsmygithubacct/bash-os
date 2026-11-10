@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: MIT */
 /* whatis.c — whatis(1) over the whatis index.
  *
- * Sibling of man.c / apropos.c. Looks up exact-name matches
- * in $MANPATH/whatis. Exits 16 if the corpus's index is absent or
- * the name has no entry.
+ * Sibling of man.c / apropos.c. Matches man-db's legacy text backend:
+ * a case-insensitive prefix of the whatis line (grep -i '^NAME').
+ * Exits 16 if the corpus's index is absent or the name has no entry.
  *
  *   whatis NAME [NAME ...]
  *
@@ -15,6 +15,7 @@
 #  include <unistd.h>
 #endif
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,7 +23,26 @@
 #include "loadables.h"
 
 extern FILE *bm_open_whatis (void);
-extern int   bm_whatis_match (const char *line, const char *needle, int exact);
+
+/* man-db's legacy whatis database is `grep -i '^NAME'`. The name is a
+   prefix of the line, so `tool` also selects `toolbox`. */
+static int
+whatis_prefix_match (const char *line, const char *needle)
+{
+    const unsigned char *left = (const unsigned char *) line;
+    const unsigned char *right = (const unsigned char *) needle;
+
+    if (!left || !right || !*right)
+        return 0;
+    while (*right)
+    {
+        if (!*left || tolower (*left) != tolower (*right))
+            return 0;
+        left++;
+        right++;
+    }
+    return 1;
+}
 
 int
 whatis_builtin (WORD_LIST *list)
@@ -68,7 +88,7 @@ whatis_builtin (WORD_LIST *list)
         while ((n = getline (&line, &cap, f)) != -1)
         {
             if (n > 0 && line[n - 1] == '\n') line[n - 1] = '\0';
-            if (bm_whatis_match (line, p->word->word, 1))
+            if (whatis_prefix_match (line, p->word->word))
             {
                 puts (line);
                 hit = 1;

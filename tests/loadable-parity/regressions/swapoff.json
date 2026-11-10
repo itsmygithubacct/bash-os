@@ -42,8 +42,8 @@
     {
       "id": "help-contract-details",
       "kind": "contract",
-      "purpose": "Check the built-in help includes the documented named-path, -a, malformed-row, usage-combination, and privilege contract without calling swapoff.",
-      "script": "doc=$(help swapoff)\n[[ $doc == *\"Named operands are literal paths; use -- before a name beginning with '-'.\"* ]] || exit 1\n[[ $doc == *\"-a/--all reads /proc/swaps, decodes pathnames and skips duplicates.\"* ]] || exit 1\n[[ $doc == *\"Malformed rows are reported and skipped; valid entries are still attempted.\"* ]] || exit 1\n[[ $doc == *\"-a cannot be combined with device operands.\"* ]] || exit 1\n[[ $doc == *\"Requires root.\"* ]] || exit 1\nprintf 'documented help fields present\\n'",
+      "purpose": "Check the built-in help includes path resolution, reverse -a table handling, combined operands, and the privilege contract without calling swapoff.",
+      "script": "doc=$(help swapoff)\n[[ $doc == *\"Each spec is resolved before swapoff(2).\"* ]] || exit 1\n[[ $doc == *\"An existing path is canonicalized.\"* ]] || exit 1\n[[ $doc == *\"-a reads /proc/swaps backwards, keeps duplicates, then walks fstab swap entries.\"* ]] || exit 1\n[[ $doc == *\"A parse error is reported and the rest of the table is still attempted.\"* ]] || exit 1\n[[ $doc == *\"-a may be combined with specs; the specs are disabled first.\"* ]] || exit 1\n[[ $doc == *\"Requires root.\"* ]] || exit 1\nprintf 'documented help fields present\\n'",
       "expected_status": 0,
       "stdout": "documented help fields present\n",
       "stderr": "empty"
@@ -51,13 +51,13 @@
     {
       "id": "deferred-named-operands",
       "kind": "deferred",
-      "purpose": "Exercise literal named operands, -- for a leading dash, repeated explicit operands, and continuation/status behavior when a request fails.",
+      "purpose": "Exercise resolved named operands, -- for a leading dash, repeated explicit operands, and continuation/status behavior when a request fails.",
       "reason": "Requires a disposable VM with owned swap areas or an independently reviewed libc swapoff mock that records operand order, injects selected errno results, and never forwards requests; add a seccomp denial for raw swapoff as a backstop. No operation is run in this suite."
     },
     {
       "id": "deferred-all-table",
       "kind": "deferred",
-      "purpose": "Exercise -a/--all against controlled /proc/swaps data, including header validation, escaped path decoding, duplicate suppression, malformed rows, and valid-row continuation.",
+      "purpose": "Exercise -a/--all against controlled /proc/swaps data, including header handling, octal path decoding, duplicate rows kept in reverse order, malformed rows, and valid-row continuation.",
       "reason": "Requires a disposable VM or private /proc/swaps reader mock plus a libc swapoff mock with an independently specified ordered pathname oracle; both must prevent real swapoff requests, with seccomp denying the syscall. Validate empty, valid, duplicate, malformed, and invalid-header tables. No operation is run in this suite."
     },
     {

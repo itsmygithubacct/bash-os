@@ -1614,106 +1614,6 @@ static int libssh_sftp_get (const ssh_handle *h, const char *remote,
 #endif
 }
 
-static int libssh_forward_local_once (const ssh_handle *h, const char *spec)
-{
-  libssh_slot *slot = libssh_find_slot (h->id);
-  if (!slot)
-    {
-      builtin_error ("forward: unknown or closed handle: %d", h->id);
-      return -1;
-    }
-  char tmp[512];
-  snprintf (tmp, sizeof tmp, "%s", spec);
-  char *parts[4] = {0};
-  char *p = tmp;
-  for (int i = 0; i < 4; i++)
-    {
-      parts[i] = p;
-      char *c = strchr (p, ':');
-      if (i < 3)
-        {
-          if (!c) { builtin_error ("forward: -L expects LADDR:LPORT:RADDR:RPORT"); return -1; }
-          *c = '\0';
-          p = c + 1;
-        }
-      else if (c)
-        { builtin_error ("forward: -L expects LADDR:LPORT:RADDR:RPORT"); return -1; }
-    }
-  int lfd = listen_tcp_local (parts[0], parts[1]);
-  if (lfd < 0)
-    return -1;
-  fprintf (stderr, "ssh forward listening %s:%s -> %s:%s\n",
-           parts[0], parts[1], parts[2], parts[3]);
-  int cfd = accept4 (lfd, NULL, NULL, SOCK_CLOEXEC);
-  close (lfd);
-  if (cfd < 0)
-    { builtin_error ("forward: accept: %s", strerror (errno)); return -1; }
-  ssh_channel ch = ssh_channel_new (slot->session);
-  if (!ch)
-    { close (cfd); builtin_error ("forward: channel allocation failed"); return -1; }
-  int rport = atoi (parts[3]);
-  if (ssh_channel_open_forward (ch, parts[2], rport, parts[0], atoi (parts[1])) != SSH_OK)
-    {
-      builtin_error ("forward: open %s:%s: %s", parts[2], parts[3],
-                     ssh_get_error (slot->session));
-      ssh_channel_free (ch);
-      close (cfd);
-      return -1;
-    }
-  int local_eof = 0;
-  char buf[8192];
-  for (;;)
-    {
-      fd_set rfds;
-      FD_ZERO (&rfds);
-      int sfd = ssh_get_fd (slot->session);
-      if (!local_eof) FD_SET (cfd, &rfds);
-      FD_SET (sfd, &rfds);
-      int maxfd = cfd > sfd ? cfd : sfd;
-      struct timeval tv;
-      tv.tv_sec = 0; tv.tv_usec = 100000;
-      int sel = select (maxfd + 1, &rfds, NULL, NULL, &tv);
-      if (sel < 0 && errno == EINTR) continue;
-      if (sel < 0) break;
-      if (!local_eof && FD_ISSET (cfd, &rfds))
-        {
-          ssize_t n = read (cfd, buf, sizeof buf);
-          if (n <= 0)
-            {
-              local_eof = 1;
-              ssh_channel_send_eof (ch);
-            }
-          else
-            {
-              char *q = buf;
-              size_t left = (size_t) n;
-              while (left)
-                {
-                  int w = ssh_channel_write (ch, q, (uint32_t) left);
-                  if (w == SSH_ERROR) { local_eof = 1; break; }
-                  if (w == SSH_AGAIN) continue;
-                  q += w; left -= (size_t) w;
-                }
-            }
-        }
-      int avail = ssh_channel_poll_timeout (ch, 0, 0);
-      while (avail > 0)
-        {
-          uint32_t chunk = (uint32_t) (avail < (int) sizeof buf ? avail : (int) sizeof buf);
-          int n = ssh_channel_read (ch, buf, chunk, 0);
-          if (n <= 0) break;
-          write_all (cfd, buf, (size_t) n);
-          avail -= n;
-        }
-      if (ssh_channel_is_eof (ch) || !ssh_channel_is_open (ch))
-        break;
-    }
-  ssh_channel_close (ch);
-  ssh_channel_free (ch);
-  close (cfd);
-  return 0;
-}
-
 static void bssh_forward_term (int sig)
 {
   (void) sig;
@@ -1802,6 +1702,53 @@ static int bssh_pump_fd_channel (int fd, ssh_session session, ssh_channel ch)
   return 0;
 }
 
+/* -L: each connection to the listener goes through its own direct-tcpip
+   channel, one after another, until the forward is cancelled (SIGTERM) or
+   the connection to the server ends. OpenSSH's -L likewise keeps listening
+   for as long as the forward exists, and says nothing while it does. */
+static int libssh_forward_local_loop (const ssh_handle *h, int lfd, char *parts[4])
+{
+  libssh_slot *slot = libssh_find_slot (h->id);
+  if (!slot)
+    {
+      builtin_error ("forward: unknown or closed handle: %d", h->id);
+      close (lfd);
+      return -1;
+    }
+  int rport = atoi (parts[3]), lport = atoi (parts[1]);
+  bssh_forward_stop = 0;
+  signal (SIGTERM, bssh_forward_term);
+  signal (SIGINT, bssh_forward_term);
+  while (!bssh_forward_stop && ssh_is_connected (slot->session))
+    {
+      fd_set rfds;
+      struct timeval tv = { 0, 100000 };
+      FD_ZERO (&rfds);
+      FD_SET (lfd, &rfds);
+      if (select (lfd + 1, &rfds, NULL, NULL, &tv) <= 0)
+        continue;
+      int cfd = accept4 (lfd, NULL, NULL, SOCK_CLOEXEC);
+      if (cfd < 0)
+        continue;
+      ssh_channel ch = ssh_channel_new (slot->session);
+      if (!ch || ssh_channel_open_forward (ch, parts[2], rport, parts[0], lport) != SSH_OK)
+        {
+          builtin_error ("forward: open %s:%s: %s", parts[2], parts[3],
+                         ssh_get_error (slot->session));
+          if (ch)
+            ssh_channel_free (ch);
+          close (cfd);
+          continue;
+        }
+      bssh_pump_fd_channel (cfd, slot->session, ch);
+      ssh_channel_close (ch);
+      ssh_channel_free (ch);
+      close (cfd);
+    }
+  close (lfd);
+  return 0;
+}
+
 static int libssh_forward_remote_loop (const ssh_handle *h, const char *spec)
 {
   libssh_slot *slot = libssh_find_slot (h->id);
@@ -1829,8 +1776,6 @@ static int libssh_forward_remote_loop (const ssh_handle *h, const char *spec)
                      ssh_get_error (slot->session));
       return -1;
     }
-  fprintf (stderr, "ssh remote forward listening %s:%d -> %s:%s\n",
-           parts[0], bound_port ? bound_port : (int) rport, parts[2], parts[3]);
   bssh_forward_stop = 0;
   signal (SIGTERM, bssh_forward_term);
   signal (SIGINT, bssh_forward_term);
@@ -1905,20 +1850,33 @@ static int bssh_forward_spawn_local (const ssh_handle *h, const char *spec)
       { slot = &bssh_forwards[i]; break; }
   if (!slot)
     { builtin_error ("forward: registry full"); return -1; }
+  /* Listen here, so a forward that cannot listen fails now and one that
+     returns is already accepting connections. */
+  char tmp[512];
+  char *parts[4] = {0};
+  if (bssh_parse_forward_spec (spec, parts, tmp, sizeof tmp, "-L") < 0)
+    return -1;
+  int lfd = listen_tcp_local (parts[0], parts[1]);
+  if (lfd < 0)
+    return -1;
 
   struct bssh_child_guard guard;
   bssh_child_guard_begin (&guard);
   pid_t pid = fork ();
   if (pid < 0)
-    { bssh_child_guard_parent_end (&guard); builtin_error ("forward: fork: %s", strerror (errno)); return -1; }
+    {
+      bssh_child_guard_parent_end (&guard);
+      close (lfd);
+      builtin_error ("forward: fork: %s", strerror (errno));
+      return -1;
+    }
   if (pid == 0)
     {
       bssh_child_guard_child_end (&guard);
-      signal (SIGTERM, SIG_DFL);
-      signal (SIGINT, SIG_DFL);
-      int rc = libssh_forward_local_once (h, spec);
+      int rc = libssh_forward_local_loop (h, lfd, parts);
       _exit (rc == 0 ? 0 : 1);
     }
+  close (lfd);
   bssh_child_guard_parent_end (&guard);
   slot->used = 1;
   slot->id = bssh_next_forward_id++;
@@ -3047,12 +3005,6 @@ static int libssh_sftp_get (const ssh_handle *h, const char *remote,
                             const char *local)
 {
   (void) h; (void) remote; (void) local;
-  builtin_error ("libssh transport is not compiled in");
-  return -1;
-}
-static int libssh_forward_local_once (const ssh_handle *h, const char *spec)
-{
-  (void) h; (void) spec;
   builtin_error ("libssh transport is not compiled in");
   return -1;
 }

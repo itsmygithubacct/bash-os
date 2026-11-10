@@ -37,7 +37,8 @@ REFERENCE_BASH = "/opt/bash-5.3.20"
 REFERENCE_VERSION = "5.3.20"
 # Image specification; set from --image-lock (a file name in this directory).
 IMAGE_LOCK = HERE / "image.lock.json"
-# Whole-VM limits on the host; the guest itself is 2 vCPU / 2 GiB.
+# Whole-VM limits on the host; the guest itself defaults to 2 vCPU / 2 GiB.
+# A suite may set "smp" so a run of only that suite boots another count.
 SCOPE_LIMITS = ["CPUQuota=150%", "MemoryMax=3G", "MemorySwapMax=0", "TasksMax=128"]
 # QEMU options that would share host state with the guest. Never emitted; the
 # guard rejects them in case a later edit introduces one.
@@ -323,9 +324,10 @@ def validate_attestation_proof(token, raw):
 class VM:
     POWEROFF_GRACE, TERMINATE_GRACE = 60, 10
 
-    def __init__(self, cache, state, disk, *, provisioning=False):
+    def __init__(self, cache, state, disk, *, provisioning=False, smp=2):
         self.cache, self.state, self.disk = cache, state, disk
         self.provisioning = provisioning
+        self.smp = smp
         self.token = str(uuid.uuid4())
         self.process = None
         self.log = None
@@ -349,7 +351,7 @@ class VM:
                    f"hostfwd=tcp:127.0.0.1:{self.port}-:22")
         argv = ["qemu-system-x86_64", "-nodefaults", "-no-user-config", "-no-reboot",
                 "-machine", "q35,accel=" + ACCEL, "-cpu", "host" if ACCEL == "kvm" else "max",
-                "-smp", "2", "-m", "2048",
+                "-smp", str(self.smp), "-m", "2048",
                 # Debian trixie's GRUB (gfxterm + serial) resets the guest when no
                 # display adapter exists (Debian bug 1111240). An emulated VGA card
                 # with no display backend avoids it without editing the image.
@@ -771,6 +773,36 @@ def payload(binary, output, reference_cache):
                     archive.add(path, arcname="reference-data/" + str(path.relative_to(reference_cache)), recursive=False, filter=metadata)
 
 
+def selected_smp(groups, case_ids):
+    """vCPU count for this boot. The default stays 2.
+
+    A suite may set an integer ``smp`` from 1 through 128. The boot uses
+    that count only when every selected case comes from suites that name
+    the same count. A mixed selection, including one suite that omits the
+    field, stays at 2 so two-CPU affinity fixtures keep working.
+    """
+    values = set()
+    for path in sorted((HERE / "suites").glob("*.json")):
+        suite = json.loads(path.read_text())
+        chosen = False
+        for case in suite.get("cases", []):
+            if case.get("group") not in groups:
+                continue
+            if case_ids is not None and case.get("id") not in case_ids:
+                continue
+            chosen = True
+            break
+        if not chosen:
+            continue
+        raw = suite.get("smp", 2)
+        if type(raw) is not int or not 1 <= raw <= 128:
+            raise RuntimeError("invalid suite smp: " + path.name)
+        values.add(raw)
+    if len(values) == 1:
+        return values.pop()
+    return 2
+
+
 def evaluate(args, cache):
     info = verify_base(cache)
     base = cache / "prepared.qcow2"
@@ -801,7 +833,11 @@ def evaluate(args, cache):
         if not check:
             payload(binary, output / "payload.tar", args.references)
             record["payload_sha256"] = digest(output / "payload.tar")
-        vm = VM(cache, output / "vm", disk)
+        smp = 2
+        if not check:
+            smp = selected_smp({g for g in args.groups.split(",") if g},
+                               set(args.case_ids.split(",")) if args.case_ids is not None else None)
+        vm = VM(cache, output / "vm", disk, smp=smp)
         with vm:
             record["vm_uuid"], record["identity"] = vm.token, vm.identity
             # Isolation must be shown before the candidate leaves the host.

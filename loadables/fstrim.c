@@ -1027,28 +1027,17 @@ bf_all_from_file (const bf_opts *o, const char *file)
             fs->gone = 1;
             continue;
         }
+        /* An unresolvable tag drops the entry, also for "/"; a "/" source
+           such as /dev/root is reported as written (util-linux 2.41: the
+           root= guess only stands in for a missing "/" entry). */
         if (bf_is_tag (fs->src, NULL)) {
             char *r = o->fstab ? bf_resolve_tag (fs->src) : NULL;
-            if (!r && o->fstab && bf_streq_paths (fs->tgt, "/"))
-                r = bf_guess_root ();
             if (!r) {
                 fs->gone = 1;
                 continue;
             }
             free (fs->src);
             fs->src = r;
-        } else if (o->fstab && fs->src[0] == '/'
-                   && bf_streq_paths (fs->tgt, "/")) {
-            struct stat st;
-            if (stat (fs->src, &st) != 0) {
-                char *r = bf_guess_root ();
-                if (!r) {
-                    fs->gone = 1;
-                    continue;
-                }
-                free (fs->src);
-                fs->src = r;
-            }
         }
         if (fs->src[0] != '/' || !bf_is_mountpoint (fs->tgt)
             || !bf_is_directory (fs->tgt, 1) || !bf_has_discard (fs->src))
@@ -1250,8 +1239,8 @@ fstrim_builtin (WORD_LIST *list)
                 return bf_try_help ();
             }
             if (nhits > 1) {
-                fprintf (stderr, "fstrim: option '%.*s' is ambiguous; possibilities:",
-                         (int) nl + 2, w);
+                /* glibc getopt names the whole word, "=VALUE" included. */
+                fprintf (stderr, "fstrim: option '%s' is ambiguous; possibilities:", w);
                 for (int i = 0; i < BF_NLONG; i++)
                     if (!strncmp (bf_longopts[i].name, name, nl))
                         fprintf (stderr, " '--%s'", bf_longopts[i].name);

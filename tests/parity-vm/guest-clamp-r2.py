@@ -77,6 +77,12 @@ def remount_sysfs():
         rows.append((int(field[0]), int(field[1]), field[4].encode().decode("unicode_escape")))
     top = [mount for mount, _, point in rows if point == str(keep)][-1]
     children = [point for _, parent, point in rows if parent == top]
+    # Detach the boot tree instead of covering it: covered submounts keep
+    # their /sys/... paths in mountinfo, so findmnt would report each
+    # carried-over submount twice. Private first, so neither the detach nor
+    # the new mounts propagate to the guest's initial namespace.
+    subprocess.run(["mount", "--make-rprivate", "/sys"], check=True, capture_output=True)
+    subprocess.run(["umount", "--lazy", "/sys"], check=True, capture_output=True)
     subprocess.run(["mount", "-t", "sysfs", "-o", "nosuid,nodev,noexec", "sysfs", "/sys"],
                    check=True, capture_output=True)
     for point in children:

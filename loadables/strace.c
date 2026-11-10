@@ -1346,8 +1346,9 @@ bs_trace_loop(struct bs_state *st, pid_t root, int attached_root)
                     || status >> 16 == PTRACE_EVENT_CLONE) {
                 unsigned long new_pid = 0;
                 ptrace(PTRACE_GETEVENTMSG, w, NULL, &new_pid);
-                if (!st->summary)
-                    bs_emit("[pid %d] +++ new child %lu +++\n", (int)w, new_pid);
+                /* No banner: the event arrives while the fork's entry is
+                 * held for its return stop, whose line reports the child.
+                 * Printing it here would put it before that call. */
                 /* Count the child once. Its first SIGSTOP is resumed below;
                  * resuming here as well would let it exit before `alive`
                  * includes it when that stop arrives first. */
@@ -1366,8 +1367,7 @@ bs_trace_loop(struct bs_state *st, pid_t root, int attached_root)
                     }
                 }
             } else if (status >> 16 == PTRACE_EVENT_EXEC) {
-                if (!st->summary)
-                    bs_emit("[pid %d] +++ exec +++\n", (int)w);
+                /* Likewise reported by the held execve line (= 0). */
             } else if (slot >= 0 && !st->slots[slot].started
                     && sig == SIGSTOP && (status >> 16) == 0) {
                 /* Fork/vfork/clone auto-attach stops the new task with

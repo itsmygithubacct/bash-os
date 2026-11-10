@@ -7,7 +7,7 @@
       "group": "shell",
       "driver": "plain",
       "kind": "parity",
-      "purpose": "Exercise -A with a discard-capable real root: unresolved root paths and tags fall back to root=, a resolvable direct root remains selected, and a duplicate source is deduplicated.",
+      "purpose": "Exercise -A with a discard-capable real root: /dev/root is reported as written and is not replaced by root=, an unresolvable tag is dropped and is not replaced by root=, a resolvable direct root remains selected, and a duplicate source is deduplicated. root= supplies a device only when fstab has no / entry, as util-linux does.",
       "oracle": "util-linux 2.41 fstrim(8) on the reference side (same guest, same per-side tmpfs mounts, same fixture tables); the kernel decides mountpoint, permission and FITRIM results identically for both sides.",
       "comparison": "Byte parity of status, stdout and stderr: each invocation is bracketed by \"[label]\" markers on both streams and followed by its exit status; no normalisation. Real FITRIM requests only reach / (and other real block filesystems) as uid 2000 or as user-namespace root, where ext4/vfat/xfs FITRIM checks CAP_SYS_ADMIN in the initial namespace and fails with EPERM before any discard; tmpfs targets have no FITRIM handler. Trusted fstrim_sel.py finds the guest root mount and writes the fixtures (same guest, same bytes on both sides); ns_build.py binds \"4096\" over the root disk's queue/discard_granularity, and for -A also binds the fstab and cmdline fixtures and mounts a private /dev/disk tmpfs with fixture links, only inside a private user+mount namespace. Setup proves every bind and link in identical constructions. The sysfs override changes what both tools read, never the device.",
       "covers": [

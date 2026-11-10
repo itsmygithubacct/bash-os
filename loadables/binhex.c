@@ -17,7 +17,9 @@
  * Format: lowercase hex, 2 chars per byte, no separators, no
  * line wrapping. ASCII whitespace + leading "0x"/"0X" tolerated
  * on decode (so xxd-style output with embedded spaces / output
- * captured into a bash here-string survives).
+ * captured into a bash here-string survives). Non-hex characters
+ * are skipped, as in xxd -r -p. A trailing nibble is ignored once
+ * a byte has been written. Input that never forms a byte fails.
  *
  * Companion docs:
  *     /docs/bash/NUL-LIMIT.txt — why this exists
@@ -127,8 +129,9 @@ hexval (int c)
 }
 
 /* Decode hex from `in_fd` to bytes on `out_fd`. Tolerates ASCII
-   whitespace + leading 0x/0X prefix. Returns 0 on success, 1 on
-   read/write/format error. */
+   whitespace, a leading 0x/0X prefix, and (like xxd -r -p) non-hex
+   characters. A trailing nibble is ignored once a byte was written.
+   Input that never forms a byte still fails. Returns 0 on success. */
 static int
 binhex_decode (int in_fd, int out_fd)
 {
@@ -139,6 +142,8 @@ binhex_decode (int in_fd, int out_fd)
   int hi = -1;          /* held high nibble; -1 = none */
   int saw_nonws = 0;    /* for 0x prefix detection — only at the start */
   int prev_zero = 0;    /* saw a leading '0' that might begin "0x" */
+  int emitted = 0;      /* at least one complete byte */
+  int bad = 0;          /* saw a non-hex character */
 
   for (;;)
     {
@@ -179,8 +184,8 @@ binhex_decode (int in_fd, int out_fd)
           int v = hexval (c);
           if (v < 0)
             {
-              builtin_error ("invalid hex character: 0x%02x", c);
-              return 1;
+              bad = 1;
+              continue;
             }
           if (hi < 0)
             hi = v;
@@ -188,6 +193,7 @@ binhex_decode (int in_fd, int out_fd)
             {
               outbuf[o++] = (unsigned char)((hi << 4) | v);
               hi = -1;
+              emitted = 1;
             }
         }
       if (o > 0)
@@ -208,9 +214,12 @@ binhex_decode (int in_fd, int out_fd)
             }
         }
     }
-  if (hi >= 0 || prev_zero)
+  if (!emitted && (hi >= 0 || prev_zero || bad))
     {
-      builtin_error ("odd number of hex digits in input");
+      if (bad && hi < 0 && !prev_zero)
+        builtin_error ("invalid hex character");
+      else
+        builtin_error ("odd number of hex digits in input");
       return 1;
     }
   return 0;
@@ -281,8 +290,9 @@ char *binhex_doc[] = {
   "(read(2)/write(2)) and producing NUL-free ASCII hex output.",
   "",
   "Without -d:  read raw bytes, emit lowercase 2-char-per-byte hex.",
-  "With    -d:  read hex (whitespace + leading 0x/0X tolerated),",
-  "             emit raw bytes (NULs preserved at the FD layer).",
+  "With    -d:  read hex (whitespace, leading 0x/0X, and non-hex",
+  "             skipped). A trailing nibble is ignored after a byte.",
+  "             Input that never forms a byte fails. NULs are kept.",
   "",
   "Examples:",
   "    h=$(binhex /etc/hostname)        # capture binary as hex var",

@@ -1,25 +1,27 @@
 # swapoff software-path qualification
 
-`swapoff device...` passes literal operands to the libc `swapoff(2)` wrapper,
-continues after a failed operand, and returns failure if any request failed.
-Empty names fail without a request; `--` permits names beginning with `-`.
-Repeated explicitly named operands remain repeated requests.
+`swapoff` follows util-linux 2.41. Each spec is resolved before `swapoff(2)`:
+an existing path is canonicalized, `LABEL=` / `UUID=` / `PARTLABEL=` /
+`PARTUUID=` follow `/dev/disk/by-*`, and a missing plain path is passed through.
+An empty spec prints `cannot find the device for` and does not call `swapoff`.
+`--` permits a name beginning with `-`. Repeated named operands stay repeated.
+A failed operand does not stop the rest, except `EPERM`, which exits 16 with
+`Not superuser.`
 
-`swapoff -a` / `--all` reads `/proc/swaps` into a private snapshot before making
-requests. It requires the five-column kernel header and complete rows with a
-`file` or `partition` type, unsigned size/used values, used no greater than size,
-and an integer priority. It decodes the kernel's `\040`, `\011`, `\012`, and
-`\134` pathname escapes once, preserves long names, and requests each distinct
-decoded absolute pathname once in table order. Blank data rows are ignored.
-Malformed rows produce diagnostics and failure while valid rows are attempted.
-An invalid/missing header, read failure, allocation failure or close failure
-prevents all enumeration requests. `-a` with explicit operands is a usage error;
-the previous implementation silently ignored those operands.
+`swapoff -a` reads `/proc/swaps` into a private snapshot, walks it backwards,
+and does not drop duplicates. It decodes `\ooo` pathname escapes, reports
+`parse error at line N -- ignored`, and still attempts the other rows. It then
+walks inactive swap entries in `/etc/fstab`. `-a` may be combined with specs;
+the specs are disabled first, and they are not quiet. `-a` itself is quiet
+about a `swapoff failed` diagnostic.
 
-Exit status is 0 for successful requests or an empty active-swap table, 1 for
-input/request failures, and 2 for usage errors. Help detects output failures.
-This is the documented Bash-OS interface; util-linux's additional fstab, label,
-UUID and reporting options are outside this command's interface.
+Exit status matches util-linux: 0 when the attempted requests succeed, 2 for
+`ENOMEM`, 4 for another `swapoff(2)` failure, 16 for usage or `EPERM`, 32 when
+every `-a` table entry fails, 64 when some `-a` entries fail, and 255 when a
+spec cannot be found. Help detects output failures.
+
+The 2026-10-19 measurement later in this note describes the previous literal-path
+parser. It is not the 0.1.4 contract.
 
 ## Safe validation
 

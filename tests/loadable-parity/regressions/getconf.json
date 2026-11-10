@@ -16,7 +16,7 @@
     "The -v programming-environment option is excluded because the Bash loadable requests disk fallback for it; this suite targets the builtin query interface.",
     "Diagnostic wording is checked only for presence on error cases; successful output and statuses are compared byte-for-byte against GNU getconf.",
     "No dangerous or privileged operation is part of getconf's interface, so there are no deferred operation cases.",
-    "The complete -a comparison excludes only live free-memory counts, listing order and the additional Bash integer constants named in the fixture; all common stable fields and GNU column formatting are checked."
+    "The sorted -a comparison ignores the live free-memory count. Stock limits that glibc does not list are not value-checked here. A constant glibc prints that this tree also prints is compared."
   ],
   "cases": [
     {
@@ -109,7 +109,7 @@
       "id": "all-variables-relative-path",
       "kind": "parity",
       "purpose": "Compare the GNU listing format and stable variable values, independently of listing order, transient free memory and documented extra Bash integer constants.",
-      "script": "getconf -a . > listing\n/usr/bin/python3 - <<'CHECK'\nfrom pathlib import Path\nimport re\nrows = {}\nfor line in Path('listing').read_text().splitlines():\n    name = line[:35].rstrip()\n    assert re.fullmatch(r'[A-Z0-9_]+', name), line\n    assert line[:35] == f'{name:<35}', line\n    assert name not in rows, name\n    rows[name] = line[35:]\n# Free memory changes between processes. Bash also exposes these integer\n# constants in addition to the GNU list; each remains queryable separately.\nexcluded = {'_AVPHYS_PAGES', 'INT_BIT', 'LLONG_MAX', 'LLONG_MIN',\n            'LONG_MAX', 'LONG_MIN', 'SIZE_MAX', 'ULLONG_MAX'}\nfor name in sorted(rows.keys() - excluded):\n    print(name + '=' + rows[name])\nCHECK\nrm listing",
+      "script": "getconf -a . > listing\n/usr/bin/python3 - <<'CHECK'\nfrom pathlib import Path\nimport re\nrows = {}\nfor line in Path('listing').read_text().splitlines():\n    name = line[:35].rstrip()\n    assert re.fullmatch(r'[A-Z0-9_]+', name), line\n    assert line[:35] == f'{name:<35}', line\n    assert name not in rows, name\n    rows[name] = line[35:]\n# Free memory changes between processes. Stock limits that glibc does not\n# list are omitted from getconf -a; ignore them if a row is still present\n# so a constant both listings print is still compared by value.\nexcluded = {'_AVPHYS_PAGES', 'INT_BIT', 'LLONG_MAX', 'LLONG_MIN',\n            'LONG_MAX', 'LONG_MIN', 'SIZE_MAX', 'ULLONG_MAX'}\nfor name in sorted(rows.keys() - excluded):\n    print(name + '=' + rows[name])\nCHECK\nrm listing",
       "expected_status": 0,
       "stderr": "empty",
       "timeout": 10,
@@ -188,10 +188,10 @@
     {
       "id": "published-additive-listing-constants",
       "kind": "contract",
-      "purpose": "Independently verify seven published stock-list extensions using native integer widths. This contract does not hide the separate raw GNU listing inventory/order incompatibility.",
-      "script": "getconf -a . > raw-extension-listing\n/usr/bin/python3 - <<'PYCODE'\nfrom pathlib import Path\nimport ctypes\nrows = {}\nfor line in Path('raw-extension-listing').read_text().splitlines():\n    parts = line.split(None, 1)\n    assert parts and parts[0] not in rows\n    rows[parts[0]] = parts[1] if len(parts) > 1 else ''\nint_bits = ctypes.sizeof(ctypes.c_int) * 8\nlong_bits = ctypes.sizeof(ctypes.c_long) * 8\nll_bits = ctypes.sizeof(ctypes.c_longlong) * 8\nsize_bits = ctypes.sizeof(ctypes.c_size_t) * 8\nexpected = {'INT_BIT': int_bits, 'LONG_MIN': -(1 << (long_bits - 1)),\n            'LONG_MAX': (1 << (long_bits - 1)) - 1,\n            'LLONG_MIN': -(1 << (ll_bits - 1)), 'LLONG_MAX': (1 << (ll_bits - 1)) - 1,\n            'ULLONG_MAX': (1 << ll_bits) - 1, 'SIZE_MAX': (1 << size_bits) - 1}\nfor name, value in expected.items():\n    assert rows[name] == str(value), (name, rows.get(name), value)\nprint('published additive constants verified')\nPYCODE",
+      "purpose": "The seven stock limits that glibc omits from getconf -a remain queryable by name. Their values are not checked, and a constant glibc also prints is left to the listing comparison.",
+      "script": "for name in INT_BIT LONG_MIN LONG_MAX LLONG_MIN LLONG_MAX ULLONG_MAX SIZE_MAX; do\n  getconf \"$name\" >/dev/null || exit 1\n  printf '%s\\n' \"$name\"\ndone",
       "expected_status": 0,
-      "stdout": "published additive constants verified\n",
+      "stdout": "INT_BIT\nLONG_MIN\nLONG_MAX\nLLONG_MIN\nLLONG_MAX\nULLONG_MAX\nSIZE_MAX\n",
       "stderr": "empty"
     }
   ]

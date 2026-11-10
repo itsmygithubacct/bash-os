@@ -10,3 +10,9 @@
 @@ -61 +62 @@
 -	fd = open (fn, O_RDONLY);
 +	fd = open (fn, O_RDONLY | O_NONBLOCK);
+@@ -65 +66 @@
+-	  file_error (fn);
++	  builtin_error ("error opening '%s': %s", fn, strerror (errno));
+@@ -72 +73 @@
+-	  builtin_error ("%s: cannot sync: %s", fn, strerror (errno));
++	  builtin_error ("error syncing '%s': %s", fn, strerror (errno));

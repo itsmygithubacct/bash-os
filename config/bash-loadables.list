@@ -181,7 +181,7 @@ mlock|mlock
 utmp|utmp
 userdb|userdb
 keyctl|keyctl {session|add|search|print|revoke|clear} ...
-caps|caps
+caps|caps probe|drop|add|clear|file|has ARGS
 cred|cred
 ns|ns
 xattr|xattr

@@ -1853,6 +1853,13 @@ bip_addr_flush (const char *ifname, const struct bip_addr_filter *filter)
 /* route show / flush / add / del                                       */
 /* ----------------------------------------------------------------- */
 
+/* iproute2 omits "/LEN" from a route whose prefix covers the whole address. */
+static unsigned
+bip_host_len (int family)
+{
+  return family == AF_INET6 ? 128 : 32;
+}
+
 static int
 bip_route_show_cb (struct nlmsghdr *h, void *vctx)
 {
@@ -1901,7 +1908,9 @@ bip_route_show_cb (struct nlmsghdr *h, void *vctx)
       char proto_buf[32];
       printf ("%s{\"dst\":", ctx->first ? "" : ",");
       ctx->first = 0;
-      if (tb[RTA_DST])
+      if (tb[RTA_DST] && r->rtm_dst_len == bip_host_len (r->rtm_family))
+        bip_json_string (dst);
+      else if (tb[RTA_DST])
         {
           char cidr[INET6_ADDRSTRLEN + 8];
           snprintf (cidr, sizeof cidr, "%s/%u", dst, r->rtm_dst_len);
@@ -1946,7 +1955,7 @@ bip_route_show_cb (struct nlmsghdr *h, void *vctx)
       return 0;
     }
   printf ("%s", dst);
-  if (tb[RTA_DST])
+  if (tb[RTA_DST] && r->rtm_dst_len != bip_host_len (r->rtm_family))
     printf ("/%u", r->rtm_dst_len);
   if (tb[RTA_GATEWAY])
     {
@@ -2256,21 +2265,25 @@ bip_rule_show_cb (struct nlmsghdr *h, void *vctx)
           inet_ntop (frh->family, RTA_DATA (tb[FRA_DST]), dst, sizeof dst);
           printf (",\"dst\":\"%s\",\"dstlen\":%u", dst, frh->dst_len);
         }
-      if (tb[FRA_FWMARK])
-        printf (",\"fwmark\":%u", *(unsigned *) RTA_DATA (tb[FRA_FWMARK]));
-      if (tb[FRA_FWMASK] && *(unsigned *) RTA_DATA (tb[FRA_FWMASK]) != 0xffffffffU)
-        printf (",\"fwmask\":%u", *(unsigned *) RTA_DATA (tb[FRA_FWMASK]));
+      /* iproute2 prints marks with %#x, as JSON strings ("0x10", "0"). */
+      if (tb[FRA_FWMARK] || tb[FRA_FWMASK])
+        {
+          unsigned mark = tb[FRA_FWMARK] ? *(unsigned *) RTA_DATA (tb[FRA_FWMARK]) : 0;
+          printf (",\"fwmark\":\"%#x\"", mark);
+          if (tb[FRA_FWMASK] && *(unsigned *) RTA_DATA (tb[FRA_FWMASK]) != 0xffffffffU)
+            printf (",\"fwmask\":\"%#x\"", *(unsigned *) RTA_DATA (tb[FRA_FWMASK]));
+        }
       if (tb[FRA_UID_RANGE])
         {
           struct fib_rule_uid_range *range = RTA_DATA (tb[FRA_UID_RANGE]);
-          printf (",\"uidrange_start\":%u,\"uidrange_end\":%u",
+          printf (",\"uid_start\":%u,\"uid_end\":%u",
                   range->start, range->end);
         }
       if (tb[FRA_IP_PROTO])
         {
           unsigned proto = *(unsigned char *) RTA_DATA (tb[FRA_IP_PROTO]);
-          printf (",\"ipproto\":\"%s\",\"ipproto_number\":%u",
-                  bip_ipproto_name (proto, proto_buf, sizeof proto_buf), proto);
+          printf (",\"ipproto\":\"%s\"",
+                  bip_ipproto_name (proto, proto_buf, sizeof proto_buf));
         }
       if (frh->action == FR_ACT_TO_TBL || table)
         printf (",\"table\":\"%s\"", bip_table_name (table, table_buf, sizeof table_buf));
@@ -2280,34 +2293,38 @@ bip_rule_show_cb (struct nlmsghdr *h, void *vctx)
       return 0;
     }
 
-  printf ("%u:", prio);
+  printf ("%u:\t", prio);
 
   if (tb[FRA_SRC])
     {
       char src[INET6_ADDRSTRLEN];
       inet_ntop (frh->family, RTA_DATA (tb[FRA_SRC]), src, sizeof src);
-      printf (" from %s/%u", src, frh->src_len);
+      printf ("from %s", src);
+      if (frh->src_len != bip_host_len (frh->family))
+        printf ("/%u", frh->src_len);
     }
   else
-    printf (" from all");
+    printf ("from all");
 
   if (tb[FRA_DST])
     {
       char dst[INET6_ADDRSTRLEN];
       inet_ntop (frh->family, RTA_DATA (tb[FRA_DST]), dst, sizeof dst);
-      printf (" to %s/%u", dst, frh->dst_len);
+      printf (" to %s", dst);
+      if (frh->dst_len != bip_host_len (frh->family))
+        printf ("/%u", frh->dst_len);
     }
 
-  if (tb[FRA_FWMARK])
+  if (tb[FRA_FWMARK] || tb[FRA_FWMASK])
     {
-      unsigned mark = *(unsigned *) RTA_DATA (tb[FRA_FWMARK]);
+      unsigned mark = tb[FRA_FWMARK] ? *(unsigned *) RTA_DATA (tb[FRA_FWMARK]) : 0;
       if (tb[FRA_FWMASK] && *(unsigned *) RTA_DATA (tb[FRA_FWMASK]) != 0xffffffffU)
         {
           unsigned mask = *(unsigned *) RTA_DATA (tb[FRA_FWMASK]);
-          printf (" fwmark 0x%x/0x%x", mark, mask);
+          printf (" fwmark %#x/%#x", mark, mask);
         }
       else
-        printf (" fwmark 0x%x", mark);
+        printf (" fwmark %#x", mark);
     }
 
   if (tb[FRA_UID_RANGE])
@@ -3712,12 +3729,11 @@ bip_run_batch (const char *path, int force, const struct bip_ip_opts *base)
         continue;
       if (argc < 0)
         {
+          /* iproute2's makeargs exits on these even under -force. */
           builtin_error ("-batch %s:%u: %s", path, lineno,
                          argc == -1 ? "too many words" : "unterminated quoted string");
           worst = EXECUTION_FAILURE;
-          if (!force)
-            break;
-          continue;
+          break;
         }
       WORD_LIST *words = bip_words_from_argv (argv, argc);
       if (!words)

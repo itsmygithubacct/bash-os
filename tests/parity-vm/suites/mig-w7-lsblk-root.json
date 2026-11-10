@@ -46,7 +46,7 @@
         "lsblk/live-device-inventory-deferred"
       ],
       "oracle": "util-linux lsblk reading the same loop and device-mapper nodes (device names normalised); sizes, FSTYPE and mountpoints come from the kernel and the on-device superblock.",
-      "comparison": "Byte parity of status, stdout, stderr and file tree.",
+      "comparison": "Byte parity of status, stdout, stderr and file tree. udev is settled on the new superblock before the first listing: util-linux takes FSTYPE, LABEL and UUID from the udev database, which otherwise lags mke2fs (the recorded r-root reference listed the unmounted loop with an empty FSTYPE and LABEL for that reason).",
       "requires": [
         "losetup",
         "mke2fs",
@@ -58,13 +58,14 @@
         "blockdev",
         "dmsetup",
         "mount",
-        "mkdir"
+        "mkdir",
+        "udevadm"
       ],
       "files": {
         "rl.sh": "export PYTHONDONTWRITEBYTECODE=1\ncleanup() { /usr/bin/umount -R \"$PWD/mnt\" 2>/dev/null; /usr/sbin/dmsetup remove_all 2>/dev/null; /usr/sbin/losetup -D 2>/dev/null; /usr/bin/rm -f ./*.img ./*.txt; }\ntrap cleanup EXIT\nmapk=(); mapv=()\nreg() { mapk+=(\"$1\"); mapv+=(\"$2\"); }\nnorm() { local s i; s=$(< \"$1\"); for i in \"${!mapk[@]}\"; do s=${s//\"${mapk[i]}\"/${mapv[i]}}; done; while [[ $s == *'  '* ]]; do s=${s//'  '/ }; done; printf '%s\\n' \"$s\"; }\nnormv() { local s=$1 i; for i in \"${!mapk[@]}\"; do s=${s//\"${mapk[i]}\"/${mapv[i]}}; done; while [[ $s == *'  '* ]]; do s=${s//'  '/ }; done; printf '%s' \"$s\"; }\nat() { REPLY=$(/usr/sbin/losetup -fP --show \"$1\") || echo \"losetup failed: $1\" >&2; local n=${REPLY#/dev/} want=${2:-0} i c p; for ((i=0;i<100;i++)); do c=0; for p in /sys/block/$n/${n}p*; do [[ -b /dev/${p##*/} ]] && c=$((c+1)); done; ((c>=want)) && break; read -t 0.1 -r _ <> <(:) || :; done; }\nMK=/usr/sbin/mke2fs\n"
       },
       "privilege": "root",
-      "script": ". ./rl.sh\nr() { local l=$1; shift; \"$@\" >o.txt 2>e.txt; local rc=$?; printf '[%s] status=%s\\n' \"$l\" $rc; norm o.txt; echo \"[stderr]\"; norm e.txt; }\n/usr/bin/truncate -s 4M b.img; at b.img; B=$REPLY; $MK -q -t ext2 -L LSMNT $B\nreg $B LOOP-B\n/usr/bin/mkdir -p mnt\nr unmounted lsblk -o NAME,FSTYPE,LABEL,MOUNTPOINT $B\n/usr/bin/mount $B mnt\nr mounted lsblk -o NAME,FSTYPE,LABEL,MOUNTPOINT $B\nr mounted-fs lsblk -f $B\nr mounted-raw lsblk -r -n -o NAME,FSTYPE,MOUNTPOINT $B\n/usr/bin/umount mnt\nr after-umount lsblk -o NAME,FSTYPE,MOUNTPOINT $B\n",
+      "script": ". ./rl.sh\nr() { local l=$1; shift; \"$@\" >o.txt 2>e.txt; local rc=$?; printf '[%s] status=%s\\n' \"$l\" $rc; norm o.txt; echo \"[stderr]\"; norm e.txt; }\n/usr/bin/truncate -s 4M b.img; at b.img; B=$REPLY; $MK -q -t ext2 -L LSMNT $B\n# util-linux reads FSTYPE/LABEL from the udev database; wait for the change\n# event of the new superblock, or the first listing races it.\n/usr/bin/udevadm trigger --action=change --settle $B\nreg $B LOOP-B\n/usr/bin/mkdir -p mnt\nr unmounted lsblk -o NAME,FSTYPE,LABEL,MOUNTPOINT $B\n/usr/bin/mount $B mnt\nr mounted lsblk -o NAME,FSTYPE,LABEL,MOUNTPOINT $B\nr mounted-fs lsblk -f $B\nr mounted-raw lsblk -r -n -o NAME,FSTYPE,MOUNTPOINT $B\n/usr/bin/umount mnt\nr after-umount lsblk -o NAME,FSTYPE,MOUNTPOINT $B\n",
       "expected_status": 0,
       "timeout": 60,
       "file_size_limit": 67108864

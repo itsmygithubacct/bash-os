@@ -156,9 +156,14 @@ bts_format_cpu_list (const cpu_set_t *set, char *buf, size_t bufsz)
       int end = cpu;
 
       int n;
+      /* util-linux's cpulist_create writes a range only for three or more
+         CPUs; a pair stays "0,1". */
       if (start == end)
         n = snprintf (buf + off, off < bufsz ? bufsz - off : 0,
                       "%s%d", first_item ? "" : ",", start);
+      else if (end == start + 1)
+        n = snprintf (buf + off, off < bufsz ? bufsz - off : 0,
+                      "%s%d,%d", first_item ? "" : ",", start, end);
       else
         n = snprintf (buf + off, off < bufsz ? bufsz - off : 0,
                       "%s%d-%d", first_item ? "" : ",", start, end);
@@ -322,8 +327,12 @@ taskset_builtin (WORD_LIST *list)
     }
   else if (strncmp (w, "-c", 2) == 0 && w[2])
     {
-      cpu_list = 1;
-      w += 2;
+      /* util-linux getopt string is "+apchV": -c takes no argument.
+         -c1 is an invalid short option '1', not the CPU list "1".
+         -cp is recognized above. */
+      fprintf (stderr, "taskset: invalid option -- '%c'\n", w[2]);
+      fprintf (stderr, "Try 'taskset --help' for more information.\n");
+      return EXECUTION_FAILURE;
     }
 
   if (strcmp (w, "-p") == 0)

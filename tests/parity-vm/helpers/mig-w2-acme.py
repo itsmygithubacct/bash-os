@@ -4,17 +4,23 @@
 
     mig-w2-acme.py serve CONTROL_PORT CANDIDATE_PORT READY   # two independent mock CAs on loopback
     mig-w2-acme.py control PORT                              # independent Python ACME client (positive control)
+    mig-w2-acme.py lo-up                                     # bring up loopback in a private netns
+    mig-w2-acme.py observe PEER LISTEN OUT READY             # sniff real loopback TCP until SIGTERM
     mig-w2-acme.py verify CHECK PORT [args]                  # assertions on the candidate-side request log
 
 Each mock CA validates every JWS it receives (ES256 signature, protected header, nonce, url, Content-Type,
 kid/jwk exclusivity, POST-as-GET empty payload). Fixture-only keys and certificates; no other network target.
+The r8 observer reads loopback frames. It does not copy the peer log or invent a pass.
 """
 import base64
 import datetime
+import fcntl
 import hashlib
 import json
 import os
 import signal
+import socket
+import struct
 import sys
 import threading
 import time
@@ -155,6 +161,8 @@ class CA:
             def record(self, **kw):
                 entry = {'method': self.command, 'path': self.path, 'client': self.client_address[0], 't': time.time()}
                 entry.update(kw)
+                if entry['method'] in ('GET', 'HEAD', 'POST') and 'body_sha256' not in entry:
+                    entry['body_sha256'] = hashlib.sha256(b'').hexdigest()
                 ca.log.append(entry)
                 json.dump(ca.log, open('acme-%d.json' % ca.port, 'w'))
 
@@ -180,7 +188,8 @@ class CA:
                 prot, payload, problems = ca.validate_jws(body, url, self.headers)
                 entry = {'url': url, 'problems': problems, 'protected': prot,
                          'payload_len': None if payload is None else len(payload),
-                         'payload': (payload or b'').decode(errors='replace')[:2000]}
+                         'payload': (payload or b'').decode(errors='replace')[:2000],
+                         'body_sha256': hashlib.sha256(body).hexdigest()}
                 self.record(**entry)
                 if problems:
                     kind = 'badNonce' if 'nonce' in problems else 'malformed'
@@ -240,7 +249,7 @@ class CA:
                     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'Fixture CA')])
                     cert = (x509.CertificateBuilder().subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, FIXTURE_ID)]))
                             .issuer_name(name).public_key(req.public_key()).serial_number(7)
-                            .not_valid_before(datetime.datetime(2026, 1, 1)).not_valid_after(datetime.datetime(2027, 1, 1))
+                            .not_valid_before(datetime.datetime(2026, 1, 1)).not_valid_after(datetime.datetime(2040, 1, 1))
                             .add_extension(x509.SubjectAlternativeName([x509.DNSName(FIXTURE_ID)]), critical=False)
                             .sign(ca.ca_key, hashes.SHA256()))
                     ca.cert_pem = (cert.public_bytes(serialization.Encoding.PEM) + ca.ca_cert.public_bytes(serialization.Encoding.PEM)).decode()
@@ -264,6 +273,11 @@ def serve(cport, kport, ready):
         ca = CA(port)
         ca.inject_bad_cert = (port == kport and os.environ.get('ACME_FIXTURE_BAD_CERT') == '1')
         ca.inject_challenge_fault = (port == kport and os.environ.get('ACME_FIXTURE_CHALLENGE_FAULT') == '1')
+        # Publish only the fixture root so the client is configured with an
+        # independent trust anchor (acme --cert-ca); a client must not trust a
+        # root merely because the endpoint returned it in the chain.
+        with open('acme-ca-%d.pem' % port, 'wb') as f:
+            f.write(ca.ca_cert.public_bytes(serialization.Encoding.PEM))
         srv = ThreadingHTTPServer(('127.0.0.1', port), ca.make_handler())
         srv.daemon_threads = True
         threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -463,6 +477,200 @@ def oracle_selftest():
     print('oracle-negative-controls-ok')
 
 
+def local_name(path):
+    if not path or path != os.path.basename(path) or path in ('.', '..'):
+        raise ValueError('observer path must be a local filename')
+    return path
+
+
+def lo_up():
+    """Bring up the loopback device. A private netns starts with lo down."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        current = fcntl.ioctl(sock, 0x8913, struct.pack('16sH14s', b'lo', 0, b'\0' * 14))
+        flags = struct.unpack('16sH14s', current)[1]
+        fcntl.ioctl(sock, 0x8914, struct.pack('16sH14s', b'lo', flags | 0x1, b'\0' * 14))
+        sock.close()
+    except OSError as exc:
+        print('lo-up failed: %s' % exc, file=sys.stderr)
+        return 1
+    return 0
+
+
+def parse_http_requests(blob):
+    """Split one TCP payload into HTTP/1.x requests. None means the bytes are incomplete."""
+    reqs, i = [], 0
+    methods = (b'GET ', b'HEAD ', b'POST ', b'PUT ', b'DELETE ')
+    while i < len(blob):
+        if not any(blob.startswith(method, i) for method in methods):
+            return None
+        end = blob.find(b'\r\n\r\n', i)
+        if end < 0:
+            return None
+        line, _, headers = blob[i:end].partition(b'\r\n')
+        bits = line.split(b' ')
+        if len(bits) < 2:
+            return None
+        try:
+            method, path = bits[0].decode('ascii'), bits[1].decode('ascii')
+        except UnicodeError:
+            return None
+        length = 0
+        for header in headers.split(b'\r\n'):
+            name, sep, value = header.partition(b':')
+            if sep and name.lower() == b'content-length':
+                try:
+                    length = int(value.strip())
+                except ValueError:
+                    return None
+        if length < 0 or length > 1024 * 1024:
+            return None
+        body_end = end + 4 + length
+        if body_end > len(blob):
+            return None
+        reqs.append((method, path, hashlib.sha256(blob[end + 4:body_end]).hexdigest()))
+        i = body_end
+    return reqs
+
+
+def ipv4_packet(data):
+    """Return an IPv4 view of one SOCK_DGRAM frame, or None when it is not IPv4."""
+    if len(data) < 20 or data[0] >> 4 != 4:
+        return None
+    ihl = (data[0] & 0x0f) * 4
+    total = struct.unpack_from('!H', data, 2)[0]
+    if ihl < 20 or total < ihl or total > len(data):
+        return None
+    data = data[:total]
+    src, dst = socket.inet_ntoa(data[12:16]), socket.inet_ntoa(data[16:20])
+    if data[9] != 6 or len(data) < ihl + 20:
+        return ('other', data[9], src, dst)
+    offset = (data[ihl + 12] >> 4) * 4
+    if offset < 20 or ihl + offset > len(data):
+        return None
+    sport, dport, seq = struct.unpack_from('!HHI', data, ihl)
+    return ('tcp', src, sport, dst, dport, seq, data[ihl + 13], data[ihl + offset:])
+
+
+def observe(peer_port, listen_port, out_name, ready_name):
+    """Record loopback TCP until SIGTERM. Empty output is a failed observation, not a pass."""
+    out_name, ready_name = local_name(out_name), local_name(ready_name)
+    allowed = {peer_port, listen_port}
+    if not allowed <= set(range(1, 65536)) or peer_port == listen_port:
+        print('observe: ports must be distinct and in 1..65535', file=sys.stderr)
+        return 1
+    try:
+        sniff = socket.socket(socket.AF_PACKET, socket.SOCK_DGRAM, socket.htons(0x0003))
+        sniff.bind(('lo', 0))
+        sniff.settimeout(0.2)
+        sniff.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4 << 20)
+    except OSError as exc:
+        print('observe: packet socket: %s' % exc, file=sys.stderr)
+        return 1
+    stop = {'flag': False}
+
+    def on_term(_signum, _frame):
+        stop['flag'] = True
+
+    signal.signal(signal.SIGTERM, on_term)
+    signal.signal(signal.SIGINT, on_term)
+    flows, syns, foreign, seen = {}, [], [], set()
+    truncated = False
+    fd = os.open(ready_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+    os.write(fd, b'ready\n')
+    os.close(fd)
+    while not stop['flag']:
+        try:
+            data, meta = sniff.recvfrom(65535)
+        except socket.timeout:
+            continue
+        except OSError:
+            break
+        if not isinstance(meta, tuple) or len(meta) < 3:
+            foreign.append({'reason': 'short-address'})
+            continue
+        if meta[1] != 0x0800:
+            if len(foreign) < 32:
+                foreign.append({'ethertype': meta[1]})
+            else:
+                truncated = True
+            continue
+        parsed = ipv4_packet(data)
+        if parsed is None:
+            if len(foreign) < 32:
+                foreign.append({'reason': 'truncated-ipv4'})
+            else:
+                truncated = True
+            continue
+        if parsed[0] != 'tcp':
+            if len(foreign) < 32:
+                foreign.append({'proto': parsed[1], 'src': parsed[2], 'dst': parsed[3]})
+            else:
+                truncated = True
+            continue
+        _kind, src, sport, dst, dport, seq, flags, payload = parsed
+        ident = (src, sport, dst, dport, seq, flags, payload)
+        if ident in seen:
+            continue
+        if len(seen) >= 4096:
+            truncated = True
+            continue
+        seen.add(ident)
+        if src != '127.0.0.1' or dst != '127.0.0.1' or (sport not in allowed and dport not in allowed):
+            if len(foreign) < 32:
+                foreign.append({'src': src, 'sport': sport, 'dst': dst, 'dport': dport})
+            else:
+                truncated = True
+        if flags & 0x12 == 0x02:
+            if len(syns) < 256:
+                syns.append({'src': src, 'sport': sport, 'dst': dst, 'dport': dport})
+            else:
+                truncated = True
+        flow = flows.setdefault((src, sport, dst, dport), {'isn': None, 'segs': {}, 'first': None})
+        if flags & 0x02 and not flags & 0x10:
+            flow['isn'] = seq
+        if payload:
+            flow['segs'].setdefault(seq, payload)
+            if flow['first'] is None:
+                flow['first'] = time.monotonic()
+    try:
+        raw = sniff.getsockopt(263, 6, 8)
+        drops = struct.unpack_from('II', raw)[1] if len(raw) >= 8 else None
+    except OSError:
+        drops = None
+    sniff.close()
+    requests, incomplete = [], 0
+    for (src, sport, dst, dport), flow in sorted(flows.items(), key=lambda item: (item[1]['first'] is None, item[1]['first'] or 0)):
+        if not flow['segs']:
+            continue
+        seq = ((flow['isn'] + 1) & 0xffffffff) if flow['isn'] is not None else min(flow['segs'])
+        blob, guard = bytearray(), 0
+        while seq in flow['segs'] and guard < 10000:
+            chunk = flow['segs'][seq]
+            blob += chunk
+            seq = (seq + len(chunk)) & 0xffffffff
+            guard += 1
+        if dport not in allowed:
+            continue
+        parsed = parse_http_requests(bytes(blob))
+        if not parsed:
+            incomplete += 1
+            continue
+        for method, path, digest in parsed:
+            requests.append({'method': method, 'path': path, 'src': src, 'sport': sport,
+                             'dst': dst, 'dport': dport, 'body_sha256': digest})
+    report = {'schema': 'bashos-acme-outbound-observer-v1', 'interface': 'lo',
+              'peer_port': peer_port, 'listen_port': listen_port, 'drops': drops,
+              'truncated': truncated, 'incomplete_flows': incomplete, 'syns': syns,
+              'foreign': foreign, 'requests': requests}
+    tmp = out_name + '.tmp'
+    with open(tmp, 'w') as handle:
+        json.dump(report, handle)
+        handle.write('\n')
+    os.replace(tmp, out_name)
+    return 0
+
+
 # ---- assertions on the candidate-side log --------------------------------------------------------
 def verify(check, port):
     log = json.load(open('acme-%d.json' % port)) if os.path.exists('acme-%d.json' % port) else []
@@ -538,11 +746,29 @@ def verify(check, port):
             key_valid = False
         need('stored-private-key-matches-issued-certificate', key_valid)
     elif check == 'r8':
-        # Incoming peer addresses cannot prove absence of other outbound traffic.
-        # A trusted external network observer is an explicit qualification gate.
-        need('independent-outbound-observer-required', False, 'see runtime request')
+        # The peer log shows who connected to it. It cannot show a request that
+        # went somewhere else, so r8 also reads the loopback capture.
         stages = ['/directory', '/acme/new-acct', '/acme/new-order', '/acme/chall/1', '/acme/finalize/1', '/acme/cert/1']
-        need('complete-lifecycle-against-the-private-peer', all(any(e['path'] == s for e in log) for s in stages), [e['path'] for e in log])
+        asked = [e for e in log if e['method'] in ('GET', 'HEAD', 'POST')]
+        need('complete-lifecycle-against-the-private-peer', all(any(e['path'] == s for e in asked) for s in stages), [e['path'] for e in asked])
+        need('peer-clients-are-loopback', bool(asked) and all(e.get('client') == '127.0.0.1' for e in asked))
+        try:
+            obs = json.load(open('acme-outbound.json'))
+        except (OSError, ValueError):
+            obs = None
+        need('outbound-observer-capture', isinstance(obs, dict) and obs.get('schema') == 'bashos-acme-outbound-observer-v1' and obs.get('interface') == 'lo' and obs.get('peer_port') == port and obs.get('listen_port') == port + 2)
+        if isinstance(obs, dict):
+            syns, reqs = obs.get('syns') or [], obs.get('requests') or []
+            allowed = {port, port + 2}
+            need('capture-is-complete', obs.get('drops') == 0 and obs.get('truncated') is False and obs.get('incomplete_flows') == 0 and obs.get('foreign') == [])
+            need('observed-real-outbound-requests', bool(reqs) and all(r.get('method') and r.get('path') and r.get('body_sha256') and r.get('dst') == '127.0.0.1' for r in reqs))
+            need('syn-only-to-fixture', bool(syns) and all(s.get('src') == '127.0.0.1' and s.get('dst') == '127.0.0.1' and s.get('dport') in allowed for s in syns) and any(s.get('dport') == port for s in syns))
+            peer_reqs = [r for r in reqs if r.get('dport') == port]
+            wire = [(r.get('method'), r.get('path'), r.get('body_sha256')) for r in peer_reqs]
+            logged = [(e['method'], e['path'], e.get('body_sha256')) for e in asked]
+            need('wire-request-matches-peer', wire == logged, wire)
+            challenge = [r for r in reqs if r.get('dport') == port + 2]
+            need('observed-http-01-fetch', len(challenge) == 1 and challenge[0].get('method') == 'GET' and str(challenge[0].get('path', '')).startswith('/.well-known/acme-challenge/'))
     elif check == 'retry':
         events = [e for e in log if e.get('injected_bad_nonce')]
         orders = [e for e in posts if e['path'] == '/acme/new-order']
@@ -592,6 +818,12 @@ if __name__ == '__main__':
     elif sys.argv[1] == 'serve-challenge-fault':
         os.environ['ACME_FIXTURE_CHALLENGE_FAULT'] = '1'
         serve(int(sys.argv[2]), int(sys.argv[3]), sys.argv[4])
+    elif sys.argv[1] == 'lo-up':
+        sys.exit(lo_up())
+    elif sys.argv[1] == 'observe':
+        if len(sys.argv) != 6:
+            raise SystemExit('usage: observe PEER_PORT LISTEN_PORT OUT READY')
+        sys.exit(observe(int(sys.argv[2]), int(sys.argv[3]), sys.argv[4], sys.argv[5]))
     elif sys.argv[1] == 'control':
         control(int(sys.argv[2]))
     elif sys.argv[1] == 'control-invalid-challenge':

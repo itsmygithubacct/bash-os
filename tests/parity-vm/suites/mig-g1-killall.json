@@ -124,7 +124,7 @@
       "group": "shell",
       "driver": "plain",
       "kind": "contract",
-      "purpose": "killall returns 1 for no match, 2 for usage errors, and signals the matching name when only one of several names matches.",
+      "purpose": "killall returns 1 for no match and for usage, as psmisc usage() does, and signals the matching name when only one of several names matches.",
       "oracle": "Requirement text plus kernel facts about the owned fixture processes (kill -0 liveness, /proc/PID/status Uid/PPid/Name); psmisc 23.7 killall has no -f and resolves -u only by account name, so it cannot serve as a reference for these forms.",
       "comparison": "Exact stdout against expectations derived from the requirement text and the fixture's own /proc facts; no reference tool takes part.",
       "covers": [
@@ -139,7 +139,7 @@
       },
       "expected_status": 0,
       "timeout": 30,
-      "stdout": "partial rc=0\nstate: x=dead\nnomatch rc=1\nusage rc=2\n",
+      "stdout": "partial rc=0\nstate: x=dead\nnomatch rc=1\nusage rc=1\n",
       "stderr": ""
     },
     {

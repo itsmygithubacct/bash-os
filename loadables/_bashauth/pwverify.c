@@ -159,6 +159,13 @@ bashos_pw_parse_phc (const char *phc, bashos_phc_argon2id *out, int force_b64)
   int sl = bashos_pw_unhex (parts[3], out->salt, sizeof out->salt);
   int hl = bashos_pw_unhex (parts[4], out->hash, sizeof out->hash);
   out->hex_layout = sl >= 8 && hl >= 16 && !force_b64;
+  /* Fields made only of hex digits are the legacy layout and must decode
+     as hex: an odd-length hash next to a hex salt is malformed, not a
+     reason to reread both fields as Base64. */
+  if (!force_b64 && !out->hex_layout &&
+      parts[3][strspn (parts[3], "0123456789abcdefABCDEF")] == '\0' &&
+      parts[4][strspn (parts[4], "0123456789abcdefABCDEF")] == '\0')
+    goto fail;
   if (!out->hex_layout)
     {
       sl = bashos_pw_unbase64 (parts[3], out->salt, sizeof out->salt);

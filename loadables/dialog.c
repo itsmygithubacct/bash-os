@@ -27,7 +27,11 @@
  *   --backtitle T   — background banner (rendered when interactive)
  *   --no-cancel     — suppress Cancel button on input widgets
  *   --defaultno     — yes/no default is No
- *   --separate-output — checklist output: one tag per line (default = quoted)
+ *   --no-shadow     — center in the full screen; default reserves dialog's
+ *                     shadow margin (1 row, 2 columns) when placing the box
+ *   --separate-output — checklist output: one tag per line (default: space-
+ *                       separated tags, unquoted as dialog(1) 1.3 prints them,
+ *                       double-quoted when invoked as whiptail)
  *   --stdout        — write result strings to stdout instead of stderr
  *   --output-fd N   — write result strings to an already-open fd N
  *   --ok-label / --cancel-label / --yes-label / --no-label TEXT
@@ -143,6 +147,7 @@ typedef struct {
     const char *default_button; /* --default-button ok|cancel|yes|no|extra */
     int         notags;         /* --notags: emit/display item text */
     int         whiptail;       /* interactive whiptail result format */
+    int         no_shadow;      /* --no-shadow: center in the full screen */
 } bd_opts;
 
 /* ----------------------------------------------------------------------
@@ -403,9 +408,12 @@ bd_keypress(void)
 }
 
 /* ----------------------------------------------------------------------
- * Box-drawing helpers. Geometry: the caller passes HEIGHT/WIDTH; we
- * center inside the current terminal. Falls back to a small default
- * geometry when winsize is unavailable.
+ * Box-drawing helpers. Geometry: the caller passes HEIGHT/WIDTH.
+ * dialog(1) centers in the area left after its default shadow (1 row,
+ * 2 columns): y = (SLINES - height) / 2, x = (SCOLS - width) / 2, with
+ * SLINES = LINES - 1 and SCOLS = COLS - 2. --no-shadow centers in the
+ * full screen. Stored top/left are 1-based for CUP. Falls back to a
+ * small default geometry when winsize is unavailable.
  * ---------------------------------------------------------------------- */
 typedef struct {
     int rows, cols;
@@ -427,18 +435,37 @@ bd_term_size(int *rows, int *cols)
     *cols = 80;
 }
 
+/* dialog's USE_SHADOW default. A missing option block keeps the shadow. */
+static int
+bd_wants_shadow(const bd_opts *o)
+{
+    return o == NULL || !o->no_shadow;
+}
+
 static void
-bd_layout(bd_box *b, int h, int w)
+bd_layout(bd_box *b, int h, int w, int shadow)
 {
     bd_term_size(&b->rows, &b->cols);
     if (h <= 0) h = 8;
     if (w <= 0) w = 40;
-    if (h > b->rows - 2) h = b->rows - 2;
-    if (w > b->cols - 2) w = b->cols - 2;
-    b->h    = h;
-    b->w    = w;
-    b->top  = (b->rows - h) / 2 + 1;
-    b->left = (b->cols - w) / 2 + 1;
+    int slines = b->rows;
+    int scols = b->cols;
+    if (shadow) {
+        if (slines > 1) slines -= 1; /* SHADOW_ROWS */
+        if (scols > 2) scols -= 2;   /* SHADOW_COLS */
+    }
+    if (h > slines) h = slines;
+    if (w > scols) w = scols;
+    if (h < 1) h = 1;
+    if (w < 1) w = 1;
+    b->h = h;
+    b->w = w;
+    int y = (slines - h) / 2;
+    int x = (scols - w) / 2;
+    if (y < 0) y = 0;
+    if (x < 0) x = 0;
+    b->top = y + 1;
+    b->left = x + 1;
 }
 
 /* Emit CSI cup ROW;COL H. */
@@ -512,8 +539,11 @@ bd_draw_text(const bd_box *b, const char *text)
     if (!bd_interactive) return;
     int max_w = b->w - 4;
     if (max_w < 1) return;
-    int row = b->top + 2;
-    int max_row = b->top + b->h - 3;
+    /* First interior row. dialog's MARGIN is 1, so the prompt sits on
+     * the row under the top border, not one row below that. */
+    int row = b->top + 1;
+    int max_row = b->top + b->h - 4;
+    if (max_row < row) max_row = row;
     const char *p = text;
     while (*p && row <= max_row) {
         int n = 0;
@@ -567,7 +597,7 @@ bd_widget_yesno(const bd_opts *o, const char *text, int h, int w)
         return 1;
     }
     bd_box b;
-    bd_layout(&b, h, w);
+    bd_layout(&b, h, w, bd_wants_shadow(o));
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o->title ? o->title : "Question");
@@ -632,7 +662,7 @@ static void
 bd_draw_msgbox(const bd_opts *o, const char *text, int h, int w, int is_info)
 {
     bd_box b;
-    bd_layout(&b, h, w);
+    bd_layout(&b, h, w, bd_wants_shadow(o));
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o->title ? o->title : (is_info ? "Info" : "Message"));
@@ -703,7 +733,7 @@ bd_widget_inputbox(const bd_opts *o, const char *text, int h, int w,
         return 0;
     }
     bd_box b;
-    bd_layout(&b, h, w);
+    bd_layout(&b, h, w, bd_wants_shadow(o));
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o->title ? o->title : (is_password ? "Password" : "Input"));
@@ -1013,7 +1043,7 @@ bd_widget_menu_like(const bd_opts *o, const char *text, int h, int w,
 
     /* --- Interactive path --------------------------------------------- */
     bd_box b;
-    bd_layout(&b, h, w);
+    bd_layout(&b, h, w, bd_wants_shadow(o));
     int viewport = menu_h;
     if (viewport <= 0 || viewport > b.h - 6) viewport = b.h - 6;
     if (viewport > nrows) viewport = nrows;
@@ -1280,7 +1310,7 @@ bd_widget_form_like(const bd_opts *o, const char *text, int h, int w,
     }
 
     bd_box b;
-    bd_layout(&b, h, w);
+    bd_layout(&b, h, w, bd_wants_shadow(o));
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o->title ? o->title : "Form");
@@ -1470,7 +1500,7 @@ bd_widget_gauge(const bd_opts *o, const char *text, int h, int w, int init_pct)
         return 0;
     }
     bd_box b;
-    bd_layout(&b, h, w);
+    bd_layout(&b, h, w, bd_wants_shadow(o));
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o->title ? o->title : "Progress");
@@ -1509,7 +1539,7 @@ bd_widget_pause(const bd_opts *o, const char *text, int h, int w, int seconds)
     }
 
     bd_box b;
-    bd_layout(&b, h, w);
+    bd_layout(&b, h, w, bd_wants_shadow(o));
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o->title ? o->title : "Pause");
@@ -1621,7 +1651,7 @@ bd_draw_textbox_page(const bd_opts *o, const char *data, size_t len,
                      int h, int w, int top_line, int follow)
 {
     bd_box b;
-    bd_layout(&b, h, w);
+    bd_layout(&b, h, w, bd_wants_shadow(o));
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o && o->title ? o->title : (follow ? "Tailbox" : "Textbox"));
@@ -1661,7 +1691,7 @@ bd_widget_textbox(const bd_opts *o, const char *file, int h, int w, int follow)
     }
 
     bd_box b;
-    bd_layout(&b, h, w);
+    bd_layout(&b, h, w, bd_wants_shadow(o));
     int visible = b.h - 6;
     if (visible < 1) visible = 1;
     int line_count = bd_text_line_count(data, len);
@@ -1679,7 +1709,7 @@ bd_widget_textbox(const bd_opts *o, const char *file, int h, int w, int follow)
     for (;;) {
         if (top_line < 0) top_line = 0;
         if (top_line > line_count - 1) top_line = line_count - 1;
-        bd_layout(&b, h, w);
+        bd_layout(&b, h, w, bd_wants_shadow(o));
         visible = b.h - 6;
         if (visible < 1) visible = 1;
         bd_draw_textbox_page(o, data, len, h, w, top_line, follow);
@@ -1714,7 +1744,7 @@ wait_for_textbox_input:
                     data = updated;
                     len = updated_len;
                     line_count = bd_text_line_count(data, len);
-                    bd_layout(&b, h, w);
+                    bd_layout(&b, h, w, bd_wants_shadow(o));
                     visible = b.h - 6;
                     if (visible < 1) visible = 1;
                     top_line = line_count > visible ? line_count - visible : 0;
@@ -1857,8 +1887,11 @@ bd_dispatch(WORD_LIST *list, int whiptail)
         } else if (!strcmp(w, "--notags")) {
             o.notags = 1;
             list = list->next;
+        } else if (!strcmp(w, "--no-shadow")) {
+            o.no_shadow = 1;
+            list = list->next;
         } else if (!strcmp(w, "--clear") || !strcmp(w, "--colors")
-                   || !strcmp(w, "--no-shadow") || !strcmp(w, "--ascii-lines")
+                   || !strcmp(w, "--ascii-lines")
                    || !strcmp(w, "--scrolltext")) {
             /* No-op compat flags. */
             list = list->next;

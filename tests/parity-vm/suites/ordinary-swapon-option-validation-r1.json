@@ -22,7 +22,7 @@
         "seccomp-notify"
       ],
       "helpers_sha256": {
-        "helpers/swapon-option-validation-r1.py": "dca4edeba26150bf9674e454d3e9a521d0c20cb5271623e5b37adfa5ddb97271",
+        "helpers/swapon-option-validation-r1.py": "d7f0f65930d2cfe68e4d880acca376d68058fddf4709b8a0862a757ecb76a7a2",
         "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
       }
     }

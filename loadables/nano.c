@@ -1063,18 +1063,10 @@ bn_piece_replace (size_t start, size_t end, const char *ins, size_t ins_len,
    this to GNU nano's default unless --nonewlines is supplied. */
 static int bn_nonewlines = 1;
 
+/* Write the buffer's bytes to FD; returns 0, or -1 with errno set. */
 static int
-bn_pt_save_file (const char *path)
+bn_pt_write_fd (int fd)
 {
-    char tmp[4096];
-    snprintf (tmp, sizeof tmp, "%s.tmpXXXXXX", path);
-    int fd = mkstemp (tmp);
-    if (fd < 0) return -1;
-    struct stat st;
-    int have_st = (stat (path, &st) == 0);
-    fchmod (fd, have_st ? (st.st_mode & 07777) : 0644);
-    if (have_st && geteuid () == 0)
-        (void) fchown (fd, st.st_uid, st.st_gid);
     int last = -1;
     for (size_t i = 0; i < bn_b.pt.n_pieces; i++) {
         const char *p = bn_pt_piece_data (&bn_b.pt, &bn_b.pt.pieces[i]);
@@ -1084,8 +1076,8 @@ bn_pt_save_file (const char *path)
             ssize_t w = write (fd, p + off, n - off);
             if (w <= 0) {
                 if (w < 0 && errno == EINTR) continue;
-                int saved = w == 0 ? EIO : errno;
-                close (fd); unlink (tmp); errno = saved; return -1;
+                if (w == 0) errno = EIO;
+                return -1;
             }
             off += (size_t) w;
         }
@@ -1093,14 +1085,55 @@ bn_pt_save_file (const char *path)
     if (!bn_nonewlines && last >= 0 && last != '\n') {
         ssize_t w;
         do { w = write (fd, "\n", 1); } while (w < 0 && errno == EINTR);
-        if (w != 1) {
-            int saved = w == 0 ? EIO : errno;
-            close (fd); unlink (tmp); errno = saved; return -1;
-        }
+        if (w != 1) { if (w == 0) errno = EIO; return -1; }
     }
-    if (fdatasync (fd) < 0) { close (fd); unlink (tmp); return -1; }
-    if (close (fd) < 0) { unlink (tmp); return -1; }
-    if (rename (tmp, path) < 0) { unlink (tmp); return -1; }
+    return 0;
+}
+
+static int
+bn_pt_save_file (const char *path)
+{
+    /* Save through a symlink to the file it names, as GNU nano does, rather
+       than replacing the link with a regular file. */
+    char *resolved = NULL;
+    struct stat lst;
+    int is_link = lstat (path, &lst) == 0 && S_ISLNK (lst.st_mode);
+    if (is_link) {
+        resolved = realpath (path, NULL);
+        if (resolved) path = resolved;
+    }
+    struct stat st;
+    int have_st = (stat (path, &st) == 0);
+    /* The atomic replace gives the name a new inode. When that would split
+       a hardlinked file, or a non-root editor could not keep the owner, or
+       the link dangles, write the existing file in place instead, keeping
+       its identity, mode and ownership as GNU nano does. */
+    if ((have_st && S_ISREG (st.st_mode)
+         && (st.st_nlink > 1 || (geteuid () != 0 && st.st_uid != geteuid ())))
+        || (!have_st && is_link)) {
+        int fd = open (path, O_WRONLY | O_TRUNC | (have_st ? 0 : O_CREAT), 0644);
+        int saved;
+        free (resolved);
+        if (fd < 0) return -1;
+        if (bn_pt_write_fd (fd) < 0 || fdatasync (fd) < 0) {
+            saved = errno; close (fd); errno = saved; return -1;
+        }
+        return close (fd) < 0 ? -1 : 0;
+    }
+    char tmp[4096];
+    snprintf (tmp, sizeof tmp, "%s.tmpXXXXXX", path);
+    int fd = mkstemp (tmp);
+    if (fd < 0) { int saved = errno; free (resolved); errno = saved; return -1; }
+    fchmod (fd, have_st ? (st.st_mode & 07777) : 0644);
+    if (have_st && geteuid () == 0)
+        (void) fchown (fd, st.st_uid, st.st_gid);
+    if (bn_pt_write_fd (fd) < 0) {
+        int saved = errno;
+        close (fd); unlink (tmp); free (resolved); errno = saved; return -1;
+    }
+    if (fdatasync (fd) < 0) { close (fd); unlink (tmp); free (resolved); return -1; }
+    if (close (fd) < 0) { unlink (tmp); free (resolved); return -1; }
+    if (rename (tmp, path) < 0) { unlink (tmp); free (resolved); return -1; }
     /* G03 atomic-save — fsync the parent directory so the rename itself
        is durable across power loss. POSIX permits a successful rename()
        return to roll back across a crash because the directory entry
@@ -1126,6 +1159,7 @@ bn_pt_save_file (const char *path)
             close (dfd);
         }
     }
+    free (resolved);
     return 0;
 }
 
@@ -2345,7 +2379,7 @@ bn_modal_prompt (const char *label, char *dest, size_t dest_size)
             bn_status_until = saved_until;
             return 0;
         }
-        if (klen == 1 && k[0] == 0x1b) {
+        if (klen == 1 && (k[0] == 0x1b || k[0] == 0x03)) {    /* ESC or GNU's ^C Cancel */
             memcpy (bn_status, saved_status, sizeof bn_status);
             bn_status_until = saved_until;
             return -1;
@@ -2403,8 +2437,8 @@ bn_prompt_key (const char *label)
 
 /* G03 Stage SAVE-PROMPTS — GNU nano's "File Name to Write: " modal. The
    prompt pre-fills with the current bn_b.path (matching nano), the user
-   can edit / Enter / ESC. Enter with empty buffer yields "No filename"
-   via bn_save_as's contract; ESC yields "Save cancelled". Returns 0 on
+   can edit / Enter / ESC or ^C. Enter with empty buffer yields "No filename"
+   via bn_save_as's contract; ESC or ^C yields "Save cancelled". Returns 0 on
    committed write, -1 otherwise. */
 static int
 bn_prompt_save_as (void)
@@ -5106,8 +5140,9 @@ bn_selftest_yank_ring (void)
    consumed it and we didn't leak partial state), (b) byte-exact round-trip,
    (c) two consecutive saves to the same path both succeed (validates the
    parent-dir dirfd from the first save did not leak / clobber state),
-   (d) relative-path save exercises the `dirpath = "."` fallback, and
-   (e) save into a nonexistent dir fails cleanly. */
+   (d) relative-path save exercises the `dirpath = "."` fallback,
+   (e) save into a nonexistent dir fails cleanly, and (f) a save through a
+   symlink to a hardlinked file keeps both links and the inode. */
 static int
 bn_selftest_atomic_save (void)
 {
@@ -5269,6 +5304,48 @@ bn_selftest_atomic_save (void)
     bn_free_lines (); bn_pt_free (&bn_b.pt);
     bn_pt_stack_free (&bn_b.undo); bn_pt_stack_free (&bn_b.redo);
     free (bn_b.path); memset (&bn_b, 0, sizeof bn_b);
+
+    /* Case E — saving through a symlink to a hardlinked file writes the
+       shared inode: the link stays a link and both names see the bytes. */
+    char linkroot[] = "/tmp/nano-aslink.XXXXXX";
+    char *ldir = mkdtemp (linkroot);
+    if (ldir) {
+        char note[256], hard[256], sym[256], tgt[256];
+        snprintf (note, sizeof note, "%s/note", ldir);
+        snprintf (hard, sizeof hard, "%s/hard", ldir);
+        snprintf (sym, sizeof sym, "%s/sym", ldir);
+        int nfd = open (note, O_WRONLY | O_CREAT | O_TRUNC, 0640);
+        if (nfd >= 0) close (nfd);
+        (void) chmod (note, 0640);
+        int linked = nfd >= 0 && link (note, hard) == 0 && symlink ("note", sym) == 0;
+        struct stat before, after;
+        int have_before = linked && stat (note, &before) == 0;
+        memset (&bn_b, 0, sizeof bn_b);
+        bn_pt_init_text (&bn_b.pt, "hello\n", 6);
+        bn_sync_lines_from_pt ();
+        bn_b.dirty = 1;
+        int rc = linked ? bn_save_as (sym) : -1;
+        BN_AS_ASSERT ("save through symlink returns 0", rc == 0);
+        ssize_t tl = readlink (sym, tgt, sizeof tgt - 1);
+        BN_AS_ASSERT ("save keeps the symlink", tl == 4 && memcmp (tgt, "note", 4) == 0);
+        BN_AS_ASSERT ("save keeps the hardlinked inode and mode",
+                      have_before && stat (hard, &after) == 0 && after.st_ino == before.st_ino
+                      && after.st_nlink == 2 && (after.st_mode & 07777) == 0640);
+        int rfd = open (hard, O_RDONLY);
+        char rbuf[16] = {0};
+        ssize_t got = rfd >= 0 ? read (rfd, rbuf, sizeof rbuf - 1) : -1;
+        if (rfd >= 0) close (rfd);
+        BN_AS_ASSERT ("other hardlink sees the saved bytes", got == 6 && memcmp (rbuf, "hello\n", 6) == 0);
+        bn_free_lines (); bn_pt_free (&bn_b.pt);
+        bn_pt_stack_free (&bn_b.undo); bn_pt_stack_free (&bn_b.redo);
+        free (bn_b.path); memset (&bn_b, 0, sizeof bn_b);
+        unlink (sym); unlink (hard); unlink (note); rmdir (ldir);
+    } else {
+        BN_AS_ASSERT ("save through symlink (mkdtemp failed)", 0);
+        BN_AS_ASSERT ("save keeps the symlink (mkdtemp failed)", 0);
+        BN_AS_ASSERT ("save keeps the hardlinked inode and mode (mkdtemp failed)", 0);
+        BN_AS_ASSERT ("other hardlink sees the saved bytes (mkdtemp failed)", 0);
+    }
 
     printf ("1..%d\n", asserts);
     return fails ? 1 : 0;

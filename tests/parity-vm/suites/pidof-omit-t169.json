@@ -37,10 +37,10 @@
       "stderr": "",
       "timeout": 15,
       "id": "t169-pidof-omit-invalid-contract",
-      "purpose": "Verify malformed omit lists produce a usage error independently of diagnostic wording.",
-      "oracle": "Assigned omit-list requirements",
-      "comparison": "Exact contract output and status; diagnostics checked for presence only",
-      "script": "for value in 0 not-a-pid '' , 1,,2 1: 1:-2 -1 +1 4294967296 999999999999999999999999; do\n  pidof -o \"$value\" no_such_pidof_7c3e >out 2>err\n  rc=$?\n  [[ $rc == 2 && ! -s out && -s err ]] || { printf 'invalid rejected incorrectly: <%s> status=%s\\n' \"$value\" \"$rc\"; exit 1; }\ndone\nprintf 'invalid lists rejected\\n'\n",
+      "purpose": "Illegal omit values are skipped with a warning and the lookup still runs. A missing name then exits 1 with empty stdout. +1 is a legal omit of pid 1.",
+      "oracle": "sysvinit-utils 3.14 pidof skips an illegal omit value and keeps looking",
+      "comparison": "Exact contract output and status. Illegal omits exit 1 with empty stdout; a nonempty stderr must name an illegal omit pid. +1 is legal and stays silent.",
+      "script": "for value in 0 not-a-pid '' , 1,,2 1: 1:-2 -1 +1 4294967296 999999999999999999999999; do\n  pidof -o \"$value\" no_such_pidof_7c3e >out 2>err\n  rc=$?\n  if [[ $rc != 1 || -s out ]]; then\n    printf 'invalid omit handled incorrectly: <%s> status=%s\\n' \"$value\" \"$rc\"\n    exit 1\n  fi\n  if [[ $value == +1 ]]; then\n    [[ ! -s err ]] || { printf 'legal omit warned: <%s>\\n' \"$value\"; exit 1; }\n  elif [[ -s err ]] && ! grep -q 'illegal omit pid value' err; then\n    printf 'unexpected omit diagnostic: <%s>\\n' \"$value\"\n    exit 1\n  fi\ndone\nprintf 'invalid lists rejected\\n'\n",
       "stdout": "invalid lists rejected\n"
     }
   ]

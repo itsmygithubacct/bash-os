@@ -1,7 +1,7 @@
 {
   "version": 1,
   "loadable": "pidof",
-  "reference": "procps-ng pidof supplies independent no-match CLI comparisons; positive matching, ordering and root filtering require controlled process records. Bash type/help cases are metadata only.",
+  "reference": "sysvinit-utils 3.14 pidof is the reference. This small suite checks builtin metadata and points at migrated cases.",
   "coverage": [
     "Bash type metadata reports pidof as a builtin.",
     "Bash help resolves the pidof help topic and emits metadata.",
@@ -15,7 +15,7 @@
   ],
   "exclusions": [
     "The single owned-child argv[0] lookup and no-match modes execute. Multiple-match enumeration, script/comm distinctions, parent relationships and differing process roots need the additional controlled fixtures described below.",
-    "Thread selection, namespace-specific process selection, races during procfs traversal, and non-procps pidof variants are outside this small suite."
+    "Thread selection, namespace-specific process selection, and races during procfs traversal are outside this small suite."
   ],
   "cases": [
     {

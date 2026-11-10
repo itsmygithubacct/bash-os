@@ -266,9 +266,9 @@
       "driver": "plain",
       "purpose": "prlimit command signal",
       "oracle": "Locked util-linux prlimit and independent Python kernel read-back on the same owned-child scenario.",
-      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker. GNU exec makes its invoking Bash report Terminated; the builtin may return a numeric signal status without that shell diagnostic.",
-      "script": "prlimit --nofile=64:64 /usr/bin/python3 -c 'import os,signal;os.kill(os.getpid(),signal.SIGTERM)'; printf \"status=%s\\n\" \"$?\"",
-      "stderr": "Terminated                 prlimit --nofile=64:64 /usr/bin/python3 -c 'import os,signal;os.kill(os.getpid(),signal.SIGTERM)'\n",
+      "comparison": "Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker. GNU exec makes its invoking Bash report Terminated; the builtin may return a numeric signal status without that shell diagnostic. The shell's job notice is captured in a grouped redirection and removed, so only the status is compared.",
+      "script": "{ prlimit --nofile=64:64 /usr/bin/python3 -c 'import os,signal;os.kill(os.getpid(),signal.SIGTERM)'; rc=$?; } 2> notice.err; printf \"status=%s\\n\" \"$rc\"; /bin/rm -f notice.err",
+      "stderr": "",
       "expected_status": 0,
       "requires": [
         "prlimit",

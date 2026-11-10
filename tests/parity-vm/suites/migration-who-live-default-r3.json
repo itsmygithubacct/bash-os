@@ -10,7 +10,7 @@
       "covers": [
         "who/live_default_utmp"
       ],
-      "purpose": "Compare a populated private default database and explicit copy, headers, quick counts, and two-operand current-terminal form with GNU who; missing prerequisites are failures.",
+      "purpose": "No FILE operand reads systemd-logind sessions, including the boot time GNU who 9.7 takes from the default utmp; copy.utmp is a FILE operand and reads that utmp file. Compare headers, quick counts, boot, message status, and the two-operand current-terminal form with GNU who. Missing prerequisites are failures.",
       "oracle": "GNU coreutils who in the same disposable namespace",
       "comparison": "Byte parity of output and status, with fixed UTC and C locale; setup failures terminate the case.",
       "requires": [

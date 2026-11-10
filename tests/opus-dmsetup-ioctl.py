@@ -225,8 +225,9 @@ def t_create(fx):
               "relative five-target file has exact aligned load payload")
     r = fx.run("dmsetup create fromstdin; dmsetup table fromstdin", STATE, stdin="0 5 zero\n")
     check(r.rc == 0 and r.out == "0 5 zero \n", "table read from stdin", r.out + r.err)
-    r = fx.run("dmsetup create inline '0 9 zero'; dmsetup table inline", STATE)
-    check(r.rc == 0 and r.out == "0 9 zero \n", "inline table argument kept from the old builtin", r.out + r.err)
+    r = fx.run("dmsetup create inline '0 9 zero'", STATE)
+    check(r.rc != 0 and "Couldn't open '0 9 zero' for reading." in r.err,
+          "a positional table operand is a filename, never inline text", r.out + r.err)
 
     r = fx.run("dmsetup create bare -n; dmsetup info bare", STATE)
     check(r.cmds() == ["create", "info"] and "Tables present:    None" in r.out,

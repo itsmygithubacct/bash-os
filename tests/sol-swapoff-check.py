@@ -47,29 +47,82 @@ def environment(shim, asan=None):
     return env
 
 
+def resolve_spec(spec):
+    """Match so_resolve: C realpath, so a missing path is not invented."""
+    if not spec:
+        return None
+    for prefix, kind in (('UUID=', 'uuid'), ('LABEL=', 'label'),
+                         ('PARTUUID=', 'partuuid'), ('PARTLABEL=', 'partlabel')):
+        if spec.startswith(prefix):
+            link = f'/dev/disk/by-{kind}/{spec[len(prefix):]}'
+            if not os.path.exists(link):
+                return None
+            return os.path.realpath(link)
+    if os.path.exists(spec):
+        return os.path.realpath(spec)
+    return spec
+
+
+def fstab_followup(active):
+    """Inactive fstab swap entries swapoff -a requests after the table."""
+    calls, notes = [], []
+    try:
+        text = Path('/etc/fstab').read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return calls, notes
+    active = set(active)
+    for raw in text.splitlines():
+        line = raw.split('#', 1)[0].strip()
+        if not line:
+            continue
+        fields = line.split()
+        if len(fields) < 3 or fields[2] != 'swap':
+            continue
+        spec = fields[0]
+        resolved = resolve_spec(spec)
+        if resolved is None:
+            notes.append(f'cannot find the device for {spec}')
+            continue
+        if resolved not in active and spec not in active:
+            calls.append(resolved)
+    return calls, notes
+
+
+def uses_table(case):
+    return any(arg in ('-a', '--all') for arg in case['args'])
+
+
 def cases():
-    # expected paths are independent literals, never derived by the C parser.
+    # Proc-table paths only. -a also appends inactive fstab swap entries.
     yield dict(name='named-literal-escapes', args=['/named space', '/tab\tname', '/line\nname', r'/literal\040'],
                expected=['/named space', '/tab\tname', '/line\nname', r'/literal\040'])
     yield dict(name='named-relative-and-dash', args=['--', '-device', 'relative'], expected=['-device', 'relative'])
     yield dict(name='named-duplicates-are-explicit', args=['/a', '/a'], expected=['/a', '/a'])
     yield dict(name='named-partial-errors', args=['/good', '/denied', '/missing', '/last'],
                expected=['/good', '/denied', '/missing', '/last'], fails=[('/denied', 13), ('/missing', 19)],
-               rc=1, stderr=['/denied: Permission denied', '/missing: No such device'])
+               rc=4, stderr=['/denied: swapoff failed: Permission denied',
+                             '/missing: swapoff failed: No such device'])
     yield dict(name='named-errno-order-and-repeat',
                args=['--', '-missing', '/nonswap', '/active', '-missing', '', '/last'],
                expected=['-missing', '/nonswap', '/active', '-missing', '/last'],
-               fails=[('-missing', 2), ('/nonswap', 22)], rc=1,
-               stderr_lines=['-missing: No such file or directory', '/nonswap: Invalid argument',
-                             '-missing: No such file or directory', 'empty device name'])
+               fails=[('-missing', 2), ('/nonswap', 22)], rc=255,
+               stderr_lines=['-missing: swapoff failed: No such file or directory',
+                             '/nonswap: swapoff failed: Invalid argument',
+                             '-missing: swapoff failed: No such file or directory',
+                             'cannot find the device for '])
     yield dict(name='named-permission', args=['/root-only'], expected=['/root-only'], fails=[('/root-only', 1)],
-               rc=1, stderr=['Operation not permitted'])
-    yield dict(name='empty-name-partial', args=['', '/last'], expected=['/last'], rc=1, stderr=['empty device name'])
-    yield dict(name='no-operands', args=[], expected=[], rc=2, stderr=['no device specified'])
-    yield dict(name='only-separator', args=['--'], expected=[], rc=2, stderr=['no device specified'])
-    yield dict(name='invalid-option', args=['--bogus', '/a'], expected=[], rc=2, stderr=['unknown option'])
-    yield dict(name='all-with-operand', args=['-a', '/a'], expected=[], rc=2, stderr=['does not accept'])
-    yield dict(name='all-with-separated-operand', args=['--all', '--', '/a'], expected=[], rc=2, stderr=['does not accept'])
+               rc=16, stderr=['Not superuser.'])
+    yield dict(name='empty-name-partial', args=['', '/last'], expected=['/last'], rc=255,
+               stderr_lines=['cannot find the device for '])
+    yield dict(name='no-operands', args=[], expected=[], rc=16, stderr=['bad usage', "Try 'swapoff --help'"])
+    yield dict(name='only-separator', args=['--'], expected=[], rc=16, stderr=['bad usage'])
+    yield dict(name='invalid-option', args=['--bogus', '/a'], expected=[], rc=16,
+               stderr=["unrecognized option '--bogus'", "Try 'swapoff --help'"])
+    yield dict(name='invalid-short-option', args=['-Z'], expected=[], rc=16,
+               stderr=["invalid option -- 'Z'", "Try 'swapoff --help'"])
+    yield dict(name='all-with-operand', args=['-a', '/a'], expected=['/a'])
+    yield dict(name='all-with-separated-operand', args=['--all', '--', '/a'], expected=['/a'])
+    yield dict(name='operand-then-all', args=['/a', '-a'], expected=['/a'])
     yield dict(name='help', args=['--help'], expected=[], stdout='Disable a swap area.')
     yield dict(name='help-output-failure', args=['--help'], expected=[], rc=1, redirect='/dev/full', allow_stderr=True)
     yield dict(name='all-empty', args=['-a'], data=HEADER, expected=[])
@@ -77,51 +130,70 @@ def cases():
     yield dict(name='all-repeated-option', args=['-a', '--all'], data=HEADER + row('/a'), expected=['/a'])
     yield dict(name='all-path-escapes', args=['-a'], data=HEADER + row(r'/space\040name') + row(r'/tab\011name') +
                row(r'/line\012name') + row(r'/slash\134name') + row(r'/literal\134040'),
-               expected=['/space name', '/tab\tname', '/line\nname', '/slash\\name', r'/literal\040'])
-    yield dict(name='all-carriage-return-path', args=['-a'], data=HEADER + row('/carriage\rname'), expected=['/carriage\rname'])
+               expected=list(reversed(['/space name', '/tab\tname', '/line\nname', '/slash\\name', r'/literal\040'])))
+    yield dict(name='all-carriage-return-path', args=['-a'], data=HEADER + row('/carriage\rname'), expected=[],
+               rc=0, stderr=['parse error at line 2'])
     yield dict(name='all-duplicates', args=['-a'], data=HEADER + row('/a') + row('/b', 'partition') + row('/a', priority='4'),
-               expected=['/a', '/b'])
-    yield dict(name='all-permission-continues', args=['-a'], data=HEADER + row('/a') + row('/denied') + row('/last'),
-               expected=['/a', '/denied', '/last'], fails=[('/denied', 1)], rc=1, stderr=['Operation not permitted'])
-    yield dict(name='header-whitespace', args=['-a'], data=b' Filename Type Size Used Priority \n' + row('/a'), expected=['/a'])
+               expected=['/a', '/b', '/a'])
+    yield dict(name='all-permission-stops', args=['-a'], data=HEADER + row('/a') + row('/denied') + row('/last'),
+               expected=['/last', '/denied'], fails=[('/denied', 1)], abort=True, rc=16,
+               stderr=['Not superuser.'])
+    yield dict(name='header-whitespace', args=['-a'], data=b' Filename Type Size Used Priority \n' + row('/a'),
+               expected=['/a'], stderr=['parse error at line 1'])
     yield dict(name='no-final-newline', args=['-a'], data=HEADER + row('/a').rstrip(b'\n'), expected=['/a'])
     yield dict(name='blank-rows', args=['-a'], data=HEADER + b'\n \t\n' + row('/a'), expected=['/a'])
     yield dict(name='long-path-not-truncated', args=['-a'], data=HEADER + row('/' + 'x' * 16384), expected=['/' + 'x' * 16384])
-    yield dict(name='long-duplicate-set', args=['-a'], data=HEADER + b''.join(row('/p' + str(i)) for i in range(100)) * 2,
-               expected=['/p' + str(i) for i in range(100)])
-    for name, data in [('data-instead-of-header', b''), ('missing-header', row('/never')), ('wrong-header', b'Filename Type Size Used Wrong\n'),
-                       ('header-extra', HEADER.rstrip(b'\n') + b' Extra\n'), ('header-nul', HEADER.replace(b'Type', b'Ty\x00pe'))]:
-        yield dict(name=name, args=['-a'], data=data + row('/never'), expected=[], rc=1, stderr=['header'])
-    # Truly empty input separately: appended rows above exercise header rejection.
-    yield dict(name='truly-empty-file', args=['-a'], data=b'', expected=[], rc=1, stderr=['missing header'])
-    malformed = {
+    seq = ['/p' + str(i) for i in range(100)]
+    yield dict(name='long-duplicate-set', args=['-a'], data=HEADER + b''.join(row(path) for path in seq) * 2,
+               expected=list(reversed(seq)) * 2)
+    yield dict(name='data-instead-of-header', args=['-a'], data=b'' + row('/never'), expected=['/never'])
+    yield dict(name='missing-header', args=['-a'], data=row('/never'), expected=['/never'])
+    yield dict(name='wrong-header', args=['-a'], data=b'Filename Type Size Used Wrong\n' + row('/never'),
+               expected=['/never'], stderr=['parse error at line 1'])
+    yield dict(name='header-extra', args=['-a'], data=HEADER.rstrip(b'\n') + b' Extra\n' + row('/never'),
+               expected=['/never'])
+    yield dict(name='header-nul', args=['-a'], data=HEADER.replace(b'Type', b'Ty\x00pe') + row('/never'),
+               expected=['/never'], stderr=['parse error at line 1'])
+    yield dict(name='truly-empty-file', args=['-a'], data=b'', expected=[])
+    accepted = {
+        'extra-field': (b'/never file 4 0 -2 extra\n', '/never'),
+        'relative': (row('relative'), 'relative'),
+        'unknown-type': (row('/never', 'bogus'), '/never'),
+        'used-over-size': (row('/never', used='4097'), '/never'),
+        'nul-escape': (row(r'/never\000'), '/never'),
+        'unknown-escape': (row(r'/never\141'), '/nevera'),
+        'short-escape': (row('/never\\04'), '/never\\04'),
+        'bare-backslash': (row('/never\\'), '/never\\'),
+    }
+    rejected = {
         'one-field': b'/never\n', 'missing-field': b'/never file 4 0\n',
-        'extra-field': b'/never file 4 0 -2 extra\n', 'relative': row('relative'),
-        'unknown-type': row('/never', 'bogus'), 'negative-size': row('/never', size='-1'),
+        'negative-size': row('/never', size='-1'),
         'bad-size': row('/never', size='12x'), 'size-overflow': row('/never', size='18446744073709551616'),
-        'negative-used': row('/never', used='-1'), 'used-over-size': row('/never', used='4097'),
+        'negative-used': row('/never', used='-1'),
         'bad-priority': row('/never', priority='--1'), 'priority-overflow': row('/never', priority='2147483648'),
         'priority-underflow': row('/never', priority='-2147483649'),
-        'nul-path': row('/ne\x00ver'), 'nul-tail': row('/never') + b'\x00\n',
-        'nul-escape': row(r'/never\000'), 'unknown-escape': row(r'/never\141'),
-        'short-escape': row('/never\\04'), 'bare-backslash': row('/never\\'),
-        'header-again': HEADER, 'long-bad-row': b'/never ' + b'x' * 20000 + b'\n',
+        'nul-path': row('/ne\x00ver'),
+        'long-bad-row': b'/never ' + b'x' * 20000 + b'\n',
     }
-    for name, bad in malformed.items():
-        # A later valid row must survive rejection of even a very long bad row.
-        expected = ['/before', '/after']
-        if name == 'nul-tail':
-            # The first complete row is valid; only the following NUL row is bad.
-            expected = ['/before', '/never', '/after']
+    for name, (bad, path) in accepted.items():
         yield dict(name='malformed-' + name, args=['-a'], data=HEADER + row('/before') + bad + row('/after'),
-                   expected=expected, rc=1, stderr=['malformed row'])
-    for fault, errno_value, opens, closes, message in [('open', 13, 1, 0, 'Permission denied'),
-                                                    ('read', 1, 1, 1, 'read error'),
-                                                    ('close', 5, 1, 1, 'Input/output error')]:
-        yield dict(name='source-' + fault + '-error', args=['-a'], data=HEADER + row('/never'), expected=[],
-                   fault=(fault, errno_value), opens=opens, closes=closes, rc=1, stderr=[message])
+                   expected=['/after', path, '/before'])
+    yield dict(name='malformed-header-again', args=['-a'], data=HEADER + row('/before') + HEADER + row('/after'),
+               expected=['/after', '/before'])
+    yield dict(name='malformed-nul-tail', args=['-a'],
+               data=HEADER + row('/before') + row('/never') + b'\x00\n' + row('/after'),
+               expected=['/after', '/never', '/before'], stderr=['parse error'])
+    for name, bad in rejected.items():
+        yield dict(name='malformed-' + name, args=['-a'], data=HEADER + row('/before') + bad + row('/after'),
+                   expected=['/after', '/before'], stderr=['parse error'])
+    yield dict(name='source-open-error', args=['-a'], data=HEADER + row('/never'), expected=[],
+               fault=('open', 13), opens=1, closes=0)
+    yield dict(name='source-read-error', args=['-a'], data=HEADER + row('/never'), expected=[],
+               fault=('read', 1), opens=1, closes=1)
+    yield dict(name='source-close-error', args=['-a'], data=HEADER + row('/never'), expected=['/never'],
+               fault=('close', 5), opens=1, closes=1)
     yield dict(name='integer-boundaries', args=['-a'], data=HEADER + row('/max', size='18446744073709551615', priority='2147483647') +
-               row('/min', size='0', priority='-2147483648'), expected=['/max', '/min'])
+               row('/min', size='0', priority='-2147483648'), expected=['/min', '/max'])
 
 
 def run_suite(args):
@@ -134,9 +206,15 @@ def run_suite(args):
             data = case.get('data', HEADER)
             fixture = tmp / 'swaps'
             fixture.write_bytes(data)
+            expected = list(case['expected'])
+            stderr_need = list(case.get('stderr', []))
+            if uses_table(case) and not case.get('abort'):
+                extra, notes = fstab_followup(expected)
+                expected.extend(extra)
+                stderr_need.extend(notes)
             script = shell_setup(args.shim, args.module)
             script += f'swapoff_fixture source {quote(fixture)} || exit 93\n'
-            script += 'swapoff_fixture expect ' + ' '.join(map(quote, case['expected'])) + ' || exit 93\n'
+            script += 'swapoff_fixture expect ' + ' '.join(map(quote, expected)) + ' || exit 93\n'
             for path, error in case.get('fails', []):
                 script += f'swapoff_fixture fail {quote(path)} {error} || exit 93\n'
             if 'fault' in case:
@@ -146,19 +224,20 @@ def run_suite(args):
                 command += ' >' + quote(case['redirect'])
             script += command + '\nrc=$?\n'
             script += f'[[ $rc == {case.get("rc", 0)} ]] || {{ printf "wrong status: %s\\n" "$rc" >&2; exit 89; }}\n'
-            opens = case.get('opens', 1 if 'data' in case else 0)
+            opens = case.get('opens', 1 if uses_table(case) else 0)
             closes = case.get('closes', opens)
-            script += f'swapoff_fixture check {len(case["expected"])} {opens} {closes} || exit 88\n'
+            script += f'swapoff_fixture check {len(expected)} {opens} {closes} || exit 88\n'
             script += 'swapoff_fixture reset || exit 87\n'
-            proc = subprocess.run([args.binary, '--noprofile', '--norc', '-c', script], env=env, capture_output=True)
+            proc = subprocess.run([args.binary, '--noprofile', '--norc', '-c', script], env=env,
+                                  capture_output=True, cwd=tmp)
             stderr = proc.stderr.decode(errors='replace')
-            ok = proc.returncode == 0 and all(s in stderr for s in case.get('stderr', []))
+            ok = proc.returncode == 0 and all(s in stderr for s in stderr_need)
             if 'stderr_lines' in case:
                 lines = stderr.splitlines()
                 normalized = [re.sub(r'^.*\bswapoff: ', '', line, count=1) for line in lines]
                 ok = ok and normalized == case['stderr_lines'] and all(
                     re.match(r'^.*\bswapoff: ', line) for line in lines)
-            if not case.get('stderr') and 'stderr_lines' not in case and not case.get('allow_stderr'):
+            if not stderr_need and 'stderr_lines' not in case and not case.get('allow_stderr'):
                 ok = ok and not proc.stderr
             ok = ok and ('stdout' not in case or case['stdout'].encode() in proc.stdout)
             if 'stdout' not in case:
@@ -169,38 +248,38 @@ def run_suite(args):
         # Mixed success/failure paths in one process: state and FD oracle every call.
         fixture = tmp / 'swaps'
         fixture.write_bytes(HEADER + row('/a') + row(r'/space\040name') + row('/a'))
+        proc_paths = ['/a', '/space name', '/a']
+        fstab_calls, _notes = fstab_followup(proc_paths)
+        full = proc_paths + fstab_calls
         script = shell_setup(args.shim, args.module)
         script += f'swapoff_fixture source {quote(fixture)} || exit 93\n'
-        script += '''swapoff --help >/dev/full 2>/dev/null
-[[ $? == 1 ]] || exit 79
-swapoff --help >/dev/null || exit 80
-before=(/proc/$$/fd/*)
-for ((i=0;i<200;i++)); do
-swapoff_fixture expect /a '/space name' || exit 93
-swapoff -a || exit 81
-swapoff_fixture check 2 1 1 || exit 82
-swapoff_fixture expect /literal || exit 93
-swapoff /literal || exit 83
-swapoff_fixture check 1 0 0 || exit 84
-swapoff --bogus 2>/dev/null
-[[ $? == 2 ]] || exit 85
-swapoff_fixture check 0 0 0 || exit 86
-swapoff_fixture fault read 1 || exit 93
-swapoff -a 2>/dev/null
-[[ $? == 1 ]] || exit 75
-swapoff_fixture check 0 1 1 || exit 76
-swapoff_fixture fault read 0 || exit 93
-swapoff_fixture fault close 5 || exit 93
-swapoff -a 2>/dev/null
-[[ $? == 1 ]] || exit 73
-swapoff_fixture check 0 1 1 || exit 74
-swapoff_fixture fault close 0 || exit 93
-done
-after=(/proc/$$/fd/*)
-[[ ${#before[@]} == ${#after[@]} ]] || exit 78
-swapoff_fixture reset || exit 87
-'''
-        proc = subprocess.run([args.binary, '--noprofile', '--norc', '-c', script], env=env, capture_output=True)
+        script += 'swapoff --help >/dev/full 2>/dev/null\n[[ $? == 1 ]] || exit 79\n'
+        script += 'swapoff --help >/dev/null || exit 80\n'
+        script += 'before=(/proc/$$/fd/*)\n'
+        script += 'for ((i=0;i<200;i++)); do\n'
+        script += 'swapoff_fixture expect ' + ' '.join(map(quote, full)) + ' || exit 93\n'
+        script += 'swapoff -a || exit 81\n'
+        script += f'swapoff_fixture check {len(full)} 1 1 || exit 82\n'
+        script += 'swapoff_fixture expect /literal || exit 93\n'
+        script += 'swapoff /literal || exit 83\n'
+        script += 'swapoff_fixture check 1 0 0 || exit 84\n'
+        script += 'swapoff --bogus 2>/dev/null\n[[ $? == 16 ]] || exit 85\n'
+        script += 'swapoff_fixture check 0 0 0 || exit 86\n'
+        script += 'swapoff_fixture fault read 1 || exit 93\n'
+        script += 'swapoff_fixture expect ' + ' '.join(map(quote, fstab_calls)) + ' || exit 93\n'
+        script += 'swapoff -a 2>/dev/null\n[[ $? == 0 ]] || exit 75\n'
+        script += f'swapoff_fixture check {len(fstab_calls)} 1 1 || exit 76\n'
+        script += 'swapoff_fixture fault read 0 || exit 93\n'
+        script += 'swapoff_fixture fault close 5 || exit 93\n'
+        script += 'swapoff_fixture expect ' + ' '.join(map(quote, full)) + ' || exit 93\n'
+        script += 'swapoff -a 2>/dev/null\n[[ $? == 0 ]] || exit 73\n'
+        script += f'swapoff_fixture check {len(full)} 1 1 || exit 74\n'
+        script += 'swapoff_fixture fault close 0 || exit 93\n'
+        script += 'done\nafter=(/proc/$$/fd/*)\n'
+        script += '[[ ${#before[@]} == ${#after[@]} ]] || exit 78\n'
+        script += 'swapoff_fixture reset || exit 87\n'
+        proc = subprocess.run([args.binary, '--noprofile', '--norc', '-c', script], env=env,
+                              capture_output=True, cwd=tmp)
         ok = proc.returncode == 0 and not proc.stdout and not proc.stderr
         results.append(dict(name='persistent-mixed-1000-calls', status='pass' if ok else 'fail', exit_code=proc.returncode,
                             stdout=proc.stdout.decode(errors='replace'), stderr=proc.stderr.decode(errors='replace')))

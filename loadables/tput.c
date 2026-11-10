@@ -429,7 +429,9 @@ parameter_code (const char *cap)
 /* Compiled terminfo is resolved before the unknown-terminal return.
  * A loaded entry supplies standard and extended capabilities. Mandatory
  * $<N/> delays to a terminal become floor(ms * baud / 9000) pad bytes, or
- * a sleep when the entry sets npc. Non-mandatory $<N> delays are omitted.
+ * a sleep when the entry sets npc. Non-mandatory $<N> delays are omitted,
+ * except in clear: ncurses tput writes clear through clear_cmd's tputs(),
+ * whose screenless wrapper applies every delay, '*' scaled by the lines.
  * init/reset have a separate compiled-entry path; environment-backed size
  * queries stay on the curated path. As in ncurses tput, a string given no parameters is written
  * unexpanded, and clear also writes the entry's E3 when it has one. */
@@ -471,6 +473,17 @@ tp_string_supported (const char *s)
       s++;
     }
   return 1;
+}
+
+/* ncurses tput sets up the terminal on the first of stderr, stdout and
+   stdin that is a terminal, so $(tput cols) still sees the window. */
+static int
+tp_size_fd (void)
+{
+  if (isatty (STDERR_FILENO)) return STDERR_FILENO;
+  if (isatty (STDOUT_FILENO)) return STDOUT_FILENO;
+  if (isatty (STDIN_FILENO)) return STDIN_FILENO;
+  return -1;
 }
 
 static int
@@ -518,6 +531,8 @@ struct tp_out {
   size_t len;
   size_t cap;
   long pad_ms;      /* padding already applied for this capability */
+  int pad_all;      /* clear: non-mandatory delays apply too */
+  long affcnt;      /* clear: lines affected, for proportional '*' delays */
 };
 
 static int
@@ -621,8 +636,8 @@ tp_expand_compiled (const char *tmpl, WORD_LIST *args, const char *var,
              delay is whole milliseconds; parsing stops growing it past the
              bound. */
           const char *p = tmpl + 2;
-          long ms = 0;
-          int mandatory = 0;
+          long ms = 0, tenth = 0;
+          int mandatory = 0, proportional = 0;
           if ((!(*p >= '0' && *p <= '9') && *p != '.') || !strchr (p, '>'))
             {
               if (tp_out_add (o, "$<", 2) < 0) return -1;
@@ -633,13 +648,24 @@ tp_expand_compiled (const char *tmpl, WORD_LIST *args, const char *var,
             if (ms <= TP_MAX_PAD_MS)
               ms = ms * 10 + (*p - '0');
           if (*p == '.')
-            for (p++; *p >= '0' && *p <= '9'; p++)
-              ;
+            {
+              p++;
+              if (*p >= '0' && *p <= '9')
+                tenth = *p++ - '0';
+              for (; *p >= '0' && *p <= '9'; p++)
+                ;
+            }
           for (; *p == '*' || *p == '/'; p++)
             if (*p == '/')
               mandatory = 1;
+            else
+              proportional = 1;
           tmpl = p + 1;
-          if (mandatory && tp_out_pad (o, var, npc, ms) < 0)
+          /* ncurses counts tenths of a millisecond and multiplies them by
+             the affected lines for '*'; only clear passes more than one. */
+          if (proportional && o->affcnt > 1 && ms <= TP_MAX_PAD_MS)
+            ms = ((ms * 10 + tenth) * o->affcnt) / 10;
+          if ((mandatory || o->pad_all) && tp_out_pad (o, var, npc, ms) < 0)
             return -1;
           continue;
         }
@@ -748,6 +774,20 @@ emit_compiled (const char *term, const char *cap, WORD_LIST *args, const char *v
       return -1;
     }
   memset (&out, 0, sizeof out);
+  if (!strcmp (cap, "clear"))
+    {
+      struct winsize ws;
+      int32_t lines = 0;
+      out.pad_all = 1;
+      int sfd = tp_size_fd ();
+      if (sfd >= 0 && ioctl (sfd, TIOCGWINSZ, &ws) == 0 && ws.ws_row)
+        out.affcnt = ws.ws_row;
+      else if (bt_compiled_lookup (term, "lines", NULL, &lines, NULL, NULL) == 1
+               && lines > 0 && lines < 65536)
+        out.affcnt = lines;
+      else
+        out.affcnt = 1;
+    }
   rc = tp_expand_compiled (str, args, var, npc, args == NULL, &out);
   free (str);
   if (rc == 0 && !strcmp (cap, "clear"))
@@ -1129,7 +1169,7 @@ emit_cap (const char *cap, WORD_LIST *args, const char *var, const char *term, i
     }
   if (!known_cap (cap))
     {
-      fprintf (stderr, "tput: unknown capability: %s\n", cap);
+      fprintf (stderr, "tput: unknown terminfo capability '%s'\n", cap);
       return 4;
     }
   bi = boolean_index (cap);
@@ -1343,10 +1383,13 @@ emit_cap (const char *cap, WORD_LIST *args, const char *var, const char *term, i
 
       if (value)
         return bind_or_print (var, value, 1);
-      /* -T selects database dimensions independently of the current tty.
-         Read the window on every query so a resize is visible.  A zero
-         dimension means the driver has no value for that dimension. */
-      if (!explicit_term && ioctl (STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 &&
+      /* As ncurses tput: LINES and COLUMNS override the window unless -T
+         is given (use_env(FALSE), use_tioctl(TRUE)); either way the window
+         size of the terminal comes next, and the database only off a
+         terminal.  Read the window on every query so a resize is visible.
+         A zero dimension means the driver has no value for it. */
+      int sfd = tp_size_fd ();
+      if (sfd >= 0 && ioctl (sfd, TIOCGWINSZ, &ws) == 0 &&
           (columns ? ws.ws_col : ws.ws_row))
         {
           snprintf (buf, sizeof buf, "%u", (unsigned int) (columns ? ws.ws_col : ws.ws_row));

@@ -3523,6 +3523,9 @@ bd_to_ptr_name (const char *ip, char *out, size_t out_sz)
  *     fixture-backed proofs (Stage 39.D.C).
  *   - DNSSEC-validated DNAME proof accepts a validated DNAME RRset as
  *     proof for the unsigned synthesized CNAME rewrite it implies.
+ *     An unsigned CNAME that disagrees with the DNAME is ignored.
+ *     The resolver derives the CNAME from the DNAME (RFC 6672
+ *     section 3.4) and continues at that name.
  * ===================================================================
  */
 
@@ -4741,7 +4744,10 @@ bd_dname_expected_cname (const char *qname, const char *dname_owner,
 }
 
 /* Returns 0 when a DNAME proof validated, 1 when no applicable DNAME was
- * present, and -1 for malformed or bogus DNAME synthesis. */
+ * present, and -1 for malformed or bogus DNAME synthesis.
+ * An unsigned CNAME is not the redirect: RFC 6672 section 3.4 derives
+ * the CNAME from the validated DNAME and continues. A CNAME that
+ * disagrees and carries a signature which verifies is still bogus. */
 static int
 bd_dname_validate (bd_rr_t *rrs, int rrs_n, const char *qname, uint16_t qtype,
                    const bd_trust_t *active, int active_n, int skew_sec,
@@ -4791,7 +4797,7 @@ bd_dname_validate (bd_rr_t *rrs, int rrs_n, const char *qname, uint16_t qtype,
       return -1;
     }
 
-  int saw_cname = 0, matched_cname = 0;
+  int saw_cname = 0, matched_cname = 0, ignored_unsigned = 0;
   char actual[256] = "";
   for (int i = 0; i < rrs_n; i++)
     {
@@ -4805,8 +4811,19 @@ bd_dname_validate (bd_rr_t *rrs, int rrs_n, const char *qname, uint16_t qtype,
         }
       if (strcmp (actual, best_expected) != 0)
         {
-          snprintf (err, err_sz, "DNAME synthesis mismatch: expected %s got %s", best_expected, actual);
-          return -1;
+          /* A signature that verifies makes the disagreement authenticated
+             zone data. Anything else is an unsigned synthesis and is ignored;
+             the caller follows best_expected, derived from the DNAME. */
+          char cerr[256];
+          if (bd_verify_rrset (rrs, rrs_n, qcanon, BD_T_CNAME,
+                               active, active_n, skew_sec, cerr, sizeof cerr) == 0)
+            {
+              snprintf (err, err_sz, "DNAME synthesis mismatch: expected %s got %s",
+                        best_expected, actual);
+              return -1;
+            }
+          ignored_unsigned = 1;
+          continue;
         }
       matched_cname = 1;
     }
@@ -4817,7 +4834,7 @@ bd_dname_validate (bd_rr_t *rrs, int rrs_n, const char *qname, uint16_t qtype,
                 best_expected);
       return -1;
     }
-  if (!matched_cname)
+  if (!matched_cname && !ignored_unsigned)
     {
       snprintf (err, err_sz, "DNAME synthesis mismatch: expected %s got %s",
                 best_expected, actual[0] ? actual : "<none>");
@@ -5584,8 +5601,17 @@ bd_chain_validate (const char *qname, uint16_t qtype, const char *server,
               int denial = bd_negative_validate (reply, (size_t) dlen, zone, BD_T_DS,
                                                  active, active_n, skew_sec, ttl_bound);
               if (denial == BD_VALIDATE_INSECURE) {
+                /* An opt-out span covers unsigned delegations, and a parent
+                   puts no NS beside the SOA of a DS NODATA answer, so when
+                   this one has none the delegation is taken from what an
+                   NS query for the name returns. */
                 if (!bd_response_has_delegation (reply, (size_t) dlen, zone))
-                  return bd_validate_fail ("opt-out DS proof lacks a delegation for %s", zone);
+                  {
+                    int nlen = bd_chain_fetch (fetch, fetch_ctx, zone, BD_T_NS, server,
+                                               timeout_ms, attempts, reply, sizeof reply);
+                    if (nlen < 12 || !bd_response_has_delegation (reply, (size_t) nlen, zone))
+                      return bd_validate_fail ("opt-out DS proof lacks a delegation for %s", zone);
+                  }
                 return BD_VALIDATE_INSECURE;
               }
               if (denial != EXECUTION_SUCCESS)
@@ -5700,10 +5726,12 @@ bd_chain_validate (const char *qname, uint16_t qtype, const char *server,
   if (alias_mode) {
     bd_rr_t dname_rrs[BD_RR_MAX]; int dn = 0;
     for (int i = 0; i < all_n && dn < BD_RR_MAX; i++) {
+      uint16_t covered = all_rrs[i].rdata_len >= 2 ? bd_rd16 (all_rrs[i].rdata) : 0;
       int keep = all_rrs[i].type == BD_T_DNAME ||
                  (all_rrs[i].type == BD_T_CNAME && !strcmp (all_rrs[i].owner, canon)) ||
-                 (all_rrs[i].type == BD_T_RRSIG && all_rrs[i].rdata_len >= 2 &&
-                  bd_rd16 (all_rrs[i].rdata) == BD_T_DNAME);
+                 (all_rrs[i].type == BD_T_RRSIG &&
+                  (covered == BD_T_DNAME ||
+                   (covered == BD_T_CNAME && !strcmp (all_rrs[i].owner, canon))));
       if (keep) dname_rrs[dn++] = all_rrs[i];
     }
     dname_rc = bd_dname_validate (dname_rrs, dn, qname, qtype,
@@ -8577,6 +8605,49 @@ struct bdr_referral {
   char glue[16][64]; int nglue;
 };
 
+/* RFC 6672 section 3.4: a covering DNAME, not an unsigned CNAME beside it,
+   chooses the next name. Returns 1 and writes that derived name when it
+   disagrees with the CNAME in the answer. */
+static int
+bdr_resynthesize_cname (const unsigned char *r, size_t rlen, const char *qname,
+                        const char *packet_cname, char *out, size_t out_sz)
+{
+  if (rlen < 12 || !packet_cname || !packet_cname[0]) return 0;
+  uint16_t qd = bd_rd16 (r + 4), an = bd_rd16 (r + 6);
+  size_t off = 12;
+  char nm[256], owner[256];
+  for (int i = 0; i < qd; i++) {
+    if (bd_skip_name (r, rlen, &off) < 0 || off + 4 > rlen) return 0;
+    off += 4;
+  }
+  char best_expected[256] = "";
+  size_t best_len = 0;
+  for (int i = 0; i < an; i++) {
+    if (bd_decode_name (r, rlen, &off, nm, sizeof nm, 0) < 0 || off + 10 > rlen ||
+        bd_canon_owner (nm, owner, sizeof owner) < 0) return 0;
+    uint16_t t = bd_rd16 (r + off), cls = bd_rd16 (r + off + 2), len = bd_rd16 (r + off + 8);
+    size_t data = off + 10;
+    if (len > rlen - data) return 0;
+    if (cls == BD_C_IN && t == BD_T_DNAME) {
+      char target[256], expected[256];
+      size_t p = data;
+      if (bd_decode_name (r, rlen, &p, nm, sizeof nm, 0) < 0 || p > data + len ||
+          bd_canon_owner (nm, target, sizeof target) < 0) return 0;
+      if (bd_dname_expected_cname (qname, owner, target, expected, sizeof expected) == 0) {
+        size_t olen = strlen (owner);
+        if (!best_expected[0] || olen > best_len) {
+          best_len = olen;
+          snprintf (best_expected, sizeof best_expected, "%s", expected);
+        }
+      }
+    }
+    off = data + len;
+  }
+  if (!best_expected[0] || !strcmp (best_expected, packet_cname)) return 0;
+  if ((size_t) snprintf (out, out_sz, "%s", best_expected) >= out_sz) return 0;
+  return 1;
+}
+
 /* Only glue for a nameserver actually named by the closest enclosing
    delegation, and within that delegation's bailiwick, is used as a hint. */
 static int
@@ -8686,16 +8757,58 @@ bdr_compose_alias (const struct bdr_alias_trace *trace, const char *qname, uint1
     if (count > BD_RR_MAX || bd_skip_question (pkt, len, &off) < 0) return -1;
     int n = bd_collect_rrs (pkt, len, &off, count, NULL, 0, records, BD_RR_MAX);
     if (n != count) return -1;
+    int dname_hop = trace->alias[a].include_proofs == 2;
+    int keep_packet_cname = !dname_hop;
+    uint32_t dname_ttl = 0;
+    int saw_dname = 0;
+    size_t best_dname = 0;
+    if (dname_hop) {
+      for (int i = 0; i < n; i++) {
+        bd_rr_t *rr = &records[i];
+        if (rr->type == BD_T_CNAME && !strcmp (rr->owner, trace->alias[a].name)) {
+          char actual[256];
+          if (bd_rr_rdata_name (rr, actual, sizeof actual) == 0 &&
+              !strcmp (actual, trace->alias[a].target))
+            keep_packet_cname = 1;
+        }
+        if (rr->type == BD_T_DNAME) {
+          char dtarget[256], expected[256];
+          saw_dname = 1;
+          if (!best_dname) dname_ttl = rr->ttl;
+          if (bd_rr_rdata_name (rr, dtarget, sizeof dtarget) == 0 &&
+              bd_dname_expected_cname (trace->alias[a].name, rr->owner, dtarget,
+                                       expected, sizeof expected) == 0 &&
+              !strcmp (expected, trace->alias[a].target) &&
+              strlen (rr->owner) >= best_dname) {
+            best_dname = strlen (rr->owner);
+            dname_ttl = rr->ttl;
+          }
+        }
+      }
+    }
     for (int i = 0; i < n; i++) {
       bd_rr_t *rr = &records[i];
-      int cname = !strcmp (rr->owner, trace->alias[a].name) &&
+      int cname = keep_packet_cname && !strcmp (rr->owner, trace->alias[a].name) &&
                   (rr->type == BD_T_CNAME || (rr->type == BD_T_RRSIG && rr->rdata_len >= 2 &&
                                                bd_rd16 (rr->rdata) == BD_T_CNAME));
-      int dname = trace->alias[a].include_proofs == 2 &&
+      int dname = dname_hop &&
                   (rr->type == BD_T_DNAME || (rr->type == BD_T_RRSIG && rr->rdata_len >= 2 &&
                                                bd_rd16 (rr->rdata) == BD_T_DNAME));
       if (!cname && !dname) continue;
       if (bdr_append_rr (rr, out, osz, &used) < 0 || answer_count == UINT16_MAX) return -1;
+      answer_count++;
+    }
+    if (dname_hop && !keep_packet_cname && saw_dname) {
+      bd_rr_t syn;
+      memset (&syn, 0, sizeof syn);
+      snprintf (syn.owner, sizeof syn.owner, "%s", trace->alias[a].name);
+      syn.type = BD_T_CNAME;
+      syn.cls = BD_C_IN;
+      syn.ttl = dname_ttl;
+      int cwn = bd_name_to_wire (trace->alias[a].target, syn.rdata, sizeof syn.rdata);
+      if (cwn < 0 || cwn > UINT16_MAX) return -1;
+      syn.rdata_len = (uint16_t) cwn;
+      if (bdr_append_rr (&syn, out, osz, &used) < 0 || answer_count == UINT16_MAX) return -1;
       answer_count++;
     }
   }
@@ -8776,6 +8889,9 @@ bdr_recurse_depth (const char *qname0, uint16_t qtype, char roots[][64], int nro
       return got;
     }
     if (kind == 2) {                               /* CNAME -> restart from roots */
+      char derived[256];
+      if (bdr_resynthesize_cname (reply, (size_t) got, qname, cname, derived, sizeof derived))
+        snprintf (cname, sizeof cname, "%s", derived);
       if (trace) {
         if (trace->count >= BDR_ALIAS_MAX || (size_t) got > sizeof trace->alias[0].packet || !strcmp (qname, cname)) return -1;
         for (int i = 0; i < trace->count; i++) if (!strcmp (trace->alias[i].name, cname)) return -1;

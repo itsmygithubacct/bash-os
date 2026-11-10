@@ -26,6 +26,7 @@ import socket
 import struct
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -291,8 +292,10 @@ def pick_zone(zones, name, qtype):
     return best
 
 
-def respond(zones, data):
+def respond(zones, data, limit=None):
     qraw, qtype, question, udp, do, edns = parse_query(data)
+    if limit:
+        udp = limit                       # TCP: no truncation
     qcase = decode_name(qraw)
     name = qcase.lower()
     zone = zones[pick_zone(zones, name, qtype)]
@@ -364,19 +367,60 @@ def serve(ip, port, ready):
     zones = build(int(time.time()))
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((ip, int(port)))
+    # TCP too, as an authoritative server has it: BIND (delv) asks again
+    # over TCP for an answer that holds a DNAME and came over UDP.
+    stream = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    stream.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    stream.bind((ip, int(port)))
+    stream.listen(8)
     log = []
+    lock = threading.Lock()
+
+    def record(msg, info, transport):
+        with lock:
+            log.append({'name': info[0], 'type': info[1], 'do': info[2], 'tc': bool(msg[2] & 2),
+                        'bytes': len(msg), 'transport': transport})
+            Path('dnssec-queries.json').write_text(json.dumps(log))
 
     def stop(*_):
-        Path('dnssec-queries.json').write_text(json.dumps(log))
+        with lock:
+            Path('dnssec-queries.json').write_text(json.dumps(log))
         os._exit(0)
+
+    def read_exact(conn, n):
+        data = b''
+        while len(data) < n:
+            chunk = conn.recv(n - len(data))
+            if not chunk:
+                return None
+            data += chunk
+        return data
+
+    def tcp():
+        while True:
+            conn, _ = stream.accept()
+            conn.settimeout(5)
+            try:
+                while True:
+                    head = read_exact(conn, 2)
+                    data = head and read_exact(conn, struct.unpack('!H', head)[0])
+                    if not data:
+                        break
+                    msg, info = respond(zones, data, 65535)
+                    conn.sendall(struct.pack('!H', len(msg)) + msg)
+                    record(msg, info, 'tcp')
+            except OSError:
+                pass
+            finally:
+                conn.close()
     signal.signal(signal.SIGTERM, stop)
+    threading.Thread(target=tcp, daemon=True).start()
     Path(ready).write_text('ready\n')
     while True:
         data, src = sock.recvfrom(4096)
         msg, info = respond(zones, data)
-        log.append({'name': info[0], 'type': info[1], 'do': info[2], 'tc': bool(msg[2] & 2), 'bytes': len(msg)})
         sock.sendto(msg, src)
-        Path('dnssec-queries.json').write_text(json.dumps(log))
+        record(msg, info, 'udp')
 
 
 def waitudp(ip, port):
@@ -407,6 +451,7 @@ def secure(text):
 def control(ip, port, groups):
     fails = []
     jobs = []        # (label, name, type, conf, predicate)
+    raw = []         # (label, name, type, predicate) on the mock's own reply
 
     def add(label, name, typ, pred, conf='anchor.delv.conf'):
         jobs.append((label, name, typ, conf, pred))
@@ -431,7 +476,18 @@ def control(ip, port, groups):
         add('bogus-wrong-trust-anchor', 'ok.test', 'A', lambda t: 'fully validated' not in t, 'anchor.wrong.delv.conf')
     if 'dname' in groups:
         add('secure-cross-zone-dname', 'www.old.x.test', 'A', secure)
-        add('bogus-synthesized-cname', 'bad.old.x.test', 'A', bogus)
+        # The mock pairs a signed DNAME with a CNAME that is not its
+        # substitution. A DNAME-aware validator (BIND delv re-queries over TCP)
+        # authenticates the DNAME, discards the unsigned CNAME and follows its
+        # own synthesis, bad.ok.test, which is a signed NXDOMAIN. The raw dig
+        # check below confirms the mock really serves the forged target.
+        add('forged-synthesis-not-followed', 'bad.old.x.test', 'A', lambda t:
+            'fully validated' in t and 'wrong.ok.test' not in t
+            and set(re.findall(r'(?m)^;; resolution failed: (.*)$', t)) <= {'ncache nxdomain'}
+            and bool(re.search(r'(?m)^\S*old\.x\.test\.\s+\d+\s+IN\s+DNAME\s+ok\.test\.', t))
+            and bool(re.search(r'(?m)^; bad\.ok\.test\.\s+\d+\s+IN\s+\\-ANY\s+;-\$NXDOMAIN', t)))
+        raw.append(('forged-cname-served', 'bad.old.x.test', 'A', lambda t:
+            bool(re.search(r'(?m)^bad\.old\.x\.test\.\s+\d+\s+IN\s+CNAME\s+wrong\.ok\.test\.', t))))
     if 'aliases' in groups:
         add('secure-cross-zone-cname', 'alias.x.test', 'A', secure)
         add('bogus-cross-zone-cname', 'badalias.x.test', 'A', bogus)
@@ -451,6 +507,11 @@ def control(ip, port, groups):
     with ThreadPoolExecutor(max_workers=6) as pool:
         texts = list(pool.map(lambda j: delv(ip, port, j[1], j[2], j[3]), jobs))
     for (label, _, _, _, pred), text in zip(jobs, texts):
+        if not pred(text):
+            fails.append('control-%s FAIL %s' % (label, text[:300].replace('\n', ' | ')))
+    for label, name, typ, pred in raw:
+        proc = subprocess.run(['/usr/bin/dig', '+norec', '+dnssec', '+tries=1', '+time=5', '-p', str(port), '@' + ip, '-t', typ, name], capture_output=True, text=True, timeout=30)
+        text = proc.stdout + proc.stderr
         if not pred(text):
             fails.append('control-%s FAIL %s' % (label, text[:300].replace('\n', ' | ')))
     for f in fails:

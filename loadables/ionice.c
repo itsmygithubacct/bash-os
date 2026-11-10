@@ -24,7 +24,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h>
 #include <limits.h>
+#include <stdint.h>
 #include <signal.h>
 #include <sys/syscall.h>
 #include <sys/wait.h>
@@ -60,11 +62,58 @@ ioprio_set_p (int pid, int class, int data)
 static int
 parse_class (const char *s, int *out)
 {
-    if (!strcmp (s, "none")  || !strcmp (s, "0")) { *out = IOPRIO_CLASS_NONE; return 0; }
+    if (!strcmp (s, "none") || !strcmp (s, "0")) { *out = IOPRIO_CLASS_NONE; return 0; }
     if (!strcmp (s, "realtime") || !strcmp (s, "rt") || !strcmp (s, "1")) { *out = IOPRIO_CLASS_RT; return 0; }
     if (!strcmp (s, "best-effort") || !strcmp (s, "be") || !strcmp (s, "2")) { *out = IOPRIO_CLASS_BE; return 0; }
     if (!strcmp (s, "idle") || !strcmp (s, "3")) { *out = IOPRIO_CLASS_IDLE; return 0; }
     return -1;
+}
+
+/* util-linux strtos32_or_err: status 1, no 0..7 pre-check. The kernel
+   rejects class data outside 0..7 when a set is actually attempted. */
+static int
+ion_s32 (const char *s, int *out, const char *what)
+{
+    char *end = NULL;
+    long long v;
+    errno = 0;
+    if (!s)
+        s = "";
+    v = strtoll (s, &end, 10);
+    if (end == s || *end) {
+        fprintf (stderr, "ionice: %s: '%s'\n", what, s);
+        return -1;
+    }
+    if (errno == ERANGE || v < (long long) INT32_MIN || v > (long long) INT32_MAX) {
+        fprintf (stderr, "ionice: %s: '%s': Numerical result out of range\n", what, s);
+        return -1;
+    }
+    *out = (int) v;
+    return 0;
+}
+
+static int
+ion_tryhelp (void)
+{
+    fprintf (stderr, "Try 'ionice --help' for more information.\n");
+    return EXECUTION_FAILURE;
+}
+
+static int
+ion_add_id (int **ids, int *n, int *cap, int id)
+{
+    if (*n == *cap) {
+        int next = *cap ? *cap * 2 : 16;
+        int *grown = realloc (*ids, (size_t) next * sizeof **ids);
+        if (!grown) {
+            fprintf (stderr, "ionice: realloc: %s\n", strerror (errno));
+            return -1;
+        }
+        *ids = grown;
+        *cap = next;
+    }
+    (*ids)[(*n)++] = id;
+    return 0;
 }
 
 static int
@@ -72,7 +121,9 @@ print_ioprio (int pid)
 {
     int v = ioprio_get_p (pid);
     if (v < 0) {
-        builtin_error ("ioprio_get (pid %d): %s", pid, strerror (errno));
+        /* util-linux err(EXIT_FAILURE, "ioprio_get failed"). Callers keep
+           walking the rest of the id list (continue-on-failure). */
+        fprintf (stderr, "ionice: ioprio_get failed: %s\n", strerror (errno));
         return EXECUTION_FAILURE;
     }
     int cls = IOPRIO_PRIO_CLASS (v);
@@ -90,76 +141,135 @@ print_ioprio (int pid)
 int
 ionice_builtin (WORD_LIST *list)
 {
-    int klass = -1, level = -1, ignore_fail = 0;
-    int pids[256]; int npid = 0;
+    /* Defaults match util-linux: best-effort class, class data 4. */
+    int klass = IOPRIO_CLASS_BE, level = 4, ignore_fail = 0;
+    int class_set = 0, data_set = 0;
+    int *pids = NULL;
+    int npid = 0, pcap = 0;
 
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         char *w = list->word->word;
-        if (!strcmp (w, "--")) { list = list->next; break; }
-        if (!strcmp (w, "--help")) { for (char **lp = ionice_doc; *lp; lp++) puts (*lp); return EXECUTION_SUCCESS; }
-        if (!strcmp (w, "--version")) { puts ("ionice 1.0 (bash-loadable)"); return EXECUTION_SUCCESS; }
-
         const char *val = NULL;
+        const char *longname = NULL;
         char opt = 0;
-        if (w[1] == 'c' || w[1] == 'n' || w[1] == 'p') {
+
+        if (!strcmp (w, "--")) { list = list->next; break; }
+        if (!strcmp (w, "--help") || !strcmp (w, "-h")) {
+            for (char **lp = ionice_doc; *lp; lp++) puts (*lp);
+            free (pids);
+            return EXECUTION_SUCCESS;
+        }
+        if (!strcmp (w, "--version") || !strcmp (w, "-V")) {
+            puts ("ionice 1.0 (bash-loadable)");
+            free (pids);
+            return EXECUTION_SUCCESS;
+        }
+        if (!strcmp (w, "-t") || !strcmp (w, "--ignore")) {
+            ignore_fail = 1; list = list->next; continue;
+        }
+        if (!strncmp (w, "--class=", 8)) { opt = 'c'; val = w + 8; }
+        else if (!strcmp (w, "--class")) { opt = 'c'; longname = "class"; }
+        else if (!strncmp (w, "--classdata=", 12)) { opt = 'n'; val = w + 12; }
+        else if (!strcmp (w, "--classdata")) { opt = 'n'; longname = "classdata"; }
+        else if (!strncmp (w, "--pid=", 6)) { opt = 'p'; val = w + 6; }
+        else if (!strcmp (w, "--pid")) { opt = 'p'; longname = "pid"; }
+        else if (w[1] == 'c' || w[1] == 'n' || w[1] == 'p') {
             opt = w[1];
             if (w[2]) val = w + 2;
-            else { if (!list->next) { builtin_error ("option '-%c' requires an argument", opt); return EX_USAGE; }
-                   list = list->next; val = list->word->word; }
-        } else if (!strcmp (w, "--class"))     { opt = 'c'; if (!list->next){builtin_error("--class requires an argument");return EX_USAGE;} list=list->next; val=list->word->word; }
-        else if (!strcmp (w, "--classdata"))   { opt = 'n'; if (!list->next){builtin_error("--classdata requires an argument");return EX_USAGE;} list=list->next; val=list->word->word; }
-        else if (!strcmp (w, "--pid"))         { opt = 'p'; if (!list->next){builtin_error("--pid requires an argument");return EX_USAGE;} list=list->next; val=list->word->word; }
-        else if (!strcmp (w, "-t") || !strcmp (w, "--ignore")) { ignore_fail = 1; list = list->next; continue; }
-        else { builtin_error ("unknown option: %s", w); builtin_usage (); return EX_USAGE; }
-
-        if (opt == 'c') {
-            if (parse_class (val, &klass) < 0) { builtin_error ("invalid class: %s", val); return EX_USAGE; }
-        } else if (opt == 'n') {
-            char *end = NULL; errno = 0;
-            long l = strtol (val, &end, 10);
-            if (errno || end == val || *end || l < 0 || l > 7) { builtin_error ("invalid priority (0-7): %s", val); return EX_USAGE; }
-            level = (int) l;
-        } else if (opt == 'p') {
-            char *end = NULL; errno = 0;
-            long l = strtol (val, &end, 10);
-            if (errno || end == val || *end || l < 0 || l > INT_MAX) { builtin_error ("invalid pid: %s", val); return EX_USAGE; }
-            if (npid == (int)(sizeof pids / sizeof pids[0])) {
-                builtin_error ("too many process IDs (maximum 256)");
-                return EX_USAGE;
+        } else {
+            if (w[1] == '-')
+                fprintf (stderr, "ionice: unrecognized option '%s'\n", w);
+            else
+                fprintf (stderr, "ionice: invalid option -- '%c'\n", w[1]);
+            free (pids);
+            return ion_tryhelp ();
+        }
+        if (!val) {
+            if (!list->next) {
+                if (longname)
+                    fprintf (stderr, "ionice: option '--%s' requires an argument\n", longname);
+                else
+                    fprintf (stderr, "ionice: option requires an argument -- '%c'\n", opt);
+                free (pids);
+                return ion_tryhelp ();
             }
-            pids[npid++] = (int) l;
+            list = list->next;
+            val = list->word->word;
+        }
+        if (opt == 'c') {
+            if (isdigit ((unsigned char) val[0])) {
+                if (ion_s32 (val, &klass, "invalid class argument") < 0) {
+                    free (pids); return EXECUTION_FAILURE;
+                }
+            } else if (parse_class (val, &klass) < 0) {
+                fprintf (stderr, "ionice: unknown scheduling class: '%s'\n", val);
+                free (pids);
+                return EXECUTION_FAILURE;
+            }
+            class_set = 1;
+        } else if (opt == 'n') {
+            if (ion_s32 (val, &level, "invalid class data argument") < 0) {
+                free (pids); return EXECUTION_FAILURE;
+            }
+            data_set = 1;
+        } else {
+            int id;
+            if (ion_s32 (val, &id, "invalid PID argument") < 0
+                || ion_add_id (&pids, &npid, &pcap, id) < 0) {
+                free (pids);
+                return EXECUTION_FAILURE;
+            }
         }
         list = list->next;
     }
 
-    int set_mode = (klass >= 0 || level >= 0);
-    /* When setting, default the class to best-effort and the level to 4. */
-    int eff_class = (klass >= 0) ? klass : IOPRIO_CLASS_BE;
-    int eff_level = (level >= 0) ? level : 4;
-    if (eff_class == IOPRIO_CLASS_NONE || eff_class == IOPRIO_CLASS_IDLE) {
-        if (level >= 0 && !ignore_fail)
+    if (class_set && (klass < IOPRIO_CLASS_NONE || klass > IOPRIO_CLASS_IDLE) && !ignore_fail)
+        fprintf (stderr, "ionice: unknown prio class %d\n", klass);
+    if (klass == IOPRIO_CLASS_NONE || klass == IOPRIO_CLASS_IDLE) {
+        if (data_set && !ignore_fail)
             fprintf (stderr, "ionice: ignoring given class data for %s class\n",
-                     class_names[eff_class]);
-        eff_level = (eff_class == IOPRIO_CLASS_IDLE) ? 7 : 0;
+                     klass == IOPRIO_CLASS_IDLE ? "idle" : "none");
+        level = (klass == IOPRIO_CLASS_IDLE) ? 7 : 0;
+    }
+
+    /* Ids after a -p are more targets (util-linux) as well as repeated -p.
+       There is no 256-id cap; every id is attempted. */
+    if (npid > 0) {
+        while (list) {
+            int id;
+            if (ion_s32 (list->word->word, &id, "invalid PID argument") < 0
+                || ion_add_id (&pids, &npid, &pcap, id) < 0) {
+                free (pids);
+                return EXECUTION_FAILURE;
+            }
+            list = list->next;
+        }
     }
 
     if (npid > 0) {
+        int set_mode = class_set || data_set;
         int rc = EXECUTION_SUCCESS;
         for (int i = 0; i < npid; i++) {
             if (set_mode) {
-                if (ioprio_set_p (pids[i], eff_class, eff_level) < 0 && !ignore_fail) {
-                    builtin_error ("ioprio_set (pid %d): %s", pids[i], strerror (errno));
+                if (ioprio_set_p (pids[i], klass, level) < 0 && !ignore_fail) {
+                    fprintf (stderr, "ionice: ioprio_set failed: %s\n", strerror (errno));
                     rc = EXECUTION_FAILURE;
                 }
-            } else {
-                if (print_ioprio (pids[i]) != EXECUTION_SUCCESS) rc = EXECUTION_FAILURE;
+            } else if (print_ioprio (pids[i]) != EXECUTION_SUCCESS) {
+                rc = EXECUTION_FAILURE;
             }
         }
+        free (pids);
         return rc;
     }
+    free (pids);
+    pids = NULL;
 
     if (!list) {
-        /* No pid, no command: print our own class/priority. */
+        if (class_set || data_set) {
+            fprintf (stderr, "ionice: bad usage\n");
+            return ion_tryhelp ();
+        }
         return print_ioprio (0);
     }
 
@@ -183,8 +293,8 @@ ionice_builtin (WORD_LIST *list)
     if (pid < 0) { builtin_error ("fork: %s", strerror (errno)); bos_child_wait_end (&child_wait); free (argv); return EXECUTION_FAILURE; }
     if (pid == 0) {
         bos_child_wait_child (&child_wait);
-        if (ioprio_set_p (0, eff_class, eff_level) < 0 && !ignore_fail) {
-            fprintf (stderr, "ionice: ioprio_set: %s\n", strerror (errno));
+        if (ioprio_set_p (0, klass, level) < 0 && !ignore_fail) {
+            fprintf (stderr, "ionice: ioprio_set failed: %s\n", strerror (errno));
             _exit (EXECUTION_FAILURE);
         }
         execvp (argv[0], argv);

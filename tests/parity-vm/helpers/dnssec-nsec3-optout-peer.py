@@ -337,7 +337,9 @@ def respond(zones, data):
             if zone.origin == 'optout.test.' and name == 'unsigned.optout.test.' and qtype == T_DS:
                 hashed_owner = next(o for o, types in zone.names.items() if T_NSEC3 in types)
                 rrset_with_sigs(hashed_owner, T_NSEC3, authority)
-                rrset_with_sigs(name, T_NS, authority)
+                # No delegation NS beside the SOA: a NODATA answer whose NS
+                # owner differs from the SOA owner is a FORMERR to BIND
+                # ("NS/SOA mismatch"); RFC 5155 s7.2.4 needs only the proof.
             else:
                 rrset_with_sigs(name, T_NSEC, authority)
     else:

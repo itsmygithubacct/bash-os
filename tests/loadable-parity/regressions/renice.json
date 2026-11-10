@@ -27,7 +27,7 @@
       "purpose": "Check the short help summary against the first documented renice_doc line; help is metadata and does not change process state.",
       "script": "help -d renice",
       "expected_status": 0,
-      "stdout": "renice - Set absolute niceness of running processes.\n",
+      "stdout": "renice - Alter the priority of running processes.\n",
       "stderr": "empty"
     },
     {

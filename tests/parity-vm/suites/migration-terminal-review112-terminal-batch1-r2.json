@@ -497,10 +497,10 @@
       "requires": [
         "python3"
       ],
-      "oracle": "BashOS dialog/whiptail documented treeview and inputmenu tuple and selection contract (loadables/dialog.c help and documented interactive keyboard semantics); no newt reference implements these dialog-only widgets.",
+      "oracle": "BashOS dialog/whiptail documented treeview and inputmenu tuple and selection contract (loadables/dialog.c help and documented interactive keyboard semantics); no newt reference implements these dialog-only widgets. The selected tag is written without a trailing newline, as GNU dialog and newt whiptail write menu results (sibling parity cases whip-menu-down and mig-w8-dialogreal-output-fd-menu).",
       "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored. A guarded owned PTY adapter runs the same ordered predicates, retains full live termios and events, and attempts only bounded cleanup after a failed step; later steps remain unexercised.",
       "expected_files": {
-        "result": "child\n"
+        "result": "child"
       },
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"key\": \"down\"\n    },\n    {\n      \"send\": \" \"\n    },\n    {\n      \"key\": \"enter\"\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --treeview 'Choose item' 14 50 3 root Root ON 0 child Child OFF 1 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --treeview 'Choose item' 14 50 3 root Root ON 0 child Child OFF 1 3>result\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"
@@ -535,10 +535,10 @@
       "requires": [
         "python3"
       ],
-      "oracle": "BashOS dialog/whiptail documented treeview and inputmenu tuple and selection contract (loadables/dialog.c help and documented interactive keyboard semantics); no newt reference implements these dialog-only widgets.",
+      "oracle": "BashOS dialog/whiptail documented treeview and inputmenu tuple and selection contract (loadables/dialog.c help and documented interactive keyboard semantics); no newt reference implements these dialog-only widgets. The selected tag is written without a trailing newline, as GNU dialog and newt whiptail write menu results (sibling parity cases whip-menu-down and mig-w8-dialogreal-output-fd-menu).",
       "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored. A guarded owned PTY adapter runs the same ordered predicates, retains full live termios and events, and attempts only bounded cleanup after a failed step; later steps remain unexercised.",
       "expected_files": {
-        "result": "beta\n"
+        "result": "beta"
       },
       "files": {
         "pty-repair-config.json": "{\n  \"size\": [\n    24,\n    80\n  ],\n  \"steps\": [\n    {\n      \"screen\": {\n        \"contains\": [\n          \"Choose\"\n        ]\n      }\n    },\n    {\n      \"termios\": {\n        \"clear\": [\n          \"ICANON\",\n          \"ECHO\"\n        ]\n      }\n    },\n    {\n      \"key\": \"down\"\n    },\n    {\n      \"key\": \"enter\"\n    }\n  ],\n  \"candidate_script\": \"whiptail --output-fd 3 --inputmenu 'Choose item' 12 50 3 alpha First beta Second 3>result\",\n  \"reference_script\": \"whiptail --output-fd 3 --inputmenu 'Choose item' 12 50 3 alpha First beta Second 3>result\",\n  \"expected_status\": 0,\n  \"timeout\": 18,\n  \"cleanup_base64\": \"Gw==\",\n  \"answer_queries\": false\n}\n"

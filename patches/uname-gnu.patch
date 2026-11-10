@@ -17,7 +17,7 @@
  
  #include "bashtypes.h"
  
-@@ -47,75 +48,127 @@
+@@ -47,75 +48,135 @@
  #include "bashgetopt.h"
  #include "common.h"
  
@@ -76,7 +76,7 @@
  uname_builtin (WORD_LIST *list)
  {
 -  int opt, r;
-+  int option, flags, all, end_options, long_option, i, printed;
++  int option, flags, all, end_options, long_option, i, printed, need_uname;
 +  int posix_options;
 +  char *arg, *p, *operand;
 +  const char *fields[8];
@@ -189,9 +189,18 @@
 +    }
 +  if (flags == 0)
 +    flags = FLAG_SYSNAME;
++  /* Like GNU, only the kernel fields need uname(2): -p, -i and -o are
++     fixed strings on Linux and still print when that call fails. */
++  need_uname = (flags & (FLAG_SYSNAME | FLAG_NODENAME | FLAG_RELEASE
++                         | FLAG_VERSION | FLAG_MACHINE)) != 0;
++#if !defined (__linux__)
++  need_uname = 1;
++#endif
++  memset (&uninfo, 0, sizeof uninfo);
 +
  #ifdef HAVE_UNAME
-   if (uname (&uninfo) < 0)
+-  if (uname (&uninfo) < 0)
++  if (need_uname && uname (&uninfo) < 0)
      {
 -      builtin_error ("cannot get system name: %s", strerror (errno));
 +      int saved_errno = errno;
@@ -200,7 +209,7 @@
        return (EXECUTION_FAILURE);
      }
  #else
-@@ -123,37 +176,53 @@
+@@ -123,37 +184,53 @@
    return (EXECUTION_FAILURE);
  #endif
  

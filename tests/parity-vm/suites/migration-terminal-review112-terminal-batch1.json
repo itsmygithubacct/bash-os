@@ -681,10 +681,10 @@
         "whiptail/deferred-keyed-list-widgets"
       ],
       "requires": [],
-      "oracle": "BashOS dialog/whiptail documented treeview and inputmenu tuple and selection contract (loadables/dialog.c help and documented interactive keyboard semantics); no newt reference implements these dialog-only widgets.",
+      "oracle": "BashOS dialog/whiptail documented treeview and inputmenu tuple and selection contract (loadables/dialog.c help and documented interactive keyboard semantics); no newt reference implements these dialog-only widgets. The selected tag is written without a trailing newline, as GNU dialog and newt whiptail write menu results (sibling parity cases whip-menu-down and mig-w8-dialogreal-output-fd-menu).",
       "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
       "expected_files": {
-        "result": "child\n"
+        "result": "child"
       }
     },
     {
@@ -728,10 +728,10 @@
         "whiptail/deferred-keyed-list-widgets"
       ],
       "requires": [],
-      "oracle": "BashOS dialog/whiptail documented treeview and inputmenu tuple and selection contract (loadables/dialog.c help and documented interactive keyboard semantics); no newt reference implements these dialog-only widgets.",
+      "oracle": "BashOS dialog/whiptail documented treeview and inputmenu tuple and selection contract (loadables/dialog.c help and documented interactive keyboard semantics); no newt reference implements these dialog-only widgets. The selected tag is written without a trailing newline, as GNU dialog and newt whiptail write menu results (sibling parity cases whip-menu-down and mig-w8-dialogreal-output-fd-menu).",
       "comparison": "Independent reference side must satisfy the same preconditions, screen or byte predicates, expected status and file contents; raw PTY transcript, steps and termios are retained per side. Terminal state must be restored.",
       "expected_files": {
-        "result": "beta\n"
+        "result": "beta"
       }
     }
   ]

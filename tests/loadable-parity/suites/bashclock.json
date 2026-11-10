@@ -72,7 +72,7 @@
       "id": "sleep-negative-duration",
       "kind": "contract",
       "purpose": "A kernel-rejected negative sleep returns failure and reports the clock_nanosleep EINVAL text.",
-      "script": "LC_ALL=C bashclock sleep -1 2>clock-error; status=$?; [[ $status == 1 ]] && [[ $(<clock-error) == *'clock_nanosleep: Invalid argument'* ]] && printf 'negative sleep rejected\\n'",
+      "script": "status=0; LC_ALL=C bashclock sleep -1 2>clock-error || status=$?; [[ $status == 1 ]] && [[ $(<clock-error) == *'clock_nanosleep: Invalid argument'* ]] && printf 'negative sleep rejected\\n'",
       "expected_status": 0,
       "stderr": "empty",
       "stdout": "negative sleep rejected\n"

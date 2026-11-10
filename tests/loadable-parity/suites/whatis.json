@@ -1,10 +1,10 @@
 {
   "version": 1,
   "loadable": "whatis",
-  "reference": "The independent man-db whatis CLI reads private legacy text indexes using an empty private -C configuration. The installed legacy backend matches prefixes even with -w; Bash-os retains its documented exact-name lookup, checked separately as a contract. Help, implementation version identity and no-name diagnostic text are custom contracts. Successful lookups and no-result/invalid-option statuses retain independent parity cases.",
+  "reference": "The independent man-db whatis CLI reads private legacy text indexes using an empty private -C configuration. The legacy backend matches a case-insensitive prefix of the whatis line, so a query also selects a longer name. Help, implementation version identity and no-name diagnostic text are custom contracts. Successful lookups and no-result/invalid-option statuses retain independent parity cases.",
   "coverage": [
-    "single exact-name lookup from a whatis index",
-    "Hyphenated names and explicit whole-name matching against a longer name",
+    "single name lookup from a whatis index",
+    "Hyphenated names and prefix matching against a longer name",
     "multiple query arguments and mixed hit/miss status behavior",
     "no-match and missing-index diagnostics/statuses",
     "Documented help and version identity; usage error statuses",
@@ -13,7 +13,7 @@
   "exclusions": [
     "No generated man-db binary index or mandb database lifecycle is exercised; fixtures use the documented legacy MANPATH/whatis text index.",
     "No deferred operation case is applicable: this loadable performs read-only lookup against a private relative fixture and requires no privileged or hardware-backed operation.",
-    "Bash-os retains exact-name matching. The installed man-db legacy text backend matches a name prefix both by default and with -w; the exact boundary is checked both as a custom contract and as an explicit GNU comparison that retains the intentional difference."
+    "Lookup is a case-insensitive prefix of the whatis line, matching the legacy man-db text backend. An exact-name boundary that would reject a longer page is not retained."
   ],
   "cases": [
     {
@@ -41,11 +41,11 @@
     {
       "id": "exact_boundary",
       "kind": "contract",
-      "purpose": "Verify the documented Bash-os exact-name contract: tool must not match toolbox. The independent legacy man-db backend matches both even with -w, so this is an explicit compatibility limit rather than a parity assertion.",
+      "purpose": "A name prefix selects every whatis line that begins with that name, including a longer page such as toolbox.",
       "script": "printf '%s\\n' 'tool (1) - exact fixture' 'toolbox (1) - longer fixture' > whatis\nMANPATH=. BASHMAN_STALE_QUIET=1 whatis tool",
       "expected_status": 0,
       "stderr": "empty",
-      "stdout": "tool (1) - exact fixture\n"
+      "stdout": "tool (1) - exact fixture\ntoolbox (1) - longer fixture\n"
     },
     {
       "id": "multiple_names",
@@ -150,7 +150,7 @@
     {
       "id": "prefix-compatibility",
       "kind": "parity",
-      "purpose": "Compare the legacy man-db prefix lookup with the custom exact-name interface, retaining an intentional output difference as FAIL.",
+      "purpose": "Compare the legacy man-db prefix lookup: tool selects both the exact page and the longer toolbox page.",
       "script": ": > manpath.conf\nprintf \"%s\\n\" \"tool (1) - exact fixture\" \"toolbox (1) - longer fixture\" > whatis\nif [[ $(type -t whatis) == file ]]; then MANPATH=. whatis -C manpath.conf tool; else MANPATH=. BASHMAN_STALE_QUIET=1 whatis tool; fi",
       "requires": [
         "whatis"

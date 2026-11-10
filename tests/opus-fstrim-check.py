@@ -242,15 +242,23 @@ def main():
     check('-A keeps an explicit root entry instead of guessing', 'fstrim -n -A',
           '/mnt/sp ace: 0 B (dry run) trimmed on /dev/fx12\n/: 0 B (dry run) trimmed on /dev/nvme0n1p1\n',
           trace=oc('/mnt/sp ace', '/'))
-    for source in ('/dev/root', 'UUID=missing'):
-        (root / 'fstab').write_text(f'{source} / ext4 defaults 0 1\n')
-        check(f'-A guesses unresolved root {source} from cmdline', 'fstrim -n -A',
-              '/: 0 B (dry run) trimmed on /dev/nvme0n1\n', trace=oc('/'))
-        check(f'-A guesses unresolved root {source} from sysfs', 'fstrim -n -A',
-              '/: 0 B (dry run) trimmed on /dev/nvme0n1p6\n',
-              cmdline='quiet splash\n', trace=oc('/'))
-        check(f'-A skips unresolved root {source} when guess fails', 'fstrim -n -A',
-              '', cmdline='root=UUID=missing\n', trace='')
+    # A "/" row is never replaced from root=. /dev/root is reported as
+    # written. An unresolvable tag, including one for "/", is dropped.
+    (root / 'fstab').write_text('/dev/root / ext4 defaults 0 1\n')
+    for label, cmdline in (
+            ('with root=', 'quiet root=UUID=rootuuid\n'),
+            ('without root=', 'quiet splash\n'),
+            ('with an unresolvable root=', 'root=UUID=missing\n')):
+        check(f'-A reports /dev/root as written {label}', 'fstrim -n -A',
+              '/: 0 B (dry run) trimmed on /dev/root\n',
+              cmdline=cmdline, trace=oc('/'))
+    (root / 'fstab').write_text('UUID=missing / ext4 defaults 0 1\n')
+    for label, cmdline in (
+            ('with root=', 'quiet root=UUID=rootuuid\n'),
+            ('without root=', 'quiet splash\n'),
+            ('with an unresolvable root=', 'root=UUID=missing\n')):
+        check(f'-A drops an unresolvable / tag {label}', 'fstrim -n -A',
+              '', cmdline=cmdline, trace='')
     (root / 'fstab').write_text(saved)
 
     # --- -I: ordinary files, unmounted directories, nested paths ---------------

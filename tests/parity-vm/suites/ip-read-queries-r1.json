@@ -27,7 +27,7 @@
       "timeout": 45,
       "helpers_sha256": {
         "helpers/ip-read-queries-r1.py": "12678168c320045ef13a20a7a1935dd3e712806c3207f16d192bf5666cd051ad",
-        "helpers/mig-w1-ip.py": "c6aae6db72ec257929bc20fed20310ac46f22cca9507e13ded6ef879d88b9ce1",
+        "helpers/mig-w1-ip.py": "098a1ebc5ce3ec4c26a6e2f6fac2ff43746d9a0b07ba92116f1c6fc3233f811a",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     }

@@ -538,7 +538,8 @@ def sc_show_rule_json():
             slen = r.get("from_prefix", r.get("srclen"))
             dst = r.get("to", r.get("dst"))
             dlen = r.get("to_prefix", r.get("dstlen"))
-            got.add((r.get("priority"), src, slen, dst, dlen, r.get("fwmark"), r.get("table")))
+            fw = r.get("fwmark")  # normalized exactly as rule_facts_ref does for iproute2
+            got.add((r.get("priority"), src, slen, dst, dlen, int(fw, 16) if isinstance(fw, str) else fw, r.get("table")))
         cmp_sets("rule-show-json facts", got, rule_facts_ref(["-4", "rule", "show"]),
                  {(500, "10.9.0.0", 16, None, None, None, "100"), (600, "all", None, "192.0.2.0", 24, 16, "100")})
     with_seed(body)
@@ -760,11 +761,12 @@ def sc_batch(kind):
             {"ops": [{"batch": text, "force": True}],
              "expect": [("double-quoted device accepted", lambda s: have(s, "192.0.2.1/24")),
                         ("single-quoted device accepted", lambda s: have(s, "192.0.2.2/24"))]}])
-        # The assigned -force contract continues after a malformed line.
+        # iproute2's makeargs exits on an unterminated quote even under -force,
+        # so the following line is never run.
         malformed = "addr add 192.0.2.4/24 dev 'd0\naddr add 192.0.2.5/24 dev d0\n"
         scenario_mutation("batch-unterminated-quote", seed, [
             {"ops": [{"batch": malformed, "force": True}],
-             "expect": [("force continues after unterminated quote", lambda s: have(s, "192.0.2.5/24"))]}])
+             "expect": [("unterminated quote ends the batch even with -force", lambda s: not have(s, "192.0.2.5/24"))]}])
     elif kind == "stop":
         text = "addr add 192.0.2.1/24 dev d0\nlink set nosuch0 up\naddr add 192.0.2.2/24 dev d0\n"
         scenario_mutation("batch-stop-first-failure", seed, [

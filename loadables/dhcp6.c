@@ -383,7 +383,9 @@ static void d6_emit (const struct d6_msg *m, const char *var)
       if (!v || readonly_p (v) || noassign_p (v) || assoc_p (v) == 0) { v = NULL; }
       else { if (invisible_p (v)) VUNSETATTR (v, att_invisible); assoc_flush (assoc_cell (v)); }
     }
-#define PUT(k,val) do { if (v) bind_assoc_variable (v, (char *) var, (char *) (k), (char *) (val), ASS_FORCE); \
+/* The array keeps the key pointer and frees it when the element is
+   replaced or the array flushed, so every key is a fresh copy. */
+#define PUT(k,val) do { if (v) bind_assoc_variable (v, (char *) var, savestring (k), (char *) (val), ASS_FORCE); \
                         else printf ("%s=%s\n", (k), (val)); } while (0)
 #else
   (void) var;
@@ -808,7 +810,7 @@ int dhcp6_builtin (WORD_LIST *list)
           if (!av || readonly_p (av) || noassign_p (av) || assoc_p (av) == 0) av = NULL;
           else { if (invisible_p (av)) VUNSETATTR (av, att_invisible); assoc_flush (assoc_cell (av)); }
         }
-#define RPUT(k,val) do { if (av) bind_assoc_variable (av, (char *) var, (char *) (k), (char *) (val), ASS_FORCE); \
+#define RPUT(k,val) do { if (av) bind_assoc_variable (av, (char *) var, savestring (k), (char *) (val), ASS_FORCE); \
                          else printf ("%s=%s\n", (k), (val)); } while (0)
 #else
       (void) var;
@@ -882,7 +884,7 @@ int dhcp6_builtin (WORD_LIST *list)
           if (!av || readonly_p (av) || noassign_p (av) || assoc_p (av) == 0) av = NULL;
           else { if (invisible_p (av)) VUNSETATTR (av, att_invisible); assoc_flush (assoc_cell (av)); }
         }
-#define VPUT(k,val) do { if (av) bind_assoc_variable (av, (char *) var, (char *) (k), (char *) (val), ASS_FORCE); \
+#define VPUT(k,val) do { if (av) bind_assoc_variable (av, (char *) var, savestring (k), (char *) (val), ASS_FORCE); \
                          else printf ("%s=%s\n", (k), (val)); } while (0)
 #else
       (void) var;

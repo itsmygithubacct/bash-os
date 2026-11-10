@@ -2061,9 +2061,15 @@ bda_run_list (const bda_opts *o, char **orig, int origc)
       goto out;
     }
   bytes[size] = 0;
-  /* fmemopen rejects an empty buffer on some libcs; the NUL terminator gives
-     an empty policy a portable readable stream. Nonempty input uses its size. */
+  /* fmemopen rejects an empty buffer on some libcs, so an empty policy opens
+     the one-byte NUL terminator and starts at its end: reading the NUL would
+     make the parser reject an empty policy as invalid input. */
   input = fmemopen (bytes, size ? size : 1, "r");
+  if (input && size == 0 && fseek (input, 1, SEEK_SET) != 0)
+    {
+      fclose (input);
+      input = NULL;
+    }
   output = open_memstream (&rendered, &rendered_len);
   if (!input || !output) goto out;
   rc = bashos_auth_policy_list (input, caller.name, o->list_mode > 1,

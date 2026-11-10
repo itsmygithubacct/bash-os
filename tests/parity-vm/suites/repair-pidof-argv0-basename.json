@@ -66,8 +66,8 @@
       "loadable": "pidof",
       "group": "shell",
       "driver": "plain",
-      "purpose": "Verify query-prefix argv[0] matching against the owned PID with a different comm.",
-      "oracle": "Historical argv[0] basename requirement and independently verified /proc child record",
+      "purpose": "An absolute query that is not the process pathname does not match a different argv[0].",
+      "oracle": "sysvinit-utils 3.14 pidof name match: no exe-basename match and no dash-stripping",
       "comparison": "Exact status and normalized owned PID; fixture failures are errors.",
       "files": {
         "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
@@ -89,15 +89,15 @@
         "pidof/pidof-argv0-basename"
       ],
       "kind": "contract",
-      "stdout": "result={\"status\": 0, \"stderr\": \"\", \"stdout\": \"first\\n\"}\n"
+      "stdout": "result={\"status\": 1, \"stderr\": \"\", \"stdout\": \"\"}\n"
     },
     {
       "id": "repair-pidof-argv0-login",
       "loadable": "pidof",
       "group": "shell",
       "driver": "plain",
-      "purpose": "Verify login argv[0] matching against the owned PID with a different comm.",
-      "oracle": "Historical argv[0] basename requirement and independently verified /proc child record",
+      "purpose": "A leading dash on argv[0] is not removed, so the name does not match a different comm.",
+      "oracle": "sysvinit-utils 3.14 pidof name match: no exe-basename match and no dash-stripping",
       "comparison": "Exact status and normalized owned PID; fixture failures are errors.",
       "files": {
         "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
@@ -119,15 +119,15 @@
         "pidof/pidof-argv0-basename"
       ],
       "kind": "contract",
-      "stdout": "result={\"status\": 0, \"stderr\": \"\", \"stdout\": \"first\\n\"}\n"
+      "stdout": "result={\"status\": 1, \"stderr\": \"\", \"stdout\": \"\"}\n"
     },
     {
       "id": "repair-pidof-argv0-combined",
       "loadable": "pidof",
       "group": "shell",
       "driver": "plain",
-      "purpose": "Verify combined argv[0] matching against the owned PID with a different comm.",
-      "oracle": "Historical argv[0] basename requirement and independently verified /proc child record",
+      "purpose": "An absolute query does not match a dash-prefixed argv[0] from another directory.",
+      "oracle": "sysvinit-utils 3.14 pidof name match: no exe-basename match and no dash-stripping",
       "comparison": "Exact status and normalized owned PID; fixture failures are errors.",
       "files": {
         "holder.c": "/* SPDX-License-Identifier: MIT */\n#include <stdio.h>\n#include <stdlib.h>\n#include <signal.h>\n#include <sys/prctl.h>\n#include <unistd.h>\nint main(void) {\n const char *comm=getenv(\"FIXTURE_COMM\"), *ready=getenv(\"FIXTURE_READY\");\n if (!comm || !ready || prctl(PR_SET_NAME,comm,0,0,0)) return 90;\n FILE *out=fopen(ready,\"w\"); if (!out) return 91;\n fputs(\"ready\\n\",out); if (fclose(out)) return 92;\n alarm(20); for (;;) pause();\n}\n",
@@ -149,7 +149,7 @@
         "pidof/pidof-argv0-basename"
       ],
       "kind": "contract",
-      "stdout": "result={\"status\": 0, \"stderr\": \"\", \"stdout\": \"first\\n\"}\n"
+      "stdout": "result={\"status\": 1, \"stderr\": \"\", \"stdout\": \"\"}\n"
     },
     {
       "id": "repair-pidof-argv0-distinct",

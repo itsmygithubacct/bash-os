@@ -1266,6 +1266,22 @@ extern WORD_LIST *make_word_list (WORD_DESC *, WORD_LIST *);
 extern void dispose_words (WORD_LIST *);
 extern int enable_builtin (WORD_LIST *);
 
+/* build.sh lists the bash-os loadables it compiles into the shell. A stock
+   Bash that loads pkg.so has no such list: everything compiled into it is
+   Bash's own. */
+extern const char *const bashos_injected_builtins[] __attribute__ ((weak));
+
+static int
+bp_injected_builtin (const char *name)
+{
+    if (!bashos_injected_builtins)
+        return 0;
+    for (const char *const *p = bashos_injected_builtins; *p; p++)
+        if (!strcmp (*p, name))
+            return 1;
+    return 0;
+}
+
 /* Run a hook script via /bin/bash with the package context exported.
  *
  * Hook contract (must match the slots written by the test fixtures
@@ -8846,6 +8862,13 @@ verb_load (WORD_LIST *args)
         return EX_USAGE;
     }
 
+    /* A static bash has no dynamic loader. Refuse before any package file
+       is opened, so a load cannot half-apply a shared object. */
+#ifdef BASHOS_STATIC
+    builtin_error ("this executable is static and cannot load shared objects");
+    return EXECUTION_FAILURE;
+#endif
+
     bp_manifest mf;
     if (bp_read_installed_manifest (root, name, &mf) != EXECUTION_SUCCESS)
         return EXECUTION_FAILURE;
@@ -8857,8 +8880,11 @@ verb_load (WORD_LIST *args)
         return EXECUTION_FAILURE;
     }
 
+    /* Loading replaces a bash-os loadable compiled into the shell, which is
+       how a package upgrades it, but never one of Bash's own builtins. */
     struct builtin *existing = builtin_address_internal (mf.builtin, 1);
-    if (existing && (existing->flags & STATIC_BUILTIN)) {
+    if (existing && (existing->flags & STATIC_BUILTIN)
+        && !bp_injected_builtin (mf.builtin)) {
         builtin_error ("%s: builtin already exists and is static",
                        mf.builtin);
         bp_manifest_free (&mf);

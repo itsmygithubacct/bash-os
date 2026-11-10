@@ -22,7 +22,9 @@ ignores `REG_STARTEND`. Everything else the builtin uses is linked into the
 object: helper sources, builtins it calls, and static libraries from
 `build-deps.sh`. The object binds its own symbols first, so loading it into a
 shell that already has a builtin of that name replaces that builtin without
-mixing code from the two.
+mixing code from the two. That includes a bash-os builtin compiled into the
+shell, which is how `pkg load` and `claude update` upgrade it, but `pkg load`
+refuses to replace one of Bash's own builtins, such as `echo`.
 
 A package may also carry files of its own under `libexec/NAME/` and
 `share/NAME/`, such as a program the builtin runs or a library it reads.
@@ -43,7 +45,9 @@ tree in place. `pkg remove` deletes the trees with the loadable, and
 
 Packages load only into dynamic executables built for the same architecture,
 with glibc, from the same Bash release. A static executable cannot load shared
-objects at all.
+objects at all. `pkg load` on a static executable refuses before it opens a
+package, and reports that this executable is static and cannot load shared
+objects.
 
 ## Building packages
 

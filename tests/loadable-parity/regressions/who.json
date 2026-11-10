@@ -12,10 +12,10 @@
     "Additional GNU field boundaries, selection combinations, aliases, and private input errors."
   ],
   "exclusions": [
-    "Reading the live default /var/run/utmp database is deferred because representative live sessions require a disposable VM or injected fixture path.",
+    "With no FILE operand, who reads systemd-logind sessions the way GNU coreutils 9.7 does. These private-file cases always pass a FILE. Live logind sessions are compared in the VM suite.",
     "No records are created, changed, or deleted in an account database.",
     "Real terminal idle time, terminal permissions, and positive -m matches remain deferred; only unknown/nonmatching terminal states are qualified.",
-    "GNU two-word default-database invocation and optional DNS lookup features are outside the private-file scope."
+    "The two-word form selects the current terminal from systemd-logind, like GNU who 9.7, and is outside the private-file scope. Optional DNS lookup is not implemented."
   ],
   "cases": [
     {
@@ -184,8 +184,8 @@
     {
       "id": "live_default_utmp",
       "kind": "deferred",
-      "purpose": "Compare discovery and reporting of live login records through the default /var/run/utmp path.",
-      "reason": "Requires a future disposable VM with a synthetic /var/run/utmp image or a safely injected utmp path and GNU who reading the same controlled sessions. The isolated runner intentionally does not expose the host login database."
+      "purpose": "Compare discovery and reporting of live systemd-logind sessions when who is given no FILE.",
+      "reason": "The isolated runner does not expose systemd-logind. Live no-FILE sessions are compared in the VM suite against GNU who 9.7."
     },
     {
       "id": "identity",

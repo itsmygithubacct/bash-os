@@ -372,13 +372,16 @@ bl_interactive (const bl_lines *ls, int rows, int chop, int numbers, int quit_if
         for (int r = 0; r < rows && top + (size_t) r < ls->n; r++)
             bl_render_line (ls->v[top + (size_t) r], ls->len[top + (size_t) r],
                             chop, numbers, top + (size_t) r, cols);
-        /* Place the prompt on the terminal's last row even when fewer than
-           a screenful of lines remain or -n changes the page size. Flush the
-           stdio content before writing control sequences through write(2). */
+        /* The prompt sits below the page: on the terminal's last row for a
+           full-screen page, even when fewer lines remain, and directly under
+           a shorter page set with -n. Flush the stdio content before writing
+           control sequences through write(2). */
         fflush (stdout);
         int prompt_row = 24;
         if (ioctl (STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0)
             prompt_row = (int) ws.ws_row;
+        if (rows + 1 < prompt_row)
+            prompt_row = rows + 1;
         char position[32];
         snprintf (position, sizeof position, "\033[%d;1H\033[K\033[7m", prompt_row);
         bl_write (STDERR_FILENO, position);

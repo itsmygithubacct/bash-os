@@ -56,6 +56,7 @@
 #include <grp.h>
 #include <limits.h>
 #include <regex.h>
+#include <langinfo.h>
 
 #include "loadables.h"
 
@@ -218,6 +219,71 @@ bp_read_cmdline (int pid, char **out, size_t *cap, int normalize_newlines)
     return 0;
 }
 
+/* Length of the UTF-8 sequence a lead byte starts, or -1 for a byte that
+   cannot start one (procps-ng's UTF_tab). */
+static int
+bp_utf8_lead (unsigned char c)
+{
+    if (c < 0x80) return 1;
+    if (c >= 0xc2 && c <= 0xdf) return 2;
+    if (c >= 0xe0 && c <= 0xef) return 3;
+    if (c >= 0xf0 && c <= 0xf4) return 4;
+    return -1;
+}
+
+/* procps-ng escape_str, in place: outside a UTF-8 locale every byte that is
+   not printable becomes '?'. In a UTF-8 locale control characters do, and
+   from the first byte that cannot start a sequence (or a sequence cut off
+   by the end) every non-printable byte does. Replacement is byte for byte. */
+static void
+bp_procps_escape (char *s)
+{
+    const char *codeset = nl_langinfo (CODESET);
+    int utf8 = codeset && strcasecmp (codeset, "UTF-8") == 0;
+    size_t len = strlen (s), i = 0;
+    while (utf8 && i < len) {
+        int n = bp_utf8_lead ((unsigned char) s[i]);
+        if (n < 0 || i + (size_t) n > len)
+            break;
+        if ((unsigned char) s[i] < 0x20 || (unsigned char) s[i] == 0x7f)
+            s[i] = '?';
+        i += (size_t) n;
+    }
+    for (; i < len; i++)
+        if (!isprint ((unsigned char) s[i])) s[i] = '?';
+}
+
+/* The command line procps-ng pgrep both matches with -f and prints with -a:
+   arguments joined by spaces, "[comm]" when the process has none (kernel
+   threads), with " <defunct>" for a zombie, then escaped. */
+static int
+bp_procps_cmdline (int pid, char **out, size_t *cap)
+{
+    if (bp_read_cmdline (pid, out, cap, 1) < 0)
+        return -1;
+    if (!**out) {
+        char comm[64], path[BP_PATH_MAX], stat[1024];
+        int zombie = 0;
+        if (bp_read_comm (pid, comm, sizeof comm) < 0)
+            return -1;
+        if (bp_proc_pid_path (path, sizeof path, pid, "stat") >= 0 &&
+            bp_read_file (path, stat, sizeof stat, 0) > 0) {
+            const char *paren = strrchr (stat, ')');
+            zombie = paren && paren[1] == ' ' && paren[2] == 'Z';
+        }
+        size_t need = strlen (comm) + sizeof "[] <defunct>";
+        if (*cap < need) {
+            char *buf = realloc (*out, need);
+            if (!buf) return -1;
+            *out = buf;
+            *cap = need;
+        }
+        snprintf (*out, *cap, "[%s]%s", comm, zombie ? " <defunct>" : "");
+    }
+    bp_procps_escape (*out);
+    return 0;
+}
+
 /* A selector list is ORed internally; distinct lists are ANDed. */
 enum { BP_EUID, BP_RUID, BP_RGID, BP_PARENT, BP_PGROUP, BP_SESSION, BP_SELECTORS };
 struct bp_selector { unsigned long ids[BP_OMIT_MAX]; int count; };
@@ -240,26 +306,46 @@ bp_selector_kind (int c)
     }
 }
 
+/* No process has this id: it stands for selector values procps accepts
+   but nothing can match (negative or out-of-range numbers, a list of
+   separators only). */
+#define BP_ID_NONE ULONG_MAX
+
+/* procps-ng splits the list on commas and skips empty elements, so ",PID"
+   and "PID,,1" are valid and "," selects nothing. Numbers follow its
+   strtol/strtoul conversions: process ids may be negative or exceed
+   INT_MAX, user and group ids may exceed UINT_MAX, and such values simply
+   match no process. Only a value that overflows the conversion is an
+   error. */
 static int
 bp_selector_parse (struct bp_selector *sel, int kind, const char *spec)
 {
     const char *p = spec;
+    int listed = 0;
     if (!*p) return -1;
     while (*p) {
         const char *comma = strchr (p, ',');
         size_t len = comma ? (size_t)(comma - p) : strlen (p);
         char token[256], *end;
         unsigned long id;
-        if (!len || len >= sizeof token || sel->count == BP_OMIT_MAX) return -1;
+        if (!len) { p = comma + 1; continue; }
+        if (len >= sizeof token || sel->count == BP_OMIT_MAX) return -1;
         memcpy (token, p, len);
         token[len] = '\0';
+        int ids_of_processes = kind == BP_PARENT || kind == BP_PGROUP || kind == BP_SESSION;
         int numeric = 1;
-        for (size_t i = 0; i < len; i++)
+        for (size_t i = token[0] == '-' && ids_of_processes; i < len; i++)
             if (!isdigit ((unsigned char)token[i])) numeric = 0;
-        if (numeric) {
+        if (token[0] == '-' && len == 1) numeric = 0;
+        if (numeric && ids_of_processes) {
+            errno = 0;
+            long value = strtol (token, &end, 10);
+            if (errno || *end) return -1;
+            id = value < 0 ? BP_ID_NONE : (unsigned long) value;
+        } else if (numeric) {
             errno = 0;
             id = strtoul (token, &end, 10);
-            if (errno || *end || id > (kind <= BP_RGID ? UINT_MAX : INT_MAX)) return -1;
+            if (errno || *end) return -1;
         } else if (kind == BP_EUID || kind == BP_RUID) {
             struct passwd *pw = getpwnam (token);
             if (!pw) return -1;
@@ -269,15 +355,20 @@ bp_selector_parse (struct bp_selector *sel, int kind, const char *spec)
             if (!gr) return -1;
             id = gr->gr_gid;
         } else return -1;
-        if (id == 0 && kind == BP_PGROUP) id = getpgrp ();
-        if (id == 0 && kind == BP_SESSION) {
+        if (!strcmp (token, "0") && kind == BP_PGROUP) id = getpgrp ();
+        if (!strcmp (token, "0") && kind == BP_SESSION) {
             pid_t sid = getsid (0);
             if (sid < 0) return -1;
             id = sid;
         }
         sel->ids[sel->count++] = id;
-        if (!comma) return 0;
+        listed = 1;
+        if (!comma) break;
         p = comma + 1;
+    }
+    if (!listed) {
+        if (sel->count == BP_OMIT_MAX) return -1;
+        sel->ids[sel->count++] = BP_ID_NONE;
     }
     return 0;
 }
@@ -522,11 +613,13 @@ bp_print_pid (int pid, int lflag, int aflag, const char *delim, int *first,
 {
     if (!*first) fputs (delim, stdout);
     printf ("%d", pid);
-    if (lflag) {
+    /* -a wins over -l whichever comes first, as in procps-ng. */
+    if (aflag) {
+        if (bp_procps_cmdline (pid, cmdline, cap) == 0) printf (" %s", *cmdline);
+    } else if (lflag) {
         char name[64];
         if (bp_read_comm (pid, name, sizeof name) == 0) printf (" %s", name);
-    } else if (aflag && bp_read_cmdline (pid, cmdline, cap, 1) == 0 && **cmdline)
-        printf (" %s", *cmdline);
+    }
     *first = 0;
 }
 
@@ -635,8 +728,11 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
         const char *hay = NULL;
         if (mode == BP_MODE_KILLALL5) {
             hay = "";
+        } else if (by_cmdline && mode != BP_MODE_KILLALL) {
+            if (bp_procps_cmdline (pid, &cmdline, &cmdcap) < 0) continue;
+            hay = cmdline;
         } else if (by_cmdline) {
-            if (bp_read_cmdline (pid, &cmdline, &cmdcap, mode != BP_MODE_KILLALL) < 0) continue;
+            if (bp_read_cmdline (pid, &cmdline, &cmdcap, 0) < 0) continue;
             if (cmdline[0] == '\0') continue;  /* kernel threads: empty cmdline */
             hay = cmdline;
         } else {
@@ -884,8 +980,8 @@ bp_dispatch (WORD_LIST *list, int mode)
         /* pgrep-only output/selection flags (kept out of the signal modes so
            they cannot be mistaken for `-SIGNAL` selectors in pkill/killall). */
         if (mode == BP_MODE_GREP) {
-            if (!strcmp (w, "-l") || !strcmp (w, "--list-name")) { lflag = 1; aflag = 0; list = list->next; continue; }
-            if (!strcmp (w, "-a") || !strcmp (w, "--list-full")) { aflag = 1; lflag = 0; list = list->next; continue; }
+            if (!strcmp (w, "-l") || !strcmp (w, "--list-name")) { lflag = 1; list = list->next; continue; }
+            if (!strcmp (w, "-a") || !strcmp (w, "--list-full")) { aflag = 1; list = list->next; continue; }
             if (!strcmp (w, "-v") || !strcmp (w, "--inverse"))   { vflag = 1; list = list->next; continue; }
             if (!strcmp (w, "-d") || !strcmp (w, "--delimiter")) {
                 list = list->next;
@@ -968,8 +1064,8 @@ bp_dispatch (WORD_LIST *list, int mode)
                 if (*c == 'f') { by_cmdline = 1; continue; }
                 if (*c == 'c') { count_only = 1; continue; }
                 if (*c == 'x') { exact = 1; continue; }
-                if (mode == BP_MODE_GREP && *c == 'l') { lflag = 1; aflag = 0; continue; }
-                if (mode == BP_MODE_GREP && *c == 'a') { aflag = 1; lflag = 0; continue; }
+                if (mode == BP_MODE_GREP && *c == 'l') { lflag = 1; continue; }
+                if (mode == BP_MODE_GREP && *c == 'a') { aflag = 1; continue; }
                 if (mode == BP_MODE_GREP && *c == 'v') { vflag = 1; continue; }
                 if (*c == 'n' || *c == 'o') {
                     int age = *c == 'n' ? 1 : -1;

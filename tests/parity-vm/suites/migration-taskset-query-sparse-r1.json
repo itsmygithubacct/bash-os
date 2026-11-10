@@ -1,5 +1,6 @@
 {
   "schema": 1,
+  "smp": 4,
   "cases": [
     {
       "id": "migration-taskset-query-encoding-sparse-r1",

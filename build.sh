@@ -335,7 +335,11 @@ anchor = '  { (char *)0x0,'
 assert text.count(anchor) == 1, 'builtin table anchor not found'
 rows = ''.join('  { '+json.dumps(n)+', '+n+'_builtin, BUILTIN_ENABLED | STATIC_BUILTIN, '+n+'_doc, '
                +json.dumps(doc, ensure_ascii=False)+', 0 },\n' for n, doc in entries.items())
-p.write_text(text.replace(anchor, rows+anchor))
+names = ''.join('  '+json.dumps(n)+',\n' for n in entries)
+# pkg load may replace these with a package build, never Bash's own builtins.
+p.write_text(text.replace(anchor, rows+anchor)
+             + '\n/* bash-os loadables compiled into this shell */\n'
+             + 'const char *const bashos_injected_builtins[] = {\n' + names + '  (const char *)0\n};\n')
 PYTABLE
 
 # --- 8. build --------------------------------------------------------------

@@ -6,7 +6,7 @@
    "loadable": "tput",
    "group": "terminal",
    "driver": "pty",
-   "purpose": "Padding through terminal names the candidate's curated table accepts, so an unknown-terminal refusal cannot hide the padding branch. linux flash has mandatory $<200/> padding and no npc: ncurses writes floor(200*38400/9000) = 853 NUL pad bytes at the PTY's 38400 baud, and 213 after 'stty 9600', so padding follows the output speed. vt100 clear carries non-mandatory $<50> (with xon): no pad bytes and no literal '$<50>'. xterm-256color flash has $<100/> with npc: a delay with no pad bytes (timing in migration-tput-padding-npc-delay). The original modes are restored with stty -g.",
+   "purpose": "Padding through terminal names the candidate's curated table accepts, so an unknown-terminal refusal cannot hide the padding branch. linux flash has mandatory $<200/> padding and no npc: ncurses writes floor(200*38400/9000) = 853 NUL pad bytes at the PTY's 38400 baud, and 213 after 'stty 9600', so padding follows the output speed. vt100 clear carries non-mandatory $<50> (with xon): ncurses tput writes clear through clear_cmd's tputs(), whose screenless wrapper applies non-mandatory delays, so it is 213 pad bytes at 38400 and no literal '$<50>' (putp-written capabilities such as vt100 ed $<50> stay unpadded). xterm-256color flash has $<100/> with npc: a delay with no pad bytes (timing in migration-tput-padding-npc-delay). The original modes are restored with stty -g.",
    "script": "s=$(/usr/bin/stty -g)\ntput -T linux flash; printf 'A\\n'\n/usr/bin/stty 9600\ntput -T linux flash; printf 'B\\n'\n/usr/bin/stty \"$s\"\ntput -T vt100 clear; printf 'C\\n'\ntput -T xterm-256color flash; printf 'D\\n'\n",
    "steps": [
     {
@@ -16,7 +16,7 @@
      "expect": "\\x1b\\[\\?5h\\x00{213}\\x1b\\[\\?5lB\\r\\n"
     },
     {
-     "expect": "\\x1b\\[H\\x1b\\[JC\\r\\n"
+     "expect": "\\x1b\\[H\\x1b\\[J\\x00{213}C\\r\\n"
     },
     {
      "expect": "\\x1b\\[\\?5h\\x1b\\[\\?5lD\\r\\n"

@@ -37,9 +37,372 @@
      { NULL, 0, SYSCONF }
    };
  
-@@ -1050,8 +1054,8 @@
- 	continue;	/* Only print pathconf vars if path supplied */
- #endif
+@@ -1032,26 +1036,363 @@
+   return (r);
+ }
+     
++static const char *const getconf_gnu_names[] =
++{
++  "LINK_MAX",
++  "_POSIX_LINK_MAX",
++  "MAX_CANON",
++  "_POSIX_MAX_CANON",
++  "MAX_INPUT",
++  "_POSIX_MAX_INPUT",
++  "NAME_MAX",
++  "_POSIX_NAME_MAX",
++  "PATH_MAX",
++  "_POSIX_PATH_MAX",
++  "PIPE_BUF",
++  "_POSIX_PIPE_BUF",
++  "SOCK_MAXBUF",
++  "_POSIX_ASYNC_IO",
++  "_POSIX_CHOWN_RESTRICTED",
++  "_POSIX_NO_TRUNC",
++  "_POSIX_PRIO_IO",
++  "_POSIX_SYNC_IO",
++  "_POSIX_VDISABLE",
++  "ARG_MAX",
++  "ATEXIT_MAX",
++  "CHAR_BIT",
++  "CHAR_MAX",
++  "CHAR_MIN",
++  "CHILD_MAX",
++  "CLK_TCK",
++  "INT_MAX",
++  "INT_MIN",
++  "IOV_MAX",
++  "LOGNAME_MAX",
++  "LONG_BIT",
++  "MB_LEN_MAX",
++  "NGROUPS_MAX",
++  "NL_ARGMAX",
++  "NL_LANGMAX",
++  "NL_MSGMAX",
++  "NL_NMAX",
++  "NL_SETMAX",
++  "NL_TEXTMAX",
++  "NSS_BUFLEN_GROUP",
++  "NSS_BUFLEN_PASSWD",
++  "NZERO",
++  "OPEN_MAX",
++  "PAGESIZE",
++  "PAGE_SIZE",
++  "PASS_MAX",
++  "PTHREAD_DESTRUCTOR_ITERATIONS",
++  "PTHREAD_KEYS_MAX",
++  "PTHREAD_STACK_MIN",
++  "PTHREAD_THREADS_MAX",
++  "SCHAR_MAX",
++  "SCHAR_MIN",
++  "SHRT_MAX",
++  "SHRT_MIN",
++  "SSIZE_MAX",
++  "TTY_NAME_MAX",
++  "TZNAME_MAX",
++  "UCHAR_MAX",
++  "UINT_MAX",
++  "UIO_MAXIOV",
++  "ULONG_MAX",
++  "USHRT_MAX",
++  "WORD_BIT",
++  "_AVPHYS_PAGES",
++  "_NPROCESSORS_CONF",
++  "NPROCESSORS_CONF",
++  "_NPROCESSORS_ONLN",
++  "NPROCESSORS_ONLN",
++  "_PHYS_PAGES",
++  "_POSIX_ARG_MAX",
++  "_POSIX_ASYNCHRONOUS_IO",
++  "_POSIX_CHILD_MAX",
++  "_POSIX_FSYNC",
++  "_POSIX_JOB_CONTROL",
++  "_POSIX_MAPPED_FILES",
++  "_POSIX_MEMLOCK",
++  "_POSIX_MEMLOCK_RANGE",
++  "_POSIX_MEMORY_PROTECTION",
++  "_POSIX_MESSAGE_PASSING",
++  "_POSIX_NGROUPS_MAX",
++  "_POSIX_OPEN_MAX",
++  "_POSIX_PII",
++  "_POSIX_PII_INTERNET",
++  "_POSIX_PII_INTERNET_DGRAM",
++  "_POSIX_PII_INTERNET_STREAM",
++  "_POSIX_PII_OSI",
++  "_POSIX_PII_OSI_CLTS",
++  "_POSIX_PII_OSI_COTS",
++  "_POSIX_PII_OSI_M",
++  "_POSIX_PII_SOCKET",
++  "_POSIX_PII_XTI",
++  "_POSIX_POLL",
++  "_POSIX_PRIORITIZED_IO",
++  "_POSIX_PRIORITY_SCHEDULING",
++  "_POSIX_REALTIME_SIGNALS",
++  "_POSIX_SAVED_IDS",
++  "_POSIX_SELECT",
++  "_POSIX_SEMAPHORES",
++  "_POSIX_SHARED_MEMORY_OBJECTS",
++  "_POSIX_SSIZE_MAX",
++  "_POSIX_STREAM_MAX",
++  "_POSIX_SYNCHRONIZED_IO",
++  "_POSIX_THREADS",
++  "_POSIX_THREAD_ATTR_STACKADDR",
++  "_POSIX_THREAD_ATTR_STACKSIZE",
++  "_POSIX_THREAD_PRIORITY_SCHEDULING",
++  "_POSIX_THREAD_PRIO_INHERIT",
++  "_POSIX_THREAD_PRIO_PROTECT",
++  "_POSIX_THREAD_ROBUST_PRIO_INHERIT",
++  "_POSIX_THREAD_ROBUST_PRIO_PROTECT",
++  "_POSIX_THREAD_PROCESS_SHARED",
++  "_POSIX_THREAD_SAFE_FUNCTIONS",
++  "_POSIX_TIMERS",
++  "TIMER_MAX",
++  "_POSIX_TZNAME_MAX",
++  "_POSIX_VERSION",
++  "_T_IOV_MAX",
++  "_XOPEN_CRYPT",
++  "_XOPEN_ENH_I18N",
++  "_XOPEN_LEGACY",
++  "_XOPEN_REALTIME",
++  "_XOPEN_REALTIME_THREADS",
++  "_XOPEN_SHM",
++  "_XOPEN_UNIX",
++  "_XOPEN_VERSION",
++  "_XOPEN_XCU_VERSION",
++  "_XOPEN_XPG2",
++  "_XOPEN_XPG3",
++  "_XOPEN_XPG4",
++  "BC_BASE_MAX",
++  "BC_DIM_MAX",
++  "BC_SCALE_MAX",
++  "BC_STRING_MAX",
++  "CHARCLASS_NAME_MAX",
++  "COLL_WEIGHTS_MAX",
++  "EQUIV_CLASS_MAX",
++  "EXPR_NEST_MAX",
++  "LINE_MAX",
++  "POSIX2_BC_BASE_MAX",
++  "POSIX2_BC_DIM_MAX",
++  "POSIX2_BC_SCALE_MAX",
++  "POSIX2_BC_STRING_MAX",
++  "POSIX2_CHAR_TERM",
++  "POSIX2_COLL_WEIGHTS_MAX",
++  "POSIX2_C_BIND",
++  "POSIX2_C_DEV",
++  "POSIX2_C_VERSION",
++  "POSIX2_EXPR_NEST_MAX",
++  "POSIX2_FORT_DEV",
++  "POSIX2_FORT_RUN",
++  "_POSIX2_LINE_MAX",
++  "POSIX2_LINE_MAX",
++  "POSIX2_LOCALEDEF",
++  "POSIX2_RE_DUP_MAX",
++  "POSIX2_SW_DEV",
++  "POSIX2_UPE",
++  "POSIX2_VERSION",
++  "RE_DUP_MAX",
++  "PATH",
++  "CS_PATH",
++  "LFS_CFLAGS",
++  "LFS_LDFLAGS",
++  "LFS_LIBS",
++  "LFS_LINTFLAGS",
++  "LFS64_CFLAGS",
++  "LFS64_LDFLAGS",
++  "LFS64_LIBS",
++  "LFS64_LINTFLAGS",
++  "_XBS5_WIDTH_RESTRICTED_ENVS",
++  "XBS5_WIDTH_RESTRICTED_ENVS",
++  "_XBS5_ILP32_OFF32",
++  "XBS5_ILP32_OFF32_CFLAGS",
++  "XBS5_ILP32_OFF32_LDFLAGS",
++  "XBS5_ILP32_OFF32_LIBS",
++  "XBS5_ILP32_OFF32_LINTFLAGS",
++  "_XBS5_ILP32_OFFBIG",
++  "XBS5_ILP32_OFFBIG_CFLAGS",
++  "XBS5_ILP32_OFFBIG_LDFLAGS",
++  "XBS5_ILP32_OFFBIG_LIBS",
++  "XBS5_ILP32_OFFBIG_LINTFLAGS",
++  "_XBS5_LP64_OFF64",
++  "XBS5_LP64_OFF64_CFLAGS",
++  "XBS5_LP64_OFF64_LDFLAGS",
++  "XBS5_LP64_OFF64_LIBS",
++  "XBS5_LP64_OFF64_LINTFLAGS",
++  "_XBS5_LPBIG_OFFBIG",
++  "XBS5_LPBIG_OFFBIG_CFLAGS",
++  "XBS5_LPBIG_OFFBIG_LDFLAGS",
++  "XBS5_LPBIG_OFFBIG_LIBS",
++  "XBS5_LPBIG_OFFBIG_LINTFLAGS",
++  "_POSIX_V6_ILP32_OFF32",
++  "POSIX_V6_ILP32_OFF32_CFLAGS",
++  "POSIX_V6_ILP32_OFF32_LDFLAGS",
++  "POSIX_V6_ILP32_OFF32_LIBS",
++  "POSIX_V6_ILP32_OFF32_LINTFLAGS",
++  "_POSIX_V6_WIDTH_RESTRICTED_ENVS",
++  "POSIX_V6_WIDTH_RESTRICTED_ENVS",
++  "_POSIX_V6_ILP32_OFFBIG",
++  "POSIX_V6_ILP32_OFFBIG_CFLAGS",
++  "POSIX_V6_ILP32_OFFBIG_LDFLAGS",
++  "POSIX_V6_ILP32_OFFBIG_LIBS",
++  "POSIX_V6_ILP32_OFFBIG_LINTFLAGS",
++  "_POSIX_V6_LP64_OFF64",
++  "POSIX_V6_LP64_OFF64_CFLAGS",
++  "POSIX_V6_LP64_OFF64_LDFLAGS",
++  "POSIX_V6_LP64_OFF64_LIBS",
++  "POSIX_V6_LP64_OFF64_LINTFLAGS",
++  "_POSIX_V6_LPBIG_OFFBIG",
++  "POSIX_V6_LPBIG_OFFBIG_CFLAGS",
++  "POSIX_V6_LPBIG_OFFBIG_LDFLAGS",
++  "POSIX_V6_LPBIG_OFFBIG_LIBS",
++  "POSIX_V6_LPBIG_OFFBIG_LINTFLAGS",
++  "_POSIX_V7_ILP32_OFF32",
++  "POSIX_V7_ILP32_OFF32_CFLAGS",
++  "POSIX_V7_ILP32_OFF32_LDFLAGS",
++  "POSIX_V7_ILP32_OFF32_LIBS",
++  "POSIX_V7_ILP32_OFF32_LINTFLAGS",
++  "_POSIX_V7_WIDTH_RESTRICTED_ENVS",
++  "POSIX_V7_WIDTH_RESTRICTED_ENVS",
++  "_POSIX_V7_ILP32_OFFBIG",
++  "POSIX_V7_ILP32_OFFBIG_CFLAGS",
++  "POSIX_V7_ILP32_OFFBIG_LDFLAGS",
++  "POSIX_V7_ILP32_OFFBIG_LIBS",
++  "POSIX_V7_ILP32_OFFBIG_LINTFLAGS",
++  "_POSIX_V7_LP64_OFF64",
++  "POSIX_V7_LP64_OFF64_CFLAGS",
++  "POSIX_V7_LP64_OFF64_LDFLAGS",
++  "POSIX_V7_LP64_OFF64_LIBS",
++  "POSIX_V7_LP64_OFF64_LINTFLAGS",
++  "_POSIX_V7_LPBIG_OFFBIG",
++  "POSIX_V7_LPBIG_OFFBIG_CFLAGS",
++  "POSIX_V7_LPBIG_OFFBIG_LDFLAGS",
++  "POSIX_V7_LPBIG_OFFBIG_LIBS",
++  "POSIX_V7_LPBIG_OFFBIG_LINTFLAGS",
++  "_POSIX_ADVISORY_INFO",
++  "_POSIX_BARRIERS",
++  "_POSIX_BASE",
++  "_POSIX_C_LANG_SUPPORT",
++  "_POSIX_C_LANG_SUPPORT_R",
++  "_POSIX_CLOCK_SELECTION",
++  "_POSIX_CPUTIME",
++  "_POSIX_THREAD_CPUTIME",
++  "_POSIX_DEVICE_SPECIFIC",
++  "_POSIX_DEVICE_SPECIFIC_R",
++  "_POSIX_FD_MGMT",
++  "_POSIX_FIFO",
++  "_POSIX_PIPE",
++  "_POSIX_FILE_ATTRIBUTES",
++  "_POSIX_FILE_LOCKING",
++  "_POSIX_FILE_SYSTEM",
++  "_POSIX_MONOTONIC_CLOCK",
++  "_POSIX_MULTI_PROCESS",
++  "_POSIX_SINGLE_PROCESS",
++  "_POSIX_NETWORKING",
++  "_POSIX_READER_WRITER_LOCKS",
++  "_POSIX_SPIN_LOCKS",
++  "_POSIX_REGEXP",
++  "_REGEX_VERSION",
++  "_POSIX_SHELL",
++  "_POSIX_SIGNALS",
++  "_POSIX_SPAWN",
++  "_POSIX_SPORADIC_SERVER",
++  "_POSIX_THREAD_SPORADIC_SERVER",
++  "_POSIX_SYSTEM_DATABASE",
++  "_POSIX_SYSTEM_DATABASE_R",
++  "_POSIX_TIMEOUTS",
++  "_POSIX_TYPED_MEMORY_OBJECTS",
++  "_POSIX_USER_GROUPS",
++  "_POSIX_USER_GROUPS_R",
++  "POSIX2_PBS",
++  "POSIX2_PBS_ACCOUNTING",
++  "POSIX2_PBS_LOCATE",
++  "POSIX2_PBS_TRACK",
++  "POSIX2_PBS_MESSAGE",
++  "SYMLOOP_MAX",
++  "STREAM_MAX",
++  "AIO_LISTIO_MAX",
++  "AIO_MAX",
++  "AIO_PRIO_DELTA_MAX",
++  "DELAYTIMER_MAX",
++  "HOST_NAME_MAX",
++  "LOGIN_NAME_MAX",
++  "MQ_OPEN_MAX",
++  "MQ_PRIO_MAX",
++  "_POSIX_DEVICE_IO",
++  "_POSIX_TRACE",
++  "_POSIX_TRACE_EVENT_FILTER",
++  "_POSIX_TRACE_INHERIT",
++  "_POSIX_TRACE_LOG",
++  "RTSIG_MAX",
++  "SEM_NSEMS_MAX",
++  "SEM_VALUE_MAX",
++  "SIGQUEUE_MAX",
++  "FILESIZEBITS",
++  "POSIX_ALLOC_SIZE_MIN",
++  "POSIX_REC_INCR_XFER_SIZE",
++  "POSIX_REC_MAX_XFER_SIZE",
++  "POSIX_REC_MIN_XFER_SIZE",
++  "POSIX_REC_XFER_ALIGN",
++  "SYMLINK_MAX",
++  "GNU_LIBC_VERSION",
++  "GNU_LIBPTHREAD_VERSION",
++  "POSIX2_SYMLINKS",
++  "LEVEL1_ICACHE_SIZE",
++  "LEVEL1_ICACHE_ASSOC",
++  "LEVEL1_ICACHE_LINESIZE",
++  "LEVEL1_DCACHE_SIZE",
++  "LEVEL1_DCACHE_ASSOC",
++  "LEVEL1_DCACHE_LINESIZE",
++  "LEVEL2_CACHE_SIZE",
++  "LEVEL2_CACHE_ASSOC",
++  "LEVEL2_CACHE_LINESIZE",
++  "LEVEL3_CACHE_SIZE",
++  "LEVEL3_CACHE_ASSOC",
++  "LEVEL3_CACHE_LINESIZE",
++  "LEVEL4_CACHE_SIZE",
++  "LEVEL4_CACHE_ASSOC",
++  "LEVEL4_CACHE_LINESIZE",
++  "IPV6",
++  "RAW_SOCKETS",
++  "_POSIX_IPV6",
++  "_POSIX_RAW_SOCKETS",
++  NULL
++};
++
++static const struct conf *
++getconf_find (const char *name)
++{
++  const struct conf *c;
++
++  for (c = vars; c->name != NULL; ++c)
++    if (strcmp (c->name, name) == 0)
++      return c;
++  return NULL;
++}
++
+ static int
+ getconf_all (WORD_LIST *list)
+ {
+-  const struct conf *c;
++  const char *const *name;
+   char *path;
+   int r;
+ 
+   r = EXECUTION_SUCCESS;
+   path = list ? list->word->word : "/";
+-  for (c = vars; c->name != NULL; ++c)
++  /* Same names and order as glibc getconf -a. Stock limits that glibc does
++     not print stay available to a single query and are not listing rows. */
++  for (name = getconf_gnu_names; *name != NULL; ++name)
+     {
+-#if 0
+-      if (c->call == PATHCONF && path == 0)
+-	continue;	/* Don't print pathconf vars if no path supplied */
+-      if (c->call != PATHCONF && path)
+-	continue;	/* Only print pathconf vars if path supplied */
+-#endif
++      const struct conf *c = getconf_find (*name);
++      if (c == NULL)
++        continue;
        /* The output format for getconf -a is required by POSIX interp 1808 */
 -      printf("%s: ", c->name);
 -      if (getconf_print (c, path, 1) == EXECUTION_FAILURE)
@@ -48,7 +411,7 @@
          r = EXECUTION_FAILURE;
      }
    return (r);
-@@ -1104,53 +1108,46 @@
+@@ -1104,53 +1445,59 @@
    switch (c->call)
      {
      case PATHCONF:
@@ -80,6 +443,19 @@
 -	printf ("%ld\n", value);
 -      return (EXECUTION_SUCCESS);
 +        {
++          /* glibc prints the unsigned bits when UINT_MAX or ULONG_MAX does
++             not fit in a signed long. A blank field would disagree with a
++             constant both listings print. */
++          if (c->call == SYSCONF && strcmp (c->name, "UINT_MAX") == 0)
++            {
++              printf ("%u\n", (unsigned int) -1);
++              return EXECUTION_SUCCESS;
++            }
++          if (c->call == SYSCONF && strcmp (c->name, "ULONG_MAX") == 0)
++            {
++              printf ("%lu\n", (unsigned long) -1);
++              return EXECUTION_SUCCESS;
++            }
 +          /* -a includes unsupported variables as blank fields. A single
 +             unsupported query is "undefined"; an actual query error is 3. */
 +          if (errno && all == 0)
@@ -98,9 +474,7 @@
 -      cvalue = (char *) malloc (clen);
 -      if (cvalue == NULL)
 +      if (clen == 0)
-         {
--          builtin_error ("memory allocation failure");
--          return (EXECUTION_FAILURE);
++        {
 +          if (errno && all == 0)
 +            {
 +              builtin_error ("%s: confstr: %s", c->name, strerror (errno));
@@ -108,6 +482,15 @@
 +            }
 +          printf (all ? "\n" : "undefined\n");
 +          return EXECUTION_SUCCESS;
++        }
++      cvalue = xmalloc (clen);
++      if (confstr (cn, cvalue, clen) != clen)
+         {
+-          builtin_error ("memory allocation failure");
+-          return (EXECUTION_FAILURE);
++          builtin_error ("%s: confstr: %s", c->name, strerror (errno));
++          free (cvalue);
++          return 3;
          }
 -      if (confstr (c->call_name, cvalue, clen) != clen)
 -	{
@@ -118,13 +501,6 @@
 -	}
 -      else
 -	printf ("%.*s\n", (int) clen, cvalue);
-+      cvalue = xmalloc (clen);
-+      if (confstr (cn, cvalue, clen) != clen)
-+        {
-+          builtin_error ("%s: confstr: %s", c->name, strerror (errno));
-+          free (cvalue);
-+          return 3;
-+        }
 +      printf ("%s\n", cvalue);
        free (cvalue);
 -      return (EXECUTION_SUCCESS);

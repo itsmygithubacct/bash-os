@@ -1255,7 +1255,13 @@ fingerprint `ssh-keygen -l` would print for it. Whether that key is
 anybody is a separate question, and `gpg.ssh.allowedSignersFile`
 answers it: a key that stands in that file is reported as `Good "git"
 signature for <principal>`, and one that does not is still a good
-signature but matches no principal, which leaves with 1. `-v` prints
+signature but matches no principal, which leaves with 1. A configured
+`gpg.ssh.revocationFile` that is an empty regular file revokes nothing.
+A missing, unreadable, or non-empty file stays fail-closed: verification
+stops with `Cannot verify SSH signature with a configured revocation
+file.` Debian Git warns and still verifies when that file is missing.
+That difference is deliberate; OpenSSH revocation-list formats are not
+parsed. `-v` prints
 what was signed, and `--show-signature` sets the same lines under the
 commit line in `log` and `show`. An unsigned commit is not a bad one:
 git says nothing about it and leaves with 1, and so does this.

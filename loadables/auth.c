@@ -1830,6 +1830,12 @@ ba_read_password (const char *prompt, struct ba_reader_scope *s)
 	if ((actual.c_lflag & (ECHO | ECHONL | ICANON)) ||
 	    actual.c_cc[VMIN] != 1 || actual.c_cc[VTIME] != 0) { saved = EIO; goto done; }
 	if (ba_reader_pending (s) < 0) { saved = errno; goto done; }
+	/* Take the kernel slot before prompting, so a refused slot never asks
+	 * for a password. Signals are still blocked and the slot is live from
+	 * here on, so the cleanup owner clears it on any later failure. */
+	if (ioctl (s->auth_fd, BASHOS_AUTH_IOC_NEW_SECRET, &s->handle) < 0) { saved = errno; goto done; }
+	s->handle_live = 1;
+	if (ba_reader_pending (s) < 0) { saved = errno; goto done; }
 	if (prompt && *prompt) {
 		size_t length = strlen (prompt);
 		ssize_t written = write (s->tty, prompt, length);
@@ -1907,8 +1913,6 @@ ba_read_secret_cmd (WORD_LIST *args)
 	begin_unwind_frame ("auth read secret");
 	add_unwind_protect (ba_reader_cleanup, &scope);
 	if (ba_read_password (prompt, &scope) < 0) { saved = errno; goto done; }
-	if (ioctl (fd, BASHOS_AUTH_IOC_NEW_SECRET, &scope.handle) < 0) { saved = errno; goto done; }
-	scope.handle_live = 1;
 	if (ba_reader_pending (&scope) < 0) { saved = errno; goto done; }
 	w.id = scope.handle.id;
 	w.len = (unsigned int)scope.length;

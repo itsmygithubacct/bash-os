@@ -1,7 +1,7 @@
 {
   "version": 1,
   "loadable": "binhex",
-  "reference": "Valid complete hexadecimal byte streams are compared against xxd plain mode. Separate contracts cover the documented optional leading 0x prefix and strict rejection of malformed input; xxd intentionally tolerates malformed input and is not an error-path oracle.",
+  "reference": "Valid hexadecimal byte streams are compared against xxd plain mode. Non-hex characters are skipped and a trailing nibble is ignored once a byte has been decoded, matching xxd -r -p. Input that never forms a byte is rejected.",
   "coverage": [
     "Bash metadata: `type -t` reports binhex as a builtin and `help binhex` contains the documented description.",
     "Encode empty input, mixed binary stdin containing NUL and high-bit bytes, a relative file argument, and 4097 deterministic bytes across the implementation's 4096-byte read boundary.",
@@ -12,7 +12,7 @@
   "exclusions": [
     "Deterministically injecting EINTR and short read/write results requires syscall fault injection and is listed as deferred.",
     "No privilege, device, terminal, network, or host-path operation is part of binhex.",
-    "Full xxd decoding compatibility is not claimed: binhex rejects nonhex characters and incomplete bytes."
+    "A trailing nibble or non-hex character is accepted once a byte has been decoded, matching xxd -r -p. Input that never forms a byte is still rejected."
   ],
   "cases": [
     {
@@ -155,7 +155,7 @@
     {
       "id": "decode-odd-nibble-xxd-compatibility",
       "kind": "parity",
-      "purpose": "Compare malformed input with permissive xxd reverse mode. FAIL records an intentional interface difference, not a strict-decoder defect. Raw output/status/diagnostics are retained.",
+      "purpose": "A trailing nibble after a complete byte is ignored, matching xxd -r -p, with status 0 and no diagnostic.",
       "requires": [
         "xxd"
       ],
@@ -166,7 +166,7 @@
     {
       "id": "decode-nonhex-characters-xxd-compatibility",
       "kind": "parity",
-      "purpose": "Compare malformed input with permissive xxd reverse mode. FAIL records an intentional interface difference, not a strict-decoder defect. Raw output/status/diagnostics are retained.",
+      "purpose": "Non-hex characters are skipped and the surrounding hex bytes are decoded, matching xxd -r -p, with status 0 and no diagnostic.",
       "requires": [
         "xxd"
       ],

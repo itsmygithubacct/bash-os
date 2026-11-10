@@ -12,11 +12,12 @@
       ],
       "purpose": "Check all unique resolver results and canonical plus reverse names beyond the former fixed caps, and an unresolved dotted hostname.",
       "oracle": "Controlled files-only NSS and explicit fixture invariants; no reference executable required.",
-      "comparison": "Exact success marker and empty stderr; the inner shell checks status, counts, uniqueness, all expected addresses and names, and empty resolver-failure output.",
+      "comparison": "Exact success marker and empty stderr; the inner shell checks status, counts and uniqueness of every -i address of a 40-address hostname, the reverse name of each of 40 interface addresses for -A (Debian hostname 3.25 walks the interface addresses for -A, not the hostname's), and an unresolved dotted hostname: -i fails with the resolver message and -A is unchanged.",
       "requires": [
         "unshare",
         "python3",
-        "cat"
+        "cat",
+        "ip"
       ],
       "features": [
         "userns"
@@ -27,7 +28,7 @@
         "nss-files.fixture": "passwd: files\ngroup: files\nshadow: files\nhosts: files\nnetworks: files\nprotocols: db files\nservices: db files\n",
         "spec-files.json": "[[\"bind\", \"/tmp/parity-case/hosts.fixture\", \"/etc/hosts\"], [\"bind\", \"/tmp/parity-case/nss-files.fixture\", \"/etc/nsswitch.conf\"]]"
       },
-      "script": "/usr/bin/cat > resolver-check.sh <<'EOF'\nset -eu\nunset BASHOS_HOSTNAME_FIXTURE_ROOT\n/usr/bin/python3 -c 'import socket; socket.sethostname(b\"many\")'\naddresses=$(hostname -i)\nset -- $addresses\n[[ $# == 40 ]] || exit 11\nfor ((i=1; i<=40; i++)); do\n    count=0\n    for address in \"$@\"; do [[ $address != \"192.0.2.$i\" ]] || ((count+=1)); done\n    [[ $count == 1 ]] || exit 12\ndone\nnames=$(hostname -A)\nset -- $names\n[[ $# == 40 ]] || exit 13\nfor ((i=1; i<=40; i++)); do\n    count=0\n    for name in \"$@\"; do [[ $name != \"node$i.fixture.test\" ]] || ((count+=1)); done\n    [[ $count == 1 ]] || exit 14\ndone\n/usr/bin/python3 -c 'import socket; socket.sethostname(b\"missing.fixture.test\")'\n[[ $(hostname -i) == \"\" ]] || exit 15\n[[ $(hostname -A) == \"\" ]] || exit 16\nprintf 'resolver discovery contract ok\\n'\nEOF\n/usr/bin/unshare --user --map-root-user --uts --mount /usr/bin/python3 ns_build.py spec-files.json \"$BASH\" --noprofile --norc resolver-check.sh\n",
+      "script": "/usr/bin/cat > resolver-check.sh <<'EOF'\nset -eu\nunset BASHOS_HOSTNAME_FIXTURE_ROOT\n/usr/sbin/ip link set lo up\n/usr/sbin/ip link add d0 type dummy\nfor ((i=1; i<=40; i++)); do /usr/sbin/ip addr add \"192.0.2.$i/24\" dev d0; done\n/usr/sbin/ip link set d0 up\n/usr/bin/python3 -c 'import socket; socket.sethostname(b\"many\")'\naddresses=$(hostname -i)\nset -- $addresses\n[[ $# == 40 ]] || exit 11\nfor ((i=1; i<=40; i++)); do\n    count=0\n    for address in \"$@\"; do [[ $address != \"192.0.2.$i\" ]] || ((count+=1)); done\n    [[ $count == 1 ]] || exit 12\ndone\nnames=$(hostname -A)\nset -- $names\n[[ $# == 40 ]] || exit 13\nfor ((i=1; i<=40; i++)); do\n    count=0\n    for name in \"$@\"; do [[ $name != \"node$i.fixture.test\" ]] || ((count+=1)); done\n    [[ $count == 1 ]] || exit 14\ndone\n/usr/bin/python3 -c 'import socket; socket.sethostname(b\"missing.fixture.test\")'\nif out=$(hostname -i 2> \"$HOME/missing-i.err\"); then exit 15; fi\n[[ -z $out && $(< \"$HOME/missing-i.err\") == \"hostname: Name or service not known\" ]] || exit 15\n[[ $(hostname -A) == \"$names\" ]] || exit 16\nprintf 'resolver discovery contract ok\\n'\nEOF\n/usr/bin/unshare --user --map-root-user --uts --mount --net /usr/bin/python3 ns_build.py spec-files.json \"$BASH\" --noprofile --norc resolver-check.sh\n",
       "expected_status": 0,
       "stdout": "resolver discovery contract ok\n",
       "stderr": "",

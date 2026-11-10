@@ -453,18 +453,34 @@ static int br_read_fd (int fd, unsigned char **out, size_t *olen) {
     return 0;
 }
 
-/* atomic write of (buf,len) to path via path.bRtmp → rename. 0/-1. */
-static int br_atomic_write (const char *path, const unsigned char *buf, size_t len) {
+/* atomic write of (buf,len) to path via path.bRtmp → rename. 0/-1.
+ * MODE other than (mode_t) -1 is set on the temporary before the rename. */
+static int br_atomic_write_mode (const char *path, const unsigned char *buf,
+                                 size_t len, mode_t mode) {
     char tmp[4096];
     snprintf (tmp, sizeof tmp, "%s.bRtmp", path);
     int fd = open (tmp, O_WRONLY | O_CREAT | O_TRUNC, 0600);
     if (fd < 0) return -1;
     int rc = br_write_all (fd, buf, len);
+    if (rc == 0 && mode != (mode_t) -1) rc = fchmod (fd, mode) == 0 ? 0 : -1;
     if (rc == 0) rc = (fsync (fd) == 0) ? 0 : -1;
     close (fd);
     if (rc != 0) { unlink (tmp); return -1; }
     if (rename (tmp, path) != 0) { unlink (tmp); return -1; }
     return 0;
+}
+static int br_atomic_write (const char *path, const unsigned char *buf, size_t len) {
+    return br_atomic_write_mode (path, buf, len, (mode_t) -1);
+}
+
+/* Mode a pulled regular file gets, as rsync's dest_mode: the sender's with
+ * -p; otherwise an existing file keeps its own and a new one gets the
+ * sender's permission bits under the receiver's umask. */
+static mode_t br_recv_mode (const br_ctx *c, const char *full, uint32_t mode) {
+    struct stat st;
+    if (c->pflag) return (mode_t) mode & 07777;
+    if (lstat (full, &st) == 0 && S_ISREG (st.st_mode)) return st.st_mode & 07777;
+    return (mode_t) mode & 0777 & ~c->umask_v;
 }
 
 /* SERVER side: read a compressed whole-file from stdin, inflate, write path. */
@@ -652,7 +668,8 @@ static int br_pull_recv (const br_ctx *c, const unsigned char *s, size_t len,
             if ((uint64_t) (end - p) < sz) { free (full); return -1; }
             if (!c->nflag) {
                 br_local_mkparent (full);
-                if (br_atomic_write (full, p, (size_t) sz) == 0)
+                if (br_atomic_write_mode (full, p, (size_t) sz,
+                                          br_recv_mode (c, full, mode)) == 0)
                     br_apply_meta_local (c, full, mode, mt, uid, gid, 0);
             }
             p += sz;
@@ -2898,6 +2915,23 @@ err:
 }
 
 /* Request + receive one regular file from the sender; write it under dest. */
+/* End a proto-27 pull as rsync's receiver does: end phase 1 and take the
+ * sender's echo, end phase 2 and take its final NDX_DONE and three stats
+ * longints (total read, written, size), then send the final goodbye that a
+ * protocol >= 24 sender waits for in read_final_goodbye. Without it the
+ * sender reads EOF and exits 12 after a transfer that otherwise worked. */
+static int rs_pull_finish (rs_sess *s, int vflag) {
+    int32_t x;
+    int64_t stat_v;
+    if (rs_write_int (s, -1) < 0) return -1;
+    do { if (rs_read_int (s, &x, vflag) < 0) return -1; } while (x != -1);
+    if (rs_write_int (s, -1) < 0) return -1;
+    do { if (rs_read_int (s, &x, vflag) < 0) return -1; } while (x != -1);
+    for (int i = 0; i < 3; i++)
+        if (rs_read_long (s, &stat_v, vflag) < 0) return -1;
+    return rs_write_int (s, -1);
+}
+
 static int rs_recv_one_file (rs_sess *s, const br_ctx *c, const rs_rent *f,
                              int idx, const char *dest) {
     char *full = br_join (dest, f->name);
@@ -3010,7 +3044,8 @@ static int rs_recv_one_file (rs_sess *s, const br_ctx *c, const rs_rent *f,
                  f->name, literal_bytes, copy_bytes, bl);
     if (!c->nflag) {
         br_local_mkparent (full);
-        int rc = br_atomic_write (full, (const unsigned char *) (buf ? buf : (char *) ""), bl);
+        int rc = br_atomic_write_mode (full, (const unsigned char *) (buf ? buf : (char *) ""), bl,
+                                       br_recv_mode (c, full, (uint32_t) f->mode));
         if (rc == 0) br_apply_meta_local (c, full, (uint32_t) f->mode,
                                           (uint64_t) (uint32_t) f->mtime,
                                           (uint32_t) f->uid, (uint32_t) f->gid, 0);
@@ -3073,17 +3108,10 @@ static int br_rsync_pull (br_ctx *c, const char *rpath, const char *dest) {
                     if (c->nflag) { if (c->vflag) fprintf (stderr, "%s\n", fl[i].name); }
                     else if (rs_recv_one_file (&s, c, &fl[i], i, dest) < 0) rc = -1;
                 }
-            /* end phase 1, no phase-2 redownloads, then drain.
-             * After the phase-2 -1 we close the write side so the server's
-             * trailing read() hits EOF and it exits — otherwise both ends
-             * block reading (it waits for us to close, we wait for it to
-             * send) and the session deadlocks at shutdown. */
+            /* end phase 1, no phase-2 redownloads, goodbye; then close the
+             * write side and drain to the server's EOF. */
             if (rc == 0) {
-                if (rs_write_int (&s, -1) < 0) rc = -1;
-                int32_t x;
-                while (rc == 0 && rs_read_int (&s, &x, c->vflag) == 0) {
-                    if (x == -1) { if (rs_write_int (&s, -1) < 0) rc = -1; break; }
-                }
+                if (rs_pull_finish (&s, c->vflag) < 0) rc = -1;
                 close (s.wfd); s.wfd = -1;
                 if (rc == 0) { int32_t y; while (rs_read_int (&s, &y, c->vflag) == 0) {} }
             }
@@ -3310,12 +3338,8 @@ static int br_rsync_daemon_pull (br_ctx *c, const char *url, const char *dest) {
                         else if (rs_recv_one_file (&s, c, &flv[i], i, dest) < 0) rc = -1;
                     }
                 if (rc == 0) {
-                    if (rs_write_int (&s, -1) < 0) rc = -1;
-                    int32_t x;
-                    while (rc == 0 && rs_read_int (&s, &x, c->vflag) == 0)
-                        if (x == -1) { rs_write_int (&s, -1); break; }
-                    /* half-close the socket so the daemon's trailing read hits
-                     * EOF and exits, then drain its final stats to EOF. */
+                    if (rs_pull_finish (&s, c->vflag) < 0) rc = -1;
+                    /* half-close the socket, then drain to the daemon's EOF. */
                     shutdown (sd, SHUT_WR);
                     if (rc == 0) { int32_t y; while (rs_read_int (&s, &y, c->vflag) == 0) {} }
                 }
@@ -3515,6 +3539,10 @@ rsync_builtin (WORD_LIST *list)
         return EX_USAGE;
     }
 
+    /* Pulled files take their mode under the caller's umask. */
+    c.umask_v = umask (022);
+    umask (c.umask_v);
+
     /* DAEMON mode (rsync://host/module/path or host::module/path) — always
      * speaks the real rsync protocol over a TCP socket; checked before the
      * rsh-shaped HOST:path detection (host::… also has a ':' before '/'). */
@@ -3588,8 +3616,6 @@ rsync_builtin (WORD_LIST *list)
     /* A plain local DEST is a local copy, done here with syscalls, unless
      * -e asked for the RSH transport with an empty host. */
     c.local = !dest_remote && !c.explicit_rsh;
-    c.umask_v = umask (022);
-    umask (c.umask_v);
     fflush (stdout);
     br_push (&c, pos, posn - 1);
     fflush (stdout);

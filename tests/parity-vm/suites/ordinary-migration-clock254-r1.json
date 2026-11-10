@@ -15,7 +15,7 @@
       "group": "shell",
       "helpers_sha256": {
         "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
-        "helpers/clock-release-trace.py": "e423d42c1c8b0820452f0009940a4105702747b1f5028fca597ef40e8d305398"
+        "helpers/clock-014-trace.py": "83e7308d17408376765db537d92a7f3ed0562973c045401f103624acb29f1df9"
       },
       "id": "migration-clock254-boundary-large-epoch",
       "kind": "contract",
@@ -25,8 +25,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py case boundary-large-epoch",
-      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py control",
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py case boundary-large-epoch",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py control",
       "setup_timeout": 30,
       "stderr": "",
       "stdout": "clock254 case=pass\n",
@@ -46,7 +46,7 @@
       "group": "shell",
       "helpers_sha256": {
         "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
-        "helpers/clock-release-trace.py": "e423d42c1c8b0820452f0009940a4105702747b1f5028fca597ef40e8d305398"
+        "helpers/clock-014-trace.py": "83e7308d17408376765db537d92a7f3ed0562973c045401f103624acb29f1df9"
       },
       "id": "migration-clock254-boundary-max-nanos",
       "kind": "contract",
@@ -56,8 +56,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py case boundary-max-nanos",
-      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py control",
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py case boundary-max-nanos",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py control",
       "setup_timeout": 30,
       "stderr": "",
       "stdout": "clock254 case=pass\n",
@@ -77,7 +77,7 @@
       "group": "shell",
       "helpers_sha256": {
         "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
-        "helpers/clock-release-trace.py": "e423d42c1c8b0820452f0009940a4105702747b1f5028fca597ef40e8d305398"
+        "helpers/clock-014-trace.py": "83e7308d17408376765db537d92a7f3ed0562973c045401f103624acb29f1df9"
       },
       "id": "migration-clock254-boundary-negative-epoch",
       "kind": "contract",
@@ -87,8 +87,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py case boundary-negative-epoch",
-      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py control",
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py case boundary-negative-epoch",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py control",
       "setup_timeout": 30,
       "stderr": "",
       "stdout": "clock254 case=pass\n",
@@ -108,7 +108,7 @@
       "group": "shell",
       "helpers_sha256": {
         "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
-        "helpers/clock-release-trace.py": "e423d42c1c8b0820452f0009940a4105702747b1f5028fca597ef40e8d305398"
+        "helpers/clock-014-trace.py": "83e7308d17408376765db537d92a7f3ed0562973c045401f103624acb29f1df9"
       },
       "id": "migration-clock254-boundary-zero",
       "kind": "contract",
@@ -118,8 +118,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py case boundary-zero",
-      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py control",
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py case boundary-zero",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py control",
       "setup_timeout": 30,
       "stderr": "",
       "stdout": "clock254 case=pass\n",
@@ -139,7 +139,7 @@
       "group": "shell",
       "helpers_sha256": {
         "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
-        "helpers/clock-release-trace.py": "e423d42c1c8b0820452f0009940a4105702747b1f5028fca597ef40e8d305398"
+        "helpers/clock-014-trace.py": "83e7308d17408376765db537d92a7f3ed0562973c045401f103624acb29f1df9"
       },
       "id": "migration-clock254-domain-boottime",
       "kind": "contract",
@@ -149,8 +149,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py case domain-boottime",
-      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py control",
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py case domain-boottime",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py control",
       "setup_timeout": 30,
       "stderr": "",
       "stdout": "clock254 case=pass\n",
@@ -170,7 +170,7 @@
       "group": "shell",
       "helpers_sha256": {
         "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
-        "helpers/clock-release-trace.py": "e423d42c1c8b0820452f0009940a4105702747b1f5028fca597ef40e8d305398"
+        "helpers/clock-014-trace.py": "83e7308d17408376765db537d92a7f3ed0562973c045401f103624acb29f1df9"
       },
       "id": "migration-clock254-domain-monotonic",
       "kind": "contract",
@@ -180,8 +180,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py case domain-monotonic",
-      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py control",
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py case domain-monotonic",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py control",
       "setup_timeout": 30,
       "stderr": "",
       "stdout": "clock254 case=pass\n",
@@ -201,7 +201,7 @@
       "group": "shell",
       "helpers_sha256": {
         "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
-        "helpers/clock-release-trace.py": "e423d42c1c8b0820452f0009940a4105702747b1f5028fca597ef40e8d305398"
+        "helpers/clock-014-trace.py": "83e7308d17408376765db537d92a7f3ed0562973c045401f103624acb29f1df9"
       },
       "id": "migration-clock254-domain-realtime",
       "kind": "contract",
@@ -211,8 +211,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py case domain-realtime",
-      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py control",
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py case domain-realtime",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py control",
       "setup_timeout": 30,
       "stderr": "",
       "stdout": "clock254 case=pass\n",
@@ -232,7 +232,7 @@
       "group": "shell",
       "helpers_sha256": {
         "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
-        "helpers/clock-release-trace.py": "e423d42c1c8b0820452f0009940a4105702747b1f5028fca597ef40e8d305398"
+        "helpers/clock-014-trace.py": "83e7308d17408376765db537d92a7f3ed0562973c045401f103624acb29f1df9"
       },
       "id": "migration-clock254-since-borrow",
       "kind": "contract",
@@ -242,8 +242,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py case since-borrow",
-      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py control",
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py case since-borrow",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py control",
       "setup_timeout": 30,
       "stderr": "",
       "stdout": "clock254 case=pass\n",
@@ -263,7 +263,7 @@
       "group": "shell",
       "helpers_sha256": {
         "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
-        "helpers/clock-release-trace.py": "e423d42c1c8b0820452f0009940a4105702747b1f5028fca597ef40e8d305398"
+        "helpers/clock-014-trace.py": "83e7308d17408376765db537d92a7f3ed0562973c045401f103624acb29f1df9"
       },
       "id": "migration-clock254-since-clock-error",
       "kind": "contract",
@@ -273,8 +273,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py case since-clock-error",
-      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py control",
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py case since-clock-error",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py control",
       "setup_timeout": 30,
       "stderr": "",
       "stdout": "clock254 case=pass\n",
@@ -294,7 +294,7 @@
       "group": "shell",
       "helpers_sha256": {
         "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
-        "helpers/clock-release-trace.py": "e423d42c1c8b0820452f0009940a4105702747b1f5028fca597ef40e8d305398"
+        "helpers/clock-014-trace.py": "83e7308d17408376765db537d92a7f3ed0562973c045401f103624acb29f1df9"
       },
       "id": "migration-clock254-since-exact-zero",
       "kind": "contract",
@@ -304,8 +304,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py case since-exact-zero",
-      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py control",
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py case since-exact-zero",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py control",
       "setup_timeout": 30,
       "stderr": "",
       "stdout": "clock254 case=pass\n",
@@ -325,7 +325,7 @@
       "group": "shell",
       "helpers_sha256": {
         "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
-        "helpers/clock-release-trace.py": "e423d42c1c8b0820452f0009940a4105702747b1f5028fca597ef40e8d305398"
+        "helpers/clock-014-trace.py": "83e7308d17408376765db537d92a7f3ed0562973c045401f103624acb29f1df9"
       },
       "id": "migration-clock254-since-future-fraction",
       "kind": "contract",
@@ -335,8 +335,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py case since-future-fraction",
-      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py control",
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py case since-future-fraction",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py control",
       "setup_timeout": 30,
       "stderr": "",
       "stdout": "clock254 case=pass\n",
@@ -356,7 +356,7 @@
       "group": "shell",
       "helpers_sha256": {
         "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262",
-        "helpers/clock-release-trace.py": "e423d42c1c8b0820452f0009940a4105702747b1f5028fca597ef40e8d305398"
+        "helpers/clock-014-trace.py": "83e7308d17408376765db537d92a7f3ed0562973c045401f103624acb29f1df9"
       },
       "id": "migration-clock254-since-future-integer",
       "kind": "contract",
@@ -366,8 +366,8 @@
       "requires": [
         "python3"
       ],
-      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py case since-future-integer",
-      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-release-trace.py control",
+      "script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py case since-future-integer",
+      "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock254_guard.py\n/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/clock-014-trace.py control",
       "setup_timeout": 30,
       "stderr": "",
       "stdout": "clock254 case=pass\n",

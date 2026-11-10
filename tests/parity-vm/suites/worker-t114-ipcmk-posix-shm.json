@@ -26,7 +26,7 @@
       "script": "/usr/bin/unshare --user --map-user=2000 --map-group=2000 --ipc \"$BASH\" --noprofile --norc inner.sh\n",
       "expected_status": 0,
       "stdout": "POSIX shared memory contract verified\n",
-      "stderr": "empty",
+      "stderr": "",
       "timeout": 60,
       "features": [
         "userns"

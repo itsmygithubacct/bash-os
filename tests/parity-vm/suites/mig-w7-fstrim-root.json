@@ -43,7 +43,7 @@
       "group": "shell",
       "driver": "plain",
       "kind": "parity",
-      "purpose": "An fstab entry for / whose source /dev/root (or an unresolvable UUID) cannot be resolved falls back to root= from /proc/cmdline so the mounted root filesystem is selected; without a root= argument nothing is selected, like util-linux.",
+      "purpose": "An fstab / entry whose source is /dev/root is reported as written and is not replaced from root=; an unresolvable UUID for / is dropped and selects nothing; root= supplies a device only when fstab has no / entry, like util-linux.",
       "covers": [
         "fstrim/fstab-tags-and-root"
       ],

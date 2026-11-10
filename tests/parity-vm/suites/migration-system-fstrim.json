@@ -145,7 +145,7 @@
    "group": "shell",
    "driver": "plain",
    "kind": "parity",
-   "purpose": "-A reads a fixture /etc/fstab (bind-mounted in a private user+mount namespace) whose LABEL=, UUID=, PARTLABEL= and PARTUUID= sources resolve through fixture /dev/disk/by-* links, an unresolvable tag and a /dev/root row resolved from a fixture /proc/cmdline root=; an empty fstab and an absent /etc/fstab give the util-linux result and status",
+   "purpose": "-A reads a fixture /etc/fstab (bind-mounted in a private user+mount namespace) whose LABEL=, UUID=, PARTLABEL= and PARTUUID= sources resolve through fixture /dev/disk/by-* links, an unresolvable tag that is dropped rather than replaced from root=, and a /dev/root row reported as written rather than resolved from root=; an empty fstab and an absent /etc/fstab give the util-linux result and status",
    "oracle": "util-linux 2.41 fstrim(8) on the reference side (same guest, same per-side tmpfs mounts, same fixture tables); the kernel decides mountpoint, permission and FITRIM results identically for both sides.",
    "comparison": "Byte parity of status, stdout and stderr: each invocation is bracketed by \"[label]\" markers on both streams and followed by its exit status; no normalisation. Fixture tables and links are bound only inside a private user+mount namespace (trusted ns_build.py; setup proves the binds and links in identical constructions), never on the guest. For the absent case /etc is covered by a namespace-private tmpfs that relinks every original entry except fstab (shadow step, checked in setup); the empty shadow-stash directory remains in the tree on both sides.",
    "covers": [

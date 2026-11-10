@@ -34,33 +34,6 @@
       ],
       "oracle": "System Git 2.47.3 and the candidate client each push to a fixture-only bare local receiver with a relative core.hooksPath.",
       "comparison": "Verify one pre-receive invocation and both proposed tuples, per-ref update arguments and partial rejection, forwarding both hook output streams, and all-or-nothing pre-receive rejection."
-    },
-    {
-      "id": "takeover-git-signer-missing-revocation-r3",
-      "loadable": "git",
-      "group": "shell",
-      "driver": "plain",
-      "kind": "parity",
-      "covers": [
-        "git/signing_and_editor"
-      ],
-      "requires": [
-        "git",
-        "ssh-keygen",
-        "cp"
-      ],
-      "setup_script": "set -e\nexport TZ=UTC0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nexport GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.test GIT_COMMITTER_NAME=Fixture GIT_COMMITTER_EMAIL=fixture@example.test\nexport GIT_AUTHOR_DATE='2020-03-01T00:00:00Z' GIT_COMMITTER_DATE='2020-03-01T00:00:00Z'\n/usr/bin/ssh-keygen -q -t ed25519 -N '' -C fixture -f \"$HOME/key\"\n/usr/bin/git init -q -b main signed\n/usr/bin/git -C signed config gc.auto 0\n/usr/bin/git -C signed config maintenance.auto false\nprintf 'signed\\n' >signed/file\n/usr/bin/git -C signed add file\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" commit -q -S -m signed\n/usr/bin/git -C signed -c gpg.format=ssh -c user.signingKey=\"$HOME/key\" tag -s -m signed signed-tag\n",
-      "script": "export TZ=UTC0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null\nread -r kt kk comment < \"$HOME/key.pub\"\nprintf 'fixture@example.test %s %s\\n' \"$kt\" \"$kk\" > \"$HOME/allowed\"\n/usr/bin/rm -f \"$HOME/revoked\"\ngit -C signed -c gpg.format=ssh -c gpg.ssh.allowedSignersFile=\"$HOME/allowed\" -c gpg.ssh.revocationFile=\"$HOME/revoked\" verify-commit HEAD >\"$HOME/revoked.out\" 2>\"$HOME/revoked.err\"; rc=$?\nif [[ $rc != 0 ]]; then echo 'missing=rejected'; else echo 'missing=accepted'; fi\n/usr/bin/rm -rf signed\n",
-      "expected_status": 0,
-      "stdout": "missing=rejected\n",
-      "stderr": "",
-      "timeout": 40,
-      "diagnostic_files": [
-        "revoked.out",
-        "revoked.err"
-      ],
-      "oracle": "System Git and OpenSSH reject verification when the configured revocation file is missing.",
-      "comparison": "The empty-regular-file exception must not turn missing or unreadable revocation data into success."
     }
   ]
 }

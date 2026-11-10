@@ -460,7 +460,7 @@ bl_filter_parse_one (bl_filter_parser *fp, bl_buf *out, int depth)
     }
     if (count == 0 || fp->pos >= fp->len || fp->s[fp->pos] != ')') {
       bl_buf_free (&children);
-      builtin_error ("ldap: malformed LDAP compound filter");
+      builtin_error ("ldap: malformed compound LDAP filter");
       return -1;
     }
     fp->pos++;

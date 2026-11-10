@@ -62,13 +62,13 @@ static int add_or_replace (uint16_t tag, uint32_t id, uint16_t perm) {
     ents[nent].tag = tag; ents[nent].id = id; ents[nent].perm = perm; nent++;
     return 0;
 }
+/* Like GNU setfacl, removing an entry the ACL does not have is no error. */
 static int remove_ent (uint16_t tag, uint32_t id, int has_id) {
     int w = 0;
     for (int i = 0; i < nent; i++) {
         int match = (ents[i].tag == tag) && (!has_id || ents[i].id == id);
         if (!match) ents[w++] = ents[i];
     }
-    if (w == nent) { builtin_error ("ACL entry not found"); return -2; }
     nent = w;
     return 0;
 }
@@ -210,6 +210,18 @@ static int encode_and_set (const char *path) {
         wr16 (buf+off, ents[i].tag); wr16 (buf+off+2, ents[i].perm); wr32 (buf+off+4, ents[i].id); off += 8;
     }
     if (setxattr (path, XACCESS, buf, off, 0) < 0) {
+        /* A minimal ACL is just the mode: GNU setfacl falls back to chmod
+           where the file system has no ACL support. */
+        struct stat st;
+        if ((errno == EOPNOTSUPP || errno == ENOSYS) && nent == 3 && stat (path, &st) == 0) {
+            mode_t mode = st.st_mode & 07000;
+            for (int i = 0; i < nent; i++)
+                mode |= ents[i].tag == ACL_USER_OBJ ? (mode_t) ents[i].perm << 6
+                      : ents[i].tag == ACL_GROUP_OBJ ? (mode_t) ents[i].perm << 3
+                      : (mode_t) ents[i].perm;
+            if (chmod (path, mode) == 0)
+                return 0;
+        }
         builtin_error ("%s: %s", path, strerror (errno));
         return -1;
     }
@@ -240,19 +252,15 @@ setfacl_builtin (WORD_LIST *list)
     for (WORD_LIST *p = list; p; p = p->next) {
         const char *path = p->word->word;
 
-        if (do_b && !mod && !setspec && !del) {
-            /* drop the extended ACL entirely → reverts to the mode bits */
-            if (removexattr (path, XACCESS) < 0 && errno != ENODATA) {
-                builtin_error ("%s: %s", path, strerror (errno)); rc = EXECUTION_FAILURE;
-            }
-            continue;
-        }
-
         explicit_mask = 0;
         if (setspec) { nent = 0; if (parse_spec (setspec, 0) < 0) return EX_USAGE; }
         else {
             if (load_current (path) < 0) { builtin_error ("%s: %s", path, strerror (errno)); rc = EXECUTION_FAILURE; continue; }
-            if (do_b) { /* keep only base entries, then apply -m below */
+            if (do_b) {
+                /* Keep only the base entries, then apply -x/-m below.  The
+                   group bits come from the group:: entry, not the mask the
+                   mode bits showed (GNU: "setfacl -b" on a 664 file whose
+                   group:: is r-- leaves 644). */
                 int w = 0;
                 for (int i = 0; i < nent; i++)
                     if (ents[i].tag == ACL_USER_OBJ || ents[i].tag == ACL_GROUP_OBJ || ents[i].tag == ACL_OTHER) ents[w++] = ents[i];
@@ -260,8 +268,7 @@ setfacl_builtin (WORD_LIST *list)
             }
             if (del) {
                 int result = parse_spec (del, 1);
-                if (result == -1) return EX_USAGE;
-                if (result == -2) { rc = EXECUTION_FAILURE; continue; }
+                if (result < 0) return EX_USAGE;
             }
             if (mod && parse_spec (mod, 0) < 0) return EX_USAGE;
         }

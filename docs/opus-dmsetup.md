@@ -179,12 +179,16 @@ There is no fixture substitute for any of the following:
   (`--deferred` on an open device) and remove_all.
 - Byte-comparing `table`, `status`, `info` and `deps` against the host's
   dmsetup on the same devices.
-- udev cookies, `/dev/mapper` node creation and `--retry` are not
-  implemented. The builtin relies on udev or devtmpfs creating the nodes.
+- Udev cookies and `remove --retry` follow libdevmapper. `/dev/mapper/NAME`
+  is created here only when the library fallback is on (`DM_DISABLE_UDEV`,
+  or `--verifyudev`). While udev owns the node, `-U`, `-G` and `-M` are
+  stored and not applied, and no extra warning is printed. `DM_DISABLE_UDEV`
+  while udev is running prints libdevmapper's bypass warning and then
+  `mknod`s the node with those uid, gid and mode. An existing node with the
+  right device number is left unchanged.
 - `info` reads read-ahead from sysfs, falling back to `BLKRAGET` on the
   matching device node. Real-device and unavailable-node behavior still need
   qualification against LVM2.
-- The report options `-c`/`-C`/`-o`/`--columns` are accepted for
-  compatibility but ignored. `ls --tree` and `-v` are ignored too.
+- `-v` is accepted and ignored. `info -c` and `ls --tree` produce reports.
 - Only `crypt` keys are masked. Keys inside `integrity` optional arguments
   are not.

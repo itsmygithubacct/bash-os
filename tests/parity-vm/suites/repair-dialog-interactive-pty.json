@@ -379,7 +379,7 @@
               "Hello after resize"
             ],
             "rows": {
-              "4": "^ {10}\\|.*Hello after resize"
+              "3": "^ {9}\\|.*Hello after resize"
             }
           }
         },
@@ -400,7 +400,7 @@
         "res": ""
       },
       "oracle": "dialog(1) 1.3-20250116 from the extended reference image (the real dialog program) on the reference PATH; candidate: the dialog builtin. Exit statuses 0 OK/Yes, 1 No/Cancel, 255 Esc; result strings to stderr; screen contents decoded independently by pyte. Layout and glyph differences are not asserted beyond the stated regexes.",
-      "comparison": "At 14x50 the 8x30 frame starts at row 3, column 10; its text is on row 4.",
+      "comparison": "At 14x50 dialog reserves one shadow row and two shadow columns, so the 8x30 frame origin is row 2, column 9. The prompt is on row 3, the first interior row, and the left border is the pipe at column 9. SIGWINCH redraws that frame before the next key.",
       "timeout": 15,
       "kind": "contract",
       "candidate_script": "dialog --msgbox 'Hello after resize' 8 30 2>res; echo \"rc=$?\" > rc\n"

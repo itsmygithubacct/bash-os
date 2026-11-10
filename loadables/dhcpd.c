@@ -1220,43 +1220,44 @@ bdhcpd_cmd_parse_req (WORD_LIST *args)
       if (assoc_p (v) == 0) { builtin_error ("%s: not an associative array", var); return EXECUTION_FAILURE; }
       if (invisible_p (v)) VUNSETATTR (v, att_invisible);
       assoc_flush (assoc_cell (v));
+      /* The array keeps and later frees each key: pass copies. */
       char num[32], mac[24];
       fmt_mac (r.chaddr, mac, sizeof mac);
       snprintf (num, sizeof num, "%u", r.msg_type);
-      bind_assoc_variable (v, (char *) var, "msg_type", num, ASS_FORCE);
+      bind_assoc_variable (v, (char *) var, savestring ("msg_type"), num, ASS_FORCE);
       snprintf (num, sizeof num, "0x%x", r.xid);
-      bind_assoc_variable (v, (char *) var, "xid", num, ASS_FORCE);
-      bind_assoc_variable (v, (char *) var, "chaddr", mac, ASS_FORCE);
+      bind_assoc_variable (v, (char *) var, savestring ("xid"), num, ASS_FORCE);
+      bind_assoc_variable (v, (char *) var, savestring ("chaddr"), mac, ASS_FORCE);
       if (r.hostname[0])
-        bind_assoc_variable (v, (char *) var, "hostname", r.hostname, ASS_FORCE);
+        bind_assoc_variable (v, (char *) var, savestring ("hostname"), r.hostname, ASS_FORCE);
       if (r.have_req_ip)
         {
           char ip[16];
           fmt_ip4 (r.req_ip, ip, sizeof ip);
-          bind_assoc_variable (v, (char *) var, "requested_ip", ip, ASS_FORCE);
+          bind_assoc_variable (v, (char *) var, savestring ("requested_ip"), ip, ASS_FORCE);
         }
       if (r.have_server_id)
         {
           char ip[16];
           fmt_ip4 (r.server_id, ip, sizeof ip);
-          bind_assoc_variable (v, (char *) var, "server_id", ip, ASS_FORCE);
+          bind_assoc_variable (v, (char *) var, savestring ("server_id"), ip, ASS_FORCE);
         }
       if (r.have_vendor_class)
-        bind_assoc_variable (v, (char *) var, "vendor_class", r.vendor_class, ASS_FORCE);
+        bind_assoc_variable (v, (char *) var, savestring ("vendor_class"), r.vendor_class, ASS_FORCE);
       if (rd32 (r.giaddr) != 0)
         {
           char ip[16]; fmt_ip4 (r.giaddr, ip, sizeof ip);
-          bind_assoc_variable (v, (char *) var, "giaddr", ip, ASS_FORCE);
+          bind_assoc_variable (v, (char *) var, savestring ("giaddr"), ip, ASS_FORCE);
         }
       if (r.opt82_len > 0)
         {
           char id[160];
           snprintf (id, sizeof id, "%d", r.opt82_len);
-          bind_assoc_variable (v, (char *) var, "opt82_len", id, ASS_FORCE);
+          bind_assoc_variable (v, (char *) var, savestring ("opt82_len"), id, ASS_FORCE);
           if (bdhcpd_opt82_sub (&r, 1, id, sizeof id))
-            bind_assoc_variable (v, (char *) var, "relay_circuit_id", id, ASS_FORCE);
+            bind_assoc_variable (v, (char *) var, savestring ("relay_circuit_id"), id, ASS_FORCE);
           if (bdhcpd_opt82_sub (&r, 2, id, sizeof id))
-            bind_assoc_variable (v, (char *) var, "relay_remote_id", id, ASS_FORCE);
+            bind_assoc_variable (v, (char *) var, savestring ("relay_remote_id"), id, ASS_FORCE);
         }
       return EXECUTION_SUCCESS;
     }

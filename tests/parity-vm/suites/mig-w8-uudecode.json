@@ -7,14 +7,14 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "GNU parity for the malformed uudecode input class missing-begin: exit status, diagnostic presence and output-file state are the same on the reference uudecode and the builtin.",
-      "script": "printf 'hello world\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' missing-begin \"$rc\" \"$d\" \"$o\"\n",
+      "script": "printf 'hello world\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nrm -f err\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' missing-begin \"$rc\" \"$d\" \"$o\"\n",
       "expected_status": 0,
       "stderr": "",
       "covers": [
         "uudecode/invalid-input-reference-cases"
       ],
       "oracle": "GNU sharutils 4.15.2 uudecode from the extended reference image (reference side, /usr/bin/uudecode) versus the uudecode builtin (candidate side). Both sides decode the same malformed file; the observation is exit status, whether stderr is non-empty (wording excluded), and whether the output file exists and what it holds afterwards.",
-      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation).",
+      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation, and the file is removed before the tree is compared).",
       "requires": [
         "uudecode"
       ],
@@ -26,14 +26,14 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "GNU parity for the malformed uudecode input class empty: exit status, diagnostic presence and output-file state are the same on the reference uudecode and the builtin.",
-      "script": "printf '' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' empty \"$rc\" \"$d\" \"$o\"\n",
+      "script": "printf '' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nrm -f err\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' empty \"$rc\" \"$d\" \"$o\"\n",
       "expected_status": 0,
       "stderr": "",
       "covers": [
         "uudecode/invalid-input-reference-cases"
       ],
       "oracle": "GNU sharutils 4.15.2 uudecode from the extended reference image (reference side, /usr/bin/uudecode) versus the uudecode builtin (candidate side). Both sides decode the same malformed file; the observation is exit status, whether stderr is non-empty (wording excluded), and whether the output file exists and what it holds afterwards.",
-      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation).",
+      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation, and the file is removed before the tree is compared).",
       "requires": [
         "uudecode"
       ],
@@ -45,14 +45,14 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "GNU parity for the malformed uudecode input class bad-mode: exit status, diagnostic presence and output-file state are the same on the reference uudecode and the builtin.",
-      "script": "printf 'begin zzz out\\n#86)C\\n`\\nend\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' bad-mode \"$rc\" \"$d\" \"$o\"\n",
+      "script": "printf 'begin zzz out\\n#86)C\\n`\\nend\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nrm -f err\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' bad-mode \"$rc\" \"$d\" \"$o\"\n",
       "expected_status": 0,
       "stderr": "",
       "covers": [
         "uudecode/invalid-input-reference-cases"
       ],
       "oracle": "GNU sharutils 4.15.2 uudecode from the extended reference image (reference side, /usr/bin/uudecode) versus the uudecode builtin (candidate side). Both sides decode the same malformed file; the observation is exit status, whether stderr is non-empty (wording excluded), and whether the output file exists and what it holds afterwards.",
-      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation).",
+      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation, and the file is removed before the tree is compared).",
       "requires": [
         "uudecode"
       ],
@@ -64,14 +64,14 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "GNU parity for the malformed uudecode input class bad-length-char: exit status, diagnostic presence and output-file state are the same on the reference uudecode and the builtin.",
-      "script": "printf 'begin 644 out\\n\\177\\1776)C\\n`\\nend\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' bad-length-char \"$rc\" \"$d\" \"$o\"\n",
+      "script": "printf 'begin 644 out\\n\\177\\1776)C\\n`\\nend\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nrm -f err\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' bad-length-char \"$rc\" \"$d\" \"$o\"\n",
       "expected_status": 0,
       "stderr": "",
       "covers": [
         "uudecode/invalid-input-reference-cases"
       ],
       "oracle": "GNU sharutils 4.15.2 uudecode from the extended reference image (reference side, /usr/bin/uudecode) versus the uudecode builtin (candidate side). Both sides decode the same malformed file; the observation is exit status, whether stderr is non-empty (wording excluded), and whether the output file exists and what it holds afterwards.",
-      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation).",
+      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation, and the file is removed before the tree is compared).",
       "requires": [
         "uudecode"
       ],
@@ -83,14 +83,14 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "GNU parity for the malformed uudecode input class truncated-body: exit status, diagnostic presence and output-file state are the same on the reference uudecode and the builtin.",
-      "script": "printf 'begin 644 out\\n#86\\n`\\nend\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' truncated-body \"$rc\" \"$d\" \"$o\"\n",
+      "script": "printf 'begin 644 out\\n#86\\n`\\nend\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nrm -f err\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' truncated-body \"$rc\" \"$d\" \"$o\"\n",
       "expected_status": 0,
       "stderr": "",
       "covers": [
         "uudecode/invalid-input-reference-cases"
       ],
       "oracle": "GNU sharutils 4.15.2 uudecode from the extended reference image (reference side, /usr/bin/uudecode) versus the uudecode builtin (candidate side). Both sides decode the same malformed file; the observation is exit status, whether stderr is non-empty (wording excluded), and whether the output file exists and what it holds afterwards.",
-      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation).",
+      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation, and the file is removed before the tree is compared).",
       "requires": [
         "uudecode"
       ],
@@ -102,14 +102,14 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "GNU parity for the malformed uudecode input class missing-end: exit status, diagnostic presence and output-file state are the same on the reference uudecode and the builtin.",
-      "script": "printf 'begin 644 out\\n#86)C\\n`\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' missing-end \"$rc\" \"$d\" \"$o\"\n",
+      "script": "printf 'begin 644 out\\n#86)C\\n`\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nrm -f err\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' missing-end \"$rc\" \"$d\" \"$o\"\n",
       "expected_status": 0,
       "stderr": "",
       "covers": [
         "uudecode/invalid-input-reference-cases"
       ],
       "oracle": "GNU sharutils 4.15.2 uudecode from the extended reference image (reference side, /usr/bin/uudecode) versus the uudecode builtin (candidate side). Both sides decode the same malformed file; the observation is exit status, whether stderr is non-empty (wording excluded), and whether the output file exists and what it holds afterwards.",
-      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation).",
+      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation, and the file is removed before the tree is compared).",
       "requires": [
         "uudecode"
       ],
@@ -121,14 +121,14 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "GNU parity for the malformed uudecode input class missing-zero-line-and-end: exit status, diagnostic presence and output-file state are the same on the reference uudecode and the builtin.",
-      "script": "printf 'begin 644 out\\n#86)C\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' missing-zero-line-and-end \"$rc\" \"$d\" \"$o\"\n",
+      "script": "printf 'begin 644 out\\n#86)C\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nrm -f err\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' missing-zero-line-and-end \"$rc\" \"$d\" \"$o\"\n",
       "expected_status": 0,
       "stderr": "",
       "covers": [
         "uudecode/invalid-input-reference-cases"
       ],
       "oracle": "GNU sharutils 4.15.2 uudecode from the extended reference image (reference side, /usr/bin/uudecode) versus the uudecode builtin (candidate side). Both sides decode the same malformed file; the observation is exit status, whether stderr is non-empty (wording excluded), and whether the output file exists and what it holds afterwards.",
-      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation).",
+      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation, and the file is removed before the tree is compared).",
       "requires": [
         "uudecode"
       ],
@@ -140,14 +140,14 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "GNU parity for the malformed uudecode input class short-final-group: exit status, diagnostic presence and output-file state are the same on the reference uudecode and the builtin.",
-      "script": "printf 'begin 644 out\\n\"86)\\n`\\nend\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' short-final-group \"$rc\" \"$d\" \"$o\"\n",
+      "script": "printf 'begin 644 out\\n\"86)\\n`\\nend\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nrm -f err\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' short-final-group \"$rc\" \"$d\" \"$o\"\n",
       "expected_status": 0,
       "stderr": "",
       "covers": [
         "uudecode/invalid-input-reference-cases"
       ],
       "oracle": "GNU sharutils 4.15.2 uudecode from the extended reference image (reference side, /usr/bin/uudecode) versus the uudecode builtin (candidate side). Both sides decode the same malformed file; the observation is exit status, whether stderr is non-empty (wording excluded), and whether the output file exists and what it holds afterwards.",
-      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation).",
+      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation, and the file is removed before the tree is compared).",
       "requires": [
         "uudecode"
       ],
@@ -159,14 +159,14 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "GNU parity for the malformed uudecode input class bad-char-in-body: exit status, diagnostic presence and output-file state are the same on the reference uudecode and the builtin.",
-      "script": "printf 'begin 644 out\\n#8\\177)C\\n`\\nend\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' bad-char-in-body \"$rc\" \"$d\" \"$o\"\n",
+      "script": "printf 'begin 644 out\\n#8\\177)C\\n`\\nend\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nrm -f err\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' bad-char-in-body \"$rc\" \"$d\" \"$o\"\n",
       "expected_status": 0,
       "stderr": "",
       "covers": [
         "uudecode/invalid-input-reference-cases"
       ],
       "oracle": "GNU sharutils 4.15.2 uudecode from the extended reference image (reference side, /usr/bin/uudecode) versus the uudecode builtin (candidate side). Both sides decode the same malformed file; the observation is exit status, whether stderr is non-empty (wording excluded), and whether the output file exists and what it holds afterwards.",
-      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation).",
+      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation, and the file is removed before the tree is compared).",
       "requires": [
         "uudecode"
       ],
@@ -178,14 +178,14 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "GNU parity for the malformed uudecode input class b64-invalid-char: exit status, diagnostic presence and output-file state are the same on the reference uudecode and the builtin.",
-      "script": "printf 'begin-base64 644 out\\n!!!!\\n====\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' b64-invalid-char \"$rc\" \"$d\" \"$o\"\n",
+      "script": "printf 'begin-base64 644 out\\n!!!!\\n====\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nrm -f err\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' b64-invalid-char \"$rc\" \"$d\" \"$o\"\n",
       "expected_status": 0,
       "stderr": "",
       "covers": [
         "uudecode/invalid-input-reference-cases"
       ],
       "oracle": "GNU sharutils 4.15.2 uudecode from the extended reference image (reference side, /usr/bin/uudecode) versus the uudecode builtin (candidate side). Both sides decode the same malformed file; the observation is exit status, whether stderr is non-empty (wording excluded), and whether the output file exists and what it holds afterwards.",
-      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation).",
+      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation, and the file is removed before the tree is compared).",
       "requires": [
         "uudecode"
       ],
@@ -197,14 +197,14 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "GNU parity for the malformed uudecode input class b64-missing-terminator: exit status, diagnostic presence and output-file state are the same on the reference uudecode and the builtin.",
-      "script": "printf 'begin-base64 644 out\\nYWJj\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' b64-missing-terminator \"$rc\" \"$d\" \"$o\"\n",
+      "script": "printf 'begin-base64 644 out\\nYWJj\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nrm -f err\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' b64-missing-terminator \"$rc\" \"$d\" \"$o\"\n",
       "expected_status": 0,
       "stderr": "",
       "covers": [
         "uudecode/invalid-input-reference-cases"
       ],
       "oracle": "GNU sharutils 4.15.2 uudecode from the extended reference image (reference side, /usr/bin/uudecode) versus the uudecode builtin (candidate side). Both sides decode the same malformed file; the observation is exit status, whether stderr is non-empty (wording excluded), and whether the output file exists and what it holds afterwards.",
-      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation).",
+      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation, and the file is removed before the tree is compared).",
       "requires": [
         "uudecode"
       ],
@@ -216,14 +216,14 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "GNU parity for the malformed uudecode input class b64-bad-padding: exit status, diagnostic presence and output-file state are the same on the reference uudecode and the builtin.",
-      "script": "printf 'begin-base64 644 out\\nYW=j\\n====\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' b64-bad-padding \"$rc\" \"$d\" \"$o\"\n",
+      "script": "printf 'begin-base64 644 out\\nYW=j\\n====\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nrm -f err\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' b64-bad-padding \"$rc\" \"$d\" \"$o\"\n",
       "expected_status": 0,
       "stderr": "",
       "covers": [
         "uudecode/invalid-input-reference-cases"
       ],
       "oracle": "GNU sharutils 4.15.2 uudecode from the extended reference image (reference side, /usr/bin/uudecode) versus the uudecode builtin (candidate side). Both sides decode the same malformed file; the observation is exit status, whether stderr is non-empty (wording excluded), and whether the output file exists and what it holds afterwards.",
-      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation).",
+      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation, and the file is removed before the tree is compared).",
       "requires": [
         "uudecode"
       ],
@@ -235,14 +235,14 @@
       "group": "shell",
       "driver": "plain",
       "purpose": "GNU parity for the malformed uudecode input class valid-control: exit status, diagnostic presence and output-file state are the same on the reference uudecode and the builtin.",
-      "script": "printf 'begin 644 out\\n#86)C\\n`\\nend\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' valid-control \"$rc\" \"$d\" \"$o\"\n",
+      "script": "printf 'begin 644 out\\n#86)C\\n`\\nend\\n' > in\nuudecode in 2>err; rc=$?\nif [ -s err ]; then d=present; else d=absent; fi\nrm -f err\nif [ -e out ]; then o=\"exists:$(<out)\"; else o=absent; fi\nprintf '%s rc=%s diag=%s out=%s\\n' valid-control \"$rc\" \"$d\" \"$o\"\n",
       "expected_status": 0,
       "stderr": "",
       "covers": [
         "uudecode/invalid-input-reference-cases"
       ],
       "oracle": "GNU sharutils 4.15.2 uudecode from the extended reference image (reference side, /usr/bin/uudecode) versus the uudecode builtin (candidate side). Both sides decode the same malformed file; the observation is exit status, whether stderr is non-empty (wording excluded), and whether the output file exists and what it holds afterwards.",
-      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation).",
+      "comparison": "Exact stdout line \"NAME rc=N diag=present|absent out=absent|exists:CONTENT\" produced identically by both sides; stderr wording is not compared (it is redirected to a file whose emptiness is the observation, and the file is removed before the tree is compared).",
       "requires": [
         "uudecode"
       ],

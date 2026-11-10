@@ -950,7 +950,7 @@
       "driver": "pty",
       "kind": "contract",
       "purpose": "The fixture consumer traps Ctrl-C, emits all disable controls, and restores termios.",
-      "script": "saved=$(/bin/stty -g) || exit 21\n/bin/stty -icanon -echo min 1 time 0 || exit 22\ntrap 'mouse disable all; /bin/stty \"$saved\"; printf \"\\nINT-CLEANED\\n\"; exit 130' INT\nmouse enable all\nprintf 'READY-INT\\n'\nIFS= read -r -N 1 unused\nexit 25\n",
+      "script": "saved=$(/bin/stty -g) || exit 21\n/bin/stty -icanon -echo min 1 time 0 || exit 22\ntrap '/bin/stty \"$saved\"' EXIT\ntrap 'mouse disable all; /bin/stty \"$saved\"; printf \"\\nINT-CLEANED\\n\"; exit 130' INT\nmouse enable all\nprintf 'READY-INT\\n'\nIFS= read -r -N 1 unused\nexit 25\n",
       "size": [
         24,
         80

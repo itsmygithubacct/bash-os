@@ -18,7 +18,8 @@
  *   125      timeout itself (us) failed.
  *   126      CMD was found but not executable.
  *   127      CMD not found.
- *   128+N    CMD killed by signal N (after timeout, this becomes 124).
+ *   128+N    CMD killed by signal N (after timeout, this becomes 124,
+ *            except 137 when the timed-out CMD died from SIGKILL).
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c.
@@ -518,8 +519,12 @@ timeout_builtin (WORD_LIST *list)
         /* GNU's non-foreground monitor belongs to the group it kills and
            therefore dies from SIGKILL during escalation.  Our monitor is
            the calling shell, so report the equivalent status without
-           killing that shell.  Foreground mode only kills the command. */
+           killing that shell.  A timed-out command that died from SIGKILL
+           (escalation, -s KILL, or its own doing) is also 128+9 in every
+           mode, so callers can tell it was forcibly killed. */
         if (killed_hard && !foreground)
+            return 128 + SIGKILL;
+        if (WIFSIGNALED (status) && WTERMSIG (status) == SIGKILL)
             return 128 + SIGKILL;
         if (preserve_status) {
             if (WIFEXITED (status)) return WEXITSTATUS (status);
@@ -551,6 +556,7 @@ char *timeout_doc[] = {
     "not executable, 127 if not found, 128+N if killed by signal N,",
     "otherwise CMD's own exit status.  With --preserve-status, returns",
     "CMD's exit status (128+N) instead of 124 when timeout occurs.",
+    "A timed-out CMD that died from SIGKILL returns 137 in every mode.",
     (char *)NULL
 };
 

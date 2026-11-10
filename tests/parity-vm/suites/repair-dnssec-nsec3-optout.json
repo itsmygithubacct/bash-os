@@ -15,7 +15,7 @@
       "expected_status": 0,
       "group": "shell",
       "helpers_sha256": {
-        "helpers/dnssec-nsec3-optout-peer.py": "ab7993454fad8a403a59247ed7c44e17c74f9b75689c5674a1c11fb3903e98d8"
+        "helpers/dnssec-nsec3-optout-peer.py": "c7e272da28d6616df7a9af446ebb79c6cef9cf1ea4987e006b11be1b223c7c9e"
       },
       "id": "repair-dns-resolver-nsec3-optout-bounded-r15",
       "kind": "contract",
@@ -28,7 +28,7 @@
         "dig",
         "mkfifo"
       ],
-      "script": "H=/opt/bashos-parity/harness/helpers/dnssec-nsec3-optout-peer.py\n/usr/bin/python3 \"$H\" prep || exit 98\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> srv.err & srv=$!\ntrap 'kill \"$res\" \"$srv\" 2>/dev/null; wait \"$res\" \"$srv\" 2>/dev/null' EXIT\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340 || exit 98\ncontrol=$(/usr/bin/python3 \"$H\" control 127.0.0.2 5340 optout) || exit 98\n[[ $control == control-ok ]] || { printf '%s\\n' \"$control\"; exit 98; }\necho control-ok\nexport PATH=\"$HOME/pbin\" BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\" BASHDNS_SERVER_PORT=5340\ndns resolver-serve --listen 127.0.0.1 --port 5320 --root-hints 127.0.0.2 --max-queries 1 --timeout 3000 </dev/null 2> resolver.err & res=$!\n/usr/bin/python3 \"$H\" waitudp 127.0.0.1 5320 || exit 98\n/usr/bin/dig +dnssec +adflag +tries=1 +time=10 -p 5320 @127.0.0.1 unsigned.optout.test A > dig.out 2>&1 || exit 1\n/usr/bin/python3 -c 'import re; t=open(\"dig.out\").read(); s=re.search(r\"status: (\\w+)\",t); f=re.search(r\";; flags: ([a-z ]+);\",t); a=re.findall(r\"^\\S+\\s+\\d+\\s+IN\\s+A\\s+(\\S+)$\",t,re.M); print(\"insecure=correct\" if s and s.group(1)==\"NOERROR\" and f and \"ad\" not in f.group(1).split() and a==[\"192.0.2.80\"] else \"insecure=incorrect\")'\nwait \"$res\" || exit 1\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/dnssec-nsec3-optout-peer.py\n/usr/bin/python3 \"$H\" prep || exit 98\n/usr/bin/python3 \"$H\" serve 127.0.0.2 5340 ready 2> \"$HOME/srv.err\" & srv=$!\ntrap 'kill \"$res\" \"$srv\" 2>/dev/null; wait \"$res\" \"$srv\" 2>/dev/null; /usr/bin/cp -f -- *.out dnssec-queries.json \"$HOME/\" 2>/dev/null' EXIT\n/usr/bin/python3 \"$H\" waitudp 127.0.0.2 5340 || exit 98\ncontrol=$(/usr/bin/python3 \"$H\" control 127.0.0.2 5340 optout) || exit 98\n[[ $control == control-ok ]] || { printf '%s\\n' \"$control\"; exit 98; }\necho control-ok\nexport PATH=\"$HOME/pbin\" BASHDNS_TRUST_ANCHOR=\"$PWD/anchor.ds\" BASHDNS_SERVER_PORT=5340\ndns resolver-serve --listen 127.0.0.1 --port 5320 --root-hints 127.0.0.2 --max-queries 1 --timeout 3000 </dev/null 2> \"$HOME/resolver.err\" & res=$!\n/usr/bin/python3 \"$H\" waitudp 127.0.0.1 5320 || exit 98\n/usr/bin/dig +dnssec +adflag +tries=1 +time=10 -p 5320 @127.0.0.1 unsigned.optout.test A > dig.out 2>&1 || exit 1\n/usr/bin/python3 -c 'import re; t=open(\"dig.out\").read(); s=re.search(r\"status: (\\w+)\",t); f=re.search(r\";; flags: ([a-z ]+);\",t); a=re.findall(r\"^\\S+\\s+\\d+\\s+IN\\s+A\\s+(\\S+)$\",t,re.M); print(\"insecure=correct\" if s and s.group(1)==\"NOERROR\" and f and \"ad\" not in f.group(1).split() and a==[\"192.0.2.80\"] else \"insecure=incorrect\")'\nwait \"$res\" || exit 1\n",
       "setup_script": "mkdir -p \"$HOME/pbin\"\nln -s /opt/bashos-parity/candidate \"$HOME/pbin/bash\"\nprintf \"nameserver 127.0.0.2\\n\" > resolv.conf\nmkfifo w.fifo\n",
       "setup_timeout": 20,
       "stderr": "",

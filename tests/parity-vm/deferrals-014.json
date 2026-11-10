@@ -18,7 +18,7 @@
           "evidence": [
             {
               "assertion": "Mock CA must see GET /directory and then requests to the advertised (non-default) newNonce/newAccount/newOrder URLs. Limit: the frozen candidate has no lifecycle verb (acme.c dispatches only the JWK/JWS primitives; the verb named in its help text is invoked), so it exits 2 with \"unknown subcommand\" and the case FAILs on both builds; a Python control client first completes the whole lifecycle against a separate mock CA instance, showing the oracle accepts a correct client.",
-              "definition_sha256": "7771b31f63f11e7b7b37e3ac75ad31853a4292c727896356bfc889aec6692c4c",
+              "definition_sha256": "10d2d9b7b11fafe12c5327a84474f2b7a5ef92209053242ada0b06b9c9b3da1b",
               "group": "shell",
               "id": "mig-w2-acme-lifecycle-r1"
             }
@@ -32,7 +32,7 @@
           "evidence": [
             {
               "assertion": "Mock CA must see HEAD newNonce, at least two POSTs, each nonce server-supplied and never reused. Limit: the frozen candidate has no lifecycle verb (acme.c dispatches only the JWK/JWS primitives; the verb named in its help text is invoked), so it exits 2 with \"unknown subcommand\" and the case FAILs on both builds; a Python control client first completes the whole lifecycle against a separate mock CA instance, showing the oracle accepts a correct client.",
-              "definition_sha256": "5df4a0aa2b52357208ab610091d5f409b3bcc8fc28a4f1011126f821452bef27",
+              "definition_sha256": "d88ed36cded58ccffe6791ce8668d6a489ce04aa41cff0282ce25059e6f55662",
               "group": "shell",
               "id": "mig-w2-acme-lifecycle-r2"
             }
@@ -52,7 +52,7 @@
             },
             {
               "assertion": "newAccount POST must be a valid flattened ES256 JWS with jwk, url, nonce and application/jose+json, and the account Location must be reported (account-url=...). Limit: the frozen candidate has no lifecycle verb (acme.c dispatches only the JWK/JWS primitives; the verb named in its help text is invoked), so it exits 2 with \"unknown subcommand\" and the case FAILs on both builds; a Python control client first completes the whole lifecycle against a separate mock CA instance, showing the oracle accepts a correct client.",
-              "definition_sha256": "bcbaee989d53fa4013410f0f0b148b7360eccc763004bc4e5c48ae3951394bd8",
+              "definition_sha256": "0c7b474ef29a6dc26ac1f5546a7494efb537a586e92ccf3d32dedf86568721e4",
               "group": "shell",
               "id": "mig-w2-acme-lifecycle-r3"
             }
@@ -78,7 +78,7 @@
             },
             {
               "assertion": "newOrder with kid, authorization fetch and order poll as POST-as-GET (empty payload) with kid. Limit: the frozen candidate has no lifecycle verb (acme.c dispatches only the JWK/JWS primitives; the verb named in its help text is invoked), so it exits 2 with \"unknown subcommand\" and the case FAILs on both builds; a Python control client first completes the whole lifecycle against a separate mock CA instance, showing the oracle accepts a correct client.",
-              "definition_sha256": "398aba892fd9dbd75877e6d69e53c7427589fb841ae2cd03839f0bd848767aee",
+              "definition_sha256": "f74c5a168def18e99c8c1fa282abf9f322da585c06bfac9635ea86c969a85884",
               "group": "shell",
               "id": "mig-w2-acme-lifecycle-r4"
             }
@@ -110,7 +110,7 @@
             },
             {
               "assertion": "The CA must fetch token.thumbprint for http-01 and receive the challenge POST. Limit: the frozen candidate has no lifecycle verb (acme.c dispatches only the JWK/JWS primitives; the verb named in its help text is invoked), so it exits 2 with \"unknown subcommand\" and the case FAILs on both builds; a Python control client first completes the whole lifecycle against a separate mock CA instance, showing the oracle accepts a correct client.",
-              "definition_sha256": "50d4e3ec18d0f9c5f4af1a45a8cb8d5cc5fe901832aece2f1e0b5a7b14af0389",
+              "definition_sha256": "72dd3f0d58320434c56edf20ed5aca0beb6edd34d9f9486716ef3939dcdab85c",
               "group": "shell",
               "id": "mig-w2-acme-lifecycle-r5"
             }
@@ -124,7 +124,7 @@
           "evidence": [
             {
               "assertion": "finalize must send a valid CSR whose SAN is the fixture identifier and the order must be polled until valid. Limit: the frozen candidate has no lifecycle verb (acme.c dispatches only the JWK/JWS primitives; the verb named in its help text is invoked), so it exits 2 with \"unknown subcommand\" and the case FAILs on both builds; a Python control client first completes the whole lifecycle against a separate mock CA instance, showing the oracle accepts a correct client.",
-              "definition_sha256": "6e7f7e3dfd8041e4856195180f14b8997ebabc7b53597faaa4ef2808a4507a9f",
+              "definition_sha256": "67bd58d3b8f5aa6736f7642f42b174837a72ad0a7061b69c360bb4dccd2c4785",
               "group": "shell",
               "id": "mig-w2-acme-lifecycle-r6"
             }
@@ -138,7 +138,7 @@
           "evidence": [
             {
               "assertion": "The certificate must be downloaded by POST-as-GET and the chain stored in issued/fullchain.pem. Limit: the frozen candidate has no lifecycle verb (acme.c dispatches only the JWK/JWS primitives; the verb named in its help text is invoked), so it exits 2 with \"unknown subcommand\" and the case FAILs on both builds; a Python control client first completes the whole lifecycle against a separate mock CA instance, showing the oracle accepts a correct client.",
-              "definition_sha256": "574c5326d22511311875857c0c64f2d6bc918b669d659578f7578ed6fe8d2924",
+              "definition_sha256": "57660af48baed13e5901873b7f91fa76daffad6e7ddc3f1bf5044b9fcab95d7f",
               "group": "shell",
               "id": "mig-w2-acme-lifecycle-r7"
             }
@@ -152,7 +152,7 @@
           "evidence": [
             {
               "assertion": "A complete lifecycle run must touch only the loopback peer (all stages seen, every client 127.0.0.1) using fixture keys. Limit: the frozen candidate has no lifecycle verb (acme.c dispatches only the JWK/JWS primitives; the verb named in its help text is invoked), so it exits 2 with \"unknown subcommand\" and the case FAILs on both builds; a Python control client first completes the whole lifecycle against a separate mock CA instance, showing the oracle accepts a correct client.",
-              "definition_sha256": "13a9e43a5d28e75032b1aea70f0027893705738dae4602aded6e27b52cefc090",
+              "definition_sha256": "8f485bbc1c1287421e99399df40bccea84e3df272642d627df49acbdea0ef585",
               "group": "shell",
               "id": "mig-w2-acme-lifecycle-r8"
             }
@@ -1215,19 +1215,19 @@
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "0ea390bce9c3da6f2d8d64aaff73fab6c601bc10bf61144e80ce1465de340028",
+              "definition_sha256": "a8817581942243a315ea8dc0f404a943bf0a6d7b6aea31e4fa97f192b4bde873",
               "group": "shell",
               "id": "migration-clock254-domain-boottime"
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "11f02daa353d0bcf92b965da531e7201671c047c3ee22a830a7a44f73cd9edfd",
+              "definition_sha256": "0d762596cf37dfe77ec4ea9b84acc55e63e301a22f284d43f9812021564229d7",
               "group": "shell",
               "id": "migration-clock254-domain-monotonic"
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "5174c1ace7b13882db9397da3dc25db7ae2deb1d0b9a695601babe8e11022bb5",
+              "definition_sha256": "8635b6fd2c013ffbddb8dcbeb65651d21701d8c70c26e7a1f60b70f7d81760e4",
               "group": "shell",
               "id": "migration-clock254-domain-realtime"
             }
@@ -1261,25 +1261,25 @@
           "evidence": [
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "f2fc73e6779f899977433ea6fb777c5b3c5c00b357df9c262cb1887309f5e56f",
+              "definition_sha256": "57af1968afccdf603dc743146ed1d1de0a186aa1b39f1145108df655e407c0db",
               "group": "shell",
               "id": "migration-clock254-boundary-large-epoch"
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "7d6bbb33b13ed089573bd392fd4607ba8675b3cced8650e84d7cee1f6377486f",
+              "definition_sha256": "961d8c0c98b49ca9aacc81cbad2b6c03c592324aa19dcba58a5b7344f5bfe64f",
               "group": "shell",
               "id": "migration-clock254-boundary-max-nanos"
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "6f43a0ee8d53a754edb6458bad00536a9eb240a7cc904295349f7a39d0b24a20",
+              "definition_sha256": "41d92447d0c7e904b6d1fbfb5033bc1dcbd2e80af384a802b80549a665900ddd",
               "group": "shell",
               "id": "migration-clock254-boundary-negative-epoch"
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "accb5ce5ad9c3ed522ada3caaf1e71492cab4cbbd149d908f3a92617253eaffb",
+              "definition_sha256": "62c293368262c572b7d84b6ce840859bfe321e7e43cd5be790c82ab80ef29429",
               "group": "shell",
               "id": "migration-clock254-boundary-zero"
             }
@@ -1322,7 +1322,7 @@
           "evidence": [
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "1fb6348c5a15752fdec99ee4fc19e5752db1f765ead9faa97b344c55acc0dbda",
+              "definition_sha256": "c15b2291f106d900285b6d2f8e887e4f381e86f9737fa1d26f5aa278acfc1704",
               "group": "shell",
               "id": "migration-clock254-since-borrow"
             }
@@ -1336,19 +1336,19 @@
           "evidence": [
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "24293c94fd9000b484dc73014967cae80b4d4ef32ffdd25ff080828c6bb5376a",
+              "definition_sha256": "53a316b323baf23b21e1f715c5d99a1007475c28ab131ecd3c0a6176a4f6c277",
               "group": "shell",
               "id": "migration-clock254-since-exact-zero"
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "6294197694993cc7d1a136805ef8aa69d9561dac08bfc7b5af0411914506d477",
+              "definition_sha256": "9e2efb6aff32d25f3c46a21ecac7b7625638c10a556c8d256ee3c41076c43a12",
               "group": "shell",
               "id": "migration-clock254-since-future-fraction"
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "15d5be209abf2339d8122d74977310f5e9ac50128ca27a69e5cc8db3930f76ff",
+              "definition_sha256": "d49d24d9ae4c4058c2a188ec9c9a1367569fe5e5fd271c029c3292af72da21eb",
               "group": "shell",
               "id": "migration-clock254-since-future-integer"
             }
@@ -1382,7 +1382,7 @@
           "evidence": [
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "68addcbfea8d334c51efe7af305c892a80814989b05a9518427e52788b1110a3",
+              "definition_sha256": "290dd3b73429013a1c3c65dffd7369fc79b683f76dbb36bd35458e4078ee613b",
               "group": "shell",
               "id": "migration-clock254-since-clock-error"
             }
@@ -2098,7 +2098,7 @@
           "evidence": [
             {
               "assertion": "jq.sh -r .name on a document containing an embedded quote and a non-ASCII character must print the raw string exactly as host jq -r does. /bash-os/jq.sh is absent from both the frozen payload and the guest image, so the candidate exits 127 ('No such file or directory') while the reference host jq 1.7.1 produces the compared bytes.",
-              "definition_sha256": "6964cd95b22889eea30d14907ed73cbc505e7b3de7be24ba9141409b3a3e440b",
+              "definition_sha256": "80fe48907efab608bf32a8ebf9dda0f4be529f80d313659bf102d17895a89375",
               "group": "shell",
               "id": "mig-w3-bashjson-jq-raw-string"
             }
@@ -2112,7 +2112,7 @@
           "evidence": [
             {
               "assertion": "The nested path .users[1].profile.meta.deep[2] must evaluate to 30, the same as host jq. /bash-os/jq.sh is absent from both the frozen payload and the guest image, so the candidate exits 127 ('No such file or directory') while the reference host jq 1.7.1 produces the compared bytes.",
-              "definition_sha256": "fc087d761b769d71f71bd13a76d2af732733393fe9a67c680413bb9307354506",
+              "definition_sha256": "deb3e447723110e5b14796be769dab89a926fce8bdba3205ead58dd5938875d6",
               "group": "shell",
               "id": "mig-w3-bashjson-jq-nested-filter"
             }
@@ -3216,7 +3216,7 @@
           "evidence": [
             {
               "assertion": "system() runs /bin/sh -c 'exit 3'; $? >> 8 is 3 and the shell continues with status 0. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
-              "definition_sha256": "27097e04655562b58630f03e2bd2186a7a6cb12986e0f7d42557d878a5a620b6",
+              "definition_sha256": "ab266b5b605c1437438d1f26b95e76303830c1b9210c7ebcc0b40e61e5a838f7",
               "group": "shell",
               "id": "mig-w3-bashperl-system-status"
             }
@@ -3230,13 +3230,13 @@
           "evidence": [
             {
               "assertion": "exec inside a subshell replaces only the subshell; parent continues (parity with standalone perl). bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
-              "definition_sha256": "01aded00fc00e290f649c7af161b351fbe77172bf63fc1d82a27c2dd0d669460",
+              "definition_sha256": "7a538baed97b92d6d7258dd8731aa29cf3c682d8680f8f25c5c22c3307bfc332",
               "group": "shell",
               "id": "mig-w3-bashperl-exec-subshell"
             },
             {
               "assertion": "Contract from docs/perl.md: exec outside a subshell replaces the embedding Bash, so only the exec'd program's output appears and the following command never runs. Expected bytes come from the documentation, not from any run. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
-              "definition_sha256": "8db8ff40f48295f0cfbc51210ed7e9bc85b1eaf4ca588f3764ae3e77bf793b12",
+              "definition_sha256": "86362b8ebfdc21defcb256ac4327cdc8f9ed88e7b77088b3eb82c1e731f16256",
               "group": "shell",
               "id": "mig-w3-bashperl-exec-replaces-shell"
             }
@@ -3250,7 +3250,7 @@
           "evidence": [
             {
               "assertion": "Perl %SIG handlers for USR1/USR2 run on delivered signals; afterwards the shell's USR1 trap still fires and its ignored USR2 stays ignored (handler and disposition restoration). bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
-              "definition_sha256": "86acbd2a59a6e2c2c021754ceb9a54d9771934cd2fe7545663e22f3104a35d30",
+              "definition_sha256": "1a8307e0678defaf66912769272e36fa249525a547973c05569719053f98a300",
               "group": "shell",
               "id": "mig-w3-bashperl-sig-handlers"
             }
@@ -3264,13 +3264,13 @@
           "evidence": [
             {
               "assertion": "Perl redirects and closes descriptors 0-2; the shell's stdout, stderr and stdin must still work afterwards and the redirected bytes must be in the file. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
-              "definition_sha256": "631f1e88ca83aacc14634619c2bc7e09a54570e6b56fdc738b465bf5617fe6d5",
+              "definition_sha256": "88d34fa23797d284b5d088540840f1d9fae90778dd919d1f9ff7d8a54d9f0a41",
               "group": "shell",
               "id": "mig-w3-bashperl-std-fds"
             },
             {
               "assertion": "Contract from docs/perl.md: closing nonstandard descriptor 7 inside the builtin persists, so a later write to fd 7 fails with status 1. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
-              "definition_sha256": "9a1f002bb91db49f367043cb38c09f2e921da0aa5f966f700a97d2aee05db256",
+              "definition_sha256": "9a1f0a496395b7df4118bd53ae89dc900be87464b749c83488e02158e109b863",
               "group": "shell",
               "id": "mig-w3-bashperl-high-fd"
             }
@@ -3284,7 +3284,7 @@
           "evidence": [
             {
               "assertion": "POSIX, List::Util and Data::Dumper (XS) load and compute 55 9 2 1971-01-01 [1,{'a' => 2}]; afterwards shell variable, cwd and umask are unchanged. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
-              "definition_sha256": "c1ec37c976968bc3036bb1cd5ba4ad1692d13017eb8c62591c513196d55414d9",
+              "definition_sha256": "51d4e276566ae64a828eeb63b34cd4c710e7fc25ede31820e50ade26fa9b9fd9",
               "group": "shell",
               "id": "mig-w3-bashperl-xs-modules"
             }
@@ -3785,7 +3785,7 @@
           "evidence": [
             {
               "assertion": "On a PTY the interactive interpreter shows '>>> '. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
-              "definition_sha256": "25ca9d5981bccd9828762b23e9991b8fb58976cc2ebf921935c0effbc17de05c",
+              "definition_sha256": "b93949b2a2b178d41eecf04051b0a33649c0ad775dd34f18b0bfae94482f2e1f",
               "group": "terminal",
               "id": "mig-w3-bashpython-prompt-primary"
             }
@@ -3799,7 +3799,7 @@
           "evidence": [
             {
               "assertion": "Typed print(6*7) prints 42 on its own line followed by a new prompt. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
-              "definition_sha256": "687360f3b69264a4e2351f7896fdb68f3d91739e2e18fd2ab3d6c7ba67f3c0eb",
+              "definition_sha256": "2cc7802b7d1d4d231dd0f5486de66293a5b722108417f4ec2feef200be57f5be",
               "group": "terminal",
               "id": "mig-w3-bashpython-prompt-exec-line"
             }
@@ -3813,7 +3813,7 @@
           "evidence": [
             {
               "assertion": "A for statement shows '... ' after the header and after the body, then prints 0 and 1. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
-              "definition_sha256": "0e4cb1cf0a75d4c1029f7912c958db3d2e9b3967fd73ff04df9dbf1fabcddf45",
+              "definition_sha256": "827628fd90f81bf97c9b8ea71390018577a99490f11914937a38fb58546ec601",
               "group": "terminal",
               "id": "mig-w3-bashpython-prompt-continuation"
             }
@@ -3827,7 +3827,7 @@
           "evidence": [
             {
               "assertion": "Ctrl-D at an empty prompt exits with status 0 (after=0 printed by the calling shell) and the driver asserts the PTY modes are restored. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
-              "definition_sha256": "8cb98cd5b34885bc0353f10abe7a478b7752664e5bc1b5756b6f151e87906c49",
+              "definition_sha256": "6f3415dfc4aac592c9cefc81401ab7a3ca9bf66c159ef2fc4e49ccc64b4ab881",
               "group": "terminal",
               "id": "mig-w3-bashpython-prompt-eof"
             }
@@ -3856,7 +3856,7 @@
           "evidence": [
             {
               "assertion": "^C while sleeping inside try/except KeyboardInterrupt prints 'caught' and the interactive shell sees status 0. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
-              "definition_sha256": "ca53e3ff749e6bdd67eedc857482be76163f02e47968bcc5e58184218737e7e2",
+              "definition_sha256": "39779a0fbee47a5a42455d8cc33ae16c68244b943824a0cbddc3aae9431ed5df",
               "group": "terminal",
               "id": "mig-w3-bashpython-ki-caught"
             }
@@ -3870,7 +3870,7 @@
           "evidence": [
             {
               "assertion": "Unhandled KeyboardInterrupt prints a traceback ending in KeyboardInterrupt and the interactive shell reports status 130. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
-              "definition_sha256": "305b95cc5d894ec311134e4d3a5b187054d9af8bc5f6e4186edf558815500c80",
+              "definition_sha256": "7b2e162e9bfa838968097c501e72d6a43208e8dd6580a9df032a90ef6795323b",
               "group": "terminal",
               "id": "mig-w3-bashpython-ki-unhandled"
             }
@@ -3884,7 +3884,7 @@
           "evidence": [
             {
               "assertion": "A background sentinel in its own process group sees no SIGINT (sentinel=no-int) and the calling shell's cwd and environment are unchanged after the Python program changed them. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
-              "definition_sha256": "94c0e91a98448187eae369768ce0b851b4ca70cceb874b8313894dd519c71ee6",
+              "definition_sha256": "ac273afd38ee12cd32fd32aab6914c7abdcb4aa7ed6d0b99b795f96087a1ef66",
               "group": "terminal",
               "id": "mig-w3-bashpython-ki-group-scope"
             }
@@ -7819,7 +7819,7 @@
           "evidence": [
             {
               "assertion": "Independent fixture: gcc-built claude stand-in .so (proven to answer 'claude-fixture 2' in the reference GNU bash), packages signed with a fresh OpenSSL Ed25519 key, candidate bind-mounted over /usr/bin/bash in a user+mount namespace with overlays over /usr/lib, /var/lib and /etc, tmpfs over /root; tampered, unsigned, untrusted-signer, wrong-ABI, wrong-architecture and wrong-digest packages are each refused by the real pkg verbs with status 1, no regular file written to the overlays and the stand-in never loaded; the same path installs the valid package (control)",
-              "definition_sha256": "e3ff5545b210683c6dfb848f1335da13bf416c1b210809f1a055554ca52db6ef",
+              "definition_sha256": "d9522659c975a611494ce669c949da7a2e1f9dc2d3e1765ff59dca3d438bb196",
               "group": "shell",
               "id": "mig-w3-claude-update-rejects-unverified"
             }
@@ -7833,7 +7833,7 @@
           "evidence": [
             {
               "assertion": "Independent fixture: gcc-built claude stand-in .so (proven to answer 'claude-fixture 2' in the reference GNU bash), packages signed with a fresh OpenSSL Ed25519 key, candidate bind-mounted over /usr/bin/bash in a user+mount namespace with overlays over /usr/lib, /var/lib and /etc, tmpfs over /root; valid package: status 0, installed files byte-exact, stand-in loaded once after the install; signed package that cannot load: status 1 after the install; a refused install triggers no load of the installed version-1 package. Both frozen builds fail the success scenario: pkg load claude is refused with 'builtin already exists and is static' (reached FAIL)",
-              "definition_sha256": "eb2912253ab3d539e8bc3a3933f9a46d696ec45f72125b960e0266691ad3c8b9",
+              "definition_sha256": "f71bb6a11b75dad0b3261d604901990e4bbbef2483e8e82f42eb8a58db7bd741",
               "group": "shell",
               "id": "mig-w3-claude-update-install-then-load"
             }
@@ -7847,7 +7847,7 @@
           "evidence": [
             {
               "assertion": "Independent fixture: gcc-built claude stand-in .so (proven to answer 'claude-fixture 2' in the reference GNU bash), packages signed with a fresh OpenSSL Ed25519 key, candidate bind-mounted over /usr/bin/bash in a user+mount namespace with overlays over /usr/lib, /var/lib and /etc, tmpfs over /root; after claude update the invoking shell's 'claude version' must print the new builtin's output 'claude-fixture 2'; both frozen builds still print their own 'claude 1.0.0' and claude update returns 1 because the static claude builtin cannot be replaced (reached FAIL)",
-              "definition_sha256": "421fbee1b697ad29762988e4c925384970bbc1bfe977b98b5293d9bde57955f9",
+              "definition_sha256": "8f8fc98a12a53175b1269ed47c222e7da3093422fc4ec3a5fe64687dc13daf33",
               "group": "shell",
               "id": "mig-w3-claude-update-reloads-invoking-shell"
             }
@@ -12052,7 +12052,7 @@
             },
             {
               "assertion": "Tab,Tab,Enter reaches Cancel: status 1, empty result.",
-              "definition_sha256": "5adc1d22015cea2dabb68e75e6621fd6b45a72a08a94c57a8dc525884c74f846",
+              "definition_sha256": "d0ad4760087be110f428ad6b7e9d177aa70ef8296c63767907c07be5c1a0b6d2",
               "group": "terminal",
               "id": "mig-w8-dialog-keys-tab-cancel"
             },
@@ -12064,7 +12064,7 @@
             },
             {
               "assertion": "Space toggles checklist items; quoted result list \"a\" \"c\".",
-              "definition_sha256": "6cb14c9957857352841b88418c36f13c1360f5281bc60e78f3f7d0f98f45ef73",
+              "definition_sha256": "49f7baa009635e21f88664c2123d4da7ef49a962db5cfcf2a492d6eb697e3ce9",
               "group": "terminal",
               "id": "mig-w8-dialog-keys-checklist-space"
             },
@@ -12130,7 +12130,7 @@
           "evidence": [
             {
               "assertion": "After resizing 24x80 to 14x50 the text must move to the centre of the new screen (row 5, column 10); contract against the centred placement observed from the reference.",
-              "definition_sha256": "046e329306d51556518744f57c7b2d77a4fac4fac6ba20f981388c8a24c2b724",
+              "definition_sha256": "72c9cc870b51fd627b3ec1fbd437d7d8d5016a9b181a8574873bba13f2414c0d",
               "group": "terminal",
               "id": "mig-w8-dialog-resize-redraw"
             }
@@ -12162,7 +12162,7 @@
             },
             {
               "assertion": "Resize 24x80 to 14x50 while a msgbox is open: real dialog re-centres (box border at column 9, text on row 3); the candidate does not redraw at that geometry (FAIL).",
-              "definition_sha256": "483c0f9819b0c5b0b6391de2d5cd51f5a467928e9efb813ea004f38a39a0a5e4",
+              "definition_sha256": "304ee121b0934252cd7a7b54f64b0755b861da2b91b69ccc44fd818d3ce435bb",
               "group": "terminal",
               "id": "mig-w8-dialogreal-resize-redraw"
             },
@@ -13206,7 +13206,7 @@
             },
             {
               "assertion": "--noudevsync create/remove node state and messages compared with GNU dmsetup without udev.",
-              "definition_sha256": "81c11a2e87ddaa30c5994a70c21b2ffe4671615d6c8bc15614a146b749b55ef2",
+              "definition_sha256": "4c287c0e21773f71237bcf42a3291ce5d6af07d4d1c70f81085e114a4c9bd7a5",
               "group": "shell",
               "id": "mig-w7-dmsetup-node-sync-root"
             }
@@ -13234,7 +13234,7 @@
           "evidence": [
             {
               "assertion": "-U/-G/-M node ownership and the -o/-c/--noheadings/--separator/--select/--sort report options compared with GNU dmsetup.",
-              "definition_sha256": "2bb81c7851e85bc8d490d66fd796c12ff1ea7d943d451449b30fcfaad7595316",
+              "definition_sha256": "6de6c2134903a7bcb4c81c560895e4e001eb31eb8be1ddb7744627c8638b2edb",
               "group": "shell",
               "id": "mig-w7-dmsetup-report-and-node-options-root"
             }
@@ -16543,7 +16543,7 @@
             },
             {
               "assertion": "-a -t ext4,vfat and -t noext4 on the real guest table (case FAIL elsewhere: tmpfs fstab rows)",
-              "definition_sha256": "501d3e6a3780bc96678842cbd1cdc094c7a39d16ce580382e2eb7a177690de0d",
+              "definition_sha256": "4586615a98e37e0d12085aafa43af482d79d8b9d32bfd082154c9360f4af0636",
               "group": "shell",
               "id": "migration-fstrim-selection-discard-capable-root"
             }
@@ -16685,13 +16685,13 @@
           "evidence": [
             {
               "assertion": "fixture /etc/fstab bound in-namespace; LABEL/UUID/PARTLABEL/PARTUUID via fixture /dev/disk/by-* links on a private tmpfs; unresolvable tag; -n, -n -v, -t, real, quiet",
-              "definition_sha256": "33b7bbc1d6dec05b26cefe701c505ea53adcfc57f8823c64633e5da7292c735b",
+              "definition_sha256": "f3366cc39a34c29104566aba61e997c471840e2665d04b9ae48ac9b1ef34409e",
               "group": "shell",
               "id": "migration-fstrim-fstab-tags-root"
             },
             {
               "assertion": "-A: UUID= to the real root source, LABEL=/UUID= to fixture links on real mountpoints, unresolvable LABEL and notrim rows; -n/-n -v/real/quiet; candidate additionally selects tmpfs /dev/shm and /tmp rows util-linux skips (FAIL)",
-              "definition_sha256": "501d3e6a3780bc96678842cbd1cdc094c7a39d16ce580382e2eb7a177690de0d",
+              "definition_sha256": "4586615a98e37e0d12085aafa43af482d79d8b9d32bfd082154c9360f4af0636",
               "group": "shell",
               "id": "migration-fstrim-selection-discard-capable-root"
             },
@@ -16717,25 +16717,25 @@
           "evidence": [
             {
               "assertion": "/dev/root row with fixture /proc/cmdline root=LABEL=PARITY bound in-namespace",
-              "definition_sha256": "33b7bbc1d6dec05b26cefe701c505ea53adcfc57f8823c64633e5da7292c735b",
+              "definition_sha256": "f3366cc39a34c29104566aba61e997c471840e2665d04b9ae48ac9b1ef34409e",
               "group": "shell",
               "id": "migration-fstrim-fstab-tags-root"
             },
             {
               "assertion": "/dev/root resolved from a fixture /proc/cmdline root= to the real root source, matching util-linux for that row",
-              "definition_sha256": "501d3e6a3780bc96678842cbd1cdc094c7a39d16ce580382e2eb7a177690de0d",
+              "definition_sha256": "4586615a98e37e0d12085aafa43af482d79d8b9d32bfd082154c9360f4af0636",
               "group": "shell",
               "id": "migration-fstrim-selection-discard-capable-root"
             },
             {
               "assertion": "fstab entry /dev/root (or an unresolvable UUID) for / falls back to root= from a bind-mounted /proc/cmdline; also the no-root= case, compared with util-linux.",
-              "definition_sha256": "5fbc05473a063b6c6e86295d973adebaa2f33e29b38a80d881b9795ed6b9d4e2",
+              "definition_sha256": "f33ba3b0962a7f2768b6020b2b58175f36f28339c631296435d4c49e109460e2",
               "group": "shell",
               "id": "mig-w7-fstrim-root-device-guess-root"
             },
             {
               "assertion": "fstab entry /dev/root (or an unresolvable UUID) for / falls back to root= from a bind-mounted /proc/cmdline; also the no-root= case, compared with util-linux.",
-              "definition_sha256": "5fbc05473a063b6c6e86295d973adebaa2f33e29b38a80d881b9795ed6b9d4e2",
+              "definition_sha256": "f33ba3b0962a7f2768b6020b2b58175f36f28339c631296435d4c49e109460e2",
               "group": "shell",
               "id": "mig-w7-fstrim-root-device-guess-root"
             }
@@ -16749,7 +16749,7 @@
           "evidence": [
             {
               "assertion": "empty fstab and absent /etc/fstab (shadow tmpfs over /etc without fstab), dry and real",
-              "definition_sha256": "33b7bbc1d6dec05b26cefe701c505ea53adcfc57f8823c64633e5da7292c735b",
+              "definition_sha256": "f3366cc39a34c29104566aba61e997c471840e2665d04b9ae48ac9b1ef34409e",
               "group": "shell",
               "id": "migration-fstrim-fstab-tags-root"
             }
@@ -16865,7 +16865,7 @@
             },
             {
               "assertion": "-a -n and -a -n -v list the real local writable block filesystems (root discard faked in-namespace) like util-linux",
-              "definition_sha256": "501d3e6a3780bc96678842cbd1cdc094c7a39d16ce580382e2eb7a177690de0d",
+              "definition_sha256": "4586615a98e37e0d12085aafa43af482d79d8b9d32bfd082154c9360f4af0636",
               "group": "shell",
               "id": "migration-fstrim-selection-discard-capable-root"
             },
@@ -16911,7 +16911,7 @@
             },
             {
               "assertion": "real -a, -a -v, --quiet-unsupported: EPERM per filesystem and the all-failed aggregate status 32",
-              "definition_sha256": "501d3e6a3780bc96678842cbd1cdc094c7a39d16ce580382e2eb7a177690de0d",
+              "definition_sha256": "4586615a98e37e0d12085aafa43af482d79d8b9d32bfd082154c9360f4af0636",
               "group": "shell",
               "id": "migration-fstrim-selection-discard-capable-root"
             },
@@ -20688,7 +20688,7 @@
             },
             {
               "assertion": "command signal; Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
-              "definition_sha256": "dd7d4fe205b6e6a9f6179d5ca9e17c6c2e68dcd309689fa8c9e21e2e942edfdd",
+              "definition_sha256": "f5eb2a041715848f4036e8c687f60c42a8899395054b83f8a39314824914e580",
               "group": "shell",
               "id": "migration-ionice-command-signal"
             }
@@ -20973,7 +20973,7 @@
           "evidence": [
             {
               "assertion": "Private mapped netns: addr add of 192.0.2.1/24, 198.51.100.7/32 and fd00::1/64 then addr del run through the builtin and through iproute2; complete ip -j address/route state is identical after each step, literal expectations (addresses present/absent, connected route created, delete-absent and re-add leave state) hold.",
-              "definition_sha256": "639bf357d3c19c2ca1b81cf6221dba1828856050b1a3c0f88fe5758211fb6532",
+              "definition_sha256": "3d0d52607f31cbcc383333c8146923e90d2d55b762daeca7e670a48eb81da357",
               "group": "shell",
               "id": "mig-w1-ip-addr-add-del"
             }
@@ -20987,7 +20987,7 @@
           "evidence": [
             {
               "assertion": "addr replace creates absent IPv4 and IPv6 addresses, replace of an existing address keeps one copy, addr change of an existing address keeps it, replace on a missing device fails; builtin state and rc class equal iproute2 after every step.",
-              "definition_sha256": "87da6e5712ef1291aa0bf7b902a090294ce12347ca3d2411cd344d246d0409b6",
+              "definition_sha256": "645cc038e4d2890bb73e517c7df02d1639bd5997a242c104a353e9f6027b8e0f",
               "group": "shell",
               "id": "mig-w1-ip-addr-change-replace"
             }
@@ -21001,19 +21001,19 @@
           "evidence": [
             {
               "assertion": "addr flush dev d0 to 192.0.2.0/24 removes both addresses inside the prefix while other d0 addresses and d1 stay; state equals iproute2.",
-              "definition_sha256": "f4a1a4e44e517cbe3e0e46177489ebc5ae816c41280c3507c59a205c9e55da08",
+              "definition_sha256": "709eac827ce6d1c9f37188d27b39ddc89c4e27933726a68e3ebe1013b94f7e93",
               "group": "shell",
               "id": "mig-w1-ip-addr-flush-to"
             },
             {
               "assertion": "addr flush dev d0 scope host removes only the host-scope address; state equals iproute2.",
-              "definition_sha256": "78a385e6ae44f40303e11bd54c3ebed194e621c86b4d87dc766489df1695b98a",
+              "definition_sha256": "7ff068c8dad72e96b1d324eb70c37775c618d9e079194ba730f63eae150445d4",
               "group": "shell",
               "id": "mig-w1-ip-addr-flush-scope"
             },
             {
               "assertion": "addr flush dev d0 removes every d0 address and leaves d1; state equals iproute2.",
-              "definition_sha256": "106d0abc5cabaa7ad9dd73fd124c394e990694fd4c30c2af60f6a84a575abd6b",
+              "definition_sha256": "b0ea7b774bb7627fc5cc7d972dfd6bb1f4e406a0475df6f0908aed2f3aa14195",
               "group": "shell",
               "id": "mig-w1-ip-addr-flush-dev"
             }
@@ -21027,19 +21027,19 @@
           "evidence": [
             {
               "assertion": "addr show d0 lists exactly iproute2's address set for d0 in text and -j, including the literal seeded rows.",
-              "definition_sha256": "26ce6d895fab31812ac6d39d243c121e6b26ed6299510fff6282bc9b04607de6",
+              "definition_sha256": "c8fa82b3a4c68a987f7a6e3e7577486891bb644d3ea7d5395169a4a54458f15f",
               "group": "shell",
               "id": "mig-w1-ip-addr-show-dev"
             },
             {
               "assertion": "addr show to 192.0.2.0/24 selects the same addresses as iproute2 in text and -j.",
-              "definition_sha256": "2def0b4195be470f5ed91d816279a1ca623a504ec92a0afc74cbb429c69ac801",
+              "definition_sha256": "864841eff208e6c5163f9d7a1eb2602e7f5eae6512db6fa26867ef27b70ef795",
               "group": "shell",
               "id": "mig-w1-ip-addr-show-to"
             },
             {
               "assertion": "addr show scope host selects the same addresses as iproute2 in text and -j.",
-              "definition_sha256": "ebf03e0ca37f6bfe1b5f5c11e84758d8e1322b6f436fe8a120b4d52ff89d05ca",
+              "definition_sha256": "f45f5953ff46c08fb415f185cc9f316de3d01cf5773996088d77501f7ee69259",
               "group": "shell",
               "id": "mig-w1-ip-addr-show-scope"
             }
@@ -21068,13 +21068,13 @@
           "evidence": [
             {
               "assertion": "-batch FILE with comment lines, blank lines, indented comments, tabs and repeated spaces applies the same commands as iproute2 (state equal after the step; literal addresses present).",
-              "definition_sha256": "d6ba67c6081cd27976881b135ad74a04f781cfe01787a96b8b621c11fa58e5a6",
+              "definition_sha256": "1f93d21395d7f3e846d6cc5eb1ecd22d7df3f90f7bdce834173c36c4e5c8f3b1",
               "group": "shell",
               "id": "mig-w1-ip-batch-tokenize"
             },
             {
               "assertion": "-batch line with a double-quoted device word: iproute2 accepts and applies it, the builtin rejects it with unknown interface \"d0\", so rc and state differ (reached FAIL, kept).",
-              "definition_sha256": "c76dc7e5a7cba0dabb352d26b652b1c6663300de3fd29910e0fc66a8179d787c",
+              "definition_sha256": "cb5729f43b2fdc9f45370f13b18bf87df51150d6e445a1c998ce47cd533c0a41",
               "group": "shell",
               "id": "mig-w1-ip-batch-quoting"
             }
@@ -21088,7 +21088,7 @@
           "evidence": [
             {
               "assertion": "Without -force the first failing command stops the batch: earlier command applied, later one not, status nonzero; the builtin diagnostic does not name the failing batch line (expected FAIL against the line-number requirement).",
-              "definition_sha256": "e64e42b288b491073b7c434aedd33e925ba631bc28aff285da23983b72caaa39",
+              "definition_sha256": "cf3e35b424fc744096f5f618211a4147f0a6bcf8251ebf4ad2b614951c3053a2",
               "group": "shell",
               "id": "mig-w1-ip-batch-stop"
             }
@@ -21102,7 +21102,7 @@
           "evidence": [
             {
               "assertion": "With -force later commands after two failures are applied, state equals iproute2 and the overall status is nonzero.",
-              "definition_sha256": "0f9480e77a1d27356262610178a100a971d3cf04cd8e20fb4367084c700aeb7d",
+              "definition_sha256": "fb82a7761a98eeeba5a2989f0b2e8c114ac67e66a11281bf18523b1ba0ac678d",
               "group": "shell",
               "id": "mig-w1-ip-batch-force"
             }
@@ -21116,7 +21116,7 @@
           "evidence": [
             {
               "assertion": "-batch - reads address and link commands from standard input; state equals iproute2 and literal addresses/MTU are applied.",
-              "definition_sha256": "0544c73c01d9a06daafc6b59e743ed5e0c5865a5fc7cb532ffa094a9151e7c6d",
+              "definition_sha256": "e336cf5306c5db0daa0d14494c04c1083c802c56b205d713452404406ea671b5",
               "group": "shell",
               "id": "mig-w1-ip-batch-stdin"
             }
@@ -21145,7 +21145,7 @@
           "evidence": [
             {
               "assertion": "link set d0 up then down changes administrative state/operstate as iproute2; unknown link rejected.",
-              "definition_sha256": "08256140fd5835712f38504f7e1bf78f2bc1808b36cd31f072be5cfb1a6a1341",
+              "definition_sha256": "7bab0ea1c5c3ef3e6b7adfb1e7387e4f390a3aa6c38591a22db4d9edb6bf4acf",
               "group": "shell",
               "id": "mig-w1-ip-link-updown"
             }
@@ -21159,7 +21159,7 @@
           "evidence": [
             {
               "assertion": "link set d0 mtu 1400 / address MAC / both change attributes; invalid mtu and MAC leave the link unchanged; state equals iproute2.",
-              "definition_sha256": "ba8c82fbd5e2d3702bbdb1e36e06d575db6df775bb421ac1f6fdcc28d7f09575",
+              "definition_sha256": "f1b3f51fce979396f71d370fba5300c4f3a010117994429cb49dc8c1b570f2f8",
               "group": "shell",
               "id": "mig-w1-ip-link-mtu-address"
             }
@@ -21173,7 +21173,7 @@
           "evidence": [
             {
               "assertion": "link add d0 type dummy creates an ether link, down by default; duplicate rejected; state equals iproute2.",
-              "definition_sha256": "bd9747ad846d0ffb4569103c7f7353500a0f8a2452729f4bd75820fe3360b833",
+              "definition_sha256": "07e453d5c815a4a507b78f89a50368492cb03920c9bcc66e493faed203d3c0c3",
               "group": "shell",
               "id": "mig-w1-ip-link-add-dummy"
             }
@@ -21187,7 +21187,7 @@
           "evidence": [
             {
               "assertion": "link add v0 type veth peer v1 creates both ends as peers, further pair created and brought up; state equals iproute2.",
-              "definition_sha256": "c7d8a6c68564c385d10cdaeb6bf44dd36bbf2cf47508ddfb9ab4c754224ea316",
+              "definition_sha256": "0365edef37b9b96259b3a2889d7da986b82517b284d20a6a5a16b325fcc6cf61",
               "group": "shell",
               "id": "mig-w1-ip-link-add-veth"
             }
@@ -21201,7 +21201,7 @@
           "evidence": [
             {
               "assertion": "link del removes a dummy and a veth together with its peer; deleting a missing link fails; state equals iproute2.",
-              "definition_sha256": "b345fbc8ef3367e3f5d918e85b0977b9f30c1b387fa3be89c2bd558a8d60e1a6",
+              "definition_sha256": "f843e825ad5dff3abeeb6bc1235f3a27f2c1dbc006d3efe165687a9d46d19bac",
               "group": "shell",
               "id": "mig-w1-ip-link-del"
             }
@@ -21230,31 +21230,31 @@
           "evidence": [
             {
               "assertion": "Default link show text for dummy, veth and loopback links compared field by field with iproute2 JSON; flags field differs (MULTICAST present, NOARP/LOWER_UP absent) so the case FAILs.",
-              "definition_sha256": "8eab0f572e9cb3610ae533cd45dbf7024625ab1037e2f9ae37c4a1da191a4dc7",
+              "definition_sha256": "4933affef1333f89a5bad9ff9f4176b6e4d80c7e518ef1f3a577532a43346e0d",
               "group": "shell",
               "id": "mig-w1-ip-link-show-default"
             },
             {
               "assertion": "-br link show rows match iproute2 for state, MAC and kernel flags.",
-              "definition_sha256": "c0bcade1872a9e1125cd9987aa2a0533ee7db2f3c6fe64f9c5406fee54064e43",
+              "definition_sha256": "2cbc35ffec36b060494ed39992b6d460e2712536afb3c79efeb5727372c69e24",
               "group": "shell",
               "id": "mig-w1-ip-link-show-brief"
             },
             {
               "assertion": "-o link show rows compared with iproute2 facts; flags differ like the default form.",
-              "definition_sha256": "bac0a896bdf996262560b5afbbefb695c828e4500084a28629da935480946453",
+              "definition_sha256": "a3f7aea592afda4ff9b87626d1128222b9484664043f885510ec25fa2bd80de0",
               "group": "shell",
               "id": "mig-w1-ip-link-show-oneline"
             },
             {
               "assertion": "-j link show field values equal iproute2 for ifindex, mtu, operstate, link_type, address, broadcast, flags.",
-              "definition_sha256": "d1e191bad494376b20509cb416a9f88ef5178e9710565589232a3735d27c5147",
+              "definition_sha256": "602a4bb7583e5c4d00b55f5a5e4da772e9db0747f3803414eca06d4246656321",
               "group": "shell",
               "id": "mig-w1-ip-link-show-json"
             },
             {
               "assertion": "Strict -j link object keys: the builtin omits qdisc, txqlen, group, linkmode and link that iproute2 emits (reached FAIL).",
-              "definition_sha256": "4f773d727a51ff3d579be4a62575035ca9443b59e2f8eea89dcb2b45a43167d1",
+              "definition_sha256": "7e3385399ec2af3e153cbb6336eeb922f296c652847a6242721a84d7fbddb9d8",
               "group": "shell",
               "id": "mig-w1-ip-link-show-json-schema"
             }
@@ -21268,31 +21268,31 @@
           "evidence": [
             {
               "assertion": "-4 addr show equals iproute2's IPv4 address rows (text and -j).",
-              "definition_sha256": "dd003b981e7a77c6847ad0799900a20b86bcc628c8a53c5e3c8663da7e930c82",
+              "definition_sha256": "792c14e177ba03f9e01b59931587b8a6f5ab7b7de2432de0afd06389c31199e4",
               "group": "shell",
               "id": "mig-w1-ip-addr-show-4"
             },
             {
               "assertion": "-6 addr show equals iproute2's IPv6 address rows (text and -j).",
-              "definition_sha256": "a33fef02d7404e66c730da8337181237c2c386c43728cb0c1aaacb3e5a3db365",
+              "definition_sha256": "2cf51662ad4334a0e78d54c93ef16e8dcab614e3064c80b4845eba3137fc7f0f",
               "group": "shell",
               "id": "mig-w1-ip-addr-show-6"
             },
             {
               "assertion": "addr show dev selector equals iproute2.",
-              "definition_sha256": "26ce6d895fab31812ac6d39d243c121e6b26ed6299510fff6282bc9b04607de6",
+              "definition_sha256": "c8fa82b3a4c68a987f7a6e3e7577486891bb644d3ea7d5395169a4a54458f15f",
               "group": "shell",
               "id": "mig-w1-ip-addr-show-dev"
             },
             {
               "assertion": "addr show to PREFIX selector equals iproute2.",
-              "definition_sha256": "2def0b4195be470f5ed91d816279a1ca623a504ec92a0afc74cbb429c69ac801",
+              "definition_sha256": "864841eff208e6c5163f9d7a1eb2602e7f5eae6512db6fa26867ef27b70ef795",
               "group": "shell",
               "id": "mig-w1-ip-addr-show-to"
             },
             {
               "assertion": "addr show scope selector equals iproute2.",
-              "definition_sha256": "ebf03e0ca37f6bfe1b5f5c11e84758d8e1322b6f436fe8a120b4d52ff89d05ca",
+              "definition_sha256": "f45f5953ff46c08fb415f185cc9f316de3d01cf5773996088d77501f7ee69259",
               "group": "shell",
               "id": "mig-w1-ip-addr-show-scope"
             }
@@ -21306,25 +21306,25 @@
           "evidence": [
             {
               "assertion": "route show rows (dst/via/dev/metric/src) equal iproute2's main-table IPv4 routes.",
-              "definition_sha256": "7279506f2cdceff3aad1e0b660a0119981f98d17576070d32513aa9df8389206",
+              "definition_sha256": "bb6112dd6f7ce06ce70f79bd3293fd7a39b3f810ca97d847bd4357f5a4a85ec4",
               "group": "shell",
               "id": "mig-w1-ip-route-show-plain"
             },
             {
               "assertion": "route show dev d1 rows equal iproute2.",
-              "definition_sha256": "3ab3100652a614a521f87cfd41d308eea9c33e13b2e91f59ffb9164c7a36aae4",
+              "definition_sha256": "79bab3c053a1551e231e1f97076d3b8a647dadfed09b4800607118800ad59c8e",
               "group": "shell",
               "id": "mig-w1-ip-route-show-dev"
             },
             {
               "assertion": "route show and route show default rows equal iproute2 including the seeded default route.",
-              "definition_sha256": "3a9a443188aacc82a2c2ec336fd38f10f32c995ceb996fdd82df570fb737d849",
+              "definition_sha256": "2486075e71d659be9f596c101556619e54ecbb006c921bea12ca8ad4b096390e",
               "group": "shell",
               "id": "mig-w1-ip-route-show-default"
             },
             {
               "assertion": "route show table 100 matches; route show table all omits every IPv6 route that iproute2 prints (reached FAIL).",
-              "definition_sha256": "ba2478300ababdcac6cfc24e843c35dc1cbae3ba08ef6e5b8dff1557965e8294",
+              "definition_sha256": "d67155406786e2ffbbb866dea93b5f85785c4597569ad84cdcf575ea857cc953",
               "group": "shell",
               "id": "mig-w1-ip-route-show-table"
             }
@@ -21338,19 +21338,19 @@
           "evidence": [
             {
               "assertion": "rule show rows equal iproute2 except the fwmark rule prints /0xffffffff mask (reached FAIL).",
-              "definition_sha256": "5f7ce676f7b1f7d5d0464944ccdc3802870be18340e24455452114ceb06a10a6",
+              "definition_sha256": "b11171f7d5a7815b92d62efa95531bca0097928cc1f2b08a7033c710d2b121db",
               "group": "shell",
               "id": "mig-w1-ip-rule-show-text"
             },
             {
               "assertion": "-j rule show priority/src/dst/prefix/fwmark/table facts equal iproute2 JSON.",
-              "definition_sha256": "fe4be68f9d14bdc194cd8329ca50cf4167e28f32457fa3ce7aa556c213c8a5f8",
+              "definition_sha256": "05a1dbc17eec4fdf3ab1925b015f41ca034411ccf9a38b6445540b46c21a3c6d",
               "group": "shell",
               "id": "mig-w1-ip-rule-show-json"
             },
             {
               "assertion": "Strict -j rule schema: from/from_prefix/family/fwmask versus iproute2 src/srclen (reached FAIL).",
-              "definition_sha256": "73fd245ade0bc491b9e3a406f7b381d14821b33fd24c0bcf6e5cb6a9d239af05",
+              "definition_sha256": "a86c9159224b23400dbea32654f6966272d1d7771198b91faaef263a8d64672d",
               "group": "shell",
               "id": "mig-w1-ip-rule-show-json-schema"
             }
@@ -21364,19 +21364,19 @@
           "evidence": [
             {
               "assertion": "neigh show: seeded PERMANENT neighbours equal iproute2 in text and -j.",
-              "definition_sha256": "1ed2b5a660b2296c8d79b31b0308ae9461f5e452c5d73f5d41569fd0319ec9fc",
+              "definition_sha256": "df4df9c3c707a18f2c2e64543fa1cdea3426e61c2c1613825fd9024235480da0",
               "group": "shell",
               "id": "mig-w1-ip-neigh-show-all"
             },
             {
               "assertion": "neigh show dev d0: PERMANENT rows equal iproute2 in text and -j.",
-              "definition_sha256": "5b2154b198debe017dedd0b6100d90eb9cf413ca908816ac797544cf288edd3f",
+              "definition_sha256": "6a7f477b9c18de8b5dab112951f0a80b968ce34fc1475e2c44f25dbbe0d39a20",
               "group": "shell",
               "id": "mig-w1-ip-neigh-show-dev"
             },
             {
               "assertion": "neigh show full row set includes ff02::2 NOARP rows iproute2 hides (reached FAIL).",
-              "definition_sha256": "0c7f9685c18118fb1f9770b79dadd529eeb3ba2d9cfbe5b371600bac2a9c70f2",
+              "definition_sha256": "2320b380713fdfaa5bc915ad5e59c23f8233658955e3172dc5482af976ba9f81",
               "group": "shell",
               "id": "mig-w1-ip-neigh-show-strict"
             }
@@ -21405,13 +21405,13 @@
           "evidence": [
             {
               "assertion": "route add/del with via, dev, table and metric: state equals iproute2; literal routes present then removed, bad delete/unreachable gateway rejected.",
-              "definition_sha256": "60efe8d5f55ed2aa2767be5d2567be4330842392badfd0a9b3d6eadb47e95161",
+              "definition_sha256": "97782fbe8982578bf9f93cae8539572797ea17bac5393eabda5512a86871db5f",
               "group": "shell",
               "id": "mig-w1-ip-route-add-del"
             },
             {
               "assertion": "route replace, append and change on 203.0.113.0/24 and replace-creates; state equals iproute2 after each step.",
-              "definition_sha256": "fc4c4abc0c1853864f44d716c094f4082bf58ae53bbd1ba0034c22d4d5e2465b",
+              "definition_sha256": "34ad618f4ccd84f80a3909a1b0a9c9434bd6229dbb9dbccd202d7a9b2c5c539b",
               "group": "shell",
               "id": "mig-w1-ip-route-change"
             }
@@ -21425,7 +21425,7 @@
           "evidence": [
             {
               "assertion": "route flush dev d0: the builtin refuses with 'destructive flush is not implemented' and rc 1 while iproute2 removes d0's main-table routes (reached FAIL).",
-              "definition_sha256": "00688f6fcb7a7ce21c17b16d39583d7891c9c45f55c68b88d6560b55a3b8c0ab",
+              "definition_sha256": "5530725c66397207db9d200083e94c3a3071925887c03b3ddafdf343648ad66d",
               "group": "shell",
               "id": "mig-w1-ip-route-flush"
             }
@@ -21439,7 +21439,7 @@
           "evidence": [
             {
               "assertion": "rule add with from/to/fwmark/uidrange/ipproto/table/priority matches iproute2; rule del without table fails with ENOENT, and rule flush keeps the main/default rules iproute2 removes (reached FAIL).",
-              "definition_sha256": "8460edadd95e146cae5574b57031b5563466354137bfc7a1b73fe9380622742d",
+              "definition_sha256": "7c666e6f133b5ce8da438751c06b2ca3d09ab8e8857c46967684944075a4dbcc",
               "group": "shell",
               "id": "mig-w1-ip-rule"
             }
@@ -21453,7 +21453,7 @@
           "evidence": [
             {
               "assertion": "neigh add/change/replace/del with lladdr and nud state: state and rc class equal iproute2 after every step.",
-              "definition_sha256": "45aecf5f843e55c1da29313bd5bf29d4875f825ad97482f68bda04170af2e285",
+              "definition_sha256": "7c28d2decc5dfd7282e6b7c72d68f5e026c2792f3656fe822b310e9e278bf9d1",
               "group": "shell",
               "id": "mig-w1-ip-neigh"
             }
@@ -23366,13 +23366,13 @@
           "evidence": [
             {
               "assertion": "No match returns 1 and usage returns 2.",
-              "definition_sha256": "6fbfbe1c38819b66f9baf85dfe8b1835aa6e191a690726adc9681a7f52a4e7e4",
+              "definition_sha256": "18eb9c2333457f2dbebad31537a0da0f7be296923ae2040875a9f99710c9fd12",
               "group": "shell",
               "id": "mig-g1-killall-failure-paths"
             },
             {
               "assertion": "With no /proc (private root) killall exits 3, usage exits 2.",
-              "definition_sha256": "b870db22a2e9d246b6544127383661d600fe09da5fc28ced5cc282706c383759",
+              "definition_sha256": "ae8b5e5f705e258230655be7095862c4efd83cb007d72866a790f2decf7c9544",
               "group": "shell",
               "id": "mig-g1-killall-no-proc-fatal"
             }
@@ -23414,7 +23414,7 @@
           "evidence": [
             {
               "assertion": "Partial success: one matching and one missing NAME gives status 0 and signals the match.",
-              "definition_sha256": "6fbfbe1c38819b66f9baf85dfe8b1835aa6e191a690726adc9681a7f52a4e7e4",
+              "definition_sha256": "18eb9c2333457f2dbebad31537a0da0f7be296923ae2040875a9f99710c9fd12",
               "group": "shell",
               "id": "mig-g1-killall-failure-paths"
             },
@@ -26080,13 +26080,13 @@
             },
             {
               "assertion": "FSTYPE, LABEL, MOUNTPOINT of a loop ext2 device unmounted, mounted and after umount, plus -f and raw forms, compared with util-linux.",
-              "definition_sha256": "3f9c1587ab22ab08855d2978fb8bfd1d26899de0e65845cd8bb058c3cb405f24",
+              "definition_sha256": "e7b8ae75ee83939d4bced1d00031ccb0dee3909aad25083e343e6ffb4103c391",
               "group": "shell",
               "id": "mig-w7-lsblk-mounted-fstype-root"
             },
             {
               "assertion": "FSTYPE, LABEL, MOUNTPOINT of a loop ext2 device unmounted, mounted and after umount, plus -f and raw forms, compared with util-linux.",
-              "definition_sha256": "3f9c1587ab22ab08855d2978fb8bfd1d26899de0e65845cd8bb058c3cb405f24",
+              "definition_sha256": "e7b8ae75ee83939d4bced1d00031ccb0dee3909aad25083e343e6ffb4103c391",
               "group": "shell",
               "id": "mig-w7-lsblk-mounted-fstype-root"
             }
@@ -27276,7 +27276,7 @@
           "evidence": [
             {
               "assertion": "Both builds reached mlock all status 0 and positive VmLck under independently verified actual 64 MiB soft/hard limits; the literal VmLck >= VmRSS comparison failed on both. Subsequent allocation reached increased VmLck on both builds. Aggregate case FAIL is retained, together with earlier static r1 FAIL.",
-              "definition_sha256": "08dc6d1a2cc4d3c70c06b8293ddd9eb6fba597f441280c2e53b1d7e2f2f3f42d",
+              "definition_sha256": "714cfa2a9b402aab5d7d7a019d9504506659c8d0dfffa7be4807d102b36a431c",
               "group": "shell",
               "id": "migration-mlock-effective-future-unlock-r2"
             }
@@ -27324,7 +27324,7 @@
           "evidence": [
             {
               "assertion": "Both builds observed the owned candidate with positive VmLck at a held gate, then the same PID/birth zombie via pidfd/WNOWAIT and owned reap. Primary accepts this bounded side-exit inference; absent zombie VmLck is not a measured zero, and no direct physical page-unpin or complete intervening-syscall trace is claimed.",
-              "definition_sha256": "a73bad5ba1f080ee7e2f686147f2017e5fe460902365932786a0a3d91f31c049",
+              "definition_sha256": "41805e1e85cd66fbd7e89017580223942d1225ef7a33d7cff7a4e457b42e3002",
               "group": "shell",
               "id": "migration-mlock-effective-held-exit-r2"
             }
@@ -27595,7 +27595,7 @@
           "evidence": [
             {
               "assertion": "Both builds reached unlock status 0 and VmLck 0 after successful all with positive VmLck. The case aggregate is FAIL because of a distinct VmLck >= VmRSS mismatch, not an unlock malfunction.",
-              "definition_sha256": "08dc6d1a2cc4d3c70c06b8293ddd9eb6fba597f441280c2e53b1d7e2f2f3f42d",
+              "definition_sha256": "714cfa2a9b402aab5d7d7a019d9504506659c8d0dfffa7be4807d102b36a431c",
               "group": "shell",
               "id": "migration-mlock-effective-future-unlock-r2"
             }
@@ -27890,7 +27890,7 @@
           "evidence": [
             {
               "assertion": "Original requirement: Mode cleanup on interruption (^C) of the consumer Fresh raw analysis: Both builds emitted 1000l, 1015l and 1006l and exited 130 on interruption; terminal lflag changed from 35387 to 35377, leaving ECHO and ICANON clear. Retain the reported FAIL. migration-terminal-review112-terminal-mouse-pty-interrupt: static FAIL, dynamic FAIL.",
-              "definition_sha256": "93abeebe8923f58f0c2fdc6b2f09f05ec6b887069654321b93b7af9c88f9482d",
+              "definition_sha256": "31b7ffc536538b5f6a69f0e06b275f07f8f5f2311efe4efbb95c599fc344bec7",
               "group": "terminal",
               "id": "migration-terminal-review112-terminal-mouse-pty-interrupt"
             }
@@ -32695,7 +32695,7 @@
           "evidence": [
             {
               "assertion": "payload install tiny with the default image helper must return 0 and leave a txn= state record. The real /bash-os/bl-pkg.sh is absent from the frozen payload and guest image, so the candidate stops at the missing-installer check.",
-              "definition_sha256": "c68ff7a567e10e8044cb8e74db4e048b0207bf0c2616ceefa82c8c065a12ab92",
+              "definition_sha256": "1a495f09554b13550570f243b0a305ac7e281ab9f8455717560ca28908fb438a",
               "group": "shell",
               "id": "mig-w3-payload-image-install"
             }
@@ -32710,7 +32710,7 @@
           "evidence": [
             {
               "assertion": "payload remove tiny must roll back, print 'payload: removed tiny' and leave no state. The real /bash-os/bl-pkg.sh is absent from the frozen payload and guest image, so the candidate stops at the missing-installer check.",
-              "definition_sha256": "0e2fdafbc3528b73b63134113300c67b13658c557e4f9aff855a2ab7cab2e74a",
+              "definition_sha256": "14d8451e71c53ebf8a5da0599482200d16756b789cb6018811704037da754f21",
               "group": "shell",
               "id": "mig-w3-payload-image-remove"
             }
@@ -33112,7 +33112,7 @@
             },
             {
               "assertion": "-f with an ERE against the space-joined command line, listed with -a/-af/-lf and counted, compared byte-for-byte with procps pgrep on one shared process set (PASS for these lines).",
-              "definition_sha256": "c7fb5cf4564a0ba6832c0606e8d6615a85fd2f597e6aa051b2c79f213db23209",
+              "definition_sha256": "3c97ab76fe5b7dc68009b8a8ae9dabae78b1316c6d36cb42254fbf5e6605bd74",
               "group": "shell",
               "id": "mig-g1-pgrep-list-and-delimiter"
             },
@@ -33150,7 +33150,7 @@
             },
             {
               "assertion": "-a/-l/-la/-lf/--list-name/--list-full output bytes compared with procps; -al (a then l) prints comm only in the candidate while procps lets -a win (reached FAIL on both builds).",
-              "definition_sha256": "c7fb5cf4564a0ba6832c0606e8d6615a85fd2f597e6aa051b2c79f213db23209",
+              "definition_sha256": "3c97ab76fe5b7dc68009b8a8ae9dabae78b1316c6d36cb42254fbf5e6605bd74",
               "group": "shell",
               "id": "mig-g1-pgrep-list-and-delimiter"
             }
@@ -33164,7 +33164,7 @@
           "evidence": [
             {
               "assertion": "-d, -d SEP, attached -dX, --delimiter=X and --delimiter X with plain, -l and -a listings, -c and -n compared with procps; the empty delimiter is checked as exact concatenation of the PIDs.",
-              "definition_sha256": "c7fb5cf4564a0ba6832c0606e8d6615a85fd2f597e6aa051b2c79f213db23209",
+              "definition_sha256": "3c97ab76fe5b7dc68009b8a8ae9dabae78b1316c6d36cb42254fbf5e6605bd74",
               "group": "shell",
               "id": "mig-g1-pgrep-list-and-delimiter"
             }
@@ -33371,7 +33371,7 @@
             },
             {
               "assertion": "When the matching process is the calling shell itself (run through a symlink named g1shell) procps lists it because only the pgrep child is excluded, while the builtin has no child and excludes the caller: documented divergence now measured, status 1 vs 0 on five queries (reached FAIL on both builds).",
-              "definition_sha256": "500efb39a8706e14b96ad729d74336c71e5f1512b673cec28a9654d982e026a0",
+              "definition_sha256": "4cadc7011e160eaef159ada2fb543bd17e4fe0b56d9c5390a872b9001855521e",
               "group": "shell",
               "id": "mig-g1-pgrep-caller-shell-listed"
             }
@@ -33609,7 +33609,7 @@
           "evidence": [
             {
               "assertion": "-V/--version/-h/--help/unknown options: procps writes version and help to stdout with status 0; the candidate writes help to stderr, rejects -Vc with status 2 and prints a different version line (text excluded by design; status and stream choice reached FAIL on both builds).",
-              "definition_sha256": "7ce0d655aabf2a71aff814bd7459d9fe6efca5c453c1e1cd2b4d7f2c397459f9",
+              "definition_sha256": "f82852c1b4fdb54a07fee1e9d293232e428b2383362236165b2d5ad5e5d634b4",
               "group": "shell",
               "id": "mig-g1-pgrep-version-help"
             }
@@ -33715,7 +33715,7 @@
             },
             {
               "assertion": "-c -s returns exactly one PID and it has the caller's root (contract; sysvinit returns nothing for -c -s when its first candidate has another root).",
-              "definition_sha256": "3d4159fa7d8d4f9546c207921e0078f4c5ad289c8000e1c80ea4515520e29574",
+              "definition_sha256": "5ecb0c947a332b3fda58c35823c60173bcd1bfe3347b7fab5b0b9d839229d36d",
               "group": "shell",
               "id": "mig-g1-pidof-check-root-single-shot"
             }
@@ -34595,7 +34595,7 @@
             },
             {
               "assertion": "pkg rollback txn-real1 through the real image installer (no mock) must remove the package file and state and keep unrelated entries. The real installer is absent, so the candidate reports bl-pkg.sh not found and changes nothing (reached FAIL)",
-              "definition_sha256": "ad817725b56ddcb541637bf6b848064227bacdcc58eb5a24181969b8c0673a5a",
+              "definition_sha256": "a6ac368dee500a76104ae8a4f96f54ad8c0d0c179557aeb417ab539ae61bbd4e",
               "group": "shell",
               "id": "mig-w3-pkg-rollback-real-installer"
             }
@@ -35757,7 +35757,7 @@
             },
             {
               "assertion": "prlimit command signal; Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker. GNU exec makes its invoking Bash report Terminated; the builtin may return a numeric signal status without that shell diagnostic.",
-              "definition_sha256": "55db8081e08d3038903d7a40ebd4a49c4094877ec27749e546efd8a9f0bd02e4",
+              "definition_sha256": "615e0044ffc4c76d304e61a0596cd8b1f6858b19d90b819f11c07aaa239810b0",
               "group": "shell",
               "id": "migration-prlimit-command-signal"
             }
@@ -36220,7 +36220,7 @@
           "evidence": [
             {
               "assertion": "In a private user+pid namespace with its own /proc, ps -e, -A, aux and -ef each list exactly the 8 live processes (shell, sleeps, renamed, threaded, stopped, zombie and post-busy children). The -e/-A/-ef layouts differ from procps throughout (candidate 'PID S TIME CMD' with full command lines vs procps 'PID TTY TIME CMD' with comm; -ef lacks UID/C/STIME/TTY columns).",
-              "definition_sha256": "92851e58fb003b861b85eae37af0c2295b3e04e7340e9284ad08b1f484c598b8",
+              "definition_sha256": "dd6cbed4307dd2555abc1347e6a01cad2ed3c3f9f84ebd9686bbbae7f48ec410",
               "group": "shell",
               "id": "migration-ps-live-pidns-tables"
             }
@@ -36234,7 +36234,7 @@
           "evidence": [
             {
               "assertion": "The aux header equals procps's; USER, PID, VSZ, TTY, STAT, START, TIME and COMMAND columns of the children equal procps for the same snapshot, except the zombie lacks ' <defunct>' and a command line with embedded newlines is printed raw across several lines (procps shows them as spaces).",
-              "definition_sha256": "92851e58fb003b861b85eae37af0c2295b3e04e7340e9284ad08b1f484c598b8",
+              "definition_sha256": "dd6cbed4307dd2555abc1347e6a01cad2ed3c3f9f84ebd9686bbbae7f48ec410",
               "group": "shell",
               "id": "migration-ps-live-pidns-tables"
             }
@@ -36248,7 +36248,7 @@
           "evidence": [
             {
               "assertion": "START and TIME equal procps (TIME 0:01 for the child that burned 1.2 s). %CPU is the documented 0.0 placeholder (procps 96.7 for that child, 0.8 for the threaded one); RSS is about 100-170 kB lower than procps on every live child, so %MEM differs (0.1 vs 0.0 on sleeps). Contract FAIL.",
-              "definition_sha256": "92851e58fb003b861b85eae37af0c2295b3e04e7340e9284ad08b1f484c598b8",
+              "definition_sha256": "dd6cbed4307dd2555abc1347e6a01cad2ed3c3f9f84ebd9686bbbae7f48ec410",
               "group": "shell",
               "id": "migration-ps-live-pidns-tables"
             }
@@ -36274,7 +36274,7 @@
             },
             {
               "assertion": "Live records: the comm 'a b (c)' child, the threaded child (STAT 'Sl'), the stopped child ('T') and the zombie ('Z') are parsed and placed in the right aux columns; differences are only those listed for r2/r3. Contract FAIL.",
-              "definition_sha256": "92851e58fb003b861b85eae37af0c2295b3e04e7340e9284ad08b1f484c598b8",
+              "definition_sha256": "dd6cbed4307dd2555abc1347e6a01cad2ed3c3f9f84ebd9686bbbae7f48ec410",
               "group": "shell",
               "id": "migration-ps-live-pidns-tables"
             }
@@ -44047,13 +44047,13 @@
           "evidence": [
             {
               "assertion": "OpenSSH sftp put/chmod/get against the candidate subsystem: bytes and mode",
-              "definition_sha256": "fcfe531840d01da46774255a7d90775deb1ee2941aaaca4444e2e231d32994c3",
+              "definition_sha256": "4763df658d6c6636e6f6c55027031c46773b869f23b2715b7686216cdae69c6e",
               "group": "shell",
               "id": "migration-sshd-sftp-put-get"
             },
             {
               "assertion": "OpenSSH 10.0 sshd as reference server and client; sftp ls -1 and ls -1a transcripts of a directory with a dotfile and an empty subdirectory are byte-identical",
-              "definition_sha256": "393bdf981abdf3213e4050d5d119f4ec889d1cf993283833b01dc2f79d12779b",
+              "definition_sha256": "9bd4687773414c7bbf515cea6f439be8b52abd44d44e25ef455057ea69318ced",
               "group": "shell",
               "id": "mig-w3-sshd-sftp-ls"
             }
@@ -44157,7 +44157,7 @@
             },
             {
               "assertion": "OpenSSH 10.0 sshd as reference server and client; with no sftp subsystem configured the reference refuses sftp; the candidate has no way to disable its native SFTP and serves it (reached FAIL)",
-              "definition_sha256": "da36dadd57e4fbb7b0dea4a9df2590a327370ef280425825e5facbc5c8a3abea",
+              "definition_sha256": "954f225205ab5bacbc42e1efb06d2ccfda03b4324393c5a0ec16f3b728af0f94",
               "group": "shell",
               "id": "mig-w3-sshd-sftp-subsystem-unavailable"
             },
@@ -49092,7 +49092,7 @@
           "evidence": [
             {
               "assertion": "Reached on both builds. On a 5-row by 10-column TTY, four output rows each contain 4 cells; the independent 4-by-2 expected geometry is not met. Original scenario: Independent PNG RGB half-block dimensions and exact cells: tty-height-fit",
-              "definition_sha256": "8ca1d13d11a13b82342cdbb7dedcc087447a555d51effdd0f143e349df0d34f1",
+              "definition_sha256": "f267ccf502034139dc73527793cbca3584b650f210b34ef65a4f5f7e2bc07316",
               "group": "shell",
               "id": "migration-terminal-platform-tiv-tty-height-fit-audit121-r3"
             },
@@ -49353,7 +49353,7 @@
             },
             {
               "assertion": "Asserts the uptime from /proc/uptime, an aggregate CPU line from /proc/stat and task-state counts in the header; the candidate prints none of them (reached FAIL, retained).",
-              "definition_sha256": "6595dc085678286a2c6ad3dca789252163b6f1836f40d87fa5d77413fb388d95",
+              "definition_sha256": "ea5634b20cfc47584042d10d64cccb315a8b798e421b7caafbce347c9d726467",
               "group": "shell",
               "id": "mig-w7-top-batch-header-uptime-cpu-tasks"
             }
@@ -52217,18 +52217,18 @@
       },
       "requirements": [
         {
-          "behavior": "Missing-header and invalid-base64 inputs are rejected with failure, a diagnostic, and cleanup of the incomplete output.",
+          "behavior": "Missing-header and invalid-base64 inputs are rejected with GNU sharutils' malformed-input status 2 and a diagnostic, keeping the output file the begin line created.",
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "failure + diagnostic, semantic contract",
-              "definition_sha256": "a30bac55183992f440e45264a34d916e3f059f784eae53374e16aea6d7e0511c",
+              "assertion": "status 2 + diagnostic, semantic contract aligned with GNU sharutils",
+              "definition_sha256": "03d3e6bae541dfd25c6017b11ad3088aa202e58779196d7757811878636c0f17",
               "group": "legacy",
               "id": "legacy/uudecode/missing-header-contract"
             },
             {
-              "assertion": "failure + incomplete output removed, semantic contract",
-              "definition_sha256": "01191c75420f2ff6e03c996fc0c8b99e05e5b7d0ded610f14e3893e75d210d8a",
+              "assertion": "status 2 + diagnostic + empty output file kept, semantic contract aligned with GNU sharutils",
+              "definition_sha256": "e69c58131009a34fa0d581ae36c2e34501713a207974301f17f08a02f11cb94e",
               "group": "legacy",
               "id": "legacy/uudecode/invalid-base64-cleanup"
             }
@@ -52242,79 +52242,79 @@
           "evidence": [
             {
               "assertion": "Malformed class missing-begin: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "ab68297e5a3dbc8a1544fd6c66dabce813d4cd205fb3db1f6ae12fe86bc4310b",
+              "definition_sha256": "adad8c11b276e2f28eda32b133935a667e32d723307dfc25644ab88e67a565f2",
               "group": "shell",
               "id": "mig-w8-uudecode-missing-begin"
             },
             {
               "assertion": "Malformed class empty: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "8779535918bc9e435b3c1b9b202ea527e4adf54a6d8a24c718b09b4429603b7b",
+              "definition_sha256": "2064185106d2485e24c667455ff1ee357c2495370ff1ef6f057606bff8f74f19",
               "group": "shell",
               "id": "mig-w8-uudecode-empty"
             },
             {
               "assertion": "Malformed class bad-mode: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "675bbbac28734f6a1d762648edf726f49dcea1e38ecf051292856ee2aed4ca11",
+              "definition_sha256": "cd50db2dd8b24619da26f12ed29ad744c64e801b22a7372d4d7297db1b849111",
               "group": "shell",
               "id": "mig-w8-uudecode-bad-mode"
             },
             {
               "assertion": "Malformed class bad-length-char: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "121d679b2040e3733ebf9b96cd532191f608f3b16e963da7d3ab8944d4bd4c11",
+              "definition_sha256": "cf01fbea436ef8ad5d3b1e7d69a3c6ab37c83b693d784b01ac439654b8180a3b",
               "group": "shell",
               "id": "mig-w8-uudecode-bad-length-char"
             },
             {
               "assertion": "Malformed class truncated-body: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "aedccd2552329bed6f886dc0cca42453be1a350c3ff0a62ac71703a68eb27992",
+              "definition_sha256": "2510ade65609d93a8ed5a59668ade61c03473a8f2ce181ab17121067521aee0a",
               "group": "shell",
               "id": "mig-w8-uudecode-truncated-body"
             },
             {
               "assertion": "Malformed class missing-end: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "1b64847ce0cbcb9f9f87acd335de684f0690275d9cd670d3a45e9167df918ae6",
+              "definition_sha256": "6d1b6f1de29dddc15fcaa97a46025f47c90d90672aefb31e92c9217d8be432da",
               "group": "shell",
               "id": "mig-w8-uudecode-missing-end"
             },
             {
               "assertion": "Malformed class missing-zero-line-and-end: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "786b61f50e637464cfee1d61630a4d9dd5ea6bfa0a7fce1cb89e94da3fb088ff",
+              "definition_sha256": "87a78dfb24aa365107ddfab1618308fd8652aa254ee7e96d00432d4b24697260",
               "group": "shell",
               "id": "mig-w8-uudecode-missing-zero-line-and-end"
             },
             {
               "assertion": "Malformed class short-final-group: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "73092bbe29783725deb22f860c84c37a583bfb7dda61028d7c9f5583ec6edf02",
+              "definition_sha256": "c05788731d6afd27179affd522c85daf96f34644a48e58fd66b9727859c261d8",
               "group": "shell",
               "id": "mig-w8-uudecode-short-final-group"
             },
             {
               "assertion": "Malformed class bad-char-in-body: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "9e0d73480f69341af886576287bfeb2ee2c15b9dc9526c6dc357236c67412e19",
+              "definition_sha256": "92431bd6b12b0dbe6e739b39689ddbce503d2e95b5bdb00846e3ef21316d324e",
               "group": "shell",
               "id": "mig-w8-uudecode-bad-char-in-body"
             },
             {
               "assertion": "Malformed class b64-invalid-char: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "990261f1b4c6ac690de69fb49b03590cf07bc2e42bfd8f6777d8d7c2eae7e836",
+              "definition_sha256": "45bebbd486355e3120e6312c9130a9a500212d4efc685b68bd0d8c1f679fabfa",
               "group": "shell",
               "id": "mig-w8-uudecode-b64-invalid-char"
             },
             {
               "assertion": "Malformed class b64-missing-terminator: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "dc8ee3b8e1f6cb1fb210f78f11b196c45b9b9ab2be549c16313a533d543de9d0",
+              "definition_sha256": "c98f23d6e14ae98f6d117daf20da99fa5b52c2f7c721c2e2adc9c780a7c3f964",
               "group": "shell",
               "id": "mig-w8-uudecode-b64-missing-terminator"
             },
             {
               "assertion": "Malformed class b64-bad-padding: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "4ece995002f3a2b1f0e62382efab3f45e85966498dfe1d0636380fc92d85ead3",
+              "definition_sha256": "702da95d5069d7bba52bd661259613830720351d511b1a1028a1cb006780d3f1",
               "group": "shell",
               "id": "mig-w8-uudecode-b64-bad-padding"
             },
             {
               "assertion": "Malformed class valid-control: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "bf1e5236b1ba3030cc490db00209cbf474741ce531bb0ca52dc24ed877bf4d29",
+              "definition_sha256": "a419a6a59e75409c47cfb04a1d5f35fcc76dc921e4b68fb475fd9d0e4b67f1a9",
               "group": "shell",
               "id": "mig-w8-uudecode-valid-control"
             }
@@ -52328,79 +52328,79 @@
           "evidence": [
             {
               "assertion": "Malformed class missing-begin: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "ab68297e5a3dbc8a1544fd6c66dabce813d4cd205fb3db1f6ae12fe86bc4310b",
+              "definition_sha256": "adad8c11b276e2f28eda32b133935a667e32d723307dfc25644ab88e67a565f2",
               "group": "shell",
               "id": "mig-w8-uudecode-missing-begin"
             },
             {
               "assertion": "Malformed class empty: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "8779535918bc9e435b3c1b9b202ea527e4adf54a6d8a24c718b09b4429603b7b",
+              "definition_sha256": "2064185106d2485e24c667455ff1ee357c2495370ff1ef6f057606bff8f74f19",
               "group": "shell",
               "id": "mig-w8-uudecode-empty"
             },
             {
               "assertion": "Malformed class bad-mode: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "675bbbac28734f6a1d762648edf726f49dcea1e38ecf051292856ee2aed4ca11",
+              "definition_sha256": "cd50db2dd8b24619da26f12ed29ad744c64e801b22a7372d4d7297db1b849111",
               "group": "shell",
               "id": "mig-w8-uudecode-bad-mode"
             },
             {
               "assertion": "Malformed class bad-length-char: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "121d679b2040e3733ebf9b96cd532191f608f3b16e963da7d3ab8944d4bd4c11",
+              "definition_sha256": "cf01fbea436ef8ad5d3b1e7d69a3c6ab37c83b693d784b01ac439654b8180a3b",
               "group": "shell",
               "id": "mig-w8-uudecode-bad-length-char"
             },
             {
               "assertion": "Malformed class truncated-body: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "aedccd2552329bed6f886dc0cca42453be1a350c3ff0a62ac71703a68eb27992",
+              "definition_sha256": "2510ade65609d93a8ed5a59668ade61c03473a8f2ce181ab17121067521aee0a",
               "group": "shell",
               "id": "mig-w8-uudecode-truncated-body"
             },
             {
               "assertion": "Malformed class missing-end: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "1b64847ce0cbcb9f9f87acd335de684f0690275d9cd670d3a45e9167df918ae6",
+              "definition_sha256": "6d1b6f1de29dddc15fcaa97a46025f47c90d90672aefb31e92c9217d8be432da",
               "group": "shell",
               "id": "mig-w8-uudecode-missing-end"
             },
             {
               "assertion": "Malformed class missing-zero-line-and-end: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "786b61f50e637464cfee1d61630a4d9dd5ea6bfa0a7fce1cb89e94da3fb088ff",
+              "definition_sha256": "87a78dfb24aa365107ddfab1618308fd8652aa254ee7e96d00432d4b24697260",
               "group": "shell",
               "id": "mig-w8-uudecode-missing-zero-line-and-end"
             },
             {
               "assertion": "Malformed class short-final-group: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "73092bbe29783725deb22f860c84c37a583bfb7dda61028d7c9f5583ec6edf02",
+              "definition_sha256": "c05788731d6afd27179affd522c85daf96f34644a48e58fd66b9727859c261d8",
               "group": "shell",
               "id": "mig-w8-uudecode-short-final-group"
             },
             {
               "assertion": "Malformed class bad-char-in-body: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "9e0d73480f69341af886576287bfeb2ee2c15b9dc9526c6dc357236c67412e19",
+              "definition_sha256": "92431bd6b12b0dbe6e739b39689ddbce503d2e95b5bdb00846e3ef21316d324e",
               "group": "shell",
               "id": "mig-w8-uudecode-bad-char-in-body"
             },
             {
               "assertion": "Malformed class b64-invalid-char: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "990261f1b4c6ac690de69fb49b03590cf07bc2e42bfd8f6777d8d7c2eae7e836",
+              "definition_sha256": "45bebbd486355e3120e6312c9130a9a500212d4efc685b68bd0d8c1f679fabfa",
               "group": "shell",
               "id": "mig-w8-uudecode-b64-invalid-char"
             },
             {
               "assertion": "Malformed class b64-missing-terminator: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "dc8ee3b8e1f6cb1fb210f78f11b196c45b9b9ab2be549c16313a533d543de9d0",
+              "definition_sha256": "c98f23d6e14ae98f6d117daf20da99fa5b52c2f7c721c2e2adc9c780a7c3f964",
               "group": "shell",
               "id": "mig-w8-uudecode-b64-missing-terminator"
             },
             {
               "assertion": "Malformed class b64-bad-padding: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "4ece995002f3a2b1f0e62382efab3f45e85966498dfe1d0636380fc92d85ead3",
+              "definition_sha256": "702da95d5069d7bba52bd661259613830720351d511b1a1028a1cb006780d3f1",
               "group": "shell",
               "id": "mig-w8-uudecode-b64-bad-padding"
             },
             {
               "assertion": "Malformed class valid-control: exit status, diagnostic presence and output-file state compared with GNU sharutils 4.15.2 uudecode on the extended image.",
-              "definition_sha256": "bf1e5236b1ba3030cc490db00209cbf474741ce531bb0ca52dc24ed877bf4d29",
+              "definition_sha256": "a419a6a59e75409c47cfb04a1d5f35fcc76dc921e4b68fb475fd9d0e4b67f1a9",
               "group": "shell",
               "id": "mig-w8-uudecode-valid-control"
             }
@@ -52486,7 +52486,7 @@
           "evidence": [
             {
               "assertion": "Helper stand-in prints each argv element in brackets; expected '[alpha] [] [two words] [dollar$sign] [*]' proves empty, spaced and metacharacter words are forwarded verbatim. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
-              "definition_sha256": "8d63c17106d746fc5d1857fb9d273dfb018d9b100bd6317c26ae47b5c24ff23d",
+              "definition_sha256": "478e610342b3fc4753caf77730f298a737d58a6a2f0ea1de526e54664755d3f7",
               "group": "shell",
               "id": "mig-w3-uv-forward-args"
             }
@@ -52500,7 +52500,7 @@
           "evidence": [
             {
               "assertion": "Helper prints an exported variable (visible) and an unexported shell variable (unset). Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
-              "definition_sha256": "40f2527e37e9f4de0faf7dd6614c30ff35b82b4e0bf85dc5e4fc7c7eb21d0924",
+              "definition_sha256": "30111467e0e97278cc6570df33d14b1402dd1b47cd700b1e3515de37aec42fd2",
               "group": "shell",
               "id": "mig-w3-uv-forward-env"
             }
@@ -52514,7 +52514,7 @@
           "evidence": [
             {
               "assertion": "Helper exit statuses 0, 7 and 200 are expected unchanged from the uv builtin. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
-              "definition_sha256": "9698fa711922c638d70d37382e9e6c19a0848e534da45f9b00b0cdfa700000fe",
+              "definition_sha256": "bc60b3f1442dc0842746b4486f481eee993d016805f4586760d3ee7395af4a30",
               "group": "shell",
               "id": "mig-w3-uv-forward-status"
             }
@@ -52543,7 +52543,7 @@
           "evidence": [
             {
               "assertion": "uv.so is enabled from the relative path pkgroot/lib/bash-os/loadables/uv.so, the shell then cd's elsewhere, and 'uv ping' must still run the sibling ../libexec/uv/uv stand-in. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
-              "definition_sha256": "911b690bcb2876812bc09b2331af7ee12dbbd25cbad27c2e92f3ce175d774cbb",
+              "definition_sha256": "64dd789588cc7f2a31b6f436d3f071580da831be08b30a36dc3700060839fb95",
               "group": "shell",
               "id": "mig-w3-uv-after-cd"
             }
@@ -52572,7 +52572,7 @@
           "evidence": [
             {
               "assertion": "'uv init --bare tinyproj' must leave exactly tinyproj/pyproject.toml with name = \"tinyproj\"; a stand-in helper replaces upstream uv because no pinned upstream uv executable exists in the image or payload, so the assertion tests the builtin's forwarding for this operation, not upstream uv. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
-              "definition_sha256": "a8725e85b0006f00e4c38322ea6b81cebe8cf3c43a29467cebed009102dd7884",
+              "definition_sha256": "c2b9391ba488ae4bcf70b9b777b03205668250a0c2440f400b1f6ca2d5b1e8bd",
               "group": "shell",
               "id": "mig-w3-uv-local-project"
             }
@@ -52601,7 +52601,7 @@
           "evidence": [
             {
               "assertion": "type -t uv must print builtin and 'uv --version' with no helper at the compiled-in path must return 127 (the guest has no /usr/lib/bash-os/libexec/uv/uv, checked in setup). The frozen builds have no uv builtin, so type -t prints nothing and the case fails.",
-              "definition_sha256": "3e2f74ea37a6a8356fa5a9751caf0bd0d39b5c46ceb2bc91ad3f7ff44f0891b3",
+              "definition_sha256": "7ba35bbfb103668d6008bc8958a754b16ee7833c7b83f46c6d6c032d67ffb368",
               "group": "shell",
               "id": "mig-w3-uv-missing-status"
             }
@@ -52615,7 +52615,7 @@
           "evidence": [
             {
               "assertion": "The diagnostic must contain 'install it with: pkg install uv' and the missing helper path, with status 127. The frozen builds print only bash's command-not-found text.",
-              "definition_sha256": "6dc1770c5179713c3e77b07811ffcf7d7543620ab662a11735641053be8a1c1d",
+              "definition_sha256": "6b3ad7425a2501021cfd2573077e1966ee2806e353c360a6724b38d6fe305676",
               "group": "shell",
               "id": "mig-w3-uv-missing-hint"
             }
@@ -52644,7 +52644,7 @@
           "evidence": [
             {
               "assertion": "With INT and QUIT trapped in the calling script, the helper (a perl process reading /proc/self/status) must see neither signal ignored nor caught. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
-              "definition_sha256": "aad3116428c1be348078c0a061ea2294a1ba0015b4063af13625b6c0165561ee",
+              "definition_sha256": "ea30c06cca81184aa2d2fc0acc4d14e017496923c7a81a96da1e150ee5ff0a7f",
               "group": "shell",
               "id": "mig-w3-uv-signal-defaults"
             }
@@ -52658,7 +52658,7 @@
           "evidence": [
             {
               "assertion": "A helper killing itself with TERM, KILL and USR1 must yield 143, 137 and 138. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
-              "definition_sha256": "b675dfc6e0bf3c19e80df3ef0f2fa6e10cf4f9fcdbda120aae4d4de502b5eeb5",
+              "definition_sha256": "8b25afcfb439363cf441b73eadd5e72d3ac7597d7f0e08fbb1b22197c9894943",
               "group": "shell",
               "id": "mig-w3-uv-signal-status"
             }
@@ -53105,7 +53105,7 @@
             },
             {
               "assertion": "Reached on both builds. Stages 2 and 3 differ from pyte in cell (row 0, column 10): candidate space versus reference k. Original scenario: Bounded independent pyte comparison: insert-delete-chars",
-              "definition_sha256": "a7ebd9d6bd0edc850bc3e399a351b405f21b65fafbcab3515fec2dd0a108d3d2",
+              "definition_sha256": "affca645dec4ffec71f83fd8029583faeba28d60679472cc8782d3403d2bb646",
               "group": "shell",
               "id": "migration-terminal-platform-vt-insert-delete-chars-audit121-r3"
             },
@@ -53195,7 +53195,7 @@
             },
             {
               "assertion": "Reached on both builds. Stages 2 and 3 differ from pyte in cell (row 0, column 10): candidate space versus reference k. Original scenario: Bounded independent pyte comparison: insert-delete-chars",
-              "definition_sha256": "a7ebd9d6bd0edc850bc3e399a351b405f21b65fafbcab3515fec2dd0a108d3d2",
+              "definition_sha256": "affca645dec4ffec71f83fd8029583faeba28d60679472cc8782d3403d2bb646",
               "group": "shell",
               "id": "migration-terminal-platform-vt-insert-delete-chars-audit121-r3"
             },
@@ -53660,7 +53660,7 @@
           "evidence": [
             {
               "assertion": "wg set private-key/listen-port/peer endpoint/allowed-ips/persistent-keepalive against a kernel WireGuard device, read back with an independent genl codec and RFC 7748 vectors: the set fails and the device stays unconfigured. The candidate fails before any device operation: 'wg: netlink recv timeout waiting for WireGuard generic netlink family', while an independent genl client resolves the family and reads/writes the device in the same namespace; an init-namespace root control run fails identically (reached FAIL).",
-              "definition_sha256": "91acb4a5e5cf7d6faa2f0fcd30838c41b8393c382399ae0acba6a6676f0736ee",
+              "definition_sha256": "f412ce97b601f7539404cb238b039e467f3bc7eefe5ede90cba9955dbd297264",
               "group": "shell",
               "id": "mig-w1-wg-set-apply"
             }
@@ -53674,7 +53674,7 @@
           "evidence": [
             {
               "assertion": "Kernel-ACK status: the valid set returns 1 instead of 0; the nonexistent-interface and bad-key-file cases fail with a diagnostic but for the family-resolution reason, not a kernel error. The candidate fails before any device operation: 'wg: netlink recv timeout waiting for WireGuard generic netlink family', while an independent genl client resolves the family and reads/writes the device in the same namespace; an init-namespace root control run fails identically (reached FAIL).",
-              "definition_sha256": "c12c6a193374f654997923eb185cbf8ebc453b5c5d0fad9d24d8b6119ff3b135",
+              "definition_sha256": "8ca3b4aa7eaff033525b362fb2990f2075c8bb04e324ce1d5d643cd04c5ee7c4",
               "group": "shell",
               "id": "mig-w1-wg-set-errors"
             }
@@ -53688,7 +53688,7 @@
           "evidence": [
             {
               "assertion": "Peer remove and allowed-ips replacement cannot be applied because the family cannot be resolved. The candidate fails before any device operation: 'wg: netlink recv timeout waiting for WireGuard generic netlink family', while an independent genl client resolves the family and reads/writes the device in the same namespace; an init-namespace root control run fails identically (reached FAIL).",
-              "definition_sha256": "3cbd80502d27eedc5eccd913719ce73f266db3e5c788ce9dbbcd1ad12c602e54",
+              "definition_sha256": "e74f128ccc1866a9440460ac3d6ccf535f26cbd62299205d15a2a5064f68345f",
               "group": "shell",
               "id": "mig-w1-wg-set-peers"
             }
@@ -53729,7 +53729,7 @@
             },
             {
               "assertion": "setconf of an Interface plus two peers (IPv4, IPv6 allowed IPs, endpoint, keepalive, FwMark) is not delivered to the kernel. The candidate fails before any device operation: 'wg: netlink recv timeout waiting for WireGuard generic netlink family', while an independent genl client resolves the family and reads/writes the device in the same namespace; an init-namespace root control run fails identically (reached FAIL).",
-              "definition_sha256": "12da2ae4d7914adb662d2062cfc215fac0e808451d29f2c29494c7395b4bfaf0",
+              "definition_sha256": "219ab9ade9ea8e1310f880964f3c530e3ddff9f976ad1c660fd9e3ebcc113094",
               "group": "shell",
               "id": "mig-w1-wg-setconf"
             }
@@ -53743,7 +53743,7 @@
           "evidence": [
             {
               "assertion": "setconf exits 1 instead of applying the configuration with a kernel ACK. The candidate fails before any device operation: 'wg: netlink recv timeout waiting for WireGuard generic netlink family', while an independent genl client resolves the family and reads/writes the device in the same namespace; an init-namespace root control run fails identically (reached FAIL).",
-              "definition_sha256": "12da2ae4d7914adb662d2062cfc215fac0e808451d29f2c29494c7395b4bfaf0",
+              "definition_sha256": "219ab9ade9ea8e1310f880964f3c530e3ddff9f976ad1c660fd9e3ebcc113094",
               "group": "shell",
               "id": "mig-w1-wg-setconf"
             }
@@ -53757,7 +53757,7 @@
           "evidence": [
             {
               "assertion": "Kernel read-back shows no private key, listen port, fwmark or peers (expected 51821, 0x1234, two peers, RFC 7748 public key); a second setconf replace also cannot be observed. The candidate fails before any device operation: 'wg: netlink recv timeout waiting for WireGuard generic netlink family', while an independent genl client resolves the family and reads/writes the device in the same namespace; an init-namespace root control run fails identically (reached FAIL).",
-              "definition_sha256": "12da2ae4d7914adb662d2062cfc215fac0e808451d29f2c29494c7395b4bfaf0",
+              "definition_sha256": "219ab9ade9ea8e1310f880964f3c530e3ddff9f976ad1c660fd9e3ebcc113094",
               "group": "shell",
               "id": "mig-w1-wg-setconf"
             }
@@ -53786,7 +53786,7 @@
           "evidence": [
             {
               "assertion": "wg show wg0 on a device seeded by the independent encoder prints nothing and exits 1 instead of interface, public key, (hidden) private key, listening port and fwmark. The candidate fails before any device operation: 'wg: netlink recv timeout waiting for WireGuard generic netlink family', while an independent genl client resolves the family and reads/writes the device in the same namespace; an init-namespace root control run fails identically (reached FAIL).",
-              "definition_sha256": "a5b3fd14b2dc2efc810889017f66ce9dbdb9fe1c5a2ad9484bb7c4ca08e32cf5",
+              "definition_sha256": "ede724ff536a95d2c61fb60b7a355bc69ff7bb5480b46b2ea95b103fa4977c70",
               "group": "shell",
               "id": "mig-w1-wg-show"
             }
@@ -53800,7 +53800,7 @@
           "evidence": [
             {
               "assertion": "Peer endpoint, allowed ips and persistent keepalive are not printed. The candidate fails before any device operation: 'wg: netlink recv timeout waiting for WireGuard generic netlink family', while an independent genl client resolves the family and reads/writes the device in the same namespace; an init-namespace root control run fails identically (reached FAIL).",
-              "definition_sha256": "a5b3fd14b2dc2efc810889017f66ce9dbdb9fe1c5a2ad9484bb7c4ca08e32cf5",
+              "definition_sha256": "ede724ff536a95d2c61fb60b7a355bc69ff7bb5480b46b2ea95b103fa4977c70",
               "group": "shell",
               "id": "mig-w1-wg-show"
             }
@@ -53834,7 +53834,7 @@
           "evidence": [
             {
               "assertion": "The full output is compared with the wg(8) contract text for the configured state (including 'persistent keepalive: every N seconds'); the candidate output is empty. The candidate fails before any device operation: 'wg: netlink recv timeout waiting for WireGuard generic netlink family', while an independent genl client resolves the family and reads/writes the device in the same namespace; an init-namespace root control run fails identically (reached FAIL).",
-              "definition_sha256": "a5b3fd14b2dc2efc810889017f66ce9dbdb9fe1c5a2ad9484bb7c4ca08e32cf5",
+              "definition_sha256": "ede724ff536a95d2c61fb60b7a355bc69ff7bb5480b46b2ea95b103fa4977c70",
               "group": "shell",
               "id": "mig-w1-wg-show"
             }
@@ -54363,26 +54363,26 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Original requirement: treeview and inputmenu navigation and selection output. Fresh raw analysis: Owned treeview and inputmenu sessions send navigation/selection keys and save result files child\\n and beta\\n, respectively; these are contract cases because pinned newt whiptail lacks those widgets. migration-terminal-review112-terminal-whip-inputmenu-contract: static PASS, dynamic PASS.",
-              "definition_sha256": "1e6cfc482f0eb6e148080a747bdaec7e6dc53921206dde6130e9852e3aea9763",
+              "assertion": "Original requirement: treeview and inputmenu navigation and selection output. Fresh raw analysis: Owned treeview and inputmenu sessions send navigation/selection keys and save result files child and beta, respectively, without a trailing newline as GNU dialog and newt whiptail write menu results (0.1.3 builds appended one); these are contract cases because pinned newt whiptail lacks those widgets.",
+              "definition_sha256": "3f4c259f8309f1bc3c83c7a26a296a9250bc6d0a3404e94fc7ee62f1f63120f4",
               "group": "terminal",
               "id": "migration-terminal-review112-terminal-whip-inputmenu-contract"
             },
             {
-              "assertion": "Original requirement: treeview and inputmenu navigation and selection output. Fresh raw analysis: Owned treeview and inputmenu sessions send navigation/selection keys and save result files child\\n and beta\\n, respectively; these are contract cases because pinned newt whiptail lacks those widgets. migration-terminal-review112-terminal-whip-inputmenu-contract-r2: static PASS, dynamic PASS.",
-              "definition_sha256": "bed901505b66df32e4dc3e5825a8f27ada5efe807408542e587f0793638bb06f",
+              "assertion": "Original requirement: treeview and inputmenu navigation and selection output. Fresh raw analysis: Owned treeview and inputmenu sessions send navigation/selection keys and save result files child and beta, respectively, without a trailing newline as GNU dialog and newt whiptail write menu results (0.1.3 builds appended one); these are contract cases because pinned newt whiptail lacks those widgets.",
+              "definition_sha256": "a0ec80745763157134011c8b99d7f208b191f8d164a1bc90338eda4cc8d52a99",
               "group": "shell",
               "id": "migration-terminal-review112-terminal-whip-inputmenu-contract-r2"
             },
             {
-              "assertion": "Original requirement: treeview and inputmenu navigation and selection output. Fresh raw analysis: Owned treeview and inputmenu sessions send navigation/selection keys and save result files child\\n and beta\\n, respectively; these are contract cases because pinned newt whiptail lacks those widgets. migration-terminal-review112-terminal-whip-treeview-contract: static PASS, dynamic PASS.",
-              "definition_sha256": "2bcbd6ff7ee902ce7dcca0d6e7b536c8ad9974cb26b3397c522985447ae03c70",
+              "assertion": "Original requirement: treeview and inputmenu navigation and selection output. Fresh raw analysis: Owned treeview and inputmenu sessions send navigation/selection keys and save result files child and beta, respectively, without a trailing newline as GNU dialog and newt whiptail write menu results (0.1.3 builds appended one); these are contract cases because pinned newt whiptail lacks those widgets.",
+              "definition_sha256": "e121f385921c0862ffade84f738e33740f8c75c2f154ef62be8715904d4ec474",
               "group": "terminal",
               "id": "migration-terminal-review112-terminal-whip-treeview-contract"
             },
             {
-              "assertion": "Original requirement: treeview and inputmenu navigation and selection output. Fresh raw analysis: Owned treeview and inputmenu sessions send navigation/selection keys and save result files child\\n and beta\\n, respectively; these are contract cases because pinned newt whiptail lacks those widgets. migration-terminal-review112-terminal-whip-treeview-contract-r2: static PASS, dynamic PASS.",
-              "definition_sha256": "9133b0ab079577c2eb9201b8b16188e001f82a8108c6a90d38f461c7ad407fb3",
+              "assertion": "Original requirement: treeview and inputmenu navigation and selection output. Fresh raw analysis: Owned treeview and inputmenu sessions send navigation/selection keys and save result files child and beta, respectively, without a trailing newline as GNU dialog and newt whiptail write menu results (0.1.3 builds appended one); these are contract cases because pinned newt whiptail lacks those widgets.",
+              "definition_sha256": "31a550398096b2f5082029c23edd590712fd8b507656468780279ac931f8a74e",
               "group": "shell",
               "id": "migration-terminal-review112-terminal-whip-treeview-contract-r2"
             }
@@ -54514,7 +54514,7 @@
           "evidence": [
             {
               "assertion": "In a user+mount namespace with a synthetic /run/utmp, who without FILE prints exactly what it prints for an explicit byte copy for all 13 option sets (default, -q, -b, -H, -s, -l, -d, -r, -p, -a, -T, -u, -Hu), with the expected record counts and no diagnostics.",
-              "definition_sha256": "2e5e6d69ffbfc123176c507d27527285be0a4efedff6debcff7a3a5b00f21e17",
+              "definition_sha256": "c0f1940c3026eb23fb06cf74205a3bfbadc6bfdbe09bc7bb89f573314e46fc7a",
               "group": "shell",
               "id": "migration-who-default-utmp-contract"
             },
@@ -54534,7 +54534,7 @@
           "evidence": [
             {
               "assertion": "Against GNU who reading the same records from a copy at a non-default path: 11 of 13 option sets identical; -r and -a differ only on the run-level record, where GNU prints 'last=S' for a previous run level 'N' and the candidate 'last=N'. Contract FAIL.",
-              "definition_sha256": "2e5e6d69ffbfc123176c507d27527285be0a4efedff6debcff7a3a5b00f21e17",
+              "definition_sha256": "c0f1940c3026eb23fb06cf74205a3bfbadc6bfdbe09bc7bb89f573314e46fc7a",
               "group": "shell",
               "id": "migration-who-default-utmp-contract"
             },

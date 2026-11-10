@@ -489,7 +489,7 @@
       "loadable": "dialog",
       "group": "terminal",
       "driver": "pty",
-      "purpose": "After the terminal is resized from 24x80 to 14x50 while the box is open, the box is redrawn at the new geometry: the text moves from row 10, column 25 to row 5, column 10 (centre of the new screen). (real dialog reference)",
+      "purpose": "After SIGWINCH from 24x80 to 14x50, real dialog redraws the 8x30 msgbox on the shadow-aware centre before the next key: the prompt is on row 3 and the left border is at column 9. (real dialog reference)",
       "steps": [
         {
           "screen": {

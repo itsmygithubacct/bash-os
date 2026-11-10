@@ -27,7 +27,7 @@
         "revoked.err"
       ],
       "oracle": "Pinned Debian Git 2.47.3 and OpenSSH 10.0: missing configured revocation file emits a warning and verifies a valid allowed signer; behavior observed in preserved r13 dynamic reference run.",
-      "comparison": "Missing revocation path only: require observed success and warning; separately test unreadable, malformed, nonempty, and revoked paths without inferring their results. Original erroneous fixture and raw ERROR remain unchanged."
+      "comparison": "Missing revocation path only. Debian Git warns and accepts a valid allowed signer. This build stays fail-closed and rejects. That difference is deliberate. The r3 case that expected system Git to reject a missing file is retired."
     }
   ]
 }

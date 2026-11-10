@@ -83,6 +83,8 @@ bsshd_libssh_ensure_initialized (void)
 }
 static int bsshd_channel_write_all (ssh_channel ch, const void *data,
                                     size_t n, int stderr_stream);
+static void bsshd_fwd_service (ssh_session session, int wait_ms);
+static int bsshd_forward_request (ssh_session session, ssh_message msg);
 #endif
 
 #if BSSHD_HAVE_LIBSSH_SFTP_SERVER
@@ -592,6 +594,40 @@ static long g_login_grace_s = 0;   /* 0 = no pre-auth deadline; >0 = seconds */
 static int  g_permit_tty = 1;      /* 0 = refuse PTY requests globally */
 static char g_banner_path[512];    /* empty = no pre-auth banner */
 
+/* Subsystem name -> command. `internal-sftp` is this server's SFTP
+   implementation. Any other command is executed directly. Absent means the
+   request is refused: SFTP is not implicit. */
+#define BSSHD_MAX_SUBSYS 8
+struct bsshd_subsystem {
+  char name[64];
+  char command[512];
+  int internal_sftp;
+};
+static struct bsshd_subsystem g_subsys[BSSHD_MAX_SUBSYS];
+static int g_n_subsys = 0;
+
+static int
+bsshd_command_is_internal_sftp (const char *cmd)
+{
+  while (*cmd == ' ' || *cmd == '\t')
+    cmd++;
+  if (strncmp (cmd, "internal-sftp", 13) != 0)
+    return 0;
+  char next = cmd[13];
+  return next == '\0' || next == ' ' || next == '\t';
+}
+
+static const struct bsshd_subsystem *
+bsshd_subsystem_lookup (const char *name)
+{
+  if (!name || !*name)
+    return NULL;
+  for (int i = 0; i < g_n_subsys; i++)
+    if (strcmp (g_subsys[i].name, name) == 0)
+      return &g_subsys[i];
+  return NULL;
+}
+
 /* F06 server-side Match: per-connection conditional overrides.
    `Match user PAT | address CIDR | all` gates the directives that follow.
    Overrides use -1 = inherit the global baseline. Applied in the per-connection
@@ -772,6 +808,99 @@ static void bsshd_exec_child (const char *shell, const char *cmd,
     }
 }
 
+/* Split a Subsystem command on whitespace. Quotes group one argument.
+   Returns the argument count, or -1 when there are too many. */
+static int
+bsshd_split_command (char *storage, char **argv, int max)
+{
+  int n = 0;
+  char *p = storage;
+  while (*p)
+    {
+      while (*p == ' ' || *p == '\t')
+        p++;
+      if (!*p)
+        break;
+      if (n >= max - 1)
+        return -1;
+      if (*p == '"' || *p == '\'')
+        {
+          char quote = *p++;
+          argv[n++] = p;
+          while (*p && *p != quote)
+            p++;
+          if (*p)
+            *p++ = '\0';
+        }
+      else
+        {
+          argv[n++] = p;
+          while (*p && *p != ' ' && *p != '\t')
+            p++;
+          if (*p)
+            *p++ = '\0';
+        }
+    }
+  argv[n] = NULL;
+  return n;
+}
+
+/* Execute argv directly with the same explicit environment as a shell
+   session. A subsystem binary speaks its protocol on stdin, so it must not
+   be wrapped in the user's shell. */
+static void
+bsshd_exec_direct (char **argv, const bsshd_target_user *target)
+{
+  const char *over[4 + BSSHD_MAX_SESSENV];
+  int n_over = 0;
+  int login = (target && target->enabled);
+  if (login)
+    {
+      over[n_over++] = "USER";
+      over[n_over++] = "LOGNAME";
+      over[n_over++] = "HOME";
+      over[n_over++] = "SHELL";
+    }
+  for (int i = 0; i < g_n_sessenv; i++)
+    over[n_over++] = g_sessenv_name[i];
+
+  int base = 0;
+  for (char **e = environ; e && *e; e++)
+    base++;
+  char **envp = calloc ((size_t) base + (size_t) n_over + 1, sizeof *envp);
+  if (!envp)
+    return;
+  int n = 0;
+  for (char **e = environ; e && *e; e++)
+    {
+      int skip = 0;
+      for (int i = 0; i < n_over; i++)
+        {
+          size_t kl = strlen (over[i]);
+          if (!strncmp (*e, over[i], kl) && (*e)[kl] == '=')
+            { skip = 1; break; }
+        }
+      if (!skip)
+        envp[n++] = *e;
+    }
+#define BSSHD_ENVP_PUT(nm,vl) do { \
+    const char *_nm = (nm), *_vl = (vl) ? (vl) : ""; \
+    char *_s = malloc (strlen (_nm) + strlen (_vl) + 2); \
+    if (_s) { sprintf (_s, "%s=%s", _nm, _vl); envp[n++] = _s; } } while (0)
+  if (login)
+    {
+      BSSHD_ENVP_PUT ("USER", target->user.name);
+      BSSHD_ENVP_PUT ("LOGNAME", target->user.name);
+      BSSHD_ENVP_PUT ("HOME", target->user.home[0] ? target->user.home : "/");
+      BSSHD_ENVP_PUT ("SHELL", target->user.shell[0] ? target->user.shell : "/bin/bash");
+    }
+  for (int i = 0; i < g_n_sessenv; i++)
+    BSSHD_ENVP_PUT (g_sessenv_name[i], g_sessenv_val[i]);
+#undef BSSHD_ENVP_PUT
+  envp[n] = NULL;
+  execve (argv[0], argv, envp);
+}
+
 static int run_local (const char *cmd, const char *infile,
                       const bsshd_target_user *target, blob *out, blob *err)
 {
@@ -857,8 +986,10 @@ static int run_local (const char *cmd, const char *infile,
    it has been told so far and then waits, so a far end whose output is
    only sent when the command exits can never take part in one: both sides
    wait for each other. Returns the command's status. */
+/* direct is non-zero for a Subsystem command, which is exec'd as given.
+   Zero runs cmd through the user's shell, as an exec channel does. */
 static int run_local_stream (const char *cmd, const bsshd_target_user *target,
-                             ssh_channel ch)
+                             ssh_channel ch, int direct)
 {
   int ip[2], op[2], ep[2];
   if (pipe (ip) < 0) return 127;
@@ -906,6 +1037,16 @@ static int run_local_stream (const char *cmd, const bsshd_target_user *target,
             _exit (127);
           shell = target->user.shell[0] ? target->user.shell : "/bin/bash";
         }
+      if (direct)
+        {
+          char storage[512];
+          char *argv[16];
+          snprintf (storage, sizeof storage, "%s", cmd ? cmd : "");
+          if (bsshd_split_command (storage, argv, 16) < 1)
+            _exit (127);
+          bsshd_exec_direct (argv, target);
+          _exit (127);
+        }
       bsshd_exec_child (shell, cmd, target, NULL, NULL);
       _exit (127);
     }
@@ -922,6 +1063,9 @@ static int run_local_stream (const char *cmd, const bsshd_target_user *target,
   while (!done[0] || !done[1])
     {
       int moved = 0;
+      /* A command may use the connection's own forwards (ssh -R with a
+         command that connects to the forwarded port), so they keep moving. */
+      bsshd_fwd_service (ssh_channel_get_session (ch), 0);
       /* What is already held for the command goes to it first. */
       while (in_open && pending_at < pending_len)
         {
@@ -1098,56 +1242,278 @@ bsshd_peer_name_port (int fd, char *host, size_t hostlen, int *port)
   return 0;
 }
 
+/* Port forwards of this connection. Forwarded connections are relayed by
+   bsshd_fwd_service from each place the connection waits (the request
+   loop, a streaming command, a shell), so a forward neither ends the
+   connection nor takes it over: the client can open more channels, run a
+   command that uses a remote forward, or cancel one, as with OpenSSH. */
+#define BSSHD_MAX_RFWD 16
+#define BSSHD_MAX_RELAY 64
+
+typedef struct { int fd; char *addr; int port; } bsshd_rfwd;
+typedef struct { int fd; ssh_channel ch; int sock_eof, chan_eof; } bsshd_relay;
+
+static bsshd_rfwd g_rfwd[BSSHD_MAX_RFWD];
+static int g_n_rfwd;
+static bsshd_relay g_relay[BSSHD_MAX_RELAY];
+static int g_n_relay;
+static int g_fwd_allowed;
+
+/* A forwarded peer may be gone: report that, rather than die of SIGPIPE. */
 static int
-bsshd_pump_fd_channel (int fd, ssh_session session, ssh_channel channel)
+bsshd_send_all (int fd, const char *p, size_t n)
+{
+  while (n)
+    {
+      ssize_t w = send (fd, p, n, MSG_NOSIGNAL);
+      if (w < 0 && errno == EINTR)
+        continue;
+      if (w <= 0)
+        return -1;
+      p += w;
+      n -= (size_t) w;
+    }
+  return 0;
+}
+
+static int
+bsshd_relay_add (int fd, ssh_channel ch)
+{
+  if (g_n_relay == BSSHD_MAX_RELAY)
+    return -1;
+  g_relay[g_n_relay].fd = fd;
+  g_relay[g_n_relay].ch = ch;
+  g_relay[g_n_relay].sock_eof = g_relay[g_n_relay].chan_eof = 0;
+  g_n_relay++;
+  return 0;
+}
+
+/* Move what is ready on one forwarded connection. Each direction ends on
+   its own: the socket's EOF becomes the channel's, and the channel's EOF
+   shuts the socket for writing, so a peer that answers only after the
+   other side has finished still gets its answer through. Returns 1 once
+   both have ended, the channel is closed, or a side has failed. */
+static int
+bsshd_relay_step (bsshd_relay *r, int readable)
 {
   char buf[8192];
-  int sock_eof = 0;
-  int channel_eof = 0;
+  int avail;
+
+  if (!r->sock_eof && readable)
+    {
+      ssize_t n = read (r->fd, buf, sizeof buf);
+      if (n > 0)
+        {
+          if (bsshd_channel_write_all (r->ch, buf, (size_t) n, 0) < 0)
+            return 1;
+        }
+      else if (n == 0 || errno != EINTR)
+        {
+          r->sock_eof = 1;
+          ssh_channel_send_eof (r->ch);
+        }
+    }
+  while ((avail = ssh_channel_poll_timeout (r->ch, 0, 0)) > 0)
+    {
+      uint32_t chunk = (uint32_t) (avail < (int) sizeof buf ? avail : (int) sizeof buf);
+      int n = ssh_channel_read (r->ch, buf, chunk, 0);
+      if (n <= 0)
+        break;
+      if (bsshd_send_all (r->fd, buf, (size_t) n) < 0)
+        return 1;
+    }
+  if (!r->chan_eof && ssh_channel_is_eof (r->ch))
+    {
+      r->chan_eof = 1;
+      shutdown (r->fd, SHUT_WR);
+    }
+  return !ssh_channel_is_open (r->ch) || (r->sock_eof && r->chan_eof);
+}
+
+static void
+bsshd_relay_end (int i)
+{
+  ssh_channel_close (g_relay[i].ch);
+  ssh_channel_free (g_relay[i].ch);
+  close (g_relay[i].fd);
+  g_relay[i] = g_relay[--g_n_relay];
+}
+
+/* A connection to a remote-forward listener becomes a forwarded-tcpip
+   channel back to the client. */
+static void
+bsshd_rfwd_accept (ssh_session session, const bsshd_rfwd *l)
+{
+  char origin[64] = "127.0.0.1";
+  int origin_port = 0;
+  int cfd = accept4 (l->fd, NULL, NULL, SOCK_CLOEXEC);
+  if (cfd < 0)
+    return;
+  bsshd_peer_name_port (cfd, origin, sizeof origin, &origin_port);
+  ssh_channel ch = ssh_channel_new (session);
+  if (!ch || ssh_channel_open_reverse_forward (ch, l->addr, l->port,
+                                               origin, origin_port) != SSH_OK
+      || bsshd_relay_add (cfd, ch) < 0)
+    {
+      if (ch)
+        ssh_channel_free (ch);
+      close (cfd);
+    }
+}
+
+/* Accept on remote-forward listeners and move data on forwarded
+   connections, waiting up to WAIT_MS for any of them or the transport.
+   Channel data libssh has already buffered is read whether or not a
+   descriptor is ready. */
+static void
+bsshd_fwd_service (ssh_session session, int wait_ms)
+{
+  fd_set rfds;
+  int top = -1, i;
+  struct timeval tv;
+
+  if (!g_n_rfwd && !g_n_relay)
+    return;
+  FD_ZERO (&rfds);
+  int sfd = ssh_get_fd (session);
+  if (sfd >= 0)
+    {
+      FD_SET (sfd, &rfds);
+      top = sfd;
+    }
+  for (i = 0; i < g_n_rfwd; i++)
+    {
+      FD_SET (g_rfwd[i].fd, &rfds);
+      if (g_rfwd[i].fd > top) top = g_rfwd[i].fd;
+    }
+  for (i = 0; i < g_n_relay; i++)
+    if (!g_relay[i].sock_eof)
+      {
+        FD_SET (g_relay[i].fd, &rfds);
+        if (g_relay[i].fd > top) top = g_relay[i].fd;
+      }
+  tv.tv_sec = wait_ms / 1000;
+  tv.tv_usec = (wait_ms % 1000) * 1000;
+  if (select (top + 1, &rfds, NULL, NULL, &tv) < 0)
+    FD_ZERO (&rfds);
+
+  int listeners = g_n_rfwd, relays = g_n_relay;
+  for (i = 0; i < listeners; i++)
+    if (FD_ISSET (g_rfwd[i].fd, &rfds))
+      bsshd_rfwd_accept (session, &g_rfwd[i]);
+  /* Connections accepted just now were not in the set; their turn is next. */
+  for (i = 0; i < g_n_relay; )
+    {
+      int ready = i < relays && !g_relay[i].sock_eof && FD_ISSET (g_relay[i].fd, &rfds);
+      if (bsshd_relay_step (&g_relay[i], ready))
+        {
+          bsshd_relay_end (i);
+          if (relays > i)
+            relays--;
+        }
+      else
+        i++;
+    }
+}
+
+/* The next request on the connection, serving forwards while it waits.
+   NULL once the connection has ended. */
+static ssh_message
+bsshd_next_message (ssh_session session)
+{
   for (;;)
     {
-      fd_set rfds;
-      FD_ZERO (&rfds);
-      int sfd = ssh_get_fd (session);
-      if (!sock_eof) FD_SET (fd, &rfds);
-      FD_SET (sfd, &rfds);
-      int maxfd = fd > sfd ? fd : sfd;
-      struct timeval tv;
-      tv.tv_sec = 0; tv.tv_usec = 100000;
-      int sel = select (maxfd + 1, &rfds, NULL, NULL, &tv);
-      if (sel < 0 && errno == EINTR) continue;
-      if (sel < 0) break;
-      if (!sock_eof && FD_ISSET (fd, &rfds))
+      ssh_message msg;
+      if (!g_n_rfwd && !g_n_relay)
+        return ssh_message_get (session);
+      ssh_set_blocking (session, 0);
+      msg = ssh_message_get (session);
+      ssh_set_blocking (session, 1);
+      if (msg)
+        return msg;
+      if (!ssh_is_connected (session)
+          || (ssh_get_status (session) & (SSH_CLOSED | SSH_CLOSED_ERROR | SSH_READ_EOF)))
+        return NULL;
+      bsshd_fwd_service (session, 50);
+    }
+}
+
+/* tcpip-forward, cancel-tcpip-forward and direct-tcpip, refused unless
+   forwarding is allowed. A request that fails is answered with a failure
+   and the connection goes on, as OpenSSH sshd does. Returns 1 when MSG
+   was one of these and has been answered (the caller still frees it). */
+static int
+bsshd_forward_request (ssh_session session, ssh_message msg)
+{
+  int type = ssh_message_type (msg), subtype = ssh_message_subtype (msg);
+  (void) session;
+
+  if (type == SSH_REQUEST_GLOBAL && subtype == SSH_GLOBAL_REQUEST_TCPIP_FORWARD)
+    {
+      const char *requested = ssh_message_global_request_address (msg);
+      const char *addr = requested ? requested : "127.0.0.1";
+      int port = ssh_message_global_request_port (msg), lfd = -1;
+      char *copy = NULL;
+      if (g_fwd_allowed && g_n_rfwd < BSSHD_MAX_RFWD
+          && (lfd = bsshd_listen_forward (addr, port, &port)) >= 0)
+        copy = strdup (addr);
+      if (!copy)
         {
-          ssize_t n = read (fd, buf, sizeof buf);
-          if (n < 0 && errno == EINTR)
-            continue;
-          if (n <= 0)
+          if (lfd >= 0)
+            close (lfd);
+          ssh_message_reply_default (msg);
+          return 1;
+        }
+      g_rfwd[g_n_rfwd].fd = lfd;
+      g_rfwd[g_n_rfwd].addr = copy;
+      g_rfwd[g_n_rfwd].port = port;
+      g_n_rfwd++;
+      ssh_message_global_request_reply_success (msg, (uint16_t) port);
+      return 1;
+    }
+  if (type == SSH_REQUEST_GLOBAL
+      && subtype == SSH_GLOBAL_REQUEST_CANCEL_TCPIP_FORWARD)
+    {
+      const char *addr = ssh_message_global_request_address (msg);
+      int port = ssh_message_global_request_port (msg);
+      for (int i = 0; i < g_n_rfwd; i++)
+        if (addr && !strcmp (addr, g_rfwd[i].addr) && port == g_rfwd[i].port)
+          {
+            close (g_rfwd[i].fd);
+            free (g_rfwd[i].addr);
+            g_rfwd[i] = g_rfwd[--g_n_rfwd];
+            ssh_message_global_request_reply_success (msg, 0);
+            return 1;
+          }
+      ssh_message_reply_default (msg);
+      return 1;
+    }
+  if (type == SSH_REQUEST_CHANNEL_OPEN && subtype == SSH_CHANNEL_DIRECT_TCPIP)
+    {
+      const char *dst = ssh_message_channel_request_open_destination (msg);
+      int dport = ssh_message_channel_request_open_destination_port (msg);
+      char portbuf[32];
+      int rfd = -1;
+      ssh_channel ch = NULL;
+      snprintf (portbuf, sizeof portbuf, "%d", dport);
+      if (g_fwd_allowed && g_n_relay < BSSHD_MAX_RELAY)
+        rfd = connect_tcp (dst ? dst : "127.0.0.1", portbuf);
+      if (rfd < 0)
+        {
+          ssh_message_reply_default (msg);
+          return 1;
+        }
+      ch = ssh_message_channel_request_open_reply_accept (msg);
+      if (!ch || bsshd_relay_add (rfd, ch) < 0)
+        {
+          if (ch)
             {
-              sock_eof = 1;
-              ssh_channel_send_eof (channel);
+              ssh_channel_close (ch);
+              ssh_channel_free (ch);
             }
-          else
-            if (bsshd_channel_write_all (channel, buf, (size_t) n, 0) < 0)
-              break;
+          close (rfd);
         }
-      int avail = ssh_channel_poll_timeout (channel, 0, 0);
-      while (avail > 0)
-        {
-          uint32_t chunk = (uint32_t) (avail < (int) sizeof buf ? avail : (int) sizeof buf);
-          int n = ssh_channel_read (channel, buf, chunk, 0);
-          if (n <= 0) break;
-          if (write_all (fd, buf, (size_t) n) < 0)
-            return -1;
-          avail -= n;
-        }
-      if (!channel_eof && ssh_channel_is_eof (channel))
-        {
-          channel_eof = 1;
-          shutdown (fd, SHUT_WR);
-        }
-      if (!ssh_channel_is_open (channel) || (sock_eof && channel_eof))
-        break;
+      return 1;
     }
   return 0;
 }
@@ -1598,7 +1964,10 @@ bsshd_encrypted_handle_shell (ssh_session session, ssh_channel ch,
           ssh_message m;
           while ((m = ssh_message_get (session)) != NULL)
             {
-              if (ssh_message_type (m) == SSH_REQUEST_CHANNEL
+              ssh_set_blocking (session, 1);
+              if (bsshd_forward_request (session, m))
+                ;
+              else if (ssh_message_type (m) == SSH_REQUEST_CHANNEL
                   && ssh_message_subtype (m) == SSH_CHANNEL_REQUEST_WINDOW_CHANGE)
                 {
                   int wcols = ssh_message_channel_request_pty_width (m);
@@ -1616,8 +1985,10 @@ bsshd_encrypted_handle_shell (ssh_session session, ssh_channel ch,
               else
                 ssh_message_reply_default (m);
               ssh_message_free (m);
+              ssh_set_blocking (session, 0);
             }
           ssh_set_blocking (session, 1);
+          bsshd_fwd_service (session, 0);
         }
 
       if (mfd >= 0 && FD_ISSET (mfd, &rfds))
@@ -2709,107 +3080,12 @@ bsshd_encrypted_handle_session (ssh_session session,
 }
 
 static int
-bsshd_encrypted_handle_tcpip_forward (ssh_session session, ssh_message first)
-{
-  const char *requested_addr = ssh_message_global_request_address (first);
-  char *bind_addr = strdup (requested_addr ? requested_addr : "127.0.0.1");
-  if (!bind_addr)
-    {
-      ssh_message_reply_default (first);
-      ssh_message_free (first);
-      return -1;
-    }
-  int requested_port = ssh_message_global_request_port (first);
-  int bound_port = requested_port;
-  int lfd = bsshd_listen_forward (bind_addr ? bind_addr : "127.0.0.1",
-                                  requested_port, &bound_port);
-  if (lfd < 0)
-    {
-      ssh_message_reply_default (first);
-      ssh_message_free (first);
-      free (bind_addr);
-      return -1;
-    }
-  ssh_message_global_request_reply_success (first, (uint16_t) bound_port);
-  ssh_message_free (first);
-
-  for (;;)
-    {
-      fd_set rfds;
-      FD_ZERO (&rfds);
-      FD_SET (lfd, &rfds);
-      int sfd = ssh_get_fd (session);
-      FD_SET (sfd, &rfds);
-      int maxfd = lfd > sfd ? lfd : sfd;
-      struct timeval tv;
-      tv.tv_sec = 0; tv.tv_usec = 100000;
-      int sel = select (maxfd + 1, &rfds, NULL, NULL, &tv);
-      if (sel < 0 && errno == EINTR) continue;
-      if (sel < 0) break;
-      if (FD_ISSET (sfd, &rfds))
-        {
-          ssh_message msg = ssh_message_get (session);
-          if (!msg) break;
-          if (ssh_message_type (msg) == SSH_REQUEST_GLOBAL
-              && ssh_message_subtype (msg) == SSH_GLOBAL_REQUEST_CANCEL_TCPIP_FORWARD)
-            {
-              const char *cancel_addr = ssh_message_global_request_address (msg);
-              if (!cancel_addr || strcmp (cancel_addr, bind_addr) != 0
-                  || ssh_message_global_request_port (msg) != bound_port)
-                {
-                  ssh_message_reply_default (msg);
-                  ssh_message_free (msg);
-                  continue;
-                }
-              ssh_message_global_request_reply_success (msg, 0);
-              ssh_message_free (msg);
-              close (lfd);
-              free (bind_addr);
-              return 0;
-            }
-          ssh_message_reply_default (msg);
-          ssh_message_free (msg);
-        }
-      if (FD_ISSET (lfd, &rfds))
-        {
-          int cfd = accept4 (lfd, NULL, NULL, SOCK_CLOEXEC);
-          if (cfd < 0 && errno == EINTR) continue;
-          if (cfd < 0) break;
-          char origin[64];
-          int origin_port = 0;
-          bsshd_peer_name_port (cfd, origin, sizeof origin, &origin_port);
-          ssh_channel ch = ssh_channel_new (session);
-          if (!ch)
-            { close (cfd); continue; }
-          if (ssh_channel_open_reverse_forward (ch,
-                                                bind_addr ? bind_addr : "127.0.0.1",
-                                                bound_port,
-                                                origin, origin_port) != SSH_OK)
-            {
-              ssh_channel_free (ch);
-              close (cfd);
-              continue;
-            }
-          bsshd_pump_fd_channel (cfd, session, ch);
-          ssh_channel_close (ch);
-          ssh_channel_free (ch);
-          close (cfd);
-        }
-    }
-  close (lfd);
-  free (bind_addr);
-  return -1;
-}
-
-static int
 bsshd_encrypted_handle_direct_tcpip (ssh_session session,
                                      const bsshd_target_user *target,
                                      int allow_forwarding,
                                      int allow_agent_forwarding,
                                      const bsshd_authz_options *authz)
 {
-  ssh_channel channel = NULL;
-  int rfd = -1;
   int completed_session = 0;
   if (authz)
     {
@@ -2818,9 +3094,10 @@ bsshd_encrypted_handle_direct_tcpip (ssh_session session,
       if (authz->no_agent_forwarding)
         allow_agent_forwarding = 0;
     }
+  g_fwd_allowed = allow_forwarding;
   for (;;)
     {
-      ssh_message msg = ssh_message_get (session);
+      ssh_message msg = bsshd_next_message (session);
       if (!msg)
         {
           /* The independent client may close its transport after receiving
@@ -2831,42 +3108,13 @@ bsshd_encrypted_handle_direct_tcpip (ssh_session session,
           return completed_session && (ssh_get_status (session) & SSH_READ_EOF)
                  ? 0 : -1;
         }
-      if (ssh_message_type (msg) == SSH_REQUEST_GLOBAL
-          && ssh_message_subtype (msg) == SSH_GLOBAL_REQUEST_TCPIP_FORWARD)
+      if (bsshd_forward_request (session, msg))
         {
-          if (!allow_forwarding)
-            {
-              ssh_message_reply_default (msg);
-              ssh_message_free (msg);
-              continue;
-            }
-          if (bsshd_encrypted_handle_tcpip_forward (session, msg) < 0)
-            return -1;
-          continue;
-        }
-      if (ssh_message_type (msg) == SSH_REQUEST_CHANNEL_OPEN
-          && ssh_message_subtype (msg) == SSH_CHANNEL_DIRECT_TCPIP)
-        {
-          if (!allow_forwarding)
-            {
-              ssh_message_reply_default (msg);
-              ssh_message_free (msg);
-              continue;
-            }
-          const char *dst = ssh_message_channel_request_open_destination (msg);
-          int dport = ssh_message_channel_request_open_destination_port (msg);
-          char portbuf[32];
-          snprintf (portbuf, sizeof portbuf, "%d", dport);
-          rfd = connect_tcp (dst ? dst : "127.0.0.1", portbuf);
-          if (rfd < 0)
-            {
-              ssh_message_reply_default (msg);
-              ssh_message_free (msg);
-              return -1;
-            }
-          channel = ssh_message_channel_request_open_reply_accept (msg);
+          /* A forward or forwarded channel is this connection's work too,
+             so the client ending the connection afterwards is the end. */
+          completed_session = 1;
           ssh_message_free (msg);
-          break;
+          continue;
         }
       if (ssh_message_type (msg) == SSH_REQUEST_CHANNEL_OPEN
           && ssh_message_subtype (msg) == SSH_CHANNEL_SESSION)
@@ -2890,7 +3138,7 @@ bsshd_encrypted_handle_direct_tcpip (ssh_session session,
 	          bsshd_sessenv_reset ();          /* fresh AcceptEnv state per session */
 	          for (;;)
 	            {
-	              msg = ssh_message_get (session);
+	              msg = bsshd_next_message (session);
 	              if (!msg)
 	                { ssh_channel_free (sch); return -1; }
 	              /* F06 item 3 slice 1: env requests — accept only AcceptEnv-allowed
@@ -2960,21 +3208,43 @@ bsshd_encrypted_handle_direct_tcpip (ssh_session session,
 	                  && ssh_message_subtype (msg) == SSH_CHANNEL_REQUEST_SUBSYSTEM)
 	                {
 	                  const char *sub = ssh_message_channel_request_subsystem (msg);
-#if BSSHD_HAVE_LIBSSH_SFTP_SERVER
-	                  if (sub && strcmp (sub, "sftp") == 0)
+	                  const struct bsshd_subsystem *ss = bsshd_subsystem_lookup (sub);
+	                  /* No Subsystem line for this name: refuse. SFTP is not implicit. */
+	                  if (!ss)
 	                    {
-	                      ssh_message_channel_request_reply_success (msg);
+	                      ssh_message_reply_default (msg);
 	                      ssh_message_free (msg);
-	                      int rc = bsshd_encrypted_handle_sftp (session, sch, target);
-	                      ssh_channel_free (sch);
-	                      if (rc < 0) return -1;
-	                      completed_session = 1;
-	                      goto bsshd_next_request;
+	                      continue;
 	                    }
+	                  if (ss->internal_sftp)
+	                    {
+#if BSSHD_HAVE_LIBSSH_SFTP_SERVER
+	                      if (strcmp (ss->name, "sftp") == 0)
+	                        {
+	                          ssh_message_channel_request_reply_success (msg);
+	                          ssh_message_free (msg);
+	                          int rc = bsshd_encrypted_handle_sftp (session, sch, target);
+	                          ssh_channel_free (sch);
+	                          if (rc < 0) return -1;
+	                          completed_session = 1;
+	                          goto bsshd_next_request;
+	                        }
 #endif
-	                  ssh_message_reply_default (msg);
+	                      ssh_message_reply_default (msg);
+	                      ssh_message_free (msg);
+	                      continue;
+	                    }
+	                  ssh_message_channel_request_reply_success (msg);
 	                  ssh_message_free (msg);
-	                  continue;
+	                  int rc = run_local_stream (ss->command, target, sch, 1);
+	                  int finished = (rc >= 0 &&
+	                                  ssh_channel_request_send_exit_status (sch, rc) == SSH_OK &&
+	                                  ssh_channel_send_eof (sch) == SSH_OK &&
+	                                  ssh_channel_close (sch) == SSH_OK);
+	                  ssh_channel_free (sch);
+	                  if (!finished) return -1;
+	                  completed_session = 1;
+	                  goto bsshd_next_request;
 	                }
 	              if (ssh_message_type (msg) == SSH_REQUEST_CHANNEL
 	                  && ssh_message_subtype (msg) == SSH_CHANNEL_REQUEST_EXEC)
@@ -3024,7 +3294,7 @@ bsshd_encrypted_handle_direct_tcpip (ssh_session session,
               free (in.p); free (out.p); free (err.p);
             }
           else
-            rc = run_local_stream (cmd_copy ? cmd_copy : "", target, sch);
+            rc = run_local_stream (cmd_copy ? cmd_copy : "", target, sch, 0);
           int finished = (rc >= 0 &&
                           ssh_channel_request_send_exit_status (sch, rc) == SSH_OK &&
                           ssh_channel_send_eof (sch) == SSH_OK &&
@@ -3041,13 +3311,6 @@ bsshd_encrypted_handle_direct_tcpip (ssh_session session,
     bsshd_next_request:
       continue;
     }
-  if (!channel)
-    { if (rfd >= 0) close (rfd); return -1; }
-  bsshd_pump_fd_channel (rfd, session, channel);
-  ssh_channel_close (channel);
-  ssh_channel_free (channel);
-  close (rfd);
-  return 0;
 }
 
 static void bsshd_reload_config_if_requested (const char *config_path,
@@ -3317,7 +3580,11 @@ bsshd_apply_config (const char *path, const char **addr, const char **port,
   char line[1024];
   int lineno = 0;
   int cur_match = -1;          /* index into g_match, or -1 in the global section */
-  if (depth == 0) g_n_match = 0;   /* reset (covers reload); preserve across Include recursion */
+  if (depth == 0)
+    {
+      g_n_match = 0;   /* reset (covers reload); preserve across Include recursion */
+      g_n_subsys = 0;
+    }
   while (fgets (line, sizeof line, f))
     {
       lineno++;
@@ -3359,6 +3626,44 @@ bsshd_apply_config (const char *path, const char **addr, const char **port,
             }
           if (!mb->crit_all && !mb->crit_user[0] && !mb->crit_addr[0])
             { builtin_error ("run: config %s:%d: empty Match criteria", path, lineno); fclose (f); return -1; }
+          continue;
+        }
+      /* `Subsystem NAME COMMAND...` is two or more tokens. COMMAND may be
+         `internal-sftp` or a program path with arguments. */
+      if ((p - keyw) == 9 && strncasecmp (keyw, "Subsystem", 9) == 0)
+        {
+          if (cur_match >= 0)
+            { builtin_error ("run: config %s:%d: Subsystem is not allowed in a Match block", path, lineno); fclose (f); return -1; }
+          char *rest = bsshd_trim (p);
+          char *sp = rest;
+          while (*sp && *sp != ' ' && *sp != '\t')
+            sp++;
+          if (sp == rest)
+            { builtin_error ("run: config %s:%d: Subsystem needs a name and a command", path, lineno); fclose (f); return -1; }
+          size_t nlen = (size_t) (sp - rest);
+          if (nlen >= sizeof g_subsys[0].name)
+            { builtin_error ("run: config %s:%d: Subsystem name too long", path, lineno); fclose (f); return -1; }
+          char name[sizeof g_subsys[0].name];
+          memcpy (name, rest, nlen);
+          name[nlen] = '\0';
+          char *cmd = bsshd_trim (sp);
+          if (!*cmd)
+            { builtin_error ("run: config %s:%d: Subsystem %s needs a command", path, lineno, name); fclose (f); return -1; }
+          if (strlen (cmd) >= sizeof g_subsys[0].command)
+            { builtin_error ("run: config %s:%d: Subsystem command too long", path, lineno); fclose (f); return -1; }
+          int slot = -1;
+          for (int i = 0; i < g_n_subsys; i++)
+            if (strcmp (g_subsys[i].name, name) == 0)
+              slot = i;
+          if (slot < 0)
+            {
+              if (g_n_subsys >= BSSHD_MAX_SUBSYS)
+                { builtin_error ("run: config %s:%d: too many Subsystem lines", path, lineno); fclose (f); return -1; }
+              slot = g_n_subsys++;
+            }
+          snprintf (g_subsys[slot].name, sizeof g_subsys[slot].name, "%s", name);
+          snprintf (g_subsys[slot].command, sizeof g_subsys[slot].command, "%s", cmd);
+          g_subsys[slot].internal_sftp = bsshd_command_is_internal_sftp (cmd);
           continue;
         }
       if (*p)
@@ -3992,7 +4297,10 @@ char *sshd_doc[] = {
   "    [--auth-fail-max N] [--auth-fail-window-sec SEC] [--auth-fail-cooldown-sec SEC]",
   "    -F/--config supports ListenAddress, Port, HostKey, AuthorizedKeysFile,",
   "    PasswordAuthentication, PubkeyAuthentication, AllowTcpForwarding,",
-  "    and AllowAgentForwarding.",
+  "    AllowAgentForwarding, and Subsystem.",
+  "    Subsystem NAME COMMAND accepts an sftp request only when configured.",
+  "    COMMAND internal-sftp is the built-in SFTP server; any other command",
+  "    is executed. A subsystem with no matching line is refused.",
   "status | stop | reload | sessions | kick SESSION_ID",
   "    Per-IP failed-handshake rate-limit: after N fails within SEC seconds,",
   "    refuse further connections from that IP for the cooldown. Default off.",

@@ -921,13 +921,19 @@ bcl_cmd_unescape (void)
 extern WORD_DESC *make_word (const char *);
 extern WORD_LIST *make_word_list (WORD_DESC *, WORD_LIST *);
 extern void dispose_words (WORD_LIST *);
+extern char *this_command_name;
 
+/* Run the verb under pkg's name, so its diagnostics say which command
+   refused the package, as they did when pkg ran in a child shell. */
 static int
 bcl_pkg_call (struct builtin *pkg, const char *verb, const char *arg)
 {
   WORD_LIST *words = make_word_list (make_word (verb), NULL);
   words->next = make_word_list (make_word (arg), NULL);
+  char *saved = this_command_name;
+  this_command_name = pkg->name;
   int rc = pkg->function (words);
+  this_command_name = saved;
   dispose_words (words);
   return rc;
 }
@@ -1017,8 +1023,8 @@ bcl_cmd_help (void)
   return EXECUTION_SUCCESS;
 }
 
-int
-claude_builtin (WORD_LIST *list)
+static int
+bcl_dispatch (WORD_LIST *list)
 {
   if (!list) { builtin_usage (); return EX_USAGE; }
   const char *verb = list->word->word;
@@ -1033,6 +1039,18 @@ claude_builtin (WORD_LIST *list)
   if (strcmp (verb, "help") == 0 || strcmp (verb, "--help") == 0 || strcmp (verb, "-h") == 0) return bcl_cmd_help ();
   builtin_error ("claude: unknown subcommand: %s (try: prompt, models, version, update, help)", verb);
   return EX_USAGE;
+}
+
+/* Bash line-buffers stdout and stderr, and an error body need not end in a
+   newline: flush both before the shell undoes this command's redirections,
+   or the tail reaches whatever the descriptors point at afterwards. */
+int
+claude_builtin (WORD_LIST *list)
+{
+  int rc = bcl_dispatch (list);
+  fflush (stdout);
+  fflush (stderr);
+  return rc;
 }
 
 char *claude_doc[] = {

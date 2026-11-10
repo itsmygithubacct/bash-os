@@ -45,7 +45,19 @@ try:
     a = record['locked']['values_kb']
     b = record['future']['values_kb']
     c = record['unlocked']['values_kb']
-    record['literal_resident_comparison'] = a['VmLck'] >= a['VmRSS']
+    # mlockall skips VM_SPECIAL mappings. The vDSO stays in VmRSS and out of VmLck,
+    # so VmLck >= VmRSS cannot hold. The requirement adds that mapping's Rss back.
+    vdso = 0
+    want = False
+    for line in record['smaps'].splitlines():
+        if line[:1].isdigit() and '-' in line.split(' ', 1)[0]:
+            want = line.rsplit(' ', 1)[-1] == '[vdso]'
+        elif want and line.startswith('Rss:'):
+            vdso += int(line.split()[1])
+            want = False
+    record['vdso_rss_kb'] = vdso
+    record['unadjusted_vm_lck_ge_vm_rss'] = a['VmLck'] >= a['VmRSS']
+    record['literal_resident_comparison'] = a['VmLck'] + vdso >= a['VmRSS']
     if not (a['VmLck'] > 0 and b['VmLck'] > a['VmLck'] and record['unlock_rc'] == 0 and c['VmLck'] == 0):
         raise RuntimeError('native lock lifecycle failed')
 finally:

@@ -425,8 +425,19 @@ def control(ip, port, groups):
     if 'aliases' in groups:
         add('secure-cross-zone-cname', 'alias.x.test', 'A', secure)
         add('bogus-cross-zone-cname', 'badalias.x.test', 'A', bogus)
-        add('secure-alias-to-nxdomain', 'missingalias.x.test', 'A', neg)
-        add('cname-loop-rejected', 'loop1.x.test', 'A', lambda t: 'fully validated' not in t)
+        # delv 9.20 reports a validated alias to a proven-absent target as
+        # '; fully validated' with the CNAME and the target's $NXDOMAIN entry,
+        # and ends with ';; resolution failed: ncache nxdomain' on stderr: a
+        # negative answer, not a failed validation, so no other failure.
+        add('secure-alias-to-nxdomain', 'missingalias.x.test', 'A',
+            lambda t: neg(t) or ('fully validated' in t
+                                 and set(re.findall(r'(?m)^;; resolution failed: (.*)$', t)) <= {'ncache nxdomain'}
+                                 and re.search(r'(?m)^missingalias\.x\.test\.\s+\d+\s+IN\s+CNAME\s+nx\.ok\.test\.$', t) is not None
+                                 and re.search(r'(?m)^; nx\.ok\.test\.\s+\d+\s+IN\s+\\-ANY\s+;-\$NXDOMAIN$', t) is not None))
+        # Both CNAMEs are validly signed, so delv can validate them; the loop
+        # must still yield no address.
+        add('cname-loop-rejected', 'loop1.x.test', 'A',
+            lambda t: re.search(r'(?m)^[^;\s]\S*\s+\d+\s+IN\s+A\s', t) is None)
     if 'denial' in groups:
         add('valid-exact-nodata', 'ok.test', 'AAAA', neg)
         add('valid-name-error', 'nx.ok.test', 'A', lambda t: neg(t) and 'ncache nxdomain' in t)

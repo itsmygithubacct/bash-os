@@ -8,7 +8,7 @@
       "driver": "pty",
       "kind": "contract",
       "purpose": "Ctrl-C cleanup with observed signal prerequisites and foreground group using mouse builtin.",
-      "script": "saved=$(/bin/stty -g) || exit 21\n/bin/stty -icanon -echo isig intr ^C min 1 time 0 || exit 22\ntrap 'mouse disable all; /bin/stty \"$saved\"; printf \"\\nINT-CLEANED\\n\"; exit 130' INT\nmouse enable all\n/usr/bin/python3 -c 'import os,signal; p=os.getppid(); assert os.tcgetpgrp(0)==os.getpgrp()==p; d=dict(line.split(\":\",1) for line in open(\"/proc/%d/status\"%p) if \":\" in line); assert all(not (int(d[k],16) & (1 << (signal.SIGINT-1))) for k in (\"SigIgn\",\"SigBlk\"))' || exit 26\nprintf 'READY-INT\\n'\nIFS= read -r -N 1 unused\nexit 25\n",
+      "script": "saved=$(/bin/stty -g) || exit 21\n/bin/stty -icanon -echo isig intr ^C min 1 time 0 || exit 22\ntrap '/bin/stty \"$saved\"' EXIT\ntrap 'mouse disable all; /bin/stty \"$saved\"; printf \"\\nINT-CLEANED\\n\"; exit 130' INT\nmouse enable all\n/usr/bin/python3 -c 'import os,signal; p=os.getppid(); assert os.tcgetpgrp(0)==os.getpgrp()==p; d=dict(line.split(\":\",1) for line in open(\"/proc/%d/status\"%p) if \":\" in line); assert all(not (int(d[k],16) & (1 << (signal.SIGINT-1))) for k in (\"SigIgn\",\"SigBlk\"))' || exit 26\nprintf 'READY-INT\\n'\nIFS= read -r -N 1 unused\nexit 25\n",
       "size": [
         24,
         80
@@ -63,7 +63,7 @@
       "driver": "pty",
       "kind": "contract",
       "purpose": "Ctrl-C cleanup with observed signal prerequisites and foreground group using shell-emitted controls.",
-      "script": "saved=$(/bin/stty -g) || exit 21\n/bin/stty -icanon -echo isig intr ^C min 1 time 0 || exit 22\ntrap 'printf \"\\033[?1000l\\033[?1015l\\033[?1006l\"; /bin/stty \"$saved\"; printf \"\\nINT-CLEANED\\n\"; exit 130' INT\nprintf '\\033[?1000h\\033[?1015h\\033[?1006h'\n/usr/bin/python3 -c 'import os,signal; p=os.getppid(); assert os.tcgetpgrp(0)==os.getpgrp()==p; d=dict(line.split(\":\",1) for line in open(\"/proc/%d/status\"%p) if \":\" in line); assert all(not (int(d[k],16) & (1 << (signal.SIGINT-1))) for k in (\"SigIgn\",\"SigBlk\"))' || exit 26\nprintf 'READY-INT\\n'\nIFS= read -r -N 1 unused\nexit 25\n",
+      "script": "saved=$(/bin/stty -g) || exit 21\n/bin/stty -icanon -echo isig intr ^C min 1 time 0 || exit 22\ntrap '/bin/stty \"$saved\"' EXIT\ntrap 'printf \"\\033[?1000l\\033[?1015l\\033[?1006l\"; /bin/stty \"$saved\"; printf \"\\nINT-CLEANED\\n\"; exit 130' INT\nprintf '\\033[?1000h\\033[?1015h\\033[?1006h'\n/usr/bin/python3 -c 'import os,signal; p=os.getppid(); assert os.tcgetpgrp(0)==os.getpgrp()==p; d=dict(line.split(\":\",1) for line in open(\"/proc/%d/status\"%p) if \":\" in line); assert all(not (int(d[k],16) & (1 << (signal.SIGINT-1))) for k in (\"SigIgn\",\"SigBlk\"))' || exit 26\nprintf 'READY-INT\\n'\nIFS= read -r -N 1 unused\nexit 25\n",
       "size": [
         24,
         80

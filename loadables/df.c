@@ -28,6 +28,7 @@
 #  include <unistd.h>
 #endif
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,6 +40,21 @@
 #include <sys/sysmacros.h>
 
 #include "loadables.h"
+
+
+/* Runtime diagnostics use GNU df's "df: MESSAGE" form; usage errors keep the
+   shell's builtin_error prefix. */
+static void __attribute__ ((format (printf, 1, 2)))
+bdf_diag (const char *fmt, ...)
+{
+    va_list ap;
+    fflush (stdout);
+    fputs ("df: ", stderr);
+    va_start (ap, fmt);
+    vfprintf (stderr, fmt, ap);
+    va_end (ap);
+    fputc ('\n', stderr);
+}
 
 typedef struct {
     int aflag, hflag, Hflag, iflag, kflag, lflag, mflag, Pflag, Tflag;
@@ -388,7 +404,7 @@ bdf_fill_row (const char *path, const char *fs, const char *type, bdf_row *row)
     uint64_t bsize;
 
     if (statvfs (path, &vfs) < 0) {
-        builtin_error ("%s: %s", path, strerror (errno));
+        bdf_diag ("%s: %s", path, strerror (errno));
         return -1;
     }
 
@@ -571,7 +587,7 @@ bdf_header_text (int field, const bdf_opts *o, char *out, size_t outsz)
     case BDF_OUT_ITOTAL: snprintf (out, outsz, "Inodes"); break;
     case BDF_OUT_IUSED: snprintf (out, outsz, "IUsed"); break;
     case BDF_OUT_IAVAIL: snprintf (out, outsz, "IFree"); break;
-    case BDF_OUT_IPCENT: snprintf (out, outsz, "IUse%"); break;
+    case BDF_OUT_IPCENT: snprintf (out, outsz, "IUse%%"); break;
     default: snprintf (out, outsz, "?"); break;
     }
 }
@@ -856,6 +872,18 @@ bdf_emit (bdf_table *table, const bdf_opts *o, int header_emitted, bdf_row *tota
     return rc;
 }
 
+/* df -a: the mount entry that owns a device number (GNU's devlist). */
+typedef struct { dev_t dev; size_t index; } bdf_owner;
+
+static void
+bdf_owner_add (bdf_owner *owners, size_t *n, dev_t dev, size_t index)
+{
+    if (!owners) return;
+    owners[*n].dev = dev;
+    owners[*n].index = index;
+    (*n)++;
+}
+
 int
 df_builtin (WORD_LIST *list)
 {
@@ -1091,7 +1119,7 @@ df_builtin (WORD_LIST *list)
             char fs[512], type[64], mnt[512];
             struct stat st;
             if (stat (positional.v[i], &st) < 0) {
-                builtin_error ("%s: %s", positional.v[i], strerror (errno));
+                bdf_diag ("%s: %s", positional.v[i], strerror (errno));
                 rc = EXECUTION_FAILURE;
                 continue;
             }
@@ -1114,7 +1142,7 @@ df_builtin (WORD_LIST *list)
                 rc = EXECUTION_FAILURE;
         }
         if (!header_emitted && rc == EXECUTION_SUCCESS) {
-            builtin_error ("no file systems processed");
+            bdf_diag ("no file systems processed");
             rc = EXECUTION_FAILURE;
         }
         if (bdf_emit (&table, &o, header_emitted, &total) < 0)
@@ -1128,7 +1156,7 @@ df_builtin (WORD_LIST *list)
        filesystem, needed to choose between bind mounts. */
     FILE *mp = fopen ("/proc/self/mountinfo", "r");
     if (!mp) {
-        builtin_error ("cannot read table of mounted file systems: %s", strerror (errno));
+        bdf_diag ("cannot read table of mounted file systems: %s", strerror (errno));
         return EXECUTION_FAILURE;
     }
     typedef struct {
@@ -1176,18 +1204,47 @@ df_builtin (WORD_LIST *list)
     if (ferror (mp)) rc = EXECUTION_FAILURE;
     free (line); fclose (mp);
 
-    for (size_t i = 0; i < count; i++) {
+    /* -a: per device, the mount entry GNU's filter_mount_list keeps. */
+    bdf_owner *owners = count ? calloc (count, sizeof *owners) : NULL;
+    size_t nowners = 0;
+    if (count && !owners) rc = EXECUTION_FAILURE;
+    for (size_t i = 0; i < count && (owners || !o.aflag); i++) {
         mount_row *m = &mounts[i];
         struct stat st;
         if ((o.lflag && bdf_is_remote (m->source, m->type))
             || (!o.aflag && bdf_dummy (m->type))
             || !bdf_type_selected (&o, m->type)
             || bdf_type_excluded (&o, m->type)) {
-            m->selected = 0; continue;
+            m->selected = 0;
+            if (o.aflag) bdf_owner_add (owners, &nowners, m->dev, i);
+            continue;
         }
         if (stat (m->path, &st) == 0) m->dev = st.st_dev;
-        else continue;
-        if (o.aflag) continue;
+        else {
+            if (o.aflag) bdf_owner_add (owners, &nowners, m->dev, i);
+            continue;
+        }
+        if (o.aflag) {
+            /* GNU filter_mount_list(devices_only): no entry is dropped, but a
+               later entry can take over a device's owner record, and two
+               remote entries with different sources each get one. */
+            bdf_owner *seen = NULL;
+            for (size_t j = nowners; j-- > 0; )
+                if (owners[j].dev == m->dev) { seen = &owners[j]; break; }
+            if (!seen) { bdf_owner_add (owners, &nowners, m->dev, i); continue; }
+            mount_row *prev = &mounts[seen->index];
+            if (!o.totalflag && bdf_is_remote (prev->source, prev->type)
+                && bdf_is_remote (m->source, m->type)
+                && strcmp (prev->source, m->source) != 0)
+                bdf_owner_add (owners, &nowners, m->dev, i);
+            else if ((strchr (m->source, '/') && !strchr (prev->source, '/'))
+                     || (strlen (prev->path) > strlen (m->path)
+                         && !(strlen (prev->root) < strlen (m->root)))
+                     || (strcmp (prev->source, m->source) != 0
+                         && strcmp (m->path, prev->path) == 0))
+                seen->index = i;
+            continue;
+        }
         for (size_t j = 0; j < i; j++) {
             mount_row *prev = &mounts[j];
             if (!prev->selected || prev->dev != m->dev) continue;
@@ -1215,15 +1272,19 @@ df_builtin (WORD_LIST *list)
             const char *display_type = m->type;
             if (o.aflag) {
                 /* Overmounted entries have no usable statistics for their
-                   original device. GNU reports their type as unknown. */
-                for (size_t j = count; j-- > 0; ) {
-                    mount_row *last = &mounts[j];
-                    if (last->dev != m->dev || strcmp (last->path, m->path) != 0) continue;
-                    if (strcmp (last->source, m->source) != 0
-                        && (!bdf_is_remote (last->source, last->type)
+                   original device. Like GNU df, look up the mount entry that
+                   currently owns the device the mount point resolves to (an
+                   overmounted ancestor hides it too) and report the type as
+                   unknown when that entry names another source. */
+                struct stat now;
+                if (stat (m->path, &now) == 0) {
+                    const mount_row *owner = NULL;
+                    for (size_t j = nowners; j-- > 0; )
+                        if (owners[j].dev == now.st_dev) { owner = &mounts[owners[j].index]; break; }
+                    if (owner && strcmp (owner->source, m->source) != 0
+                        && (!bdf_is_remote (owner->source, owner->type)
                             || !bdf_is_remote (m->source, m->type)))
                         display_type = "-";
-                    break;
                 }
             }
             if (bdf_one (m->path, m->source, display_type, m->path,
@@ -1236,8 +1297,9 @@ df_builtin (WORD_LIST *list)
         free (mounts[i].type); free (mounts[i].root);
     }
     free (mounts);
+    free (owners);
     if (!header_emitted && rc == EXECUTION_SUCCESS) {
-        builtin_error ("no file systems processed");
+        bdf_diag ("no file systems processed");
         rc = EXECUTION_FAILURE;
     }
     if (bdf_emit (&table, &o, header_emitted, &total) < 0)

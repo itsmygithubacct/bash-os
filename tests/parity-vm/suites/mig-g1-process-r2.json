@@ -257,8 +257,8 @@
       "group": "shell",
       "driver": "plain",
       "kind": "contract",
-      "purpose": "When /proc cannot be opened at all (a private root without /proc) killall exits with the documented fatal status 3, distinct from 1 for no match and 2 for usage, and signals nothing.",
-      "oracle": "Documented exit-code contract of the tool (0 success, 1 no match, 2 usage, 3 fatal); the missing /proc is created by a private root holding only the binaries.",
+      "purpose": "When /proc cannot be opened at all (a private root without /proc) killall exits with fatal status 3, distinct from 1 for no match and 1 for usage, and signals nothing.",
+      "oracle": "Usage status matches psmisc (1). A missing /proc still returns fatal status 3, which this contract keeps. The missing /proc is a private root holding only the binaries.",
       "comparison": "Exact stdout against expectations derived from the requirement text and facts read from the fixture's own /proc and files; psmisc killall has no usable counterpart for these forms, so no reference tool takes part.",
       "covers": [
         "killall/status-and-proc-failure-paths"
@@ -275,7 +275,7 @@
       },
       "expected_status": 0,
       "timeout": 60,
-      "stdout": "proc-visible-in-private-root=no\nno-proc rc=3\nusage rc=2\n",
+      "stdout": "proc-visible-in-private-root=no\nno-proc rc=3\nusage rc=1\n",
       "stderr": ""
     }
   ]

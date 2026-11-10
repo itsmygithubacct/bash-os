@@ -40,6 +40,8 @@
 
 typedef struct bpl_res {
   const char *name;
+  const char *description;
+  const char *units; /* NULL when util-linux prints an empty UNITS cell */
   int resource;
 } bpl_res;
 
@@ -49,56 +51,57 @@ typedef struct bpl_alias {
   const char *resource_name;
 } bpl_alias;
 
+/* Descriptions and units match util-linux 2.41 prlimit_desc[]. */
 static const bpl_res bpl_resources[] = {
 #ifdef RLIMIT_AS
-  { "AS", RLIMIT_AS },
+  { "AS", "address space limit", "bytes", RLIMIT_AS },
 #endif
 #ifdef RLIMIT_CORE
-  { "CORE", RLIMIT_CORE },
+  { "CORE", "max core file size", "bytes", RLIMIT_CORE },
 #endif
 #ifdef RLIMIT_CPU
-  { "CPU", RLIMIT_CPU },
+  { "CPU", "CPU time", "seconds", RLIMIT_CPU },
 #endif
 #ifdef RLIMIT_DATA
-  { "DATA", RLIMIT_DATA },
+  { "DATA", "max data size", "bytes", RLIMIT_DATA },
 #endif
 #ifdef RLIMIT_FSIZE
-  { "FSIZE", RLIMIT_FSIZE },
+  { "FSIZE", "max file size", "bytes", RLIMIT_FSIZE },
 #endif
 #ifdef RLIMIT_LOCKS
-  { "LOCKS", RLIMIT_LOCKS },
+  { "LOCKS", "max number of file locks held", "locks", RLIMIT_LOCKS },
 #endif
 #ifdef RLIMIT_MEMLOCK
-  { "MEMLOCK", RLIMIT_MEMLOCK },
+  { "MEMLOCK", "max locked-in-memory address space", "bytes", RLIMIT_MEMLOCK },
 #endif
 #ifdef RLIMIT_MSGQUEUE
-  { "MSGQUEUE", RLIMIT_MSGQUEUE },
+  { "MSGQUEUE", "max bytes in POSIX mqueues", "bytes", RLIMIT_MSGQUEUE },
 #endif
 #ifdef RLIMIT_NICE
-  { "NICE", RLIMIT_NICE },
+  { "NICE", "max nice prio allowed to raise", NULL, RLIMIT_NICE },
 #endif
 #ifdef RLIMIT_NOFILE
-  { "NOFILE", RLIMIT_NOFILE },
+  { "NOFILE", "max number of open files", "files", RLIMIT_NOFILE },
 #endif
 #ifdef RLIMIT_NPROC
-  { "NPROC", RLIMIT_NPROC },
+  { "NPROC", "max number of processes", "processes", RLIMIT_NPROC },
 #endif
 #ifdef RLIMIT_RSS
-  { "RSS", RLIMIT_RSS },
+  { "RSS", "max resident set size", "bytes", RLIMIT_RSS },
 #endif
 #ifdef RLIMIT_RTPRIO
-  { "RTPRIO", RLIMIT_RTPRIO },
+  { "RTPRIO", "max real-time priority", NULL, RLIMIT_RTPRIO },
 #endif
 #ifdef RLIMIT_RTTIME
-  { "RTTIME", RLIMIT_RTTIME },
+  { "RTTIME", "timeout for real-time tasks", "microsecs", RLIMIT_RTTIME },
 #endif
 #ifdef RLIMIT_SIGPENDING
-  { "SIGPENDING", RLIMIT_SIGPENDING },
+  { "SIGPENDING", "max number of pending signals", "signals", RLIMIT_SIGPENDING },
 #endif
 #ifdef RLIMIT_STACK
-  { "STACK", RLIMIT_STACK },
+  { "STACK", "max stack size", "bytes", RLIMIT_STACK },
 #endif
-  { NULL, 0 }
+  { NULL, NULL, NULL, 0 }
 };
 
 static const bpl_alias bpl_aliases[] = {
@@ -327,22 +330,134 @@ bpl_parse_pid (const char *s, pid_t *out)
   return 0;
 }
 
+/* Non-tty libsmartcols (util-linux 2.41): columns stay at content width,
+   SOFT/HARD are right-aligned, the last column is not padded, and the
+   separator is a single space. --raw escapes blanks and '\\' as \\xNN
+   and does not pad. */
+#define BPL_COLS 5
+
 static void
-bpl_print_one (const bpl_res *res, const struct rlimit *lim)
+bpl_fputs_raw (const char *s)
 {
-  char soft[64], hard[64];
-  bpl_format_limit (soft, sizeof soft, lim->rlim_cur);
-  bpl_format_limit (hard, sizeof hard, lim->rlim_max);
-  printf ("%s %s %s\n", res->name, soft, hard);
+  const unsigned char *p;
+  if (!s)
+    return;
+  for (p = (const unsigned char *) s; *p; p++)
+    {
+      if (isblank (*p) || *p == '\\' || !isprint (*p))
+        printf ("\\x%02x", *p);
+      else
+        putchar (*p);
+    }
+}
+
+static size_t
+bpl_column_width (int headings, const char *header, char *const *cells, int n)
+{
+  size_t width_max = 0;
+  size_t width_min = 0;
+  size_t width;
+  int no_header = 1;
+  int i;
+
+  if (headings && header && *header)
+    {
+      width_min = strlen (header);
+      no_header = 0;
+    }
+  if (!width_min)
+    width_min = 1;
+  for (i = 0; i < n; i++)
+    {
+      size_t len = cells[i] ? strlen (cells[i]) : 0;
+      if (len > width_max)
+        width_max = len;
+    }
+  width = width_max;
+  if (width < width_min)
+    width = width_min;
+  /* Empty column with no header collapses, matching libsmartcols. */
+  if (width_max == 0 && no_header && width_min == 1 && width <= 1)
+    width = 0;
+  return width;
 }
 
 static void
-bpl_print_raw_one (const bpl_res *res, const struct rlimit *lim)
+bpl_print_cell (const char *text, size_t width, int right, int last, int raw)
 {
-  char soft[64], hard[64];
-  bpl_format_limit (soft, sizeof soft, lim->rlim_cur);
-  bpl_format_limit (hard, sizeof hard, lim->rlim_max);
-  printf ("%s\t%s\t%s\n", res->name, soft, hard);
+  size_t len;
+  size_t i;
+
+  if (!text)
+    text = "";
+  if (raw)
+    {
+      bpl_fputs_raw (text);
+      if (!last)
+        putchar (' ');
+      return;
+    }
+  len = strlen (text);
+  if (last && len < width && !right)
+    width = len;
+  if (right)
+    {
+      for (i = len; i < width; i++)
+        putchar (' ');
+      len = width;
+    }
+  fputs (text, stdout);
+  if (last)
+    return;
+  for (i = len; i < width; i++)
+    putchar (' ');
+  putchar (' ');
+}
+
+static void
+bpl_print_table (const bpl_res **rows, char soft[][64], char hard[][64],
+                 int n, int raw, int noheadings)
+{
+  static const char *headers[BPL_COLS] = {
+    "RESOURCE", "DESCRIPTION", "SOFT", "HARD", "UNITS"
+  };
+  char *cells[BPL_COLS][64];
+  size_t width[BPL_COLS];
+  int col, i;
+  int headings = !noheadings && n > 0;
+
+  if (n > 64)
+    n = 64;
+  for (i = 0; i < n; i++)
+    {
+      cells[0][i] = (char *) rows[i]->name;
+      cells[1][i] = (char *) (rows[i]->description ? rows[i]->description : "");
+      cells[2][i] = soft[i];
+      cells[3][i] = hard[i];
+      cells[4][i] = (char *) (rows[i]->units ? rows[i]->units : "");
+    }
+  for (col = 0; col < BPL_COLS; col++)
+    width[col] = bpl_column_width (headings, headers[col], cells[col], n);
+  if (headings)
+    {
+      for (col = 0; col < BPL_COLS; col++)
+        bpl_print_cell (headers[col], width[col], col == 2 || col == 3,
+                        col == BPL_COLS - 1, raw);
+      putchar ('\n');
+    }
+  for (i = 0; i < n; i++)
+    {
+      const char *vals[BPL_COLS];
+      vals[0] = rows[i]->name;
+      vals[1] = rows[i]->description ? rows[i]->description : "";
+      vals[2] = soft[i];
+      vals[3] = hard[i];
+      vals[4] = rows[i]->units ? rows[i]->units : "";
+      for (col = 0; col < BPL_COLS; col++)
+        bpl_print_cell (vals[col], width[col], col == 2 || col == 3,
+                        col == BPL_COLS - 1, raw);
+      putchar ('\n');
+    }
 }
 
 static void
@@ -356,9 +471,11 @@ bpl_print_json_one (pid_t pid, const bpl_res *res, const struct rlimit *lim)
 }
 
 static int
-bpl_show_one (pid_t pid, const bpl_res *res, int json, int raw)
+bpl_show_one (pid_t pid, const bpl_res *res, int json, int raw, int noheadings)
 {
   struct rlimit oldlim;
+  const bpl_res *rows[1];
+  char soft[1][64], hard[1][64];
   if (bpl_prlimit (pid, res->resource, NULL, &oldlim) < 0)
     {
       builtin_error ("pid %ld %s: %s", (long) pid, res->name, strerror (errno));
@@ -368,22 +485,24 @@ bpl_show_one (pid_t pid, const bpl_res *res, int json, int raw)
     {
       bpl_print_json_one (pid, res, &oldlim);
       putchar ('\n');
+      return EXECUTION_SUCCESS;
     }
-  else
-    {
-      if (raw)
-        bpl_print_raw_one (res, &oldlim);
-      else
-        bpl_print_one (res, &oldlim);
-    }
+  rows[0] = res;
+  bpl_format_limit (soft[0], sizeof soft[0], oldlim.rlim_cur);
+  bpl_format_limit (hard[0], sizeof hard[0], oldlim.rlim_max);
+  bpl_print_table (rows, soft, hard, 1, raw, noheadings);
   return EXECUTION_SUCCESS;
 }
 
 static int
-bpl_show_all (pid_t pid, int json, int raw, const unsigned char *selected)
+bpl_show_all (pid_t pid, int json, int raw, int noheadings,
+              const unsigned char *selected)
 {
   int rc = EXECUTION_SUCCESS;
   int first = 1;
+  const bpl_res *rows[64];
+  char soft[64][64], hard[64][64];
+  int n = 0;
   if (json)
     printf ("{\"pid\":%ld,\"limits\":[", (long) pid);
   for (const bpl_res *r = bpl_resources; r->name; r++)
@@ -404,16 +523,18 @@ bpl_show_all (pid_t pid, int json, int raw, const unsigned char *selected)
           first = 0;
           bpl_print_json_one (pid, r, &oldlim);
         }
-      else
+      else if (n < 64)
         {
-          if (raw)
-            bpl_print_raw_one (r, &oldlim);
-          else
-            bpl_print_one (r, &oldlim);
+          rows[n] = r;
+          bpl_format_limit (soft[n], sizeof soft[n], oldlim.rlim_cur);
+          bpl_format_limit (hard[n], sizeof hard[n], oldlim.rlim_max);
+          n++;
         }
     }
   if (json)
     puts ("]}");
+  else
+    bpl_print_table (rows, soft, hard, n, raw, noheadings);
   return rc;
 }
 
@@ -556,7 +677,7 @@ bpl_help (void)
   puts ("         --msgqueue --nice --nofile --nproc --rss --rtprio");
   puts ("         --rttime --sigpending --stack; short aliases except -r");
   puts ("Ranges: SOFT, SOFT:HARD, SOFT: (keep hard), :HARD (keep soft), unlimited.");
-  puts ("Output: default text lines, --raw tab-delimited lines, or --json objects.");
+  puts ("Output: RESOURCE DESCRIPTION SOFT HARD UNITS, --raw escaped fields, or --json.");
   return EXECUTION_SUCCESS;
 }
 
@@ -569,6 +690,7 @@ prlimit_builtin (WORD_LIST *list)
   WORD_LIST *command = NULL;
   int json = 0;
   int raw = 0;
+  int noheadings = 0;
   unsigned char selected[sizeof bpl_resources / sizeof bpl_resources[0]] = { 0 };
   int nselected = 0;
   const bpl_res *res;
@@ -588,7 +710,7 @@ prlimit_builtin (WORD_LIST *list)
       if (strcmp (w, "--raw") == 0)
         { raw = 1; continue; }
       if (strcmp (w, "--noheadings") == 0)
-        continue;
+        { noheadings = 1; continue; }
       if (strcmp (w, "--") == 0)
         {
           command = p->next;
@@ -666,7 +788,7 @@ prlimit_builtin (WORD_LIST *list)
     {
       if (set_spec)
         { builtin_error ("limit value requires -r RES"); return EX_USAGE; }
-      return bpl_show_all (pid, json, raw, NULL);
+      return bpl_show_all (pid, json, raw, noheadings, NULL);
     }
   if (nselected > 1)
     {
@@ -675,7 +797,7 @@ prlimit_builtin (WORD_LIST *list)
           builtin_error ("only one resource may be set");
           return EX_USAGE;
         }
-      return bpl_show_all (pid, json, raw, selected);
+      return bpl_show_all (pid, json, raw, noheadings, selected);
     }
   res = bpl_find_res (res_name);
   if (!res)
@@ -688,7 +810,7 @@ prlimit_builtin (WORD_LIST *list)
     }
   if (set_spec)
     return bpl_set_one (pid, res, set_spec);
-  return bpl_show_one (pid, res, json, raw);
+  return bpl_show_one (pid, res, json, raw, noheadings);
 }
 
 char *prlimit_doc[] = {
@@ -710,7 +832,7 @@ char *prlimit_doc[] = {
   "         --msgqueue --nice --nofile --nproc --rss --rtprio",
   "         --rttime --sigpending --stack; short aliases except -r",
   "Ranges: SOFT, SOFT:HARD, SOFT: (keep hard), :HARD (keep soft), unlimited.",
-  "Output: default text lines, --raw tab-delimited lines, or --json objects.",
+  "Output: RESOURCE DESCRIPTION SOFT HARD UNITS, --raw escaped fields, or --json.",
   (char *)0
 };
 

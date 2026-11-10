@@ -41,7 +41,6 @@
 #include <ctype.h>
 #include <inttypes.h>
 #include <limits.h>
-#include <langinfo.h>
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -707,12 +706,16 @@ dd_builtin (WORD_LIST *list)
         if (r < 0) {
             int read_errno = errno;
             const char *name = input_owned ? iname : "standard input";
-            const char *codeset = nl_langinfo (CODESET);
-            int utf8 = codeset && (!strcmp (codeset, "UTF-8") || !strcmp (codeset, "UTF8"));
-            if (!(conv & DDC_NOERROR) || !(status & DDS_NONE))
-                fprintf (stderr, "dd: error reading %s%s%s: %s\n",
-                         utf8 ? "‘" : "'", name, utf8 ? "’" : "'",
-                         strerror (read_errno));
+            if (!(conv & DDC_NOERROR) || !(status & DDS_NONE)) {
+                /* GNU dd names the file with quoteaf (shell-escape-always
+                   quoting): ASCII apostrophes in every locale. */
+                fputs ("dd: error reading '", stderr);
+                for (const char *q = name; *q; q++) {
+                    if (*q == '\'') fputs ("'\\''", stderr);
+                    else fputc (*q, stderr);
+                }
+                fprintf (stderr, "': %s\n", strerror (read_errno));
+            }
             if (!(conv & DDC_NOERROR)) {
                 rc = EXECUTION_FAILURE;
                 break;

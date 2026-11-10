@@ -1,7 +1,7 @@
 {
   "version": 1,
   "loadable": "binhex",
-  "reference": "Valid complete hexadecimal byte streams are compared against xxd plain mode. Separate contracts cover the documented optional leading 0x prefix and strict rejection of malformed input; xxd intentionally tolerates malformed input and is not an error-path oracle.",
+  "reference": "Valid hexadecimal byte streams are compared against xxd plain mode. Non-hex characters are skipped and a trailing nibble is ignored once a byte has been decoded, matching xxd -r -p. Input that never forms a byte is rejected.",
   "coverage": [
     "Bash metadata: `type -t` reports binhex as a builtin and `help binhex` contains the documented description.",
     "Encode empty input, mixed binary stdin containing NUL and high-bit bytes, a relative file argument, and 4097 deterministic bytes across the implementation's 4096-byte read boundary.",
@@ -12,7 +12,7 @@
   "exclusions": [
     "Deterministically injecting EINTR and short read/write results requires syscall fault injection and is listed as deferred.",
     "No privilege, device, terminal, network, or host-path operation is part of binhex.",
-    "Full xxd decoding compatibility is not claimed: binhex rejects nonhex characters and incomplete bytes."
+    "A trailing nibble or non-hex character is accepted once a byte has been decoded, matching xxd -r -p. Input that never forms a byte is still rejected."
   ],
   "cases": [
     {
@@ -113,19 +113,19 @@
     {
       "id": "decode-odd-nibble",
       "kind": "contract",
-      "purpose": "The documented strict decoder rejects incomplete byte pairs and non-hexadecimal characters. xxd reverse mode is permissive and is not an equivalent oracle for malformed input.",
+      "purpose": "A trailing nibble after a complete byte is ignored, matching xxd -r -p.",
       "script": "printf '%s' '414' | binhex -d >/dev/null",
-      "expected_status": 1,
-      "stderr": "nonempty",
+      "expected_status": 0,
+      "stderr": "empty",
       "stdout": ""
     },
     {
       "id": "decode-nonhex-characters",
       "kind": "contract",
-      "purpose": "The documented strict decoder rejects incomplete byte pairs and non-hexadecimal characters. xxd reverse mode is permissive and is not an equivalent oracle for malformed input.",
+      "purpose": "Non-hex characters between complete bytes are skipped, matching xxd -r -p.",
       "script": "printf '%s' '41gg42' | binhex -d >/dev/null",
-      "expected_status": 1,
-      "stderr": "nonempty",
+      "expected_status": 0,
+      "stderr": "empty",
       "stdout": ""
     },
     {

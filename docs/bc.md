@@ -112,7 +112,7 @@ deliberate differences are:
 | Recursion depth | heap-bounded (100,000 calls is fine) | bounded by the C stack: about 7 MiB under the default 8 MiB limit, which is roughly 10,000 nested calls of a simple recursive function; deeper, the item fails with `nested too deeply` instead of crashing the shell, and the same bound applies to absurdly nested source |
 | A void function used in an expression | rejected while parsing | the same when it was defined void earlier; a later redefinition is caught when it runs |
 | `warranty` | prints the GPL warranty text | prints a one-line MIT notice |
-| Interactive use | banner, readline | no banner (as with `-q`), no line editing |
+| Interactive use | banner, readline | no banner (as with `-q`). On a terminal, line editing matches GNU bc's readline for the tested keys: Ctrl-B, Ctrl-D, Up history, and bracketed-paste mode. History is kept for that invocation only |
 | `-s`, `-w`, `BC_ENV_ARGS`, `POSIXLY_CORRECT` | POSIX checks, extra options | not implemented |
 
 File-open, descriptor read, output and reported resource failures return 1
@@ -122,16 +122,19 @@ input contracts. This includes complete blocks and function calls; unfinished
 strings, comments and blocks still produce diagnostics. A shell here-string
 already supplies a newline.
 
-Syntax recovery is not fully identical to GNU's parser. For example, after
-`a=7`, the malformed line `a=8; (` followed by `a` leaves `a` equal to 7 in
-both implementations, but GNU discards that following statement while this
-builtin evaluates it. The reviewed suite retains this output difference as a
-failing parity case.
+Syntax recovery follows GNU bc. An error before a statement separator
+discards the rest of that line, and the next line runs (`1+` then `42` prints
+42). An error after a completed statement and `;` discards that statement and
+one following statement with the same item (`a=7`, then `a=8; (`, then `a`,
+then `a` prints 7 from the assignment and 7 from the last `a`, and `a` stays
+7). A complete final statement with no newline is still evaluated.
 
-An interrupt (SIGINT) stops a running program at the next loop iteration or
-call; the shell then handles the signal as it would for any builtin. Output
-goes through a private 8 KiB buffer; a write failure stops the program, even
-an endless one, and gives status 1 with `write error`.
+On a terminal, SIGINT at the prompt writes `(interrupt) use quit to exit.`
+and waits for another line. SIGINT during a program stops that program,
+writes `interrupted execution.`, and returns to the prompt. When standard
+input is not a terminal, SIGINT still stops bc and the shell command that
+follows it. Output goes through a private 8 KiB buffer; a write failure
+stops the program, even an endless one, and gives status 1 with `write error`.
 
 ## Repeated calls in one shell
 

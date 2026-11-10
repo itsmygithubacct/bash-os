@@ -255,7 +255,8 @@ def checks(r, root):
         t.until(lambda:'load 2.00' in t.screen.text())
         assert t.screen.pids()==[101,202,303]
         assert row(101,10.,25,'alpha --fixture') in t.screen.text(); n+=1
-        t.send(b'o'); t.until(lambda:'sort TIME' in t.screen.text())
+        t.send(b'o'); t.until(lambda:'sort (cpu|mem|pid|time' in t.screen.text())
+        t.send(b'\r'); t.until(lambda:'sort TIME' in t.screen.text())
         assert t.screen.pids()==[404,707,303]; n+=1
         t.send(b'n'); t.until(lambda:'delay (s):' in t.screen.text()); t.send(b'2junk\r')
         t.until(lambda:'invalid delay' in t.screen.text()); assert 'every 3599s' in t.screen.text(); n+=1

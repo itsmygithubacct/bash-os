@@ -16,7 +16,8 @@
  *   PgUp / PgDn scroll process list by one page
  *   Home / End  jump to first / last process
  *   n           prompt for new refresh interval
- *   o           cycle sort column (cpu → mem → pid → time → cpu)
+ *   o / O       prompt for a sort column (cpu, mem, pid, time); Enter
+ *               alone cycles cpu → mem → pid → time → cpu
  *   k           prompt for PID + signal, send signal
  *   r           prompt for PID + nice delta, renice
  *
@@ -513,6 +514,8 @@ btop_draw_row (bls_win *w, int row, const btop_proc *p)
     bls_clrtoeol (w);
 }
 
+static int btop_parse_sort (const char *s, btop_sort *out);
+
 /* termios/tty/winsize/cursor and the cooked-prompt path are now provided by
    the shared _bl_screen module (bls_init/bls_getnstr/...). */
 
@@ -694,11 +697,25 @@ btop_run_interactive (int delay_sec, btop_sort sort, int max_iters, int row_cap)
                 redraw = 1;
                 break;
             }
-            case 'o': case 'O':
-                sort = (btop_sort) ((sort + 1) % BTOP_SORT__COUNT);
-                snprintf (extra, sizeof extra, "sort → %s", btop_sort_name[sort]);
+            case 'o': case 'O': {
+                /* Prompt for a column name; an empty answer cycles to the
+                   next column and ESC cancels. */
+                char buf[32];
+                int got = bls_getnstr (win, bls_lines () - 1, 0,
+                                       "sort (cpu|mem|pid|time, Enter=next): ",
+                                       buf, sizeof buf);
+                btop_sort want;
+                if (got == 0) {
+                    sort = (btop_sort) ((sort + 1) % BTOP_SORT__COUNT);
+                    snprintf (extra, sizeof extra, "sort → %s", btop_sort_name[sort]);
+                } else if (got > 0 && btop_parse_sort (buf, &want) == 0) {
+                    sort = want;
+                    snprintf (extra, sizeof extra, "sort → %s", btop_sort_name[sort]);
+                } else if (got > 0)
+                    snprintf (extra, sizeof extra, "invalid sort column (cpu|mem|pid|time)");
                 redraw = 1;
                 break;
+            }
             case 'n': case 'N': {
                 char buf[32];
                 if (bls_getnstr (win, bls_lines () - 1, 0,"delay (s): ", buf, sizeof buf) > 0) {
@@ -877,7 +894,7 @@ char *top_doc[] = {
     "    PgUp / PgDn   scroll the process list one page.",
     "    Home / End    jump to first / last process.",
     "    n             prompt for new refresh interval.",
-    "    o             cycle sort column.",
+    "    o / O         prompt for sort column; Enter alone cycles.",
     "    k             prompt for PID + signal, send signal.",
     "    r             prompt for PID + nice delta, renice.",
     "",

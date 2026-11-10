@@ -79,8 +79,12 @@ offset for empty input or a zero byte count. These comparisons use util-linux.
 boolean queries and profile-specific strings. It retains its custom text
 sidecar format; arbitrary compiled terminfo databases remain unsupported.
 
-`who` has focused GNU comparisons for record selection, headers, timestamps,
-fixed-width strings and missing inputs using synthetic utmp files. `fincore`
+`who` with no FILE operand reads systemd-logind sessions the way GNU coreutils
+9.7 does: boot time from the utmp boot record or the same fallbacks, then one
+seat row and one tty row per session (tty name, remote user@host or X11 display,
+leader pid, and login class for manager sessions). A FILE operand still reads
+that utmp file. Focused comparisons for record selection, headers, timestamps,
+fixed-width strings and missing inputs use synthetic utmp files. `fincore`
 matches util-linux headings, alignment and byte/human units on small private
 files. Its tests check residency bounds and unit conversion without assuming
 the page cache has the same state in separate invocations.
@@ -149,9 +153,9 @@ total. Interactive terminal behavior is separate from these file comparisons.
 is redirected. In that mode, file-open errors appear on stdout, later operands
 are still read, and file-open errors alone leave status 0, matching less 668.
 Its interactive path remains unqualified by these fixtures.
-`whatis` uses man-db's no-result status 16 and usage-error status 1. It retains
-exact-name lookup: the observed man-db legacy text backend also matches name
-prefixes, so that difference is documented as a custom contract. Help text and
+`whatis` uses man-db's no-result status 16 and usage-error status 1. Lookup is
+a case-insensitive prefix of the whatis line, the same rule as the man-db
+legacy text backend, so `tool` also selects `toolbox`. Help text and
 implementation version banners are not compared with another project's bytes.
 
 `ssh known-hosts list` and `remove` have offline comparisons with OpenSSH
@@ -271,9 +275,8 @@ files and small recursive trees, without terminal or localized-prompt coverage.
 
 `zstd --no-content-size` omits the original size field in compressed frames.
 Its options must precede file operands. `utf8 slice` returns an empty string
-when a codepoint or grapheme start is at or beyond the end. `whatis` keeps its
-documented exact-name lookup; the installed man-db backend also matches prefixes,
-so that behavior remains an explicit compatibility difference.
+when a codepoint or grapheme start is at or beyond the end. `whatis` matches a case-insensitive prefix of the whatis line, as the
+installed man-db legacy backend does.
 
 `bashkmod weak-modules` creates usable relative links inside an explicitly
 selected module tree. Its tests use synthetic files and do not load modules.

@@ -1,69 +1,99 @@
-# renice: absolute priorities, safe verification and timing
+# renice: util-linux 2.41.5
 
-`renice [-n] PRIORITY [-p|-g|-u] ID...` sets an absolute niceness.
-`-n 16` sets 16 even when `POSIXLY_CORRECT` is set; it does not add 16.
-This follows the traditional absolute interface, rather than the POSIX relative
-`-n` interface. Successful calls are silent. PID selection is the default;
-selectors change the interpretation of subsequent operands. Selectors before
-the priority remain supported for compatibility.
+`renice` follows util-linux 2.41.5. The first argument is the priority.
+`-n`, `--priority`, and `--relative` are recognized only when they are that
+first argument. Later arguments are process IDs unless `-p`/`--pid`,
+`-g`/`--pgrp`, or `-u`/`--user` changes the meaning of the IDs that follow.
+A selector before the priority is not a selector: it is parsed as the
+priority and rejected.
 
-The priority must be a complete decimal signed `int`, with no surrounding
-whitespace. Linux clamps accepted values to -20 through 19. PID and group IDs
-are decimal integers from 0 through `INT_MAX`. Numeric user IDs must fit `id_t`
-without using its all-ones sentinel; other names are resolved with `getpwnam`.
-Target zero has the kernel meaning: caller, caller's process group, or caller's
-real UID, respectively. Lowering niceness requires sufficient privilege or
-`RLIMIT_NICE`; negative requests can fail even for an owned process.
+A bare priority is absolute. `--priority` is always absolute. `--relative`
+is always added to the current priority. `-n` is absolute unless
+`POSIXLY_CORRECT` is set in the environment, in which case it is added to
+the current priority. The addition uses 32-bit wrap. Priorities and IDs are
+base-10 `strtol` values kept as the low 32 bits of that result. `ERANGE` is
+ignored. Leading whitespace and a leading sign are accepted. Trailing junk
+rejects the token. An empty priority string is priority 0.
 
-The implementation now consumes the priority once and rejects misplaced or
-repeated `-n` before any mutation. Previously a late `-n` could change the
-priority halfway through a list and expose its operand as a target. It also
-rejects leading whitespace in numeric priorities and process IDs, and reports
-failure (1) for invalid target operands even when none reach the syscall.
-Missing priority/targets and malformed priority syntax return usage (2).
-Target resolution and syscall failures continue to later operands and return
-failure; successful earlier targets remain changed.
-
-## Focused checks
-
-Build only `renice` with `./build.sh --include renice --name sol-renice`.
-There are no companion commands, libraries or command-specific shared helpers.
-The normal build resolver includes its default `_jsmn` helper.
-Run compilations through the build gate required by the surrounding campaign.
+On success each target prints one stdout line and returns 0 when every
+target succeeded:
 
 ```
-bash tests/sol-renice-build.sh /tmp/renice-fixtures
-python3 tests/sol-renice-check.py out/bash-sol-renice /tmp/renice-fixtures/fixture.so
+ID (process ID) old priority OLD, new priority NEW
 ```
 
-The test driver never compiles. The shared fixture intercepts the real
-production `setpriority` call and supplies deterministic username resolution;
-it never forwards a mutation to the kernel. It checks PID/group/user selector
-transitions, zero IDs, UID limits, signed-int priorities, malformed and
-overflowing arguments, missing operands, misplaced `-n`, partial `ESRCH` and
-permission failures, repeated calls, descriptor counts and closed output.
+The label is `process ID`, `process group ID`, or `user ID`. `OLD` is what
+`getpriority` returned before the change, which for a group or user is the
+highest priority in that set. `NEW` is `getpriority` after `setpriority`, so
+it is the value the kernel kept. Linux clamps the requested niceness to -20
+through 19. A username is printed as its numeric uid.
 
-Real kernel changes are confined to disposable owned children and a private
-session containing two owned processes. Python `os.getpriority` and `/proc`
-independently verify priorities. Tests check absolute repeated `-n`, upper
-clamping, continuation after an invalid operand, actual denied negative
-niceness, and unchanged parent priorities. The real denial test requires
-`RLIMIT_NICE=0` and no effective `CAP_SYS_NICE`; it fails rather than silently
-skipping in a privileged environment. All-user mutation is fixture-only.
+`getpriority` failure does not call `setpriority`. `setpriority` failure,
+including `EPERM` when an unprivileged caller tries to lower niceness, leaves
+that target unchanged. A bad process or group id is `renice: bad KIND value:
+TEXT`, where KIND is `process ID` or `process group ID`. An unknown user is
+`renice: unknown user TEXT`. Later IDs are still attempted. The status is 1
+if any ID failed.
 
-The same suite can load an ASan/UBSan-instrumented production module using
-`SOL_RENICE_MODULE`, `SOL_RENICE_ASAN_RUNTIME`,
-`ASAN_OPTIONS=detect_leaks=0:abort_on_error=1` and
-`UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`.
+A missing priority or target, or a priority with trailing junk, stops before
+any change and returns 1:
 
-The focused suite passed all 14 tests both natively and with ASan/UBSan.
-Both unchanged legacy renice tests also passed, with no skips or sanitizer
-findings. The legacy `tests/process-numeric.py` renice assertions remain intact.
-The broad `tests/util-linux-smoke.sh` was inspected but is unsuitable for this
-focused run: its renice case changes the caller's priority. Replace that case
-with the owned-child tests during integrated test registration.
+```
+renice: not enough arguments
+Try 'renice --help' for more information.
+```
 
-## Controlled measurement
+```
+renice: invalid priority 'TEXT'
+Try 'renice --help' for more information.
+```
+
+`-n` after the priority is an ID, not an option. Earlier IDs in that command
+are still changed. A user operand is looked up with `getpwnam` and, if that
+fails, parsed as a number. A uid that does not fit a non-negative 32-bit int
+is an unknown user. The end pointer is not cleared when a name lookup
+succeeds, so a later name can be rejected when an earlier numeric parse left
+trailing junk there.
+
+ID 0 has the kernel meaning. `-g 0` and `-u 0` run in the shell and affect
+the caller's process group or real uid. In a non-interactive shell that is
+the same group and user an external renice would change. `-p 0` is applied
+in a short-lived child, so the shell's own niceness stays unchanged, matching
+an external renice that changes only itself. The printed id is still 0.
+
+Exactly one argument of `-h` or `--help` prints the util-linux help text on
+stdout and returns 0. Exactly one argument of `-v`, `-V`, or `--version`
+prints `renice from util-linux 2.41.5`. Diagnostics use the `renice:` prefix
+and `strerror` text. A stdout write error other than `EPIPE` is reported as
+`renice: write error` and returns 1. `EPIPE` on stdout does not.
+
+Lowering niceness requires privilege or a sufficient `RLIMIT_NICE`. Raising
+niceness of an owned process does not.
+
+## Qualification
+
+Five comparisons stay oracle-compared against util-linux on the same owned
+children. Their scripts and expected markers are unchanged:
+
+- `migration-renice-owned-absolute`
+- `migration-renice-owned-short`
+- `migration-renice-owned-posix-relative`
+- `migration-renice-selectors-users-zero`
+- `migration-renice-target-failures`
+
+The loadable-parity cases for a missing invocation, a malformed priority, a
+malformed pid, and an unknown user also stay oracle-compared. `help -d`
+reports the first documentation line, `Alter the priority of running processes.`
+
+## Earlier interface
+
+The previous builtin was silent on success, treated `-n` as absolute even
+when `POSIXLY_CORRECT` was set, accepted a selector before the priority,
+rejected a later `-n` before any change, and used status 2 for usage errors.
+`tests/sol-renice-check.py` locks that earlier interface. It is not a check
+of this contract. The measurement below is for that earlier builtin.
+
+## Historical measurement
 
 Run the following through the campaign bench gate after the build:
 
@@ -105,3 +135,5 @@ the common shell validation overhead and the external command's invocation,
 priority queries and discarded status output. It describes these complete
 command loops, not isolated syscall latency. Raw distributions and provenance
 are retained with the task evidence rather than merged into historical data.
+The numbers describe the previous silent builtin, not a new measurement of
+the util-linux-compatible output path.

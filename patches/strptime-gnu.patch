@@ -1,14 +1,24 @@
 --- examples/loadables/strptime.c
 +++ examples/loadables/strptime.c
-@@ -30,6 +30,7 @@
+@@ -30,6 +30,17 @@
  #include "posixtime.h"
  
  #include <stdio.h>
 +#include <limits.h>
++#include <ctype.h>
++#include <string.h>
++
++#if defined (HAVE_LANGINFO_H) && defined (HAVE_NL_LANGINFO) && defined (HAVE_LOCALE_H) && defined (HAVE_WCHAR_H) && defined (HAVE_WCTYPE_H)
++#  include <langinfo.h>
++#  include <locale.h>
++#  include <wchar.h>
++#  include <wctype.h>
++#  define LOCALE_NAMES_CHECK 1
++#endif
  
  #include "../builtins.h"
  #include "../shell.h"
-@@ -60,14 +61,11 @@
+@@ -60,14 +71,11 @@
  {
    "%a %b %d %T %Z %Y",		/* Unix date */
    "%a %b %d %T %Y",		/* Wkd Mon DD HH:MM:SS YYYY */
@@ -25,7 +35,7 @@
    "%D %T",			/* mm/dd/yy HH:MM:SS */
    "%D %R",			/* mm/dd/yy HH:MM */
    "%D %r",			/* mm/dd/yy HH:MM:SS a.m.  */
-@@ -118,11 +116,11 @@
+@@ -118,11 +126,11 @@
    "%b %d, %Y %R",		/* Mon dd, YYYY HH:MM */
    "%b %d, %Y %r",		/* Mon dd, YYYY HH:MM:SS a.m. */
    "%b %d, %Y %I:%M %p",		/* Mon dd, YYYY HH:MM p.m. */
@@ -42,28 +52,25 @@
    "%d/%b/%Y:%T %z",		/* NCSA log format dd/Mon/YYYY:HH:MM:SS zone */
    "%d/%b/%Y:%T%z",		/* NCSA log format dd/Mon/YYYY:HH:MM:SSzone */
    /* No delimiters */
-@@ -169,28 +167,35 @@
+@@ -169,28 +177,226 @@
    /* Initialize to local time */
    loctime = localtime (clock);
  
 -  if (loctime == 0)
--    {
--      timeptr->tm_hour = timeptr->tm_min = timeptr->tm_sec = 0;
--      return;
--    }
--
--  memcpy (timeptr, loctime, sizeof (struct tm));
--
--  /* but default to midnight */
 +  if (loctime)
 +    memcpy (timeptr, loctime, sizeof (struct tm));
 +  else
-+    {
+     {
+-      timeptr->tm_hour = timeptr->tm_min = timeptr->tm_sec = 0;
+-      return;
 +      memset (timeptr, 0, sizeof (struct tm));
 +      timeptr->tm_year = 70;
 +      timeptr->tm_mday = 1;
-+    }
-+
+     }
+ 
+-  memcpy (timeptr, loctime, sizeof (struct tm));
+-
+-  /* but default to midnight */
 +  /* Default to midnight and let mktime determine local DST. */
    timeptr->tm_hour = timeptr->tm_min = timeptr->tm_sec = 0;
 -  /* and let the system figure out the right DST offset */
@@ -72,7 +79,198 @@
 +  /* strptime sets tm_gmtoff for %z (including a zero offset). */
 +  timeptr->tm_gmtoff = LONG_MIN;
 +#endif
++}
++
++#if defined (LOCALE_NAMES_CHECK)
++/* With an explicit FORMAT, glibc strptime also takes the C locale's English
++   month and weekday names in another LC_TIME locale.  Python's
++   datetime.strptime, the reference for localized parsing, takes only the
++   current locale's names, so a parse is kept only when every month and
++   weekday directive consumed one of those. */
++
++/* P points at a '%'; return the conversion character after the flags,
++   field width and E or O modifier that glibc strptime discards. */
++static const char *
++directive_conversion (const char *p)
++{
++  p++;
++  while (*p && strchr ("-_0^#", *p))
++    p++;
++  while (*p >= '0' && *p <= '9')
++    p++;
++  if (*p == 'E' || *p == 'O')
++    p++;
++  return p;
++}
++
++/* The locale formats glibc substitutes for %c, %x, %X and %r. */
++static const char *
++composite_format (int conv, int era)
++{
++  const char *f;
++
++  switch (conv)
++    {
++    case 'c':
++      f = era ? nl_langinfo (ERA_D_T_FMT) : "";
++      return *f ? f : nl_langinfo (D_T_FMT);
++    case 'x':
++      f = era ? nl_langinfo (ERA_D_FMT) : "";
++      return *f ? f : nl_langinfo (D_FMT);
++    case 'X':
++      f = era ? nl_langinfo (ERA_T_FMT) : "";
++      return *f ? f : nl_langinfo (T_FMT);
++    case 'r':
++      return nl_langinfo (T_FMT_AMPM);
++    }
++  return 0;
++}
++
++static void
++append_bytes (char **buf, size_t *len, size_t *size, const char *s, size_t n)
++{
++  if (*len + n + 1 > *size)
++    {
++      *size = *len + n + 1 + 64;
++      *buf = xrealloc (*buf, *size);
++    }
++  memcpy (*buf + *len, s, n);
++  *len += n;
++  (*buf)[*len] = 0;
++}
++
++/* FORMAT with its composite directives replaced by the locale's formats,
++   so the names inside them are checked too. */
++static char *
++expand_format (const char *format)
++{
++  size_t len = 0, size = strlen (format) + 1;
++  char *r = xmalloc (size);
++  const char *p, *c, *sub;
++
++  r[0] = 0;
++  for (p = format; *p; )
++    {
++      if (*p != '%')
++	{
++	  append_bytes (&r, &len, &size, p++, 1);
++	  continue;
++	}
++      c = directive_conversion (p);
++      sub = *c ? composite_format (*c, c[-1] == 'E') : 0;
++      if (sub)
++	append_bytes (&r, &len, &size, sub, strlen (sub));
++      else
++	append_bytes (&r, &len, &size, p, c - p + (*c != 0));
++      p = c + (*c != 0);
++    }
++  return r;
++}
++
++/* Whether the input from S to E, leading blanks skipped, is NAME, compared
++   without regard to case. */
++static int
++same_name (const char *s, const char *e, const char *name)
++{
++  mbstate_t ms, mn;
++  wchar_t ws, wn;
++  size_t ls, ln;
++
++  while (s < e && isspace ((unsigned char)*s))
++    s++;
++  if (name == 0 || *name == 0 || s == e)
++    return 0;
++  memset (&ms, 0, sizeof (ms));
++  memset (&mn, 0, sizeof (mn));
++  while (s < e && *name)
++    {
++      ls = mbrtowc (&ws, s, e - s, &ms);
++      ln = mbrtowc (&wn, name, strlen (name), &mn);
++      if (ls == 0 || ls >= (size_t)-2 || ln == 0 || ln >= (size_t)-2)
++	{
++	  /* Not a character in LC_CTYPE: compare the byte itself. */
++	  if (tolower ((unsigned char)*s) != tolower ((unsigned char)*name))
++	    return 0;
++	  memset (&ms, 0, sizeof (ms));
++	  memset (&mn, 0, sizeof (mn));
++	  s++, name++;
++	  continue;
++	}
++      if (towlower (ws) != towlower (wn))
++	return 0;
++      s += ls;
++      name += ln;
++    }
++  return s == e && *name == 0;
++}
++
++static int
++locale_name (const char *s, const char *e, int month)
++{
++  static const nl_item months[] = {
++    MON_1, ABMON_1,
++#if defined (ALTMON_1)
++    ALTMON_1,
++#endif
++#if defined (ALTMON_1) && defined (__GLIBC__)
++    _NL_ABALTMON_1,
++#endif
++  };
++  static const nl_item days[] = { DAY_1, ABDAY_1 };
++  const nl_item *items = month ? months : days;
++  size_t i, nitems = month ? sizeof (months) / sizeof (months[0]) : 2;
++  int n, count = month ? 12 : 7;
++
++  for (i = 0; i < nitems; i++)
++    for (n = 0; n < count; n++)
++      if (same_name (s, e, nl_langinfo (items[i] + n)))
++	return 1;
++  return 0;
++}
++
++/* Parse the format up to and through each month or weekday directive;
++   glibc strptime converts left to right, so the input between the two
++   end points is what that directive consumed. */
++static int
++locale_names_ok (const char *input, const char *format, const struct tm *initial)
++{
++  const char *lt, *p, *c, *from, *to;
++  char *fmt, *part;
++  struct tm t;
++  int ok;
++
++  lt = setlocale (LC_TIME, NULL);
++  if (lt == 0 || STREQ (lt, "C") || STREQ (lt, "POSIX"))
++    return 1;
++  fmt = expand_format (format);
++  part = xmalloc (strlen (fmt) + 1);
++  ok = 1;
++  for (p = fmt; ok && *p; p++)
++    {
++      if (*p != '%')
++	continue;
++      c = directive_conversion (p);
++      if (*c == 0)
++	break;
++      if (strchr ("aAbBh", *c))
++	{
++	  memcpy (part, fmt, p - fmt);
++	  part[p - fmt] = 0;
++	  t = *initial;
++	  from = strptime (input, part, &t);
++	  memcpy (part, fmt, c + 1 - fmt);
++	  part[c + 1 - fmt] = 0;
++	  t = *initial;
++	  to = from ? strptime (input, part, &t) : 0;
++	  ok = to && to > from && locale_name (from, to, *c != 'a' && *c != 'A');
++	}
++      p = c;
++    }
++  free (part);
++  free (fmt);
++  return ok;
  }
++#endif /* LOCALE_NAMES_CHECK */
  
  int
  strptime_builtin (WORD_LIST *list)
@@ -90,7 +288,7 @@
  
    format = NULL;
    reset_internal_getopt ();
-@@ -218,7 +223,10 @@
+@@ -218,7 +424,10 @@
  
    datestr = string_list (list);
    if (datestr == 0 || *datestr == 0)
@@ -102,7 +300,7 @@
  
    now = getnow ();
    secs = -1;
-@@ -227,45 +235,70 @@
+@@ -227,45 +436,74 @@
        if (STREQ (datestr, date_time_modifiers[i].shorthand))
  	{
  	  secs = now + date_time_modifiers[i].incr;
@@ -120,7 +318,12 @@
    if (format)
      {
        s = strptime (datestr, format, &t);
-       if (s == 0 || s == datestr)
+-      if (s == 0 || s == datestr)
++      if (s == 0 || s == datestr
++#if defined (LOCALE_NAMES_CHECK)
++	  || locale_names_ok (datestr, format, &initial) == 0
++#endif
++	 )
  	{
  	  builtin_error ("%s: unrecognized format", datestr);
 +	  free (datestr);
@@ -154,15 +357,13 @@
  	  return (EXECUTION_FAILURE);
 -
  	}
--    }
--
--  /* Found something. */
--  secs = mktime (&t);
 +      /* Prefer the most complete match, retaining prefix conversion. */
 +      s = best;
 +      t = besttime;
-+    }
-+
+     }
+ 
+-  /* Found something. */
+-  secs = mktime (&t);
 +  /* mktime ignores tm_gmtoff. Convert explicit offsets independently of
 +     the local timezone, saving the offset before timegm changes t. */
 +#if defined (HAVE_TM_ZONE)
@@ -176,16 +377,15 @@
 +    secs = mktime (&t);
    if (s && *s)
 -    builtin_warning("%s: not completely converted (%s)", datestr, s);
--
--  printf ("%ld\n", secs);    
 +    builtin_warning ("%s: not completely converted (%s)", datestr, s);
-+
+ 
+-  printf ("%ld\n", secs);    
 +  printf ("%ld\n", secs);
 +  free (datestr);
    return (EXECUTION_SUCCESS);
  }
  
-@@ -278,6 +311,11 @@
+@@ -278,6 +516,15 @@
  	"not all of which may be acceptable to strptime(3).",
  	"If the string matches one of the formats, convert it into seconds",
  	"since the epoch and display the result.",
@@ -194,6 +394,10 @@
 +	"GNU numeric timezone offsets (%z) specify the input offset from UTC.",
 +	"Format directives follow the system C library; in particular, glibc",
 +	"does not reconstruct calendar dates from ISO week-year and week (%G, %V).",
++	"With -f FORMAT, month and weekday names (%a, %A, %b, %B, %h, also within",
++	"%c, %x, %X and %r) must be those of the current LC_TIME locale.",
++	"Without -f, default-format guessing still accepts the C locale's English",
++	"month and weekday names, as glibc strptime does.",
  	(char *)NULL
  };
  

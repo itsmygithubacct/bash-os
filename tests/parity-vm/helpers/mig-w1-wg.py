@@ -24,6 +24,10 @@ ALICE_PRIV = bytes.fromhex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177
 ALICE_PUB = bytes.fromhex("8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a")
 BOB_PRIV = bytes.fromhex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb")
 BOB_PUB = bytes.fromhex("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f")
+# A third peer key: the RFC 7748 section 5.2 first X25519 test vector output.
+# Linux WireGuard silently ignores a peer whose key is the device's own public
+# key, so a device holding ALICE_PRIV cannot also list ALICE_PUB as a peer.
+CAROL_PUB = bytes.fromhex("c3da55379de9c6908e94ea4df28d084f32eccf03491c71f754b4075577a28552")
 b64 = lambda b: base64.b64encode(b).decode()
 NESTED = 0x8000
 
@@ -226,7 +230,7 @@ AllowedIPs = 10.2.0.0/16
 
 def sc_setconf():
     g = newdev()
-    open(CASE + "/wg.conf", "w").write(CONF % (b64(ALICE_PRIV), b64(BOB_PUB), b64(ALICE_PUB)))
+    open(CASE + "/wg.conf", "w").write(CONF % (b64(ALICE_PRIV), b64(BOB_PUB), b64(CAROL_PUB)))
     rc, out, err = wg("setconf", "wg0", CASE + "/wg.conf")
     L.check("setconf rc0 (kernel accepted the encoded SET_DEVICE message)", rc == 0, "rc=%s err=%s" % (rc, err))
     d = g.get("wg0")
@@ -234,7 +238,7 @@ def sc_setconf():
     L.check("setconf: fwmark 0x1234", d.get("fwmark") == 0x1234, str(d.get("fwmark")))
     L.check("setconf: private key clamped and public key equals the RFC 7748 Alice vector", d.get("private") == clamp(ALICE_PRIV) and d.get("public") == ALICE_PUB, str((d.get("private"), d.get("public"))))
     b = peer_of(d, BOB_PUB)
-    a = peer_of(d, ALICE_PUB)
+    a = peer_of(d, CAROL_PUB)
     L.check("setconf: first peer endpoint, allowed IPv4+IPv6 prefixes and keepalive", not b.get("missing") and b.get("endpoint") == "192.0.2.9:5000" and b["ips"] == {"10.1.0.0/24", "fd01::/64"} and b["keepalive"] == 15, str(b))
     L.check("setconf: second peer endpoint and allowed prefix, no keepalive", not a.get("missing") and a.get("endpoint") == "198.51.100.4:6000" and a["ips"] == {"10.2.0.0/16"} and a["keepalive"] == 0, str(a))
     conf2 = CONF.split("[Peer]")[0] + "[Peer]" + CONF.split("[Peer]")[1].replace("10.1.0.0/24, fd01::/64", "10.7.0.0/16")
@@ -248,7 +252,7 @@ def sc_show():
     g = newdev()
     g.set("wg0", priv=ALICE_PRIV, port=51820, fwmark=0x1234, peers=[
         {"public": BOB_PUB, "endpoint": ("192.0.2.9", 5000), "ips": ["10.0.0.0/24", "fd00::/64"], "keepalive": 25},
-        {"public": ALICE_PUB, "ips": []}])
+        {"public": CAROL_PUB, "ips": []}])
     d = g.get("wg0")
     L.check("show seed: independent encoder configured the device", d.get("port") == 51820 and len(d["peers"]) == 2 and d["public"] == ALICE_PUB, str(d))
     rc, out, err = wg("show", "wg0")
@@ -263,7 +267,7 @@ def sc_show():
     L.check("show prints no handshake or transfer line while both are zero", "latest handshake" not in out and "transfer:" not in out, out)
     expected = ("interface: wg0\n  public key: %s\n  private key: (hidden)\n  listening port: 51820\n  fwmark: 0x1234\n\n"
                 "peer: %s\n  endpoint: 192.0.2.9:5000\n  allowed ips: 10.0.0.0/24, fd00::/64\n  persistent keepalive: every 25 seconds\n\n"
-                "peer: %s\n  allowed ips: (none)\n") % (b64(ALICE_PUB), b64(BOB_PUB), b64(ALICE_PUB))
+                "peer: %s\n  allowed ips: (none)\n") % (b64(ALICE_PUB), b64(BOB_PUB), b64(CAROL_PUB))
     L.check("show full output equals the wg(8) contract text for the configured state", out == expected, "got=%r want=%r" % (out, expected))
 
 

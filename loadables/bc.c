@@ -33,6 +33,8 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
+#include <signal.h>
+#include <termios.h>
 
 #include "loadables.h"
 
@@ -1281,6 +1283,7 @@ typedef struct {
     int    fd;
     int    eof;         /* input is exhausted */
     int    error;       /* errno of a failed read, or 0 */
+    int    edit;        /* stdin is a terminal: readline, one line at a time */
     size_t pos;
     size_t len;
     char   buf[4096];
@@ -1292,6 +1295,7 @@ bc_input_init (bc_input *in, int fd)
     in->fd = fd;
     in->eof = 0;
     in->error = 0;
+    in->edit = 0;
     in->pos = 0;
     in->len = 0;
 }
@@ -1348,6 +1352,421 @@ bc_input_line (bc_input *in, char **line, size_t *cap)
     return (ssize_t) used;
 }
 
+/* Interactive terminal session.  GNU bc calls readline only when stdin and
+   stdout are both terminals.  The editor below is that subset: emacs
+   Ctrl-B / Ctrl-D, Up history, and bracketed paste.  It does not link
+   libreadline.  History lives only for this invocation. */
+static volatile sig_atomic_t bc_got_sigint;
+static volatile sig_atomic_t bc_in_editor;
+static int bc_interactive;
+static int bc_int_saved;
+static struct sigaction bc_old_int;
+static struct termios bc_term_saved;
+static int bc_term_have;
+static int bc_term_raw_on;
+
+#define BC_ED_MAX 4095
+
+typedef struct { char *s; int n; } bc_hist_ent;
+static bc_hist_ent *bc_hist;
+static int bc_hist_n, bc_hist_cap;
+static unsigned char bc_ed_stash[1024];
+static int bc_ed_sn, bc_ed_sp;
+
+static void
+bc_on_sigint (int sig)
+{
+    const char msg[] = "\n(interrupt) use quit to exit.\n";
+    (void) sig;
+    bc_got_sigint = 1;
+    if (bc_in_editor) {
+        ssize_t w = write (STDOUT_FILENO, msg, sizeof msg - 1);
+        (void) w;
+    }
+}
+
+static void
+bc_tty_enter (void)
+{
+    struct sigaction sa;
+    memset (&sa, 0, sizeof sa);
+    sa.sa_handler = bc_on_sigint;
+    sigemptyset (&sa.sa_mask);
+    sa.sa_flags = 0;                 /* no SA_RESTART: read returns EINTR */
+    if (sigaction (SIGINT, &sa, &bc_old_int) == 0)
+        bc_int_saved = 1;
+    bc_interactive = 1;
+}
+
+static void
+bc_tty_leave (void)
+{
+    bc_in_editor = 0;
+    if (bc_term_raw_on && bc_term_have)
+        tcsetattr (STDIN_FILENO, TCSANOW, &bc_term_saved);
+    bc_term_raw_on = 0;
+    bc_term_have = 0;
+    if (bc_int_saved) {
+        sigaction (SIGINT, &bc_old_int, NULL);
+        bc_int_saved = 0;
+    }
+    /* A SIGINT handled here must not QUIT the shell when bc returns. */
+    if (bc_interactive)
+        interrupt_state = 0;
+    bc_interactive = 0;
+    bc_got_sigint = 0;
+    for (int i = 0; i < bc_hist_n; i++) free (bc_hist[i].s);
+    free (bc_hist);
+    bc_hist = NULL;
+    bc_hist_n = bc_hist_cap = 0;
+    bc_ed_sn = bc_ed_sp = 0;
+}
+
+static void
+bc_write_all (const void *buf, size_t n)
+{
+    const char *p = buf;
+    while (n) {
+        ssize_t w = write (STDOUT_FILENO, p, n);
+        if (w < 0) {
+            if (errno == EINTR) continue;
+            return;
+        }
+        if (w == 0) return;
+        p += w;
+        n -= (size_t) w;
+    }
+}
+
+static int
+bc_term_raw (int fd)
+{
+    struct termios t;
+
+    if (!bc_term_have) {
+        if (tcgetattr (fd, &bc_term_saved) < 0) return 0;
+        bc_term_have = 1;
+    }
+    t = bc_term_saved;
+    /* OPOST off so an editor CR LF is not doubled.  ICRNL off so CR arrives
+       as CR.  ISIG stays on so Ctrl-C is SIGINT.  ECHO off so the kernel
+       does not echo beside the editor. */
+    t.c_iflag &= ~(ICRNL | INLCR | IGNCR | ISTRIP | IXON);
+    t.c_oflag &= ~(OPOST);
+    t.c_lflag &= ~(ICANON | ECHO | ECHONL | IEXTEN);
+    t.c_lflag |= ISIG;
+    t.c_cc[VMIN] = 1;
+    t.c_cc[VTIME] = 0;
+    if (tcsetattr (fd, TCSANOW, &t) < 0) return 0;
+    bc_term_raw_on = 1;
+    return 1;
+}
+
+static void
+bc_deprep (void)
+{
+    /* Same bytes GNU readline writes when bracketed paste turns off. */
+    bc_write_all ("\x1b[?2004l\r", 9);
+    if (bc_term_raw_on && bc_term_have) {
+        tcsetattr (STDIN_FILENO, TCSANOW, &bc_term_saved);
+        bc_term_raw_on = 0;
+    }
+}
+
+static void
+bc_hist_add (const char *s, int n)
+{
+    if (n <= 0) return;
+    if (bc_hist_n == bc_hist_cap) {
+        if (bc_hist_cap >= 512) {
+            free (bc_hist[0].s);
+            memmove (bc_hist, bc_hist + 1, (size_t) (bc_hist_n - 1) * sizeof *bc_hist);
+            bc_hist_n--;
+        } else {
+            int cap = bc_hist_cap ? bc_hist_cap * 2 : 16;
+            bc_hist_ent *p = realloc (bc_hist, (size_t) cap * sizeof *p);
+            if (!p) return;
+            bc_hist = p;
+            bc_hist_cap = cap;
+        }
+    }
+    char *c = malloc ((size_t) n + 1);
+    if (!c) return;
+    memcpy (c, s, (size_t) n);
+    c[n] = '\0';
+    bc_hist[bc_hist_n].s = c;
+    bc_hist[bc_hist_n].n = n;
+    bc_hist_n++;
+}
+
+/* Replace the displayed line.  An empty prompt at column 0 is only the new
+   text; anything else is CR, the text, and erase-to-end. */
+static void
+bc_ed_set (char *line, int *len, int *pos, const char *s, int n)
+{
+    if (n < 0) n = 0;
+    if (n > BC_ED_MAX) n = BC_ED_MAX;
+    if (*len == 0 && *pos == 0) {
+        if (n) bc_write_all (s, (size_t) n);
+    } else {
+        bc_write_all ("\r", 1);
+        if (n) bc_write_all (s, (size_t) n);
+        bc_write_all ("\x1b[K", 3);
+    }
+    if (n) memcpy (line, s, (size_t) n);
+    *len = n;
+    *pos = n;
+}
+
+static void
+bc_ed_insert (char *line, int *len, int *pos, int ch)
+{
+    int p = *pos, n = *len;
+    char c = (char) ch;
+    if (n >= BC_ED_MAX) return;
+    memmove (line + p + 1, line + p, (size_t) (n - p));
+    line[p] = c;
+    *len = n + 1;
+    *pos = p + 1;
+    if (p == n) {
+        bc_write_all (&c, 1);
+        return;
+    }
+    bc_write_all (line + p, (size_t) (*len - p));
+    for (int i = 0; i < *len - *pos; i++) bc_write_all ("\b", 1);
+}
+
+static void
+bc_ed_del_under (char *line, int *len, int *pos)
+{
+    int p = *pos, n = *len, tail;
+    if (p >= n) return;
+    memmove (line + p, line + p + 1, (size_t) (n - p - 1));
+    *len = n - 1;
+    if (p == n - 1) {
+        /* The deleted character was the last one on the line. */
+        bc_write_all ("\x1b[K", 3);
+        return;
+    }
+    tail = *len - p;
+    if (tail > 0) bc_write_all (line + p, (size_t) tail);
+    bc_write_all ("\x1b[K", 3);
+    for (int i = 0; i < tail; i++) bc_write_all ("\b", 1);
+}
+
+static void
+bc_ed_backspace (char *line, int *len, int *pos)
+{
+    int p = *pos, n = *len, tail;
+    if (p <= 0) return;
+    p--;
+    memmove (line + p, line + p + 1, (size_t) (n - p - 1));
+    *len = n - 1;
+    *pos = p;
+    bc_write_all ("\b", 1);
+    tail = *len - p;
+    if (tail > 0) bc_write_all (line + p, (size_t) tail);
+    bc_write_all ("\x1b[K", 3);
+    for (int i = 0; i < tail; i++) bc_write_all ("\b", 1);
+}
+
+static int
+bc_ed_get (int fd, unsigned char *out)
+{
+    for (;;) {
+        if (bc_ed_sp < bc_ed_sn) {
+            *out = bc_ed_stash[bc_ed_sp++];
+            return 1;
+        }
+        if (bc_got_sigint) return -2;
+        ssize_t n = read (fd, bc_ed_stash, sizeof bc_ed_stash);
+        if (n < 0) {
+            if (errno == EINTR) {
+                if (bc_got_sigint) return -2;
+                continue;
+            }
+            return -1;
+        }
+        if (n == 0) return 0;
+        bc_ed_sn = (int) n;
+        bc_ed_sp = 0;
+        *out = bc_ed_stash[bc_ed_sp++];
+        return 1;
+    }
+}
+
+/* One edited line, plus a newline, into IN.  1 when a line is ready, 0 at
+   EOF or a read error, -1 when the terminal cannot be put in raw mode. */
+static int
+bc_edit_fill (bc_input *in)
+{
+    char line[BC_ED_MAX + 1];
+    int len = 0, pos = 0, hidx = bc_hist_n;
+    int st = 0;                  /* 0 norm, 1 esc, 2 csi, 3 ss3, 4 paste,
+                                    5 paste-esc, 6 paste-csi */
+    char csi[16];
+    int csi_n = 0;
+    char *draft = NULL;
+    int draft_n = 0;
+    int rc = 0, err = 0;
+
+    if (!bc_term_raw (in->fd)) return -1;
+    fflush (stdout);
+    bc_write_all ("\x1b[?2004h", 8);
+    bc_in_editor = 1;
+
+    for (;;) {
+        unsigned char ch;
+        int g, nav = 0;          /* 1 up, 2 down, 3 right, 4 left */
+
+        if (bc_got_sigint) {
+            bc_got_sigint = 0;
+            interrupt_state = 0;
+            len = pos = 0;
+            hidx = bc_hist_n;
+            free (draft);
+            draft = NULL;
+            draft_n = 0;
+            st = 0;
+            bc_ed_sn = bc_ed_sp = 0;
+            continue;
+        }
+        g = bc_ed_get (in->fd, &ch);
+        if (g == -2) continue;
+        if (g <= 0) { err = g < 0 ? errno : 0; break; }
+
+        if (st == 4) {                               /* bracketed paste */
+            if (ch == 0x1b) { st = 5; continue; }
+            bc_ed_insert (line, &len, &pos, ch == '\r' ? '\n' : ch);
+            continue;
+        }
+        if (st == 5) {
+            if (ch == '[') { st = 6; csi_n = 0; continue; }
+            bc_ed_insert (line, &len, &pos, 0x1b);
+            st = 4;
+            bc_ed_insert (line, &len, &pos, ch == '\r' ? '\n' : ch);
+            continue;
+        }
+        if (st == 6) {
+            if (ch >= 0x40 && ch <= 0x7e) {
+                int end = (ch == '~' && csi_n == 3
+                           && csi[0] == '2' && csi[1] == '0' && csi[2] == '1');
+                if (end) st = 0;
+                else {
+                    bc_ed_insert (line, &len, &pos, 0x1b);
+                    bc_ed_insert (line, &len, &pos, '[');
+                    for (int i = 0; i < csi_n; i++)
+                        bc_ed_insert (line, &len, &pos, (unsigned char) csi[i]);
+                    bc_ed_insert (line, &len, &pos, ch);
+                    st = 4;
+                }
+            } else if (csi_n < (int) sizeof csi) {
+                csi[csi_n++] = (char) ch;
+            } else {
+                st = 4;
+            }
+            continue;
+        }
+        if (st == 1) {                               /* ESC */
+            if (ch == '[') { st = 2; csi_n = 0; continue; }
+            if (ch == 'O') { st = 3; continue; }
+            st = 0;
+        }
+        if (st == 3) {                               /* SS3 arrows */
+            st = 0;
+            if (ch == 'A') nav = 1;
+            else if (ch == 'B') nav = 2;
+            else if (ch == 'C') nav = 3;
+            else if (ch == 'D') nav = 4;
+            else continue;
+        }
+        if (st == 2) {                               /* CSI */
+            if (ch >= 0x40 && ch <= 0x7e) {
+                int arrow = (csi_n == 0 || (csi_n == 1 && csi[0] == '0'));
+                int paste = (ch == '~' && csi_n == 3
+                             && csi[0] == '2' && csi[1] == '0' && csi[2] == '0');
+                st = 0;
+                if (paste) { st = 4; continue; }
+                if (arrow && ch == 'A') nav = 1;
+                else if (arrow && ch == 'B') nav = 2;
+                else if (arrow && ch == 'C') nav = 3;
+                else if (arrow && ch == 'D') nav = 4;
+                else continue;
+            } else if (csi_n < (int) sizeof csi) {
+                csi[csi_n++] = (char) ch;
+                continue;
+            } else {
+                st = 0;
+                continue;
+            }
+        }
+
+        if (nav == 0 && (ch == '\r' || ch == '\n')) { rc = 1; break; }
+        if (nav == 4 || (nav == 0 && ch == 0x02)) {  /* Left / Ctrl-B */
+            if (pos > 0) { pos--; bc_write_all ("\b", 1); }
+            continue;
+        }
+        if (nav == 3 || (nav == 0 && ch == 0x06)) {  /* Right / Ctrl-F */
+            if (pos < len) { bc_write_all (line + pos, 1); pos++; }
+            continue;
+        }
+        if (nav == 0 && ch == 0x04) {                /* Ctrl-D */
+            if (len == 0) break;
+            bc_ed_del_under (line, &len, &pos);
+            continue;
+        }
+        if (nav == 0 && (ch == 0x7f || ch == 0x08)) {
+            bc_ed_backspace (line, &len, &pos);
+            continue;
+        }
+        if (nav == 1 || nav == 2) {                  /* Up / Down */
+            if (nav == 1) {
+                if (bc_hist_n == 0) continue;
+                if (hidx == bc_hist_n && !draft) {
+                    draft = malloc ((size_t) len + 1);
+                    if (draft) {
+                        if (len) memcpy (draft, line, (size_t) len);
+                        draft[len] = '\0';
+                        draft_n = len;
+                    }
+                }
+                if (hidx == 0) continue;
+                hidx--;
+                bc_ed_set (line, &len, &pos, bc_hist[hidx].s, bc_hist[hidx].n);
+            } else {
+                if (hidx >= bc_hist_n) continue;
+                hidx++;
+                if (hidx == bc_hist_n)
+                    bc_ed_set (line, &len, &pos, draft ? draft : "", draft_n);
+                else
+                    bc_ed_set (line, &len, &pos, bc_hist[hidx].s, bc_hist[hidx].n);
+            }
+            continue;
+        }
+        if (ch >= 0x20)
+            bc_ed_insert (line, &len, &pos, ch);
+    }
+
+    bc_in_editor = 0;
+    if (rc) {
+        /* CR LF while OPOST is still off, then paste-off and cooked mode,
+           so the number bc prints next is translated by ONLCR exactly once. */
+        bc_write_all ("\r\n", 2);
+        bc_deprep ();
+        if (len > 0) bc_hist_add (line, len);
+        memcpy (in->buf, line, (size_t) len);
+        in->buf[len] = '\n';
+        in->pos = 0;
+        in->len = (size_t) len + 1;
+    } else {
+        bc_deprep ();
+        in->eof = 1;
+        if (err) in->error = err;
+    }
+    free (draft);
+    return rc;
+}
+
 /* Read more bytes when the buffer is empty.  Returns 0 at end of input or
    after a read error (recorded in IN), 1 when a byte is available. */
 static int
@@ -1357,9 +1776,17 @@ bc_input_fill (bc_input *in)
 
     if (in->pos < in->len) return 1;
     if (in->eof) return 0;
+    if (in->edit) {
+        int edited = bc_edit_fill (in);
+        if (edited >= 0) return edited;
+        in->edit = 0;            /* no raw mode: read the descriptor plainly */
+    }
     do
         got = read (in->fd, in->buf, sizeof in->buf);
-    while (got < 0 && errno == EINTR && !interrupt_state && !terminating_signal);
+    while (got < 0 && errno == EINTR && !interrupt_state && !terminating_signal
+           && !bc_got_sigint);
+    if (got < 0 && bc_got_sigint && !interrupt_state && !terminating_signal)
+        return 0;
     if (got < 0) { in->eof = 1; in->error = errno; return 0; }
     if (got == 0) { in->eof = 1; return 0; }
     in->pos = 0;
@@ -1788,6 +2215,7 @@ typedef struct {
     int        failed;   /* a syntax or runtime error was reported */
     int        fatal;    /* I/O or implementation resource failure */
     int        stop;     /* halt, quit, interrupt or output failure */
+    int        intr;     /* interactive SIGINT: abandon this item only */
     bc_out     out;
     bc_input  *stdin_in;
     bc_src    *src;      /* the source being read, for diagnostics */
@@ -2180,7 +2608,10 @@ bc_skip_continuation (bc_src *s)
             ssize_t got;
             do
                 got = read (in->fd, in->buf + in->len, sizeof in->buf - in->len);
-            while (got < 0 && errno == EINTR && !interrupt_state && !terminating_signal);
+            while (got < 0 && errno == EINTR && !interrupt_state && !terminating_signal
+                   && !bc_got_sigint);
+            if (got < 0 && bc_got_sigint && !interrupt_state && !terminating_signal)
+                return 0;
             if (got < 0) { in->eof = 1; in->error = errno; return 0; }
             if (got == 0) { in->eof = 1; return 0; }
             in->len += (size_t) got;
@@ -2200,6 +2631,8 @@ typedef struct {
     int        have;           /* tok holds an unconsumed token */
     bc_tok     tok;
     int        err;            /* a syntax error was reported in this item */
+    int        suppress;       /* further diagnostics in this item stay quiet */
+    int        steps;          /* tokens consumed; recovery uses this to move */
     int        quit;
     int        in_func, func_void, loops;
     int        stray_arrays;   /* NAME[] outside an argument list */
@@ -2212,7 +2645,7 @@ typedef struct {
 static void
 bc_lex_error (bc_parser *p, int line, const char *msg)
 {
-    if (!p->err) bc_syntax_msg (p->ip, line, msg);
+    if (!p->err && !p->suppress) bc_syntax_msg (p->ip, line, msg);
 }
 
 static void
@@ -2244,10 +2677,18 @@ bc_lex (bc_parser *p, bc_tok *t)
                     ssize_t got;
                     do
                         got = read (in->fd, in->buf + in->len, sizeof in->buf - in->len);
-                    while (got < 0 && errno == EINTR && !interrupt_state && !terminating_signal);
-                    if (got < 0) { in->eof = 1; in->error = errno; }
-                    else if (got == 0) in->eof = 1;
-                    else in->len += (size_t) got;
+                    while (got < 0 && errno == EINTR && !interrupt_state && !terminating_signal
+                           && !bc_got_sigint);
+                    if (got < 0) {
+                        if (!(bc_got_sigint && !interrupt_state && !terminating_signal)) {
+                            in->eof = 1;
+                            in->error = errno;
+                        }
+                    } else if (got == 0) {
+                        in->eof = 1;
+                    } else {
+                        in->len += (size_t) got;
+                    }
                 }
                 comment = in->pos + 1 < in->len && in->buf[in->pos + 1] == '*';
             } else {
@@ -2411,6 +2852,7 @@ bc_consume (bc_parser *p)
     bc_peek_tok (p);
     bc_tok_free (&p->tok);
     p->have = 0;
+    p->steps++;
 }
 
 /* Take the current token's text, leaving the token consumed. */
@@ -2423,20 +2865,27 @@ bc_take_text (bc_parser *p, size_t *len)
     if (text == p->tok.sbuf) text = strdup (text);
     p->tok.text = NULL;
     p->have = 0;
+    p->steps++;
     return text;
 }
 
 static void
 bc_syntax_error (bc_parser *p)
 {
-    if (!p->err) bc_syntax_msg (p->ip, p->src->line, "syntax error");
+    if (!p->err && !p->suppress) {
+        bc_syntax_msg (p->ip, p->src->line, "syntax error");
+        p->suppress = 1;
+    }
     p->err = 1;
 }
 
 static void
 bc_semantic_error (bc_parser *p, const char *msg)
 {
-    if (!p->err) bc_syntax_msg (p->ip, p->src->line, msg);
+    if (!p->err && !p->suppress) {
+        bc_syntax_msg (p->ip, p->src->line, msg);
+        p->suppress = 1;
+    }
     p->err = 1;
 }
 
@@ -3127,7 +3576,19 @@ bc_to_long (const bc_num *v, long limit, int *big)
 static int
 bc_check_interrupt (bc_interp *ip)
 {
-    if (interrupt_state || terminating_signal) {
+    /* On a terminal, SIGINT stops the program in progress and returns to
+       the prompt.  A pipe keeps the shell's handler: stop, then QUIT. */
+    if (terminating_signal) {
+        ip->stop = 1;
+        return 1;
+    }
+    if (bc_interactive && (bc_got_sigint || ip->intr)) {
+        bc_got_sigint = 0;
+        interrupt_state = 0;
+        ip->intr = 1;
+        return 1;
+    }
+    if (interrupt_state) {
         ip->stop = 1;
         return 1;
     }
@@ -3932,6 +4393,76 @@ bc_run_item (bc_interp *ip, bc_node *list)
 
 /* ---- driver ------------------------------------------------------ */
 
+/* A token that can begin a statement.  `define` is an input item of its
+   own, so a following function stays unconsumed for the next item. */
+static int
+bc_stmt_start (int type)
+{
+    switch (type) {
+    case '{': case '(': case '-': case '!':
+    case T_INC: case T_DEC: case T_NUM: case T_NAME: case T_STR:
+    case T_IF: case T_WHILE: case T_FOR:
+    case T_BREAK: case T_CONTINUE: case T_QUIT: case T_HALT: case T_RETURN:
+    case T_LIMITS: case T_WARRANTY: case T_PRINT:
+    case T_SCALE: case T_IBASE: case T_OBASE: case T_LAST:
+    case T_LENGTH: case T_SQRT: case T_READ:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+/* GNU bc: before a ';', `error NL` ends the item and the next line runs.
+   After a completed statement and ';', only `error statement` applies, so
+   a newline is discarded and one statement is consumed with the bad item.
+   Returns 1 when this item is finished. */
+static int
+bc_recover (bc_parser *p, int after_semi)
+{
+    int guard = 0;
+
+    p->suppress = 1;
+    while (guard++ < 1000000) {
+        int type = bc_peek_type (p);
+        int mark, saved_quit, fatal_now;
+
+        if (type == T_EOF || type == T_DEFINE) return 1;
+        if (!after_semi && type == T_NL) {
+            bc_consume (p);
+            return 1;
+        }
+        if (!bc_stmt_start (type)) {
+            bc_consume (p);
+            continue;
+        }
+        mark = p->steps;
+        saved_quit = p->quit;
+        fatal_now = p->ip->fatal;
+        p->err = 0;
+        bc_parse_stmt (p);
+        p->quit = saved_quit;            /* a discarded quit does not stop */
+        if (p->ip->fatal && !fatal_now) return 1;
+        if (!p->err) return 0;
+        if (p->steps == mark) {
+            type = bc_peek_type (p);
+            if (type == T_EOF || type == T_DEFINE) return 1;
+            bc_consume (p);
+        }
+    }
+    return 1;
+}
+
+static void
+bc_note_execution_intr (bc_interp *ip)
+{
+    ip->intr = 0;
+    bc_got_sigint = 0;
+    interrupt_state = 0;
+    bc_out_flush (&ip->out);
+    fflush (stdout);
+    bc_write_all ("\ninterrupted execution.\n", 24);
+}
+
 /* Parse and run every item of one source.  Returns 0 normally, 1 when bc
    should stop (quit, halt, interrupt, output failure). */
 static int
@@ -3946,10 +4477,11 @@ bc_run_source (bc_interp *ip, bc_src *src)
     while (!ip->stop) {
         bc_arena arena = { NULL };
         bc_node *list = NULL, **tail = &list;
-        int type;
+        int type, tainted = 0, fatal_before = ip->fatal;
 
         p.arena = &arena;
         p.err = 0;
+        p.suppress = 0;
         p.stray_arrays = 0;
         p.void_calls = 0;
         p.loops = 0;
@@ -3959,20 +4491,46 @@ bc_run_source (bc_interp *ip, bc_src *src)
         if (type == T_EOF && !p.err) { bc_arena_free (&arena); break; }
         if (type == T_DEFINE) {
             bc_parse_define (&p);
+            if (p.err) {
+                tainted = 1;
+                for (;;) {
+                    type = bc_peek_type (&p);
+                    if (type == T_EOF) break;
+                    bc_consume (&p);
+                    if (type == T_NL) break;
+                }
+            }
         } else {
             /* statements separated by ';' up to a newline or the end */
+            int after_semi = 0;
             for (;;) {
+                bc_node *s;
+                if (p.quit || ip->fatal) break;
                 type = bc_peek_type (&p);
-                if (p.err || p.quit) break;
-                if (type == ';') { bc_consume (&p); continue; }
-                if (type == T_NL) { bc_consume (&p); break; }
                 if (type == T_EOF) break;
-                bc_node *s = bc_parse_stmt (&p);
-                if (!s) break;
-                *tail = s;
-                tail = &s->next;
+                if (type == T_NL) { bc_consume (&p); break; }
+                if (type == ';') { bc_consume (&p); after_semi = 1; continue; }
+                if (type == T_DEFINE) break;
+                s = bc_parse_stmt (&p);
+                if (p.quit || ip->fatal) break;
+                if (!s || p.err) {
+                    tainted = 1;
+                    if (bc_recover (&p, after_semi)) break;
+                    p.err = 0;
+                    continue;
+                }
+                if (!tainted) {
+                    *tail = s;
+                    tail = &s->next;
+                }
                 type = bc_peek_type (&p);
-                if (type != ';' && type != T_NL && type != T_EOF) { bc_syntax_error (&p); break; }
+                if (type != ';' && type != T_NL && type != T_EOF) {
+                    bc_syntax_error (&p);
+                    tainted = 1;
+                    if (bc_recover (&p, after_semi)) break;
+                    p.err = 0;
+                    continue;
+                }
             }
         }
 
@@ -3981,18 +4539,31 @@ bc_run_source (bc_interp *ip, bc_src *src)
             ip->stop = 1;
             break;
         }
-        if (p.err) {
-            /* recover at the next newline, as GNU bc does */
-            for (;;) {
-                type = bc_peek_type (&p);
-                if (type == T_EOF) break;
-                bc_consume (&p);
-                if (type == T_NL) break;
+        /* A parse failure (out of memory) must not spin on the same token.
+           A fatal error from an earlier item does not cancel this one. */
+        if (ip->fatal && !fatal_before) {
+            bc_arena_free (&arena);
+            ip->stop = 1;
+            break;
+        }
+        if (tainted || p.err) {
+            if (p.err && !tainted) {
+                for (;;) {
+                    type = bc_peek_type (&p);
+                    if (type == T_EOF) break;
+                    bc_consume (&p);
+                    if (type == T_NL) break;
+                }
             }
             bc_arena_free (&arena);
             continue;
         }
-        if (bc_check_interrupt (ip)) { bc_arena_free (&arena); break; }
+        if (bc_check_interrupt (ip)) {
+            bc_arena_free (&arena);
+            if (ip->stop || !ip->intr) break;
+            bc_note_execution_intr (ip);
+            continue;
+        }
 
         ip->err = 0;
         ip->func = NULL;
@@ -4009,7 +4580,15 @@ bc_run_source (bc_interp *ip, bc_src *src)
                 ip->stop = 1;
             }
         }
-        if (bc_check_interrupt (ip)) break;
+        if (ip->stop) break;
+        if (ip->intr || (bc_interactive && bc_got_sigint)) {
+            bc_note_execution_intr (ip);
+            continue;
+        }
+        if (bc_check_interrupt (ip)) {
+            if (ip->stop || !ip->intr) break;
+            bc_note_execution_intr (ip);
+        }
     }
     if (p.have) bc_tok_free (&p.tok);
     if (src->in && src->in->error) {
@@ -4207,6 +4786,13 @@ bc_builtin (WORD_LIST *list)
     else if (read_stdin_after == 0)
         read_stdin_after = had_files && !had_e;
 
+    /* -i does not force the editor on a pipe.  Both ends must be terminals,
+       which is when GNU bc installs readline. */
+    if (isatty (STDIN_FILENO) && isatty (STDOUT_FILENO)) {
+        input.edit = 1;
+        bc_tty_enter ();
+    }
+
     for (int k = 0; k < nops && !ip->stop; k++) {
         if (ops[k].kind == 'e') {
             bc_src src = { NULL, ops[k].text, strlen (ops[k].text), 0,
@@ -4239,6 +4825,7 @@ bc_builtin (WORD_LIST *list)
 
     bc_out_flush (&ip->out);
     if (ip->fatal || (strict_errors && ip->failed)) rc = EXECUTION_FAILURE;
+    bc_tty_leave ();
     {
         int interrupted = interrupt_state || terminating_signal;
         bc_interp_free (ip);
@@ -4283,6 +4870,8 @@ char *bc_doc[] = {
     "                    arctangent, natural log, exponential, Bessel)",
     "    -e EXPR         run EXPR;  -f FILE  run FILE (- is standard input)",
     "    -q -s -w -i     accepted for compatibility; -h help; -v version",
+    "    On a terminal, input is edited (Ctrl-B, Ctrl-D, Up history,",
+    "    bracketed paste).  History lasts for this invocation only.",
     "",
     "    BC_LINE_LENGTH (exported) sets the output line length; 0 disables",
     "    line splitting.  Recovered syntax and runtime errors leave status",

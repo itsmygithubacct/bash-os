@@ -18,11 +18,11 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "setup_script": "mkfifo w.fifo\n",
       "setup_timeout": 10,
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r1 5810\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" --cert-ca acme-ca-5810.pem -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r1 5810\n",
       "diagnostic_files": [
         "acme-5810.json",
         "acme-5811.json",
@@ -53,11 +53,11 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "setup_script": "mkfifo w.fifo\n",
       "setup_timeout": 10,
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r2 5810\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" --cert-ca acme-ca-5810.pem -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r2 5810\n",
       "diagnostic_files": [
         "acme-5810.json",
         "acme-5811.json",
@@ -88,11 +88,11 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "setup_script": "mkfifo w.fifo\n",
       "setup_timeout": 10,
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\necho \"account-url=$(< out.txt)\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r3 5810\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme account --allow-http --directory \"$U/directory\" -k \"$K\" > out.txt 2> err.txt; echo \"candidate-rc=$?\"\necho \"account-url=$(< out.txt)\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r3 5810\n",
       "diagnostic_files": [
         "acme-5810.json",
         "acme-5811.json",
@@ -123,11 +123,11 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "setup_script": "mkfifo w.fifo\n",
       "setup_timeout": 10,
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r4 5810\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" --cert-ca acme-ca-5810.pem -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r4 5810\n",
       "diagnostic_files": [
         "acme-5810.json",
         "acme-5811.json",
@@ -158,11 +158,11 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "setup_script": "mkfifo w.fifo\n",
       "setup_timeout": 10,
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r5 5810\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" --cert-ca acme-ca-5810.pem -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r5 5810\n",
       "diagnostic_files": [
         "acme-5810.json",
         "acme-5811.json",
@@ -193,11 +193,11 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "setup_script": "mkfifo w.fifo\n",
       "setup_timeout": 10,
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r6 5810\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" --cert-ca acme-ca-5810.pem -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r6 5810\n",
       "diagnostic_files": [
         "acme-5810.json",
         "acme-5811.json",
@@ -228,11 +228,11 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "setup_script": "mkfifo w.fifo\n",
       "setup_timeout": 10,
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r7 5810\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" --cert-ca acme-ca-5810.pem -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r7 5810\n",
       "diagnostic_files": [
         "acme-5810.json",
         "acme-5811.json",
@@ -256,30 +256,36 @@
         "acme/acme-protocol-lifecycle-deferred"
       ],
       "purpose": "The whole protocol run contacts only the private local peer with fixture-only keys.",
-      "oracle": "RFC 8555 requirements enforced by a local Python mock CA (ES256 JWS validation, nonce accounting, kid/jwk rules, POST-as-GET, CSR parsing, http-01 fetch); a Python control client first completes the whole lifecycle against a separate mock instance so the oracle is shown to accept a correct client.",
-      "comparison": "Run one full lifecycle against the isolated fixture; assert candidate status and the relevant independent oracle. Historical r10 failures remain separate preserved evidence.",
+      "oracle": "RFC 8555 requirements enforced by a local Python mock CA (ES256 JWS validation, nonce accounting, kid/jwk rules, POST-as-GET, CSR parsing, http-01 fetch); a Python control client first completes the whole lifecycle against a separate mock instance so the oracle is shown to accept a correct client. A loopback packet socket records the candidate's real TCP requests and every SYN destination.",
+      "comparison": "Inside a fresh user and network namespace, sniff loopback for the candidate run. Pass only when the captured requests match the peer log byte-for-byte by body hash, every SYN stays on the fixture ports, and the capture is complete. Historical r10 failures remain separate preserved evidence.",
+      "features": [
+        "userns"
+      ],
       "requires": [
         "python3",
-        "mkfifo"
+        "mkfifo",
+        "unshare"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "setup_script": "mkfifo w.fifo\n",
       "setup_timeout": 10,
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r8 5810\n",
+      "script": "/usr/bin/unshare --user --map-root-user --net --fork \"$BASH\" --noprofile --norc -c '\nH=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\n/usr/bin/python3 \"$H\" lo-up || exit 1\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2>serve.err &\nsrv=$!\nobs=\ncleanup() { kill $obs $srv 2>/dev/null; wait $obs $srv 2>/dev/null; }\ntrap cleanup EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\n/usr/bin/python3 \"$H\" observe 5810 5812 acme-outbound.json obs-ready 2>obs.err &\nobs=$!\nfor i in {1..100}; do [[ -e obs-ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e obs-ready ]] || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" --cert-ca acme-ca-5810.pem -k \"$K\" --domain fixture.test --out issued >out.txt 2>err.txt\necho \"candidate-rc=$?\"\nkill \"$obs\"\nwait \"$obs\" || exit 1\nkill \"$srv\"\nwait \"$srv\" 2>/dev/null || true\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify r8 5810\n'\n",
       "diagnostic_files": [
         "acme-5810.json",
         "acme-5811.json",
+        "acme-outbound.json",
         "out.txt",
         "err.txt",
         "serve.err",
+        "obs.err",
         "issued/fullchain.pem"
       ],
       "expected_status": 0,
       "stdout": "control-ok\ncandidate-rc=0\nverified r8 failed=0\n",
       "stderr": "",
-      "timeout": 40
+      "timeout": 60
     },
     {
       "id": "acme-oracle-negative-controls-r1",
@@ -294,7 +300,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-acme.py oracle-selftest\n",
       "expected_status": 0,
@@ -315,7 +321,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "script": "if /usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w2-acme.py verify r1 5810 > oracle.txt; then exit 1; fi\nprintf \"empty-log-rejected\\n\"\n",
       "expected_status": 0,
@@ -337,11 +343,11 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "setup_script": "mkfifo w.fifo\n",
       "setup_timeout": 10,
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve-bad-nonce 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify retry 5810\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve-bad-nonce 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nacme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" --cert-ca acme-ca-5810.pem -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; echo \"candidate-rc=$?\"\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify retry 5810\n",
       "diagnostic_files": [
         "acme-5810.json",
         "acme-5811.json",
@@ -369,7 +375,7 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nmkfifo w.fifo\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control-invalid-challenge 5811 || exit 1\n/usr/bin/python3 \"$H\" verify invalid-challenge 5811 || exit 1\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\nif kill -0 \"$srv\" 2>/dev/null; then exit 1; fi\nprintf 'cleanup-ok\\n'\n",
       "diagnostic_files": [
@@ -395,7 +401,7 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nmkfifo w.fifo\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control-invalid-csr 5811 identifier || exit 1\n/usr/bin/python3 \"$H\" verify invalid-csr 5811 || exit 1\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\nif kill -0 \"$srv\" 2>/dev/null; then exit 1; fi\nprintf 'cleanup-ok\\n'\n",
       "diagnostic_files": [
@@ -421,7 +427,7 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nmkfifo w.fifo\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control-invalid-csr 5811 signature || exit 1\n/usr/bin/python3 \"$H\" verify invalid-csr 5811 || exit 1\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\nif kill -0 \"$srv\" 2>/dev/null; then exit 1; fi\nprintf 'cleanup-ok\\n'\n",
       "diagnostic_files": [
@@ -447,7 +453,7 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nmkfifo w.fifo\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control-invalid-csr 5811 malformed || exit 1\n/usr/bin/python3 \"$H\" verify invalid-csr 5811 || exit 1\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\nif kill -0 \"$srv\" 2>/dev/null; then exit 1; fi\nprintf 'cleanup-ok\\n'\n",
       "diagnostic_files": [
@@ -473,11 +479,11 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "setup_script": "mkfifo w.fifo\n",
       "setup_timeout": 10,
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve-bad-cert 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nif acme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; then echo candidate-incorrectly-accepted; exit 1; else echo candidate-rejected; fi\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify bad-certificate 5810\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve-bad-cert 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nif acme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" --cert-ca acme-ca-5810.pem -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; then echo candidate-incorrectly-accepted; exit 1; else echo candidate-rejected; fi\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify bad-certificate 5810\n",
       "diagnostic_files": [
         "acme-5810.json",
         "acme-5811.json",
@@ -583,7 +589,7 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae",
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc",
         "helpers/acme-owned-observer-r1.py": "7d2b828cc7cfcf339816dac5c1dde27660da2cd3d2dfbe9b285cba93faf1d6a1",
         "helpers/acme-observer-controls-r1.py": "fa8af4e60dd6ae47f6e8d45abcb0bd0c0cf80437fd9c13409b820ef6d9f2dda4",
         "helpers/clock254_guard.py": "6e40323524fac1bc4a0f4824b54190d0dc34989b02508fc972ae1b9c3c06e262"
@@ -619,11 +625,11 @@
         "mkfifo"
       ],
       "helpers_sha256": {
-        "helpers/mig-w2-acme.py": "079c349eb569023f9bb4aae7c5341e7a6020268724749c31460bdbc9782aafae"
+        "helpers/mig-w2-acme.py": "4d8c2cfd380dac828ecc54ea3b05481587c6b48dbdf91a6f4ba5706747787dcc"
       },
       "setup_script": "mkfifo w.fifo\n",
       "setup_timeout": 10,
-      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve-challenge-fault 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nif acme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; then echo candidate-incorrectly-accepted; exit 1; else echo candidate-rejected; fi\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify challenge-server-fault 5810\n",
+      "script": "H=/opt/bashos-parity/harness/helpers/mig-w2-acme.py\nexec 7<>w.fifo\n/usr/bin/python3 \"$H\" serve-challenge-fault 5811 5810 ready 2> serve.err &\nsrv=$!\ntrap 'kill \"$srv\" 2>/dev/null; wait \"$srv\" 2>/dev/null' EXIT\nfor i in {1..100}; do [[ -e ready ]] && break; read -t 0.05 -u 7 l; done\n[[ -e ready ]] || exit 1\n/usr/bin/python3 \"$H\" control 5811 || exit 1\nU=http://127.0.0.1:5810\nK=0000000000000000000000000000000000000000000000000000000000000001\nacme_run() { :; }\nif acme issue --allow-http --http-listen 127.0.0.1:5812 --directory \"$U/directory\" --cert-ca acme-ca-5810.pem -k \"$K\" --domain fixture.test --out issued > out.txt 2> err.txt; then echo candidate-incorrectly-accepted; exit 1; else echo candidate-rejected; fi\nkill \"$srv\"; wait \"$srv\" 2>/dev/null\ntrap - EXIT\n/usr/bin/python3 \"$H\" verify challenge-server-fault 5810\n",
       "diagnostic_files": [
         "acme-5810.json",
         "acme-5811.json",

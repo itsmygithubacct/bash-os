@@ -125,44 +125,6 @@ print_fixture_tokens (const char *name)
     return 1;
 }
 
-/* Keep all distinct results in discovery order, without a fixed result limit. */
-struct hostname_seen {
-    struct hostname_seen *next;
-    char value[1];
-};
-
-static int
-hostname_print_unique (struct hostname_seen **seen, const char *value)
-{
-    struct hostname_seen *entry;
-    size_t len;
-
-    for (entry = *seen; entry; entry = entry->next)
-        if (strcmp (entry->value, value) == 0)
-            return 0;
-    len = strlen (value);
-    entry = malloc (sizeof *entry + len);
-    if (!entry) {
-        builtin_error ("out of memory");
-        return -1;
-    }
-    memcpy (entry->value, value, len + 1);
-    printf ("%s%s", *seen ? " " : "", value);
-    entry->next = *seen;
-    *seen = entry;
-    return 0;
-}
-
-static void
-hostname_free_seen (struct hostname_seen *seen)
-{
-    while (seen) {
-        struct hostname_seen *next = seen->next;
-        free (seen);
-        seen = next;
-    }
-}
-
 int
 hostname_builtin (WORD_LIST *list)
 {
@@ -303,15 +265,18 @@ hostname_builtin (WORD_LIST *list)
         return EXECUTION_SUCCESS;
     }
 
-    if (all_ips) {
-        int frc = print_fixture_tokens ("ifaddrs");
+    if (all_ips || all_fqdns) {
+        int frc = print_fixture_tokens (all_ips ? "ifaddrs" : "fqdns");
         if (frc > 0)
             return EXECUTION_SUCCESS;
         if (frc < 0)
             return EXECUTION_FAILURE;
 
+        /* Debian hostname: -I and -A walk the up, non-loopback interface
+           addresses (IPv6 link-local excluded) in getifaddrs order. -I
+           prints each numerically; -A prints the reverse name of each that
+           has one, duplicates included. Every item is followed by a space. */
         struct ifaddrs *ifaddr = NULL;
-        int printed = 0;
         if (getifaddrs (&ifaddr) < 0) {
             builtin_error ("getifaddrs: %s", strerror (errno));
             return EXECUTION_FAILURE;
@@ -324,30 +289,25 @@ hostname_builtin (WORD_LIST *list)
                 continue;
 
             int family = ifa->ifa_addr->sa_family;
-            char addrbuf[INET6_ADDRSTRLEN];
-            const void *src = NULL;
-
+            socklen_t len;
             if (family == AF_INET) {
-                src = &((struct sockaddr_in *) ifa->ifa_addr)->sin_addr;
+                len = sizeof (struct sockaddr_in);
             } else if (family == AF_INET6) {
                 const struct in6_addr *a6 =
                     &((struct sockaddr_in6 *) ifa->ifa_addr)->sin6_addr;
-                if (IN6_IS_ADDR_LINKLOCAL (a6))
+                if (IN6_IS_ADDR_LINKLOCAL (a6) || IN6_IS_ADDR_MC_LINKLOCAL (a6))
                     continue;
-                src = a6;
+                len = sizeof (struct sockaddr_in6);
             } else {
                 continue;
             }
 
-            if (inet_ntop (family, src, addrbuf, sizeof addrbuf)) {
-                /* GNU `hostname -I` prints each address followed by a
-                   space (so the line ends with a trailing space). */
-                printf ("%s ", addrbuf);
-                printed = 1;
-            }
+            char buf[NI_MAXHOST];
+            if (getnameinfo (ifa->ifa_addr, len, buf, sizeof buf, NULL, 0,
+                             all_ips ? NI_NUMERICHOST : NI_NAMEREQD) == 0)
+                printf ("%s ", buf);
         }
         freeifaddrs (ifaddr);
-        (void) printed;
         putchar ('\n');
         return EXECUTION_SUCCESS;
     }
@@ -359,9 +319,11 @@ hostname_builtin (WORD_LIST *list)
         if (frc < 0)
             return EXECUTION_FAILURE;
 
-        /* GNU `hostname -i`: resolve the hostname and print its network
-           address(es), space-separated, with NO trailing space (unlike
-           -I). Resolution via getaddrinfo (matches /etc/hosts + DNS). */
+        /* Debian hostname -i: every address getaddrinfo returns for the
+           hostname, in its order and without removing repeats, printed
+           numerically (IPv6 scope included), space-separated with no
+           trailing space. A failed lookup prints the resolver's message
+           and fails. */
         char hostbuf[256];
         if (gethostname (hostbuf, sizeof hostbuf) < 0) {
             builtin_error ("gethostname: %s", strerror (errno));
@@ -374,79 +336,24 @@ hostname_builtin (WORD_LIST *list)
         hints.ai_family = AF_UNSPEC;
         hints.ai_socktype = SOCK_STREAM;
 
-        struct hostname_seen *seen = NULL;
-        int failed = 0;
-        if (getaddrinfo (hostbuf, NULL, &hints, &res) == 0) {
-            for (struct addrinfo *ai = res; ai; ai = ai->ai_next) {
-                char addrbuf[INET6_ADDRSTRLEN];
-                const void *src = NULL;
-                if (ai->ai_family == AF_INET)
-                    src = &((struct sockaddr_in *) ai->ai_addr)->sin_addr;
-                else if (ai->ai_family == AF_INET6)
-                    src = &((struct sockaddr_in6 *) ai->ai_addr)->sin6_addr;
-                else
-                    continue;
-                if (!inet_ntop (ai->ai_family, src, addrbuf, sizeof addrbuf))
-                    continue;
-                if (hostname_print_unique (&seen, addrbuf) < 0) {
-                    failed = 1;
-                    break;
-                }
-            }
-            freeaddrinfo (res);
-        }
-        hostname_free_seen (seen);
-        putchar ('\n');
-        return failed ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
-    }
-
-    if (all_fqdns) {
-        int frc = print_fixture_tokens ("fqdns");
-        if (frc > 0)
-            return EXECUTION_SUCCESS;
-        if (frc < 0)
-            return EXECUTION_FAILURE;
-
-        char hostbuf[256];
-        struct hostname_seen *seen = NULL;
-        int failed = 0;
-
-        if (gethostname (hostbuf, sizeof hostbuf) < 0) {
-            builtin_error ("gethostname: %s", strerror (errno));
+        int rc = getaddrinfo (hostbuf, NULL, &hints, &res);
+        if (rc != 0) {
+            fflush (stdout);
+            fprintf (stderr, "hostname: %s\n", gai_strerror (rc));
             return EXECUTION_FAILURE;
         }
-        hostbuf[sizeof hostbuf - 1] = '\0';
-
-        struct addrinfo hints;
-        struct addrinfo *res = NULL;
-        memset (&hints, 0, sizeof hints);
-        hints.ai_family = AF_UNSPEC;
-        hints.ai_socktype = SOCK_STREAM;
-        hints.ai_flags = AI_CANONNAME;
-
-        if (getaddrinfo (hostbuf, NULL, &hints, &res) == 0) {
-            for (struct addrinfo *ai = res; ai; ai = ai->ai_next) {
-                char namebuf[NI_MAXHOST];
-
-                if (ai->ai_canonname && strchr (ai->ai_canonname, '.') &&
-                    hostname_print_unique (&seen, ai->ai_canonname) < 0) {
-                    failed = 1;
-                    break;
-                }
-                if (getnameinfo (ai->ai_addr, ai->ai_addrlen,
-                                 namebuf, sizeof namebuf, NULL, 0,
-                                 NI_NAMEREQD) == 0 && strchr (namebuf, '.') &&
-                    hostname_print_unique (&seen, namebuf) < 0) {
-                    failed = 1;
-                    break;
-                }
-            }
-            freeaddrinfo (res);
+        int first = 1;
+        for (struct addrinfo *ai = res; ai; ai = ai->ai_next) {
+            char buf[NI_MAXHOST];
+            if (getnameinfo (ai->ai_addr, ai->ai_addrlen, buf, sizeof buf,
+                             NULL, 0, NI_NUMERICHOST) != 0)
+                continue;
+            printf ("%s%s", first ? "" : " ", buf);
+            first = 0;
         }
-
-        hostname_free_seen (seen);
+        freeaddrinfo (res);
         putchar ('\n');
-        return failed ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+        return EXECUTION_SUCCESS;
     }
 
     /* Print form. */

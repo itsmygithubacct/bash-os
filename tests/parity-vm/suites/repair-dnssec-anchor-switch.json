@@ -18,7 +18,7 @@
       "expected_status": 0,
       "group": "shell",
       "helpers_sha256": {
-        "helpers/dnssec-cname-chain-peer.py": "ddac6b6ae8f6231d5334f20feb67462272639f9e6cf148cfd544bc41e6b0a261"
+        "helpers/dnssec-cname-chain-peer.py": "ffc9bd13838b66e021662f9c35b0bd7ac0a9bbbaf263c550230997198a863b1d"
       },
       "id": "repair-dns-live-trust-anchor-switch-bounded-r15",
       "kind": "contract",

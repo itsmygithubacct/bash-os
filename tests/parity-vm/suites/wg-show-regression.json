@@ -27,7 +27,7 @@
       "timeout": 45,
       "helpers_sha256": {
         "helpers/wg-show-regression.py": "202334426bba26b4b7369339474e904edc3a01946e8debe98126b4e438e30c5c",
-        "helpers/mig-w1-wg.py": "bbd7f304cee2926825a4a2e55e811d4d5b9c96c059da50824fe960721dc16b48",
+        "helpers/mig-w1-wg.py": "6e6e99cfcf6a219e603ce8ceb4478981c5e61b6f61eadf3aea66e591834e1cca",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     }

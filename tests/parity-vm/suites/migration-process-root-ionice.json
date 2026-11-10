@@ -508,7 +508,7 @@
       "purpose": "command signal",
       "oracle": "Locked util-linux ionice, with independent Linux x86-64 ioprio_get/set read-back for fixture-owned processes.",
       "comparison": "Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
-      "script": "export PYTHONDONTWRITEBYTECODE=1\nionice -c 2 -n 4 /usr/bin/python3 -c 'import os,signal;os.kill(os.getpid(),signal.SIGTERM)'; printf \"status=%s\\n\" \"$?\"",
+      "script": "export PYTHONDONTWRITEBYTECODE=1\n{ ionice -c 2 -n 4 /usr/bin/python3 -c 'import os,signal;os.kill(os.getpid(),signal.SIGTERM)'; printf \"status=%s\\n\" \"$?\"; } 2>ionice-notice\nrm -f ionice-notice\n",
       "expected_status": 0,
       "requires": [
         "ionice",

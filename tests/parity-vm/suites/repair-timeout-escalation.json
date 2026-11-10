@@ -41,7 +41,7 @@
       ],
       "timeout": 12,
       "script": "{ timeout --foreground -k 0.2 0.6 /usr/bin/python3 -c 'import signal;signal.signal(signal.SIGTERM,signal.SIG_IGN);signal.alarm(8);signal.pause()'; rc=$?; } 2> launcher-diagnostic\nprintf 'status=%s\\ncontinued\\n' \"$rc\"; rm -f launcher-diagnostic",
-      "stdout": "status=124\ncontinued\n"
+      "stdout": "status=137\ncontinued\n"
     },
     {
       "id": "repair-timeout-escalation-foreground-preserve",

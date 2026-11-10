@@ -1,7 +1,7 @@
 {
   "version": 1,
   "loadable": "uudecode",
-  "reference": "Traditional uuencode 6-bit grouping and RFC 4648 supply independent fixed decode vectors. Python-free Bash assertions check file bytes and independent stat checks verify modes and lengths. No sharutils executable is available for direct CLI parity; malformed-input rejection is a separate documented contract.",
+  "reference": "Traditional uuencode 6-bit grouping and RFC 4648 supply independent fixed decode vectors. Python-free Bash assertions check file bytes and independent stat checks verify modes and lengths. No sharutils executable is available to this runner; the malformed-input contracts follow GNU sharutils uudecode statuses and kept partial output, which the mig-w8-uudecode parity cases compare on the extended guest image. A zero-length base64 line stays status 2. GNU sharutils exits 8 for that line because fwrite of a zero-length buffer fails its check; that status-8 result is not copied.",
   "coverage": [
     "Traditional uuencode from stdin to an embedded relative filename, decoded contents, and read-only mode behavior",
     "Traditional uuencode from a relative input file with -o override and a two-byte final group",
@@ -13,7 +13,7 @@
     "Bash builtin type/help metadata"
   ],
   "exclusions": [
-    "GNU error status, diagnostics, and partial-output cleanup comparisons are deferred because the GNU uudecode reference is absent.",
+    "Direct comparison with GNU uudecode runs in the mig-w8-uudecode guest parity cases, not here.",
     "The documented absolute /dev/stdout alias is deferred because fixtures prohibit absolute device paths; the safe -o - equivalent is covered.",
     "No large records, long-line boundaries, multiple encoded streams, or hostile output path traversal are exercised."
   ],
@@ -171,18 +171,18 @@
     {
       "id": "missing-header-contract",
       "kind": "contract",
-      "purpose": "Reject input containing no begin header with failure and a diagnostic.",
+      "purpose": "Reject input containing no begin header with GNU sharutils' malformed-input status 2 and a diagnostic.",
       "script": "printf 'ordinary text\\n' > input\nuudecode input",
-      "expected_status": 1,
+      "expected_status": 2,
       "stderr": "nonempty",
       "stdout": ""
     },
     {
       "id": "invalid-base64-cleanup",
       "kind": "contract",
-      "purpose": "Reject an invalid base64 alphabet and remove the incomplete output file, preserving the diagnostic.",
-      "script": "printf '%s\\n' 'begin-base64 600 decoded' '!!!!' '====' > input\nif uudecode input; then rc=0; else rc=$?; fi\n[[ ! -e decoded ]] || exit 90\nexit \"$rc\"",
-      "expected_status": 1,
+      "purpose": "Reject an invalid base64 alphabet with status 2 and a diagnostic, keeping the empty output file the begin line created, as GNU sharutils uudecode does (guest case mig-w8-uudecode-b64-invalid-char). A zero-length base64 line is a separate deliberate difference and stays status 2; GNU sharutils status 8 for that line is not copied.",
+      "script": "printf '%s\\n' 'begin-base64 600 decoded' '!!!!' '====' > input\nif uudecode input; then rc=0; else rc=$?; fi\n[[ -e decoded && ! -s decoded ]] || exit 90\nexit \"$rc\"",
+      "expected_status": 2,
       "stderr": "nonempty",
       "stdout": ""
     }

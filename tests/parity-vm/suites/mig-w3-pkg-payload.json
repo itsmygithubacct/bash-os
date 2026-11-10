@@ -52,7 +52,7 @@
       "script": "export PAYLOAD_REPO=\"$PWD/repo\" PAYLOAD_ROOT=\"$PWD/root\"\npayload install tiny; echo \"install=$?\"\nl=; { read -r l < root/var/lib/bl-pkg/installed/tiny; } 2>/dev/null\ncase $l in txn=?*) echo state-has-txn;; *) echo state-missing;; esac\n",
       "stdout": "install=0\nstate-has-txn\n",
       "oracle": "payload.c header: install runs the image helper /bash-os/bl-pkg.sh (default PAYLOAD_INSTALLER) which records /var/lib/bl-pkg/installed/NAME with a txn= line (consumed by remove); fixture-relative PAYLOAD_ROOT and PAYLOAD_REPO, no network",
-      "comparison": "r1: 'payload install tiny' with the default image helper returns 0 and leaves root/var/lib/bl-pkg/installed/tiny with a txn= record. The real /bash-os/bl-pkg.sh belongs to the bashy.box image and is absent from the frozen payload and the guest image, and the staged archive is a placeholder because its format is defined by that helper; the candidate therefore stops at the missing-installer check (status 127) and the installed state never appears.",
+      "comparison": "r1: 'payload install tiny' with the default image helper returns 0 and leaves root/var/lib/bl-pkg/installed/tiny with a txn= record. The real /bash-os/bl-pkg.sh belongs to the bashy.box image and is absent from the frozen payload and the guest image, and the staged archive is a placeholder because its format is defined by that helper; the candidate therefore stops at the missing-installer check (status 127) and the installed state never appears. 0.1.4 defers bl-pkg.sh as bashy.box and does not ship it. The expected bytes stay the installer contract, so a candidate without the helper still fails.",
       "group": "shell",
       "driver": "plain",
       "expected_status": 0
@@ -72,7 +72,7 @@
       "script": "export PAYLOAD_REPO=\"$PWD/repo\" PAYLOAD_ROOT=\"$PWD/root\"\npayload install tiny >/dev/null 2>&1\npayload remove tiny; echo \"remove=$?\"\nn=0; for f in root/var/lib/bl-pkg/installed/* root/var/lib/bl-pkg/* ; do [ -f \"$f\" ] && n=$((n+1)); done\necho \"state-files-left=$n\"\n",
       "stdout": "payload: removed tiny\nremove=0\nstate-files-left=0\n",
       "oracle": "payload.c remove: reads the txn= record, runs the image helper rollback once, prints 'payload: removed NAME' (payload.c:783); a completed rollback leaves no state record. Expected text is the literal message in the source.",
-      "comparison": "r2: after a real install, 'payload remove tiny' rolls the txn back with the default image helper, prints the removal message and leaves no state files; no network or host path is used. The real /bash-os/bl-pkg.sh belongs to the bashy.box image and is absent from the frozen payload and the guest image, and the staged archive is a placeholder because its format is defined by that helper; the candidate therefore stops at the missing-installer check (status 127) and the installed state never appears.",
+      "comparison": "r2: after a real install, 'payload remove tiny' rolls the txn back with the default image helper, prints the removal message and leaves no state files; no network or host path is used. The real /bash-os/bl-pkg.sh belongs to the bashy.box image and is absent from the frozen payload and the guest image, and the staged archive is a placeholder because its format is defined by that helper; the candidate therefore stops at the missing-installer check (status 127) and the installed state never appears. 0.1.4 defers bl-pkg.sh as bashy.box and does not ship it. The expected bytes stay the installer contract, so a candidate without the helper still fails.",
       "group": "shell",
       "driver": "plain",
       "expected_status": 0
@@ -93,7 +93,7 @@
       "script": "unset BASHPKG_BLPKG_PATH\npkg rollback txn-real1 --root root >/dev/null 2>&1; echo \"rollback=$?\"\n[ -e root/usr/share/realpkg/file ] && echo package-file-still-present || echo package-file-removed\n[ -e root/var/lib/bl-pkg/installed/realpkg ] && echo state-still-present || echo state-removed\nread -r k < root/usr/share/unrelated/keep && echo \"unrelated=$k\"\n",
       "stdout": "rollback=0\npackage-file-removed\nstate-removed\nunrelated=keep\n",
       "oracle": "pkg.c verb_rollback: a txn-ID is rolled back by the image installer /bash-os/bl-pkg.sh (BASHPKG_BLPKG_PATH unset, so no mock); rollback restores the pre-install tree: the package's files and state record go, unrelated entries stay",
-      "comparison": "r4: explicit 'pkg rollback TXN --root R' through the real image installer removes exactly the package's file and state and preserves unrelated entries. The real helper is absent from the frozen payload and guest image, so the candidate reports 'bl-pkg.sh not found' and changes nothing.",
+      "comparison": "r4: explicit 'pkg rollback TXN --root R' through the real image installer removes exactly the package's file and state and preserves unrelated entries. The real helper is absent from the frozen payload and guest image, so the candidate reports 'bl-pkg.sh not found' and changes nothing. 0.1.4 defers bl-pkg.sh as bashy.box and does not ship it. The expected bytes stay the installer contract, so a candidate without the helper still fails.",
       "group": "shell",
       "driver": "plain",
       "expected_status": 0

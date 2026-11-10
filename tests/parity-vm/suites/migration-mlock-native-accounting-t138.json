@@ -10,14 +10,14 @@
       "covers": [
         "mlock/all-operation"
       ],
-      "purpose": "Record native mlockall lifecycle and same-process status/smaps to investigate the literal resident comparison.",
-      "oracle": "Native libc mlockall and munlockall with procfs; the literal VmLck >= VmRSS outcome is recorded, not used to alter the original requirement.",
-      "comparison": "Independent diagnostic control; retain raw status and smaps. A resident comparison failure in the candidate remains a failure.",
+      "purpose": "Record native mlockall lifecycle and same-process status/smaps. The resident requirement is VmLck plus the vDSO Rss, because mlockall does not lock that mapping.",
+      "oracle": "Native libc mlockall and munlockall with procfs. VmLck >= VmRSS is recorded only as evidence that it cannot hold: the vDSO is in VmRSS and not in VmLck. The requirement is VmLck + [vdso] Rss >= VmRSS.",
+      "comparison": "Independent diagnostic control; retain raw status and smaps. A failure of the vDSO-adjusted resident comparison in the candidate remains a failure.",
       "requires": [
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/mlock-native-accounting-t138.py": "a4fc8439da397f51f2ee187c988ce6f4ba232426bc405a704bd438f11307b3ac"
+        "helpers/mlock-native-accounting-t138.py": "0cae7ae1666194270e2a65a3f6d2cf3b8c8eff934b2ad773fce6d991a8910b5d"
       },
       "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/mlock-native-accounting-t138.py",
       "stdout": "native-accounting=recorded\n",

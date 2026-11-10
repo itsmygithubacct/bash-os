@@ -1,39 +1,44 @@
 /* bashlsblk.c — list block devices walking /sys/class/block.
  *
- *   bashlsblk [-l] [-d] [-f] [-n] [-P|-r] [-o LIST] [DEV ...]
+ *   bashlsblk [-a] [-l] [-d] [-f] [-n] [-P|-r] [-o LIST] [DEV ...]
  *
- *   default      tree form — disks first, partitions indented under them
- *   -l           list form — flat, disks and partitions printed alike
- *   -d           nodeps    — disks only, partitions suppressed
- *   -f           --fs      — emit FSTYPE column by probing matching
- *                            /dev/<NAME> nodes for known superblocks
- *   DEV          restrict output to the named device(s). DEV may be a
- *                bare basename (`vda`), a /dev path (`/dev/vda`), or a
- *                /sys path; the trailing component is what matches.
+ *   default      tree form in MAJ:MIN order, each device followed by its
+ *                partitions and holders (ASCII branch characters)
+ *   -l           list form — the same order, without tree art
+ *   -d           nodeps    — top-level devices only
+ *   -f           --fs      — the util-linux filesystem column set, from
+ *                            the udev database, else by probing the node
+ *   DEV          restrict output to the named device(s). A block device
+ *                node selects its MAJ:MIN; otherwise DEV may be a bare
+ *                basename (`vda`) or a /sys path, whose trailing component
+ *                matches the kernel or device-mapper name.
  *
- * v1 scope (ML-T1-05, paired with bashblkid):
+ * Scope (ML-T1-05, paired with bashblkid):
  *   - Enumerates /sys/class/block (the canonical "every kobject with a
  *     block major:minor" view).
- *   - Reads NAME, MAJ:MIN (sys/dev), SIZE (sys/size, 512-byte sectors),
- *     RO (sys/ro), TYPE (disk / part / loop / ram / dm / md inferred
- *     from name + the `partition` file's presence), and a bounded
- *     Debian-shaped column set via -o.
+ *   - Reads NAME (dm/name for device-mapper), MAJ:MIN (sys/dev), SIZE
+ *     (sys/size, 512-byte sectors), RO (sys/ro), TYPE (util-linux rules:
+ *     part, dm/uuid prefix, loop, md/level, SCSI device/type), and a
+ *     bounded Debian-shaped column set via -o.
  *   - Builds parent->children edges by inspecting each entry's
  *     `/sys/class/block/<name>` symlink target: a partition's resolved
  *     path ends in `…/block/<DISK>/<NAME>`, so the parent disk name is
- *     the second-to-last path component.
- *   - Tree form indents partitions under their parent disk.
+ *     the second-to-last path component.  A stacked device hangs under
+ *     its first slave.
+ *   - Lays tables out like libsmartcols (column widths from cells,
+ *     headings and width hints; right-aligned numeric columns).
  *
- * v1 does NOT do:
- *   - lvm / dm-crypt / md / loop topology beyond the simple parent map.
- *   - JSON / full util-linux column vocabulary / topology sorting.
- *   - Full blkid tag output. -f surfaces filesystem type only.
+ * Does NOT do:
+ *   - lvm / dm-crypt / md topology beyond the single-parent map.
+ *   - JSON / full util-linux column vocabulary / --sort.
+ *   - UTF-8 tree art; terminal-width truncation.
  *
- * Exit codes (subset of lsblk(8) convention):
+ * Exit codes (lsblk(8) convention):
  *   0    success
  *   1    operational error (open/read failure under /sys)
  *   2    usage error
- *   32   no matching devices when DEV operand given
+ *   32   no DEV operand found
+ *   64   some DEV operands not found
  *
  * Source counterparts:
  *   research/refs/busybox/util-linux/lsblk.c   (382 LoC — minimal
@@ -52,7 +57,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <ctype.h>
+#include <locale.h>
+#include <wchar.h>
+#include <wctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -68,9 +77,9 @@
 #define BLB_NAME_MAX    64
 #define BLB_PARENT_MAX  64
 #define BLB_MAJMIN_MAX  16
-#define BLB_TYPE_MAX    8
+#define BLB_TYPE_MAX    32
 #define BLB_FSTYPE_MAX  16
-#define BLB_FSVER_MAX   16
+#define BLB_FSVER_MAX   32
 #define BLB_LABEL_MAX   128
 #define BLB_UUID_MAX    40
 #define BLB_MOUNT_MAX   256
@@ -81,9 +90,12 @@
 
 typedef struct {
     char     name[BLB_NAME_MAX];
+    char     dmname[BLB_NAME_MAX];       /* dm/name of a dm-N device, else "" */
     char     parent[BLB_PARENT_MAX];     /* "" for top-level disks */
     char     majmin[BLB_MAJMIN_MAX];     /* "MAJ:MIN" or "?" */
-    char     type[BLB_TYPE_MAX];         /* disk / part / loop / ram / dm / md */
+    unsigned int maj, min;
+    int      have_devno;
+    char     type[BLB_TYPE_MAX];         /* util-linux TYPE: disk / part / loop / rom / dm / ... */
     char     fstype[BLB_FSTYPE_MAX];     /* ext4 / vfat / ... or "" */
     char     fsver[BLB_FSVER_MAX];
     char     label[BLB_LABEL_MAX];
@@ -92,8 +104,10 @@ typedef struct {
     char     mountpoints[BLB_MOUNT_MAX];
     char     partlabel[BLB_PARTLABEL_MAX];
     char     partuuid[BLB_UUID_MAX];
+    int      have_vfs;                   /* statvfs of the mountpoint succeeded */
+    int      is_swap;                    /* active swap: mountpoint "[SWAP]" */
     uint64_t fsavail;
-    int      fsuse_pct;
+    uint64_t fsblocks, fsbfree;
     uint64_t size_bytes;                 /* size-in-sectors × 512 */
     int      ro;                         /* 1 if /sys/.../ro reads "1" */
     int      removable;                  /* 1 if /sys/.../removable reads "1" */
@@ -119,29 +133,34 @@ typedef enum {
     BLB_COL_FSUSE_PCT
 } blb_col_id;
 
+/* Width hints and alignment follow util-linux lsblk's column table: a hint
+   of 1 or more is a minimum width, a fractional hint only matters on a
+   terminal that must be shrunk to fit. */
 typedef struct {
     const char *name;
     blb_col_id id;
+    double whint;
+    int right;
 } blb_col_def;
 
 static const blb_col_def blb_cols[] = {
-    { "NAME",       BLB_COL_NAME },
-    { "MAJ:MIN",    BLB_COL_MAJMIN },
-    { "RM",         BLB_COL_RM },
-    { "SIZE",       BLB_COL_SIZE },
-    { "RO",         BLB_COL_RO },
-    { "TYPE",       BLB_COL_TYPE },
-    { "FSTYPE",     BLB_COL_FSTYPE },
-    { "FSVER",      BLB_COL_FSVER },
-    { "LABEL",      BLB_COL_LABEL },
-    { "UUID",       BLB_COL_UUID },
-    { "PARTLABEL",  BLB_COL_PARTLABEL },
-    { "PARTUUID",   BLB_COL_PARTUUID },
-    { "MOUNTPOINT", BLB_COL_MOUNTPOINT },
-    { "MOUNTPOINTS", BLB_COL_MOUNTPOINTS },
-    { "FSAVAIL",    BLB_COL_FSAVAIL },
-    { "FSUSE%",     BLB_COL_FSUSE_PCT },
-    { NULL, 0 }
+    { "NAME",        BLB_COL_NAME,        0.25, 0 },
+    { "MAJ:MIN",     BLB_COL_MAJMIN,      6,    0 },
+    { "RM",          BLB_COL_RM,          1,    1 },
+    { "SIZE",        BLB_COL_SIZE,        5,    1 },
+    { "RO",          BLB_COL_RO,          1,    1 },
+    { "TYPE",        BLB_COL_TYPE,        4,    0 },
+    { "FSTYPE",      BLB_COL_FSTYPE,      0.1,  0 },
+    { "FSVER",       BLB_COL_FSVER,       0.1,  0 },
+    { "LABEL",       BLB_COL_LABEL,       0.1,  0 },
+    { "UUID",        BLB_COL_UUID,        36,   0 },
+    { "PARTLABEL",   BLB_COL_PARTLABEL,   0.1,  0 },
+    { "PARTUUID",    BLB_COL_PARTUUID,    36,   0 },
+    { "MOUNTPOINT",  BLB_COL_MOUNTPOINT,  0.1,  0 },
+    { "MOUNTPOINTS", BLB_COL_MOUNTPOINTS, 0.1,  0 },
+    { "FSAVAIL",     BLB_COL_FSAVAIL,     5,    1 },
+    { "FSUSE%",      BLB_COL_FSUSE_PCT,   3,    1 },
+    { NULL, 0, 0, 0 }
 };
 
 static const char *
@@ -163,6 +182,13 @@ blb_proc_mounts (void)
 {
     const char *e = getenv ("BASHLSBLK_PROC_MOUNTS");
     return (e && *e) ? e : "/proc/self/mounts";
+}
+
+static const char *
+blb_proc_swaps (void)
+{
+    const char *e = getenv ("BASHLSBLK_PROC_SWAPS");
+    return (e && *e) ? e : "/proc/swaps";
 }
 
 static int
@@ -276,31 +302,72 @@ blb_resolve_parent (const char *name, char *out_parent, size_t outsz)
     return 1;
 }
 
-/* Infer device class from name + the `partition` file's presence. */
+/* SCSI peripheral device types, as util-linux names them. */
+static const char *
+blb_scsi_type_name (long long type)
+{
+    switch (type) {
+    case 0x00: return "disk";
+    case 0x01: return "tape";
+    case 0x02: return "printer";
+    case 0x03: return "processor";
+    case 0x04: return "worm";
+    case 0x05: return "rom";
+    case 0x06: return "scanner";
+    case 0x07: return "mo-disk";
+    case 0x08: return "changer";
+    case 0x09: return "comm";
+    case 0x0c: return "raid";
+    case 0x0d: return "enclosure";
+    case 0x0e: return "rbc";
+    case 0x11: return "osd";
+    case 0x7f: return "no-lun";
+    }
+    return NULL;
+}
+
+/* TYPE as util-linux lsblk derives it: partitions are "part"; a dm device
+ * is named by its dm/uuid subsystem prefix (kpartx "part1-..." is "part"),
+ * else "dm"; loop and md by name (md by md/level when known); anything else
+ * by its SCSI device/type, defaulting to "disk".  Lower case throughout. */
 static void
 blb_classify (blb_dev *d)
 {
-    char base[BLB_PATH_MAX];
+    char base[BLB_PATH_MAX], buf[256];
+    long long scsi = 0;
+    const char *type = NULL;
     snprintf (base, sizeof base, "%s/%s", blb_sys_block_dir (), d->name);
 
+    d->type[0] = '\0';
     if (blb_exists (base, "partition")) {
-        strncpy (d->type, "part", sizeof d->type - 1);
-        return;
-    }
-    /* Top-level: classify by name prefix. The order matters — "loop1"
-     * matches "loop", "ram0" matches "ram", etc. */
-    if (strncmp (d->name, "loop", 4) == 0) {
-        strncpy (d->type, "loop", sizeof d->type - 1);
-    } else if (strncmp (d->name, "ram", 3) == 0) {
-        strncpy (d->type, "ram", sizeof d->type - 1);
+        type = "part";
     } else if (strncmp (d->name, "dm-", 3) == 0) {
-        strncpy (d->type, "dm", sizeof d->type - 1);
-    } else if (strncmp (d->name, "md", 2) == 0
-            && isdigit ((unsigned char) d->name[2])) {
-        strncpy (d->type, "md", sizeof d->type - 1);
+        if (blb_read_str (base, "dm/uuid", buf, sizeof buf) == 0 && buf[0]) {
+            buf[strcspn (buf, "-")] = '\0';
+            if (strncasecmp (buf, "part", 4) == 0)
+                buf[4] = '\0';
+            if (buf[0])
+                snprintf (d->type, sizeof d->type, "%.31s", buf);
+        }
+        if (!d->type[0])
+            type = "dm";
+    } else if (strncmp (d->name, "loop", 4) == 0) {
+        type = "loop";
+    } else if (strncmp (d->name, "md", 2) == 0) {
+        if (blb_read_str (base, "md/level", buf, sizeof buf) == 0 && buf[0])
+            snprintf (d->type, sizeof d->type, "%.31s", buf);
+        else
+            type = "md";
     } else {
-        strncpy (d->type, "disk", sizeof d->type - 1);
+        if (blb_read_int (base, "device/type", &scsi) == 0)
+            type = blb_scsi_type_name (scsi);
+        if (!type)
+            type = "disk";
     }
+    if (type)
+        snprintf (d->type, sizeof d->type, "%s", type);
+    for (char *p = d->type; *p; p++)
+        *p = (char) tolower ((unsigned char) *p);
 }
 
 static uint16_t
@@ -615,6 +682,9 @@ blb_mount_dev_matches (const char *field, const blb_dev *d)
         return 1;
     if (strcmp (field, d->name) == 0)
         return 1;
+    if (d->dmname[0] && strncmp (field, "/dev/mapper/", 12) == 0
+        && strcmp (field + 12, d->dmname) == 0)
+        return 1;
     struct stat st;
     unsigned int maj, min;
     if (sscanf (d->majmin, "%u:%u", &maj, &min) == 2
@@ -651,55 +721,113 @@ blb_load_mountpoint (blb_dev *d)
             snprintf (d->mountpoints, sizeof d->mountpoints, "%s", umnt);
     }
     fclose (f);
+    /* An unmounted device in use as swap shows "[SWAP]", as in util-linux. */
+    if (!d->mountpoints[0] && (f = fopen (blb_proc_swaps (), "r"))) {
+        if (fgets (line, sizeof line, f))     /* heading */
+            while (fgets (line, sizeof line, f)) {
+                char src[512], usrc[512];
+                if (sscanf (line, "%511s", src) != 1) continue;
+                blb_unescape_mount (src, usrc, sizeof usrc);
+                if (!blb_mount_dev_matches (usrc, d)) continue;
+                d->is_swap = 1;
+                snprintf (d->mountpoint, sizeof d->mountpoint, "[SWAP]");
+                snprintf (d->mountpoints, sizeof d->mountpoints, "[SWAP]");
+                break;
+            }
+        fclose (f);
+    }
 }
 
+/* FSAVAIL is f_bavail; FSUSE% is (f_blocks - f_bfree) / f_blocks, as in
+ * util-linux. */
 static void
 blb_load_fs_usage (blb_dev *d)
 {
-    d->fsuse_pct = -1;
-    if (!d->mountpoint[0])
+    if (!d->mountpoint[0] || d->is_swap)
         return;
     struct statvfs vfs;
     if (statvfs (d->mountpoint, &vfs) < 0)
         return;
-    uint64_t bsize = vfs.f_frsize ? (uint64_t) vfs.f_frsize : (uint64_t) vfs.f_bsize;
-    uint64_t total = (uint64_t) vfs.f_blocks * bsize;
-    uint64_t avail = (uint64_t) vfs.f_bavail * bsize;
-    uint64_t used = (total > avail) ? total - avail : 0;
-    d->fsavail = avail;
-    if (total > 0)
-        d->fsuse_pct = (int) ((used * 100ULL + total - 1ULL) / total);
+    d->have_vfs = 1;
+    d->fsavail = (uint64_t) vfs.f_bavail * (uint64_t) vfs.f_frsize;
+    d->fsblocks = (uint64_t) vfs.f_blocks;
+    d->fsbfree = (uint64_t) vfs.f_bfree;
 }
 
-/* udev exposes filesystem tags to unprivileged readers when device nodes
- * cannot be opened.  Prefer an actual probe whenever it succeeds. */
+/* udev encodes unsafe bytes of the *_ENC values as \xHH. */
 static void
+blb_unhexmangle (const char *in, char *out, size_t outsz)
+{
+    size_t oi = 0;
+    if (outsz == 0) return;
+    for (size_t i = 0; in[i] && oi + 1 < outsz; i++) {
+        if (in[i] == '\\' && in[i + 1] == 'x'
+            && isxdigit ((unsigned char) in[i + 2])
+            && isxdigit ((unsigned char) in[i + 3])) {
+            char hex[3] = { in[i + 2], in[i + 3], '\0' };
+            out[oi++] = (char) strtol (hex, NULL, 16);
+            i += 3;
+        } else
+            out[oi++] = in[i];
+    }
+    out[oi] = '\0';
+}
+
+/* util-linux lsblk takes filesystem and partition properties from the udev
+ * database whenever udev knows the device: an entry without ID_FS_* values
+ * means "no filesystem", not "probe the node" (a freshly written superblock
+ * stays invisible until udev has processed the change).  Returns 1 when the
+ * database has an entry (its values, possibly none, are then the device's
+ * properties), 0 when there is none and the node may be probed instead. */
+static int
 blb_load_udev (blb_dev *d)
 {
     const char *root = getenv ("BASHLSBLK_UDEV_DATA_DIR");
     char path[BLB_PATH_MAX], line[1024];
+    int have_label_enc = 0, have_uuid_enc = 0;
     if (!root || !*root) {
         /* A redirected sysfs fixture must not inherit the host's udev tags. */
         const char *sys = getenv ("BASHLSBLK_SYS_BLOCK_DIR");
-        if (sys && *sys) return;
+        if (sys && *sys) return 0;
         root = "/run/udev/data";
     }
-    if (strspn (d->majmin, "0123456789:") != strlen (d->majmin)) return;
-    if (snprintf (path, sizeof path, "%s/b%s", root, d->majmin) >= (int) sizeof path) return;
+    if (!d->have_devno) return 0;
+    if (snprintf (path, sizeof path, "%s/b%u:%u", root, d->maj, d->min) >= (int) sizeof path)
+        return 0;
     FILE *f = fopen (path, "r");
-    if (!f) return;
+    if (!f) return 0;
+    d->fstype[0] = d->fsver[0] = d->label[0] = d->uuid[0] = '\0';
+    d->partlabel[0] = d->partuuid[0] = '\0';
     while (fgets (line, sizeof line, f)) {
         line[strcspn (line, "\r\n")] = 0;
-        if (!d->fstype[0] && strncmp (line, "E:ID_FS_TYPE=", 13) == 0)
-            snprintf (d->fstype, sizeof d->fstype, "%s", line + 13);
-        else if (!d->label[0] && strncmp (line, "E:ID_FS_LABEL=", 14) == 0)
-            snprintf (d->label, sizeof d->label, "%s", line + 14);
-        else if (!d->uuid[0] && strncmp (line, "E:ID_FS_UUID=", 13) == 0)
-            snprintf (d->uuid, sizeof d->uuid, "%s", line + 13);
-        else if (!d->fsver[0] && strncmp (line, "E:ID_FS_VERSION=", 16) == 0)
-            snprintf (d->fsver, sizeof d->fsver, "%s", line + 16);
+        if (strncmp (line, "E:", 2) != 0) continue;
+        const char *kv = line + 2, *v = strchr (kv, '=');
+        if (!v) continue;
+        size_t klen = (size_t) (v - kv);
+        v++;
+#define BLB_KEY(k) (klen == sizeof (k) - 1 && strncmp (kv, k, klen) == 0)
+        if (BLB_KEY ("ID_FS_TYPE"))
+            snprintf (d->fstype, sizeof d->fstype, "%s", v);
+        else if (BLB_KEY ("ID_FS_VERSION"))
+            snprintf (d->fsver, sizeof d->fsver, "%s", v);
+        else if (BLB_KEY ("ID_FS_LABEL_ENC")) {
+            blb_unhexmangle (v, d->label, sizeof d->label);
+            have_label_enc = 1;
+        } else if (BLB_KEY ("ID_FS_LABEL") && !have_label_enc)
+            snprintf (d->label, sizeof d->label, "%s", v);
+        else if (BLB_KEY ("ID_FS_UUID_ENC")) {
+            blb_unhexmangle (v, d->uuid, sizeof d->uuid);
+            have_uuid_enc = 1;
+        } else if (BLB_KEY ("ID_FS_UUID") && !have_uuid_enc)
+            snprintf (d->uuid, sizeof d->uuid, "%s", v);
+        else if (BLB_KEY ("ID_PART_ENTRY_NAME"))
+            blb_unhexmangle (v, d->partlabel, sizeof d->partlabel);
+        else if (BLB_KEY ("ID_PART_ENTRY_UUID"))
+            snprintf (d->partuuid, sizeof d->partuuid, "%s", v);
+#undef BLB_KEY
     }
     fclose (f);
+    return 1;
 }
 
 /* A stacked device's slaves identify its underlying devices.  The current
@@ -745,7 +873,17 @@ blb_load_one (const char *name, blb_dev *d)
     /* MAJ:MIN from /sys/class/block/<name>/dev. */
     if (blb_read_str (base, "dev", d->majmin, sizeof d->majmin) < 0) {
         strncpy (d->majmin, "?", sizeof d->majmin - 1);
+    } else {
+        char tail;
+        if (sscanf (d->majmin, "%u:%u%c", &d->maj, &d->min, &tail) == 2)
+            d->have_devno = 1;
     }
+
+    /* A device-mapper device is shown by its mapping name (dm/name). */
+    if (strncmp (d->name, "dm-", 3) == 0
+        && (blb_read_str (base, "dm/name", d->dmname, sizeof d->dmname) < 0
+            || strchr (d->dmname, '/')))
+        d->dmname[0] = '\0';
 
     /* ro / removable / hidden — each optional. */
     long long v = 0;
@@ -766,29 +904,28 @@ blb_load_one (const char *name, blb_dev *d)
 
     blb_classify (d);
     blb_resolve_slave (d);
-    d->fsuse_pct = -1;
-    blb_probe_super (d->name, d);
-    blb_load_udev (d);
-    blb_probe_part_gpt (d);
+    /* Without a udev database entry, fall back to reading the node. */
+    if (!blb_load_udev (d)) {
+        blb_probe_super (d->name, d);
+        blb_probe_part_gpt (d);
+    }
     blb_load_mountpoint (d);
     blb_load_fs_usage (d);
     return 0;
 }
 
+/* util-linux sorts by MAJ:MIN by default, comparing the dev_t numbers,
+ * and keeps every child under its parent (also in list, raw and pairs
+ * output); the tree walk below preserves this order among siblings. */
 static int
 blb_cmp_dev (const void *a, const void *b)
 {
     const blb_dev *da = (const blb_dev *) a;
     const blb_dev *db = (const blb_dev *) b;
-    /* Disks first (parent==""), then partitions; within each bucket sort
-     * by name. For partitions we group by parent so the tree printer
-     * sees them adjacent to (or at least after) their disk. */
-    int a_part = (da->parent[0] != '\0');
-    int b_part = (db->parent[0] != '\0');
-    if (a_part != b_part) return a_part - b_part;
-    if (a_part) {
-        int p = strcmp (da->parent, db->parent);
-        if (p != 0) return p;
+    if (da->have_devno != db->have_devno) return db->have_devno - da->have_devno;
+    if (da->have_devno) {
+        dev_t xa = makedev (da->maj, da->min), xb = makedev (db->maj, db->min);
+        if (xa != xb) return xa < xb ? -1 : 1;
     }
     return strcmp (da->name, db->name);
 }
@@ -816,55 +953,69 @@ blb_load_all (blb_dev *devs, int max, int *out_n)
     *out_n = n;
     return 0;
 }
+/* ---------- size formatter (util-linux size_to_human_string) ---------- */
 
-/* ---------- size formatter (human-readable, 1024-base) ---------- */
-
+/* One-letter 1024-based suffix and at most one decimal, rounded half up:
+ * 512B, 1.5K, 1M, 11.9G; a trailing ".0" is dropped. */
 static void
-blb_format_size (uint64_t b, char *out, size_t outsz)
+blb_format_size (uint64_t bytes, char *out, size_t outsz)
 {
-    static const char units[] = { 'B', 'K', 'M', 'G', 'T', 'P', 'E' };
-    if (b == 0) {
-        snprintf (out, outsz, "0B");
-        return;
+    static const char letters[] = "BKMGTPE";
+    int exp = 60;
+    for (int shift = 10; shift <= 60; shift += 10)
+        if (bytes < (1ULL << shift)) {
+            exp = shift - 10;
+            break;
+        }
+    char c = letters[exp / 10];
+    uint64_t dec = exp ? bytes >> exp : bytes;
+    uint64_t frac = exp ? bytes & ((1ULL << exp) - 1) : 0;
+    if (frac) {
+        if (frac >= UINT64_MAX / 1000)
+            frac = ((frac / 1024) * 1000) >> (exp - 10);
+        else
+            frac = (frac * 1000) >> exp;
+        frac = ((frac + 50) / 100) * 10;
+        if (frac == 100) {
+            dec++;
+            frac = 0;
+        }
     }
-    double v = (double) b;
-    int u = 0;
-    while (v >= 1024.0 && u < (int) (sizeof units / sizeof units[0]) - 1) {
-        v /= 1024.0;
-        u++;
-    }
-    if (u == 0) {
-        snprintf (out, outsz, "%llu%c", (unsigned long long) b, units[0]);
-    } else if (v >= 100.0) {
-        snprintf (out, outsz, "%.0f%c", v, units[u]);
-    } else if (v >= 10.0) {
-        snprintf (out, outsz, "%.1f%c", v, units[u]);
-    } else {
-        snprintf (out, outsz, "%.2f%c", v, units[u]);
-    }
+    if (frac) {
+        const struct lconv *l = localeconv ();
+        const char *dp = l && l->decimal_point && *l->decimal_point ? l->decimal_point : ".";
+        char num[48];
+        int len = snprintf (num, sizeof num, "%llu%s%02llu",
+                            (unsigned long long) dec, dp, (unsigned long long) frac);
+        if (len > 0 && num[len - 1] == '0')
+            num[len - 1] = '\0';
+        snprintf (out, outsz, "%s%c", num, c);
+    } else
+        snprintf (out, outsz, "%llu%c", (unsigned long long) dec, c);
 }
 
 /* ---------- printing ---------- */
 
 typedef struct {
-    int list;        /* -l */
+    int list;        /* -l, -P, -r: no tree art */
     int nodeps;      /* -d */
     int fs;          /* -f */
+    int all;         /* -a */
     int show_header; /* default 1 */
     int pairs;       /* -P */
     int raw;         /* -r */
-    int custom_cols; /* -o/--output */
+    const char *outarg; /* last -o/--output */
     blb_col_id cols[BLB_COL_MAX];
     int ncols;
 } blb_opts;
 
-static const char *
-blb_col_name (blb_col_id id)
+static const blb_col_def *
+blb_col (blb_col_id id)
 {
     for (int i = 0; blb_cols[i].name; i++)
         if (blb_cols[i].id == id)
-            return blb_cols[i].name;
-    return "?";
+            return &blb_cols[i];
+    return &blb_cols[0];
 }
 
 static int
@@ -898,17 +1049,23 @@ blb_add_col (blb_opts *opt, blb_col_id id)
     opt->cols[opt->ncols++] = id;
 }
 
+/* util-linux: -f selects the filesystem column set, otherwise the default
+ * set; -o LIST replaces the selection and -o +LIST appends to it. */
 static void
 blb_add_default_cols (blb_opts *opt)
 {
-    blb_add_col (opt, BLB_COL_NAME);
-    blb_add_col (opt, BLB_COL_MAJMIN);
-    blb_add_col (opt, BLB_COL_RM);
-    blb_add_col (opt, BLB_COL_SIZE);
-    blb_add_col (opt, BLB_COL_RO);
-    blb_add_col (opt, BLB_COL_TYPE);
-    if (opt->fs)
-        blb_add_col (opt, BLB_COL_FSTYPE);
+    static const blb_col_id fs[] = {
+        BLB_COL_NAME, BLB_COL_FSTYPE, BLB_COL_FSVER, BLB_COL_LABEL, BLB_COL_UUID,
+        BLB_COL_FSAVAIL, BLB_COL_FSUSE_PCT, BLB_COL_MOUNTPOINTS
+    };
+    static const blb_col_id dflt[] = {
+        BLB_COL_NAME, BLB_COL_MAJMIN, BLB_COL_RM, BLB_COL_SIZE, BLB_COL_RO,
+        BLB_COL_TYPE, BLB_COL_MOUNTPOINTS
+    };
+    const blb_col_id *set = opt->fs ? fs : dflt;
+    size_t n = opt->fs ? sizeof fs / sizeof fs[0] : sizeof dflt / sizeof dflt[0];
+    for (size_t i = 0; i < n; i++)
+        blb_add_col (opt, set[i]);
 }
 
 static int
@@ -923,8 +1080,6 @@ blb_parse_cols (blb_opts *opt, const char *spec)
         spec++;
     else
         opt->ncols = 0;
-    if (append && opt->ncols == 0)
-        blb_add_default_cols (opt);
 
     char tmp[512];
     if (strlen (spec) >= sizeof tmp) {
@@ -953,7 +1108,6 @@ blb_parse_cols (blb_opts *opt, const char *spec)
         builtin_error ("-o/--output produced no columns");
         return -1;
     }
-    opt->custom_cols = 1;
     return 0;
 }
 
@@ -962,35 +1116,45 @@ blb_print_help (void)
 {
     puts ("List block devices (lsblk).");
     puts ("");
-    puts ("    bashlsblk [-l] [-d] [-f] [-n] [-P|-r] [-o LIST] [DEV ...]");
+    puts ("    bashlsblk [-a] [-l] [-d] [-f] [-n] [-P|-r] [-o LIST] [DEV ...]");
     puts ("    bashlsblk -h | --help");
     puts ("");
-    puts ("Walks /sys/class/block. Default output is a tree: disks first, then");
-    puts ("each disk's partitions indented with ASCII branch characters.");
+    puts ("Walks /sys/class/block. Default output is a tree in MAJ:MIN order,");
+    puts ("each device followed by its partitions and holders, indented with");
+    puts ("ASCII branch characters.");
     puts ("");
+    puts ("    -a    --all; also list empty devices and RAM disks (major 1)");
     puts ("    -l    list form (flat)");
     puts ("    -d    --nodeps; print disks only, suppress partitions");
-    puts ("    -f    --fs; emit FSTYPE column from matching /dev nodes");
+    puts ("    -f    --fs; NAME FSTYPE FSVER LABEL UUID FSAVAIL FSUSE% MOUNTPOINTS");
     puts ("    -n    --noheadings; suppress the column header row");
-    puts ("    -P    --pairs; emit fixed key=\"value\" rows");
-    puts ("    -r    --raw; emit fixed space-separated rows");
+    puts ("    -P    --pairs; emit key=\"value\" rows");
+    puts ("    -r    --raw; emit space-separated rows");
     puts ("    -o    --output LIST; select columns, or +COL to append to defaults");
-    puts ("    DEV   restrict to named device(s); basename, /dev path, or /sys path");
+    puts ("    DEV   restrict to named device(s): a block device node, or a");
+    puts ("          basename or /sys path naming the kernel or dm name");
     puts ("");
+    puts ("Default columns: NAME MAJ:MIN RM SIZE RO TYPE MOUNTPOINTS.");
     puts ("Columns: NAME MAJ:MIN RM SIZE RO TYPE FSTYPE FSVER LABEL UUID");
     puts ("         PARTLABEL PARTUUID MOUNTPOINT MOUNTPOINTS FSAVAIL FSUSE%.");
-    puts ("Exit codes: 0 success, 1 sysfs error, 2 usage, 32 no matching device.");
+    puts ("Exit codes: 0 success, 1 sysfs error, 2 usage, 32 no DEV found,");
+    puts ("            64 some DEV not found.");
 }
 
+/* `parsable` is raw or pairs output, where MAJ:MIN is not aligned. */
 static const char *
-blb_col_value (const blb_dev *d, const char *namecol, blb_col_id id,
+blb_col_value (const blb_dev *d, const char *prefix, blb_col_id id, int parsable,
                char *buf, size_t bufsz)
 {
     switch (id) {
     case BLB_COL_NAME:
-        return namecol;
+        snprintf (buf, bufsz, "%s%s", prefix, d->dmname[0] ? d->dmname : d->name);
+        return buf;
     case BLB_COL_MAJMIN:
-        return d->majmin;
+        if (!d->have_devno)
+            return d->majmin;
+        snprintf (buf, bufsz, parsable ? "%u:%u" : "%3u:%-3u", d->maj, d->min);
+        return buf;
     case BLB_COL_RM:
         snprintf (buf, bufsz, "%d", d->removable);
         return buf;
@@ -1019,219 +1183,368 @@ blb_col_value (const blb_dev *d, const char *namecol, blb_col_id id,
     case BLB_COL_MOUNTPOINTS:
         return d->mountpoints;
     case BLB_COL_FSAVAIL:
-        if (d->fsavail == 0) return "";
+        if (!d->have_vfs) return "";
         blb_format_size (d->fsavail, buf, bufsz);
         return buf;
     case BLB_COL_FSUSE_PCT:
-        if (d->fsuse_pct < 0) return "";
-        snprintf (buf, bufsz, "%d%%", d->fsuse_pct);
+        if (!d->have_vfs || d->fsblocks == 0) return "";
+        snprintf (buf, bufsz, "%.0f%%",
+                  (double) (d->fsblocks - d->fsbfree) / (double) d->fsblocks * 100.0);
         return buf;
     }
     return "";
 }
 
-/* util-linux pairs escape whitespace and characters unsafe in a quoted value. */
+/* Raw output (util-linux fputs_nonblank): blanks, backslashes and
+ * non-printable bytes as \xHH. */
 static void
-blb_print_pair_value (const char *value)
+blb_print_raw_value (const char *value)
 {
-    const unsigned char *p = (const unsigned char *) value;
-    while (*p) {
-        if (*p <= 0x20 || *p == 0x7f || *p == '"' || *p == '\\')
+    for (const unsigned char *p = (const unsigned char *) value; *p; p++) {
+        if (isblank (*p) || *p == '\\' || !isprint (*p) || iscntrl (*p))
             printf ("\\x%02x", *p);
         else
             putchar (*p);
-        p++;
     }
 }
 
-/* Emit one device row. `prefix` is the tree branch prefix ("", "├─",
- * "└─") — for the list form prefix is always "". */
+/* Pairs output (util-linux fputs_quoted): quotes, backslashes, backquotes,
+ * dollars and non-printable bytes as \xHH; spaces stay. */
 static void
-blb_print_one (const blb_dev *d, const char *prefix, const blb_opts *opt)
+blb_print_pair_value (const char *value)
 {
-    char sizebuf[16];
-    blb_format_size (d->size_bytes, sizebuf, sizeof sizebuf);
+    putchar ('"');
+    for (const unsigned char *p = (const unsigned char *) value; *p; p++) {
+        if (*p == '"' || *p == '\\' || *p == '`' || *p == '$'
+            || !isprint (*p) || iscntrl (*p))
+            printf ("\\x%02x", *p);
+        else
+            putchar (*p);
+    }
+    putchar ('"');
+}
 
-    /* The NAME column carries the tree prefix; left-align in 16 cols. */
-    char namecol[80];
-    snprintf (namecol, sizeof namecol, "%s%s", prefix, d->name);
+/* Display width of the first n bytes of an encoded (printable) string. */
+static size_t
+blb_str_width (const char *s, size_t n)
+{
+    size_t width = 0;
+    mbstate_t st;
+    memset (&st, 0, sizeof st);
+    while (n > 0 && *s) {
+        wchar_t wc;
+        size_t k = mbrtowc (&wc, s, n, &st);
+        if (k == 0 || k == (size_t) -1 || k == (size_t) -2) {
+            width++; s++; n--;
+            memset (&st, 0, sizeof st);
+            continue;
+        }
+        int w = wcwidth (wc);
+        width += w > 0 ? (size_t) w : 0;
+        s += k; n -= k;
+    }
+    return width;
+}
 
-    if (opt->custom_cols) {
-        for (int i = 0; i < opt->ncols; i++) {
-            char vbuf[64];
-            const char *v = blb_col_value (d, opt->pairs || opt->raw ? d->name : namecol,
-                                           opt->cols[i], vbuf, sizeof vbuf);
-            if (opt->pairs) {
-                if (i) putchar (' ');
-                printf ("%s=\"", blb_col_name (opt->cols[i]));
-                blb_print_pair_value (v);
-                putchar ('"');
-            } else {
-                if (i) putchar (' ');
-                fputs (v, stdout);
+/* Table output (libsmartcols mbs_safe_encode): control characters,
+ * undecodable bytes and a backslash before 'x' become \xHH, except a
+ * newline in a wrapping column (MOUNTPOINTS), which starts a new line of
+ * the cell.  Returns the display width of the widest line. */
+static size_t
+blb_safe_encode (const char *s, char *out, size_t outsz, int keep_nl)
+{
+    size_t oi = 0, width = 0, maxw = 0;
+    mbstate_t st;
+    memset (&st, 0, sizeof st);
+    if (outsz == 0) return 0;
+    for (const char *p = s; *p && oi + 5 < outsz; ) {
+        unsigned char c = (unsigned char) *p;
+        if (c == '\n' && keep_nl) {
+            out[oi++] = '\n';
+            if (width > maxw) maxw = width;
+            width = 0;
+            p++;
+            continue;
+        }
+        if ((c == '\\' && p[1] == 'x') || iscntrl (c)) {
+            oi += (size_t) snprintf (out + oi, outsz - oi, "\\x%02x", c);
+            width += 4;
+            p++;
+            continue;
+        }
+        wchar_t wc;
+        size_t n = mbrtowc (&wc, p, MB_CUR_MAX, &st);
+        if (n == 0)
+            break;
+        if (n == (size_t) -1 || n == (size_t) -2 || !iswprint ((wint_t) wc)) {
+            size_t k = (n == (size_t) -1 || n == (size_t) -2) ? 1 : n;
+            for (size_t j = 0; j < k && p[j] && oi + 5 < outsz; j++) {
+                oi += (size_t) snprintf (out + oi, outsz - oi, "\\x%02x", (unsigned char) p[j]);
+                width += 4;
             }
+            p += k;
+            memset (&st, 0, sizeof st);
+            continue;
         }
-        putchar ('\n');
-        return;
+        if (oi + n >= outsz)
+            break;
+        memcpy (out + oi, p, n);
+        oi += n;
+        int w = wcwidth (wc);
+        width += w > 0 ? (size_t) w : 0;
+        p += n;
     }
-
-    if (opt->pairs) {
-        printf ("NAME=\"%s\" MAJ:MIN=\"%s\" RM=\"%d\" SIZE=\"%s\" RO=\"%d\" TYPE=\"%s\"",
-                d->name, d->majmin, d->removable, sizebuf, d->ro, d->type);
-        if (opt->fs)
-            printf (" FSTYPE=\"%s\"", d->fstype);
-        putchar ('\n');
-        return;
-    }
-
-    if (opt->raw) {
-        printf ("%s %s %d %s %d %s",
-                d->name, d->majmin, d->removable, sizebuf, d->ro, d->type);
-        if (opt->fs)
-            printf (" %s", d->fstype);
-        putchar ('\n');
-        return;
-    }
-
-    if (opt->fs) {
-        printf ("%-16s %-7s %d %6s %d %-5s %s\n",
-                namecol, d->majmin, d->removable, sizebuf,
-                d->ro, d->type, d->fstype);
-    } else {
-        printf ("%-16s %-7s %d %6s %d %s\n",
-                namecol, d->majmin, d->removable, sizebuf,
-                d->ro, d->type);
-    }
+    out[oi] = '\0';
+    return width > maxw ? width : maxw;
 }
 
-static void
-blb_print_header (const blb_opts *opt)
-{
-    if (opt->pairs || opt->raw) return;
-    if (!opt->show_header) return;
-    if (opt->custom_cols) {
-        for (int i = 0; i < opt->ncols; i++) {
-            if (i) putchar (' ');
-            fputs (blb_col_name (opt->cols[i]), stdout);
-        }
-        putchar ('\n');
-        return;
-    }
-    if (opt->fs) {
-        printf ("%-16s %-7s %s %6s %s %-5s %s\n",
-                "NAME", "MAJ:MIN", "RM", "SIZE", "RO", "TYPE", "FSTYPE");
-    } else {
-        printf ("%-16s %-7s %s %6s %s %s\n",
-                "NAME", "MAJ:MIN", "RM", "SIZE", "RO", "TYPE");
-    }
-}
+typedef struct {
+    int idx;
+    char prefix[160];
+} blb_row;
 
-/* Tree form: walk disks in order, then for each disk print every part
- * whose parent==disk.name with ASCII branch chars. */
+/* Depth-first walk: each device is followed by its children (partitions,
+ * and holders through their slaves), siblings in the sorted order. */
 static void
-blb_emit_branch (const blb_dev *devs, int n, const blb_opts *opt,
-                 int idx, const char *prefix, int depth, unsigned char *active)
+blb_walk (const blb_dev *devs, int n, const blb_opts *opt, int idx,
+          const char *prefix, int depth, unsigned char *active,
+          blb_row *rows, int *nrows)
 {
-    if (depth >= BLB_MAX_DEVS || active[idx]) return;
+    if (depth >= BLB_MAX_DEVS || active[idx] || *nrows >= BLB_MAX_DEVS) return;
     active[idx] = 1;
-    blb_print_one (&devs[idx], prefix, opt);
+    rows[*nrows].idx = idx;
+    snprintf (rows[*nrows].prefix, sizeof rows[*nrows].prefix, "%s", opt->list ? "" : prefix);
+    (*nrows)++;
     if (!opt->nodeps) {
         int last = -1;
         for (int j = 0; j < n; j++)
             if (!active[j] && strcmp (devs[j].parent, devs[idx].name) == 0) last = j;
         for (int j = 0; j < n; j++) {
-            char next[80];
+            char next[160];
             if (active[j] || strcmp (devs[j].parent, devs[idx].name) != 0) continue;
             if (depth == 0) snprintf (next, sizeof next, "%s", j == last ? "`-" : "|-");
             else {
                 size_t len = strlen (prefix);
-                if (len + 2 >= sizeof next) continue;
+                if (len + 3 >= sizeof next) continue;
                 memcpy (next, prefix, len + 1);
                 if (len >= 2) { next[len-2] = prefix[len-2] == '`' ? ' ' : '|'; next[len-1] = ' '; }
                 strcat (next, j == last ? "`-" : "|-");
             }
-            blb_emit_branch (devs, n, opt, j, next, depth + 1, active);
+            blb_walk (devs, n, opt, j, next, depth + 1, active, rows, nrows);
         }
     }
     active[idx] = 0;
 }
 
-static void
-blb_emit_tree (const blb_dev *devs, int n, const blb_opts *opt)
+#define BLB_CELL_MAX (BLB_MOUNT_MAX * 4 + 256)
+
+static int
+blb_emit (const blb_dev *devs, int n, const blb_opts *opt)
 {
+    static blb_row rows[BLB_MAX_DEVS];
     unsigned char active[BLB_MAX_DEVS] = { 0 };
+    int nrows = 0;
     for (int i = 0; i < n; i++) {
         int parent_found = 0;
         for (int j = 0; j < n; j++)
             if (strcmp (devs[i].parent, devs[j].name) == 0) parent_found = 1;
-        if (!parent_found) blb_emit_branch (devs, n, opt, i, "", 0, active);
+        if (!parent_found) blb_walk (devs, n, opt, i, "", 0, active, rows, &nrows);
     }
-}
+    if (nrows == 0)
+        return 0;   /* an empty table prints nothing, not even headings */
 
-/* List form: flat. -d omits partitions; otherwise everything. */
-static void
-blb_emit_list (const blb_dev *devs, int n, const blb_opts *opt)
-{
-    for (int i = 0; i < n; i++) {
-        if (opt->nodeps && devs[i].parent[0] != '\0') continue;
-        blb_print_one (&devs[i], "", opt);
+    int parsable = opt->pairs || opt->raw;
+    char buf[BLB_CELL_MAX];
+    if (parsable) {
+        /* Raw output keeps its heading line (unless -n); pairs have none. */
+        if (opt->raw && opt->show_header) {
+            for (int c = 0; c < opt->ncols; c++) {
+                blb_print_raw_value (blb_col (opt->cols[c])->name);
+                if (c + 1 < opt->ncols) putchar (' ');
+            }
+            putchar ('\n');
+        }
+        for (int r = 0; r < nrows; r++) {
+            for (int c = 0; c < opt->ncols; c++) {
+                const char *v = blb_col_value (&devs[rows[r].idx], "", opt->cols[c], 1, buf, sizeof buf);
+                if (opt->pairs) {
+                    printf ("%s=", blb_col (opt->cols[c])->name);
+                    blb_print_pair_value (v);
+                } else
+                    blb_print_raw_value (v);
+                if (c + 1 < opt->ncols) putchar (' ');
+            }
+            putchar ('\n');
+        }
+        return 0;
     }
+
+    /* libsmartcols layout: a column is as wide as its widest cell, its
+     * heading (when shown) and an absolute width hint; cells are padded
+     * to it, right-aligned columns on the left; a left-aligned last column
+     * is not padded; one space separates columns. */
+    char **cells = calloc ((size_t) nrows * (size_t) opt->ncols, sizeof *cells);
+    size_t *widths = calloc ((size_t) nrows * (size_t) opt->ncols, sizeof *widths);
+    if (!cells || !widths) {
+        free (cells); free (widths);
+        builtin_error ("out of memory");
+        return -1;
+    }
+    size_t colw[BLB_COL_MAX];
+    for (int c = 0; c < opt->ncols; c++) {
+        const blb_col_def *def = blb_col (opt->cols[c]);
+        size_t wmin = opt->show_header ? strlen (def->name) : 0, w = 0, wmax = 0;
+        int no_header = !opt->show_header;
+        if (!wmin) wmin = 1;
+        for (int r = 0; r < nrows; r++) {
+            const char *v = blb_col_value (&devs[rows[r].idx], rows[r].prefix,
+                                           opt->cols[c], 0, buf, sizeof buf);
+            char enc[BLB_CELL_MAX];
+            size_t len = blb_safe_encode (v, enc, sizeof enc,
+                                          opt->cols[c] == BLB_COL_MOUNTPOINTS);
+            cells[r * opt->ncols + c] = strdup (enc);
+            widths[r * opt->ncols + c] = len;
+            if (len > wmax) wmax = len;
+            if (len > w) w = len;
+        }
+        if (w < wmin)
+            w = wmin;
+        else if (def->whint >= 1 && w < (size_t) def->whint && wmin < (size_t) def->whint)
+            w = (size_t) def->whint;
+        if (wmax == 0 && no_header && wmin == 1 && w <= 1)
+            w = 0;
+        colw[c] = w;
+    }
+    /* A multi-line cell continues on following lines, the other columns
+     * there blank (the tree column keeps its vertical lines). */
+    for (int r = opt->show_header ? -1 : 0; r < nrows; r++) {
+        const char *rest[BLB_COL_MAX];
+        int more = 1;
+        for (int c = 0; c < opt->ncols; c++)
+            rest[c] = r < 0 ? blb_col (opt->cols[c])->name : cells[r * opt->ncols + c];
+        for (int line = 0; more; line++) {
+            more = 0;
+            for (int c = 0; c < opt->ncols; c++) {
+                const blb_col_def *def = blb_col (opt->cols[c]);
+                const char *v = rest[c] ? rest[c] : "";
+                char art[160];
+                size_t vlen;
+                if (line > 0 && opt->cols[c] == BLB_COL_NAME && r >= 0 && !opt->list) {
+                    /* continuation tree art: own branch becomes a vertical line */
+                    const blb_row *row = &rows[r];
+                    snprintf (art, sizeof art, "%s", row->prefix);
+                    size_t al = strlen (art);
+                    if (al >= 2) { art[al-2] = art[al-2] == '`' ? ' ' : '|'; art[al-1] = ' '; }
+                    int kids = 0;
+                    for (int k = r + 1; k < nrows && !opt->nodeps; k++)
+                        if (strcmp (devs[rows[k].idx].parent, devs[row->idx].name) == 0) kids = 1;
+                    if (kids && al + 2 < sizeof art) strcat (art, "| ");
+                    v = art;
+                    vlen = strlen (art);
+                    rest[c] = NULL;
+                } else {
+                    const char *nl = strchr (v, '\n');
+                    vlen = nl ? (size_t) (nl - v) : strlen (v);
+                    rest[c] = nl ? nl + 1 : NULL;
+                    if (nl) more = 1;
+                    if (line > 0 && opt->cols[c] == BLB_COL_NAME) vlen = 0;
+                }
+                size_t len = blb_str_width (v, vlen), w = colw[c];
+                int last = c + 1 == opt->ncols;
+                /* The last column is not filled: an empty cell prints
+                   nothing, a left-aligned one no trailing padding. */
+                if (last && (vlen == 0 || (len < w && !def->right)))
+                    w = len;
+                if (def->right)
+                    for (size_t i = len; i < w; i++) putchar (' ');
+                fwrite (v, 1, vlen, stdout);
+                if (!def->right)
+                    for (size_t i = len; i < w; i++) putchar (' ');
+                if (!last) putchar (' ');
+            }
+            putchar ('\n');
+        }
+    }
+    for (int i = 0; i < nrows * opt->ncols; i++) free (cells[i]);
+    free (cells);
+    free (widths);
+    return 0;
 }
 
 /* ---------- filter: restrict to named devices ---------- */
 
-/* Returns 1 if `cand` is mentioned (by basename) in argv `wants[0..n-1]`. */
+/* An operand that is a block device node selects the device with its
+ * MAJ:MIN; any other operand is matched by its last path component against
+ * the kernel name or the device-mapper name. */
 static int
-blb_matches_wanted (const char *cand, char **wants, int nwants)
+blb_operand_index (const blb_dev *devs, int n, const char *w)
 {
-    for (int i = 0; i < nwants; i++) {
-        const char *w = wants[i];
-        const char *base = strrchr (w, '/');
-        base = base ? base + 1 : w;
-        if (strcmp (base, cand) == 0) return 1;
+    struct stat st;
+    if (stat (w, &st) == 0 && S_ISBLK (st.st_mode)) {
+        for (int i = 0; i < n; i++)
+            if (devs[i].have_devno && devs[i].maj == major (st.st_rdev)
+                && devs[i].min == minor (st.st_rdev))
+                return i;
+        return -1;
     }
-    return 0;
+    const char *base = strrchr (w, '/');
+    base = base ? base + 1 : w;
+    for (int i = 0; i < n; i++)
+        if (strcmp (base, devs[i].name) == 0
+            || (devs[i].dmname[0] && strcmp (base, devs[i].dmname) == 0))
+            return i;
+    return -1;
 }
 
-/* Filter `devs` in-place: keep only entries whose name is in `wants`,
- * plus all their children (so a `bashlsblk vda` call still shows the
- * partition table tree under vda). Returns new count. */
+/* Keep the named devices and all their descendants, in sorted order.
+ * Reports each unmatched operand like util-linux; *failed counts them. */
 static int
-blb_filter (blb_dev *devs, int n, char **wants, int nwants)
+blb_filter (blb_dev *devs, int n, char **wants, int nwants, int *failed)
 {
-    int kept[BLB_MAX_DEVS];
-    int nkept = 0;
-    /* Pass 1: select top-level matches by name. */
-    for (int i = 0; i < n; i++) {
-        if (blb_matches_wanted (devs[i].name, wants, nwants)) {
-            kept[nkept++] = i;
-        }
+    unsigned char keep[BLB_MAX_DEVS] = { 0 };
+    *failed = 0;
+    for (int k = 0; k < nwants; k++) {
+        int i = blb_operand_index (devs, n, wants[k]);
+        if (i < 0) {
+            fprintf (stderr, "lsblk: %s: not a block device\n", wants[k]);
+            (*failed)++;
+        } else
+            keep[i] = 1;
     }
-    /* Grow the selection until all descendants have been included. */
-    int extra = 0, changed;
+    int changed;
     do {
         changed = 0;
         for (int i = 0; i < n; i++) {
-            if (!devs[i].parent[0]) continue;
-            int selected = 0, parent_selected = 0;
-            for (int k = 0; k < nkept + extra; k++) {
-                if (kept[k] == i) selected = 1;
-                if (strcmp (devs[i].parent, devs[kept[k]].name) == 0)
-                    parent_selected = 1;
-            }
-            if (!selected && parent_selected && nkept + extra < BLB_MAX_DEVS) {
-                kept[nkept + extra++] = i;
-                changed = 1;
-            }
+            if (keep[i] || !devs[i].parent[0]) continue;
+            for (int j = 0; j < n; j++)
+                if (keep[j] && strcmp (devs[i].parent, devs[j].name) == 0) {
+                    keep[i] = 1;
+                    changed = 1;
+                    break;
+                }
         }
     } while (changed);
-    int total = nkept + extra;
-    /* Compact: write kept entries to a temp, then back. Allocate on the
-     * stack — BLB_MAX_DEVS ceiling caps the size. */
-    blb_dev tmp[BLB_MAX_DEVS];
-    for (int i = 0; i < total; i++) tmp[i] = devs[kept[i]];
-    for (int i = 0; i < total; i++) devs[i] = tmp[i];
-    qsort (devs, total, sizeof *devs, blb_cmp_dev);
+    int total = 0;
+    for (int i = 0; i < n; i++)
+        if (keep[i]) {
+            if (total != i) devs[total] = devs[i];
+            total++;
+        }
+    return total;
+}
+
+/* Without operands or -a, util-linux skips empty devices (unbound loops)
+ * and RAM disks (major 1). */
+static int
+blb_drop_empty (blb_dev *devs, int n)
+{
+    int total = 0;
+    for (int i = 0; i < n; i++) {
+        if (devs[i].size_bytes == 0 || (devs[i].have_devno && devs[i].maj == 1))
+            continue;
+        if (total != i) devs[total] = devs[i];
+        total++;
+    }
     return total;
 }
 
@@ -1240,12 +1553,14 @@ blb_filter (blb_dev *devs, int n, char **wants, int nwants)
 int
 lsblk_builtin (WORD_LIST *list)
 {
-    blb_opts opt = { 0, 0, 0, 1, 0, 0, 0, { 0 }, 0 };
+    blb_opts opt;
+    memset (&opt, 0, sizeof opt);
+    opt.show_header = 1;
     char *wants[BLB_MAX_DEVS];
     int nwants = 0;
     int n_pos_max = (int) (sizeof wants / sizeof wants[0]);
 
-    /* Argument parse: -l / -d / -f / -h / --help / --, then positionals. */
+    /* Argument parse: flags, -o LIST, --, then positionals. */
     while (list) {
         const char *w = list->word->word;
         if (strcmp (w, "--") == 0) {
@@ -1258,7 +1573,9 @@ lsblk_builtin (WORD_LIST *list)
             blb_print_help ();
             return EXECUTION_SUCCESS;
         }
-        if (strcmp (w, "-l") == 0 || strcmp (w, "--list") == 0) {
+        if (strcmp (w, "-a") == 0 || strcmp (w, "--all") == 0) {
+            opt.all = 1;
+        } else if (strcmp (w, "-l") == 0 || strcmp (w, "--list") == 0) {
             opt.list = 1;
         } else if (strcmp (w, "-d") == 0 || strcmp (w, "--nodeps") == 0) {
             opt.nodeps = 1;
@@ -1281,14 +1598,11 @@ lsblk_builtin (WORD_LIST *list)
                 return EX_USAGE;
             }
             list = list->next;
-            if (blb_parse_cols (&opt, list->word->word) < 0)
-                return EX_USAGE;
+            opt.outarg = list->word->word;
         } else if (strncmp (w, "--output=", 9) == 0) {
-            if (blb_parse_cols (&opt, w + 9) < 0)
-                return EX_USAGE;
+            opt.outarg = w + 9;
         } else if (strncmp (w, "-o", 2) == 0 && w[2] != '\0') {
-            if (blb_parse_cols (&opt, w + 2) < 0)
-                return EX_USAGE;
+            opt.outarg = w + 2;
         } else if (w[0] == '-' && w[1] != '\0') {
             builtin_error ("unknown flag: %s", w);
             builtin_usage ();
@@ -1298,54 +1612,58 @@ lsblk_builtin (WORD_LIST *list)
         }
         list = list->next;
     }
+    blb_add_default_cols (&opt);
+    if (opt.outarg && blb_parse_cols (&opt, opt.outarg) < 0)
+        return EX_USAGE;
 
-    blb_dev devs[BLB_MAX_DEVS];
-    int n = 0;
+    static blb_dev devs[BLB_MAX_DEVS];
+    int n = 0, failed = 0;
     if (blb_load_all (devs, BLB_MAX_DEVS, &n) < 0) {
         return EXECUTION_FAILURE;
     }
 
     if (nwants > 0) {
-        n = blb_filter (devs, n, wants, nwants);
-        if (n == 0) {
-            /* lsblk(8) exits 32 when *no* requested device exists. */
-            for (int i = 0; i < nwants; i++) {
-                builtin_error ("not a block device: %s", wants[i]);
-            }
+        n = blb_filter (devs, n, wants, nwants, &failed);
+        /* lsblk(8): 32 when no operand was found, 64 when only some were. */
+        if (failed == nwants)
             return 32;
-        }
-    }
+    } else if (!opt.all)
+        n = blb_drop_empty (devs, n);
 
-    blb_print_header (&opt);
-    if (opt.list) {
-        blb_emit_list (devs, n, &opt);
-    } else {
-        blb_emit_tree (devs, n, &opt);
-    }
-    return EXECUTION_SUCCESS;
+    if (blb_emit (devs, n, &opt) < 0)
+        return EXECUTION_FAILURE;
+    if (fflush (stdout) != 0 || ferror (stdout))
+        return EXECUTION_FAILURE;
+    return failed ? 64 : EXECUTION_SUCCESS;
 }
 
 char *lsblk_doc[] = {
     "List block devices (lsblk).",
     "",
-    "    bashlsblk [-l] [-d] [-f] [-n] [-P|-r] [-o LIST] [DEV ...]",
+    "    bashlsblk [-a] [-l] [-d] [-f] [-n] [-P|-r] [-o LIST] [DEV ...]",
     "    bashlsblk -h | --help",
     "",
-    "Walks /sys/class/block. Default output is a tree: disks first, then",
-    "each disk's partitions indented with ASCII branch characters.",
+    "Walks /sys/class/block. Default output is a tree in MAJ:MIN order, each",
+    "device followed by its partitions and holders, indented with ASCII",
+    "branch characters.",
     "",
+    "    -a    --all; also list empty devices and RAM disks (major 1)",
     "    -l    list form (flat)",
     "    -d    --nodeps; print disks only, suppress partitions",
-    "    -f    --fs; emit FSTYPE column from matching /dev nodes",
+    "    -f    --fs; the NAME FSTYPE FSVER LABEL UUID FSAVAIL FSUSE%",
+    "          MOUNTPOINTS columns, from the udev database or, without an",
+    "          entry there, from the matching /dev node",
     "    -n    --noheadings; suppress the column header row",
-    "    -P    --pairs; emit fixed key=\"value\" rows",
-    "    -r    --raw; emit fixed space-separated rows",
+    "    -P    --pairs; emit key=\"value\" rows",
+    "    -r    --raw; emit space-separated rows",
     "    -o    --output LIST; select supported columns; +COL appends",
-    "    DEV   restrict to named device(s). DEV may be a basename",
-    "          (`vda`), a /dev path (`/dev/vda`), or a /sys path; the",
-    "          trailing component is what matches. Partitions of a",
-    "          matched disk are also shown.",
+    "    DEV   restrict to named device(s). A block device node selects",
+    "          the device with its MAJ:MIN; otherwise DEV may be a",
+    "          basename (`vda`) or a /sys path, whose trailing component",
+    "          matches the kernel or device-mapper name. Partitions and",
+    "          holders of a matched device are also shown.",
     "",
+    "Default columns: NAME MAJ:MIN RM SIZE RO TYPE MOUNTPOINTS.",
     "Columns: NAME MAJ:MIN RM SIZE RO TYPE FSTYPE FSVER LABEL UUID",
     "PARTLABEL PARTUUID MOUNTPOINT/MOUNTPOINTS FSAVAIL FSUSE%. Sizes are",
     "human-readable powers-of-1024.",
@@ -1354,7 +1672,8 @@ char *lsblk_doc[] = {
     "    0    success",
     "    1    operational error (sysfs unavailable)",
     "    2    usage error",
-    "    32   no matching device when DEV operand given",
+    "    32   no DEV operand found",
+    "    64   some DEV operands not found",
     (char *)NULL
 };
 
@@ -1363,6 +1682,6 @@ struct builtin bashlsblk_struct = {
     lsblk_builtin,
     BUILTIN_ENABLED,
     lsblk_doc,
-    "bashlsblk [-l] [-d] [-f] [-n] [-P|-r] [-o LIST] [DEV ...]",
+    "bashlsblk [-a] [-l] [-d] [-f] [-n] [-P|-r] [-o LIST] [DEV ...]",
     0
 };

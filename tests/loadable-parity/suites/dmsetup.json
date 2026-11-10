@@ -79,7 +79,7 @@
     {
       "id": "table-input-create-load",
       "kind": "migrated",
-      "purpose": "Exercise create/load/reload from inline text, a small relative table file, and stdin, including flags and rollback after activation failure.",
+      "purpose": "Exercise create/load/reload from a table file and stdin. A positional operand is always a filename.",
       "replacement_cases": [
         {
           "group": "shell",

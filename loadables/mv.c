@@ -97,9 +97,12 @@ bmv_join_path (const char *dir, const char *name, size_t name_length)
     char *path = malloc (dir_length + name_length + 2);
     if (!path) { builtin_error ("out of memory"); return NULL; }
     memcpy (path, dir, dir_length);
-    path[dir_length] = '/';
-    memcpy (path + dir_length + 1, name, name_length);
-    path[dir_length + name_length + 1] = '\0';
+    /* Like GNU file_name_concat: a DIR operand that already ends in a slash
+       ("mv f /var/tmp/ro/") gets no second one in the names it reports. */
+    size_t sep = dir_length > 0 && dir[dir_length - 1] == '/' ? 0 : 1;
+    if (sep) path[dir_length] = '/';
+    memcpy (path + dir_length + sep, name, name_length);
+    path[dir_length + name_length + sep] = '\0';
     return path;
 }
 
@@ -168,8 +171,9 @@ bmv_copy_regular (const char *src, const char *dst, const struct stat *sst)
     }
     int dfd = open (dst, O_WRONLY | O_CREAT | O_TRUNC, sst->st_mode & 0777);
     if (dfd < 0) {
+        int saved_errno = errno;
         close (sfd);
-        builtin_error ("open %s for write: %s", dst, strerror (errno));
+        fprintf (stderr, "mv: cannot create regular file '%s': %s\n", dst, strerror (saved_errno));
         return -1;
     }
     int rc = bmv_copy_data (sfd, dfd);

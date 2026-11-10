@@ -31,7 +31,9 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <dirent.h>
+#include <langinfo.h>
 #include <pwd.h>
+#include <strings.h>
 #include <sys/stat.h>
 #if defined (__linux__)
 #  include <sys/sysmacros.h>
@@ -83,6 +85,7 @@ typedef struct {
     long  nice;              /* field 19 (for STAT '<' / 'N') */
     long  num_threads;       /* field 20 (for STAT 'l') */
     long  vmlck_kb;          /* /proc/[pid]/status VmLck  (for STAT 'L') */
+    long  vmrss_kb;          /* /proc/[pid]/status VmRSS, or -1 if absent */
     long  rss_pages;
     long  vsize_bytes;
 } bps_proc;
@@ -109,6 +112,55 @@ bps_proc_pid_path (char *buf, size_t bufsz, int pid, const char *name)
     if (n < 0 || (size_t)n >= sizeof rel)
         return -1;
     return bps_proc_path (buf, bufsz, rel);
+}
+
+/* Make S printable the way procps ps does, in place.  Single-byte locales
+   turn control bytes into '.' and bytes above 0x7e into '?'.  UTF-8 locales
+   keep valid sequences and turn control bytes, C1 controls and invalid
+   bytes into one '?' each, and U+FFFE/U+FFFF into a single '?'. */
+static void
+bps_escape (char *s)
+{
+    const char *set = nl_langinfo (CODESET);
+    int utf8 = set && (!strcasecmp (set, "UTF-8") || !strcasecmp (set, "utf8"));
+    unsigned char *r = (unsigned char *) s, *w = (unsigned char *) s;
+
+    while (*r) {
+        unsigned char c = *r;
+        if (!utf8) {
+            *w++ = c < 0x20 || c == 0x7f ? '.' : c > 0x7e ? '?' : c;
+            r++;
+            continue;
+        }
+        if (c < 0x80) {
+            *w++ = c < 0x20 || c == 0x7f ? '?' : c;
+            r++;
+            continue;
+        }
+        int len = c >= 0xc2 && c <= 0xdf ? 2 : c >= 0xe0 && c <= 0xef ? 3
+                : c >= 0xf0 && c <= 0xf4 ? 4 : 0;
+        unsigned char lo = 0x80, hi = 0xbf;
+        if (c == 0xe0) lo = 0xa0;
+        else if (c == 0xed) hi = 0x9f;
+        else if (c == 0xf0) lo = 0x90;
+        else if (c == 0xf4) hi = 0x8f;
+        int ok = len > 0 && r[1] >= lo && r[1] <= hi;
+        for (int i = 2; ok && i < len; i++)
+            ok = r[i] >= 0x80 && r[i] <= 0xbf;
+        if (!ok) {
+            *w++ = '?';
+            r++;
+        } else if (c == 0xc2 && r[1] <= 0x9f) {
+            *w++ = '?'; *w++ = '?';
+            r += 2;
+        } else if (c == 0xef && r[1] == 0xbf && (r[2] == 0xbe || r[2] == 0xbf)) {
+            *w++ = '?';
+            r += 3;
+        } else {
+            for (int i = 0; i < len; i++) *w++ = *r++;
+        }
+    }
+    *w = '\0';
 }
 
 /* Read all of /proc/PID/stat into buf and slot fields. Returns 0 on
@@ -139,6 +191,7 @@ bps_read_stat (int pid, bps_proc *p)
     if (clen >= sizeof p->comm) clen = sizeof p->comm - 1;
     memcpy (p->comm, first + 1, clen);
     p->comm[clen] = '\0';
+    bps_escape (p->comm);
 
     p->pid = pid;
     /* Skip past `) ` and parse the rest. Field 3 = state. */
@@ -160,6 +213,7 @@ bps_read_stat (int pid, bps_proc *p)
         &p->nice, &p->num_threads,
         &p->starttime_ticks, &p->vsize_bytes, &p->rss_pages);
     if (got != 13) return -1;
+    p->vmrss_kb = -1;
 
     /* uid: read /proc/PID/status. */
     if (bps_proc_pid_path (path, sizeof path, pid, "status") < 0) {
@@ -168,7 +222,7 @@ bps_read_stat (int pid, bps_proc *p)
     }
     fd = open (path, O_RDONLY | O_CLOEXEC);
     if (fd >= 0) {
-        char sbuf[1024];
+        char sbuf[BPS_BUF];
         ssize_t sn = read (fd, sbuf, sizeof sbuf - 1);
         close (fd);
         if (sn > 0) {
@@ -190,6 +244,10 @@ bps_read_stat (int pid, bps_proc *p)
                first status line (Name: is), so anchoring on '\n' is safe. */
             char *vl = strstr (sbuf, "\nVmLck:");
             if (vl) sscanf (vl + 7, "%ld", &p->vmlck_kb);
+            /* procps reports RSS from VmRSS; stat's rss field can lag
+               behind it by the kernel's per-CPU counter batches. */
+            char *vr = strstr (sbuf, "\nVmRSS:");
+            if (vr && sscanf (vr + 7, "%ld", &p->vmrss_kb) != 1) p->vmrss_kb = -1;
         }
     }
 
@@ -203,8 +261,11 @@ bps_read_stat (int pid, bps_proc *p)
         ssize_t an = read (fd, p->args, sizeof p->args - 1);
         close (fd);
         if (an > 0) {
-            for (ssize_t i = 0; i < an - 1; i++) if (p->args[i] == '\0') p->args[i] = ' ';
+            /* Like procps, separators and newlines read as spaces. */
+            for (ssize_t i = 0; i < an - 1; i++)
+                if (p->args[i] == '\0' || p->args[i] == '\n') p->args[i] = ' ';
             p->args[an] = '\0';
+            bps_escape (p->args);
         } else {
             /* Kernel threads have empty cmdline — fall back to [comm]. */
             snprintf (p->args, sizeof p->args, "[%s]", p->comm);
@@ -213,6 +274,14 @@ bps_read_stat (int pid, bps_proc *p)
         snprintf (p->args, sizeof p->args, "[%s]", p->comm);
     }
     return 0;
+}
+
+static long
+bps_rss_kb (const bps_proc *p)
+{
+    long page_size = sysconf (_SC_PAGESIZE);
+    if (page_size <= 0) page_size = 4096;
+    return p->vmrss_kb >= 0 ? p->vmrss_kb : p->rss_pages * page_size / 1024;
 }
 
 static const char *
@@ -537,9 +606,6 @@ static double bps_cpu_percent (const bps_proc *p);
 static void
 bps_print_custom (const bps_proc *p, const bps_colspec *cols, int n_cols)
 {
-    long page_size = sysconf (_SC_PAGESIZE);
-    if (page_size <= 0) page_size = 4096;
-
     for (int i = 0; i < n_cols; i++) {
         if (i) putchar (' ');
         switch (cols[i].col) {
@@ -557,7 +623,7 @@ bps_print_custom (const bps_proc *p, const bps_colspec *cols, int n_cols)
             case BPS_COL_TIME:     bps_print_time_field (p->utime + p->stime); break;
             case BPS_COL_STIME:    { char sb[16]; bps_fmt_stime (p->starttime_ticks, sb, sizeof sb); fputs (sb, stdout); } break;
             case BPS_COL_PCPU:     printf ("%.1f", bps_cpu_percent (p)); break;
-            case BPS_COL_RSS:      printf ("%ld", p->rss_pages * page_size / 1024); break;
+            case BPS_COL_RSS:      printf ("%ld", bps_rss_kb (p)); break;
             case BPS_COL_VSZ:      printf ("%ld", p->vsize_bytes / 1024); break;
         }
     }
@@ -622,12 +688,13 @@ bps_cpu_percent (const bps_proc *p)
     return (long) tenths / 10.0;
 }
 
-/* procps shows a defunct marker even when the kernel cmdline is empty. */
+/* procps shows a defunct marker in argument columns even when the kernel
+   cmdline is empty; the command-name column stays the bare name. */
 static void
 bps_command (const bps_proc *p, int arguments, char *buf, size_t size)
 {
-    if (p->state == 'Z')
-        snprintf (buf, size, arguments ? "[%s] <defunct>" : "%s <defunct>", p->comm);
+    if (arguments && p->state == 'Z')
+        snprintf (buf, size, "[%s] <defunct>", p->comm);
     else
         snprintf (buf, size, "%s", arguments ? (p->args[0] ? p->args : p->comm) : p->comm);
 }
@@ -654,10 +721,7 @@ bps_print_table_row (const bps_proc *p, int full)
 static void
 bps_print_aux_row (const bps_proc *p)
 {
-    long page_size = sysconf (_SC_PAGESIZE);
-    if (page_size <= 0) page_size = 4096;
-
-    long rss_kb = p->rss_pages * page_size / 1024;
+    long rss_kb = bps_rss_kb (p);
     long vsz_kb = p->vsize_bytes / 1024;
     long mem_total = bps_mem_total_kb ();
     double pmem = 0.0;
