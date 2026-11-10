@@ -214,7 +214,7 @@
       "script": "export BASHOS_PROC_ROOT=private-proc\nmkdir -p private-proc/sys/kernel\nprintf '32\\n' > private-proc/sys/kernel/sched_util_clamp_min\nprintf '512\\n' > private-proc/sys/kernel/sched_util_clamp_max\nuclampset --system\nuclampset -m 64 -M 768 --system\nuclampset --system\nuclampset -m -1 -M 900 --system\nuclampset --system\nprintf '64\\n' > expected-min\nprintf '900\\n' > expected-max\ncmp private-proc/sys/kernel/sched_util_clamp_min expected-min\ncmp private-proc/sys/kernel/sched_util_clamp_max expected-max\n",
       "expected_status": 0,
       "stderr": "empty",
-      "stdout": "system util_clamp: min: 32 max: 512\nsystem util_clamp: min: 64 max: 768\nsystem util_clamp: min: 64 max: 900\n"
+      "stdout": "System util_clamp: min: 32 max: 512\nSystem util_clamp: min: 64 max: 768\nSystem util_clamp: min: 64 max: 900\n"
     }
   ]
 }

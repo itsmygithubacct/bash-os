@@ -18,7 +18,7 @@
       "id": "builtin-metadata",
       "kind": "contract",
       "purpose": "Check that Bash reports lsof as a builtin and that help exposes the documented description and synopsis.",
-      "script": "kind=$(type -t lsof)\n[[ $kind == builtin ]]\nhelp lsof >metadata.help\nhave_description=0\nhave_synopsis=0\nwhile IFS= read -r line; do\n  case $line in\n    *'List open file descriptors via /proc/PID/fd.'*) have_description=1 ;;\n    *'lsof [-p PID]... [-u USER] [PID...]'*) have_synopsis=1 ;;\n  esac\ndone <metadata.help\n[[ $have_description == 1 && $have_synopsis == 1 ]]\nprintf 'builtin-metadata-ok\\n'",
+      "script": "kind=$(type -t lsof)\n[[ $kind == builtin ]]\nhelp lsof >metadata.help\nhave_description=0\nhave_synopsis=0\nwhile IFS= read -r line; do\n  case $line in\n    *'List open file descriptors via /proc/PID/fd.'*) have_description=1 ;;\n    *'lsof [-a] [-p PID]... [-u USER] [PID...]'*) have_synopsis=1 ;;\n  esac\ndone <metadata.help\n[[ $have_description == 1 && $have_synopsis == 1 ]]\nprintf 'builtin-metadata-ok\\n'",
       "expected_status": 0,
       "stdout": "builtin-metadata-ok\n",
       "stderr": "empty"

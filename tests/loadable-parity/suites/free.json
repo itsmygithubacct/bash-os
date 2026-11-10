@@ -71,7 +71,7 @@
       "script": "printf '%s\\n' 'MemTotal:     16777216 kB' 'MemFree:      2097152 kB' 'MemAvailable:      8388608 kB' 'Buffers:      1048576 kB' 'Cached:      5242880 kB' 'SwapCached:       999999 kB' 'SwapTotal:      4194304 kB' 'SwapFree:      3145728 kB' 'Shmem:       524288 kB' 'SReclaimable:      1048576 kB' > meminfo\nexport BASHOS_PROC_ROOT=.\nfree -h",
       "expected_status": 0,
       "stderr": "empty",
-      "stdout": "               total        used        free      shared  buff/cache   available\nMem:           16.0G        8.0G        2.0G      512.0M        7.0G        8.0G\nSwap:           4.0G        1.0G        3.0G\n"
+      "stdout": "               total        used        free      shared  buff/cache   available\nMem:            16Gi       8.0Gi       2.0Gi       512Mi       7.0Gi       8.0Gi\nSwap:          4.0Gi       1.0Gi       3.0Gi\n"
     },
     {
       "id": "missing-available-fallback",
@@ -80,7 +80,7 @@
       "script": "printf '%s\\n' 'MemTotal:     16777216 kB' 'MemFree:      2097152 kB' 'Buffers:      1048576 kB' 'Cached:      5242880 kB' 'SwapCached:       999999 kB' 'SwapTotal:      4194304 kB' 'SwapFree:      3145728 kB' 'Shmem:       524288 kB' 'SReclaimable:      1048576 kB' > meminfo\nexport BASHOS_PROC_ROOT=.\nfree -k",
       "expected_status": 0,
       "stderr": "empty",
-      "stdout": "               total        used        free      shared  buff/cache   available\nMem:        16777216     7340032     2097152      524288     7340032           0\nSwap:        4194304     1048576     3145728\n"
+      "stdout": "               total        used        free      shared  buff/cache   available\nMem:        16777216    14680064     2097152      524288     7340032     2097152\nSwap:        4194304     1048576     3145728\n"
     },
     {
       "id": "repeat-count",

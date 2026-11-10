@@ -20,7 +20,7 @@
       "id": "metadata-type-help",
       "purpose": "Check Bash reports acme as a builtin and help exposes its documented contract; the expected marker is emitted only after all documentation checks pass.",
       "kind": "contract",
-      "script": "kind=$(type -t acme)\nhelp_text=$(help acme)\n[[ $kind == builtin ]]\n[[ $help_text == *\"JOSE/JWS + JWK primitives for ACME (RFC 8555).\"* ]]\n[[ $help_text == *\"acme jwk-public\"* ]]\n[[ $help_text == *\"rootfs/bash-os/acme.sh\"* ]]\nprintf '%s\\n' \"$kind\" help-doc-present",
+      "script": "kind=$(type -t acme)\nhelp_text=$(help acme)\n[[ $kind == builtin ]]\n[[ $help_text == *\"ACME lifecycle and JOSE/JWS + JWK primitives (RFC 8555).\"* ]]\n[[ $help_text == *\"acme jwk-public\"* ]]\n[[ $help_text == *\"account|order|challenge|finalize|issue --directory URL\"* ]]\nprintf '%s\\n' \"$kind\" help-doc-present",
       "expected_status": 0,
       "stdout": "builtin\nhelp-doc-present\n",
       "stderr": "empty"
