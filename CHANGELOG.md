@@ -61,6 +61,8 @@ the historical 0.1.3 evidence remains available separately.
   man-db, requires every keyword with `-a`, matches description words with
   `-w`, reports each keyword without a match as `KEYWORD: nothing
   appropriate.` on stderr, and exits 16 only when no keyword matched.
+- `who` prints `%b %e %H:%M` times in a 12-column TIME field when LC_TIME is C
+  or POSIX, as GNU who does, and ISO times otherwise.
 
 ## 0.1.3 — 2026-11-01
 

@@ -14,9 +14,19 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <time.h>
+#include <locale.h>
 #include <utmp.h>
 #include <sys/stat.h>
 #include "loadables.h"
+
+/* GNU who prints ISO times unless LC_TIME is the C or POSIX locale, where it
+   keeps the traditional "%b %e %H:%M" (gnulib hard_locale). */
+static int
+bw_iso_times (void)
+{
+    const char *name = setlocale (LC_TIME, NULL);
+    return name && strcmp (name, "C") != 0 && strcmp (name, "POSIX") != 0;
+}
 
 #define BW_DEFAULT_PATH "/var/run/utmp"
 #define BW_TYPE(t) (1u << (t))
@@ -116,7 +126,7 @@ who_builtin (WORD_LIST *list)
     if (!mask || quiet) mask = BW_TYPE (USER_PROCESS);
 
     if (headers && !quiet) {
-        printf ("%-8s %s%-12s %-16s", "NAME", mesg ? "  " : "", "LINE", "TIME");
+        printf ("%-8s %s%-12s %-*s", "NAME", mesg ? "  " : "", "LINE", bw_iso_times () ? 16 : 12, "TIME");
         if (idle) printf (" %-6s", "IDLE");
         if (pid) printf (" %10s", "PID");
         printf (" COMMENT%s\n", exits ? "  EXIT" : "");
@@ -150,7 +160,7 @@ who_builtin (WORD_LIST *list)
         char tbuf[64] = "?", idlebuf[32] = "  ?";
         time_t t = (time_t) u.ut_tv.tv_sec;
         struct tm tm;
-        if (localtime_r (&t, &tm)) strftime (tbuf, sizeof tbuf, "%Y-%m-%d %H:%M", &tm);
+        if (localtime_r (&t, &tm)) strftime (tbuf, sizeof tbuf, bw_iso_times () ? "%Y-%m-%d %H:%M" : "%b %e %H:%M", &tm);
         struct stat st;
         char terminal[sizeof u.ut_line + 6];
         snprintf (terminal, sizeof terminal, "/dev/%s", line);
