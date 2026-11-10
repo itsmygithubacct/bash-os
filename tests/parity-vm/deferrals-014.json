@@ -29513,7 +29513,7 @@
           "evidence": [
             {
               "assertion": "-t/--tcp, -u/--udp, -x/--unix print identical output and select exactly the fixture's TCP, UDP or unix rows; -tl/--tcp --listening and -ta/--tcp --all identical.",
-              "definition_sha256": "11c6c628de8afff76fa35e68ef3ff4ce95775d076d7d6df75291e9acebd04ac8",
+              "definition_sha256": "23b0e9046673fed581002e14d344efc553d081e4d56cebc35f1d20f3c24ec621",
               "group": "shell",
               "id": "mig-w1-sock-ns-aliases"
             }
@@ -29527,7 +29527,7 @@
           "evidence": [
             {
               "assertion": "-tl shows only TCP listeners, -ta and plain -t all states, -ul only unconnected UDP, -xl only the unix listener, -xa all four unix sockets.",
-              "definition_sha256": "1def5273d23f86db31c66ec1f7a3c824972e6817a06ac855825313bbbf609b55",
+              "definition_sha256": "4a8966bf45f8a4102e1990d03da97bacf436a88818f2df6822c4ed5bc2d2e353",
               "group": "shell",
               "id": "mig-w1-sock-ns-states"
             }
@@ -29541,7 +29541,7 @@
           "evidence": [
             {
               "assertion": "netstat with no family flag lists every TCP and UDP socket and all unix sockets.",
-              "definition_sha256": "be9005d4e8713a9f5f442a98cf77abff4461cfebcc653ebed5d097e97c23796d",
+              "definition_sha256": "6d3c0d93a9389d0322b609478a0f66a3260fc37f20682091b5e6b5c170dd8bb1",
               "group": "shell",
               "id": "mig-w1-sock-ns-default"
             }
@@ -29555,7 +29555,7 @@
           "evidence": [
             {
               "assertion": "Five netstat calls in one shell (-tl, plain, -x, -ul, plain): each call's output reflects only its own flags and the last plain call equals the first.",
-              "definition_sha256": "a0d8df6132c374a99cbd4bf23712d906aec9ac52aea814b6857d3ae862c45633",
+              "definition_sha256": "9ba436aea225363735d54693fcad32bab407e0ca0ad8604e38239509d0e9223b",
               "group": "shell",
               "id": "mig-w1-sock-ns-reset"
             }
@@ -29584,13 +29584,13 @@
           "evidence": [
             {
               "assertion": "netstat -t IPv4 rows (Recv-Q, Send-Q, endpoints, state) equal the fixture sockets, listener Send-Q equals the backlog.",
-              "definition_sha256": "2c46435c0c92e3125733bb8653f1ec515dccf04522d2adc25d016a2fc1a9549a",
+              "definition_sha256": "00a834e505b8005e5daf6956f34ab6f078aa7962e5befffd1b896f098c904909",
               "group": "shell",
               "id": "mig-w1-sock-ns-tcp"
             },
             {
               "assertion": "TCP state labels are ESTAB/LISTEN rather than the net-tools ESTABLISHED (reached FAIL).",
-              "definition_sha256": "0f71e09f6bd74c330fad52fb0e95b0a832b67142c01d00d2f8618d2b54148d6b",
+              "definition_sha256": "0da14c8a82d10366c68f0a219c615107056adc1d19631b9dbd1fd87ba84939df",
               "group": "shell",
               "id": "mig-w1-sock-ns-tcp-labels"
             }
@@ -29604,7 +29604,7 @@
           "evidence": [
             {
               "assertion": "netstat -u rows and their state labels equal the fixture sockets and iproute2 ss -uan.",
-              "definition_sha256": "c2e165e73736fd3aa418051abf864a2d499fb6e408314039f88fa48ad4238d77",
+              "definition_sha256": "d704e43590e3b36a64f46e736babdbbe97c82a1bdbdaa55f87752c6aa5a1e0a1",
               "group": "shell",
               "id": "mig-w1-sock-ns-udp"
             }
@@ -29618,7 +29618,7 @@
           "evidence": [
             {
               "assertion": "IPv6 TCP/UDP rows use bracket-free numeric addresses (::1:PORT, :::*).",
-              "definition_sha256": "4bd0052ff95f8bd27b1238079987e495ec5f66d2e31a611bdbfd86ef79e6b140",
+              "definition_sha256": "00cd5b33b0e12accf8804d1ef2442a133a074e6e4344e44bebfa81e050899c27",
               "group": "shell",
               "id": "mig-w1-sock-ns-ipv6"
             }
@@ -29632,7 +29632,7 @@
           "evidence": [
             {
               "assertion": "The first line of netstat -t/-u/-x/no-flag output is the legacy Proto/Recv-Q/Send-Q/Local Address/Foreign Address/State header.",
-              "definition_sha256": "0db7d87202712e28182bf36852ad6c7bad13c948ebd8d78e7633a0271a875f13",
+              "definition_sha256": "98a245aab68ddf84e8ec9f642a7b05fa6e7725f77879cc44eed8a35356267bfc",
               "group": "shell",
               "id": "mig-w1-sock-ns-header"
             }
@@ -29661,7 +29661,7 @@
           "evidence": [
             {
               "assertion": "netstat -p annotates the fixture's listener and established ends with its pid and program, attributes a child's listener to the child, and is unannotated without -p.",
-              "definition_sha256": "1802246c62c1bd427f37ee6a0db1ccd31f82e293585effaf24655bf7391be501",
+              "definition_sha256": "1ed8f8fa489eb2eb9f50d59c378072c88ce12e876b2ab3280237a759e9685390",
               "group": "shell",
               "id": "mig-w1-sock-annot-ns"
             }
@@ -29675,7 +29675,7 @@
           "evidence": [
             {
               "assertion": "netstat -tp with unreadable process directories exits 0 and keeps the owner's row without an annotation.",
-              "definition_sha256": "4ed092599b35ce16d6d3d007534fa8dacda0a5645a658cddaf5594ca793ca3fb",
+              "definition_sha256": "bf8abd077895e8b7b92c94416969e5511ee6cc24fcf550b26042bcc56cdd2c34",
               "group": "shell",
               "id": "mig-w1-sock-annot-denied"
             }
@@ -29781,7 +29781,7 @@
           "evidence": [
             {
               "assertion": "netstat -x lists the stream listener as u_str with its path but labels it LISTEN instead of LISTENING (reached FAIL); existing record retained.",
-              "definition_sha256": "9462b7e01cc10cdf0d6e816676a8ea1319767d7ad91fc01c6b67a7b1ecd10f18",
+              "definition_sha256": "8d844f1928ee2c38bd92eed8b01392b0c89de2a19a1514a1060ad9ec578ccf2c",
               "group": "shell",
               "id": "mig-w1-sock-ns-unix"
             },
@@ -29801,7 +29801,7 @@
           "evidence": [
             {
               "assertion": "Connected pair appears as two ESTAB rows, not CONNECTED (reached FAIL).",
-              "definition_sha256": "9462b7e01cc10cdf0d6e816676a8ea1319767d7ad91fc01c6b67a7b1ecd10f18",
+              "definition_sha256": "8d844f1928ee2c38bd92eed8b01392b0c89de2a19a1514a1060ad9ec578ccf2c",
               "group": "shell",
               "id": "mig-w1-sock-ns-unix"
             },
@@ -29821,7 +29821,7 @@
           "evidence": [
             {
               "assertion": "Unix labels are LISTEN/ESTAB/UNCONN (TCP-style), not the SS_* vocabulary (reached FAIL); Recv-Q of the receiving end equals 5 queued bytes.",
-              "definition_sha256": "9462b7e01cc10cdf0d6e816676a8ea1319767d7ad91fc01c6b67a7b1ecd10f18",
+              "definition_sha256": "8d844f1928ee2c38bd92eed8b01392b0c89de2a19a1514a1060ad9ec578ccf2c",
               "group": "shell",
               "id": "mig-w1-sock-ns-unix"
             },
@@ -42743,7 +42743,7 @@
           "evidence": [
             {
               "assertion": "ss with no flag lists exactly the fixture's TCP rows (tcp and tcp6) and no UDP/unix rows.",
-              "definition_sha256": "c37872ab5b8a692b1203ca0e81733f968347499c2e3c793f272ec8a59f1864a9",
+              "definition_sha256": "140b27ea8081a17abcc226c7d5c5bbbed2c33e37eba24a6c7cd3d22573ef9703",
               "group": "shell",
               "id": "mig-w1-sock-ss-default"
             }
@@ -42757,7 +42757,7 @@
           "evidence": [
             {
               "assertion": "ss -t/-u/-x/-tu/-tx/-ux/-tux each select exactly the corresponding families' rows against the fixture's sockets.",
-              "definition_sha256": "86b9c0c9d385152a00d4e4e02abea73336dc1e307d2bd98a59eab7bb2b49ac6f",
+              "definition_sha256": "227fc1f8588ac2f1d61a6bae7ddbad7767947e1ea1ff38231ee7bfe3e79c4606",
               "group": "shell",
               "id": "mig-w1-sock-ss-families"
             }
@@ -42771,7 +42771,7 @@
           "evidence": [
             {
               "assertion": "ss -tl/-ul/-xl show only listening or unconnected-bound sockets; -ta/-ua/-xa show all states, row sets equal to the fixture model.",
-              "definition_sha256": "0e75a2415479c6874cc5d85b7fee9fffcb833f3a5a19a05678e736eeb0e1de58",
+              "definition_sha256": "955e2c73fe9683d275eeb5c62d8c8854d280bd9c4a304b04f7a0e88f6f6f4647",
               "group": "shell",
               "id": "mig-w1-sock-ss-listen-all"
             }
@@ -42785,7 +42785,7 @@
           "evidence": [
             {
               "assertion": "IPv4 endpoints print as 127.0.0.1:PORT, but IPv6 endpoints print as ::1:PORT and peer :::* instead of [::1]:PORT and [::]:* (reached FAIL).",
-              "definition_sha256": "36a704d52fac28cd76bca809177b78beea3d25b302013bf88b61461b7e5a81ac",
+              "definition_sha256": "bc873e9c6e9fc673d2782285e29fd0f7d383a981d7fa1b1a29e0cb97ba2c09b7",
               "group": "shell",
               "id": "mig-w1-sock-ss-numeric"
             }
@@ -42799,7 +42799,7 @@
           "evidence": [
             {
               "assertion": "ss -tuxa row sets (netid, state, queues, endpoints; unix netid/state/path) equal iproute2 ss -tuxan in the same namespace.",
-              "definition_sha256": "f29ac05486a7d783ca7103492ed481bb5732a8af07e41f45d259970572d433e5",
+              "definition_sha256": "da1a605b7d3e4fe53a7a0d5775d1810995ffc1715b8621f8be24af3e940622b8",
               "group": "shell",
               "id": "mig-w1-sock-ss-vs-iproute2"
             }
@@ -42834,7 +42834,7 @@
             },
             {
               "assertion": "With socket(AF_NETLINK, NETLINK_SOCK_DIAG) denied by seccomp, ss -tuxa exits 0 and lists IPv4 and IPv6 TCP/UDP rows (identity and state) equal to the fixture sockets plus unix rows from /proc/net/unix; netstat likewise lists the IPv6 listener.",
-              "definition_sha256": "0efd96f51a13bf60d2517d71f9236be63233fdb1b2eadf14b3662fef5ee44962",
+              "definition_sha256": "34366a00e58df87afa675a73da5fb0c23c9a5b127770655a231ffdd2ad45870f",
               "group": "shell",
               "id": "mig-w1-sock-fallback"
             }
@@ -42947,7 +42947,7 @@
           "evidence": [
             {
               "assertion": "ss -p annotates listener, accepted and client ends and a child's listener with the correct comm, pid and fd (parent vs child distinguished), ss -xp the unix listener, and equals iproute2's annotation for the same listener.",
-              "definition_sha256": "ef631551d499c691fc681ddddeafdd9f5f071ee923d8e3a5c64df3f57ad1fc45",
+              "definition_sha256": "a9d3e660d5eab4e33982ec2d83f5403a64168a8c966d494a27017e76bd379c85",
               "group": "shell",
               "id": "mig-w1-sock-annot-ss"
             }
@@ -42961,7 +42961,7 @@
           "evidence": [
             {
               "assertion": "With CAP_SYS_PTRACE removed from the scanner, non-dumpable owners' /proc/PID/fd are unreadable: ss -tp and netstat -tp exit 0, every row is still listed, unreadable rows carry no annotation; control with capabilities shows annotation.",
-              "definition_sha256": "4ed092599b35ce16d6d3d007534fa8dacda0a5645a658cddaf5594ca793ca3fb",
+              "definition_sha256": "bf8abd077895e8b7b92c94416969e5511ee6cc24fcf550b26042bcc56cdd2c34",
               "group": "shell",
               "id": "mig-w1-sock-annot-denied"
             }
@@ -42975,7 +42975,7 @@
           "evidence": [
             {
               "assertion": "25 ss -tp runs while a neighbour opens and closes 40 sockets in a loop all exit 0 and keep the stable owner annotated; netstat -tp under churn exits 0 (one bounded churn schedule).",
-              "definition_sha256": "dfb8b111b95cb45a5579006ac2c713633a0949cab253af0f706c760294cc4083",
+              "definition_sha256": "0555f62eb066e3ce62362ff1d21f1757c2e82b7bfc0a85a639029be34b26fad2",
               "group": "shell",
               "id": "mig-w1-sock-annot-vanish"
             }

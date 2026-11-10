@@ -271,8 +271,10 @@ def cand_ns(*args, preexec=None):
 
 
 def ns_inet_model(w):
-    m = w.inet_rows()
-    return m
+    # net-tools netstat spells TCP states in full (ESTABLISHED); UDP keeps the
+    # ss labels this interface prints (UNCONN, ESTAB). See sc_ns_tcp_labels.
+    return {(net, "ESTABLISHED" if net.startswith("tcp") and state == "ESTAB" else state, rq, sq, local, peer)
+            for net, state, rq, sq, local, peer in w.inet_rows()}
 
 
 def sc_ns_aliases():
@@ -284,9 +286,9 @@ def sc_ns_aliases():
         pa, pb = parse_netstat(ra[1]), parse_netstat(rb[1])
         L.check("netstat %s and %s print identical output" % (a, b), ra[1] == rb[1], "short=%r long=%r" % (ra[1][:300], rb[1][:300]))
         if fams == "tcp":
-            eqset("netstat -t selects exactly the TCP sockets", inet_set_ns(pa), {r for r in w.inet_rows() if r[0].startswith("tcp")})
+            eqset("netstat -t selects exactly the TCP sockets", inet_set_ns(pa), {r for r in ns_inet_model(w) if r[0].startswith("tcp")})
         elif fams == "udp":
-            eqset("netstat -u selects exactly the UDP sockets", inet_set_ns(pa), {r for r in w.inet_rows() if r[0].startswith("udp")})
+            eqset("netstat -u selects exactly the UDP sockets", inet_set_ns(pa), {r for r in ns_inet_model(w) if r[0].startswith("udp")})
         else:
             L.check("netstat -x selects only unix rows including the listener path", pa and all(r["proto"].startswith("u_") for r in pa) and any(r["local"] == w.xpath for r in pa), str(pa))
     ra = cand_ns("-tl")
@@ -300,7 +302,7 @@ def sc_ns_aliases():
 
 def sc_ns_states():
     w = World()
-    want = w.inet_rows()
+    want = ns_inet_model(w)
     rc, out, err = cand_ns("-tl")
     eqset("netstat -tl shows only TCP listeners", inet_set_ns(parse_netstat(out)), {r for r in want if r[0].startswith("tcp") and r[1] == "LISTEN"})
     rc, out, err = cand_ns("-ta")
@@ -322,7 +324,7 @@ def sc_ns_default_families():
     rc, out, err = cand_ns()
     rows = parse_netstat(out)
     L.check("netstat with no flags rc0", rc == 0, err)
-    eqset("netstat with no flags shows every TCP and UDP socket", inet_set_ns(rows), w.inet_rows())
+    eqset("netstat with no flags shows every TCP and UDP socket", inet_set_ns(rows), ns_inet_model(w))
     L.check("netstat with no flags also shows the unix sockets", len([r for r in rows if r["proto"].startswith("u_")]) == 4, out)
     w.close()
 
@@ -334,7 +336,7 @@ def sc_ns_option_reset():
     parts = out.split("==\n")
     L.check("netstat option reset: five calls ran", rc == 0 and len(parts) == 5, "rc=%s parts=%d err=%s" % (rc, len(parts), err))
     if len(parts) == 5:
-        all_rows = w.inet_rows()
+        all_rows = ns_inet_model(w)
         eqset("netstat after -tl shows the TCP listeners only", inet_set_ns(parse_netstat(parts[0])), {r for r in all_rows if r[0].startswith("tcp") and r[1] == "LISTEN"})
         r2 = parse_netstat(parts[1])
         eqset("plain netstat after -tl shows all TCP and UDP states again", inet_set_ns(r2), all_rows)
@@ -351,7 +353,7 @@ def sc_ns_tcp_rows():
     w = World()
     rc, out, err = cand_ns("-t")
     rows = parse_netstat(out)
-    want = {r for r in w.inet_rows() if r[0] == "tcp"}
+    want = {r for r in ns_inet_model(w) if r[0] == "tcp"}
     eqset("netstat -t IPv4 rows (queues, endpoints, state) equal the fixture sockets", {r for r in inet_set_ns(rows) if r[0] == "tcp"}, want)
     L.check("netstat -t listener row shows the listen backlog as Send-Q", any(r["state"] == "LISTEN" and r["sq"] == 7 and r["local"] == w.ep(w.t4l) for r in rows), out)
     w.close()
@@ -370,7 +372,7 @@ def sc_ns_udp_rows():
     w = World()
     rc, out, err = cand_ns("-u")
     rows = parse_netstat(out)
-    eqset("netstat -u rows (queues, endpoints, state label) equal the fixture sockets", inet_set_ns(rows), {r for r in w.inet_rows() if r[0].startswith("udp")})
+    eqset("netstat -u rows (queues, endpoints, state label) equal the fixture sockets", inet_set_ns(rows), {r for r in ns_inet_model(w) if r[0].startswith("udp")})
     L.check("netstat -u every row carries a state label", all(r["state"] for r in rows) and rows, out)
     ref = parse_iproute2_ss(L.run([SS, "-uan"])[1])
     L.check("netstat -u state labels equal iproute2 ss -uan", sorted((r["local"].replace("[", "").replace("]", ""), r["state"]) for r in ref) == sorted((r["local"], r["state"]) for r in rows),
