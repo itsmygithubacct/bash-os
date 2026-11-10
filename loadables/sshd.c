@@ -3253,14 +3253,16 @@ run_encrypted (const char *addr, const char *port, const char *key,
         {
           /* Keep the one-connection launcher alive until its owned child
              finishes. Restore Bash's SIGCHLD state only after the exact wait;
-             its handler must not steal the child or orphan the connection. */
+             its handler must not steal the child or orphan the connection.
+             The status reports that the one connection was served, as it
+             always has: a refused login or a client's own disconnect is the
+             session's outcome, not a server failure. */
           int status = 0;
           pid_t waited;
           do { waited = waitpid (pid, &status, 0); } while (waited < 0 && errno == EINTR);
           bsshd_child_guard_parent_end (&guard);
           result = waited != pid ? EXECUTION_FAILURE :
-                   WIFEXITED (status) ? WEXITSTATUS (status) :
-                   WIFSIGNALED (status) ? 128 + WTERMSIG (status) : EXECUTION_FAILURE;
+                   WIFSIGNALED (status) ? 128 + WTERMSIG (status) : EXECUTION_SUCCESS;
           break;
         }
       bsshd_child_guard_parent_end (&guard);

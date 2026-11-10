@@ -54,6 +54,9 @@ the historical 0.1.3 evidence remains available separately.
 - Added a Docker parity runner that sends identical scripts, stdin, replayed
   terminal events or live keystrokes to the reference and bash-os images, keeps
   replayable evidence, and compares output, exit status and `/work` changes.
+- `sshd --once` in encrypted mode again exits 0 once it has served its
+  connection, including a refused login or a client disconnect; a session
+  child killed by a signal still gives 128 plus the signal number.
 
 ## 0.1.3 — 2026-11-01
 
