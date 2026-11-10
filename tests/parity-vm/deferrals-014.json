@@ -8328,7 +8328,7 @@
             },
             {
               "assertion": "Seven malformed ping targets (wrong host, port 0, 65536, non-numeric, empty port, non-loopback address, unknown node) each fail with status 1 and the diagnostic; a seccomp user-notification log of the candidate shell shows the same records as an idle shell start-up (AF_UNIX only) with no non-UNIX socket, bind, listen or sendto; a valid-endpoint ping to a closed port records an AF_INET datagram socket, bind and sendto (positive control); state directory and UDP/TCP socket tables are unchanged.",
-              "definition_sha256": "43a77183073c9226551638e7b573e1117a41ab3fff0ce19183778359d4a69622",
+              "definition_sha256": "168d82ec2bfd2c6117e702d598a214ead152cd4a91b65973a10f01ba7699b5b2",
               "group": "shell",
               "id": "mig-w5-cluster-ping-no-side-effect"
             }
