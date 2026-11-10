@@ -46,7 +46,7 @@ import uuid
 ROOT = Path('/opt/bashos-parity/harness/helpers')
 SELF = ROOT / 'genl-mock-observer-bash5320.py'
 BASE_PATH = ROOT / 'genl-review-observer-bash5320.py'
-BASE_SHA256 = 'e81d3c76a034713ec914b44db65840f909f5a2c996f7e9ac5f1dfc39fbeb7ae6'
+BASE_SHA256 = 'a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b'
 PYTHON = '/usr/bin/python3'
 B = None            # the frozen oracle module, loaded by main()
 LIB = None          # libseccomp, loaded by main()

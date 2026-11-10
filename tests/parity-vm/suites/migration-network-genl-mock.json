@@ -20,7 +20,7 @@
         "seccomp-notify"
       ],
       "helpers_sha256": {
-        "helpers/genl-mock-observer-bash5320.py": "dcc20d4d1c4b54204aaa92f81a6336dd484a7774b216f0a942fbb0040a032229",
+        "helpers/genl-mock-observer-bash5320.py": "7efcfa8df9ebca7b3b05c7f90b255abe0246f2646bb266737f1bccab43a96a2f",
         "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer-bash5320.py setup caps-matrix",
@@ -50,7 +50,7 @@
         "seccomp-notify"
       ],
       "helpers_sha256": {
-        "helpers/genl-mock-observer-bash5320.py": "dcc20d4d1c4b54204aaa92f81a6336dd484a7774b216f0a942fbb0040a032229",
+        "helpers/genl-mock-observer-bash5320.py": "7efcfa8df9ebca7b3b05c7f90b255abe0246f2646bb266737f1bccab43a96a2f",
         "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer-bash5320.py setup multipart",
@@ -80,7 +80,7 @@
         "seccomp-notify"
       ],
       "helpers_sha256": {
-        "helpers/genl-mock-observer-bash5320.py": "dcc20d4d1c4b54204aaa92f81a6336dd484a7774b216f0a942fbb0040a032229",
+        "helpers/genl-mock-observer-bash5320.py": "7efcfa8df9ebca7b3b05c7f90b255abe0246f2646bb266737f1bccab43a96a2f",
         "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer-bash5320.py setup request-dump",
@@ -111,7 +111,7 @@
         "seccomp-notify"
       ],
       "helpers_sha256": {
-        "helpers/genl-mock-observer-bash5320.py": "dcc20d4d1c4b54204aaa92f81a6336dd484a7774b216f0a942fbb0040a032229",
+        "helpers/genl-mock-observer-bash5320.py": "7efcfa8df9ebca7b3b05c7f90b255abe0246f2646bb266737f1bccab43a96a2f",
         "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer-bash5320.py setup lookup-requests",
@@ -141,7 +141,7 @@
         "seccomp-notify"
       ],
       "helpers_sha256": {
-        "helpers/genl-mock-observer-bash5320.py": "dcc20d4d1c4b54204aaa92f81a6336dd484a7774b216f0a942fbb0040a032229",
+        "helpers/genl-mock-observer-bash5320.py": "7efcfa8df9ebca7b3b05c7f90b255abe0246f2646bb266737f1bccab43a96a2f",
         "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer-bash5320.py setup exact",
@@ -171,7 +171,7 @@
         "seccomp-notify"
       ],
       "helpers_sha256": {
-        "helpers/genl-mock-observer-bash5320.py": "dcc20d4d1c4b54204aaa92f81a6336dd484a7774b216f0a942fbb0040a032229",
+        "helpers/genl-mock-observer-bash5320.py": "7efcfa8df9ebca7b3b05c7f90b255abe0246f2646bb266737f1bccab43a96a2f",
         "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer-bash5320.py setup foreign-sequence",
@@ -201,7 +201,7 @@
         "seccomp-notify"
       ],
       "helpers_sha256": {
-        "helpers/genl-mock-observer-bash5320.py": "dcc20d4d1c4b54204aaa92f81a6336dd484a7774b216f0a942fbb0040a032229",
+        "helpers/genl-mock-observer-bash5320.py": "7efcfa8df9ebca7b3b05c7f90b255abe0246f2646bb266737f1bccab43a96a2f",
         "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-mock-observer-bash5320.py setup control",

@@ -17506,13 +17506,13 @@
             },
             {
               "assertion": "Mock controller (seccomp user notification under the unchanged candidate): the request ctrl list sends, read from the candidate memory, is exactly 14000000 1000 0103 SEQ 00000000 03010000 (nlmsg_len 20, type 0x10, flags NLM_F_REQUEST|NLM_F_DUMP, pid 0, CTRL_CMD_GETFAMILY, version 1, no attribute, destination AF_NETLINK pid 0 groups 0, nonzero time/pid-derived sequence) and the replies are printed record for record; one NETLINK_GENERIC socket, one sendmsg.",
-              "definition_sha256": "7044b03c1327f8c96d5ebc5ba761db7e2357ca36e4513255ea1234e8c9e86e5d",
+              "definition_sha256": "e8d0665bfef2ee0bcab7835787a8d2e7616e95e289f995a956e870e4bbd01894",
               "group": "shell",
               "id": "migration-genl-mock-request-dump"
             },
             {
               "assertion": "Mock controller: boundary values render exactly (version/header size/max attribs 0xffffffff, a 15-character name, operation id 0 with flags 0x1f, group id 0xffffffff, families with neither/only operations/only groups, flags 0x0 and 0x20 as none).",
-              "definition_sha256": "ef10c719249c6a62ec7f14ea73007b9bd9db85188e28219d8a771bbe77c124ec",
+              "definition_sha256": "8f98eaec8233791f671c9dc684124705b104bbad4566601f0909110d77d9079c",
               "group": "shell",
               "id": "migration-genl-mock-exact"
             }
@@ -17532,13 +17532,13 @@
             },
             {
               "assertion": "Mock controller: all 32 flag values 0x00-0x1f (every subset of the four capability bits, with and without GENL_UNS_ADMIN_PERM) and 14 unknown/high-bit values (46 operations) print the exact #index, ID-0x.., Capabilities (0x..) and flag text of the source contract; the word none appears for exactly the 11 operations without any of the four known bits (0x00 0x10 0x20 0x40 0x80 0x100 0x8000 0x10000 0xffffff00 0x80000000 0xfffffff0).",
-              "definition_sha256": "f6b77040a1fab182e15be85a4a987491efb0c2daf49da68a005135e0b0b2944e",
+              "definition_sha256": "45301726aecbe1449e47e62af2d37e3d50a85a4ec5b4034813f5b9c842cfd2bd",
               "group": "shell",
               "id": "migration-genl-mock-caps-matrix"
             },
             {
               "assertion": "Mock controller: boundary values render exactly (version/header size/max attribs 0xffffffff, a 15-character name, operation id 0 with flags 0x1f, group id 0xffffffff, families with neither/only operations/only groups, flags 0x0 and 0x20 as none).",
-              "definition_sha256": "ef10c719249c6a62ec7f14ea73007b9bd9db85188e28219d8a771bbe77c124ec",
+              "definition_sha256": "8f98eaec8233791f671c9dc684124705b104bbad4566601f0909110d77d9079c",
               "group": "shell",
               "id": "migration-genl-mock-exact"
             }
@@ -17558,7 +17558,7 @@
             },
             {
               "assertion": "Mock controller: boundary values render exactly (version/header size/max attribs 0xffffffff, a 15-character name, operation id 0 with flags 0x1f, group id 0xffffffff, families with neither/only operations/only groups, flags 0x0 and 0x20 as none).",
-              "definition_sha256": "ef10c719249c6a62ec7f14ea73007b9bd9db85188e28219d8a771bbe77c124ec",
+              "definition_sha256": "8f98eaec8233791f671c9dc684124705b104bbad4566601f0909110d77d9079c",
               "group": "shell",
               "id": "migration-genl-mock-exact"
             }
@@ -17572,13 +17572,13 @@
           "evidence": [
             {
               "assertion": "Mock controller: multipart replies of 12, 8, 25 and 3 receive buffers (NLMSG_DONE in its own datagram, appended to the last record datagram, one record per datagram, 20 KB datagrams): the candidate issues exactly one recvmsg per datagram up to the one carrying NLMSG_DONE (12, 8, 25, 3 syscalls counted by the supervisor), prints every family in order, and leaves the valid-looking family sent after NLMSG_DONE unread.",
-              "definition_sha256": "cfa86a80e75c42e5fcf2b2d09331c36dac35497a0cf1b38becf876a70172e716",
+              "definition_sha256": "ee0bac1a547633e124dcffd993cb828fbeed6a91b8534610fbb7364e6fafe7b4",
               "group": "shell",
               "id": "migration-genl-mock-multipart"
             },
             {
               "assertion": "Mock controller: records with another sequence number, alone in a datagram and between valid records, are ignored while four buffers are consumed to NLMSG_DONE; the sentinel after NLMSG_DONE stays unread; the output is exactly the three real families.",
-              "definition_sha256": "79f6ec2a42e29d156a79b4ef1ac95fb5f19b82747ec31511b2e6f4d21fce3868",
+              "definition_sha256": "5a57c9837dfdf12f0697417382324aae1c0ec534c091f4d4f623222ded8478c8",
               "group": "shell",
               "id": "migration-genl-mock-foreign-sequence"
             }
