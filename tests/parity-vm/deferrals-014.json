@@ -32115,10 +32115,10 @@
               "id": "migration-passwd-add-fd-rejects-invalid-fields"
             },
             {
-              "assertion": "new row glued onto an unterminated last row in passwd and group (FAIL)",
-              "definition_sha256": "ce07c6aa6f6d11db76a124269d22a6e3399d59e1631a961ad443d499e524fad2",
+              "assertion": "passwd and group files whose last row lacks a newline gain a separate well-formed row (default private group): exact status, two rows each, no malformed row, root rows preserved.",
+              "definition_sha256": "36c81b37040f154f54ccc8f763d414f115d63b1ca70c686bdaca7841cbc6cf6f",
               "group": "shell",
-              "id": "migration-passwd-add-fd-unterminated-last-row"
+              "id": "migration-passwd-add-unterminated-private-group-r2"
             }
           ],
           "gap": "",
@@ -32226,16 +32226,16 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Both frozen builds: Set prompts occur once in new/confirmation order with natural completion. Change prompt transcript collides with synthetic current password substring; incomplete under strict existing gate. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
-              "definition_sha256": "17668891dc77c39700826e3296303a30ac7d466880b261a1fc8e2d2c8b829b4c",
+              "assertion": "Set prompts occur once, new then confirmation, with natural completion; EOF-complete PTY capture and private account bytes observed.",
+              "definition_sha256": "9cbe302dde7701b1a7ce28cd436c07f48109fff1e0be86f00e561cde9b800a37",
               "group": "shell",
-              "id": "migration-farm600-passwd-prompts-reviewed-set-success"
+              "id": "migration-farm600-passwd-prompts-reviewed-set-success-terminal-r1"
             },
             {
-              "assertion": "change prompts \"Current password: \", \"New password: \", \"Retype new password: \" in order; new hash verified by openssl kdf; other entry unchanged.",
-              "definition_sha256": "9d06655c0c6b23d7a17c6073e94a06f83d6148ebbfbfbba2a7bf39c79a7eebfa",
+              "assertion": "change prompts \"Current password: \", \"New password: \", \"Retype new password: \" in order; new hash verified by openssl kdf (standard PHC base64, legacy hex accepted); other entry unchanged.",
+              "definition_sha256": "cfdf38f6b2179621be0da566682d60874276521a1811c7f8eefb24f885f3d9cc",
               "group": "terminal",
-              "id": "mig-w5-passwd-change-flow"
+              "id": "mig-w5-passwd-change-flow-standard-phc-r1"
             }
           ],
           "gap": "",
@@ -32246,10 +32246,10 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Both frozen builds: Distinct same-length entries occupy distinct sealed mock slots; unequal comparison leads to natural rejection status1 and byte-identical shadow/passwd/group. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
-              "definition_sha256": "54d2cc190db89cf6ec5534dd53d276afdcf35618beb4e1a7fa2d72f1aee2731f",
+              "assertion": "Distinct new and confirmation values are rejected with status 1 and byte-identical shadow, passwd and group.",
+              "definition_sha256": "97e4de94249962673c2aa8560364d242f137772f161c5044a5cdd29b151326cb",
               "group": "shell",
-              "id": "migration-farm600-passwd-prompts-reviewed-set-mismatch"
+              "id": "migration-farm600-passwd-prompts-reviewed-set-mismatch-terminal-r1"
             }
           ],
           "gap": "",
@@ -32266,16 +32266,22 @@
               "id": "trace-vm-passwd-read-eio-r2"
             },
             {
-              "assertion": "Original obligation: Echo is suppressed during reads. Recorded statuses static=PASS, dynamic=PASS. Static candidate result: . Independent raw observations: During /dev/tty read ECHO bit was clear; injected return 0; exit 1 and terminal modes restored exactly.",
-              "definition_sha256": "d7915a88a5c671a434d5a6c037f7f2ef908be45d163ecc7fde37cfd9a8da3b3e",
+              "assertion": "ECHO and ICANON are clear at the intercepted first /dev/tty read before its literal EOF.",
+              "definition_sha256": "4111ae3cdf9b088f4c6e485b009df1594d4a33849f8cbbd4e9b8ae0c1cc918ad",
               "group": "terminal",
-              "id": "trace-vm-passwd-read-eof-r2"
+              "id": "trace-vm-passwd-read-eof-first-r3"
+            },
+            {
+              "assertion": "ECHO and ICANON are clear at both intercepted /dev/tty reads (successful newline, then literal EOF on confirmation).",
+              "definition_sha256": "6b02cd03acfc4983095e3dbe4f502ba578b04dc983f3858f093de92966180002",
+              "group": "terminal",
+              "id": "trace-vm-passwd-read-eof-confirm-r3"
             },
             {
               "assertion": "ECHO and ICANON cleared (ISIG set) at each of the three reads; typed passwords never appear in the PTY output.",
-              "definition_sha256": "9d06655c0c6b23d7a17c6073e94a06f83d6148ebbfbfbba2a7bf39c79a7eebfa",
+              "definition_sha256": "cfdf38f6b2179621be0da566682d60874276521a1811c7f8eefb24f885f3d9cc",
               "group": "terminal",
-              "id": "mig-w5-passwd-change-flow"
+              "id": "mig-w5-passwd-change-flow-standard-phc-r1"
             },
             {
               "assertion": "ECHO/ICANON cleared at both reads of a mismatching set; neither password echoed.",
@@ -32298,28 +32304,34 @@
               "id": "trace-vm-passwd-read-eio-r2"
             },
             {
-              "assertion": "Original obligation: Terminal restored after success, mismatch, read failure (EOF) and signal interruption (^C). Recorded statuses static=PASS, dynamic=PASS. Static candidate result: . Independent raw observations: During /dev/tty read ECHO bit was clear; injected return 0; exit 1 and terminal modes restored exactly.",
-              "definition_sha256": "d7915a88a5c671a434d5a6c037f7f2ef908be45d163ecc7fde37cfd9a8da3b3e",
+              "assertion": "Literal EOF on the first read is rejected immediately with accounts unchanged and the complete termios modes restored.",
+              "definition_sha256": "4111ae3cdf9b088f4c6e485b009df1594d4a33849f8cbbd4e9b8ae0c1cc918ad",
               "group": "terminal",
-              "id": "trace-vm-passwd-read-eof-r2"
+              "id": "trace-vm-passwd-read-eof-first-r3"
             },
             {
-              "assertion": "Both frozen builds: Natural success and mismatch restore exact terminal modes, complete EOF/drain and owned-writer reap. Original EOF/EIO evidence preserved. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
-              "definition_sha256": "17668891dc77c39700826e3296303a30ac7d466880b261a1fc8e2d2c8b829b4c",
-              "group": "shell",
-              "id": "migration-farm600-passwd-prompts-reviewed-set-success"
+              "assertion": "Literal EOF on the confirmation read is rejected immediately with accounts unchanged and the complete termios modes restored.",
+              "definition_sha256": "6b02cd03acfc4983095e3dbe4f502ba578b04dc983f3858f093de92966180002",
+              "group": "terminal",
+              "id": "trace-vm-passwd-read-eof-confirm-r3"
             },
             {
-              "assertion": "Both frozen builds: Natural success and mismatch restore exact terminal modes, complete EOF/drain and owned-writer reap. Original EOF/EIO evidence preserved. The fixed captures passed independent raw-data review and primary replay with clean isolated-guest lifecycle.",
-              "definition_sha256": "54d2cc190db89cf6ec5534dd53d276afdcf35618beb4e1a7fa2d72f1aee2731f",
+              "assertion": "Natural success restores exact terminal modes, with EOF-complete capture and the owned writer reaped.",
+              "definition_sha256": "9cbe302dde7701b1a7ce28cd436c07f48109fff1e0be86f00e561cde9b800a37",
               "group": "shell",
-              "id": "migration-farm600-passwd-prompts-reviewed-set-mismatch"
+              "id": "migration-farm600-passwd-prompts-reviewed-set-success-terminal-r1"
+            },
+            {
+              "assertion": "Natural mismatch rejection restores exact terminal modes, with EOF-complete capture and the owned writer reaped.",
+              "definition_sha256": "97e4de94249962673c2aa8560364d242f137772f161c5044a5cdd29b151326cb",
+              "group": "shell",
+              "id": "migration-farm600-passwd-prompts-reviewed-set-mismatch-terminal-r1"
             },
             {
               "assertion": "Terminal modes restored (ECHO, ICANON set) after a successful change.",
-              "definition_sha256": "9d06655c0c6b23d7a17c6073e94a06f83d6148ebbfbfbba2a7bf39c79a7eebfa",
+              "definition_sha256": "cfdf38f6b2179621be0da566682d60874276521a1811c7f8eefb24f885f3d9cc",
               "group": "terminal",
-              "id": "mig-w5-passwd-change-flow"
+              "id": "mig-w5-passwd-change-flow-standard-phc-r1"
             },
             {
               "assertion": "Terminal modes restored after mismatch.",
@@ -32421,9 +32433,9 @@
             },
             {
               "assertion": "Correct current password replaces the entry; independent recomputation shows old=differ new=match.",
-              "definition_sha256": "9d06655c0c6b23d7a17c6073e94a06f83d6148ebbfbfbba2a7bf39c79a7eebfa",
+              "definition_sha256": "cfdf38f6b2179621be0da566682d60874276521a1811c7f8eefb24f885f3d9cc",
               "group": "terminal",
-              "id": "mig-w5-passwd-change-flow"
+              "id": "mig-w5-passwd-change-flow-standard-phc-r1"
             }
           ],
           "gap": "",
@@ -32441,9 +32453,9 @@
             },
             {
               "assertion": "After set-fd, an independent /proc/PID/mem scan of the shell finds 0 copies of the secret while a variable-held secret is found; no file in fixture, home, /var/tmp or /dev/shm contains it; shadow mode/owner unchanged; no stray files; new hash verifies.",
-              "definition_sha256": "cda909ccd8749c5ab3a6f05ffd9d7d9e7d5e722d17a01a9da12a97ed3879b0cb",
+              "definition_sha256": "5449e4ce70511397dc0fac2e82514dbe471b64262fd0852f085e1a5cec2d4085",
               "group": "shell",
-              "id": "mig-w5-passwd-setfd-secret-wiped-from-memory"
+              "id": "mig-w5-passwd-setfd-secret-wiped-from-memory-standard-phc-r1"
             },
             {
               "assertion": "After passwd change typed at the terminal, the same scan finds 0 copies of the old and new secrets in the shell, none in files, shadow stat unchanged, no echo; a read -s secret is found (control).",

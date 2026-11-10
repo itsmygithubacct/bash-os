@@ -222,37 +222,6 @@
       "restore_terminal": true
     },
     {
-      "id": "mig-w5-passwd-setfd-secret-wiped-from-memory",
-      "loadable": "passwd",
-      "group": "shell",
-      "driver": "plain",
-      "kind": "contract",
-      "covers": [
-        "passwd/password_hash_updates"
-      ],
-      "purpose": "After passwd set-fd has read a synthetic secret from a pipe, hashed it and written the shadow entry, no copy of the secret remains in any readable mapping of the shell process (independent /proc/PID/mem scan), the secret is in no file of the fixture, home, /var/tmp or /dev/shm, the shadow mode and owner are unchanged, no stray file is left, and the new password verifies; the same scan finds a secret held in a shell variable (control).",
-      "oracle": "Independent scanner over /proc/PID/mem and file contents, secret assembled by a separate process so no script, argument or environment string of the shell contains it contiguously; Argon2id verdict from openssl kdf via mig-w5-phc-check.py.",
-      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
-      "requires": [
-        "python3",
-        "argon2",
-        "openssl",
-        "stat",
-        "ls",
-        "tr"
-      ],
-      "helpers_sha256": {
-        "helpers/mig-w5-memscan.py": "a04c5012ea37ade14e8a27c0068b262904c33f6d6a9dc2bf8530b8df02b2b926",
-        "helpers/mig-w5-phc-check.py": "56089af69cabf4665ec6db3e78d95a7e5d5c1c592782929b59e230482046a263"
-      },
-      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PATH=/usr/bin:/bin\nSCAN=\"/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w5-memscan.py\"\nH=/opt/bashos-parity/harness/helpers/mig-w5-phc-check.py\nmk_secret() { /usr/bin/python3 -I -c 'import sys; sys.stdout.write(\"\".join(sys.argv[1:]))' \"$@\"; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_KERNEL_SECRETS=0\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\nstat_before=$(/usr/bin/stat -c '%a %U %G' shadow)\npasswd set-fd w5user 3 3< <(mk_secret wipe-pr obe-sec ret-7731); echo \"set-fd rc=$?\"\necho \"memory after set-fd: $($SCAN mem $$ wipe-pr obe-sec ret-7731)\"\necho \"shadow-stat-unchanged=$([[ $(/usr/bin/stat -c '%a %U %G' shadow) == \"$stat_before\" ]] && echo yes || echo no)\"\necho \"stray-files: $(/usr/bin/ls -A | /usr/bin/tr '\\n' ' ')\"\necho \"verify: new=$(/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w5-phc-check.py match shadow w5user \"$(mk_secret wipe-pr obe-sec ret-7731)\") old=$(/usr/bin/python3 /opt/bashos-parity/harness/helpers/mig-w5-phc-check.py match shadow w5user qvx-old-5521)\"\necho \"files-containing-secret: $($SCAN files \"$PWD\" \"$HOME\" /var/tmp /dev/shm -- wipe-pr obe-sec ret-7731)\"\nread -r -u 3 held 3< <(mk_secret ctl-held -in-var- 3390)\necho \"control memory holding the secret in a variable: $($SCAN mem $$ ctl-held -in-var- 3390)\"\n",
-      "expected_status": 0,
-      "stdout": "set-fd rc=0\nmemory after set-fd: found=0\nshadow-stat-unchanged=yes\nstray-files: lock passwd shadow shadow.orig \nverify: new=match old=differ\nfiles-containing-secret: files=0\ncontrol memory holding the secret in a variable: found=1\n",
-      "timeout": 60,
-      "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
-      "setup_timeout": 45
-    },
-    {
       "id": "mig-w5-passwd-change-tty-secrets-wiped-from-memory",
       "loadable": "passwd",
       "group": "terminal",

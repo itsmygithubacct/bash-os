@@ -120,44 +120,6 @@
     "grep",
     "wc"
    ],
-   "id": "migration-passwd-add-fd-unterminated-last-row",
-   "purpose": "passwd and group files whose last row lacks a trailing newline still gain a separate, well-formed row and keep the last existing row intact.",
-   "oracle": "passwd(5)/group(5): one record per line; the existing last record is a complete record even without a terminating newline (POSIX text-file tools such as awk and useradd's line reader treat it as a line).",
-   "comparison": "Exact status, row count, malformed-row count and the preserved root rows.",
-   "script": "[[ $(type -t passwd) == builtin ]] || { printf 'candidate passwd builtin missing\\n'; exit 99; }\nexport BASHPASSWD_KERNEL_SECRETS=0 PHCLIB_PASSWD=db/passwd PHCLIB_SHADOW=db/shadow PHCLIB_GROUP=db/group PHCLIB_M=1024 PHCLIB_T=1 PHCLIB_P=1\n/usr/bin/mkdir db\nprintf '%s' 'root:x:0:0:root:/root:/bin/bash' > db/passwd\nprintf '%s' 'root:x:0:' > db/group\nprintf 'root:*:19000:0:99999:7:::\\n' > db/shadow; /usr/bin/chmod 600 db/shadow\npasswd add-fd ivy 3 -u 2005 -g 2005 3< pw 2> \"$HOME/err.add\"; printf 'add rc=%d\\n' \"$?\"\nprintf 'passwd rows=%d bad=%d root=[%s]\\n' \"$(/usr/bin/wc -l < db/passwd)\" \"$(/usr/bin/awk -F: 'NF != 7' db/passwd | /usr/bin/wc -l)\" \"$(/usr/bin/grep '^root:' db/passwd)\"\nprintf 'group rows=%d bad=%d root=[%s]\\n' \"$(/usr/bin/wc -l < db/group)\" \"$(/usr/bin/awk -F: 'NF != 4' db/group | /usr/bin/wc -l)\" \"$(/usr/bin/grep '^root:' db/group)\"\n/usr/bin/rm -rf db\n",
-   "expected_status": 0,
-   "stdout": "add rc=0\npasswd rows=2 bad=0 root=[root:x:0:0:root:/root:/bin/bash]\ngroup rows=2 bad=0 root=[root:x:0:]\n",
-   "diagnostic_files": [
-    "err.add"
-   ]
-  },
-  {
-   "group": "shell",
-   "driver": "plain",
-   "kind": "contract",
-   "timeout": 30,
-   "loadable": "passwd",
-   "covers": [
-    "passwd/account_file_mutations"
-   ],
-   "files": {
-    "pristine/passwd": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nalice:x:1000:1000:Alice:/home/alice:/bin/bash\nbob:x:1001:1001:Bob:/home/bob:/bin/bash\ncarol:x:1003:1003:Carol:/home/carol:/bin/bash\n",
-    "pristine/group": "root:x:0:\ndaemon:x:1:\nstaff:x:50:alice,carol\nusers:x:100:\nalice:x:1000:\nbob:x:1001:\ncarol:x:1003:\n",
-    "pristine/shadow": "root:*:19000:0:99999:7:::\ndaemon:*:19000:0:99999:7:::\nalice:$argon2id$v=19$m=1024,t=1,p=1$abababababababababababababababab$cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd:19000:0:99999:7:::\nbob:!:19000:0:99999:7:::\ncarol:$argon2id$v=19$m=1024,t=1,p=1$12121212121212121212121212121212$3434343434343434343434343434343434343434343434343434343434343434:19100:1:90:14:30:20000:\n",
-    "pw": "synthetic-pass-1\n",
-    "empty-pw": ""
-   },
-   "requires": [
-    "awk",
-    "cmp",
-    "cp",
-    "rm",
-    "mkdir",
-    "chmod",
-    "stat",
-    "grep",
-    "wc"
-   ],
    "id": "migration-passwd-delete-records",
    "purpose": "delete removes the user's passwd and shadow rows and private group, removes the user from supplementary member lists, leaves every other row byte-identical, and reports a missing user as an error without changing anything.",
    "oracle": "passwd(5) seven-field and group(5) four-field records, shadow(5) nine fields; shadow-utils semantics as the reference for account tools: useradd(8) (-u/-g/-d/-s, numeric ids in range and not (uid_t)-1, ':' and newline invalid in fields, -g must name an existing group and then no user group is created, the default UID is an unused id >= UID_MIN 1000, a new user's shadow entry uses Debian login.defs PASS_MIN_DAYS 0, PASS_MAX_DAYS 99999, PASS_WARN_AGE 7 with last change = today), userdel(8) (removes passwd, shadow and the user's private group and the user from supplementary member lists; a missing user is an error), passwd -l/-u (prefix or remove a single '!', aging untouched, unlocking to an empty password refused, missing user an error) and chage -d (last-change field only, numeric days). Only private relative PHCLIB_* files are used.",

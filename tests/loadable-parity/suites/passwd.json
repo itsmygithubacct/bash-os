@@ -53,7 +53,7 @@
         },
         {
           "group": "shell",
-          "id": "migration-passwd-add-fd-unterminated-last-row"
+          "id": "migration-passwd-add-unterminated-private-group-r2"
         },
         {
           "group": "shell",
@@ -84,7 +84,7 @@
         },
         {
           "group": "shell",
-          "id": "mig-w5-passwd-setfd-secret-wiped-from-memory"
+          "id": "mig-w5-passwd-setfd-secret-wiped-from-memory-standard-phc-r1"
         },
         {
           "group": "shell",
@@ -104,7 +104,7 @@
         },
         {
           "group": "terminal",
-          "id": "mig-w5-passwd-change-flow"
+          "id": "mig-w5-passwd-change-flow-standard-phc-r1"
         },
         {
           "group": "terminal",
@@ -146,15 +146,15 @@
       "replacement_cases": [
         {
           "group": "shell",
-          "id": "migration-farm600-passwd-prompts-reviewed-set-mismatch"
+          "id": "migration-farm600-passwd-prompts-reviewed-set-mismatch-terminal-r1"
         },
         {
           "group": "shell",
-          "id": "migration-farm600-passwd-prompts-reviewed-set-success"
+          "id": "migration-farm600-passwd-prompts-reviewed-set-success-terminal-r1"
         },
         {
           "group": "terminal",
-          "id": "mig-w5-passwd-change-flow"
+          "id": "mig-w5-passwd-change-flow-standard-phc-r1"
         },
         {
           "group": "terminal",
@@ -182,7 +182,11 @@
         },
         {
           "group": "terminal",
-          "id": "trace-vm-passwd-read-eof-r2"
+          "id": "trace-vm-passwd-read-eof-confirm-r3"
+        },
+        {
+          "group": "terminal",
+          "id": "trace-vm-passwd-read-eof-first-r3"
         }
       ]
     },
