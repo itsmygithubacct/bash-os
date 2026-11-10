@@ -49,14 +49,41 @@ def require_guest(token):
     if [link["ifname"] for link in links] != ["lo"]:
         raise RuntimeError("fixture network must be a fresh loopback-only namespace")
     subprocess.run(["ip", "link", "set", "lo", "up"], check=True)
-    # sysfs retains the network namespace of its mount. Give guarded fixtures
-    # the same loopback-only view as the evaluator's ip/netlink queries.
-    subprocess.run(["mount", "-t", "sysfs", "-o", "ro,nosuid,nodev,noexec", "sysfs", "/sys"],
-                   check=True, capture_output=True)
+    remount_sysfs()
     return {"virtualization": virt, "uid": os.geteuid(), "links": [link["ifname"] for link in links],
             "vm_uuid_matches": True, "pid_namespace": os.readlink("/proc/self/ns/pid"),
             "network_namespace": os.readlink("/proc/self/ns/net"),
             "mount_namespace": os.readlink("/proc/self/ns/mnt")}
+
+
+def remount_sysfs():
+    """Mount a sysfs that belongs to this loopback-only network namespace.
+
+    sysfs keeps the network namespace it was mounted in, so guarded fixtures
+    would otherwise see the guest's interfaces, not the ones ip/netlink report.
+    The boot mount's submounts (securityfs, cgroup2, bpf, ...) are carried over,
+    since a fresh sysfs hides them. The mount stays writable with the boot
+    flags: a read-only sysfs is locked read-only in fixture user namespaces,
+    and the kernel then refuses their own sysfs mounts for the network
+    namespaces they create.
+    """
+    keep = Path("/run/bashos-parity-boot-sys")
+    keep.mkdir(mode=0o700)
+    subprocess.run(["mount", "--rbind", "/sys", str(keep)], check=True, capture_output=True)
+    subprocess.run(["mount", "--make-rprivate", str(keep)], check=True, capture_output=True)
+    rows = []
+    for line in Path("/proc/self/mountinfo").read_text().splitlines():
+        field = line.split()
+        rows.append((int(field[0]), int(field[1]), field[4].encode().decode("unicode_escape")))
+    top = [mount for mount, _, point in rows if point == str(keep)][-1]
+    children = [point for _, parent, point in rows if parent == top]
+    subprocess.run(["mount", "-t", "sysfs", "-o", "nosuid,nodev,noexec", "sysfs", "/sys"],
+                   check=True, capture_output=True)
+    for point in children:
+        subprocess.run(["mount", "--rbind", point, "/sys" + point[len(str(keep)):]],
+                       check=True, capture_output=True)
+    subprocess.run(["umount", "--lazy", str(keep)], check=True, capture_output=True)
+    keep.rmdir()
 
 
 def b64(data):
