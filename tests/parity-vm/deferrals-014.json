@@ -206,8 +206,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "candidate contract asserts AND across patterns, the opposite of the man-db default",
-              "definition_sha256": "da754ebb316923d7f708124136a23085760d7ded428f0ab90688f6994ddcea89",
+              "assertion": "candidate contract: -a requires every keyword to match a record, as man-db -a/--and does; the OR default is covered by trace-vm-apropos-or-r1",
+              "definition_sha256": "0544fb0973520dd4a412685868535e5a0127c9e65d280fbbb5a33299fcb666ae",
               "group": "legacy",
               "id": "legacy/apropos/multiple-patterns-and"
             },
@@ -258,8 +258,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "candidate contract: nonzero status without pinning the GNU number",
-              "definition_sha256": "155de9f2b70b1db25476faab9cd68b5a0bfcdfb67d8f61da668ac05d4ee8df37",
+              "assertion": "candidate contract: a keyword with no match gives a nonzero status and man-db's 'KEYWORD: nothing appropriate.' diagnostic on stderr only; the exact status 16 is pinned by trace-vm-apropos-no-match-r1",
+              "definition_sha256": "9444cfb524b164a310a8561f7a68f4f1f0db3f99de4e2681ee820f6dd8625a1d",
               "group": "legacy",
               "id": "legacy/apropos/no-match-nonzero"
             },

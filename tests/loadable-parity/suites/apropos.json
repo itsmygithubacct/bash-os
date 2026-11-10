@@ -67,8 +67,8 @@
     {
       "id": "multiple-patterns-and",
       "kind": "contract",
-      "purpose": "Checks the documented AND contract across patterns: only the record containing both terms is printed.",
-      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha (1) - first entry' 'both (1) - alpha and beta together' 'beta (1) - second entry' > whatis\napropos alpha beta",
+      "purpose": "Checks the documented -a AND contract across patterns (man-db apropos -a): only the record containing both terms is printed.",
+      "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha (1) - first entry' 'both (1) - alpha and beta together' 'beta (1) - second entry' > whatis\napropos -a alpha beta",
       "expected_status": 0,
       "stdout": "both (1) - alpha and beta together\n",
       "stderr": "empty"
@@ -76,11 +76,12 @@
     {
       "id": "no-match-nonzero",
       "kind": "contract",
-      "purpose": "Checks the documented nonzero result for a valid query with no matches without assuming a GNU-specific numeric status.",
+      "purpose": "Checks the documented nonzero result for a valid query with no matches without assuming a GNU-specific numeric status. The diagnostic is man-db's \"KEYWORD: nothing appropriate.\" on stderr.",
       "script": "export MANPATH=. BASHMAN_STALE_QUIET=1\nprintf '%s\\n' 'alpha (1) - ordinary command' 'beta (1) - helper command' > whatis\nif apropos nofixturetoken; then exit 90; else rc=$?; [[ $rc -ne 0 ]]; fi\nprintf '%s\\n' 'no-match returns nonzero'",
       "expected_status": 0,
       "stdout": "no-match returns nonzero\n",
-      "stderr": "empty"
+      "stderr": "exact",
+      "stderr_text": "nofixturetoken: nothing appropriate.\n"
     },
     {
       "id": "missing-index-nonzero",

@@ -57,6 +57,10 @@ the historical 0.1.3 evidence remains available separately.
 - `sshd --once` in encrypted mode again exits 0 once it has served its
   connection, including a refused login or a client disconnect; a session
   child killed by a signal still gives 128 plus the signal number.
+- `apropos` matches each keyword against page names and descriptions like
+  man-db, requires every keyword with `-a`, matches description words with
+  `-w`, reports each keyword without a match as `KEYWORD: nothing
+  appropriate.` on stderr, and exits 16 only when no keyword matched.
 
 ## 0.1.3 — 2026-11-01
 
