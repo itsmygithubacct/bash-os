@@ -816,7 +816,10 @@ def ssh_controls(runtime):
                 (directory / 'exchange.json').write_text(json.dumps(exchange, indent=2) + '\n')
                 verdict = runtime.trace_result(directory, want)
                 check(client['input_complete'], 'independent SSH client did not send the required credential')
-                check(server_status == (0 if allow else 1), 'SSH one-connection child status differs')
+                # A served encrypted --once connection exits 0, including a
+                # refused login. The client status, target count, and server
+                # acknowledgement below distinguish acceptance.
+                check(server_status == 0, 'SSH one-connection child status differs')
                 check(client['exit_code'] == (37 if allow else 255), 'independent SSH client status differs')
                 if label in ('wrong-password', 'legacy-wrong-route'):
                     events = [json.loads(line) for line in (directory / 'trace.jsonl').read_text().splitlines()]

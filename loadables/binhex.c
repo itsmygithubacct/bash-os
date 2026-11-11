@@ -15,10 +15,10 @@
  *     printf '%s' "$hexvar" | binhex -d > bin
  *
  * Format: lowercase hex, 2 chars per byte, no separators, no
- * line wrapping. ASCII whitespace + leading "0x"/"0X" tolerated
- * on decode (so xxd-style output with embedded spaces / output
- * captured into a bash here-string survives). Non-hex characters
- * are skipped, as in xxd -r -p. A trailing nibble is ignored once
+ * line wrapping. Space, tab, CR, and LF, plus one leading
+ * "0x"/"0X", are tolerated on decode. One non-hex character is
+ * skipped. Two adjacent non-hex characters discard the rest of
+ * the line, as in xxd -r -p. A trailing nibble is ignored once
  * a byte has been written. Input that never forms a byte fails.
  *
  * Companion docs:
@@ -66,7 +66,6 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
-#include <ctype.h>
 
 #include "loadables.h"
 
@@ -128,22 +127,64 @@ hexval (int c)
   return -1;
 }
 
-/* Decode hex from `in_fd` to bytes on `out_fd`. Tolerates ASCII
-   whitespace, a leading 0x/0X prefix, and (like xxd -r -p) non-hex
-   characters. A trailing nibble is ignored once a byte was written.
-   Input that never forms a byte still fails. Returns 0 on success. */
+/* Push one character into the xxd -r -p nibble window.
+   n1 is the newest value, n2 the previous, n3 the one before.
+   vim huntype(HEX_POSTSCRIPT) starts at n1=-1, n2=0, n3=0, ign_garb=1.
+   Leading non-hex shifts that window but is otherwise ignored.
+   After data has started, n1/n2/n3 all negative means two adjacent
+   non-hex characters: the caller discards the rest of the line. */
+static void
+binhex_feed (int c, int *n1, int *n2, int *n3, int *ign_garb,
+             unsigned char *out, size_t *o, int *emitted, int *bad,
+             int *saw_digit, int *skip)
+{
+  int v;
+
+  *n3 = *n2;
+  *n2 = *n1;
+  v = hexval (c);
+  *n1 = v;
+  if (v < 0 && *ign_garb)
+    {
+      *bad = 1;
+      return;
+    }
+  *ign_garb = 0;
+  if (v < 0)
+    *bad = 1;
+  else
+    *saw_digit = 1;
+  if (*n2 >= 0 && *n1 >= 0)
+    {
+      out[(*o)++] = (unsigned char)((*n2 << 4) | *n1);
+      *n1 = -1;
+      *emitted = 1;
+    }
+  else if (*n1 < 0 && *n2 < 0 && *n3 < 0)
+    *skip = 1;
+}
+
+/* Decode hex from `in_fd` to bytes on `out_fd`.
+   Space, tab, CR, and LF never enter the nibble window. One leading
+   0x/0X is stripped; xxd itself does not do that. One non-hex character
+   is skipped. Two adjacent non-hex characters discard the rest of the
+   line, matching xxd -r -p. A trailing nibble is ignored once a byte
+   was written. Input that never forms a byte still fails.
+   Returns 0 on success. */
 static int
 binhex_decode (int in_fd, int out_fd)
 {
   char inbuf[BUFSZ];
-  unsigned char outbuf[BUFSZ / 2 + 1];
+  unsigned char outbuf[BUFSZ + 1];
   ssize_t n;
   size_t i, o;
-  int hi = -1;          /* held high nibble; -1 = none */
+  int n1 = -1, n2 = 0, n3 = 0, ign_garb = 1;
   int saw_nonws = 0;    /* for 0x prefix detection — only at the start */
   int prev_zero = 0;    /* saw a leading '0' that might begin "0x" */
   int emitted = 0;      /* at least one complete byte */
   int bad = 0;          /* saw a non-hex character */
+  int saw_digit = 0;    /* saw a hex digit that entered the window */
+  int skip = 0;         /* discard through the next newline */
 
   for (;;)
     {
@@ -159,7 +200,16 @@ binhex_decode (int in_fd, int out_fd)
       for (i = 0, o = 0; i < (size_t)n; i++)
         {
           int c = (unsigned char)inbuf[i];
-          if (isspace (c))
+          if (skip)
+            {
+              if (c == '\n')
+                {
+                  skip = 0;
+                  ign_garb = 1;
+                }
+              continue;
+            }
+          if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
             continue;
           /* Strip a single leading 0x/0X if we haven't started decoding. */
           if (!saw_nonws && c == '0')
@@ -171,30 +221,18 @@ binhex_decode (int in_fd, int out_fd)
           if (prev_zero && (c == 'x' || c == 'X'))
             {
               prev_zero = 0;
-              hi = -1;
               continue;
             }
           if (prev_zero)
             {
               /* That '0' was a real digit, not a prefix. */
-              hi = 0;
+              binhex_feed ('0', &n1, &n2, &n3, &ign_garb, outbuf, &o,
+                           &emitted, &bad, &saw_digit, &skip);
               prev_zero = 0;
             }
           saw_nonws = 1;
-          int v = hexval (c);
-          if (v < 0)
-            {
-              bad = 1;
-              continue;
-            }
-          if (hi < 0)
-            hi = v;
-          else
-            {
-              outbuf[o++] = (unsigned char)((hi << 4) | v);
-              hi = -1;
-              emitted = 1;
-            }
+          binhex_feed (c, &n1, &n2, &n3, &ign_garb, outbuf, &o,
+                       &emitted, &bad, &saw_digit, &skip);
         }
       if (o > 0)
         {
@@ -214,9 +252,9 @@ binhex_decode (int in_fd, int out_fd)
             }
         }
     }
-  if (!emitted && (hi >= 0 || prev_zero || bad))
+  if (!emitted && (saw_digit || prev_zero || bad))
     {
-      if (bad && hi < 0 && !prev_zero)
+      if (bad && !saw_digit && !prev_zero)
         builtin_error ("invalid hex character");
       else
         builtin_error ("odd number of hex digits in input");
@@ -290,9 +328,12 @@ char *binhex_doc[] = {
   "(read(2)/write(2)) and producing NUL-free ASCII hex output.",
   "",
   "Without -d:  read raw bytes, emit lowercase 2-char-per-byte hex.",
-  "With    -d:  read hex (whitespace, leading 0x/0X, and non-hex",
-  "             skipped). A trailing nibble is ignored after a byte.",
-  "             Input that never forms a byte fails. NULs are kept.",
+  "With    -d:  read hex. Space, tab, CR, LF, and one leading",
+  "             0x/0X are skipped. One non-hex character is skipped;",
+  "             two adjacent non-hex characters discard the rest of",
+  "             the line, matching xxd -r -p. A trailing nibble is",
+  "             ignored after a byte. Input that never forms a byte",
+  "             fails. NULs are kept.",
   "",
   "Examples:",
   "    h=$(binhex /etc/hostname)        # capture binary as hex var",

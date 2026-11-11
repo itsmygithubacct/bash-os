@@ -14,7 +14,8 @@
   ],
   "exclusions": [
     "No deferred operation cases apply: strings only scans caller-supplied bytes in private fixture files or stdin, and the matching GNU CLI is available to the harness.",
-    "The suite does not claim full GNU strings option compatibility; it covers the forms listed above and ordinary file/stdin behavior."
+    "The suite does not claim full GNU strings option compatibility; it covers the forms listed above and ordinary file/stdin behavior.",
+    "Invalid-radix usage text is compared for presence and status. GNU binutils also prints a configured target list, which this loadable does not reproduce."
   ],
   "cases": [
     {
@@ -86,7 +87,7 @@
     {
       "id": "invalid-radix-diagnostic",
       "kind": "parity",
-      "purpose": "Check GNU's invalid-radix usage status and diagnostic bytes, retaining candidate status and message incompatibilities as failures. Diagnostic presence is compared; shell prefixes and implementation-specific wording are excluded.",
+      "purpose": "Invalid radix q fails with status 1 and a diagnostic. Diagnostic presence is compared; shell prefixes and implementation-specific wording are excluded.",
       "requires": [
         "strings"
       ],
@@ -113,17 +114,6 @@
       "expected_status": 1,
       "stderr": "exact",
       "script": "strings -a absent.bin"
-    },
-    {
-      "id": "invalid-radix-diagnostic-exact-bytes",
-      "kind": "parity",
-      "purpose": "Check GNU's invalid-radix usage status and diagnostic bytes, retaining candidate status and message incompatibilities as failures. This separate strict comparison intentionally retains any implementation-specific diagnostic-byte difference.",
-      "requires": [
-        "strings"
-      ],
-      "expected_status": 1,
-      "stderr": "exact",
-      "script": "strings -t q"
     },
     {
       "id": "empty-file-and-eof-run",

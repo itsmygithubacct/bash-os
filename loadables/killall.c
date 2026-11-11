@@ -572,7 +572,9 @@ dispatch:
 }
 
 char *killall_doc[] = {
+    "Signal every process with comm exactly equal to any NAME.",
     "Signal every process whose comm equals NAME, the way psmisc killall does.",
+    "Default: TERM",
     "",
     "    killall [-SIGNAL | -s SIGNAL | --signal SIGNAL] [-e] [-f] [-u USER] NAME...",
     "    killall [-q] [-w] [-v] [-I] [-r] [-g] [-y TIME] [-o TIME] NAME...",
@@ -592,8 +594,9 @@ char *killall_doc[] = {
     "    -o, --older-than TIME",
     "               TIME is a number plus s, m, h, d, w, M, or y",
     "    -u, --user USER",
+    "    -u USER    only signal processes whose real uid is USER",
     "               real uid. A numeric USER is accepted.",
-    "    -f         match the full command line (candidate extension)",
+    "    -f         match against /proc/PID/cmdline (full command line)",
     "",
     "Self is never signalled. Returns 0 if every NAME was signalled, 1 if",
     "none matched or the usage was wrong, 3 if /proc cannot be opened.",

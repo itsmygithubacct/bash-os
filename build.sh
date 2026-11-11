@@ -233,6 +233,15 @@ pl=$(awk '$1=="#define" && $2=="PATCHLEVEL" {print $3}' patchlevel.h)
 # the trap after waitchld returns and before it blocks again.
 patch -p0 -s < "$HERE/patches/bash-sigchld-malloc.patch" >>"$LOG" 2>&1 \
   || die "bash-sigchld-malloc.patch did not apply (see $LOG)"
+# A background simple command forks before it knows the command is a disk
+# command, and that child is $!. The parent waits for exec after the
+# process-group pipe is closed. enable -f uv.so records the compiled-in
+# helper path, including when dlopen succeeds and the executable's uv_builtin
+# interposes on the shared object.
+patch -p0 -s < "$HERE/patches/async-exec-handshake.patch" >>"$LOG" 2>&1 \
+  || die "async-exec-handshake.patch did not apply (see $LOG)"
+patch -p0 -s < "$HERE/patches/enable-static-uv.patch" >>"$LOG" 2>&1 \
+  || die "enable-static-uv.patch did not apply (see $LOG)"
 
 # --- 3. stage the loadable sources + helper headers ------------------------
 say "staging loadables"

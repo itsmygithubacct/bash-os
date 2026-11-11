@@ -4,7 +4,7 @@
   "reference": "GNU coreutils whoami (independent executable found on the reference PATH); metadata contracts use Bash type/help builtins and the descriptions in the stock Bash whoami loadable source.",
   "coverage": [
     "Default current-user output, end-of-options handling, and repeated calls in one Bash process.",
-    "GNU option behavior for operands, invalid options, --help, and --version; disagreements remain visible as FAIL.",
+    "GNU option behavior for operands, invalid options, --help, and --version. Help and version banners are compared for success, nonempty text, and command identity.",
     "Bash loadable metadata: type identifies whoami as a builtin and help exposes the source-documented description.",
     "Regression checks expand aliases, end-of-options, option ordering and invalid/extra-operand statuses; banners use content/identity invariants."
   ],

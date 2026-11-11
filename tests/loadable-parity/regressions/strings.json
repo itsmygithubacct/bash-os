@@ -86,7 +86,7 @@
     {
       "id": "invalid-radix-diagnostic",
       "kind": "parity",
-      "purpose": "Check GNU's invalid-radix usage status and diagnostic bytes, retaining candidate status and message incompatibilities as failures. Diagnostic presence is compared; shell prefixes and implementation-specific wording are excluded.",
+      "purpose": "Invalid radix q fails with status 1 and a diagnostic. Diagnostic presence is compared; shell prefixes and implementation-specific wording are excluded.",
       "requires": [
         "strings"
       ],

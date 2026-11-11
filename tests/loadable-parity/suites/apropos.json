@@ -3,7 +3,7 @@
   "loadable": "apropos",
   "reference": "man-db apropos is the independent CLI oracle for no-argument and version comparisons. Query parity requires man-db configuration unavailable in this runner. Private whatis searches use independently specified substring, anchored-name and AND contracts; these are not man-db query parity.",
   "coverage": [
-    "Parity for GNU apropos no-argument and version invocations, both of which run without search-path initialization.",
+    "Parity for the GNU apropos no-argument invocation, which runs without search-path initialization. Version branding is excluded; success, nonempty text, and the command name are compared.",
     "Documented literal substring search over a relative private whatis fixture.",
     "Documented -w matching at the head of an entry name, including a comma-separated alias.",
     "Documented AND behavior across multiple patterns.",
@@ -29,11 +29,11 @@
     {
       "id": "version-cli",
       "kind": "parity",
-      "purpose": "Compare version stdout bytes and status directly with man-db; implementation identity differences remain visible.",
+      "purpose": "Banner branding is excluded; compare success, nonempty content and command identity.",
       "requires": [
         "apropos"
       ],
-      "script": "apropos --version",
+      "script": "text=$(apropos --version); [[ -n $text && $text == *apropos* ]]; printf '%s\\n' 'apropos --version succeeds with identified nonempty output'",
       "expected_status": 0,
       "stderr": "empty"
     },

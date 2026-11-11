@@ -1,0 +1,168 @@
+--- execute_cmd.c
++++ execute_cmd.c
+@@ -4461,6 +4461,44 @@
+   return ret;
+ }
+ 
++/* Write end, in the child, of the async exec handshake. Close-on-exec
++   drops it when execve succeeds. The child closes it before an in-process
++   builtin or before a script keeps running as this shell. -1 when this
++   process is not holding one. */
++static int bashos_async_exec_fd = -1;
++
++/* Read end, in the parent. stop_pipeline waits on it after the
++   process-group pipe is closed, so the wait cannot deadlock with that
++   pipe. -1 when no handshake is armed. */
++static int bashos_async_exec_wait_fd = -1;
++
++static void
++bashos_release_async_exec (void)
++{
++  if (bashos_async_exec_fd >= 0)
++    {
++      close (bashos_async_exec_fd);
++      bashos_async_exec_fd = -1;
++    }
++}
++
++void
++bashos_wait_async_exec (void)
++{
++  char ignored;
++  ssize_t n;
++  int fd;
++
++  fd = bashos_async_exec_wait_fd;
++  if (fd < 0)
++    return;
++  bashos_async_exec_wait_fd = -1;
++  do
++    n = read (fd, &ignored, 1);
++  while (n > 0 || (n < 0 && errno == EINTR));
++  close (fd);
++}
++
+ /* The meaty part of all the executions.  We have to start hacking the
+    real execution of commands here.  Fork a process, set things up,
+    execute the command. */
+@@ -4538,6 +4576,7 @@
+   if (dofork)
+     {
+       char *p, *xc;
++      int exec_sync[2] = { -1, -1 }, wait_exec = 0;
+ 
+       /* Do this now, because execute_disk_command will do it anyway in the
+ 	 vast majority of cases. */
+@@ -4546,11 +4585,32 @@
+       /* Don't let a DEBUG trap overwrite the command string to be saved with
+ 	 the process/job associated with this child. */
+       fork_flags = async ? FORK_ASYNC : 0;
++      /* This is the fork whose pid is $!. A background simple command then
++	 execs in this child (CMD_NO_FORK), so the handshake has to be here.
++	 The parent reads only after stop_pipeline closes the process-group
++	 pipe. Pipelines are not armed: each side already has its own fork. */
++      if (async && pipe_in == NO_PIPE && pipe_out == NO_PIPE &&
++	  pipe (exec_sync) == 0)
++	{
++	  if (SET_CLOSE_ON_EXEC (exec_sync[0]) == 0 &&
++	      SET_CLOSE_ON_EXEC (exec_sync[1]) == 0)
++	    wait_exec = 1;
++	  else
++	    {
++	      close (exec_sync[0]);
++	      close (exec_sync[1]);
++	    }
++	}
+       xc = the_printed_command_except_trap;
+       if (make_child (p = xc ? savestring (xc) : savestring (""), fork_flags) == 0)
+ 	{
+ 	  already_forked = 1;
+ 	  cmdflags |= CMD_NO_FORK;
++	  if (wait_exec)
++	    {
++	      close (exec_sync[0]);
++	      bashos_async_exec_fd = exec_sync[1];
++	    }
+ 
+ 	  /* We redo some of what make_child() does with SUBSHELL_IGNTRAP */
+ 	  subshell_environment = SUBSHELL_FORK|SUBSHELL_IGNTRAP;	/* XXX */
+@@ -4595,6 +4655,13 @@
+ 	  if (pipe_out != NO_PIPE)
+ 	    result = last_command_exit_value;
+ 	  close_pipes (pipe_in, pipe_out);
++	  if (wait_exec)
++	    {
++	      close (exec_sync[1]);
++	      if (bashos_async_exec_wait_fd >= 0)
++		close (bashos_async_exec_wait_fd);
++	      bashos_async_exec_wait_fd = exec_sync[0];
++	    }
+ 	  command_line = (char *)NULL;      /* don't free this. */
+ 	  return (result);
+ 	}
+@@ -4628,6 +4695,8 @@
+   if (words == 0)
+     {
+       this_command_name = 0;
++      if (already_forked)
++	bashos_release_async_exec ();
+       result = execute_null_command (simple_command->redirects,
+ 				     pipe_in, pipe_out,
+ 				     already_forked ? 0 : async);
+@@ -4826,6 +4895,9 @@
+         }
+       if (already_forked)
+ 	{
++	  /* The builtin runs in this process. Release the parent before
++	     it starts, or a background builtin would stall the shell. */
++	  bashos_release_async_exec ();
+ 	  reset_terminating_signals ();	/* XXX */
+ 	  /* Reset the signal handlers in the child, but don't free the
+ 	     trap strings.  Set a flag noting that we have to free the
+@@ -6281,6 +6353,10 @@
+   clear_fifo_list ();	/* pipe fds are what they are now */
+ #endif
+ 
++  /* The file is a script. This process keeps running as the shell, so
++     close the handshake or the parent waits until the script exits. */
++  bashos_release_async_exec ();
++
+   sh_longjmp (subshell_top_level, 1);
+   /*NOTREACHED*/
+ }
+--- execute_cmd.h
++++ execute_cmd.h
+@@ -128,6 +128,10 @@
+ extern void uw_maybe_restore_getopt_state (void *);
+ extern void uw_lastpipe_cleanup (void *);
+ 
++/* After stop_pipeline releases the process-group pipe, wait until an
++   armed asynchronous disk command has exec'd. */
++extern void bashos_wait_async_exec (void);
++
+ extern char *save_lastarg (void);
+ extern void bind_lastarg (char *);
+ 
+--- jobs.c
++++ jobs.c
+@@ -569,6 +569,10 @@
+   sh_closepipe (pgrp_pipe);
+ #endif
+ 
++  /* The child can be past the process-group pipe now. Wait for exec
++     before the caller returns to the script. */
++  bashos_wait_async_exec ();
++
+   cleanup_dead_jobs ();
+ 
+   if (js.j_jobslots == 0)
+--- nojobs.c
++++ nojobs.c
+@@ -972,6 +972,7 @@
+ int
+ stop_pipeline (int async, COMMAND *ignore)
+ {
++  bashos_wait_async_exec ();
+   already_making_children = 0;
+   return 0;
+ }

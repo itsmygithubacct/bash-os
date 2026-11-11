@@ -75,7 +75,8 @@ class ScopeChecks(unittest.TestCase):
         rows = {row['name']: row for row in report['loadables']}
         self.assertEqual(rows['auth']['kind'], 'contract-only')
         self.assertTrue(rows['auth']['notes'])
-        self.assertTrue(rows['uv']['optional'])
+        self.assertTrue(rows['bashperl']['optional'])
+        self.assertFalse(rows['uv']['optional'])
         self.assertEqual(len(rows), report['full_catalog_count'] + report['optional_catalog_count'])
 
 

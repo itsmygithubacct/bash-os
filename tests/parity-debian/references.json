@@ -2240,7 +2240,7 @@
       ],
       "kind": "cli",
       "packages": [],
-      "notes": "Unmodified upstream executable fetched using config/uv.json and verified SHA-256, matching the optional loadable delegation target.",
+      "notes": "Unmodified upstream executable fetched using config/uv.json and verified SHA-256, matching the compiled-in uv builtin delegation target.",
       "programs": [
         "uv"
       ]

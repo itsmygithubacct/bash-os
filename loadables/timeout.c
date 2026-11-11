@@ -556,7 +556,6 @@ char *timeout_doc[] = {
     "not executable, 127 if not found, 128+N if killed by signal N,",
     "otherwise CMD's own exit status.  With --preserve-status, returns",
     "CMD's exit status (128+N) instead of 124 when timeout occurs.",
-    "A timed-out CMD that died from SIGKILL returns 137 in every mode.",
     (char *)NULL
 };
 

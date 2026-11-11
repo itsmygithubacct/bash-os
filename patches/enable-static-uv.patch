@@ -1,0 +1,43 @@
+--- builtins/enable.def
++++ builtins/enable.def
+@@ -331,11 +331,15 @@
+ #  include <dlfcn.h>
+ #endif
+ 
++/* Compiled in with uv. Null when this shell has no uv builtin. */
++extern int uv_note_so_path (const char *) __attribute__ ((weak));
++
+ static int
+ dyn_load_builtin (WORD_LIST *list, int flags, char *filename)
+ {
+   WORD_LIST *l;
+   void *handle;
++  int uv_bound;
+   
+   int total, replaced, r;
+   size_t size, new;
+@@ -347,6 +351,14 @@
+   if (list == 0)
+     return (EXECUTION_FAILURE);
+ 
++  /* uv.so's uv_builtin resolves to the executable's copy, so enable -f
++     keeps the compiled-in builtin. Point that builtin at this file's
++     libexec sibling whether or not dlopen works. */
++  uv_bound = 0;
++  if (uv_note_so_path && list->next == 0 && list->word &&
++      list->word->word && strcmp (list->word->word, "uv") == 0)
++    uv_bound = uv_note_so_path (filename) == 0;
++
+ #ifndef RTLD_LAZY
+ #define RTLD_LAZY 1
+ #endif
+@@ -381,6 +393,9 @@
+ 
+   if (handle == 0)
+     {
++      if (uv_bound)
++	return (EXECUTION_SUCCESS);
++
+       /* If we've been told to be quiet, don't complain about not finding the
+ 	 specified shared object. */
+       if ((flags & SILENT) == 0)

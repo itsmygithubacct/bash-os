@@ -151,7 +151,7 @@
       "expected_status": 0,
       "stderr": "nonempty",
       "stdout": "7\nsyntax-status=1\n",
-      "script": "if bc --strict-errors <<'BC'\na=7\na=8; (\na\nBC\nthen rc=0; else rc=$?; fi\nprintf 'syntax-status=%s\\n' \"$rc\""
+      "script": "if bc --strict-errors <<'BC'\na=7\na=8; (\na\na\nBC\nthen rc=0; else rc=$?; fi\nprintf 'syntax-status=%s\\n' \"$rc\""
     },
     {
       "id": "missing_file_after_existing",

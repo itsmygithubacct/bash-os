@@ -1,7 +1,7 @@
 {
   "version": 1,
   "loadable": "prlimit",
-  "reference": "Own-process read-only queries compare with util-linux prlimit through explicit text/raw output adapters. Bash metadata contracts use the published synopsis. Limit mutations, command execution with changed limits, cross-PID errors and controlled JSON snapshots remain deferred.",
+  "reference": "Own-process read-only queries run the same util-linux-shaped text and raw commands on both sides. Bash metadata contracts use the published synopsis. Limit mutations, command execution with changed limits, cross-PID errors and controlled JSON snapshots remain deferred.",
   "coverage": [
     "Bash identifies prlimit as a builtin with type -t.",
     "Bash detailed help exposes the documented query, set, range, output-format, and command-mode synopsis.",
@@ -10,7 +10,7 @@
     "Deferred: limit parsing, set behavior, and validation in a disposable target.",
     "Deferred: selected-PID behavior and permission/missing-target errors.",
     "Deferred: child command inheritance, exit propagation, and exec failure behavior.",
-    "Read-only own-process NOFILE/CORE/CPU queries with independent util-linux raw/text adapters."
+    "Read-only own-process NOFILE/CORE/CPU queries in util-linux raw and text form."
   ],
   "exclusions": [
     "No resource limit is set and no unrelated process is queried.",
@@ -30,7 +30,7 @@
       "id": "help-documented-forms",
       "purpose": "Check Bash help against the declared documented query, command, range, and output forms without invoking prlimit itself.",
       "kind": "contract",
-      "script": "doc=$(help prlimit)\n[[ $doc == *'prlimit(8) subset over prlimit(2).'* ]] || exit 1\n[[ $doc == *'prlimit --pid PID -r RES SOFT[:HARD]'* ]] || exit 1\n[[ $doc == *'prlimit --nofile=SOFT[:HARD] COMMAND [ARG...]'* ]] || exit 1\n[[ $doc == *'Ranges: SOFT, SOFT:HARD, SOFT: (keep hard), :HARD (keep soft), unlimited.'* ]] || exit 1\n[[ $doc == *'Output: default text lines, --raw tab-delimited lines, or --json objects.'* ]] || exit 1\nprintf '%s\\n' 'pid query/set, command mode, ranges, and output formats documented'",
+      "script": "doc=$(help prlimit)\n[[ $doc == *'prlimit(8) subset over prlimit(2).'* ]] || exit 1\n[[ $doc == *'prlimit --pid PID -r RES SOFT[:HARD]'* ]] || exit 1\n[[ $doc == *'prlimit --nofile=SOFT[:HARD] COMMAND [ARG...]'* ]] || exit 1\n[[ $doc == *'Ranges: SOFT, SOFT:HARD, SOFT: (keep hard), :HARD (keep soft), unlimited.'* ]] || exit 1\n[[ $doc == *'Output: RESOURCE DESCRIPTION SOFT HARD UNITS, --raw escaped fields, or --json.'* ]] || exit 1\nprintf '%s\\n' 'pid query/set, command mode, ranges, and output formats documented'",
       "expected_status": 0,
       "stdout": "pid query/set, command mode, ranges, and output formats documented\n",
       "stderr": "empty"
@@ -195,8 +195,8 @@
     {
       "id": "query-self-nofile",
       "kind": "parity",
-      "purpose": "Query only the calling fixture process without changing any limit. The independent util-linux adapter selects SOFT,HARD and emits the documented resource/tab-separated custom interface.",
-      "script": "if [[ $(type -t prlimit) == builtin ]]; then\n prlimit --nofile --raw --noheadings\nelse\n values=$(prlimit --nofile --raw --noheadings --output SOFT,HARD)\n read -r soft hard <<< \"$values\"\n printf 'NOFILE\\t%s\\t%s\\n' \"$soft\" \"$hard\"\nfi",
+      "purpose": "Query only the calling fixture process NOFILE limit in util-linux raw form, without changing any limit.",
+      "script": "prlimit --nofile --raw --noheadings",
       "expected_status": 0,
       "stderr": "empty",
       "requires": [
@@ -206,8 +206,8 @@
     {
       "id": "query-self-core",
       "kind": "parity",
-      "purpose": "Query only the calling fixture process without changing any limit. The independent util-linux adapter selects SOFT,HARD and emits the documented resource/tab-separated custom interface.",
-      "script": "if [[ $(type -t prlimit) == builtin ]]; then\n prlimit --core --raw --noheadings\nelse\n values=$(prlimit --core --raw --noheadings --output SOFT,HARD)\n read -r soft hard <<< \"$values\"\n printf 'CORE\\t%s\\t%s\\n' \"$soft\" \"$hard\"\nfi",
+      "purpose": "Query only the calling fixture process CORE limit in util-linux raw form, without changing any limit.",
+      "script": "prlimit --core --raw --noheadings",
       "expected_status": 0,
       "stderr": "empty",
       "requires": [
@@ -217,8 +217,8 @@
     {
       "id": "query-self-cpu",
       "kind": "parity",
-      "purpose": "Query only the calling fixture process without changing any limit. The independent util-linux adapter selects SOFT,HARD and emits the documented resource/tab-separated custom interface.",
-      "script": "if [[ $(type -t prlimit) == builtin ]]; then\n prlimit --cpu --raw --noheadings\nelse\n values=$(prlimit --cpu --raw --noheadings --output SOFT,HARD)\n read -r soft hard <<< \"$values\"\n printf 'CPU\\t%s\\t%s\\n' \"$soft\" \"$hard\"\nfi",
+      "purpose": "Query only the calling fixture process CPU limit in util-linux raw form, without changing any limit.",
+      "script": "prlimit --cpu --raw --noheadings",
       "expected_status": 0,
       "stderr": "empty",
       "requires": [
@@ -228,8 +228,8 @@
     {
       "id": "query-self-text",
       "kind": "parity",
-      "purpose": "Compare the custom plain-text NOFILE query format with independently read util-linux soft/hard values.",
-      "script": "if [[ $(type -t prlimit) == builtin ]]; then prlimit -r NOFILE; else\n values=$(prlimit --nofile --raw --noheadings --output SOFT,HARD)\n read -r soft hard <<< \"$values\"\n printf 'NOFILE %s %s\\n' \"$soft\" \"$hard\"\nfi",
+      "purpose": "Compare the plain-text NOFILE query with util-linux prlimit --nofile, without changing any limit.",
+      "script": "if [[ $(type -t prlimit) == builtin ]]; then prlimit -r NOFILE; else prlimit --nofile; fi",
       "expected_status": 0,
       "stderr": "empty",
       "requires": [

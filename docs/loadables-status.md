@@ -163,8 +163,11 @@ the broad command snapshot. See [Perl](perl.md), [Python](python.md) and
 | --- | --- | --- | --- |
 | [`bashperl`](../loadables/bashperl.c) | `--include bashperl` | Embedded Perl; requires an explicit Perl runtime build and package data. | [bashperl.py](../tests/bashperl.py), [interpreter-cache.py](../tests/interpreter-cache.py), [bashperl-sanitize.sh](../tests/bashperl-sanitize.sh) |
 | [`bashpython`](../loadables/bashpython.c) | `--include bashpython` | CPython invocation in a child of the shell; requires an explicit interpreter build and standard-library package data. | [bashpython.py](../tests/bashpython.py), [bashpython-package.py](../tests/bashpython-package.py), [interpreter-cache.py](../tests/interpreter-cache.py) |
-| [`uv`](../loadables/uv.c) | `--include uv` | Frontend to a separately packaged uv executable; fixture tests use a stand-in. | [uv-builtin.py](../tests/uv-builtin.py), [fetch-uv.py](../tests/fetch-uv.py) |
 <!-- END OPTIONAL -->
+
+`uv` is compiled into the full profile. The upstream executable stays a
+separate package. Fixture tests use a stand-in
+([uv-builtin.py](../tests/uv-builtin.py), [fetch-uv.py](../tests/fetch-uv.py)).
 
 ## Full catalog
 

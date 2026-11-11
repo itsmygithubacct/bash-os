@@ -6,6 +6,9 @@
  *   losetup -j FILE [-o OFF]                   list loops backed by FILE
  *   losetup -f                                 print the first free loop device
  *   losetup [-r] [-P] [-o N] [--sizelimit N] [-b N] [--show] -f|LOOPDEV FILE
+ *   losetup -f --show FILE
+ *   losetup /dev/loopN
+ *   losetup -d /dev/loopN
  *   losetup -d LOOPDEV...   |   losetup -D     detach
  *   losetup -c LOOPDEV                         refresh the device size
  *
@@ -1626,12 +1629,15 @@ char *losetup_doc[] = {
     "    losetup -j FILE [-o OFF]               list loops backed by FILE",
     "    losetup -f                             print the first free loop device",
     "    losetup [-r] [-P] [-o N] [--sizelimit N] [-b N] [--show] -f|LOOPDEV FILE",
+    "    losetup -f --show FILE",
+    "    losetup /dev/loopN",
+    "    losetup -d /dev/loopN",
     "    losetup -d LOOPDEV...  |  losetup -D   detach",
     "    losetup -c LOOPDEV                     refresh the device size",
     "",
     "Columns: NAME AUTOCLEAR BACK-FILE BACK-INO BACK-MAJ:MIN BACK-MAJ BACK-MIN",
     "MAJ:MIN MAJ MIN OFFSET PARTSCAN REF RO SIZELIMIT DIO LOG-SEC.",
-    "Attach/detach require suitable permissions.",
+    "Attach/detach require suitable permissions; listing reads /sys/block/loop*.",
     (char *) NULL
 };
 

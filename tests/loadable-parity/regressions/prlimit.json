@@ -30,7 +30,7 @@
       "id": "help-documented-forms",
       "purpose": "Check Bash help against the declared documented query, command, range, and output forms without invoking prlimit itself.",
       "kind": "contract",
-      "script": "doc=$(help prlimit)\n[[ $doc == *'prlimit(8) subset over prlimit(2).'* ]] || exit 1\n[[ $doc == *'prlimit --pid PID -r RES SOFT[:HARD]'* ]] || exit 1\n[[ $doc == *'prlimit --nofile=SOFT[:HARD] COMMAND [ARG...]'* ]] || exit 1\n[[ $doc == *'Ranges: SOFT, SOFT:HARD, SOFT: (keep hard), :HARD (keep soft), unlimited.'* ]] || exit 1\n[[ $doc == *'Output: default text lines, --raw tab-delimited lines, or --json objects.'* ]] || exit 1\nprintf '%s\\n' 'pid query/set, command mode, ranges, and output formats documented'",
+      "script": "doc=$(help prlimit)\n[[ $doc == *'prlimit(8) subset over prlimit(2).'* ]] || exit 1\n[[ $doc == *'prlimit --pid PID -r RES SOFT[:HARD]'* ]] || exit 1\n[[ $doc == *'prlimit --nofile=SOFT[:HARD] COMMAND [ARG...]'* ]] || exit 1\n[[ $doc == *'Ranges: SOFT, SOFT:HARD, SOFT: (keep hard), :HARD (keep soft), unlimited.'* ]] || exit 1\n[[ $doc == *'Output: RESOURCE DESCRIPTION SOFT HARD UNITS, --raw escaped fields, or --json.'* ]] || exit 1\nprintf '%s\\n' 'pid query/set, command mode, ranges, and output formats documented'",
       "expected_status": 0,
       "stdout": "pid query/set, command mode, ranges, and output formats documented\n",
       "stderr": "empty"

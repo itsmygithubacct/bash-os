@@ -36001,26 +36001,26 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "NOFILE text query vs independent util-linux soft/hard values",
-              "definition_sha256": "fcf9a2e9b802116fddef47539bab76f5e4cbd0a3f4664c2980f28c50c7106136",
+              "assertion": "util-linux text NOFILE table on both sides",
+              "definition_sha256": "1854d69d222819f5fe5d433a8fa336efd1a2f799eb6d8c94e05e02f003cacbef",
               "group": "legacy",
               "id": "legacy/prlimit/query-self-text"
             },
             {
-              "assertion": "GNU-adapted SOFT,HARD columns for NOFILE",
-              "definition_sha256": "d7353f23e15bc7f6c2dcf6da36506aeed35f10209c070a987182bf376eb2e94b",
+              "assertion": "util-linux raw NOFILE line on both sides",
+              "definition_sha256": "5863fa94b926eb4101d082d3b3f0abb61d45443ec8036cf0d8cfba78c1eab163",
               "group": "legacy",
               "id": "legacy/prlimit/query-self-nofile"
             },
             {
               "assertion": "CORE",
-              "definition_sha256": "b8122237af1349b7fe481208c31624e34cc6287c12782d123dcce2c82da5c5d6",
+              "definition_sha256": "51fba0feac62b9204a7c519ddd580aef134620600656c5eb83b69d81a3a64fc7",
               "group": "legacy",
               "id": "legacy/prlimit/query-self-core"
             },
             {
               "assertion": "CPU",
-              "definition_sha256": "b35a745f298478a3174ed6d11350061beb9d7a8650c6033f59b0e77372d4e3a3",
+              "definition_sha256": "c26b13afec0b61e363f299b9813fa5078eadb2400bb25e4a4d9e7e3a7d2b98c2",
               "group": "legacy",
               "id": "legacy/prlimit/query-self-cpu"
             }
@@ -36033,8 +36033,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "util-linux --raw adapter compared with candidate output",
-              "definition_sha256": "d7353f23e15bc7f6c2dcf6da36506aeed35f10209c070a987182bf376eb2e94b",
+              "assertion": "util-linux raw NOFILE line on both sides",
+              "definition_sha256": "5863fa94b926eb4101d082d3b3f0abb61d45443ec8036cf0d8cfba78c1eab163",
               "group": "legacy",
               "id": "legacy/prlimit/query-self-nofile"
             },
@@ -36074,7 +36074,7 @@
           "evidence": [
             {
               "assertion": "CORE limit rendered; whether 'unlimited' appears depends on the runner rlimits",
-              "definition_sha256": "b8122237af1349b7fe481208c31624e34cc6287c12782d123dcce2c82da5c5d6",
+              "definition_sha256": "51fba0feac62b9204a7c519ddd580aef134620600656c5eb83b69d81a3a64fc7",
               "group": "legacy",
               "id": "legacy/prlimit/query-self-core"
             },

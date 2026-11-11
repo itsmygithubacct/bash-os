@@ -298,6 +298,7 @@ pack|pack
 git|git plumbing: objects, refs, config
 ssh|ssh
 pkg|pkg
+uv|uv [UV-ARGS ...]
 ntp|ntp
 mail|mail submit|serve|queue-list|queue-show|queue-delete [OPTIONS]
 rsync|rsync [-a] [-v] [-n] [-e RSH] SRC [SRC...] [HOST]:DEST

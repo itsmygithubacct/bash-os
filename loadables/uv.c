@@ -34,8 +34,34 @@
 
 #define UV_PROGRAM "/usr/lib/bash-os/libexec/uv/uv"
 
-/* Resolved when uv.so is loaded; empty when the builtin is compiled in. */
+/* Resolved from a uv.so path. Empty until enable -f loads uv.so or, when
+   that dlopen fails, until uv_note_so_path records the same sibling. */
 static char uv_path[PATH_MAX];
+
+/* Record ../libexec/uv/uv beside a uv.so named by filename. The helper
+   need not exist yet. Returns 0 when the path is recorded, -1 when
+   filename is not a uv.so. */
+int
+uv_note_so_path (const char *filename)
+{
+    char resolved_file[PATH_MAX], dir[PATH_MAX];
+    if (!filename || !realpath (filename, resolved_file))
+        return -1;
+    const char *slash = strrchr (resolved_file, '/');
+    const char *base = slash ? slash + 1 : resolved_file;
+    if (!slash || strcmp (base, "uv.so") != 0)
+        return -1;
+    if ((size_t) (slash - resolved_file) >= sizeof dir)
+        return -1;
+    snprintf (dir, sizeof dir, "%.*s", (int) (slash - resolved_file),
+              resolved_file);
+    if (snprintf (uv_path, sizeof uv_path, "%s/../libexec/uv/uv", dir) >=
+        (int) sizeof uv_path) {
+        uv_path[0] = 0;
+        return -1;
+    }
+    return 0;
+}
 
 /* Called by enable -f while the path given to dlopen is still valid
    relative to the current directory. */

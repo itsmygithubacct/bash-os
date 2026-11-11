@@ -1,18 +1,18 @@
 {
   "version": 1,
   "loadable": "binhex",
-  "reference": "Valid hexadecimal byte streams are compared against xxd plain mode. Non-hex characters are skipped and a trailing nibble is ignored once a byte has been decoded, matching xxd -r -p. Input that never forms a byte is rejected.",
+  "reference": "Valid hexadecimal byte streams are compared against xxd plain mode. One non-hex character is skipped. Two adjacent non-hex characters discard the rest of the line, and a trailing nibble is ignored once a byte has been decoded, matching xxd -r -p. Input that never forms a byte is rejected.",
   "coverage": [
     "Bash metadata: `type -t` reports binhex as a builtin and `help binhex` contains the documented description.",
     "Encode empty input, mixed binary stdin containing NUL and high-bit bytes, a relative file argument, and 4097 deterministic bytes across the implementation's 4096-byte read boundary.",
     "Decode compact hex, whitespace-separated hex, and a relative hex-file argument, preserving arbitrary output bytes.",
     "Documented leading 0x/0X decoder prefix behavior.",
-    "Compatibility behavior for odd trailing nibbles and non-hex characters accepted by xxd plain reverse mode."
+    "Compatibility with xxd plain reverse mode: a trailing nibble is ignored, and two adjacent non-hex characters discard the rest of the line."
   ],
   "exclusions": [
     "Deterministically injecting EINTR and short read/write results requires syscall fault injection and is listed as deferred.",
     "No privilege, device, terminal, network, or host-path operation is part of binhex.",
-    "A trailing nibble or non-hex character is accepted once a byte has been decoded, matching xxd -r -p. Input that never forms a byte is still rejected."
+    "A trailing nibble is ignored once a byte has been decoded. One non-hex character is skipped; two adjacent non-hex characters discard the rest of the line, matching xxd -r -p. Input that never forms a byte is still rejected."
   ],
   "cases": [
     {
@@ -122,7 +122,7 @@
     {
       "id": "decode-nonhex-characters",
       "kind": "contract",
-      "purpose": "Non-hex characters between complete bytes are skipped, matching xxd -r -p.",
+      "purpose": "Two adjacent non-hex characters discard the rest of the line, matching xxd -r -p, with status 0 and no diagnostic.",
       "script": "printf '%s' '41gg42' | binhex -d >/dev/null",
       "expected_status": 0,
       "stderr": "empty",
