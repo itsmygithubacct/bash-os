@@ -139,15 +139,20 @@ class Client:
             self.cancel()
             live=t.cgroup_empty(self.cgfd,self.cgroup_path,self.pidfd,self.cgroup_identity,
                                 self.cgparentfd,self.reg['cgroup_parent'])
+            record['pre_stop_live_cgroup']=live
+            # The evaluator carries the boot cgroup2 mount onto its private
+            # sysfs. The same inode may be visible at the absolute path. A
+            # different inode there is still a substituted cgroup.
+            same_cgroup=(live['absolute_path_present'] is True and
+                         tuple(live['absolute_path_dev_ino'] or ())==(live['fd_dev'],live['fd_ino']))
             c.require(not live['empty'] and not live['removed'] and not live['broker_reaped'] and
                       live['path_present'] is True and
                       live['relative_lookup_first']==live['relative_lookup_second'] and
                       live['parent_link']==t.CGROUP_PARENT and
                       live['observer_mnt_ns']!=self.reg['initial']['mnt']['link'] and
-                      live['absolute_path_present'] is False and
+                      (live['absolute_path_present'] is False or same_cgroup) and
                       'populated 1' in live['events'].splitlines(),
                       'live broker cgroup falsely appeared empty before STOP')
-            record['pre_stop_live_cgroup']=live
             other=str(uuid.UUID(int=uuid.UUID(self.token).int ^ 1))
             wrong_path='/sys/fs/cgroup'+c.cgroup(other)
             try:t.cgroup_empty(self.cgfd,wrong_path,self.pidfd,self.cgroup_identity,
