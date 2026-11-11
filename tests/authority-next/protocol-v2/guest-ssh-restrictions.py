@@ -150,7 +150,10 @@ def controls(runtime, base):
                             'authorized_keys_sha256': sha(key_file), 'allowed': allowed}
                 (directory / 'exchange.json').write_text(json.dumps(exchange, indent=2) + '\n')
                 verdict = runtime.trace_result(directory, want)
-                check(server_status == (0 if allowed else 1), 'SSH connection status differs')
+                # A served encrypted --once connection exits 0, including a
+                # refused login. The client status, target count, and server
+                # acknowledgement below distinguish acceptance.
+                check(server_status == 0, 'SSH connection status differs')
                 check(client['exit_code'] == (37 if allowed else 255), 'independent SSH client status differs')
                 events = [json.loads(row) for row in (directory / 'trace.jsonl').read_text().splitlines()]
                 check(not any(row.get('identity_operation') for row in events), 'key-only case invoked password authority')

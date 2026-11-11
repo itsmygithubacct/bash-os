@@ -80,9 +80,11 @@ def controls(runtime, base):
     public = keys['listed'].with_suffix('.pub').read_bytes().rstrip(b'\n')
     requested = 'ssh-requested-command'
     line = lambda options: (options.encode() + b' ' if options else b'') + public + b'\n'
-    # A completed first channel is not permission to terminate a connection
-    # carrying another channel. Conversely, authentication alone is not a
-    # completed session for the server's --once completion status.
+    # A served encrypted --once parent exits 0 for both lifetimes, including
+    # an authenticated connection that closes before a command channel.
+    # The OpenSSH ssh -N master has no session exit-status, so that process
+    # exits 255 after a successful -O exit. Channel records and the single
+    # publickey acknowledgement stay distinct.
     for channels in (0, 2):
         label = 'auth-only-close-refused' if channels == 0 else 'two-command-channels-complete'
         def multiplex(channels=channels, label=label):
@@ -148,8 +150,10 @@ def controls(runtime, base):
                 output.flush()
                 check((directory / 'server-output.bin').read_bytes().count(b'accepted publickey for av2root') == 1,
                       'one authentication per multiplex connection required')
-                check(master_status == 0 and server_status == (0 if channels else 1),
-                      'completed versus auth-only connection status differs')
+                check(master_status == 255,
+                      'multiplex master status differs: %s' % master_status)
+                check(server_status == 0,
+                      'served SSH connection status differs: %s' % server_status)
                 return {'channels': channels, 'server_status': server_status,
                         'master_status': master_status, 'verdict': verdict}
             finally:

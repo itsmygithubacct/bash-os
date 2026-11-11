@@ -453,6 +453,12 @@ def controls(runtime, base):
               'post-unlink sync failure reached accounting')
     note('login-state-clear-directory-sync-fails-closed', clear_sync_failure)
 
+    # The harness payload clears the execute bit on helper files. Install the
+    # pinned actor the same way as the consumer target before it is exec'd.
+    actor = runtime.executables / 'login-state-negative'
+    runtime.install(actor, (runtime.artifacts / 'login-state-negative').read_bytes(), 0o755)
+    require(sha(actor) == runtime.receipt['files']['login-state-negative']['sha256'],
+            'installed negative actor pin differs')
     for fault in STATE_FAULTS:
         def negative(fault=fault):
             if fault == 'login-state-clear': record(state, 1)
@@ -460,7 +466,7 @@ def controls(runtime, base):
             info = lock.stat(); expected.update(state_directory_identity=[info.st_dev, info.st_ino], state_file='fail.42101')
             directory, config = runtime.config('negative-' + fault,
                 [runtime.args.expected_uuid, fault, str(runtime.target), 'bad-control'], expected,
-                program=runtime.artifacts / 'login-state-negative', fault=fault)
+                program=actor, fault=fault)
             value = json.loads(config.read_text()); value['login_state_directory'] = str(lock)
             config.write_text(json.dumps(value, indent=2) + '\n')
             result = runtime.command(['/usr/bin/python3', '-B', runtime.artifacts / 'consumer-observer.py', config], timeout=45)
