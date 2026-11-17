@@ -73,6 +73,8 @@ the historical 0.1.3 evidence remains available separately.
 - `slabtop --once` follows procps-ng 4 batch output: whole-percent USE,
   sorting by it, and tied rows kept in slabinfo order. The interactive display
   keeps one decimal and orders ties by name.
+- `prlimit` prints the selected resources in command-line order, repeats included, as util-linux does.
+- `ionice` stops at the first process id that fails, as util-linux does.
 - `tiv -g octant` prints the matching character for ten patterns that used a
   larger block: the four single corner cells, the quarter and three-quarter
   rows, and the two middle half columns. A source check now covers all 340

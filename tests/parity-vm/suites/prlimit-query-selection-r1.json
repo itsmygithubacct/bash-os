@@ -15,7 +15,7 @@
         "prlimit",
         "cmp"
       ],
-      "script": "for mode in text raw; do\n  opts=(); [[ $mode == raw ]] && opts=(--raw --noheadings)\n  { prlimit \"${opts[@]}\" --core; prlimit \"${opts[@]}\" --nofile; prlimit \"${opts[@]}\" --stack; } > expected\n  prlimit \"${opts[@]}\" --stack --core --nofile --core > actual || exit 1\n  cmp -s expected actual || exit 2\ndone\nprintf 'selected rows match\\n'\n",
+      "script": "norm() { local l; while read -r l; do set -f; set -- $l; set +f; printf '%s\\n' \"$*\"; done; }\nfor mode in text raw; do\n  opts=(--noheadings); [[ $mode == raw ]] && opts+=(--raw)\n  { prlimit \"${opts[@]}\" --stack; prlimit \"${opts[@]}\" --core; prlimit \"${opts[@]}\" --nofile; prlimit \"${opts[@]}\" --core; } | norm > expected\n  prlimit \"${opts[@]}\" --stack --core --nofile --core > rows || exit 1\n  norm < rows > actual\n  [[ -s expected ]] || exit 3\n  cmp -s expected actual || exit 2\ndone\nprintf 'selected rows match\\n'\n",
       "stdout": "selected rows match\n",
       "stderr": "",
       "expected_status": 0,

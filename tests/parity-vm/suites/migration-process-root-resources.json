@@ -348,8 +348,8 @@
         "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
         "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
       },
-      "candidate_script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit --pid \"$child\" --nofile --raw --noheadings",
-      "reference_script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nvalues=$(prlimit --pid \"$child\" --nofile --raw --noheadings --output SOFT,HARD); rc=$?; read -r soft hard <<< \"$values\"; printf \"NOFILE\\t%s\\t%s\\n\" \"$soft\" \"$hard\"; exit \"$rc\""
+      "candidate_script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nvalues=$(prlimit --pid \"$child\" --nofile --raw --noheadings); rc=$?; read -r _ _ soft hard _ <<< \"$values\"; printf \"NOFILE\\t%s\\t%s\\n\" \"$soft\" \"$hard\"; exit \"$rc\"",
+      "reference_script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nvalues=$(prlimit --pid \"$child\" --nofile --raw --noheadings); rc=$?; read -r _ _ soft hard _ <<< \"$values\"; printf \"NOFILE\\t%s\\t%s\\n\" \"$soft\" \"$hard\"; exit \"$rc\""
     },
     {
       "id": "migration-prlimit-query-owned-short",
@@ -374,8 +374,8 @@
         "worker.py": "import os,pathlib,resource,signal,sys\nresource.setrlimit(resource.RLIMIT_NOFILE,(64,128))\nresource.setrlimit(resource.RLIMIT_RSS,(32,resource.RLIM_INFINITY))\nos.setpriority(os.PRIO_PROCESS,0,int(sys.argv[1]))\npathlib.Path('ready').write_text('ready\\n')\nsignal.alarm(10)\nwhile True:signal.pause()\n",
         "ready.py": "import pathlib,time\ndeadline=time.monotonic()+2\nwhile not pathlib.Path('ready').exists():\n if time.monotonic()>deadline:raise RuntimeError('owned helper not ready')\n time.sleep(.01)\n"
       },
-      "candidate_script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nprlimit -p \"$child\" --nofile --raw --noheadings",
-      "reference_script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nvalues=$(prlimit -p \"$child\" --nofile --raw --noheadings --output SOFT,HARD); rc=$?; read -r soft hard <<< \"$values\"; printf \"NOFILE\\t%s\\t%s\\n\" \"$soft\" \"$hard\"; exit \"$rc\""
+      "candidate_script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nvalues=$(prlimit -p \"$child\" --nofile --raw --noheadings); rc=$?; read -r _ _ soft hard _ <<< \"$values\"; printf \"NOFILE\\t%s\\t%s\\n\" \"$soft\" \"$hard\"; exit \"$rc\"",
+      "reference_script": "/usr/bin/python3 worker.py 0 & child=$!\ntrap 'kill -TERM \"$child\" 2>/dev/null; wait \"$child\" 2>/dev/null' EXIT\n/usr/bin/python3 ready.py || exit 90\nvalues=$(prlimit -p \"$child\" --nofile --raw --noheadings); rc=$?; read -r _ _ soft hard _ <<< \"$values\"; printf \"NOFILE\\t%s\\t%s\\n\" \"$soft\" \"$hard\"; exit \"$rc\""
     },
     {
       "id": "migration-prlimit-pid-word",

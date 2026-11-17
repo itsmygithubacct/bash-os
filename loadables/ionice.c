@@ -121,8 +121,8 @@ print_ioprio (int pid)
 {
     int v = ioprio_get_p (pid);
     if (v < 0) {
-        /* util-linux err(EXIT_FAILURE, "ioprio_get failed"). Callers keep
-           walking the rest of the id list (continue-on-failure). */
+        /* util-linux err(EXIT_FAILURE, "ioprio_get failed"): the first
+           failure ends the id list. */
         fprintf (stderr, "ionice: ioprio_get failed: %s\n", strerror (errno));
         return EXECUTION_FAILURE;
     }
@@ -254,9 +254,11 @@ ionice_builtin (WORD_LIST *list)
                 if (ioprio_set_p (pids[i], klass, level) < 0 && !ignore_fail) {
                     fprintf (stderr, "ionice: ioprio_set failed: %s\n", strerror (errno));
                     rc = EXECUTION_FAILURE;
+                    break;
                 }
             } else if (print_ioprio (pids[i]) != EXECUTION_SUCCESS) {
                 rc = EXECUTION_FAILURE;
+                break;
             }
         }
         free (pids);

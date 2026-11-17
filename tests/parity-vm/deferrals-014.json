@@ -20404,7 +20404,7 @@
           "evidence": [
             {
               "assertion": "argument validation guard; Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
-              "definition_sha256": "c317027448cbbb964215768ce110b091125866669c9fac6fd5591e9fa7803e87",
+              "definition_sha256": "9f2a365492ee170971f842db85ab2e8dd3618317f416369381d1097c205086d9",
               "group": "shell",
               "id": "migration-ionice-argument-validation-guard"
             }
@@ -20418,7 +20418,7 @@
           "evidence": [
             {
               "assertion": "argument validation guard; Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
-              "definition_sha256": "c317027448cbbb964215768ce110b091125866669c9fac6fd5591e9fa7803e87",
+              "definition_sha256": "9f2a365492ee170971f842db85ab2e8dd3618317f416369381d1097c205086d9",
               "group": "shell",
               "id": "migration-ionice-argument-validation-guard"
             }
@@ -20432,7 +20432,7 @@
           "evidence": [
             {
               "assertion": "argument validation guard; Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
-              "definition_sha256": "c317027448cbbb964215768ce110b091125866669c9fac6fd5591e9fa7803e87",
+              "definition_sha256": "9f2a365492ee170971f842db85ab2e8dd3618317f416369381d1097c205086d9",
               "group": "shell",
               "id": "migration-ionice-argument-validation-guard"
             }
@@ -20446,7 +20446,7 @@
           "evidence": [
             {
               "assertion": "argument validation guard; Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
-              "definition_sha256": "c317027448cbbb964215768ce110b091125866669c9fac6fd5591e9fa7803e87",
+              "definition_sha256": "9f2a365492ee170971f842db85ab2e8dd3618317f416369381d1097c205086d9",
               "group": "shell",
               "id": "migration-ionice-argument-validation-guard"
             }
@@ -20460,7 +20460,7 @@
           "evidence": [
             {
               "assertion": "argument validation guard; Exact status, output and independently read I/O class/data. Explicit aliases are adapted to the canonical GNU spelling where stated.",
-              "definition_sha256": "c317027448cbbb964215768ce110b091125866669c9fac6fd5591e9fa7803e87",
+              "definition_sha256": "9f2a365492ee170971f842db85ab2e8dd3618317f416369381d1097c205086d9",
               "group": "shell",
               "id": "migration-ionice-argument-validation-guard"
             }
@@ -33784,7 +33784,7 @@
           "evidence": [
             {
               "assertion": "separator short; Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
-              "definition_sha256": "29ea5ef9762a8fd6c9e8fad75a74046251e6bc09fa951c7bd13b345bec6d9b13",
+              "definition_sha256": "dd41e32bdca7e8c11696f28a550bcd005da05e247398739189579c8584340fcc",
               "group": "shell",
               "id": "migration-pidof-separator-short"
             }
@@ -33839,7 +33839,7 @@
           "evidence": [
             {
               "assertion": "separator short; Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
-              "definition_sha256": "29ea5ef9762a8fd6c9e8fad75a74046251e6bc09fa951c7bd13b345bec6d9b13",
+              "definition_sha256": "dd41e32bdca7e8c11696f28a550bcd005da05e247398739189579c8584340fcc",
               "group": "shell",
               "id": "migration-pidof-separator-short"
             }
@@ -33853,7 +33853,7 @@
           "evidence": [
             {
               "assertion": "separator alias; Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
-              "definition_sha256": "9222e647bf67fe2cd19be984206170e6e1afcfbbbd17571e792e1b763d887d8b",
+              "definition_sha256": "6524a8f6479a477eb3767da453242d3dcb07f674efb7c592bf1d1e961a6fa321",
               "group": "shell",
               "id": "migration-pidof-separator-alias"
             }
@@ -33873,7 +33873,7 @@
             },
             {
               "assertion": "separator long; Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
-              "definition_sha256": "6d151b93d054c19635ab826f47d2bbede56cbebdc270d949dc2fdda95481d3b3",
+              "definition_sha256": "b8efec30a812f0315d204c744a2c4f5eb4682b9a60d7b009ef569cad22f1ea46",
               "group": "shell",
               "id": "migration-pidof-separator-long"
             }
@@ -35913,13 +35913,13 @@
           "evidence": [
             {
               "assertion": "prlimit query owned long; Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
-              "definition_sha256": "d8f896fe667f797e30c2e7e195aa0398518ec12154067c40bdade2e037a21899",
+              "definition_sha256": "8ec594f4981c862b80749ed2fd371fe5ac60918aae163f56d37a2164d15d605d",
               "group": "shell",
               "id": "migration-prlimit-query-owned-long"
             },
             {
               "assertion": "prlimit query owned short; Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
-              "definition_sha256": "f6f9b33565e221008d4d09fd70c0cc61e2e301a7d46aa82c6b0ab235c5197783",
+              "definition_sha256": "40979d9971b950e9d320fda315eccf40086c0d11ffff0c35ab04dc0966375895",
               "group": "shell",
               "id": "migration-prlimit-query-owned-short"
             }
@@ -36100,13 +36100,13 @@
           "evidence": [
             {
               "assertion": "prlimit query owned long; Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
-              "definition_sha256": "d8f896fe667f797e30c2e7e195aa0398518ec12154067c40bdade2e037a21899",
+              "definition_sha256": "8ec594f4981c862b80749ed2fd371fe5ac60918aae163f56d37a2164d15d605d",
               "group": "shell",
               "id": "migration-prlimit-query-owned-long"
             },
             {
               "assertion": "prlimit query owned short; Exact status and explicit read-back predicates. Dynamic IDs are used only to address owned children or verify the complete expected diagnostic/output before emitting a fixed marker.",
-              "definition_sha256": "f6f9b33565e221008d4d09fd70c0cc61e2e301a7d46aa82c6b0ab235c5197783",
+              "definition_sha256": "40979d9971b950e9d320fda315eccf40086c0d11ffff0c35ab04dc0966375895",
               "group": "shell",
               "id": "migration-prlimit-query-owned-short"
             }
@@ -37696,7 +37696,7 @@
           "evidence": [
             {
               "assertion": "-p and -g targets and switches between them change exactly the selected owned processes/groups (niceness read from /proc). FAIL: candidate omits util-linux \"old priority, new priority\" lines.",
-              "definition_sha256": "2f8bb29ae3921d385422e54a7a3843861c1ebd8472c5a4d3d3570049d7a136d3",
+              "definition_sha256": "b00781394f38ebd92e980ea74ba5d4627ca86d6a134ce8a56cc818416f01a4cd",
               "group": "shell",
               "id": "migration-renice-selectors-users-zero"
             }
@@ -37710,7 +37710,7 @@
           "evidence": [
             {
               "assertion": "Selectors before the priority: util-linux rejects \"-g 5 B\" / \"-p 6 A\" as invalid priority (status 1); FAIL: candidate accepts and renices.",
-              "definition_sha256": "2f8bb29ae3921d385422e54a7a3843861c1ebd8472c5a4d3d3570049d7a136d3",
+              "definition_sha256": "b00781394f38ebd92e980ea74ba5d4627ca86d6a134ce8a56cc818416f01a4cd",
               "group": "shell",
               "id": "migration-renice-selectors-users-zero"
             }
@@ -37730,7 +37730,7 @@
             },
             {
               "assertion": "Numeric and named -u for the side uid renice every owned process including the shell on both sides; FAIL in output lines only.",
-              "definition_sha256": "2f8bb29ae3921d385422e54a7a3843861c1ebd8472c5a4d3d3570049d7a136d3",
+              "definition_sha256": "b00781394f38ebd92e980ea74ba5d4627ca86d6a134ce8a56cc818416f01a4cd",
               "group": "shell",
               "id": "migration-renice-selectors-users-zero"
             }
@@ -37744,7 +37744,7 @@
           "evidence": [
             {
               "assertion": "ID 0: util-linux -p 0 renices its own short-lived process (shell unchanged); FAIL: the builtin renices the shell. -g 0 and -u 0 agree in effect.",
-              "definition_sha256": "2f8bb29ae3921d385422e54a7a3843861c1ebd8472c5a4d3d3570049d7a136d3",
+              "definition_sha256": "b00781394f38ebd92e980ea74ba5d4627ca86d6a134ce8a56cc818416f01a4cd",
               "group": "shell",
               "id": "migration-renice-selectors-users-zero"
             }
@@ -37773,7 +37773,7 @@
           "evidence": [
             {
               "assertion": "Nonexistent PID 2147483647 and a reaped child fail with status 1 while the later owned target is reniced on both sides; diagnostics differ in wording.",
-              "definition_sha256": "15fc9d71281c5f69e211bc42e822d94a7742f6ec63579055a3ed34832b5805a5",
+              "definition_sha256": "2aec8d575f0f1658646a468004a732781df319188cffcd92e430e74c0537987b",
               "group": "shell",
               "id": "migration-renice-target-failures"
             }
@@ -37787,7 +37787,7 @@
           "evidence": [
             {
               "assertion": "PID 1 (root) fails with EPERM, PID 1 nice stays 0, the later owned target is reniced, on both sides.",
-              "definition_sha256": "15fc9d71281c5f69e211bc42e822d94a7742f6ec63579055a3ed34832b5805a5",
+              "definition_sha256": "2aec8d575f0f1658646a468004a732781df319188cffcd92e430e74c0537987b",
               "group": "shell",
               "id": "migration-renice-target-failures"
             }
@@ -37819,7 +37819,7 @@
             },
             {
               "assertion": "No target, bad priority and no arguments leave the owned target unchanged on both sides. FAIL: \"-n\" after the priority is a bad ID in util-linux (it still renices A to 7 and tries PID 8) while the candidate rejects the whole command first.",
-              "definition_sha256": "15fc9d71281c5f69e211bc42e822d94a7742f6ec63579055a3ed34832b5805a5",
+              "definition_sha256": "2aec8d575f0f1658646a468004a732781df319188cffcd92e430e74c0537987b",
               "group": "shell",
               "id": "migration-renice-target-failures"
             }
@@ -37833,7 +37833,7 @@
           "evidence": [
             {
               "assertion": "Mixed list: util-linux prints success lines for each success in order and diagnostics for failures; candidate is silent on success with different diagnostic wording. FAIL.",
-              "definition_sha256": "15fc9d71281c5f69e211bc42e822d94a7742f6ec63579055a3ed34832b5805a5",
+              "definition_sha256": "2aec8d575f0f1658646a468004a732781df319188cffcd92e430e74c0537987b",
               "group": "shell",
               "id": "migration-renice-target-failures"
             }

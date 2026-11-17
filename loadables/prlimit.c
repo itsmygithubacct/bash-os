@@ -162,6 +162,8 @@ bpl_find_short_alias (char opt)
   return NULL;
 }
 
+#define BPL_MAX_SELECTED 64
+
 static int
 bpl_select_resource (const char **res_name, const char **set_spec,
                      unsigned char *selected, int *nselected,
@@ -175,11 +177,9 @@ bpl_select_resource (const char **res_name, const char **set_spec,
       return EX_USAGE;
     }
   index = (size_t) (res - bpl_resources);
-  if (!selected[index])
-    {
-      selected[index] = 1;
-      ++*nselected;
-    }
+  /* Rows print in command-line order, repeats included, as util-linux does. */
+  if (*nselected < BPL_MAX_SELECTED)
+    selected[(*nselected)++] = (unsigned char) index;
   *res_name = res->name;
   if (new_spec)
     {
@@ -496,7 +496,7 @@ bpl_show_one (pid_t pid, const bpl_res *res, int json, int raw, int noheadings)
 
 static int
 bpl_show_all (pid_t pid, int json, int raw, int noheadings,
-              const unsigned char *selected)
+              const unsigned char *selected, int nselected)
 {
   int rc = EXECUTION_SUCCESS;
   int first = 1;
@@ -505,11 +505,14 @@ bpl_show_all (pid_t pid, int json, int raw, int noheadings,
   int n = 0;
   if (json)
     printf ("{\"pid\":%ld,\"limits\":[", (long) pid);
-  for (const bpl_res *r = bpl_resources; r->name; r++)
+  int total = nselected;
+  if (!selected)
+    for (total = 0; bpl_resources[total].name; total++)
+      ;
+  for (int k = 0; k < total; k++)
     {
+      const bpl_res *r = &bpl_resources[selected ? selected[k] : k];
       struct rlimit oldlim;
-      if (selected && !selected[r - bpl_resources])
-        continue;
       if (bpl_prlimit (pid, r->resource, NULL, &oldlim) < 0)
         {
           builtin_error ("pid %ld %s: %s", (long) pid, r->name, strerror (errno));
@@ -691,7 +694,7 @@ prlimit_builtin (WORD_LIST *list)
   int json = 0;
   int raw = 0;
   int noheadings = 0;
-  unsigned char selected[sizeof bpl_resources / sizeof bpl_resources[0]] = { 0 };
+  unsigned char selected[BPL_MAX_SELECTED] = { 0 };
   int nselected = 0;
   const bpl_res *res;
 
@@ -788,7 +791,7 @@ prlimit_builtin (WORD_LIST *list)
     {
       if (set_spec)
         { builtin_error ("limit value requires -r RES"); return EX_USAGE; }
-      return bpl_show_all (pid, json, raw, noheadings, NULL);
+      return bpl_show_all (pid, json, raw, noheadings, NULL, 0);
     }
   if (nselected > 1)
     {
@@ -797,7 +800,7 @@ prlimit_builtin (WORD_LIST *list)
           builtin_error ("only one resource may be set");
           return EX_USAGE;
         }
-      return bpl_show_all (pid, json, raw, noheadings, selected);
+      return bpl_show_all (pid, json, raw, noheadings, selected, nselected);
     }
   res = bpl_find_res (res_name);
   if (!res)
