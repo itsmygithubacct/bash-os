@@ -17805,7 +17805,7 @@
           "evidence": [
             {
               "assertion": "On a vgem DRM node with Mesa software GLES, the swap shader and the time-dependent shader render exact frames computed from the drawn rectangles and shader formulas (PPM bytes compared with the fixture model); a second render starts again from the CPU canvas.",
-              "definition_sha256": "c5e6b5a01c21434e8bd7e536d15ae6c1b6a7354ff5cb95c6f88f75d08b59969c",
+              "definition_sha256": "2953551c31226013c867e44683c60262bb81f473e59123797a12f8fac15ec8cc",
               "group": "shell",
               "id": "mig-w7-gpu-native-shader-render"
             }
@@ -17819,7 +17819,7 @@
           "evidence": [
             {
               "assertion": "Render keeps the CPU canvas as input; resize preserves the rendered image with black padding (docs/gpu.md read-back on CPU operations); a render after resize gives the exact expected frame.",
-              "definition_sha256": "3b6a2ccef7918e3271d6f821a531711af3b3ba5537c75a8c1ba24949b51673bd",
+              "definition_sha256": "91bf8baef4c9114729aa5f29a0b5be7edf6a43237967ac1eb42d3591a8c1fd4e",
               "group": "shell",
               "id": "mig-w7-gpu-native-canvas-retention-resize"
             }
@@ -17833,7 +17833,7 @@
           "evidence": [
             {
               "assertion": "Model Kitty/Kilix peer receives two v2 frame records (KDMA, 4x4, XRGB, transform 6) with the buffer descriptor over SCM_RIGHTS; mapped pixels equal the drawn frame; info reports transport=dmabuf frames=2 fallbacks=0; the session directory is removed on stop.",
-              "definition_sha256": "4acb3feb7669498b3b9db4acd28b81a4d68740682c6119f323ff0e1369e882ff",
+              "definition_sha256": "d92f12328b24f72b623ab08baecf636ef6ec0340e0caefad86c9d40307f7be51",
               "group": "shell",
               "id": "mig-w7-gpu-dmabuf-frame-handoff"
             }
@@ -17861,7 +17861,7 @@
           "evidence": [
             {
               "assertion": "Native compile failure reports \"shader:\" with the compiler complaint and status 1; the previous program keeps rendering; shader off keeps the last rendered image; the session stays drawable.",
-              "definition_sha256": "2748dd3d76a5463ff61955dabb246439a456f286300fa72e0dbbd8dd77cfae53",
+              "definition_sha256": "bb9e106b3c6472159da3854687fb7de877bc8158c7b674957416964046bac37b",
               "group": "shell",
               "id": "mig-w7-gpu-native-compile-failure"
             },
@@ -32047,7 +32047,7 @@
           "evidence": [
             {
               "assertion": "pack cat resolves three objects through MSB-set 32-bit index entries into the 64-bit overflow table and returns bytes identical to the Python model and to git 2.47.3 cat-file on the same pack.",
-              "definition_sha256": "f3c5a48ef1089528d356a2a433ea57ba1c3790d6f4e33d59cf16b68aed20ad12",
+              "definition_sha256": "1661f2a11d627bd9dae3692b74b4068f075dc82dcd4eb35a0793242a4d11e929",
               "group": "shell",
               "id": "mig-w7-pack-overflow-offset-cat"
             }
@@ -32061,7 +32061,7 @@
           "evidence": [
             {
               "assertion": "A sparse pack with an object at offset 0x80000100 is decoded byte-identically by git cat-file (1 MiB windows) while pack cat fails reading the 2 GiB pack: Cannot allocate memory under the 512 MiB address-space limit (reached FAIL, retained).",
-              "definition_sha256": "94b5f3ef94ca93cba4218742f0ad34d4ead84653ddf3b8ec8471309d7fed714b",
+              "definition_sha256": "8f1cd728ad1ade8a12560e7305c30f325fa1f30e1c6018e1b999cc88831d882d",
               "group": "shell",
               "id": "mig-w7-pack-offset-above-2gib-root"
             }
@@ -32075,7 +32075,7 @@
           "evidence": [
             {
               "assertion": "verify-idx accepts an index using the 64-bit overflow table (status 0, as git verify-pack) and rejects the same index with one flipped byte in the table (status 1, as git verify-pack).",
-              "definition_sha256": "b145350ea30804e4f736c20a76f1a35b6b395bd3740ceb115df5fab25ac2abf7",
+              "definition_sha256": "030b0aa7b070c0eecdd4ecd9af965b378392b8e5a1845b676cc381e1572e79af",
               "group": "shell",
               "id": "mig-w7-pack-overflow-verify"
             }
