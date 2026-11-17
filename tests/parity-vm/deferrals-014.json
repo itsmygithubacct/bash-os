@@ -5167,25 +5167,25 @@
           "evidence": [
             {
               "assertion": "Operand-less blkid over loop devices (ext2, vfat, DOS and GPT with partitions) compared byte for byte with util-linux blkid.",
-              "definition_sha256": "9664f6374294f64ec06e85d006957da3c1f28ab0f046aa81682d40b9b1ba9f4f",
+              "definition_sha256": "c97aeca11584df7ac72a88840db8b3044d895a98c48f9ad98708ae7bd333c757",
               "group": "shell",
               "id": "mig-w7-blkid-loop-enumeration-order"
             },
             {
               "assertion": "Same enumeration compared as sorted line sets.",
-              "definition_sha256": "895189e55a7d15a447525657ab2d3daf48995bbf5660a2dad8a34df80be3a187",
+              "definition_sha256": "0f41f02bf7766452dd47f03c2f4e1193ec4bd1f9bf8c8efda78cdaf092d04175",
               "group": "shell",
               "id": "mig-w7-blkid-loop-enumeration-lines"
             },
             {
               "assertion": "Operand-less blkid over loop devices (ext2, vfat, DOS and GPT with partitions) compared byte for byte with util-linux blkid.",
-              "definition_sha256": "9664f6374294f64ec06e85d006957da3c1f28ab0f046aa81682d40b9b1ba9f4f",
+              "definition_sha256": "c97aeca11584df7ac72a88840db8b3044d895a98c48f9ad98708ae7bd333c757",
               "group": "shell",
               "id": "mig-w7-blkid-loop-enumeration-order"
             },
             {
               "assertion": "Same enumeration compared as sorted line sets.",
-              "definition_sha256": "895189e55a7d15a447525657ab2d3daf48995bbf5660a2dad8a34df80be3a187",
+              "definition_sha256": "0f41f02bf7766452dd47f03c2f4e1193ec4bd1f9bf8c8efda78cdaf092d04175",
               "group": "shell",
               "id": "mig-w7-blkid-loop-enumeration-lines"
             }
@@ -5199,13 +5199,13 @@
           "evidence": [
             {
               "assertion": "blkid -L/-U hits (whole disk, DOS and GPT partitions) and misses compared with util-linux.",
-              "definition_sha256": "f8bacea346c4755bafcc94126ddd3f3568e3e4dc19b0414d6f7e66c92884bc2b",
+              "definition_sha256": "d005c3ab5f8cb78ad9eeb9da64b48876b2e2e368f5b583c7e3269fbf153da0b1",
               "group": "shell",
               "id": "mig-w7-blkid-label-uuid-lookup-devices"
             },
             {
               "assertion": "blkid -L/-U hits (whole disk, DOS and GPT partitions) and misses compared with util-linux.",
-              "definition_sha256": "f8bacea346c4755bafcc94126ddd3f3568e3e4dc19b0414d6f7e66c92884bc2b",
+              "definition_sha256": "d005c3ab5f8cb78ad9eeb9da64b48876b2e2e368f5b583c7e3269fbf153da0b1",
               "group": "shell",
               "id": "mig-w7-blkid-label-uuid-lookup-devices"
             }
@@ -5219,13 +5219,13 @@
           "evidence": [
             {
               "assertion": "PARTUUID/PARTLABEL of partitions and PTTYPE/PTUUID of parent disks compared with util-linux.",
-              "definition_sha256": "5010faa90ae2a0f7d478e08c49ebb7bea4e0840d11549ce377018e047b06a173",
+              "definition_sha256": "f09637be5802c424c2fe7940feea12bb2a19c427a3858d2dc17ce0e15c65383c",
               "group": "shell",
               "id": "mig-w7-blkid-partition-parent-metadata"
             },
             {
               "assertion": "PARTUUID/PARTLABEL of partitions and PTTYPE/PTUUID of parent disks compared with util-linux.",
-              "definition_sha256": "5010faa90ae2a0f7d478e08c49ebb7bea4e0840d11549ce377018e047b06a173",
+              "definition_sha256": "f09637be5802c424c2fe7940feea12bb2a19c427a3858d2dc17ce0e15c65383c",
               "group": "shell",
               "id": "mig-w7-blkid-partition-parent-metadata"
             }
@@ -11206,25 +11206,25 @@
           "evidence": [
             {
               "assertion": "ext2 loop filesystem with 20% reserved blocks: avail<free and Use% = ceil(used/(used+avail)) from an independent statfs oracle; data rows equal GNU df.",
-              "definition_sha256": "3a3779b27311e770e5f0761c3eaff30999a258a8688ae7a6b92a46b256588f01",
+              "definition_sha256": "b2eb7397d0db2fd69f1f9951229e673192669f919268c77953386f8065715ce8",
               "group": "shell",
               "id": "mig-w7-df-reserved-blocks-values-root"
             },
             {
               "assertion": "Full-output form including headers and padding.",
-              "definition_sha256": "941dbc34b0f2e62e2e55e7371470bff343c2ad962b04b4ddc52ac1389ed4d723",
+              "definition_sha256": "997a832da4eaf6cd7b9e75e9a0ac9389f85a9063194b67d21a0546445662e8fa",
               "group": "shell",
               "id": "mig-w7-df-reserved-blocks-root"
             },
             {
               "assertion": "ext2 loop filesystem with 20% reserved blocks: avail<free and Use% = ceil(used/(used+avail)) from an independent statfs oracle; data rows equal GNU df.",
-              "definition_sha256": "3a3779b27311e770e5f0761c3eaff30999a258a8688ae7a6b92a46b256588f01",
+              "definition_sha256": "b2eb7397d0db2fd69f1f9951229e673192669f919268c77953386f8065715ce8",
               "group": "shell",
               "id": "mig-w7-df-reserved-blocks-values-root"
             },
             {
               "assertion": "Full-output form including headers and padding.",
-              "definition_sha256": "941dbc34b0f2e62e2e55e7371470bff343c2ad962b04b4ddc52ac1389ed4d723",
+              "definition_sha256": "997a832da4eaf6cd7b9e75e9a0ac9389f85a9063194b67d21a0546445662e8fa",
               "group": "shell",
               "id": "mig-w7-df-reserved-blocks-root"
             }
@@ -13200,13 +13200,13 @@
           "evidence": [
             {
               "assertion": "With udevd running, default create/remove sync on a udev cookie and --noudevsync does not: node state right after return compared with GNU dmsetup.",
-              "definition_sha256": "cb31c5326cc478c80e1be492df2f5a6d99ec11a6c10e799f3419f43f6ad82cb6",
+              "definition_sha256": "4489461289f78d7e7ec06e618e4e07304cbcaabcbb142842f3994344a310064d",
               "group": "shell",
               "id": "mig-w7-dmsetup-udev-cookie-root"
             },
             {
               "assertion": "--noudevsync create/remove node state and messages compared with GNU dmsetup without udev.",
-              "definition_sha256": "4c287c0e21773f71237bcf42a3291ce5d6af07d4d1c70f81085e114a4c9bd7a5",
+              "definition_sha256": "2cf7e00268221858202d3ac01c97e2fbe3df80ecb233f7516f5f9b7375541af8",
               "group": "shell",
               "id": "mig-w7-dmsetup-node-sync-root"
             }
@@ -13234,7 +13234,7 @@
           "evidence": [
             {
               "assertion": "-U/-G/-M node ownership and the -o/-c/--noheadings/--separator/--select/--sort report options compared with GNU dmsetup.",
-              "definition_sha256": "6de6c2134903a7bcb4c81c560895e4e001eb31eb8be1ddb7744627c8638b2edb",
+              "definition_sha256": "aec57750ad9c5ec651c82db962c8ccca91441873f8674f7a80f9f83756bd1d70",
               "group": "shell",
               "id": "mig-w7-dmsetup-report-and-node-options-root"
             }
@@ -15825,13 +15825,13 @@
           "evidence": [
             {
               "assertion": "Cold after sync, drop_caches and POSIX_FADV_DONTNEED on a loop-backed ext2 file: RES 0 PAGES 0, matching util-linux fincore.",
-              "definition_sha256": "6bdba5380171d629b35f30add911e7bf99c810b1231c5aaeaf819a9f5634bba9",
+              "definition_sha256": "e3223603d53fcc9abe98ff0014941a68c9519d38b3db019f14e13f0a28d922fb",
               "group": "shell",
               "id": "mig-w7-fincore-cache-transitions-root"
             },
             {
               "assertion": "Cold after sync, drop_caches and POSIX_FADV_DONTNEED on a loop-backed ext2 file: RES 0 PAGES 0, matching util-linux fincore.",
-              "definition_sha256": "6bdba5380171d629b35f30add911e7bf99c810b1231c5aaeaf819a9f5634bba9",
+              "definition_sha256": "e3223603d53fcc9abe98ff0014941a68c9519d38b3db019f14e13f0a28d922fb",
               "group": "shell",
               "id": "mig-w7-fincore-cache-transitions-root"
             }
@@ -15873,13 +15873,13 @@
           "evidence": [
             {
               "assertion": "Exactly one resident page after a single FADV_RANDOM read, matching util-linux fincore.",
-              "definition_sha256": "6bdba5380171d629b35f30add911e7bf99c810b1231c5aaeaf819a9f5634bba9",
+              "definition_sha256": "e3223603d53fcc9abe98ff0014941a68c9519d38b3db019f14e13f0a28d922fb",
               "group": "shell",
               "id": "mig-w7-fincore-cache-transitions-root"
             },
             {
               "assertion": "Exactly one resident page after a single FADV_RANDOM read, matching util-linux fincore.",
-              "definition_sha256": "6bdba5380171d629b35f30add911e7bf99c810b1231c5aaeaf819a9f5634bba9",
+              "definition_sha256": "e3223603d53fcc9abe98ff0014941a68c9519d38b3db019f14e13f0a28d922fb",
               "group": "shell",
               "id": "mig-w7-fincore-cache-transitions-root"
             }
@@ -15893,13 +15893,13 @@
           "evidence": [
             {
               "assertion": "Cold, one page, warm (16 pages), cold again in sequence, each state compared with util-linux fincore.",
-              "definition_sha256": "6bdba5380171d629b35f30add911e7bf99c810b1231c5aaeaf819a9f5634bba9",
+              "definition_sha256": "e3223603d53fcc9abe98ff0014941a68c9519d38b3db019f14e13f0a28d922fb",
               "group": "shell",
               "id": "mig-w7-fincore-cache-transitions-root"
             },
             {
               "assertion": "Cold, one page, warm (16 pages), cold again in sequence, each state compared with util-linux fincore.",
-              "definition_sha256": "6bdba5380171d629b35f30add911e7bf99c810b1231c5aaeaf819a9f5634bba9",
+              "definition_sha256": "e3223603d53fcc9abe98ff0014941a68c9519d38b3db019f14e13f0a28d922fb",
               "group": "shell",
               "id": "mig-w7-fincore-cache-transitions-root"
             }
@@ -16697,13 +16697,13 @@
             },
             {
               "assertion": "fstrim -A -n -v over an fstab using LABEL=, UUID=, PARTLABEL= and PARTUUID= resolved through /dev/disk/by-* on loop devices, compared with util-linux.",
-              "definition_sha256": "dfe4b22692ebb9e71ccaad8cd62dad6b3932efbba29b51269402cbf0add78938",
+              "definition_sha256": "26aa395ae61b91b3911fe86a549583a0eb2dcfa3e054362fbbf7bde851ce4d31",
               "group": "shell",
               "id": "mig-w7-fstrim-fstab-tag-forms-root"
             },
             {
               "assertion": "fstrim -A -n -v over an fstab using LABEL=, UUID=, PARTLABEL= and PARTUUID= resolved through /dev/disk/by-* on loop devices, compared with util-linux.",
-              "definition_sha256": "dfe4b22692ebb9e71ccaad8cd62dad6b3932efbba29b51269402cbf0add78938",
+              "definition_sha256": "26aa395ae61b91b3911fe86a549583a0eb2dcfa3e054362fbbf7bde851ce4d31",
               "group": "shell",
               "id": "mig-w7-fstrim-fstab-tag-forms-root"
             }
@@ -16729,13 +16729,13 @@
             },
             {
               "assertion": "fstab entry /dev/root (or an unresolvable UUID) for / falls back to root= from a bind-mounted /proc/cmdline; also the no-root= case, compared with util-linux.",
-              "definition_sha256": "f33ba3b0962a7f2768b6020b2b58175f36f28339c631296435d4c49e109460e2",
+              "definition_sha256": "6e44c93da7121139a42f07254466ab455429e63c37e8af41b278593c13b0e371",
               "group": "shell",
               "id": "mig-w7-fstrim-root-device-guess-root"
             },
             {
               "assertion": "fstab entry /dev/root (or an unresolvable UUID) for / falls back to root= from a bind-mounted /proc/cmdline; also the no-root= case, compared with util-linux.",
-              "definition_sha256": "f33ba3b0962a7f2768b6020b2b58175f36f28339c631296435d4c49e109460e2",
+              "definition_sha256": "6e44c93da7121139a42f07254466ab455429e63c37e8af41b278593c13b0e371",
               "group": "shell",
               "id": "mig-w7-fstrim-root-device-guess-root"
             }
@@ -25866,7 +25866,7 @@
           "evidence": [
             {
               "assertion": "Owner-settable bits set with chattr on ext4 files and directories render at the e2fsprogs positions.",
-              "definition_sha256": "98e392cb3c5e70b406087a24d32e081d79ac794ab6c42ad17116fa5ffe25a7b3",
+              "definition_sha256": "91244a95fc6c80f03193cb46ae148c0949c4f780f3c361ee6ca2ad6e6fade083",
               "group": "shell",
               "id": "mig-w7-lsattr-user-bits-ext4-root"
             },
@@ -25878,7 +25878,7 @@
             },
             {
               "assertion": "Owner-settable bits set with chattr on ext4 files and directories render at the e2fsprogs positions.",
-              "definition_sha256": "98e392cb3c5e70b406087a24d32e081d79ac794ab6c42ad17116fa5ffe25a7b3",
+              "definition_sha256": "91244a95fc6c80f03193cb46ae148c0949c4f780f3c361ee6ca2ad6e6fade083",
               "group": "shell",
               "id": "mig-w7-lsattr-user-bits-ext4-root"
             },
@@ -25898,7 +25898,7 @@
           "evidence": [
             {
               "assertion": "N, F, P, V (and combinations) on real ext4 inodes compared with e2fsprogs lsattr.",
-              "definition_sha256": "f45e5346410e44a9793a307b07ec9c7595f5dc1d9f20dc083a36303109769cbc",
+              "definition_sha256": "d2dbf328a564136328150458bb4621e0a54feb3e50f6170bf6f98952f0fbaa9c",
               "group": "shell",
               "id": "mig-w7-lsattr-feature-bits-ext4-root"
             },
@@ -25918,7 +25918,7 @@
           "evidence": [
             {
               "assertion": "i and a set with chattr as root on ext4, rendered, then cleared and verified.",
-              "definition_sha256": "63bcc8523c0aec47f5c2607df5af3591e3a32796bd2eb41e303d9ddb47a38ff9",
+              "definition_sha256": "a770d6f1dda2c2f7130a5545360aad1e9bc139a671ee24d6cf88213d46c7b35e",
               "group": "shell",
               "id": "mig-w7-lsattr-immutable-append-root"
             }
@@ -26054,7 +26054,7 @@
           "evidence": [
             {
               "assertion": "loop device with a device-mapper linear child: tree, list, no-deps, raw and pairs forms and the dm node itself compared with util-linux lsblk.",
-              "definition_sha256": "e91ea531976e24e85c18b9bc4962d923c54ca6fb49dabc30698bb57249237367",
+              "definition_sha256": "766e0e4d1b6028c1fb2fd37b3d84d980b0b439e545e63783c3fbc7738bf531d0",
               "group": "shell",
               "id": "mig-w7-lsblk-loop-dm-topology-root"
             }
@@ -26080,13 +26080,13 @@
             },
             {
               "assertion": "FSTYPE, LABEL, MOUNTPOINT of a loop ext2 device unmounted, mounted and after umount, plus -f and raw forms, compared with util-linux.",
-              "definition_sha256": "8c983f7b3690df5302a442dd5a2903a6d0198a50bb0079206f3e50a8bd4348ef",
+              "definition_sha256": "953a242c9a784bc44bd41ca1baca1db0191e5d713c4109c1ac651d87f473c2fa",
               "group": "shell",
               "id": "mig-w7-lsblk-mounted-fstype-root"
             },
             {
               "assertion": "FSTYPE, LABEL, MOUNTPOINT of a loop ext2 device unmounted, mounted and after umount, plus -f and raw forms, compared with util-linux.",
-              "definition_sha256": "8c983f7b3690df5302a442dd5a2903a6d0198a50bb0079206f3e50a8bd4348ef",
+              "definition_sha256": "953a242c9a784bc44bd41ca1baca1db0191e5d713c4109c1ac651d87f473c2fa",
               "group": "shell",
               "id": "mig-w7-lsblk-mounted-fstype-root"
             }

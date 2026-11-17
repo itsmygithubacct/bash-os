@@ -64,7 +64,13 @@ typedef struct {
     char partlabel[BBLK_PARTLABEL_MAX];
     char partuuid[BBLK_UUID_MAX];
     char sec_type[BBLK_TYPE_MAX];
+    char label_fatboot[BBLK_LABEL_MAX];
+    char block_size[16];
 } bblk_info;
+
+/* The device or file being probed, for signatures whose data lies beyond
+   the probe buffer (a FAT root directory). */
+static const char *bblk_cur_path;
 
 /* ---------------- helpers ----------------------------------------- */
 
@@ -227,6 +233,9 @@ bblk_match_ext (const unsigned char *p, size_t n, bblk_info *out)
     /* uuid at sb+0x68 (16 bytes), label at sb+0x78 (16 bytes). */
     bblk_uuid_be (out->uuid, sb + 0x68);
     bblk_copy_fixed (out->label, BBLK_LABEL_MAX, sb + 0x78, 16);
+    uint32_t log_block = bblk_le32 (sb + 0x18);
+    if (log_block < 32 - 10)
+        snprintf (out->block_size, sizeof out->block_size, "%u", 1024u << log_block);
     return 1;
 }
 
@@ -315,6 +324,38 @@ bblk_match_exfat (const unsigned char *p, size_t n, bblk_info *out)
     return 1;
 }
 
+/* Copy LEN bytes at OFF of the probed device: from the probe buffer when
+   it holds them, else read from the device. Returns 1 on success. */
+static int
+bblk_bytes (const unsigned char *p, size_t n, uint64_t off, unsigned char *dst, size_t len)
+{
+    if (off <= n && len <= n - off) { memcpy (dst, p + off, len); return 1; }
+    if (!bblk_cur_path) return 0;
+    int fd = open (bblk_cur_path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+    ssize_t r = pread (fd, dst, len, (off_t) off);
+    close (fd);
+    return r == (ssize_t) len;
+}
+
+/* The volume-label entry among ENTRIES directory entries at OFF. */
+static int
+bblk_fat_label (const unsigned char *p, size_t n, uint64_t off, uint32_t entries, unsigned char out[11])
+{
+    unsigned char ent[32];
+    for (uint32_t i = 0; i < entries && i < 65536; i++) {
+        if (!bblk_bytes (p, n, off + (uint64_t) i * 32, ent, 32) || ent[0] == 0x00) break;
+        if (ent[0] == 0xe5 || ent[20] || ent[21] || ent[26] || ent[27] || (ent[11] & 0x3f) == 0x0f)
+            continue;
+        if ((ent[11] & (0x08 | 0x10)) == 0x08) {
+            memcpy (out, ent, 11);
+            if (out[0] == 0x05) out[0] = 0xe5;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* VFAT (FAT12/16/32):
      boot signature 0x55 0xAA at offset 510
      for FAT12/16: BS_BootSig = 0x29 at offset 38, label at 43 (11 B),
@@ -341,25 +382,95 @@ bblk_match_vfat (const unsigned char *p, size_t n, bblk_info *out)
         return 0;
     if (reserved == 0) return 0;
 
-    if (is_fat32) {
-        strncpy (out->type, "vfat", BBLK_TYPE_MAX - 1);
-        out->type[BBLK_TYPE_MAX - 1] = '\0';
-        bblk_serial4 (out->uuid, p + 67);
-        bblk_copy_fixed (out->label, BBLK_LABEL_MAX, p + 71, 11);
-        if (strcmp (out->label, "NO NAME") == 0)
-            out->label[0] = '\0';
-        return 1;
+    if (!is_fat32 && p[38] != 0x29) return 0;
+
+    /* Tags follow libblkid: a 16-bit FAT length marks FAT12/16, whose
+       secondary type is msdos; the boot-sector label is LABEL_FATBOOT and
+       LABEL is the volume-label entry of the root directory. */
+    unsigned fats = p[16];
+    uint32_t fat16_length = bblk_le16 (p + 22);
+    uint32_t fat32_length = bblk_le32 (p + 36);
+    unsigned cluster_sectors = p[13];
+    const unsigned char *boot_label = NULL, *serial = NULL;
+    unsigned char vol_label[11];
+    int have_vol = 0;
+
+    strncpy (out->type, "vfat", BBLK_TYPE_MAX - 1);
+    out->type[BBLK_TYPE_MAX - 1] = '\0';
+    if (fat16_length) {
+        uint64_t root = ((uint64_t) reserved + (uint64_t) fat16_length * fats) * bytes_per_sector;
+        have_vol = bblk_fat_label (p, n, root, bblk_le16 (p + 17), vol_label);
+        if (p[38] == 0x29) boot_label = p + 43;
+        if (p[38] == 0x28 || p[38] == 0x29) serial = p + 39;
+        strncpy (out->sec_type, "msdos", BBLK_TYPE_MAX - 1);
+    } else if (fat32_length) {
+        uint64_t data = (uint64_t) reserved + (uint64_t) fat32_length * fats;
+        uint64_t entries = (uint64_t) fat32_length * bytes_per_sector / 4;
+        uint32_t next = bblk_le32 (p + 44);
+        uint32_t cluster_bytes = (uint32_t) cluster_sectors * bytes_per_sector;
+        for (int loop = 0; next && next < entries && loop < 99; loop++) {
+            uint64_t off = (data + (uint64_t) (next - 2) * cluster_sectors) * bytes_per_sector;
+            if (bblk_fat_label (p, n, off, cluster_bytes / 32, vol_label)) { have_vol = 1; break; }
+            unsigned char entry[4];
+            if (!bblk_bytes (p, n, (uint64_t) reserved * bytes_per_sector + (uint64_t) next * 4, entry, 4))
+                break;
+            next = bblk_le32 (entry) & 0x0fffffff;
+        }
+        if (p[66] == 0x29) boot_label = p + 71;
+        serial = p + 67;
+    } else
+        return 0;
+
+    if (boot_label && memcmp (boot_label, "NO NAME    ", 11) != 0)
+        bblk_copy_fixed (out->label_fatboot, BBLK_LABEL_MAX, boot_label, 11);
+    if (have_vol)
+        bblk_copy_fixed (out->label, BBLK_LABEL_MAX, vol_label, 11);
+    if (serial)
+        bblk_serial4 (out->uuid, serial);
+    snprintf (out->block_size, sizeof out->block_size, "%u", (unsigned) bytes_per_sector);
+    return 1;
+}
+
+/* iso9660: volume descriptors start at sector 16 (2048-byte sectors), each
+   with "CD001" at byte 1. The primary descriptor gives the block size, the
+   label and the modification (else creation) date libblkid uses as UUID. */
+static int
+bblk_match_iso9660 (const unsigned char *p, size_t n, bblk_info *out)
+{
+    const unsigned char *pvd = NULL, *joliet = NULL;
+    for (size_t off = 32768; off + 2048 <= n && off < 32768 + 16 * 2048; off += 2048) {
+        const unsigned char *d = p + off;
+        if (memcmp (d + 1, "CD001", 5) != 0 || d[0] == 255) break;
+        if (d[0] == 1 && !pvd) pvd = d;
+        else if (d[0] == 2 && !joliet
+                 && (!memcmp (d + 88, "%/@", 3) || !memcmp (d + 88, "%/C", 3) || !memcmp (d + 88, "%/E", 3)))
+            joliet = d;
     }
-    if (p[38] == 0x29) {
-        strncpy (out->type, "vfat", BBLK_TYPE_MAX - 1);
-        out->type[BBLK_TYPE_MAX - 1] = '\0';
-        bblk_serial4 (out->uuid, p + 39);
-        bblk_copy_fixed (out->label, BBLK_LABEL_MAX, p + 43, 11);
-        if (strcmp (out->label, "NO NAME") == 0)
-            out->label[0] = '\0';
-        return 1;
+    if (!pvd) return 0;
+    strncpy (out->type, "iso9660", BBLK_TYPE_MAX - 1);
+    snprintf (out->block_size, sizeof out->block_size, "%u", (unsigned) bblk_le16 (pvd + 128));
+    bblk_copy_fixed (out->label, BBLK_LABEL_MAX, pvd + 40, 32);
+    if (joliet && strchr (out->label, '_')) {
+        /* The Joliet name keeps characters the primary one replaced. */
+        char wide[17]; size_t k = 0;
+        for (size_t i = 0; i + 1 < 32 && k < 16; i += 2) {
+            if (joliet[40 + i] || joliet[41 + i] < 0x20 || joliet[41 + i] > 0x7e) { k = 0; break; }
+            wide[k++] = (char) joliet[41 + i];
+        }
+        while (k && wide[k - 1] == ' ') k--;
+        if (k) { memcpy (out->label, wide, k); out->label[k] = '\0'; }
     }
-    return 0;
+    for (int which = 0; which < 2; which++) {
+        const unsigned char *d = pvd + (which == 0 ? 830 : 813);
+        int zeros = 0;
+        for (int i = 0; i < 16; i++) zeros += d[i] == '0';
+        if (zeros == 16 && d[16] == 0) continue;
+        snprintf (out->uuid, BBLK_UUID_MAX, "%.4s-%.2s-%.2s-%.2s-%.2s-%.2s-%.2s",
+                  (const char *) d, (const char *) d + 4, (const char *) d + 6, (const char *) d + 8,
+                  (const char *) d + 10, (const char *) d + 12, (const char *) d + 14);
+        break;
+    }
+    return 1;
 }
 
 /* swap: "SWAPSPACE2" (v2) or "SWAP-SPACE" (v1) at file offset
@@ -493,6 +604,7 @@ bblk_probe_buf (const unsigned char *buf, size_t n, bblk_info *info)
     else if (bblk_match_exfat (buf, n, info)) hit = 1;
     else if (bblk_match_vfat  (buf, n, info)) hit = 1;
     else if (bblk_match_swap  (buf, n, info)) hit = 1;
+    else if (bblk_match_iso9660 (buf, n, info)) hit = 1;
     /* Partition tables run regardless of FS detection — a disk may
        host both an MBR and (rarely) a filesystem at offset 0; the
        former wins for PTTYPE, the latter for TYPE. */
@@ -509,6 +621,7 @@ bblk_read_probe (const char *path, unsigned char *buf)
 {
     int fd = open (path, O_RDONLY | O_CLOEXEC);
     if (fd < 0) return -1;
+    bblk_cur_path = path;
     ssize_t total = 0;
     while (total < (ssize_t) BBLK_PROBE_LEN) {
         ssize_t r = read (fd, buf + total, BBLK_PROBE_LEN - (size_t) total);
@@ -598,6 +711,35 @@ bblk_emit_kv (const char *tag, const char *val, const char *only_tag,
     (*count)++;
 }
 
+/* Tags in the order libblkid records them for the detected type. */
+static void
+bblk_emit_tags (const bblk_info *info, const char *only_tag, const char *fmt, int *count)
+{
+    if (!strcmp (info->type, "vfat")) {
+        bblk_emit_kv ("SEC_TYPE", info->sec_type, only_tag, fmt, count);
+        bblk_emit_kv ("LABEL_FATBOOT", info->label_fatboot, only_tag, fmt, count);
+        bblk_emit_kv ("LABEL",  info->label,  only_tag, fmt, count);
+        bblk_emit_kv ("UUID",   info->uuid,   only_tag, fmt, count);
+        bblk_emit_kv ("BLOCK_SIZE", info->block_size, only_tag, fmt, count);
+        bblk_emit_kv ("TYPE",   info->type,   only_tag, fmt, count);
+    } else if (!strcmp (info->type, "iso9660")) {
+        bblk_emit_kv ("BLOCK_SIZE", info->block_size, only_tag, fmt, count);
+        bblk_emit_kv ("UUID",   info->uuid,   only_tag, fmt, count);
+        bblk_emit_kv ("LABEL",  info->label,  only_tag, fmt, count);
+        bblk_emit_kv ("TYPE",   info->type,   only_tag, fmt, count);
+    } else {
+        bblk_emit_kv ("LABEL",  info->label,  only_tag, fmt, count);
+        bblk_emit_kv ("UUID",   info->uuid,   only_tag, fmt, count);
+        bblk_emit_kv ("BLOCK_SIZE", info->block_size, only_tag, fmt, count);
+        bblk_emit_kv ("TYPE",   info->type,   only_tag, fmt, count);
+        bblk_emit_kv ("SEC_TYPE", info->sec_type, only_tag, fmt, count);
+    }
+    bblk_emit_kv ("PTUUID", info->ptuuid, only_tag, fmt, count);
+    bblk_emit_kv ("PTTYPE", info->pttype, only_tag, fmt, count);
+    bblk_emit_kv ("PARTLABEL", info->partlabel, only_tag, fmt, count);
+    bblk_emit_kv ("PARTUUID", info->partuuid, only_tag, fmt, count);
+}
+
 static void
 bblk_emit (const char *dev, const bblk_info *info, const char *only_tag,
            const char *fmt)
@@ -605,27 +747,11 @@ bblk_emit (const char *dev, const bblk_info *info, const char *only_tag,
     int count = 0;
     if (strcmp (fmt, "value") != 0 && strcmp (fmt, "export") != 0) {
         printf ("%s:", dev);
-        /* Insert one space after "DEV:" so the first kv lines up. */
-        count = 0;  /* triggers a leading space on the first emit_kv */
-        bblk_emit_kv ("LABEL",  info->label,  only_tag, fmt, &count);
-        bblk_emit_kv ("UUID",   info->uuid,   only_tag, fmt, &count);
-        bblk_emit_kv ("TYPE",   info->type,   only_tag, fmt, &count);
-        bblk_emit_kv ("SEC_TYPE", info->sec_type, only_tag, fmt, &count);
-        bblk_emit_kv ("PTUUID", info->ptuuid, only_tag, fmt, &count);
-        bblk_emit_kv ("PTTYPE", info->pttype, only_tag, fmt, &count);
-        bblk_emit_kv ("PARTLABEL", info->partlabel, only_tag, fmt, &count);
-        bblk_emit_kv ("PARTUUID", info->partuuid, only_tag, fmt, &count);
+        bblk_emit_tags (info, only_tag, fmt, &count);
         putchar ('\n');
         return;
     }
-    bblk_emit_kv ("LABEL",  info->label,  only_tag, fmt, &count);
-    bblk_emit_kv ("UUID",   info->uuid,   only_tag, fmt, &count);
-    bblk_emit_kv ("TYPE",   info->type,   only_tag, fmt, &count);
-    bblk_emit_kv ("SEC_TYPE", info->sec_type, only_tag, fmt, &count);
-    bblk_emit_kv ("PTUUID", info->ptuuid, only_tag, fmt, &count);
-    bblk_emit_kv ("PTTYPE", info->pttype, only_tag, fmt, &count);
-    bblk_emit_kv ("PARTLABEL", info->partlabel, only_tag, fmt, &count);
-    bblk_emit_kv ("PARTUUID", info->partuuid, only_tag, fmt, &count);
+    bblk_emit_tags (info, only_tag, fmt, &count);
     if (count > 0 && strcmp (fmt, "value") == 0) putchar ('\n');
 }
 
@@ -725,6 +851,86 @@ bblk_each_sys_block (int (*probe_one) (const char *dev, const char *parent_dev,
     return visited;
 }
 
+/* Whole-device enumeration the way libblkid's sysfs_probe_all does it: each
+   entry of /sys/block in directory order; a device with partitions is
+   represented by its partitions (extended-partition placeholders skipped)
+   and not listed itself; empty devices and non-partitionable removable
+   ones are skipped. */
+static int
+bblk_sys_u64 (const char *dir, const char *leaf, unsigned long long *out)
+{
+    char path[BBLK_PATH_MAX], text[64];
+    int n = snprintf (path, sizeof path, "%s/%s", dir, leaf);
+    if (n < 0 || (size_t) n >= sizeof path) return -1;
+    int fd = open (path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return -1;
+    ssize_t r = read (fd, text, sizeof text - 1);
+    close (fd);
+    if (r <= 0) return -1;
+    text[r] = '\0';
+    *out = strtoull (text, NULL, 10);
+    return 0;
+}
+
+static void
+bblk_node_path (char *out, size_t outsz, const char *name)
+{
+    snprintf (out, outsz, "/dev/%s", name);
+    for (char *c = out + 5; *c; c++)
+        if (*c == '!') *c = '/';
+}
+
+static int
+bblk_each_disk (int (*probe_one) (const char *dev, const char *parent_dev,
+                                 int partno, void *ctx),
+                void *ctx)
+{
+    DIR *d = opendir ("/sys/block");
+    if (!d) return 0;
+    struct dirent *de;
+    int rc = 0;
+    while (rc == 0 && (de = readdir (d))) {
+        if (de->d_name[0] == '.') continue;
+        char disk[BBLK_PATH_MAX], node[BBLK_PATH_MAX];
+        unsigned long long size = 0, removable = 0, ext_range = 0;
+        int n = snprintf (disk, sizeof disk, "/sys/block/%s", de->d_name);
+        if (n < 0 || (size_t) n >= sizeof disk) continue;
+        if (bblk_sys_u64 (disk, "size", &size) < 0 || !size) continue;
+        (void) bblk_sys_u64 (disk, "removable", &removable);
+        (void) bblk_sys_u64 (disk, "ext_range", &ext_range);
+        if (!ext_range && removable) continue;
+        bblk_node_path (node, sizeof node, de->d_name);
+        size_t dl = strlen (de->d_name);
+        int parts = 0;
+        DIR *pd = opendir (disk);
+        struct dirent *pe;
+        while (pd && rc == 0 && (pe = readdir (pd))) {
+            char part[BBLK_PATH_MAX], pnode[BBLK_PATH_MAX];
+            unsigned long long start, psize = 0, partno = 0;
+            if (strncmp (pe->d_name, de->d_name, dl) != 0 || pe->d_name[dl] == '\0') continue;
+            n = snprintf (part, sizeof part, "%s/%s", disk, pe->d_name);
+            if (n < 0 || (size_t) n >= sizeof part) continue;
+            if (bblk_sys_u64 (part, "start", &start) < 0) continue;
+            if (bblk_sys_u64 (part, "size", &psize) == 0 && (psize >> 1) == 1) continue;
+            (void) bblk_sys_u64 (part, "partition", &partno);
+            parts++;
+            bblk_node_path (pnode, sizeof pnode, pe->d_name);
+            struct stat st;
+            if (stat (pnode, &st) < 0 || !S_ISBLK (st.st_mode)) continue;
+            if (probe_one (pnode, node, (int) partno, ctx) < 0) rc = -1;
+        }
+        if (pd) closedir (pd);
+        if (!parts && rc == 0) {
+            struct stat st;
+            if (stat (node, &st) == 0 && S_ISBLK (st.st_mode)
+                && probe_one (node, NULL, 0, ctx) < 0)
+                rc = -1;
+        }
+    }
+    closedir (d);
+    return rc;
+}
+
 /* ---------------- builtin --------------------------------------- */
 
 typedef struct {
@@ -733,6 +939,7 @@ typedef struct {
     const char *find_label; /* -L LABEL */
     const char *find_uuid;  /* -U UUID */
     int any_match;          /* set by find_match_one when a hit lands */
+    int listing;            /* enumerating every device, none was named */
 } bblk_opts;
 
 static int
@@ -744,6 +951,7 @@ bblk_probe_one_ex (const char *path, const char *parent_path, int partno,
     memset (&info, 0, sizeof info);
     ssize_t n = bblk_read_probe (path, buf);
     if (n < 0) {
+        if (opt->listing) return 0;
         builtin_error ("%s: %s", path, strerror (errno));
         return -1;
     }
@@ -895,7 +1103,13 @@ blkid_builtin (WORD_LIST *list)
         return rc;
     }
 
-    int v = bblk_each_sys_block (bblk_probe_one_ctx, &opt);
+    /* The fixture hooks describe a flat directory of nodes; the system
+       itself is walked as libblkid walks it. */
+    const char *hook_sys = getenv ("BASHBLKID_SYS_BLOCK_DIR"), *hook_dev = getenv ("BASHBLKID_DEV_ROOT");
+    opt.listing = 1;
+    int v = ((hook_sys && *hook_sys) || (hook_dev && *hook_dev))
+        ? bblk_each_sys_block (bblk_probe_one_ctx, &opt)
+        : bblk_each_disk (bblk_probe_one_ctx, &opt);
     if (v < 0) return EXECUTION_FAILURE;
     if ((opt.find_label || opt.find_uuid) && !opt.any_match)
         return 2;

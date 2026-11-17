@@ -19,6 +19,11 @@ the historical 0.1.3 evidence remains available separately.
   reports each erased magic string as util-linux does; it tells ext2, ext3
   and ext4 apart, knows the dos and gpt partition tables, refuses a block
   device in use unless `-f` is given, and accepts `-o`, `-q`, `-i` and `-p`.
+- `blkid` prints `BLOCK_SIZE` for ext2/3/4, FAT and ISO 9660, reports
+  `SEC_TYPE="msdos"` for FAT12/16, `LABEL_FATBOOT` for the boot-sector label
+  and `LABEL` from the root directory's volume-label entry, and identifies
+  ISO 9660 volumes. With no device named it lists devices the way util-linux
+  scans them: a disk with partitions is represented by its partitions only.
 - `audit run` records the whole text of each kernel event; the last 16
   bytes (a rule's key, the final `EXECVE` argument) were cut off.
 - `bashkmod unload` and `bashkmod modprobe -r` report a module that still
