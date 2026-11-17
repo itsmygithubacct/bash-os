@@ -9,6 +9,19 @@ The release gate requires every recorded FAIL to be fixed and every required
 static and dynamic qualification case to PASS. This target is not yet met;
 the historical 0.1.3 evidence remains available separately.
 
+- `blkid` exits 2 unless some named device had a signature, skips an
+  unreadable device without a message, and prints no line for a device when
+  `-s` leaves nothing to show, as util-linux does.
+- `blkid` and `wipefs` take a `SWAPSPACE2` area as swap only when its header
+  is valid (version 1, nonzero last page), as libblkid does, and read its
+  UUID and label only from a clean header. `wipefs` lists a DOS partition
+  table beside a filesystem unless sector 0 is a FAT, exFAT or NTFS boot
+  sector.
+- `blkid -o export` prints what util-linux prints: a `DEVNAME=` line, then
+  `TAG=value` lines with shell-special characters escaped, and an empty line
+  between devices. The `ID_FS_TAG=value` lines it printed before are now
+  `-o udev`, which also writes the `_ENC` forms of labels and UUIDs and names
+  partition-table tags `ID_PART_TABLE_*`, as util-linux does.
 - `jq` prints the way jq does: values are indented by two spaces unless
   `-c` is given, and `--tab` and `--indent N` are accepted. Strings mean
   their decoded text, so `\uXXXX` escapes, surrogate pairs and `\/` compare,

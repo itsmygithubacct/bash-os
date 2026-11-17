@@ -120,13 +120,24 @@ static void
 probe_swap (int fd, struct wsig *list, int *count)
 {
     static const unsigned pages[] = { 4096, 8192, 16384, 32768, 65536 };
-    unsigned char m[10], h[1052 + 16];
+    unsigned char m[10], h[1204];
     for (size_t i = 0; i < sizeof pages / sizeof pages[0]; i++) {
         if (!rd (fd, pages[i] - 10, m, 10)) continue;
         int v2 = !memcmp (m, "SWAPSPACE2", 10);
         if (!v2 && memcmp (m, "SWAP-SPACE", 10)) continue;
+        /* As libblkid: a v2 header must have version 1 in either byte order
+           and a nonzero last page, else it is not swap at all; UUID and label
+           are read only when the padding words at 1196 and 1200 are zero. */
+        int ids = 0;
+        if (v2) {
+            if (!rd (fd, 0, h, sizeof h)) continue;
+            int big = le32 (h + 1024) != 1;
+            if (big && be32 (h + 1024) != 1) continue;
+            if ((big ? be32 (h + 1028) : le32 (h + 1028)) == 0) continue;
+            ids = !le32 (h + 1196) && !le32 (h + 1200);
+        }
         struct wsig *s = add (list, count, pages[i] - 10, 10, "swap", 0);
-        if (s && v2 && rd (fd, 0, h, sizeof h) && le32 (h + 1024) == 1) {
+        if (s && ids) {
             static const unsigned char zero[16];
             if (memcmp (h + 1036, zero, 16)) uuid_text (s->uuid, h + 1036);
             name_text (s->label, sizeof s->label, h + 1052, 16);
@@ -245,7 +256,12 @@ probe (int fd, unsigned long long size, struct wsig *list, int every)
     probe_iso (fd, list, &count);
     probe_ntfs (fd, list, &count);
     probe_btrfs (fd, list, &count);
-    probe_tables (fd, size, list, &count, fat || count > 0);
+    /* As libblkid, a 55AA sector 0 that is a FAT, exFAT or NTFS boot
+       sector is not a DOS partition table; other filesystems leave it be. */
+    int boot = fat;
+    for (int i = 0; i < count; i++)
+        if (!strcmp (list[i].type, "ntfs") || !strcmp (list[i].type, "exfat")) boot = 1;
+    probe_tables (fd, size, list, &count, boot);
     return count;
 }
 

@@ -482,22 +482,34 @@ bblk_match_iso9660 (const unsigned char *p, size_t n, bblk_info *out)
 static int
 bblk_match_swap (const unsigned char *p, size_t n, bblk_info *out)
 {
-    static const size_t page_sizes[] = {
-        1024, 2048, 4096, 8192, 16384, 32768, 65536
-    };
-    int v2 = 0;
+    /* libblkid looks at 4 KiB to 64 KiB pages only. A v2 header must hold
+       version 1 in either byte order and a nonzero last page, else it is
+       not swap; UUID and label count only when the padding words at 1196
+       and 1200 are zero. */
+    static const size_t page_sizes[] = { 4096, 8192, 16384, 32768, 65536 };
+    int v2 = 0, ids = 0;
     int found = 0;
     for (size_t i = 0; i < sizeof page_sizes / sizeof page_sizes[0]; i++) {
         size_t off = page_sizes[i];
-        if (off < 10 || off > n) continue;
+        if (off > n) continue;
         const unsigned char *q = p + off - 10;
-        if (memcmp (q, "SWAPSPACE2", 10) == 0) { found = 1; v2 = 1; break; }
         if (memcmp (q, "SWAP-SPACE", 10) == 0) { found = 1; v2 = 0; break; }
+        if (memcmp (q, "SWAPSPACE2", 10) == 0) {
+            if (n < 1204) continue;
+            uint32_t ver = bblk_le32 (p + 1024), last = bblk_le32 (p + 1028);
+            if (ver != 1) {
+                if (ver != 0x01000000u) continue;
+                last = ((last & 0xffu) << 24) | ((last & 0xff00u) << 8) | ((last >> 8) & 0xff00u) | (last >> 24);
+            }
+            if (last == 0) continue;
+            ids = bblk_le32 (p + 1196) == 0 && bblk_le32 (p + 1200) == 0;
+            found = 1; v2 = 1; break;
+        }
     }
     if (!found) return 0;
     strncpy (out->type, "swap", BBLK_TYPE_MAX - 1);
     out->type[BBLK_TYPE_MAX - 1] = '\0';
-    if (v2 && n >= 1052 + 16) {
+    if (v2 && ids) {
         bblk_uuid_be (out->uuid, p + 1036);
         bblk_copy_fixed (out->label, BBLK_LABEL_MAX, p + 1052, 16);
     }
@@ -689,6 +701,10 @@ bblk_emit_kv (const char *tag, const char *val, const char *only_tag,
         if (!*p) return;
     }
 
+    if (strcmp (fmt, "count") == 0) {   /* dry run: count what would print */
+        (*count)++;
+        return;
+    }
     if (strcmp (fmt, "value") == 0) {
         if (*count > 0) putchar ('\n');
         bblk_print_safe (val);
@@ -696,9 +712,37 @@ bblk_emit_kv (const char *tag, const char *val, const char *only_tag,
         return;
     }
     if (strcmp (fmt, "export") == 0) {
-        printf ("ID_FS_%s=", tag);
-        bblk_print_safe (val);
+        /* util-linux: TAG=value with shell-special bytes backslash-escaped. */
+        printf ("%s=", tag);
+        for (const unsigned char *c = (const unsigned char *) val; *c; c++) {
+            if (strchr (" \\\"'$`<>", *c)) putchar ('\\');
+            putchar (*c);
+        }
         putchar ('\n');
+        (*count)++;
+        return;
+    }
+    if (strcmp (fmt, "udev") == 0) {
+        /* util-linux udev names: partition-table tags become ID_PART_TABLE_*,
+           the rest ID_FS_*. The plain value has blanks turned into '_';
+           LABEL* and UUID* tags also get a _ENC line with every byte outside
+           [A-Za-z0-9#+-.:=@_] written as \xNN. */
+        const char *name = tag;
+        const char *prefix = "ID_FS_";
+        if (!strcmp (tag, "PTTYPE")) { prefix = "ID_PART_TABLE_"; name = "TYPE"; }
+        else if (!strcmp (tag, "PTUUID")) { prefix = "ID_PART_TABLE_"; name = "UUID"; }
+        printf ("%s%s=", prefix, name);
+        for (const unsigned char *c = (const unsigned char *) val; *c; c++)
+            putchar (isspace (*c) ? '_' : *c);
+        putchar ('\n');
+        if (prefix[3] == 'F' && (!strncmp (tag, "LABEL", 5) || !strncmp (tag, "UUID", 4))) {
+            printf ("ID_FS_%s_ENC=", tag);
+            for (const unsigned char *c = (const unsigned char *) val; *c; c++) {
+                if (isalnum (*c) || *c >= 0x80 || strchr ("#+-.:=@_", *c)) putchar (*c);
+                else printf ("\\x%02x", *c);
+            }
+            putchar ('\n');
+        }
         (*count)++;
         return;
     }
@@ -740,16 +784,28 @@ bblk_emit_tags (const bblk_info *info, const char *only_tag, const char *fmt, in
     bblk_emit_kv ("PARTUUID", info->partuuid, only_tag, fmt, count);
 }
 
+static int bblk_blocks;   /* export/udev blocks printed by this invocation */
+
 static void
 bblk_emit (const char *dev, const bblk_info *info, const char *only_tag,
            const char *fmt)
 {
     int count = 0;
-    if (strcmp (fmt, "value") != 0 && strcmp (fmt, "export") != 0) {
+    if (strcmp (fmt, "value") != 0 && strcmp (fmt, "export") != 0 && strcmp (fmt, "udev") != 0) {
+        /* No line at all when -s leaves nothing to print, as util-linux. */
+        bblk_emit_tags (info, only_tag, "count", &count);
+        if (!count) return;
+        count = 0;
         printf ("%s:", dev);
         bblk_emit_tags (info, only_tag, fmt, &count);
         putchar ('\n');
         return;
+    }
+    /* export and udev: one block per device, blocks separated by an empty
+       line; export blocks start with DEVNAME. */
+    if (strcmp (fmt, "value") != 0) {
+        if (bblk_blocks++) putchar ('\n');
+        if (strcmp (fmt, "export") == 0) printf ("DEVNAME=%s\n", dev);
     }
     bblk_emit_tags (info, only_tag, fmt, &count);
     if (count > 0 && strcmp (fmt, "value") == 0) putchar ('\n');
@@ -951,9 +1007,9 @@ bblk_probe_one_ex (const char *path, const char *parent_path, int partno,
     memset (&info, 0, sizeof info);
     ssize_t n = bblk_read_probe (path, buf);
     if (n < 0) {
-        if (opt->listing) return 0;
-        builtin_error ("%s: %s", path, strerror (errno));
-        return -1;
+        /* util-linux skips a device it cannot read without a message; the
+           exit status says whether anything was found. */
+        return 0;
     }
     if (n == 0) {
         /* No media / empty file: gracefully omit. */
@@ -1021,6 +1077,7 @@ int
 blkid_builtin (WORD_LIST *list)
 {
     bblk_opts opt = { "default", NULL, NULL, NULL, 0 };
+    bblk_blocks = 0;
     char tags[2048] = {0};
     size_t tags_len = 0;
     int n_pos = 0;
@@ -1047,8 +1104,9 @@ blkid_builtin (WORD_LIST *list)
             opt.fmt = p->word->word;
             if (strcmp (opt.fmt, "default") != 0
                 && strcmp (opt.fmt, "value") != 0
-                && strcmp (opt.fmt, "export") != 0) {
-                builtin_error ("unknown -o format: %s (want default/value/export)",
+                && strcmp (opt.fmt, "export") != 0
+                && strcmp (opt.fmt, "udev") != 0) {
+                builtin_error ("unknown -o format: %s (want default/value/export/udev)",
                                opt.fmt);
                 return EX_USAGE;
             }
@@ -1098,7 +1156,8 @@ blkid_builtin (WORD_LIST *list)
             if (bblk_probe_one (pos[i], &opt) < 0)
                 rc = EXECUTION_FAILURE;
         }
-        if ((opt.find_label || opt.find_uuid) && !opt.any_match)
+        /* util-linux: 2 unless some named device had a signature. */
+        if (!opt.any_match)
             return 2;
         return rc;
     }
@@ -1111,9 +1170,7 @@ blkid_builtin (WORD_LIST *list)
         ? bblk_each_sys_block (bblk_probe_one_ctx, &opt)
         : bblk_each_disk (bblk_probe_one_ctx, &opt);
     if (v < 0) return EXECUTION_FAILURE;
-    if ((opt.find_label || opt.find_uuid) && !opt.any_match)
-        return 2;
-    return EXECUTION_SUCCESS;
+    return opt.any_match ? EXECUTION_SUCCESS : 2;
 }
 
 char *blkid_doc[] = {
@@ -1130,7 +1187,8 @@ char *blkid_doc[] = {
     "Output formats (-o FMT):",
     "    default   tag=val tag=val …",
     "    value     newline-separated values",
-    "    export    ID_FS_TAG=value per line",
+    "    export    DEVNAME=DEV, then TAG=value per line (shell-escaped)",
+    "    udev      ID_FS_TAG=value (and _ENC) lines, as udev rules read them",
     "",
     "With no DEV the builtin walks /sys/class/block. Tests may override",
     "enumeration with BASHBLKID_SYS_BLOCK_DIR and BASHBLKID_DEV_ROOT.",

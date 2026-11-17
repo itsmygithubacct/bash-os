@@ -54842,14 +54842,14 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "contract: 'wipefs', 'wipefs -n', 'wipefs --no-act' on an XFSB-prefixed file print '0x0\\txfs\\timage' three times and the file content is unchanged",
-              "definition_sha256": "e0cfac3400bf6c5a86301b8a2279d759cdd04f4eeedea5652e7bc0de6842fc4e",
+              "assertion": "parity: 'wipefs', 'wipefs -n', 'wipefs --no-act' on a util-linux mkswap image print util-linux's table with UUID and label three times, and cmp shows the image unchanged",
+              "definition_sha256": "d8f7373d81fd7c32fe833525f721d301cad7c96d8ebe2f675acac3c5dee4a834",
               "group": "legacy",
               "id": "legacy/wipefs/signature-inspection-deferred"
             },
             {
-              "assertion": "contract: 'wipefs -n' lists offsets 0x0 xfs and 0x438 ext; python asserts every image byte unchanged",
-              "definition_sha256": "cdbb551d2ca1b8e6a600736ba765e39d452944a0c576613aa2530aedde35f508",
+              "assertion": "parity: 'wipefs' and 'wipefs -n -i -p' on one image list ext2 at 0x438 and dos at 0x1fe exactly as util-linux does; cmp shows the image unchanged",
+              "definition_sha256": "b61a59445c4835be1f171b08e3d163825f85e4fcfe9d2b16f30412b9f491cfcc",
               "group": "legacy",
               "id": "legacy/wipefs/multiple-signature-offsets"
             },

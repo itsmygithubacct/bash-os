@@ -98,10 +98,10 @@
     },
     {
       "id": "unknown-column-status",
-      "purpose": "An unsupported output column is a usage error under the documented builtin exit-code contract.",
+      "purpose": "An unsupported output column fails with status 1 and a diagnostic, as util-linux 2.41 lsblk does.",
       "kind": "contract",
       "script": "root=fixture\nmkdir -p \\\n  \"$root/sys/class/block\" \"$root/sys/dev/block\" \\\n  \"$root/sys/devices/virtual/block/vda/vda1\" \\\n  \"$root/sys/devices/virtual/block/vda/vda2\" \\\n  \"$root/dev\" \"$root/proc\"\nln -s class/block \"$root/sys/block\"\nln -s ../../devices/virtual/block/vda \"$root/sys/class/block/vda\"\nln -s ../../devices/virtual/block/vda/vda1 \"$root/sys/class/block/vda1\"\nln -s ../../devices/virtual/block/vda/vda2 \"$root/sys/class/block/vda2\"\nln -s ../../class/block/vda \"$root/sys/dev/block/8:0\"\nln -s ../../class/block/vda1 \"$root/sys/dev/block/8:1\"\nln -s ../../class/block/vda2 \"$root/sys/dev/block/8:2\"\nwrite_attrs() {\n  local base=$1 majmin=$2 sectors=$3 removable=$4 readonly=$5 partno=$6\n  printf '%s\\n' \"$majmin\" > \"$base/dev\"\n  printf '%s\\n' \"$sectors\" > \"$base/size\"\n  printf '%s\\n' \"$removable\" > \"$base/removable\"\n  printf '%s\\n' \"$readonly\" > \"$base/ro\"\n  if [[ -n $partno ]]; then\n    printf '%s\\n' \"$partno\" > \"$base/partition\"\n  fi\n}\nwrite_attrs \"$root/sys/devices/virtual/block/vda\" 8:0 1 1 0 ''\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda1\" 8:1 1 0 1 1\nwrite_attrs \"$root/sys/devices/virtual/block/vda/vda2\" 8:2 1 0 0 2\n: > \"$root/proc/mounts\"\nrun_lsblk() {\n  BASHLSBLK_SYS_BLOCK_DIR=\"$root/sys/class/block\" \\\n  BASHLSBLK_DEV_ROOT=\"$root/dev\" \\\n  BASHLSBLK_PROC_MOUNTS=\"$root/proc/mounts\" \\\n    lsblk \"$@\"\n}\nset +e\nrun_lsblk --pairs --noheadings --output NAME,NOT_A_COLUMN\nrc=$?\nset -e\nexit \"$rc\"",
-      "expected_status": 2,
+      "expected_status": 1,
       "stdout": "",
       "stderr": "nonempty",
       "timeout": 5

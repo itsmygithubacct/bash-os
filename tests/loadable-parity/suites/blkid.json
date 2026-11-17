@@ -47,29 +47,29 @@
     {
       "id": "ext-export-filter",
       "kind": "contract",
-      "purpose": "Check export formatting together with -s tag filtering on the ext2 TYPE field.",
+      "purpose": "Check export formatting together with -s tag filtering on the ext2 TYPE field; export output is DEVNAME then TAG=value, as util-linux 2.41 blkid -o export prints it for the same image (ID_FS_ names belong to -o udev).",
       "script": "zeros() {\n  local n=$1\n  while (( n >= 256 )); do\n    printf '\\0%.0s' {1..256}\n    n=$((n - 256))\n  done\n  while (( n > 0 )); do\n    printf '\\0'\n    n=$((n - 1))\n  done\n}\n: > ext.img\nzeros 1024 >> ext.img\nprintf '\\x10\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x3c\\x00\\x00\\x00\\x0e\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x10\\x00\\x00\\x00' >> ext.img\nzeros 12 >> ext.img\nprintf '\\x53\\xef\\x01\\x00\\x01\\x00' >> ext.img\nzeros 14 >> ext.img\nprintf '\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x0b\\x00\\x00\\x00\\x80\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x03\\x00\\x00\\x00' >> ext.img\nprintf '\\x01\\x23\\x45\\x67\\x89\\xab\\xcd\\xef\\x10\\x32\\x54\\x76\\x98\\xba\\xdc\\xfe' >> ext.img\nprintf 'FIXTURE_EXT     ' >> ext.img\nzeros 64376 >> ext.img\nblkid -s TYPE -o export ext.img",
       "expected_status": 0,
       "stderr": "empty",
-      "stdout": "ID_FS_TYPE=ext2\n"
+      "stdout": "DEVNAME=ext.img\nTYPE=ext2\n"
     },
     {
       "id": "ext-default-output",
       "kind": "contract",
-      "purpose": "Check the documented device-and-tag line against independently encoded ext2 type, label and UUID values.",
+      "purpose": "Check the documented device-and-tag line against independently encoded ext2 type, label and UUID values; the expected line, BLOCK_SIZE included, is what util-linux 2.41 blkid prints for the same image.",
       "script": "zeros() {\n  local n=$1\n  while (( n >= 256 )); do\n    printf '\\0%.0s' {1..256}\n    n=$((n - 256))\n  done\n  while (( n > 0 )); do\n    printf '\\0'\n    n=$((n - 1))\n  done\n}\n: > ext.img\nzeros 1024 >> ext.img\nprintf '\\x10\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x3c\\x00\\x00\\x00\\x0e\\x00\\x00\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x40\\x00\\x00\\x00\\x10\\x00\\x00\\x00' >> ext.img\nzeros 12 >> ext.img\nprintf '\\x53\\xef\\x01\\x00\\x01\\x00' >> ext.img\nzeros 14 >> ext.img\nprintf '\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x0b\\x00\\x00\\x00\\x80\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x03\\x00\\x00\\x00' >> ext.img\nprintf '\\x01\\x23\\x45\\x67\\x89\\xab\\xcd\\xef\\x10\\x32\\x54\\x76\\x98\\xba\\xdc\\xfe' >> ext.img\nprintf 'FIXTURE_EXT     ' >> ext.img\nzeros 64376 >> ext.img\nblkid ext.img",
       "expected_status": 0,
       "stderr": "empty",
-      "stdout": "ext.img: LABEL=\"FIXTURE_EXT\" UUID=\"01234567-89ab-cdef-1032-547698badcfe\" TYPE=\"ext2\"\n"
+      "stdout": "ext.img: LABEL=\"FIXTURE_EXT\" UUID=\"01234567-89ab-cdef-1032-547698badcfe\" BLOCK_SIZE=\"1024\" TYPE=\"ext2\"\n"
     },
     {
       "id": "vfat-value-fields",
       "kind": "contract",
-      "purpose": "Probe a deterministic FAT16-style BPB and compare its type, volume label, and little-endian volume serial rendering.",
-      "script": "zeros() {\n  local n=$1\n  while (( n >= 256 )); do\n    printf '\\0%.0s' {1..256}\n    n=$((n - 256))\n  done\n  while (( n > 0 )); do\n    printf '\\0'\n    n=$((n - 1))\n  done\n}\n: > vfat.img\nzeros 11 >> vfat.img\nprintf '\\x00\\x02\\x01\\x01\\x00\\x02\\xe0\\x00\\x40\\x0b\\xf0\\x09\\x00\\x12\\x00\\x02\\x00' >> vfat.img\nzeros 10 >> vfat.img\nprintf '\\x29\\x78\\x56\\x34\\x12FIXTUREVOL \\x46\\x41\\x54\\x31\\x36\\x20\\x20\\x20' >> vfat.img\nzeros 448 >> vfat.img\nprintf '\\x55\\xaa' >> vfat.img\nblkid -s TYPE -o value vfat.img\nblkid -s LABEL -o value vfat.img\nblkid -s UUID -o value vfat.img",
+      "purpose": "Probe a deterministic FAT16-style BPB, padded to the 2880 sectors it declares, and compare its type, little-endian volume serial and boot-sector label. As in util-linux 2.41 blkid on the same image, the boot-sector label is LABEL_FATBOOT and LABEL (the root-directory label) is absent.",
+      "script": "zeros() {\n  local n=$1\n  while (( n >= 256 )); do\n    printf '\\0%.0s' {1..256}\n    n=$((n - 256))\n  done\n  while (( n > 0 )); do\n    printf '\\0'\n    n=$((n - 1))\n  done\n}\n: > vfat.img\nzeros 11 >> vfat.img\nprintf '\\x00\\x02\\x01\\x01\\x00\\x02\\xe0\\x00\\x40\\x0b\\xf0\\x09\\x00\\x12\\x00\\x02\\x00' >> vfat.img\nzeros 10 >> vfat.img\nprintf '\\x29\\x78\\x56\\x34\\x12FIXTUREVOL \\x46\\x41\\x54\\x31\\x36\\x20\\x20\\x20' >> vfat.img\nzeros 448 >> vfat.img\nprintf '\\x55\\xaa' >> vfat.img\ntruncate -s 1474560 vfat.img\nblkid -s TYPE -o value vfat.img\nblkid -s LABEL -o value vfat.img\nblkid -s UUID -o value vfat.img\nblkid -s LABEL_FATBOOT -o value vfat.img",
       "expected_status": 0,
       "stderr": "empty",
-      "stdout": "vfat\nFIXTUREVOL\n1234-5678\n"
+      "stdout": "vfat\n1234-5678\nFIXTUREVOL\n"
     },
     {
       "id": "mbr-terminator",

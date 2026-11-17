@@ -1,7 +1,7 @@
 {
   "version": 1,
   "loadable": "wipefs",
-  "reference": "Bash metadata and the documented concise signature-list contract. Synthetic regular files encode filesystem magic offsets independently; util-linux wipefs is used only for empty/unmatched-file CLI comparisons, since its detailed signature validation and row format differ.",
+  "reference": "Bash metadata and the builtin's documented help are contracts. Signature listing is compared with util-linux wipefs under system Bash: images are built by util-linux mkswap, e2fsprogs mkfs.ext2 and a Python writer called by absolute path, so both sides list the same bytes, and the table and parsable formats are compared exactly.",
   "coverage": [
     "Bash reports wipefs as a builtin with the executable search path disabled by the runner.",
     "Bash help registration and the loadable's published synopsis are checked.",
@@ -45,20 +45,27 @@
     {
       "id": "command-help-contract",
       "kind": "contract",
-      "purpose": "Check wipefs --help prints the documented mode descriptions and signature-family scope without opening a target.",
+      "purpose": "Check wipefs --help prints the builtin's documented modes, options and signature-family scope without opening a target.",
       "script": "wipefs --help",
       "expected_status": 0,
-      "stdout": "Detect or wipe filesystem / swap signatures.\n\n    wipefs device       list detected signatures (offset, type)\n    wipefs -a device    erase all detected signatures\n    wipefs -n device    dry-run: show what -a would erase\n\nRecognises swap, ext, xfs, btrfs, ntfs, vfat and iso9660 magics.\n",
+      "stdout": "List or erase filesystem, swap and partition-table signatures.\n\n    wipefs device          table of detected signatures\n    wipefs -a device       erase every detected signature\n    wipefs -o OFF device   erase the signature at offset OFF\n    -n  write nothing      -q  no erase messages    -f  erase a device in use\n    -i  no table heading   -p  parsable listing\n\nRecognises vfat, swap, xfs, ext2/3/4, iso9660, ntfs, btrfs, dos and gpt.\n",
       "stderr": "empty"
     },
     {
       "id": "signature-inspection-deferred",
-      "purpose": "List an independently encoded XFS magic at offset zero using default and read-only dry-run modes; verify the complete input remains unchanged.",
-      "kind": "contract",
-      "script": "printf 'XFSBfixture' > image\nwipefs image\nwipefs -n image\nwipefs --no-act image\n[[ $(<image) == XFSBfixture ]]",
+      "purpose": "List a swap signature made by util-linux mkswap with its UUID and label in default, -n and --no-act modes, byte-identical to util-linux wipefs, and confirm the image is unchanged.",
+      "kind": "parity",
+      "script": "/usr/bin/python3 -c 'import sys; open(sys.argv[1], \"wb\").write(bytes(1048576))' image\n/usr/bin/chmod 600 image\n/usr/sbin/mkswap -U 33333333-3333-4333-8333-333333333333 -L charlie image >/dev/null\n/usr/bin/cp image image.orig\nwipefs image\nwipefs -n image\nwipefs --no-act image\n/usr/bin/cmp image image.orig && echo unchanged",
       "expected_status": 0,
       "stderr": "empty",
-      "stdout": "0x0\txfs\timage\n0x0\txfs\timage\n0x0\txfs\timage\n"
+      "requires": [
+        "wipefs",
+        "mkswap",
+        "python3",
+        "chmod",
+        "cp",
+        "cmp"
+      ]
     },
     {
       "id": "signature-erasure-deferred",
@@ -104,21 +111,33 @@
     },
     {
       "id": "multiple-signature-offsets",
-      "purpose": "List two independently encoded magic offsets in one bounded regular file and verify all bytes with an independent Python byte oracle.",
-      "kind": "contract",
-      "script": "{ printf 'XFSB'; printf '%1076s' ''; printf '\\123\\357'; printf 'tail'; } > image\nwipefs -n image\n/usr/bin/python3 - <<'PY'\nfrom pathlib import Path\nassert Path('image').read_bytes() == b'XFSB'+b' '*1076+b'\\x53\\xef'+b'tail'\nPY",
+      "purpose": "List two signatures at their offsets in one image (an e2fsprogs ext2 superblock at 0x438 and a DOS partition table at 0x1fe), as a table and with -n -i -p, byte-identical to util-linux wipefs, and confirm the image is unchanged. The images are removed at the end because mkfs.ext2 stamps a creation time and hash seed into them.",
+      "kind": "parity",
+      "script": "/usr/bin/python3 -c 'import sys; open(sys.argv[1], \"wb\").write(bytes(1048576))' image\n/usr/sbin/mkfs.ext2 -q -F -U 11111111-1111-4111-8111-111111111111 -L alpha image\n/usr/bin/python3 -c '\nimport struct, sys\nwith open(sys.argv[1], \"r+b\") as f:\n    f.seek(0x1b8); f.write(struct.pack(\"<I\", 0x12345678))\n    f.seek(0x1be); f.write(bytes([0, 0, 2, 0, 0x83, 0, 0, 0]) + struct.pack(\"<II\", 1, 2047))\n    f.seek(0x1fe); f.write(b\"\\x55\\xaa\")' image\n/usr/bin/cp image image.orig\nwipefs image\nwipefs -n -i -p image\n/usr/bin/cmp image image.orig && echo unchanged\n/usr/bin/rm -f image image.orig",
       "expected_status": 0,
       "stderr": "empty",
-      "stdout": "0x0\txfs\timage\n0x438\text\timage\n"
+      "requires": [
+        "cmp",
+        "cp",
+        "mkfs.ext2",
+        "python3",
+        "rm",
+        "wipefs"
+      ]
     },
     {
       "id": "missing-and-continuation",
-      "purpose": "A missing private operand fails overall while later regular-file inspection still emits its signature.",
-      "kind": "contract",
-      "script": "printf XFSB > image\nwipefs absent image",
+      "purpose": "A missing operand fails with status 1 and a diagnostic, and wipefs stops there without listing the later image, as util-linux wipefs does. The images are removed at the end because mkfs.ext2 stamps a creation time and hash seed into them.",
+      "kind": "parity",
+      "script": "/usr/bin/python3 -c 'import sys; open(sys.argv[1], \"wb\").write(bytes(1048576))' image\n/usr/sbin/mkfs.ext2 -q -F -U 11111111-1111-4111-8111-111111111111 -L alpha image\nrc=0\nwipefs absent image || rc=$?\n/usr/bin/rm -f image\nexit \"$rc\"",
       "expected_status": 1,
       "stderr": "nonempty",
-      "stdout": "0x0\txfs\timage\n"
+      "requires": [
+        "mkfs.ext2",
+        "python3",
+        "rm",
+        "wipefs"
+      ]
     }
   ]
 }
