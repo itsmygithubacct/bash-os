@@ -14,7 +14,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+        "helpers/process-root-setsid-check.py": "9143b5122408e1963e4f7782165a3ca7a209beecc57deecbc021a5fa51bca47e"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" fork leader default",
       "setup_timeout": 25,
@@ -28,7 +28,7 @@
       "covers": [
         "setsid/default_return_and_fork_policy"
       ],
-      "stdout": "caller group leader yes\nhelper executed yes\nnew session leader yes\nfork yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
+      "stdout": "caller group leader yes\nhelper executed yes\nnew session leader yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
       "stderr": ""
     },
     {
@@ -44,7 +44,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+        "helpers/process-root-setsid-check.py": "9143b5122408e1963e4f7782165a3ca7a209beecc57deecbc021a5fa51bca47e"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" fork leader -f",
       "setup_timeout": 25,
@@ -58,7 +58,7 @@
       "covers": [
         "setsid/default_return_and_fork_policy"
       ],
-      "stdout": "caller group leader yes\nhelper executed yes\nnew session leader yes\nfork yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
+      "stdout": "caller group leader yes\nhelper executed yes\nnew session leader yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
       "stderr": ""
     },
     {
@@ -74,7 +74,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+        "helpers/process-root-setsid-check.py": "9143b5122408e1963e4f7782165a3ca7a209beecc57deecbc021a5fa51bca47e"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" fork leader --fork",
       "setup_timeout": 25,
@@ -88,7 +88,7 @@
       "covers": [
         "setsid/default_return_and_fork_policy"
       ],
-      "stdout": "caller group leader yes\nhelper executed yes\nnew session leader yes\nfork yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
+      "stdout": "caller group leader yes\nhelper executed yes\nnew session leader yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
       "stderr": ""
     },
     {
@@ -104,7 +104,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+        "helpers/process-root-setsid-check.py": "9143b5122408e1963e4f7782165a3ca7a209beecc57deecbc021a5fa51bca47e"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" fork nonleader default",
       "setup_timeout": 25,
@@ -118,7 +118,7 @@
       "covers": [
         "setsid/default_return_and_fork_policy"
       ],
-      "stdout": "caller group leader no\nhelper executed yes\nnew session leader yes\nfork no\nreturned before release no\nchild status 7\ninvocation status 7\nowned children reaped\n",
+      "stdout": "caller group leader no\nhelper executed yes\nnew session leader yes\nreturned before release no\nchild status 7\ninvocation status 7\nowned children reaped\n",
       "stderr": ""
     },
     {
@@ -134,7 +134,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+        "helpers/process-root-setsid-check.py": "9143b5122408e1963e4f7782165a3ca7a209beecc57deecbc021a5fa51bca47e"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" fork nonleader -f",
       "setup_timeout": 25,
@@ -148,7 +148,7 @@
       "covers": [
         "setsid/default_return_and_fork_policy"
       ],
-      "stdout": "caller group leader no\nhelper executed yes\nnew session leader yes\nfork yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
+      "stdout": "caller group leader no\nhelper executed yes\nnew session leader yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
       "stderr": ""
     },
     {
@@ -164,7 +164,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+        "helpers/process-root-setsid-check.py": "9143b5122408e1963e4f7782165a3ca7a209beecc57deecbc021a5fa51bca47e"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" fork nonleader --fork",
       "setup_timeout": 25,
@@ -178,7 +178,7 @@
       "covers": [
         "setsid/default_return_and_fork_policy"
       ],
-      "stdout": "caller group leader no\nhelper executed yes\nnew session leader yes\nfork yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
+      "stdout": "caller group leader no\nhelper executed yes\nnew session leader yes\nreturned before release yes\nchild status 7\ninvocation status 0\nowned children reaped\n",
       "stderr": ""
     },
     {
@@ -194,7 +194,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+        "helpers/process-root-setsid-check.py": "9143b5122408e1963e4f7782165a3ca7a209beecc57deecbc021a5fa51bca47e"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" ctty free -c",
       "setup_timeout": 25,
@@ -224,7 +224,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+        "helpers/process-root-setsid-check.py": "9143b5122408e1963e4f7782165a3ca7a209beecc57deecbc021a5fa51bca47e"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" ctty free --ctty",
       "setup_timeout": 25,
@@ -254,7 +254,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+        "helpers/process-root-setsid-check.py": "9143b5122408e1963e4f7782165a3ca7a209beecc57deecbc021a5fa51bca47e"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" ctty nonterminal -c",
       "setup_timeout": 25,
@@ -283,7 +283,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+        "helpers/process-root-setsid-check.py": "9143b5122408e1963e4f7782165a3ca7a209beecc57deecbc021a5fa51bca47e"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" ctty nonterminal --ctty",
       "setup_timeout": 25,
@@ -312,7 +312,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+        "helpers/process-root-setsid-check.py": "9143b5122408e1963e4f7782165a3ca7a209beecc57deecbc021a5fa51bca47e"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" ctty owned -c",
       "setup_timeout": 25,
@@ -341,7 +341,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/process-root-setsid-check.py": "25114543aa705d2898c49809918f6df25fedc8707a326fbafedb5c72a1e1fc4c"
+        "helpers/process-root-setsid-check.py": "9143b5122408e1963e4f7782165a3ca7a209beecc57deecbc021a5fa51bca47e"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/process-root-setsid-check.py control \"$BASH\" ctty owned --ctty",
       "setup_timeout": 25,

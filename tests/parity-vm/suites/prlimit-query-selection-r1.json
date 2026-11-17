@@ -35,7 +35,7 @@
         "prlimit",
         "python3"
       ],
-      "script": "prlimit --json --pid \"$BASHPID\" --stack --core --nofile > many || exit 1\nfor name in CORE NOFILE STACK; do prlimit --json --pid \"$BASHPID\" -r \"$name\" >> singles || exit 2; done\n/usr/bin/python3 -c 'import json,sys; a=json.load(open(\"many\")); b=[json.loads(x) for x in open(\"singles\")]; assert a == {\"pid\":int(sys.argv[1]),\"limits\":b}; print(\"selected json matches\")' \"$BASHPID\"\n",
+      "script": "prlimit --json --pid \"$BASHPID\" --stack --core --nofile > many || exit 1\nfor name in STACK CORE NOFILE; do prlimit --json --pid \"$BASHPID\" -r \"$name\" >> singles || exit 2; done\n/usr/bin/python3 -c 'import json,sys; a=json.load(open(\"many\")); b=[json.loads(x) for x in open(\"singles\")]; assert a == {\"pid\":int(sys.argv[1]),\"limits\":b}; print(\"selected json matches\")' \"$BASHPID\"\n",
       "stdout": "selected json matches\n",
       "stderr": "",
       "expected_status": 0,

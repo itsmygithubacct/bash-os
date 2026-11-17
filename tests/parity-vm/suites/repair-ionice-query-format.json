@@ -22,7 +22,7 @@
         "ionice/query-format"
       ],
       "setup_script": "export PYTHONDONTWRITEBYTECODE=1\n/usr/bin/python3 -c 'import platform;assert platform.machine()==\"x86_64\"'",
-      "stdout": "middle:\nbest-effort: prio 3\nidle\nstatus=1 diagnostic=ESRCH\nfirst:\nbest-effort: prio 3\nidle\nstatus=1 diagnostic=ESRCH\nlast:\nbest-effort: prio 3\nidle\nstatus=1 diagnostic=ESRCH\n",
+      "stdout": "middle:\nbest-effort: prio 3\nstatus=1 diagnostic=ESRCH\nfirst:\nstatus=1 diagnostic=ESRCH\nlast:\nbest-effort: prio 3\nidle\nstatus=1 diagnostic=ESRCH\n",
       "stderr": "",
       "files": {
         "ioprio.py": "import ctypes,errno,os,platform\nassert platform.machine()=='x86_64'\nlib=ctypes.CDLL(None,use_errno=True)\n# Linux x86-64 syscall numbers, pinned by the VM architecture.\ndef get(pid=0):\n value=lib.syscall(252,1,int(pid))\n if value<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n return value>>13,value&8191\ndef set(pid,cls,data):\n if lib.syscall(251,1,int(pid),(int(cls)<<13)|int(data))<0:raise OSError(ctypes.get_errno(),os.strerror(ctypes.get_errno()))\n",

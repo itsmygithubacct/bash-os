@@ -35,9 +35,12 @@ extern char *setsid_doc[];
 int
 setsid_builtin (WORD_LIST *list)
 {
-    int do_wait = 0, set_ctty = 0;
-    /* -f (always fork) is implied: we always fork so setsid() can't fail on a
-       group-leader caller. The flag is accepted for compatibility. */
+    int do_wait = 0, set_ctty = 0, force_fork = 0;
+    /* A builtin always runs the command in a child, so setsid() cannot fail
+       on a group-leader caller.  util-linux forks only for -f or a
+       group-leader caller, and otherwise becomes the command: its caller then
+       waits for the command and sees its status.  The same is done here by
+       waiting whenever util-linux would not have forked. */
 
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
@@ -45,7 +48,7 @@ setsid_builtin (WORD_LIST *list)
         if (!strcmp (w, "--help")) { for (char **lp = setsid_doc; *lp; lp++) puts (*lp); return EXECUTION_SUCCESS; }
         if (!strcmp (w, "--version")) { puts ("setsid 1.0 (bash-loadable)"); return EXECUTION_SUCCESS; }
         if (!strcmp (w, "-w") || !strcmp (w, "--wait")) { do_wait = 1; list = list->next; continue; }
-        if (!strcmp (w, "-f") || !strcmp (w, "--fork")) { list = list->next; continue; }
+        if (!strcmp (w, "-f") || !strcmp (w, "--fork")) { force_fork = 1; list = list->next; continue; }
         if (!strcmp (w, "-c") || !strcmp (w, "--ctty")) { set_ctty = 1; list = list->next; continue; }
         builtin_error ("unknown option: %s", w);
         builtin_usage ();
@@ -73,6 +76,8 @@ setsid_builtin (WORD_LIST *list)
     }
 
     maybe_make_export_env ();
+    if (!force_fork && getpgrp () != getpid ())
+        do_wait = 1;
     fflush (stdout);
     fflush (stderr);
     pid_t pid = fork ();
@@ -120,7 +125,7 @@ char *setsid_doc[] = {
     "    setsid [-w] [-f] [-c] program [args...]",
     "",
     "    -w, --wait   wait for the program and return its exit status",
-    "    -f, --fork   always fork (the default here; setsid(2) needs a non-leader)",
+    "    -f, --fork   return at once; without it the command is waited for unless the caller leads a process group",
     "    -c, --ctty   set the controlling terminal to the current stdin",
     "",
     "Without -w, setsid returns immediately and the program runs detached.",

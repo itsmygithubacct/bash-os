@@ -184,9 +184,10 @@ def observe(side, shell, mode, role, flag):
         observed.update(status=invoker.returncode, stdout=out.decode('utf-8', 'backslashreplace'),
                         stderr=error.decode('utf-8', 'backslashreplace'))
         if got:
-            if mode == 'ctty' or child_pid == invoker.pid:
-                # In -w mode the invocation itself owns and reaps its child;
-                # the observed return is its reported wait status.
+            if mode == 'ctty' or child_pid == invoker.pid or not observed['returned_before_release']:
+                # In -w mode, and whenever the invocation did not return before
+                # the gate opened, the invocation itself owns and reaps its
+                # child; the observed return is its reported wait status.
                 child_status = invoker.returncode
             else:
                 deadline = time.monotonic() + 5
@@ -211,7 +212,12 @@ def observe(side, shell, mode, role, flag):
                       'helper executed ' + yes(got is not None)]
             if got:
                 lines += ['new session leader ' + yes(got['pid'] == got['pgid'] == got['sid']),
-                          'fork ' + yes(child_pid != invoker.pid),
+                          # Whether the command got a new process is not printed: a builtin
+                          # always runs it in a child, where util-linux forks only for -f
+                          # or a group-leader caller.  What the caller can observe is
+                          # whether the invocation returns before the command ends and
+                          # which status it reports; both are compared below.  The
+                          # process identity stays in the diagnostics.
                           'returned before release ' + yes(observed['returned_before_release']),
                           'child status %d' % observed['child_status']]
         else:

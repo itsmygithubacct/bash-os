@@ -73,6 +73,8 @@ the historical 0.1.3 evidence remains available separately.
 - `slabtop --once` follows procps-ng 4 batch output: whole-percent USE,
   sorting by it, and tied rows kept in slabinfo order. The interactive display
   keeps one decimal and orders ties by name.
+- `setsid` without `-f` waits for the command and returns its status when the caller is not a process-group leader, as a caller of util-linux `setsid` observes.
+- `killall NAME` in a pipeline or subshell no longer signals forked copies of the invoking shell that still carry its name.
 - `prlimit` prints the selected resources in command-line order, repeats included, as util-linux does.
 - `ionice` stops at the first process id that fails, as util-linux does.
 - `tiv -g octant` prints the matching character for ten patterns that used a

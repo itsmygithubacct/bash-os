@@ -79,6 +79,7 @@
 
 /* Bash preserves $$ across pipeline and subshell forks. */
 extern pid_t dollar_dollar_pid;
+#include "shell-copies.h"
 
 /* ---- /proc helpers ------------------------------------------------------ */
 
@@ -664,6 +665,8 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
     int first_print = 1;
     struct dirent *de;
     pid_t self_pid = getpid ();
+    if (mode == BP_MODE_KILLALL)
+        ka_collect_shell_copies (self_pid);
 
     char comm[64];
     char *cmdline = NULL;
@@ -682,7 +685,8 @@ bp_walk (WORD_LIST *patterns, int pattern_count, int by_cmdline,
             de->d_name[0] == '0' || (end && *end != '\0')) continue;
         int pid = (int)lpid;
         if (pid == (int)self_pid ||
-            (mode == BP_MODE_KILLALL && pid == (int)dollar_dollar_pid))
+            (mode == BP_MODE_KILLALL && (pid == (int)dollar_dollar_pid
+                                         || ka_is_shell_copy (pid))))
             continue;  /* never signal the invoking shell, including in a pipeline */
 
         if (mode == BP_MODE_KILLALL5) {

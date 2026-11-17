@@ -30,6 +30,9 @@
 #include <sys/types.h>
 
 #include "loadables.h"
+#include <unistd.h>
+#include "shell-copies.h"
+
 
 #define BP_MODE_KILLALL 2
 
@@ -275,6 +278,7 @@ ka_walk (int sig, char **names, int nnames, int ignore_case, int regexp,
     int nkilled = 0, kcap = 0;
     pid_t self = getpid ();
     struct dirent *de;
+    ka_collect_shell_copies (self);
     while ((de = readdir (d))) {
         char *end = NULL;
         long lpid = strtol (de->d_name, &end, 10);
@@ -282,6 +286,8 @@ ka_walk (int sig, char **names, int nnames, int ignore_case, int regexp,
             continue;
         int pid = (int) lpid;
         if (pid == (int) self || pid == (int) dollar_dollar_pid)
+            continue;
+        if (ka_is_shell_copy (pid))
             continue;
         if (filter_uid) {
             uid_t uid;
@@ -298,18 +304,29 @@ ka_walk (int sig, char **names, int nnames, int ignore_case, int regexp,
                 continue;
         }
         char comm[64];
-        if (ka_read_comm (pid, comm, sizeof comm) < 0)
-            continue;
         int which = -1;
-        for (int j = 0; j < nnames; j++) {
-            int hit;
-            if (regs)
-                hit = regexec (&regs[j], comm, 0, NULL, 0) == 0;
-            else if (ignore_case)
-                hit = strcasecmp (comm, names[j]) == 0;
-            else
-                hit = strcmp (comm, names[j]) == 0;
-            if (hit) { which = j; break; }
+        /* The kernel renames a process late in execve, after its executable
+           has already changed.  A child of this shell caught in that moment
+           still shows the shell's name without being a copy of it, so such a
+           match is read once more after a short pause.  */
+        for (int attempt = 0; attempt < 2; attempt++) {
+            which = -1;
+            if (ka_read_comm (pid, comm, sizeof comm) < 0)
+                break;
+            for (int j = 0; j < nnames; j++) {
+                int hit;
+                if (regs)
+                    hit = regexec (&regs[j], comm, 0, NULL, 0) == 0;
+                else if (ignore_case)
+                    hit = strcasecmp (comm, names[j]) == 0;
+                else
+                    hit = strcmp (comm, names[j]) == 0;
+                if (hit) { which = j; break; }
+            }
+            if (which < 0 || attempt || !ka_child_of_shell_copy (pid))
+                break;
+            usleep (2000);
+            if (ka_is_shell_copy (pid)) { which = -1; break; }
         }
         if (which < 0)
             continue;

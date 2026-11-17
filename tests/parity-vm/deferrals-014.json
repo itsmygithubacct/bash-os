@@ -33873,7 +33873,7 @@
             },
             {
               "assertion": "separator long; Exact status, diagnostic and output separators/order; only returned PIDs are replaced with their verified owned-process labels. Documented alias/list syntax is adapted to GNU canonical syntax where stated.",
-              "definition_sha256": "b8efec30a812f0315d204c744a2c4f5eb4682b9a60d7b009ef569cad22f1ea46",
+              "definition_sha256": "f6a7f5c695f442bccdda1ee0e407a374e205a68bd38611fb33f79b034e00b1e8",
               "group": "shell",
               "id": "migration-pidof-separator-long"
             }
@@ -36060,7 +36060,7 @@
             },
             {
               "assertion": "Contract: --json (all resources and -r STACK/DATA/FSIZE/NOFILE/CPU) for an owned child and the calling shell equals /proc/PID/limits rendered in the documented JSON objects and parses with the expected pid and resource order. util-linux prlimit has no --json, so parity is not applicable.",
-              "definition_sha256": "3aa451f7bd5177ea47e1f26b5043b2e769e6ac97960f2e50d960a29997897b6f",
+              "definition_sha256": "4476382d236813429e0989d8b8c4523d17f1304a6d62b4cb3d44229b3aa5f0a4",
               "group": "shell",
               "id": "migration-prlimit-json-unlimited-contract"
             }
@@ -36086,7 +36086,7 @@
             },
             {
               "assertion": "Child with soft STACK raised to unlimited and soft DATA 1 GiB under unlimited hard: reference prints \"unlimited unlimited\" and \"1073741824 unlimited\"; contract checks text/raw/json against the kernel view (PASS); parity FAIL is the table format only.",
-              "definition_sha256": "3aa451f7bd5177ea47e1f26b5043b2e769e6ac97960f2e50d960a29997897b6f",
+              "definition_sha256": "4476382d236813429e0989d8b8c4523d17f1304a6d62b4cb3d44229b3aa5f0a4",
               "group": "shell",
               "id": "migration-prlimit-json-unlimited-contract"
             }
@@ -41119,13 +41119,13 @@
           "evidence": [
             {
               "assertion": "Both ctty flags attach the free private slave: stdin is tty, stdin and /dev/tty TIOCGSID match the new SID, and ctty foreground PGID matches the child.",
-              "definition_sha256": "a81e4e9caed42bb1eaada5490af105a4e6e6c180f40d09760bff9bdc8f4ef934",
+              "definition_sha256": "da781c8d889d799ece5289f8971a5a7bd813cc79759a36df9a76f82e2520331c",
               "group": "shell",
               "id": "migration-setsid-ctty-free-short"
             },
             {
               "assertion": "Both ctty flags attach the free private slave: stdin is tty, stdin and /dev/tty TIOCGSID match the new SID, and ctty foreground PGID matches the child.",
-              "definition_sha256": "e91645d38306bd5733011daa70e19d452d8db97880c1b83cf1e317dbd7b1d266",
+              "definition_sha256": "19f024e449abe6fefee2c45ccca0cea64ee38d64ae2aa07a38f92a85fcba1766",
               "group": "shell",
               "id": "migration-setsid-ctty-free-long"
             }
@@ -41139,25 +41139,25 @@
           "evidence": [
             {
               "assertion": "Both flags with nonterminal stdin or a private terminal owned by a separate fixture session fail with status 1; the gated helper never executes. Trusted setup controls prove ENOTTY/EPERM.",
-              "definition_sha256": "197ac9fc1cdecc2864402a9c0ab97f8c5657b0d434dabd627eb03170dea78f87",
+              "definition_sha256": "87cca51b9076121334d2d0f0262c9600843a5bf7b6c04418a643e90083c729a4",
               "group": "shell",
               "id": "migration-setsid-ctty-nonterminal-short"
             },
             {
               "assertion": "Both flags with nonterminal stdin or a private terminal owned by a separate fixture session fail with status 1; the gated helper never executes. Trusted setup controls prove ENOTTY/EPERM.",
-              "definition_sha256": "66980905e2b7745846a7b160aa2a0817f2ff66333a216167ff60a26062274923",
+              "definition_sha256": "e52f5cedefaf453f776197d6ce9379d13297e2ea07e973e76559762553d827db",
               "group": "shell",
               "id": "migration-setsid-ctty-nonterminal-long"
             },
             {
               "assertion": "Both flags with nonterminal stdin or a private terminal owned by a separate fixture session fail with status 1; the gated helper never executes. Trusted setup controls prove ENOTTY/EPERM.",
-              "definition_sha256": "dfcedde23f4397b01acf23001d6f71c9f42a2f42477253c336d64764368ff278",
+              "definition_sha256": "aa940dee66e4c847ca049b4d375b123aa3665aa7325f5f547617a0d838826dbc",
               "group": "shell",
               "id": "migration-setsid-ctty-owned-short"
             },
             {
               "assertion": "Both flags with nonterminal stdin or a private terminal owned by a separate fixture session fail with status 1; the gated helper never executes. Trusted setup controls prove ENOTTY/EPERM.",
-              "definition_sha256": "1f99aab8bfd277d8e298684f09434cb9aabdf85ecc0da08171ca495dc91175b5",
+              "definition_sha256": "d642090044e17c6dbbbbbf746c1fcfe2e719c48bdbe82446cd41b3f90fa77da8",
               "group": "shell",
               "id": "migration-setsid-ctty-owned-long"
             }
@@ -41171,37 +41171,37 @@
           "evidence": [
             {
               "assertion": "Exit/wait statuses and exact diagnostics compare to util-linux. Four failure paths have identical status/no-exec behavior but different diagnostic wording; these remain FAIL.",
-              "definition_sha256": "a81e4e9caed42bb1eaada5490af105a4e6e6c180f40d09760bff9bdc8f4ef934",
+              "definition_sha256": "da781c8d889d799ece5289f8971a5a7bd813cc79759a36df9a76f82e2520331c",
               "group": "shell",
               "id": "migration-setsid-ctty-free-short"
             },
             {
               "assertion": "Exit/wait statuses and exact diagnostics compare to util-linux. Four failure paths have identical status/no-exec behavior but different diagnostic wording; these remain FAIL.",
-              "definition_sha256": "e91645d38306bd5733011daa70e19d452d8db97880c1b83cf1e317dbd7b1d266",
+              "definition_sha256": "19f024e449abe6fefee2c45ccca0cea64ee38d64ae2aa07a38f92a85fcba1766",
               "group": "shell",
               "id": "migration-setsid-ctty-free-long"
             },
             {
               "assertion": "Exit/wait statuses and exact diagnostics compare to util-linux. Four failure paths have identical status/no-exec behavior but different diagnostic wording; these remain FAIL.",
-              "definition_sha256": "197ac9fc1cdecc2864402a9c0ab97f8c5657b0d434dabd627eb03170dea78f87",
+              "definition_sha256": "87cca51b9076121334d2d0f0262c9600843a5bf7b6c04418a643e90083c729a4",
               "group": "shell",
               "id": "migration-setsid-ctty-nonterminal-short"
             },
             {
               "assertion": "Exit/wait statuses and exact diagnostics compare to util-linux. Four failure paths have identical status/no-exec behavior but different diagnostic wording; these remain FAIL.",
-              "definition_sha256": "66980905e2b7745846a7b160aa2a0817f2ff66333a216167ff60a26062274923",
+              "definition_sha256": "e52f5cedefaf453f776197d6ce9379d13297e2ea07e973e76559762553d827db",
               "group": "shell",
               "id": "migration-setsid-ctty-nonterminal-long"
             },
             {
               "assertion": "Exit/wait statuses and exact diagnostics compare to util-linux. Four failure paths have identical status/no-exec behavior but different diagnostic wording; these remain FAIL.",
-              "definition_sha256": "dfcedde23f4397b01acf23001d6f71c9f42a2f42477253c336d64764368ff278",
+              "definition_sha256": "aa940dee66e4c847ca049b4d375b123aa3665aa7325f5f547617a0d838826dbc",
               "group": "shell",
               "id": "migration-setsid-ctty-owned-short"
             },
             {
               "assertion": "Exit/wait statuses and exact diagnostics compare to util-linux. Four failure paths have identical status/no-exec behavior but different diagnostic wording; these remain FAIL.",
-              "definition_sha256": "1f99aab8bfd277d8e298684f09434cb9aabdf85ecc0da08171ca495dc91175b5",
+              "definition_sha256": "d642090044e17c6dbbbbbf746c1fcfe2e719c48bdbe82446cd41b3f90fa77da8",
               "group": "shell",
               "id": "migration-setsid-ctty-owned-long"
             }
@@ -41230,7 +41230,7 @@
           "evidence": [
             {
               "assertion": "Caller PID/PGID role is positively established before invocation. Parent returns while its independently observed child waits on an unopened gate.",
-              "definition_sha256": "c21ad88a14b48401f151c7d3b91a8beef74e2b53d48ac19ffc791a820aba8a08",
+              "definition_sha256": "66c0c6a303e7c66ee67bc0f3a74345a0d8d17054baaf75096990806d94366d45",
               "group": "shell",
               "id": "migration-setsid-fork-leader-default"
             }
@@ -41244,7 +41244,7 @@
           "evidence": [
             {
               "assertion": "The reference exec preserves caller PID: no fork, no return until child gate opens, exit 7. Candidate forks and returns 0 before release: a fully exercised FAIL.",
-              "definition_sha256": "5974e1a0ba2fcc2afaeb31d5ae7263ed281a5992209d1ac2f02422e792cb41f4",
+              "definition_sha256": "a570e3c397e92c59e7ee742d53fa6bbe43721a5253a9ffc1f7a1cc398cd41d71",
               "group": "shell",
               "id": "migration-setsid-fork-nonleader-default"
             }
@@ -41258,25 +41258,25 @@
           "evidence": [
             {
               "assertion": "Both short and long forced-fork flags fork and return before child release for both caller group roles.",
-              "definition_sha256": "ab69edb0f6ba804ad57454fd673412a808d60148acb3bedd49b72f329b501b08",
+              "definition_sha256": "8a99037fb2814af8d901fc0b937309457f01be40ac4edd05e56268343e210866",
               "group": "shell",
               "id": "migration-setsid-fork-leader-short"
             },
             {
               "assertion": "Both short and long forced-fork flags fork and return before child release for both caller group roles.",
-              "definition_sha256": "942ce4c8e80bcb8f0d6ce3af0fd5cab198174f201890cca17a113dec907dd423",
+              "definition_sha256": "06ca44449c8aa625a0580879d53ec7f32d8bee2fbd2f9f2e88a641fc0fb3eaea",
               "group": "shell",
               "id": "migration-setsid-fork-leader-long"
             },
             {
               "assertion": "Both short and long forced-fork flags fork and return before child release for both caller group roles.",
-              "definition_sha256": "d48cddc623962bcbe41fd885b5ac1e796e6b40494ff16243d06ffe4d6a55a429",
+              "definition_sha256": "6a7ee8321b087e4b7e372f673b7489428de8b21fda1b359a62dd2144ad84daf6",
               "group": "shell",
               "id": "migration-setsid-fork-nonleader-short"
             },
             {
               "assertion": "Both short and long forced-fork flags fork and return before child release for both caller group roles.",
-              "definition_sha256": "411f14078bb4462577cb1b6e237b894221841d296536ec7e60e3fd3b7c0619e2",
+              "definition_sha256": "c2418d2e97b57212878e39af2cf31d13ff59a15ee50438b8b9dd14b2a4bce08a",
               "group": "shell",
               "id": "migration-setsid-fork-nonleader-long"
             }
@@ -41296,37 +41296,37 @@
             },
             {
               "assertion": "Independent child observations show PID == PGID == SID for all six modes; raw identifiers retained in setsid-observed.json.",
-              "definition_sha256": "c21ad88a14b48401f151c7d3b91a8beef74e2b53d48ac19ffc791a820aba8a08",
+              "definition_sha256": "66c0c6a303e7c66ee67bc0f3a74345a0d8d17054baaf75096990806d94366d45",
               "group": "shell",
               "id": "migration-setsid-fork-leader-default"
             },
             {
               "assertion": "Independent child observations show PID == PGID == SID for all six modes; raw identifiers retained in setsid-observed.json.",
-              "definition_sha256": "ab69edb0f6ba804ad57454fd673412a808d60148acb3bedd49b72f329b501b08",
+              "definition_sha256": "8a99037fb2814af8d901fc0b937309457f01be40ac4edd05e56268343e210866",
               "group": "shell",
               "id": "migration-setsid-fork-leader-short"
             },
             {
               "assertion": "Independent child observations show PID == PGID == SID for all six modes; raw identifiers retained in setsid-observed.json.",
-              "definition_sha256": "942ce4c8e80bcb8f0d6ce3af0fd5cab198174f201890cca17a113dec907dd423",
+              "definition_sha256": "06ca44449c8aa625a0580879d53ec7f32d8bee2fbd2f9f2e88a641fc0fb3eaea",
               "group": "shell",
               "id": "migration-setsid-fork-leader-long"
             },
             {
               "assertion": "Independent child observations show PID == PGID == SID for all six modes; raw identifiers retained in setsid-observed.json.",
-              "definition_sha256": "5974e1a0ba2fcc2afaeb31d5ae7263ed281a5992209d1ac2f02422e792cb41f4",
+              "definition_sha256": "a570e3c397e92c59e7ee742d53fa6bbe43721a5253a9ffc1f7a1cc398cd41d71",
               "group": "shell",
               "id": "migration-setsid-fork-nonleader-default"
             },
             {
               "assertion": "Independent child observations show PID == PGID == SID for all six modes; raw identifiers retained in setsid-observed.json.",
-              "definition_sha256": "d48cddc623962bcbe41fd885b5ac1e796e6b40494ff16243d06ffe4d6a55a429",
+              "definition_sha256": "6a7ee8321b087e4b7e372f673b7489428de8b21fda1b359a62dd2144ad84daf6",
               "group": "shell",
               "id": "migration-setsid-fork-nonleader-short"
             },
             {
               "assertion": "Independent child observations show PID == PGID == SID for all six modes; raw identifiers retained in setsid-observed.json.",
-              "definition_sha256": "411f14078bb4462577cb1b6e237b894221841d296536ec7e60e3fd3b7c0619e2",
+              "definition_sha256": "c2418d2e97b57212878e39af2cf31d13ff59a15ee50438b8b9dd14b2a4bce08a",
               "group": "shell",
               "id": "migration-setsid-fork-nonleader-long"
             }
@@ -41340,37 +41340,37 @@
           "evidence": [
             {
               "assertion": "Every child is gated, released, waited/reaped (including detached orphans via the supervisor subreaper), and absent from /proc; guest stray-process lists are empty.",
-              "definition_sha256": "c21ad88a14b48401f151c7d3b91a8beef74e2b53d48ac19ffc791a820aba8a08",
+              "definition_sha256": "66c0c6a303e7c66ee67bc0f3a74345a0d8d17054baaf75096990806d94366d45",
               "group": "shell",
               "id": "migration-setsid-fork-leader-default"
             },
             {
               "assertion": "Every child is gated, released, waited/reaped (including detached orphans via the supervisor subreaper), and absent from /proc; guest stray-process lists are empty.",
-              "definition_sha256": "ab69edb0f6ba804ad57454fd673412a808d60148acb3bedd49b72f329b501b08",
+              "definition_sha256": "8a99037fb2814af8d901fc0b937309457f01be40ac4edd05e56268343e210866",
               "group": "shell",
               "id": "migration-setsid-fork-leader-short"
             },
             {
               "assertion": "Every child is gated, released, waited/reaped (including detached orphans via the supervisor subreaper), and absent from /proc; guest stray-process lists are empty.",
-              "definition_sha256": "942ce4c8e80bcb8f0d6ce3af0fd5cab198174f201890cca17a113dec907dd423",
+              "definition_sha256": "06ca44449c8aa625a0580879d53ec7f32d8bee2fbd2f9f2e88a641fc0fb3eaea",
               "group": "shell",
               "id": "migration-setsid-fork-leader-long"
             },
             {
               "assertion": "Every child is gated, released, waited/reaped (including detached orphans via the supervisor subreaper), and absent from /proc; guest stray-process lists are empty.",
-              "definition_sha256": "5974e1a0ba2fcc2afaeb31d5ae7263ed281a5992209d1ac2f02422e792cb41f4",
+              "definition_sha256": "a570e3c397e92c59e7ee742d53fa6bbe43721a5253a9ffc1f7a1cc398cd41d71",
               "group": "shell",
               "id": "migration-setsid-fork-nonleader-default"
             },
             {
               "assertion": "Every child is gated, released, waited/reaped (including detached orphans via the supervisor subreaper), and absent from /proc; guest stray-process lists are empty.",
-              "definition_sha256": "d48cddc623962bcbe41fd885b5ac1e796e6b40494ff16243d06ffe4d6a55a429",
+              "definition_sha256": "6a7ee8321b087e4b7e372f673b7489428de8b21fda1b359a62dd2144ad84daf6",
               "group": "shell",
               "id": "migration-setsid-fork-nonleader-short"
             },
             {
               "assertion": "Every child is gated, released, waited/reaped (including detached orphans via the supervisor subreaper), and absent from /proc; guest stray-process lists are empty.",
-              "definition_sha256": "411f14078bb4462577cb1b6e237b894221841d296536ec7e60e3fd3b7c0619e2",
+              "definition_sha256": "c2418d2e97b57212878e39af2cf31d13ff59a15ee50438b8b9dd14b2a4bce08a",
               "group": "shell",
               "id": "migration-setsid-fork-nonleader-long"
             }
@@ -48861,7 +48861,7 @@
           "evidence": [
             {
               "assertion": "timeout tree hard; Exact child statuses and explicit process/signal predicates; every child is reaped by its fixture supervisor. The GNU monitor termination message is matched in full against its actual shell path and owned monitor PID before emitting a fixed marker.",
-              "definition_sha256": "a12638c3ca6cf2b2d46a5740131f1162c1e473c90e8549fa56b5708ab7168afa",
+              "definition_sha256": "766dd387aa1dda29f5d30c523b5f43edd723864c4eeb66fa249fd8620cf7657b",
               "group": "shell",
               "id": "migration-timeout-tree-hard"
             }
