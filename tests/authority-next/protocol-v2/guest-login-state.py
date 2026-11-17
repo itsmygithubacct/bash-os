@@ -29,7 +29,7 @@ import uuid
 
 sys.dont_write_bytecode = True
 HOME = Path('/tmp/parity-home')
-LOGIN = 'login login-v2 --qualification-device --no-motd --max-tries '
+LOGIN = 'login login-v2%s --no-motd --max-tries '  # %s: the endpoint flag, filled in main()
 STATE_FAULTS = ('login-state-file-sync', 'login-state-rename',
                 'login-state-directory-sync', 'login-state-clear')
 
@@ -504,6 +504,9 @@ def main():
     base.protected(args.bash, args.bash_sha256)
     require(args.bash.is_absolute(), 'absolute candidate required')
     args.output.mkdir(mode=0o700)
+    base.select_endpoint(receipt)
+    global LOGIN
+    LOGIN = LOGIN % base.LOGIN_FLAG
     runtime = base.Runtime(args, receipt)
     runtime.report.update(suite='login-state-ssh-merge-r1', original_topic_credit=0)
     before = runtime.command(['/usr/bin/dmesg', '--raw'])

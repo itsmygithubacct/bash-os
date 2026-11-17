@@ -5,6 +5,14 @@
 Runtime artifacts arrive through vm.py's explicit --references input directory.
 Their fixed digests identify the exact guest module/device control, not a mock.
 All notified calls continue to Linux. Kernel erasure needs separate KUnit proof.
+
+The pinned module and device control are `strip --strip-debug` of one build of
+kernel/bashos-auth (device.c, secrets.c, secrets.h, tests/device_test.c) for
+the guest kernel named in guard(); kernel_secret_control.py binds the same two
+digests to the separate erasure receipt. A rebuilt module embeds its own build
+directory, so it has other bytes and needs a reviewed new pin and receipt.
+The module is loaded and removed by this fixture, and a new kernel diagnostic
+between those two points makes the observation incomplete.
 """
 import base64
 from contextlib import contextmanager
@@ -39,6 +47,10 @@ MODULE = 'bashos_auth_stage1'
 PINS = {'auth-stage1.ko': 'bc95712ef12cbbd045186078bc17b7232e70c4f8297ef14c226d3766f3183c72',
         'auth-stage1-device-test': 'a389e8a225fc5c1d91601e3f1f00c88b190efa2ec983d939c4d76c7d8bf89fa7',
         'libargon2.so.1': '94b5c0be9d7f09f1b4550ff15422d2ac8a6392c3471c88b93ee0370698388097'}
+SYSTEM_LIBARGON2 = Path('/usr/lib/x86_64-linux-gnu/libargon2.so.1')
+KERNEL_DIAGNOSTICS = (b'WARNING:', b'BUG:', b'KASAN:', b'KCSAN:', b'UBSAN:', b'held lock',
+                      b'possible recursive locking', b'inconsistent lock state',
+                      b'general protection fault', b'INFO: task ', b'Oops:', b'Call Trace:')
 SECRET = b'fixture-secret-only'
 
 
@@ -67,12 +79,22 @@ def record(kind, **values):
 
 def artifact(name):
     path = ARTIFACTS / name
+    if name == 'libargon2.so.1' and not os.path.lexists(path):
+        # The sealed image's own Debian library is the same independent oracle
+        # when, and only when, it has the pinned bytes.
+        path = SYSTEM_LIBARGON2.resolve(strict=True)
     info = path.lstat()
     require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
             'runtime artifact is not protected regular data')
     require(info.st_size <= 2 * 1024**2 and hashlib.sha256(path.read_bytes()).hexdigest() == PINS[name],
             'runtime artifact digest differs: ' + name)
     return path
+
+
+def kernel_log():
+    result = subprocess.run(['/usr/bin/dmesg', '--raw'], capture_output=True, timeout=10)
+    require(result.returncode == 0 and not result.stderr, 'kernel log is unreadable')
+    return result.stdout
 
 
 @contextmanager
@@ -82,6 +104,7 @@ def loaded():
             'preexisting authority must not be replaced')
     module = artifact('auth-stage1.ko')
     loaded_here = False
+    before = kernel_log()
     try:
         result = subprocess.run(['/usr/sbin/insmod', str(module)], capture_output=True, timeout=5)
         record('insmod', status=result.returncode, stderr=result.stderr.decode(errors='replace'),
@@ -103,6 +126,12 @@ def loaded():
             record('rmmod', status=result.returncode, stderr=result.stderr.decode(errors='replace'))
             require(result.returncode == 0 and not Path('/sys/module', MODULE).exists()
                     and not os.path.lexists(DEVICE), 'stage-1 module or device remains')
+            after = kernel_log()
+            require(after.startswith(before), 'kernel log was lost or wrapped during the observation')
+            delta = after[len(before):]
+            found = [word.decode() for word in KERNEL_DIAGNOSTICS if word in delta]
+            record('kernel-log', delta=delta.decode(errors='replace')[-16384:], diagnostics=found)
+            require(not found, 'new kernel diagnostic while the module was loaded: ' + ', '.join(found))
 
 
 def derive(password, salt, passes, memory, lanes, size=32):
@@ -288,12 +317,15 @@ def password(binary, mode):
         try:
             fields = stored.split('$')
             parameters = dict(x.split('=') for x in fields[3].split(','))
-            salt, hashed = bytes.fromhex(fields[4]), bytes.fromhex(fields[5])
+            salt = base64.b64decode(fields[4] + '=' * (-len(fields[4]) % 4), validate=True)
+            hashed = base64.b64decode(fields[5] + '=' * (-len(fields[5]) % 4), validate=True)
+            canonical = (base64.b64encode(salt).rstrip(b'=').decode('ascii') == fields[4] and
+                         base64.b64encode(hashed).rstrip(b'=').decode('ascii') == fields[5])
             independent = (fields[:3] == ['', 'argon2id', 'v=19'] and parameters == {'m': '1024', 't': '1', 'p': '1'}
-                           and len(salt) == 16 and len(hashed) == 32 and derive(SECRET, salt, 1, 1024, 1) == hashed)
+                           and canonical and len(salt) == 16 and len(hashed) == 32 and derive(SECRET, salt, 1, 1024, 1) == hashed)
         except (ValueError, IndexError):
             independent = False
-        record('stored-shadow', text=(db / 'shadow').read_text(), independent_project_hex_kdf=independent)
+        record('stored-shadow', text=(db / 'shadow').read_text(), independent_standard_phc_kdf=independent)
     good = (result.returncode == 0 and result.stdout == expected and not result.stderr and independent
             and protocol(mode, 1 if mode == 'set' else 3) and (db / 'passwd').read_text() == passwd
             and (db / 'group').read_text() == group and stat.S_IMODE((db / 'shadow').stat().st_mode) == 0o600)

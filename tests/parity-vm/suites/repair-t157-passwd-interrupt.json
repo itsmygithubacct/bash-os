@@ -67,14 +67,17 @@
       "covers": [
         "passwd/interactive_password_prompts"
       ],
-      "purpose": "Interrupt after partial input; restore the original terminal and do not echo the partial input. Require the kernel secret device.",
+      "purpose": "Interrupt after partial input; restore the original terminal and do not echo the partial input. The prompt reads into the real kernel secret device, which the case loads and removes itself.",
       "oracle": "Controlling-terminal contract (termios(3)/tty_ioctl): a program that clears ECHO and ICANON for a read must leave them restored when interrupted; the oracle is GNU bash's own `read -s` run on the same PTY (restores on SIGINT), the recorded initial modes of the PTY and the driver's termios_after.",
-      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics. The same steps as the memory-backed sibling run as uid 0 with BASHPASSWD_REQUIRE_KERNEL_SECRETS=1 on the case terminal. Before the module is loaded, a password update must be refused and leave the shadow file byte-identical. With it loaded, the interrupted prompt must have opened the device and created its secret slot (and written and sealed the first entry before a retype prompt), every traced call continued to the kernel, and the shadow file must be unchanged. The case removes the module; a remaining module or node, or a new kernel diagnostic in the log between load and removal, is an incomplete observation.",
       "requires": [
         "python3",
-        "argon2"
+        "argon2",
+        "insmod",
+        "rmmod",
+        "dmesg"
       ],
-      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_REQUIRE_KERNEL_SECRETS=1\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd set w5user\n",
+      "script": "[[ $EUID == 0 && $UID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/passwd-kernel-secret-r1.py interrupt \"$BASH\" set-new\n",
       "expected_status": 130,
       "timeout": 40,
       "steps": [
@@ -113,7 +116,23 @@
       ],
       "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
       "setup_timeout": 45,
-      "restore_terminal": true
+      "restore_terminal": true,
+      "privilege": "root",
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/passwd-kernel-secret-r1.py": "6f177603b86e038b8631ab177116638f38a3e80fbf6ac51c2b9d97eed1c6a43b",
+        "helpers/auth-stage1-fixture.py": "cf52ec84a07bd0fd07867b347e2d9e929da1567e391cf3eccefeb19d9e50112d",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64"
+      },
+      "observation_error_status": 125,
+      "diagnostic_files": [
+        "kernel-secret-observations.jsonl",
+        "stage1-observations.jsonl",
+        "kernel-secret-absent.trace",
+        "kernel-secret-interrupt.trace"
+      ]
     },
     {
       "id": "repair-t157-passwd-sigint-set-retype-restores-terminal-partial",
@@ -201,14 +220,17 @@
       "covers": [
         "passwd/interactive_password_prompts"
       ],
-      "purpose": "Interrupt after partial input; restore the original terminal and do not echo the partial input. Require the kernel secret device.",
+      "purpose": "Interrupt after partial input; restore the original terminal and do not echo the partial input. The prompt reads into the real kernel secret device, which the case loads and removes itself.",
       "oracle": "Controlling-terminal contract (termios(3)/tty_ioctl): a program that clears ECHO and ICANON for a read must leave them restored when interrupted; the oracle is GNU bash's own `read -s` run on the same PTY (restores on SIGINT), the recorded initial modes of the PTY and the driver's termios_after.",
-      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics. The same steps as the memory-backed sibling run as uid 0 with BASHPASSWD_REQUIRE_KERNEL_SECRETS=1 on the case terminal. Before the module is loaded, a password update must be refused and leave the shadow file byte-identical. With it loaded, the interrupted prompt must have opened the device and created its secret slot (and written and sealed the first entry before a retype prompt), every traced call continued to the kernel, and the shadow file must be unchanged. The case removes the module; a remaining module or node, or a new kernel diagnostic in the log between load and removal, is an incomplete observation.",
       "requires": [
         "python3",
-        "argon2"
+        "argon2",
+        "insmod",
+        "rmmod",
+        "dmesg"
       ],
-      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_REQUIRE_KERNEL_SECRETS=1\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd set w5user\n",
+      "script": "[[ $EUID == 0 && $UID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/passwd-kernel-secret-r1.py interrupt \"$BASH\" set-retype\n",
       "expected_status": 130,
       "timeout": 40,
       "steps": [
@@ -267,7 +289,23 @@
       ],
       "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
       "setup_timeout": 45,
-      "restore_terminal": true
+      "restore_terminal": true,
+      "privilege": "root",
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/passwd-kernel-secret-r1.py": "6f177603b86e038b8631ab177116638f38a3e80fbf6ac51c2b9d97eed1c6a43b",
+        "helpers/auth-stage1-fixture.py": "cf52ec84a07bd0fd07867b347e2d9e929da1567e391cf3eccefeb19d9e50112d",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64"
+      },
+      "observation_error_status": 125,
+      "diagnostic_files": [
+        "kernel-secret-observations.jsonl",
+        "stage1-observations.jsonl",
+        "kernel-secret-absent.trace",
+        "kernel-secret-interrupt.trace"
+      ]
     },
     {
       "id": "repair-t157-passwd-sigint-change-current-restores-terminal-partial",
@@ -335,14 +373,17 @@
       "covers": [
         "passwd/interactive_password_prompts"
       ],
-      "purpose": "Interrupt after partial input; restore the original terminal and do not echo the partial input. Require the kernel secret device.",
+      "purpose": "Interrupt after partial input; restore the original terminal and do not echo the partial input. The prompt reads into the real kernel secret device, which the case loads and removes itself.",
       "oracle": "Controlling-terminal contract (termios(3)/tty_ioctl): a program that clears ECHO and ICANON for a read must leave them restored when interrupted; the oracle is GNU bash's own `read -s` run on the same PTY (restores on SIGINT), the recorded initial modes of the PTY and the driver's termios_after.",
-      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics.",
+      "comparison": "Exact expectation for status and output derived independently of the candidate; raw stdout, stderr and fixture files are retained as diagnostics. The same steps as the memory-backed sibling run as uid 0 with BASHPASSWD_REQUIRE_KERNEL_SECRETS=1 on the case terminal. Before the module is loaded, a password update must be refused and leave the shadow file byte-identical. With it loaded, the interrupted prompt must have opened the device and created its secret slot (and written and sealed the first entry before a retype prompt), every traced call continued to the kernel, and the shadow file must be unchanged. The case removes the module; a remaining module or node, or a new kernel diagnostic in the log between load and removal, is an incomplete observation.",
       "requires": [
         "python3",
-        "argon2"
+        "argon2",
+        "insmod",
+        "rmmod",
+        "dmesg"
       ],
-      "script": "guard_guest() {\n  local token vendor virt inside outside length extra\n  local -a uid_rows\n  [[ -r /etc/bashos-parity-vm && -r /sys/class/dmi/id/sys_vendor && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || return 125\n  IFS= read -r token </etc/bashos-parity-vm || return 125\n  IFS= read -r vendor </sys/class/dmi/id/sys_vendor || return 125\n  [[ $vendor == QEMU && $token =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || return 125\n  (( UID == EUID )) || return 125\n  if (( EUID == 0 )); then\n    mapfile -t uid_rows </proc/self/uid_map || return 125\n    (( ${#uid_rows[@]} == 1 )) || return 125\n    read -r inside outside length extra <<<\"${uid_rows[0]}\" || return 125\n    [[ $inside == 0 && $outside == 2000 && $length == 1 && -z $extra ]] || return 125\n  else\n    (( EUID == 2000 )) || return 125\n  fi\n  virt=$(/usr/bin/systemd-detect-virt --vm) || return 125\n  [[ $virt == qemu || $virt == kvm ]] || return 125\n}\nguard_guest || { printf 'refusing non-fixture guest\\n' >&2; exit 125; }\nexport PHCLIB_SHADOW=$PWD/shadow PHCLIB_PASSWD=$PWD/passwd BPW_LOCK_DIR=$PWD/lock BASHPASSWD_REQUIRE_KERNEL_SECRETS=1\nmkdir -p lock\n[[ $(type -t passwd) == builtin ]] || exit 99\npasswd change w5user\n",
+      "script": "[[ $EUID == 0 && $UID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nexec /usr/bin/python3 /opt/bashos-parity/harness/helpers/passwd-kernel-secret-r1.py interrupt \"$BASH\" change-current\n",
       "expected_status": 130,
       "timeout": 40,
       "steps": [
@@ -381,7 +422,23 @@
       ],
       "setup_script": "set -e\nmk() { local sh; sh=$(printf '%s' \"$1\" | /usr/bin/od -An -tx1 | /usr/bin/tr -d ' \\n'); printf '$argon2id$v=19$m=19456,t=2,p=1$%s$%s' \"$sh\" \"$(printf '%s' \"$2\" | /usr/bin/argon2 \"$1\" -id -t 2 -k 19456 -p 1 -l 32 -r)\"; }\nold=$(mk w5saltw5salt1234 'qvx-old-5521'); other=$(mk w5saltother9876 'oth-pass-3377')\nprintf 'w5user:%s:19000:0:99999:7:::\\nother:%s:19000:0:99999:7:::\\n' \"$old\" \"$other\" > shadow\nprintf 'w5user:x:1000:1000:W5:/home/w5user:/bin/sh\\nother:x:1001:1001::/home/other:/bin/sh\\n' > passwd\ncp shadow shadow.orig; chmod 600 shadow shadow.orig\n",
       "setup_timeout": 45,
-      "restore_terminal": true
+      "restore_terminal": true,
+      "privilege": "root",
+      "features": [
+        "seccomp-notify"
+      ],
+      "helpers_sha256": {
+        "helpers/passwd-kernel-secret-r1.py": "6f177603b86e038b8631ab177116638f38a3e80fbf6ac51c2b9d97eed1c6a43b",
+        "helpers/auth-stage1-fixture.py": "cf52ec84a07bd0fd07867b347e2d9e929da1567e391cf3eccefeb19d9e50112d",
+        "helpers/auth-client-listener.py": "c10aa866320df5008b308eb7057d7ed80b020814bd381311830ef064f41ffa64"
+      },
+      "observation_error_status": 125,
+      "diagnostic_files": [
+        "kernel-secret-observations.jsonl",
+        "stage1-observations.jsonl",
+        "kernel-secret-absent.trace",
+        "kernel-secret-interrupt.trace"
+      ]
     }
   ]
 }

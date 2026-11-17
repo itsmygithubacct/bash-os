@@ -272,6 +272,8 @@ def main():
     config = json.loads(config_path.read_text())
     guard(config)
     require(config['schema'] == 1 and 1 <= config['timeout'] <= 60, 'observer config differs')
+    require(config['authority_device'] in ('/dev/bashos-auth-v2', '/dev/bashos-auth-v2-test'),
+            'observer config names an unknown authority device')
     for key in ('listener', 'libseccomp', 'program', 'target'):
         protected(config[key], config[key + '_sha256'])
     trace = Path(config['trace']).resolve()
@@ -390,7 +392,7 @@ def main():
                             event.update(selected_fault=True, terminal_lflag=flags)
                     elif name == 'ioctl' and args[1] in (0x4060bc01, 0x4060bc02, 0x4080bc03, 0x4010bc05):
                         actual = Path('/proc/%d/fd/%d' % (pid, args[0])).stat()
-                        device = Path('/dev/bashos-auth-v2-test').stat()
+                        device = Path(config['authority_device']).stat()
                         event['actual_authority_fd'] = (stat.S_ISCHR(actual.st_mode) and actual.st_rdev == device.st_rdev and
                                                         actual.st_dev == device.st_dev and actual.st_ino == device.st_ino)
                         if args[1] == 0x4010bc05:

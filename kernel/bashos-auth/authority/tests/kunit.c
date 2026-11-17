@@ -9,6 +9,7 @@
 #include <linux/string.h>
 #include "../reference.h"
 #include "../request.h"
+#include "../v2/uid-limit.h"
 #include "vectors.h"
 
 struct reference_fixture {
@@ -464,6 +465,70 @@ static void reference_final_release_erases(struct kunit *test)
 	KUNIT_EXPECT_GT(test, f->grant_wipes, 0U);
 }
 
+/* Per-uid limits of the shared PRIVCMD node: a fixed table, no allocation. */
+#define UID(n) KUIDT_INIT(n)
+
+static void uid_limit_charges_up_to_the_limit(struct kunit *test)
+{
+	struct ba_v2_uid_count rows[2] = {};
+
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 2, UID(1000), 3, 4), 0);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 2, UID(1000), 1, 4), 0);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charged(rows, 2, UID(1000)), 4U);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 2, UID(1000), 1, 4), -EDQUOT);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charged(rows, 2, UID(1000)), 4U);
+	/* A request larger than the whole limit never wraps the subtraction. */
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 2, UID(1001), U32_MAX, 4), -EDQUOT);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charged(rows, 2, UID(1001)), 0U);
+}
+
+static void uid_limit_one_user_cannot_spend_anothers(struct kunit *test)
+{
+	struct ba_v2_uid_count rows[2] = {};
+
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 2, UID(1000), 4, 4), 0);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 2, UID(1000), 1, 4), -EDQUOT);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 2, UID(1001), 4, 4), 0);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charged(rows, 2, UID(1000)), 4U);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charged(rows, 2, UID(1001)), 4U);
+	/* uid 0 is an ordinary row, not an exemption. */
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 2, UID(0), 1, 4), -ENOSPC);
+}
+
+static void uid_limit_full_table_and_row_reuse(struct kunit *test)
+{
+	struct ba_v2_uid_count rows[2] = {};
+
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 2, UID(1), 1, 8), 0);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 2, UID(2), 2, 8), 0);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 2, UID(3), 1, 8), -ENOSPC);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charged(rows, 2, UID(3)), 0U);
+	/* A user already in the table is still served when it is full. */
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 2, UID(2), 1, 8), 0);
+	ba_v2_uid_uncharge(rows, 2, UID(1), 1);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charged(rows, 2, UID(1)), 0U);
+	/* The released row serves a new user and carries nothing over. */
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 2, UID(3), 8, 8), 0);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charged(rows, 2, UID(3)), 8U);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charged(rows, 2, UID(1)), 0U);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charged(rows, 2, UID(2)), 3U);
+	ba_v2_uid_uncharge(rows, 2, UID(2), 2);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charged(rows, 2, UID(2)), 1U);
+}
+
+static void uid_limit_rejects_invalid_requests(struct kunit *test)
+{
+	struct ba_v2_uid_count rows[1] = {};
+
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(NULL, 1, UID(1), 1, 4), -EINVAL);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 1, INVALID_UID, 1, 4), -EINVAL);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 1, UID(1), 0, 4), -EINVAL);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 1, UID(1), 1, 0), -EDQUOT);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charge(rows, 0, UID(1), 1, 4), -ENOSPC);
+	KUNIT_EXPECT_EQ(test, ba_v2_uid_charged(NULL, 1, UID(1)), 0U);
+	KUNIT_EXPECT_EQ(test, rows[0].count, 0U);
+}
+
 static struct kunit_case authority_cases[] = {
 	KUNIT_CASE(request_known_vector),
 	KUNIT_CASE(request_owned_snapshot),
@@ -482,6 +547,10 @@ static struct kunit_case authority_cases[] = {
 	KUNIT_CASE(reference_actor_drift_is_rejected),
 	KUNIT_CASE(reference_other_task_cannot_redeem),
 	KUNIT_CASE(reference_final_release_erases),
+	KUNIT_CASE(uid_limit_charges_up_to_the_limit),
+	KUNIT_CASE(uid_limit_one_user_cannot_spend_anothers),
+	KUNIT_CASE(uid_limit_full_table_and_row_reuse),
+	KUNIT_CASE(uid_limit_rejects_invalid_requests),
 	{}
 };
 

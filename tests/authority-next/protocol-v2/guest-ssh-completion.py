@@ -93,7 +93,7 @@ def controls(runtime, base):
             port = listener.getsockname()[1]; listener.close()
             policy = runtime.root / ('ssh-lifetime-' + label + '.conf')
             runtime.install(policy, b'PasswordAuthentication no\nPermitRootLogin prohibit-password\nLoginGraceTime 12\nMaxAuthTries 1\n')
-            options = ['sshd', 'run', '--encrypted', '--authority-v2', '--authority-v2-qualification',
+            options = ['sshd', 'run', '--encrypted', '--authority-v2', *base.SSHD_FLAGS,
                        '--once', '-a', '127.0.0.1', '-p', str(port), '-k', str(keys['host']),
                        '-F', str(policy), '--auth-method', 'publickey', '-u', 'av2root']
             want = base.expected(channels, 0, 0, False)
@@ -190,6 +190,7 @@ def main():
     base.protected(args.bash, args.bash_sha256)
     require(args.bash.is_absolute(), 'absolute candidate required')
     args.output.mkdir(mode=0o700)
+    base.select_endpoint(receipt)
     runtime = base.Runtime(args, receipt)
     runtime.report.update(suite='ssh-completion-r1', original_topic_credit=0)
     before = runtime.command(['/usr/bin/dmesg', '--raw'])

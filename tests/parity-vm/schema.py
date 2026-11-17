@@ -107,6 +107,16 @@ def validate(case):
         "qualification-014-takeover-safeedit-r1",
         "qualification-014-takeover-command-timestamp-r1",
         "qualification-014-takeover-executor-r1",
+        "qualification-014-authority-protocol-r1",
+        "qualification-014-authority-consumers-r1",
+        "qualification-014-authority-login-state-r1",
+        "qualification-014-authority-ssh-restrictions-r1",
+        "qualification-014-authority-ssh-completion-r1",
+        "qualification-014-authority-denial-no-helper-r1",
+        "qualification-014-authority-protocol-test-r1",
+        "qualification-014-authority-consumers-test-r1",
+        "qualification-014-authority-safeedit-test-r1",
+        "qualification-014-authority-command-timestamp-test-r1",
     }
     timeout_limit = 650 if case["id"] in authority_limits else 60
     check(type(case.get("timeout", 12)) in (int, float) and 0 < case.get("timeout", 12) <= timeout_limit,

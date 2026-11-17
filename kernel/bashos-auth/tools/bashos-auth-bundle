@@ -1,0 +1,405 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""Compile and check the trust bundle the bash-os authority modules pin at load.
+
+A bundle is one directory holding six files:
+
+  accounts   binary account snapshot (name, uid, gid, password-hash encoding,
+             Argon2id PHC string, enabled flag) with the bundle generation
+  groups     group snapshot, traditional name:placeholder:gid:members lines
+  profiles   profile snapshot, the seven traditional passwd fields
+  policy     the sudoers-subset policy text, copied byte for byte
+  verifier   copy of the static native verifier (verifier-v2)
+  executor   copy of the static native executor (executor-v2)
+
+Build one from passwd-, shadow- and group-style inputs and a policy file:
+
+  bashos-auth-bundle --passwd FILE --shadow FILE --group FILE --policy FILE \\
+      --verifier verifier-v2 --executor executor-v2 --generation N --out DIR
+
+The last line group of the output is the parameter list for each insmod.
+Check an existing bundle, as root, before loading it:
+
+  bashos-auth-bundle --check DIR [--policy-check bashos-policy-check]
+
+Only accounts named by --accounts (default: every passwd entry, at most 32)
+enter the bundle. An account whose shadow field is not an Argon2id PHC string
+is kept with the unverifiable hash "!", so it can be a target but can never
+authenticate. The encoding of a hash is never guessed: every hash is standard
+PHC base64 unless its account is named by --legacy-hex. Nothing here loads a
+module or reads the live /etc files unless they are passed explicitly.
+"""
+import argparse
+import hashlib
+import os
+import re
+import stat
+import struct
+import subprocess
+import sys
+
+MAGIC, VERSION = 0x32564142, 2
+HEADER, RECORD = struct.Struct('<IIIIQQ'), struct.Struct('<IIII64s512s')
+MAX_ACCOUNTS, MAX_GROUPS = 32, 128
+USER_BYTES, PHC_BYTES = 64, 512
+GROUPS_LIMIT, PROFILES_LIMIT, POLICY_LIMIT, HELPER_LIMIT = 65536, 32768, 65536, 8 << 20
+STANDARD, LEGACY_HEX = 1, 2
+LOCKED = '!'
+NAME = re.compile(r'[A-Za-z0-9_.-]{1,63}\Z')
+SNAPSHOTS = ('accounts', 'groups', 'profiles', 'policy')
+HELPERS = ('verifier', 'executor')
+# Filesystems the modules accept for the two executables (f_type values).
+LOCAL_FILESYSTEMS = {0xEF53: 'ext2/3/4', 0x58465342: 'XFS', 0x9123683E: 'Btrfs', 0x01021994: 'tmpfs'}
+
+
+class BundleError(Exception):
+    pass
+
+
+def require(condition, reason):
+    if not condition:
+        raise BundleError(reason)
+
+
+def number(text, what):
+    require(re.fullmatch(r'[0-9]{1,10}', text) is not None and int(text) < 0xffffffff, 'invalid ' + what + ': ' + text)
+    return int(text)
+
+
+def printable(data, what):
+    require(all(byte == 10 or 32 <= byte <= 126 for byte in data), what + ' must be printable ASCII lines')
+
+
+def lines_of(data):
+    return [line for line in data.decode('ascii').split('\n') if line and not line.startswith('#')]
+
+
+def profile_path(path):
+    return (path.startswith('/') and len(path) < 256 and
+            not any(part in ('.', '..') for part in path.split('/')))
+
+
+# --- snapshot compilation ------------------------------------------------------
+
+def read_passwd(data):
+    printable(data, 'passwd input')
+    entries = {}
+    for line in lines_of(data):
+        fields = line.split(':')
+        require(len(fields) == 7, 'passwd line needs seven fields: ' + line.split(':')[0])
+        require(fields[0] not in entries, 'duplicate passwd name: ' + fields[0])
+        entries[fields[0]] = fields
+    return entries
+
+
+def read_shadow(data):
+    printable(data, 'shadow input')
+    hashes = {}
+    for line in lines_of(data):
+        fields = line.split(':')
+        require(len(fields) >= 2, 'shadow line needs a name and a hash field')
+        require(fields[0] not in hashes, 'duplicate shadow name: ' + fields[0])
+        hashes[fields[0]] = fields[1]
+    return hashes
+
+
+def compile_accounts(passwd, hashes, names, legacy, disabled, generation):
+    require(0 < len(names) <= MAX_ACCOUNTS, 'a bundle holds 1 to %d accounts' % MAX_ACCOUNTS)
+    require(len(set(names)) == len(names), 'an account is named twice')
+    require(0 < generation < 1 << 64, 'generation must be a positive 64-bit number')
+    for name in sorted(set(legacy) | set(disabled)):
+        require(name in names, 'option names an account outside the bundle: ' + name)
+    records, enabled_uids = [], {}
+    for name in names:
+        require(NAME.match(name) is not None, 'unsupported account name: ' + name)
+        require(name in passwd, 'account has no passwd entry: ' + name)
+        fields = passwd[name]
+        uid, gid = number(fields[2], 'uid'), number(fields[3], 'gid')
+        phc = hashes.get(name, '')
+        if not phc.startswith('$argon2id$'):
+            phc = LOCKED
+        require(len(phc) < PHC_BYTES, 'hash too long for account: ' + name)
+        enabled = name not in disabled
+        if enabled:
+            require(uid not in enabled_uids, 'enabled accounts %s and %s share uid %d' % (enabled_uids.get(uid), name, uid))
+            enabled_uids[uid] = name
+        records.append(RECORD.pack(uid, gid, LEGACY_HEX if name in legacy else STANDARD, int(enabled),
+                                   name.encode(), phc.encode()))
+    size = HEADER.size + RECORD.size * len(records)
+    return HEADER.pack(MAGIC, VERSION, size, len(records), generation, 0) + b''.join(records)
+
+
+def compile_profiles(passwd, names, disabled):
+    # The modules refuse a profile line whose account is not enabled.
+    return ''.join(':'.join(passwd[name]) + '\n' for name in names if name not in disabled).encode()
+
+
+def compile_groups(data, passwd, names, disabled, extra):
+    """Keep each group that is an enabled account's primary group, has a
+    bundle member or is named explicitly; drop members outside the bundle."""
+    printable(data, 'group input')
+    enabled = [name for name in names if name not in disabled]
+    primary = {passwd[name][3] for name in enabled}
+    kept, seen = [], set()
+    for line in lines_of(data):
+        fields = line.split(':')
+        require(len(fields) == 4, 'group line needs four fields: ' + fields[0])
+        members = [member for member in fields[3].split(',') if member in enabled]
+        seen.add(fields[0])
+        if fields[2] in primary or members or fields[0] in extra:
+            kept.append(':'.join(fields[:3] + [','.join(members)]) + '\n')
+    for name in extra:
+        require(name in seen, 'extra group not found in the group input: ' + name)
+    return ''.join(kept).encode()
+
+
+# --- validation, mirroring what the modules enforce at load ---------------------
+
+def parse_accounts(data):
+    require(len(data) >= HEADER.size, 'accounts: truncated header')
+    magic, version, size, count, generation, reserved = HEADER.unpack_from(data)
+    require(magic == MAGIC and version == VERSION and reserved == 0 and generation, 'accounts: bad header')
+    require(size == len(data) and 0 < count <= MAX_ACCOUNTS and
+            len(data) == HEADER.size + RECORD.size * count, 'accounts: size or count mismatch')
+    accounts = []
+    for index in range(count):
+        uid, gid, encoding, flags, user, phc = RECORD.unpack_from(data, HEADER.size + RECORD.size * index)
+        name, text = user.rstrip(b'\0'), phc.rstrip(b'\0')
+        require(len(name) < USER_BYTES and len(text) < PHC_BYTES and name and text and
+                b'\0' not in name and b'\0' not in text, 'accounts: non-canonical string in record %d' % index)
+        require(NAME.match(name.decode('ascii', 'replace')) is not None, 'accounts: unsupported name in record %d' % index)
+        require(uid != 0xffffffff and gid != 0xffffffff and encoding in (STANDARD, LEGACY_HEX) and
+                not flags & ~1, 'accounts: invalid field in record %d' % index)
+        require(all(name.decode() != other['name'] for other in accounts), 'accounts: duplicate name ' + name.decode())
+        accounts.append({'name': name.decode(), 'uid': uid, 'gid': gid, 'encoding': encoding,
+                         'enabled': bool(flags & 1), 'phc': text.decode('ascii', 'replace')})
+    enabled = [account for account in accounts if account['enabled']]
+    require(len({account['uid'] for account in enabled}) == len(enabled), 'accounts: enabled accounts share a uid')
+    return generation, accounts
+
+
+def parse_groups(data, accounts):
+    require(0 < len(data) <= GROUPS_LIMIT, 'groups: empty or larger than %d bytes' % GROUPS_LIMIT)
+    printable(data, 'groups')
+    enabled = {account['name']: account for account in accounts if account['enabled']}
+    groups = {}
+    for line in lines_of(data):
+        require(len(line) <= 4096, 'groups: line too long')
+        fields = line.split(':')
+        require(len(fields) == 4 and NAME.match(fields[0]) is not None and len(fields[1]) <= 128,
+                'groups: malformed line for ' + fields[0])
+        gid = number(fields[2], 'gid')
+        require(fields[0] not in groups and gid not in [g['gid'] for g in groups.values()],
+                'groups: duplicate name or gid: ' + fields[0])
+        members = fields[3].split(',') if fields[3] else []
+        require(len(members) <= MAX_ACCOUNTS and len(set(members)) == len(members) and
+                all(member in enabled for member in members), 'groups: unknown or repeated member in ' + fields[0])
+        groups[fields[0]] = {'gid': gid, 'members': members}
+    require(len(groups) <= MAX_GROUPS, 'groups: more than %d groups' % MAX_GROUPS)
+    gids = {group['gid'] for group in groups.values()}
+    for account in enabled.values():
+        require(account['gid'] in gids, 'groups: no group for the primary gid of ' + account['name'])
+    return groups
+
+
+def parse_profiles(data, accounts):
+    require(0 < len(data) <= PROFILES_LIMIT, 'profiles: empty or larger than %d bytes' % PROFILES_LIMIT)
+    printable(data, 'profiles')
+    enabled = {account['name']: account for account in accounts if account['enabled']}
+    profiles = set()
+    for line in lines_of(data):
+        require(len(line) <= 1024, 'profiles: line too long')
+        fields = line.split(':')
+        require(len(fields) == 7, 'profiles: line needs seven fields')
+        name = fields[0]
+        require(NAME.match(name) is not None and name not in profiles and len(fields[1]) <= 128 and
+                len(fields[4]) <= 256 and profile_path(fields[5]) and profile_path(fields[6]),
+                'profiles: malformed line for ' + name)
+        require(name in enabled and number(fields[2], 'uid') == enabled[name]['uid'] and
+                number(fields[3], 'gid') == enabled[name]['gid'],
+                'profiles: no enabled account with the same name, uid and gid: ' + name)
+        profiles.add(name)
+    require(len(profiles) <= MAX_ACCOUNTS, 'profiles: too many lines')
+    for name in enabled:
+        require(name in profiles, 'profiles: no profile for ' + name)
+    return profiles
+
+
+def check_policy_bytes(data):
+    require(0 < len(data) <= POLICY_LIMIT, 'policy: empty or larger than %d bytes' % POLICY_LIMIT)
+    require(b'\0' not in data, 'policy: contains a NUL byte')
+
+
+def check_static_elf(data, what):
+    require(len(data) <= HELPER_LIMIT, what + ': larger than %d bytes' % HELPER_LIMIT)
+    require(len(data) >= 64 and data[:7] == b'\x7fELF\x02\x01\x01', what + ': not a little-endian ELF64 image')
+    kind, machine = struct.unpack_from('<HH', data, 16)
+    offset, = struct.unpack_from('<Q', data, 32)
+    width, count = struct.unpack_from('<HH', data, 54)
+    require(kind == 2 and machine == 62 and width == 56 and 0 < count <= 128 and
+            offset + width * count <= len(data), what + ': not a static x86-64 executable')
+    kinds = [struct.unpack_from('<II', data, offset + index * width) for index in range(count)]
+    require(not any(kind in (2, 3) for kind, _ in kinds), what + ': has a dynamic interpreter or dependencies')
+    require(any(kind == 1 and flags & 1 for kind, flags in kinds), what + ': no executable segment')
+
+
+def validate(contents):
+    generation, accounts = parse_accounts(contents['accounts'])
+    groups = parse_groups(contents['groups'], accounts)
+    profiles = parse_profiles(contents['profiles'], accounts)
+    check_policy_bytes(contents['policy'])
+    for name in HELPERS:
+        check_static_elf(contents[name], name)
+    return {'generation': generation, 'accounts': accounts, 'groups': groups, 'profiles': profiles}
+
+
+# --- files -----------------------------------------------------------------------
+
+def read_regular(path, limit):
+    with open(path, 'rb') as stream:
+        require(stat.S_ISREG(os.fstat(stream.fileno()).st_mode), 'not a regular file: ' + path)
+        data = stream.read(limit + 1)
+    require(len(data) <= limit, 'input too large: ' + path)
+    return data
+
+
+def trusted_location(path, executable):
+    """The ownership and ancestry rules the modules apply to each input."""
+    info = os.lstat(path)
+    require(stat.S_ISREG(info.st_mode), 'not a regular file (or a symlink): ' + path)
+    require(info.st_uid == 0 and info.st_nlink == 1 and not info.st_mode & 0o6022,
+            'must be root-owned, single-link, not group/other-writable, not setuid/setgid: ' + path)
+    require(os.path.realpath(path) == os.path.abspath(path), 'path contains a symlink: ' + path)
+    if executable:
+        require(info.st_mode & 0o100, 'not owner-executable: ' + path)
+        filesystem = filesystem_type(path)
+        require(filesystem in LOCAL_FILESYSTEMS, 'executable must be on ext2/3/4, XFS, Btrfs or tmpfs: ' + path)
+    parent = os.path.dirname(os.path.abspath(path))
+    while True:
+        info = os.lstat(parent)
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
+                'ancestor must be a root-owned directory that group and others cannot write: ' + parent)
+        if parent == '/':
+            return
+        parent = os.path.dirname(parent)
+
+
+def filesystem_type(path):
+    import ctypes
+    buffer = ctypes.create_string_buffer(120)   # struct statfs; f_type is its first long
+    libc = ctypes.CDLL(None, use_errno=True)
+    require(libc.statfs(os.fsencode(path), buffer) == 0, 'statfs failed: ' + path)
+    return struct.unpack_from('<q', buffer.raw)[0] & 0xffffffff
+
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def parameters(directory, contents):
+    def pair(name):
+        return '%s_path=%s %s_sha256=%s' % (name, os.path.join(directory, name), name, digest(contents[name]))
+    return {'bashos_auth_v2': ' '.join(pair(name) for name in ('verifier', 'accounts')),
+            'bashos_privcmd_v2': ' '.join(pair(name) for name in SNAPSHOTS + HELPERS)}
+
+
+def report(directory, contents, summary):
+    enabled = [account for account in summary['accounts'] if account['enabled']]
+    locked = [account['name'] for account in enabled if not account['phc'].startswith('$argon2id$')]
+    print('bundle %s generation %d' % (directory, summary['generation']))
+    print('accounts %d (enabled %d, cannot authenticate: %s, legacy-hex: %s)' % (
+        len(summary['accounts']), len(enabled), ','.join(locked) or 'none',
+        ','.join(a['name'] for a in summary['accounts'] if a['encoding'] == LEGACY_HEX) or 'none'))
+    print('groups %d, profiles %d, policy %d bytes' % (
+        len(summary['groups']), len(summary['profiles']), len(contents['policy'])))
+    for name in SNAPSHOTS + HELPERS:
+        print('sha256 %s %s' % (digest(contents[name]), name))
+    for module, text in parameters(directory, contents).items():
+        print('insmod %s.ko %s' % (module, text))
+
+
+def split_names(values):
+    return [name for value in values or [] for name in value.split(',') if name]
+
+
+def build(args):
+    passwd = read_passwd(read_regular(args.passwd, 1 << 20))
+    hashes = read_shadow(read_regular(args.shadow, 1 << 20))
+    names = split_names(args.accounts) or list(passwd)
+    legacy, disabled = split_names(args.legacy_hex), split_names(args.disabled)
+    contents = {
+        'accounts': compile_accounts(passwd, hashes, names, legacy, disabled, args.generation),
+        'groups': compile_groups(read_regular(args.group, 1 << 20), passwd, names, disabled,
+                                 split_names(args.extra_groups)),
+        'profiles': compile_profiles(passwd, names, disabled),
+        'policy': read_regular(args.policy, POLICY_LIMIT),
+        'verifier': read_regular(args.verifier, HELPER_LIMIT),
+        'executor': read_regular(args.executor, HELPER_LIMIT),
+    }
+    summary = validate(contents)
+    directory = os.path.abspath(args.out)
+    os.mkdir(directory, 0o755)
+    for name, data in contents.items():
+        descriptor = os.open(os.path.join(directory, name), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                             0o700 if name in HELPERS else 0o600)
+        with os.fdopen(descriptor, 'wb') as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+    report(directory, contents, summary)
+    return 0
+
+
+def check(args):
+    directory = os.path.abspath(args.check)
+    contents = {}
+    for name in SNAPSHOTS + HELPERS:
+        path = os.path.join(directory, name)
+        trusted_location(path, name in HELPERS)
+        contents[name] = read_regular(path, HELPER_LIMIT)
+    summary = validate(contents)
+    if args.policy_check:
+        result = subprocess.run([args.policy_check, os.path.join(directory, 'policy')],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+        require(result.returncode == 0, 'policy: rejected by the policy parser: ' +
+                (result.stdout + result.stderr).decode('ascii', 'replace').strip())
+    report(directory, contents, summary)
+    print('check passed' if args.policy_check else
+          'check passed; policy syntax NOT checked (pass --policy-check bashos-policy-check)')
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--check', metavar='DIR', help='validate an existing bundle directory')
+    parser.add_argument('--policy-check', metavar='PROGRAM',
+                        help='with --check: bashos-policy-check, which parses the policy with the module parser')
+    for name in ('passwd', 'shadow', 'group', 'policy', 'verifier', 'executor'):
+        parser.add_argument('--' + name, metavar='FILE')
+    parser.add_argument('--out', metavar='DIR', help='new bundle directory; must not exist')
+    parser.add_argument('--generation', type=int, help='positive number identifying this bundle')
+    parser.add_argument('--accounts', action='append', metavar='NAMES',
+                        help='comma-separated accounts to include, in this order (default: all passwd entries)')
+    parser.add_argument('--legacy-hex', action='append', metavar='NAMES',
+                        help='accounts whose hash fields are legacy hex, not standard PHC base64')
+    parser.add_argument('--disabled', action='append', metavar='NAMES',
+                        help='accounts recorded as disabled: neither caller, target nor login')
+    parser.add_argument('--extra-groups', action='append', metavar='NAMES',
+                        help='groups to keep although no bundle account belongs to them')
+    args = parser.parse_args()
+    building = [args.passwd, args.shadow, args.group, args.policy, args.verifier, args.executor, args.out, args.generation]
+    try:
+        if args.check:
+            require(not any(value is not None for value in building), '--check takes only --policy-check')
+            return check(args)
+        require(all(value is not None for value in building),
+                'need --passwd --shadow --group --policy --verifier --executor --generation and --out')
+        require(not args.policy_check, '--policy-check is for --check')
+        return build(args)
+    except (BundleError, OSError, UnicodeError, subprocess.SubprocessError) as error:
+        print('bashos-auth-bundle: ' + str(error), file=sys.stderr)
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

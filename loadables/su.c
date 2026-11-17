@@ -38,6 +38,8 @@
 #include "bashcred_privdrop.h"
 #include "child-wait.h"
 #include "loadables.h"
+#include "auth-v2-client.h"
+#include "authority-route.h"
 
 #define BSU_MAX_PASSWORD 4096
 #define BSU_LOCK_FAIL_MAX 5
@@ -425,6 +427,66 @@ bsu_verify_user_interactive (const char *user)
   return r == 0 ? 0 : (r == 1 ? 1 : 2);
 }
 
+/* authority-route.h: the versioned route for a caller other than uid 0.
+   The kernel's native verifier compares the password with its own pinned
+   record for the target and this task redeems the resulting one-use proof
+   before any credential call. No shadow record is read and nothing is
+   compared in this process. Returns 0 verified, 1 refused, 2 error. */
+static int
+bsu_verify_user_v2 (const bc_user_info *u)
+{
+  struct bashos_auth_v2_identity identity;
+  unsigned char *pw = NULL;
+  size_t pw_len = 0;
+  int fd, rc, saved;
+  if (bsu_check_lockout (u->name) < 0) return 1;
+  if (bashos_v2_identity (&identity, BASHOS_AUTH_V2_SU, u->uid, u->gid, u->name,
+                          BASHOS_AUTH_V2_STANDARD_PHC))
+    {
+      builtin_error ("versioned authority: target account cannot be named");
+      return 2;
+    }
+  /* Open before prompting: a caller the node refuses types no password. */
+  fd = bashos_v2_open (0);
+  if (fd < 0)
+    {
+      builtin_error ("versioned authority: %s", bashos_route_strerror (errno));
+      bashos_v2_wipe (&identity, sizeof identity);
+      return 2;
+    }
+  if (bsu_secure_read_password ("Password: ", &pw, &pw_len) < 0)
+    {
+      builtin_error ("password read: %s", strerror (errno));
+      close (fd);
+      bashos_v2_wipe (&identity, sizeof identity);
+      return 2;
+    }
+  rc = bashos_v2_verify_password (fd, pw, pw_len, &identity);
+  saved = errno;
+  bsu_free_password (pw);
+  if (rc)
+    {
+      /* EACCES is the verifier's answer; anything else is a failed authority
+         and must not count against the account. Both are final. */
+      if (saved == EACCES) bsu_record_failure (u->name);
+      else builtin_error ("versioned authority: %s", bashos_route_strerror (saved));
+      close (fd);
+      bashos_v2_wipe (&identity, sizeof identity);
+      return saved == EACCES ? 1 : 2;
+    }
+  rc = bashos_v2_consume (fd, &identity);
+  saved = errno;
+  close (fd);
+  bashos_v2_wipe (&identity, sizeof identity);
+  if (rc)
+    {
+      builtin_error ("versioned authority: proof rejected: %s", bashos_route_strerror (saved));
+      return 2;
+    }
+  bsu_record_success (u->name);
+  return 0;
+}
+
 static int
 bsu_close_fds (void)
 {
@@ -455,11 +517,29 @@ bsu_close_fds (void)
 }
 
 static int
-bsu_exec_user (const bc_user_info *u, int keep_env, int login_shell, const char *cmd)
+bsu_exec_user (const bc_user_info *u, int keep_env, int login_shell, const char *cmd,
+               int versioned)
 {
   char err[BC_PD_ERR_MAX];
-  if (bsu_kernel_proof (u) < 0)
-    return EXECUTION_FAILURE;
+  /* On the versioned route the proof, when one is needed, was redeemed by
+     bsu_verify_user_v2. The legacy mint is never attempted there. uid 0 has
+     no password to verify, but a committed consumer still requires a genuine
+     authority: a name that fails the checking opener stops the transition. */
+  if (!versioned)
+    {
+      if (bsu_kernel_proof (u) < 0)
+        return EXECUTION_FAILURE;
+    }
+  else if (getuid () == 0)
+    {
+      int authority = bashos_v2_open (0);
+      if (authority < 0)
+        {
+          builtin_error ("versioned authority: %s", bashos_route_strerror (errno));
+          return EXECUTION_FAILURE;
+        }
+      close (authority);
+    }
 
   /* Load the TARGET user's full group membership (initgroups(3) semantics, as
      su(1)/login(1) and doas already do) so the dropped process carries
@@ -574,6 +654,9 @@ su_builtin (WORD_LIST *list)
   strncpy (u.home, au.home, sizeof u.home - 1);
   strncpy (u.shell, au.shell, sizeof u.shell - 1);
 
+  /* authority-route.h rule 2: decided once, before the child exists. */
+  int versioned = bashos_route_present (BASHOS_ROUTE_IDENTITY_NODE);
+
   /* Authentication, partial credential changes and exec belong to an owned
      child. Never return into the shell with altered IDs or dumpability. */
   bos_child_wait waiting;
@@ -623,11 +706,11 @@ su_builtin (WORD_LIST *list)
          process, so make the process non-dumpable before prompting. */
       if (prctl (PR_SET_DUMPABLE, 0, 0, 0, 0) < 0)
         builtin_warning ("prctl(PR_SET_DUMPABLE,0): %s", strerror (errno));
-      int vr = bsu_verify_user_interactive (target);
+      int vr = versioned ? bsu_verify_user_v2 (&u) : bsu_verify_user_interactive (target);
       if (vr != 0) _exit (vr == 1 ? EXECUTION_FAILURE : EX_USAGE);
     }
 
-  _exit (bsu_exec_user (&u, keep_env, login_shell, cmd));
+  _exit (bsu_exec_user (&u, keep_env, login_shell, cmd, versioned));
 }
 
 char *su_doc[] = {
@@ -640,6 +723,12 @@ char *su_doc[] = {
   "read from a tty into an mlock'd C buffer and wiped before return.",
   "A short-lived kernel auth token is minted and consumed internally",
   "immediately before the credential transition.",
+  "",
+  "When /dev/bashos-auth-v2 exists the kernel decides instead: a caller",
+  "other than uid 0 must pass its native verifier for the target account,",
+  "and a refusal or error is final. No shadow record is read and no token",
+  "is minted. uid 0 has no password to verify and drops directly once",
+  "that node passes its checks.",
   (char *) NULL
 };
 

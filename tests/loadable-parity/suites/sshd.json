@@ -190,9 +190,90 @@
     },
     {
       "id": "authentication-authorization",
+      "kind": "migrated",
       "purpose": "Check authorized-key matching and restrictions, password-auth policy, forced commands, accepted environment variables, root-login policy, and forwarding authorization.",
-      "kind": "deferred",
-      "reason": "Remaining: r7 password half only, a kernel-authority-absent limit (listed in status.json); admitted root command execution is covered."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w3-sshd-key-no-agent-forwarding"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-sshd-permit-root-login-exec-root"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w3-sshd-reverse-forward-denied"
+        },
+        {
+          "group": "shell",
+          "id": "migration-auth-client-sshd-password-guarded-argon2-teardown-r3"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-acceptenv"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-direct-forward-allowed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-direct-forward-denied"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-direct-forward-local-listener"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-encrypted-exec"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-forced-command"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-from-allowed"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-from-refused"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-key-no-port-forwarding"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-no-pty"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-password-disabled"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-permit-root-login-userns"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-reverse-forward-cancel"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-reverse-forward-only"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sshd-unlisted-key-refused"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-authority-consumers-r1"
+        }
+      ]
     },
     {
       "id": "session-management",

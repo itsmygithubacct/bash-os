@@ -718,9 +718,9 @@
       "topic": "audit/deferred-kernel-rule-changes"
     },
     {
-      "coverage": "partial",
-      "current_reason": "Remaining requirements are listed limits (kernel-authority-absent).",
-      "migration": null,
+      "coverage": "full",
+      "current_reason": "Every requirement is exercised against the production v2 kernel authority, loaded by the case in a root guest; the legacy ABI-1.5 ioctls stay unavailable (ENOTTY) and are not part of the contract.",
+      "migration": "replacement",
       "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain.",
       "original": {
         "id": "authority-policy-audit-and-child-flow",
@@ -764,8 +764,8 @@
           "id": "r2"
         },
         {
-          "behavior": "privcmd-authz binds the request (SHA-256 digest over argv/env/target) and returns the policy decision.",
-          "coverage": "partial",
+          "behavior": "auth privcmd-v2-authz binds the request (SHA-256 digest over argv, environment and target) through /dev/bashos-privcmd-v2 and returns the policy decision.",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "Original obligation: privcmd-authz binds the request (SHA-256 digest over argv/env/target) and returns the policy decision. Static framework FAIL: Synthetic allow child ran with uid/gid 2000 and exit_code=7, but auth returned operation-status 0; deny and ioctl-error markers were absent. Dynamic framework FAIL: Synthetic allow child ran with uid/gid 2000 and exit_code=7, but auth returned operation-status 0; deny and ioctl-error markers were absent. Raw guest observations: decoded/static/migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2.json.",
@@ -778,30 +778,52 @@
               "definition_sha256": "5f4d6044b1fd164308d83fd93aeb114ba179f62e6098292e5f85d95665b284f1",
               "group": "shell",
               "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Controls auth-policy-request-independent-digest (the digest equals an independently computed one) and device-environment-reorder-denied.",
+              "definition_sha256": "92b1706aa9ba012362c1e8d57ab165a0113e8cdfc90b93b0a15cf116c7e8fcea",
+              "group": "shell",
+              "id": "qualification-014-takeover-privcmd-r1"
             }
           ],
-          "gap": "Request-digest binding, audit decoding and child-status handling are produced by the real /dev/bashos-auth kernel authority, which is absent in the guest; a synthetic device cannot stand in for them.",
           "id": "r3"
         },
         {
-          "behavior": "Audit records are decoded.",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Request-digest binding, audit decoding and child-status handling are produced by the real /dev/bashos-auth kernel authority, which is absent in the guest; a synthetic device cannot stand in for them.",
+          "behavior": "Audit records of /dev/bashos-privcmd-v2 are decoded by auth audit-v2-drain.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Control actual-bash-audit-integrity-output-and-ack: records drained by auth audit-v2-drain are decoded, integrity-checked against the kernel record and acknowledged; a failed write leaves them pending.",
+              "definition_sha256": "92b1706aa9ba012362c1e8d57ab165a0113e8cdfc90b93b0a15cf116c7e8fcea",
+              "group": "shell",
+              "id": "qualification-014-takeover-privcmd-r1"
+            }
+          ],
           "id": "r4"
         },
         {
           "behavior": "Deny/failure paths never start the child; allow paths preserve the child's status without changing host credentials.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "Original obligation: Deny/failure paths never start the child; allow paths preserve the child's status without changing host credentials. Static framework FAIL: Synthetic allow child ran with uid/gid 2000 and exit_code=7, but auth returned operation-status 0; deny and ioctl-error markers were absent. Dynamic framework FAIL: Synthetic allow child ran with uid/gid 2000 and exit_code=7, but auth returned operation-status 0; deny and ioctl-error markers were absent. Raw guest observations: decoded/static/migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2.json.",
               "definition_sha256": "41377885befd4d5f6f2973a3a50f39cc3c7acd73984dfd33dce16026c93c4a80",
               "group": "shell",
               "id": "migration-auth-client-authority-auth-r2-guarded-bootstrap-r1-record-r2"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Control auth-native-status: an allowed auth privcmd-v2-exec returns the child status with the caller credentials unchanged.",
+              "definition_sha256": "92b1706aa9ba012362c1e8d57ab165a0113e8cdfc90b93b0a15cf116c7e8fcea",
+              "group": "shell",
+              "id": "qualification-014-takeover-privcmd-r1"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Controls auth-policy-denial-launches-no-helper and device-policy-denial-launches-no-helper: a denied request starts neither the verifier nor the executor, observed by an execution observer that is first shown to detect a launch.",
+              "definition_sha256": "f3a6987e3eecbfaa50de7a5ab77b828e99fbd1151efaec986449123b25a29f8d",
+              "group": "shell",
+              "id": "qualification-014-authority-denial-no-helper-r1"
             }
           ],
-          "gap": "Request-digest binding, audit decoding and child-status handling are produced by the real /dev/bashos-auth kernel authority, which is absent in the guest; a synthetic device cannot stand in for them.",
           "id": "r5"
         }
       ],
@@ -824,7 +846,7 @@
           "evidence": [
             {
               "assertion": "Original obligation: auth probe prints abi=MAJOR.MINOR features=0xHEX from the VERSION ioctl. Static framework PASS: Mock VERSION 1.5/features 0xf, two distinct counters 201\u2013206/301\u2013306, descriptors close-on-exec; PR_SET_DUMPABLE was acknowledged without enforcement. Dynamic framework PASS: Mock VERSION 1.5/features 0xf, two distinct counters 201\u2013206/301\u2013306, descriptors close-on-exec; PR_SET_DUMPABLE was acknowledged without enforcement. Raw guest observations: decoded/static/migration-auth-client-device-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-device-r2-guarded-bootstrap-r1.json.",
-              "definition_sha256": "d7ffa304da3bed0f83d65a653a7f82c73a4752e209e5e711af41dce7d90c4eeb",
+              "definition_sha256": "23b2c2ee1cf2c496e28c0af6de2addd536413edde557771daf2ee7bca702ecd9",
               "group": "shell",
               "id": "migration-auth-client-device-r2-guarded-bootstrap-r1"
             }
@@ -838,7 +860,7 @@
           "evidence": [
             {
               "assertion": "Original obligation: auth open FDVAR opens the descriptor, binds it to FDVAR, and it is close-on-exec. Static framework PASS: Mock VERSION 1.5/features 0xf, two distinct counters 201\u2013206/301\u2013306, descriptors close-on-exec; PR_SET_DUMPABLE was acknowledged without enforcement. Dynamic framework PASS: Mock VERSION 1.5/features 0xf, two distinct counters 201\u2013206/301\u2013306, descriptors close-on-exec; PR_SET_DUMPABLE was acknowledged without enforcement. Raw guest observations: decoded/static/migration-auth-client-device-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-device-r2-guarded-bootstrap-r1.json.",
-              "definition_sha256": "d7ffa304da3bed0f83d65a653a7f82c73a4752e209e5e711af41dce7d90c4eeb",
+              "definition_sha256": "23b2c2ee1cf2c496e28c0af6de2addd536413edde557771daf2ee7bca702ecd9",
               "group": "shell",
               "id": "migration-auth-client-device-r2-guarded-bootstrap-r1"
             }
@@ -852,7 +874,7 @@
           "evidence": [
             {
               "assertion": "Original obligation: auth stats FD reports per-descriptor counters. Static framework PASS: Mock VERSION 1.5/features 0xf, two distinct counters 201\u2013206/301\u2013306, descriptors close-on-exec; PR_SET_DUMPABLE was acknowledged without enforcement. Dynamic framework PASS: Mock VERSION 1.5/features 0xf, two distinct counters 201\u2013206/301\u2013306, descriptors close-on-exec; PR_SET_DUMPABLE was acknowledged without enforcement. Raw guest observations: decoded/static/migration-auth-client-device-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-device-r2-guarded-bootstrap-r1.json.",
-              "definition_sha256": "d7ffa304da3bed0f83d65a653a7f82c73a4752e209e5e711af41dce7d90c4eeb",
+              "definition_sha256": "23b2c2ee1cf2c496e28c0af6de2addd536413edde557771daf2ee7bca702ecd9",
               "group": "shell",
               "id": "migration-auth-client-device-r2-guarded-bootstrap-r1"
             }
@@ -870,7 +892,7 @@
           "evidence": [
             {
               "assertion": "Actual secret-slot device supplied by the newly authored conservative stage-1 backend, on its exact guest kernel. Every notified syscall continues to Linux; independent C device controls perform 392 actual checks. Auth PTY compare/clear/fd lifecycle and required-kernel passwd set/verify exercise the release binaries. Source-bound KUnit evidence separately proves all 12 storage/erasure cases under KASAN and lockdep, with normal QEMU shutdown. Original module source was not recovered; no token, policy or production authorization semantics are claimed. Existing companion FAILs remain.",
-              "definition_sha256": "cc48c152d1241ea3c88232cb0f8886692af5a522d6d4d7b7864f45d36a8a5a8f",
+              "definition_sha256": "eff054478c492299e9eaa0c973f5494deece33320d3b6dfa6675c919be754927",
               "group": "shell",
               "id": "auth-stage1-real-auth"
             }
@@ -912,7 +934,7 @@
           "evidence": [
             {
               "assertion": "Original obligation: auth read-secret reads from the tty with echo disabled and restores modes. Static framework PASS: PTY ECHO was clear while waiting and modes restored; captured screen 'Fixture: \\r\\nhandle=4097\\r\\n'. Dynamic framework PASS: PTY ECHO was clear while waiting and modes restored; captured screen 'Fixture: \\r\\nhandle=4097\\r\\n'. Raw guest observations: decoded/static/migration-auth-client-pty-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-pty-r2-guarded-bootstrap-r1.json.",
-              "definition_sha256": "9bdfbf31855cf463f757a1dde476fa88eefc5fda102a71c8baa4031328e476e8",
+              "definition_sha256": "69d272f64e93edf6dfe4f84af0790cb867af7e91cd7033e1c0adfa8b7086894c",
               "group": "shell",
               "id": "migration-auth-client-pty-r2-guarded-bootstrap-r1"
             }
@@ -926,7 +948,7 @@
           "evidence": [
             {
               "assertion": "Original obligation: The returned handle is opaque; secret bytes never appear in argv, environment or output. Static framework PASS: PTY ECHO was clear while waiting and modes restored; captured screen 'Fixture: \\r\\nhandle=4097\\r\\n'. Dynamic framework PASS: PTY ECHO was clear while waiting and modes restored; captured screen 'Fixture: \\r\\nhandle=4097\\r\\n'. Raw guest observations: decoded/static/migration-auth-client-pty-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-pty-r2-guarded-bootstrap-r1.json.",
-              "definition_sha256": "9bdfbf31855cf463f757a1dde476fa88eefc5fda102a71c8baa4031328e476e8",
+              "definition_sha256": "69d272f64e93edf6dfe4f84af0790cb867af7e91cd7033e1c0adfa8b7086894c",
               "group": "shell",
               "id": "migration-auth-client-pty-r2-guarded-bootstrap-r1"
             }
@@ -944,7 +966,7 @@
           "evidence": [
             {
               "assertion": "Actual secret-slot device supplied by the newly authored conservative stage-1 backend, on its exact guest kernel. Every notified syscall continues to Linux; independent C device controls perform 392 actual checks. Auth PTY compare/clear/fd lifecycle and required-kernel passwd set/verify exercise the release binaries. Source-bound KUnit evidence separately proves all 12 storage/erasure cases under KASAN and lockdep, with normal QEMU shutdown. Original module source was not recovered; no token, policy or production authorization semantics are claimed. Existing companion FAILs remain.",
-              "definition_sha256": "cc48c152d1241ea3c88232cb0f8886692af5a522d6d4d7b7864f45d36a8a5a8f",
+              "definition_sha256": "eff054478c492299e9eaa0c973f5494deece33320d3b6dfa6675c919be754927",
               "group": "shell",
               "id": "auth-stage1-real-auth"
             }
@@ -962,7 +984,7 @@
           "evidence": [
             {
               "assertion": "Actual secret-slot device supplied by the newly authored conservative stage-1 backend, on its exact guest kernel. Every notified syscall continues to Linux; independent C device controls perform 392 actual checks. Auth PTY compare/clear/fd lifecycle and required-kernel passwd set/verify exercise the release binaries. Source-bound KUnit evidence separately proves all 12 storage/erasure cases under KASAN and lockdep, with normal QEMU shutdown. Original module source was not recovered; no token, policy or production authorization semantics are claimed. Existing companion FAILs remain.",
-              "definition_sha256": "cc48c152d1241ea3c88232cb0f8886692af5a522d6d4d7b7864f45d36a8a5a8f",
+              "definition_sha256": "eff054478c492299e9eaa0c973f5494deece33320d3b6dfa6675c919be754927",
               "group": "shell",
               "id": "auth-stage1-real-auth"
             }
@@ -974,9 +996,9 @@
       "topic": "auth/pty-sealed-secret-lifecycle"
     },
     {
-      "coverage": "partial",
-      "current_reason": "Remaining requirements are listed limits (kernel-authority-absent).",
-      "migration": null,
+      "coverage": "full",
+      "current_reason": "Every requirement is exercised against the production v2 kernel authority, loaded by the case in a root guest; the legacy ABI-1.5 ioctls stay unavailable (ENOTTY) and are not part of the contract.",
+      "migration": "replacement",
       "notes": "Note: passwd and su compute Argon2id in userland (monocypher crypto_argon2), so the same OpenSSL vectors also serve passwd/su topics. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: The fixed inputs reach hash-secret; the saved independent guest Argon2 PHC and returned candidate PHC differ even though the candidate command returns 0. The device and secrets are synthetic as required. Both framework results remain FAIL; no host KDF is performed. r2: The correct synthetic credential reaches mint and binds raw mock token bytes, but validity of this mock's token-reference semantics is not established. Preserve the observed opacity mismatch without crediting the unresolved reference model. r4: Saved output, argv and environment contain no token, while the shell binding equals raw synthetic token bytes. Whether this represents the original fd-only token-reference contract remains unresolved; do not infer that a token was printed.",
       "original": {
         "id": "synthetic-login-and-token-mint",
@@ -991,7 +1013,7 @@
           "evidence": [
             {
               "assertion": "Original obligation: auth hash-secret produces a deterministic Argon2id PHC string for fixed salt/T/M/P/HASHLEN. Static framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Dynamic framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Raw guest observations: decoded/static/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json.",
-              "definition_sha256": "bac0968016a802f7df4947c4e14acb618e614f8423f75b747796e26494f8d2ab",
+              "definition_sha256": "33a7db43096f84896adc3416180501bed11023fe4e5e4ea9e6beb36e72ec584f",
               "group": "shell",
               "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1"
             }
@@ -1000,17 +1022,22 @@
           "id": "r1"
         },
         {
-          "behavior": "auth verify-login accepts the correct synthetic credential and binds a token reference.",
-          "coverage": "partial",
+          "behavior": "auth verify-login-v2 accepts the correct credential through /dev/bashos-auth-v2 and binds a proof to the open descriptor.",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "Original obligation: auth verify-login accepts the correct synthetic credential and binds a token reference. Static framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Dynamic framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Raw guest observations: decoded/static/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json.",
-              "definition_sha256": "bac0968016a802f7df4947c4e14acb618e614f8423f75b747796e26494f8d2ab",
+              "definition_sha256": "33a7db43096f84896adc3416180501bed11023fe4e5e4ea9e6beb36e72ec584f",
               "group": "shell",
               "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-auth-v2; the consumer is invoked without a qualification flag. Controls identity-public-positive-and-replay, auth-proof-to-login-av2standard and auth-proof-to-login-av2legacy: the kernel verifier accepts the password and the proof bound to the descriptor is redeemed once by login.",
+              "definition_sha256": "ec11814af4d435d2efdc64ef128c90e0e3b8ac33a16c505ff095ac227f37cabe",
+              "group": "shell",
+              "id": "qualification-014-authority-consumers-r1"
             }
           ],
-          "gap": "Token-reference minting and binding are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest; the synthetic mint's reference semantics are not the contract.",
           "id": "r2"
         },
         {
@@ -1019,7 +1046,7 @@
           "evidence": [
             {
               "assertion": "Original obligation: verify-login rejects a wrong credential without binding a token. Static framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Dynamic framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Raw guest observations: decoded/static/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json.",
-              "definition_sha256": "bac0968016a802f7df4947c4e14acb618e614f8423f75b747796e26494f8d2ab",
+              "definition_sha256": "33a7db43096f84896adc3416180501bed11023fe4e5e4ea9e6beb36e72ec584f",
               "group": "shell",
               "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1"
             }
@@ -1028,17 +1055,22 @@
           "id": "r3"
         },
         {
-          "behavior": "Token references are handled only through the fd (never printed).",
-          "coverage": "partial",
+          "behavior": "Proof references are handled only through the descriptor (never printed).",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "Original obligation: Token references are handled only through the fd (never printed). Static framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Dynamic framework FAIL: Candidate PHC bytes differ from the saved independent standard PHC, and the returned synthetic token equals its raw bytes; correct credential binds and wrong credential does not. No KDF was recomputed. Raw guest observations: decoded/static/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-synthetic-r2-guarded-bootstrap-r1.json.",
-              "definition_sha256": "bac0968016a802f7df4947c4e14acb618e614f8423f75b747796e26494f8d2ab",
+              "definition_sha256": "33a7db43096f84896adc3416180501bed11023fe4e5e4ea9e6beb36e72ec584f",
               "group": "shell",
               "id": "migration-auth-client-synthetic-r2-guarded-bootstrap-r1"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-auth-v2; the consumer is invoked without a qualification flag. Controls auth-proof-to-login-av2standard and auth-proof-to-login-av2legacy require that the descriptor-only path emits no reference bytes; fork-cannot-consume-parent-login-proof shows the proof stays with its descriptor owner.",
+              "definition_sha256": "ec11814af4d435d2efdc64ef128c90e0e3b8ac33a16c505ff095ac227f37cabe",
+              "group": "shell",
+              "id": "qualification-014-authority-consumers-r1"
             }
           ],
-          "gap": "Token-reference minting and binding are performed by the real /dev/bashos-auth kernel authority, which is absent in the guest; the synthetic mint's reference semantics are not the contract.",
           "id": "r4"
         }
       ],
@@ -2141,7 +2173,7 @@
           "evidence": [
             {
               "assertion": "real nbd module: bashkmod load of the decompressed .ko with \"nbds_max=4 max_part=2\" returns 0, /proc/modules shows state Live, /sys/module/nbd/initstate=live, nbds_max=4 and max_part equal the kmod modprobe oracle",
-              "definition_sha256": "e0de23404439da3ba8cd8b71510acb26e27dde1018e68b12388f0759cf445ba4",
+              "definition_sha256": "82f1586bbc5681a511b643199eb566687818174864170c3ee92298fa6a3656a3",
               "group": "shell",
               "id": "mig-w6-bashkmod-load-unload-root"
             }
@@ -2155,7 +2187,7 @@
           "evidence": [
             {
               "assertion": "bashkmod unload removes the module (rc 0) and a second unload reports \"no such module\"; unloading nfnetlink while ip_set depends on it fails nonzero but not with the documented \"module in use\" text (the kernel answers EWOULDBLOCK): the reached failure stays visible",
-              "definition_sha256": "e0de23404439da3ba8cd8b71510acb26e27dde1018e68b12388f0759cf445ba4",
+              "definition_sha256": "82f1586bbc5681a511b643199eb566687818174864170c3ee92298fa6a3656a3",
               "group": "shell",
               "id": "mig-w6-bashkmod-load-unload-root"
             }
@@ -2215,7 +2247,7 @@
             },
             {
               "assertion": "EEXIST on a second load reports \"File exists\" status 1; unloading an absent module reports \"no such module\"",
-              "definition_sha256": "e0de23404439da3ba8cd8b71510acb26e27dde1018e68b12388f0759cf445ba4",
+              "definition_sha256": "82f1586bbc5681a511b643199eb566687818174864170c3ee92298fa6a3656a3",
               "group": "shell",
               "id": "mig-w6-bashkmod-load-unload-root"
             },
@@ -2235,7 +2267,7 @@
           "evidence": [
             {
               "assertion": "after load, unload, an ip_set load/unload and failure steps the /proc/modules name set equals the baseline",
-              "definition_sha256": "e0de23404439da3ba8cd8b71510acb26e27dde1018e68b12388f0759cf445ba4",
+              "definition_sha256": "82f1586bbc5681a511b643199eb566687818174864170c3ee92298fa6a3656a3",
               "group": "shell",
               "id": "mig-w6-bashkmod-load-unload-root"
             }
@@ -2284,7 +2316,7 @@
             },
             {
               "assertion": "after loading nbd the candidate list row (size, refcnt) equals the lsmod row",
-              "definition_sha256": "e0de23404439da3ba8cd8b71510acb26e27dde1018e68b12388f0759cf445ba4",
+              "definition_sha256": "82f1586bbc5681a511b643199eb566687818174864170c3ee92298fa6a3656a3",
               "group": "shell",
               "id": "mig-w6-bashkmod-load-unload-root"
             }
@@ -14204,9 +14236,9 @@
       "topic": "dns/dns-update-notify"
     },
     {
-      "coverage": "partial",
-      "current_reason": "The observable is produced by the real /dev/bashos-auth kernel authority (v2 allow, policy deny, non-interactive denial and verifier outcomes are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
-      "migration": null,
+      "coverage": "full",
+      "current_reason": "Every requirement is exercised against the production v2 kernel authority, loaded by the case in a root guest; the legacy ABI-1.5 ioctls stay unavailable (ENOTTY) and are not part of the contract.",
+      "migration": "replacement",
       "notes": "doas.c bda_run_authority, bda_open_authority_if_available. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r1: A purpose-built synthetic v2 authority allows the private non-root caller; the owned child marker and exit 7 follow the recorded handoff. No real authority or credential transition is inferred. r2: The synthetic policy deny ends authorization with status 1 and no owned child marker. The bounded mock and private identities meet the original scenario; both cases PASS. r3: The -n request receives synthetic authentication-required denial and no child marker. The independent request/response is saved. An interactive verifier process belongs to a different clause.",
       "original": {
         "id": "authority_policy_and_verification",
@@ -14259,16 +14291,27 @@
         },
         {
           "behavior": "Interactive verification success/failure via the verifier child.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "Original obligation: Interactive verification success/failure via the verifier child. Static framework PASS: Synthetic verifier-launch failure=126, denial=125, and reauthorization still requiring authentication=1; successful interactive verifier was not exercised. Dynamic framework PASS: Synthetic verifier-launch failure=126, denial=125, and reauthorization still requiring authentication=1; successful interactive verifier was not exercised. Raw guest observations: decoded/static/migration-auth-client-doas-verify-client-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-doas-verify-client-guarded-bootstrap-r1-record-r2.json.",
               "definition_sha256": "58be86641df880c5ae9b8863e6403ec26f7d417eede09376a46da055791bdfb4",
               "group": "shell",
               "id": "migration-auth-client-doas-verify-client-guarded-bootstrap-r1-record-r2"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Controls doas-verification-success and doas-verification-failure with a real password on a terminal.",
+              "definition_sha256": "18d1dcea4ecb8a24ae92084476912860d91da557de5d54a2f9ce506d16366b6e",
+              "group": "shell",
+              "id": "qualification-014-takeover-command-timestamp-r1"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Controls auth-required-request-launches-the-verifier and failed-verification-launches-the-verifier-and-no-executor.",
+              "definition_sha256": "f3a6987e3eecbfaa50de7a5ab77b828e99fbd1151efaec986449123b25a29f8d",
+              "group": "shell",
+              "id": "qualification-014-authority-denial-no-helper-r1"
             }
           ],
-          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (v2 allow, policy deny, non-interactive denial and verifier outcomes are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
           "id": "r4"
         }
       ],
@@ -24890,9 +24933,9 @@
       "topic": "locale/child-libc-locale-integration"
     },
     {
-      "coverage": "partial",
-      "current_reason": "Token acceptance (--auth-fd CONSUME, --auth-token) is decided by the real /dev/bashos-auth kernel authority (BL_AUTH_IOC_MINT/CONSUME); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
-      "migration": null,
+      "coverage": "full",
+      "current_reason": "Every requirement is exercised against the production v2 kernel authority, loaded by the case in a root guest; the legacy ABI-1.5 ioctls stay unavailable (ENOTTY) and are not part of the contract.",
+      "migration": "replacement",
       "notes": "loadables/login.c:16-55 (documented become steps), :1611 bl_become_cmd, :344 bl_kernel_token_required. tests/sol-su-fixture.c shows the existing C-level mocking approach for su (syscall/device boundaries replaced), but that is a host unit test, not a VM fixture.",
       "original": {
         "id": "credential-transition-deferred",
@@ -24916,17 +24959,28 @@
           "id": "r1"
         },
         {
-          "behavior": "Kernel auth-token handling: --auth-fd N reads 32 token bytes and ioctl CONSUME on /dev/bashos-auth; --auth-token HEX is accepted with a deprecation warning; a rejected token aborts before any uid/gid change",
-          "coverage": "partial",
+          "behavior": "Kernel proof handling: login become USER --auth-v2-fd N redeems the proof bound to descriptor N of /dev/bashos-auth-v2; with that device present a hexadecimal --auth-token is refused and no legacy token ioctl is issued.",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "Unconsumable --auth-token (rejected, deprecation warning), closed/short/non-device --auth-fd abort before any change with the documented diagnostics; acceptance by the real kernel device is not exercised.",
               "definition_sha256": "9a0cffaad5bb6774dca91588a2801eb7584b601180fdb9dba913ee2d2fa8e80f",
               "group": "shell",
               "id": "mig-w4-root-login-become-transition"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-auth-v2; the consumer is invoked without a qualification flag. Controls auth-proof-to-login-av2standard, wrong-password-cannot-enter-login, verified-proof-rejects-different-login-target, fork-cannot-consume-parent-login-proof and real-proof-login-fails-closed-setgroups/-setresgid/-setresuid.",
+              "definition_sha256": "ec11814af4d435d2efdc64ef128c90e0e3b8ac33a16c505ff095ac227f37cabe",
+              "group": "shell",
+              "id": "qualification-014-authority-consumers-r1"
+            },
+            {
+              "assertion": "With the production identity node present login become refuses --auth-token and a missing proof, and does not fall back to another route.",
+              "definition_sha256": "1ea5217c0cffb9bac0be999019eecad57507e84dbf329da97af8ea3055b7ccd6",
+              "group": "shell",
+              "id": "authority-route-login-fail-closed"
             }
           ],
-          "gap": "Token acceptance (--auth-fd CONSUME, --auth-token) is decided by the real /dev/bashos-auth kernel authority (BL_AUTH_IOC_MINT/CONSUME); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
           "id": "r2"
         },
         {
@@ -24975,9 +25029,9 @@
       "topic": "login/credential-transition-deferred"
     },
     {
-      "coverage": "partial",
-      "current_reason": "A successful login needs the real /dev/bashos-auth kernel proof before session accounting and the shell exec; no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
-      "migration": null,
+      "coverage": "full",
+      "current_reason": "Every requirement is exercised against the production v2 kernel authority, loaded by the case in a root guest; the legacy ABI-1.5 ioctls stay unavailable (ENOTTY) and are not part of the contract.",
+      "migration": "replacement",
       "notes": "loadables/login.c:2428 bl_login_cmd (flow), :1186 bl_verify_secret, which uses argon2id PHC only (_bashauth/authcrypto). Hostname comes from /etc/hostname; the prompt prefix is the VM's hostname, so match it with a regex. /etc/issue is printed when present. Back-off timing makes three-try cases take 36 s or more, so keep max-tries at 2.",
       "original": {
         "id": "interactive-auth-session-deferred",
@@ -25082,9 +25136,21 @@
         },
         {
           "behavior": "Successful login: kernel proof, session accounting (utmp/wtmp/lastlog) and session setup ending in become/exec of the user shell",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "A successful login needs the real /dev/bashos-auth kernel proof before session accounting and the shell exec; no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-auth-v2; the consumer is invoked without a qualification flag. Controls interactive-real-proof-accounting-and-exec and login-default-real-terminal-and-all-accounting: a password verified by the kernel on a real terminal is followed by utmp, wtmp and lastlog records and the exec of the account shell with the target credentials; login-session-policy-denial-before-accounting and login-rejects-truncated-utmp/-wtmp cover the refusals.",
+              "definition_sha256": "ec11814af4d435d2efdc64ef128c90e0e3b8ac33a16c505ff095ac227f37cabe",
+              "group": "shell",
+              "id": "qualification-014-authority-consumers-r1"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-auth-v2; the consumer is invoked without a qualification flag. The 47 failure-state controls of the same login on the production module (lockout, retry delays, concurrent sessions, state-file faults).",
+              "definition_sha256": "8fafc6d17ad2ae5bed2100087a8535fba0e3b797b9790b69ca84cd57dc88bd2c",
+              "group": "shell",
+              "id": "qualification-014-authority-login-state-r1"
+            }
+          ],
           "id": "r6"
         }
       ],
@@ -25151,7 +25217,7 @@
           "evidence": [
             {
               "assertion": "-j a and --associated a list exactly the two loops of a (not b's); util-linux prints '/dev/loop1: [0055]:5 (/tmp/rt/a)' rows without a header, the candidate prints its NAME/RO/OFFSET/DIO/BACK-FILE table. Parity FAIL (format).",
-              "definition_sha256": "bc3457873e173ddcde59f79209454deb2af0acf5fbedc537b935331f78f74101",
+              "definition_sha256": "c55e1703f7a6f82440ad038cfd1562337a2c8cd60e550e7ae926e028ec281e80",
               "group": "shell",
               "id": "migration-losetup-associated-root"
             }
@@ -25165,7 +25231,7 @@
           "evidence": [
             {
               "assertion": "A file with no loop and a missing path: util-linux prints nothing with status 0; the candidate prints only its header with status 0. Parity FAIL.",
-              "definition_sha256": "bc3457873e173ddcde59f79209454deb2af0acf5fbedc537b935331f78f74101",
+              "definition_sha256": "c55e1703f7a6f82440ad038cfd1562337a2c8cd60e550e7ae926e028ec281e80",
               "group": "shell",
               "id": "migration-losetup-associated-root"
             }
@@ -25179,7 +25245,7 @@
           "evidence": [
             {
               "assertion": "A symlink and a hard link to a match the same two loops on both sides (device/inode equality).",
-              "definition_sha256": "bc3457873e173ddcde59f79209454deb2af0acf5fbedc537b935331f78f74101",
+              "definition_sha256": "c55e1703f7a6f82440ad038cfd1562337a2c8cd60e550e7ae926e028ec281e80",
               "group": "shell",
               "id": "migration-losetup-associated-root"
             }
@@ -32104,7 +32170,7 @@
           "evidence": [
             {
               "assertion": "explicit -u/-g/-d/-s rows, group, shadow PHC row with default aging and duplicate-name refusal as expected; default uid not unique and -g 100 creates a second gid-100 group (FAIL)",
-              "definition_sha256": "9841cc0147bcc0a06041215814d8b49a8acd8ca6591473f170025573983b61cf",
+              "definition_sha256": "bb4a4fc6a689437b5f150877285729d47f873b07f359075b9e86e04b52367c99",
               "group": "shell",
               "id": "migration-passwd-add-fd-records"
             },
@@ -32178,7 +32244,7 @@
           "evidence": [
             {
               "assertion": "modes passwd=644 group=644 shadow without other access, every file replaced through a new inode, no temp residue after successes and failures",
-              "definition_sha256": "9841cc0147bcc0a06041215814d8b49a8acd8ca6591473f170025573983b61cf",
+              "definition_sha256": "bb4a4fc6a689437b5f150877285729d47f873b07f359075b9e86e04b52367c99",
               "group": "shell",
               "id": "migration-passwd-add-fd-records"
             },
@@ -32393,7 +32459,7 @@
             },
             {
               "assertion": "Existing selected static and dynamic framework FAILs: add-fd returned 0 and the saved shadow projection matched an Argon2id v19 header with m=1024,t=1,p=1 and hexadecimal fields. The old script accepted hex fields with a regex and did not retain the full created PHC, validate standard base64 or run an independent KDF for add-fd; the FAILs also include unrelated account-record divergences.",
-              "definition_sha256": "9841cc0147bcc0a06041215814d8b49a8acd8ca6591473f170025573983b61cf",
+              "definition_sha256": "bb4a4fc6a689437b5f150877285729d47f873b07f359075b9e86e04b52367c99",
               "group": "shell",
               "id": "migration-passwd-add-fd-records"
             },
@@ -32489,7 +32555,7 @@
             },
             {
               "assertion": "Actual secret-slot device supplied by the newly authored conservative stage-1 backend, on its exact guest kernel. Every notified syscall continues to Linux; independent C device controls perform 392 actual checks. Auth PTY compare/clear/fd lifecycle and required-kernel passwd set/verify exercise the release binaries. Source-bound KUnit evidence separately proves all 12 storage/erasure cases under KASAN and lockdep, with normal QEMU shutdown. Original module source was not recovered; no token, policy or production authorization semantics are claimed. Existing companion FAILs remain.",
-              "definition_sha256": "7c6a5ab986baf1f764ac0121fd8508df8bd1cec24e399f7603b5c428b4c417ad",
+              "definition_sha256": "5a0c34d09253ffff9c8b39748e54973e583789428bef9c12888feebb69e4dd58",
               "group": "shell",
               "id": "auth-stage1-real-set"
             }
@@ -32583,7 +32649,7 @@
             },
             {
               "assertion": "Actual secret-slot device supplied by the newly authored conservative stage-1 backend, on its exact guest kernel. Every notified syscall continues to Linux; independent C device controls perform 392 actual checks. Auth PTY compare/clear/fd lifecycle and required-kernel passwd set/verify exercise the release binaries. Source-bound KUnit evidence separately proves all 12 storage/erasure cases under KASAN and lockdep, with normal QEMU shutdown. Original module source was not recovered; no token, policy or production authorization semantics are claimed. Existing companion FAILs remain.",
-              "definition_sha256": "93f981c9d5a6116600f3271a9fd990011113a4a1e76ca4783f674c3f79f6af4e",
+              "definition_sha256": "f0d772c66d804177b9ef0bc9515355977eb8531efcb8a13abe2e118f406f48da",
               "group": "shell",
               "id": "auth-stage1-real-verify"
             }
@@ -43314,9 +43380,9 @@
       "topic": "ssh/ssh-remote-exec-deferred"
     },
     {
-      "coverage": "partial",
-      "current_reason": "Remaining: r7 password half only, a kernel-authority-absent limit (listed in status.json); admitted root command execution is covered.",
-      "migration": null,
+      "coverage": "full",
+      "current_reason": "Every requirement is exercised against the production v2 kernel authority, loaded by the case in a root guest; the legacy ABI-1.5 ioctls stay unavailable (ENOTTY) and are not part of the contract.",
+      "migration": "replacement",
       "notes": "Current evidence and assertion review: valid dual-build observations only; incomplete rollback and diagnostic assertions remain explicit. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r4: The original permits an isolated mock/test identity and independent SSH client. Saved guest-generated synthetic password control and mock token interactions accompany successful loopback-client authentication/command status 0, with wrong-password status 255. This does not establish standard PHC interoperability or real kernel authority.",
       "original": {
         "id": "authentication-authorization",
@@ -43441,7 +43507,7 @@
         },
         {
           "behavior": "PermitRootLogin no / prohibit-password for a uid-0 target",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "UID-0 publickey root admission is refused for no and held for prohibit-password/yes; no-mode command marker remains absent. This case is part of the explicitly named evidence union; its recorded PASS or FAIL remains unchanged.",
@@ -43454,9 +43520,14 @@
               "definition_sha256": "c70a6423250427d3bc214a038f1cf50faf9516c90d726db9e195eac692094780",
               "group": "shell",
               "id": "mig-w3-sshd-permit-root-login-exec-root"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-auth-v2; the consumer is invoked without a qualification flag. Controls actual-ssh-root-yes, actual-ssh-root-no, actual-ssh-root-prohibit-password, actual-ssh-root-match-no, actual-ssh-root-key-prohibit-password and actual-ssh-root-key-no with an independent OpenSSH client and kernel-verified password authentication.",
+              "definition_sha256": "ec11814af4d435d2efdc64ef128c90e0e3b8ac33a16c505ff095ac227f37cabe",
+              "group": "shell",
+              "id": "qualification-014-authority-consumers-r1"
             }
           ],
-          "gap": "The password half of PermitRootLogin prohibit-password versus yes is decided by the /dev/bashos-auth kernel authority (BSSHD_AUTH_DEV in sshd.c), which the disposable guest does not provide; without it no password attempt can be told apart from a refusal, and a stand-in authority would not test the real one. Admitted root command execution is covered by the privilege=root case.",
           "id": "r7"
         },
         {
@@ -45337,9 +45408,9 @@
       "topic": "su/target-shell-environment-and-fds"
     },
     {
-      "coverage": "partial",
-      "current_reason": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
-      "migration": null,
+      "coverage": "full",
+      "current_reason": "Every requirement is exercised against the production v2 kernel authority, loaded by the case in a root guest; the legacy ABI-1.5 ioctls stay unavailable (ENOTTY) and are not part of the contract.",
+      "migration": "replacement",
       "notes": "sudo.c delegates to doas.c bashdoas_dispatch(1, ...). This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain.",
       "original": {
         "id": "authority-command-authorization",
@@ -45350,58 +45421,102 @@
       "requirements": [
         {
           "behavior": "Authorized command runs via the v2 authority.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "Original obligation: Authorized command runs via the v2 authority. Static framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Dynamic framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Raw guest observations: decoded/static/migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2.json.",
               "definition_sha256": "5f4d6044b1fd164308d83fd93aeb114ba179f62e6098292e5f85d95665b284f1",
               "group": "shell",
               "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Controls sudo-nonroot-nopasswd-status and sudo-real-signal-status: the authorized command runs with the target credentials and its exit or signal status is returned.",
+              "definition_sha256": "92b1706aa9ba012362c1e8d57ab165a0113e8cdfc90b93b0a15cf116c7e8fcea",
+              "group": "shell",
+              "id": "qualification-014-takeover-privcmd-r1"
             }
           ],
-          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
           "id": "r1"
         },
         {
           "behavior": "Policy denial does not run the command.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "Original obligation: Policy denial does not run the command. Static framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Dynamic framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Raw guest observations: decoded/static/migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2.json.",
               "definition_sha256": "5f4d6044b1fd164308d83fd93aeb114ba179f62e6098292e5f85d95665b284f1",
               "group": "shell",
               "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Control sudo-policy-denied.",
+              "definition_sha256": "18d1dcea4ecb8a24ae92084476912860d91da557de5d54a2f9ce506d16366b6e",
+              "group": "shell",
+              "id": "qualification-014-takeover-command-timestamp-r1"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Controls sudo-policy-denial-launches-no-helper and sudo-interactive-policy-denial-launches-no-helper: no verifier and no executor is started.",
+              "definition_sha256": "f3a6987e3eecbfaa50de7a5ab77b828e99fbd1151efaec986449123b25a29f8d",
+              "group": "shell",
+              "id": "qualification-014-authority-denial-no-helper-r1"
             }
           ],
-          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
           "id": "r2"
         },
         {
           "behavior": "-n denial when interaction is required.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "Original obligation: -n denial when interaction is required. Static framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Dynamic framework PASS: Synthetic allow reached owned child status 7; denial and noninteractive auth-required returned status 1 without an approved command. Raw guest observations: decoded/static/migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2.json.",
               "definition_sha256": "5f4d6044b1fd164308d83fd93aeb114ba179f62e6098292e5f85d95665b284f1",
               "group": "shell",
               "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Control sudo-noninteractive-auth-required.",
+              "definition_sha256": "92b1706aa9ba012362c1e8d57ab165a0113e8cdfc90b93b0a15cf116c7e8fcea",
+              "group": "shell",
+              "id": "qualification-014-takeover-privcmd-r1"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Control sudo-noninteractive-denied.",
+              "definition_sha256": "18d1dcea4ecb8a24ae92084476912860d91da557de5d54a2f9ce506d16366b6e",
+              "group": "shell",
+              "id": "qualification-014-takeover-command-timestamp-r1"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Control sudo-noninteractive-auth-required-launches-no-helper.",
+              "definition_sha256": "f3a6987e3eecbfaa50de7a5ab77b828e99fbd1151efaec986449123b25a29f8d",
+              "group": "shell",
+              "id": "qualification-014-authority-denial-no-helper-r1"
             }
           ],
-          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
           "id": "r3"
         },
         {
           "behavior": "Verifier success/failure and fail-closed reauthorization.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "Original obligation: Verifier success/failure and fail-closed reauthorization. Static framework PASS: Synthetic verifier-launch failure=126, denial=125, and reauthorization still requiring authentication=1; successful interactive verifier was not exercised. Dynamic framework PASS: Synthetic verifier-launch failure=126, denial=125, and reauthorization still requiring authentication=1; successful interactive verifier was not exercised. Raw guest observations: decoded/static/migration-auth-client-sudo-verify-client-guarded-bootstrap-r1-record-r2.json and decoded/dynamic/migration-auth-client-sudo-verify-client-guarded-bootstrap-r1-record-r2.json.",
               "definition_sha256": "4080a898e7944f742701c6285b76577bcece245bc10381fbbd825c0e1b69797c",
               "group": "shell",
               "id": "migration-auth-client-sudo-verify-client-guarded-bootstrap-r1-record-r2"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Controls sudo-verification-success and sudo-verification-failure.",
+              "definition_sha256": "18d1dcea4ecb8a24ae92084476912860d91da557de5d54a2f9ce506d16366b6e",
+              "group": "shell",
+              "id": "qualification-014-takeover-command-timestamp-r1"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Controls sudo-wrong-password and sudo-real-password-cache-and-K: a failed verification runs nothing and a cleared cache requires verification again.",
+              "definition_sha256": "92b1706aa9ba012362c1e8d57ab165a0113e8cdfc90b93b0a15cf116c7e8fcea",
+              "group": "shell",
+              "id": "qualification-014-takeover-privcmd-r1"
             }
           ],
-          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
           "id": "r4"
         }
       ],
@@ -45639,9 +45754,9 @@
       "topic": "sudo/root-credential-drop"
     },
     {
-      "coverage": "partial",
-      "current_reason": "The observable is produced by the real /dev/bashos-auth kernel authority (kernel safe-open of policy-bound targets and digest-bound copyback); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
-      "migration": null,
+      "coverage": "full",
+      "current_reason": "Every requirement is exercised against the production v2 kernel authority, loaded by the case in a root guest; the legacy ABI-1.5 ioctls stay unavailable (ENOTTY) and are not part of the contract.",
+      "migration": "replacement",
       "notes": "doas.c bda_run_sudoedit, bda_spawn_editor. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain.",
       "original": {
         "id": "sudoedit-safe-copyback",
@@ -45652,30 +45767,40 @@
       "requirements": [
         {
           "behavior": "Kernel safe-open of policy-bound targets, private editor copies edited as the caller.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "Original obligation: Kernel safe-open of policy-bound targets, private editor copies edited as the caller. Static framework PASS: Saved 1, 2 and 16 exact edited target files and empty temporary directories with authz/open/authz/copyback ordering; kernel safe-open and copyback were synthetic. Dynamic framework PASS: Saved 1, 2 and 16 exact edited target files and empty temporary directories with authz/open/authz/copyback ordering; kernel safe-open and copyback were synthetic. Raw guest observations: decoded/static/migration-auth-client-sudoedit-success-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-sudoedit-success-guarded-bootstrap-r1.json.",
               "definition_sha256": "98665b87de6cd1b97b31f87aef88860a57a9cdbca6027460d0670cc402e6567b",
               "group": "shell",
               "id": "migration-auth-client-sudoedit-success-guarded-bootstrap-r1"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Controls one-target, two-targets, editor-replaces-private-inode, every-target-policy-required, original-symlink, original-hardlink and relative-symlink-before-open: targets are opened by the kernel under policy and edited as the caller in private copies.",
+              "definition_sha256": "0fbf427136e4425483fde61a265aad9cb32a3a7598d9acba6afa08deb1fff8cc",
+              "group": "shell",
+              "id": "qualification-014-takeover-safeedit-r1"
             }
           ],
-          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (kernel safe-open of policy-bound targets and digest-bound copyback); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
           "id": "r1"
         },
         {
           "behavior": "Reauthorization and digest-bound copyback.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "Original obligation: Reauthorization and digest-bound copyback. Static framework PASS: Saved 1, 2 and 16 exact edited target files and empty temporary directories with authz/open/authz/copyback ordering; kernel safe-open and copyback were synthetic. Dynamic framework PASS: Saved 1, 2 and 16 exact edited target files and empty temporary directories with authz/open/authz/copyback ordering; kernel safe-open and copyback were synthetic. Raw guest observations: decoded/static/migration-auth-client-sudoedit-success-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-sudoedit-success-guarded-bootstrap-r1.json.",
               "definition_sha256": "98665b87de6cd1b97b31f87aef88860a57a9cdbca6027460d0670cc402e6567b",
               "group": "shell",
               "id": "migration-auth-client-sudoedit-success-guarded-bootstrap-r1"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Controls fresh-password-success, fresh-password-failure, sealed-bytes-before-second-password, sealed-path-substitution-keeps-pinned-bytes, original-drift-denied, inode-replaced and api-bad-request-digest: copyback needs a fresh verification and writes exactly the sealed bytes to the unchanged original.",
+              "definition_sha256": "0fbf427136e4425483fde61a265aad9cb32a3a7598d9acba6afa08deb1fff8cc",
+              "group": "shell",
+              "id": "qualification-014-takeover-safeedit-r1"
             }
           ],
-          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (kernel safe-open of policy-bound targets and digest-bound copyback); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
           "id": "r2"
         },
         {
@@ -45694,7 +45819,7 @@
         },
         {
           "behavior": "Multi-file behavior up to 16 targets and count validation.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "Original obligation: Multi-file behavior up to 16 targets and count validation. Static framework PASS: Synthetic deny/copyback/editor/open rejections returned 1; captured targets remained unchanged and temporary directories empty; 17 files and relative path returned 2. Dynamic framework PASS: Synthetic deny/copyback/editor/open rejections returned 1; captured targets remained unchanged and temporary directories empty; 17 files and relative path returned 2. Raw guest observations: decoded/static/migration-auth-client-sudoedit-reject-guarded-bootstrap-r1.json and decoded/dynamic/migration-auth-client-sudoedit-reject-guarded-bootstrap-r1.json.",
@@ -45707,18 +45832,23 @@
               "definition_sha256": "98665b87de6cd1b97b31f87aef88860a57a9cdbca6027460d0670cc402e6567b",
               "group": "shell",
               "id": "migration-auth-client-sudoedit-success-guarded-bootstrap-r1"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Controls sixteen-targets, zero-targets-usage, seventeen-targets-usage, duplicate-target-denied, api-zero-count and api-seventeen-count.",
+              "definition_sha256": "0fbf427136e4425483fde61a265aad9cb32a3a7598d9acba6afa08deb1fff8cc",
+              "group": "shell",
+              "id": "qualification-014-takeover-safeedit-r1"
             }
           ],
-          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (kernel safe-open of policy-bound targets and digest-bound copyback); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
           "id": "r4"
         }
       ],
       "topic": "sudo/sudoedit-safe-copyback"
     },
     {
-      "coverage": "partial",
-      "current_reason": "The observable is produced by the real /dev/bashos-auth kernel authority (the cached credential that -k, -K and -v reset or validate lives in the authority); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
-      "migration": null,
+      "coverage": "full",
+      "current_reason": "Every requirement is exercised against the production v2 kernel authority, loaded by the case in a root guest; the legacy ABI-1.5 ioctls stay unavailable (ENOTTY) and are not part of the contract.",
+      "migration": "replacement",
       "notes": "Worker 214-217 closeout (2026-10-28): executed worker cases cited after root verification of the raw records on both builds; worker claims that did not hold are not cited. This proposal appends the case-specific saved observations; original requirements, all current companion evidence, reached FAILs and synthetic/privilege gaps remain. Primary review 221 independently binds saved paired VM sources and records, applies literal requirements, and preserves all recorded statuses and evidence objects. r3: The mock reset-failure path returns 1 without the child marker, while the successful reset precedes authorization/handoff and the owned child exits 7. This establishes the requested ordering/gating in the allowed mock, not a real cache reset.",
       "original": {
         "id": "timestamp-validation-flows",
@@ -45729,7 +45859,7 @@
       "requirements": [
         {
           "behavior": "-k / -K reset the cached credential.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "On the doas delegate route -k and -K are translated to 'doas -L'.",
@@ -45742,14 +45872,19 @@
               "definition_sha256": "3e5f7e649d7e6b1a3176d76b5bcd5a9a23bdf8cc2308236782ab4c1addf75720",
               "group": "shell",
               "id": "migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Controls sudo-k-clears-cache, sudo-K-clears-cache and timestamp-scope-reset-matrix.",
+              "definition_sha256": "18d1dcea4ecb8a24ae92084476912860d91da557de5d54a2f9ce506d16366b6e",
+              "group": "shell",
+              "id": "qualification-014-takeover-command-timestamp-r1"
             }
           ],
-          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (the cached credential that -k, -K and -v reset or validate lives in the authority); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
           "id": "r1"
         },
         {
           "behavior": "-v validates.",
-          "coverage": "partial",
+          "coverage": "covered",
           "evidence": [
             {
               "assertion": "The doas delegate route refuses -v with status 1 and doas not run.",
@@ -45762,9 +45897,14 @@
               "definition_sha256": "3e5f7e649d7e6b1a3176d76b5bcd5a9a23bdf8cc2308236782ab4c1addf75720",
               "group": "shell",
               "id": "migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2"
+            },
+            {
+              "assertion": "The production module is loaded in a root guest and serves /dev/bashos-privcmd-v2; the consumer is invoked without a qualification flag. Controls sudo-validate-then-cached-command, sudo-validate-noninteractive-denied and sudo-validate-wrong-password.",
+              "definition_sha256": "18d1dcea4ecb8a24ae92084476912860d91da557de5d54a2f9ce506d16366b6e",
+              "group": "shell",
+              "id": "qualification-014-takeover-command-timestamp-r1"
             }
           ],
-          "gap": "The observable is produced by the real /dev/bashos-auth kernel authority (the cached credential that -k, -K and -v reset or validate lives in the authority); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer.",
           "id": "r2"
         },
         {

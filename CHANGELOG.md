@@ -9,6 +9,28 @@ The release gate requires every recorded FAIL to be fixed and every required
 static and dynamic qualification case to PASS. This target is not yet met;
 the historical 0.1.3 evidence remains available separately.
 
+- The kernel authority has production modules: `bashos_auth_v2.ko`
+  (`/dev/bashos-auth-v2`, identity proofs) and `bashos_privcmd_v2.ko`
+  (`/dev/bashos-privcmd-v2`, policy, verification, execution, `sudoedit` and
+  audit), beside the secret-slot module. `kernel/bashos-auth/tools` builds
+  them for a given kernel and compiles and checks the trust bundle they pin.
+  See `docs/authority-routes.md`.
+- `doas`, `sudo`, `login`, `sshd`, `su` and `auth` use the kernel authority
+  whenever its device exists, without a flag, and then never fall back to
+  another route: every failure is final. Without the device they behave as
+  before. No environment variable selects or disables a route.
+- `su` verifies the target password through the kernel for callers other
+  than uid 0 when the identity device exists.
+- `login become` refuses `--auth-token` and requires a proof when the
+  identity device exists.
+- `/dev/bashos-privcmd-v2` limits each user's open contexts, verifications
+  in progress, pending audit records and timestamp entries; the commands
+  report a reached limit in words.
+- The legacy token, policy, hand-off and audit ioctls of `/dev/bashos-auth`
+  remain unimplemented (`ENOTTY`); the `-v2` devices replace them.
+- `sshd run --encrypted` connection processes no longer keep the listening
+  socket open, so a restarted server can bind its port while an old
+  connection is still closing.
 - `blockdev` ends at the first device it cannot open or the first ioctl that
   fails, names the failed ioctl, gives usage errors status 1, and has
   `--report`, `--getra`, `--getfra`, `--getpbsz`, `--getiomin`, `--getioopt`,

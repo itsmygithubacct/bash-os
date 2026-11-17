@@ -34,7 +34,32 @@ import uuid
 
 sys.dont_write_bytecode = True
 HOME, CASE = Path('/tmp/parity-home'), Path('/tmp/parity-case')
-DEVICE = '/dev/bashos-auth-v2-test'
+DEVICE, MODULE = '/dev/bashos-auth-v2-test', 'bashos_auth_v2_test'
+# The pinned receipt names the endpoint. A production receipt carries only the
+# production module: it loads without a qualification gate, and every consumer
+# is invoked without a qualification flag. The controls that need a test-only
+# ioctl, or that assert the production node is absent, cannot run there; they
+# are reported by name and run in the test-endpoint case.
+ENDPOINT, LOAD_ARGUMENTS = 'qualification', ['test_only=1']
+OPEN, LOGIN_FLAG, SSHD_FLAGS = 'auth open-v2-qualification', ' --qualification-device', ['--authority-v2-qualification']
+NOT_RUN = []
+ENDPOINTS = {'qualification': ('/dev/bashos-auth-v2-test', 'bashos_auth_v2_test'),
+             'production': ('/dev/bashos-auth-v2', 'bashos_auth_v2')}
+PRODUCTION_NOT_RUN = ['identity-request-digest-independent-oracle', 'production-v2-endpoint-stays-unavailable']
+
+
+def select_endpoint(receipt):
+    global DEVICE, MODULE, ENDPOINT, LOAD_ARGUMENTS, OPEN, LOGIN_FLAG, SSHD_FLAGS, NOT_RUN
+    endpoint = receipt.get('endpoint')
+    require(endpoint in ENDPOINTS, 'receipt does not name a known endpoint')
+    other = ENDPOINTS['qualification' if endpoint == 'production' else 'production'][1] + '.ko'
+    require(ENDPOINTS[endpoint][1] + '.ko' in receipt['files'] and other not in receipt['files'],
+            'receipt module set does not match its endpoint')
+    if endpoint == 'production':
+        LOAD_ARGUMENTS, OPEN, LOGIN_FLAG, SSHD_FLAGS = [], 'auth open-v2', '', []
+        NOT_RUN = list(PRODUCTION_NOT_RUN)
+    ENDPOINT = endpoint
+    DEVICE, MODULE = ENDPOINTS[endpoint]
 PASSWORD, SALT = b'v2-consumer-disposable-password', b'consumer-v2-salt'
 LIBC = ctypes.CDLL(None, use_errno=True)
 LIBC.mount.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_ulong, ctypes.c_void_p]
@@ -107,6 +132,8 @@ class Runtime:
         self.commands, self.cases, self.mounts, self.created, self.modules = [], [], [], [], []
         self.owned_directories = []
         self.report = {'schema': 1, 'status': 'ERROR', 'guest_uuid': args.expected_uuid,
+                       'endpoint': ENDPOINT, 'device': DEVICE, 'module': MODULE,
+                       'controls_not_run_on_this_endpoint': [],
                        'kernel': platform.release(), 'bash_sha256': args.bash_sha256,
                        'receipt_sha256': args.receipt_sha256, 'cases': self.cases,
                        'production_features_enabled': False, 'kernel_erasure_qualified': False,
@@ -125,6 +152,8 @@ class Runtime:
 
     def note(self, name, function, kind='actual-consumer'):
         require(name not in [row['id'] for row in self.cases], 'duplicate case ID')
+        if name in NOT_RUN:
+            self.report['controls_not_run_on_this_endpoint'].append(name); return
         row = {'id': name, 'kind': kind, 'status': 'RUNNING'}; self.cases.append(row)
         try:
             result = function()
@@ -162,7 +191,8 @@ class Runtime:
         return output.raw
 
     def prepare(self):
-        for module, device in [('bashos_auth_v2_test', DEVICE), ('bashos_auth_stage1', '/dev/bashos-auth')]:
+        for module, device in [*((module, device) for device, module in ENDPOINTS.values()),
+                               ('bashos_auth_stage1', '/dev/bashos-auth')]:
             require(not Path('/sys/module', module).exists() and not os.path.lexists(device),
                     'preexisting authority must not be replaced')
         require(not any(os.path.lexists(path) for path in (self.root, self.trusted, self.executables)),
@@ -214,11 +244,11 @@ class Runtime:
             self.bind(path, '/etc/' + name, True)
         for name, destination in [('utmp', '/var/run/utmp'), ('wtmp', '/var/log/wtmp'), ('lastlog', '/var/log/lastlog')]:
             path = self.trusted / name; self.install(path, b''); self.bind(path, destination)
-        for name in ('bashos_auth_stage1', 'bashos_auth_v2_test'):
+        for name in ('bashos_auth_stage1', MODULE):
             require(not Path('/sys/module', name).exists(), 'unexpected concurrent module load')
             command = ['/usr/sbin/insmod', str(self.artifacts / (name + '.ko'))]
-            if name.endswith('v2_test'):
-                command += ['test_only=1', 'verifier_path=' + str(self.trusted / 'verifier'),
+            if name == MODULE:
+                command += [*LOAD_ARGUMENTS, 'verifier_path=' + str(self.trusted / 'verifier'),
                             'verifier_sha256=' + sha(self.trusted / 'verifier'),
                             'accounts_path=' + str(self.trusted / 'accounts'),
                             'accounts_sha256=' + sha(self.trusted / 'accounts')]
@@ -247,6 +277,7 @@ class Runtime:
         directory = self.output / name; directory.mkdir()
         program = Path(program or self.args.bash)
         config = {'schema': 1, 'uuid': self.args.expected_uuid, 'kernel': platform.release(),
+                  'authority_device': DEVICE,
                   'timeout': 40, 'trace': str(directory / 'trace.jsonl'), 'arguments': arguments,
                   'expected': expected, 'fault': fault}
         for key, path in [('listener', self.artifacts / 'auth-client-listener.py'),
@@ -381,7 +412,7 @@ def expected(exec_count=0, uid=0, gid=0, proof=False, fault=None):
 
 def auth_prefix(user='av2standard', legacy=False):
     verb = 'verify-login-v2-legacy-hex' if legacy else 'verify-login-v2'
-    return ('auth open-v2-qualification FD || exit 91\n'
+    return (OPEN + ' FD || exit 91\n'
             'auth read-secret "$FD" -p "V2 password: " H || exit 92\n'
             'auth %s "$FD" "$H" %s || exit 93\n'
             'auth clear "$FD" "$H" || exit 94\n'
@@ -514,8 +545,8 @@ def consumer_controls(runtime):
             return runtime.target_result(result, user, uid, gid, True)
         runtime.note('auth-proof-to-login-' + user, successful)
     def wrong_password():
-        script = ('export BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\n'
-                  'auth open-v2-qualification FD || exit 91\nauth read-secret "$FD" -p "V2 password: " H || exit 92\n'
+        script = ('export BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\n' +
+                  OPEN + ' FD || exit 91\nauth read-secret "$FD" -p "V2 password: " H || exit 92\n'
                   'auth verify-login-v2 "$FD" "$H" av2standard; vr=$?\n'
                   'login become av2standard --auth-v2-fd "$FD" -c forbidden; cr=$?\n'
                   '[[ $vr != 0 && $cr != 0 ]] || exit 97\n')
@@ -541,7 +572,7 @@ def consumer_controls(runtime):
     def interactive():
         for name in ('utmp', 'wtmp', 'lastlog'): (runtime.trusted / name).write_bytes(b'')
         result = runtime.bash_case('login-interactive',
-            'login login-v2 --qualification-device --max-tries 1 --policy-chain --no-motd -t "$V2_TTY"',
+            'login login-v2' + LOGIN_FLAG + ' --max-tries 1 --policy-chain --no-motd -t "$V2_TTY"',
             expected(1, 42101, 42102, True), [(b' login: ', b'av2standard', False), (b'Password: ', PASSWORD, True)],
             wanted_status=37)
         target = runtime.target_result(result, 'av2standard', 42101, 42102)
@@ -558,7 +589,7 @@ def consumer_controls(runtime):
     for name in ('av2standard', 'no-such-v2-user', '../invalid'):
         def interactive_denied(name=name):
             result = runtime.bash_case('interactive-denied-' + re.sub('[^a-zA-Z0-9]', '_', name),
-                'login login-v2 --qualification-device --max-tries 1 --no-motd', expected(),
+                'login login-v2' + LOGIN_FLAG + ' --max-tries 1 --no-motd', expected(),
                 [(b' login: ', name.encode(), False), (b'Password: ', b'wrong-password', True)], wanted_status=1)
             check(b'Login incorrect' in result['transcript'], 'login failure transcript differs')
         runtime.note('interactive-denied-' + re.sub('[^a-zA-Z0-9]', '_', name), interactive_denied)
@@ -567,7 +598,7 @@ def consumer_controls(runtime):
 def login_session_controls(runtime):
     policy = runtime.root / 'login.policy'
     saved_policy = policy.read_bytes()
-    login = 'login login-v2 --qualification-device --max-tries 1 --no-motd'
+    login = 'login login-v2' + LOGIN_FLAG + ' --max-tries 1 --no-motd'
     prompts = [(b' login: ', b'av2standard', False), (b'Password: ', PASSWORD, True)]
 
     def clear_accounting():
@@ -782,7 +813,7 @@ def ssh_controls(runtime):
             if label == 'root-match-no': configuration += 'Match User av2root\n    PermitRootLogin no\n'
             runtime.install(policy, configuration.encode())
             options = ['sshd', 'run', '--encrypted', '--authority-v2-legacy-hex' if legacy else '--authority-v2',
-                       '--authority-v2-qualification', '--once', '-a', '127.0.0.1', '-p', str(port), '-k', str(hostkey),
+                       *SSHD_FLAGS, '--once', '-a', '127.0.0.1', '-p', str(port), '-k', str(hostkey),
                        '-F', str(policy), '--auth-method', 'publickey' if key_mode else 'password', '-u', user]
             want = expected(int(allow), uid, gid, allow and not key_mode)
             want['delegated'] = not key_mode
@@ -854,6 +885,7 @@ def main():
     protected(args.receipt, args.receipt_sha256)
     receipt = json.loads(args.receipt.read_text())
     require(receipt['schema'] == 1 and receipt['kind'] == 'authority-consumer-v2-build-only', 'unknown receipt')
+    select_endpoint(receipt)
     guard(args.expected_uuid, receipt['kernel_release'])
     protected(args.bash, args.bash_sha256)
     artifacts = args.receipt.resolve().parent
@@ -875,9 +907,11 @@ def main():
         consumer_controls(runtime)
         login_session_controls(runtime)
         ssh_controls(runtime)
-        require(len(runtime.cases) == 70 and all(row['status'] == 'PASS' for row in runtime.cases),
+        require(len(runtime.cases) == 70 - len(NOT_RUN) and all(row['status'] == 'PASS' for row in runtime.cases),
                 'consumer control set incomplete')
-        runtime.report['control_counts'] = {'actual_device': 11, 'actual_consumer': 56, 'negative_observer': 3}
+        counts = {}
+        for row in runtime.cases: counts[row['kind'].replace('-', '_')] = counts.get(row['kind'].replace('-', '_'), 0) + 1
+        runtime.report['control_counts'] = counts
         runtime.report['versioned_identity_consumers_executed'] = True
         runtime.report['literal_legacy_abi_qualification'] = False
         runtime.report['status'] = 'PASS'

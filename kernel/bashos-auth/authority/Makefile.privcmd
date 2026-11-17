@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Production PRIVCMD protocol v2 module. Copy the source tree and this file,
+# as authority/Makefile, to a fresh M= directory; tools/build-authority.sh
+# does that. The stage-1 Kbuild in the parent directory is unchanged.
+obj-m += bashos_privcmd_v2.o
+bashos_privcmd_v2-y := reference.o request.o \
+ v2/trusted-input.o v2/verifier-channel.o v2/secrets-under-test.o \
+ v2/policy-snapshot.o v2/identity-snapshot.o v2/program-snapshot.o \
+ v2/request-binding.o v2/environment.o v2/uid-limit.o v2/audit-store.o \
+ v2/timestamp-store.o v2/executor-channel.o v2/safeedit.o \
+ v2/privcmd-device.o v2/privcmd-main.o
+ccflags-y += -DBA_AUTHORITY_V2

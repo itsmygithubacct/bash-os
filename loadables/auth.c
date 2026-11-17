@@ -80,6 +80,7 @@
 #include "_bashos_auth_uapi.h"
 #include "auth-v2-client.h"
 #include "privcmd-v2-client.h"
+#include "authority-route.h"
 #include "argon2-phc-record.h"
 #include "loadables.h"
 #include "unwind_prot.h"
@@ -193,6 +194,21 @@ ba_privcmd_probe_cmd (WORD_LIST *args)
 	if (args) {
 		builtin_error ("privcmd-probe: unexpected arguments");
 		return EX_USAGE;
+	}
+
+	/* authority-route.h rule 2. The checking opener is the whole probe;
+	 * success is transport only, never an authorization. */
+	if (bashos_route_present (BASHOS_ROUTE_PRIVCMD_NODE)) {
+		int v2 = bpv2_open (0);
+		if (v2 < 0) {
+			builtin_error ("privcmd-probe: %s: %s", BASHOS_ROUTE_PRIVCMD_NODE,
+			               bashos_route_strerror (errno));
+			return EXECUTION_FAILURE;
+		}
+		close (v2);
+		printf ("privcmd=2 protocol=%u node=%s\n", BASHOS_PRIVCMD_V2_VERSION,
+		        BASHOS_ROUTE_PRIVCMD_NODE);
+		return fflush (stdout) || ferror (stdout) ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
 	}
 
 	int fd = ba_open_dev ();
@@ -486,7 +502,7 @@ ba_privcmd_v2_cmd (WORD_LIST *args, int execute)
 		builtin_error("privcmd-v2: execution result=%u step=%u error=%u", result.result, result.failed_step, result.error);
 	goto done;
 failed:
-	builtin_error("privcmd-v2: %s", strerror(errno));
+	builtin_error("privcmd-v2: %s", bashos_route_strerror(errno));
 done:
 	if (fd >= 0) close(fd);
 	if (blob) { ba_wipe(blob, argv_bytes); free(blob); }
@@ -554,7 +570,7 @@ ba_audit_v2_drain_cmd (WORD_LIST *args)
 	rc = EXECUTION_SUCCESS;
 	goto done;
 failed:
-	builtin_error("audit-v2-drain: %s", strerror(errno));
+	builtin_error("audit-v2-drain: %s", bashos_route_strerror(errno));
 done:
 	if (fd >= 0) close(fd);
 	ba_wipe(&record, sizeof(record)); return rc;
@@ -2127,6 +2143,43 @@ ba_hash_secret_cmd (WORD_LIST *args)
 	return ba_hash_secret_cmd_format (args, BASHOS_PHC_LEGACY_HEX);
 }
 
+/* verify-login with the production identity node present. FD must be a
+ * descriptor of that node (auth open-v2); the kernel's native verifier compares
+ * the sealed slot with its own pinned record for USER. The proof stays on FD:
+ * TOKENVAR receives the descriptor number, never proof bytes. */
+static int
+ba_verify_login_routed (int fd, unsigned int handle, const char *user, const char *token_var)
+{
+	struct bashos_auth_v2_identity identity;
+	struct bashos_auth_v2_info info = {0};
+	struct passwd *account;
+	char number[32];
+	int rc;
+	if (bashos_v2_check_fd (fd) || ioctl (fd, BASHOS_AUTH_V2_INFO, &info) || info.flags) {
+		builtin_error ("verify-login: the versioned authority is present; FD must come from auth open-v2");
+		return EXECUTION_FAILURE;
+	}
+	account = getpwnam (user);
+	if (!account || bashos_v2_identity (&identity, BASHOS_AUTH_V2_LOGIN,
+		account->pw_uid, account->pw_gid, user, BASHOS_AUTH_V2_STANDARD_PHC)) {
+		builtin_error ("verify-login: authentication refused");
+		return EXECUTION_FAILURE;
+	}
+	rc = bashos_v2_verify_handle (fd, handle, &identity);
+	bashos_v2_wipe (&identity, sizeof identity);
+	if (rc) {
+		builtin_error ("verify-login: authentication refused");
+		return EXECUTION_FAILURE;
+	}
+	snprintf (number, sizeof number, "%d", fd);
+	if (!builtin_bind_variable ((char *) token_var, number, 0)) {
+		(void) ioctl (fd, BASHOS_AUTH_V2_RESET);
+		builtin_error ("could not bind: %s", token_var);
+		return EXECUTION_FAILURE;
+	}
+	return EXECUTION_SUCCESS;
+}
+
 static int
 ba_verify_login_cmd (WORD_LIST *args)
 {
@@ -2162,6 +2215,10 @@ ba_verify_login_cmd (WORD_LIST *args)
 		builtin_error ("verify-login: empty TOKENVAR");
 		return EX_USAGE;
 	}
+	/* authority-route.h rule 2: the caller's PHC is not consulted and no
+	 * token is minted once the identity node is present. */
+	if (bashos_route_present (BASHOS_ROUTE_IDENTITY_NODE))
+		return ba_verify_login_routed (fd, handle, user, token_var);
 	ba_phc parsed;
 	if (ba_parse_phc (phc, &parsed) < 0) {
 		builtin_error ("verify-login: unsupported or malformed PHC string");
@@ -3116,6 +3173,35 @@ ba_privcmd_token_cmd (WORD_LIST *args)
 	return EXECUTION_FAILURE;
 }
 
+/* authority-route.h rule 2 for the descriptor-explicit legacy verbs: with the
+ * production privcmd node present they refuse before touching their FD, so
+ * no legacy ioctl can stand in for the versioned decision. */
+static int
+ba_legacy_privcmd_verb_refused (const char *verb)
+{
+	static const struct { const char *verb, *instead; } verbs[] = {
+		{"privcmd-authz", "privcmd-v2-authz"},
+		{"privcmd-exec", "privcmd-v2-exec"},
+		{"privcmd-exec-interactive", "privcmd-v2-exec"},
+		{"privcmd-handoff-test", NULL},
+		{"privcmd-interactive-lineage-test", NULL},
+		{"privcmd-token", NULL},
+		{"policy-info", NULL},
+		{"audit-read", "audit-v2-drain"},
+		{"audit-read-text", "audit-v2-drain"},
+	};
+	for (size_t i = 0; i < sizeof verbs / sizeof verbs[0]; i++) {
+		if (strcmp (verb, verbs[i].verb)) continue;
+		if (!bashos_route_present (BASHOS_ROUTE_PRIVCMD_NODE)) return 0;
+		if (verbs[i].instead)
+			builtin_error ("%s: the versioned authority is present; use auth %s", verb, verbs[i].instead);
+		else
+			builtin_error ("%s: the versioned authority is present; this operation has no versioned form", verb);
+		return 1;
+	}
+	return 0;
+}
+
 extern char *auth_doc[];
 
 int
@@ -3130,6 +3216,7 @@ auth_builtin (WORD_LIST *list)
 	    return EXECUTION_SUCCESS;
 	}
 	WORD_LIST *args = list->next;
+	if (ba_legacy_privcmd_verb_refused (cmd)) return EXECUTION_FAILURE;
 	if (strcmp (cmd, "probe")       == 0) return ba_probe_cmd       (args);
 	if (strcmp (cmd, "privcmd-probe") == 0) return ba_privcmd_probe_cmd (args);
 	if (strcmp (cmd, "privcmd-v2-authz") == 0) return ba_privcmd_v2_cmd (args, 0);
@@ -3171,11 +3258,16 @@ char *auth_doc[] = {
 	"    auth probe              print 'abi=MAJOR.MINOR features=0xHEX'",
 	"    auth privcmd-probe      require v2 sudo/doas authority support",
 	"    auth privcmd-v2-authz [--qualification] [-n] UID GID -- /absolute/command [args...]",
-	"                               evaluate and close a new-protocol request without execution",
+	"                               evaluate and close a new-protocol request without execution;",
+	"                               prints decision, reason, request_sha256, audit_sequence, cache_hit",
 	"    auth privcmd-v2-exec [--qualification] [--legacy-hex] [-n] UID GID -- /absolute/command [args...]",
 	"                               authenticate and run through the pinned native executor",
 	"    auth audit-v2-drain [--qualification] [COUNT]",
 	"                               root-only HMAC-verified JSON drain; acknowledge after output",
+	"                               The -v2 verbs use /dev/bashos-privcmd-v2; --qualification",
+	"                               selects the disposable test endpoint, --legacy-hex a trusted",
+	"                               legacy PHC record, -n never prompts. A per-user limit or a",
+	"                               full audit log is reported and is final.",
 	"    auth privcmd-authz FD MODE TARGET_UID TARGET_GID [--] command [args...]",
 	"                               request v2 sudo/doas authorization",
 	"    auth privcmd-token FD HANDLE",
@@ -3208,6 +3300,14 @@ char *auth_doc[] = {
 	"                               verify the trusted standard record; proof stays on FD",
 	"    auth verify-login-v2-legacy-hex FD HANDLE USER",
 	"                               explicit trusted legacy-record compatibility route",
+	"",
+	"When /dev/bashos-auth-v2 exists, verify-login is the versioned verification:",
+	"FD must come from open-v2, PHC is not consulted, and TOKENVAR receives the",
+	"descriptor number while the proof stays on FD (login become --auth-fd N).",
+	"When /dev/bashos-privcmd-v2 exists, privcmd-probe checks that node, and",
+	"privcmd-authz, privcmd-exec, privcmd-exec-interactive, privcmd-token,",
+	"policy-info, audit-read and audit-read-text refuse in favour of the -v2 verbs.",
+	"A refusal or error of a present authority is final; no other route is tried.",
 	"    auth privcmd-interactive-lineage-test FD MODE UID GID -- CMD [ARG...]",
 	"                               test-only: prove interactive minting lineage",
 	"    auth peruser bump USER  count a failed attempt for USER",

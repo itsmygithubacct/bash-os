@@ -1,0 +1,110 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "authority-route-doas-sudo-fail-closed",
+      "loadable": "doas",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Show that doas and sudo select their route from the production privcmd node name and never leave the versioned route once it is selected.",
+      "oracle": "The route rules stated in loadables/common/authority-route.h and docs/authority-routes.md: a consumer whose production node name is absent behaves as before the versioned protocol; a consumer whose node name exists in any form is committed to the versioned protocol and every failure is final. The stand-in names are made by the fixture in a private /dev and answer no authority ioctl, so no expectation depends on a working authority. Marker files written only by the delegate, the target or the session are the independent observation of what ran.",
+      "comparison": "For an absent name and four stand-in forms of the name (unrelated character device, regular file, dangling symbolic link, directory) a caller with uid 3001 runs doas, sudo and sudo -l with an external delegate configured. Absent: the delegate marker appears and no authority-v2 diagnostic is printed. Present: nonzero status, an authority-v2 diagnostic, and neither the delegate marker nor the target marker. A final row shows uid 0 keeping its direct route with the name present: the target marker is owned by uid 3001.",
+      "requires": [
+        "chmod",
+        "ln",
+        "mkdir",
+        "mknod",
+        "mount",
+        "rm",
+        "rmdir",
+        "setpriv",
+        "stat",
+        "touch"
+      ],
+      "helpers_sha256": {
+        "helpers/authority-route-fixture.sh": "0465fae605678c2713f1ecb988c14135ca6ba5fb7ebb0223428c4de03ea46e32"
+      },
+      "script": ". /opt/bashos-parity/harness/helpers/authority-route-fixture.sh || exit 125\nroute_guard && route_private_dev && route_accounts || exit 125\n: >\"$HOME/route-stderr.log\" || exit 125\nprintf '%s\\n' '#!/bin/sh' ': > /tmp/parity-case/marks/delegate' >delegate || exit 125\nprintf '%s\\n' '#!/bin/sh' ': > /tmp/parity-case/marks/target' >target || exit 125\n/usr/bin/chmod 755 delegate target || exit 125\nexport BASHDOAS_EXTERNAL=$PWD/delegate BASHSUDO_EXTERNAL=$PWD/delegate\nrow() {\n  local err rc\n  route_clear\n  err=$(route_as_alice \"$2\" 2>&1 >/dev/null </dev/null); rc=$?\n  printf '%s: status=%s %s\\n' \"$1\" \"$rc\" \"$err\" >>\"$HOME/route-stderr.log\"\n  printf '%s refused=%s v2-diagnostic=%s delegate=%s target=%s\\n' \"$1\" \\\n    \"$([[ $rc != 0 ]] && echo yes || echo no)\" \"$([[ $err == *authority-v2:* ]] && echo yes || echo no)\" \\\n    \"$(route_mark delegate)\" \"$(route_mark target)\"\n}\nfor kind in absent chardev regular symlink dir; do\n  route_node bashos-privcmd-v2 \"$kind\" || exit 125\n  row \"$kind doas\" \"doas -n $PWD/target\"\n  row \"$kind sudo\" \"sudo -n $PWD/target\"\n  row \"$kind sudo-list\" \"sudo -l\"\ndone\nroute_node bashos-privcmd-v2 chardev || exit 125\nroute_clear\ndoas -u alice \"$PWD/target\" </dev/null; rc=$?\nprintf 'chardev doas-uid0 status=%s target=%s owner=%s\\n' \"$rc\" \"$(route_mark target)\" \"$(/usr/bin/stat -c %u marks/target 2>/dev/null)\"\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 60,
+      "stderr": "",
+      "stdout": "absent doas refused=no v2-diagnostic=no delegate=ran target=absent\nabsent sudo refused=no v2-diagnostic=no delegate=ran target=absent\nabsent sudo-list refused=no v2-diagnostic=no delegate=ran target=absent\nchardev doas refused=yes v2-diagnostic=yes delegate=absent target=absent\nchardev sudo refused=yes v2-diagnostic=yes delegate=absent target=absent\nchardev sudo-list refused=yes v2-diagnostic=yes delegate=absent target=absent\nregular doas refused=yes v2-diagnostic=yes delegate=absent target=absent\nregular sudo refused=yes v2-diagnostic=yes delegate=absent target=absent\nregular sudo-list refused=yes v2-diagnostic=yes delegate=absent target=absent\nsymlink doas refused=yes v2-diagnostic=yes delegate=absent target=absent\nsymlink sudo refused=yes v2-diagnostic=yes delegate=absent target=absent\nsymlink sudo-list refused=yes v2-diagnostic=yes delegate=absent target=absent\ndir doas refused=yes v2-diagnostic=yes delegate=absent target=absent\ndir sudo refused=yes v2-diagnostic=yes delegate=absent target=absent\ndir sudo-list refused=yes v2-diagnostic=yes delegate=absent target=absent\nchardev doas-uid0 status=0 target=ran owner=3001\n",
+      "diagnostic_files": [
+        "route-stderr.log"
+      ]
+    },
+    {
+      "id": "authority-route-login-fail-closed",
+      "loadable": "login",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Show that login login and login become select their route from the production identity node name and fail closed once the versioned route is selected.",
+      "oracle": "The route rules stated in loadables/common/authority-route.h and docs/authority-routes.md: a consumer whose production node name is absent behaves as before the versioned protocol; a consumer whose node name exists in any form is committed to the versioned protocol and every failure is final. The stand-in names are made by the fixture in a private /dev and answer no authority ioctl, so no expectation depends on a working authority. Marker files written only by the delegate, the target or the session are the independent observation of what ran.",
+      "comparison": "For an absent name and four stand-in forms, uid 0 runs login become without a proof under BASHLOGIN_REQUIRE_KERNEL_TOKEN=0, with --auth-token, with --auth-fd on a descriptor that is not the authority, and login login on a non-terminal. Absent: the environment opt-out still produces a session marker, the token forms fail with the historical diagnostics, and login prints its prompt. Present: every form is refused with a versioned diagnostic, no session marker appears and no login prompt is printed.",
+      "requires": [
+        "chmod",
+        "ln",
+        "mkdir",
+        "mknod",
+        "mount",
+        "rm",
+        "rmdir",
+        "setpriv",
+        "stat",
+        "touch"
+      ],
+      "helpers_sha256": {
+        "helpers/authority-route-fixture.sh": "0465fae605678c2713f1ecb988c14135ca6ba5fb7ebb0223428c4de03ea46e32"
+      },
+      "script": ". /opt/bashos-parity/harness/helpers/authority-route-fixture.sh || exit 125\nroute_guard && route_private_dev && route_accounts || exit 125\n: >\"$HOME/route-stderr.log\" || exit 125\nexport BASHLOGIN_REQUIRE_KERNEL_TOKEN=0\ntoken=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\nbecome_plain() { login become alice -c ': > /tmp/parity-case/marks/session'; }\nbecome_token() { login become alice --auth-token \"$token\" -c ': > /tmp/parity-case/marks/session'; }\nbecome_fd() { login become alice --auth-fd 9 -c ': > /tmp/parity-case/marks/session' 9</dev/null; }\nlogin_plain() { login login; }\nrow() {\n  local label=$1 err rc; shift\n  route_clear\n  err=$(\"$@\" 2>&1 >stdout.tmp </dev/null); rc=$?\n  printf '%s: status=%s %s\\n' \"$label\" \"$rc\" \"$err\" >>\"$HOME/route-stderr.log\"\n  printf '%s refused=%s versioned-diagnostic=%s session=%s prompt=%s\\n' \"$label\" \\\n    \"$([[ $rc != 0 ]] && echo yes || echo no)\" \\\n    \"$([[ $err == *versioned* || $err == *login-v2:* ]] && echo yes || echo no)\" \\\n    \"$(route_mark session)\" \"$([[ $(<stdout.tmp) == *' login: '* ]] && echo yes || echo no)\"\n}\nfor kind in absent chardev regular symlink dir; do\n  route_node bashos-auth-v2 \"$kind\" || exit 125\n  row \"$kind become\" become_plain\n  row \"$kind become-token\" become_token\n  row \"$kind become-fd\" become_fd\n  row \"$kind login\" login_plain\ndone\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 60,
+      "stderr": "",
+      "stdout": "absent become refused=no versioned-diagnostic=no session=ran prompt=no\nabsent become-token refused=yes versioned-diagnostic=no session=absent prompt=no\nabsent become-fd refused=yes versioned-diagnostic=no session=absent prompt=no\nabsent login refused=yes versioned-diagnostic=no session=absent prompt=yes\nchardev become refused=yes versioned-diagnostic=yes session=absent prompt=no\nchardev become-token refused=yes versioned-diagnostic=yes session=absent prompt=no\nchardev become-fd refused=yes versioned-diagnostic=yes session=absent prompt=no\nchardev login refused=yes versioned-diagnostic=yes session=absent prompt=no\nregular become refused=yes versioned-diagnostic=yes session=absent prompt=no\nregular become-token refused=yes versioned-diagnostic=yes session=absent prompt=no\nregular become-fd refused=yes versioned-diagnostic=yes session=absent prompt=no\nregular login refused=yes versioned-diagnostic=yes session=absent prompt=no\nsymlink become refused=yes versioned-diagnostic=yes session=absent prompt=no\nsymlink become-token refused=yes versioned-diagnostic=yes session=absent prompt=no\nsymlink become-fd refused=yes versioned-diagnostic=yes session=absent prompt=no\nsymlink login refused=yes versioned-diagnostic=yes session=absent prompt=no\ndir become refused=yes versioned-diagnostic=yes session=absent prompt=no\ndir become-token refused=yes versioned-diagnostic=yes session=absent prompt=no\ndir become-fd refused=yes versioned-diagnostic=yes session=absent prompt=no\ndir login refused=yes versioned-diagnostic=yes session=absent prompt=no\n",
+      "diagnostic_files": [
+        "route-stderr.log"
+      ]
+    },
+    {
+      "id": "authority-route-su-auth-fail-closed",
+      "loadable": "su",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Show that su and the descriptor-explicit auth verbs select their route from the production node names and fail closed once the versioned route is selected.",
+      "oracle": "The route rules stated in loadables/common/authority-route.h and docs/authority-routes.md: a consumer whose production node name is absent behaves as before the versioned protocol; a consumer whose node name exists in any form is committed to the versioned protocol and every failure is final. The stand-in names are made by the fixture in a private /dev and answer no authority ioctl, so no expectation depends on a working authority. Marker files written only by the delegate, the target or the session are the independent observation of what ran.",
+      "comparison": "For an absent name and four stand-in forms of each node, su runs as uid 0 and as uid 3001, auth verify-login runs on a descriptor that is not the authority, and auth privcmd-probe, privcmd-authz and audit-read run as uid 0. Every row must be refused with no effect marker and no bound output variable; rows with the name present must carry a versioned-authority diagnostic and rows with the name absent must not, which distinguishes the committed route from the historical refusal.",
+      "requires": [
+        "chmod",
+        "ln",
+        "mkdir",
+        "mknod",
+        "mount",
+        "rm",
+        "rmdir",
+        "setpriv",
+        "stat",
+        "touch"
+      ],
+      "helpers_sha256": {
+        "helpers/authority-route-fixture.sh": "0465fae605678c2713f1ecb988c14135ca6ba5fb7ebb0223428c4de03ea46e32"
+      },
+      "script": ". /opt/bashos-parity/harness/helpers/authority-route-fixture.sh || exit 125\nroute_guard && route_private_dev && route_accounts || exit 125\n: >\"$HOME/route-stderr.log\" || exit 125\nphc='$argon2id$v=19$m=1024,t=1,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc'\nsu_root() { su --no-login -c ': > /tmp/parity-case/marks/effect' alice; }\nsu_alice() { route_as_alice \"su --no-login -c ': > /tmp/parity-case/marks/effect' alice\"; }\nauth_verify() {\n  local TOK=unset rc\n  auth verify-login 9 1 alice \"$phc\" TOK 9<>/dev/null; rc=$?\n  [[ $TOK == unset ]] || : > marks/effect\n  return \"$rc\"\n}\nauth_probe() { auth privcmd-probe && : > marks/effect; }\nauth_authz() { auth privcmd-authz 9 exec 0 0 -- /bin/true 9<>/dev/null && : > marks/effect; }\nauth_audit() { auth audit-read 9 9<>/dev/null && : > marks/effect; }\nrow() {\n  local label=$1 err rc; shift\n  route_clear\n  err=$(\"$@\" 2>&1 >/dev/null </dev/null); rc=$?\n  printf '%s: status=%s %s\\n' \"$label\" \"$rc\" \"$err\" >>\"$HOME/route-stderr.log\"\n  printf '%s refused=%s versioned-diagnostic=%s effect=%s\\n' \"$label\" \\\n    \"$([[ $rc != 0 ]] && echo yes || echo no)\" \\\n    \"$([[ $err == *'versioned authority'* || $err == *bashos-privcmd-v2* ]] && echo yes || echo no)\" \\\n    \"$(route_mark effect)\"\n}\nfor kind in absent chardev regular symlink dir; do\n  route_node bashos-auth-v2 \"$kind\" || exit 125\n  row \"identity $kind su-uid0\" su_root\n  row \"identity $kind su-user\" su_alice\n  row \"identity $kind auth-verify-login\" auth_verify\ndone\nroute_node bashos-auth-v2 absent || exit 125\nfor kind in absent chardev regular symlink dir; do\n  route_node bashos-privcmd-v2 \"$kind\" || exit 125\n  row \"privcmd $kind auth-privcmd-probe\" auth_probe\n  row \"privcmd $kind auth-privcmd-authz\" auth_authz\n  row \"privcmd $kind auth-audit-read\" auth_audit\ndone\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 60,
+      "stderr": "",
+      "stdout": "identity absent su-uid0 refused=yes versioned-diagnostic=no effect=absent\nidentity absent su-user refused=yes versioned-diagnostic=no effect=absent\nidentity absent auth-verify-login refused=yes versioned-diagnostic=no effect=absent\nidentity chardev su-uid0 refused=yes versioned-diagnostic=yes effect=absent\nidentity chardev su-user refused=yes versioned-diagnostic=yes effect=absent\nidentity chardev auth-verify-login refused=yes versioned-diagnostic=yes effect=absent\nidentity regular su-uid0 refused=yes versioned-diagnostic=yes effect=absent\nidentity regular su-user refused=yes versioned-diagnostic=yes effect=absent\nidentity regular auth-verify-login refused=yes versioned-diagnostic=yes effect=absent\nidentity symlink su-uid0 refused=yes versioned-diagnostic=yes effect=absent\nidentity symlink su-user refused=yes versioned-diagnostic=yes effect=absent\nidentity symlink auth-verify-login refused=yes versioned-diagnostic=yes effect=absent\nidentity dir su-uid0 refused=yes versioned-diagnostic=yes effect=absent\nidentity dir su-user refused=yes versioned-diagnostic=yes effect=absent\nidentity dir auth-verify-login refused=yes versioned-diagnostic=yes effect=absent\nprivcmd absent auth-privcmd-probe refused=yes versioned-diagnostic=no effect=absent\nprivcmd absent auth-privcmd-authz refused=yes versioned-diagnostic=no effect=absent\nprivcmd absent auth-audit-read refused=yes versioned-diagnostic=no effect=absent\nprivcmd chardev auth-privcmd-probe refused=yes versioned-diagnostic=yes effect=absent\nprivcmd chardev auth-privcmd-authz refused=yes versioned-diagnostic=yes effect=absent\nprivcmd chardev auth-audit-read refused=yes versioned-diagnostic=yes effect=absent\nprivcmd regular auth-privcmd-probe refused=yes versioned-diagnostic=yes effect=absent\nprivcmd regular auth-privcmd-authz refused=yes versioned-diagnostic=yes effect=absent\nprivcmd regular auth-audit-read refused=yes versioned-diagnostic=yes effect=absent\nprivcmd symlink auth-privcmd-probe refused=yes versioned-diagnostic=yes effect=absent\nprivcmd symlink auth-privcmd-authz refused=yes versioned-diagnostic=yes effect=absent\nprivcmd symlink auth-audit-read refused=yes versioned-diagnostic=yes effect=absent\nprivcmd dir auth-privcmd-probe refused=yes versioned-diagnostic=yes effect=absent\nprivcmd dir auth-privcmd-authz refused=yes versioned-diagnostic=yes effect=absent\nprivcmd dir auth-audit-read refused=yes versioned-diagnostic=yes effect=absent\n",
+      "diagnostic_files": [
+        "route-stderr.log"
+      ]
+    }
+  ]
+}

@@ -95,6 +95,7 @@
 #include "_bashauth_passwd_lookup.h"
 #include "_bashauth_secure_read.h"
 #include "auth-v2-client.h"
+#include "authority-route.h"
 #include "login-lock-state.h"
 #include "loadables.h"
 /* Stage 23 v1: shared priv-drop primitives. The setgroups/setresgid/
@@ -2084,6 +2085,22 @@ bl_become_cmd (WORD_LIST *args)
       (auth_v2_fd < 0 && auth_v2_encoding != BASHOS_AUTH_V2_STANDARD_PHC)) {
     builtin_error ("become: select one authority protocol"); return EX_USAGE;
   }
+  /* authority-route.h rule 2: with the identity node present the historical
+     options name the versioned proof. The descriptor form carries it; a hex
+     token cannot, and no environment setting waives it. */
+  if (auth_v2_fd < 0 && bashos_route_present (BASHOS_ROUTE_IDENTITY_NODE))
+    {
+      if (auth_fd < 0)
+        {
+          builtin_error (auth_token
+                         ? "become: the versioned authority is present; --auth-token cannot carry its proof, use --auth-fd N"
+                         : "become: the versioned authority is present; a verified descriptor is required (--auth-fd N)");
+          return EXECUTION_FAILURE;
+        }
+      auth_v2_fd = auth_fd;
+      auth_fd = -1;
+      auth_token = NULL;
+    }
 
   bl_user u;
   int r = bl_lookup_user (user, &u);
@@ -3184,7 +3201,8 @@ bl_login_cmd_mode (WORD_LIST *args, int versioned)
 static int
 bl_login_cmd (WORD_LIST *args)
 {
-  return bl_login_cmd_mode (args, 0);
+  /* authority-route.h rule 2: decided once, before any prompt. */
+  return bl_login_cmd_mode (args, bashos_route_present (BASHOS_ROUTE_IDENTITY_NODE));
 }
 
 static int
@@ -3360,6 +3378,9 @@ char *login_doc[] = {
   "          fd and task, using the explicit standard PHC protocol. The optional",
   "          --auth-v2-legacy-hex selects trusted legacy records. Cannot mix",
   "          these options with the historical auth-fd/auth-token route.",
+  "          When /dev/bashos-auth-v2 exists, --auth-fd N is this redemption,",
+  "          --auth-token is refused, a proof is always required and",
+  "          BASHLOGIN_REQUIRE_KERNEL_TOKEN is ignored. A refusal is final.",
   "        --auth-fd N: (preferred) read a 32-byte one-use /dev/bashos-auth",
   "          login token for USER from inherited fd N, then consume it via",
   "          ioctl(N) before any uid/gid change. Keeps the token off of",
@@ -3404,6 +3425,9 @@ char *login_doc[] = {
   "                    [--with-supplementary] [--no-new-privs]",
   "                    [--policy-chain] [--max-tries N]",
   "        Prompt for username/password, verify /etc/shadow, and exec shell.",
+  "        When /dev/bashos-auth-v2 exists this is login-v2: the kernel",
+  "          verifier decides, and a refusal or error is final. Without that",
+  "          node the behavior below is unchanged.",
   "        -t TTY records the session through utmp before exec.",
   "        /etc/nologin blocks non-root users after successful auth",
   "          unless the opt-in policy chain owns account denial.",
@@ -3437,6 +3461,7 @@ char *login_doc[] = {
   "        Existing shadow aging and login policy checks also apply. This route",
   "        always requires its proof, regardless of the legacy migration flag.",
   "        --qualification-device uses the separate disposable test endpoint.",
+  "        The session launcher must be uid 0 on a real terminal.",
   "",
   "    login aging-check USER TODAY_DAYS",
   "        Offline helper: evaluate stored shadow aging fields for tests.",

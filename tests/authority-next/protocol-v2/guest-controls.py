@@ -463,6 +463,9 @@ def main():
     require(sha(args.receipt) == args.receipt_sha256, 'build receipt pin differs')
     receipt = json.loads(args.receipt.read_text())
     require(receipt['schema'] == 1 and receipt['kind'] == 'authority-protocol-v2-build-only', 'unknown build receipt')
+    # This packet drives the test-only request ioctls, which the production
+    # module does not have: it runs on the test endpoint only.
+    require(receipt.get('endpoint') == 'qualification', 'this packet needs the test endpoint receipt')
     guard(args.expected_uuid, receipt['kernel_release'])
     require(args.output.is_absolute() and args.output.resolve().is_relative_to(HOME) and not args.output.exists(),
             'fresh report directory under private parity HOME required')
@@ -482,6 +485,7 @@ def main():
     require(not trusted.exists(), 'fresh trusted fixture directory required')
     trusted.mkdir(mode=0o700)
     report = {'schema': 1, 'status': 'ERROR', 'guest_uuid': str(uuid.UUID(args.expected_uuid)),
+              'endpoint': 'qualification', 'device': DEVICE, 'module': MODULE,
               'kernel': platform.release(), 'build_receipt_sha256': args.receipt_sha256,
               'source_manifest_sha256': receipt['source_manifest_sha256'], 'cases': CASES,
               'production_features_enabled': False, 'original_topic_credit': 0,

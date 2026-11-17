@@ -306,12 +306,15 @@ auth open d || exit 31
 auth read-secret "$d" -p 'Hash: ' h1 || exit 32
 auth hash-secret "$d" "$h1" 736f6d6573616c74 1 1024 1 32 phc; rc=$?
 printf 'hash-status=%d phc=%s\n' "$rc" "${phc-}"
+auth read-secret "$d" -p 'Standard: ' h4 || exit 35
+auth hash-secret-v2 "$d" "$h4" 736f6d6573616c74 1 1024 1 32 phc2; rc=$?
+printf 'standard-status=%d phc=%s\n' "$rc" "${phc2-}"
 auth read-secret "$d" -p 'Good: ' h2 || exit 33
 unset token
 auth verify-login "$d" "$h2" parity "$expected_phc" token; rc=$?
 [[ ${token+x} && -n ${token-} ]] && bound=yes || bound=no
-[[ ${token-} == "$(<"$2")" ]] && raw=yes || raw=no
-printf 'good-status=%d bound=%s raw-token=%s\n' "$rc" "$bound" "$raw"
+[[ ${token-} == "$(<"$2")" ]] && reference=mint-reply || reference=other
+printf 'good-status=%d bound=%s reference=%s\n' "$rc" "$bound" "$reference"
 auth read-secret "$d" -p 'Bad: ' h3 || exit 34
 unset wrong_token
 auth verify-login "$d" "$h3" parity "$expected_phc" wrong_token; rc=$?
@@ -334,7 +337,7 @@ def synthetic(shell):
     token=bytes(range(128,160));tokenfile=base/'token';tokenfile.write_text(token.hex()+'\n')
     cfg,trace=config(base,'synthetic');master,slave=pty.openpty();before=termios.tcgetattr(master)
     output=bytearray();marker=0;off=[];cmdline=b'';environment=b''
-    prompts=[(b'Hash: ',b'password'),(b'Good: ',b'password'),(b'Bad: ',b'wrong-fixture')]
+    prompts=[(b'Hash: ',b'password'),(b'Standard: ',b'password'),(b'Good: ',b'password'),(b'Bad: ',b'wrong-fixture')]
     def session():
         os.setsid();fcntl.ioctl(0,termios.TIOCSCTTY,0)
     p=subprocess.Popen(['/usr/bin/python3',MOCK,str(cfg),shell,'--noprofile','--norc','-c',SYNTHETIC_SCRIPT,
@@ -374,24 +377,30 @@ def synthetic(shell):
     mints=[x['transition'] for x in calls if x.get('transition',{}).get('op')=='mint-synthetic']
     account=pwd.getpwnam('parity')
     output=bytes(output)
-    expected_hash=b'hash-status=0 phc='+encoded+b'\r\n'
-    hash_ok=expected_hash in output
-    good=(b'good-status=0 bound=yes raw-token=' in output and len(mints)==1 and
+    # hash-secret is the documented compatibility producer: the same salt and
+    # tag in lower-case hex fields. hash-secret-v2 is the standard PHC string.
+    legacy_ok=b'hash-status=0 phc=$argon2id$v=19$m=1024,t=1,p=1$736f6d6573616c74$'+digest+b'\r\n' in output
+    hash_ok=b'standard-status=0 phc='+encoded+b'\r\n' in output
+    good=(b'good-status=0 bound=yes reference=' in output and len(mints)==1 and
           mints[0]['uid']==account.pw_uid and mints[0]['gid']==account.pw_gid and
           mints[0]['purpose']==1 and mints[0]['expires']==5 and base64.b64decode(mints[0]['user_base64'])==b'parity')
-    opaque=b'good-status=0 bound=yes raw-token=no\r\n' in output and len(mints)==1
+    # The legacy ioctl returns the login reference itself; verify-login binds
+    # exactly that reply. It is a reference only if it stays off every channel
+    # another process can read, which no_leak checks.
+    reference=b'good-status=0 bound=yes reference=mint-reply\r\n' in output and len(mints)==1
     bad=b'bad-status=1 bound=no\r\n' in output and len(mints)==1
-    protocol=(rc==0 and writes==[b'password',b'password',b'wrong-fixture'] and
-              ops==['new','write','seal','export-once','new','write','seal','export-once','mint-synthetic',
-                    'new','write','seal','export-once'])
+    protocol=(rc==0 and writes==[b'password',b'password',b'password',b'wrong-fixture'] and
+              ops==['new','write','seal','export-once']*3+['mint-synthetic','new','write','seal','export-once'])
     no_leak=all(x not in output and x not in cmdline and x not in environment for x in
                 (b'wrong-fixture',b'password',token,token.hex().encode()))
     record('synthetic',status=rc,output_base64=b64(output),argv_base64=b64(cmdline),environment_base64=b64(environment),
            raw_kdf_base64=b64(rr.stdout),standard_phc_base64=b64(er.stdout),trace_ops=ops,mints=mints,
-           tty_echo_off=off,tty_restored=before==after,hash_ok=hash_ok,good=good,opaque=opaque,bad=bad,
+           tty_echo_off=off,tty_restored=before==after,legacy_hex_ok=legacy_ok,hash_ok=hash_ok,good=good,reference_bound=reference,bad=bad,
            protocol=protocol,no_secret_or_token_leak=no_leak)
-    print('synthetic phc-standard=%s good-accepted=%s token-opaque=%s wrong-denied=%s protocol=%s tty-restored=%s no-leak=%s' %
-          (yes(hash_ok),yes(good),yes(opaque),yes(bad),yes(protocol),yes(len(off)==3 and all(off) and before==after),yes(no_leak)))
+    print('synthetic phc-legacy-hex=%s phc-standard=%s good-accepted=%s token-reference=%s wrong-denied=%s protocol=%s '
+          'tty-restored=%s no-leak=%s' %
+          (yes(legacy_ok),yes(hash_ok),yes(good),yes(reference),yes(bad),yes(protocol),
+           yes(len(off)==4 and all(off) and before==after),yes(no_leak)))
 
 
 if __name__=='__main__':

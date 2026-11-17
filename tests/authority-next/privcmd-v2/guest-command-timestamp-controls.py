@@ -55,21 +55,29 @@ def reload_policy(rt, *, timeout=1, reset_error=False):
              'pcv2caller ALL = (pcv2target:pcv2shared) %s' % rt.password,
              'pcv2target ALL = (pcv2target) %s' % rt.password]
     (rt.root / 'policy').write_text('\n'.join(lines) + '\n')
-    argv = ['/usr/sbin/insmod', rt.artifacts / (base.MODULE + '.ko'),
-            'test_only=1', 'test_reset_fail=' + str(int(reset_error))]
+    # The reset-fault knob exists only in the separately named test module.
+    knob = base.ENDPOINT == 'qualification'
+    require(knob or not reset_error, 'production authority has no reset-fault knob')
+    argv = ['/usr/sbin/insmod', rt.artifacts / (base.MODULE + '.ko'), *base.LOAD_ARGUMENTS]
+    if knob: argv.append('test_reset_fail=' + str(int(reset_error)))
     for name in ('accounts', 'groups', 'profiles', 'policy', 'verifier', 'executor'):
         argv += [name + '_path=' + str(rt.root / name), name + '_sha256=' + sha(rt.root / name)]
     result = rt.command(argv)
     rt.loaded = result.returncode == 0 and Path('/sys/module', base.MODULE).exists()
     require(rt.loaded, 'command/timestamp module load failed')
-    require(Path('/sys/module', base.MODULE, 'parameters/test_reset_fail').read_text().strip() ==
-            ('Y' if reset_error else 'N'), 'reset-only fault selection differs')
+    if knob:
+        require(Path('/sys/module', base.MODULE, 'parameters/test_reset_fail').read_text().strip() ==
+                ('Y' if reset_error else 'N'), 'reset-only fault selection differs')
+    else:
+        require(not any(Path('/sys/module', base.MODULE, 'parameters', name).exists()
+                        for name in ('test_only', 'test_edit_fail_index', 'test_reset_fail')),
+                'production authority exposes a test knob')
     for _ in range(100):
         if os.path.lexists(base.DEVICE): break
         time.sleep(.01)
     st = Path(base.DEVICE).lstat()
     require(stat.S_ISCHR(st.st_mode) and st.st_uid == 0 and stat.S_IMODE(st.st_mode) == 0o666,
-            'private qualification node differs')
+            'authority node differs')
     pins = {name: sha(rt.root / name) for name in ('accounts', 'groups', 'profiles', 'policy', 'verifier', 'executor')}
     index = sum(row['argv'][0] == '/usr/sbin/insmod' for row in rt.commands)
     (rt.args.output / ('module-%02d.json' % index)).write_text(json.dumps(
@@ -115,8 +123,8 @@ def consumer_matrix(rt):
     denied = rt.root / 'target-not-in-policy'
     rt.install(denied, (rt.artifacts / 'privcmd-target').read_bytes(), 0o755)
     for verb in ('doas', 'sudo'):
-        reset = '%s --authority-v2-qualification %s' % (verb, '-L' if verb == 'doas' else '-k')
-        command = verb + ' --authority-v2-qualification -u pcv2target '
+        reset = '%s %s%s' % (verb, base.SUDO_FLAG, '-L' if verb == 'doas' else '-k')
+        command = verb + ' ' + base.SUDO_FLAG + '-u pcv2target '
         cases = [
             ('policy-denied', command + '-n ' + q(str(denied)), 1, 0, None, 1),
             ('noninteractive-denied', reset + ' || exit 94; ' + command + '-n ' + q(str(rt.password)), 1, 0, None, 2),
@@ -133,7 +141,7 @@ def consumer_matrix(rt):
                 return bash_case(rt, n, s, e, c, password=p, audit_rule=check_rows)
             rt.note(name, one, 'actual-consumer')
 
-    prefix = 'sudo --authority-v2-qualification '
+    prefix = 'sudo ' + base.SUDO_FLAG
     command = prefix + '-u pcv2target ' + q(str(rt.password))
     validate = prefix + '-u pcv2target -v'
     def validation_rows(rows):
@@ -420,16 +428,19 @@ def cache_lifetime(rt, expiry):
     finally: peer.close()
 
 
+RESET_FAULT_CONTROLS = ('positive-before', 'k-command', 'k-validate', 'k-alone', 'K-alone', 'positive-after')
+
+
 def reset_failure_matrix(rt):
     base = rt.base; q = shlex.quote
     pins = reload_policy(rt, reset_error=True)
-    common = 'sudo --authority-v2-qualification -n -u pcv2target '
+    common = 'sudo ' + base.SUDO_FLAG + '-n -u pcv2target '
     for suffix, script, expected, targets in (
             ('positive-before', common + q(str(rt.nopass)) + ' exit-7', 7, 1),
-            ('k-command', 'sudo --authority-v2-qualification -k -n -u pcv2target ' + q(str(rt.nopass)), 1, 0),
-            ('k-validate', 'sudo --authority-v2-qualification -k -v -u pcv2target', 1, 0),
-            ('k-alone', 'sudo --authority-v2-qualification -k', 1, 0),
-            ('K-alone', 'sudo --authority-v2-qualification -K', 1, 0),
+            ('k-command', 'sudo ' + base.SUDO_FLAG + '-k -n -u pcv2target ' + q(str(rt.nopass)), 1, 0),
+            ('k-validate', 'sudo ' + base.SUDO_FLAG + '-k -v -u pcv2target', 1, 0),
+            ('k-alone', 'sudo ' + base.SUDO_FLAG + '-k', 1, 0),
+            ('K-alone', 'sudo ' + base.SUDO_FLAG + '-K', 1, 0),
             ('positive-after', common + q(str(rt.nopass)) + ' exit-9', 9, 1)):
         name = 'reset-error-' + suffix
         def one(n=name, s=script, e=expected, t=targets):
@@ -456,6 +467,7 @@ def main():
     require(sha(__file__) == receipt['files']['guest-command-timestamp-controls.py']['sha256'], 'new driver pin differs')
     spec = importlib.util.spec_from_file_location('privcmd_base', args.receipt.parent / 'guest-privcmd-controls.py')
     base = importlib.util.module_from_spec(spec); spec.loader.exec_module(base)
+    base.select_endpoint(receipt)
     base.guard(args.expected_uuid, receipt['kernel_release']); protected(args.bash, args.bash_sha256)
     require(args.receipt.is_absolute() and args.bash.is_absolute() and args.output.is_absolute() and
             args.output.resolve().is_relative_to(base.HOME) and not args.output.exists(), 'fresh private absolute output required')
@@ -472,8 +484,15 @@ def main():
         rt.note('timestamp-real-boottime-expiry', lambda: cache_lifetime(rt, True), 'actual-device-and-native-verifier')
         reload_policy(rt, timeout=0)
         rt.note('timestamp-default-zero', lambda: cache_lifetime(rt, False), 'actual-device-and-native-verifier')
-        reset_failure_matrix(rt)
-        require(len(rt.cases) == 24 and all(row['status'] == 'PASS' for row in rt.cases), 'new command/timestamp matrix incomplete')
+        # Six controls select the test module's denial-only reset fault; the
+        # production module has no such knob, so they run only on the test module.
+        knob_only = ['reset-error-' + name for name in RESET_FAULT_CONTROLS]
+        skipped = knob_only if base.ENDPOINT == 'production' else []
+        rt.report.update(test_knob_only_controls=knob_only, controls_not_run_on_this_endpoint=skipped)
+        if not skipped: reset_failure_matrix(rt)
+        require(len(rt.cases) == 24 - len(skipped) and all(row['status'] == 'PASS' for row in rt.cases),
+                'new command/timestamp matrix incomplete')
+        require(skipped or [row['id'] for row in rt.cases[-6:]] == knob_only, 'reset-fault control inventory differs')
         rt.report.update(status='PASS', original_topic_credit=0)
     except AssertionError as error: rt.report.update(status='FAIL', reason=str(error))
     except Exception as error: rt.report.update(status='ERROR', reason=type(error).__name__ + ': ' + str(error))

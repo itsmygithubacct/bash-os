@@ -44,9 +44,30 @@
     },
     {
       "id": "authority-command-authorization",
+      "kind": "migrated",
       "purpose": "Exercise an authorized command, a policy denial, non-interactive denial, verifier success/failure, and fail-closed reauthorization on the v2 authority route.",
-      "kind": "deferred",
-      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (command authorization, policy denial and reauthorization are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-auth-client-authority-sudo-r2-guarded-bootstrap-r1-record-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-auth-client-sudo-verify-client-guarded-bootstrap-r1-record-r2"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-authority-denial-no-helper-r1"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-takeover-command-timestamp-r1"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-takeover-privcmd-r1"
+        }
+      ]
     },
     {
       "id": "root-credential-drop",
@@ -80,15 +101,41 @@
     },
     {
       "id": "timestamp-validation-flows",
+      "kind": "migrated",
       "purpose": "Verify -k, -K, -v, and -k COMMAND ordering, including that a failed reset prevents the requested action.",
-      "kind": "deferred",
-      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (the cached credential that -k, -K and -v reset or validate lives in the authority); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-auth-client-authority-timestamp-r2-guarded-bootstrap-r1-record-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-sudo-doas-fallback-translation"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-takeover-command-timestamp-r1"
+        }
+      ]
     },
     {
       "id": "sudoedit-safe-copyback",
+      "kind": "migrated",
       "purpose": "Exercise sudoedit over private relative fixture files: safe open, private editor copies, reauthorization, digest-bound copyback, rejection cleanup, and multi-file behavior.",
-      "kind": "deferred",
-      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (kernel safe-open of policy-bound targets and digest-bound copyback); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-auth-client-sudoedit-reject-guarded-bootstrap-r1"
+        },
+        {
+          "group": "shell",
+          "id": "migration-auth-client-sudoedit-success-guarded-bootstrap-r1"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-takeover-safeedit-r1"
+        }
+      ]
     },
     {
       "id": "policy-list-projection",

@@ -83,17 +83,26 @@ def reset_case(rt, count=16, password=False, fail_index=-1, allowed=16):
     for path in rt.targets[:allowed]:
         lines.append('pcv2caller ALL = (root) %ssudoedit %s' % ('' if password else 'NOPASSWD: ', path))
     (rt.root / 'policy').write_text('\n'.join(lines) + '\n')
-    argv = ['/usr/sbin/insmod', rt.artifacts / (base.MODULE + '.ko'), 'test_only=1', 'test_edit_fail_index=' + str(fail_index)]
+    # The intent-fault knob exists only in the separately named test module.
+    knob = base.ENDPOINT == 'qualification'
+    require(knob or fail_index == -1, 'production authority has no intent-fault knob')
+    argv = ['/usr/sbin/insmod', rt.artifacts / (base.MODULE + '.ko'), *base.LOAD_ARGUMENTS]
+    if knob: argv.append('test_edit_fail_index=' + str(fail_index))
     for name in ('accounts', 'groups', 'profiles', 'policy', 'verifier', 'executor'):
         argv += [name + '_path=' + str(rt.root / name), name + '_sha256=' + sha(rt.root / name)]
     result = rt.command(argv); rt.loaded = result.returncode == 0 and Path('/sys/module', base.MODULE).exists()
     require(rt.loaded, 'safeedit module load failed')
-    require(Path('/sys/module', base.MODULE, 'parameters/test_edit_fail_index').read_text().strip() == str(fail_index),
-            'selected denial-only fault configuration differs')
+    if knob:
+        require(Path('/sys/module', base.MODULE, 'parameters/test_edit_fail_index').read_text().strip() == str(fail_index),
+                'selected denial-only fault configuration differs')
+    else:
+        require(not any(Path('/sys/module', base.MODULE, 'parameters', name).exists()
+                        for name in ('test_only', 'test_edit_fail_index', 'test_reset_fail')),
+                'production authority exposes a test knob')
     for _ in range(100):
         if os.path.lexists(base.DEVICE): break
         time.sleep(.01)
-    require(os.path.lexists(base.DEVICE), 'qualification device missing')
+    require(os.path.lexists(base.DEVICE), 'authority device missing')
     return rt.targets[:count]
 
 
@@ -275,7 +284,7 @@ def consumer(rt, name, paths, expected_status, editor_count, passwords=(), behav
     initial_fds = final_fds = editor_fds = None
     env = dict(rt.env, SUDO_EDITOR=str(rt.root / 'safeedit-editor'), SAFEEDIT_BEHAVIOR=behavior,
                SAFEEDIT_WAIT='1', SAFEEDIT_ORIGINAL=str(rt.targets[0]))
-    script = 'sudo --authority-v2-qualification -e ' + ('-n ' if not passwords else '') + '-- ' + ' '.join(shlex.quote(str(p)) for p in paths)
+    script = 'sudo ' + base.SUDO_FLAG + '-e ' + ('-n ' if not passwords else '') + '-- ' + ' '.join(shlex.quote(str(p)) for p in paths)
     wrapped = ('builtin printf "PCV2_BEFORE\\n"\nbuiltin read -r begin || exit 96\n{\n' + script +
                '\n}\nstatus=$?\nbuiltin printf "\\nPCV2_AFTER %s\\n" "$status"\n'
                'builtin read -r release || exit 96\nexit "$status"\n')
@@ -589,6 +598,7 @@ def main():
     require(sha(__file__) == receipt['files']['guest-safeedit-controls.py']['sha256'], 'guest controls source differs')
     spec = importlib.util.spec_from_file_location('privcmd_base', args.receipt.parent / 'guest-privcmd-controls.py')
     base = importlib.util.module_from_spec(spec); spec.loader.exec_module(base)
+    base.select_endpoint(receipt)
     base.guard(args.expected_uuid, receipt['kernel_release']); protected(args.bash, args.bash_sha256)
     require(args.receipt.is_absolute() and args.bash.is_absolute() and args.output.is_absolute() and
             args.output.resolve().is_relative_to(base.HOME) and not args.output.exists(), 'fresh private absolute output required')
@@ -623,6 +633,13 @@ def main():
                  ('relative-parent-traversal-usage', 1, {'invalid': 'parent-traversal', 'editor_count': 0}),
                  ('relative-one-target', 1, {'committed': 1, 'relative': True}),
                  ('relative-dot-two-targets', 2, {'committed': 2, 'relative': 'dot'})]
+        # One control selects the test module's denial-only intent fault; it
+        # cannot run against the production module, which has no such knob.
+        knob_only = [name for name, _, options in cases if options.get('fail_index', -1) >= 0]
+        require(knob_only == ['late-denial-reports-committed-prefix'], 'knob-only control inventory differs')
+        if base.ENDPOINT == 'production': cases = [row for row in cases if row[0] not in knob_only]
+        rt.report.update(test_knob_only_controls=knob_only,
+                         controls_not_run_on_this_endpoint=knob_only if base.ENDPOINT == 'production' else [])
         for name, count, options in cases:
             rt.note(name, lambda n=name, c=count, o=options: observe_case(rt, n, c, **o),
                     'actual-consumer-with-denial-only-intent-fault' if options.get('fail_index', -1) >= 0 else 'actual-consumer')
@@ -637,8 +654,9 @@ def main():
                      'post-seal-writer-denied', 'seal-replay', 'fd-substitution', 'old-grant-digest',
                      'last-close-releases-seal', 'expired-fresh-grant'):
             rt.note('api-' + name, lambda n=name: raw_edit_case(rt, n), 'actual-device-binding-controls')
-        require(len(rt.cases) == 53 and all(r['status'] == 'PASS' for r in rt.cases), 'safeedit matrix incomplete')
-        rt.report.update(status='PASS', all_nine_topics_qualified=False, production_features_enabled=False)
+        require(len(rt.cases) == 53 - len(rt.report['controls_not_run_on_this_endpoint']) and
+                all(r['status'] == 'PASS' for r in rt.cases), 'safeedit matrix incomplete')
+        rt.report.update(status='PASS', all_nine_topics_qualified=False)
     except AssertionError as error: rt.report.update(status='FAIL', reason=str(error))
     except Exception as error: rt.report.update(status='ERROR', reason=type(error).__name__ + ': ' + str(error))
     finally:

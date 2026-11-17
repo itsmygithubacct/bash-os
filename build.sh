@@ -60,7 +60,19 @@ Selecting bashperl builds pinned static libperl automatically on native builds.
 Selecting bashpython builds pinned static libpython automatically on native builds.
 Environment: CC, JOBS, CFLAGS, CPPFLAGS, LOCAL_LIBS, LDFLAGS_EXTRA,
 CONFIGURE_EXTRA, BASH_TARBALL, EXTRA_LOADABLES (space-separated source directories).
+BASHOS_KDIR=DIR also builds the kernel authority modules and their native
+helpers against the prepared kernel build tree DIR, into out/authority (or
+BASHOS_AUTHORITY_OUT); see kernel/bashos-auth/DEPLOY.txt. Unset: not built.
 HELP
+}
+# Opt-in: nothing here runs unless BASHOS_KDIR names a kernel build tree.
+build_authority(){
+  [[ -n ${BASHOS_KDIR:-} ]] || return 0
+  local out="${BASHOS_AUTHORITY_OUT:-$HERE/out/authority}"
+  say "kernel authority -> ${out#$HERE/}"
+  rm -rf "$out"
+  "$HERE/kernel/bashos-auth/tools/build-authority.sh" --kdir "$BASHOS_KDIR" --out "$out" \
+    --jobs "${JOBS:-$(nproc)}" || die "kernel authority build failed"
 }
 STATIC=0; STRIP=1; CLEAN=0; DEPS_PREFIX=""; PERL_PREFIX=""; PYTHON_PREFIX=""; INFO=""; SELECT_ARGS=()
 while [[ $# -gt 0 ]]; do case "$1" in
@@ -187,7 +199,7 @@ STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$ST
            [[ -z $DEPS_PREFIX ]] || find "$DEPS_PREFIX/include" "$DEPS_PREFIX/lib" -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum;
            find -L loadables "${EXTRA_DIRS[@]}" -type f \( -name '*.c' -o -name '*.h' -o -name '*.data' \) -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum; } | sha256sum | cut -c1-64)
 if [[ "$CLEAN" != 1 ]] && python3 config/build-cache.py "$OUTBIN" "$SRC" "$STAMP"; then
-  say "up to date — $OUTBIN (pass --clean to force)"; exit 0
+  say "up to date — $OUTBIN (pass --clean to force)"; build_authority; exit 0
 fi
 : > "$LOG"
 
@@ -388,3 +400,4 @@ echo "$STAMP" > "$STAGE/.bash-os-stamp"
 cd "$HERE"; rm -rf "$SRC.old"; [[ -d "$SRC" ]] && mv "$SRC" "$SRC.old"; mv "$STAGE" "$SRC"; rm -rf "$SRC.old"
 echo "$STAMP" > "$STAMPFILE"
 say "done: ${OUTBIN#$HERE/}  ($(wc -c < "$OUTBIN") bytes, ${#NAMES[@]} injected builtins)"
+build_authority

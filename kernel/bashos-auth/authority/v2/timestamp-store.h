@@ -6,6 +6,11 @@
 
 #define BA_V2_TIMESTAMP_SCOPES 128U
 #define BA_V2_TIMESTAMP_ENTRIES 256U
+/* Share of each table one caller uid may occupy. A uid at its share recycles
+ * its own least recently used idle scope, or its own soonest-expiring cache
+ * entry, instead of evicting another uid's cached authentication. */
+#define BA_V2_TIMESTAMP_UID_SCOPES 16U
+#define BA_V2_TIMESTAMP_UID_ENTRIES 32U
 struct ba_v2_timestamp_store;
 struct ba_v2_timestamp_scope;
 struct ba_v2_timestamp_lease {
@@ -25,6 +30,8 @@ int ba_v2_timestamp_key(const struct ba_v2_bound_request *bound,
 		const struct ba_v2_accounts *accounts, const struct ba_v2_groups *groups,
 		const struct ba_v2_policy *policy, const struct ba_v2_trusted_file *verifier,
 		u64 verifier_generation, struct ba_v2_timestamp_key *key);
+/* -EDQUOT: the caller uid holds BA_V2_TIMESTAMP_UID_SCOPES scopes and all of
+ * them are in use. -EMFILE: no scope of the whole table is idle. */
 int ba_v2_timestamp_acquire(struct ba_v2_timestamp_store *store,
 		const struct ba_reference_actor *actor, struct ba_v2_timestamp_lease *lease);
 void ba_v2_timestamp_release(struct ba_v2_timestamp_lease *lease);

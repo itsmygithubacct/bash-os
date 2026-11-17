@@ -38,6 +38,7 @@
 #include "loadables.h"
 #include "bashcred_privdrop.h"
 #include "auth-v2-client.h"
+#include "authority-route.h"
 
 #if defined (__has_include)
 # if __has_include ("_libssh_libssh.h")
@@ -589,6 +590,17 @@ static int  g_n_hostkeys = 0;
 static int  g_permit_root = 1;     /* 0=no, 1=yes (default), 2=prohibit-password */
 static unsigned g_authority_v2_encoding; /* explicit new protocol; zero keeps legacy behavior */
 static int g_authority_v2_qualification;
+
+/* authority-route.h rules 2 and 7. Without an explicit flag, encrypted
+ * password authentication is committed to the versioned protocol as soon as
+ * its production node is seen: at startup, before each connection is forked,
+ * and again in the connection process. The listener never clears it. */
+static void
+bsshd_route_latch (void)
+{
+  if (!g_authority_v2_encoding && bashos_route_present (BASHOS_ROUTE_IDENTITY_NODE))
+    g_authority_v2_encoding = BASHOS_AUTH_V2_STANDARD_PHC;
+}
 static long g_max_auth_tries = 0;  /* 0 = unlimited; >0 = per-connection cap */
 static long g_login_grace_s = 0;   /* 0 = no pre-auth deadline; >0 = seconds */
 static int  g_permit_tty = 1;      /* 0 = refuse PTY requests globally */
@@ -2880,6 +2892,7 @@ bsshd_encrypted_auth (ssh_session session, const bsshd_target_user *target,
 {
   int ssh_methods = 0;
   long tries = 0;
+  bsshd_route_latch ();
   if (auth_methods & BSSHD_AUTH_PUBLICKEY)
     ssh_methods |= SSH_AUTH_METHOD_PUBLICKEY;
   if (auth_methods & BSSHD_AUTH_PASSWORD)
@@ -3417,6 +3430,7 @@ run_encrypted (const char *addr, const char *port, const char *key,
         }
 
       struct bsshd_child_guard guard;
+      bsshd_route_latch ();
       if (once)
         {
           if (bsshd_v2_child_guard_begin (&guard) < 0)
@@ -3436,6 +3450,14 @@ run_encrypted (const char *addr, const char *port, const char *key,
 	        {
 	          bsshd_child_guard_child_end (&guard);
 	          bsshd_install_default_term_handlers ();
+	          /* The connection process never accepts: drop its copy of the
+	             listening socket, so the port is free as soon as the listener
+	             itself exits and a restarted server can bind it at once. */
+	          if (lfd >= 0)
+	            {
+	              close (lfd);
+	              ssh_bind_set_fd (bind, SSH_INVALID_SOCKET);
+	            }
 	          char sid[64], peer_label[64] = "";
           bsshd_peer_to_str (&peer, peer_label, sizeof peer_label);
           bsshd_session_record (sid, sizeof sid, "encrypted", peer_label);
@@ -3952,6 +3974,8 @@ static int run (WORD_LIST *args)
 	          puts ("    [--encrypted]");
 	          puts ("    [--auth-method publickey[,password]]");
 	          puts ("    [--authority-v2 | --authority-v2-legacy-hex] [--authority-v2-qualification]");
+	          puts ("    With --encrypted, password authentication uses the kernel verifier without a");
+	          puts ("    flag whenever /dev/bashos-auth-v2 exists; its refusal or error is final.");
 	          puts ("    [--allow-forwarding] [--allow-agent-forwarding]");
 	          puts ("    [--auth-fail-max N] [--auth-fail-window-sec SEC] [--auth-fail-cooldown-sec SEC]");
 	          return EXECUTION_SUCCESS;
@@ -3996,6 +4020,7 @@ static int run (WORD_LIST *args)
     builtin_error ("run: versioned authority requires encrypted SSH and explicit --authority-v2");
     return EX_USAGE;
   }
+  if (encrypted) bsshd_route_latch ();
   if (target_user && target_user[0])
     {
       if (bsshd_fill_target_user (target_user, &target) < 0)
@@ -4293,6 +4318,7 @@ char *sshd_doc[] = {
   "run [-a ADDR] [-p PORT] [-k HOSTKEY] [-F CONFIG] [-u USER] [--once] [--max-conn N]",
   "    [--encrypted]",
   "    [--auth-method publickey[,password]]",
+  "    [--authority-v2 | --authority-v2-legacy-hex] [--authority-v2-qualification]",
   "    [--allow-forwarding] [--allow-agent-forwarding]",
   "    [--auth-fail-max N] [--auth-fail-window-sec SEC] [--auth-fail-cooldown-sec SEC]",
   "    -F/--config supports ListenAddress, Port, HostKey, AuthorizedKeysFile,",
@@ -4301,6 +4327,12 @@ char *sshd_doc[] = {
   "    Subsystem NAME COMMAND accepts an sftp request only when configured.",
   "    COMMAND internal-sftp is the built-in SFTP server; any other command",
   "    is executed. A subsystem with no matching line is refused.",
+  "    --authority-v2 verifies passwords with the kernel's native verifier and",
+  "    its pinned account records (--authority-v2-legacy-hex for trusted legacy",
+  "    records; --authority-v2-qualification for the disposable test endpoint).",
+  "    With --encrypted the same route is used without a flag whenever",
+  "    /dev/bashos-auth-v2 exists. A refusal or error of that authority is",
+  "    final: no other password check is tried.",
   "status | stop | reload | sessions | kick SESSION_ID",
   "    Per-IP failed-handshake rate-limit: after N fails within SEC seconds,",
   "    refuse further connections from that IP for the cooldown. Default off.",

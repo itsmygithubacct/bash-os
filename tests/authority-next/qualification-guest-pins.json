@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "note": "Files of the Debian 13 (trixie) amd64 guest image that the qualification drivers use as independent references. The libraries are copied into the reference directory; the tools are used in place and checked against these pins before use.",
+  "libraries": {
+    "libargon2.so.1": {
+      "sha256": "94b5c0be9d7f09f1b4550ff15422d2ac8a6392c3471c88b93ee0370698388097",
+      "package": "libargon2-1 0~20190702+dfsg-4+b2",
+      "path": "/usr/lib/x86_64-linux-gnu/libargon2.so.1"
+    },
+    "libseccomp.so.2": {
+      "sha256": "c851a2378b4ef3a42ada5f8ff1604ad38f6bbcafa2aeea3f6680160d628c2f27",
+      "package": "libseccomp2 2.6.0-2",
+      "path": "/usr/lib/x86_64-linux-gnu/libseccomp.so.2"
+    }
+  },
+  "guest_tools": {
+    "ssh": {
+      "path": "/usr/bin/ssh",
+      "sha256": "af3b04ec5653755032fc18ad02445e4e51170e75d8bac4265647d423caa9a83e"
+    },
+    "ssh-keygen": {
+      "path": "/usr/bin/ssh-keygen",
+      "sha256": "4a16f170f7c80d6643d3ffada36d396c9d7b1d63238a218628e37af38d6107c0"
+    }
+  }
+}

@@ -38,14 +38,31 @@
       "purpose": "Check both documented doas help spellings return success and print the declared builtin usage text byte-for-byte.",
       "script": "doas --help\ndoas -h",
       "expected_status": 0,
-      "stdout": "doas - conservative doas front-end\nusage: doas [-n] [-u USER] [-g GROUP] [-s] [--] command [args...]\n       doas -L\nUse --authority-v2 for the separately configured native protocol.\n--authority-v2-qualification selects its disposable guest endpoint.\n--authority-v2-legacy-hex explicitly selects a trusted legacy PHC record.\nSupports -g/--group as an explicit runas group when policy permits it.\nNon-root callers use v2 authority when available, otherwise external doas.\nRoot callers drop and exec with scrubbed environment and child hygiene.\ndoas - conservative doas front-end\nusage: doas [-n] [-u USER] [-g GROUP] [-s] [--] command [args...]\n       doas -L\nUse --authority-v2 for the separately configured native protocol.\n--authority-v2-qualification selects its disposable guest endpoint.\n--authority-v2-legacy-hex explicitly selects a trusted legacy PHC record.\nSupports -g/--group as an explicit runas group when policy permits it.\nNon-root callers use v2 authority when available, otherwise external doas.\nRoot callers drop and exec with scrubbed environment and child hygiene.\n",
+      "stdout": "doas - conservative doas front-end\nusage: doas [-n] [-u USER] [-g GROUP] [-s] [--] command [args...]\n       doas -L\nUse --authority-v2 for the separately configured native protocol.\n--authority-v2-qualification selects its disposable guest endpoint.\n--authority-v2-legacy-hex explicitly selects a trusted legacy PHC record.\nWhen /dev/bashos-privcmd-v2 exists, callers other than uid 0 use the native\n  protocol without a flag. Its denial, error, per-user limit or full audit\n  log is final and no other route is tried; -s is refused on that route.\nSupports -g/--group as an explicit runas group when policy permits it.\nNon-root callers use v2 authority when available, otherwise external doas.\nRoot callers drop and exec with scrubbed environment and child hygiene.\ndoas - conservative doas front-end\nusage: doas [-n] [-u USER] [-g GROUP] [-s] [--] command [args...]\n       doas -L\nUse --authority-v2 for the separately configured native protocol.\n--authority-v2-qualification selects its disposable guest endpoint.\n--authority-v2-legacy-hex explicitly selects a trusted legacy PHC record.\nWhen /dev/bashos-privcmd-v2 exists, callers other than uid 0 use the native\n  protocol without a flag. Its denial, error, per-user limit or full audit\n  log is final and no other route is tried; -s is refused on that route.\nSupports -g/--group as an explicit runas group when policy permits it.\nNon-root callers use v2 authority when available, otherwise external doas.\nRoot callers drop and exec with scrubbed environment and child hygiene.\n",
       "stderr": "empty"
     },
     {
       "id": "authority_policy_and_verification",
+      "kind": "migrated",
       "purpose": "Exercise non-root allow, deny, non-interactive deny, and interactive verification behavior at the authority boundary.",
-      "kind": "deferred",
-      "reason": "The observable is produced by the real /dev/bashos-auth kernel authority (v2 allow, policy deny, non-interactive denial and verifier outcomes are decided by it); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-auth-client-authority-doas-r2-guarded-bootstrap-r1-record-r2"
+        },
+        {
+          "group": "shell",
+          "id": "migration-auth-client-doas-verify-client-guarded-bootstrap-r1-record-r2"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-authority-denial-no-helper-r1"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-takeover-command-timestamp-r1"
+        }
+      ]
     },
     {
       "id": "external_delegate_fallback",

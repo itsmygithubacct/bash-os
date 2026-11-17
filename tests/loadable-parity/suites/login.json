@@ -89,15 +89,77 @@
     },
     {
       "id": "interactive-auth-session-deferred",
+      "kind": "migrated",
       "purpose": "Future end-to-end coverage of password verification, retry and lockout state, TTY policy, session accounting, and successful login session setup.",
-      "kind": "deferred",
-      "reason": "A successful login needs the real /dev/bashos-auth kernel proof before session accounting and the shell exec; no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "mig-w4-login-prompt-format-eof"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-authority-consumers-r1"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-authority-login-state-r1"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w4-login-pty-invalid-name-same"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w4-login-pty-persistent-lockout"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w4-login-pty-prompts-echo"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w4-login-pty-retry-limit-1"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w4-login-pty-retry-limit-2"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w4-login-pty-retry-limit-3"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w4-login-pty-tty-policy"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w4-login-pty-wrong-and-unknown"
+        }
+      ]
     },
     {
       "id": "credential-transition-deferred",
+      "kind": "migrated",
       "purpose": "Future verification of become's token handling, supplementary groups, uid/gid transition, environment, working directory, and exec arguments.",
-      "kind": "deferred",
-      "reason": "Token acceptance (--auth-fd CONSUME, --auth-token) is decided by the real /dev/bashos-auth kernel authority (BL_AUTH_IOC_MINT/CONSUME); no guest kernel provides that device and a synthetic stand-in would not be the authority's answer."
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "authority-route-login-fail-closed"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w4-login-become-nonroot-refusal"
+        },
+        {
+          "group": "shell",
+          "id": "mig-w4-root-login-become-transition"
+        },
+        {
+          "group": "shell",
+          "id": "qualification-014-authority-consumers-r1"
+        }
+      ]
     }
   ]
 }

@@ -33,6 +33,17 @@ import uuid
 sys.dont_write_bytecode = True
 CASE, HOME = Path('/tmp/parity-case'), Path('/tmp/parity-home')
 DEVICE, MODULE = '/dev/bashos-privcmd-v2-test', 'bashos_privcmd_v2_test'
+# The pinned receipt names the endpoint. A production receipt carries only the
+# production module: it loads without a qualification gate or fault knob, and
+# every consumer is invoked without a qualification flag. 'default' issues
+# doas/sudo with no authority flag at all; 'explicit' passes --authority-v2.
+ENDPOINT, LOAD_ARGUMENTS = 'qualification', ['test_only=1']
+AUTH_FLAG, SUDO_FLAG = ' --qualification', '--authority-v2-qualification '
+# uid 0 keeps the direct route by default, so the two controls that need the
+# authority to deny root always name the protocol explicitly.
+ROOT_SUDO_FLAG = SUDO_FLAG
+ENDPOINTS = {'qualification': ('/dev/bashos-privcmd-v2-test', 'bashos_privcmd_v2_test'),
+             'production': ('/dev/bashos-privcmd-v2', 'bashos_privcmd_v2')}
 PASSWORD, SALT = b'privcmd-v2-fixture-password', b'privcmd-v2-salt'
 CALLER, TARGET, LEGACY, SHARED = 43201, 43202, 43203, 43204
 LIBC = C.CDLL(None, use_errno=True)
@@ -69,6 +80,29 @@ def require(ok, reason):
     if not ok: raise RuntimeError(reason)
 
 
+def select_endpoint(receipt):
+    global DEVICE, MODULE, ENDPOINT, LOAD_ARGUMENTS, AUTH_FLAG, SUDO_FLAG, ROOT_SUDO_FLAG
+    endpoint, route = receipt.get('endpoint'), receipt.get('consumer_route')
+    require(endpoint in ENDPOINTS, 'receipt does not name a known endpoint')
+    other = 'bashos_privcmd_v2' + ('_test' if endpoint == 'production' else '') + '.ko'
+    require(MODULE_FILE(endpoint) in receipt['files'] and other not in receipt['files'],
+            'receipt module set does not match its endpoint')
+    if endpoint == 'production':
+        require(route in ('default', 'explicit'), 'production receipt must name the consumer route')
+        LOAD_ARGUMENTS, AUTH_FLAG = [], ''
+        SUDO_FLAG = '' if route == 'default' else '--authority-v2 '
+        ROOT_SUDO_FLAG = '--authority-v2 '
+    else:
+        require(route is None, 'qualification receipt cannot name a consumer route')
+        LOAD_ARGUMENTS, AUTH_FLAG, SUDO_FLAG = ['test_only=1'], ' --qualification', '--authority-v2-qualification '
+        ROOT_SUDO_FLAG = SUDO_FLAG
+    ENDPOINT = endpoint
+    DEVICE, MODULE = ENDPOINTS[endpoint]
+
+
+def MODULE_FILE(endpoint): return ENDPOINTS[endpoint][1] + '.ko'
+
+
 def check(ok, reason):
     if not ok: raise AssertionError(reason)
 
@@ -94,7 +128,8 @@ def guard(token, release):
             'attested disposable evaluator required')
     require(Path('/sys/class/dmi/id/sys_vendor').read_text().strip() == 'QEMU' and
             platform.release() == release, 'guest/kernel differs')
-    require(not Path('/sys/module', MODULE).exists() and not os.path.lexists(DEVICE), 'preexisting authority')
+    require(not any(Path('/sys/module', module).exists() or os.path.lexists(device)
+                    for device, module in ENDPOINTS.values()), 'preexisting authority')
     require(C.sizeof(Request) == 832 and C.sizeof(Prepare) == 888, 'independent wire layout differs')
 
 
@@ -174,7 +209,8 @@ class Runtime:
         self.report = {'schema': 1, 'status': 'ERROR', 'cases': self.cases, 'guest_uuid': args.expected_uuid,
             'kernel': receipt['kernel_release'], 'bash_sha256': args.bash_sha256,
             'receipt_sha256': args.receipt_sha256, 'all_nine_topics_qualified': False,
-            'production_features_enabled': False, 'literal_legacy_abi_qualified': False,
+            'endpoint': ENDPOINT, 'device': DEVICE, 'module': MODULE, 'consumer_route': receipt.get('consumer_route'),
+            'production_features_enabled': ENDPOINT == 'production', 'literal_legacy_abi_qualified': False,
             'blocking_gaps': ['independent executor fault observer and deliberate bad-executor controls',
                               'safeedit all-target preflight and fresh authenticated copyback',
                               'interactive replacement/session requirements', 'complete consumer obligation matrix']}
@@ -248,7 +284,7 @@ class Runtime:
             require(LIBC.mount(os.fsencode(source), os.fsencode(target), None, 4096, None) == 0, 'account view bind')
             self.mounts.append(target)
             require(LIBC.mount(None, os.fsencode(target), None, 4096 | 32 | 1, None) == 0, 'readonly account view')
-        argv = ['/usr/sbin/insmod', self.artifacts / (MODULE + '.ko'), 'test_only=1']
+        argv = ['/usr/sbin/insmod', self.artifacts / (MODULE + '.ko'), *LOAD_ARGUMENTS]
         for name in ('accounts', 'groups', 'profiles', 'policy', 'verifier', 'executor'):
             argv += [name + '_path=' + str(self.root / name), name + '_sha256=' + sha(self.root / name)]
         r = self.command(argv); self.loaded = r.returncode == 0 and Path('/sys/module', MODULE).exists()
@@ -460,10 +496,10 @@ def device_cases(rt):
 
 
 def consumer_cases(rt):
-    q = shlex.quote; common = '--authority-v2-qualification -u pcv2target '
+    q = shlex.quote; common = SUDO_FLAG + '-u pcv2target '
     def authz():
         name = 'auth-policy-request-independent-digest'
-        result = rt.bash(name, 'auth privcmd-v2-authz --qualification -n %d %d -- %s' %
+        result = rt.bash(name, 'auth privcmd-v2-authz' + AUTH_FLAG + ' -n %d %d -- %s' %
                          (TARGET, TARGET, q(str(rt.nopass))), 0, 0)
         argv = os.fsencode(rt.nopass) + b'\0'
         frame = b'bashos-privcmd-v' + struct.pack('<11I', 1, 0, 1, CALLER, CALLER, TARGET, TARGET, 1, 0, len(argv), 0)
@@ -479,19 +515,19 @@ def consumer_cases(rt):
     for verb in ('doas', 'sudo'):
         name = verb + '-nonroot-nopasswd-status'
         rt.note(name, lambda n=name, v=verb: rt.bash(n, v + ' ' + common + q(str(rt.nopass)) + ' exit-7', 7, 1), 'actual-consumer')
-    rt.note('auth-native-status', lambda: rt.bash('auth-native-status', 'auth privcmd-v2-exec --qualification -n %d %d -- %s exit-9' %
+    rt.note('auth-native-status', lambda: rt.bash('auth-native-status', 'auth privcmd-v2-exec' + AUTH_FLAG + ' -n %d %d -- %s exit-9' %
             (TARGET, TARGET, q(str(rt.nopass))), 9, 1), 'actual-consumer')
     rt.note('sudo-real-signal-status', lambda: rt.bash('sudo-real-signal-status', 'sudo ' + common + q(str(rt.nopass)) + ' signal-term', 143, 1), 'actual-consumer')
     rt.note('sudo-noninteractive-auth-required', lambda: rt.bash('sudo-noninteractive-auth-required',
-        'sudo --authority-v2-qualification -k -n -u pcv2target ' + q(str(rt.password)), 1, 0), 'actual-consumer')
-    rt.note('sudo-root-policy-denied', lambda: rt.bash('sudo-root-policy-denied', 'sudo ' + common + q(str(rt.nopass)), 1, 0, uid=0), 'actual-consumer')
+        'sudo ' + SUDO_FLAG + '-k -n -u pcv2target ' + q(str(rt.password)), 1, 0), 'actual-consumer')
+    rt.note('sudo-root-policy-denied', lambda: rt.bash('sudo-root-policy-denied', 'sudo ' + ROOT_SUDO_FLAG + '-u pcv2target ' + q(str(rt.nopass)), 1, 0, uid=0), 'actual-consumer')
     rt.note('sudo-wrong-password', lambda: rt.bash('sudo-wrong-password',
-        'sudo --authority-v2-qualification -k -u pcv2target ' + q(str(rt.password)), 1, 0, password=b'wrong'), 'actual-consumer')
-    script = ('sudo --authority-v2-qualification -k -u pcv2target %s exit-7; a=$?; '
-              'sudo --authority-v2-qualification -n -u pcv2target %s exit-9; b=$?; '
-              'sudo --authority-v2-qualification -K || exit 93; '
-              'sudo --authority-v2-qualification -n -u pcv2target %s; c=$?; '
-              '[[ $a == 7 && $b == 9 && $c == 1 ]]') % ((q(str(rt.password)),) * 3)
+        'sudo ' + SUDO_FLAG + '-k -u pcv2target ' + q(str(rt.password)), 1, 0, password=b'wrong'), 'actual-consumer')
+    script = ('sudo @-k -u pcv2target %s exit-7; a=$?; '
+              'sudo @-n -u pcv2target %s exit-9; b=$?; '
+              'sudo @-K || exit 93; '
+              'sudo @-n -u pcv2target %s; c=$?; '
+              '[[ $a == 7 && $b == 9 && $c == 1 ]]').replace('@', SUDO_FLAG) % ((q(str(rt.password)),) * 3)
     rt.note('sudo-real-password-cache-and-K', lambda: rt.bash('sudo-real-password-cache-and-K', script, 0, 2, PASSWORD), 'actual-consumer')
     rows = rt.audit_drain()
     (rt.args.output / 'consumer-audit.bin').write_bytes(b''.join(rows))
@@ -501,7 +537,7 @@ def consumer_cases(rt):
 def audit_cases(rt):
     # Root UID is denied by policy, producing a genuine deny record for decoder
     # and integrity controls; no userspace event insertion interface exists.
-    result = rt.bash('audit-seed-root-deny', 'sudo --authority-v2-qualification -n -u pcv2target ' + shlex.quote(str(rt.nopass)), 1, 0, uid=0)
+    result = rt.bash('audit-seed-root-deny', 'sudo ' + ROOT_SUDO_FLAG + '-n -u pcv2target ' + shlex.quote(str(rt.nopass)), 1, 0, uid=0)
     fd = os.open(DEVICE, os.O_RDWR | os.O_CLOEXEC)
     try:
         data = bytearray(800); fcntl.ioctl(fd, PEEK, data, True)
@@ -511,11 +547,11 @@ def audit_cases(rt):
         rejects(lambda: fcntl.ioctl(fd, AUDIT_VERIFY, bad), {errno.EKEYREJECTED})
         rejects(lambda: fcntl.ioctl(fd, ACK, struct.pack('<QQ', epoch, sequence + 1)), {errno.ESTALE})
         def observer_failure():
-            r = rt.command([rt.args.bash, '--noprofile', '--norc', '-c', 'auth audit-v2-drain --qualification 1 >/dev/full'])
+            r = rt.command([rt.args.bash, '--noprofile', '--norc', '-c', 'auth audit-v2-drain' + AUTH_FLAG + ' 1 >/dev/full'])
             check(r.returncode != 0, 'failed decoder output accepted')
             still = bytearray(800); fcntl.ioctl(fd, PEEK, still, True); check(still == data, 'output failure removed audit record')
         observer_failure()
-        r = rt.command([rt.args.bash, '--noprofile', '--norc', '-c', 'auth audit-v2-drain --qualification 1'])
+        r = rt.command([rt.args.bash, '--noprofile', '--norc', '-c', 'auth audit-v2-drain' + AUTH_FLAG + ' 1'])
         check(r.returncode == 0, 'actual Bash decoder failed'); row = json.loads(r.stdout)
         check(row['epoch'] == epoch and row['sequence'] == sequence and row['outcome'] == 'denied' and row['hmac_verified'] is True,
               'decoded record disagrees with independent framing')
@@ -531,6 +567,7 @@ def main():
     args = parser.parse_args(); protected(args.receipt, args.receipt_sha256)
     receipt = json.loads(args.receipt.read_text())
     require(receipt['kind'] == 'authority-privcmd-v2-build-only' and receipt['schema'] == 1, 'build receipt kind differs')
+    select_endpoint(receipt)
     guard(args.expected_uuid, receipt['kernel_release']); protected(args.bash, args.bash_sha256)
     require(args.receipt.is_absolute() and args.bash.is_absolute() and args.output.is_absolute() and
             args.output.resolve().is_relative_to(HOME) and not args.output.exists(), 'fresh private absolute output required')

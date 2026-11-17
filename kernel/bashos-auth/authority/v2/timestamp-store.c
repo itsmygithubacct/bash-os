@@ -102,23 +102,51 @@ static void timestamp_clear_scope(struct ba_v2_timestamp_store *s, struct ba_v2_
 		if (s->entries[i].scope == scope) memzero_explicit(&s->entries[i], sizeof(s->entries[i]));
 }
 
+/* An idle scope is better to recycle when it was never used, else when it was
+ * used less recently. */
+static bool timestamp_scope_older(const struct ba_v2_timestamp_scope *one,
+		const struct ba_v2_timestamp_scope *best)
+{
+	return !best || !one->session || (best->session && one->last_used < best->last_used);
+}
+
+/* Store lock held. Finds the live scope of this uid and session, or else the
+ * idle scope a new one may replace: any idle scope while the uid is below
+ * its share, only one of its own once it has reached it. */
+static struct ba_v2_timestamp_scope *timestamp_scope_find(struct ba_v2_timestamp_store *s,
+		u32 uid, const struct pid *session, struct ba_v2_timestamp_scope **replace, u32 *owned)
+{
+	struct ba_v2_timestamp_scope *any = NULL, *own = NULL;
+	u32 i;
+	*owned = 0;
+	for (i = 0; i < BA_V2_TIMESTAMP_SCOPES; i++) {
+		struct ba_v2_timestamp_scope *one = &s->scopes[i];
+		bool mine = one->session && one->uid == uid;
+		if (mine && one->session == session) return one;
+		if (mine) (*owned)++;
+		if (one->users) continue;
+		if (timestamp_scope_older(one, any)) any = one;
+		if (mine && timestamp_scope_older(one, own)) own = one;
+	}
+	*replace = *owned >= BA_V2_TIMESTAMP_UID_SCOPES ? own : any;
+	return NULL;
+}
+
 int ba_v2_timestamp_acquire(struct ba_v2_timestamp_store *s,
 		const struct ba_reference_actor *actor, struct ba_v2_timestamp_lease *lease)
 {
-	struct ba_v2_timestamp_scope *scope = NULL, *victim = NULL;
-	u32 uid, i;
+	struct ba_v2_timestamp_scope *scope, *victim = NULL;
+	u32 uid, owned;
 	int rc = 0;
 	if (!s || !actor || !lease || lease->store || !ba_reference_actor_matches(actor)) return -EINVAL;
 	uid = from_kuid(&init_user_ns, actor->cred->uid);
 	mutex_lock(&s->lock);
-	for (i = 0; i < BA_V2_TIMESTAMP_SCOPES; i++) {
-		struct ba_v2_timestamp_scope *one = &s->scopes[i];
-		if (one->session == actor->session && one->uid == uid) { scope = one; break; }
-		if (!one->users && (!victim || !one->session ||
-		    (victim->session && one->last_used < victim->last_used))) victim = one;
-	}
+	scope = timestamp_scope_find(s, uid, actor->session, &victim, &owned);
 	if (!scope) {
-		if (!victim) { rc = -EMFILE; goto done; }
+		if (!victim) {
+			rc = owned >= BA_V2_TIMESTAMP_UID_SCOPES ? -EDQUOT : -EMFILE;
+			goto done;
+		}
 		if (s->epoch_counter == U64_MAX) { rc = -EOVERFLOW; goto done; }
 		scope = victim;
 		timestamp_clear_scope(s, scope);
@@ -225,6 +253,29 @@ done:
 	return rc;
 }
 
+/* Store lock held. Never NULL. Picks where a newly verified cache entry goes:
+ * the entry it refreshes; else, for a uid at its share, that uid's own
+ * soonest-expiring entry; else an unused entry; else the soonest-expiring. */
+static struct ba_v2_timestamp_entry *timestamp_entry_slot(struct ba_v2_timestamp_store *s,
+		const struct ba_v2_timestamp_scope *scope, u64 epoch,
+		const struct ba_v2_timestamp_key *key)
+{
+	struct ba_v2_timestamp_entry *unused = NULL, *soonest = NULL, *own = NULL;
+	u32 i, owned = 0;
+	for (i = 0; i < BA_V2_TIMESTAMP_ENTRIES; i++) {
+		struct ba_v2_timestamp_entry *entry = &s->entries[i];
+		if (!entry->active) { unused = entry; continue; }
+		if (entry->scope == scope && entry->epoch == epoch &&
+		    !crypto_memneq(&entry->key, key, sizeof(*key))) return entry;
+		if (!soonest || entry->expires < soonest->expires) soonest = entry;
+		if (entry->key.caller_uid != key->caller_uid) continue;
+		owned++;
+		if (!own || entry->expires < own->expires) own = entry;
+	}
+	if (owned >= BA_V2_TIMESTAMP_UID_ENTRIES) return own;
+	return unused ? unused : soonest;
+}
+
 int ba_v2_timestamp_verified(const struct ba_v2_timestamp_lease *lease, u64 epoch,
 		const struct ba_v2_timestamp_key *key, u32 timeout,
 		struct ba_v2_verified_event *event, const void *recipient,
@@ -232,9 +283,8 @@ int ba_v2_timestamp_verified(const struct ba_v2_timestamp_lease *lease, u64 epoc
 {
 	struct ba_v2_timestamp_store *s;
 	struct ba_reference_claim actual = {0};
-	struct ba_v2_timestamp_entry *slot = NULL;
+	struct ba_v2_timestamp_entry *slot;
 	u64 expires = 0, verified_deadline = 0, now;
-	u32 i;
 	int rc;
 	if (!deadline) return -EINVAL;
 	*deadline = 0;
@@ -258,12 +308,7 @@ int ba_v2_timestamp_verified(const struct ba_v2_timestamp_lease *lease, u64 epoc
 	now = ktime_get_boottime_ns();
 	if (now >= verified_deadline) { rc = -EKEYEXPIRED; goto unlock; }
 	if (timeout && expires > now) {
-		for (i = 0; i < BA_V2_TIMESTAMP_ENTRIES; i++) {
-			struct ba_v2_timestamp_entry *entry = &s->entries[i];
-			if (entry->active && entry->scope == lease->scope && entry->epoch == epoch &&
-			    !crypto_memneq(&entry->key, key, sizeof(*key))) { slot = entry; break; }
-			if (!slot || !entry->active || (slot->active && entry->expires < slot->expires)) slot = entry;
-		}
+		slot = timestamp_entry_slot(s, lease->scope, epoch, key);
 		memzero_explicit(slot, sizeof(*slot));
 		slot->key = *key; slot->scope = lease->scope; slot->epoch = epoch; slot->expires = expires;
 		slot->active = true;

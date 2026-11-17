@@ -37,6 +37,7 @@
 #include "loadables.h"
 #include "child-wait.h"
 #include "privcmd-v2-client.h"
+#include "authority-route.h"
 
 extern char **export_env;
 extern void maybe_make_export_env (void);
@@ -2292,7 +2293,8 @@ bda_refuse (const char *prog, const char *flag)
 }
 
 /* Explicit new protocol. These flags never change the legacy ABI route and
- * never fall back to an external program or the historical root shortcut. */
+ * never fall back to an external program or the historical root shortcut.
+ * Without them bashdoas_dispatch applies authority-route.h rule 2. */
 static int
 bda_versioned_option (bda_opts *o, const char *option)
 {
@@ -2509,7 +2511,7 @@ bda_run_versioned (const bda_opts *o)
           }
     }
   fd = bpv2_open (o->authority_v2_qualification);
-  if (fd < 0) { builtin_error ("authority-v2: open: %s", strerror (errno)); goto done; }
+  if (fd < 0) { builtin_error ("authority-v2: open: %s", bashos_route_strerror (errno)); goto done; }
   if (o->reset || o->reset_first)
     {
       if (bpv2_reset (fd, o->reset_all)) goto failed;
@@ -2585,7 +2587,7 @@ bda_run_versioned (const bda_opts *o)
   goto done;
 failed:
   saved = errno;
-  builtin_error ("authority-v2: %s", strerror (saved));
+  builtin_error ("authority-v2: %s", bashos_route_strerror (saved));
 done:
   if (fd >= 0) close (fd);
   if (argv_blob) { bpv2_wipe (argv_blob, argv_bytes); free (argv_blob); }
@@ -2817,6 +2819,13 @@ bashdoas_dispatch (int is_sudo, WORD_LIST *list)
   int rc = is_sudo ? bda_parse_sudo (&o, argv, argc) : bda_parse_doas (&o, argv, argc);
   if (rc == EXECUTION_SUCCESS)
     {
+      /* authority-route.h rule 2. A caller other than uid 0 is committed to
+         the versioned protocol whenever its production node is present; the
+         legacy device, the external delegate and the list projection are then
+         unreachable for this invocation. uid 0 needs no authorization. */
+      if (!o.authority_v2 && geteuid () != 0 &&
+          bashos_route_present (BASHOS_ROUTE_PRIVCMD_NODE))
+        o.authority_v2 = 1;
       if (o.authority_v2)
         rc = bda_run_versioned (&o);
       else if (is_sudo && o.list_mode)
@@ -2848,6 +2857,9 @@ char *doas_doc[] = {
   "Use --authority-v2 for the separately configured native protocol.",
   "--authority-v2-qualification selects its disposable guest endpoint.",
   "--authority-v2-legacy-hex explicitly selects a trusted legacy PHC record.",
+  "When /dev/bashos-privcmd-v2 exists, callers other than uid 0 use the native",
+  "  protocol without a flag. Its denial, error, per-user limit or full audit",
+  "  log is final and no other route is tried; -s is refused on that route.",
   "Supports -g/--group as an explicit runas group when policy permits it.",
   "Non-root callers use v2 authority when available, otherwise external doas.",
   "Root callers drop and exec with scrubbed environment and child hygiene.",

@@ -46,7 +46,7 @@ def swap_executor(rt, path):
     pending = rt.root / 'executor.next'
     rt.install(pending, path.read_bytes(), 0o700)
     pending.replace(rt.root / 'executor')
-    argv = ['/usr/sbin/insmod', rt.artifacts / (base.MODULE + '.ko'), 'test_only=1']
+    argv = ['/usr/sbin/insmod', rt.artifacts / (base.MODULE + '.ko'), *base.LOAD_ARGUMENTS]
     for name in ('accounts', 'groups', 'profiles', 'policy', 'verifier', 'executor'):
         argv += [name + '_path=' + str(rt.root / name), name + '_sha256=' + base.sha(rt.root / name)]
     result = rt.command(argv)
@@ -55,7 +55,7 @@ def swap_executor(rt, path):
     for _ in range(100):
         if os.path.lexists(base.DEVICE): break
         time.sleep(.01)
-    require(os.path.lexists(base.DEVICE), 'qualification device missing')
+    require(os.path.lexists(base.DEVICE), 'authority device missing')
 
 
 def observed_case(rt, observer, verb, fault, negative=None):
@@ -73,8 +73,8 @@ def observed_case(rt, observer, verb, fault, negative=None):
     try:
         command = shlex.quote(str(rt.nopass)) + ' exit-7'
         if verb == 'auth':
-            script = 'auth privcmd-v2-exec --qualification -n %d %d -- %s' % (base.TARGET, base.TARGET, command)
-        else: script = verb + ' --authority-v2-qualification -n -u pcv2target ' + command
+            script = 'auth privcmd-v2-exec' + base.AUTH_FLAG + ' -n %d %d -- %s' % (base.TARGET, base.TARGET, command)
+        else: script = verb + ' ' + base.SUDO_FLAG + '-n -u pcv2target ' + command
         positive = fault == 'none' and negative is None
         # A missing/broken observer is setup ERROR, not a reached credential
         # verdict. Retain an actual consumer assertion failure, but classify it
@@ -135,6 +135,7 @@ def main():
     initial(args.receipt.parent / 'guest-privcmd-controls.py', raw['files']['guest-privcmd-controls.py']['sha256'])
     base = load('privcmd_base', args.receipt.parent / 'guest-privcmd-controls.py')
     receipt = checked_receipt(base, args.receipt, args.receipt_sha256, 'authority-privcmd-v2-build-only')
+    base.select_endpoint(receipt)
     addon = checked_receipt(base, args.observer_receipt, args.observer_receipt_sha256, 'authority-executor-observer-build-only')
     require(addon['executor_source_sha256'] == '25719311d2c9e8dff0f3bfece2387393b28596e3888a92eb2cb1ebb2233d8cf5',
             'observer built for a different executor')

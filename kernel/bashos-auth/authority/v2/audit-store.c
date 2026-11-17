@@ -7,14 +7,25 @@
 #include <linux/random.h>
 #include <linux/slab.h>
 #include "audit-store.h"
+#include "uid-limit.h"
 
 struct ba_v2_audit_store {
 	struct mutex lock;
 	struct crypto_shash *hmac;
 	struct shash_desc *desc;
 	size_t desc_size;
-	u64 epoch, sequence, backpressure;
+	u64 epoch, sequence, backpressure, uid_denials;
 	u32 head, used, reserved;
+	/* Per-uid pending counts of limited owners. A row is free when its
+	 * count is zero. Every live row holds at least one of the at most
+	 * BA_V2_AUDIT_CAPACITY pending records, so a row is always free when
+	 * the ring itself has room. */
+	struct ba_v2_uid_count holders[BA_V2_AUDIT_CAPACITY];
+	/* Owner of each committed record, parallel to records[]. */
+	struct audit_owner {
+		kuid_t uid;
+		bool limited;
+	} owners[BA_V2_AUDIT_CAPACITY];
 	struct bashos_audit_v2_record records[BA_V2_AUDIT_CAPACITY];
 };
 static_assert(sizeof(struct bashos_audit_v2_record) == BASHOS_AUDIT_V2_BYTES);
@@ -68,19 +79,24 @@ void ba_v2_audit_destroy(struct ba_v2_audit_store *s)
 	kvfree_sensitive(s, sizeof(*s));
 }
 
-int ba_v2_audit_reserve(struct ba_v2_audit_store *s, u32 count,
-		struct ba_v2_audit_ticket *ticket)
+int ba_v2_audit_reserve(struct ba_v2_audit_store *s, u32 count, kuid_t uid,
+		bool limited, struct ba_v2_audit_ticket *ticket)
 {
 	int rc = 0;
-	if (!s || !ticket || ticket->remaining || !count || count > BA_V2_AUDIT_CAPACITY) return -EINVAL;
+	if (!s || !ticket || ticket->remaining || !count || count > BA_V2_AUDIT_CAPACITY ||
+	    !uid_valid(uid)) return -EINVAL;
 	mutex_lock(&s->lock);
 	if (count > BA_V2_AUDIT_CAPACITY - s->used - s->reserved ||
 	    s->sequence > U64_MAX - s->reserved - count) {
 		if (s->backpressure != U64_MAX) s->backpressure++;
 		rc = -ENOSPC;
+	} else if (limited && (rc = ba_v2_uid_charge(s->holders, BA_V2_AUDIT_CAPACITY, uid,
+			count, BA_V2_AUDIT_UID_LIMIT))) {
+		if (s->uid_denials != U64_MAX) s->uid_denials++;
 	} else {
 		s->reserved += count;
 		ticket->store = s; ticket->epoch = s->epoch; ticket->remaining = count;
+		ticket->uid = uid; ticket->limited = limited;
 	}
 	mutex_unlock(&s->lock);
 	return rc;
@@ -91,8 +107,11 @@ void ba_v2_audit_cancel(struct ba_v2_audit_ticket *ticket)
 	struct ba_v2_audit_store *s;
 	if (!ticket || !ticket->remaining || !(s = ticket->store)) return;
 	mutex_lock(&s->lock);
-	if (ticket->epoch == s->epoch && ticket->remaining <= s->reserved)
+	if (ticket->epoch == s->epoch && ticket->remaining <= s->reserved) {
 		s->reserved -= ticket->remaining;
+		if (ticket->limited)
+			ba_v2_uid_uncharge(s->holders, BA_V2_AUDIT_CAPACITY, ticket->uid, ticket->remaining);
+	}
 	memzero_explicit(ticket, sizeof(*ticket));
 	mutex_unlock(&s->lock);
 }
@@ -119,6 +138,8 @@ int ba_v2_audit_commit(struct ba_v2_audit_ticket *ticket,
 	memzero_explicit(record->hmac, sizeof(record->hmac));
 	rc = crypto_shash_digest(s->desc, (const u8 *)record, offsetof(typeof(*record), hmac), record->hmac);
 	if (rc) { memzero_explicit(record, sizeof(*record)); goto done; }
+	/* The owner's charge moves from the reservation to this record. */
+	s->owners[at].uid = ticket->uid; s->owners[at].limited = ticket->limited;
 	s->sequence++; s->used++; s->reserved--; ticket->remaining--;
 	if (sequence) *sequence = s->sequence;
 done:
@@ -146,6 +167,9 @@ int ba_v2_audit_ack(struct ba_v2_audit_store *s, u64 epoch, u64 sequence)
 	if (epoch != s->epoch || !s->used || le64_to_cpu(s->records[s->head].sequence) != sequence)
 		rc = -ESTALE;
 	else {
+		if (s->owners[s->head].limited)
+			ba_v2_uid_uncharge(s->holders, BA_V2_AUDIT_CAPACITY, s->owners[s->head].uid, 1);
+		memset(&s->owners[s->head], 0, sizeof(s->owners[s->head]));
 		memzero_explicit(&s->records[s->head], sizeof(s->records[s->head]));
 		s->head = (s->head + 1) % BA_V2_AUDIT_CAPACITY;
 		s->used--;
@@ -177,7 +201,7 @@ void ba_v2_audit_info(struct ba_v2_audit_store *s, struct ba_v2_audit_info *info
 	mutex_lock(&s->lock);
 	info->epoch = s->epoch; info->next_sequence = s->sequence == U64_MAX ? 0 : s->sequence + 1;
 	info->oldest_sequence = s->used ? le64_to_cpu(s->records[s->head].sequence) : 0;
-	info->backpressure_denials = s->backpressure;
+	info->backpressure_denials = s->backpressure; info->uid_limit_denials = s->uid_denials;
 	info->available = s->used; info->reserved = s->reserved;
 	mutex_unlock(&s->lock);
 }

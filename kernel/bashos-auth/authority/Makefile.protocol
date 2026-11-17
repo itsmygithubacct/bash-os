@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Production identity protocol v2 module. Copy the source tree and this file,
+# as authority/Makefile, to a fresh M= directory; tools/build-authority.sh
+# does that. The stage-1 Kbuild in the parent directory is unchanged.
+obj-m += bashos_auth_v2.o
+bashos_auth_v2-y := reference.o v2/trusted-input.o v2/verifier-channel.o v2/identity-transport.o v2/identity-device.o v2/identity-main.o v2/secrets-under-test.o
+ccflags-y += -DBA_AUTHORITY_V2

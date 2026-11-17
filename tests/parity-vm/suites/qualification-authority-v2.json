@@ -1,0 +1,629 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "qualification-014-takeover-privcmd-r1",
+      "loadable": "auth",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Run the pinned authority control packet for the privileged-command device, request binding, audit decoding and the auth, doas and sudo command consumers against the production module and device node, loaded without a qualification gate, with every consumer invoked without a qualification flag.",
+      "oracle": "The written authority contracts as encoded by the pinned packet driver: independent wire layouts and request digests, an independent Argon2 library, kernel audit records, live credential and filesystem observations. The transport independently requires the exact pinned control inventory, every control PASS, an unchanged input set, no new kernel warning or taint, and no authority module or node before or after.",
+      "comparison": "All 19 controls of the pinned inventory must pass on the production endpoint; the receipt binds every module, native program and driver by SHA-256 and is itself bound to the build tool receipt.",
+      "requires": [
+        "python3",
+        "insmod",
+        "rmmod",
+        "dmesg"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-authority-v2-r1.py": "0a94cd87a67763393c78b592f0ca9a78d96c7920795c09e59c7f32ba8b4000d4"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-authority-v2-r1.py\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 650,
+      "file_size_limit": 33554432,
+      "stdout": "PASS endpoint=production controls=19\n",
+      "stderr": "",
+      "covers": [
+        "auth/authority-policy-audit-and-child-flow",
+        "sudo/authority-command-authorization",
+        "doas/authority_policy_and_verification"
+      ],
+      "files": {
+        "authority-inputs.json": "{\"control_ids_sha256\": \"72e732756a4d44891b24f8ed3d49d03145787ee8d55519f93149ce80220fdd4a\", \"driver\": \"privcmd/guest-privcmd-controls.py\", \"driver_sha256\": \"1623289a967e9e27fe91628091e3d233bd608687789fc165da9a9ab44cb57a46\", \"endpoint\": \"production\", \"expected_controls\": 19, \"receipt\": \"privcmd/privcmd-build-receipt.json\", \"receipt_sha256\": \"8f6e47e3995f6b9c7185b6662af2021556dd149ea69ec8bea1b8d656f206cf68\"}\n"
+      },
+      "diagnostic_files": [
+        "authority-transport.json",
+        "authority-report.json",
+        "authority-dmesg-delta.txt",
+        "authority-kernel-delta.txt",
+        "authority-all.tar.gz.0",
+        "authority-all.tar.gz.1",
+        "authority-all.tar.gz.2",
+        "authority-all.tar.gz.3",
+        "authority-all.tar.gz.4",
+        "authority-all.tar.gz.5",
+        "authority-all.tar.gz.6",
+        "authority-all.tar.gz.7"
+      ]
+    },
+    {
+      "id": "qualification-014-takeover-safeedit-r1",
+      "loadable": "sudo",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Run the pinned authority control packet for sudo -e safe open, private editor copies, reauthorization and digest-bound copy-back against the production module and device node, loaded without a qualification gate, with every consumer invoked without a qualification flag.",
+      "oracle": "The written authority contracts as encoded by the pinned packet driver: independent wire layouts and request digests, an independent Argon2 library, kernel audit records, live credential and filesystem observations. The transport independently requires the exact pinned control inventory, every control PASS, an unchanged input set, no new kernel warning or taint, and no authority module or node before or after.",
+      "comparison": "All 52 controls of the pinned inventory must pass on the production endpoint; the receipt binds every module, native program and driver by SHA-256 and is itself bound to the build tool receipt.",
+      "requires": [
+        "python3",
+        "insmod",
+        "rmmod",
+        "dmesg"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-authority-v2-r1.py": "0a94cd87a67763393c78b592f0ca9a78d96c7920795c09e59c7f32ba8b4000d4"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-authority-v2-r1.py\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 650,
+      "file_size_limit": 33554432,
+      "stdout": "PASS endpoint=production controls=52\n",
+      "stderr": "",
+      "covers": [
+        "sudo/sudoedit-safe-copyback"
+      ],
+      "files": {
+        "authority-inputs.json": "{\"control_ids_sha256\": \"477f9a0499add59f60e66c476b2ce820a92765dfb8dfd671d39ec2e2b41c45c2\", \"driver\": \"privcmd/guest-safeedit-controls.py\", \"driver_sha256\": \"f10fe7530d4240782058e06525e387ad49943b65aef65edcdb709c3563c0b416\", \"endpoint\": \"production\", \"expected_controls\": 52, \"not_run\": [\"late-denial-reports-committed-prefix\"], \"receipt\": \"privcmd/privcmd-build-receipt.json\", \"receipt_sha256\": \"8f6e47e3995f6b9c7185b6662af2021556dd149ea69ec8bea1b8d656f206cf68\"}\n"
+      },
+      "diagnostic_files": [
+        "authority-transport.json",
+        "authority-report.json",
+        "authority-dmesg-delta.txt",
+        "authority-kernel-delta.txt",
+        "authority-all.tar.gz.0",
+        "authority-all.tar.gz.1",
+        "authority-all.tar.gz.2",
+        "authority-all.tar.gz.3",
+        "authority-all.tar.gz.4",
+        "authority-all.tar.gz.5",
+        "authority-all.tar.gz.6",
+        "authority-all.tar.gz.7"
+      ]
+    },
+    {
+      "id": "qualification-014-takeover-command-timestamp-r1",
+      "loadable": "sudo",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Run the pinned authority control packet for doas and sudo denial, verification and the cached-credential reset and validation matrix against the production module and device node, loaded without a qualification gate, with every consumer invoked without a qualification flag.",
+      "oracle": "The written authority contracts as encoded by the pinned packet driver: independent wire layouts and request digests, an independent Argon2 library, kernel audit records, live credential and filesystem observations. The transport independently requires the exact pinned control inventory, every control PASS, an unchanged input set, no new kernel warning or taint, and no authority module or node before or after.",
+      "comparison": "All 18 controls of the pinned inventory must pass on the production endpoint; the receipt binds every module, native program and driver by SHA-256 and is itself bound to the build tool receipt.",
+      "requires": [
+        "python3",
+        "insmod",
+        "rmmod",
+        "dmesg"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-authority-v2-r1.py": "0a94cd87a67763393c78b592f0ca9a78d96c7920795c09e59c7f32ba8b4000d4"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-authority-v2-r1.py\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 650,
+      "file_size_limit": 33554432,
+      "stdout": "PASS endpoint=production controls=18\n",
+      "stderr": "",
+      "covers": [
+        "sudo/timestamp-validation-flows",
+        "sudo/authority-command-authorization",
+        "doas/authority_policy_and_verification"
+      ],
+      "files": {
+        "authority-inputs.json": "{\"control_ids_sha256\": \"f1a377e9484c5ef567d6b8dbe54ab2307d58f4e5ab4b77639b7ee3516a384c09\", \"driver\": \"privcmd/guest-command-timestamp-controls.py\", \"driver_sha256\": \"2e5ed1479aac9aed1d45a1dccabf627ff6820da1b1bc0b37e450367cc81e48da\", \"endpoint\": \"production\", \"expected_controls\": 18, \"not_run\": [\"reset-error-positive-before\", \"reset-error-k-command\", \"reset-error-k-validate\", \"reset-error-k-alone\", \"reset-error-K-alone\", \"reset-error-positive-after\"], \"receipt\": \"privcmd/privcmd-build-receipt.json\", \"receipt_sha256\": \"8f6e47e3995f6b9c7185b6662af2021556dd149ea69ec8bea1b8d656f206cf68\"}\n"
+      },
+      "diagnostic_files": [
+        "authority-transport.json",
+        "authority-report.json",
+        "authority-dmesg-delta.txt",
+        "authority-kernel-delta.txt",
+        "authority-all.tar.gz.0",
+        "authority-all.tar.gz.1",
+        "authority-all.tar.gz.2",
+        "authority-all.tar.gz.3",
+        "authority-all.tar.gz.4",
+        "authority-all.tar.gz.5",
+        "authority-all.tar.gz.6",
+        "authority-all.tar.gz.7"
+      ]
+    },
+    {
+      "id": "qualification-014-takeover-executor-r1",
+      "loadable": "auth",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Run the pinned authority control packet for the native executor credential transition under an independent fault observer against the production module and device node, loaded without a qualification gate, with every consumer invoked without a qualification flag.",
+      "oracle": "The written authority contracts as encoded by the pinned packet driver: independent wire layouts and request digests, an independent Argon2 library, kernel audit records, live credential and filesystem observations. The transport independently requires the exact pinned control inventory, every control PASS, an unchanged input set, no new kernel warning or taint, and no authority module or node before or after.",
+      "comparison": "All 29 controls of the pinned inventory must pass on the production endpoint; the receipt binds every module, native program and driver by SHA-256 and is itself bound to the build tool receipt.",
+      "requires": [
+        "python3",
+        "insmod",
+        "rmmod",
+        "dmesg"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-authority-v2-r1.py": "0a94cd87a67763393c78b592f0ca9a78d96c7920795c09e59c7f32ba8b4000d4"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-authority-v2-r1.py\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 650,
+      "file_size_limit": 33554432,
+      "stdout": "PASS endpoint=production controls=29\n",
+      "stderr": "",
+      "covers": [
+        "auth/authority-policy-audit-and-child-flow"
+      ],
+      "files": {
+        "authority-inputs.json": "{\"control_ids_sha256\": \"6d652a8e761cc8d384d122f5ffb42496a3e4e774fe06685f1ae5f53f58b2c4d3\", \"driver\": \"executor/guest-executor-controls-ancestor-r2.py\", \"driver_sha256\": \"b265715de1f3dbac99c9c0df17700358f9e9aa55c241cbe84e654cdf6ba7c81d\", \"endpoint\": \"production\", \"expected_controls\": 29, \"observer_receipt\": \"executor/executor-observer-build-receipt.json\", \"observer_receipt_sha256\": \"2a4000e3ad85b19e09cbdd1aebba9af286821cb349dc7d5f1d85f66bab9b97ea\", \"receipt\": \"privcmd/privcmd-build-receipt.json\", \"receipt_sha256\": \"8f6e47e3995f6b9c7185b6662af2021556dd149ea69ec8bea1b8d656f206cf68\"}\n"
+      },
+      "diagnostic_files": [
+        "authority-transport.json",
+        "authority-report.json",
+        "authority-dmesg-delta.txt",
+        "authority-kernel-delta.txt",
+        "authority-all.tar.gz.0",
+        "authority-all.tar.gz.1",
+        "authority-all.tar.gz.2",
+        "authority-all.tar.gz.3",
+        "authority-all.tar.gz.4",
+        "authority-all.tar.gz.5",
+        "authority-all.tar.gz.6",
+        "authority-all.tar.gz.7"
+      ]
+    },
+    {
+      "id": "qualification-014-authority-denial-no-helper-r1",
+      "loadable": "sudo",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Run the pinned authority control packet for kernel-reported helper executions: none on a policy denial, the executor and verifier on allowed and authentication-required requests in the same run against the production module and device node, loaded without a qualification gate, with every consumer invoked without a qualification flag.",
+      "oracle": "The written authority contracts as encoded by the pinned packet driver: independent wire layouts and request digests, an independent Argon2 library, kernel audit records, live credential and filesystem observations. The transport independently requires the exact pinned control inventory, every control PASS, an unchanged input set, no new kernel warning or taint, and no authority module or node before or after.",
+      "comparison": "All 12 controls of the pinned inventory must pass on the production endpoint; the receipt binds every module, native program and driver by SHA-256 and is itself bound to the build tool receipt.",
+      "requires": [
+        "python3",
+        "insmod",
+        "rmmod",
+        "dmesg"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-authority-v2-r1.py": "0a94cd87a67763393c78b592f0ca9a78d96c7920795c09e59c7f32ba8b4000d4"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-authority-v2-r1.py\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 650,
+      "file_size_limit": 33554432,
+      "stdout": "PASS endpoint=production controls=12\n",
+      "stderr": "",
+      "covers": [
+        "sudo/authority-command-authorization",
+        "doas/authority_policy_and_verification",
+        "auth/authority-policy-audit-and-child-flow"
+      ],
+      "files": {
+        "authority-inputs.json": "{\"control_ids_sha256\": \"0ef2f5aa0bb8208ce366ecbf7e3faab0e183ae22dbc95c00abc46db6e85b12c7\", \"driver\": \"privcmd/guest-denial-no-helper.py\", \"driver_sha256\": \"1e5fa8819faa26fc2f06cbe6a2cbc68cb6548669cfefe49bf471fd72fd8e5dea\", \"endpoint\": \"production\", \"expected_controls\": 12, \"receipt\": \"privcmd/privcmd-build-receipt.json\", \"receipt_sha256\": \"8f6e47e3995f6b9c7185b6662af2021556dd149ea69ec8bea1b8d656f206cf68\"}\n"
+      },
+      "diagnostic_files": [
+        "authority-transport.json",
+        "authority-report.json",
+        "authority-dmesg-delta.txt",
+        "authority-kernel-delta.txt",
+        "authority-all.tar.gz.0",
+        "authority-all.tar.gz.1",
+        "authority-all.tar.gz.2",
+        "authority-all.tar.gz.3",
+        "authority-all.tar.gz.4",
+        "authority-all.tar.gz.5",
+        "authority-all.tar.gz.6",
+        "authority-all.tar.gz.7"
+      ]
+    },
+    {
+      "id": "qualification-014-authority-safeedit-test-r1",
+      "loadable": "sudo",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Run the pinned authority control packet for the sudo -e matrix including the one control that needs the test module intent-fault knob against the separately named test module, because the named controls select a fault knob that the production module does not have.",
+      "oracle": "The written authority contracts as encoded by the pinned packet driver: independent wire layouts and request digests, an independent Argon2 library, kernel audit records, live credential and filesystem observations. The transport independently requires the exact pinned control inventory, every control PASS, an unchanged input set, no new kernel warning or taint, and no authority module or node before or after.",
+      "comparison": "All 53 controls of the pinned inventory must pass on the qualification endpoint; the receipt binds every module, native program and driver by SHA-256 and is itself bound to the build tool receipt.",
+      "requires": [
+        "python3",
+        "insmod",
+        "rmmod",
+        "dmesg"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-authority-v2-r1.py": "0a94cd87a67763393c78b592f0ca9a78d96c7920795c09e59c7f32ba8b4000d4"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-authority-v2-r1.py\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 650,
+      "file_size_limit": 33554432,
+      "stdout": "PASS endpoint=qualification controls=53\n",
+      "stderr": "",
+      "covers": [
+        "sudo/sudoedit-safe-copyback"
+      ],
+      "files": {
+        "authority-inputs.json": "{\"control_ids_sha256\": \"6301317094584799346464767cbfbcbd870794df01265d6f9ec12b7e74110d01\", \"driver\": \"privcmd-test/guest-safeedit-controls.py\", \"driver_sha256\": \"f10fe7530d4240782058e06525e387ad49943b65aef65edcdb709c3563c0b416\", \"endpoint\": \"qualification\", \"expected_controls\": 53, \"receipt\": \"privcmd-test/privcmd-build-receipt.json\", \"receipt_sha256\": \"8c7b6b979a9480f1e6e2b4efae2c856f091b2c11e9ca1ebd27217ebf73b08f97\"}\n"
+      },
+      "diagnostic_files": [
+        "authority-transport.json",
+        "authority-report.json",
+        "authority-dmesg-delta.txt",
+        "authority-kernel-delta.txt",
+        "authority-all.tar.gz.0",
+        "authority-all.tar.gz.1",
+        "authority-all.tar.gz.2",
+        "authority-all.tar.gz.3",
+        "authority-all.tar.gz.4",
+        "authority-all.tar.gz.5",
+        "authority-all.tar.gz.6",
+        "authority-all.tar.gz.7"
+      ]
+    },
+    {
+      "id": "qualification-014-authority-command-timestamp-test-r1",
+      "loadable": "sudo",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Run the pinned authority control packet for the command and timestamp matrix including the six controls that need the test module reset-fault knob against the separately named test module, because the named controls select a fault knob that the production module does not have.",
+      "oracle": "The written authority contracts as encoded by the pinned packet driver: independent wire layouts and request digests, an independent Argon2 library, kernel audit records, live credential and filesystem observations. The transport independently requires the exact pinned control inventory, every control PASS, an unchanged input set, no new kernel warning or taint, and no authority module or node before or after.",
+      "comparison": "All 24 controls of the pinned inventory must pass on the qualification endpoint; the receipt binds every module, native program and driver by SHA-256 and is itself bound to the build tool receipt.",
+      "requires": [
+        "python3",
+        "insmod",
+        "rmmod",
+        "dmesg"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-authority-v2-r1.py": "0a94cd87a67763393c78b592f0ca9a78d96c7920795c09e59c7f32ba8b4000d4"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-authority-v2-r1.py\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 650,
+      "file_size_limit": 33554432,
+      "stdout": "PASS endpoint=qualification controls=24\n",
+      "stderr": "",
+      "covers": [
+        "sudo/timestamp-validation-flows"
+      ],
+      "files": {
+        "authority-inputs.json": "{\"control_ids_sha256\": \"0a0fac8d6b800252c0c7eb07939e8b28a4c5ce81a0a1524089f332074cff4661\", \"driver\": \"privcmd-test/guest-command-timestamp-controls.py\", \"driver_sha256\": \"2e5ed1479aac9aed1d45a1dccabf627ff6820da1b1bc0b37e450367cc81e48da\", \"endpoint\": \"qualification\", \"expected_controls\": 24, \"receipt\": \"privcmd-test/privcmd-build-receipt.json\", \"receipt_sha256\": \"8c7b6b979a9480f1e6e2b4efae2c856f091b2c11e9ca1ebd27217ebf73b08f97\"}\n"
+      },
+      "diagnostic_files": [
+        "authority-transport.json",
+        "authority-report.json",
+        "authority-dmesg-delta.txt",
+        "authority-kernel-delta.txt",
+        "authority-all.tar.gz.0",
+        "authority-all.tar.gz.1",
+        "authority-all.tar.gz.2",
+        "authority-all.tar.gz.3",
+        "authority-all.tar.gz.4",
+        "authority-all.tar.gz.5",
+        "authority-all.tar.gz.6",
+        "authority-all.tar.gz.7"
+      ]
+    },
+    {
+      "id": "qualification-014-authority-protocol-test-r1",
+      "loadable": "auth",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Run the pinned identity-protocol control packet against the separately named test module: wire layout, sealed secret input, native verifier supervision with each fault verifier, same-descriptor reference issue, read, consume, revocation and SSH child delegation, driven through the test-only request ioctls that the production module does not have.",
+      "oracle": "The written authority contracts as encoded by the pinned packet driver: independent wire layouts and request digests, an independent Argon2 library, kernel audit records, live credential and filesystem observations. The transport independently requires the exact pinned control inventory, every control PASS, an unchanged input set, no new kernel warning or taint, and no authority module or node before or after.",
+      "comparison": "All controls of the pinned inventory must pass on the qualification endpoint; the receipt binds every module, native program and driver by SHA-256 and is itself bound to the build tool receipt.",
+      "requires": [
+        "python3",
+        "insmod",
+        "rmmod",
+        "dmesg"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-authority-v2-r1.py": "0a94cd87a67763393c78b592f0ca9a78d96c7920795c09e59c7f32ba8b4000d4"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-authority-v2-r1.py\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 650,
+      "file_size_limit": 33554432,
+      "stdout": "PASS endpoint=qualification controls=91\n",
+      "stderr": "",
+      "covers": [
+        "auth/synthetic-login-and-token-mint",
+        "login/credential-transition-deferred"
+      ],
+      "files": {
+        "authority-inputs.json": "{\"candidate_argument\": false, \"control_ids_sha256\": \"f5f9cf2a7864d01b5ffed398582bc44e8852efca67471da2bce5f27a5376cd31\", \"driver\": \"authority-consumers-test/guest-controls.py\", \"driver_sha256\": \"a5de2d326cb1e6dc8859e7ab76bad71a8252b07d671e41d33684da1aef782bb4\", \"endpoint\": \"qualification\", \"expected_controls\": 91, \"receipt\": \"authority-consumers-test/build-receipt.json\", \"receipt_sha256\": \"1f7b52bf2202138ef7816c22d4285b91c9e99077d0dca10f042ddf52a0a62386\"}\n"
+      },
+      "diagnostic_files": [
+        "authority-transport.json",
+        "authority-report.json",
+        "authority-dmesg-delta.txt",
+        "authority-kernel-delta.txt",
+        "authority-all.tar.gz.0",
+        "authority-all.tar.gz.1",
+        "authority-all.tar.gz.2",
+        "authority-all.tar.gz.3",
+        "authority-all.tar.gz.4",
+        "authority-all.tar.gz.5",
+        "authority-all.tar.gz.6",
+        "authority-all.tar.gz.7"
+      ]
+    },
+    {
+      "id": "qualification-014-authority-consumers-test-r1",
+      "loadable": "auth",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Run the pinned identity consumer packet (auth, login, su-style proof redemption and sshd password authentication) against the separately named test module with the qualification flags, for the controls that need a fault knob or a test-only ioctl.",
+      "oracle": "The written authority contracts as encoded by the pinned packet driver: independent wire layouts and request digests, an independent Argon2 library, kernel audit records, live credential and filesystem observations. The transport independently requires the exact pinned control inventory, every control PASS, an unchanged input set, no new kernel warning or taint, and no authority module or node before or after.",
+      "comparison": "All controls of the pinned inventory must pass on the qualification endpoint; the receipt binds every module, native program and driver by SHA-256 and is itself bound to the build tool receipt.",
+      "requires": [
+        "python3",
+        "insmod",
+        "rmmod",
+        "dmesg"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-authority-v2-r1.py": "0a94cd87a67763393c78b592f0ca9a78d96c7920795c09e59c7f32ba8b4000d4"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-authority-v2-r1.py\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 650,
+      "file_size_limit": 33554432,
+      "stdout": "PASS endpoint=qualification controls=70\n",
+      "stderr": "",
+      "covers": [
+        "auth/synthetic-login-and-token-mint",
+        "login/credential-transition-deferred",
+        "login/interactive-auth-session-deferred",
+        "sshd/authentication-authorization"
+      ],
+      "files": {
+        "authority-inputs.json": "{\"control_ids_sha256\": \"a99dd48103a682b8a627a029d36109eacd946839e41da27789c91ed8648acfbd\", \"driver\": \"authority-consumers-test/guest-consumers.py\", \"driver_sha256\": \"58c0340f5847a0e9cb39a4bb0d1e2d70e8fc6c06abb49508d553dc8a4db59c01\", \"endpoint\": \"qualification\", \"expected_controls\": 70, \"receipt\": \"authority-consumers-test/consumer-build-receipt.json\", \"receipt_sha256\": \"975246734b741654366cac13208ca5f4d2abea848d0859d2d723981d30720c2c\"}\n"
+      },
+      "diagnostic_files": [
+        "authority-transport.json",
+        "authority-report.json",
+        "authority-dmesg-delta.txt",
+        "authority-kernel-delta.txt",
+        "authority-all.tar.gz.0",
+        "authority-all.tar.gz.1",
+        "authority-all.tar.gz.2",
+        "authority-all.tar.gz.3",
+        "authority-all.tar.gz.4",
+        "authority-all.tar.gz.5",
+        "authority-all.tar.gz.6",
+        "authority-all.tar.gz.7"
+      ]
+    },
+    {
+      "id": "qualification-014-authority-consumers-r1",
+      "loadable": "auth",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Run the pinned identity consumer packet against the production module and device node, loaded without a qualification gate, with auth, login and sshd invoked without a qualification flag: device request layout and same-descriptor proof handling, proof redemption by login, the interactive login session with its accounting, and sshd password authentication.",
+      "oracle": "The written authority contracts as encoded by the pinned packet driver: independent wire layouts and request digests, an independent Argon2 library, kernel audit records, live credential and filesystem observations. The transport independently requires the exact pinned control inventory, every control PASS, an unchanged input set, no new kernel warning or taint, and no authority module or node before or after.",
+      "comparison": "All controls of the pinned inventory must pass on the production endpoint; the receipt binds every module, native program and driver by SHA-256 and is itself bound to the build tool receipt.",
+      "requires": [
+        "python3",
+        "insmod",
+        "rmmod",
+        "dmesg"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-authority-v2-r1.py": "0a94cd87a67763393c78b592f0ca9a78d96c7920795c09e59c7f32ba8b4000d4"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-authority-v2-r1.py\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 650,
+      "file_size_limit": 33554432,
+      "stdout": "PASS endpoint=production controls=68\n",
+      "stderr": "",
+      "covers": [
+        "auth/synthetic-login-and-token-mint",
+        "login/credential-transition-deferred",
+        "login/interactive-auth-session-deferred",
+        "sshd/authentication-authorization"
+      ],
+      "files": {
+        "authority-inputs.json": "{\"control_ids_sha256\": \"457d604d1e18661b4fd333a8b6902cc718384683715216241648f788a31fd5e1\", \"driver\": \"authority-consumers/guest-consumers.py\", \"driver_sha256\": \"58c0340f5847a0e9cb39a4bb0d1e2d70e8fc6c06abb49508d553dc8a4db59c01\", \"endpoint\": \"production\", \"expected_controls\": 68, \"not_run\": [\"identity-request-digest-independent-oracle\", \"production-v2-endpoint-stays-unavailable\"], \"receipt\": \"authority-consumers/consumer-build-receipt.json\", \"receipt_sha256\": \"59aa7a329229cba84a662aca9438983494b7d51b765f05728c7148e7234d2bb3\"}\n"
+      },
+      "diagnostic_files": [
+        "authority-transport.json",
+        "authority-report.json",
+        "authority-dmesg-delta.txt",
+        "authority-kernel-delta.txt",
+        "authority-all.tar.gz.0",
+        "authority-all.tar.gz.1",
+        "authority-all.tar.gz.2",
+        "authority-all.tar.gz.3",
+        "authority-all.tar.gz.4",
+        "authority-all.tar.gz.5",
+        "authority-all.tar.gz.6",
+        "authority-all.tar.gz.7"
+      ]
+    },
+    {
+      "id": "qualification-014-authority-login-state-r1",
+      "loadable": "auth",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Run the pinned login failure-state packet against the production module: persistent lockout, retry delays, concurrent sessions and state-file fault handling of the interactive login, invoked without a qualification flag.",
+      "oracle": "The written authority contracts as encoded by the pinned packet driver: independent wire layouts and request digests, an independent Argon2 library, kernel audit records, live credential and filesystem observations. The transport independently requires the exact pinned control inventory, every control PASS, an unchanged input set, no new kernel warning or taint, and no authority module or node before or after.",
+      "comparison": "All controls of the pinned inventory must pass on the production endpoint; the receipt binds every module, native program and driver by SHA-256 and is itself bound to the build tool receipt.",
+      "requires": [
+        "python3",
+        "insmod",
+        "rmmod",
+        "dmesg"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-authority-v2-r1.py": "0a94cd87a67763393c78b592f0ca9a78d96c7920795c09e59c7f32ba8b4000d4"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-authority-v2-r1.py\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 650,
+      "file_size_limit": 33554432,
+      "stdout": "PASS endpoint=production controls=47\n",
+      "stderr": "",
+      "covers": [
+        "login/interactive-auth-session-deferred"
+      ],
+      "files": {
+        "authority-inputs.json": "{\"control_ids_sha256\": \"86a679810173ae17127ae8e9101b7b89e08a579bd49fb5c51962b2a4120f5b65\", \"driver\": \"authority-consumers/guest-login-state.py\", \"driver_sha256\": \"860110013715f6417ec2161dce031fbc5e9fd314ce35f445ffc435c630016978\", \"endpoint\": \"production\", \"expected_controls\": 47, \"receipt\": \"authority-consumers/consumer-build-receipt.json\", \"receipt_sha256\": \"59aa7a329229cba84a662aca9438983494b7d51b765f05728c7148e7234d2bb3\"}\n"
+      },
+      "diagnostic_files": [
+        "authority-transport.json",
+        "authority-report.json",
+        "authority-dmesg-delta.txt",
+        "authority-kernel-delta.txt",
+        "authority-all.tar.gz.0",
+        "authority-all.tar.gz.1",
+        "authority-all.tar.gz.2",
+        "authority-all.tar.gz.3",
+        "authority-all.tar.gz.4",
+        "authority-all.tar.gz.5",
+        "authority-all.tar.gz.6",
+        "authority-all.tar.gz.7"
+      ]
+    },
+    {
+      "id": "qualification-014-authority-ssh-restrictions-r1",
+      "loadable": "auth",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Run the pinned sshd account-restriction packet against the production module with an independent OpenSSH client: allow and deny lists, locked and expired accounts and root login policy under kernel-verified password authentication.",
+      "oracle": "The written authority contracts as encoded by the pinned packet driver: independent wire layouts and request digests, an independent Argon2 library, kernel audit records, live credential and filesystem observations. The transport independently requires the exact pinned control inventory, every control PASS, an unchanged input set, no new kernel warning or taint, and no authority module or node before or after.",
+      "comparison": "All controls of the pinned inventory must pass on the production endpoint; the receipt binds every module, native program and driver by SHA-256 and is itself bound to the build tool receipt.",
+      "requires": [
+        "python3",
+        "insmod",
+        "rmmod",
+        "dmesg"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-authority-v2-r1.py": "0a94cd87a67763393c78b592f0ca9a78d96c7920795c09e59c7f32ba8b4000d4"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-authority-v2-r1.py\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 650,
+      "file_size_limit": 33554432,
+      "stdout": "PASS endpoint=production controls=24\n",
+      "stderr": "",
+      "covers": [
+        "sshd/authentication-authorization"
+      ],
+      "files": {
+        "authority-inputs.json": "{\"control_ids_sha256\": \"fe66031d71f2bc18b7c499caaa8cfcb9a2ea354f8b5c986a8c932e61128c9f58\", \"driver\": \"authority-consumers/guest-ssh-restrictions.py\", \"driver_sha256\": \"f3c1bff304c550c238782788f6ccd7581d71c3e3fdc6ac24aabd6441474da4d7\", \"endpoint\": \"production\", \"expected_controls\": 24, \"receipt\": \"authority-consumers/consumer-build-receipt.json\", \"receipt_sha256\": \"59aa7a329229cba84a662aca9438983494b7d51b765f05728c7148e7234d2bb3\"}\n"
+      },
+      "diagnostic_files": [
+        "authority-transport.json",
+        "authority-report.json",
+        "authority-dmesg-delta.txt",
+        "authority-kernel-delta.txt",
+        "authority-all.tar.gz.0",
+        "authority-all.tar.gz.1",
+        "authority-all.tar.gz.2",
+        "authority-all.tar.gz.3",
+        "authority-all.tar.gz.4",
+        "authority-all.tar.gz.5",
+        "authority-all.tar.gz.6",
+        "authority-all.tar.gz.7"
+      ]
+    },
+    {
+      "id": "qualification-014-authority-ssh-completion-r1",
+      "loadable": "auth",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "privilege": "root",
+      "purpose": "Run the pinned sshd session-completion packet against the production module with an independent OpenSSH client: a kernel-verified password login that runs a command to completion and reports its status.",
+      "oracle": "The written authority contracts as encoded by the pinned packet driver: independent wire layouts and request digests, an independent Argon2 library, kernel audit records, live credential and filesystem observations. The transport independently requires the exact pinned control inventory, every control PASS, an unchanged input set, no new kernel warning or taint, and no authority module or node before or after.",
+      "comparison": "All controls of the pinned inventory must pass on the production endpoint; the receipt binds every module, native program and driver by SHA-256 and is itself bound to the build tool receipt.",
+      "requires": [
+        "python3",
+        "insmod",
+        "rmmod",
+        "dmesg"
+      ],
+      "helpers_sha256": {
+        "helpers/qualification-authority-v2-r1.py": "0a94cd87a67763393c78b592f0ca9a78d96c7920795c09e59c7f32ba8b4000d4"
+      },
+      "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/qualification-authority-v2-r1.py\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "timeout": 650,
+      "file_size_limit": 33554432,
+      "stdout": "PASS endpoint=production controls=2\n",
+      "stderr": "",
+      "covers": [
+        "sshd/authentication-authorization"
+      ],
+      "files": {
+        "authority-inputs.json": "{\"control_ids_sha256\": \"b3f8cfe376755a1f59fd6e440a70333c53d9a91870d296d16db338873afcb84b\", \"driver\": \"authority-consumers/guest-ssh-completion.py\", \"driver_sha256\": \"5a7713d14ead35549335382e975c76d0d7c8e1b737d802da6302dfb0fe44cccb\", \"endpoint\": \"production\", \"expected_controls\": 2, \"receipt\": \"authority-consumers/consumer-build-receipt.json\", \"receipt_sha256\": \"59aa7a329229cba84a662aca9438983494b7d51b765f05728c7148e7234d2bb3\"}\n"
+      },
+      "diagnostic_files": [
+        "authority-transport.json",
+        "authority-report.json",
+        "authority-dmesg-delta.txt",
+        "authority-kernel-delta.txt",
+        "authority-all.tar.gz.0",
+        "authority-all.tar.gz.1",
+        "authority-all.tar.gz.2",
+        "authority-all.tar.gz.3",
+        "authority-all.tar.gz.4",
+        "authority-all.tar.gz.5",
+        "authority-all.tar.gz.6",
+        "authority-all.tar.gz.7"
+      ]
+    }
+  ]
+}
