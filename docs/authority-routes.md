@@ -89,6 +89,13 @@ whole shared table. Per uid: 4 open contexts, 1 verification in progress,
 entries. Passing a limit fails the request with `EDQUOT`; a full table
 fails it with `ENOSPC`. The commands report both in words.
 
+The tables these limits share are small: 16 open contexts in all, of which
+4 are kept for root, and 2 verifications in progress. One user cannot fill
+either, but three users together can hold every context open to
+non-root callers, and two users can hold both verification slots, each for
+at most the verifier's 30-second limit. The others then get `EMFILE` or
+`EBUSY` until a slot frees.
+
 A policy denial starts neither helper. The audit log applies backpressure:
 when it is full, requests that would add a record are refused until root
 drains it with `auth audit-v2-drain`.
