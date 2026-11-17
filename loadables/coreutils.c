@@ -65,6 +65,7 @@
 #include "loadables.h"
 #include "error.h"
 #include "bl-output.h"
+#include "gnu-quote.h"
 #include <limits.h>
 
 static void *bcu_calloc (size_t n, size_t size)
@@ -1848,81 +1849,173 @@ cleanup:
  *   mknod PATH c MAJ MIN      character device (root only)
  * =================================================================== */
 
+extern char *this_command_name;
+
 static int
-bcu_mknod_cmd (WORD_LIST *list)
+bcu_mknod_try (void)
+{
+  fprintf (stderr, "Try 'mknod --help' for more information.\n");
+  return EXECUTION_FAILURE;
+}
+
+/* GNU's parser: an octal permission mode only. */
+static int
+bcu_mknod_mode (const char *text, mode_t *mode)
+{
+  char *end = NULL;
+  unsigned long m = strtoul (text, &end, 8);
+  if (!*text || end == text || *end != '\0' || m > 07777)
+    { builtin_error ("invalid mode"); return -1; }
+  if (m & ~0777UL)
+    { builtin_error ("mode must specify only file permission bits"); return -1; }
+  *mode = (mode_t) m;
+  return 0;
+}
+
+static int
+bcu_mknod_number (const char *text, unsigned long long *value)
+{
+  char *end = NULL;
+  if (!isdigit ((unsigned char) *text))
+    return -1;
+  errno = 0;
+  *value = strtoull (text, &end, 0);
+  return (errno || end == text || *end != '\0') ? -1 : 0;
+}
+
+static int
+bcu_mknod_run (WORD_LIST *list)
 {
   mode_t mode = 0666;
-  int explicit_mode = 0;
-  WORD_LIST *pos __attribute__((cleanup(bcu_free_nodes))) = NULL;
-  WORD_LIST *pos_tail = NULL;
+  int explicit_mode = 0, options = 1;
+  const char *pos[5];
+  int npos = 0;
   for (WORD_LIST *w = list; w; w = w->next)
     {
       const char *a = w->word->word;
-      if (strcmp (a, "-m") == 0 && w->next)
+      const char *value = NULL;
+      if (!options || a[0] != '-' || a[1] == '\0')
         {
-          w = w->next;
-          char *end = NULL;
-          unsigned long m = strtoul (w->word->word, &end, 8);
-          if (end == w->word->word || *end != '\0' || m > 07777) { builtin_error ("mknod: bad -m"); bcu_usage ("mknod"); return EX_USAGE; }
-          mode = (mode_t) m;
-          explicit_mode = 1;
+          if (npos < 5) pos[npos] = a;
+          npos++;
           continue;
         }
-      if (a[0] == '-' && a[1] != '\0') { builtin_error ("mknod: unknown flag: %s", a); bcu_usage ("mknod"); return EX_USAGE; }
-      WORD_LIST *nw = bcu_calloc (1, sizeof (*nw));
-      nw->word = w->word;
-      if (!pos) pos = nw; else pos_tail->next = nw;
-      pos_tail = nw;
+      if (strcmp (a, "--") == 0) { options = 0; continue; }
+      if (strncmp (a, "--mode=", 7) == 0)
+        value = a + 7;
+      else if (strcmp (a, "--mode") == 0 || strcmp (a, "-m") == 0)
+        {
+          if (!w->next)
+            {
+              if (a[1] == '-') builtin_error ("option '--mode' requires an argument");
+              else builtin_error ("option requires an argument -- 'm'");
+              return bcu_mknod_try ();
+            }
+          w = w->next;
+          value = w->word->word;
+        }
+      else if (a[1] == 'm')
+        value = a + 2;
+      else
+        {
+          if (a[1] == '-') builtin_error ("unrecognized option '%s'", a);
+          else builtin_error ("invalid option -- '%c'", a[1]);
+          return bcu_mknod_try ();
+        }
+      if (bcu_mknod_mode (value, &mode) < 0)
+        return EXECUTION_FAILURE;
+      explicit_mode = 1;
     }
 
-  int npos = 0;
-  for (WORD_LIST *w = pos; w; w = w->next) npos++;
-  if (npos < 2) { builtin_error ("mknod: need PATH TYPE [MAJ MIN]"); bcu_usage ("mknod");  return EX_USAGE; }
-
-  const char *path = pos->word->word;
-  const char *type = pos->next->word->word;
-  int rc = EXECUTION_SUCCESS;
-
-  if (strcmp (type, "p") == 0)
+  /* A FIFO takes NAME and TYPE; every other type also MAJOR and MINOR. */
+  int expected = (npos > 1 && pos[1][0] == 'p') ? 2 : 4;
+  if (npos < expected)
     {
-      if (npos != 2)
-        { builtin_error ("mknod: p does not take MAJ MIN"); bcu_usage ("mknod"); rc = EX_USAGE; goto mknod_out; }
-      /* An explicit FIFO mode is independent of the caller's umask. Apply
-         it at creation, without chmod on a pathname that may already exist. */
-      mode_t saved_mask = explicit_mode ? umask (0) : 0;
-      int result = mkfifo (path, mode);
-      int saved_errno = errno;
-      if (explicit_mode) umask (saved_mask);
-      errno = saved_errno;
-      if (result < 0)
-        { builtin_error ("mknod: %s: %s", path, strerror (errno)); rc = EXECUTION_FAILURE; }
+      if (npos == 0)
+        builtin_error ("missing operand");
+      else
+        {
+          char *q = bos_quote (pos[npos - 1]);
+          builtin_error ("missing operand after %s", q ? q : pos[npos - 1]);
+          free (q);
+        }
+      if (expected == 4 && npos == 2)
+        fprintf (stderr, "Special files require major and minor device numbers.\n");
+      return bcu_mknod_try ();
     }
-  else if (strcmp (type, "b") == 0 || strcmp (type, "c") == 0)
+  if (npos > expected)
     {
-      if (npos != 4) { builtin_error ("mknod: %s requires MAJ MIN", type); bcu_usage ("mknod"); rc = EX_USAGE; goto mknod_out; }
-      long long maj, min_;
-      if (!bcu_parse_ll (pos->next->next->word->word, &maj)
-          || !bcu_parse_ll (pos->next->next->next->word->word, &min_)
-          || maj < 0 || min_ < 0 || (unsigned long long) maj > UINT_MAX
-          || (unsigned long long) min_ > UINT_MAX)
-        { builtin_error ("mknod: bad MAJ/MIN"); bcu_usage ("mknod"); rc = EX_USAGE; goto mknod_out; }
-      mode_t kind = (type[0] == 'b') ? S_IFBLK : S_IFCHR;
-      dev_t device = makedev ((unsigned) maj, (unsigned) min_);
+      char *q = bos_quote (pos[expected]);
+      builtin_error ("extra operand %s", q ? q : pos[expected]);
+      free (q);
+      if (expected == 2 && npos == 4)
+        fprintf (stderr, "Fifos do not have major and minor device numbers.\n");
+      return bcu_mknod_try ();
+    }
+
+  const char *path = pos[0];
+  mode_t kind;
+  dev_t device = 0;
+  switch (pos[1][0])
+    {
+    case 'b': kind = S_IFBLK; break;
+    case 'c': case 'u': kind = S_IFCHR; break;
+    case 'p': kind = S_IFIFO; break;
+    default:
+      {
+        char *q = bos_quote (pos[1]);
+        builtin_error ("invalid device type %s", q ? q : pos[1]);
+        free (q);
+        return bcu_mknod_try ();
+      }
+    }
+  if (kind != S_IFIFO)
+    {
+      unsigned long long maj, min_;
+      if (bcu_mknod_number (pos[2], &maj) < 0 || maj > UINT_MAX)
+        {
+          char *q = bos_quote (pos[2]);
+          builtin_error ("invalid major device number %s", q ? q : pos[2]);
+          free (q);
+          return EXECUTION_FAILURE;
+        }
+      if (bcu_mknod_number (pos[3], &min_) < 0 || min_ > UINT_MAX)
+        {
+          char *q = bos_quote (pos[3]);
+          builtin_error ("invalid minor device number %s", q ? q : pos[3]);
+          free (q);
+          return EXECUTION_FAILURE;
+        }
+      device = makedev ((unsigned) maj, (unsigned) min_);
       if (major (device) != (unsigned) maj || minor (device) != (unsigned) min_)
-        { builtin_error ("mknod: bad MAJ/MIN"); rc = EX_USAGE; goto mknod_out; }
-      mode_t saved_mask = explicit_mode ? umask (0) : 0;
-      int result = mknod (path, mode | kind, device);
-      int saved_errno = errno;
-      if (explicit_mode) umask (saved_mask);
-      errno = saved_errno;
-      if (result < 0)
-        { builtin_error ("mknod: %s: %s", path, strerror (errno)); rc = EXECUTION_FAILURE; }
+        {
+          builtin_error ("invalid device %s %s", pos[2], pos[3]);
+          return EXECUTION_FAILURE;
+        }
     }
-  else
-    { builtin_error ("mknod: unknown type: %s", type); bcu_usage ("mknod"); rc = EX_USAGE; }
 
-mknod_out:
+  /* An explicit mode is independent of the caller's umask. Apply it at
+     creation, without chmod on a pathname that may already exist. */
+  mode_t saved_mask = explicit_mode ? umask (0) : 0;
+  int result = kind == S_IFIFO ? mkfifo (path, mode) : mknod (path, mode | kind, device);
+  int saved_errno = errno;
+  if (explicit_mode) umask (saved_mask);
+  if (result < 0)
+    {
+      builtin_error ("%s: %s", path, strerror (saved_errno));
+      return EXECUTION_FAILURE;
+    }
+  return EXECUTION_SUCCESS;
+}
 
+/* Diagnostics carry the program name GNU mknod prints. */
+static int
+bcu_mknod_cmd (WORD_LIST *list)
+{
+  char *saved = this_command_name;
+  this_command_name = (char *) "mknod";
+  int rc = bcu_mknod_run (list);
+  this_command_name = saved;
   return rc;
 }
 

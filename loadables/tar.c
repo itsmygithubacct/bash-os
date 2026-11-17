@@ -125,7 +125,10 @@ int tar_builtin(WORD_LIST *list)
         }
         read_options.extract = mode == 'x'; read_options.verbose = verbose;
         read_options.members = members; read_options.count = member_count;
+        int member_errors = 0;
+        read_options.member_errors = &member_errors;
         if (bashos_pax_read(payload, &read_options)) rc = 2;
+        if (member_errors) builtin_error("Exiting with failure status due to previous errors");
     }
     goto done;
 invalid:

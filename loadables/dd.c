@@ -352,6 +352,24 @@ dd_read_full (int fd, void *buf, size_t want)
     return (ssize_t) got;
 }
 
+/* GNU dd names a file in a diagnostic with quoteaf (shell-escape-always
+   quoting): ASCII apostrophes in every locale. */
+static void
+dd_file_error (const char *what, const char *name, int err)
+{
+    fprintf (stderr, "dd: %s '", what);
+    for (const char *q = name; *q; q++) {
+        if (*q == '\'') fputs ("'\\''", stderr);
+        else fputc (*q, stderr);
+    }
+    fprintf (stderr, "': %s\n", strerror (err));
+}
+
+/* A failed positioning request is reported as GNU dd reports it and, like
+   every other failure after the files are open, followed by the totals. */
+static void
+dd_position_error (const char *name, const char *what, int err, int status_none, int status_noxfer);
+
 /* Skip bytes on input. Try lseek first; if input is a pipe /
    non-seekable, fall back to read-and-discard (POSIX skip semantic). */
 static int
@@ -360,10 +378,7 @@ dd_skip_bytes (int fd, long long nbytes)
     if (nbytes <= 0) return 0;
     off_t total = (off_t) nbytes;
     if (lseek (fd, total, SEEK_CUR) >= 0) return 0;
-    if (errno != ESPIPE) {
-        builtin_error ("skip lseek: %s", strerror (errno));
-        return -1;
-    }
+    if (errno != ESPIPE) return -1;
     /* Pipe: read+discard. */
     char buf[8192];
     while (total > 0) {
@@ -667,6 +682,8 @@ dd_builtin (WORD_LIST *list)
 
     /* Apply skip / seek. */
     if (skip > 0 && dd_skip_bytes (ifd, skip_bytes) < 0) {
+        dd_position_error (input_owned ? iname : "standard input", "cannot skip", errno,
+                           status & DDS_NONE, status & DDS_NOXFER);
         if (input_owned) close (ifd);
         if (output_owned) close (ofd);
         return EXECUTION_FAILURE;
@@ -674,7 +691,8 @@ dd_builtin (WORD_LIST *list)
     if (seek > 0) {
         off_t position = lseek (ofd, (off_t) seek_bytes, SEEK_CUR);
         if (position < 0) {
-            builtin_error ("seek lseek: %s", strerror (errno));
+            dd_position_error (output_owned ? oname : "standard output", "cannot seek", errno,
+                               status & DDS_NONE, status & DDS_NOXFER);
             if (input_owned) close (ifd);
             if (output_owned) close (ofd);
             return EXECUTION_FAILURE;
@@ -880,7 +898,7 @@ dd_builtin (WORD_LIST *list)
             if (w <= 0) {
                 if (w < 0 && errno == EINTR) continue;
                 if (w == 0) errno = EIO; /* avoid looping on no progress */
-                builtin_error ("write: %s", strerror (errno));
+                dd_file_error ("error writing", output_owned ? oname : "standard output", errno);
                 /* A device can accept a prefix before reporting ENOSPC.
                    Account for that partial output record and its bytes. */
                 if (off > 0) {
@@ -920,7 +938,7 @@ dd_builtin (WORD_LIST *list)
             ssize_t w = write (ofd, rebuf + off, flen - off);
             if (w < 0) {
                 if (errno == EINTR) continue;
-                builtin_error ("write: %s", strerror (errno));
+                dd_file_error ("error writing", output_owned ? oname : "standard output", errno);
                 rc = EXECUTION_FAILURE;
                 break;
             }
@@ -939,7 +957,7 @@ dd_builtin (WORD_LIST *list)
             ssize_t w = write (ofd, &tail + off, 1 - off);
             if (w < 0) {
                 if (errno == EINTR) continue;
-                builtin_error ("write: %s", strerror (errno));
+                dd_file_error ("error writing", output_owned ? oname : "standard output", errno);
                 rc = EXECUTION_FAILURE;
                 break;
             }
@@ -984,6 +1002,15 @@ done:
             dd_print_xfer (bytes_total, dd_now_seconds () - start_time, 0);
     }
     return rc;
+}
+
+static void
+dd_position_error (const char *name, const char *what, int err, int status_none, int status_noxfer)
+{
+    fprintf (stderr, "dd: %s: %s: %s\n", name, what, strerror (err));
+    if (status_none) return;
+    fputs ("0+0 records in\n0+0 records out\n", stderr);
+    if (!status_noxfer) dd_print_xfer (0, 0.0, 0);
 }
 
 char *dd_doc[] = {

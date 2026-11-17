@@ -5268,7 +5268,7 @@
           "evidence": [
             {
               "assertion": "BLKFLSBUF per device, arg 0, status 0, no stdout (mocked success)",
-              "definition_sha256": "c11f99523ca8d78fe77b54ee041486d048befb5c5270136f7bd267104d00ec78",
+              "definition_sha256": "bbc9cf69ee083270ed74d677b0d56a337e9b45177201523845eea78e3852a5ff",
               "group": "shell",
               "id": "migration-blockdev-mocked-success"
             },
@@ -5302,13 +5302,13 @@
           "evidence": [
             {
               "assertion": "device-major/action-minor request order, failures do not stop later actions/devices",
-              "definition_sha256": "dfba4fd0c2b18433a65357f8c19e1e37eb30fe9cd11f0142571728c785969d9a",
+              "definition_sha256": "046b64771bb647cfa5338eaf576eb7a525d3e2b8c7b589dedc382f224327fc5a",
               "group": "shell",
               "id": "migration-blockdev-request-trace"
             },
             {
               "assertion": "same order with mocked success and a missing middle device",
-              "definition_sha256": "c11f99523ca8d78fe77b54ee041486d048befb5c5270136f7bd267104d00ec78",
+              "definition_sha256": "bbc9cf69ee083270ed74d677b0d56a337e9b45177201523845eea78e3852a5ff",
               "group": "shell",
               "id": "migration-blockdev-mocked-success"
             }
@@ -5422,7 +5422,7 @@
           "evidence": [
             {
               "assertion": "ordered BLKROGET/BLKROSET/BLKROGET/BLKROSET/BLKROGET requests in one invocation",
-              "definition_sha256": "c11f99523ca8d78fe77b54ee041486d048befb5c5270136f7bd267104d00ec78",
+              "definition_sha256": "bbc9cf69ee083270ed74d677b0d56a337e9b45177201523845eea78e3852a5ff",
               "group": "shell",
               "id": "migration-blockdev-mocked-success"
             },
@@ -5485,13 +5485,13 @@
           "evidence": [
             {
               "assertion": "missing operand ENOENT, status 1, later devices processed (multi)",
-              "definition_sha256": "0130a1a2dbb95fd1583279024717e9aa4212990b1fe1798932b01192fa0e9112",
+              "definition_sha256": "5e58e990dd3acb26b11c34115b389de4749e2f801ffd4e2a24713d6d7380736a",
               "group": "shell",
               "id": "migration-blockdev-real-failures"
             },
             {
               "assertion": "missing: one RDONLY open, no retry, no ioctl; next device still traced",
-              "definition_sha256": "dfba4fd0c2b18433a65357f8c19e1e37eb30fe9cd11f0142571728c785969d9a",
+              "definition_sha256": "046b64771bb647cfa5338eaf576eb7a525d3e2b8c7b589dedc382f224327fc5a",
               "group": "shell",
               "id": "migration-blockdev-request-trace"
             }
@@ -5505,13 +5505,13 @@
           "evidence": [
             {
               "assertion": "regular file / dir / /dev/null: ENOTTY per action, ordered, continuation",
-              "definition_sha256": "0130a1a2dbb95fd1583279024717e9aa4212990b1fe1798932b01192fa0e9112",
+              "definition_sha256": "5e58e990dd3acb26b11c34115b389de4749e2f801ffd4e2a24713d6d7380736a",
               "group": "shell",
               "id": "migration-blockdev-real-failures"
             },
             {
               "assertion": "every action issued per device in order with real ENOTTY",
-              "definition_sha256": "dfba4fd0c2b18433a65357f8c19e1e37eb30fe9cd11f0142571728c785969d9a",
+              "definition_sha256": "046b64771bb647cfa5338eaf576eb7a525d3e2b8c7b589dedc382f224327fc5a",
               "group": "shell",
               "id": "migration-blockdev-request-trace"
             }
@@ -5525,7 +5525,7 @@
           "evidence": [
             {
               "assertion": "mode 0000: RDONLY|CLOEXEC then RDWR|CLOEXEC open, single EACCES diagnostic, status 1",
-              "definition_sha256": "dfba4fd0c2b18433a65357f8c19e1e37eb30fe9cd11f0142571728c785969d9a",
+              "definition_sha256": "046b64771bb647cfa5338eaf576eb7a525d3e2b8c7b589dedc382f224327fc5a",
               "group": "shell",
               "id": "migration-blockdev-request-trace"
             }
@@ -5539,7 +5539,7 @@
           "evidence": [
             {
               "assertion": "injected EIO/EPERM per device and action, later actions still run, status 1",
-              "definition_sha256": "109810fdaec4b6014e8555607d6c4b7bd8a642a75e8c9f5e61c4c74c51a56026",
+              "definition_sha256": "96f00b29cd3b9250bc4745c09eee94542fc0ae16b9ba20fa0428cdd9acb9b71b",
               "group": "shell",
               "id": "migration-blockdev-injected-errors"
             },
@@ -5565,13 +5565,13 @@
           "evidence": [
             {
               "assertion": "/proc/BASHPID/fd count unchanged across all failure paths",
-              "definition_sha256": "0130a1a2dbb95fd1583279024717e9aa4212990b1fe1798932b01192fa0e9112",
+              "definition_sha256": "5e58e990dd3acb26b11c34115b389de4749e2f801ffd4e2a24713d6d7380736a",
               "group": "shell",
               "id": "migration-blockdev-real-failures"
             },
             {
               "assertion": "fd count unchanged after injected failures",
-              "definition_sha256": "109810fdaec4b6014e8555607d6c4b7bd8a642a75e8c9f5e61c4c74c51a56026",
+              "definition_sha256": "96f00b29cd3b9250bc4745c09eee94542fc0ae16b9ba20fa0428cdd9acb9b71b",
               "group": "shell",
               "id": "migration-blockdev-injected-errors"
             },
@@ -5603,13 +5603,13 @@
           "evidence": [
             {
               "assertion": "usage forms status 2; failures status 1",
-              "definition_sha256": "0130a1a2dbb95fd1583279024717e9aa4212990b1fe1798932b01192fa0e9112",
+              "definition_sha256": "5e58e990dd3acb26b11c34115b389de4749e2f801ffd4e2a24713d6d7380736a",
               "group": "shell",
               "id": "migration-blockdev-real-failures"
             },
             {
               "assertion": "all-success status 0; one missing device -> 1",
-              "definition_sha256": "c11f99523ca8d78fe77b54ee041486d048befb5c5270136f7bd267104d00ec78",
+              "definition_sha256": "bbc9cf69ee083270ed74d677b0d56a337e9b45177201523845eea78e3852a5ff",
               "group": "shell",
               "id": "migration-blockdev-mocked-success"
             }
@@ -12671,7 +12671,7 @@
           "evidence": [
             {
               "assertion": "Control open failure as uid 2000: table, status, deps and targets print '/dev/mapper/control: open failed: Permission denied' and 'Failure to communicate with kernel device-mapper driver.' with status 1 on both sides; the third line differs ('Check that device-mapper is available...' versus LVM2's incompatible-version line). With the node absent the candidate prints the ENOENT form while LVM2 falls back as in query-list-info r5. Parity FAIL.",
-              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57",
+              "definition_sha256": "ab49c5e951233ae06f107001222dd08e947ac3247ebaf480221de1aef5ed846f",
               "group": "shell",
               "id": "migration-dmsetup-query-root"
             }
@@ -12725,7 +12725,7 @@
           "evidence": [
             {
               "assertion": "The shell's descriptor count is unchanged after all query, failure and large-response calls on the candidate side.",
-              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57",
+              "definition_sha256": "ab49c5e951233ae06f107001222dd08e947ac3247ebaf480221de1aef5ed846f",
               "group": "shell",
               "id": "migration-dmsetup-query-root"
             },
@@ -12760,7 +12760,7 @@
           "evidence": [
             {
               "assertion": "ls with no mappings prints 'No devices found' and info and table with none match LVM2 dmsetup byte for byte.",
-              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57",
+              "definition_sha256": "ab49c5e951233ae06f107001222dd08e947ac3247ebaf480221de1aef5ed846f",
               "group": "shell",
               "id": "migration-dmsetup-query-root"
             }
@@ -12774,7 +12774,7 @@
           "evidence": [
             {
               "assertion": "ls with two mappings matches; info blocks differ: the candidate omits the 'Read Ahead:' line and aligns the UUID value in a column ('UUID:              RF-UUID-A' versus 'UUID: RF-UUID-A'). Parity FAIL.",
-              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57",
+              "definition_sha256": "ab49c5e951233ae06f107001222dd08e947ac3247ebaf480221de1aef5ed846f",
               "group": "shell",
               "id": "migration-dmsetup-query-root"
             }
@@ -12788,7 +12788,7 @@
           "evidence": [
             {
               "assertion": "Lookup by name and by -u UUID gives the same block (apart from r2's formatting); a missing name and a mixed list match in status. Given both -u and a name, LVM2 reports the device while the candidate rejects it ('give either a device name or -u UUID, not both', status 1). Parity FAIL.",
-              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57",
+              "definition_sha256": "ab49c5e951233ae06f107001222dd08e947ac3247ebaf480221de1aef5ed846f",
               "group": "shell",
               "id": "migration-dmsetup-query-root"
             }
@@ -12802,7 +12802,7 @@
           "evidence": [
             {
               "assertion": "State SUSPENDED after suspend and 'Tables present: LIVE & INACTIVE' after a load without resume are reported by both, with r2's formatting difference.",
-              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57",
+              "definition_sha256": "ab49c5e951233ae06f107001222dd08e947ac3247ebaf480221de1aef5ed846f",
               "group": "shell",
               "id": "migration-dmsetup-query-root"
             }
@@ -12816,7 +12816,7 @@
           "evidence": [
             {
               "assertion": "As uid 2000 (control EACCES) and with /dev/mapper hidden (ENOENT), the candidate's ls and info fall back to /sys/block/dm-* and succeed (listing rf-b before rf-a, with a reduced info block), where LVM2 fails with 'open failed' and an incompatible-driver line; recorded as observed. Parity FAIL by design.",
-              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57",
+              "definition_sha256": "ab49c5e951233ae06f107001222dd08e947ac3247ebaf480221de1aef5ed846f",
               "group": "shell",
               "id": "migration-dmsetup-query-root"
             }
@@ -12845,7 +12845,7 @@
           "evidence": [
             {
               "assertion": "table and status of the linear+zero+error mapping, of one device and of all devices (with 'name: ' prefixes) match LVM2 byte for byte.",
-              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57",
+              "definition_sha256": "ab49c5e951233ae06f107001222dd08e947ac3247ebaf480221de1aef5ed846f",
               "group": "shell",
               "id": "migration-dmsetup-query-root"
             }
@@ -12859,7 +12859,7 @@
           "evidence": [
             {
               "assertion": "table/status --inactive and --target match; ls --target differs: LVM2 prints '(253, 0)', the candidate '(253:0)'. Parity FAIL.",
-              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57",
+              "definition_sha256": "ab49c5e951233ae06f107001222dd08e947ac3247ebaf480221de1aef5ed846f",
               "group": "shell",
               "id": "migration-dmsetup-query-root"
             }
@@ -12873,7 +12873,7 @@
           "evidence": [
             {
               "assertion": "deps of all, one and --inactive (two loop dependencies) match LVM2.",
-              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57",
+              "definition_sha256": "ab49c5e951233ae06f107001222dd08e947ac3247ebaf480221de1aef5ed846f",
               "group": "shell",
               "id": "migration-dmsetup-query-root"
             }
@@ -12887,7 +12887,7 @@
           "evidence": [
             {
               "assertion": "targets matches; version shares the driver line but the library line is 'bash-os dm-ioctl shim' versus 'Library version:   1.02.205 (2025-02-27)', as expected. Parity FAIL (recorded).",
-              "definition_sha256": "8275484622abc93d05068a0aa9220f246ee1d20dd3b391ce72566d5f3ca66f57",
+              "definition_sha256": "ab49c5e951233ae06f107001222dd08e947ac3247ebaf480221de1aef5ed846f",
               "group": "shell",
               "id": "migration-dmsetup-query-root"
             }
@@ -16332,7 +16332,7 @@
             },
             {
               "assertion": "10 usage forms: status 2, empty stdout, non-empty stderr, under a SIGSYS kill rule on FIFREEZE/FITHAW (no request before rejection)",
-              "definition_sha256": "e7e9109ce1e546cf6aedfb09b445fd8c4be39ba75e61d4fec22ad32d12f1c1b1",
+              "definition_sha256": "29921d7b2e6d6b0eddd46624ff332e83344a54c9b7bb3a00e38d45655ce01ab1",
               "group": "shell",
               "id": "migration-fsfreeze-usage-forms"
             },
@@ -26054,7 +26054,7 @@
           "evidence": [
             {
               "assertion": "loop device with a device-mapper linear child: tree, list, no-deps, raw and pairs forms and the dm node itself compared with util-linux lsblk.",
-              "definition_sha256": "d76a32232af01ee1916ae8d6836a33e4e0081ecc7814bea05a39a2e76fc7e017",
+              "definition_sha256": "e91ea531976e24e85c18b9bc4962d923c54ca6fb49dabc30698bb57249237367",
               "group": "shell",
               "id": "mig-w7-lsblk-loop-dm-topology-root"
             }
@@ -54669,7 +54669,7 @@
           "evidence": [
             {
               "assertion": "five signatures in one image and two pairs in two others: only the magic ranges become zero",
-              "definition_sha256": "33e9cb337ce893d13ca60f6b78535caeeb64e0389f24a27ce8d0c39a23e8d9d7",
+              "definition_sha256": "a072d46177f528c39be0cc89ddc29c58cc86f17b46f299bdfe4dcaac82da2f8c",
               "group": "shell",
               "id": "migration-wipefs-erase-exact-bytes"
             }
@@ -54683,13 +54683,13 @@
           "evidence": [
             {
               "assertion": "repeat -a and listing silent; signature-free file untouched; missing operand between images -> status 1, both processed; read-only -a EACCES",
-              "definition_sha256": "33e9cb337ce893d13ca60f6b78535caeeb64e0389f24a27ce8d0c39a23e8d9d7",
+              "definition_sha256": "a072d46177f528c39be0cc89ddc29c58cc86f17b46f299bdfe4dcaac82da2f8c",
               "group": "shell",
               "id": "migration-wipefs-erase-exact-bytes"
             },
             {
               "assertion": "repeat -a silent on both sides",
-              "definition_sha256": "3c42fa582a66fc823ef9d3b2d832eacd7d45e3e1d610306d5a2a148322f3cd62",
+              "definition_sha256": "4ea88c0abd5e0bf1b6af793cdd9142797eb8606947900ec3cab6b060b226dfe5",
               "group": "shell",
               "id": "migration-wipefs-tool-images-parity"
             }
@@ -54715,7 +54715,7 @@
             },
             {
               "assertion": "-a -n, -n -a, --all --no-act, -n list and change nothing; -a -n works on a read-only image",
-              "definition_sha256": "9a4d4121a80fe12e1646dd774c93714aa8b5f471f61a869295263c06313ad491",
+              "definition_sha256": "340419f43817c8976310e30d527c9c729ffbed807641ec0d025eaac94f166cab",
               "group": "shell",
               "id": "migration-wipefs-no-act-preserves"
             }
@@ -54729,7 +54729,7 @@
           "evidence": [
             {
               "assertion": "mkfs.ext2 and mkswap images: same changed byte ranges as util-linux wipefs -a (0x438-0x439, 0xff6-0xfff); zero image untouched",
-              "definition_sha256": "3c42fa582a66fc823ef9d3b2d832eacd7d45e3e1d610306d5a2a148322f3cd62",
+              "definition_sha256": "4ea88c0abd5e0bf1b6af793cdd9142797eb8606947900ec3cab6b060b226dfe5",
               "group": "shell",
               "id": "migration-wipefs-tool-images-parity"
             }

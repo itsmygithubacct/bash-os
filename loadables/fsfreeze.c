@@ -33,15 +33,27 @@
 #  define FITHAW   _IOWR('X', 120, int)   /* thaw  the filesystem */
 #endif
 
+static int
+fsfreeze_try (void)
+{
+    fprintf (stderr, "Try 'fsfreeze --help' for more information.\n");
+    return EXECUTION_FAILURE;
+}
+
+/* Checks, their order, their wording and status 1 follow util-linux. */
 int
 fsfreeze_builtin (WORD_LIST *list)
 {
-    int op = 0;   /* 'f' freeze, 'u' thaw */
+    int freeze = 0, unfreeze = 0, options = 1, nops = 0;
     const char *mp = NULL;
 
-    while (list && list->word->word[0] == '-' && list->word->word[1]) {
+    for (; list; list = list->next) {
         const char *w = list->word->word;
-        if (!strcmp (w, "--")) { list = list->next; break; }
+        if (!options || w[0] != '-' || !w[1]) {
+            if (nops++ == 0) mp = w;
+            continue;
+        }
+        if (!strcmp (w, "--")) { options = 0; continue; }
         if (!strcmp (w, "--help")) {
             extern char *fsfreeze_doc[];
             clearerr (stdout);
@@ -50,37 +62,55 @@ fsfreeze_builtin (WORD_LIST *list)
             return (fflush (stdout) == EOF || ferror (stdout))
                 ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
         }
-        if (op && (!strcmp (w, "-f") || !strcmp (w, "--freeze") ||
-                   !strcmp (w, "-u") || !strcmp (w, "--unfreeze"))) {
-            builtin_error ("exactly one of --freeze or --unfreeze is required");
-            builtin_usage (); return EX_USAGE;
+        if (!strcmp (w, "--freeze")) { freeze = 1; continue; }
+        if (!strcmp (w, "--unfreeze")) { unfreeze = 1; continue; }
+        if (w[1] == '-') {
+            builtin_error ("unrecognized option '%s'", w);
+            return fsfreeze_try ();
         }
-        if (!strcmp (w, "-f") || !strcmp (w, "--freeze"))   { op = 'f'; list = list->next; continue; }
-        if (!strcmp (w, "-u") || !strcmp (w, "--unfreeze")) { op = 'u'; list = list->next; continue; }
-        builtin_error ("unknown option: %s", w); builtin_usage (); return EX_USAGE;
+        for (const char *c = w + 1; *c; c++) {
+            if (*c == 'f') freeze = 1;
+            else if (*c == 'u') unfreeze = 1;
+            else {
+                builtin_error ("invalid option -- '%c'", *c);
+                return fsfreeze_try ();
+            }
+        }
     }
-    if (list) { mp = list->word->word; list = list->next; }
+    if (freeze && unfreeze) {
+        builtin_error ("mutually exclusive arguments: --freeze --unfreeze");
+        return EXECUTION_FAILURE;
+    }
+    if (!freeze && !unfreeze) {
+        builtin_error ("neither --freeze or --unfreeze specified");
+        return EXECUTION_FAILURE;
+    }
+    if (nops == 0) { builtin_error ("no filename specified"); return EXECUTION_FAILURE; }
+    if (nops > 1) { builtin_error ("unexpected number of arguments"); return fsfreeze_try (); }
 
-    if (op == 0)  { builtin_error ("exactly one of --freeze or --unfreeze is required"); builtin_usage (); return EX_USAGE; }
-    if (!mp || !*mp) { builtin_error ("a mountpoint is required"); builtin_usage (); return EX_USAGE; }
+    int fd = open (mp, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) { builtin_error ("cannot open %s: %s", mp, strerror (errno)); return EXECUTION_FAILURE; }
 
-    if (list) { builtin_error ("too many operands"); builtin_usage (); return EX_USAGE; }
-
-    struct stat st;
-    if (stat (mp, &st) < 0) { builtin_error ("%s: %s", mp, strerror (errno)); return EXECUTION_FAILURE; }
-    if (!S_ISDIR (st.st_mode)) { builtin_error ("%s: not a directory", mp); return EXECUTION_FAILURE; }
-
-    /* O_DIRECTORY validates the object actually opened as well as protecting
-     * against a replacement between stat and open. The kernel ioctl decides
+    /* The object actually opened is the one checked, so a replacement
+     * between the two cannot be frozen in its place. The kernel ioctl decides
      * whether this directory's filesystem supports the requested action. */
-    int fd = open (mp, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-    if (fd < 0) { builtin_error ("%s: %s", mp, strerror (errno)); return EXECUTION_FAILURE; }
+    struct stat st;
+    if (fstat (fd, &st) < 0) {
+        builtin_error ("stat of %s failed: %s", mp, strerror (errno));
+        close (fd);
+        return EXECUTION_FAILURE;
+    }
+    if (!S_ISDIR (st.st_mode)) {
+        builtin_error ("%s: is not a directory", mp);
+        close (fd);
+        return EXECUTION_FAILURE;
+    }
 
-    int rc = ioctl (fd, (op == 'f') ? FIFREEZE : FITHAW, 0);
+    int rc = ioctl (fd, freeze ? FIFREEZE : FITHAW, 0);
     int e = errno;
     close (fd);
     if (rc < 0) {
-        builtin_error ("%s: %s: %s", mp, (op == 'f') ? "freeze" : "unfreeze", strerror (e));
+        builtin_error ("%s: %s failed: %s", mp, freeze ? "freeze" : "unfreeze", strerror (e));
         return EXECUTION_FAILURE;
     }
     return EXECUTION_SUCCESS;

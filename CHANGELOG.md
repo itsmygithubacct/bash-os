@@ -9,6 +9,24 @@ The release gate requires every recorded FAIL to be fixed and every required
 static and dynamic qualification case to PASS. This target is not yet met;
 the historical 0.1.3 evidence remains available separately.
 
+- `blockdev` ends at the first device it cannot open or the first ioctl that
+  fails, names the failed ioctl, gives usage errors status 1, and has
+  `--report`, `--getra`, `--getfra`, `--getpbsz`, `--getiomin`, `--getioopt`,
+  `--getalignoff`, `--getmaxsect` and `--getdiscardzeroes`, as util-linux does.
+- `fsfreeze` checks its arguments in util-linux's order, with its diagnostics
+  and status 1.
+- `wipefs` lists signatures as a DEVICE OFFSET TYPE UUID LABEL table and
+  reports each erased magic string as util-linux does; it tells ext2, ext3
+  and ext4 apart, knows the dos and gpt partition tables, refuses a block
+  device in use unless `-f` is given, and accepts `-o`, `-q`, `-i` and `-p`.
+- `tar -tv` prints GNU tar's listing (mode string, owner/group, size or
+  device numbers, time, name and link target); a device or FIFO that cannot
+  be created is reported as `Cannot mknod` or `Cannot mkfifo`, followed by
+  `Exiting with failure status due to previous errors`.
+- `coreutils mknod` checks operands and reports errors as GNU mknod does,
+  with status 1, and accepts `--mode=` and the `u` type.
+- `dd` reports a failed write as `error writing 'FILE'` and a failed skip or
+  seek as `FILE: cannot skip` or `cannot seek`, followed by the totals.
 - `truncate` accepts unit-only sizes such as `K` and `KB`, including
   minimum, maximum, and rounding modifiers, while rejecting signed forms
   without digits.

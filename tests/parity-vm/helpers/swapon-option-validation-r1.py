@@ -18,7 +18,8 @@ bash = sys.argv[1]
 def make_swap(path):
     subprocess.run(['/usr/bin/dd', 'if=/dev/zero', f'of={path}', 'bs=64k', 'count=16', 'status=none'],
                    check=True)
-    subprocess.run(['/usr/sbin/mkswap', '-q', path], check=True,
+    # "--" keeps a file name that begins with a dash from being read as options.
+    subprocess.run(['/usr/sbin/mkswap', '-q', '--', path], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     os.chown(path, 2000, 2000)
 

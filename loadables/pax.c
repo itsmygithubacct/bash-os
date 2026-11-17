@@ -293,7 +293,42 @@ out:
     saved = errno; if(dfd >= 0) close(dfd); free(copy); errno = saved; return rc;
 }
 
+/* One member in GNU tar's verbose listing: mode string, owner/group, size
+   or device numbers, modification time, name and link target. The
+   owner/group/size field starts 19 columns wide and only grows. */
+static void tar_verbose_line(const unsigned char *h, int typeflag, unsigned mode, unsigned long sz,
+                             time_t mtime, const char *name, const char *ln, int *ugswidth){
+    char perms[11], owner[80], group[80], size[64], when[32];
+    perms[0] = typeflag == '5' ? 'd' : typeflag == '2' ? 'l' : typeflag == '3' ? 'c' :
+               typeflag == '4' ? 'b' : typeflag == '6' ? 'p' : typeflag == '1' ? 'h' : '-';
+    static const char rwx[] = "rwxrwxrwx";
+    for(int i = 0; i < 9; i++) perms[1+i] = (mode & (0400u >> i)) ? rwx[i] : '-';
+    if(mode & 04000) perms[3] = (mode & 0100) ? 's' : 'S';
+    if(mode & 02000) perms[6] = (mode & 0010) ? 's' : 'S';
+    if(mode & 01000) perms[9] = (mode & 0001) ? 't' : 'T';
+    perms[10] = 0;
+    snprintf(owner, sizeof owner, "%.32s", (const char *)h+265);
+    snprintf(group, sizeof group, "%.32s", (const char *)h+297);
+    if(!owner[0]) snprintf(owner, sizeof owner, "%lu", octal((char *)h+108, 8));
+    if(!group[0]) snprintf(group, sizeof group, "%lu", octal((char *)h+116, 8));
+    if(typeflag == '3' || typeflag == '4')
+        snprintf(size, sizeof size, "%lu,%lu", octal((char *)h+329, 8), octal((char *)h+337, 8));
+    else snprintf(size, sizeof size, "%lu", sz);
+    struct tm tm;
+    if(!localtime_r(&mtime, &tm) || !strftime(when, sizeof when, "%Y-%m-%d %H:%M", &tm))
+        snprintf(when, sizeof when, "%lld", (long long)mtime);
+    int pad = (int)(strlen(owner) + 1 + strlen(group) + 1 + strlen(size));
+    if(pad > *ugswidth) *ugswidth = pad;
+    printf("%s %s/%s %*s %s %s%s", perms, owner, group,
+           (int)(*ugswidth - pad + strlen(size)), size, when, name,
+           typeflag == '5' && name[strlen(name)-1] != '/' ? "/" : "");
+    if(typeflag == '2') printf(" -> %s", ln);
+    else if(typeflag == '1') printf(" link to %s", ln);
+    putchar('\n');
+}
+
 int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
+    int ugswidth = 19;
     int extract = options->extract, verbose = options->verbose;
     mode_t mask = umask(0); umask(mask);
     unsigned char *found = calloc(options->count ? options->count : 1, 1);
@@ -379,7 +414,9 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
             pax_meta_free(&eff); continue;
         }
         if(!extract){
-            if(verbose && (typeflag == '3' || typeflag == '4'))
+            if(verbose && options->tar_mode)
+                tar_verbose_line(h, typeflag, mode, sz, mtime, name, ln, &ugswidth);
+            else if(verbose && (typeflag == '3' || typeflag == '4'))
                 printf("%c %06o %lu,%lu %s\n", typeflag, mode,
                        octal((char *)h+329, 8), octal((char *)h+337, 8), name);
             else if(verbose) printf("%c %06o %lu %s\n", typeflag, mode, sz, name);
@@ -472,7 +509,12 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
                 else result = pax_device_replace(name,
                        (typeflag == '3' ? S_IFCHR : S_IFBLK) | (mode & 07777), device, mtime);
             }
-            if(result < 0){ builtin_error("%s: %s", name, strerror(errno)); rc = 1; }
+            if(result < 0){
+                if(options->tar_mode) builtin_error("%s: Cannot mknod: %s", name, strerror(errno));
+                else builtin_error("%s: %s", name, strerror(errno));
+                if(options->member_errors) ++*options->member_errors;
+                rc = 1;
+            }
             if(skip_bytes(f, body_padded) < 0) rc = 1;
             break;
         }
@@ -488,7 +530,12 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
             mode_t saved_mask = umask(0);
             int result = mkfifo(name, mode & 0777), saved_errno = errno;
             umask(saved_mask);
-            if(result < 0){ builtin_error("%s: %s", name, strerror(saved_errno)); rc = 1; }
+            if(result < 0){
+                if(options->tar_mode) builtin_error("%s: Cannot mkfifo: %s", name, strerror(saved_errno));
+                else builtin_error("%s: %s", name, strerror(saved_errno));
+                if(options->member_errors) ++*options->member_errors;
+                rc = 1;
+            }
             else if(set_mtime(name, mtime, 0) < 0){ builtin_error("%s: %s", name, strerror(errno)); rc = 1; }
             if(skip_bytes(f, body_padded) < 0) rc = 1;
             break;

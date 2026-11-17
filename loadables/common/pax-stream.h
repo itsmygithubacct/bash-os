@@ -7,6 +7,9 @@ struct bashos_pax_read_options {
     unsigned strip;
     const char **members;
     size_t count;
+    /* When set, counts members that could not be created while the rest of
+       the archive was still extracted. */
+    int *member_errors;
 };
 int bashos_pax_read(FILE *, const struct bashos_pax_read_options *);
 struct bashos_pax_hardlink;
