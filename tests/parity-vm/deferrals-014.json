@@ -15699,7 +15699,7 @@
           "evidence": [
             {
               "assertion": "Range adds on a loop device make sysfs start/size equal the DOS table written by sfdisk (p2, then p3, then p1).",
-              "definition_sha256": "7e5d34a9cc38c8ab067b06528c873f84757a7a2a61a8fcfa2dd011e473b57f9a",
+              "definition_sha256": "e6401a7507b83803af8d257b72f2e06bbb9dc16c05afca5923222201686c9d65",
               "group": "shell",
               "id": "mig-w7-fdisk-partx-add-delete-root"
             }
@@ -15713,13 +15713,13 @@
           "evidence": [
             {
               "assertion": "delete of one partition, update to a rewritten table size, ENXIO for an absent kernel partition, MIN>MAX and over-range bound rejected.",
-              "definition_sha256": "2c9c2b070d9174512b25d879c358aadb393d647a400839c6ad00fee0cfb85d21",
+              "definition_sha256": "6b4ef00ea749c9bf1123d041b42ca726aa1dfd728f8270d5427df842d8e291e7",
               "group": "shell",
               "id": "mig-w7-fdisk-partx-update-ranges-root"
             },
             {
               "assertion": "delete MIN MAX over 1..3 then add all again.",
-              "definition_sha256": "9b160ff301c0fd6dfa8a35f379b389fd1a67137af8731d3ed33dccfe24c5e340",
+              "definition_sha256": "88aeb7c26833825b308871f58225b40938f6671cc0b3cbafad68a4001602159b",
               "group": "shell",
               "id": "mig-w7-fdisk-partx-delete-range-root"
             }
@@ -44734,31 +44734,31 @@
           "evidence": [
             {
               "assertion": "Real Linux setgroups receives the private target memberships with its primary GID included exactly once; member, append-primary, primary-only and alternate-row controls compare actual kernel/target groups on both release binaries. Authorization descriptor and mint/consume replies alone are modeled.",
-              "definition_sha256": "97eadca3b3ecb5c0c1e2be17bdf06d8765b076b019cb32b546e41e2c097c6328",
+              "definition_sha256": "a67495935f069755e4783e2e777116b40842cd6f12696bc2dae8c5d6f831022c",
               "group": "shell",
               "id": "su-native-member"
             },
             {
               "assertion": "Real Linux setgroups receives the private target memberships with its primary GID included exactly once; member, append-primary, primary-only and alternate-row controls compare actual kernel/target groups on both release binaries. Authorization descriptor and mint/consume replies alone are modeled.",
-              "definition_sha256": "f7c2077e45e4ed356f158329ec97e5e3e7a97ec0fb7571e441e9794258da289d",
+              "definition_sha256": "a2dedf63a65a83c958f1c7acbef61bebbb917a85282d457d50dea690726323fc",
               "group": "shell",
               "id": "su-native-append-primary"
             },
             {
               "assertion": "Real Linux setgroups receives the private target memberships with its primary GID included exactly once; member, append-primary, primary-only and alternate-row controls compare actual kernel/target groups on both release binaries. Authorization descriptor and mint/consume replies alone are modeled.",
-              "definition_sha256": "9fe4534fd201194eb78660520c0eef0e9c1d074ce89c0ba3c3330e66bd11f893",
+              "definition_sha256": "9f1b83e8ded561f595a699ca9ec9ba14b737baea9f9ca43d5623bd50af3a020d",
               "group": "shell",
               "id": "su-native-primary-only"
             },
             {
               "assertion": "Real Linux setgroups receives the private target memberships with its primary GID included exactly once; member, append-primary, primary-only and alternate-row controls compare actual kernel/target groups on both release binaries. Authorization descriptor and mint/consume replies alone are modeled.",
-              "definition_sha256": "4ddd079db1009af989005614feffd232380b0de5056379b067a6fd73c895cf8b",
+              "definition_sha256": "92369f749f41dc18a54470eefc7ec5e10a0bb873ecdc7b7db93f105a48b0578d",
               "group": "shell",
               "id": "su-native-alternate"
             },
             {
               "assertion": "Real Linux setgroups receives the private target memberships with its primary GID included exactly once; member, append-primary, primary-only and alternate-row controls compare actual kernel/target groups on both release binaries. Authorization descriptor and mint/consume replies alone are modeled.",
-              "definition_sha256": "6d69137fc64c58760ec7043358dbcd0422a82a8b70b2528a54b38d7803a9ba94",
+              "definition_sha256": "fd7bd210517672131fb14364c5954051aead3e24865c4752a0443eca7de181ad",
               "group": "shell",
               "id": "su-native-no-login"
             }
@@ -44772,31 +44772,31 @@
           "evidence": [
             {
               "assertion": "Ordered real setgroups/setresgid/setresuid/getresuid/getresgid calls, live kernel real/effective/saved/fs IDs and target self-reported real/effective/saved IDs. Saved-ID mismatch denial is additionally exercised by the fault cases under r3; no retired output buffers or syscall return values are claimed as observed.",
-              "definition_sha256": "97eadca3b3ecb5c0c1e2be17bdf06d8765b076b019cb32b546e41e2c097c6328",
+              "definition_sha256": "a67495935f069755e4783e2e777116b40842cd6f12696bc2dae8c5d6f831022c",
               "group": "shell",
               "id": "su-native-member"
             },
             {
               "assertion": "Ordered real setgroups/setresgid/setresuid/getresuid/getresgid calls, live kernel real/effective/saved/fs IDs and target self-reported real/effective/saved IDs. Saved-ID mismatch denial is additionally exercised by the fault cases under r3; no retired output buffers or syscall return values are claimed as observed.",
-              "definition_sha256": "f7c2077e45e4ed356f158329ec97e5e3e7a97ec0fb7571e441e9794258da289d",
+              "definition_sha256": "a2dedf63a65a83c958f1c7acbef61bebbb917a85282d457d50dea690726323fc",
               "group": "shell",
               "id": "su-native-append-primary"
             },
             {
               "assertion": "Ordered real setgroups/setresgid/setresuid/getresuid/getresgid calls, live kernel real/effective/saved/fs IDs and target self-reported real/effective/saved IDs. Saved-ID mismatch denial is additionally exercised by the fault cases under r3; no retired output buffers or syscall return values are claimed as observed.",
-              "definition_sha256": "9fe4534fd201194eb78660520c0eef0e9c1d074ce89c0ba3c3330e66bd11f893",
+              "definition_sha256": "9f1b83e8ded561f595a699ca9ec9ba14b737baea9f9ca43d5623bd50af3a020d",
               "group": "shell",
               "id": "su-native-primary-only"
             },
             {
               "assertion": "Ordered real setgroups/setresgid/setresuid/getresuid/getresgid calls, live kernel real/effective/saved/fs IDs and target self-reported real/effective/saved IDs. Saved-ID mismatch denial is additionally exercised by the fault cases under r3; no retired output buffers or syscall return values are claimed as observed.",
-              "definition_sha256": "4ddd079db1009af989005614feffd232380b0de5056379b067a6fd73c895cf8b",
+              "definition_sha256": "92369f749f41dc18a54470eefc7ec5e10a0bb873ecdc7b7db93f105a48b0578d",
               "group": "shell",
               "id": "su-native-alternate"
             },
             {
               "assertion": "Ordered real setgroups/setresgid/setresuid/getresuid/getresgid calls, live kernel real/effective/saved/fs IDs and target self-reported real/effective/saved IDs. Saved-ID mismatch denial is additionally exercised by the fault cases under r3; no retired output buffers or syscall return values are claimed as observed.",
-              "definition_sha256": "6d69137fc64c58760ec7043358dbcd0422a82a8b70b2528a54b38d7803a9ba94",
+              "definition_sha256": "fd7bd210517672131fb14364c5954051aead3e24865c4752a0443eca7de181ad",
               "group": "shell",
               "id": "su-native-no-login"
             }
@@ -44810,43 +44810,43 @@
           "evidence": [
             {
               "assertion": "Each selected EPERM or saved-ID mismatch must make the client abort through its observed nonzero actor exit, with exact call prefix, no extra containment denial, no attempted target exec and unchanged caller. Deliberately incorrect native controls are rejected. The original no-partial-change wording is evaluated literally at the owned child exit: setgroups failure PASS; six later failures FAIL because prior real credential changes remain in the exiting child. Caller isolation is preserved and is not relabeled rollback.",
-              "definition_sha256": "a2d7867065534c1a57e259bb06bb76274ccf0955c121456644c10ffd1d7ab4ba",
+              "definition_sha256": "0f3dd85a247abbb48ac56b6742561fb3c976597793aed26ed5797ed9403ff394",
               "group": "shell",
               "id": "su-native-fault-setgroups"
             },
             {
               "assertion": "Each selected EPERM or saved-ID mismatch must make the client abort through its observed nonzero actor exit, with exact call prefix, no extra containment denial, no attempted target exec and unchanged caller. Deliberately incorrect native controls are rejected. The original no-partial-change wording is evaluated literally at the owned child exit: setgroups failure PASS; six later failures FAIL because prior real credential changes remain in the exiting child. Caller isolation is preserved and is not relabeled rollback.",
-              "definition_sha256": "5162d80957c17ef9b00a08ed2227641e48723beda30f4d18684204a6cf3cf783",
+              "definition_sha256": "bc5ee07d0ea4d4944d46ae0f005e92bd63c7f870c1fb49981fce8d71c256ba59",
               "group": "shell",
               "id": "su-native-fault-setresgid"
             },
             {
               "assertion": "Each selected EPERM or saved-ID mismatch must make the client abort through its observed nonzero actor exit, with exact call prefix, no extra containment denial, no attempted target exec and unchanged caller. Deliberately incorrect native controls are rejected. The original no-partial-change wording is evaluated literally at the owned child exit: setgroups failure PASS; six later failures FAIL because prior real credential changes remain in the exiting child. Caller isolation is preserved and is not relabeled rollback.",
-              "definition_sha256": "44ec5528b7be98b5af8f82b54737cc28c4dcf1d285884668391ec609db70dd48",
+              "definition_sha256": "dafa532504b2507e76d24117d150cacc043a852a0d9ea50b5cc351f19d16f020",
               "group": "shell",
               "id": "su-native-fault-setresuid"
             },
             {
               "assertion": "Each selected EPERM or saved-ID mismatch must make the client abort through its observed nonzero actor exit, with exact call prefix, no extra containment denial, no attempted target exec and unchanged caller. Deliberately incorrect native controls are rejected. The original no-partial-change wording is evaluated literally at the owned child exit: setgroups failure PASS; six later failures FAIL because prior real credential changes remain in the exiting child. Caller isolation is preserved and is not relabeled rollback.",
-              "definition_sha256": "2289f885462f0957b423e74ce0286e2ed708a9c347b10bbe71fa62d1f31d2baa",
+              "definition_sha256": "f870c5451925e9c44a690d0136b9ca68d7c5c4a92dc0d24a6a45b504241a5e41",
               "group": "shell",
               "id": "su-native-fault-getresuid"
             },
             {
               "assertion": "Each selected EPERM or saved-ID mismatch must make the client abort through its observed nonzero actor exit, with exact call prefix, no extra containment denial, no attempted target exec and unchanged caller. Deliberately incorrect native controls are rejected. The original no-partial-change wording is evaluated literally at the owned child exit: setgroups failure PASS; six later failures FAIL because prior real credential changes remain in the exiting child. Caller isolation is preserved and is not relabeled rollback.",
-              "definition_sha256": "d62e0241f437e315509f60a7fb51e4e7a7048511ecde056d8045bbbee801aec8",
+              "definition_sha256": "69686d7bdd1252592f6d33cbf32c0056e2b079e381f44ff8ca99856c2b467460",
               "group": "shell",
               "id": "su-native-fault-getresgid"
             },
             {
               "assertion": "Each selected EPERM or saved-ID mismatch must make the client abort through its observed nonzero actor exit, with exact call prefix, no extra containment denial, no attempted target exec and unchanged caller. Deliberately incorrect native controls are rejected. The original no-partial-change wording is evaluated literally at the owned child exit: setgroups failure PASS; six later failures FAIL because prior real credential changes remain in the exiting child. Caller isolation is preserved and is not relabeled rollback.",
-              "definition_sha256": "ea455bee1aa24af4dbc1f7e181c2d2a397dbcd9cd1f6e386a997c366ec7e35d6",
+              "definition_sha256": "d5d1302011e6dd02c8bde88a86dafd57c3ff5bc72aef897d2679474bff35de0b",
               "group": "shell",
               "id": "su-native-fault-mismatch-getresuid"
             },
             {
               "assertion": "Each selected EPERM or saved-ID mismatch must make the client abort through its observed nonzero actor exit, with exact call prefix, no extra containment denial, no attempted target exec and unchanged caller. Deliberately incorrect native controls are rejected. The original no-partial-change wording is evaluated literally at the owned child exit: setgroups failure PASS; six later failures FAIL because prior real credential changes remain in the exiting child. Caller isolation is preserved and is not relabeled rollback.",
-              "definition_sha256": "9872071cfbcff10f1052f74f290c70fd130639fe3479e7a425aa602be7b54b6c",
+              "definition_sha256": "6dd673e3adaf2516aee8a392d1d4941390a843490e43df20105c7b1150459781",
               "group": "shell",
               "id": "su-native-fault-mismatch-getresgid"
             }
@@ -45119,31 +45119,31 @@
           "evidence": [
             {
               "assertion": "Private passwd rows determine actual target UID/GID, home directory, shell path and environment after real guest credential changes. Two distinct rows and login/no-login forms are observed. Authority mint/consume replies remain a selective client model. All existing malformed/unreadable-row FAIL evidence is retained.",
-              "definition_sha256": "97eadca3b3ecb5c0c1e2be17bdf06d8765b076b019cb32b546e41e2c097c6328",
+              "definition_sha256": "a67495935f069755e4783e2e777116b40842cd6f12696bc2dae8c5d6f831022c",
               "group": "shell",
               "id": "su-native-member"
             },
             {
               "assertion": "Private passwd rows determine actual target UID/GID, home directory, shell path and environment after real guest credential changes. Two distinct rows and login/no-login forms are observed. Authority mint/consume replies remain a selective client model. All existing malformed/unreadable-row FAIL evidence is retained.",
-              "definition_sha256": "f7c2077e45e4ed356f158329ec97e5e3e7a97ec0fb7571e441e9794258da289d",
+              "definition_sha256": "a2dedf63a65a83c958f1c7acbef61bebbb917a85282d457d50dea690726323fc",
               "group": "shell",
               "id": "su-native-append-primary"
             },
             {
               "assertion": "Private passwd rows determine actual target UID/GID, home directory, shell path and environment after real guest credential changes. Two distinct rows and login/no-login forms are observed. Authority mint/consume replies remain a selective client model. All existing malformed/unreadable-row FAIL evidence is retained.",
-              "definition_sha256": "9fe4534fd201194eb78660520c0eef0e9c1d074ce89c0ba3c3330e66bd11f893",
+              "definition_sha256": "9f1b83e8ded561f595a699ca9ec9ba14b737baea9f9ca43d5623bd50af3a020d",
               "group": "shell",
               "id": "su-native-primary-only"
             },
             {
               "assertion": "Private passwd rows determine actual target UID/GID, home directory, shell path and environment after real guest credential changes. Two distinct rows and login/no-login forms are observed. Authority mint/consume replies remain a selective client model. All existing malformed/unreadable-row FAIL evidence is retained.",
-              "definition_sha256": "4ddd079db1009af989005614feffd232380b0de5056379b067a6fd73c895cf8b",
+              "definition_sha256": "92369f749f41dc18a54470eefc7ec5e10a0bb873ecdc7b7db93f105a48b0578d",
               "group": "shell",
               "id": "su-native-alternate"
             },
             {
               "assertion": "Private passwd rows determine actual target UID/GID, home directory, shell path and environment after real guest credential changes. Two distinct rows and login/no-login forms are observed. Authority mint/consume replies remain a selective client model. All existing malformed/unreadable-row FAIL evidence is retained.",
-              "definition_sha256": "6d69137fc64c58760ec7043358dbcd0422a82a8b70b2528a54b38d7803a9ba94",
+              "definition_sha256": "fd7bd210517672131fb14364c5954051aead3e24865c4752a0443eca7de181ad",
               "group": "shell",
               "id": "su-native-no-login"
             },

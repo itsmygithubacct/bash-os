@@ -342,6 +342,17 @@ printf 'su-status=%s\\n' "$status"
         exits = [r for r in rows if r.get('phase') == 'actor-exit']
         exit_identity = exits[0]['notifying'] if len(exits) == 1 else None
         child_unchanged = before is not None and exit_identity is not None and same_credentials(before, exit_identity)
+        # The client must stop at the fault: it may make no further credential
+        # call (fault_checks), so whatever the kernel calls before the fault
+        # really changed is what the child still holds when it exits. Its
+        # credentials are unchanged exactly when no credential-setting call
+        # reached the kernel before the fault.
+        applied = [r for r in rows if r.get('syscall') in ('setgroups', 'setresgid', 'setresuid')
+                   and r.get('real_kernel_call') is True and r.get('reply_origin') != 'selected-fault']
+        if (not applied) != child_unchanged:
+            problems.append('child credentials at exit do not follow from the calls made before the fault')
+        if state is None or exit_identity is None or not same_credentials(state, exit_identity):
+            problems.append('child credentials changed between the fault and its exit')
         outcome = (f'su-native fault={fault} denied={"yes" if denied else "no"} '
                    f'caller-unchanged={"yes" if parent_unchanged else "no"} '
                    f'child-unchanged={"yes" if child_unchanged else "no"}')
@@ -353,7 +364,7 @@ printf 'su-status=%s\\n' "$status"
         report.update(child_at_exit=exit_identity, child_unchanged=child_unchanged,
                       target_not_executed=not any(r.get('phase') in ('target-exec', 'unapproved-exec') for r in rows),
                       literal_r3_result='PASS' if not problems and denied and parent_unchanged and child_unchanged else 'FAIL',
-                      literal_r3_reason='No partial credential change is evaluated in the owned child at its observed exit; caller isolation is recorded separately.')
+                      literal_r3_reason='Literal reading: the owned child holds its starting credentials at its observed exit. That can hold only when the fault precedes every credential-setting call, because the client may not issue further credential calls after a fault; caller isolation is recorded separately.')
     (HOME / 'native-verdict.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
     if problems:
         print('su-native contract mismatch: ' + '; '.join(problems))
