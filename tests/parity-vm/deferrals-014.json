@@ -3215,8 +3215,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "system() runs /bin/sh -c 'exit 3'; $? >> 8 is 3 and the shell continues with status 0. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
-              "definition_sha256": "ab266b5b605c1437438d1f26b95e76303830c1b9210c7ebcc0b40e61e5a838f7",
+              "assertion": "system() runs /bin/sh -c 'exit 3'; $? >> 8 is 3, the builtin returns 0 and the shell continues. Dynamic build: the candidate installs the real bashperl package (Perl 5.44.0) with pkg install at the default root in a user and mount namespace, runs pkg verify and pkg load, and its transcript must equal standalone perl run by the reference shell. Static build: bashperl is not exercised; the case proves only that pkg install and pkg verify succeed and that pkg load refuses with \"this executable is static and cannot load shared objects\", after which the candidate runs the reference formulation itself. The builtin behaviour in this requirement is not covered for the static build.",
+              "definition_sha256": "4b7671f1f76ad644a6acde97247953c2b00c87717112b77b6f782663086dfe20",
               "group": "shell",
               "id": "mig-w3-bashperl-system-status"
             }
@@ -3229,14 +3229,14 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "exec inside a subshell replaces only the subshell; parent continues (parity with standalone perl). bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
-              "definition_sha256": "7a538baed97b92d6d7258dd8731aa29cf3c682d8680f8f25c5c22c3307bfc332",
+              "assertion": "exec inside a subshell replaces only the subshell; the parent prints after-subshell status=0. Dynamic build: the candidate installs the real bashperl package (Perl 5.44.0) with pkg install at the default root in a user and mount namespace, runs pkg verify and pkg load, and its transcript must equal standalone perl run by the reference shell. Static build: bashperl is not exercised; the case proves only that pkg install and pkg verify succeed and that pkg load refuses with \"this executable is static and cannot load shared objects\", after which the candidate runs the reference formulation itself. The builtin behaviour in this requirement is not covered for the static build.",
+              "definition_sha256": "639bfb13a7415d5917eee91d4ac9d6645629f4d1516ab5381a2c5f85c1adc79a",
               "group": "shell",
               "id": "mig-w3-bashperl-exec-subshell"
             },
             {
-              "assertion": "Contract from docs/perl.md: exec outside a subshell replaces the embedding Bash, so only the exec'd program's output appears and the following command never runs. Expected bytes come from the documentation, not from any run. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
-              "definition_sha256": "86362b8ebfdc21defcb256ac4327cdc8f9ed88e7b77088b3eb82c1e731f16256",
+              "assertion": "exec outside a subshell replaces the embedding Bash, so only execd appears and the following command never runs; the reference reaches the same state with 'exec /usr/bin/perl'. Dynamic build: the candidate installs the real bashperl package (Perl 5.44.0) with pkg install at the default root in a user and mount namespace, runs pkg verify and pkg load, and its transcript must equal standalone perl run by the reference shell. Static build: bashperl is not exercised; the case proves only that pkg install and pkg verify succeed and that pkg load refuses with \"this executable is static and cannot load shared objects\", after which the candidate runs the reference formulation itself. The builtin behaviour in this requirement is not covered for the static build.",
+              "definition_sha256": "eaf9d4630b79c87d0844cef942c8c50d0199402eed0ea3b87d4daccc8c41078a",
               "group": "shell",
               "id": "mig-w3-bashperl-exec-replaces-shell"
             }
@@ -3249,8 +3249,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Perl %SIG handlers for USR1/USR2 run on delivered signals; afterwards the shell's USR1 trap still fires and its ignored USR2 stays ignored (handler and disposition restoration). bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
-              "definition_sha256": "1a8307e0678defaf66912769272e36fa249525a547973c05569719053f98a300",
+              "assertion": "Perl %SIG handlers for USR1/USR2 run on delivered signals; afterwards the shell's USR1 trap still fires and its ignored USR2 stays ignored. Dynamic build: the candidate installs the real bashperl package (Perl 5.44.0) with pkg install at the default root in a user and mount namespace, runs pkg verify and pkg load, and its transcript must equal standalone perl run by the reference shell. Static build: bashperl is not exercised; the case proves only that pkg install and pkg verify succeed and that pkg load refuses with \"this executable is static and cannot load shared objects\", after which the candidate runs the reference formulation itself. The builtin behaviour in this requirement is not covered for the static build.",
+              "definition_sha256": "2c35331d04bcb2ab6ec03be4eb0bfabacb214f4eed99f489b9257808d9fbeab0",
               "group": "shell",
               "id": "mig-w3-bashperl-sig-handlers"
             }
@@ -3263,14 +3263,14 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Perl redirects and closes descriptors 0-2; the shell's stdout, stderr and stdin must still work afterwards and the redirected bytes must be in the file. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
-              "definition_sha256": "88d34fa23797d284b5d088540840f1d9fae90778dd919d1f9ff7d8a54d9f0a41",
+              "assertion": "Perl redirects and closes descriptors 0-2; the shell's stdout, stderr and stdin still work afterwards and the redirected bytes are in the file. Dynamic build: the candidate installs the real bashperl package (Perl 5.44.0) with pkg install at the default root in a user and mount namespace, runs pkg verify and pkg load, and its transcript must equal standalone perl run by the reference shell. Static build: bashperl is not exercised; the case proves only that pkg install and pkg verify succeed and that pkg load refuses with \"this executable is static and cannot load shared objects\", after which the candidate runs the reference formulation itself. The builtin behaviour in this requirement is not covered for the static build.",
+              "definition_sha256": "590f889886c85dc9d5a42006ffd71f8e0caea4ba5d0edc6b16e46a3d2f5b034c",
               "group": "shell",
               "id": "mig-w3-bashperl-std-fds"
             },
             {
-              "assertion": "Contract from docs/perl.md: closing nonstandard descriptor 7 inside the builtin persists, so a later write to fd 7 fails with status 1. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
-              "definition_sha256": "9a1f0a496395b7df4118bd53ae89dc900be87464b749c83488e02158e109b863",
+              "assertion": "Closing descriptor 7 inside the builtin persists, so a later shell write to fd 7 fails with status 1, as after the reference shell's own exec 7>&-. Dynamic build: the candidate installs the real bashperl package (Perl 5.44.0) with pkg install at the default root in a user and mount namespace, runs pkg verify and pkg load, and its transcript must equal standalone perl run by the reference shell. Static build: bashperl is not exercised; the case proves only that pkg install and pkg verify succeed and that pkg load refuses with \"this executable is static and cannot load shared objects\", after which the candidate runs the reference formulation itself. The builtin behaviour in this requirement is not covered for the static build.",
+              "definition_sha256": "7249991e1cc029035fc816dd9bc786372af7f5c01325c2bae56d9623b87bc373",
               "group": "shell",
               "id": "mig-w3-bashperl-high-fd"
             }
@@ -3283,8 +3283,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "POSIX, List::Util and Data::Dumper (XS) load and compute 55 9 2 1971-01-01 [1,{'a' => 2}]; afterwards shell variable, cwd and umask are unchanged. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found' (status 127); the reference runs standalone perl 5.40.1 under the same script.",
-              "definition_sha256": "51d4e276566ae64a828eeb63b34cd4c710e7fc25ede31820e50ade26fa9b9fd9",
+              "assertion": "POSIX, List::Util and Data::Dumper load from the package's module tree and compute 55 9 2 1971-01-01 [1,{'a' => 2}]; shell variable, cwd and umask are unchanged afterwards. Dynamic build: the candidate installs the real bashperl package (Perl 5.44.0) with pkg install at the default root in a user and mount namespace, runs pkg verify and pkg load, and its transcript must equal standalone perl run by the reference shell. Static build: bashperl is not exercised; the case proves only that pkg install and pkg verify succeed and that pkg load refuses with \"this executable is static and cannot load shared objects\", after which the candidate runs the reference formulation itself. The builtin behaviour in this requirement is not covered for the static build.",
+              "definition_sha256": "5c0e7a5ba68a87598560b042fca103b864dab9bb0225a6795a0b720fb82d90c1",
               "group": "shell",
               "id": "mig-w3-bashperl-xs-modules"
             }
@@ -3784,8 +3784,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "On a PTY the interactive interpreter shows '>>> '. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
-              "definition_sha256": "b93949b2a2b178d41eecf04051b0a33649c0ad775dd34f18b0bfae94482f2e1f",
+              "assertion": "On a PTY the interactive interpreter shows '>>> '. Dynamic build: the candidate runs pkg verify and pkg load --root on the staged real bashpython package (CPython 3.13.15) and its PTY transcript must equal standalone python3 under the reference shell. Static build: bashpython is not exercised; the case proves only that pkg load refuses with \"this executable is static and cannot load shared objects\", after which the candidate shell runs /usr/bin/python3. The builtin behaviour in this requirement is not covered for the static build.",
+              "definition_sha256": "3f956f25570ab844de33c5749928f4159a53c183abc0375aafdd0166e7bfd598",
               "group": "terminal",
               "id": "mig-w3-bashpython-prompt-primary"
             }
@@ -3798,8 +3798,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Typed print(6*7) prints 42 on its own line followed by a new prompt. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
-              "definition_sha256": "2cc7802b7d1d4d231dd0f5486de66293a5b722108417f4ec2feef200be57f5be",
+              "assertion": "Typed print(6*7) prints 42 on its own line followed by a new prompt. Dynamic build: the candidate runs pkg verify and pkg load --root on the staged real bashpython package (CPython 3.13.15) and its PTY transcript must equal standalone python3 under the reference shell. Static build: bashpython is not exercised; the case proves only that pkg load refuses with \"this executable is static and cannot load shared objects\", after which the candidate shell runs /usr/bin/python3. The builtin behaviour in this requirement is not covered for the static build.",
+              "definition_sha256": "0a013a1a47ef09fad51e47acdae86cdb2c24d2eb70e5357c922870e166e09d91",
               "group": "terminal",
               "id": "mig-w3-bashpython-prompt-exec-line"
             }
@@ -3812,8 +3812,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "A for statement shows '... ' after the header and after the body, then prints 0 and 1. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
-              "definition_sha256": "827628fd90f81bf97c9b8ea71390018577a99490f11914937a38fb58546ec601",
+              "assertion": "A for statement shows '... ' after the header and after the body, then prints 0 and 1. Dynamic build: the candidate runs pkg verify and pkg load --root on the staged real bashpython package (CPython 3.13.15) and its PTY transcript must equal standalone python3 under the reference shell. Static build: bashpython is not exercised; the case proves only that pkg load refuses with \"this executable is static and cannot load shared objects\", after which the candidate shell runs /usr/bin/python3. The builtin behaviour in this requirement is not covered for the static build.",
+              "definition_sha256": "b4da206d2f350dd4bbde7b1990b0082bcd1c841b14c7bc6c4d5539df3a50af86",
               "group": "terminal",
               "id": "mig-w3-bashpython-prompt-continuation"
             }
@@ -3826,8 +3826,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Ctrl-D at an empty prompt exits with status 0 (after=0 printed by the calling shell) and the driver asserts the PTY modes are restored. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
-              "definition_sha256": "6f3415dfc4aac592c9cefc81401ab7a3ca9bf66c159ef2fc4e49ccc64b4ab881",
+              "assertion": "Ctrl-D at an empty prompt exits with status 0 (after=0 printed by the calling shell) and the driver asserts the PTY modes are restored. Dynamic build: the candidate runs pkg verify and pkg load --root on the staged real bashpython package (CPython 3.13.15) and its PTY transcript must equal standalone python3 under the reference shell. Static build: bashpython is not exercised; the case proves only that pkg load refuses with \"this executable is static and cannot load shared objects\", after which the candidate shell runs /usr/bin/python3. The builtin behaviour in this requirement is not covered for the static build.",
+              "definition_sha256": "b0ad49aa9e03fc6037321eba7f67cf6b35d69956028f68697b23ab9050497571",
               "group": "terminal",
               "id": "mig-w3-bashpython-prompt-eof"
             }
@@ -3855,8 +3855,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "^C while sleeping inside try/except KeyboardInterrupt prints 'caught' and the interactive shell sees status 0. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
-              "definition_sha256": "39779a0fbee47a5a42455d8cc33ae16c68244b943824a0cbddc3aae9431ed5df",
+              "assertion": "^C while sleeping inside try/except KeyboardInterrupt prints 'caught' and the interactive shell sees status 0. Ctrl-C is sent after Python prints ready; the case no longer waits for a separate foreground job, because the builtin runs in the shell's own foreground group. Dynamic build: the candidate runs pkg verify and pkg load --root on the staged real bashpython package (CPython 3.13.15) and its PTY transcript must equal standalone python3 under the reference shell. Static build: bashpython is not exercised; the case proves only that pkg load refuses with \"this executable is static and cannot load shared objects\", after which the candidate shell runs /usr/bin/python3. The builtin behaviour in this requirement is not covered for the static build.",
+              "definition_sha256": "2fa3b122b5f8593038057f673469746fc232314bc3cddcfa09c6e0996d1638e7",
               "group": "terminal",
               "id": "mig-w3-bashpython-ki-caught"
             }
@@ -3869,8 +3869,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Unhandled KeyboardInterrupt prints a traceback ending in KeyboardInterrupt and the interactive shell reports status 130. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
-              "definition_sha256": "7b2e162e9bfa838968097c501e72d6a43208e8dd6580a9df032a90ef6795323b",
+              "assertion": "Unhandled KeyboardInterrupt prints a traceback ending in KeyboardInterrupt and the interactive shell reports status 130. Ctrl-C is sent after Python prints ready, without waiting for a separate foreground job. Dynamic build: the candidate runs pkg verify and pkg load --root on the staged real bashpython package (CPython 3.13.15) and its PTY transcript must equal standalone python3 under the reference shell. Static build: bashpython is not exercised; the case proves only that pkg load refuses with \"this executable is static and cannot load shared objects\", after which the candidate shell runs /usr/bin/python3. The builtin behaviour in this requirement is not covered for the static build.",
+              "definition_sha256": "9ed4d83b0b18b815a90afabe0f21d98eb0314792ae7a404150037bb531a3ff19",
               "group": "terminal",
               "id": "mig-w3-bashpython-ki-unhandled"
             }
@@ -3883,8 +3883,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "A background sentinel in its own process group sees no SIGINT (sentinel=no-int) and the calling shell's cwd and environment are unchanged after the Python program changed them. bashpython is not built into either frozen binary: the candidate shell reports 'bashpython: command not found' and the awaited output never appears; the reference runs python3 3.13.5 with PYTHON_BASIC_REPL=1 on the same private PTY and satisfies every step.",
-              "definition_sha256": "ac273afd38ee12cd32fd32aab6914c7abdcb4aa7ed6d0b99b795f96087a1ef66",
+              "assertion": "A background sentinel in its own process group sees no SIGINT (sentinel=no-int) and the calling shell's cwd and environment are unchanged after the Python program changed them. Dynamic build: the candidate runs pkg verify and pkg load --root on the staged real bashpython package (CPython 3.13.15) and its PTY transcript must equal standalone python3 under the reference shell. Static build: bashpython is not exercised; the case proves only that pkg load refuses with \"this executable is static and cannot load shared objects\", after which the candidate shell runs /usr/bin/python3. The builtin behaviour in this requirement is not covered for the static build.",
+              "definition_sha256": "ea31350889fe955599f0a88e01e1e84135e497e9d02387c8402f667c930fbdb0",
               "group": "terminal",
               "id": "mig-w3-bashpython-ki-group-scope"
             }
@@ -52485,8 +52485,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Helper stand-in prints each argv element in brackets; expected '[alpha] [] [two words] [dollar$sign] [*]' proves empty, spaced and metacharacter words are forwarded verbatim. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
-              "definition_sha256": "478e610342b3fc4753caf77730f298a737d58a6a2f0ea1de526e54664755d3f7",
+              "assertion": "uv run hands its arguments to a Python program that prints argv: '[alpha] [] [two words] [dollar$sign] [*]' shows empty, spaced and metacharacter words are forwarded verbatim. Both sides run the real pinned uv 0.12.15 executable offline, the reference shell directly and the candidate through the uv builtin after pkg install of the real uv package. Dynamic build: the builtin is the package's uv.so after pkg load. Static build: pkg load must refuse with the static message and the compiled-in uv builtin runs the installed executable, so the behaviour is exercised on both builds.",
+              "definition_sha256": "c89fe02ec3efad331bac9ac85087a8ad94579a4b82601f35d7e27e18862f1456",
               "group": "shell",
               "id": "mig-w3-uv-forward-args"
             }
@@ -52499,8 +52499,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Helper prints an exported variable (visible) and an unexported shell variable (unset). Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
-              "definition_sha256": "30111467e0e97278cc6570df33d14b1402dd1b47cd700b1e3515de37aec42fd2",
+              "assertion": "A program started by uv run sees an exported variable (visible) and not an unexported shell variable (unset). Both sides run the real pinned uv 0.12.15 executable offline, the reference shell directly and the candidate through the uv builtin after pkg install of the real uv package. Dynamic build: the builtin is the package's uv.so after pkg load. Static build: pkg load must refuse with the static message and the compiled-in uv builtin runs the installed executable, so the behaviour is exercised on both builds.",
+              "definition_sha256": "4913b79954d21466cb3605fe54a0e764154a54977c0181b06866c7c7a149a402",
               "group": "shell",
               "id": "mig-w3-uv-forward-env"
             }
@@ -52513,8 +52513,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Helper exit statuses 0, 7 and 200 are expected unchanged from the uv builtin. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
-              "definition_sha256": "bc60b3f1442dc0842746b4486f481eee993d016805f4586760d3ee7395af4a30",
+              "assertion": "uv --version returns 0, uv run passes on its program's 0, 7 and 200, and an unknown subcommand returns uv's own 2, all unchanged through the builtin. Both sides run the real pinned uv 0.12.15 executable offline, the reference shell directly and the candidate through the uv builtin after pkg install of the real uv package. Dynamic build: the builtin is the package's uv.so after pkg load. Static build: pkg load must refuse with the static message and the compiled-in uv builtin runs the installed executable, so the behaviour is exercised on both builds.",
+              "definition_sha256": "ba45d08452a2b0fc2d2885a39ba5796980908abd5999ce3d16a81ed8895fed74",
               "group": "shell",
               "id": "mig-w3-uv-forward-status"
             }
@@ -52542,8 +52542,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "uv.so is enabled from the relative path pkgroot/lib/bash-os/loadables/uv.so, the shell then cd's elsewhere, and 'uv ping' must still run the sibling ../libexec/uv/uv stand-in. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
-              "definition_sha256": "64dd789588cc7f2a31b6f436d3f071580da831be08b30a36dc3700060839fb95",
+              "assertion": "Dynamic build: the real uv package is installed and loaded through the relative root ../parity-home/relative-root with nothing at the default root, the shell cd's elsewhere, and uv --version still runs the sibling ../libexec/uv/uv (real uv 0.12.15). Static build: uv.so cannot be loaded, so resolution relative to the module is not exercised; the case proves pkg load refuses with the static message and the compiled-in builtin runs the executable installed at the default root after cd. The requirement is not covered for the static build.",
+              "definition_sha256": "e553183a866c46cfb579931c9e28b230b0e037968563f37a28ea2d6da2da130c",
               "group": "shell",
               "id": "mig-w3-uv-after-cd"
             }
@@ -52571,8 +52571,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "'uv init --bare tinyproj' must leave exactly tinyproj/pyproject.toml with name = \"tinyproj\"; a stand-in helper replaces upstream uv because no pinned upstream uv executable exists in the image or payload, so the assertion tests the builtin's forwarding for this operation, not upstream uv. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
-              "definition_sha256": "c2b9391ba488ae4bcf70b9b777b03205668250a0c2440f400b1f6ca2d5b1e8bd",
+              "assertion": "'uv init --bare tinyproj' leaves exactly tinyproj/pyproject.toml with the content upstream uv writes, without network access. Both sides run the real pinned uv 0.12.15 executable offline, the reference shell directly and the candidate through the uv builtin after pkg install of the real uv package. Dynamic build: the builtin is the package's uv.so after pkg load. Static build: pkg load must refuse with the static message and the compiled-in uv builtin runs the installed executable, so the behaviour is exercised on both builds.",
+              "definition_sha256": "2ffa1fdc57d96e098122248cea43b0c9b8d46878835629dc1a104fb68cee50b7",
               "group": "shell",
               "id": "mig-w3-uv-local-project"
             }
@@ -52600,8 +52600,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "type -t uv must print builtin and 'uv --version' with no helper at the compiled-in path must return 127 (the guest has no /usr/lib/bash-os/libexec/uv/uv, checked in setup). The frozen builds have no uv builtin, so type -t prints nothing and the case fails.",
-              "definition_sha256": "7ba35bbfb103668d6008bc8958a754b16ee7833c7b83f46c6d6c032d67ffb368",
+              "assertion": "type -t uv prints builtin and 'uv --version' with no executable at the compiled-in path returns 127 (the guest has no /usr/lib/bash-os/libexec/uv/uv, checked in setup). The uv builtin is compiled into both builds, so both exercise it; candidate-only contract from docs/packages.md.",
+              "definition_sha256": "94a05e8e15cc44e40df19676910fba5596117dae754cec57fa00246e4c7f9a73",
               "group": "shell",
               "id": "mig-w3-uv-missing-status"
             }
@@ -52614,8 +52614,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "The diagnostic must contain 'install it with: pkg install uv' and the missing helper path, with status 127. The frozen builds print only bash's command-not-found text.",
-              "definition_sha256": "6b3ad7425a2501021cfd2573077e1966ee2806e353c360a6724b38d6fe305676",
+              "assertion": "The diagnostic contains 'install it with: pkg install uv' and the missing executable's path, with status 127. The uv builtin is compiled into both builds, so both exercise it; candidate-only contract from docs/packages.md.",
+              "definition_sha256": "24ce1052f60d48ee3a1b1ebb8abab665eda47f66545dc624f1b47a601add5ef5",
               "group": "shell",
               "id": "mig-w3-uv-missing-hint"
             }
@@ -52643,8 +52643,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "With INT and QUIT trapped in the calling script, the helper (a perl process reading /proc/self/status) must see neither signal ignored nor caught. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
-              "definition_sha256": "ea30c06cca81184aa2d2fc0acc4d14e017496923c7a81a96da1e150ee5ff0a7f",
+              "assertion": "A perl process started by uv run reads /proc/self/status: INT and QUIT are neither ignored nor caught when the calling script trapped them or left them alone, and ignored when the script ignores them. Both sides run the real pinned uv 0.12.15 executable offline, the reference shell directly and the candidate through the uv builtin after pkg install of the real uv package. Dynamic build: the builtin is the package's uv.so after pkg load. Static build: pkg load must refuse with the static message and the compiled-in uv builtin runs the installed executable, so the behaviour is exercised on both builds.",
+              "definition_sha256": "ba2ac4a3a09af93be9034cd38aabe3c1a4d6d433c078625c940299d25baa38e4",
               "group": "shell",
               "id": "mig-w3-uv-signal-defaults"
             }
@@ -52657,8 +52657,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "A helper killing itself with TERM, KILL and USR1 must yield 143, 137 and 138. Both frozen builds contain no uv builtin and no uv.so, so the candidate fails at loading and the stand-in helper is never reached; the reference side emulates the documented contract with a shell function running the same stand-in, which validates the expected bytes.",
-              "definition_sha256": "8b25afcfb439363cf441b73eadd5e72d3ac7597d7f0e08fbb1b22197c9894943",
+              "assertion": "When the program uv runs sends uv SIGTERM, SIGKILL or SIGUSR1 the shell sees 143, 137 and 138, and uv ended by SIGXFSZ under a zero file-size limit gives 153. Both sides run the real pinned uv 0.12.15 executable offline, the reference shell directly and the candidate through the uv builtin after pkg install of the real uv package. Dynamic build: the builtin is the package's uv.so after pkg load. Static build: pkg load must refuse with the static message and the compiled-in uv builtin runs the installed executable, so the behaviour is exercised on both builds.",
+              "definition_sha256": "dc79733547a77dec8408c884aa180af549ba435fac9423cf12647b74401d952c",
               "group": "shell",
               "id": "mig-w3-uv-signal-status"
             }

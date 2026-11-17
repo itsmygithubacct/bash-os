@@ -139,6 +139,42 @@ python3 config/build-python-loadable.py
 See [Python inside Bash](python.md) for what the module does and does not
 provide.
 
+## bashperl
+
+The optional `bashperl` package holds `bashperl.so`, with Perl and its
+standard native extensions linked in, and Perl's library files under
+`share/bashperl/`. Perl's default module path is the absolute prefix chosen
+when Perl is built, so the private installation is built for the path the
+package installs to, `/usr/lib/bash-os/share/bashperl`. That path must be
+writable during the build; a mount namespace or a container is enough. The
+module is linked by `config/build-perl-loadable.py`, so `--prebuilt` hands it
+to the same gates:
+
+```sh
+./build.sh --profile shell
+./build-perl.sh --prefix /usr/lib/bash-os/share/bashperl
+python3 config/build-perl-loadable.py --perl-prefix /usr/lib/bash-os/share/bashperl \
+  --static-libcrypt /usr/lib/x86_64-linux-gnu/libcrypt.a --static-libcrypt-sha256 HEX_DIGEST
+mkdir -p out/bashperl-data/share/bashperl
+cp -a /usr/lib/bash-os/share/bashperl/lib /usr/lib/bash-os/share/bashperl/share \
+  out/bashperl-data/share/bashperl/
+find out/bashperl-data \( -name '*.a' -o -name '*.o' \) -delete
+strip --strip-unneeded -o out/bashperl-stripped.so out/bashperl.so
+./build-packages.sh --prebuilt bashperl=out/bashperl-stripped.so \
+  --data bashperl=out/bashperl-data bashperl
+```
+
+The two `--static-libcrypt` options are needed when Perl's link flags name
+`-lcrypt`; [Perl inside Bash](perl.md) describes them. The data tree leaves
+out the prefix's `bin/`, its static archives and its objects, which only a
+build uses.
+
+The package runs Perl modules only when it is installed at the default root.
+Under `pkg install --root DIR` the builtin still loads and runs plain
+programs, but `use POSIX` and every other module fail with `Can't locate`,
+because Perl searches the compiled path. Name that copy's
+`share/bashperl/lib/5.44.0` with `-I` or `PERL5LIB` to use it.
+
 ## Signing a release
 
 ```sh

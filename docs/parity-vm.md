@@ -39,6 +39,41 @@ python3 tests/parity-vm/vm.py --cache "$PARITY_CACHE" run \
   --references "$PARITY_DATA" --groups reference
 ```
 
+The `bashperl`, `bashpython` and `uv` cases run the packages that
+[Loadable packages](packages.md) describes, uv's with upstream's pinned
+executable. The packages are not tracked. Build them, then stage them beside
+the corpora in the same data directory:
+
+```sh
+python3 tests/parity-vm/helpers/optional-packages-r1.py stage \
+  --packages out/packages/x86_64 --dest "$PARITY_DATA"
+```
+
+`stage` copies the three packages and their INDEX to
+`optional-packages/packages/`, and unpacks bashpython and uv into
+`optional-packages/root/` as `pkg install --root` leaves them. It runs no
+package. It then compares every package, loadable and installed tree with
+`tests/parity-vm/helpers/optional-packages-r1.lock.json` by size and SHA-256.
+`vm.py run` repeats that comparison before it boots, and each case's setup
+repeats it in the guest for the package it uses, so a missing or different
+file is a fixture error and never a candidate result. Pass the directory with
+`--references` to every run whose groups include these cases; they are in the
+`shell` and `terminal` groups.
+
+The uv and bashperl cases install the package with `pkg install -A` at the
+default root, inside a user and mount namespace with writable overlays over
+`/usr/lib` and `/var/lib`, then run `pkg verify` and `pkg load`. The
+bashpython cases run on a PTY and use `pkg verify` and `pkg load --root` on
+the staged tree. A static executable cannot load shared objects: there each
+case requires `pkg load` to refuse. The uv cases then use the compiled-in
+builtin with the installed executable, and the bashperl and bashpython cases
+run the reference interpreter, so those static transcripts show only the
+refusal.
+
+A rebuilt package differs in its bytes. Record it with `stage --write-lock`,
+update the `helpers_sha256` values of the cases that name the lock, and bind
+the changed definitions in the ledger again.
+
 The reference group streams Unicode 17 grapheme, normalization, case mapping,
 case folding, comparison and malformed-UTF-8 assertions, plus pinned RFC
 cryptographic and encoding vectors. Expected values come from the locked

@@ -10,10 +10,12 @@
         "bashpython/interactive-prompt"
       ],
       "requires": [
-        "python3"
+        "python3",
+        "ldd",
+        "grep"
       ],
-      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
-      "timeout": 12,
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY, run by the reference shell; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3). The candidate runs the bashpython package built by build-packages.sh (CPython 3.13.15): pkg verify and pkg load --root on the staged tree that pkg install --root leaves.",
+      "timeout": 20,
       "steps": [
         {
           "expect": ">>> "
@@ -26,12 +28,19 @@
         }
       ],
       "expected_status": 0,
-      "comparison": "Dynamically load the prepared bashpython module before exercising the same prompt, execution, continuation, or EOF and terminal restoration contract as the historical case.",
+      "comparison": "Dynamically load the prepared bashpython module before exercising the same prompt, execution, continuation, or EOF and terminal restoration contract as the historical case. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and then runs /usr/bin/python3 from the candidate shell, so that transcript shows the refusal contract and the shell's terminal handling around an external interpreter; it does not exercise bashpython. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
-      "candidate_script": "enable -f /opt/t018-python/usr/lib/bash-os/loadables/bashpython.so bashpython || exit 125\n[[ $(type -t bashpython) == builtin ]] || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "candidate_script": ". ./python.sh || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n$P -q\necho \"after=$?\"\n",
       "files": {
-        "inputrc": "set enable-bracketed-paste off\n"
-      }
+        "inputrc": "set enable-bracketed-paste off\n",
+        "python.sh": "# Sourced by the candidate shell. Verifies and loads the staged bashpython\n# package (installed tree under a --root, standard library beside the module)\n# and sets P to the interpreter command. A static executable cannot load\n# shared objects: there pkg load must refuse, and P is the guest's python3.\noptpkg_root=/opt/bashos-parity/reference-data/optional-packages/root\nif /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then\n  optpkg_out=$(pkg load bashpython --root \"$optpkg_root\" 2>&1); optpkg_rc=$?\n  if [[ $optpkg_rc != 0 && $optpkg_out == *'this executable is static and cannot load shared objects'* ]]; then\n    P=/usr/bin/python3\n  else\n    echo \"python.sh: a static executable did not refuse pkg load (status $optpkg_rc)\"; return 1\n  fi\nelif pkg verify bashpython --root \"$optpkg_root\" > /dev/null && pkg load bashpython --root \"$optpkg_root\" > /dev/null &&\n     [[ $(type -t bashpython) == builtin ]]; then\n  P=bashpython\nelse\n  echo 'python.sh: cannot verify and load the staged bashpython package'; return 1\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashpython > /dev/null\n",
+      "setup_timeout": 30
     },
     {
       "id": "repair-t018-dynamic-bashpython-prompt-exec-line",
@@ -42,10 +51,12 @@
         "bashpython/interactive-prompt"
       ],
       "requires": [
-        "python3"
+        "python3",
+        "ldd",
+        "grep"
       ],
-      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
-      "timeout": 12,
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY, run by the reference shell; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3). The candidate runs the bashpython package built by build-packages.sh (CPython 3.13.15): pkg verify and pkg load --root on the staged tree that pkg install --root leaves.",
+      "timeout": 20,
       "steps": [
         {
           "expect": ">>> "
@@ -64,12 +75,19 @@
         }
       ],
       "expected_status": 0,
-      "comparison": "Dynamically load the prepared bashpython module before exercising the same prompt, execution, continuation, or EOF and terminal restoration contract as the historical case.",
+      "comparison": "Dynamically load the prepared bashpython module before exercising the same prompt, execution, continuation, or EOF and terminal restoration contract as the historical case. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and then runs /usr/bin/python3 from the candidate shell, so that transcript shows the refusal contract and the shell's terminal handling around an external interpreter; it does not exercise bashpython. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
-      "candidate_script": "enable -f /opt/t018-python/usr/lib/bash-os/loadables/bashpython.so bashpython || exit 125\n[[ $(type -t bashpython) == builtin ]] || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "candidate_script": ". ./python.sh || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n$P -q\necho \"after=$?\"\n",
       "files": {
-        "inputrc": "set enable-bracketed-paste off\n"
-      }
+        "inputrc": "set enable-bracketed-paste off\n",
+        "python.sh": "# Sourced by the candidate shell. Verifies and loads the staged bashpython\n# package (installed tree under a --root, standard library beside the module)\n# and sets P to the interpreter command. A static executable cannot load\n# shared objects: there pkg load must refuse, and P is the guest's python3.\noptpkg_root=/opt/bashos-parity/reference-data/optional-packages/root\nif /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then\n  optpkg_out=$(pkg load bashpython --root \"$optpkg_root\" 2>&1); optpkg_rc=$?\n  if [[ $optpkg_rc != 0 && $optpkg_out == *'this executable is static and cannot load shared objects'* ]]; then\n    P=/usr/bin/python3\n  else\n    echo \"python.sh: a static executable did not refuse pkg load (status $optpkg_rc)\"; return 1\n  fi\nelif pkg verify bashpython --root \"$optpkg_root\" > /dev/null && pkg load bashpython --root \"$optpkg_root\" > /dev/null &&\n     [[ $(type -t bashpython) == builtin ]]; then\n  P=bashpython\nelse\n  echo 'python.sh: cannot verify and load the staged bashpython package'; return 1\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashpython > /dev/null\n",
+      "setup_timeout": 30
     },
     {
       "id": "repair-t018-dynamic-bashpython-prompt-continuation",
@@ -80,10 +98,12 @@
         "bashpython/interactive-prompt"
       ],
       "requires": [
-        "python3"
+        "python3",
+        "ldd",
+        "grep"
       ],
-      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
-      "timeout": 12,
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY, run by the reference shell; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3). The candidate runs the bashpython package built by build-packages.sh (CPython 3.13.15): pkg verify and pkg load --root on the staged tree that pkg install --root leaves.",
+      "timeout": 20,
       "steps": [
         {
           "expect": ">>> "
@@ -114,12 +134,19 @@
         }
       ],
       "expected_status": 0,
-      "comparison": "Dynamically load the prepared bashpython module before exercising the same prompt, execution, continuation, or EOF and terminal restoration contract as the historical case.",
+      "comparison": "Dynamically load the prepared bashpython module before exercising the same prompt, execution, continuation, or EOF and terminal restoration contract as the historical case. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and then runs /usr/bin/python3 from the candidate shell, so that transcript shows the refusal contract and the shell's terminal handling around an external interpreter; it does not exercise bashpython. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
-      "candidate_script": "enable -f /opt/t018-python/usr/lib/bash-os/loadables/bashpython.so bashpython || exit 125\n[[ $(type -t bashpython) == builtin ]] || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "candidate_script": ". ./python.sh || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n$P -q\necho \"after=$?\"\n",
       "files": {
-        "inputrc": "set enable-bracketed-paste off\n"
-      }
+        "inputrc": "set enable-bracketed-paste off\n",
+        "python.sh": "# Sourced by the candidate shell. Verifies and loads the staged bashpython\n# package (installed tree under a --root, standard library beside the module)\n# and sets P to the interpreter command. A static executable cannot load\n# shared objects: there pkg load must refuse, and P is the guest's python3.\noptpkg_root=/opt/bashos-parity/reference-data/optional-packages/root\nif /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then\n  optpkg_out=$(pkg load bashpython --root \"$optpkg_root\" 2>&1); optpkg_rc=$?\n  if [[ $optpkg_rc != 0 && $optpkg_out == *'this executable is static and cannot load shared objects'* ]]; then\n    P=/usr/bin/python3\n  else\n    echo \"python.sh: a static executable did not refuse pkg load (status $optpkg_rc)\"; return 1\n  fi\nelif pkg verify bashpython --root \"$optpkg_root\" > /dev/null && pkg load bashpython --root \"$optpkg_root\" > /dev/null &&\n     [[ $(type -t bashpython) == builtin ]]; then\n  P=bashpython\nelse\n  echo 'python.sh: cannot verify and load the staged bashpython package'; return 1\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashpython > /dev/null\n",
+      "setup_timeout": 30
     },
     {
       "id": "repair-t018-dynamic-bashpython-prompt-eof",
@@ -130,10 +157,12 @@
         "bashpython/interactive-prompt"
       ],
       "requires": [
-        "python3"
+        "python3",
+        "ldd",
+        "grep"
       ],
-      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
-      "timeout": 12,
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY, run by the reference shell; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3). The candidate runs the bashpython package built by build-packages.sh (CPython 3.13.15): pkg verify and pkg load --root on the staged tree that pkg install --root leaves.",
+      "timeout": 20,
       "steps": [
         {
           "expect": ">>> "
@@ -152,12 +181,19 @@
         }
       ],
       "expected_status": 0,
-      "comparison": "Dynamically load the prepared bashpython module before exercising the same prompt, execution, continuation, or EOF and terminal restoration contract as the historical case.",
+      "comparison": "Dynamically load the prepared bashpython module before exercising the same prompt, execution, continuation, or EOF and terminal restoration contract as the historical case. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and then runs /usr/bin/python3 from the candidate shell, so that transcript shows the refusal contract and the shell's terminal handling around an external interpreter; it does not exercise bashpython. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
-      "candidate_script": "enable -f /opt/t018-python/usr/lib/bash-os/loadables/bashpython.so bashpython || exit 125\n[[ $(type -t bashpython) == builtin ]] || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "candidate_script": ". ./python.sh || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n$P -q\necho \"after=$?\"\n",
       "files": {
-        "inputrc": "set enable-bracketed-paste off\n"
-      }
+        "inputrc": "set enable-bracketed-paste off\n",
+        "python.sh": "# Sourced by the candidate shell. Verifies and loads the staged bashpython\n# package (installed tree under a --root, standard library beside the module)\n# and sets P to the interpreter command. A static executable cannot load\n# shared objects: there pkg load must refuse, and P is the guest's python3.\noptpkg_root=/opt/bashos-parity/reference-data/optional-packages/root\nif /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then\n  optpkg_out=$(pkg load bashpython --root \"$optpkg_root\" 2>&1); optpkg_rc=$?\n  if [[ $optpkg_rc != 0 && $optpkg_out == *'this executable is static and cannot load shared objects'* ]]; then\n    P=/usr/bin/python3\n  else\n    echo \"python.sh: a static executable did not refuse pkg load (status $optpkg_rc)\"; return 1\n  fi\nelif pkg verify bashpython --root \"$optpkg_root\" > /dev/null && pkg load bashpython --root \"$optpkg_root\" > /dev/null &&\n     [[ $(type -t bashpython) == builtin ]]; then\n  P=bashpython\nelse\n  echo 'python.sh: cannot verify and load the staged bashpython package'; return 1\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashpython > /dev/null\n",
+      "setup_timeout": 30
     }
   ]
 }

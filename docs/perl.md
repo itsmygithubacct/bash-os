@@ -107,6 +107,9 @@ rejects text relocations and hides that archive's symbols. This leaves the
 package dependency rules unchanged; the Perl runtime data must still be
 installed at the prefix used during its build.
 
+[Loadable packages](packages.md) shows how the module and Perl's library files
+become the optional `bashperl` package.
+
 ## Checks
 
 ```sh

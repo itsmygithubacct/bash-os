@@ -1,0 +1,74 @@
+{
+  "guest": "/opt/bashos-parity/reference-data/optional-packages",
+  "index": {
+    "bytes": 728,
+    "name": "packages/INDEX",
+    "sha256": "c45a59215dbaed8cbf06aa9bbfffaa234eefc128534958445c77850e505b9327"
+  },
+  "packages": {
+    "bashperl": {
+      "abi": "bash-5.3",
+      "arch": "x86_64",
+      "installed": {
+        "bytes": 57085572,
+        "files": 1885,
+        "tree_sha256": "38e0894889afe8522f864357d6d0db5396a798d6eb37d97c2caca2bc685cd9a8"
+      },
+      "loadable": {
+        "bytes": 18201104,
+        "name": "usr/lib/bash-os/loadables/bashperl.so",
+        "sha256": "3e7c19cee1eac30a086ecfc9bef27a60cb9ee12105bb2f0812d19a67b51575cd"
+      },
+      "package": {
+        "bytes": 9347316,
+        "name": "packages/bashperl_2026.11.11_x86_64.pkg",
+        "sha256": "174992ffd57e286cf60c81d1c103bd7b26a31c7ac1f29bebb6dd3db61c3db95e"
+      },
+      "staged_root": false,
+      "version": "2026.11.11"
+    },
+    "bashpython": {
+      "abi": "bash-5.3",
+      "arch": "x86_64",
+      "installed": {
+        "bytes": 38276312,
+        "files": 1084,
+        "tree_sha256": "33bd3959b7eeed47f8e17f999628183204e493f800a5340622cb37b61167c16e"
+      },
+      "loadable": {
+        "bytes": 17282720,
+        "name": "usr/lib/bash-os/loadables/bashpython.so",
+        "sha256": "ed6824e57b98ac8592287f224750dc0c256bf9942faf5ef219594bb6c89111a6"
+      },
+      "package": {
+        "bytes": 9201380,
+        "name": "packages/bashpython_2026.11.11_x86_64.pkg",
+        "sha256": "d6f03f395dac0f521fcae61b5951c44cd6fdfd1d10e1d84e5d2e6db2cd53cb73"
+      },
+      "staged_root": true,
+      "version": "2026.11.11"
+    },
+    "uv": {
+      "abi": "bash-5.3",
+      "arch": "x86_64",
+      "installed": {
+        "bytes": 57818088,
+        "files": 4,
+        "tree_sha256": "9102be9dc83315c206d817c04916425437f8bd7fd902048c51ba6f26f0a76e45"
+      },
+      "loadable": {
+        "bytes": 18328,
+        "name": "usr/lib/bash-os/loadables/uv.so",
+        "sha256": "ad21816ef0fc0eb7897e6f1bd7dfc5fde45794ffae13e689c5fdc63d16d728f3"
+      },
+      "package": {
+        "bytes": 13808976,
+        "name": "packages/uv_2026.11.11_x86_64.pkg",
+        "sha256": "d74ae6346c74c1343952dcc3c3d69256e2972c185c90c42d93c57022763d5c4b"
+      },
+      "staged_root": true,
+      "version": "2026.11.11"
+    }
+  },
+  "schema": 1
+}

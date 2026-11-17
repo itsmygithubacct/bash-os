@@ -7,16 +7,46 @@
       "covers": [
         "uv/forwarding-env-status"
       ],
-      "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\nfor a in \"$@\"; do printf \"[%s]\\n\" \"$a\"; done\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\ncp /opt/bashos-parity/harness/optional-packages/loadables/uv.so pkgroot/lib/bash-os/loadables/uv.so\n",
-      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv alpha \"\" \"two words\" 'dollar$sign' \"*\"\necho \"status=$?\"\n",
-      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\nuv alpha \"\" \"two words\" 'dollar$sign' \"*\"\necho \"status=$?\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify uv > /dev/null\n",
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./candidate.sh\n",
+      "reference_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./reference.sh\n",
       "stdout": "[alpha]\n[]\n[two words]\n[dollar$sign]\n[*]\nstatus=0\n",
       "expected_status": 0,
-      "requires": [],
-      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent). There is no GNU uv: the reference side is a shell function that emulates the documented contract by running the same stand-in helper, so it validates the fixture and the expected bytes; the expected values come from the stand-in's printf format, not from candidate output. ",
-      "comparison": "r1: arguments including an empty word and a spaced word reach the helper verbatim, one argv element each The guest payload stages optional-packages/loadables/uv.so and the pinned upstream uv executable at optional-packages/uv/libexec/uv/uv. Setup copies uv.so into the package root and keeps the shell-script stand-in at libexec/uv/uv, which is the helper these expected bytes come from. A static build cannot enable -f a shared object, so it still does not reach the helper.",
+      "requires": [
+        "perl",
+        "python3",
+        "unshare",
+        "mount",
+        "mkdir",
+        "ldd",
+        "grep"
+      ],
+      "oracle": "Upstream uv 0.12.15 (x86_64-unknown-linux-musl, the executable pinned by config/uv.json) run directly by the reference shell as argv[0] uv, from the staged copy of the uv package, in the same kind of user namespace and with the same commands (body.sh). The candidate installs the uv package from the staged package file with pkg install and runs the same executable through the uv builtin: the package's uv.so after pkg load on a dynamic build, the compiled-in builtin on a static build, where pkg load must refuse. The guest has no network: every command is offline and uses /usr/bin/python3 3.13.5. ",
+      "comparison": "r1: arguments including an empty word and a spaced word reach uv verbatim, one argv element each: uv run hands them to a Python program that prints its argv. The helper is the real pinned uv on both sides, not a stand-in. Both builds run it: a static executable cannot load uv.so, so there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and uses the compiled-in builtin with the installed executable. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "group": "shell",
-      "driver": "plain"
+      "driver": "plain",
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "file_size_limit": 67108864,
+      "timeout": 60,
+      "setup_timeout": 30,
+      "observation_error_status": 98,
+      "diagnostic_files": [
+        "optpkg-uv.install",
+        "optpkg-uv.verify",
+        "optpkg-uv.load"
+      ],
+      "files": {
+        "optpkg.sh": "# Sourced by the candidate shell, which runs as mapped root in a fresh user and\n# mount namespace. optpkg_enter puts writable overlays over /usr/lib and\n# /var/lib. optpkg_use NAME [ROOT] installs the staged NAME package with pkg,\n# verifies it and loads it. A static executable cannot load shared objects:\n# there pkg load must refuse, and optpkg_static is yes.\noptpkg_dir=/opt/bashos-parity/reference-data/optional-packages\noptpkg_static=no\noptpkg_enter() {\n  local ov=$HOME/optpkg-overlay\n  if /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then optpkg_static=yes; fi\n  /usr/bin/mkdir -p \"$ov/u-lib\" \"$ov/w-lib\" \"$ov/u-var\" \"$ov/w-var\" &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$ov/u-lib,workdir=$ov/w-lib\" /usr/lib &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$ov/u-var,workdir=$ov/w-var\" /var/lib ||\n    { echo 'optpkg: cannot prepare a writable package root' >&2; return 98; }\n}\noptpkg_use() {\n  local name=$1 root=() log=$HOME/optpkg-$1 rc\n  local file=(\"$optpkg_dir/packages/${name}\"_*.pkg)\n  [[ $# -lt 2 ]] || root=(--root \"$2\")\n  pkg install -A \"${file[0]}\" \"${root[@]}\" > \"$log.install\" 2>&1 &&\n  pkg verify \"$name\" \"${root[@]}\" > \"$log.verify\" 2>&1 ||\n    { echo \"optpkg: $name: pkg install or pkg verify failed\"; return 1; }\n  pkg load \"$name\" \"${root[@]}\" > \"$log.load\" 2>&1; rc=$?\n  if [[ $optpkg_static == yes ]]; then\n    [[ $rc != 0 ]] && /usr/bin/grep -q 'this executable is static and cannot load shared objects' \"$log.load\" ||\n      { echo \"optpkg: $name: a static executable did not refuse pkg load (status $rc)\"; return 1; }\n  else\n    [[ $rc == 0 && $(type -t \"$name\") == builtin ]] ||\n      { echo \"optpkg: $name: pkg load failed (status $rc)\"; return 1; }\n  fi\n}\n",
+        "body.sh": "export PATH=/usr/bin:/bin UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never UV_NO_CONFIG=1 UV_PYTHON_PREFERENCE=only-system UV_NO_PROGRESS=1\nuv run --no-project --python /usr/bin/python3 python -c 'import sys\nfor a in sys.argv[1:]: print(\"[%s]\" % a)' alpha \"\" \"two words\" 'dollar$sign' \"*\"\necho \"status=$?\"\n",
+        "reference.sh": "UV=/opt/bashos-parity/reference-data/optional-packages/root/usr/lib/bash-os/libexec/uv/uv\nuv() { ( exec -a uv \"$UV\" \"$@\" ); }\n. ./body.sh\n",
+        "candidate.sh": ". ./optpkg.sh\noptpkg_enter && optpkg_use uv || exit $?\n. ./body.sh\n"
+      }
     },
     {
       "id": "mig-w3-uv-forward-env",
@@ -24,16 +54,46 @@
       "covers": [
         "uv/forwarding-env-status"
       ],
-      "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\nprintf \"exported=%s\\n\" \"${UVW3_EXPORTED-unset}\"; printf \"plain=%s\\n\" \"${UVW3_PLAIN-unset}\"\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\ncp /opt/bashos-parity/harness/optional-packages/loadables/uv.so pkgroot/lib/bash-os/loadables/uv.so\n",
-      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nexport UVW3_EXPORTED=visible\nUVW3_PLAIN=hidden\nuv run\necho \"status=$?\"\n",
-      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\nexport UVW3_EXPORTED=visible\nUVW3_PLAIN=hidden\nuv run\necho \"status=$?\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify uv > /dev/null\n",
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./candidate.sh\n",
+      "reference_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./reference.sh\n",
       "stdout": "exported=visible\nplain=unset\nstatus=0\n",
       "expected_status": 0,
-      "requires": [],
-      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent). There is no GNU uv: the reference side is a shell function that emulates the documented contract by running the same stand-in helper, so it validates the fixture and the expected bytes; the expected values come from the stand-in's printf format, not from candidate output. ",
-      "comparison": "r2: an exported variable is visible to the helper, unexported variables are not The guest payload stages optional-packages/loadables/uv.so and the pinned upstream uv executable at optional-packages/uv/libexec/uv/uv. Setup copies uv.so into the package root and keeps the shell-script stand-in at libexec/uv/uv, which is the helper these expected bytes come from. A static build cannot enable -f a shared object, so it still does not reach the helper.",
+      "requires": [
+        "perl",
+        "python3",
+        "unshare",
+        "mount",
+        "mkdir",
+        "ldd",
+        "grep"
+      ],
+      "oracle": "Upstream uv 0.12.15 (x86_64-unknown-linux-musl, the executable pinned by config/uv.json) run directly by the reference shell as argv[0] uv, from the staged copy of the uv package, in the same kind of user namespace and with the same commands (body.sh). The candidate installs the uv package from the staged package file with pkg install and runs the same executable through the uv builtin: the package's uv.so after pkg load on a dynamic build, the compiled-in builtin on a static build, where pkg load must refuse. The guest has no network: every command is offline and uses /usr/bin/python3 3.13.5. ",
+      "comparison": "r2: an exported variable is visible to uv and the program it runs, unexported variables are not. The helper is the real pinned uv on both sides, not a stand-in. Both builds run it: a static executable cannot load uv.so, so there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and uses the compiled-in builtin with the installed executable. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "group": "shell",
-      "driver": "plain"
+      "driver": "plain",
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "file_size_limit": 67108864,
+      "timeout": 60,
+      "setup_timeout": 30,
+      "observation_error_status": 98,
+      "diagnostic_files": [
+        "optpkg-uv.install",
+        "optpkg-uv.verify",
+        "optpkg-uv.load"
+      ],
+      "files": {
+        "optpkg.sh": "# Sourced by the candidate shell, which runs as mapped root in a fresh user and\n# mount namespace. optpkg_enter puts writable overlays over /usr/lib and\n# /var/lib. optpkg_use NAME [ROOT] installs the staged NAME package with pkg,\n# verifies it and loads it. A static executable cannot load shared objects:\n# there pkg load must refuse, and optpkg_static is yes.\noptpkg_dir=/opt/bashos-parity/reference-data/optional-packages\noptpkg_static=no\noptpkg_enter() {\n  local ov=$HOME/optpkg-overlay\n  if /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then optpkg_static=yes; fi\n  /usr/bin/mkdir -p \"$ov/u-lib\" \"$ov/w-lib\" \"$ov/u-var\" \"$ov/w-var\" &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$ov/u-lib,workdir=$ov/w-lib\" /usr/lib &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$ov/u-var,workdir=$ov/w-var\" /var/lib ||\n    { echo 'optpkg: cannot prepare a writable package root' >&2; return 98; }\n}\noptpkg_use() {\n  local name=$1 root=() log=$HOME/optpkg-$1 rc\n  local file=(\"$optpkg_dir/packages/${name}\"_*.pkg)\n  [[ $# -lt 2 ]] || root=(--root \"$2\")\n  pkg install -A \"${file[0]}\" \"${root[@]}\" > \"$log.install\" 2>&1 &&\n  pkg verify \"$name\" \"${root[@]}\" > \"$log.verify\" 2>&1 ||\n    { echo \"optpkg: $name: pkg install or pkg verify failed\"; return 1; }\n  pkg load \"$name\" \"${root[@]}\" > \"$log.load\" 2>&1; rc=$?\n  if [[ $optpkg_static == yes ]]; then\n    [[ $rc != 0 ]] && /usr/bin/grep -q 'this executable is static and cannot load shared objects' \"$log.load\" ||\n      { echo \"optpkg: $name: a static executable did not refuse pkg load (status $rc)\"; return 1; }\n  else\n    [[ $rc == 0 && $(type -t \"$name\") == builtin ]] ||\n      { echo \"optpkg: $name: pkg load failed (status $rc)\"; return 1; }\n  fi\n}\n",
+        "body.sh": "export PATH=/usr/bin:/bin UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never UV_NO_CONFIG=1 UV_PYTHON_PREFERENCE=only-system UV_NO_PROGRESS=1\nexport UVW3_EXPORTED=visible\nUVW3_PLAIN=hidden\nuv run --no-project --python /usr/bin/python3 python -c 'import os\nprint(\"exported=\" + os.environ.get(\"UVW3_EXPORTED\", \"unset\"))\nprint(\"plain=\" + os.environ.get(\"UVW3_PLAIN\", \"unset\"))'\necho \"status=$?\"\n",
+        "reference.sh": "UV=/opt/bashos-parity/reference-data/optional-packages/root/usr/lib/bash-os/libexec/uv/uv\nuv() { ( exec -a uv \"$UV\" \"$@\" ); }\n. ./body.sh\n",
+        "candidate.sh": ". ./optpkg.sh\noptpkg_enter && optpkg_use uv || exit $?\n. ./body.sh\n"
+      }
     },
     {
       "id": "mig-w3-uv-forward-status",
@@ -41,16 +101,46 @@
       "covers": [
         "uv/forwarding-env-status"
       ],
-      "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\nexit \"${1:-0}\"\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\ncp /opt/bashos-parity/harness/optional-packages/loadables/uv.so pkgroot/lib/bash-os/loadables/uv.so\n",
-      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv 0; echo \"s0=$?\"\nuv 7; echo \"s7=$?\"\nuv 200; echo \"s200=$?\"\n",
-      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\nuv 0; echo \"s0=$?\"\nuv 7; echo \"s7=$?\"\nuv 200; echo \"s200=$?\"\n",
-      "stdout": "s0=0\ns7=7\ns200=200\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify uv > /dev/null\n",
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./candidate.sh\n",
+      "reference_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./reference.sh\n",
+      "stdout": "version=0\ns0=0\ns7=7\ns200=200\nusage=2\n",
       "expected_status": 0,
-      "requires": [],
-      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent). There is no GNU uv: the reference side is a shell function that emulates the documented contract by running the same stand-in helper, so it validates the fixture and the expected bytes; the expected values come from the stand-in's printf format, not from candidate output. ",
-      "comparison": "r3: the helper's exit status is returned unchanged for 0, 7 and 200 The guest payload stages optional-packages/loadables/uv.so and the pinned upstream uv executable at optional-packages/uv/libexec/uv/uv. Setup copies uv.so into the package root and keeps the shell-script stand-in at libexec/uv/uv, which is the helper these expected bytes come from. A static build cannot enable -f a shared object, so it still does not reach the helper.",
+      "requires": [
+        "perl",
+        "python3",
+        "unshare",
+        "mount",
+        "mkdir",
+        "ldd",
+        "grep"
+      ],
+      "oracle": "Upstream uv 0.12.15 (x86_64-unknown-linux-musl, the executable pinned by config/uv.json) run directly by the reference shell as argv[0] uv, from the staged copy of the uv package, in the same kind of user namespace and with the same commands (body.sh). The candidate installs the uv package from the staged package file with pkg install and runs the same executable through the uv builtin: the package's uv.so after pkg load on a dynamic build, the compiled-in builtin on a static build, where pkg load must refuse. The guest has no network: every command is offline and uses /usr/bin/python3 3.13.5. ",
+      "comparison": "r3: uv's exit status is returned unchanged: 0 for --version, the 0, 7 and 200 that uv run passes on from its program, and uv's own 2 for an unknown subcommand. The helper is the real pinned uv on both sides, not a stand-in. Both builds run it: a static executable cannot load uv.so, so there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and uses the compiled-in builtin with the installed executable. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "group": "shell",
-      "driver": "plain"
+      "driver": "plain",
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "file_size_limit": 67108864,
+      "timeout": 60,
+      "setup_timeout": 30,
+      "observation_error_status": 98,
+      "diagnostic_files": [
+        "optpkg-uv.install",
+        "optpkg-uv.verify",
+        "optpkg-uv.load"
+      ],
+      "files": {
+        "optpkg.sh": "# Sourced by the candidate shell, which runs as mapped root in a fresh user and\n# mount namespace. optpkg_enter puts writable overlays over /usr/lib and\n# /var/lib. optpkg_use NAME [ROOT] installs the staged NAME package with pkg,\n# verifies it and loads it. A static executable cannot load shared objects:\n# there pkg load must refuse, and optpkg_static is yes.\noptpkg_dir=/opt/bashos-parity/reference-data/optional-packages\noptpkg_static=no\noptpkg_enter() {\n  local ov=$HOME/optpkg-overlay\n  if /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then optpkg_static=yes; fi\n  /usr/bin/mkdir -p \"$ov/u-lib\" \"$ov/w-lib\" \"$ov/u-var\" \"$ov/w-var\" &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$ov/u-lib,workdir=$ov/w-lib\" /usr/lib &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$ov/u-var,workdir=$ov/w-var\" /var/lib ||\n    { echo 'optpkg: cannot prepare a writable package root' >&2; return 98; }\n}\noptpkg_use() {\n  local name=$1 root=() log=$HOME/optpkg-$1 rc\n  local file=(\"$optpkg_dir/packages/${name}\"_*.pkg)\n  [[ $# -lt 2 ]] || root=(--root \"$2\")\n  pkg install -A \"${file[0]}\" \"${root[@]}\" > \"$log.install\" 2>&1 &&\n  pkg verify \"$name\" \"${root[@]}\" > \"$log.verify\" 2>&1 ||\n    { echo \"optpkg: $name: pkg install or pkg verify failed\"; return 1; }\n  pkg load \"$name\" \"${root[@]}\" > \"$log.load\" 2>&1; rc=$?\n  if [[ $optpkg_static == yes ]]; then\n    [[ $rc != 0 ]] && /usr/bin/grep -q 'this executable is static and cannot load shared objects' \"$log.load\" ||\n      { echo \"optpkg: $name: a static executable did not refuse pkg load (status $rc)\"; return 1; }\n  else\n    [[ $rc == 0 && $(type -t \"$name\") == builtin ]] ||\n      { echo \"optpkg: $name: pkg load failed (status $rc)\"; return 1; }\n  fi\n}\n",
+        "body.sh": "export PATH=/usr/bin:/bin UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never UV_NO_CONFIG=1 UV_PYTHON_PREFERENCE=only-system UV_NO_PROGRESS=1\nuv --version > /dev/null; echo \"version=$?\"\nfor n in 0 7 200; do\n  uv run --no-project --python /usr/bin/python3 python -c 'import sys; sys.exit(int(sys.argv[1]))' \"$n\"; echo \"s$n=$?\"\ndone\nuv frobnicate 2> /dev/null; echo \"usage=$?\"\n",
+        "reference.sh": "UV=/opt/bashos-parity/reference-data/optional-packages/root/usr/lib/bash-os/libexec/uv/uv\nuv() { ( exec -a uv \"$UV\" \"$@\" ); }\n. ./body.sh\n",
+        "candidate.sh": ". ./optpkg.sh\noptpkg_enter && optpkg_use uv || exit $?\n. ./body.sh\n"
+      }
     },
     {
       "id": "mig-w3-uv-after-cd",
@@ -58,16 +148,46 @@
       "covers": [
         "uv/helper-resolution-after-cd"
       ],
-      "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\necho \"stand-in-ran:$1\"\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\ncp /opt/bashos-parity/harness/optional-packages/loadables/uv.so pkgroot/lib/bash-os/loadables/uv.so\n",
-      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\ncd elsewhere\nuv ping\necho \"status=$?\"\n",
-      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\ncd elsewhere\nuv ping\necho \"status=$?\"\n",
-      "stdout": "stand-in-ran:ping\nstatus=0\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify uv > /dev/null\nmkdir elsewhere\n",
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./candidate.sh\n",
+      "reference_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./reference.sh\n",
+      "stdout": "uv 0.12.15 (x86_64-unknown-linux-musl)\nstatus=0\n",
       "expected_status": 0,
-      "requires": [],
-      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent). There is no GNU uv: the reference side is a shell function that emulates the documented contract by running the same stand-in helper, so it validates the fixture and the expected bytes; the expected values come from the stand-in's printf format, not from candidate output. uv.so is loaded from a path relative to the starting directory and the shell then changes directory; uv_builtin_load resolves the sibling helper to an absolute path at load time.",
-      "comparison": "r1: a uv.so loaded from the relative package path pkgroot/lib/bash-os/loadables still finds ../libexec/uv/uv after cd into another directory The guest payload stages optional-packages/loadables/uv.so and the pinned upstream uv executable at optional-packages/uv/libexec/uv/uv. Setup copies uv.so into the package root and keeps the shell-script stand-in at libexec/uv/uv, which is the helper these expected bytes come from. A static build cannot enable -f a shared object, so it still does not reach the helper.",
+      "requires": [
+        "perl",
+        "python3",
+        "unshare",
+        "mount",
+        "mkdir",
+        "ldd",
+        "grep"
+      ],
+      "oracle": "Upstream uv 0.12.15 (x86_64-unknown-linux-musl, the executable pinned by config/uv.json) run directly by the reference shell as argv[0] uv, from the staged copy of the uv package, in the same kind of user namespace and with the same commands (body.sh). The candidate installs the uv package from the staged package file with pkg install and runs the same executable through the uv builtin: the package's uv.so after pkg load on a dynamic build, the compiled-in builtin on a static build, where pkg load must refuse. The guest has no network: every command is offline and uses /usr/bin/python3 3.13.5. ",
+      "comparison": "r1: a uv.so loaded through the relative package root ../parity-home/relative-root (pkg install --root, pkg load --root) still finds ../libexec/uv/uv after cd into another directory; nothing is installed at the default root on a dynamic build. A static executable cannot load uv.so: there the case requires pkg load to refuse and the compiled-in builtin runs the executable installed at the default root. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "group": "shell",
-      "driver": "plain"
+      "driver": "plain",
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "file_size_limit": 67108864,
+      "timeout": 60,
+      "setup_timeout": 30,
+      "observation_error_status": 98,
+      "diagnostic_files": [
+        "optpkg-uv.install",
+        "optpkg-uv.verify",
+        "optpkg-uv.load"
+      ],
+      "files": {
+        "optpkg.sh": "# Sourced by the candidate shell, which runs as mapped root in a fresh user and\n# mount namespace. optpkg_enter puts writable overlays over /usr/lib and\n# /var/lib. optpkg_use NAME [ROOT] installs the staged NAME package with pkg,\n# verifies it and loads it. A static executable cannot load shared objects:\n# there pkg load must refuse, and optpkg_static is yes.\noptpkg_dir=/opt/bashos-parity/reference-data/optional-packages\noptpkg_static=no\noptpkg_enter() {\n  local ov=$HOME/optpkg-overlay\n  if /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then optpkg_static=yes; fi\n  /usr/bin/mkdir -p \"$ov/u-lib\" \"$ov/w-lib\" \"$ov/u-var\" \"$ov/w-var\" &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$ov/u-lib,workdir=$ov/w-lib\" /usr/lib &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$ov/u-var,workdir=$ov/w-var\" /var/lib ||\n    { echo 'optpkg: cannot prepare a writable package root' >&2; return 98; }\n}\noptpkg_use() {\n  local name=$1 root=() log=$HOME/optpkg-$1 rc\n  local file=(\"$optpkg_dir/packages/${name}\"_*.pkg)\n  [[ $# -lt 2 ]] || root=(--root \"$2\")\n  pkg install -A \"${file[0]}\" \"${root[@]}\" > \"$log.install\" 2>&1 &&\n  pkg verify \"$name\" \"${root[@]}\" > \"$log.verify\" 2>&1 ||\n    { echo \"optpkg: $name: pkg install or pkg verify failed\"; return 1; }\n  pkg load \"$name\" \"${root[@]}\" > \"$log.load\" 2>&1; rc=$?\n  if [[ $optpkg_static == yes ]]; then\n    [[ $rc != 0 ]] && /usr/bin/grep -q 'this executable is static and cannot load shared objects' \"$log.load\" ||\n      { echo \"optpkg: $name: a static executable did not refuse pkg load (status $rc)\"; return 1; }\n  else\n    [[ $rc == 0 && $(type -t \"$name\") == builtin ]] ||\n      { echo \"optpkg: $name: pkg load failed (status $rc)\"; return 1; }\n  fi\n}\n",
+        "body.sh": "export PATH=/usr/bin:/bin UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never UV_NO_CONFIG=1 UV_PYTHON_PREFERENCE=only-system UV_NO_PROGRESS=1\ncd elsewhere\nuv --version\necho \"status=$?\"\n",
+        "reference.sh": "UV=/opt/bashos-parity/reference-data/optional-packages/root/usr/lib/bash-os/libexec/uv/uv\nuv() { ( exec -a uv \"$UV\" \"$@\" ); }\n. ./body.sh\n",
+        "candidate.sh": ". ./optpkg.sh\noptpkg_enter || exit $?\nif [[ $optpkg_static == yes ]]; then\n  optpkg_use uv || exit $?\nelse\n  # relative package root: uv.so must resolve its sibling executable when it is loaded\n  optpkg_use uv ../parity-home/relative-root || exit $?\n  [[ ! -e /usr/lib/bash-os/libexec/uv/uv ]] || { echo 'unexpected executable at the default root'; exit 1; }\nfi\n. ./body.sh\n"
+      }
     },
     {
       "id": "mig-w3-uv-local-project",
@@ -75,16 +195,46 @@
       "covers": [
         "uv/local-project-operation"
       ],
-      "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\n# Stand-in for the one upstream uv operation used here: \"uv init --bare NAME\" creates only pyproject.toml.\n# This is NOT upstream uv. The payload stages the pinned executable; this case still uses the stand-in so the expected pyproject bytes stay the stand-in's.\n[ \"$1\" = init ] && [ \"$2\" = --bare ] || { echo \"unsupported: $*\" >&2; exit 2; }\n/bin/mkdir -p \"$3\" && printf '[project]\\nname = \"%s\"\\nversion = \"0.1.0\"\\n' \"$3\" > \"$3/pyproject.toml\"\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\ncp /opt/bashos-parity/harness/optional-packages/loadables/uv.so pkgroot/lib/bash-os/loadables/uv.so\n",
-      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\nuv init --bare tinyproj; echo \"status=$?\"\nfor f in tinyproj/*; do echo \"$f\"; done\n{ read -r _; read -r l; echo \"$l\"; } < tinyproj/pyproject.toml\n",
-      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\nuv init --bare tinyproj; echo \"status=$?\"\nfor f in tinyproj/*; do echo \"$f\"; done\n{ read -r _; read -r l; echo \"$l\"; } < tinyproj/pyproject.toml\n",
-      "stdout": "status=0\ntinyproj/pyproject.toml\nname = \"tinyproj\"\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify uv > /dev/null\n",
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./candidate.sh\n",
+      "reference_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./reference.sh\n",
+      "stdout": "status=0\ntinyproj/pyproject.toml\n[project]\nname = \"tinyproj\"\nversion = \"0.1.0\"\nrequires-python = \">=3.13\"\ndependencies = []\n",
       "expected_status": 0,
-      "requires": [],
-      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent). There is no GNU uv: the reference side is a shell function that emulates the documented contract by running the same stand-in helper, so it validates the fixture and the expected bytes; the expected values come from the stand-in's printf format, not from candidate output. Upstream uv init --bare (uv documentation, 'Creating projects') writes only pyproject.toml with [project] name; no network is used for it.",
-      "comparison": "r1: a local-project operation (uv init --bare on a tiny directory) leaves exactly the expected tree without network access. The guest payload stages optional-packages/loadables/uv.so and the pinned upstream uv executable at optional-packages/uv/libexec/uv/uv. Setup copies uv.so into the package root and keeps the shell-script stand-in at libexec/uv/uv, which is the helper these expected bytes come from. A static build cannot enable -f a shared object, so it still does not reach the helper.",
+      "requires": [
+        "perl",
+        "python3",
+        "unshare",
+        "mount",
+        "mkdir",
+        "ldd",
+        "grep"
+      ],
+      "oracle": "Upstream uv 0.12.15 (x86_64-unknown-linux-musl, the executable pinned by config/uv.json) run directly by the reference shell as argv[0] uv, from the staged copy of the uv package, in the same kind of user namespace and with the same commands (body.sh). The candidate installs the uv package from the staged package file with pkg install and runs the same executable through the uv builtin: the package's uv.so after pkg load on a dynamic build, the compiled-in builtin on a static build, where pkg load must refuse. The guest has no network: every command is offline and uses /usr/bin/python3 3.13.5. ",
+      "comparison": "r1: a local-project operation (uv init --bare on a tiny directory) leaves exactly the tree and pyproject.toml upstream uv writes, without network access. The helper is the real pinned uv on both sides, not a stand-in. Both builds run it: a static executable cannot load uv.so, so there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and uses the compiled-in builtin with the installed executable. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "group": "shell",
-      "driver": "plain"
+      "driver": "plain",
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "file_size_limit": 67108864,
+      "timeout": 60,
+      "setup_timeout": 30,
+      "observation_error_status": 98,
+      "diagnostic_files": [
+        "optpkg-uv.install",
+        "optpkg-uv.verify",
+        "optpkg-uv.load"
+      ],
+      "files": {
+        "optpkg.sh": "# Sourced by the candidate shell, which runs as mapped root in a fresh user and\n# mount namespace. optpkg_enter puts writable overlays over /usr/lib and\n# /var/lib. optpkg_use NAME [ROOT] installs the staged NAME package with pkg,\n# verifies it and loads it. A static executable cannot load shared objects:\n# there pkg load must refuse, and optpkg_static is yes.\noptpkg_dir=/opt/bashos-parity/reference-data/optional-packages\noptpkg_static=no\noptpkg_enter() {\n  local ov=$HOME/optpkg-overlay\n  if /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then optpkg_static=yes; fi\n  /usr/bin/mkdir -p \"$ov/u-lib\" \"$ov/w-lib\" \"$ov/u-var\" \"$ov/w-var\" &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$ov/u-lib,workdir=$ov/w-lib\" /usr/lib &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$ov/u-var,workdir=$ov/w-var\" /var/lib ||\n    { echo 'optpkg: cannot prepare a writable package root' >&2; return 98; }\n}\noptpkg_use() {\n  local name=$1 root=() log=$HOME/optpkg-$1 rc\n  local file=(\"$optpkg_dir/packages/${name}\"_*.pkg)\n  [[ $# -lt 2 ]] || root=(--root \"$2\")\n  pkg install -A \"${file[0]}\" \"${root[@]}\" > \"$log.install\" 2>&1 &&\n  pkg verify \"$name\" \"${root[@]}\" > \"$log.verify\" 2>&1 ||\n    { echo \"optpkg: $name: pkg install or pkg verify failed\"; return 1; }\n  pkg load \"$name\" \"${root[@]}\" > \"$log.load\" 2>&1; rc=$?\n  if [[ $optpkg_static == yes ]]; then\n    [[ $rc != 0 ]] && /usr/bin/grep -q 'this executable is static and cannot load shared objects' \"$log.load\" ||\n      { echo \"optpkg: $name: a static executable did not refuse pkg load (status $rc)\"; return 1; }\n  else\n    [[ $rc == 0 && $(type -t \"$name\") == builtin ]] ||\n      { echo \"optpkg: $name: pkg load failed (status $rc)\"; return 1; }\n  fi\n}\n",
+        "body.sh": "export PATH=/usr/bin:/bin UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never UV_NO_CONFIG=1 UV_PYTHON_PREFERENCE=only-system UV_NO_PROGRESS=1\nuv init --bare tinyproj; echo \"status=$?\"\nfor f in tinyproj/*; do echo \"$f\"; done\nwhile read -r l; do echo \"$l\"; done < tinyproj/pyproject.toml\n",
+        "reference.sh": "UV=/opt/bashos-parity/reference-data/optional-packages/root/usr/lib/bash-os/libexec/uv/uv\nuv() { ( exec -a uv \"$UV\" \"$@\" ); }\n. ./body.sh\n",
+        "candidate.sh": ". ./optpkg.sh\noptpkg_enter && optpkg_use uv || exit $?\n. ./body.sh\n"
+      }
     },
     {
       "id": "mig-w3-uv-missing-status",
@@ -98,7 +248,7 @@
       "expected_status": 0,
       "oracle": "uv builtin help text in loadables/uv.c: 'Exit Status: ... or 127 if uv is not installed'; guest has no /usr/lib/bash-os/libexec/uv/uv (reference-shell access check in setup)",
       "setup_script": "test ! -e /usr/lib/bash-os/libexec/uv/uv\n",
-      "comparison": "r1: with the helper absent the uv builtin returns 127. On both frozen builds no uv builtin exists, so bash reports the command as not found; status 127 alone would also come from bash's command-not-found, so the case first requires type -t uv to report builtin. These two cases require the compiled-in builtin and the path /usr/lib/bash-os/libexec/uv/uv. A loaded uv.so reports the helper beside that object instead, so they are not pointed at the staged package. The shell was not rebuilt with uv compiled in.",
+      "comparison": "r1: with the helper absent the uv builtin returns 127. The uv builtin is compiled into both builds and nothing is installed at /usr/lib/bash-os/libexec/uv/uv in the guest, so this is the diagnostic for a missing executable.",
       "group": "shell",
       "driver": "plain"
     },
@@ -114,7 +264,7 @@
       "expected_status": 0,
       "setup_script": "test ! -e /usr/lib/bash-os/libexec/uv/uv\n",
       "oracle": "uv.c uv_builtin: builtin_error '%s: %s (install it with: pkg install uv)' with the compiled-in helper path and status EX_NOTFOUND 127; guest has no helper at that path (verified in setup)",
-      "comparison": "r2: the diagnostic includes 'install it with: pkg install uv' and the missing helper path, with status 127. Both frozen builds have no uv builtin, so bash prints its own command-not-found message without the hint. These two cases require the compiled-in builtin and the path /usr/lib/bash-os/libexec/uv/uv. A loaded uv.so reports the helper beside that object instead, so they are not pointed at the staged package. The shell was not rebuilt with uv compiled in.",
+      "comparison": "r2: the diagnostic includes 'install it with: pkg install uv' and the missing helper path, with status 127. The uv builtin is compiled into both builds and nothing is installed at /usr/lib/bash-os/libexec/uv/uv in the guest, so this is the diagnostic for a missing executable.",
       "group": "shell",
       "driver": "plain"
     },
@@ -124,16 +274,46 @@
       "covers": [
         "uv/signal-status-mapping"
       ],
-      "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\ncase \"$1\" in\n  mask) exec /usr/bin/perl -e 'open F, \"/proc/self/status\" or die; while (<F>) { if (/^(SigIgn|SigCgt):\\s+(\\w+)/) { my $v = hex($2); printf \"%s: INT=%d QUIT=%d\\n\", $1, ($v >> 1) & 1, ($v >> 2) & 1 } }' ;;\n  term) kill -TERM $$ ;;\n  kill) kill -KILL $$ ;;\n  usr1) kill -USR1 $$ ;;\nesac\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\ncp /opt/bashos-parity/harness/optional-packages/loadables/uv.so pkgroot/lib/bash-os/loadables/uv.so\n",
-      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\ntrap 'echo trap-fired' INT QUIT\nuv mask\necho \"status=$?\"\n",
-      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\ntrap 'echo trap-fired' INT QUIT\nuv mask\necho \"status=$?\"\n",
-      "stdout": "SigIgn: INT=0 QUIT=0\nSigCgt: INT=0 QUIT=0\nstatus=0\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify uv > /dev/null\n",
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./candidate.sh\n",
+      "reference_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./reference.sh\n",
+      "stdout": "SigIgn: INT=0 QUIT=0\nSigCgt: INT=0 QUIT=0\ntrapped=0\nSigIgn: INT=1 QUIT=1\nSigCgt: INT=0 QUIT=0\nignored=0\nSigIgn: INT=0 QUIT=0\nSigCgt: INT=0 QUIT=0\ndefault=0\n",
       "expected_status": 0,
-      "requires": [],
-      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent). There is no GNU uv: the reference side is a shell function that emulates the documented contract by running the same stand-in helper, so it validates the fixture and the expected bytes; the expected values come from the stand-in's printf format, not from candidate output. execve resets caught handlers to SIG_DFL; uv_reset_job_signals restores INT/QUIT to SIG_DFL unless trapped-ignored; the stand-in reads its own /proc/self/status.",
-      "comparison": "r1: although the calling script trapped INT and QUIT, the helper starts with both at default disposition (neither ignored nor caught) The guest payload stages optional-packages/loadables/uv.so and the pinned upstream uv executable at optional-packages/uv/libexec/uv/uv. Setup copies uv.so into the package root and keeps the shell-script stand-in at libexec/uv/uv, which is the helper these expected bytes come from. A static build cannot enable -f a shared object, so it still does not reach the helper.",
+      "requires": [
+        "perl",
+        "python3",
+        "unshare",
+        "mount",
+        "mkdir",
+        "ldd",
+        "grep"
+      ],
+      "oracle": "Upstream uv 0.12.15 (x86_64-unknown-linux-musl, the executable pinned by config/uv.json) run directly by the reference shell as argv[0] uv, from the staged copy of the uv package, in the same kind of user namespace and with the same commands (body.sh). The candidate installs the uv package from the staged package file with pkg install and runs the same executable through the uv builtin: the package's uv.so after pkg load on a dynamic build, the compiled-in builtin on a static build, where pkg load must refuse. The guest has no network: every command is offline and uses /usr/bin/python3 3.13.5. execve resets caught handlers to SIG_DFL and keeps ignored signals ignored; uv_reset_job_signals restores INT/QUIT to SIG_DFL unless trapped or ignored. uv run starts a Perl program that reads its own /proc/self/status. ",
+      "comparison": "r1: uv and the program it runs start with INT and QUIT at their default disposition when the calling script trapped them or left them alone, and ignored when the script ignores them, as for an external command. The helper is the real pinned uv on both sides, not a stand-in. Both builds run it: a static executable cannot load uv.so, so there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and uses the compiled-in builtin with the installed executable. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "group": "shell",
-      "driver": "plain"
+      "driver": "plain",
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "file_size_limit": 67108864,
+      "timeout": 60,
+      "setup_timeout": 30,
+      "observation_error_status": 98,
+      "diagnostic_files": [
+        "optpkg-uv.install",
+        "optpkg-uv.verify",
+        "optpkg-uv.load"
+      ],
+      "files": {
+        "optpkg.sh": "# Sourced by the candidate shell, which runs as mapped root in a fresh user and\n# mount namespace. optpkg_enter puts writable overlays over /usr/lib and\n# /var/lib. optpkg_use NAME [ROOT] installs the staged NAME package with pkg,\n# verifies it and loads it. A static executable cannot load shared objects:\n# there pkg load must refuse, and optpkg_static is yes.\noptpkg_dir=/opt/bashos-parity/reference-data/optional-packages\noptpkg_static=no\noptpkg_enter() {\n  local ov=$HOME/optpkg-overlay\n  if /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then optpkg_static=yes; fi\n  /usr/bin/mkdir -p \"$ov/u-lib\" \"$ov/w-lib\" \"$ov/u-var\" \"$ov/w-var\" &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$ov/u-lib,workdir=$ov/w-lib\" /usr/lib &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$ov/u-var,workdir=$ov/w-var\" /var/lib ||\n    { echo 'optpkg: cannot prepare a writable package root' >&2; return 98; }\n}\noptpkg_use() {\n  local name=$1 root=() log=$HOME/optpkg-$1 rc\n  local file=(\"$optpkg_dir/packages/${name}\"_*.pkg)\n  [[ $# -lt 2 ]] || root=(--root \"$2\")\n  pkg install -A \"${file[0]}\" \"${root[@]}\" > \"$log.install\" 2>&1 &&\n  pkg verify \"$name\" \"${root[@]}\" > \"$log.verify\" 2>&1 ||\n    { echo \"optpkg: $name: pkg install or pkg verify failed\"; return 1; }\n  pkg load \"$name\" \"${root[@]}\" > \"$log.load\" 2>&1; rc=$?\n  if [[ $optpkg_static == yes ]]; then\n    [[ $rc != 0 ]] && /usr/bin/grep -q 'this executable is static and cannot load shared objects' \"$log.load\" ||\n      { echo \"optpkg: $name: a static executable did not refuse pkg load (status $rc)\"; return 1; }\n  else\n    [[ $rc == 0 && $(type -t \"$name\") == builtin ]] ||\n      { echo \"optpkg: $name: pkg load failed (status $rc)\"; return 1; }\n  fi\n}\n",
+        "body.sh": "export PATH=/usr/bin:/bin UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never UV_NO_CONFIG=1 UV_PYTHON_PREFERENCE=only-system UV_NO_PROGRESS=1\nprobe='open F, \"/proc/self/status\" or die; while (<F>) { if (/^(SigIgn|SigCgt):\\s+(\\w+)/) { my $v = hex($2); printf \"%s: INT=%d QUIT=%d\\n\", $1, ($v >> 1) & 1, ($v >> 2) & 1 } }'\ntrap 'echo trap-fired' INT QUIT\nuv run --no-project --python /usr/bin/python3 /usr/bin/perl -e \"$probe\"; echo \"trapped=$?\"\ntrap '' INT QUIT\nuv run --no-project --python /usr/bin/python3 /usr/bin/perl -e \"$probe\"; echo \"ignored=$?\"\ntrap - INT QUIT\nuv run --no-project --python /usr/bin/python3 /usr/bin/perl -e \"$probe\"; echo \"default=$?\"\n",
+        "reference.sh": "UV=/opt/bashos-parity/reference-data/optional-packages/root/usr/lib/bash-os/libexec/uv/uv\nuv() { ( exec -a uv \"$UV\" \"$@\" ); }\n. ./body.sh\n",
+        "candidate.sh": ". ./optpkg.sh\noptpkg_enter && optpkg_use uv || exit $?\n. ./body.sh\n"
+      }
     },
     {
       "id": "mig-w3-uv-signal-status",
@@ -141,16 +321,46 @@
       "covers": [
         "uv/signal-status-mapping"
       ],
-      "setup_script": "mkdir -p pkgroot/lib/bash-os/loadables pkgroot/lib/bash-os/libexec/uv elsewhere\ncat > pkgroot/lib/bash-os/libexec/uv/uv <<'EOF'\n#!/bin/sh\ncase \"$1\" in\n  mask) exec /usr/bin/perl -e 'open F, \"/proc/self/status\" or die; while (<F>) { if (/^(SigIgn|SigCgt):\\s+(\\w+)/) { my $v = hex($2); printf \"%s: INT=%d QUIT=%d\\n\", $1, ($v >> 1) & 1, ($v >> 2) & 1 } }' ;;\n  term) kill -TERM $$ ;;\n  kill) kill -KILL $$ ;;\n  usr1) kill -USR1 $$ ;;\nesac\nEOF\nchmod 755 pkgroot/lib/bash-os/libexec/uv/uv\ncp /opt/bashos-parity/harness/optional-packages/loadables/uv.so pkgroot/lib/bash-os/loadables/uv.so\n",
-      "candidate_script": "enable -f pkgroot/lib/bash-os/loadables/uv.so uv\n{ uv term; echo \"term=$?\"; uv kill; echo \"kill=$?\"; uv usr1; echo \"usr1=$?\"; } 2>/dev/null\n",
-      "reference_script": "UVH=\"$PWD/pkgroot/lib/bash-os/libexec/uv/uv\"\nuv() { \"$UVH\" \"$@\"; }\n{ uv term; echo \"term=$?\"; uv kill; echo \"kill=$?\"; uv usr1; echo \"usr1=$?\"; } 2>/dev/null\n",
-      "stdout": "term=143\nkill=137\nusr1=138\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify uv > /dev/null\n",
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./candidate.sh\n",
+      "reference_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./reference.sh\n",
+      "stdout": "term=143\nkill=137\nusr1=138\nxfsz=153\n",
       "expected_status": 0,
-      "requires": [],
-      "oracle": "uv builtin contract in loadables/uv.c header and help text (helper at ../libexec/uv/uv beside the loaded uv.so, exported variables, argv[0]=uv, exit status verbatim, 128+N on signal N, 127 plus 'pkg install uv' hint when absent). There is no GNU uv: the reference side is a shell function that emulates the documented contract by running the same stand-in helper, so it validates the fixture and the expected bytes; the expected values come from the stand-in's printf format, not from candidate output. 128+N mapping with N = 15, 9, 10 (signal(7)); the stand-in signals only its own pid.",
-      "comparison": "r2: a helper that kills itself with SIGTERM, SIGKILL and SIGUSR1 yields 143, 137 and 138 The guest payload stages optional-packages/loadables/uv.so and the pinned upstream uv executable at optional-packages/uv/libexec/uv/uv. Setup copies uv.so into the package root and keeps the shell-script stand-in at libexec/uv/uv, which is the helper these expected bytes come from. A static build cannot enable -f a shared object, so it still does not reach the helper.",
+      "requires": [
+        "perl",
+        "python3",
+        "unshare",
+        "mount",
+        "mkdir",
+        "ldd",
+        "grep"
+      ],
+      "oracle": "Upstream uv 0.12.15 (x86_64-unknown-linux-musl, the executable pinned by config/uv.json) run directly by the reference shell as argv[0] uv, from the staged copy of the uv package, in the same kind of user namespace and with the same commands (body.sh). The candidate installs the uv package from the staged package file with pkg install and runs the same executable through the uv builtin: the package's uv.so after pkg load on a dynamic build, the compiled-in builtin on a static build, where pkg load must refuse. The guest has no network: every command is offline and uses /usr/bin/python3 3.13.5. 128+N mapping with N = 15, 9, 10 and 25 (signal(7)). The Python program uv run starts signals its parent, uv, and is itself removed afterwards; with a zero file-size limit uv is killed by SIGXFSZ when it writes pyproject.toml. ",
+      "comparison": "r2: when the program uv runs sends uv SIGTERM, SIGKILL or SIGUSR1, and when a zero file-size limit ends uv with SIGXFSZ, the shell sees 143, 137, 138 and 153, the statuses the reference shell sees for the same executable. The helper is the real pinned uv on both sides, not a stand-in. Both builds run it: a static executable cannot load uv.so, so there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and uses the compiled-in builtin with the installed executable. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "group": "shell",
-      "driver": "plain"
+      "driver": "plain",
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "file_size_limit": 67108864,
+      "timeout": 60,
+      "setup_timeout": 30,
+      "observation_error_status": 98,
+      "diagnostic_files": [
+        "optpkg-uv.install",
+        "optpkg-uv.verify",
+        "optpkg-uv.load"
+      ],
+      "files": {
+        "optpkg.sh": "# Sourced by the candidate shell, which runs as mapped root in a fresh user and\n# mount namespace. optpkg_enter puts writable overlays over /usr/lib and\n# /var/lib. optpkg_use NAME [ROOT] installs the staged NAME package with pkg,\n# verifies it and loads it. A static executable cannot load shared objects:\n# there pkg load must refuse, and optpkg_static is yes.\noptpkg_dir=/opt/bashos-parity/reference-data/optional-packages\noptpkg_static=no\noptpkg_enter() {\n  local ov=$HOME/optpkg-overlay\n  if /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then optpkg_static=yes; fi\n  /usr/bin/mkdir -p \"$ov/u-lib\" \"$ov/w-lib\" \"$ov/u-var\" \"$ov/w-var\" &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$ov/u-lib,workdir=$ov/w-lib\" /usr/lib &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$ov/u-var,workdir=$ov/w-var\" /var/lib ||\n    { echo 'optpkg: cannot prepare a writable package root' >&2; return 98; }\n}\noptpkg_use() {\n  local name=$1 root=() log=$HOME/optpkg-$1 rc\n  local file=(\"$optpkg_dir/packages/${name}\"_*.pkg)\n  [[ $# -lt 2 ]] || root=(--root \"$2\")\n  pkg install -A \"${file[0]}\" \"${root[@]}\" > \"$log.install\" 2>&1 &&\n  pkg verify \"$name\" \"${root[@]}\" > \"$log.verify\" 2>&1 ||\n    { echo \"optpkg: $name: pkg install or pkg verify failed\"; return 1; }\n  pkg load \"$name\" \"${root[@]}\" > \"$log.load\" 2>&1; rc=$?\n  if [[ $optpkg_static == yes ]]; then\n    [[ $rc != 0 ]] && /usr/bin/grep -q 'this executable is static and cannot load shared objects' \"$log.load\" ||\n      { echo \"optpkg: $name: a static executable did not refuse pkg load (status $rc)\"; return 1; }\n  else\n    [[ $rc == 0 && $(type -t \"$name\") == builtin ]] ||\n      { echo \"optpkg: $name: pkg load failed (status $rc)\"; return 1; }\n  fi\n}\n",
+        "body.sh": "export PATH=/usr/bin:/bin UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never UV_NO_CONFIG=1 UV_PYTHON_PREFERENCE=only-system UV_NO_PROGRESS=1\nkiller='import os, signal, sys, time\nopen(os.environ[\"HOME\"] + \"/child.pid\", \"w\").write(str(os.getpid()))\nos.kill(os.getppid(), getattr(signal, \"SIG\" + sys.argv[1]))\ntime.sleep(30)'\nreap() {\n  local p st\n  read -r p < \"$HOME/child.pid\"\n  kill -KILL \"$p\"\n  while [[ -r /proc/$p/stat ]] && read -r _ _ st _ < \"/proc/$p/stat\" && [[ $st != Z ]]; do :; done\n}\n{\n  uv run --no-project --python /usr/bin/python3 python -c \"$killer\" TERM; echo \"term=$?\"; reap\n  uv run --no-project --python /usr/bin/python3 python -c \"$killer\" KILL; echo \"kill=$?\"; reap\n  uv run --no-project --python /usr/bin/python3 python -c \"$killer\" USR1; echo \"usr1=$?\"; reap\n  ( ulimit -f 0; uv init --bare limited ); echo \"xfsz=$?\"\n} 2> /dev/null\n",
+        "reference.sh": "UV=/opt/bashos-parity/reference-data/optional-packages/root/usr/lib/bash-os/libexec/uv/uv\nuv() { ( exec -a uv \"$UV\" \"$@\" ); }\n. ./body.sh\n",
+        "candidate.sh": ". ./optpkg.sh\noptpkg_enter && optpkg_use uv || exit $?\n. ./body.sh\n"
+      }
     },
     {
       "id": "mig-w3-bashjson-jq-raw-string",
@@ -193,16 +403,44 @@
         "bashperl/process-and-native-effects"
       ],
       "requires": [
-        "perl"
+        "perl",
+        "python3",
+        "unshare",
+        "mount",
+        "mkdir",
+        "ldd",
+        "grep"
       ],
-      "reference_script": "/usr/bin/perl -e 'my $r = system(\"/bin/sh\", \"-c\", \"exit 3\"); print \"rc=\", $r >> 8, \" q=\", $? >> 8, \"\\n\"'; echo \"shell-alive status=$?\"\n",
-      "candidate_script": "so=/opt/bashos-parity/harness/optional-packages/loadables/bashperl.so\nif [ -f \"$so\" ] && ! /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then enable -f \"$so\" bashperl; fi\nbashperl -e 'my $r = system(\"/bin/sh\", \"-c\", \"exit 3\"); print \"rc=\", $r >> 8, \" q=\", $? >> 8, \"\\n\"'; echo \"shell-alive status=$?\"\n",
-      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest; docs/perl.md: system and exec retain Perl behaviour, wrapper restores standard descriptors and signal handlers",
+      "reference_script": ". ./reference.sh\n",
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./candidate.sh\n",
+      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest, run by the reference shell; docs/perl.md: system and exec retain Perl behaviour, the wrapper restores standard descriptors and signal handlers. The candidate installs the bashperl package built by build-packages.sh (Perl 5.44.0) from the staged package file with pkg install, checks it with pkg verify and loads it with pkg load, at the default root inside a user and mount namespace.",
       "stdout": "rc=3 q=3\nshell-alive status=0\n",
       "expected_status": 0,
-      "comparison": "r1: Perl system() runs a child, $? >> 8 reports 3, the builtin returns 0, and the embedding shell continues. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found'. The candidate enables optional-packages/loadables/bashperl.so when that object is present and the build is dynamic. It is not staged: bashperl.so needs a static libperl, which this tree does not have. Expected bytes are unchanged.",
+      "comparison": "r1: Perl system() runs a child, $? >> 8 reports 3, the builtin returns 0, and the embedding shell continues. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg install and pkg verify to succeed and pkg load to refuse with \"this executable is static and cannot load shared objects\"; it then runs the reference formulation itself, so that transcript shows the refusal contract held and does not exercise bashperl. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "group": "shell",
-      "driver": "plain"
+      "driver": "plain",
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "file_size_limit": 33554432,
+      "timeout": 60,
+      "setup_timeout": 30,
+      "observation_error_status": 98,
+      "diagnostic_files": [
+        "optpkg-bashperl.install",
+        "optpkg-bashperl.verify",
+        "optpkg-bashperl.load"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashperl > /dev/null\n",
+      "files": {
+        "optpkg.sh": "# Sourced by the candidate shell, which runs as mapped root in a fresh user and\n# mount namespace. optpkg_enter puts writable overlays over /usr/lib and\n# /var/lib. optpkg_use NAME [ROOT] installs the staged NAME package with pkg,\n# verifies it and loads it. A static executable cannot load shared objects:\n# there pkg load must refuse, and optpkg_static is yes.\noptpkg_dir=/opt/bashos-parity/reference-data/optional-packages\noptpkg_static=no\noptpkg_enter() {\n  local ov=$HOME/optpkg-overlay\n  if /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then optpkg_static=yes; fi\n  /usr/bin/mkdir -p \"$ov/u-lib\" \"$ov/w-lib\" \"$ov/u-var\" \"$ov/w-var\" &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$ov/u-lib,workdir=$ov/w-lib\" /usr/lib &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$ov/u-var,workdir=$ov/w-var\" /var/lib ||\n    { echo 'optpkg: cannot prepare a writable package root' >&2; return 98; }\n}\noptpkg_use() {\n  local name=$1 root=() log=$HOME/optpkg-$1 rc\n  local file=(\"$optpkg_dir/packages/${name}\"_*.pkg)\n  [[ $# -lt 2 ]] || root=(--root \"$2\")\n  pkg install -A \"${file[0]}\" \"${root[@]}\" > \"$log.install\" 2>&1 &&\n  pkg verify \"$name\" \"${root[@]}\" > \"$log.verify\" 2>&1 ||\n    { echo \"optpkg: $name: pkg install or pkg verify failed\"; return 1; }\n  pkg load \"$name\" \"${root[@]}\" > \"$log.load\" 2>&1; rc=$?\n  if [[ $optpkg_static == yes ]]; then\n    [[ $rc != 0 ]] && /usr/bin/grep -q 'this executable is static and cannot load shared objects' \"$log.load\" ||\n      { echo \"optpkg: $name: a static executable did not refuse pkg load (status $rc)\"; return 1; }\n  else\n    [[ $rc == 0 && $(type -t \"$name\") == builtin ]] ||\n      { echo \"optpkg: $name: pkg load failed (status $rc)\"; return 1; }\n  fi\n}\n",
+        "reference.sh": "/usr/bin/perl -e 'my $r = system(\"/bin/sh\", \"-c\", \"exit 3\"); print \"rc=\", $r >> 8, \" q=\", $? >> 8, \"\\n\"'; echo \"shell-alive status=$?\"\n",
+        "candidate.sh": ". ./optpkg.sh\noptpkg_enter && optpkg_use bashperl || exit $?\nif [[ $optpkg_static == yes ]]; then . ./reference.sh; exit; fi\nbashperl -e 'my $r = system(\"/bin/sh\", \"-c\", \"exit 3\"); print \"rc=\", $r >> 8, \" q=\", $? >> 8, \"\\n\"'; echo \"shell-alive status=$?\"\n"
+      }
     },
     {
       "id": "mig-w3-bashperl-exec-subshell",
@@ -211,16 +449,44 @@
         "bashperl/process-and-native-effects"
       ],
       "requires": [
-        "perl"
+        "perl",
+        "python3",
+        "unshare",
+        "mount",
+        "mkdir",
+        "ldd",
+        "grep"
       ],
-      "reference_script": "(/usr/bin/perl -e 'exec \"/bin/echo\", \"execd\"'); echo \"after-subshell status=$?\"\n",
-      "candidate_script": "so=/opt/bashos-parity/harness/optional-packages/loadables/bashperl.so\nif [ -f \"$so\" ] && ! /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then enable -f \"$so\" bashperl; fi\n(bashperl -e 'exec \"/bin/echo\", \"execd\"'); echo \"after-subshell status=$?\"\n",
-      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest; docs/perl.md: system and exec retain Perl behaviour, wrapper restores standard descriptors and signal handlers",
+      "reference_script": ". ./reference.sh\n",
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./candidate.sh\n",
+      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest, run by the reference shell; docs/perl.md: system and exec retain Perl behaviour, the wrapper restores standard descriptors and signal handlers. The candidate installs the bashperl package built by build-packages.sh (Perl 5.44.0) from the staged package file with pkg install, checks it with pkg verify and loads it with pkg load, at the default root inside a user and mount namespace.",
       "stdout": "execd\nafter-subshell status=0\n",
       "expected_status": 0,
-      "comparison": "r2: Perl exec() inside an isolating subshell replaces only that subshell; the parent shell observes the exec'd program's output and status 0. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found'. The candidate enables optional-packages/loadables/bashperl.so when that object is present and the build is dynamic. It is not staged: bashperl.so needs a static libperl, which this tree does not have. Expected bytes are unchanged.",
+      "comparison": "r2: Perl exec() inside an isolating subshell replaces only that subshell; the parent shell observes the exec'd program's output and status 0. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg install and pkg verify to succeed and pkg load to refuse with \"this executable is static and cannot load shared objects\"; it then runs the reference formulation itself, so that transcript shows the refusal contract held and does not exercise bashperl. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "group": "shell",
-      "driver": "plain"
+      "driver": "plain",
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "file_size_limit": 33554432,
+      "timeout": 60,
+      "setup_timeout": 30,
+      "observation_error_status": 98,
+      "diagnostic_files": [
+        "optpkg-bashperl.install",
+        "optpkg-bashperl.verify",
+        "optpkg-bashperl.load"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashperl > /dev/null\n",
+      "files": {
+        "optpkg.sh": "# Sourced by the candidate shell, which runs as mapped root in a fresh user and\n# mount namespace. optpkg_enter puts writable overlays over /usr/lib and\n# /var/lib. optpkg_use NAME [ROOT] installs the staged NAME package with pkg,\n# verifies it and loads it. A static executable cannot load shared objects:\n# there pkg load must refuse, and optpkg_static is yes.\noptpkg_dir=/opt/bashos-parity/reference-data/optional-packages\noptpkg_static=no\noptpkg_enter() {\n  local ov=$HOME/optpkg-overlay\n  if /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then optpkg_static=yes; fi\n  /usr/bin/mkdir -p \"$ov/u-lib\" \"$ov/w-lib\" \"$ov/u-var\" \"$ov/w-var\" &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$ov/u-lib,workdir=$ov/w-lib\" /usr/lib &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$ov/u-var,workdir=$ov/w-var\" /var/lib ||\n    { echo 'optpkg: cannot prepare a writable package root' >&2; return 98; }\n}\noptpkg_use() {\n  local name=$1 root=() log=$HOME/optpkg-$1 rc\n  local file=(\"$optpkg_dir/packages/${name}\"_*.pkg)\n  [[ $# -lt 2 ]] || root=(--root \"$2\")\n  pkg install -A \"${file[0]}\" \"${root[@]}\" > \"$log.install\" 2>&1 &&\n  pkg verify \"$name\" \"${root[@]}\" > \"$log.verify\" 2>&1 ||\n    { echo \"optpkg: $name: pkg install or pkg verify failed\"; return 1; }\n  pkg load \"$name\" \"${root[@]}\" > \"$log.load\" 2>&1; rc=$?\n  if [[ $optpkg_static == yes ]]; then\n    [[ $rc != 0 ]] && /usr/bin/grep -q 'this executable is static and cannot load shared objects' \"$log.load\" ||\n      { echo \"optpkg: $name: a static executable did not refuse pkg load (status $rc)\"; return 1; }\n  else\n    [[ $rc == 0 && $(type -t \"$name\") == builtin ]] ||\n      { echo \"optpkg: $name: pkg load failed (status $rc)\"; return 1; }\n  fi\n}\n",
+        "reference.sh": "(/usr/bin/perl -e 'exec \"/bin/echo\", \"execd\"'); echo \"after-subshell status=$?\"\n",
+        "candidate.sh": ". ./optpkg.sh\noptpkg_enter && optpkg_use bashperl || exit $?\nif [[ $optpkg_static == yes ]]; then . ./reference.sh; exit; fi\n(bashperl -e 'exec \"/bin/echo\", \"execd\"'); echo \"after-subshell status=$?\"\n"
+      }
     },
     {
       "id": "mig-w3-bashperl-exec-replaces-shell",
@@ -229,16 +495,44 @@
         "bashperl/process-and-native-effects"
       ],
       "requires": [
-        "perl"
+        "perl",
+        "python3",
+        "unshare",
+        "mount",
+        "mkdir",
+        "ldd",
+        "grep"
       ],
-      "kind": "contract",
-      "script": "bashperl -e 'exec \"/bin/echo\", \"execd\"'\necho notreached\n",
-      "oracle": "docs/perl.md states exec affects the embedding process and recommends (bashperl ...) for isolation; expected output is the exec'd /bin/echo output alone",
+      "oracle": "perl 5.40.1 (Debian trixie) taking over the reference shell's process with the shell's exec, and then calling its own exec: the process that ran the script becomes /bin/echo and nothing after that line runs. docs/perl.md states exec affects the embedding process and recommends (bashperl ...) for isolation. perl 5.40.1 (Debian trixie) standalone in the guest, run by the reference shell; docs/perl.md: system and exec retain Perl behaviour, the wrapper restores standard descriptors and signal handlers. The candidate installs the bashperl package built by build-packages.sh (Perl 5.44.0) from the staged package file with pkg install, checks it with pkg verify and loads it with pkg load, at the default root inside a user and mount namespace.",
       "stdout": "execd\n",
       "expected_status": 0,
-      "comparison": "r2: documented behaviour of exec() outside a subshell: it replaces the embedding Bash process (docs/perl.md 'Explicit process operations such as exec ... affect the embedding process'), so the following command never runs and the status is the exec'd program's 0. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found'. The candidate enables optional-packages/loadables/bashperl.so when that object is present and the build is dynamic. It is not staged: bashperl.so needs a static libperl, which this tree does not have. Expected bytes are unchanged.",
+      "comparison": "r2: exec() outside a subshell replaces the embedding Bash process (docs/perl.md 'Explicit process operations such as exec ... affect the embedding process'), so the following command never runs and the status is the exec'd program's 0. The reference side reaches the same process state with 'exec /usr/bin/perl'. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg install and pkg verify to succeed and pkg load to refuse with \"this executable is static and cannot load shared objects\"; it then runs the reference formulation itself, so that transcript shows the refusal contract held and does not exercise bashperl. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "group": "shell",
-      "driver": "plain"
+      "driver": "plain",
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "file_size_limit": 33554432,
+      "timeout": 60,
+      "setup_timeout": 30,
+      "observation_error_status": 98,
+      "diagnostic_files": [
+        "optpkg-bashperl.install",
+        "optpkg-bashperl.verify",
+        "optpkg-bashperl.load"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./candidate.sh\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashperl > /dev/null\n",
+      "reference_script": ". ./reference.sh\n",
+      "files": {
+        "optpkg.sh": "# Sourced by the candidate shell, which runs as mapped root in a fresh user and\n# mount namespace. optpkg_enter puts writable overlays over /usr/lib and\n# /var/lib. optpkg_use NAME [ROOT] installs the staged NAME package with pkg,\n# verifies it and loads it. A static executable cannot load shared objects:\n# there pkg load must refuse, and optpkg_static is yes.\noptpkg_dir=/opt/bashos-parity/reference-data/optional-packages\noptpkg_static=no\noptpkg_enter() {\n  local ov=$HOME/optpkg-overlay\n  if /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then optpkg_static=yes; fi\n  /usr/bin/mkdir -p \"$ov/u-lib\" \"$ov/w-lib\" \"$ov/u-var\" \"$ov/w-var\" &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$ov/u-lib,workdir=$ov/w-lib\" /usr/lib &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$ov/u-var,workdir=$ov/w-var\" /var/lib ||\n    { echo 'optpkg: cannot prepare a writable package root' >&2; return 98; }\n}\noptpkg_use() {\n  local name=$1 root=() log=$HOME/optpkg-$1 rc\n  local file=(\"$optpkg_dir/packages/${name}\"_*.pkg)\n  [[ $# -lt 2 ]] || root=(--root \"$2\")\n  pkg install -A \"${file[0]}\" \"${root[@]}\" > \"$log.install\" 2>&1 &&\n  pkg verify \"$name\" \"${root[@]}\" > \"$log.verify\" 2>&1 ||\n    { echo \"optpkg: $name: pkg install or pkg verify failed\"; return 1; }\n  pkg load \"$name\" \"${root[@]}\" > \"$log.load\" 2>&1; rc=$?\n  if [[ $optpkg_static == yes ]]; then\n    [[ $rc != 0 ]] && /usr/bin/grep -q 'this executable is static and cannot load shared objects' \"$log.load\" ||\n      { echo \"optpkg: $name: a static executable did not refuse pkg load (status $rc)\"; return 1; }\n  else\n    [[ $rc == 0 && $(type -t \"$name\") == builtin ]] ||\n      { echo \"optpkg: $name: pkg load failed (status $rc)\"; return 1; }\n  fi\n}\n",
+        "reference.sh": "exec /usr/bin/perl -e 'exec \"/bin/echo\", \"execd\"'\necho notreached\n",
+        "candidate.sh": ". ./optpkg.sh\noptpkg_enter && optpkg_use bashperl || exit $?\nif [[ $optpkg_static == yes ]]; then . ./reference.sh; exit; fi\nbashperl -e 'exec \"/bin/echo\", \"execd\"'\necho notreached\n"
+      }
     },
     {
       "id": "mig-w3-bashperl-sig-handlers",
@@ -247,16 +541,44 @@
         "bashperl/process-and-native-effects"
       ],
       "requires": [
-        "perl"
+        "perl",
+        "python3",
+        "unshare",
+        "mount",
+        "mkdir",
+        "ldd",
+        "grep"
       ],
-      "reference_script": "trap 'echo shell-usr1' USR1\ntrap '' USR2\n/usr/bin/perl -e '$SIG{USR1}=sub{print \"perl-usr1\\n\"}; $SIG{USR2}=sub{print \"perl-usr2\\n\"}; kill \"USR1\", $$; kill \"USR2\", $$; print \"perl-done\\n\"'\necho \"perl-status=$?\"\nkill -USR1 $$\necho after-usr1\nkill -USR2 $$\necho after-usr2\n",
-      "candidate_script": "so=/opt/bashos-parity/harness/optional-packages/loadables/bashperl.so\nif [ -f \"$so\" ] && ! /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then enable -f \"$so\" bashperl; fi\ntrap 'echo shell-usr1' USR1\ntrap '' USR2\nbashperl -e '$SIG{USR1}=sub{print \"perl-usr1\\n\"}; $SIG{USR2}=sub{print \"perl-usr2\\n\"}; kill \"USR1\", $$; kill \"USR2\", $$; print \"perl-done\\n\"'\necho \"perl-status=$?\"\nkill -USR1 $$\necho after-usr1\nkill -USR2 $$\necho after-usr2\n",
-      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest; docs/perl.md: system and exec retain Perl behaviour, wrapper restores standard descriptors and signal handlers",
+      "reference_script": ". ./reference.sh\n",
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./candidate.sh\n",
+      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest, run by the reference shell; docs/perl.md: system and exec retain Perl behaviour, the wrapper restores standard descriptors and signal handlers. The candidate installs the bashperl package built by build-packages.sh (Perl 5.44.0) from the staged package file with pkg install, checks it with pkg verify and loads it with pkg load, at the default root inside a user and mount namespace.",
       "stdout": "perl-usr1\nperl-usr2\nperl-done\nperl-status=0\nshell-usr1\nafter-usr1\nafter-usr2\n",
       "expected_status": 0,
-      "comparison": "r3: Perl %SIG handlers for USR1/USR2 run when the signals are delivered inside the builtin, and afterwards the shell's own USR1 trap fires again and its ignored USR2 stays ignored. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found'. The candidate enables optional-packages/loadables/bashperl.so when that object is present and the build is dynamic. It is not staged: bashperl.so needs a static libperl, which this tree does not have. Expected bytes are unchanged.",
+      "comparison": "r3: Perl %SIG handlers for USR1/USR2 run when the signals are delivered inside the builtin, and afterwards the shell's own USR1 trap fires again and its ignored USR2 stays ignored. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg install and pkg verify to succeed and pkg load to refuse with \"this executable is static and cannot load shared objects\"; it then runs the reference formulation itself, so that transcript shows the refusal contract held and does not exercise bashperl. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "group": "shell",
-      "driver": "plain"
+      "driver": "plain",
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "file_size_limit": 33554432,
+      "timeout": 60,
+      "setup_timeout": 30,
+      "observation_error_status": 98,
+      "diagnostic_files": [
+        "optpkg-bashperl.install",
+        "optpkg-bashperl.verify",
+        "optpkg-bashperl.load"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashperl > /dev/null\n",
+      "files": {
+        "optpkg.sh": "# Sourced by the candidate shell, which runs as mapped root in a fresh user and\n# mount namespace. optpkg_enter puts writable overlays over /usr/lib and\n# /var/lib. optpkg_use NAME [ROOT] installs the staged NAME package with pkg,\n# verifies it and loads it. A static executable cannot load shared objects:\n# there pkg load must refuse, and optpkg_static is yes.\noptpkg_dir=/opt/bashos-parity/reference-data/optional-packages\noptpkg_static=no\noptpkg_enter() {\n  local ov=$HOME/optpkg-overlay\n  if /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then optpkg_static=yes; fi\n  /usr/bin/mkdir -p \"$ov/u-lib\" \"$ov/w-lib\" \"$ov/u-var\" \"$ov/w-var\" &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$ov/u-lib,workdir=$ov/w-lib\" /usr/lib &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$ov/u-var,workdir=$ov/w-var\" /var/lib ||\n    { echo 'optpkg: cannot prepare a writable package root' >&2; return 98; }\n}\noptpkg_use() {\n  local name=$1 root=() log=$HOME/optpkg-$1 rc\n  local file=(\"$optpkg_dir/packages/${name}\"_*.pkg)\n  [[ $# -lt 2 ]] || root=(--root \"$2\")\n  pkg install -A \"${file[0]}\" \"${root[@]}\" > \"$log.install\" 2>&1 &&\n  pkg verify \"$name\" \"${root[@]}\" > \"$log.verify\" 2>&1 ||\n    { echo \"optpkg: $name: pkg install or pkg verify failed\"; return 1; }\n  pkg load \"$name\" \"${root[@]}\" > \"$log.load\" 2>&1; rc=$?\n  if [[ $optpkg_static == yes ]]; then\n    [[ $rc != 0 ]] && /usr/bin/grep -q 'this executable is static and cannot load shared objects' \"$log.load\" ||\n      { echo \"optpkg: $name: a static executable did not refuse pkg load (status $rc)\"; return 1; }\n  else\n    [[ $rc == 0 && $(type -t \"$name\") == builtin ]] ||\n      { echo \"optpkg: $name: pkg load failed (status $rc)\"; return 1; }\n  fi\n}\n",
+        "reference.sh": "trap 'echo shell-usr1' USR1\ntrap '' USR2\n/usr/bin/perl -e '$SIG{USR1}=sub{print \"perl-usr1\\n\"}; $SIG{USR2}=sub{print \"perl-usr2\\n\"}; kill \"USR1\", $$; kill \"USR2\", $$; print \"perl-done\\n\"'\necho \"perl-status=$?\"\nkill -USR1 $$\necho after-usr1\nkill -USR2 $$\necho after-usr2\n",
+        "candidate.sh": ". ./optpkg.sh\noptpkg_enter && optpkg_use bashperl || exit $?\nif [[ $optpkg_static == yes ]]; then . ./reference.sh; exit; fi\ntrap 'echo shell-usr1' USR1\ntrap '' USR2\nbashperl -e '$SIG{USR1}=sub{print \"perl-usr1\\n\"}; $SIG{USR2}=sub{print \"perl-usr2\\n\"}; kill \"USR1\", $$; kill \"USR2\", $$; print \"perl-done\\n\"'\necho \"perl-status=$?\"\nkill -USR1 $$\necho after-usr1\nkill -USR2 $$\necho after-usr2\n"
+      }
     },
     {
       "id": "mig-w3-bashperl-std-fds",
@@ -265,16 +587,44 @@
         "bashperl/process-and-native-effects"
       ],
       "requires": [
-        "perl"
+        "perl",
+        "python3",
+        "unshare",
+        "mount",
+        "mkdir",
+        "ldd",
+        "grep"
       ],
-      "reference_script": "/usr/bin/perl -e 'open(my $o, \">\", \"redir.txt\") or die; open(STDOUT, \">&\", $o) or die; print STDOUT \"to-file\\n\"; close(STDOUT); close(STDERR); close(STDIN)'\necho \"rc=$?\"\necho stdout-ok\necho stderr-ok >&2\nread -r line <<< from-here-string; echo \"stdin-ok:$line\"\n{ read -r l < redir.txt; echo \"$l\"; }\n",
-      "candidate_script": "so=/opt/bashos-parity/harness/optional-packages/loadables/bashperl.so\nif [ -f \"$so\" ] && ! /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then enable -f \"$so\" bashperl; fi\nbashperl -e 'open(my $o, \">\", \"redir.txt\") or die; open(STDOUT, \">&\", $o) or die; print STDOUT \"to-file\\n\"; close(STDOUT); close(STDERR); close(STDIN)'\necho \"rc=$?\"\necho stdout-ok\necho stderr-ok >&2\nread -r line <<< from-here-string; echo \"stdin-ok:$line\"\n{ read -r l < redir.txt; echo \"$l\"; }\n",
-      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest; docs/perl.md: system and exec retain Perl behaviour, wrapper restores standard descriptors and signal handlers",
+      "reference_script": ". ./reference.sh\n",
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./candidate.sh\n",
+      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest, run by the reference shell; docs/perl.md: system and exec retain Perl behaviour, the wrapper restores standard descriptors and signal handlers. The candidate installs the bashperl package built by build-packages.sh (Perl 5.44.0) from the staged package file with pkg install, checks it with pkg verify and loads it with pkg load, at the default root inside a user and mount namespace.",
       "stdout": "rc=0\nstdout-ok\nstdin-ok:from-here-string\nto-file\n",
       "expected_status": 0,
-      "comparison": "r4: descriptors 0-2 that Perl redirected and closed are restored for the shell: its own stdout and stderr still work and the redirected bytes landed in the file. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found'. The candidate enables optional-packages/loadables/bashperl.so when that object is present and the build is dynamic. It is not staged: bashperl.so needs a static libperl, which this tree does not have. Expected bytes are unchanged.",
+      "comparison": "r4: descriptors 0-2 that Perl redirected and closed are restored for the shell: its own stdout and stderr still work and the redirected bytes landed in the file. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg install and pkg verify to succeed and pkg load to refuse with \"this executable is static and cannot load shared objects\"; it then runs the reference formulation itself, so that transcript shows the refusal contract held and does not exercise bashperl. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "group": "shell",
-      "driver": "plain"
+      "driver": "plain",
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "file_size_limit": 33554432,
+      "timeout": 60,
+      "setup_timeout": 30,
+      "observation_error_status": 98,
+      "diagnostic_files": [
+        "optpkg-bashperl.install",
+        "optpkg-bashperl.verify",
+        "optpkg-bashperl.load"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashperl > /dev/null\n",
+      "files": {
+        "optpkg.sh": "# Sourced by the candidate shell, which runs as mapped root in a fresh user and\n# mount namespace. optpkg_enter puts writable overlays over /usr/lib and\n# /var/lib. optpkg_use NAME [ROOT] installs the staged NAME package with pkg,\n# verifies it and loads it. A static executable cannot load shared objects:\n# there pkg load must refuse, and optpkg_static is yes.\noptpkg_dir=/opt/bashos-parity/reference-data/optional-packages\noptpkg_static=no\noptpkg_enter() {\n  local ov=$HOME/optpkg-overlay\n  if /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then optpkg_static=yes; fi\n  /usr/bin/mkdir -p \"$ov/u-lib\" \"$ov/w-lib\" \"$ov/u-var\" \"$ov/w-var\" &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$ov/u-lib,workdir=$ov/w-lib\" /usr/lib &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$ov/u-var,workdir=$ov/w-var\" /var/lib ||\n    { echo 'optpkg: cannot prepare a writable package root' >&2; return 98; }\n}\noptpkg_use() {\n  local name=$1 root=() log=$HOME/optpkg-$1 rc\n  local file=(\"$optpkg_dir/packages/${name}\"_*.pkg)\n  [[ $# -lt 2 ]] || root=(--root \"$2\")\n  pkg install -A \"${file[0]}\" \"${root[@]}\" > \"$log.install\" 2>&1 &&\n  pkg verify \"$name\" \"${root[@]}\" > \"$log.verify\" 2>&1 ||\n    { echo \"optpkg: $name: pkg install or pkg verify failed\"; return 1; }\n  pkg load \"$name\" \"${root[@]}\" > \"$log.load\" 2>&1; rc=$?\n  if [[ $optpkg_static == yes ]]; then\n    [[ $rc != 0 ]] && /usr/bin/grep -q 'this executable is static and cannot load shared objects' \"$log.load\" ||\n      { echo \"optpkg: $name: a static executable did not refuse pkg load (status $rc)\"; return 1; }\n  else\n    [[ $rc == 0 && $(type -t \"$name\") == builtin ]] ||\n      { echo \"optpkg: $name: pkg load failed (status $rc)\"; return 1; }\n  fi\n}\n",
+        "reference.sh": "/usr/bin/perl -e 'open(my $o, \">\", \"redir.txt\") or die; open(STDOUT, \">&\", $o) or die; print STDOUT \"to-file\\n\"; close(STDOUT); close(STDERR); close(STDIN)'\necho \"rc=$?\"\necho stdout-ok\necho stderr-ok >&2\nread -r line <<< from-here-string; echo \"stdin-ok:$line\"\n{ read -r l < redir.txt; echo \"$l\"; }\n",
+        "candidate.sh": ". ./optpkg.sh\noptpkg_enter && optpkg_use bashperl || exit $?\nif [[ $optpkg_static == yes ]]; then . ./reference.sh; exit; fi\nbashperl -e 'open(my $o, \">\", \"redir.txt\") or die; open(STDOUT, \">&\", $o) or die; print STDOUT \"to-file\\n\"; close(STDOUT); close(STDERR); close(STDIN)'\necho \"rc=$?\"\necho stdout-ok\necho stderr-ok >&2\nread -r line <<< from-here-string; echo \"stdin-ok:$line\"\n{ read -r l < redir.txt; echo \"$l\"; }\n"
+      }
     },
     {
       "id": "mig-w3-bashperl-high-fd",
@@ -283,16 +633,44 @@
         "bashperl/process-and-native-effects"
       ],
       "requires": [
-        "perl"
+        "perl",
+        "python3",
+        "unshare",
+        "mount",
+        "mkdir",
+        "ldd",
+        "grep"
       ],
-      "kind": "contract",
-      "script": "exec 7>fd7.out\nbashperl -MPOSIX -e 'POSIX::close(7)'\n{ echo late >&7; } 2>/dev/null; echo \"write-rc=$?\"\n",
-      "oracle": "docs/perl.md: only descriptors 0-2 are restored; closing nonstandard descriptors affects the embedding process; a write to a closed descriptor makes bash return 1",
+      "oracle": "Bash 5.3 closing its own descriptor 7 and then writing to it: the redirection fails and the status is 1. docs/perl.md: only descriptors 0-2 are restored; closing nonstandard descriptors affects the embedding process. perl 5.40.1 (Debian trixie) standalone in the guest, run by the reference shell; docs/perl.md: system and exec retain Perl behaviour, the wrapper restores standard descriptors and signal handlers. The candidate installs the bashperl package built by build-packages.sh (Perl 5.44.0) from the staged package file with pkg install, checks it with pkg verify and loads it with pkg load, at the default root inside a user and mount namespace.",
       "stdout": "write-rc=1\n",
       "expected_status": 0,
-      "comparison": "r4: documented non-standard descriptor behaviour: closing fd 7 inside the builtin is not undone (docs/perl.md 'closing arbitrary nonstandard descriptors affect the embedding process'), so the shell's later write to fd 7 fails with status 1. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found'. The candidate enables optional-packages/loadables/bashperl.so when that object is present and the build is dynamic. It is not staged: bashperl.so needs a static libperl, which this tree does not have. Expected bytes are unchanged.",
+      "comparison": "r4: closing fd 7 inside the builtin is not undone (docs/perl.md 'closing arbitrary nonstandard descriptors affect the embedding process'), so the shell's later write to fd 7 fails with status 1, as it does after the reference shell closes that descriptor itself. POSIX is loaded from the package's module tree. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg install and pkg verify to succeed and pkg load to refuse with \"this executable is static and cannot load shared objects\"; it then runs the reference formulation itself, so that transcript shows the refusal contract held and does not exercise bashperl. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "group": "shell",
-      "driver": "plain"
+      "driver": "plain",
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "file_size_limit": 33554432,
+      "timeout": 60,
+      "setup_timeout": 30,
+      "observation_error_status": 98,
+      "diagnostic_files": [
+        "optpkg-bashperl.install",
+        "optpkg-bashperl.verify",
+        "optpkg-bashperl.load"
+      ],
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./candidate.sh\n",
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashperl > /dev/null\n",
+      "reference_script": ". ./reference.sh\n",
+      "files": {
+        "optpkg.sh": "# Sourced by the candidate shell, which runs as mapped root in a fresh user and\n# mount namespace. optpkg_enter puts writable overlays over /usr/lib and\n# /var/lib. optpkg_use NAME [ROOT] installs the staged NAME package with pkg,\n# verifies it and loads it. A static executable cannot load shared objects:\n# there pkg load must refuse, and optpkg_static is yes.\noptpkg_dir=/opt/bashos-parity/reference-data/optional-packages\noptpkg_static=no\noptpkg_enter() {\n  local ov=$HOME/optpkg-overlay\n  if /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then optpkg_static=yes; fi\n  /usr/bin/mkdir -p \"$ov/u-lib\" \"$ov/w-lib\" \"$ov/u-var\" \"$ov/w-var\" &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$ov/u-lib,workdir=$ov/w-lib\" /usr/lib &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$ov/u-var,workdir=$ov/w-var\" /var/lib ||\n    { echo 'optpkg: cannot prepare a writable package root' >&2; return 98; }\n}\noptpkg_use() {\n  local name=$1 root=() log=$HOME/optpkg-$1 rc\n  local file=(\"$optpkg_dir/packages/${name}\"_*.pkg)\n  [[ $# -lt 2 ]] || root=(--root \"$2\")\n  pkg install -A \"${file[0]}\" \"${root[@]}\" > \"$log.install\" 2>&1 &&\n  pkg verify \"$name\" \"${root[@]}\" > \"$log.verify\" 2>&1 ||\n    { echo \"optpkg: $name: pkg install or pkg verify failed\"; return 1; }\n  pkg load \"$name\" \"${root[@]}\" > \"$log.load\" 2>&1; rc=$?\n  if [[ $optpkg_static == yes ]]; then\n    [[ $rc != 0 ]] && /usr/bin/grep -q 'this executable is static and cannot load shared objects' \"$log.load\" ||\n      { echo \"optpkg: $name: a static executable did not refuse pkg load (status $rc)\"; return 1; }\n  else\n    [[ $rc == 0 && $(type -t \"$name\") == builtin ]] ||\n      { echo \"optpkg: $name: pkg load failed (status $rc)\"; return 1; }\n  fi\n}\n",
+        "reference.sh": "exec 7>fd7.out\nexec 7>&-\n{ echo late >&7; } 2>/dev/null; echo \"write-rc=$?\"\n",
+        "candidate.sh": ". ./optpkg.sh\noptpkg_enter && optpkg_use bashperl || exit $?\nif [[ $optpkg_static == yes ]]; then . ./reference.sh; exit; fi\nexec 7>fd7.out\nbashperl -MPOSIX -e 'POSIX::close(7)'\n{ echo late >&7; } 2>/dev/null; echo \"write-rc=$?\"\n"
+      }
     },
     {
       "id": "mig-w3-bashperl-xs-modules",
@@ -301,16 +679,44 @@
         "bashperl/process-and-native-effects"
       ],
       "requires": [
-        "perl"
+        "perl",
+        "python3",
+        "unshare",
+        "mount",
+        "mkdir",
+        "ldd",
+        "grep"
       ],
-      "reference_script": "X=before; cd /; umask 027\n/usr/bin/perl -MPOSIX -MList::Util=sum,max -MData::Dumper -e '$Data::Dumper::Terse=1; $Data::Dumper::Indent=0; print sum(1..10), \" \", max(4,9,2), \" \", POSIX::floor(2.7), \" \", POSIX::strftime(\"%Y-%m-%d\", gmtime(86400*365)), \" \", Dumper([1,{a=>2}]), \"\\n\"'\necho \"status=$? X=$X pwd=$PWD umask=$(umask)\"\n",
-      "candidate_script": "so=/opt/bashos-parity/harness/optional-packages/loadables/bashperl.so\nif [ -f \"$so\" ] && ! /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then enable -f \"$so\" bashperl; fi\nX=before; cd /; umask 027\nbashperl -MPOSIX -MList::Util=sum,max -MData::Dumper -e '$Data::Dumper::Terse=1; $Data::Dumper::Indent=0; print sum(1..10), \" \", max(4,9,2), \" \", POSIX::floor(2.7), \" \", POSIX::strftime(\"%Y-%m-%d\", gmtime(86400*365)), \" \", Dumper([1,{a=>2}]), \"\\n\"'\necho \"status=$? X=$X pwd=$PWD umask=$(umask)\"\n",
-      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest; docs/perl.md: system and exec retain Perl behaviour, wrapper restores standard descriptors and signal handlers",
+      "reference_script": ". ./reference.sh\n",
+      "candidate_script": "exec /usr/bin/unshare --user --map-root-user --mount \"$BASH\" --noprofile --norc ./candidate.sh\n",
+      "oracle": "perl 5.40.1 (Debian trixie) standalone in the guest, run by the reference shell; docs/perl.md: system and exec retain Perl behaviour, the wrapper restores standard descriptors and signal handlers. The candidate installs the bashperl package built by build-packages.sh (Perl 5.44.0) from the staged package file with pkg install, checks it with pkg verify and loads it with pkg load, at the default root inside a user and mount namespace.",
       "stdout": "55 9 2 1971-01-01 [1,{'a' => 2}]\nstatus=0 X=before pwd=/ umask=0027\n",
       "expected_status": 0,
-      "comparison": "r5: native XS modules (POSIX, List::Util, Data::Dumper) load and compute; afterwards shell variable, cwd and umask are unchanged. bashperl is not built into either frozen binary, so the candidate reports 'bashperl: command not found'. The candidate enables optional-packages/loadables/bashperl.so when that object is present and the build is dynamic. It is not staged: bashperl.so needs a static libperl, which this tree does not have. Expected bytes are unchanged.",
+      "comparison": "r5: native XS modules (POSIX, List::Util, Data::Dumper) load from the package's module tree and compute; afterwards shell variable, cwd and umask are unchanged. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg install and pkg verify to succeed and pkg load to refuse with \"this executable is static and cannot load shared objects\"; it then runs the reference formulation itself, so that transcript shows the refusal contract held and does not exercise bashperl. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "group": "shell",
-      "driver": "plain"
+      "driver": "plain",
+      "features": [
+        "userns"
+      ],
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "file_size_limit": 33554432,
+      "timeout": 60,
+      "setup_timeout": 30,
+      "observation_error_status": 98,
+      "diagnostic_files": [
+        "optpkg-bashperl.install",
+        "optpkg-bashperl.verify",
+        "optpkg-bashperl.load"
+      ],
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashperl > /dev/null\n",
+      "files": {
+        "optpkg.sh": "# Sourced by the candidate shell, which runs as mapped root in a fresh user and\n# mount namespace. optpkg_enter puts writable overlays over /usr/lib and\n# /var/lib. optpkg_use NAME [ROOT] installs the staged NAME package with pkg,\n# verifies it and loads it. A static executable cannot load shared objects:\n# there pkg load must refuse, and optpkg_static is yes.\noptpkg_dir=/opt/bashos-parity/reference-data/optional-packages\noptpkg_static=no\noptpkg_enter() {\n  local ov=$HOME/optpkg-overlay\n  if /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then optpkg_static=yes; fi\n  /usr/bin/mkdir -p \"$ov/u-lib\" \"$ov/w-lib\" \"$ov/u-var\" \"$ov/w-var\" &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/usr/lib,upperdir=$ov/u-lib,workdir=$ov/w-lib\" /usr/lib &&\n  /usr/bin/mount -t overlay overlay -o \"lowerdir=/var/lib,upperdir=$ov/u-var,workdir=$ov/w-var\" /var/lib ||\n    { echo 'optpkg: cannot prepare a writable package root' >&2; return 98; }\n}\noptpkg_use() {\n  local name=$1 root=() log=$HOME/optpkg-$1 rc\n  local file=(\"$optpkg_dir/packages/${name}\"_*.pkg)\n  [[ $# -lt 2 ]] || root=(--root \"$2\")\n  pkg install -A \"${file[0]}\" \"${root[@]}\" > \"$log.install\" 2>&1 &&\n  pkg verify \"$name\" \"${root[@]}\" > \"$log.verify\" 2>&1 ||\n    { echo \"optpkg: $name: pkg install or pkg verify failed\"; return 1; }\n  pkg load \"$name\" \"${root[@]}\" > \"$log.load\" 2>&1; rc=$?\n  if [[ $optpkg_static == yes ]]; then\n    [[ $rc != 0 ]] && /usr/bin/grep -q 'this executable is static and cannot load shared objects' \"$log.load\" ||\n      { echo \"optpkg: $name: a static executable did not refuse pkg load (status $rc)\"; return 1; }\n  else\n    [[ $rc == 0 && $(type -t \"$name\") == builtin ]] ||\n      { echo \"optpkg: $name: pkg load failed (status $rc)\"; return 1; }\n  fi\n}\n",
+        "reference.sh": "X=before; cd /; umask 027\n/usr/bin/perl -MPOSIX -MList::Util=sum,max -MData::Dumper -e '$Data::Dumper::Terse=1; $Data::Dumper::Indent=0; print sum(1..10), \" \", max(4,9,2), \" \", POSIX::floor(2.7), \" \", POSIX::strftime(\"%Y-%m-%d\", gmtime(86400*365)), \" \", Dumper([1,{a=>2}]), \"\\n\"'\necho \"status=$? X=$X pwd=$PWD umask=$(umask)\"\n",
+        "candidate.sh": ". ./optpkg.sh\noptpkg_enter && optpkg_use bashperl || exit $?\nif [[ $optpkg_static == yes ]]; then . ./reference.sh; exit; fi\nX=before; cd /; umask 027\nbashperl -MPOSIX -MList::Util=sum,max -MData::Dumper -e '$Data::Dumper::Terse=1; $Data::Dumper::Indent=0; print sum(1..10), \" \", max(4,9,2), \" \", POSIX::floor(2.7), \" \", POSIX::strftime(\"%Y-%m-%d\", gmtime(86400*365)), \" \", Dumper([1,{a=>2}]), \"\\n\"'\necho \"status=$? X=$X pwd=$PWD umask=$(umask)\"\n"
+      }
     },
     {
       "id": "mig-w3-bashpython-prompt-primary",
@@ -321,10 +727,12 @@
         "bashpython/interactive-prompt"
       ],
       "requires": [
-        "python3"
+        "python3",
+        "ldd",
+        "grep"
       ],
-      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
-      "timeout": 12,
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY, run by the reference shell; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3). The candidate runs the bashpython package built by build-packages.sh (CPython 3.13.15): pkg verify and pkg load --root on the staged tree that pkg install --root leaves.",
+      "timeout": 20,
       "steps": [
         {
           "expect": ">>> "
@@ -337,12 +745,19 @@
         }
       ],
       "expected_status": 0,
-      "comparison": "r1: a bare interactive invocation on a PTY shows the primary prompt '>>> '. bashpython is not built into either frozen binary, so the candidate shell reports 'bashpython: command not found' and the awaited prompt or output never appears. The candidate enables optional-packages/loadables/bashpython.so when that object is present and the build is dynamic. It is not staged: bashpython.so needs a static libpython and its standard library, which this tree does not have. Expected bytes are unchanged.",
+      "comparison": "r1: a bare interactive invocation on a PTY shows the primary prompt '>>> '. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and then runs /usr/bin/python3 from the candidate shell, so that transcript shows the refusal contract and the shell's terminal handling around an external interpreter; it does not exercise bashpython. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
-      "candidate_script": "so=/opt/bashos-parity/harness/optional-packages/loadables/bashpython.so\nif [ -f \"$so\" ] && ! /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then enable -f \"$so\" bashpython; fi\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "candidate_script": ". ./python.sh || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n$P -q\necho \"after=$?\"\n",
       "files": {
-        "inputrc": "set enable-bracketed-paste off\n"
-      }
+        "inputrc": "set enable-bracketed-paste off\n",
+        "python.sh": "# Sourced by the candidate shell. Verifies and loads the staged bashpython\n# package (installed tree under a --root, standard library beside the module)\n# and sets P to the interpreter command. A static executable cannot load\n# shared objects: there pkg load must refuse, and P is the guest's python3.\noptpkg_root=/opt/bashos-parity/reference-data/optional-packages/root\nif /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then\n  optpkg_out=$(pkg load bashpython --root \"$optpkg_root\" 2>&1); optpkg_rc=$?\n  if [[ $optpkg_rc != 0 && $optpkg_out == *'this executable is static and cannot load shared objects'* ]]; then\n    P=/usr/bin/python3\n  else\n    echo \"python.sh: a static executable did not refuse pkg load (status $optpkg_rc)\"; return 1\n  fi\nelif pkg verify bashpython --root \"$optpkg_root\" > /dev/null && pkg load bashpython --root \"$optpkg_root\" > /dev/null &&\n     [[ $(type -t bashpython) == builtin ]]; then\n  P=bashpython\nelse\n  echo 'python.sh: cannot verify and load the staged bashpython package'; return 1\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashpython > /dev/null\n",
+      "setup_timeout": 30
     },
     {
       "id": "mig-w3-bashpython-prompt-exec-line",
@@ -353,10 +768,12 @@
         "bashpython/interactive-prompt"
       ],
       "requires": [
-        "python3"
+        "python3",
+        "ldd",
+        "grep"
       ],
-      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
-      "timeout": 12,
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY, run by the reference shell; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3). The candidate runs the bashpython package built by build-packages.sh (CPython 3.13.15): pkg verify and pkg load --root on the staged tree that pkg install --root leaves.",
+      "timeout": 20,
       "steps": [
         {
           "expect": ">>> "
@@ -375,12 +792,19 @@
         }
       ],
       "expected_status": 0,
-      "comparison": "r2: a typed line print(6*7) is executed and 42 appears on the terminal followed by a fresh prompt. bashpython is not built into either frozen binary, so the candidate shell reports 'bashpython: command not found' and the awaited prompt or output never appears. The candidate enables optional-packages/loadables/bashpython.so when that object is present and the build is dynamic. It is not staged: bashpython.so needs a static libpython and its standard library, which this tree does not have. Expected bytes are unchanged.",
+      "comparison": "r2: a typed line print(6*7) is executed and 42 appears on the terminal followed by a fresh prompt. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and then runs /usr/bin/python3 from the candidate shell, so that transcript shows the refusal contract and the shell's terminal handling around an external interpreter; it does not exercise bashpython. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
-      "candidate_script": "so=/opt/bashos-parity/harness/optional-packages/loadables/bashpython.so\nif [ -f \"$so\" ] && ! /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then enable -f \"$so\" bashpython; fi\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "candidate_script": ". ./python.sh || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n$P -q\necho \"after=$?\"\n",
       "files": {
-        "inputrc": "set enable-bracketed-paste off\n"
-      }
+        "inputrc": "set enable-bracketed-paste off\n",
+        "python.sh": "# Sourced by the candidate shell. Verifies and loads the staged bashpython\n# package (installed tree under a --root, standard library beside the module)\n# and sets P to the interpreter command. A static executable cannot load\n# shared objects: there pkg load must refuse, and P is the guest's python3.\noptpkg_root=/opt/bashos-parity/reference-data/optional-packages/root\nif /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then\n  optpkg_out=$(pkg load bashpython --root \"$optpkg_root\" 2>&1); optpkg_rc=$?\n  if [[ $optpkg_rc != 0 && $optpkg_out == *'this executable is static and cannot load shared objects'* ]]; then\n    P=/usr/bin/python3\n  else\n    echo \"python.sh: a static executable did not refuse pkg load (status $optpkg_rc)\"; return 1\n  fi\nelif pkg verify bashpython --root \"$optpkg_root\" > /dev/null && pkg load bashpython --root \"$optpkg_root\" > /dev/null &&\n     [[ $(type -t bashpython) == builtin ]]; then\n  P=bashpython\nelse\n  echo 'python.sh: cannot verify and load the staged bashpython package'; return 1\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashpython > /dev/null\n",
+      "setup_timeout": 30
     },
     {
       "id": "mig-w3-bashpython-prompt-continuation",
@@ -391,10 +815,12 @@
         "bashpython/interactive-prompt"
       ],
       "requires": [
-        "python3"
+        "python3",
+        "ldd",
+        "grep"
       ],
-      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
-      "timeout": 12,
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY, run by the reference shell; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3). The candidate runs the bashpython package built by build-packages.sh (CPython 3.13.15): pkg verify and pkg load --root on the staged tree that pkg install --root leaves.",
+      "timeout": 20,
       "steps": [
         {
           "expect": ">>> "
@@ -425,12 +851,19 @@
         }
       ],
       "expected_status": 0,
-      "comparison": "r3: a compound statement shows the continuation prompt '... ' after the header and after the body line, then runs and prints 0 and 1. bashpython is not built into either frozen binary, so the candidate shell reports 'bashpython: command not found' and the awaited prompt or output never appears. The candidate enables optional-packages/loadables/bashpython.so when that object is present and the build is dynamic. It is not staged: bashpython.so needs a static libpython and its standard library, which this tree does not have. Expected bytes are unchanged.",
+      "comparison": "r3: a compound statement shows the continuation prompt '... ' after the header and after the body line, then runs and prints 0 and 1. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and then runs /usr/bin/python3 from the candidate shell, so that transcript shows the refusal contract and the shell's terminal handling around an external interpreter; it does not exercise bashpython. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
-      "candidate_script": "so=/opt/bashos-parity/harness/optional-packages/loadables/bashpython.so\nif [ -f \"$so\" ] && ! /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then enable -f \"$so\" bashpython; fi\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "candidate_script": ". ./python.sh || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n$P -q\necho \"after=$?\"\n",
       "files": {
-        "inputrc": "set enable-bracketed-paste off\n"
-      }
+        "inputrc": "set enable-bracketed-paste off\n",
+        "python.sh": "# Sourced by the candidate shell. Verifies and loads the staged bashpython\n# package (installed tree under a --root, standard library beside the module)\n# and sets P to the interpreter command. A static executable cannot load\n# shared objects: there pkg load must refuse, and P is the guest's python3.\noptpkg_root=/opt/bashos-parity/reference-data/optional-packages/root\nif /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then\n  optpkg_out=$(pkg load bashpython --root \"$optpkg_root\" 2>&1); optpkg_rc=$?\n  if [[ $optpkg_rc != 0 && $optpkg_out == *'this executable is static and cannot load shared objects'* ]]; then\n    P=/usr/bin/python3\n  else\n    echo \"python.sh: a static executable did not refuse pkg load (status $optpkg_rc)\"; return 1\n  fi\nelif pkg verify bashpython --root \"$optpkg_root\" > /dev/null && pkg load bashpython --root \"$optpkg_root\" > /dev/null &&\n     [[ $(type -t bashpython) == builtin ]]; then\n  P=bashpython\nelse\n  echo 'python.sh: cannot verify and load the staged bashpython package'; return 1\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashpython > /dev/null\n",
+      "setup_timeout": 30
     },
     {
       "id": "mig-w3-bashpython-prompt-eof",
@@ -441,10 +874,12 @@
         "bashpython/interactive-prompt"
       ],
       "requires": [
-        "python3"
+        "python3",
+        "ldd",
+        "grep"
       ],
-      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
-      "timeout": 12,
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY, run by the reference shell; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3). The candidate runs the bashpython package built by build-packages.sh (CPython 3.13.15): pkg verify and pkg load --root on the staged tree that pkg install --root leaves.",
+      "timeout": 20,
       "steps": [
         {
           "expect": ">>> "
@@ -463,12 +898,19 @@
         }
       ],
       "expected_status": 0,
-      "comparison": "r4: Ctrl-D at an empty prompt ends the interpreter with status 0, the calling shell continues (prints after=0) and the PTY modes are restored (terminal_restored is asserted by the driver). bashpython is not built into either frozen binary, so the candidate shell reports 'bashpython: command not found' and the awaited prompt or output never appears. The candidate enables optional-packages/loadables/bashpython.so when that object is present and the build is dynamic. It is not staged: bashpython.so needs a static libpython and its standard library, which this tree does not have. Expected bytes are unchanged.",
+      "comparison": "r4: Ctrl-D at an empty prompt ends the interpreter with status 0, the calling shell continues (prints after=0) and the PTY modes are restored (terminal_restored is asserted by the driver). A static executable cannot load shared objects (docs/packages.md): there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and then runs /usr/bin/python3 from the candidate shell, so that transcript shows the refusal contract and the shell's terminal handling around an external interpreter; it does not exercise bashpython. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "reference_script": "export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n/usr/bin/python3 -q\necho \"after=$?\"\n",
-      "candidate_script": "so=/opt/bashos-parity/harness/optional-packages/loadables/bashpython.so\nif [ -f \"$so\" ] && ! /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then enable -f \"$so\" bashpython; fi\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\nbashpython -q\necho \"after=$?\"\n",
+      "candidate_script": ". ./python.sh || exit 125\nexport PYTHON_BASIC_REPL=1 PYTHON_COLORS=0 INPUTRC=$PWD/inputrc\n$P -q\necho \"after=$?\"\n",
       "files": {
-        "inputrc": "set enable-bracketed-paste off\n"
-      }
+        "inputrc": "set enable-bracketed-paste off\n",
+        "python.sh": "# Sourced by the candidate shell. Verifies and loads the staged bashpython\n# package (installed tree under a --root, standard library beside the module)\n# and sets P to the interpreter command. A static executable cannot load\n# shared objects: there pkg load must refuse, and P is the guest's python3.\noptpkg_root=/opt/bashos-parity/reference-data/optional-packages/root\nif /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then\n  optpkg_out=$(pkg load bashpython --root \"$optpkg_root\" 2>&1); optpkg_rc=$?\n  if [[ $optpkg_rc != 0 && $optpkg_out == *'this executable is static and cannot load shared objects'* ]]; then\n    P=/usr/bin/python3\n  else\n    echo \"python.sh: a static executable did not refuse pkg load (status $optpkg_rc)\"; return 1\n  fi\nelif pkg verify bashpython --root \"$optpkg_root\" > /dev/null && pkg load bashpython --root \"$optpkg_root\" > /dev/null &&\n     [[ $(type -t bashpython) == builtin ]]; then\n  P=bashpython\nelse\n  echo 'python.sh: cannot verify and load the staged bashpython package'; return 1\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashpython > /dev/null\n",
+      "setup_timeout": 30
     },
     {
       "id": "mig-w3-bashpython-ki-caught",
@@ -479,16 +921,18 @@
         "bashpython/keyboard-interrupt"
       ],
       "requires": [
-        "python3"
+        "python3",
+        "ldd",
+        "grep"
       ],
-      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
-      "timeout": 12,
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY, run by the reference shell; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3). The candidate runs the bashpython package built by build-packages.sh (CPython 3.13.15): pkg verify and pkg load --root on the staged tree that pkg install --root leaves.",
+      "timeout": 20,
       "steps": [
         {
           "expect": "PARITY> "
         },
         {
-          "send": "case $BASH in /opt/bash-5.3.20/bin/bash) P=/usr/bin/python3;; *) so=/opt/bashos-parity/harness/optional-packages/loadables/bashpython.so; if [ -f \"$so\" ] && ! /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then enable -f \"$so\" bashpython; fi; P=bashpython;; esac; export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0\r"
+          "send": "case $BASH in /opt/bash-5.3.20/bin/bash) P=/usr/bin/python3;; *) . ./python.sh;; esac; export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0\r"
         },
         {
           "expect": "PARITY> "
@@ -498,11 +942,6 @@
         },
         {
           "expect": "ready\\r\\n"
-        },
-        {
-          "foreground_job": [
-            "SIGINT"
-          ]
         },
         {
           "send": "\u0003"
@@ -515,11 +954,18 @@
         }
       ],
       "expected_status": 0,
-      "comparison": "r1: ^C from the terminal while Python sleeps inside try/except KeyboardInterrupt prints the handler output and the shell sees status 0. bashpython is not built into either frozen binary, so the candidate shell reports 'bashpython: command not found' and the awaited prompt or output never appears. The candidate enables optional-packages/loadables/bashpython.so when that object is present and the build is dynamic. It is not staged: bashpython.so needs a static libpython and its standard library, which this tree does not have. Expected bytes are unchanged.",
+      "comparison": "r1: ^C from the terminal while Python sleeps inside try/except KeyboardInterrupt prints the handler output and the shell sees status 0. Python prints ready once its SIGINT handling is in place, and Ctrl-C is sent after that line; the builtin runs inside the interactive shell, which keeps the terminal's foreground group, so the case does not wait for a separate foreground job. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and then runs /usr/bin/python3 from the candidate shell, so that transcript shows the refusal contract and the shell's terminal handling around an external interpreter; it does not exercise bashpython. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "interactive_shell": true,
       "files": {
-        "ki1.py": "import time\ntry:\n    print('ready', flush=True)\n    time.sleep(30)\nexcept KeyboardInterrupt:\n    print('caught', flush=True)\n"
-      }
+        "ki1.py": "import time\ntry:\n    print('ready', flush=True)\n    time.sleep(30)\nexcept KeyboardInterrupt:\n    print('caught', flush=True)\n",
+        "python.sh": "# Sourced by the candidate shell. Verifies and loads the staged bashpython\n# package (installed tree under a --root, standard library beside the module)\n# and sets P to the interpreter command. A static executable cannot load\n# shared objects: there pkg load must refuse, and P is the guest's python3.\noptpkg_root=/opt/bashos-parity/reference-data/optional-packages/root\nif /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then\n  optpkg_out=$(pkg load bashpython --root \"$optpkg_root\" 2>&1); optpkg_rc=$?\n  if [[ $optpkg_rc != 0 && $optpkg_out == *'this executable is static and cannot load shared objects'* ]]; then\n    P=/usr/bin/python3\n  else\n    echo \"python.sh: a static executable did not refuse pkg load (status $optpkg_rc)\"; return 1\n  fi\nelif pkg verify bashpython --root \"$optpkg_root\" > /dev/null && pkg load bashpython --root \"$optpkg_root\" > /dev/null &&\n     [[ $(type -t bashpython) == builtin ]]; then\n  P=bashpython\nelse\n  echo 'python.sh: cannot verify and load the staged bashpython package'; return 1\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashpython > /dev/null\n",
+      "setup_timeout": 30
     },
     {
       "id": "mig-w3-bashpython-ki-unhandled",
@@ -530,16 +976,18 @@
         "bashpython/keyboard-interrupt"
       ],
       "requires": [
-        "python3"
+        "python3",
+        "ldd",
+        "grep"
       ],
-      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
-      "timeout": 12,
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY, run by the reference shell; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3). The candidate runs the bashpython package built by build-packages.sh (CPython 3.13.15): pkg verify and pkg load --root on the staged tree that pkg install --root leaves.",
+      "timeout": 20,
       "steps": [
         {
           "expect": "PARITY> "
         },
         {
-          "send": "case $BASH in /opt/bash-5.3.20/bin/bash) P=/usr/bin/python3;; *) so=/opt/bashos-parity/harness/optional-packages/loadables/bashpython.so; if [ -f \"$so\" ] && ! /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then enable -f \"$so\" bashpython; fi; P=bashpython;; esac; export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0\r"
+          "send": "case $BASH in /opt/bash-5.3.20/bin/bash) P=/usr/bin/python3;; *) . ./python.sh;; esac; export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0\r"
         },
         {
           "expect": "PARITY> "
@@ -549,11 +997,6 @@
         },
         {
           "expect": "ready\\r\\n"
-        },
-        {
-          "foreground_job": [
-            "SIGINT"
-          ]
         },
         {
           "send": "\u0003"
@@ -575,11 +1018,18 @@
         }
       ],
       "expected_status": 0,
-      "comparison": "r2: an unhandled KeyboardInterrupt ends Python by SIGINT with a traceback ending in KeyboardInterrupt and the interactive shell reports status 130, exactly as after standalone python3. bashpython is not built into either frozen binary, so the candidate shell reports 'bashpython: command not found' and the awaited prompt or output never appears. The candidate enables optional-packages/loadables/bashpython.so when that object is present and the build is dynamic. It is not staged: bashpython.so needs a static libpython and its standard library, which this tree does not have. Expected bytes are unchanged.",
+      "comparison": "r2: an unhandled KeyboardInterrupt ends Python by SIGINT with a traceback ending in KeyboardInterrupt and the interactive shell reports status 130, exactly as after standalone python3. Python prints ready once its SIGINT handling is in place, and Ctrl-C is sent after that line; the builtin runs inside the interactive shell, which keeps the terminal's foreground group, so the case does not wait for a separate foreground job. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and then runs /usr/bin/python3 from the candidate shell, so that transcript shows the refusal contract and the shell's terminal handling around an external interpreter; it does not exercise bashpython. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "interactive_shell": true,
       "files": {
-        "ki2.py": "import time\nprint('ready', flush=True)\ntime.sleep(30)\n"
-      }
+        "ki2.py": "import time\nprint('ready', flush=True)\ntime.sleep(30)\n",
+        "python.sh": "# Sourced by the candidate shell. Verifies and loads the staged bashpython\n# package (installed tree under a --root, standard library beside the module)\n# and sets P to the interpreter command. A static executable cannot load\n# shared objects: there pkg load must refuse, and P is the guest's python3.\noptpkg_root=/opt/bashos-parity/reference-data/optional-packages/root\nif /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then\n  optpkg_out=$(pkg load bashpython --root \"$optpkg_root\" 2>&1); optpkg_rc=$?\n  if [[ $optpkg_rc != 0 && $optpkg_out == *'this executable is static and cannot load shared objects'* ]]; then\n    P=/usr/bin/python3\n  else\n    echo \"python.sh: a static executable did not refuse pkg load (status $optpkg_rc)\"; return 1\n  fi\nelif pkg verify bashpython --root \"$optpkg_root\" > /dev/null && pkg load bashpython --root \"$optpkg_root\" > /dev/null &&\n     [[ $(type -t bashpython) == builtin ]]; then\n  P=bashpython\nelse\n  echo 'python.sh: cannot verify and load the staged bashpython package'; return 1\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashpython > /dev/null\n",
+      "setup_timeout": 30
     },
     {
       "id": "mig-w3-bashpython-ki-group-scope",
@@ -590,16 +1040,18 @@
         "bashpython/keyboard-interrupt"
       ],
       "requires": [
-        "python3"
+        "python3",
+        "ldd",
+        "grep"
       ],
-      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3)",
-      "timeout": 12,
+      "oracle": "python3 3.13.5 standalone (Debian trixie) with PYTHON_BASIC_REPL=1 on a private PTY, run by the reference shell; docs/python.md ('bashpython: interactive prompt on a terminal', unhandled KeyboardInterrupt behaves as after a standalone python3). The candidate runs the bashpython package built by build-packages.sh (CPython 3.13.15): pkg verify and pkg load --root on the staged tree that pkg install --root leaves.",
+      "timeout": 20,
       "steps": [
         {
           "expect": "PARITY> "
         },
         {
-          "send": "case $BASH in /opt/bash-5.3.20/bin/bash) P=/usr/bin/python3;; *) so=/opt/bashos-parity/harness/optional-packages/loadables/bashpython.so; if [ -f \"$so\" ] && ! /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then enable -f \"$so\" bashpython; fi; P=bashpython;; esac; export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0\r"
+          "send": "case $BASH in /opt/bash-5.3.20/bin/bash) P=/usr/bin/python3;; *) . ./python.sh;; esac; export PYTHON_BASIC_REPL=1 PYTHON_COLORS=0\r"
         },
         {
           "expect": "PARITY> "
@@ -623,11 +1075,6 @@
           "expect": "ready\\r\\n"
         },
         {
-          "foreground_job": [
-            "SIGINT"
-          ]
-        },
-        {
           "send": "\u0003"
         },
         {
@@ -644,12 +1091,19 @@
         }
       ],
       "expected_status": 0,
-      "comparison": "r3: only the foreground job's process group receives the terminal's SIGINT (a background sentinel in its own group sees none), and the calling shell's cwd and environment are unchanged by the Python program. bashpython is not built into either frozen binary, so the candidate shell reports 'bashpython: command not found' and the awaited prompt or output never appears. The candidate enables optional-packages/loadables/bashpython.so when that object is present and the build is dynamic. It is not staged: bashpython.so needs a static libpython and its standard library, which this tree does not have. Expected bytes are unchanged.",
+      "comparison": "r3: only the foreground job's process group receives the terminal's SIGINT (a background sentinel in its own group sees none), and the calling shell's cwd and environment are unchanged by the Python program. Python prints ready once its SIGINT handling is in place, and Ctrl-C is sent after that line; the builtin runs inside the interactive shell, which keeps the terminal's foreground group, so the case does not wait for a separate foreground job. A static executable cannot load shared objects (docs/packages.md): there the case requires pkg load to refuse with \"this executable is static and cannot load shared objects\" and then runs /usr/bin/python3 from the candidate shell, so that transcript shows the refusal contract and the shell's terminal handling around an external interpreter; it does not exercise bashpython. Setup checks the staged package against helpers/optional-packages-r1.lock.json and fails the fixture when it is missing or differs.",
       "interactive_shell": true,
       "files": {
-        "ki3.py": "import os, time\nprint('ready', flush=True)\nos.chdir('/')\nos.environ['KI_X'] = 'py'\ntry:\n    time.sleep(30)\nexcept KeyboardInterrupt:\n    print('caught', flush=True)\n",
-        "sentinel.py": "import os, signal, sys, time\nos.setpgid(0, 0)\ngot = []\nsignal.signal(signal.SIGINT, lambda *a: got.append(1))\nsignal.signal(signal.SIGUSR1, lambda *a: sys.exit(0))\nopen('sentinel.ready', 'w').close()\nwhile not got:\n    try:\n        time.sleep(0.05)\n    except SystemExit:\n        break\nopen('sentinel.out', 'w').write('got-int\\n' if got else 'no-int\\n')\n"
-      }
+        "ki3.py": "import os, time\nos.chdir('/')\nos.environ['KI_X'] = 'py'\ntry:\n    print('ready', flush=True)\n    time.sleep(30)\nexcept KeyboardInterrupt:\n    print('caught', flush=True)\n",
+        "sentinel.py": "import os, signal, sys, time\nos.setpgid(0, 0)\ngot = []\nsignal.signal(signal.SIGINT, lambda *a: got.append(1))\nsignal.signal(signal.SIGUSR1, lambda *a: sys.exit(0))\nopen('sentinel.ready', 'w').close()\nwhile not got:\n    try:\n        time.sleep(0.05)\n    except SystemExit:\n        break\nopen('sentinel.out', 'w').write('got-int\\n' if got else 'no-int\\n')\n",
+        "python.sh": "# Sourced by the candidate shell. Verifies and loads the staged bashpython\n# package (installed tree under a --root, standard library beside the module)\n# and sets P to the interpreter command. A static executable cannot load\n# shared objects: there pkg load must refuse, and P is the guest's python3.\noptpkg_root=/opt/bashos-parity/reference-data/optional-packages/root\nif /usr/bin/ldd \"$BASH\" 2>&1 | /usr/bin/grep -q 'not a dynamic executable'; then\n  optpkg_out=$(pkg load bashpython --root \"$optpkg_root\" 2>&1); optpkg_rc=$?\n  if [[ $optpkg_rc != 0 && $optpkg_out == *'this executable is static and cannot load shared objects'* ]]; then\n    P=/usr/bin/python3\n  else\n    echo \"python.sh: a static executable did not refuse pkg load (status $optpkg_rc)\"; return 1\n  fi\nelif pkg verify bashpython --root \"$optpkg_root\" > /dev/null && pkg load bashpython --root \"$optpkg_root\" > /dev/null &&\n     [[ $(type -t bashpython) == builtin ]]; then\n  P=bashpython\nelse\n  echo 'python.sh: cannot verify and load the staged bashpython package'; return 1\nfi\n"
+      },
+      "helpers_sha256": {
+        "helpers/optional-packages-r1.py": "c1bbac8d1b912cfaae370fcfbb2919caf0dc5550c86c67e8dbfcb0e15e563667",
+        "helpers/optional-packages-r1.lock.json": "175d0d63473f61a6a2e9cb7144b5a63b3e800a3a43d9b33b2e3fcfa0fbd963a7"
+      },
+      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/optional-packages-r1.py verify bashpython > /dev/null\n",
+      "setup_timeout": 30
     }
   ]
 }

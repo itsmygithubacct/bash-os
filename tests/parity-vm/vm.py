@@ -20,6 +20,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import sys
 import tarfile
 import threading
 import time
@@ -760,6 +761,10 @@ def payload(binary, output, reference_cache):
         info.uname = info.gname = ""
         return info
 
+    if reference_cache and (reference_cache / "optional-packages").exists():
+        # Staged optional packages are untracked; refuse a set that differs from its lock before booting.
+        subprocess.run([sys.executable, str(HERE / "helpers/optional-packages-r1.py"), "verify",
+                        "--dest", str(reference_cache)], check=True, stdout=subprocess.DEVNULL)
     with tarfile.open(output, "w") as archive:
         archive.add(binary, arcname="candidate", recursive=False, filter=metadata)
         for root, prefix in [(HERE, "harness"), (REPO / "tests/loadable-parity", "loadable-parity"),
