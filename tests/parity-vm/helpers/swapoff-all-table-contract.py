@@ -1,7 +1,8 @@
 #!/usr/bin/python3
-"""Controlled /proc/swaps contract; execute only in the disposable parity VM."""
+"""swapoff -a over controlled /proc/swaps tables, compared with util-linux; execute only in the disposable parity VM."""
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -9,45 +10,54 @@ import tempfile
 
 HEADER = b'Filename\tType\tSize\tUsed\tPriority\n'
 CASES = [
-    ('header-only', HEADER, 0, [], []),
-    ('missing-header', b'', 1, ['/proc/swaps: missing header'], []),
-    ('invalid-header', b'Bogus header\n/tmp/x file 100 0 -2\n', 1, ['/proc/swaps: invalid header'], []),
-    ('escapes', HEADER + b'/tmp/a\\040b file 100 0 -2\n/tmp/t\\011ab file 100 0 -3\n/tmp/n\\012l file 100 0 -4\n/tmp/bs\\134x file 100 0 -5\n/tmp/u\\777k file 100 0 -6\n', 1,
-     ['/proc/swaps: malformed row 6'], ['/tmp/a b', '/tmp/t\tab', '/tmp/n\nl', '/tmp/bs\\x']),
-    ('duplicates', HEADER + b'/tmp/d1 file 100 0 -2\n/tmp/d2 file 100 0 -3\n/tmp/d1 file 100 0 -4\n', 1, [], ['/tmp/d1', '/tmp/d2']),
-    ('malformed', HEADER + b'/tmp/m1 file 100\n/tmp/m2 bogus 100 0 -2\n/tmp/m3 file x 0 -2\n/tmp/m4 file 100 200 -2\n/tmp/ok file 100 0 -2\n', 1,
-     ['/proc/swaps: malformed row 2', '/proc/swaps: malformed row 3', '/proc/swaps: malformed row 4', '/proc/swaps: malformed row 5'], ['/tmp/ok']),
-    ('decoded-duplicate', HEADER + b'/tmp/a\\040b file 100 0 -2\n/tmp/a\\040b partition 100 0 -3\n/tmp/other file 1 0 0\n', 1, [], ['/tmp/a b', '/tmp/other']),
+    ('header-only', HEADER),
+    ('missing-header', b''),
+    ('invalid-header', b'Bogus header\n/tmp/x file 100 0 -2\n'),
+    ('escapes', HEADER + b'/tmp/a\\040b file 100 0 -2\n/tmp/t\\011ab file 100 0 -3\n/tmp/n\\012l file 100 0 -4\n/tmp/bs\\134x file 100 0 -5\n/tmp/u\\777k file 100 0 -6\n'),
+    ('duplicates', HEADER + b'/tmp/d1 file 100 0 -2\n/tmp/d2 file 100 0 -3\n/tmp/d1 file 100 0 -4\n'),
+    ('malformed', HEADER + b'/tmp/m1 file 100\n/tmp/m2 bogus 100 0 -2\n/tmp/m3 file x 0 -2\n/tmp/m4 file 100 200 -2\n/tmp/ok file 100 0 -2\n'),
+    ('decoded-duplicate', HEADER + b'/tmp/a\\040b file 100 0 -2\n/tmp/a\\040b partition 100 0 -3\n/tmp/other file 1 0 0\n'),
 ]
+REFERENCE = '/usr/sbin/swapoff'
+
+
+def observe(seccomp, log, argv):
+    """Status, stdout, diagnostics and ordered swapoff requests of one run.
+
+    Every swapoff request is answered EINVAL by the notifier and never reaches
+    the kernel."""
+    log.write_text('')
+    cmd = ['/usr/bin/python3', seccomp, '--notify', 'swapoff', '--reply', 'swapoff=EINVAL',
+           '--errno', 'swapon:EPERM', '--log-string', 'swapoff=0', '--log', str(log), '--'] + argv
+    result = subprocess.run(cmd, capture_output=True, env={**os.environ, 'LC_ALL': 'C'}, timeout=15)
+    paths = [json.loads(line).get('string0') for line in log.read_text().splitlines()]
+    stderr = result.stderr.decode('utf-8', errors='replace')
+    # A builtin's diagnostic carries the shell's "NAME: line N: " prefix.
+    stderr = re.sub(r'(?m)^[^\n:]*: line \d+: ', '', stderr)
+    return {'status': result.returncode, 'stdout': result.stdout, 'stderr': stderr, 'requests': paths}
 
 
 def main():
     shell, seccomp = sys.argv[1:]
+    failed = 0
     with tempfile.TemporaryDirectory(prefix='swapoff-table-') as tmp:
         fixture, log = Path(tmp) / 'swaps', Path(tmp) / 'requests'
         fixture.write_bytes(b'')
         subprocess.run(['/usr/bin/mount', '--bind', str(fixture), '/proc/swaps'], check=True)
         try:
-            for name, data, status, diagnostics, expected in CASES:
+            for name, data in CASES:
                 fixture.write_bytes(data)
-                log.write_text('')
-                cmd = ['/usr/bin/python3', seccomp, '--notify', 'swapoff', '--reply', 'swapoff=EINVAL',
-                       '--errno', 'swapon:EPERM', '--log-string', 'swapoff=0', '--log', str(log),
-                       '--', shell, '--noprofile', '--norc', '-c', 'swapoff -a']
-                result = subprocess.run(cmd, capture_output=True, env={**os.environ, 'LC_ALL': 'C'}, timeout=15)
-                records = [json.loads(line) for line in log.read_text().splitlines()]
-                paths = [entry.get('string0') for entry in records]
-                stderr = result.stderr.decode('utf-8', errors='replace')
-                # Every EINVAL request produces its own diagnostic, including paths containing newlines.
-                if (result.returncode != status or result.stdout or paths != expected or
-                    any(d not in stderr for d in diagnostics) or
-                    stderr.count('Invalid argument') != len(expected) or
-                    stderr.count('/proc/swaps: malformed row ') != len([d for d in diagnostics if 'malformed row' in d]) or
-                    (not diagnostics and not expected and stderr)):
-                    raise AssertionError(f'{name}: status={result.returncode}, stdout={result.stdout!r}, stderr={stderr!r}, requests={paths!r}')
+                want = observe(seccomp, log, [REFERENCE, '-a'])
+                got = observe(seccomp, log, [shell, '--noprofile', '--norc', '-c',
+                                             '[[ $(type -t swapoff) == builtin ]] || exit 97; swapoff -a'])
+                if got != want:
+                    failed = 1
+                    print(f'{name}: differs\n  util-linux {want!r}\n  candidate  {got!r}', file=sys.stderr)
+                else:
+                    print(f'{name}: same as util-linux, {len(want["requests"])} requests, status {want["status"]}')
         finally:
             subprocess.run(['/usr/bin/umount', '/proc/swaps'], check=True)
-    print('swapoff-all-table=ok')
+    sys.exit(failed)
 
 
 if __name__ == '__main__':

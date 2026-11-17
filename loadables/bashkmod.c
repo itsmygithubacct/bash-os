@@ -81,6 +81,8 @@ bk_errno_msg (int e)
     {
     case EPERM:  return "need CAP_SYS_MODULE";
     case EBUSY:  return "module in use";
+    /* delete_module(O_NONBLOCK) reports a held reference this way. */
+    case EWOULDBLOCK: return "module in use";
     case ENOENT: return "no such module";
     case ENOMEM: return "kernel OOM";
     case ENODEV: return "no such device or module version mismatch";

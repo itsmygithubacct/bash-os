@@ -2169,7 +2169,7 @@
           "evidence": [
             {
               "assertion": "non-dry bashkmod modprobe nbd / br_netfilter against kmod modprobe -n -v load order, and modprobe -r back to the baseline module set: the candidate fails (compressed .ko.xz paths are passed to finit_module with flags 0), reached FAIL on both builds",
-              "definition_sha256": "ba7b3519482d6a3101425181a2c190cc39faace111187fd5d2d4b777020193c9",
+              "definition_sha256": "28d5e89b63a5b57f17515bdd4bddd81733c28e9c402d2ec63e778c93d32335eb",
               "group": "shell",
               "id": "mig-w6-bashkmod-modprobe-chain-root"
             }
@@ -2423,7 +2423,7 @@
           "evidence": [
             {
               "assertion": "module-syscall effects of a policy chain (no install directives): candidate non-dry modprobe fails on the compressed modules, so the planned finit order is not reached (FAIL on both builds)",
-              "definition_sha256": "ba7b3519482d6a3101425181a2c190cc39faace111187fd5d2d4b777020193c9",
+              "definition_sha256": "28d5e89b63a5b57f17515bdd4bddd81733c28e9c402d2ec63e778c93d32335eb",
               "group": "shell",
               "id": "mig-w6-bashkmod-modprobe-chain-root"
             }
@@ -7144,7 +7144,7 @@
           "evidence": [
             {
               "assertion": "chattr -R +d d sets d on the directory, nested file, subdirectory and nested file, equal to e2fsprogs.",
-              "definition_sha256": "85c5de90083f726b5de53cd0facb2ce63e960041ebc0b7431743cdda4313b5f3",
+              "definition_sha256": "352e86eaa71f2a1e0c5765518fead636245da35cf5b2af4f31b6884e60e0409a",
               "group": "shell",
               "id": "migration-chattr-recursive-tree-root"
             }
@@ -7158,7 +7158,7 @@
           "evidence": [
             {
               "assertion": "chattr +A d2 without -R changes only d2, children unchanged, equal to e2fsprogs.",
-              "definition_sha256": "85c5de90083f726b5de53cd0facb2ce63e960041ebc0b7431743cdda4313b5f3",
+              "definition_sha256": "352e86eaa71f2a1e0c5765518fead636245da35cf5b2af4f31b6884e60e0409a",
               "group": "shell",
               "id": "migration-chattr-recursive-tree-root"
             }
@@ -7172,7 +7172,7 @@
           "evidence": [
             {
               "assertion": "e2fsprogs skips the symlink entries with 'Operation not supported while reading flags' and leaves the outside target unchanged; the candidate follows d/link and sets d on 'outside' (and clears it again with -R -d), and reports the dangling link as 'No such file or directory'. Parity FAIL.",
-              "definition_sha256": "85c5de90083f726b5de53cd0facb2ce63e960041ebc0b7431743cdda4313b5f3",
+              "definition_sha256": "352e86eaa71f2a1e0c5765518fead636245da35cf5b2af4f31b6884e60e0409a",
               "group": "shell",
               "id": "migration-chattr-recursive-tree-root"
             }
@@ -7186,7 +7186,7 @@
           "evidence": [
             {
               "assertion": "Every entry and the outside target are read back with e2fsprogs lsattr -d after each step.",
-              "definition_sha256": "85c5de90083f726b5de53cd0facb2ce63e960041ebc0b7431743cdda4313b5f3",
+              "definition_sha256": "352e86eaa71f2a1e0c5765518fead636245da35cf5b2af4f31b6884e60e0409a",
               "group": "shell",
               "id": "migration-chattr-recursive-tree-root"
             }
@@ -12239,7 +12239,7 @@
           "evidence": [
             {
               "assertion": "-c prints the populated ring before clearing it in both; the candidate also prints the pre-clear-point records (live-ring-buffer r1). Parity FAIL.",
-              "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a",
+              "definition_sha256": "52194befd09c57eb9106588d6d0115fba5709a0db2b6705d0174769008c86379",
               "group": "shell",
               "id": "migration-dmesg-live-ring-root"
             }
@@ -12254,7 +12254,7 @@
           "evidence": [
             {
               "assertion": "After -c util-linux reads an empty user ring, while a candidate re-read still prints every record, because it does not start at the clear point. Parity FAIL.",
-              "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a",
+              "definition_sha256": "52194befd09c57eb9106588d6d0115fba5709a0db2b6705d0174769008c86379",
               "group": "shell",
               "id": "migration-dmesg-live-ring-root"
             }
@@ -12269,7 +12269,7 @@
           "evidence": [
             {
               "assertion": "As uid 2000, reading and -c exit 1 in both and the reseeded record remains in the ring; the candidate says 'open /dev/kmsg: Operation not permitted' where util-linux says 'read kernel buffer failed: Operation not permitted'. Parity FAIL.",
-              "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a",
+              "definition_sha256": "52194befd09c57eb9106588d6d0115fba5709a0db2b6705d0174769008c86379",
               "group": "shell",
               "id": "migration-dmesg-live-ring-root"
             }
@@ -12284,7 +12284,7 @@
           "evidence": [
             {
               "assertion": "With BASHDMESG_DEV_KMSG_FILE set, under a filter that kills syslog(2), the candidate prints the fixture record and exits 0, so it made no clear syscall (contract met); util-linux, which has no such variable, is killed (status 159). The ring is unchanged.",
-              "definition_sha256": "03614fe8d6442d206c2ce86edd15e73b378ddafadc0eafea6d657a84f4b2c02a",
+              "definition_sha256": "52194befd09c57eb9106588d6d0115fba5709a0db2b6705d0174769008c86379",
               "group": "shell",
               "id": "migration-dmesg-live-ring-root"
             }
@@ -25379,7 +25379,7 @@
           "evidence": [
             {
               "assertion": "Default, -a, -l and --list with two loops (one ro with offset 1024): util-linux prints its NAME SIZELIMIT OFFSET AUTOCLEAR RO BACK-FILE DIO LOG-SEC table (and the -a '/dev/loopN: [dev]:ino (file), offset N' form); the candidate prints NAME RO OFFSET DIO BACK-FILE for all four. Parity FAIL (format).",
-              "definition_sha256": "c85f697d1dcd93b201fca1ebe85b4a2a63b6726d4f4b8241595afe1c2e7cdda6",
+              "definition_sha256": "39055e381c0e3e6b73c33f2cec65155f62835f255a4308b69a84b7abe0b4fcda",
               "group": "shell",
               "id": "migration-losetup-list-root"
             }
@@ -25393,7 +25393,7 @@
           "evidence": [
             {
               "assertion": "With a bind-mounted synthetic /sys/block (unattached loop7, vda, loopX, loop5 without ro): util-linux lists nothing; the candidate skips the unattached, non-loop and loopX entries and lists loop5 /y with defaulted RO 0. Parity FAIL.",
-              "definition_sha256": "c85f697d1dcd93b201fca1ebe85b4a2a63b6726d4f4b8241595afe1c2e7cdda6",
+              "definition_sha256": "39055e381c0e3e6b73c33f2cec65155f62835f255a4308b69a84b7abe0b4fcda",
               "group": "shell",
               "id": "migration-losetup-list-root"
             }
@@ -25407,7 +25407,7 @@
           "evidence": [
             {
               "assertion": "With /sys/block absent (tmpfs over /sys): the candidate prints only its header with status 0; util-linux still lists both real loops (falls back to /dev). Parity FAIL.",
-              "definition_sha256": "c85f697d1dcd93b201fca1ebe85b4a2a63b6726d4f4b8241595afe1c2e7cdda6",
+              "definition_sha256": "39055e381c0e3e6b73c33f2cec65155f62835f255a4308b69a84b7abe0b4fcda",
               "group": "shell",
               "id": "migration-losetup-list-root"
             }
@@ -26080,13 +26080,13 @@
             },
             {
               "assertion": "FSTYPE, LABEL, MOUNTPOINT of a loop ext2 device unmounted, mounted and after umount, plus -f and raw forms, compared with util-linux.",
-              "definition_sha256": "e7b8ae75ee83939d4bced1d00031ccb0dee3909aad25083e343e6ffb4103c391",
+              "definition_sha256": "8c983f7b3690df5302a442dd5a2903a6d0198a50bb0079206f3e50a8bd4348ef",
               "group": "shell",
               "id": "mig-w7-lsblk-mounted-fstype-root"
             },
             {
               "assertion": "FSTYPE, LABEL, MOUNTPOINT of a loop ext2 device unmounted, mounted and after umount, plus -f and raw forms, compared with util-linux.",
-              "definition_sha256": "e7b8ae75ee83939d4bced1d00031ccb0dee3909aad25083e343e6ffb4103c391",
+              "definition_sha256": "8c983f7b3690df5302a442dd5a2903a6d0198a50bb0079206f3e50a8bd4348ef",
               "group": "shell",
               "id": "mig-w7-lsblk-mounted-fstype-root"
             }

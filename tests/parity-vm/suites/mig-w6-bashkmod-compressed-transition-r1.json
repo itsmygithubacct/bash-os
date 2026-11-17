@@ -15,10 +15,11 @@
       "comparison": "Successful transition and parameter value, followed by removal; missing kernel decompression support or preloaded nbd is a prerequisite failure",
       "requires": [
         "modinfo",
-        "rmmod"
+        "rmmod",
+        "udevadm"
       ],
       "privilege": "root",
-      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t bashkmod) == builtin ]] || exit 125\nhas() { local n; while read -r n _; do [[ $n == nbd ]] && return 0; done </proc/modules; return 1; }\nhas && exit 125\npath=$(/usr/sbin/modinfo -n nbd) || exit 125\n[[ $path == *.ko.xz ]] || exit 125\n[[ -r /sys/module/compression && $(</sys/module/compression) == xz ]] || exit 125\ncleanup() { if has; then /usr/sbin/rmmod nbd || exit 1; fi; }\ntrap cleanup EXIT\nbashkmod modprobe nbd nbds_max=4 || exit 1\nhas || exit 1\n[[ $(</sys/module/nbd/parameters/nbds_max) == 4 ]] || exit 1\nbashkmod modprobe -r nbd || exit 1\nhas && exit 1\necho 'compressed transition and parameters: ok'\n",
+      "script": "[[ $UID == 0 && $EUID == 0 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t bashkmod) == builtin ]] || exit 125\nhas() { local n; while read -r n _; do [[ $n == nbd ]] && return 0; done </proc/modules; return 1; }\nhas && exit 125\npath=$(/usr/sbin/modinfo -n nbd) || exit 125\n[[ $path == *.ko.xz ]] || exit 125\n[[ -r /sys/module/compression && $(</sys/module/compression) == xz ]] || exit 125\ncleanup() { if has; then /usr/sbin/rmmod nbd || exit 1; fi; }\ntrap cleanup EXIT\n# udev opens each new nbd device; the module cannot be removed until those\n# probes have closed it.\nidle() { local i r; /usr/bin/udevadm settle -t 10 >/dev/null 2>&1; for ((i=0;i<100;i++)); do read -r r </sys/module/nbd/refcnt || return 0; [[ $r == 0 ]] && return 0; read -t 0.1 -r _ <> <(:) || :; done; }\nbashkmod modprobe nbd nbds_max=4 || exit 1\nhas || exit 1\n[[ $(</sys/module/nbd/parameters/nbds_max) == 4 ]] || exit 1\nidle\nbashkmod modprobe -r nbd || exit 1\nhas && exit 1\necho 'compressed transition and parameters: ok'\n",
       "expected_status": 0,
       "stdout": "compressed transition and parameters: ok\n",
       "stderr": "",

@@ -530,16 +530,20 @@ dmesg_builtin (WORD_LIST *list)
         }
         else if (!strcmp (w, "-n")) {
             list = list->next;
-            if (!list) { builtin_error ("-n: missing LEVEL"); builtin_usage (); return EX_USAGE; }
+            if (!list) {
+                /* util-linux's getopt diagnostic and status. */
+                builtin_error ("option requires an argument -- 'n'");
+                fprintf (stderr, "Try 'dmesg --help' for more information.\n");
+                return EXECUTION_FAILURE;
+            }
             const char *arg = list->word->word;
             /* Console thresholds are 1..8; named priorities are 0..7.
                Numeric arguments already denote the kernel threshold. */
             int lvl = (arg[0] >= '0' && arg[0] <= '8' && !arg[1])
                 ? arg[0] - '0' : bd_level_index (arg) + 1;
             if (lvl == 0 && strcmp (arg, "0") != 0) {
-                builtin_error ("-n: unknown level '%s'", list->word->word);
-                builtin_usage ();
-                return EX_USAGE;
+                builtin_error ("unknown level '%s'", list->word->word);
+                return EXECUTION_FAILURE;
             }
             set_console = lvl;
         }

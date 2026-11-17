@@ -1003,6 +1003,14 @@ ba_cmd_run (long count, long seconds, const char *outpath)
           /* Audit event messages carry a text payload. */
           char *payload = (char *) NLMSG_DATA (h);
           size_t plen = NLMSG_PAYLOAD (h, 0);
+          /* The kernel sends each event to the audit daemon in a datagram
+             of its own and sets nlmsg_len to the text length without the
+             header, so the header's length would cut the last 16 bytes
+             (the key of a SYSCALL record, the last argument of EXECVE).
+             The datagram's length gives the text. */
+          int event = t >= 1100;
+          if (event && (char *) h == buf && (size_t) s >= NLMSG_HDRLEN)
+            plen = (size_t) s - NLMSG_HDRLEN;
           /* NUL-terminate within our buffer copy region (safe: payload
            * sits inside `buf`, and there is slack after NLMSG_OK ran). */
           char tmpc[BA_BUFSZ];
@@ -1012,6 +1020,7 @@ ba_cmd_run (long count, long seconds, const char *outpath)
           ba_emit_record (out, t, tmpc);
           emitted++;
           if (count > 0 && emitted >= count) { ba_stop = 1; break; }
+          if (event) break;
         }
       fflush (out);
     }

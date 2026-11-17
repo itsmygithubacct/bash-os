@@ -18,9 +18,10 @@
         "touch",
         "stat",
         "sed",
-        "tr"
+        "tr",
+        "rm"
       ],
-      "script": "/usr/bin/touch diagnostic-item\nrc=0\nchown no_such_user_bashos_suite_987654 diagnostic-item 2>diagnostic.err || rc=$?\nprintf 'status=%s err=' \"$rc\"\n/usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' diagnostic.err | /usr/bin/tr '\\n' '|'\nprintf '\\n'\n/usr/bin/stat -c '%u:%g' diagnostic-item\n",
+      "script": "/usr/bin/touch diagnostic-item\nrc=0\nchown no_such_user_bashos_suite_987654 diagnostic-item 2>diagnostic.err || rc=$?\nprintf 'status=%s err=' \"$rc\"\n/usr/bin/sed -E 's/^[^:]*: line [0-9]+: //' diagnostic.err | /usr/bin/tr '\\n' '|'\nprintf '\\n'\n/usr/bin/stat -c '%u:%g' diagnostic-item\n/usr/bin/rm -f diagnostic.err\n",
       "expected_status": 0,
       "timeout": 30
     }

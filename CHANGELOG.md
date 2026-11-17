@@ -19,6 +19,12 @@ the historical 0.1.3 evidence remains available separately.
   reports each erased magic string as util-linux does; it tells ext2, ext3
   and ext4 apart, knows the dos and gpt partition tables, refuses a block
   device in use unless `-f` is given, and accepts `-o`, `-q`, `-i` and `-p`.
+- `audit run` records the whole text of each kernel event; the last 16
+  bytes (a rule's key, the final `EXECVE` argument) were cut off.
+- `bashkmod unload` and `bashkmod modprobe -r` report a module that still
+  has users as `module in use`.
+- `dmesg -n` reports a missing or unknown level as util-linux does, with
+  status 1.
 - `tar -tv` prints GNU tar's listing (mode string, owner/group, size or
   device numbers, time, name and link target); a device or FIFO that cannot
   be created is reported as `Cannot mknod` or `Cannot mkfifo`, followed by

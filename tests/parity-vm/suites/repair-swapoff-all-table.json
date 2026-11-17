@@ -11,9 +11,9 @@
       "covers": [
         "swapoff/deferred-all-table"
       ],
-      "purpose": "Check the stated table contract against explicit expected statuses, diagnostics and ordered decoded requests under a non-forwarding seccomp notifier.",
-      "oracle": "Independently specified fixture expectations; EINVAL for every swapoff request.",
-      "comparison": "Contract assertions for each controlled table; no reference utility parity assumption.",
+      "purpose": "swapoff -a over controlled /proc/swaps tables (header only, empty, wrong header, octal escapes, duplicate rows, malformed rows) under a non-forwarding seccomp notifier: status, diagnostics and the ordered decoded requests.",
+      "oracle": "util-linux 2.41 swapoff run by the helper on each table under the same notifier; EINVAL for every swapoff request.",
+      "comparison": "For each table the candidate status, stdout, diagnostics (minus the shell-location prefix) and ordered request paths must equal util-linux's; the expected stdout records the request count and status util-linux 2.41.5 gave for each table.",
       "requires": [
         "swapoff",
         "mount",
@@ -24,12 +24,12 @@
         "seccomp-notify"
       ],
       "helpers_sha256": {
-        "helpers/swapoff-all-table-contract.py": "3e4363f8580ba18dfa587d0c3719c8df16ab03e1f9d9012ded1a75b38fe26083",
+        "helpers/swapoff-all-table-contract.py": "450a196dd5da1ac7125cc208dea75676d1db524c8b7d9926eb17c312451b2070",
         "helpers/system-seccomp.py": "16e931bf4c2933b468c6d9484a6b0c9258135901fe084d5a229a83f677757aac"
       },
       "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/swapoff-all-table-contract.py \"$BASH\" /opt/bashos-parity/harness/helpers/system-seccomp.py\n",
       "expected_status": 0,
-      "stdout": "swapoff-all-table=ok\n",
+      "stdout": "header-only: same as util-linux, 0 requests, status 0\nmissing-header: same as util-linux, 0 requests, status 0\ninvalid-header: same as util-linux, 1 requests, status 32\nescapes: same as util-linux, 5 requests, status 32\nduplicates: same as util-linux, 3 requests, status 32\nmalformed: same as util-linux, 3 requests, status 32\ndecoded-duplicate: same as util-linux, 3 requests, status 32\n",
       "stderr": "",
       "timeout": 45
     }
