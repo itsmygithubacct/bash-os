@@ -141,21 +141,21 @@
       "loadable": "ts",
       "group": "shell",
       "driver": "plain",
-      "purpose": "Diagnostic only (claims no requirement): list the tree-sitter parsers neovim ships and the grammars compiled into the candidate.",
+      "purpose": "The grammars the parse comparisons rely on, markdown and markdown_inline, are offered by both sides: neovim ships them as parsers and the candidate has them compiled in.",
       "expected_status": 0,
       "covers": [],
       "files": {
-        "probe.lua": "local files = vim.api.nvim_get_runtime_file(\"parser/*\", true)\ntable.sort(files)\nfor _, f in ipairs(files) do io.stdout:write(f .. \"\\n\") end\nos.exit(0)\n"
+        "probe.lua": "local files = vim.api.nvim_get_runtime_file(\"parser/*\", true)\nlocal names = {}\nfor _, f in ipairs(files) do\n  local name = f:match(\"([^/]+)%.so$\")\n  if name == \"markdown\" or name == \"markdown_inline\" then names[#names + 1] = name end\nend\ntable.sort(names)\nfor _, name in ipairs(names) do io.stdout:write(name .. \"\\n\") end\nos.exit(0)\n"
       },
       "kind": "parity",
       "oracle": "Neovim 0.10.4 (Debian neovim 0.10.4-8) on the reference PATH: its built-in tree-sitter 0.22 runtime and bundled markdown / markdown_inline grammars parse the same input (vim.treesitter.get_string_parser(...):parse()[1]:root():sexpr()); the output is compared with the candidate's ts parse for the same grammar.",
-      "comparison": "Raw out.txt of each side inspected by the author.",
+      "comparison": "Exact out.txt, err.txt and rc: each side prints, in name order, which of markdown and markdown_inline it offers. The earlier form printed each side's whole list (neovim parser paths against candidate grammar names), which cannot be equal and compared nothing.",
       "requires": [
         "nvim"
       ],
       "timeout": 15,
       "reference_script": "export XDG_STATE_HOME=$HOME/st XDG_CACHE_HOME=$HOME/ca XDG_DATA_HOME=$HOME/da XDG_CONFIG_HOME=$HOME/cf\n/usr/bin/nvim --headless --clean -i NONE -l probe.lua > out.txt 2>err.txt; echo \"rc=$?\" > rc\n",
-      "candidate_script": "ts language-list > out.txt 2>err.txt; echo \"rc=$?\" > rc\n"
+      "candidate_script": "ts language-list > all.txt 2>err.txt; echo \"rc=$?\" > rc\nwhile IFS= read -r name; do case $name in markdown|markdown_inline) printf '%s\\n' \"$name\";; esac; done < all.txt | LC_ALL=C /usr/bin/sort > out.txt\n/usr/bin/rm -f all.txt\n"
     }
   ]
 }

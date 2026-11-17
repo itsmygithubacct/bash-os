@@ -95,6 +95,15 @@ def main():
     save(result)
     seed(ROOT / 'candidate.db')
     candidate = sys.argv[1]
+    # File databases open without locking unless --locking is given, so the
+    # contention case asks for it and the no-lock case keeps the default.
+    global A, B
+    if sys.argv[2] == 'busy':
+        plain = 'sqlite open candidate.db -h db;'
+        if A.count(plain) != 1 or B.count(plain) != 1:
+            raise RuntimeError('writer scripts changed')
+        A = A.replace(plain, 'sqlite open candidate.db -h db --locking;')
+        B = B.replace(plain, 'sqlite open candidate.db -h db --locking;')
     proc = subprocess.Popen([candidate, '--noprofile', '--norc', '-c', A], stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
     try:

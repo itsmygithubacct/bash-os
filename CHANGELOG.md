@@ -74,6 +74,7 @@ the historical 0.1.3 evidence remains available separately.
   sorting by it, and tied rows kept in slabinfo order. The interactive display
   keeps one decimal and orders ties by name.
 - `setsid` without `-f` waits for the command and returns its status when the caller is not a process-group leader, as a caller of util-linux `setsid` observes.
+- `tail -F` keeps following a renamed file without a message and reports `has been replaced` when the name exists again, as GNU `tail` does.
 - `killall NAME` in a pipeline or subshell no longer signals forked copies of the invoking shell that still carry its name.
 - `prlimit` prints the selected resources in command-line order, repeats included, as util-linux does.
 - `ionice` stops at the first process id that fails, as util-linux does.

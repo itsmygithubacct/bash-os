@@ -11,13 +11,13 @@
         "swapon/request-error-diagnostics"
       ],
       "purpose": "Independently assert path-specific Linux errno diagnostics and failure status for EPERM, ENOENT, EINVAL and EBUSY, with seccomp blocking all swapon calls.",
-      "oracle": "Literal C-locale Linux strerror messages and status 1; independent libc control checks each seccomp errno before candidate execution.",
-      "comparison": "One diagnostic line ending in swapon: PATH: MESSAGE, empty stdout, status 1; Bash location prefix permitted.",
+      "oracle": "util-linux swapon from the locked VM run on the same swap area under the same seccomp result, with its final line checked against the literal C-locale strerror message; an independent libc control checks each seccomp errno before either runs.",
+      "comparison": "Every diagnostic line ends with the util-linux line in the same position, the last being swapon: PATH: swapon failed: MESSAGE; empty stdout and the util-linux status; Bash location prefix permitted. The earlier expectation named a nonexistent path and a one-line form, which util-linux 2.41 never reaches: it reports that it cannot open the file.",
       "requires": [
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/swapon-error-contract-r1.py": "c2354982d7ff55b677bee03f65ce24687b9e99e71c61147748e99d22739660ed"
+        "helpers/swapon-error-contract-r1.py": "3d1c1dd97d4f15f942a0f47b5cadd9240ead89081b048399a95b349bf99af8da"
       },
       "candidate_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/swapon-error-contract-r1.py \"$BASH\"",
       "expected_status": 0,

@@ -152,6 +152,22 @@ def peer():
         record['start_line_base64'] = base64.b64encode(line).decode()
         save(prefix + 'startup-line', bytes(line))
         save(prefix + 'started', b'1\n')
+        if (HOME / 'ssh-peer-raw-wire').is_file():
+            # Live attach: the command the startup line names is an ordinary
+            # live attach, which reads and writes raw terminal bytes.  The
+            # peer stands in for it, so it answers and expects raw bytes; a
+            # frame header here would reach the pane as typed input.
+            record['outbound_base64'] = base64.b64encode(REMOTE + ACK).decode()
+            write_all(1, REMOTE)
+            payload = read_exact(0, len(CLIENT), trace=incoming)
+            record['valid_input'] = payload == CLIENT
+            if not record['valid_input']:
+                raise ValueError('wrong raw input')
+            if select.select([0], [], [], 0.3)[0] and os.read(0, 64):
+                record['valid_input'] = False
+                raise ValueError('bytes beyond the frontend input')
+            write_all(1, ACK)
+            raise StopIteration
         write_all(1, frame(1, REMOTE))
         header = read_exact(0, 10, trace=incoming)
         if header[:6] != b'BSCR\x01\x01':
@@ -164,6 +180,8 @@ def peer():
         if not record['valid_input']:
             raise ValueError('wrong framed payload')
         write_all(1, frame(3, ACK))
+    except StopIteration:
+        pass
     except Exception as exc:
         record['error'] = '%s: %s' % (type(exc).__name__, exc)
     record['start_line_base64'] = base64.b64encode(line).decode()
@@ -353,6 +371,7 @@ def observe_ssh(shell):
             env.pop(key, None)
         out_file = (HOME / 'ssh-live-client.stdout').open('w+b')
         err_file = (HOME / 'ssh-live-client.stderr').open('w+b')
+        save('ssh-peer-raw-wire', b'1\n')
         client = subprocess.Popen([shell, '--noprofile', '--norc', '-c',
                                    'screen attach n1/work --remote'], env=env,
                                   stdin=subprocess.PIPE, stdout=out_file, stderr=err_file)
@@ -390,8 +409,13 @@ def observe_ssh(shell):
         out = base64.b64decode(out_snapshot['base64'])
         peer_result = json.loads(result_path.read_text())
         report.update(status=client.returncode, peer=peer_result)
-        check('live-peer-receives-framed-input', peer_result.get('valid_input') is True)
-        check('live-peer-frame-delivered-as-payload', out_snapshot['size'] == len(REMOTE) and out == REMOTE)
+        check('live-peer-receives-raw-input', peer_result.get('valid_input') is True)
+        # As in the OpenSSH control, the remote tty may echo exactly the
+        # startup line before the peer changes its mode; nothing else may
+        # precede the peer's bytes.
+        echo = startup[:-1] + b'\r\n'
+        report['live_echo_base64'] = base64.b64encode(echo if out.startswith(echo) else b'').decode()
+        check('live-peer-bytes-delivered-unchanged', out in (REMOTE + ACK, echo + REMOTE + ACK))
         check('remote-attach-success', client.returncode == 0)
     except Exception as exc:
         report['exception'] = '%s: %s' % (type(exc).__name__, exc)

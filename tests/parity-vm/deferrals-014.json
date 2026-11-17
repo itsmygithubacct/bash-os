@@ -40289,7 +40289,7 @@
             },
             {
               "assertion": "Source purpose: Exchange framed bytes through a fixture-owned loopback OpenSSH transport.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: Saved small PTY/query/control encoded and decoded byte files agree with independent expected files; boundary observation retains matching lengths and hashes. Binary decoding is a reached FAIL: declared len 4 but payload only A. Primary adjudication: Fixed fixture source and successful setup bind the binary stimulus; small PTY/query/control frames have retained byte comparisons and the maximum frame has exact lengths/hashes. Binary decode declares length 4 but emits only A, a reached FAIL. Full successful binary round trip is not claimed; separate per-input persistence is not an original requirement.",
-              "definition_sha256": "aac30c58d3650150ca88962855d10bde9c6063c708bdde1fc6b971ddf1af568e",
+              "definition_sha256": "911f1a21d0a5e2ca86735ca7fb6b76171c501936dce3d87bcafbe9e08145ae34",
               "group": "shell",
               "id": "migration-terra-local-pty-b04r3-remote-ssh-frames"
             }
@@ -40329,13 +40329,13 @@
           "evidence": [
             {
               "assertion": "Source purpose: Exchange framed bytes through a fixture-owned loopback OpenSSH transport.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: The standard OpenSSH control saves valid framed input/output, while the candidate live peer receives client-pay rather than a frame, exposes a framed response in stdout and exits 1; both builds FAIL.",
-              "definition_sha256": "aac30c58d3650150ca88962855d10bde9c6063c708bdde1fc6b971ddf1af568e",
+              "definition_sha256": "911f1a21d0a5e2ca86735ca7fb6b76171c501936dce3d87bcafbe9e08145ae34",
               "group": "shell",
               "id": "migration-terra-local-pty-b04r3-remote-ssh-frames"
             },
             {
               "assertion": "Live attach n1/live --remote over libssh to a fixture-owned unprivileged sshd on 127.0.0.1 (fixture keys, private members and known_hosts files) whose forced command is an independent peer: the peer receives the exact startup line 'BASHSCREEN_STATE_DIR=/remote/state exec /remote/bash -c ...' and the client exits 0, but the frontend bytes reach the peer raw (not as a BSCR PTY frame) and the peer's PTY frame is written to stdout with its BSCR header intact (reached FAIL on both builds).",
-              "definition_sha256": "12287ebfb734fc8db7482a99410021fbda2d30e5f9bd585bd3add963510effd3",
+              "definition_sha256": "83af4b3f18abc8e20293c3de81a98c0a9504c06e69126360872bc10086654664",
               "group": "shell",
               "id": "mig-g1-screen-remote-attach-live-mock"
             }
@@ -42502,7 +42502,7 @@
           "evidence": [
             {
               "assertion": "Both builds: reached FAIL; source-bound separate writers both began and inserted while the first held its transaction, instead of observing contention. Post-rollback integrity and seed row checks passed; candidate numeric SQLite error and concurrent-commit outcome are not inferred.",
-              "definition_sha256": "24b5ad4e3ffd5ca6fe0ceb1f14b7a7659ab3b2c5534ab061118356d8b1bb5ff6",
+              "definition_sha256": "68d1405fe5dcac2492f6254cc42486eaa56ecbfb6d37b71958011abba76c0624",
               "group": "shell",
               "id": "migration-sqlite-locking-busy-r1"
             }
@@ -42516,7 +42516,7 @@
           "evidence": [
             {
               "assertion": "Both builds: reached PASS; source-bound separate writers both successfully began while the first transaction was held; retained statuses and barrier observations support the documented unix-none behavior.",
-              "definition_sha256": "fad171ac3599d295bf2a06a31062aeedd021cb9ed9368c9624d79d384fc23b35",
+              "definition_sha256": "bdc4dacddf7a1f9f819d220442906d95752dbef653e85f63cb7ec16b39c5c553",
               "group": "shell",
               "id": "migration-sqlite-locking-unix-none-r1"
             }

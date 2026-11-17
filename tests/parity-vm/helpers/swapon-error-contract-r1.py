@@ -56,14 +56,34 @@ def main():
         probe = run([sys.executable, '-c', control, str(code)])
         if probe.returncode != 0:
             setup_error('injection control failed for %d: %r' % (code, probe.stderr))
-        path = '/fixture path/error-%d' % code
+        # util-linux opens the file and reads its swap header before the
+        # system call, so each path is a real swap area made here.
+        os.makedirs('fixture path', exist_ok=True)
+        path = os.path.abspath('fixture path/error-%d' % code)
+        with open(path, 'wb') as handle:
+            handle.write(b'\0' * (1 << 20))
+        os.chmod(path, 0o600)
+        made = subprocess.run(['/usr/sbin/mkswap', path], env=env, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, timeout=10)
+        if made.returncode != 0:
+            setup_error('mkswap failed: %r' % made.stderr)
+        # The expectation is what util-linux swapon prints under the same
+        # injected result; it must name the path and the errno message.
+        upstream = run(['/usr/sbin/swapon', '--', path])
+        want = upstream.stderr.split(b'\n')
+        final = ('swapon: %s: swapon failed: %s' % (path, message)).encode()
+        if upstream.returncode == 0 or upstream.stdout or want[-1] != b'' or want[-2] != final:
+            setup_error('unexpected util-linux result for %d: %d %r %r' %
+                        (code, upstream.returncode, upstream.stdout, upstream.stderr))
         result = run([bash, '--noprofile', '--norc', '-c',
                       '[[ $(type -t swapon) == builtin ]] || exit 99; swapon -- "$1"',
                       'swapon-test', path])
-        suffix = ('swapon: %s: %s\n' % (path, message)).encode()
-        if result.returncode != 1 or result.stdout or not result.stderr.endswith(suffix) or result.stderr.count(b'\n') != 1:
-            raise SystemExit('FAIL errno=%d status=%d stdout=%r stderr=%r' %
-                             (code, result.returncode, result.stdout, result.stderr))
+        got = result.stderr.split(b'\n')
+        same = len(got) == len(want) and all(g.endswith(w) for g, w in zip(got, want))
+        if result.returncode != upstream.returncode or result.stdout or not same:
+            raise SystemExit('FAIL errno=%d status=%d want=%d stdout=%r stderr=%r want=%r' %
+                             (code, result.returncode, upstream.returncode, result.stdout,
+                              result.stderr, upstream.stderr))
     print('swapon errno contract: ok')
 
 if __name__ == '__main__':

@@ -349,6 +349,7 @@ struct bt_follow_file {
     int fd;
     int read_from_start;
     int missing_errno;
+    int renamed;            /* -F: the name moved away, the file is still followed */
 };
 
 static void
@@ -452,6 +453,30 @@ bt_follow (char **paths, int *initial_errors, int n_paths, int retry)
     for (; follow_rc == 0;) {
         if (retry) {
             for (int i = 0; i < n_paths; i++) {
+                if (files[i].fd >= 0 && files[i].renamed) {
+                    struct stat old_st, new_st;
+                    if (stat (files[i].path, &new_st) < 0)
+                        continue;
+                    files[i].renamed = 0;
+                    if (fstat (files[i].fd, &old_st) == 0 && old_st.st_dev == new_st.st_dev &&
+                        old_st.st_ino == new_st.st_ino)
+                        continue;
+                    fprintf (stderr, "tail: '%s' has been replaced;  following new file\n", files[i].path);
+                    inotify_rm_watch (infd, files[i].wd);
+                    bt_follow_close_one (&files[i]);
+                    files[i].read_from_start = 1;
+                    files[i].missing_errno = 0;
+                    if (bt_follow_open_one (infd, &files[i], retry) < 0) {
+                        files[i].missing_errno = errno;
+                        continue;
+                    }
+                    if (bt_follow_drain_one (&files[i], i, n_paths, &last_emitted,
+                                             buf, sizeof buf) < 0) {
+                        follow_rc = -1;
+                        break;
+                    }
+                    continue;
+                }
                 if (files[i].fd < 0 &&
                     bt_follow_open_one (infd, &files[i], retry) == 0) {
                     fprintf (stderr, files[i].missing_errno == ENOENT
@@ -506,6 +531,15 @@ bt_follow (char **paths, int *initial_errors, int n_paths, int retry)
                     if (new_ok && old_ok && old_st.st_dev == new_st.st_dev &&
                         old_st.st_ino == new_st.st_ino)
                         continue;
+                    /* A rename leaves the file alive under another name.  GNU
+                       tail keeps following it without a message until the
+                       name exists again, and then reports a replacement.  */
+                    if (!new_ok && err == ENOENT && old_ok && old_st.st_nlink > 0 &&
+                        (e->mask & IN_MOVE_SELF)) {
+                        files[idx].renamed = 1;
+                        continue;
+                    }
+                    files[idx].renamed = 0;
                     if (new_ok)
                         fprintf (stderr, "tail: '%s' has been replaced;  following new file\n", files[idx].path);
                     else
