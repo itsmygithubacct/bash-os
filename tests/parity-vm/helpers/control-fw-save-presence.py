@@ -41,9 +41,23 @@ def without_comments(text):
     return ''.join(line + '\n' for line in text.splitlines() if not line.startswith('#'))
 
 
+def without_set_section(text):
+    # The set section is checked on its own; iptables-save never prints it.
+    kept, inside = [], False
+    for line in text.splitlines():
+        if line == '# fw ipset-save begin':
+            inside = True
+        elif line == '# fw ipset-save end':
+            inside = False
+        elif not inside:
+            kept.append(line)
+    return ''.join(line + '\n' for line in kept)
+
+
 def verify_rules(saved):
     reference = must('real iptables-save succeeds', direct(BIN+'iptables-save'))
-    L.check('rules match real iptables-save', without_comments(saved) == without_comments(reference),
+    L.check('rules match real iptables-save',
+            without_comments(without_set_section(saved)) == without_comments(reference),
             'saved=%r reference=%r' % (saved, reference))
     L.check('deny rule retained', '-A BASHFW_IN -s 198.51.100.0/24 -j DROP\n' in saved, saved)
     L.check('allow rule retained', '-A BASHFW_IN -s 192.0.2.10/32 -p tcp -m tcp --dport 22 -j ACCEPT\n' in saved, saved)

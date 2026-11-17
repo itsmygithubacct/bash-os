@@ -28,7 +28,7 @@
       "expected_status": 0,
       "timeout": 60,
       "helpers_sha256": {
-        "helpers/control-fw-save-presence.py": "fc8d4047739e4e9c35a2d7b112352f39e8e7fc6653a170be671024b6c8d9d2c1",
+        "helpers/control-fw-save-presence.py": "08c3bff175ccb9e4fa411756b4a5d869be62695fd89f952da851df13e082a559",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     },
@@ -59,7 +59,7 @@
       "expected_status": 0,
       "timeout": 60,
       "helpers_sha256": {
-        "helpers/control-fw-save-presence.py": "fc8d4047739e4e9c35a2d7b112352f39e8e7fc6653a170be671024b6c8d9d2c1",
+        "helpers/control-fw-save-presence.py": "08c3bff175ccb9e4fa411756b4a5d869be62695fd89f952da851df13e082a559",
         "helpers/mig-w1-netlib.py": "ce9aa14c904e1a6d02b2970eb9c644b1929fecf513ca0aa76566188616689d74"
       }
     }
