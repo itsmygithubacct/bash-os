@@ -2098,7 +2098,7 @@
           "evidence": [
             {
               "assertion": "jq.sh -r .name on a document containing an embedded quote and a non-ASCII character must print the raw string exactly as host jq -r does. /bash-os/jq.sh is absent from both the frozen payload and the guest image, so the candidate exits 127 ('No such file or directory') while the reference host jq 1.7.1 produces the compared bytes.",
-              "definition_sha256": "80fe48907efab608bf32a8ebf9dda0f4be529f80d313659bf102d17895a89375",
+              "definition_sha256": "7f3ba2c6f47030ab0b97e05400ad2436ddb17152f90b8455dc1345f0bf7c5d1b",
               "group": "shell",
               "id": "mig-w3-bashjson-jq-raw-string"
             }
@@ -2112,7 +2112,7 @@
           "evidence": [
             {
               "assertion": "The nested path .users[1].profile.meta.deep[2] must evaluate to 30, the same as host jq. /bash-os/jq.sh is absent from both the frozen payload and the guest image, so the candidate exits 127 ('No such file or directory') while the reference host jq 1.7.1 produces the compared bytes.",
-              "definition_sha256": "deb3e447723110e5b14796be769dab89a926fce8bdba3205ead58dd5938875d6",
+              "definition_sha256": "5f544076a3be79587e6c91b9c01097f98b92a4abf629c507c88c98238c562b60",
               "group": "shell",
               "id": "mig-w3-bashjson-jq-nested-filter"
             }
@@ -32695,7 +32695,7 @@
           "evidence": [
             {
               "assertion": "payload install tiny with the default image helper must return 0 and leave a txn= state record. The real /bash-os/bl-pkg.sh is absent from the frozen payload and guest image, so the candidate stops at the missing-installer check.",
-              "definition_sha256": "1a495f09554b13550570f243b0a305ac7e281ab9f8455717560ca28908fb438a",
+              "definition_sha256": "d55055ea5548e4474b7fa4866d02a44b6e74f14f6f726ce2dcc781be82957295",
               "group": "shell",
               "id": "mig-w3-payload-image-install"
             }
@@ -32710,7 +32710,7 @@
           "evidence": [
             {
               "assertion": "payload remove tiny must roll back, print 'payload: removed tiny' and leave no state. The real /bash-os/bl-pkg.sh is absent from the frozen payload and guest image, so the candidate stops at the missing-installer check.",
-              "definition_sha256": "14d8451e71c53ebf8a5da0599482200d16756b789cb6018811704037da754f21",
+              "definition_sha256": "3ef169570a5c9081151bfa10549da058c08e5704802b4450589d730985fcecba",
               "group": "shell",
               "id": "mig-w3-payload-image-remove"
             }
@@ -34595,7 +34595,7 @@
             },
             {
               "assertion": "pkg rollback txn-real1 through the real image installer (no mock) must remove the package file and state and keep unrelated entries. The real installer is absent, so the candidate reports bl-pkg.sh not found and changes nothing (reached FAIL)",
-              "definition_sha256": "a6ac368dee500a76104ae8a4f96f54ad8c0d0c179557aeb417ab539ae61bbd4e",
+              "definition_sha256": "d816c001f585ac9ee2c05d76b41008f9f7797e657bc918472df7de3221ad889d",
               "group": "shell",
               "id": "mig-w3-pkg-rollback-real-installer"
             }
@@ -36220,7 +36220,7 @@
           "evidence": [
             {
               "assertion": "In a private user+pid namespace with its own /proc, ps -e, -A, aux and -ef each list exactly the 8 live processes (shell, sleeps, renamed, threaded, stopped, zombie and post-busy children). The -e/-A/-ef layouts differ from procps throughout (candidate 'PID S TIME CMD' with full command lines vs procps 'PID TTY TIME CMD' with comm; -ef lacks UID/C/STIME/TTY columns).",
-              "definition_sha256": "dd6cbed4307dd2555abc1347e6a01cad2ed3c3f9f84ebd9686bbbae7f48ec410",
+              "definition_sha256": "de4777b62f36987673b5de6217aea1672a1f02b66a4d7da6ffc52fca47593cbc",
               "group": "shell",
               "id": "migration-ps-live-pidns-tables"
             }
@@ -36234,7 +36234,7 @@
           "evidence": [
             {
               "assertion": "The aux header equals procps's; USER, PID, VSZ, TTY, STAT, START, TIME and COMMAND columns of the children equal procps for the same snapshot, except the zombie lacks ' <defunct>' and a command line with embedded newlines is printed raw across several lines (procps shows them as spaces).",
-              "definition_sha256": "dd6cbed4307dd2555abc1347e6a01cad2ed3c3f9f84ebd9686bbbae7f48ec410",
+              "definition_sha256": "de4777b62f36987673b5de6217aea1672a1f02b66a4d7da6ffc52fca47593cbc",
               "group": "shell",
               "id": "migration-ps-live-pidns-tables"
             }
@@ -36248,7 +36248,7 @@
           "evidence": [
             {
               "assertion": "START and TIME equal procps (TIME 0:01 for the child that burned 1.2 s). %CPU is the documented 0.0 placeholder (procps 96.7 for that child, 0.8 for the threaded one); RSS is about 100-170 kB lower than procps on every live child, so %MEM differs (0.1 vs 0.0 on sleeps). Contract FAIL.",
-              "definition_sha256": "dd6cbed4307dd2555abc1347e6a01cad2ed3c3f9f84ebd9686bbbae7f48ec410",
+              "definition_sha256": "de4777b62f36987673b5de6217aea1672a1f02b66a4d7da6ffc52fca47593cbc",
               "group": "shell",
               "id": "migration-ps-live-pidns-tables"
             }
@@ -36274,7 +36274,7 @@
             },
             {
               "assertion": "Live records: the comm 'a b (c)' child, the threaded child (STAT 'Sl'), the stopped child ('T') and the zombie ('Z') are parsed and placed in the right aux columns; differences are only those listed for r2/r3. Contract FAIL.",
-              "definition_sha256": "dd6cbed4307dd2555abc1347e6a01cad2ed3c3f9f84ebd9686bbbae7f48ec410",
+              "definition_sha256": "de4777b62f36987673b5de6217aea1672a1f02b66a4d7da6ffc52fca47593cbc",
               "group": "shell",
               "id": "migration-ps-live-pidns-tables"
             }

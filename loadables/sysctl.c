@@ -156,8 +156,6 @@ bsc_read_key (const char *display_name, const char *fspath, int flags)
                 builtin_error ("\"%s\" is an unknown key", display_name);
             return EXECUTION_FAILURE;
         }
-        if (errno == EACCES && (flags & BSC_F_DUMP_ALL))
-            return EXECUTION_SUCCESS;
         if (errno == EACCES)
             builtin_error ("permission denied on key '%s'", display_name);
         else if (errno != EIO)
@@ -187,11 +185,6 @@ bsc_read_key (const char *display_name, const char *fspath, int flags)
     }
     if (ferror (fp)) {
         int saved = errno;
-        if (saved == EACCES && (flags & BSC_F_DUMP_ALL)) {
-            free (line);
-            fclose (fp);
-            return EXECUTION_SUCCESS;
-        }
         if (saved == EACCES)
             builtin_error ("permission denied on key '%s'", display_name);
         else if (saved != EIO)
@@ -211,6 +204,25 @@ bsc_write_key (const char *display_name, const char *fspath,
     if (!bsc_pattern_match (display_name))
         return EXECUTION_SUCCESS;
 
+    /* procps-ng stats the key before it opens it.  A key it cannot stat
+     * fails even on a "-KEY = VALUE" line (only -e and --system silence
+     * that), while a key without the owner write bit, or a directory, is
+     * reported and left alone with a zero status.  The path printed is
+     * the translated one, including interface names containing dots and
+     * slash notation. */
+    struct stat st;
+    if (stat (fspath, &st) < 0) {
+        if (!(flags & BSC_F_SHOW_KEY_ERROR))
+            return EXECUTION_SUCCESS;
+        builtin_error ("cannot stat %s: %s", fspath, strerror (errno));
+        return EXECUTION_FAILURE;
+    }
+    if (!(st.st_mode & S_IWUSR) || S_ISDIR (st.st_mode)) {
+        builtin_error ("setting key \"%s\": %s", display_name,
+                       strerror ((st.st_mode & S_IWUSR) ? EISDIR : EPERM));
+        return EXECUTION_SUCCESS;
+    }
+
     int fd = open (fspath, O_WRONLY | O_CLOEXEC);
     if (fd < 0) {
         if (errno == ENOENT && !(flags & BSC_F_SHOW_KEY_ERROR))
@@ -219,11 +231,9 @@ bsc_write_key (const char *display_name, const char *fspath,
             builtin_error ("permission denied on key \"%s\", ignoring", display_name);
             return EXECUTION_SUCCESS;
         }
-        if (errno == ENOENT) {
-            /* Use the actual translated path used by open, including
-             * interface names containing dots and slash notation. */
+        if (errno == ENOENT)
             builtin_error ("cannot stat %s: %s", fspath, strerror (ENOENT));
-        } else if (errno == EACCES)
+        else if (errno == EACCES || errno == EPERM || errno == EROFS)
             builtin_error ("permission denied on key \"%s\"", display_name);
         else
             builtin_error ("setting key \"%s\": %s", display_name, strerror (errno));
@@ -234,9 +244,6 @@ bsc_write_key (const char *display_name, const char *fspath,
     int saved = errno;
     close (fd);
     if (w < 0 || (size_t)w != vlen) {
-        if (w < 0 && (flags & BSC_F_IGNORE_PERM) &&
-            (saved == EACCES || saved == EPERM))
-            return EXECUTION_SUCCESS;
         builtin_error ("setting key \"%s\": %s", display_name,
                        w < 0 ? strerror (saved) : "short write");
         return EXECUTION_FAILURE;
@@ -385,8 +392,8 @@ bsc_load_file (const char *path, int flags, int optional, int announce,
         while (*p == ' ' || *p == '\t') p++;
         if (!*p || *p == '#' || *p == ';') continue;
         if (!strchr (p, '=')) {
+            /* procps-ng warns and carries on; the status is unchanged. */
             builtin_error ("%s(%zu): invalid syntax, continuing...", path, lineno);
-            rc = EXECUTION_FAILURE;
             continue;
         }
         struct bsc_line *item = malloc (sizeof *item);
@@ -418,8 +425,10 @@ bsc_apply_lines (struct bsc_line *head, int flags)
         char *p = item->text;
         int line_flags = flags | BSC_F_WRITE | BSC_F_PRELOAD;
         if (*p == '-') { p++; line_flags |= BSC_F_IGNORE_PERM; }
-        if (bsc_apply_token (p, line_flags) != EXECUTION_SUCCESS &&
-            !(line_flags & BSC_F_IGNORE_PERM)) rc = EXECUTION_FAILURE;
+        /* A leading '-' forgives a denied write (bsc_write_key); any other
+         * failure on the line still counts, as in procps-ng. */
+        if (bsc_apply_token (p, line_flags) != EXECUTION_SUCCESS)
+            rc = EXECUTION_FAILURE;
         head = item->next;
         free (item->text);
         free (item);

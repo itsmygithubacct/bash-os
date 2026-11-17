@@ -15,6 +15,18 @@
 #include <grp.h>
 #include "loadables.h"
 #include "bashgetopt.h"
+#include "chown-operand.h"
+
+/* GNU names the whole OWNER[:GROUP] operand, in the locale's quotes. */
+static int
+invalid_spec (const char *what, const char *spec)
+{
+  char *quoted = bos_quote (spec);
+
+  builtin_error ("invalid %s: %s", what, quoted ? quoted : spec);
+  free (quoted);
+  return -1;
+}
 
 /* Resolve a "owner[:group]" or ":group" spec to uid/gid; -1 means "unchanged". */
 static int
@@ -24,6 +36,7 @@ parse_owner (char *spec, uid_t *uid, gid_t *gid)
   struct passwd *pw;
   struct group *gr;
   char *end;
+  char separator = '\0';
 
   *uid = (uid_t) -1;
   *gid = (gid_t) -1;
@@ -35,7 +48,7 @@ parse_owner (char *spec, uid_t *uid, gid_t *gid)
         builtin_warning ("use ':' instead of '.' in owner/group specification: %s", spec);
     }
   if (colon)
-    { *colon = '\0'; o = spec; g = colon + 1; }
+    { separator = *colon; *colon = '\0'; o = spec; g = colon + 1; }
   else
     { o = spec; g = 0; }
 
@@ -50,7 +63,11 @@ parse_owner (char *spec, uid_t *uid, gid_t *gid)
 	  long v = strtol (o, &end, 10);
 	  if (errno || end == o || *end || v < 0 ||
               (uintmax_t) (uid_t) v != (uintmax_t) v || (uid_t) v == (uid_t) -1)
-	    { builtin_error ("invalid user: '%s'", o); return -1; }
+	    {
+	      if (colon)
+		*colon = separator;
+	      return invalid_spec ("user", spec);
+	    }
 	  *uid = (uid_t) v;
 	}
     }
@@ -65,7 +82,10 @@ parse_owner (char *spec, uid_t *uid, gid_t *gid)
 	  long v = strtol (g, &end, 10);
 	  if (errno || end == g || *end || v < 0 ||
               (uintmax_t) (gid_t) v != (uintmax_t) v || (gid_t) v == (gid_t) -1)
-            { builtin_error ("invalid group: %s", g); return -1; }
+	    {
+	      *colon = separator;
+	      return invalid_spec ("group", spec);
+	    }
 	  *gid = (gid_t) v;
 	}
     }
@@ -93,12 +113,8 @@ chown_builtin (WORD_LIST *list)
     return (EXECUTION_FAILURE);
 
   for (l = list->next; l; l = l->next)
-    {
-      int r = deref ? chown (l->word->word, uid, gid)
-		    : lchown (l->word->word, uid, gid);
-      if (r < 0)
-	{ builtin_error ("%s: %s", l->word->word, strerror (errno)); rc = EXECUTION_FAILURE; }
-    }
+    if (bos_chown_operand (l->word->word, uid, gid, deref) < 0)
+      rc = EXECUTION_FAILURE;
   return (rc);
 }
 

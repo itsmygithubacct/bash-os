@@ -22,7 +22,7 @@ The syslog review adds bounded three-record FIFO observations for startup, SIGHU
 
 The broker review includes bounded default and 250 ms idle observations. Nominal durations fall within the measured brackets; strict nominal lower bounds and a 60,000 ms idle wait were not measured. Both builds also preserved four distinct blocks across partial writes.
 
-The SQLite review records a locking failure on both builds: the second candidate writer began while the first held its transaction. The explicit no-locking case passed. These observations do not establish concurrent-commit behavior or a numeric candidate SQLite error code.
+The SQLite review recorded a locking failure on both builds: the second candidate writer began while the first held its transaction. That case opened the database the default way, which is lock-free; it now opens with `--locking` and sees the contention. The explicit no-locking case passed. These observations do not establish concurrent-commit behavior or a numeric candidate SQLite error code.
 
 The scrub review adds seeded history pruning, explicit dropped counts, exact prompt-command restoration and private-history observations on both builds. Earlier reached failures remain visible. PTY writes establish delivered input; exact application read syscalls were not traced.
 

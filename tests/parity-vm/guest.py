@@ -125,6 +125,43 @@ def attest_namespaces(token, outer):
     return proof
 
 
+def attest_acme_observer(token):
+    """Bind the ACME observer fixtures to this run's executables and cgroup.
+
+    The observer and its control checks run as the unprivileged case user and
+    read this root-created record to learn which candidate, observer and
+    control sources they may trust and which cgroup every traced task must
+    stay in.  Without a private evaluation cgroup no record is written and
+    those fixtures report themselves incomplete.
+    """
+    cgroup = Path('/proc/self/cgroup').read_text('ascii').strip()
+    if os.getpid() != 1 or os.geteuid() != 0 or not cgroup.startswith('0::/') or cgroup == '0::/' or '\n' in cgroup:
+        return None
+    helpers = ROOT / 'harness' / 'helpers'
+    proof = {'schema': 'bashos-acme-observer-attestation-v1', 'token': token, 'cgroup': cgroup}
+    for key, path in (('candidate_sha256', ROOT / 'candidate'),
+                      ('observer_sha256', helpers / 'acme-owned-observer-r1.py'),
+                      ('controls_sha256', helpers / 'acme-observer-controls-r1.py')):
+        info = path.lstat()
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_gid != 0 or info.st_nlink != 1
+                or stat.S_IMODE(info.st_mode) & 0o022):
+            return None
+        proof[key] = hashlib.sha256(path.read_bytes()).hexdigest()
+    data = (json.dumps(proof, sort_keys=True) + '\n').encode('ascii')
+    fd = os.open('/run/bashos-acme-observer-attestation.json',
+                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o444)
+    try:
+        while data:
+            count = os.write(fd, data)
+            if count <= 0:
+                raise RuntimeError('short observer attestation write')
+            data = data[count:]
+        os.fchmod(fd, 0o444)
+    finally:
+        os.close(fd)
+    return proof
+
+
 def write_json(path, value):
     path.write_text(json.dumps(value, indent=2, ensure_ascii=True) + "\n")
 
@@ -754,6 +791,7 @@ def main():
     allow_root = args.allow_root_fixtures
     isolation = require_guest(args.vm_token)
     isolation['namespace_attestation'] = attest_namespaces(args.vm_token, json.loads(args.outer_namespaces))
+    isolation['acme_observer_attestation'] = attest_acme_observer(args.vm_token)
     output = ROOT / "results"
     output.mkdir(exist_ok=False)
     groups = set(args.groups.split(","))

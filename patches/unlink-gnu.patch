@@ -1,6 +1,14 @@
 --- builtins/unlink.c
 +++ builtins/unlink.c
-@@ -41,25 +41,52 @@
+@@ -33,6 +33,7 @@
+ #include "../builtins.h"
+ #include "../shell.h"
+ #include "common.h"
++#include "gnu-quote.h"
+ 
+ #ifndef errno
+ extern int errno;
+@@ -41,25 +42,56 @@
  int
  unlink_builtin (WORD_LIST *list)
  {
@@ -44,11 +52,14 @@
 +      else builtin_error ("missing operand");
 +      return EXECUTION_FAILURE;
      }
--
--  return (EXECUTION_SUCCESS);
 +  if (unlink (file) != 0)
 +    {
-+      builtin_error ("%s: cannot unlink: %s", file, strerror (errno));
++      int error = errno;
++      char *quoted = bos_quoteaf (file);
+ 
+-  return (EXECUTION_SUCCESS);
++      builtin_error ("cannot unlink %s: %s", quoted ? quoted : file, strerror (error));
++      free (quoted);
 +      return EXECUTION_FAILURE;
 +    }
 +  return EXECUTION_SUCCESS;

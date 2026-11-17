@@ -158,9 +158,13 @@ OUT/payload-sanitize.so --asan-runtime "$(cat OUT/libasan.path)"` runs the
 same checks against it.
 
 The fixture never touches `/root/loadables`, `/var/lib/bl-pkg` or
-`/bash-os`. The real `bl-pkg.sh` has not been qualified against this argv
-here, because it is not available on this host. That check belongs to the
-bashy.box image.
+`/bash-os`. The real `bl-pkg.sh` is checked against this argv by the guest
+cases `payload-image-real-install-r1`, `payload-image-real-remove-r1`,
+`mig-w3-payload-image-install`, `mig-w3-payload-image-remove` and
+`mig-w3-pkg-rollback-real-installer`: a qualification run stages the image's
+own helper, `tests/parity-vm/helpers/image-view-r1.py` checks it against
+pinned digests and shows it at `/bash-os` to the case through an unprivileged
+mount namespace.
 
 ## Measurements
 

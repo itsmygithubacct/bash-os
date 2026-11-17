@@ -74,6 +74,9 @@ the historical 0.1.3 evidence remains available separately.
   sorting by it, and tied rows kept in slabinfo order. The interactive display
   keeps one decimal and orders ties by name.
 - `setsid` without `-f` waits for the command and returns its status when the caller is not a process-group leader, as a caller of util-linux `setsid` observes.
+- `chown` and `chgrp` report a failing operand the way GNU does (`cannot access`, `cannot dereference`, `changing ownership of`, `changing group of`, with the name quoted) and name the whole `OWNER[:GROUP]` operand when it is invalid.
+- `unlink` reports `cannot unlink 'NAME': REASON` as GNU does.
+- `sysctl` checks a key before writing it as procps-ng does: a key that cannot be found fails even on a `-KEY = VALUE` line, and a read-only key or a directory is reported and skipped.
 - `tail -F` keeps following a renamed file without a message and reports `has been replaced` when the name exists again, as GNU `tail` does.
 - `killall NAME` in a pipeline or subshell no longer signals forked copies of the invoking shell that still carry its name.
 - `prlimit` prints the selected resources in command-line order, repeats included, as util-linux does.

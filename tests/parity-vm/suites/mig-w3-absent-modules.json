@@ -369,15 +369,23 @@
         "bashjson/jq-wrapper-integration"
       ],
       "reference_script": "printf '%s' '{\"name\":\"alice \\\"q\\\" \\u00e9\",\"n\":3}' | /usr/bin/jq -r '.name'\n",
-      "candidate_script": "printf '%s' '{\"name\":\"alice \\\"q\\\" \\u00e9\",\"n\":3}' | \"$BASH\" /bash-os/jq.sh -r '.name'\n",
+      "candidate_script": "exec /usr/bin/python3 /opt/bashos-parity/harness/helpers/image-view-r1.py run \"$BASH\" candidate.sh\n",
       "requires": [
-        "jq"
+        "bwrap",
+        "jq",
+        "python3"
       ],
       "oracle": "jq 1.7.1 (Debian trixie) in the guest is the reference; jq.sh is the documented bash-os wrapper at /bash-os/jq.sh (bashjson.c help and header)",
-      "comparison": "r1: jq.sh -r prints the string .name raw (unquoted, with the embedded quote and the non-ASCII character) exactly as host jq -r does. The pinned /bash-os/jq.sh is not in the frozen payload or the guest image, so the candidate side cannot start the wrapper; the candidate PATH stays empty. 0.1.4 defers jq.sh as bashy.box and does not ship it. The expected bytes stay the jq contract, so a candidate without /bash-os/jq.sh still fails.",
+      "comparison": "r1: jq.sh -r prints the string .name raw (unquoted, with the embedded quote and the non-ASCII character) exactly as host jq -r does. The pinned /bash-os/jq.sh is not in the frozen payload or the guest image, so the candidate side cannot start the wrapper; the candidate PATH stays empty. 0.1.4 defers jq.sh as bashy.box and does not ship it. The expected bytes stay the jq contract, so a candidate without /bash-os/jq.sh still fails. The helper is the bashy.box image's own, staged under the reference data, checked against pinned digests and shown at /bash-os through an unprivileged mount namespace (helpers/image-view-r1.py); the guest image is unchanged.",
       "group": "shell",
       "driver": "plain",
-      "expected_status": 0
+      "expected_status": 0,
+      "files": {
+        "candidate.sh": "printf '%s' '{\"name\":\"alice \\\"q\\\" \\u00e9\",\"n\":3}' | \"$BASH\" /bash-os/jq.sh -r '.name'\n"
+      },
+      "features": [
+        "userns"
+      ]
     },
     {
       "id": "mig-w3-bashjson-jq-nested-filter",
@@ -386,15 +394,23 @@
         "bashjson/jq-wrapper-integration"
       ],
       "reference_script": "printf '%s' '{\"users\":[{\"profile\":{\"langs\":[\"bash\",\"c\"]}},{\"profile\":{\"langs\":[\"go\",\"rust\"],\"meta\":{\"deep\":[10,20,30]}}}]}' | /usr/bin/jq  '.users[1].profile.meta.deep[2]'\n",
-      "candidate_script": "printf '%s' '{\"users\":[{\"profile\":{\"langs\":[\"bash\",\"c\"]}},{\"profile\":{\"langs\":[\"go\",\"rust\"],\"meta\":{\"deep\":[10,20,30]}}}]}' | \"$BASH\" /bash-os/jq.sh  '.users[1].profile.meta.deep[2]'\n",
+      "candidate_script": "exec /usr/bin/python3 /opt/bashos-parity/harness/helpers/image-view-r1.py run \"$BASH\" candidate.sh\n",
       "requires": [
-        "jq"
+        "bwrap",
+        "jq",
+        "python3"
       ],
       "oracle": "jq 1.7.1 (Debian trixie) in the guest is the reference; jq.sh is the documented bash-os wrapper at /bash-os/jq.sh (bashjson.c help and header)",
-      "comparison": "r2: one nested path filter (.users[1].profile.meta.deep[2]) evaluates to the same JSON value (30) as host jq. The pinned /bash-os/jq.sh is not in the frozen payload or the guest image, so the candidate side cannot start the wrapper; the candidate PATH stays empty. 0.1.4 defers jq.sh as bashy.box and does not ship it. The expected bytes stay the jq contract, so a candidate without /bash-os/jq.sh still fails.",
+      "comparison": "r2: one nested path filter (.users[1].profile.meta.deep[2]) evaluates to the same JSON value (30) as host jq. The pinned /bash-os/jq.sh is not in the frozen payload or the guest image, so the candidate side cannot start the wrapper; the candidate PATH stays empty. 0.1.4 defers jq.sh as bashy.box and does not ship it. The expected bytes stay the jq contract, so a candidate without /bash-os/jq.sh still fails. The helper is the bashy.box image's own, staged under the reference data, checked against pinned digests and shown at /bash-os through an unprivileged mount namespace (helpers/image-view-r1.py); the guest image is unchanged.",
       "group": "shell",
       "driver": "plain",
-      "expected_status": 0
+      "expected_status": 0,
+      "files": {
+        "candidate.sh": "printf '%s' '{\"users\":[{\"profile\":{\"langs\":[\"bash\",\"c\"]}},{\"profile\":{\"langs\":[\"go\",\"rust\"],\"meta\":{\"deep\":[10,20,30]}}}]}' | \"$BASH\" /bash-os/jq.sh  '.users[1].profile.meta.deep[2]'\n"
+      },
+      "features": [
+        "userns"
+      ]
     },
     {
       "id": "mig-w3-bashperl-system-status",

@@ -9,6 +9,7 @@
 #include <grp.h>
 #include "loadables.h"
 #include "bashgetopt.h"
+#include "chown-operand.h"
 
 int
 chgrp_builtin (WORD_LIST *list)
@@ -33,17 +34,20 @@ chgrp_builtin (WORD_LIST *list)
   else
     {
       long v = strtol (list->word->word, &end, 10);
-      if (*end) { builtin_error ("invalid group: %s", list->word->word); return (EXECUTION_FAILURE); }
+      if (*end)
+	{
+	  char *quoted = bos_quote (list->word->word);
+
+	  builtin_error ("invalid group: %s", quoted ? quoted : list->word->word);
+	  free (quoted);
+	  return (EXECUTION_FAILURE);
+	}
       gid = (gid_t) v;
     }
 
   for (l = list->next; l; l = l->next)
-    {
-      int r = deref ? chown (l->word->word, (uid_t) -1, gid)
-		    : lchown (l->word->word, (uid_t) -1, gid);
-      if (r < 0)
-	{ builtin_error ("%s: %s", l->word->word, strerror (errno)); rc = EXECUTION_FAILURE; }
-    }
+    if (bos_chown_operand (l->word->word, (uid_t) -1, gid, deref) < 0)
+      rc = EXECUTION_FAILURE;
   return (rc);
 }
 

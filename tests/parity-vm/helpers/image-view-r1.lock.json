@@ -1,0 +1,9 @@
+{
+  "guest": "/opt/bashos-parity/reference-data/image-helpers/bash-os",
+  "note": "Image-owned helpers from the bashy.box image (MIT). They are staged for a qualification run and are not part of this repository; bl-pkg.sh is executable in the image.",
+  "files": {
+    "bl-pkg.sh": {"bytes": 5123, "mode": "755", "sha256": "fb00c08d5ca2d9bd10f8816e0642b4db6290fb7cd848f1ae1461673150f4c2a4"},
+    "jq.sh": {"bytes": 35363, "mode": "755", "sha256": "2e3245cd539adc9c86a912648eb6634682c856111f4c153722f4dbd3173e9b90"},
+    "lib/bl-pkg-lib.sh": {"bytes": 27760, "mode": "644", "sha256": "571fee9703ee4723f77a02e6877baf8534b4bb8f9f8e20d035fba1e00b189cd0"}
+  }
+}

@@ -30,16 +30,24 @@
     {
       "id": "mig-bashjson-jq-wrapper-raw-escapes",
       "reference_script": "printf '%s' '{\"s\":\"line\\nquote: \\\" slash: \\\\ music: \\ud834\\udd1e\"}' | /usr/bin/jq -r .s\n",
-      "candidate_script": "printf '%s' '{\"s\":\"line\\nquote: \\\" slash: \\\\ music: \\ud834\\udd1e\"}' | \"$BASH\" /bash-os/jq.sh -r .s\n",
+      "candidate_script": "exec /usr/bin/python3 /opt/bashos-parity/harness/helpers/image-view-r1.py run \"$BASH\" candidate.sh\n",
       "requires": [
-        "jq"
+        "bwrap",
+        "jq",
+        "python3"
       ],
       "oracle": "Guest jq raw string output including escapes and a Unicode surrogate pair.",
-      "comparison": "Compares exact output bytes and status; absence of the wrapper remains failure.",
+      "comparison": "Compares exact output bytes and status; absence of the wrapper remains failure. The helper is the bashy.box image's own, staged under the reference data, checked against pinned digests and shown at /bash-os through an unprivileged mount namespace (helpers/image-view-r1.py); the guest image is unchanged.",
       "loadable": "bashjson",
       "group": "shell",
       "driver": "plain",
-      "expected_status": 0
+      "expected_status": 0,
+      "files": {
+        "candidate.sh": "printf '%s' '{\"s\":\"line\\nquote: \\\" slash: \\\\ music: \\ud834\\udd1e\"}' | \"$BASH\" /bash-os/jq.sh -r .s\n"
+      },
+      "features": [
+        "userns"
+      ]
     }
   ]
 }
