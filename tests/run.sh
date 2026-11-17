@@ -554,5 +554,6 @@ check 'builds out/bash-shell' ./build.sh --profile shell --clean
 check 'package producer and signed release' python3 tests/packages.py out/bash
 check 'loadable package data files' python3 tests/pkg-data.py out/bash
 check 'uv builtin' python3 tests/uv-builtin.py out/bash
+check 'tiv block tables' python3 tests/tiv-block-tables.py
 printf '\nrun: %s passed, %s failed\n' "$pass" "$fail"
 [[ $fail == 0 ]]
