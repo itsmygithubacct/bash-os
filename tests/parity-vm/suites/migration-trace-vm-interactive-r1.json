@@ -268,7 +268,7 @@
         "scrub/live-history-deferred"
       ],
       "oracle": "Bash interactive history semantics, an explicitly anchored synthetic denylist, a pre-existing colon prompt command and literal expected count/file bytes.",
-      "comparison": "A controlled interactive PTY records both history snapshots and terminal transcript; shell assertions verify whole history records, not substrings embedded in command lines.",
+      "comparison": "A controlled interactive PTY records the history snapshots and terminal transcript; shell assertions verify whole history records, not substrings embedded in command lines. The first denied record and benign anchor are added by a command of their own after history -c has returned, because history -s adds nothing when the list it would replace the current line in is empty; a snapshot taken before pruning is enabled must contain both (otherwise the observation is incomplete, 125).",
       "requires": [
         "grep"
       ],
@@ -284,7 +284,19 @@
           "expect": "PARITY> "
         },
         {
-          "send": "PROMPT_COMMAND=':'; scrub clear-patterns; scrub add-pattern '^private_secret_'; history -c; history -s private_secret_a; history -s safe_anchor_a; scrub live enable; scrub live enable; printf '%s\\n' \"$PROMPT_COMMAND\" > pc-enabled\r"
+          "send": "PROMPT_COMMAND=':'; scrub clear-patterns; scrub add-pattern '^private_secret_'; history -c || exit 125\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "history -s private_secret_a; history -s safe_anchor_a\r"
+        },
+        {
+          "expect": "PARITY> "
+        },
+        {
+          "send": "history > \"$HOME/live-seed-history\"; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+private_secret_a$' \"$HOME/live-seed-history\" || exit 125; /usr/bin/grep -Eq '^[[:space:]]*[0-9]+[[:space:]]+safe_anchor_a$' \"$HOME/live-seed-history\" || exit 125; scrub live enable; scrub live enable; printf '%s\\n' \"$PROMPT_COMMAND\" > pc-enabled\r"
         },
         {
           "expect": "PARITY> "
@@ -321,9 +333,12 @@
         "histfile": "/dev/null\n"
       },
       "diagnostic_files": [
+        "live-seed-history",
         "live-hook-history",
         "live-explicit-history"
-      ]
+      ],
+      "observation_error_status": 125,
+      "setup_script": ": > \"$HOME/live-seed-history\"; : > \"$HOME/live-hook-history\"; : > \"$HOME/live-explicit-history\""
     }
   ]
 }

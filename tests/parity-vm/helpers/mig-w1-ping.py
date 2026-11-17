@@ -86,6 +86,11 @@ def peer_main(rf, wf):
             else:
                 s = socket.socket(socket.AF_INET6, socket.SOCK_RAW, socket.IPPROTO_ICMPV6)
                 s.bind(("fd77::2", 0))
+            # Tell the driver the raw socket exists before it starts the candidate. A request that
+            # reaches this namespace earlier is seen by no socket (the kernel's own echo replies are
+            # off), and a quickly starting candidate could send it first.
+            wf.write(json.dumps(["listening"]) + "\n")
+            wf.flush()
             got = None
             end = time.time() + 8
             while time.time() < end and got is None:
@@ -274,6 +279,9 @@ def forge_run(fam, plan, target, args_extra=()):
             time.sleep(0.5)
         try:
             peer.send("respond", fam, plan)
+            listening = peer.recv()
+            if listening != ["listening"]:
+                raise RuntimeError("peer responder did not start: %r" % (listening,))
             p = run_ping_async(["-%d" % fam, "-c", "1", "-W", "1.5"] + list(args_extra) + [target])
             out, err = p.communicate(timeout=20)
             res = peer.recv()

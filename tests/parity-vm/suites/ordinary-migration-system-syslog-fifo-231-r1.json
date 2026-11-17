@@ -17,7 +17,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/system-client-syslog-fifo-231.py": "f01a34cb5da767bdeb3df72e92b90caf74daaec5bdbdc8bc6e2b61a122f304b3"
+        "helpers/system-client-syslog-fifo-231.py": "774daf2ffae1960799dfda709f42b627f6d4718a33a08563d45e43a6a0ca12a5"
       },
       "setup_timeout": 25,
       "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/system-client-syslog-fifo-231.py setup hup",
@@ -47,7 +47,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/system-client-syslog-fifo-231.py": "f01a34cb5da767bdeb3df72e92b90caf74daaec5bdbdc8bc6e2b61a122f304b3"
+        "helpers/system-client-syslog-fifo-231.py": "774daf2ffae1960799dfda709f42b627f6d4718a33a08563d45e43a6a0ca12a5"
       },
       "setup_timeout": 25,
       "setup_script": "/usr/bin/python3 -I /opt/bashos-parity/harness/helpers/system-client-syslog-fifo-231.py setup periodic",

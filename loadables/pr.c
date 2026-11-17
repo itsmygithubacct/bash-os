@@ -96,6 +96,7 @@ typedef struct {
     int         form_break, skip_nl, buffer_ff, buffer_bs, record_bs;
     size_t      start, end;
     char       *buf;
+    bl_output  *prompt;    /* terminal output to deliver before a terminal read */
 } pr_input;
 
 /* Open NAME, or standard input for NULL and "-". GNU pr dates a page from the
@@ -162,6 +163,10 @@ pr_input_line (pr_input *in, char **line, size_t *cap)
             ssize_t n;
             if (in->at_eof)
                 break;
+            /* As GNU pr on a terminal: what is already formatted, even the
+               start of a row, is shown before the next line is awaited. */
+            if (in->prompt)
+                bl_output_flush (in->prompt);
             n = read (in->fd, in->buf, PR_INPUT_BUFFER);
             if (n < 0) {
                 if (errno == EINTR)
@@ -547,6 +552,65 @@ pr_separator (pr_tw *w)
     if (w->pending > 0) pr_tw_flush (w);
 }
 
+/* A row written one cell at a time, so an across row can start before its
+   later columns have been read. */
+typedef struct {
+    pr_tw w;
+    int ncol, num_field, cell_w, stride, truncate, clump;
+} pr_row;
+
+static void
+pr_row_begin (pr_row *r, bl_output *out, int ncol, const pr_opts *o)
+{
+    r->ncol = ncol;
+    r->num_field = (o->merge && o->number) ? PR_NUMBER_WIDTH : 0;
+    r->cell_w = (o->width - r->num_field - (ncol - 1) * o->sep_len) / ncol;
+    r->stride = r->cell_w + o->sep_len;
+    r->truncate = !o->join && (ncol > 1 || o->page_width);
+    r->clump = o->expand || (ncol > 1 && !(o->sep_len == 1 && o->separator[0] == '\t'));
+    r->w = (pr_tw) { .out = out, .pos = 0, .pending = 0, .opts = o };
+    pr_tw_pad_to (&r->w, o->offset);
+}
+
+/* Cell I of the row. COLNUM points at the cell's own number in column mode;
+   LINENO is the row's number for a merged first column that renumbers. */
+static void
+pr_row_cell (pr_row *r, const pr_cell *cell, int i, const long *colnum, long lineno)
+{
+    pr_tw *w = &r->w;
+    const pr_opts *o = w->opts;
+    if (i) {
+        if (!o->join) {
+            int target = o->offset + r->num_field + i * r->stride - o->sep_len;
+            w->pending = target - w->pos;
+        }
+        pr_separator (w);
+    }
+    if (colnum && cell->text) {
+        if (r->ncol == 1) pr_print_number (w->out, o, *colnum);
+        else pr_tw_number (w, o, *colnum);
+    }
+    int input_end = pr_write_cell (w, cell, r->truncate ? r->cell_w : -1, r->clump,
+                                  r->truncate && o->number && !o->merge ? PR_NUMBER_WIDTH : 0);
+    /* Down-column pages replay stored records. Their final input
+       position becomes the origin for the next separator/number,
+       even when raw TABs had zero physical output width. */
+    if (colnum && !o->across && !w->pending)
+        w->pos = (o->join ? (i ? 0 : o->offset) : o->offset + i * r->stride) + input_end;
+    if (o->merge && cell->renumber && o->number) {
+        if (w->pending > 0) pr_tw_flush (w);
+        pr_tw_number (w, o, lineno + 1);
+    }
+}
+
+static void
+pr_row_end (pr_row *r)
+{
+    /* Single-column output without -i retains trailing spaces. */
+    if (!r->w.opts->tabify) pr_tw_flush (&r->w);
+    bl_output_byte (r->w.out, '\n');
+}
+
 static void
 pr_emit_row (bl_output *out, const pr_cell *cols, int ncol, const pr_opts *o,
              long lineno, const long *colnums, int last)
@@ -562,58 +626,29 @@ pr_emit_row (bl_output *out, const pr_cell *cols, int ncol, const pr_opts *o,
         bl_output_byte (out, '\n');
         return;
     }
-    int num_field = (o->merge && o->number) ? PR_NUMBER_WIDTH : 0;
-    int cell_w = (o->width - num_field - (ncol - 1) * o->sep_len) / ncol;
-    int stride = cell_w + o->sep_len;
-    int truncate = !o->join && (ncol > 1 || o->page_width);
-    int clump = o->expand || (ncol > 1 && !(o->sep_len == 1 && o->separator[0] == '\t'));
-    pr_tw w = { .out = out, .pos = 0, .pending = 0, .opts = o };
-    pr_tw_pad_to (&w, o->offset);
+    pr_row r;
+    pr_row_begin (&r, out, ncol, o);
     if (o->number && !colnums) {
         if (ncol == 1) {
-            if (!o->tabify && !o->expand && !o->show_control && !o->show_octal && !truncate)
+            if (!o->tabify && !o->expand && !o->show_control && !o->show_octal && !r.truncate)
                 pr_print_number (out, o, lineno);
             else {
-                pr_tw_number (&w, o, lineno);
+                pr_tw_number (&r.w, o, lineno);
                 if (o->num_sep == '\t') {
-                    w.pending = 0;
+                    r.w.pending = 0;
                     bl_output_byte (out, '\t');
-                    w.pos += o->out_tab_width - w.pos % o->out_tab_width;
+                    r.w.pos += o->out_tab_width - r.w.pos % o->out_tab_width;
                 }
             }
         } else {
-            pr_tw_number (&w, o, lineno);
-            if (!cols[0].text && o->join) w.pending = 0;
+            pr_tw_number (&r.w, o, lineno);
+            if (!cols[0].text && o->join) r.w.pending = 0;
         }
     }
     if (!o->merge) while (last > 0 && !cols[last - 1].text) last--;
-    for (int i = 0; i < last; i++) {
-        if (i) {
-            if (!o->join) {
-                int target = o->offset + num_field + i * stride - o->sep_len;
-                w.pending = target - w.pos;
-            }
-            pr_separator (&w);
-        }
-        if (colnums && cols[i].text) {
-            if (ncol == 1) pr_print_number (out, o, colnums[i]);
-            else pr_tw_number (&w, o, colnums[i]);
-        }
-        int input_end = pr_write_cell (&w, &cols[i], truncate ? cell_w : -1, clump,
-                                      truncate && o->number && !o->merge ? PR_NUMBER_WIDTH : 0);
-        /* Down-column pages replay stored records. Their final input
-           position becomes the origin for the next separator/number,
-           even when raw TABs had zero physical output width. */
-        if (colnums && !o->across && !w.pending)
-            w.pos = (o->join ? (i ? 0 : o->offset) : o->offset + i * stride) + input_end;
-        if (o->merge && cols[i].renumber && o->number) {
-            if (w.pending > 0) pr_tw_flush (&w);
-            pr_tw_number (&w, o, lineno + 1);
-        }
-    }
-    /* Single-column output without -i retains trailing spaces. */
-    if (!o->tabify) pr_tw_flush (&w);
-    bl_output_byte (out, '\n');
+    for (int i = 0; i < last; i++)
+        pr_row_cell (&r, &cols[i], i, colnums ? &colnums[i] : NULL, lineno);
+    pr_row_end (&r);
 }
 
 /* Single-file, single-column mode: paginate the input one line per row. */
@@ -745,7 +780,10 @@ pr_columns (bl_output *out, pr_input *in, const pr_opts *o)
     size_t rawcap = 0;
     int page_no = 1, ended = 0;
     long number_base = o->first_number;
+    pr_row row;
+    memset (&row, 0, sizeof row);
     if (!cols || !full || (o->number && !colnums)) in->failed = ENOMEM;
+    in->prompt = out->terminal && isatty (in->fd) ? out : NULL;
 
     while (!in->failed && !out->error && !ended && page_no <= o->last_page) {
         size_t count = 0, rows = 0;
@@ -763,10 +801,23 @@ pr_columns (bl_output *out, pr_input *in, const pr_opts *o)
             if (got < 0) { ended = 1; break; }
             form_break = in->form_break;
             if (in->at_eof) ended = 1;
-            if (got > 0) {
-                size_t slot = o->across ? count % ncol : count;
+            if (got > 0 && o->across) {
+                /* An across cell is written as soon as its line is read:
+                   nothing later in the row changes it. */
+                int j = (int) (count % ncol);
+                long number = number_base + (long) count;
+                pr_cell cell = { .text = raw, .len = pr_chomp (raw, (size_t) got),
+                                 .backspace = in->record_bs };
+                if (j == 0) {
+                    if (!rows) pr_header (out, o, in->title, in->stamp, page_no);
+                    pr_row_begin (&row, out, ncol, o);
+                }
+                pr_row_cell (&row, &cell, j, colnums ? &number : NULL, 0);
+                count++;
+            } else if (got > 0) {
+                size_t slot = count;
                 if (slot == capacity) {
-                    size_t limit = o->across ? (size_t) ncol : per_page;
+                    size_t limit = per_page;
                     size_t next = capacity ? capacity * 2 : 64;
                     if (next < capacity || next > limit) next = limit;
                     if (next > SIZE_MAX / sizeof *lines) { in->failed = EOVERFLOW; break; }
@@ -782,40 +833,18 @@ pr_columns (bl_output *out, pr_input *in, const pr_opts *o)
                                         .backspace = in->record_bs };
                 count++;
             }
-            if (o->across && (count % ncol == 0 || form_break)) {
-                size_t cells = count - rows * ncol;
-                if (cells) {
-                    if (selected) {
-                        if (!rows) pr_header (out, o, in->title, in->stamp, page_no);
-                        memset (cols, 0, (size_t) ncol * sizeof *cols);
-                        for (size_t j = 0; j < cells; j++) {
-                            cols[j] = lines[j];
-                            if (colnums) colnums[j] = number_base + (long) (rows * ncol + j);
-                        }
-                        pr_emit_row (out, cols, ncol, o, 0, colnums, ncol);
-                        if (o->dbl && !(o->terse && (form_break || ended))) bl_output_byte (out, '\n');
-                    }
-                    for (size_t j = 0; j < cells; j++) free (lines[j].text);
-                    rows++;
-                }
+            if (o->across && (count % ncol == 0 || form_break) && count > rows * ncol) {
+                pr_row_end (&row);
+                if (o->dbl && !(o->terse && (form_break || ended))) bl_output_byte (out, '\n');
+                rows++;
             }
         } while (!form_break && !ended && count < per_page && !out->error);
 
         if (o->across) {
             /* EOF can finish a partial row. */
-            size_t cells = count > rows * ncol ? count - rows * ncol : 0;
-            if (cells) {
-                if (selected) {
-                    if (!rows) pr_header (out, o, in->title, in->stamp, page_no);
-                    memset (cols, 0, (size_t) ncol * sizeof *cols);
-                    for (size_t j = 0; j < cells; j++) {
-                        cols[j] = lines[j];
-                        if (colnums) colnums[j] = number_base + (long) (rows * ncol + j);
-                    }
-                    pr_emit_row (out, cols, ncol, o, 0, colnums, ncol);
-                    if (o->dbl && !o->terse) bl_output_byte (out, '\n');
-                }
-                for (size_t j = 0; j < cells; j++) free (lines[j].text);
+            if (count > rows * ncol) {
+                pr_row_end (&row);
+                if (o->dbl && !o->terse) bl_output_byte (out, '\n');
                 rows++;
             }
         } else {

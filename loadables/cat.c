@@ -126,7 +126,9 @@ done:
     int flush_failed = fflush(stdout);
     if (write_errno || flush_failed || ferror(stdout)) {
         if (!write_errno) write_errno = errno ? errno : EIO;
-        builtin_error("write: %s", strerror(write_errno)); clearerr(stdout); rc = 1;
+        /* GNU's line, without the shell's source prefix. */
+        fprintf(stderr, "cat: write error: %s\n", strerror(write_errno));
+        clearerr(stdout); rc = 1;
     }
     return rc;
 }

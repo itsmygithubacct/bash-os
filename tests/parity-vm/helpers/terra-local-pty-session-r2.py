@@ -59,10 +59,12 @@ control.sendall(('DONE %d %d %d\n' % (sidrc, rc, fd)).encode())
 control.recv(1)
 '''
 
+# The candidate waits on the control descriptor itself (read -u): a redirection
+# of standard input would stand in for descriptor 0 at both observation points.
 CANDIDATE = r'''
 control=$CONTROL_FD
 printf 'PRE\n' >&"$control"
-IFS= read -r -n 1 _ <&"$control"
+IFS= read -r -n 1 -u "$control" _
 sidrc=0
 if [[ $MODE == setsid || $MODE == stdio || $MODE == fdvar ]]; then
   pty setsid || sidrc=$?
@@ -76,7 +78,7 @@ else
   pty open-tty "$TARGET"; rc=$?
 fi
 printf 'DONE %s %s %s\n' "$sidrc" "$rc" "$fd" >&"$control"
-IFS= read -r -n 1 _ <&"$control"
+IFS= read -r -n 1 -u "$control" _
 '''
 
 

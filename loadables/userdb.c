@@ -327,8 +327,21 @@ bud_run_provider (bud_provider *p, const char *op, const char *user,
           else if (n == 0 || (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR))
             { channel_error = 1; bud_close (&pwp[1]); }
         }
-      pid_t w = waitpid (pid, &status, WNOHANG);
-      if (w == pid) { reaped = 1; break; }
+      /* Notice the exit without reaping: while the provider is still a
+         zombie its process group id cannot be reused, so helpers it left
+         behind can be ended by group before the status is collected. */
+      siginfo_t exited;
+      exited.si_pid = 0;
+      int w = waitid (P_PID, (id_t) pid, &exited, WEXITED | WNOHANG | WNOWAIT);
+      if (w == 0 && exited.si_pid == pid)
+        {
+          pid_t got;
+          (void) kill (-pid, SIGKILL);
+          do got = waitpid (pid, &status, 0); while (got < 0 && errno == EINTR);
+          if (got == pid) reaped = 1;
+          else failed = 1;
+          break;
+        }
       if (w < 0 && errno != EINTR) { failed = 1; break; }
       now = bud_mono_ms ();
       if (now < 0) { failed = 1; break; }
@@ -547,6 +560,13 @@ bud_verify_cmd (WORD_LIST *args)
       if (bud_run_provider (p, "verify", user, password, &r) < 0) continue;
       if (r.timed_out)
         { builtin_error ("provider %s verify timed out", p->name); continue; }
+      if (r.rc == 0 && r.output_invalid)
+        {
+          /* A verdict wrapped in an oversized or NUL-bearing reply is not
+             a well-formed provider answer; never accept it. */
+          builtin_error ("provider %s verify: invalid output", p->name);
+          continue;
+        }
       if (r.rc == 0) return EXECUTION_SUCCESS;
       if (r.rc == 1)
         continue;             /* wrong password / user-not-found, silent */

@@ -2,8 +2,16 @@
  *
  *   bashdate [-u] [-d STRING|--date=STRING] [-I[FMT]|--iso-8601[=FMT]]
  *            [--rfc-3339=FMT] [+FORMAT]
+ *   bashdate [-u] -s STRING|--set=STRING [+FORMAT]
+ *   bashdate [-u] MMDDhhmm[[CC]YY][.ss]
  *
  *   -u           use UTC (gmtime instead of localtime)
+ *   -s STRING    set the system clock to STRING (same shapes as -d), then
+ *   --set=STRING print that time; a refused request is diagnosed, the time
+ *                is still printed and the status is 1
+ *   MMDDhhmm[[CC]YY][.ss]
+ *                POSIX form of the same request; a two-digit year 00-68 is
+ *                20YY and 69-99 is 19YY
  *   -d STRING    parse STRING (ISO 8601 + a few common shapes) instead
  *   --date=STRING
  *                of the current time
@@ -630,10 +638,65 @@ bd_rfc3339_format (const char *level)
     return NULL;
 }
 
+/* The POSIX clock-setting operand MMDDhhmm[[CC]YY][.ss]. A missing year is
+   the current one; 00-68 means 2000-2068 and 69-99 means 1969-1999. Fields
+   that do not name a real instant are rejected; seconds 60 is the second
+   after :59, as POSIX requires. */
+static int
+bd_parse_posix_set (const char *s, int utc, time_t *out)
+{
+    const char *dot = strchr (s, '.');
+    size_t digits = dot ? (size_t) (dot - s) : strlen (s);
+    int pair[6], sec = 0, leap = 0;
+    struct tm t;
+
+    if (digits != 8 && digits != 10 && digits != 12)
+        return -1;
+    for (size_t i = 0; i < digits; i++)
+        if (s[i] < '0' || s[i] > '9')
+            return -1;
+    for (size_t i = 0; i < digits / 2; i++)
+        pair[i] = (s[2 * i] - '0') * 10 + (s[2 * i + 1] - '0');
+    if (dot) {
+        if (dot[1] < '0' || dot[1] > '9' || dot[2] < '0' || dot[2] > '9' || dot[3] != '\0')
+            return -1;
+        sec = (dot[1] - '0') * 10 + (dot[2] - '0');
+        if (sec == 60) {
+            sec = 59;
+            leap = 1;
+        }
+    }
+
+    memset (&t, 0, sizeof t);
+    if (digits == 8) {
+        time_t now = time (NULL);
+        struct tm cur;
+        if (!(utc ? gmtime_r (&now, &cur) : localtime_r (&now, &cur)))
+            return -1;
+        t.tm_year = cur.tm_year;
+    } else if (digits == 10)
+        t.tm_year = pair[4] <= 68 ? pair[4] + 100 : pair[4];
+    else
+        t.tm_year = pair[4] * 100 + pair[5] - 1900;
+    t.tm_mon = pair[0] - 1;
+    t.tm_mday = pair[1];
+    t.tm_hour = pair[2];
+    t.tm_min = pair[3];
+    t.tm_sec = sec;
+    t.tm_isdst = -1;
+    if (bd_convert_tm (&t, utc, out) < 0)
+        return -1;
+    *out += leap;
+    return 0;
+}
+
 int
 date_builtin (WORD_LIST *list)
 {
     int utc = 0;
+    int set_clock = 0, set_failed = 0;
+    const char *set_str = NULL;
+    const char *posix_str = NULL;
     const char *date_str = NULL;
     const char *fmt = NULL;
     const char *iso_fmt = NULL;
@@ -727,8 +790,39 @@ date_builtin (WORD_LIST *list)
             list = list->next;
             continue;
         }
+        if (!strcmp (w, "-s") || !strcmp (w, "--set")) {
+            if (!list->next) {
+                builtin_error ("%s needs STRING", w);
+                builtin_usage ();
+                return EXECUTION_FAILURE;
+            }
+            list = list->next;
+            set_str = list->word->word;
+            list = list->next;
+            continue;
+        }
+        if (!strncmp (w, "--set=", 6)) {
+            set_str = w + 6;
+            list = list->next;
+            continue;
+        }
+        if (!strncmp (w, "-s", 2) && w[2]) {
+            set_str = w + 2;
+            list = list->next;
+            continue;
+        }
         if (w[0] == '+') {
             fmt = w + 1;
+            list = list->next;
+            continue;
+        }
+        if (w[0] != '-') {
+            /* The one operand that is not a format is the POSIX set form. */
+            if (posix_str) {
+                fprintf (stderr, "date: extra operand '%s'\n", w);
+                return EXECUTION_FAILURE;
+            }
+            posix_str = w;
             list = list->next;
             continue;
         }
@@ -736,10 +830,45 @@ date_builtin (WORD_LIST *list)
         builtin_usage ();
         return EXECUTION_FAILURE;
     }
+    /* Words after "--" are operands: a format or the POSIX set form. */
+    for (; list; list = list->next) {
+        const char *w = list->word->word;
+        if (w[0] == '+' && !fmt)
+            fmt = w + 1;
+        else if (!posix_str && w[0] != '+')
+            posix_str = w;
+        else {
+            fprintf (stderr, "date: extra operand '%s'\n", w);
+            return EXECUTION_FAILURE;
+        }
+    }
+    if (set_str && date_str) {
+        fprintf (stderr, "date: the options to print and set the time may not be used together\n");
+        return EXECUTION_FAILURE;
+    }
+    if (posix_str && (set_str || date_str)) {
+        fprintf (stderr, "date: the argument '%s' lacks a leading '+';\n"
+                 "when using an option to specify date(s), any non-option\n"
+                 "argument must be a format string beginning with '+'\n", posix_str);
+        return EXECUTION_FAILURE;
+    }
 
     time_t t;
     long nsec;
-    if (date_str) {
+    if (set_str) {
+        if (bd_parse_d (set_str, &t, &nsec, utc) < 0) {
+            fprintf (stderr, "date: invalid date '%s'\n", set_str);
+            return EXECUTION_FAILURE;
+        }
+        set_clock = 1;
+    } else if (posix_str) {
+        if (bd_parse_posix_set (posix_str, utc, &t) < 0) {
+            fprintf (stderr, "date: invalid date '%s'\n", posix_str);
+            return EXECUTION_FAILURE;
+        }
+        nsec = 0;
+        set_clock = 1;
+    } else if (date_str) {
         if (bd_parse_d (date_str, &t, &nsec, utc) < 0) {
             builtin_error ("date: cannot parse '%s' (try ISO 8601 or @SECONDS)", date_str);
             return EXECUTION_FAILURE;
@@ -752,6 +881,18 @@ date_builtin (WORD_LIST *list)
         }
         t = now.tv_sec;
         nsec = now.tv_nsec;
+    }
+
+    /* Like GNU date: request the change, then print the requested time
+       whether or not the kernel accepted it. */
+    if (set_clock) {
+        struct timespec when;
+        when.tv_sec = t;
+        when.tv_nsec = nsec;
+        if (clock_settime (CLOCK_REALTIME, &when) != 0) {
+            fprintf (stderr, "date: cannot set date: %s\n", strerror (errno));
+            set_failed = 1;
+        }
     }
 
     struct tm tm;
@@ -775,16 +916,25 @@ date_builtin (WORD_LIST *list)
     }
     free (expanded_fmt);
     puts (buf);
-    return EXECUTION_SUCCESS;
+    return set_failed ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
 }
 
 char *date_doc[] = {
     "Print the date or convert a timestamp (POSIX date).",
     "",
     "    bashdate [-u] [-d STRING|--date=STRING] [-I[FMT]|--iso-8601[=FMT]] [--rfc-3339=FMT] [+FORMAT]",
+    "    bashdate [-u] -s STRING|--set=STRING [+FORMAT]",
+    "    bashdate [-u] MMDDhhmm[[CC]YY][.ss]",
     "    bashdate --help | --version",
     "",
     "    -u           UTC instead of local time",
+    "    -s STRING, --set=STRING",
+    "                 set the system clock to STRING (the -d shapes), then",
+    "                 print that time; a refused request is diagnosed, the",
+    "                 time is still printed and the status is 1",
+    "    MMDDhhmm[[CC]YY][.ss]",
+    "                 POSIX form of the same request; YY 00-68 is 20YY,",
+    "                 69-99 is 19YY, no year is the current year",
     "    -R, --rfc-email",
     "                 RFC 5322 date (%a, %d %b %Y %H:%M:%S %z in C locale)",
     "    -d STRING, --date=STRING",

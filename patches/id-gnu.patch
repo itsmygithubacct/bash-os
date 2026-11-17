@@ -141,7 +141,7 @@
 +          printf ("%s", pwd->pw_name);
 +          return 0;
 +        }
-+      builtin_error ("cannot find name for user ID %ju", (uintmax_t)uid);
++      fprintf (stderr, "id: cannot find name for user ID %ju\n", (uintmax_t)uid);
 +      printf ("%ju", (uintmax_t)uid);
 +      return 1;
 +    }
@@ -162,7 +162,7 @@
 +          printf ("%s", grp->gr_name);
 +          return 0;
 +        }
-+      builtin_error ("cannot find name for group ID %ju", (uintmax_t)gid);
++      fprintf (stderr, "id: cannot find name for group ID %ju\n", (uintmax_t)gid);
 +      printf ("%ju", (uintmax_t)gid);
 +      return 1;
 +    }

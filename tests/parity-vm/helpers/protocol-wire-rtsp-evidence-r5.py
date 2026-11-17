@@ -25,10 +25,22 @@ RECEIPT = Path(os.environ.get('HOME', '.')) / 'rtsp-receipt.json'
 LIMIT = 32768
 PEER_BYTE_BUDGET = 65536
 TRACE_FILE_BUDGET = 600000
-SIGCHECK = r'''sig_snapshot() { local line; while IFS= read -r line; do case "$line" in SigIgn:*|SigCgt:*) printf '%s\n' "$line";; esac; done </proc/$$/status; }
-trap ':' PIPE; before=$(trap -p PIPE); sig_before=$(sig_snapshot);
+# The shell reads /proc/$$/status for its own before/after comparison. A `read` loop on the proc
+# file makes one read(2) per line and seeks back to the line end; the kernel regenerates the text
+# for every read, and the State line of the waiting parent changes length (running, sleeping,
+# tracing stop under the receipt observer), so later lines can arrive shifted and a SigIgn or
+# SigCgt line can be lost. Take the whole file with one read instead, and accept a snapshot only
+# when it holds exactly one well-formed line of each kind; an unusable snapshot is exit 93.
+SIGSNAPSHOT_STATUS = 93
+SIGCHECK = r'''sig_snapshot() { local text line tries; local -a ign cgt
+for ((tries = 0; tries < 20; tries++)); do
+text=$(</proc/$$/status) || continue; ign=(); cgt=()
+while IFS= read -r line; do case "$line" in SigIgn:*) ign+=("$line");; SigCgt:*) cgt+=("$line");; esac; done <<<"$text"
+if [[ ${#ign[@]} == 1 && ${#cgt[@]} == 1 && ${ign[0]} =~ ^SigIgn:[[:blank:]]+[0-9a-f]{16}$ && ${cgt[0]} =~ ^SigCgt:[[:blank:]]+[0-9a-f]{16}$ ]]; then printf '%s\n%s\n' "${ign[0]}" "${cgt[0]}"; return 0; fi
+done; return 1; }
+trap ':' PIPE; before=$(trap -p PIPE); sig_before=$(sig_snapshot) || exit 93;
 printf 'trap=%s\n%s\n' "$before" "$sig_before" > "$HOME/rtsp-signal-before.txt"; '''
-SIGAFTER = r'''trap_after=$(trap -p PIPE); sig_after=$(sig_snapshot);
+SIGAFTER = r'''trap_after=$(trap -p PIPE); sig_after=$(sig_snapshot) || exit 93;
 printf 'trap=%s\n%s\n' "$trap_after" "$sig_after" > "$HOME/rtsp-signal-after.txt"; '''
 
 
@@ -464,6 +476,7 @@ def repeated(shell, trace):
     if Path('output.bin').is_file():
         output=Path('output.bin').read_bytes();trace['fd_hex']=output[:LIMIT].hex();trace['fd_length']=len(output);trace['fd_truncated']=len(output)>LIMIT
     else:trace['fd_hex']=None
+    if proc.returncode == SIGSNAPSHOT_STATUS: raise ObservationError('shell process-status snapshot unusable')
     check(proc.returncode == 0 and proc.stdout == b'shell-alive\n' and Path('output.bin').read_bytes() == expected * 2, 'repeated calls or shell SIGPIPE restoration failed')
     for s in servers: check([r['method'] for r in s.records] == ['OPTIONS', 'DESCRIBE', 'SETUP', 'PLAY', 'TEARDOWN'], 'repeated-session sequence mismatch')
 
@@ -507,6 +520,7 @@ def main(shell, scenario):
                 content = Path('output.bin').read_bytes(); trace['fd_hex'] = content[:LIMIT].hex();trace['fd_length']=len(content);trace['fd_truncated']=len(content)>LIMIT
                 check(proc.returncode == 0 and not proc.stdout and content == expected, 'explicit output fd or stdout mismatch')
             elif scenario == 'output-pipe':
+                if proc.returncode == SIGSNAPSHOT_STATUS: raise ObservationError('shell process-status snapshot unusable')
                 pipe_status=Path(os.environ['HOME'])/'rtsp-builtin-status.txt'
                 trace['builtin_status_text']=pipe_status.read_text() if pipe_status.is_file() else None
                 check(trace['builtin_status_text']=='1\n' and proc.returncode==0 and proc.stdout==b'shell-alive\n', 'builtin pipe status, shell survival or SIGPIPE restoration mismatch')

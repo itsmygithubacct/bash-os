@@ -1,17 +1,19 @@
 /* bashlsblk.c — list block devices walking /sys/class/block.
  *
- *   bashlsblk [-a] [-l] [-d] [-f] [-n] [-P|-r] [-o LIST] [DEV ...]
+ *   bashlsblk [-a] [-l] [-d] [-f] [-i] [-n] [-P|-r] [-o LIST] [DEV ...]
  *
  *   default      tree form in MAJ:MIN order, each device followed by its
- *                partitions and holders (ASCII branch characters)
+ *                partitions and holders (box-drawing branch characters in
+ *                a UTF-8 locale, ASCII ones otherwise or with -i)
  *   -l           list form — the same order, without tree art
  *   -d           nodeps    — top-level devices only
  *   -f           --fs      — the util-linux filesystem column set, from
  *                            the udev database, else by probing the node
- *   DEV          restrict output to the named device(s). A block device
- *                node selects its MAJ:MIN; otherwise DEV may be a bare
- *                basename (`vda`) or a /sys path, whose trailing component
- *                matches the kernel or device-mapper name.
+ *   DEV          restrict output to the named device(s). Like util-linux,
+ *                DEV must be a block device node; it selects the device
+ *                with that MAJ:MIN. Anything else is "not a block device".
+ *                Only under BASHLSBLK_DEV_ROOT, a synthetic tree without
+ *                device nodes, does the last path component name a device.
  *
  * Scope (ML-T1-05, paired with bashblkid):
  *   - Enumerates /sys/class/block (the canonical "every kobject with a
@@ -31,12 +33,11 @@
  * Does NOT do:
  *   - lvm / dm-crypt / md topology beyond the single-parent map.
  *   - JSON / full util-linux column vocabulary / --sort.
- *   - UTF-8 tree art; terminal-width truncation.
+ *   - terminal-width truncation.
  *
  * Exit codes (lsblk(8) convention):
  *   0    success
- *   1    operational error (open/read failure under /sys)
- *   2    usage error
+ *   1    usage error, or operational error (open/read failure under /sys)
  *   32   no DEV operand found
  *   64   some DEV operands not found
  *
@@ -60,6 +61,7 @@
 #include <strings.h>
 #include <ctype.h>
 #include <locale.h>
+#include <langinfo.h>
 #include <wchar.h>
 #include <wctype.h>
 #include <errno.h>
@@ -1004,6 +1006,7 @@ typedef struct {
     int show_header; /* default 1 */
     int pairs;       /* -P */
     int raw;         /* -r */
+    int ascii;       /* -i, or a locale that is not UTF-8 */
     const char *outarg; /* last -o/--output */
     blb_col_id cols[BLB_COL_MAX];
     int ncols;
@@ -1022,23 +1025,12 @@ static int
 blb_col_lookup (const char *name, blb_col_id *out)
 {
     for (int i = 0; blb_cols[i].name; i++) {
-        if (strcmp (blb_cols[i].name, name) == 0) {
+        if (strcasecmp (blb_cols[i].name, name) == 0) {
             *out = blb_cols[i].id;
             return 0;
         }
     }
     return -1;
-}
-
-static void
-blb_supported_columns_stderr (void)
-{
-    fputs ("supported columns: ", stderr);
-    for (int i = 0; blb_cols[i].name; i++) {
-        if (i) fputc (',', stderr);
-        fputs (blb_cols[i].name, stderr);
-    }
-    fputc ('\n', stderr);
 }
 
 static void
@@ -1068,13 +1060,11 @@ blb_add_default_cols (blb_opts *opt)
         blb_add_col (opt, set[i]);
 }
 
+/* Diagnostics are util-linux's own lines: "lsblk: unknown column: NAME",
+ * with the name as it was typed. */
 static int
 blb_parse_cols (blb_opts *opt, const char *spec)
 {
-    if (!spec || !*spec) {
-        builtin_error ("-o/--output requires a column list");
-        return -1;
-    }
     int append = (spec[0] == '+');
     if (append)
         spec++;
@@ -1083,29 +1073,22 @@ blb_parse_cols (blb_opts *opt, const char *spec)
 
     char tmp[512];
     if (strlen (spec) >= sizeof tmp) {
-        builtin_error ("-o/--output column list too long");
+        fprintf (stderr, "lsblk: failed to parse columns\n");
         return -1;
     }
     strcpy (tmp, spec);
-    for (char *p = tmp; *p; p++)
-        *p = (char) toupper ((unsigned char) *p);
 
     char *save = NULL;
     for (char *tok = strtok_r (tmp, ",", &save); tok; tok = strtok_r (NULL, ",", &save)) {
-        while (*tok == ' ' || *tok == '\t') tok++;
-        char *end = tok + strlen (tok);
-        while (end > tok && (end[-1] == ' ' || end[-1] == '\t')) *--end = '\0';
-        if (!*tok) continue;
         blb_col_id id;
         if (blb_col_lookup (tok, &id) < 0) {
-            builtin_error ("unknown column: %s", tok);
-            blb_supported_columns_stderr ();
+            fprintf (stderr, "lsblk: unknown column: %s\n", tok);
             return -1;
         }
         blb_add_col (opt, id);
     }
     if (opt->ncols == 0) {
-        builtin_error ("-o/--output produced no columns");
+        fprintf (stderr, "lsblk: unknown column: %s\n", spec);
         return -1;
     }
     return 0;
@@ -1116,14 +1099,15 @@ blb_print_help (void)
 {
     puts ("List block devices (lsblk).");
     puts ("");
-    puts ("    bashlsblk [-a] [-l] [-d] [-f] [-n] [-P|-r] [-o LIST] [DEV ...]");
+    puts ("    bashlsblk [-a] [-l] [-d] [-f] [-i] [-n] [-P|-r] [-o LIST] [DEV ...]");
     puts ("    bashlsblk -h | --help");
     puts ("");
     puts ("Walks /sys/class/block. Default output is a tree in MAJ:MIN order,");
     puts ("each device followed by its partitions and holders, indented with");
-    puts ("ASCII branch characters.");
+    puts ("box-drawing branch characters (ASCII ones outside a UTF-8 locale).");
     puts ("");
     puts ("    -a    --all; also list empty devices and RAM disks (major 1)");
+    puts ("    -i    --ascii; draw the tree with ASCII characters");
     puts ("    -l    list form (flat)");
     puts ("    -d    --nodeps; print disks only, suppress partitions");
     puts ("    -f    --fs; NAME FSTYPE FSVER LABEL UUID FSAVAIL FSUSE% MOUNTPOINTS");
@@ -1131,14 +1115,41 @@ blb_print_help (void)
     puts ("    -P    --pairs; emit key=\"value\" rows");
     puts ("    -r    --raw; emit space-separated rows");
     puts ("    -o    --output LIST; select columns, or +COL to append to defaults");
-    puts ("    DEV   restrict to named device(s): a block device node, or a");
-    puts ("          basename or /sys path naming the kernel or dm name");
+    puts ("    DEV   restrict to the named block device node(s) and their");
+    puts ("          partitions and holders");
     puts ("");
     puts ("Default columns: NAME MAJ:MIN RM SIZE RO TYPE MOUNTPOINTS.");
     puts ("Columns: NAME MAJ:MIN RM SIZE RO TYPE FSTYPE FSVER LABEL UUID");
     puts ("         PARTLABEL PARTUUID MOUNTPOINT MOUNTPOINTS FSAVAIL FSUSE%.");
-    puts ("Exit codes: 0 success, 1 sysfs error, 2 usage, 32 no DEV found,");
+    puts ("Exit codes: 0 success, 1 usage or sysfs error, 32 no DEV found,");
     puts ("            64 some DEV not found.");
+}
+
+/* Tree prefixes are built from the two-character ASCII units "|-", "`-",
+ * "| " and "  ". Outside ASCII mode they are drawn with the box characters
+ * libsmartcols uses in a UTF-8 locale. */
+static void
+blb_tree_art (const char *prefix, int ascii, char *out, size_t outsz)
+{
+    size_t oi = 0;
+    if (outsz == 0)
+        return;
+    for (const char *p = prefix; p[0] && p[1]; p += 2) {
+        const char *unit = NULL;
+        char two[3] = { p[0], p[1], '\0' };
+        if (!ascii) {
+            if (p[0] == '|' && p[1] == '-') unit = "\342\224\234\342\224\200";       /* U+251C U+2500 */
+            else if (p[0] == '`' && p[1] == '-') unit = "\342\224\224\342\224\200";  /* U+2514 U+2500 */
+            else if (p[0] == '|' && p[1] == ' ') unit = "\342\224\202 ";             /* U+2502 */
+        }
+        if (!unit) unit = two;
+        size_t ul = strlen (unit);
+        if (oi + ul >= outsz)
+            break;
+        memcpy (out + oi, unit, ul);
+        oi += ul;
+    }
+    out[oi] = '\0';
 }
 
 /* `parsable` is raw or pairs output, where MAJ:MIN is not aligned. */
@@ -1397,7 +1408,9 @@ blb_emit (const blb_dev *devs, int n, const blb_opts *opt)
         int no_header = !opt->show_header;
         if (!wmin) wmin = 1;
         for (int r = 0; r < nrows; r++) {
-            const char *v = blb_col_value (&devs[rows[r].idx], rows[r].prefix,
+            char drawn[sizeof rows[r].prefix * 3];
+            blb_tree_art (rows[r].prefix, opt->ascii, drawn, sizeof drawn);
+            const char *v = blb_col_value (&devs[rows[r].idx], drawn,
                                            opt->cols[c], 0, buf, sizeof buf);
             char enc[BLB_CELL_MAX];
             size_t len = blb_safe_encode (v, enc, sizeof enc,
@@ -1427,7 +1440,7 @@ blb_emit (const blb_dev *devs, int n, const blb_opts *opt)
             for (int c = 0; c < opt->ncols; c++) {
                 const blb_col_def *def = blb_col (opt->cols[c]);
                 const char *v = rest[c] ? rest[c] : "";
-                char art[160];
+                char art[160], drawn[sizeof art * 3];
                 size_t vlen;
                 if (line > 0 && opt->cols[c] == BLB_COL_NAME && r >= 0 && !opt->list) {
                     /* continuation tree art: own branch becomes a vertical line */
@@ -1439,8 +1452,9 @@ blb_emit (const blb_dev *devs, int n, const blb_opts *opt)
                     for (int k = r + 1; k < nrows && !opt->nodeps; k++)
                         if (strcmp (devs[rows[k].idx].parent, devs[row->idx].name) == 0) kids = 1;
                     if (kids && al + 2 < sizeof art) strcat (art, "| ");
-                    v = art;
-                    vlen = strlen (art);
+                    blb_tree_art (art, opt->ascii, drawn, sizeof drawn);
+                    v = drawn;
+                    vlen = strlen (drawn);
                     rest[c] = NULL;
                 } else {
                     const char *nl = strchr (v, '\n');
@@ -1473,13 +1487,15 @@ blb_emit (const blb_dev *devs, int n, const blb_opts *opt)
 
 /* ---------- filter: restrict to named devices ---------- */
 
-/* An operand that is a block device node selects the device with its
- * MAJ:MIN; any other operand is matched by its last path component against
- * the kernel name or the device-mapper name. */
+/* Like util-linux, an operand must be a block device node; it selects the
+ * device with its MAJ:MIN. A synthetic tree under BASHLSBLK_DEV_ROOT has no
+ * device nodes, so only there is an operand matched by its last path
+ * component against the kernel name or the device-mapper name. */
 static int
 blb_operand_index (const blb_dev *devs, int n, const char *w)
 {
     struct stat st;
+    const char *synthetic = getenv ("BASHLSBLK_DEV_ROOT");
     if (stat (w, &st) == 0 && S_ISBLK (st.st_mode)) {
         for (int i = 0; i < n; i++)
             if (devs[i].have_devno && devs[i].maj == major (st.st_rdev)
@@ -1487,6 +1503,8 @@ blb_operand_index (const blb_dev *devs, int n, const char *w)
                 return i;
         return -1;
     }
+    if (!synthetic || !*synthetic)
+        return -1;
     const char *base = strrchr (w, '/');
     base = base ? base + 1 : w;
     for (int i = 0; i < n; i++)
@@ -1550,6 +1568,13 @@ blb_drop_empty (blb_dev *devs, int n)
 
 /* ---------- builtin ---------- */
 
+static int
+blb_try_help (void)
+{
+    fprintf (stderr, "Try 'lsblk --help' for more information.\n");
+    return EXECUTION_FAILURE;
+}
+
 int
 lsblk_builtin (WORD_LIST *list)
 {
@@ -1560,61 +1585,84 @@ lsblk_builtin (WORD_LIST *list)
     int nwants = 0;
     int n_pos_max = (int) (sizeof wants / sizeof wants[0]);
 
-    /* Argument parse: flags, -o LIST, --, then positionals. */
-    while (list) {
+    /* Argument parse in the manner of getopt_long: bundled short options,
+     * -oLIST or -o LIST, --output LIST or --output=LIST, operands anywhere,
+     * everything after -- an operand. Errors use util-linux's lines. */
+    int ddash = 0;
+    for (; list; list = list->next) {
         const char *w = list->word->word;
-        if (strcmp (w, "--") == 0) {
-            for (list = list->next; list; list = list->next) {
-                if (nwants < n_pos_max) wants[nwants++] = list->word->word;
-            }
-            break;
-        }
-        if (strcmp (w, "--help") == 0 || strcmp (w, "-h") == 0) {
-            blb_print_help ();
-            return EXECUTION_SUCCESS;
-        }
-        if (strcmp (w, "-a") == 0 || strcmp (w, "--all") == 0) {
-            opt.all = 1;
-        } else if (strcmp (w, "-l") == 0 || strcmp (w, "--list") == 0) {
-            opt.list = 1;
-        } else if (strcmp (w, "-d") == 0 || strcmp (w, "--nodeps") == 0) {
-            opt.nodeps = 1;
-        } else if (strcmp (w, "-f") == 0 || strcmp (w, "--fs") == 0) {
-            opt.fs = 1;
-        } else if (strcmp (w, "-n") == 0 || strcmp (w, "--noheadings") == 0) {
-            opt.show_header = 0;
-        } else if (strcmp (w, "-P") == 0 || strcmp (w, "--pairs") == 0) {
-            opt.pairs = 1;
-            opt.raw = 0;
-            opt.list = 1;
-        } else if (strcmp (w, "-r") == 0 || strcmp (w, "--raw") == 0) {
-            opt.raw = 1;
-            opt.pairs = 0;
-            opt.list = 1;
-        } else if (strcmp (w, "-o") == 0 || strcmp (w, "--output") == 0) {
-            if (!list->next) {
-                builtin_error ("%s requires a column list", w);
-                blb_supported_columns_stderr ();
-                return EX_USAGE;
-            }
-            list = list->next;
-            opt.outarg = list->word->word;
-        } else if (strncmp (w, "--output=", 9) == 0) {
-            opt.outarg = w + 9;
-        } else if (strncmp (w, "-o", 2) == 0 && w[2] != '\0') {
-            opt.outarg = w + 2;
-        } else if (w[0] == '-' && w[1] != '\0') {
-            builtin_error ("unknown flag: %s", w);
-            builtin_usage ();
-            return EX_USAGE;
-        } else {
+        if (ddash || w[0] != '-' || w[1] == '\0') {
             if (nwants < n_pos_max) wants[nwants++] = (char *) w;
+            continue;
         }
-        list = list->next;
+        if (strcmp (w, "--") == 0) {
+            ddash = 1;
+            continue;
+        }
+        if (w[1] == '-') {
+            if (strcmp (w, "--help") == 0) {
+                blb_print_help ();
+                return EXECUTION_SUCCESS;
+            }
+            if (strcmp (w, "--all") == 0) opt.all = 1;
+            else if (strcmp (w, "--ascii") == 0) opt.ascii = 1;
+            else if (strcmp (w, "--list") == 0) opt.list = 1;
+            else if (strcmp (w, "--nodeps") == 0) opt.nodeps = 1;
+            else if (strcmp (w, "--fs") == 0) opt.fs = 1;
+            else if (strcmp (w, "--noheadings") == 0) opt.show_header = 0;
+            else if (strcmp (w, "--pairs") == 0) { opt.pairs = 1; opt.raw = 0; opt.list = 1; }
+            else if (strcmp (w, "--raw") == 0) { opt.raw = 1; opt.pairs = 0; opt.list = 1; }
+            else if (strcmp (w, "--output") == 0) {
+                if (!list->next) {
+                    fprintf (stderr, "lsblk: option '--output' requires an argument\n");
+                    return blb_try_help ();
+                }
+                list = list->next;
+                opt.outarg = list->word->word;
+            } else if (strncmp (w, "--output=", 9) == 0)
+                opt.outarg = w + 9;
+            else {
+                fprintf (stderr, "lsblk: unrecognized option '%s'\n", w);
+                return blb_try_help ();
+            }
+            continue;
+        }
+        for (const char *p = w + 1; *p; p++) {
+            if (*p == 'h') {
+                blb_print_help ();
+                return EXECUTION_SUCCESS;
+            }
+            if (*p == 'a') opt.all = 1;
+            else if (*p == 'i') opt.ascii = 1;
+            else if (*p == 'l') opt.list = 1;
+            else if (*p == 'd') opt.nodeps = 1;
+            else if (*p == 'f') opt.fs = 1;
+            else if (*p == 'n') opt.show_header = 0;
+            else if (*p == 'P') { opt.pairs = 1; opt.raw = 0; opt.list = 1; }
+            else if (*p == 'r') { opt.raw = 1; opt.pairs = 0; opt.list = 1; }
+            else if (*p == 'o') {
+                if (p[1])
+                    opt.outarg = p + 1;
+                else if (list->next) {
+                    list = list->next;
+                    opt.outarg = list->word->word;
+                } else {
+                    fprintf (stderr, "lsblk: option requires an argument -- 'o'\n");
+                    return blb_try_help ();
+                }
+                break;
+            } else {
+                fprintf (stderr, "lsblk: invalid option -- '%c'\n", *p);
+                return blb_try_help ();
+            }
+        }
     }
+    /* libsmartcols draws the tree with box characters only in UTF-8. */
+    if (!opt.ascii && strcmp (nl_langinfo (CODESET), "UTF-8") != 0)
+        opt.ascii = 1;
     blb_add_default_cols (&opt);
     if (opt.outarg && blb_parse_cols (&opt, opt.outarg) < 0)
-        return EX_USAGE;
+        return EXECUTION_FAILURE;
 
     static blb_dev devs[BLB_MAX_DEVS];
     int n = 0, failed = 0;
@@ -1640,14 +1688,15 @@ lsblk_builtin (WORD_LIST *list)
 char *lsblk_doc[] = {
     "List block devices (lsblk).",
     "",
-    "    bashlsblk [-a] [-l] [-d] [-f] [-n] [-P|-r] [-o LIST] [DEV ...]",
+    "    bashlsblk [-a] [-l] [-d] [-f] [-i] [-n] [-P|-r] [-o LIST] [DEV ...]",
     "    bashlsblk -h | --help",
     "",
     "Walks /sys/class/block. Default output is a tree in MAJ:MIN order, each",
-    "device followed by its partitions and holders, indented with ASCII",
-    "branch characters.",
+    "device followed by its partitions and holders, indented with box-drawing",
+    "branch characters in a UTF-8 locale and ASCII ones otherwise.",
     "",
     "    -a    --all; also list empty devices and RAM disks (major 1)",
+    "    -i    --ascii; draw the tree with ASCII characters",
     "    -l    list form (flat)",
     "    -d    --nodeps; print disks only, suppress partitions",
     "    -f    --fs; the NAME FSTYPE FSVER LABEL UUID FSAVAIL FSUSE%",
@@ -1657,11 +1706,10 @@ char *lsblk_doc[] = {
     "    -P    --pairs; emit key=\"value\" rows",
     "    -r    --raw; emit space-separated rows",
     "    -o    --output LIST; select supported columns; +COL appends",
-    "    DEV   restrict to named device(s). A block device node selects",
-    "          the device with its MAJ:MIN; otherwise DEV may be a",
-    "          basename (`vda`) or a /sys path, whose trailing component",
-    "          matches the kernel or device-mapper name. Partitions and",
-    "          holders of a matched device are also shown.",
+    "    DEV   restrict to named device(s). DEV must be a block device",
+    "          node, as for util-linux lsblk; it selects the device with",
+    "          its MAJ:MIN. Partitions and holders of a matched device are",
+    "          also shown. Any other operand is not a block device.",
     "",
     "Default columns: NAME MAJ:MIN RM SIZE RO TYPE MOUNTPOINTS.",
     "Columns: NAME MAJ:MIN RM SIZE RO TYPE FSTYPE FSVER LABEL UUID",
@@ -1670,8 +1718,7 @@ char *lsblk_doc[] = {
     "",
     "Exit codes:",
     "    0    success",
-    "    1    operational error (sysfs unavailable)",
-    "    2    usage error",
+    "    1    usage error, or operational error (sysfs unavailable)",
     "    32   no DEV operand found",
     "    64   some DEV operands not found",
     (char *)NULL
@@ -1682,6 +1729,6 @@ struct builtin bashlsblk_struct = {
     lsblk_builtin,
     BUILTIN_ENABLED,
     lsblk_doc,
-    "bashlsblk [-a] [-l] [-d] [-f] [-n] [-P|-r] [-o LIST] [DEV ...]",
+    "bashlsblk [-a] [-l] [-d] [-f] [-i] [-n] [-P|-r] [-o LIST] [DEV ...]",
     0
 };

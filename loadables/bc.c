@@ -1701,6 +1701,8 @@ bc_edit_fill (bc_input *in)
             }
         }
 
+        /* ESC opens a CSI or SS3 key sequence; its bytes are not text. */
+        if (nav == 0 && ch == 0x1b) { st = 1; continue; }
         if (nav == 0 && (ch == '\r' || ch == '\n')) { rc = 1; break; }
         if (nav == 4 || (nav == 0 && ch == 0x02)) {  /* Left / Ctrl-B */
             if (pos > 0) { pos--; bc_write_all ("\b", 1); }

@@ -6,9 +6,9 @@
       "loadable": "clear",
       "group": "shell",
       "driver": "plain",
-      "purpose": "Compare repeated ENOSPC results and diagnostics, then verify a complete successful clear in the same shell.",
-      "oracle": "ncurses clear; setup verifies /dev/full returns ENOSPC.",
-      "comparison": "Compare statuses, diagnostic files, and recovery bytes with the reference; independently require the full recovery sequence.",
+      "purpose": "Observe repeated ENOSPC results and diagnostics, then verify a complete successful clear in the same shell.",
+      "oracle": "ncurses clear; setup verifies /dev/full returns ENOSPC. The bash-os status and diagnostic follow docs/clear.md.",
+      "comparison": "Deliberate difference: on an output error bash-os clear keeps exit status 1 and reports it with a Bash write-error diagnostic (docs/clear.md), where ncurses clear exits 0 and prints nothing. For both failed writes the reference side must observe status 0 and an empty diagnostic, and the candidate side status 1 and exactly one line ending in \"clear: write error: No space left on device\". Each side prints one verdict line, and the raw statuses and diagnostics are retained outside the compared tree. The recovery status, its diagnostic file and the recovery bytes are compared with ncurses; the full recovery sequence is also required independently.",
       "setup_script": "/usr/bin/python3 -c 'import errno,os; f=os.open(\"/dev/full\",os.O_WRONLY);\ntry:\n os.write(f,b\"x\"); raise AssertionError(\"/dev/full accepted data\")\nexcept OSError as e:\n assert e.errno == errno.ENOSPC\nfinally:\n os.close(f)'",
       "expected_status": 0,
       "expected_files": {
@@ -22,16 +22,24 @@
       "covers": [
         "clear/output-failure-and-shell-recovery"
       ],
-      "script": "clear -T xterm > /dev/full 2> first.err; a=$?\nclear -T xterm > /dev/full 2> second.err; b=$?\nclear -x -T xterm > recovered.bytes 2> recovery.err; c=$?\nprintf 'status=%s,%s,%s\\n' \"$a\" \"$b\" \"$c\"\nprintf \"first.err=\"; cat first.err; printf \"second.err=\"; cat second.err; printf \"recovery.err=\"; cat recovery.err\n"
+      "reference_script": "clear -T xterm > /dev/full 2> \"$HOME/first.err\"; a=$?\nclear -T xterm > /dev/full 2> \"$HOME/second.err\"; b=$?\nclear -x -T xterm > recovered.bytes 2> recovery.err; c=$?\nprintf '%s,%s\\n' \"$a\" \"$b\" > \"$HOME/output-error.status\"\nif [[ $a == 0 && $b == 0 && ! -s $HOME/first.err && ! -s $HOME/second.err ]]; then printf 'output-errors=as-recorded\\n'; else printf 'output-errors=not-as-recorded\\n'; fi\nprintf 'recovery-status=%s\\n' \"$c\"\nprintf \"recovery.err=\"; cat recovery.err\n",
+      "candidate_script": "clear -T xterm > /dev/full 2> \"$HOME/first.err\"; a=$?\nclear -T xterm > /dev/full 2> \"$HOME/second.err\"; b=$?\nclear -x -T xterm > recovered.bytes 2> recovery.err; c=$?\nprintf '%s,%s\\n' \"$a\" \"$b\" > \"$HOME/output-error.status\"\nmapfile -t d0 < \"$HOME/first.err\"\nmapfile -t d1 < \"$HOME/second.err\"\nif [[ $a == 1 && $b == 1 && ${#d0[@]} == 1 && ${d0[0]} == *\": clear: write error: No space left on device\" && ${#d1[@]} == 1 && ${d1[0]} == *\": clear: write error: No space left on device\" ]]; then printf 'output-errors=as-recorded\\n'; else printf 'output-errors=not-as-recorded\\n'; fi\nprintf 'recovery-status=%s\\n' \"$c\"\nprintf \"recovery.err=\"; cat recovery.err\n",
+      "stdout": "output-errors=as-recorded\nrecovery-status=0\nrecovery.err=",
+      "stderr": "",
+      "diagnostic_files": [
+        "output-error.status",
+        "first.err",
+        "second.err"
+      ]
     },
     {
       "id": "worker-clear-bashclear-repeated-full-recovery",
       "loadable": "bashclear",
       "group": "shell",
       "driver": "plain",
-      "purpose": "Compare repeated ENOSPC results and diagnostics, then verify a complete successful clear in the same shell.",
-      "oracle": "ncurses clear; setup verifies /dev/full returns ENOSPC.",
-      "comparison": "Compare statuses, diagnostic files, and recovery bytes with the reference; independently require the full recovery sequence.",
+      "purpose": "Observe repeated ENOSPC results and diagnostics, then verify a complete successful clear in the same shell.",
+      "oracle": "ncurses clear; setup verifies /dev/full returns ENOSPC. The bash-os status and diagnostic follow docs/clear.md.",
+      "comparison": "Deliberate difference: on an output error bash-os bashclear keeps exit status 1 and reports it with a Bash write-error diagnostic (docs/clear.md), where ncurses clear exits 0 and prints nothing. For both failed writes the reference side must observe status 0 and an empty diagnostic, and the candidate side status 1 and exactly one line ending in \"bashclear: write error: No space left on device\". Each side prints one verdict line, and the raw statuses and diagnostics are retained outside the compared tree. The recovery status, its diagnostic file and the recovery bytes are compared with ncurses; the full recovery sequence is also required independently.",
       "setup_script": "/usr/bin/python3 -c 'import errno,os; f=os.open(\"/dev/full\",os.O_WRONLY);\ntry:\n os.write(f,b\"x\"); raise AssertionError(\"/dev/full accepted data\")\nexcept OSError as e:\n assert e.errno == errno.ENOSPC\nfinally:\n os.close(f)'",
       "expected_status": 0,
       "expected_files": {
@@ -45,8 +53,15 @@
       "covers": [
         "clear/output-failure-and-shell-recovery"
       ],
-      "candidate_script": "bashclear -T xterm > /dev/full 2> first.err; a=$?\nbashclear -T xterm > /dev/full 2> second.err; b=$?\nbashclear -x -T xterm > recovered.bytes 2> recovery.err; c=$?\nprintf 'status=%s,%s,%s\\n' \"$a\" \"$b\" \"$c\"\nprintf \"first.err=\"; cat first.err; printf \"second.err=\"; cat second.err; printf \"recovery.err=\"; cat recovery.err\n",
-      "reference_script": "clear -T xterm > /dev/full 2> first.err; a=$?\nclear -T xterm > /dev/full 2> second.err; b=$?\nclear -x -T xterm > recovered.bytes 2> recovery.err; c=$?\nprintf 'status=%s,%s,%s\\n' \"$a\" \"$b\" \"$c\"\nprintf \"first.err=\"; cat first.err; printf \"second.err=\"; cat second.err; printf \"recovery.err=\"; cat recovery.err\n"
+      "reference_script": "clear -T xterm > /dev/full 2> \"$HOME/first.err\"; a=$?\nclear -T xterm > /dev/full 2> \"$HOME/second.err\"; b=$?\nclear -x -T xterm > recovered.bytes 2> recovery.err; c=$?\nprintf '%s,%s\\n' \"$a\" \"$b\" > \"$HOME/output-error.status\"\nif [[ $a == 0 && $b == 0 && ! -s $HOME/first.err && ! -s $HOME/second.err ]]; then printf 'output-errors=as-recorded\\n'; else printf 'output-errors=not-as-recorded\\n'; fi\nprintf 'recovery-status=%s\\n' \"$c\"\nprintf \"recovery.err=\"; cat recovery.err\n",
+      "candidate_script": "bashclear -T xterm > /dev/full 2> \"$HOME/first.err\"; a=$?\nbashclear -T xterm > /dev/full 2> \"$HOME/second.err\"; b=$?\nbashclear -x -T xterm > recovered.bytes 2> recovery.err; c=$?\nprintf '%s,%s\\n' \"$a\" \"$b\" > \"$HOME/output-error.status\"\nmapfile -t d0 < \"$HOME/first.err\"\nmapfile -t d1 < \"$HOME/second.err\"\nif [[ $a == 1 && $b == 1 && ${#d0[@]} == 1 && ${d0[0]} == *\": bashclear: write error: No space left on device\" && ${#d1[@]} == 1 && ${d1[0]} == *\": bashclear: write error: No space left on device\" ]]; then printf 'output-errors=as-recorded\\n'; else printf 'output-errors=not-as-recorded\\n'; fi\nprintf 'recovery-status=%s\\n' \"$c\"\nprintf \"recovery.err=\"; cat recovery.err\n",
+      "stdout": "output-errors=as-recorded\nrecovery-status=0\nrecovery.err=",
+      "stderr": "",
+      "diagnostic_files": [
+        "output-error.status",
+        "first.err",
+        "second.err"
+      ]
     }
   ]
 }

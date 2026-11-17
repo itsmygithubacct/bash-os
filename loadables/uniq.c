@@ -480,17 +480,34 @@ uniq_builtin (WORD_LIST *list)
     if (out == stdout)
         clearerr (out);
 
+    /* Without -c, -d, -D or -u nothing about a record depends on the ones
+       after it, so GNU uniq writes the first record of a run, and every
+       record under --group, as soon as it is read. */
+    int stream = !cflag && !dflag && !uflag && !all_repeated;
+
     bl_output output;
     bl_output_init (&output, out);
     while (!output.error && (rd = bu_get_record (&cur, &cur_cap, f, o.delimiter)) != -1) {
         cur_len = (size_t) rd;
+        if (stream) {
+            int new_group = !prev || !bu_eq (prev, prev_len, cur, cur_len, &o, iflag);
+            if (new_group && (grouping == BU_GROUP_PREPEND || grouping == BU_GROUP_BOTH
+                              || (!first_group && (grouping == BU_GROUP_APPEND
+                                                   || grouping == BU_GROUP_SEPARATE))))
+                bl_output_byte (&output, (unsigned char) o.delimiter);
+            if (new_group || grouping != BU_GROUP_NONE) {
+                bl_output_write (&output, cur, cur_len);
+                char *tmp = prev; prev = cur; cur = tmp;
+                size_t tcap = prev_cap; prev_cap = cur_cap; cur_cap = tcap;
+                prev_len = cur_len;
+                first_group = 0;
+            }
+            continue;
+        }
         if (prev && bu_eq (prev, prev_len, cur, cur_len, &o, iflag)) {
             if (all_repeated) {
                 if (count == 1 && bu_append_record (&group, &group_len, &group_cap, prev, prev_len) < 0)
                     goto memory_error;
-                if (bu_append_record (&group, &group_len, &group_cap, cur, cur_len) < 0)
-                    goto memory_error;
-            } else if (grouping != BU_GROUP_NONE) {
                 if (bu_append_record (&group, &group_len, &group_cap, cur, cur_len) < 0)
                     goto memory_error;
             }
@@ -508,15 +525,6 @@ uniq_builtin (WORD_LIST *list)
                     first_repeated_group = 0;
                 }
                 group_len = 0;
-            } else if (grouping != BU_GROUP_NONE) {
-                if (grouping == BU_GROUP_PREPEND || (grouping == BU_GROUP_BOTH && first_group) ||
-                    (!first_group && grouping == BU_GROUP_SEPARATE))
-                    bl_output_byte (&output, (unsigned char) o.delimiter);
-                bl_output_write (&output, group, group_len);
-                if (grouping == BU_GROUP_APPEND || grouping == BU_GROUP_BOTH)
-                    bl_output_byte (&output, (unsigned char) o.delimiter);
-                group_len = 0;
-                first_group = 0;
             } else {
                 int emit = 1;
                 if (dflag && count == 1) emit = 0;     /* -d only dups */
@@ -531,11 +539,12 @@ uniq_builtin (WORD_LIST *list)
         size_t tcap = prev_cap; prev_cap = cur_cap; cur_cap = tcap;
         prev_len = cur_len;
         count = 1;
-        if (grouping != BU_GROUP_NONE && bu_append_record (&group, &group_len, &group_cap, prev, prev_len) < 0)
-            goto memory_error;
     }
     /* Final emit. */
-    if (prev) {
+    if (stream) {
+        if (!first_group && (grouping == BU_GROUP_APPEND || grouping == BU_GROUP_BOTH))
+            bl_output_byte (&output, (unsigned char) o.delimiter);
+    } else if (prev) {
         if (all_repeated) {
             if (count > 1) {
                 if (all_mode == BU_ALL_PREPEND
@@ -543,13 +552,6 @@ uniq_builtin (WORD_LIST *list)
                     bl_output_byte (&output, (unsigned char) o.delimiter);
                 bl_output_write (&output, group, group_len);
             }
-        } else if (grouping != BU_GROUP_NONE) {
-            if (grouping == BU_GROUP_PREPEND || (grouping == BU_GROUP_BOTH && first_group) ||
-                (!first_group && grouping == BU_GROUP_SEPARATE))
-                bl_output_byte (&output, (unsigned char) o.delimiter);
-            bl_output_write (&output, group, group_len);
-            if (grouping == BU_GROUP_APPEND || grouping == BU_GROUP_BOTH)
-                bl_output_byte (&output, (unsigned char) o.delimiter);
         } else {
             int emit = 1;
             if (dflag && count == 1) emit = 0;

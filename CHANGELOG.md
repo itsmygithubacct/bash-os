@@ -62,7 +62,9 @@ the historical 0.1.3 evidence remains available separately.
   `-w`, reports each keyword without a match as `KEYWORD: nothing
   appropriate.` on stderr, and exits 16 only when no keyword matched.
 - `who` prints `%b %e %H:%M` times in a 12-column TIME field when LC_TIME is C
-  or POSIX, as GNU who does, and ISO times otherwise.
+  or POSIX, as GNU who does, and ISO times otherwise. `who /var/run/utmp`
+  lists the systemd-logind sessions, as `who` with no FILE operand does and
+  as GNU who 9.7 does for that exact path; other FILE operands read the file.
 - `pgrep` blocks SIGCHLD while its process walker runs, so Bash cannot reap
   the walker and make `pgrep` fail with ECHILD when the shell has other
   children.

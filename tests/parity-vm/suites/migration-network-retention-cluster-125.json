@@ -17,7 +17,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/network-retention-cluster-125-bash5320.py": "a2c09a98e2cc1981ef793d801a39d2526f38ad04a83bc1527b627dfb5554ba35"
+        "helpers/network-retention-cluster-125-bash5320.py": "1eb62eaf36ee9c51508d356446b5c02154018798a95d868ac0be381e3641e122"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/network-retention-cluster-125-bash5320.py setup packet-rejection",
       "setup_timeout": 50,
@@ -43,7 +43,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/network-retention-cluster-125-bash5320.py": "a2c09a98e2cc1981ef793d801a39d2526f38ad04a83bc1527b627dfb5554ba35"
+        "helpers/network-retention-cluster-125-bash5320.py": "1eb62eaf36ee9c51508d356446b5c02154018798a95d868ac0be381e3641e122"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/network-retention-cluster-125-bash5320.py setup roster-heartbeats",
       "setup_timeout": 50,

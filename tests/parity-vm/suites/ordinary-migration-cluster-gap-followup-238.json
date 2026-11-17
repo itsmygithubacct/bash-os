@@ -15,7 +15,7 @@
       "expected_status": 0,
       "group": "shell",
       "helpers_sha256": {
-        "helpers/cluster-gap-observer-238-bash5320.py": "56947c6ce85022f06195cdce23d3686cd6d56acdae94533db471cb345d8f9014"
+        "helpers/cluster-gap-observer-238-bash5320.py": "6accbc7f3c1dd4bdf4838d26730028a2a40c92b2139462dc319011a20c6ac82e"
       },
       "id": "migration-cluster-gap-dead-pid-238-r1",
       "kind": "contract",
@@ -46,7 +46,7 @@
       "expected_status": 0,
       "group": "shell",
       "helpers_sha256": {
-        "helpers/cluster-gap-observer-238-bash5320.py": "56947c6ce85022f06195cdce23d3686cd6d56acdae94533db471cb345d8f9014"
+        "helpers/cluster-gap-observer-238-bash5320.py": "6accbc7f3c1dd4bdf4838d26730028a2a40c92b2139462dc319011a20c6ac82e"
       },
       "id": "migration-cluster-gap-packet-rejection-238-r1",
       "kind": "contract",
@@ -78,7 +78,7 @@
       "expected_status": 0,
       "group": "shell",
       "helpers_sha256": {
-        "helpers/cluster-gap-observer-238-bash5320.py": "56947c6ce85022f06195cdce23d3686cd6d56acdae94533db471cb345d8f9014"
+        "helpers/cluster-gap-observer-238-bash5320.py": "6accbc7f3c1dd4bdf4838d26730028a2a40c92b2139462dc319011a20c6ac82e"
       },
       "id": "migration-cluster-gap-negative-ping-238-r1",
       "kind": "contract",

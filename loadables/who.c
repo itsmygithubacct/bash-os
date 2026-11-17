@@ -71,7 +71,9 @@ bw_option (const char *word)
    are login rows; other classes are user rows.  User rows whose leader pid is
    dead are omitted.  The boot row is the BOOT_TIME record in /var/run/utmp,
    with the same Raspbian, stamp-file, and uptime fallbacks GNU uses, and is
-   not a logind record.  A FILE operand does not use this path. */
+   not a logind record.  A FILE operand spelled exactly /var/run/utmp names
+   the same default source, as in GNU who; any other FILE operand, including
+   another path to the same file, is read as a utmp file. */
 
 struct bw_ent {
     char *user;
@@ -632,7 +634,9 @@ who_builtin (WORD_LIST *list)
         my_line = 1;
     } else if (list) {
         path = list->word->word;
-        file_operand = 1;
+        /* GNU who 9.7 compares the operand with its default path string:
+           that exact spelling still means the logind sessions. */
+        file_operand = strcmp (path, BW_DEFAULT_PATH) != 0;
         if (list->next) {
             builtin_error ("extra operand: %s", list->next->word->word);
             return EXECUTION_FAILURE;
@@ -653,9 +657,7 @@ who_builtin (WORD_LIST *list)
         printf (" COMMENT%s\n", exits ? "  EXIT" : "");
     }
 
-    /* An explicit FILE, including /var/run/utmp, stays on the utmp reader.
-       GNU who 9.7 switches on the path string; this builtin switches on
-       whether a FILE operand was present. */
+    /* No FILE operand, or the default path by its exact name. */
     if (!file_operand)
         return bw_show_logind (mask, quiet, idle, pid, mesg, my_line);
 
@@ -748,8 +750,9 @@ char *who_doc[] = {
     "    -u users with idle time and pid; -m current terminal only",
     "    Long aliases: --all, --boot, --dead, --heading, --login, --process,",
     "    --count, --runlevel, --short, --time, --mesg, --message, --writable, --users.",
-    "    With no FILE, read systemd-logind sessions the way GNU who 9.7 does.",
-    "    A FILE operand reads that utmp file. Two words select the current terminal.",
+    "    With no FILE, or FILE spelled /var/run/utmp, read systemd-logind",
+    "    sessions the way GNU who 9.7 does. Any other FILE operand reads that",
+    "    utmp file. Two words select the current terminal.",
     "    Selection flags compose; -q selects users.",
     (char *)NULL
 };

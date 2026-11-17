@@ -82,8 +82,9 @@ sidecar format; arbitrary compiled terminfo databases remain unsupported.
 `who` with no FILE operand reads systemd-logind sessions the way GNU coreutils
 9.7 does: boot time from the utmp boot record or the same fallbacks, then one
 seat row and one tty row per session (tty name, remote user@host or X11 display,
-leader pid, and login class for manager sessions). A FILE operand still reads
-that utmp file. Focused comparisons for record selection, headers, timestamps,
+leader pid, and login class for manager sessions). A FILE operand spelled
+exactly `/var/run/utmp` selects the same sessions, as it does in GNU who; any
+other FILE operand reads that utmp file. Focused comparisons for record selection, headers, timestamps,
 fixed-width strings and missing inputs use synthetic utmp files. `fincore`
 matches util-linux headings, alignment and byte/human units on small private
 files. Its tests check residency bounds and unit conversion without assuming

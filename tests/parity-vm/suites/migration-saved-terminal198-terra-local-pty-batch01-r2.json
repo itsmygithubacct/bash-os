@@ -17,7 +17,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/terra-local-pty-session-r2.py": "44897e2599e10eba2a2430a055712ec8f5eba41c7c4a2c2038d6c02c4e941fd1"
+        "helpers/terra-local-pty-session-r2.py": "924ac33bce684b799ac1a6aac1ed1a8776742567901378459ccbc99d4ee3fe05"
       },
       "oracle": "An independent Python os.setsid and Linux TIOCSCTTY participant supplies the reference; the parent verifies /proc descriptors, session IDs, controlling-device identity and tcgetpgrp on the fixture-owned PTYs.",
       "comparison": "Exact named predicates and status; bounded dynamic PID, FD, descriptor identities and raw child diagnostics are retained separately.",
@@ -45,7 +45,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/terra-local-pty-session-r2.py": "44897e2599e10eba2a2430a055712ec8f5eba41c7c4a2c2038d6c02c4e941fd1"
+        "helpers/terra-local-pty-session-r2.py": "924ac33bce684b799ac1a6aac1ed1a8776742567901378459ccbc99d4ee3fe05"
       },
       "oracle": "An independent Python os.setsid and Linux TIOCSCTTY participant supplies the reference; the parent verifies /proc descriptors, session IDs, controlling-device identity and tcgetpgrp on the fixture-owned PTYs.",
       "comparison": "Exact named predicates and status; bounded dynamic PID, FD, descriptor identities and raw child diagnostics are retained separately.",
@@ -73,7 +73,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/terra-local-pty-session-r2.py": "44897e2599e10eba2a2430a055712ec8f5eba41c7c4a2c2038d6c02c4e941fd1"
+        "helpers/terra-local-pty-session-r2.py": "924ac33bce684b799ac1a6aac1ed1a8776742567901378459ccbc99d4ee3fe05"
       },
       "oracle": "An independent Python os.setsid and Linux TIOCSCTTY participant supplies the reference; the parent verifies /proc descriptors, session IDs, controlling-device identity and tcgetpgrp on the fixture-owned PTYs.",
       "comparison": "Exact named predicates and status; bounded dynamic PID, FD, descriptor identities and raw child diagnostics are retained separately.",
@@ -101,7 +101,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/terra-local-pty-session-r2.py": "44897e2599e10eba2a2430a055712ec8f5eba41c7c4a2c2038d6c02c4e941fd1"
+        "helpers/terra-local-pty-session-r2.py": "924ac33bce684b799ac1a6aac1ed1a8776742567901378459ccbc99d4ee3fe05"
       },
       "oracle": "An independent Python os.setsid and Linux TIOCSCTTY participant supplies the reference; the parent verifies /proc descriptors, session IDs, controlling-device identity and tcgetpgrp on the fixture-owned PTYs.",
       "comparison": "Exact named predicates and status; bounded dynamic PID, FD, descriptor identities and raw child diagnostics are retained separately.",

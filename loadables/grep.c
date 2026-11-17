@@ -117,6 +117,7 @@ typedef struct {
     int pcre_utf;                  /* effective mode, including (*UTF) */
     size_t *kw_blk, *kw_line;       /* needle caches: the block scan, the line scan */
     char *ob; size_t on;            /* the output buffer: bash line-buffers stdout, a write per line */
+    int out_tty;                    /* stdout is a terminal: selected lines appear before the next read */
 } bg_opts;
 
 #define BG_OUTBUF (64 * 1024)
@@ -1030,6 +1031,12 @@ bg_fill (bg_state *st)
             errno = ENOMEM;
             return -1;
         }
+        /* A terminal shows what was selected so far before input can block. */
+        if (o->out_tty)
+        {
+            if (o->on) { fwrite (o->ob, 1, o->on, stdout); o->on = 0; }
+            fflush (stdout);
+        }
         ssize_t n = read (in->fd, in->buf + in->len, in->cap - in->len - 1);
         if (n < 0)
         {
@@ -1716,6 +1723,7 @@ bg_setup (bg_opts *o)
     o->mb = MB_CUR_MAX > 1;
     o->ob = malloc (BG_OUTBUF);
     if (!o->ob) return -1;
+    o->out_tty = isatty (STDOUT_FILENO);
     for (int c = 0; c < 256; c++) o->lower[c] = (unsigned char) tolower (c);
     for (int c = 0; c < 256; c++) o->alt[c] = (unsigned char) c;
     for (int c = 0; c < 256; c++)

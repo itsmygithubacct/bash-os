@@ -379,45 +379,130 @@ dd_skip_bytes (int fd, long long nbytes)
 static double
 dd_now_seconds (void)
 {
-    struct timeval tv;
-    if (gettimeofday (&tv, NULL) < 0) return 0.0;
-    return (double) tv.tv_sec + (double) tv.tv_usec / 1000000.0;
+    struct timespec ts;
+    if (clock_gettime (CLOCK_MONOTONIC, &ts) < 0) return 0.0;
+    return (double) ts.tv_sec + (double) ts.tv_nsec / 1000000000.0;
 }
 
+/* GNU human_readable() as dd calls it: autoscale, round to nearest, a
+   space before the unit, SI letters and a trailing B.  The value is
+   N * FROM / TO.  A quotient that integer arithmetic gives exactly is
+   printed unscaled below BASE ("999 B"); any other quotient goes through
+   long double and is always scaled at least once ("0.0 kB"). */
 static void
-dd_human (long long bytes, int iec, char *out, size_t outsz)
+dd_human (unsigned long long n, unsigned long long from, unsigned long long to,
+          int iec, char *out, size_t outsz)
 {
-    const char *si_units[] = { "B", "kB", "MB", "GB", "TB", "PB", "EB" };
-    const char *iec_units[] = { "B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB" };
-    const char **units = iec ? iec_units : si_units;
-    double v = (double) bytes;
-    double base = iec ? 1024.0 : 1000.0;
-    size_t u = 0;
+    static const char letters[] = "\0KMGTPEZYRQ";
+    const int exponent_max = (int) sizeof letters - 2;
+    unsigned int base = iec ? 1024 : 1000;
+    unsigned long long amt = 0;
+    int tenths = 0, rounding = 0, exponent = 0, exact = 0;
+    char num[64];
 
-    while (v >= base && u < 6) {
-        v /= base;
-        u++;
+    if (to <= from) {
+        if (to && from % to == 0) {
+            unsigned long long multiplier = from / to;
+            amt = n * multiplier;
+            exact = amt / multiplier == n;
+        }
+    } else if (from && to % from == 0) {
+        unsigned long long divisor = to / from;
+        unsigned long long r10 = (n % divisor) * 10;
+        unsigned long long r2 = (r10 % divisor) * 2;
+        amt = n / divisor;
+        tenths = (int) (r10 / divisor);
+        rounding = r2 < divisor ? 0 < r2 : 2 + (divisor < r2);
+        exact = 1;
     }
-    if (u == 0)
-        snprintf (out, outsz, "%lld %s", bytes, units[u]);
-    else if (v >= 100.0)
-        snprintf (out, outsz, "%.0f %s", v, units[u]);
-    else if (v >= 10.0)
-        snprintf (out, outsz, "%.1f %s", v, units[u]);
+
+    if (exact) {
+        char frac[4] = "";
+        if (base <= amt) {
+            do {
+                unsigned int r10 = (unsigned int) (amt % base) * 10 + (unsigned int) tenths;
+                unsigned int r2 = (r10 % base) * 2 + (unsigned int) (rounding >> 1);
+                amt /= base;
+                tenths = (int) (r10 / base);
+                rounding = r2 < base ? (r2 + (unsigned int) rounding) != 0
+                                     : 2 + (base < r2 + (unsigned int) rounding);
+                exponent++;
+            } while (base <= amt && exponent < exponent_max);
+            if (amt < 10) {
+                if (2 < rounding + (tenths & 1)) {
+                    tenths++;
+                    rounding = 0;
+                    if (tenths == 10) { amt++; tenths = 0; }
+                }
+                if (amt < 10) {
+                    snprintf (frac, sizeof frac, ".%d", tenths);
+                    tenths = rounding = 0;
+                }
+            }
+        }
+        if (5 < tenths + (0 < rounding + (int) (amt & 1))) {
+            amt++;
+            if (amt == base && exponent < exponent_max) {
+                exponent++;
+                snprintf (frac, sizeof frac, ".0");
+                amt = 1;
+            }
+        }
+        snprintf (num, sizeof num, "%llu%s", amt, frac);
+    } else {
+        long double damt = (long double) n * ((long double) from / (long double) to);
+        long double e = 1;
+        do {
+            e *= base;
+            exponent++;
+        } while (e * base <= damt && exponent < exponent_max);
+        damt /= e;
+        snprintf (num, sizeof num, "%.1Lf", damt);
+        if ((size_t) (1 + 2 + !iec) < strlen (num))
+            snprintf (num, sizeof num, "%.0Lf", damt * 10 / 10);
+    }
+
+    if (exponent == 0)
+        snprintf (out, outsz, "%s B", num);
     else
-        snprintf (out, outsz, "%.2f %s", v, units[u]);
+        snprintf (out, outsz, "%s %c%sB", num,
+                  !iec && exponent == 1 ? 'k' : letters[exponent], iec ? "i" : "");
 }
 
+/* GNU's test for a size that human_readable() left unscaled ("999 B"). */
+static int
+dd_lacks_prefix (const char *text)
+{
+    size_t len = strlen (text);
+    return len >= 2 && text[len - 2] == ' ';
+}
+
+/* The statistics line of GNU dd: the byte count, its SI and IEC forms when
+   they add something, the elapsed time as %g seconds and the rate. */
 static void
 dd_print_xfer (long long bytes, double elapsed, int progress)
 {
-    char si[32], iec[32], rate[32];
-    double secs = elapsed > 0.000001 ? elapsed : 0.000001;
-    dd_human (bytes, 0, si, sizeof si);
-    dd_human (bytes, 1, iec, sizeof iec);
-    dd_human ((long long) ((double) bytes / secs), 0, rate, sizeof rate);
-    fprintf (stderr, "%lld bytes (%s, %s) copied, %.3f s, %s/s%s\n",
-             bytes, si, iec, secs, rate, progress ? " [progress]" : "");
+    char si[64], iec[64], rate[64], line[256];
+    unsigned long long count = bytes > 0 ? (unsigned long long) bytes : 0;
+    unsigned long long ns = elapsed > 0 ? (unsigned long long) (elapsed * 1e9 + 0.5) : 0;
+    const char *tail = progress ? " [progress]" : "";
+
+    dd_human (count, 1, 1, 0, si, sizeof si);
+    dd_human (count, 1, 1, 1, iec, sizeof iec);
+    if (ns > 0) {
+        dd_human (count, 1000000000ULL, ns, 0, rate, sizeof rate);
+        strncat (rate, "/s", sizeof rate - strlen (rate) - 1);
+    } else {
+        elapsed = 0;
+        snprintf (rate, sizeof rate, "Infinity B/s");
+    }
+    if (dd_lacks_prefix (si))
+        snprintf (line, sizeof line, "%lld %s copied", bytes, count == 1 ? "byte" : "bytes");
+    else if (dd_lacks_prefix (iec))
+        snprintf (line, sizeof line, "%lld bytes (%s) copied", bytes, si);
+    else
+        snprintf (line, sizeof line, "%lld bytes (%s, %s) copied", bytes, si, iec);
+    fprintf (stderr, "%s, %g s, %s%s\n", line, elapsed, rate, tail);
 }
 
 int

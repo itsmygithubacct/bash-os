@@ -30,6 +30,10 @@ ATTEST = Path('/run/bashos-parity-vm-identity')
 NS_ATTEST = Path('/run/bashos-syslog-namespace-208.json')
 PID1 = Path('/proc/1')
 CANDIDATE = Path('/opt/bashos-parity/candidate')
+# The evaluator's command line carries the selected case IDs as one argument.
+# Linux limits a single argument to 128 KiB, so this bound holds every
+# evaluator invocation while staying a fixed cap.
+PID1_CMDLINE_LIMIT = 262144
 
 class Incomplete(Exception):
     pass
@@ -297,7 +301,7 @@ def guard():
         token = protected_identity(MARKER)
         if protected_identity(ATTEST) != token:
             raise Incomplete('root-created attestation differs from guest marker')
-        argv = bounded_pseudo(PID1 / 'cmdline', 8192).split(b'\0')
+        argv = bounded_pseudo(PID1 / 'cmdline', PID1_CMDLINE_LIMIT).split(b'\0')
         if (argv.count(b'/opt/bashos-parity/harness/guest.py') != 1 or argv.count(b'--vm-token') != 1
                 or argv.index(b'--vm-token') + 1 >= len(argv)
                 or argv[argv.index(b'--vm-token') + 1] != token.encode('ascii')):

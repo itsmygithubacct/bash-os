@@ -412,13 +412,16 @@ bd_keypress(void)
  * dialog(1) centers in the area left after its default shadow (1 row,
  * 2 columns): y = (SLINES - height) / 2, x = (SCOLS - width) / 2, with
  * SLINES = LINES - 1 and SCOLS = COLS - 2. --no-shadow centers in the
- * full screen. Stored top/left are 1-based for CUP. Falls back to a
- * small default geometry when winsize is unavailable.
+ * full screen. whiptail(1) follows newt instead: the window inside the
+ * border is centered in the full screen, and the prompt starts one row
+ * below the first interior row. Stored top/left are 1-based for CUP.
+ * Falls back to a small default geometry when winsize is unavailable.
  * ---------------------------------------------------------------------- */
 typedef struct {
     int rows, cols;
     int top,  left;
     int h,    w;
+    int text_top;       /* rows from the top border to the prompt */
 } bd_box;
 
 static void
@@ -443,11 +446,34 @@ bd_wants_shadow(const bd_opts *o)
 }
 
 static void
-bd_layout(bd_box *b, int h, int w, int shadow)
+bd_layout(bd_box *b, int h, int w, const bd_opts *o)
 {
+    int shadow = bd_wants_shadow(o);
     bd_term_size(&b->rows, &b->cols);
     if (h <= 0) h = 8;
     if (w <= 0) w = 40;
+    b->text_top = 1;
+    if (o && o->whiptail) {
+        /* newtCenteredWindow() places the (HEIGHT-2)x(WIDTH-2) interior:
+         * top = (rows - interior) / 2, moved up one row when both the
+         * screen height and that row are odd; the border surrounds it. */
+        if (h > b->rows) h = b->rows;
+        if (w > b->cols) w = b->cols;
+        if (h < 1) h = 1;
+        if (w < 1) w = 1;
+        b->h = h;
+        b->w = w;
+        int y = (b->rows - (h - 2)) / 2;
+        int x = (b->cols - (w - 2)) / 2;
+        if ((b->rows % 2) && (y % 2)) y--;
+        if (y < 1) y = 1;
+        if (x < 1) x = 1;
+        /* The 0-based interior origin is the 1-based border origin. */
+        b->top = y;
+        b->left = x;
+        b->text_top = 2;
+        return;
+    }
     int slines = b->rows;
     int scols = b->cols;
     if (shadow) {
@@ -540,9 +566,10 @@ bd_draw_text(const bd_box *b, const char *text)
     int max_w = b->w - 4;
     if (max_w < 1) return;
     /* First interior row. dialog's MARGIN is 1, so the prompt sits on
-     * the row under the top border, not one row below that. */
-    int row = b->top + 1;
-    int max_row = b->top + b->h - 4;
+     * the row under the top border, not one row below that; whiptail
+     * leaves that row blank. */
+    int row = b->top + b->text_top;
+    int max_row = b->top + b->h - 5 + b->text_top;
     if (max_row < row) max_row = row;
     const char *p = text;
     while (*p && row <= max_row) {
@@ -597,7 +624,7 @@ bd_widget_yesno(const bd_opts *o, const char *text, int h, int w)
         return 1;
     }
     bd_box b;
-    bd_layout(&b, h, w, bd_wants_shadow(o));
+    bd_layout(&b, h, w, o);
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o->title ? o->title : "Question");
@@ -662,7 +689,7 @@ static void
 bd_draw_msgbox(const bd_opts *o, const char *text, int h, int w, int is_info)
 {
     bd_box b;
-    bd_layout(&b, h, w, bd_wants_shadow(o));
+    bd_layout(&b, h, w, o);
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o->title ? o->title : (is_info ? "Info" : "Message"));
@@ -733,7 +760,7 @@ bd_widget_inputbox(const bd_opts *o, const char *text, int h, int w,
         return 0;
     }
     bd_box b;
-    bd_layout(&b, h, w, bd_wants_shadow(o));
+    bd_layout(&b, h, w, o);
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o->title ? o->title : (is_password ? "Password" : "Input"));
@@ -1043,7 +1070,7 @@ bd_widget_menu_like(const bd_opts *o, const char *text, int h, int w,
 
     /* --- Interactive path --------------------------------------------- */
     bd_box b;
-    bd_layout(&b, h, w, bd_wants_shadow(o));
+    bd_layout(&b, h, w, o);
     int viewport = menu_h;
     if (viewport <= 0 || viewport > b.h - 6) viewport = b.h - 6;
     if (viewport > nrows) viewport = nrows;
@@ -1310,7 +1337,7 @@ bd_widget_form_like(const bd_opts *o, const char *text, int h, int w,
     }
 
     bd_box b;
-    bd_layout(&b, h, w, bd_wants_shadow(o));
+    bd_layout(&b, h, w, o);
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o->title ? o->title : "Form");
@@ -1500,7 +1527,7 @@ bd_widget_gauge(const bd_opts *o, const char *text, int h, int w, int init_pct)
         return 0;
     }
     bd_box b;
-    bd_layout(&b, h, w, bd_wants_shadow(o));
+    bd_layout(&b, h, w, o);
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o->title ? o->title : "Progress");
@@ -1539,7 +1566,7 @@ bd_widget_pause(const bd_opts *o, const char *text, int h, int w, int seconds)
     }
 
     bd_box b;
-    bd_layout(&b, h, w, bd_wants_shadow(o));
+    bd_layout(&b, h, w, o);
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o->title ? o->title : "Pause");
@@ -1651,7 +1678,7 @@ bd_draw_textbox_page(const bd_opts *o, const char *data, size_t len,
                      int h, int w, int top_line, int follow)
 {
     bd_box b;
-    bd_layout(&b, h, w, bd_wants_shadow(o));
+    bd_layout(&b, h, w, o);
     bd_clear_screen();
     bd_draw_backtitle(o);
     bd_draw_frame(&b, o && o->title ? o->title : (follow ? "Tailbox" : "Textbox"));
@@ -1691,7 +1718,7 @@ bd_widget_textbox(const bd_opts *o, const char *file, int h, int w, int follow)
     }
 
     bd_box b;
-    bd_layout(&b, h, w, bd_wants_shadow(o));
+    bd_layout(&b, h, w, o);
     int visible = b.h - 6;
     if (visible < 1) visible = 1;
     int line_count = bd_text_line_count(data, len);
@@ -1709,7 +1736,7 @@ bd_widget_textbox(const bd_opts *o, const char *file, int h, int w, int follow)
     for (;;) {
         if (top_line < 0) top_line = 0;
         if (top_line > line_count - 1) top_line = line_count - 1;
-        bd_layout(&b, h, w, bd_wants_shadow(o));
+        bd_layout(&b, h, w, o);
         visible = b.h - 6;
         if (visible < 1) visible = 1;
         bd_draw_textbox_page(o, data, len, h, w, top_line, follow);
@@ -1744,7 +1771,7 @@ wait_for_textbox_input:
                     data = updated;
                     len = updated_len;
                     line_count = bd_text_line_count(data, len);
-                    bd_layout(&b, h, w, bd_wants_shadow(o));
+                    bd_layout(&b, h, w, o);
                     visible = b.h - 6;
                     if (visible < 1) visible = 1;
                     top_line = line_count > visible ? line_count - visible : 0;

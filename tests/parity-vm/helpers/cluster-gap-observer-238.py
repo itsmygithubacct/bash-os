@@ -26,6 +26,11 @@ MARKER = Path('/etc/bashos-parity-vm')
 ATTEST = Path('/run/bashos-parity-vm-identity')
 NS_ATTEST = Path('/run/bashos-syslog-namespace-208.json')
 PID1 = Path('/proc/1')
+# PID 1 is the guest evaluator; its argv carries the run's whole case selection as one
+# argument. Linux bounds a single argument string at 131072 bytes (MAX_ARG_STRLEN), so the
+# bounded read allows that plus the evaluator's fixed arguments. A fixed 8192-byte cap
+# refused every run whose selection list was longer than about 8000 bytes.
+PID1_CMDLINE_LIMIT = 131072 + 8192
 CANDIDATE = Path('/opt/bashos-parity/candidate')
 REFERENCE_BASH = Path('/opt/bash-5.3.15/bin/bash')
 
@@ -289,7 +294,7 @@ def guard():
         token = protected_identity(MARKER)
         if protected_identity(ATTEST) != token:
             raise Incomplete('root-created identity differs from marker')
-        argv = bounded_pseudo(PID1 / 'cmdline', 8192).split(b'\0')
+        argv = bounded_pseudo(PID1 / 'cmdline', PID1_CMDLINE_LIMIT).split(b'\0')
         if (argv.count(b'/opt/bashos-parity/harness/guest.py') != 1 or argv.count(b'--vm-token') != 1
                 or argv.index(b'--vm-token') + 1 >= len(argv)
                 or argv[argv.index(b'--vm-token') + 1] != token.encode('ascii')):

@@ -1464,7 +1464,7 @@
         "pkg/pkg-load-unload"
       ],
       "oracle": "Independent USTAR archives, GNU gcc ELF, and OpenSSL Ed25519 signatures and verification. All inputs, keys, hooks, installed state, and roots are fixture-only; setup validates the archive encoder, signatures, ELF, and GNU Bash module loading.",
-      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded.",
+      "comparison": "Exact normalized observations, statuses, expected fixture files, and bounded raw output/diagnostic files; no candidate behavior is treated as oracle. Public keys, signed package bytes, signatures, and per-control verification results are retained; private keys are excluded. The executable's linkage is read from its program headers with GNU readelf. A dynamic executable must load the verified module (status 0, 'loaded NAME BUILTIN PATH'), run the builtin with status 0 and no output, and unload it (status 0, 'unloaded NAME BUILTIN', builtin gone), with no diagnostics. A static executable cannot load shared objects: pkg load must return 1 with the single documented diagnostic 'this executable is static and cannot load shared objects', enable nothing and print nothing, and pkg unload must then fail without reporting an unload. The line load-unload: contract=honoured is printed only when the outcome for that linkage holds; otherwise the raw observations are printed. The earlier expectation required a successful load from both builds, which a static executable cannot perform.",
       "requires": [
         "python3",
         "openssl",
@@ -1477,8 +1477,8 @@
       "files": {},
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/transfer-pkg-fixtures-r2.py\nmkdir -p root\n\"$BASH\" --noprofile --norc -c 'enable -f \"$1\" fixtureprobe && fixtureprobe && enable -d fixtureprobe' control \"$HOME/pkg-fixture/probe.so\" > \"$HOME/control-module.out\" 2> \"$HOME/control-module.err\" || { echo 'CONTROL-FAILED reference cannot load fixture module'; exit 98; }\nmkdir -p root/var/lib/pkg/installed/fixtureprobe root/usr/lib/bash-os/loadables\n/usr/bin/cp \"$HOME/pkg-fixture/installed.manifest\" root/var/lib/pkg/installed/fixtureprobe/MANIFEST\n/usr/bin/sha256sum \"$HOME/pkg-fixture/probe.so\" | { read -r sum rest; printf '%s' \"$sum\"; } > root/var/lib/pkg/installed/fixtureprobe/sha256\n/usr/bin/cp \"$HOME/pkg-fixture/probe.so\" root/usr/lib/bash-os/loadables/fixtureprobe.so\n",
       "setup_timeout": 60,
-      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\nbuiltin pkg load fixtureprobe --root root > \"$HOME/first.out\" 2> \"$HOME/first.err\"\nprintf 'load=%s\\n' \"$?\"\n[[ $(type -t fixtureprobe) == builtin ]] && printf 'enabled=yes\\n' || printf 'enabled=no\\n'\nif [[ $(type -t fixtureprobe) == builtin ]]; then fixtureprobe; printf 'invoke=%s\\n' \"$?\"; else printf 'invoke=not-reached\\n'; fi\nbuiltin pkg unload fixtureprobe --root root > \"$HOME/second.out\" 2> \"$HOME/second.err\"\nprintf 'unload=%s\\n' \"$?\"\n[[ $(type -t fixtureprobe) != builtin ]] && printf 'disabled=yes\\n' || printf 'disabled=no\\n'\n/usr/bin/grep -Fq $'loaded fixtureprobe\\tfixtureprobe\\troot/usr/lib/bash-os/loadables/fixtureprobe.so' \"$HOME/first.out\" && /usr/bin/grep -Fq $'unloaded fixtureprobe\\tfixtureprobe' \"$HOME/second.out\" && printf 'messages=yes\\n' || printf 'messages=no\\n'\n",
-      "stdout": "load=0\nenabled=yes\ninvoke=0\nunload=0\ndisabled=yes\nmessages=yes\n",
+      "candidate_script": "export BASHSIGNIFY_TRUSTED_KEYS_DIR=\"$HOME/pkg-fixture/trusted\" BASHSIGNIFY_REVOKED_KEYS=\"$HOME/pkg-fixture/not-revoked\"\nF=\"$HOME/pkg-fixture\"\n# Whether this executable has a dynamic loader is read from its program headers by GNU readelf\n# (PT_INTERP present or absent), never from what pkg prints.\nlinkage=unknown\nif /usr/bin/readelf -lW \"$BASH\" > \"$HOME/linkage.txt\" 2> \"$HOME/linkage.err\"; then\n  if /usr/bin/grep -Eq '^ +INTERP +0x' \"$HOME/linkage.txt\"; then linkage=dynamic; else linkage=static; fi\nfi\nbuiltin pkg load fixtureprobe --root root > \"$HOME/first.out\" 2> \"$HOME/first.err\"; load=$?\n[[ $(type -t fixtureprobe) == builtin ]] && enabled=yes || enabled=no\nif [[ $enabled == yes ]]; then fixtureprobe > \"$HOME/probe.out\" 2> \"$HOME/probe.err\"; invoke=$?; else invoke=not-reached; : > \"$HOME/probe.out\"; : > \"$HOME/probe.err\"; fi\nbuiltin pkg unload fixtureprobe --root root > \"$HOME/second.out\" 2> \"$HOME/second.err\"; unload=$?\n[[ $(type -t fixtureprobe) != builtin ]] && disabled=yes || disabled=no\n/usr/bin/grep -Fq $'loaded fixtureprobe\\tfixtureprobe\\troot/usr/lib/bash-os/loadables/fixtureprobe.so' \"$HOME/first.out\" && /usr/bin/grep -Fq $'unloaded fixtureprobe\\tfixtureprobe' \"$HOME/second.out\" && messages=yes || messages=no\nobserved=\"linkage=$linkage load=$load enabled=$enabled invoke=$invoke unload=$unload disabled=$disabled messages=$messages\"\nprintf '%s\\n' \"$observed\" > \"$HOME/observed.txt\"\nverdict=no\ncase $linkage in\ndynamic)\n  # A dynamic executable loads the verified module, runs it and unloads it again.\n  if [[ $load == 0 && $enabled == yes && $invoke == 0 && $unload == 0 && $disabled == yes && $messages == yes && ! -s $HOME/probe.out && ! -s $HOME/probe.err && ! -s $HOME/first.err && ! -s $HOME/second.err ]]; then verdict=yes; fi\n  ;;\nstatic)\n  # A static executable has no dynamic loader: pkg load must refuse with its documented\n  # diagnostic, enable nothing and report nothing as loaded; unload then has nothing to remove.\n  if [[ $load == 1 && $enabled == no && $unload != 0 && $disabled == yes && ! -s $HOME/first.out && ! -s $HOME/second.out && -s $HOME/second.err ]] && /usr/bin/grep -Fq 'pkg: this executable is static and cannot load shared objects' \"$HOME/first.err\" && [[ $(/usr/bin/wc -l < \"$HOME/first.err\") == 1 ]]; then verdict=yes; fi\n  ;;\nesac\nif [[ $verdict == yes ]]; then printf 'load-unload: contract=honoured\\n'; else printf 'load-unload: %s\\n' \"$observed\"; fi\n",
+      "stdout": "load-unload: contract=honoured\n",
       "stderr": "",
       "expected_status": 0,
       "timeout": 30,
@@ -1493,7 +1493,12 @@
         "after.json",
         "control-module.out",
         "control-module.err",
-        "pkg-fixture/public-evidence.json"
+        "pkg-fixture/public-evidence.json",
+        "probe.out",
+        "probe.err",
+        "observed.txt",
+        "linkage.txt",
+        "linkage.err"
       ]
     }
   ]

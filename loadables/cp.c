@@ -176,14 +176,15 @@ bcp_copy_data (int sfd, int dfd, const char *src, const char *dst)
             ssize_t w = write (dfd, buf + off, (size_t) (n - off));
             if (w < 0) {
                 if (errno == EINTR) continue;
-                builtin_error ("write %s: %s", dst, strerror (errno));
+                /* GNU's line, without the shell's source prefix. */
+                fprintf (stderr, "cp: error writing '%s': %s\n", dst, strerror (errno));
                 return -1;
             }
             off += w;
         }
     }
     if (n < 0) {
-        builtin_error ("read %s: %s", src, strerror (errno));
+        fprintf (stderr, "cp: error reading '%s': %s\n", src, strerror (errno));
         return -1;
     }
     return 0;

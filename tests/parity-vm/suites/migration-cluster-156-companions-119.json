@@ -17,7 +17,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cluster-followup-observer-r2-bash5320.py": "e60d24d4241e0dae44bb881d38f564db93d69b917e49034248e8fba23d005447"
+        "helpers/cluster-followup-observer-r2-bash5320.py": "fbd158361530c9d65d2ec12f4acd762f79033261b407e2cef8a404938d8ad61d"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2-bash5320.py setup packet-rejection",
       "setup_timeout": 50,
@@ -43,7 +43,7 @@
         "python3"
       ],
       "helpers_sha256": {
-        "helpers/cluster-followup-observer-r2-bash5320.py": "e60d24d4241e0dae44bb881d38f564db93d69b917e49034248e8fba23d005447"
+        "helpers/cluster-followup-observer-r2-bash5320.py": "fbd158361530c9d65d2ec12f4acd762f79033261b407e2cef8a404938d8ad61d"
       },
       "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/cluster-followup-observer-r2-bash5320.py setup roster-heartbeats",
       "setup_timeout": 50,

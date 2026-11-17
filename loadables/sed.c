@@ -2375,7 +2375,7 @@ bs_follow (const char *path)
 typedef struct {
     FILE *fp;
     const char **files;
-    int count, next, owned, use_stdin, seekable, error, buffer_output;
+    int count, next, owned, use_stdin, seekable, canonical, error, buffer_output;
     const char *name;
     char *resolved;      /* --follow-symlinks name of the current operand */
     bs_output *out;
@@ -2424,7 +2424,13 @@ bs_input_open (bs_input *in)
         }
         in->owned = 1;
         in->seekable = lseek (fd, 0, SEEK_CUR) != (off_t) -1;
-        if (!in->seekable) setvbuf (in->fp, NULL, _IONBF, 0);
+        /* A canonical terminal hands each read one line or one EOF mark,
+           so buffered input takes no more than GNU sed does, and only a
+           read can tell an EOF mark from the line queued behind it. */
+        struct termios settings;
+        in->canonical = !in->seekable && isatty (fd)
+            && tcgetattr (fd, &settings) == 0 && (settings.c_lflag & ICANON);
+        if (!in->seekable && !in->canonical) setvbuf (in->fp, NULL, _IONBF, 0);
         struct stat sb;
         if (in->buffer_output && fstat (fd, &sb) == 0 && S_ISREG (sb.st_mode)
             && fflush (stdout) == 0) {
@@ -2459,7 +2465,7 @@ bs_input_peek (bs_input *in)
 {
     struct stat sb;
     int fd = fileno (in->fp);
-    if (!in->seekable && fstat (fd, &sb) == 0) {
+    if (!in->seekable && !in->canonical && fstat (fd, &sb) == 0) {
 #if defined (__linux__) && defined (SYS_tee) && !defined (BASHSED_PORTABLE_PEEK)
         if (S_ISFIFO (sb.st_mode)) {
             int probe[2];

@@ -4166,13 +4166,13 @@
             },
             {
               "assertion": "Original obligation: Queued records replay in FIFO order at startup, on SIGHUP and every second once the destination works. In separate static and dynamic VMs, the saved observations contain three distinct startup queue records and three distinct HUP queue records in FIFO datagram order; HUP was sent by pidfd while the owned child was stopped, with a no-HUP continuation control and replay before the next periodic boundary. Sender attribution uses the pinned serial fixture and isolated VM network, not per-datagram credentials.",
-              "definition_sha256": "52ba1c642689ff2a382cc92c017b15ccf8aadbf87ee993504ef32545dd868a81",
+              "definition_sha256": "9f04b96dceb94f990d3c6406792e5a8c4d19488f4ea93dad597d5648b02cb5ed",
               "group": "shell",
               "id": "migration-system-client-syslog-fifo-hup-231-r1"
             },
             {
               "assertion": "Original obligation: Queued records replay in FIFO order at startup, on SIGHUP and every second once the destination works. In separate static and dynamic VMs, the saved observations contain three distinct startup queue records and three distinct periodic queue records in FIFO datagram order; their bounded warm-to-trigger intervals fall inside the selected 750\u20131,250 ms tolerance. Sender attribution uses the pinned serial fixture and isolated VM network, not per-datagram credentials.",
-              "definition_sha256": "722b6a690ee44bce0d1418142904562f764aaec9d271cff4dcb5959d6a50789c",
+              "definition_sha256": "4713d6772b683ab734d1a2438c9dfd3847445297627cdfef6368230e504dfc47",
               "group": "shell",
               "id": "migration-system-client-syslog-fifo-periodic-231-r1"
             }
@@ -7875,8 +7875,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Force a four-byte partial clear write at a 1024-byte file-size limit, then EFBIG; compare status/diagnostic and shell continuation.; Exact resulting 1024 bytes, diagnostic tree, status and subsequent output; the size limit is confined to the disposable subshell.",
-              "definition_sha256": "abbd8d2d0cd12e8ccbd0785ea8d328139e66d757f87e24c41ca438a0e97bb3fd",
+              "assertion": "Deliberate difference, asserted on each side: for this output error ncurses clear exits 0 with no diagnostic, and bash-os clear keeps exit status 1 with one Bash write-error diagnostic (docs/clear.md). A four-byte partial write at a 1024-byte file-size limit, then EFBIG: the candidate must report status 1 and \"clear: write error: File too large\"; the resulting 1024 bytes are exact and equal to ncurses, with no retry corruption, and the same shell prints afterwards.",
+              "definition_sha256": "84416262013ac9150337e4bf3e6c3e65c5ea1b49363e30123f88cb84076192be",
               "group": "shell",
               "id": "migration-clear-short-write"
             }
@@ -7889,8 +7889,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Observe the status and diagnostic after an ENOSPC write and verify output from the same shell afterwards.; Exact observed status and diagnostic bytes, plus continued shell output.",
-              "definition_sha256": "cccb7d440657b4b461a7521080688fc4acbb2b8b90aebd59311efd60f589e1ee",
+              "assertion": "Deliberate difference, asserted on each side: for this output error ncurses clear exits 0 with no diagnostic, and bash-os clear keeps exit status 1 with one Bash write-error diagnostic (docs/clear.md). ENOSPC on /dev/full, proven by setup: the candidate must report status 1 and \"clear: write error: No space left on device\"; the same shell prints afterwards, as with ncurses.",
+              "definition_sha256": "d36f1fa60fb8a1ce210123f80d663457c3b75e02bb5f31e1afd231445468a136",
               "group": "shell",
               "id": "migration-clear-full-device"
             }
@@ -7903,8 +7903,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Run clear with stdout on a hung-up PTY (verified EIO), then restore stdout and print from the same shell.; Exact error diagnostics and recorded clear status against ncurses; the recovery file proves the invoking shell continues after restoring its output.",
-              "definition_sha256": "6a4c16fde2ba5ac4e7ea83b1efae803cf1b910aae8e4c7ee8e45f0dfbd1cba0e",
+              "assertion": "Deliberate difference, asserted on each side: for this output error ncurses clear exits 0 with no diagnostic, and bash-os clear keeps exit status 1 with one Bash write-error diagnostic (docs/clear.md). EIO on a hung-up PTY, proven before either side runs: the candidate must report status 1 and \"clear: write error: Input/output error\"; the recovery file shows the invoking shell continuing after it restores its output, as with ncurses.",
+              "definition_sha256": "b6a122330cf2ef6033c4fdf936e7164fcecfa363bb7a804845b228064abbe92f",
               "group": "shell",
               "id": "migration-clear-hung-up-pty"
             }
@@ -7923,20 +7923,20 @@
               "id": "legacy/clear/closed-output-recovery"
             },
             {
-              "assertion": "Force a four-byte partial clear write at a 1024-byte file-size limit, then EFBIG; compare status/diagnostic and shell continuation.; Exact resulting 1024 bytes, diagnostic tree, status and subsequent output; the size limit is confined to the disposable subshell.",
-              "definition_sha256": "abbd8d2d0cd12e8ccbd0785ea8d328139e66d757f87e24c41ca438a0e97bb3fd",
+              "assertion": "Deliberate difference, asserted on each side: for this output error ncurses clear exits 0 with no diagnostic, and bash-os clear keeps exit status 1 with one Bash write-error diagnostic (docs/clear.md). A four-byte partial write at a 1024-byte file-size limit, then EFBIG: the candidate must report status 1 and \"clear: write error: File too large\"; the resulting 1024 bytes are exact and equal to ncurses, with no retry corruption, and the same shell prints afterwards.",
+              "definition_sha256": "84416262013ac9150337e4bf3e6c3e65c5ea1b49363e30123f88cb84076192be",
               "group": "shell",
               "id": "migration-clear-short-write"
             },
             {
-              "assertion": "Observe the status and diagnostic after an ENOSPC write and verify output from the same shell afterwards.; Exact observed status and diagnostic bytes, plus continued shell output.",
-              "definition_sha256": "cccb7d440657b4b461a7521080688fc4acbb2b8b90aebd59311efd60f589e1ee",
+              "assertion": "Deliberate difference, asserted on each side: for this output error ncurses clear exits 0 with no diagnostic, and bash-os clear keeps exit status 1 with one Bash write-error diagnostic (docs/clear.md). ENOSPC on /dev/full, proven by setup: the candidate must report status 1 and \"clear: write error: No space left on device\"; the same shell prints afterwards, as with ncurses.",
+              "definition_sha256": "d36f1fa60fb8a1ce210123f80d663457c3b75e02bb5f31e1afd231445468a136",
               "group": "shell",
               "id": "migration-clear-full-device"
             },
             {
-              "assertion": "Run clear with stdout on a hung-up PTY (verified EIO), then restore stdout and print from the same shell.; Exact error diagnostics and recorded clear status against ncurses; the recovery file proves the invoking shell continues after restoring its output.",
-              "definition_sha256": "6a4c16fde2ba5ac4e7ea83b1efae803cf1b910aae8e4c7ee8e45f0dfbd1cba0e",
+              "assertion": "Deliberate difference, asserted on each side: for this output error ncurses clear exits 0 with no diagnostic, and bash-os clear keeps exit status 1 with one Bash write-error diagnostic (docs/clear.md). EIO on a hung-up PTY, proven before either side runs: the candidate must report status 1 and \"clear: write error: Input/output error\"; the recovery file shows the invoking shell continuing after it restores its output, as with ncurses.",
+              "definition_sha256": "b6a122330cf2ef6033c4fdf936e7164fcecfa363bb7a804845b228064abbe92f",
               "group": "shell",
               "id": "migration-clear-hung-up-pty"
             }
@@ -8246,25 +8246,25 @@
           "evidence": [
             {
               "assertion": "original 113 case: Malformed init and key inputs return the saved failure diagnostics, create no state, and leave no live listener in the retained child observations.",
-              "definition_sha256": "2ccfe56c61e1ddf68116699ba862e242e4ac5106e772f3d9878db37e4ed01995",
+              "definition_sha256": "5dcad1822a185d76574189e027f882d97614bd02febb29ac79a67ad365bed80f",
               "group": "shell",
               "id": "migration-cluster-argument-validation"
             },
             {
               "assertion": "original 119 retention case: Malformed init and key inputs return the saved failure diagnostics, create no state, and leave no live listener in the retained child observations.",
-              "definition_sha256": "d71dbdf2933afdd75487dc82e4f0231167dc355b7282c3160469677482c3fc4c",
+              "definition_sha256": "c140c9d116480229259c6033b4e784b356c9457c6638a53743c79028c78aaf1a",
               "group": "shell",
               "id": "migration-cluster-argument-validation-r2"
             },
             {
               "assertion": "original 113 case: Malformed init and key inputs return the saved failure diagnostics, create no state, and leave no live listener in the retained child observations.",
-              "definition_sha256": "7ce7dc7e55891ef9680458bfb6bf5a91135a9f65a91be504f56f77f1ebfc9e41",
+              "definition_sha256": "483b62b46820e1403c83e308c13aadf113b71bc38297879b822bb2e64e7a5943",
               "group": "shell",
               "id": "migration-cluster-key-syntax"
             },
             {
               "assertion": "original 119 retention case: Malformed init and key inputs return the saved failure diagnostics, create no state, and leave no live listener in the retained child observations.",
-              "definition_sha256": "20e42470379dc27ed5648484a149bd2ed731643f2eaf4edd5ac4ee5386d70dba",
+              "definition_sha256": "4c3ba7c455dd2bdfaf881cf6c95d08fb629c90261afbd99b78ff6662d6f972e3",
               "group": "shell",
               "id": "migration-cluster-key-syntax-r2"
             }
@@ -8278,25 +8278,25 @@
           "evidence": [
             {
               "assertion": "original 113 case: Malformed join endpoints and keys fail without state or live children; the recorded decoy adds a no-network check.",
-              "definition_sha256": "2ccfe56c61e1ddf68116699ba862e242e4ac5106e772f3d9878db37e4ed01995",
+              "definition_sha256": "5dcad1822a185d76574189e027f882d97614bd02febb29ac79a67ad365bed80f",
               "group": "shell",
               "id": "migration-cluster-argument-validation"
             },
             {
               "assertion": "original 119 retention case: Malformed join endpoints and keys fail without state or live children; the recorded decoy adds a no-network check.",
-              "definition_sha256": "d71dbdf2933afdd75487dc82e4f0231167dc355b7282c3160469677482c3fc4c",
+              "definition_sha256": "c140c9d116480229259c6033b4e784b356c9457c6638a53743c79028c78aaf1a",
               "group": "shell",
               "id": "migration-cluster-argument-validation-r2"
             },
             {
               "assertion": "original 113 case: Malformed join endpoints and keys fail without state or live children; the recorded decoy adds a no-network check.",
-              "definition_sha256": "7ce7dc7e55891ef9680458bfb6bf5a91135a9f65a91be504f56f77f1ebfc9e41",
+              "definition_sha256": "483b62b46820e1403c83e308c13aadf113b71bc38297879b822bb2e64e7a5943",
               "group": "shell",
               "id": "migration-cluster-key-syntax"
             },
             {
               "assertion": "original 119 retention case: Malformed join endpoints and keys fail without state or live children; the recorded decoy adds a no-network check.",
-              "definition_sha256": "20e42470379dc27ed5648484a149bd2ed731643f2eaf4edd5ac4ee5386d70dba",
+              "definition_sha256": "4c3ba7c455dd2bdfaf881cf6c95d08fb629c90261afbd99b78ff6662d6f972e3",
               "group": "shell",
               "id": "migration-cluster-key-syntax-r2"
             }
@@ -8310,19 +8310,19 @@
           "evidence": [
             {
               "assertion": "original 113 case: Malformed ping targets produce status 1, and the VM review found no recorded decoy receive. Remaining gap: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
-              "definition_sha256": "2ccfe56c61e1ddf68116699ba862e242e4ac5106e772f3d9878db37e4ed01995",
+              "definition_sha256": "5dcad1822a185d76574189e027f882d97614bd02febb29ac79a67ad365bed80f",
               "group": "shell",
               "id": "migration-cluster-argument-validation"
             },
             {
               "assertion": "original 119 retention case: Malformed ping targets produce status 1, and the VM review found no recorded decoy receive. Remaining gap: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
-              "definition_sha256": "d71dbdf2933afdd75487dc82e4f0231167dc355b7282c3160469677482c3fc4c",
+              "definition_sha256": "c140c9d116480229259c6033b4e784b356c9457c6638a53743c79028c78aaf1a",
               "group": "shell",
               "id": "migration-cluster-argument-validation-r2"
             },
             {
               "assertion": "Both builds returned status 1 for the recorded malformed 127.0.0.2 target. The two calibrated owned decoys were quiet over the bounded observation and namespace UDP and loopback transmit/loss counters were unchanged; the records do not establish every possible network side effect or trace every attempted syscall.",
-              "definition_sha256": "59c821a7c4375eb4ea7bacd69e5052cb524e7d01efbf45eec66174d4f265ba9b",
+              "definition_sha256": "8de5b1475118265d11d264083ce1ea9b623d985b1b1f5039ef88bca406208e46",
               "group": "shell",
               "id": "migration-cluster-gap-negative-ping-238-r1"
             },
@@ -8348,13 +8348,13 @@
             },
             {
               "assertion": "original 113 case: Out-of-range timeout lifecycle calls are rejected; the existing legacy invalid-timeout reference remains untouched for members.",
-              "definition_sha256": "2ccfe56c61e1ddf68116699ba862e242e4ac5106e772f3d9878db37e4ed01995",
+              "definition_sha256": "5dcad1822a185d76574189e027f882d97614bd02febb29ac79a67ad365bed80f",
               "group": "shell",
               "id": "migration-cluster-argument-validation"
             },
             {
               "assertion": "original 119 retention case: Out-of-range timeout lifecycle calls are rejected; the existing legacy invalid-timeout reference remains untouched for members.",
-              "definition_sha256": "d71dbdf2933afdd75487dc82e4f0231167dc355b7282c3160469677482c3fc4c",
+              "definition_sha256": "c140c9d116480229259c6033b4e784b356c9457c6638a53743c79028c78aaf1a",
               "group": "shell",
               "id": "migration-cluster-argument-validation-r2"
             }
@@ -8383,13 +8383,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: Both saved init/join outputs have the same cluster ID, retained key bytes agree, and the VM checked the PONG MACs against retained keys.",
-              "definition_sha256": "54d33d8abc9e6d2b4fb485fa51f574e1baba9e8b42877fdee77d66755e6c13d7",
+              "definition_sha256": "0a695aab7137f79381a2d159fb9477a442f3c24b9ad17e8296cc6b33e613bbb6",
               "group": "shell",
               "id": "migration-cluster-authenticated-join"
             },
             {
               "assertion": "original 119 retention case: Both saved init/join outputs have the same cluster ID, retained key bytes agree, and the VM checked the PONG MACs against retained keys.",
-              "definition_sha256": "28163499eb5281739cfdf6c8bdafdf2078aa934d17103643ba67e7ab5d2d619c",
+              "definition_sha256": "03c73a9b46b86d3433d0c803108395054258bb3ed51c479421493906f377bf6c",
               "group": "shell",
               "id": "migration-cluster-authenticated-join-r2"
             }
@@ -8403,13 +8403,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: The seed and peer members files and commands agree on the two independently parsed IDs and endpoints; corresponding received packets have VM-verified MAC matches.",
-              "definition_sha256": "54d33d8abc9e6d2b4fb485fa51f574e1baba9e8b42877fdee77d66755e6c13d7",
+              "definition_sha256": "0a695aab7137f79381a2d159fb9477a442f3c24b9ad17e8296cc6b33e613bbb6",
               "group": "shell",
               "id": "migration-cluster-authenticated-join"
             },
             {
               "assertion": "original 119 retention case: The seed and peer members files and commands agree on the two independently parsed IDs and endpoints; corresponding received packets have VM-verified MAC matches.",
-              "definition_sha256": "28163499eb5281739cfdf6c8bdafdf2078aa934d17103643ba67e7ab5d2d619c",
+              "definition_sha256": "03c73a9b46b86d3433d0c803108395054258bb3ed51c479421493906f377bf6c",
               "group": "shell",
               "id": "migration-cluster-authenticated-join-r2"
             }
@@ -8423,13 +8423,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: Both wrong-key joins return the handshake failure and the VM trace proofs compare unchanged seed and peer rosters.",
-              "definition_sha256": "54d33d8abc9e6d2b4fb485fa51f574e1baba9e8b42877fdee77d66755e6c13d7",
+              "definition_sha256": "0a695aab7137f79381a2d159fb9477a442f3c24b9ad17e8296cc6b33e613bbb6",
               "group": "shell",
               "id": "migration-cluster-authenticated-join"
             },
             {
               "assertion": "original 119 retention case: Both wrong-key joins return the handshake failure and the VM trace proofs compare unchanged seed and peer rosters.",
-              "definition_sha256": "28163499eb5281739cfdf6c8bdafdf2078aa934d17103643ba67e7ab5d2d619c",
+              "definition_sha256": "03c73a9b46b86d3433d0c803108395054258bb3ed51c479421493906f377bf6c",
               "group": "shell",
               "id": "migration-cluster-authenticated-join-r2"
             }
@@ -8458,13 +8458,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: Leave returns successfully, removes owned state, and before/after raw snapshots preserve the unrelated entries.",
-              "definition_sha256": "7dc8f18a8c7649f992f82d682a4cb22719dc74b9b846c10428690eef22772469",
+              "definition_sha256": "874ad71dc364b37c7ae2e2d34aad9106b8e906c071a65dd91e9319ee1bd19b7d",
               "group": "shell",
               "id": "migration-cluster-leave-lifecycle"
             },
             {
               "assertion": "original 119 retention case: Leave returns successfully, removes owned state, and before/after raw snapshots preserve the unrelated entries.",
-              "definition_sha256": "7d0571ddd0f67220917e9e7b4291095f17a79af2c26ce3b932da7f0887fe5a2c",
+              "definition_sha256": "37d6937378099587ee559cd10cfe1a05879651a84e57299110c2f525aeef8baf",
               "group": "shell",
               "id": "migration-cluster-leave-lifecycle-r2"
             }
@@ -8478,13 +8478,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: The VM trace proof ties the peer leave to the seed roster change within the before-expiry bound.",
-              "definition_sha256": "7dc8f18a8c7649f992f82d682a4cb22719dc74b9b846c10428690eef22772469",
+              "definition_sha256": "874ad71dc364b37c7ae2e2d34aad9106b8e906c071a65dd91e9319ee1bd19b7d",
               "group": "shell",
               "id": "migration-cluster-leave-lifecycle"
             },
             {
               "assertion": "original 119 retention case: The VM trace proof ties the peer leave to the seed roster change within the before-expiry bound.",
-              "definition_sha256": "7d0571ddd0f67220917e9e7b4291095f17a79af2c26ce3b932da7f0887fe5a2c",
+              "definition_sha256": "37d6937378099587ee559cd10cfe1a05879651a84e57299110c2f525aeef8baf",
               "group": "shell",
               "id": "migration-cluster-leave-lifecycle-r2"
             }
@@ -8498,13 +8498,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: Repeated leave calls and the uninitialized leave return the documented success status.",
-              "definition_sha256": "7dc8f18a8c7649f992f82d682a4cb22719dc74b9b846c10428690eef22772469",
+              "definition_sha256": "874ad71dc364b37c7ae2e2d34aad9106b8e906c071a65dd91e9319ee1bd19b7d",
               "group": "shell",
               "id": "migration-cluster-leave-lifecycle"
             },
             {
               "assertion": "original 119 retention case: Repeated leave calls and the uninitialized leave return the documented success status.",
-              "definition_sha256": "7d0571ddd0f67220917e9e7b4291095f17a79af2c26ce3b932da7f0887fe5a2c",
+              "definition_sha256": "37d6937378099587ee559cd10cfe1a05879651a84e57299110c2f525aeef8baf",
               "group": "shell",
               "id": "migration-cluster-leave-lifecycle-r2"
             }
@@ -8518,13 +8518,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: Saved proc, alive and bind observations and the VM trace proof show owned listener exit and UDP port release for normal and killed owner shells.",
-              "definition_sha256": "7dc8f18a8c7649f992f82d682a4cb22719dc74b9b846c10428690eef22772469",
+              "definition_sha256": "874ad71dc364b37c7ae2e2d34aad9106b8e906c071a65dd91e9319ee1bd19b7d",
               "group": "shell",
               "id": "migration-cluster-leave-lifecycle"
             },
             {
               "assertion": "original 119 retention case: Saved proc, alive and bind observations and the VM trace proof show owned listener exit and UDP port release for normal and killed owner shells.",
-              "definition_sha256": "7d0571ddd0f67220917e9e7b4291095f17a79af2c26ce3b932da7f0887fe5a2c",
+              "definition_sha256": "37d6937378099587ee559cd10cfe1a05879651a84e57299110c2f525aeef8baf",
               "group": "shell",
               "id": "migration-cluster-leave-lifecycle-r2"
             }
@@ -8553,25 +8553,25 @@
           "evidence": [
             {
               "assertion": "Both builds retain the complete malformed and oversized packet attempts and later roster snapshots; two separate guest-only integrity controls were bound byte-for-byte to the original captures. Outbound trace entries are pre-send attempts and do not prove each candidate receive.",
-              "definition_sha256": "cc1a25cb917d4967d41171545c1119db3649ef727a355425241234403cc6eb0c",
+              "definition_sha256": "eef12677b7f63e86a4365a7f28f5d7254cdc198c9642be6c11893ae56a5b50e5",
               "group": "shell",
               "id": "migration-cluster-retention-packet-rejection-125"
             },
             {
               "assertion": "original 113 case: Malformed/truncated and oversized injection reached unchanged-roster and later-ping checks; eight oversized packets per build lack retained bytes. Remaining gap: The actual bytes of the oversized datagrams are missing in both retained traces; size and SHA alone do not independently identify the rejected corpus.",
-              "definition_sha256": "cb6a717413bc122cbaf45ebf4206ef602295ec73c6ef2bd22883d1dcf47a32cf",
+              "definition_sha256": "e7b50e2d8503b0773780a424980156cdaa07b1ed8d959d6fb7b82e04eac2f12f",
               "group": "shell",
               "id": "migration-cluster-packet-rejection"
             },
             {
               "assertion": "original 119 retention case: Malformed/truncated and oversized injection reached unchanged-roster and later-ping checks; eight oversized packets per build lack retained bytes. Remaining gap: The actual bytes of the oversized datagrams are missing in both retained traces; size and SHA alone do not independently identify the rejected corpus.",
-              "definition_sha256": "d5b83bae64ec102dc1124e758f12b0f58a735a2cac8dee7ac345db474b12e946",
+              "definition_sha256": "e54054bc7e910a8115d6eabdabed5bf7c05835c24be8c83a76fc1028bdeab75a",
               "group": "shell",
               "id": "migration-cluster-packet-rejection-r2"
             },
             {
               "assertion": "Both builds retained complete malformed, truncated and oversized packet bytes and successful loopback sends; owned listener/probe identity and queue/drop observations plus a later authenticated barrier support bounded delivery inference, not an individual candidate receive trace. The recorded roster remained unchanged after every reached vector.",
-              "definition_sha256": "9328705620414785f155d6cc54ff8719d627aa5593c31f8aae4d3a42c2c242a4",
+              "definition_sha256": "704bba9d5268e0f7aa3baf9a0f78f6e3bc5de2197672d2675b5d67b901c62c00",
               "group": "shell",
               "id": "migration-cluster-gap-packet-rejection-238-r1"
             }
@@ -8585,19 +8585,19 @@
           "evidence": [
             {
               "assertion": "The retained guest147 audit independently verifies the first packet MAC under a different key, rejects it under the intended group key and matches the intended cluster. Source-controlled send completion, subsequent valid loopback barrier, zero sampled queue drops and unchanged roster support accepting this controlled stimulus. Delivery is an inference; no individual candidate receive event or universal loss-free transport guarantee is claimed.",
-              "definition_sha256": "cb6a717413bc122cbaf45ebf4206ef602295ec73c6ef2bd22883d1dcf47a32cf",
+              "definition_sha256": "e7b50e2d8503b0773780a424980156cdaa07b1ed8d959d6fb7b82e04eac2f12f",
               "group": "shell",
               "id": "migration-cluster-packet-rejection"
             },
             {
               "assertion": "The retained guest147 audit independently verifies the first packet MAC under a different key, rejects it under the intended group key and matches the intended cluster. Source-controlled send completion, subsequent valid loopback barrier, zero sampled queue drops and unchanged roster support accepting this controlled stimulus. Delivery is an inference; no individual candidate receive event or universal loss-free transport guarantee is claimed.",
-              "definition_sha256": "d5b83bae64ec102dc1124e758f12b0f58a735a2cac8dee7ac345db474b12e946",
+              "definition_sha256": "e54054bc7e910a8115d6eabdabed5bf7c05835c24be8c83a76fc1028bdeab75a",
               "group": "shell",
               "id": "migration-cluster-packet-rejection-r2"
             },
             {
               "assertion": "Both builds retained the wrong-key JOIN and guest-reported alternate-key controls, observed an unchanged roster and a later valid barrier. No host MAC was computed. Both builds retained complete malformed, truncated and oversized packet bytes and successful loopback sends; owned listener/probe identity and queue/drop observations plus a later authenticated barrier support bounded delivery inference, not an individual candidate receive trace.",
-              "definition_sha256": "9328705620414785f155d6cc54ff8719d627aa5593c31f8aae4d3a42c2c242a4",
+              "definition_sha256": "704bba9d5268e0f7aa3baf9a0f78f6e3bc5de2197672d2675b5d67b901c62c00",
               "group": "shell",
               "id": "migration-cluster-gap-packet-rejection-238-r1"
             }
@@ -8611,13 +8611,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: The saved corpus includes all requested invalid counts and node IDs; the VM reports the same keyed MAC fingerprint as the valid barrier and the roster stays unchanged. The saved corpus includes all requested invalid counts and node IDs; the VM reports the same keyed MAC fingerprint as the valid barrier and the roster stays unchanged. Send traces precede sendto and individual candidate receipts are not recorded; this proposal accepts the existing source-controlled exercise, barrier and drop observations rather than asserting each receipt.",
-              "definition_sha256": "cb6a717413bc122cbaf45ebf4206ef602295ec73c6ef2bd22883d1dcf47a32cf",
+              "definition_sha256": "e7b50e2d8503b0773780a424980156cdaa07b1ed8d959d6fb7b82e04eac2f12f",
               "group": "shell",
               "id": "migration-cluster-packet-rejection"
             },
             {
               "assertion": "original 119 retention case: The saved corpus includes all requested invalid counts and node IDs; the VM reports the same keyed MAC fingerprint as the valid barrier and the roster stays unchanged. The saved corpus includes all requested invalid counts and node IDs; the VM reports the same keyed MAC fingerprint as the valid barrier and the roster stays unchanged. Send traces precede sendto and individual candidate receipts are not recorded; this proposal accepts the existing source-controlled exercise, barrier and drop observations rather than asserting each receipt.",
-              "definition_sha256": "d5b83bae64ec102dc1124e758f12b0f58a735a2cac8dee7ac345db474b12e946",
+              "definition_sha256": "e54054bc7e910a8115d6eabdabed5bf7c05835c24be8c83a76fc1028bdeab75a",
               "group": "shell",
               "id": "migration-cluster-packet-rejection-r2"
             }
@@ -8631,25 +8631,25 @@
           "evidence": [
             {
               "assertion": "After the recorded malformed attempt sequences, an actual reply was received from each candidate-reported listener port on both builds. Exact attempted packet bytes are retained and their guest audit is an integrity control only.",
-              "definition_sha256": "cc1a25cb917d4967d41171545c1119db3649ef727a355425241234403cc6eb0c",
+              "definition_sha256": "eef12677b7f63e86a4365a7f28f5d7254cdc198c9642be6c11893ae56a5b50e5",
               "group": "shell",
               "id": "migration-cluster-retention-packet-rejection-125"
             },
             {
               "assertion": "original 113 case: Later candidate and oracle pings succeed after the combined injection, while several oversized payloads in that combined corpus are absent. Remaining gap: The exact bytes of the oversized packets before the final ping are absent, so the complete recorded combined corpus cannot yet be independently qualified.",
-              "definition_sha256": "cb6a717413bc122cbaf45ebf4206ef602295ec73c6ef2bd22883d1dcf47a32cf",
+              "definition_sha256": "e7b50e2d8503b0773780a424980156cdaa07b1ed8d959d6fb7b82e04eac2f12f",
               "group": "shell",
               "id": "migration-cluster-packet-rejection"
             },
             {
               "assertion": "original 119 retention case: Later candidate and oracle pings succeed after the combined injection, while several oversized payloads in that combined corpus are absent. Remaining gap: The exact bytes of the oversized packets before the final ping are absent, so the complete recorded combined corpus cannot yet be independently qualified.",
-              "definition_sha256": "d5b83bae64ec102dc1124e758f12b0f58a735a2cac8dee7ac345db474b12e946",
+              "definition_sha256": "e54054bc7e910a8115d6eabdabed5bf7c05835c24be8c83a76fc1028bdeab75a",
               "group": "shell",
               "id": "migration-cluster-packet-rejection-r2"
             },
             {
               "assertion": "Both builds retained complete malformed, truncated and oversized packet bytes and successful loopback sends; owned listener/probe identity and queue/drop observations plus a later authenticated barrier support bounded delivery inference, not an individual candidate receive trace. A valid independent barrier reply was captured after each of the thirteen reached vectors.",
-              "definition_sha256": "9328705620414785f155d6cc54ff8719d627aa5593c31f8aae4d3a42c2c242a4",
+              "definition_sha256": "704bba9d5268e0f7aa3baf9a0f78f6e3bc5de2197672d2675b5d67b901c62c00",
               "group": "shell",
               "id": "migration-cluster-gap-packet-rejection-238-r1"
             }
@@ -8678,13 +8678,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: The recorded node-ID ping succeeds with its exact expected output against the oracle and live listener.",
-              "definition_sha256": "185df0c9fe671d52e923b8c166771b1a03b22e344168bf33ef39af830d608c80",
+              "definition_sha256": "5faf9bac91b742b27f0a0fe9ae283dbbefef6dd05e15b3f1fd0a182c0c80e407",
               "group": "shell",
               "id": "migration-cluster-ping-protocol"
             },
             {
               "assertion": "original 119 retention case: The recorded node-ID ping succeeds with its exact expected output against the oracle and live listener.",
-              "definition_sha256": "28d3ead7d932715613ea90f37301dbce0864c408bc79e0189f03d06861d4df9e",
+              "definition_sha256": "80779195086a629a728768edb9b45abc738e560824b29092827fe6a2a4e54c0c",
               "group": "shell",
               "id": "migration-cluster-ping-protocol-r2"
             }
@@ -8698,13 +8698,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: The recorded numeric endpoint ping succeeds with its exact expected output against the oracle and live listener.",
-              "definition_sha256": "185df0c9fe671d52e923b8c166771b1a03b22e344168bf33ef39af830d608c80",
+              "definition_sha256": "5faf9bac91b742b27f0a0fe9ae283dbbefef6dd05e15b3f1fd0a182c0c80e407",
               "group": "shell",
               "id": "migration-cluster-ping-protocol"
             },
             {
               "assertion": "original 119 retention case: The recorded numeric endpoint ping succeeds with its exact expected output against the oracle and live listener.",
-              "definition_sha256": "28d3ead7d932715613ea90f37301dbce0864c408bc79e0189f03d06861d4df9e",
+              "definition_sha256": "80779195086a629a728768edb9b45abc738e560824b29092827fe6a2a4e54c0c",
               "group": "shell",
               "id": "migration-cluster-ping-protocol-r2"
             }
@@ -8718,19 +8718,19 @@
           "evidence": [
             {
               "assertion": "original 113 case: The unknown-node status and diagnostic are saved, and the VM review found no recorded decoy receive. Remaining gap: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
-              "definition_sha256": "185df0c9fe671d52e923b8c166771b1a03b22e344168bf33ef39af830d608c80",
+              "definition_sha256": "5faf9bac91b742b27f0a0fe9ae283dbbefef6dd05e15b3f1fd0a182c0c80e407",
               "group": "shell",
               "id": "migration-cluster-ping-protocol"
             },
             {
               "assertion": "original 119 retention case: The unknown-node status and diagnostic are saved, and the VM review found no recorded decoy receive. Remaining gap: The 119 trace encoder silently discards serialization exceptions; absence of a receive event alone cannot prove that no packet was sent.",
-              "definition_sha256": "28d3ead7d932715613ea90f37301dbce0864c408bc79e0189f03d06861d4df9e",
+              "definition_sha256": "80779195086a629a728768edb9b45abc738e560824b29092827fe6a2a4e54c0c",
               "group": "shell",
               "id": "migration-cluster-ping-protocol-r2"
             },
             {
               "assertion": "Both builds returned status 1 for a node ID absent from the recorded roster. Over each bounded observation the two positively calibrated owned decoys received no packet and namespace UDP and loopback transmit/loss counters were unchanged; this is bounded no-emitted-traffic evidence, not a per-process syscall trace.",
-              "definition_sha256": "59c821a7c4375eb4ea7bacd69e5052cb524e7d01efbf45eec66174d4f265ba9b",
+              "definition_sha256": "8de5b1475118265d11d264083ce1ea9b623d985b1b1f5039ef88bca406208e46",
               "group": "shell",
               "id": "migration-cluster-gap-negative-ping-238-r1"
             }
@@ -8744,13 +8744,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: Silent and non-protocol endpoint failures and bounded deadline observations are recorded, with a successful answering control.",
-              "definition_sha256": "185df0c9fe671d52e923b8c166771b1a03b22e344168bf33ef39af830d608c80",
+              "definition_sha256": "5faf9bac91b742b27f0a0fe9ae283dbbefef6dd05e15b3f1fd0a182c0c80e407",
               "group": "shell",
               "id": "migration-cluster-ping-protocol"
             },
             {
               "assertion": "original 119 retention case: Silent and non-protocol endpoint failures and bounded deadline observations are recorded, with a successful answering control.",
-              "definition_sha256": "28d3ead7d932715613ea90f37301dbce0864c408bc79e0189f03d06861d4df9e",
+              "definition_sha256": "80779195086a629a728768edb9b45abc738e560824b29092827fe6a2a4e54c0c",
               "group": "shell",
               "id": "migration-cluster-ping-protocol-r2"
             }
@@ -8764,13 +8764,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: The VM independently checked all six saved ping requests for size, nonce, cluster/node identity, source and keyed MAC on both builds.",
-              "definition_sha256": "185df0c9fe671d52e923b8c166771b1a03b22e344168bf33ef39af830d608c80",
+              "definition_sha256": "5faf9bac91b742b27f0a0fe9ae283dbbefef6dd05e15b3f1fd0a182c0c80e407",
               "group": "shell",
               "id": "migration-cluster-ping-protocol"
             },
             {
               "assertion": "original 119 retention case: The VM independently checked all six saved ping requests for size, nonce, cluster/node identity, source and keyed MAC on both builds.",
-              "definition_sha256": "28d3ead7d932715613ea90f37301dbce0864c408bc79e0189f03d06861d4df9e",
+              "definition_sha256": "80779195086a629a728768edb9b45abc738e560824b29092827fe6a2a4e54c0c",
               "group": "shell",
               "id": "migration-cluster-ping-protocol-r2"
             }
@@ -8799,13 +8799,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: Mode-invalid directories are refused; independent 119 lstat fields establish a 0700 root-owned directory is refused by uid 2000 and unchanged.",
-              "definition_sha256": "ccef889f7d8b855905fcc4131e5ebf8a65e9899aeb60f41b5060ab1cc32f0ed2",
+              "definition_sha256": "e5c90db0813cb02c58caeb44f0bddb01164482df42cd1b1008cce91f1b131587",
               "group": "shell",
               "id": "migration-cluster-state-private"
             },
             {
               "assertion": "original 119 retention case: Mode-invalid directories are refused; independent 119 lstat fields establish a 0700 root-owned directory is refused by uid 2000 and unchanged.",
-              "definition_sha256": "b97714a645b08d18a53ad4d7122e39fe755244919b7ad2f472bd90352cb3e679",
+              "definition_sha256": "64e5464336a2caaf42cba85dda487e3e2b835526e6663b5791df6e58fcf53a69",
               "group": "shell",
               "id": "migration-cluster-state-private-r2"
             }
@@ -8819,13 +8819,13 @@
           "evidence": [
             {
               "assertion": "Original113 companion;119 supplies the retained positive evidence: The retained119 inotify data positively records temp-file close and rename events for the final state names, including multiple members replacements, and the retained snapshots show0600 final modes and no leftover scratch. This exercises atomic temp-plus-rename writes. The old trace encoder can drop events, so absence of an in-place write event is not a separately established no-loss guarantee.113 remains companion evidence.",
-              "definition_sha256": "ccef889f7d8b855905fcc4131e5ebf8a65e9899aeb60f41b5060ab1cc32f0ed2",
+              "definition_sha256": "e5c90db0813cb02c58caeb44f0bddb01164482df42cd1b1008cce91f1b131587",
               "group": "shell",
               "id": "migration-cluster-state-private"
             },
             {
               "assertion": "Original119 retained positive evidence: The retained119 inotify data positively records temp-file close and rename events for the final state names, including multiple members replacements, and the retained snapshots show0600 final modes and no leftover scratch. This exercises atomic temp-plus-rename writes. The old trace encoder can drop events, so absence of an in-place write event is not a separately established no-loss guarantee.113 remains companion evidence.",
-              "definition_sha256": "b97714a645b08d18a53ad4d7122e39fe755244919b7ad2f472bd90352cb3e679",
+              "definition_sha256": "64e5464336a2caaf42cba85dda487e3e2b835526e6663b5791df6e58fcf53a69",
               "group": "shell",
               "id": "migration-cluster-state-private-r2"
             }
@@ -8839,13 +8839,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: Accepted and rejected key-file vectors and the independently verified protocol controls exercise the documented 64 lowercase hex syntax, with the documented optional final newline.",
-              "definition_sha256": "7ce7dc7e55891ef9680458bfb6bf5a91135a9f65a91be504f56f77f1ebfc9e41",
+              "definition_sha256": "483b62b46820e1403c83e308c13aadf113b71bc38297879b822bb2e64e7a5943",
               "group": "shell",
               "id": "migration-cluster-key-syntax"
             },
             {
               "assertion": "original 119 retention case: Accepted and rejected key-file vectors and the independently verified protocol controls exercise the documented 64 lowercase hex syntax, with the documented optional final newline.",
-              "definition_sha256": "20e42470379dc27ed5648484a149bd2ed731643f2eaf4edd5ac4ee5386d70dba",
+              "definition_sha256": "4c3ba7c455dd2bdfaf881cf6c95d08fb629c90261afbd99b78ff6662d6f972e3",
               "group": "shell",
               "id": "migration-cluster-key-syntax-r2"
             }
@@ -8859,13 +8859,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: Two concurrent init attempts are refused while the original listener remains active; raw snapshots and children records are retained.",
-              "definition_sha256": "ccef889f7d8b855905fcc4131e5ebf8a65e9899aeb60f41b5060ab1cc32f0ed2",
+              "definition_sha256": "e5c90db0813cb02c58caeb44f0bddb01164482df42cd1b1008cce91f1b131587",
               "group": "shell",
               "id": "migration-cluster-state-private"
             },
             {
               "assertion": "original 119 retention case: Two concurrent init attempts are refused while the original listener remains active; raw snapshots and children records are retained.",
-              "definition_sha256": "b97714a645b08d18a53ad4d7122e39fe755244919b7ad2f472bd90352cb3e679",
+              "definition_sha256": "64e5464336a2caaf42cba85dda487e3e2b835526e6663b5791df6e58fcf53a69",
               "group": "shell",
               "id": "migration-cluster-state-private-r2"
             }
@@ -8879,19 +8879,19 @@
           "evidence": [
             {
               "assertion": "Guest147 completes two stale-init observations, but the saved next-init PID file names a living sentinel, not the dead listener.",
-              "definition_sha256": "ccef889f7d8b855905fcc4131e5ebf8a65e9899aeb60f41b5060ab1cc32f0ed2",
+              "definition_sha256": "e5c90db0813cb02c58caeb44f0bddb01164482df42cd1b1008cce91f1b131587",
               "group": "shell",
               "id": "migration-cluster-state-private"
             },
             {
               "assertion": "Guest147 completes two stale-init observations, but the saved next-init PID file names a living sentinel, not the dead listener.",
-              "definition_sha256": "b97714a645b08d18a53ad4d7122e39fe755244919b7ad2f472bd90352cb3e679",
+              "definition_sha256": "64e5464336a2caaf42cba85dda487e3e2b835526e6663b5791df6e58fcf53a69",
               "group": "shell",
               "id": "migration-cluster-state-private-r2"
             },
             {
               "assertion": "Both builds observed the original listener as a dead unreaped zombie with the same PID and birth held by its stopped parent; the same PID file and three stale temp files preceded the next init, which succeeded, removed those files and created a new owned listener and initialized state. PID reuse was excluded for this held-dead observation.",
-              "definition_sha256": "bc81ad70377838d86c2c412858c7f21c3f1928542f0e24a5b64f44cca56c4663",
+              "definition_sha256": "4835cdc06761c7a3d929754a7fda456bcf29dc219413f3887f48dc7b4aee37fe",
               "group": "shell",
               "id": "migration-cluster-gap-dead-pid-238-r1"
             }
@@ -8905,25 +8905,25 @@
           "evidence": [
             {
               "assertion": "original 113 case: Retained before/after snapshots preserve unrelated names, kind, mode, owner, inode, mtime, size and recorded content digest through recovery and leave.",
-              "definition_sha256": "ccef889f7d8b855905fcc4131e5ebf8a65e9899aeb60f41b5060ab1cc32f0ed2",
+              "definition_sha256": "e5c90db0813cb02c58caeb44f0bddb01164482df42cd1b1008cce91f1b131587",
               "group": "shell",
               "id": "migration-cluster-state-private"
             },
             {
               "assertion": "original 119 retention case: Retained before/after snapshots preserve unrelated names, kind, mode, owner, inode, mtime, size and recorded content digest through recovery and leave.",
-              "definition_sha256": "b97714a645b08d18a53ad4d7122e39fe755244919b7ad2f472bd90352cb3e679",
+              "definition_sha256": "64e5464336a2caaf42cba85dda487e3e2b835526e6663b5791df6e58fcf53a69",
               "group": "shell",
               "id": "migration-cluster-state-private-r2"
             },
             {
               "assertion": "original 113 case: Retained before/after snapshots preserve unrelated names, kind, mode, owner, inode, mtime, size and recorded content digest through recovery and leave.",
-              "definition_sha256": "7dc8f18a8c7649f992f82d682a4cb22719dc74b9b846c10428690eef22772469",
+              "definition_sha256": "874ad71dc364b37c7ae2e2d34aad9106b8e906c071a65dd91e9319ee1bd19b7d",
               "group": "shell",
               "id": "migration-cluster-leave-lifecycle"
             },
             {
               "assertion": "original 119 retention case: Retained before/after snapshots preserve unrelated names, kind, mode, owner, inode, mtime, size and recorded content digest through recovery and leave.",
-              "definition_sha256": "7d0571ddd0f67220917e9e7b4291095f17a79af2c26ce3b932da7f0887fe5a2c",
+              "definition_sha256": "37d6937378099587ee559cd10cfe1a05879651a84e57299110c2f525aeef8baf",
               "group": "shell",
               "id": "migration-cluster-leave-lifecycle-r2"
             }
@@ -9012,7 +9012,7 @@
             },
             {
               "assertion": "Both builds retain members-file bytes matched to roster-read windows, heartbeat-call windows, and predicate inputs; the 125 case passes. Observations are sampled and do not establish exact expiry or candidate receipt of every heartbeat. The original static 119 retention-ends-after-last-beat=no FAIL remains a separate reached result.",
-              "definition_sha256": "a6ba489e27bc40cd5570f52a93f5922786b3fe469187dbdd78769979dca3b856",
+              "definition_sha256": "c6d8654c66aeec0e498e5a6a56bec3361e120f0ef2f7441f0aa5414feafd5308",
               "group": "shell",
               "id": "migration-cluster-retention-roster-heartbeats-125"
             }
@@ -9055,7 +9055,7 @@
           "evidence": [
             {
               "assertion": "original 113 case: The saved init status, ephemeral-range output, port file and VM-authenticated loopback PONG establish the recorded port.",
-              "definition_sha256": "f029d5a085258bd6ac8c6b0c9f14ae33629b98c198dbd9a7d7b2c881f78d7307",
+              "definition_sha256": "0e7dabff7d26ccedf60608fad5b2da4b0799519865bdc217e10e2bba18bbb0e7",
               "group": "shell",
               "id": "migration-cluster-seed-init"
             }
@@ -9069,7 +9069,7 @@
           "evidence": [
             {
               "assertion": "original 113 case: The saved generated key and node/cluster identifiers have the required lowercase hexadecimal formats.",
-              "definition_sha256": "f029d5a085258bd6ac8c6b0c9f14ae33629b98c198dbd9a7d7b2c881f78d7307",
+              "definition_sha256": "0e7dabff7d26ccedf60608fad5b2da4b0799519865bdc217e10e2bba18bbb0e7",
               "group": "shell",
               "id": "migration-cluster-seed-init"
             }
@@ -9083,7 +9083,7 @@
           "evidence": [
             {
               "assertion": "original 113 case: The original members bytes and command output contain exactly the seed node and endpoint.",
-              "definition_sha256": "f029d5a085258bd6ac8c6b0c9f14ae33629b98c198dbd9a7d7b2c881f78d7307",
+              "definition_sha256": "0e7dabff7d26ccedf60608fad5b2da4b0799519865bdc217e10e2bba18bbb0e7",
               "group": "shell",
               "id": "migration-cluster-seed-init"
             }
@@ -9097,7 +9097,7 @@
           "evidence": [
             {
               "assertion": "original 113 case: Saved seed directory mode is 0700 and every retained state file and lock mode is 0600; raw facts are checked separately.",
-              "definition_sha256": "f029d5a085258bd6ac8c6b0c9f14ae33629b98c198dbd9a7d7b2c881f78d7307",
+              "definition_sha256": "0e7dabff7d26ccedf60608fad5b2da4b0799519865bdc217e10e2bba18bbb0e7",
               "group": "shell",
               "id": "migration-cluster-seed-init"
             }
@@ -9111,13 +9111,13 @@
           "evidence": [
             {
               "assertion": "original 113 case: Seed status records state=initialized for the live listener and state=stopped after its kill; separate 119 owner-kill raw proc and owned-shell signal observations establish a listener child.",
-              "definition_sha256": "f029d5a085258bd6ac8c6b0c9f14ae33629b98c198dbd9a7d7b2c881f78d7307",
+              "definition_sha256": "0e7dabff7d26ccedf60608fad5b2da4b0799519865bdc217e10e2bba18bbb0e7",
               "group": "shell",
               "id": "migration-cluster-seed-init"
             },
             {
               "assertion": "original 119 retention case: Seed status records state=initialized for the live listener and state=stopped after its kill; separate 119 owner-kill raw proc and owned-shell signal observations establish a listener child.",
-              "definition_sha256": "7d0571ddd0f67220917e9e7b4291095f17a79af2c26ce3b932da7f0887fe5a2c",
+              "definition_sha256": "37d6937378099587ee559cd10cfe1a05879651a84e57299110c2f525aeef8baf",
               "group": "shell",
               "id": "migration-cluster-leave-lifecycle-r2"
             }
@@ -16946,7 +16946,7 @@
           "evidence": [
             {
               "assertion": "0x/leading-0/decimal, KiB/MiB/KB/MB/EiB suffixes, fractions, 2^64 overflow, junk, empty, negative, embedded space",
-              "definition_sha256": "da8d77ad7c2505ca4a9a899972471941c61ef92558a30b9244ba71575f17099e",
+              "definition_sha256": "a4ea7caadea5bf5ff372bf6f73a5c81ff9af356f55a5fe8f27031cf920e18981",
               "group": "shell",
               "id": "migration-fstrim-options-and-ranges"
             },
@@ -16966,7 +16966,7 @@
           "evidence": [
             {
               "assertion": "options after the mountpoint, long/=/abbreviated/ambiguous forms, bundled and attached short options, --",
-              "definition_sha256": "da8d77ad7c2505ca4a9a899972471941c61ef92558a30b9244ba71575f17099e",
+              "definition_sha256": "a4ea7caadea5bf5ff372bf6f73a5c81ff9af356f55a5fe8f27031cf920e18981",
               "group": "shell",
               "id": "migration-fstrim-options-and-ranges"
             }
@@ -16980,7 +16980,7 @@
           "evidence": [
             {
               "assertion": "missing mountpoint, -a with mountpoint, -a with -A, -a with -I, unknown short/long, missing argument, argument to a flag, extra operand, --help, --version",
-              "definition_sha256": "da8d77ad7c2505ca4a9a899972471941c61ef92558a30b9244ba71575f17099e",
+              "definition_sha256": "a4ea7caadea5bf5ff372bf6f73a5c81ff9af356f55a5fe8f27031cf920e18981",
               "group": "shell",
               "id": "migration-fstrim-options-and-ranges"
             }
@@ -16994,7 +16994,7 @@
           "evidence": [
             {
               "assertion": "whole dry-run/usage matrix in one shell under a FITRIM kill filter: every marker and status present, shell status not 159; setup proves the kill rule kills a FITRIM probe and spares a FITRIM-free program",
-              "definition_sha256": "da8d77ad7c2505ca4a9a899972471941c61ef92558a30b9244ba71575f17099e",
+              "definition_sha256": "a4ea7caadea5bf5ff372bf6f73a5c81ff9af356f55a5fe8f27031cf920e18981",
               "group": "shell",
               "id": "migration-fstrim-options-and-ranges"
             }
@@ -21482,7 +21482,7 @@
           "evidence": [
             {
               "assertion": "unset policy: exact denial message, status 1, both objects kept",
-              "definition_sha256": "4f3934f1e4d4d48ac40c32560cf22dc65085ca72e3193d36edaae6e878f07e9a",
+              "definition_sha256": "82ca3b261958d4271ad46268d89f14323d53e64663c0aa40067c022ef1b82122",
               "group": "shell",
               "id": "migration-ipcctl-msg-removal"
             }
@@ -21496,7 +21496,7 @@
           "evidence": [
             {
               "assertion": "0, yes, \"1 \", empty and 01 denied identically",
-              "definition_sha256": "4f3934f1e4d4d48ac40c32560cf22dc65085ca72e3193d36edaae6e878f07e9a",
+              "definition_sha256": "82ca3b261958d4271ad46268d89f14323d53e64663c0aa40067c022ef1b82122",
               "group": "shell",
               "id": "migration-ipcctl-msg-removal"
             }
@@ -21510,7 +21510,7 @@
           "evidence": [
             {
               "assertion": "policy 1 removes only the selected of two util-linux-created objects",
-              "definition_sha256": "4f3934f1e4d4d48ac40c32560cf22dc65085ca72e3193d36edaae6e878f07e9a",
+              "definition_sha256": "82ca3b261958d4271ad46268d89f14323d53e64663c0aa40067c022ef1b82122",
               "group": "shell",
               "id": "migration-ipcctl-msg-removal"
             }
@@ -21524,7 +21524,7 @@
           "evidence": [
             {
               "assertion": "repeated and unknown ids give the IPC_RMID EINVAL diagnostic, status 1",
-              "definition_sha256": "4f3934f1e4d4d48ac40c32560cf22dc65085ca72e3193d36edaae6e878f07e9a",
+              "definition_sha256": "82ca3b261958d4271ad46268d89f14323d53e64663c0aa40067c022ef1b82122",
               "group": "shell",
               "id": "migration-ipcctl-msg-removal"
             }
@@ -21538,7 +21538,7 @@
           "evidence": [
             {
               "assertion": "word, empty, negative, >INT_MAX, suffix and plus-sign ids rejected as invalid before the policy check",
-              "definition_sha256": "4f3934f1e4d4d48ac40c32560cf22dc65085ca72e3193d36edaae6e878f07e9a",
+              "definition_sha256": "82ca3b261958d4271ad46268d89f14323d53e64663c0aa40067c022ef1b82122",
               "group": "shell",
               "id": "migration-ipcctl-msg-removal"
             }
@@ -21552,7 +21552,7 @@
           "evidence": [
             {
               "assertion": "usage forms print the usage line, status 1",
-              "definition_sha256": "4f3934f1e4d4d48ac40c32560cf22dc65085ca72e3193d36edaae6e878f07e9a",
+              "definition_sha256": "82ca3b261958d4271ad46268d89f14323d53e64663c0aa40067c022ef1b82122",
               "group": "shell",
               "id": "migration-ipcctl-msg-removal"
             }
@@ -21566,7 +21566,7 @@
           "evidence": [
             {
               "assertion": "seccomp-recorded ctl arguments equal a libc IPC_RMID control call (cmd 0, NULL buffer)",
-              "definition_sha256": "4f3934f1e4d4d48ac40c32560cf22dc65085ca72e3193d36edaae6e878f07e9a",
+              "definition_sha256": "82ca3b261958d4271ad46268d89f14323d53e64663c0aa40067c022ef1b82122",
               "group": "shell",
               "id": "migration-ipcctl-msg-removal"
             }
@@ -21595,7 +21595,7 @@
           "evidence": [
             {
               "assertion": "unset policy: exact denial message, status 1, both objects kept",
-              "definition_sha256": "6560d5c4989dd8ebe04e36d54689ccbab2cf493cc628e43476616c0276944a70",
+              "definition_sha256": "58855543b704e755c9efa875d2ac09755fce43cf41260951223dab1d8fd117fb",
               "group": "shell",
               "id": "migration-ipcctl-sem-removal"
             }
@@ -21609,7 +21609,7 @@
           "evidence": [
             {
               "assertion": "0, yes, \"1 \", empty and 01 denied identically",
-              "definition_sha256": "6560d5c4989dd8ebe04e36d54689ccbab2cf493cc628e43476616c0276944a70",
+              "definition_sha256": "58855543b704e755c9efa875d2ac09755fce43cf41260951223dab1d8fd117fb",
               "group": "shell",
               "id": "migration-ipcctl-sem-removal"
             }
@@ -21623,7 +21623,7 @@
           "evidence": [
             {
               "assertion": "policy 1 removes only the selected of two util-linux-created objects",
-              "definition_sha256": "6560d5c4989dd8ebe04e36d54689ccbab2cf493cc628e43476616c0276944a70",
+              "definition_sha256": "58855543b704e755c9efa875d2ac09755fce43cf41260951223dab1d8fd117fb",
               "group": "shell",
               "id": "migration-ipcctl-sem-removal"
             }
@@ -21637,7 +21637,7 @@
           "evidence": [
             {
               "assertion": "repeated and unknown ids give the IPC_RMID EINVAL diagnostic, status 1",
-              "definition_sha256": "6560d5c4989dd8ebe04e36d54689ccbab2cf493cc628e43476616c0276944a70",
+              "definition_sha256": "58855543b704e755c9efa875d2ac09755fce43cf41260951223dab1d8fd117fb",
               "group": "shell",
               "id": "migration-ipcctl-sem-removal"
             }
@@ -21651,7 +21651,7 @@
           "evidence": [
             {
               "assertion": "word, empty, negative, >INT_MAX, suffix and plus-sign ids rejected as invalid before the policy check",
-              "definition_sha256": "6560d5c4989dd8ebe04e36d54689ccbab2cf493cc628e43476616c0276944a70",
+              "definition_sha256": "58855543b704e755c9efa875d2ac09755fce43cf41260951223dab1d8fd117fb",
               "group": "shell",
               "id": "migration-ipcctl-sem-removal"
             }
@@ -21665,7 +21665,7 @@
           "evidence": [
             {
               "assertion": "usage forms print the usage line, status 1",
-              "definition_sha256": "6560d5c4989dd8ebe04e36d54689ccbab2cf493cc628e43476616c0276944a70",
+              "definition_sha256": "58855543b704e755c9efa875d2ac09755fce43cf41260951223dab1d8fd117fb",
               "group": "shell",
               "id": "migration-ipcctl-sem-removal"
             }
@@ -21679,7 +21679,7 @@
           "evidence": [
             {
               "assertion": "seccomp-recorded ctl arguments equal a libc IPC_RMID control call (cmd 0, NULL buffer)",
-              "definition_sha256": "6560d5c4989dd8ebe04e36d54689ccbab2cf493cc628e43476616c0276944a70",
+              "definition_sha256": "58855543b704e755c9efa875d2ac09755fce43cf41260951223dab1d8fd117fb",
               "group": "shell",
               "id": "migration-ipcctl-sem-removal"
             }
@@ -21708,7 +21708,7 @@
           "evidence": [
             {
               "assertion": "unset policy: exact denial message, status 1, both objects kept",
-              "definition_sha256": "9ccf4c95b9d8766b2d48e7f26c851edfb9ff28a165711bad411923c520856e4e",
+              "definition_sha256": "a78a837c4b6e5a0906fc5d85ab55c43e41714974e2ab1636d45a96f6e86bfae7",
               "group": "shell",
               "id": "migration-ipcctl-shm-removal"
             }
@@ -21722,7 +21722,7 @@
           "evidence": [
             {
               "assertion": "0, yes, \"1 \", empty and 01 denied identically",
-              "definition_sha256": "9ccf4c95b9d8766b2d48e7f26c851edfb9ff28a165711bad411923c520856e4e",
+              "definition_sha256": "a78a837c4b6e5a0906fc5d85ab55c43e41714974e2ab1636d45a96f6e86bfae7",
               "group": "shell",
               "id": "migration-ipcctl-shm-removal"
             }
@@ -21736,7 +21736,7 @@
           "evidence": [
             {
               "assertion": "policy 1 removes only the selected of two util-linux-created objects",
-              "definition_sha256": "9ccf4c95b9d8766b2d48e7f26c851edfb9ff28a165711bad411923c520856e4e",
+              "definition_sha256": "a78a837c4b6e5a0906fc5d85ab55c43e41714974e2ab1636d45a96f6e86bfae7",
               "group": "shell",
               "id": "migration-ipcctl-shm-removal"
             }
@@ -21750,7 +21750,7 @@
           "evidence": [
             {
               "assertion": "repeated and unknown ids give the IPC_RMID EINVAL diagnostic, status 1",
-              "definition_sha256": "9ccf4c95b9d8766b2d48e7f26c851edfb9ff28a165711bad411923c520856e4e",
+              "definition_sha256": "a78a837c4b6e5a0906fc5d85ab55c43e41714974e2ab1636d45a96f6e86bfae7",
               "group": "shell",
               "id": "migration-ipcctl-shm-removal"
             }
@@ -21764,7 +21764,7 @@
           "evidence": [
             {
               "assertion": "word, empty, negative, >INT_MAX, suffix and plus-sign ids rejected as invalid before the policy check",
-              "definition_sha256": "9ccf4c95b9d8766b2d48e7f26c851edfb9ff28a165711bad411923c520856e4e",
+              "definition_sha256": "a78a837c4b6e5a0906fc5d85ab55c43e41714974e2ab1636d45a96f6e86bfae7",
               "group": "shell",
               "id": "migration-ipcctl-shm-removal"
             }
@@ -21778,7 +21778,7 @@
           "evidence": [
             {
               "assertion": "usage forms print the usage line, status 1",
-              "definition_sha256": "9ccf4c95b9d8766b2d48e7f26c851edfb9ff28a165711bad411923c520856e4e",
+              "definition_sha256": "a78a837c4b6e5a0906fc5d85ab55c43e41714974e2ab1636d45a96f6e86bfae7",
               "group": "shell",
               "id": "migration-ipcctl-shm-removal"
             }
@@ -21792,7 +21792,7 @@
           "evidence": [
             {
               "assertion": "seccomp-recorded ctl arguments equal a libc IPC_RMID control call (cmd 0, NULL buffer)",
-              "definition_sha256": "9ccf4c95b9d8766b2d48e7f26c851edfb9ff28a165711bad411923c520856e4e",
+              "definition_sha256": "a78a837c4b6e5a0906fc5d85ab55c43e41714974e2ab1636d45a96f6e86bfae7",
               "group": "shell",
               "id": "migration-ipcctl-shm-removal"
             }
@@ -21821,7 +21821,7 @@
           "evidence": [
             {
               "assertion": "--name create line with exclusive creation",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -21835,7 +21835,7 @@
           "evidence": [
             {
               "assertion": "kernel/object metadata via libc (size / sem_getvalue+backing file / mq_getattr vs namespace defaults)",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -21849,7 +21849,7 @@
           "evidence": [
             {
               "assertion": "-p 0666 under umask 027 gives 0640, uid/gid 2000",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -21863,7 +21863,7 @@
           "evidence": [
             {
               "assertion": "second create of the same name: status, diagnostic and unchanged original object",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -21877,7 +21877,7 @@
           "evidence": [
             {
               "assertion": "no-slash, two-slash and only-slash names",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -21891,7 +21891,7 @@
           "evidence": [
             {
               "assertion": "fixture unlinks only its own names and confirms absence; leftover /dev/shm listing compared",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -21920,7 +21920,7 @@
           "evidence": [
             {
               "assertion": "--name create line with exclusive creation",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -21934,7 +21934,7 @@
           "evidence": [
             {
               "assertion": "kernel/object metadata via libc (size / sem_getvalue+backing file / mq_getattr vs namespace defaults)",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -21948,7 +21948,7 @@
           "evidence": [
             {
               "assertion": "-p 0666 under umask 027 gives 0640, uid/gid 2000",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -21962,7 +21962,7 @@
           "evidence": [
             {
               "assertion": "second create of the same name: status, diagnostic and unchanged original object",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -21976,7 +21976,7 @@
           "evidence": [
             {
               "assertion": "no-slash, two-slash and only-slash names",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -21990,7 +21990,7 @@
           "evidence": [
             {
               "assertion": "fixture unlinks only its own names and confirms absence; leftover /dev/shm listing compared",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -22019,7 +22019,7 @@
           "evidence": [
             {
               "assertion": "--name create line with exclusive creation",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -22033,7 +22033,7 @@
           "evidence": [
             {
               "assertion": "kernel/object metadata via libc (size / sem_getvalue+backing file / mq_getattr vs namespace defaults)",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -22047,7 +22047,7 @@
           "evidence": [
             {
               "assertion": "-p 0666 under umask 027 gives 0640, uid/gid 2000",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -22061,7 +22061,7 @@
           "evidence": [
             {
               "assertion": "second create of the same name: status, diagnostic and unchanged original object",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -22075,7 +22075,7 @@
           "evidence": [
             {
               "assertion": "no-slash, two-slash and only-slash names",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -22089,7 +22089,7 @@
           "evidence": [
             {
               "assertion": "fixture unlinks only its own names and confirms absence; leftover /dev/shm listing compared",
-              "definition_sha256": "946c61ee003c296a880505af36655b265246fb627147f4f2047659c3ec2eb39a",
+              "definition_sha256": "e2028a7ca7946d8a93fed106fbaf718ef42aaf28b128e496bbbd8aa1e24c8846",
               "group": "shell",
               "id": "migration-ipcmk-posix-objects"
             }
@@ -22118,7 +22118,7 @@
           "evidence": [
             {
               "assertion": "create line and id for -Q/-S/-M under explicit -p",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -22132,7 +22132,7 @@
           "evidence": [
             {
               "assertion": "ipcobs.py kernel /proc/sysvipc row: counts/size, perms, uid/gid/cuid/cgid",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -22146,7 +22146,7 @@
           "evidence": [
             {
               "assertion": "default 0644, -p0640 attached and --mode= long forms, invalid modes rejected",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -22160,7 +22160,7 @@
           "evidence": [
             {
               "assertion": "bad/zero size and count, missing kind, two kinds, unknown option, missing argument diagnostics and status",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -22174,7 +22174,7 @@
           "evidence": [
             {
               "assertion": "only the returned id is removed and then reported absent",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -22203,7 +22203,7 @@
           "evidence": [
             {
               "assertion": "create line and id for -Q/-S/-M under explicit -p",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -22217,7 +22217,7 @@
           "evidence": [
             {
               "assertion": "ipcobs.py kernel /proc/sysvipc row: counts/size, perms, uid/gid/cuid/cgid",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -22231,7 +22231,7 @@
           "evidence": [
             {
               "assertion": "default 0644, -p0640 attached and --mode= long forms, invalid modes rejected",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -22245,7 +22245,7 @@
           "evidence": [
             {
               "assertion": "bad/zero size and count, missing kind, two kinds, unknown option, missing argument diagnostics and status",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -22259,7 +22259,7 @@
           "evidence": [
             {
               "assertion": "only the returned id is removed and then reported absent",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -22288,7 +22288,7 @@
           "evidence": [
             {
               "assertion": "create line and id for -Q/-S/-M under explicit -p",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -22302,7 +22302,7 @@
           "evidence": [
             {
               "assertion": "ipcobs.py kernel /proc/sysvipc row: counts/size, perms, uid/gid/cuid/cgid",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -22316,7 +22316,7 @@
           "evidence": [
             {
               "assertion": "default 0644, -p0640 attached and --mode= long forms, invalid modes rejected",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -22330,7 +22330,7 @@
           "evidence": [
             {
               "assertion": "bad/zero size and count, missing kind, two kinds, unknown option, missing argument diagnostics and status",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -22344,7 +22344,7 @@
           "evidence": [
             {
               "assertion": "only the returned id is removed and then reported absent",
-              "definition_sha256": "fc8483a9db3440f4ba4604e3bd099d62db66fdc8db42a4f8918acf3b64c2651a",
+              "definition_sha256": "a2f970d1a01ee6c9237b2ebfc14a0454daf024d1b228afab80ad3815ab961a56",
               "group": "shell",
               "id": "migration-ipcmk-sysv-objects"
             }
@@ -34185,7 +34185,7 @@
           "evidence": [
             {
               "assertion": "Against a veth peer that ignores echo, each probe prints 'seq N: timeout' after -W 0.5, the summary reports 2 transmitted, 0 received, 100% loss and the status is 1.",
-              "definition_sha256": "25c07fc53ebb2e93d87868d37775ed50c0326ea6203b13a7f8cbc29f4083bf01",
+              "definition_sha256": "146497d7532e9e5fa5cad12f5729a2f8cdc49b758217f25bc35b95fc233725af",
               "group": "shell",
               "id": "mig-w1-ping-deadline"
             }
@@ -34199,7 +34199,7 @@
           "evidence": [
             {
               "assertion": "-q suppresses the timeout lines of an unanswered run and the reply lines of an answered run (127.0.0.1) while the summary stays; without -q two reply lines appear.",
-              "definition_sha256": "25c07fc53ebb2e93d87868d37775ed50c0326ea6203b13a7f8cbc29f4083bf01",
+              "definition_sha256": "146497d7532e9e5fa5cad12f5729a2f8cdc49b758217f25bc35b95fc233725af",
               "group": "shell",
               "id": "mig-w1-ping-deadline"
             }
@@ -34213,7 +34213,7 @@
           "evidence": [
             {
               "assertion": "-w 1 with -c 20 -i 0.5 ends at the deadline with fewer than 20 probes transmitted and status 1.",
-              "definition_sha256": "25c07fc53ebb2e93d87868d37775ed50c0326ea6203b13a7f8cbc29f4083bf01",
+              "definition_sha256": "146497d7532e9e5fa5cad12f5729a2f8cdc49b758217f25bc35b95fc233725af",
               "group": "shell",
               "id": "mig-w1-ping-deadline"
             }
@@ -34227,7 +34227,7 @@
           "evidence": [
             {
               "assertion": "Measured elapsed time is 0.9-3 s and the reported run time 900-1600 ms, near the 1 s deadline rather than count*interval (10 s).",
-              "definition_sha256": "25c07fc53ebb2e93d87868d37775ed50c0326ea6203b13a7f8cbc29f4083bf01",
+              "definition_sha256": "146497d7532e9e5fa5cad12f5729a2f8cdc49b758217f25bc35b95fc233725af",
               "group": "shell",
               "id": "mig-w1-ping-deadline"
             }
@@ -34256,7 +34256,7 @@
           "evidence": [
             {
               "assertion": "A sniffer on lo sees exactly one echo request (type 8, code 0) with identifier equal to the ping process id and sequence 1, 64-byte ICMP message.",
-              "definition_sha256": "09be72a5765ba41407442637c208f6447d2806a540c3bae95cb612d28007cba2",
+              "definition_sha256": "8fd0d5aa13de24c9c5cdfc9be10a2002a3bd08cf2912e36c803fb5e009da0453",
               "group": "shell",
               "id": "mig-w1-ping-v4-request"
             }
@@ -34270,7 +34270,7 @@
           "evidence": [
             {
               "assertion": "A forging peer sends replies with wrong identifier, wrong sequence and wrong payload: none is accepted (0 received, status 1); after the forged ones the exact reply is accepted (1 received, status 0).",
-              "definition_sha256": "b6a33727d1c0da67271d84a70fab6cbce510262005ac5d4fddadc7953cddeb9c",
+              "definition_sha256": "453bc43e2638f64af710662274471da090255a6a5d4b0e7840d445bd64959298",
               "group": "shell",
               "id": "mig-w1-ping-v4-matching"
             }
@@ -34284,7 +34284,7 @@
           "evidence": [
             {
               "assertion": "One reply line 'icmp_seq=1 ttl=N time=T ms', summary 1 transmitted/1 received/0% loss, rtt line, status 0, header 'PING 127.0.0.1 (127.0.0.1) 56 data bytes'.",
-              "definition_sha256": "2727234cb865f6bb4b1f8807499f0c13d73dd34837e78e4ed0f3c80cd814fc0e",
+              "definition_sha256": "e4c27da8cb3d75d8c225f8890aff4734b55425f5e4f2c67b92716e956fb5fd65",
               "group": "shell",
               "id": "mig-w1-ping-v4-accounting"
             }
@@ -34298,7 +34298,7 @@
           "evidence": [
             {
               "assertion": "Request bytes decoded independently: ICMP ones-complement checksum valid, IPv4 header IHL 5/proto 1/valid header checksum, kernel reply echoes id, seq and data.",
-              "definition_sha256": "09be72a5765ba41407442637c208f6447d2806a540c3bae95cb612d28007cba2",
+              "definition_sha256": "8fd0d5aa13de24c9c5cdfc9be10a2002a3bd08cf2912e36c803fb5e009da0453",
               "group": "shell",
               "id": "mig-w1-ping-v4-request"
             }
@@ -34327,7 +34327,7 @@
           "evidence": [
             {
               "assertion": "A sniffer on lo sees one ICMPv6 echo request (type 128, code 0, 64 bytes) with id equal to the process id, sequence 1 and a valid RFC 4443 pseudo-header checksum.",
-              "definition_sha256": "8b09d3ba25ea3392748a99f0f2f887ea3f9a4896e224b0f30779fa0f19d51c20",
+              "definition_sha256": "9c144d8e0b3325a4c611bb33021bad60c05a58d681f2b20089e6890a9b81a8e0",
               "group": "shell",
               "id": "mig-w1-ping-v6-request"
             }
@@ -34341,7 +34341,7 @@
           "evidence": [
             {
               "assertion": "Forged replies with wrong id/seq/payload and a correct reply from a different source address fd77::3 are all ignored (0 received); the matching reply from fd77::2 is then accepted (1 received).",
-              "definition_sha256": "15df45a1a7ae0b6ee1372294dfb8f5f0eab32a3356bddf2fe54f0ad48de6b155",
+              "definition_sha256": "1d2b512be4060f688168c9611d49f4872379763998b95a84faa53ef0358b067b",
               "group": "shell",
               "id": "mig-w1-ping-v6-matching"
             }
@@ -34355,7 +34355,7 @@
           "evidence": [
             {
               "assertion": "Two ::1 echoes give two reply lines, 2 transmitted/2 received/0% loss and status 0.",
-              "definition_sha256": "f77fd242258e8dffb42d1275c744fe545f00ce2d25c26a62d9dc3ef902cea068",
+              "definition_sha256": "f7a8e7eb99b17dfee916b2ac2b1375a7355d838c7d0d977ff584220cb8c2cdce",
               "group": "shell",
               "id": "mig-w1-ping-v6-accounting"
             }
@@ -34438,7 +34438,7 @@
             },
             {
               "assertion": "Under a seccomp filter that kills any SOCK_RAW or AF_INET SOCK_DGRAM socket() call (control: a valid ping is killed, baseline -V runs), ten rejected argument forms (-c 0/abc/10001/empty, -W 0/61, -w 0/86401, -i 0.01/x) with an unresolvable host name exit status 2 without being killed.",
-              "definition_sha256": "fb218bab90827bc314ea65145f4016d3c53568ff20cd6b6b2ecdde12cf5753cb",
+              "definition_sha256": "7f26fea03ac20abdba8c1cca3c30af5496303f47286fd3b050f6dd9745260a84",
               "group": "shell",
               "id": "mig-w1-ping-no-socket"
             }
@@ -34467,7 +34467,7 @@
           "evidence": [
             {
               "assertion": "Sniffer on the client veth records UDP probes with TTL 1 then 2 to ports 33434, 33435 (one probe per hop with -Q 1) and TTL 1,1,1,2,2,2 with the default three probes.",
-              "definition_sha256": "f49bd1412c2f90483e03331b6d84ea13a99724c9d72a1e4cb5ad53d917a82d6e",
+              "definition_sha256": "ab224f0dc1743d117d0bcfed3ccf062acb7a1ed1cc581977d3044a1efd8750ed",
               "group": "shell",
               "id": "mig-w1-ping-trace-ttl"
             }
@@ -34481,7 +34481,7 @@
           "evidence": [
             {
               "assertion": "Hop 1 is printed with the router's time-exceeded source 10.77.0.2 and an rtt; with the router's time-exceeded replies dropped hop 1 prints a '*' timeout and the trace continues to hop 2.",
-              "definition_sha256": "a1aa1559c36c521e31579e4a60cd483c3c04da128923e437a5ab7b0ba3f3396a",
+              "definition_sha256": "2b06cde529f751bacdc6f525b86272f76f05ae765bfa77b514728bceaf9cc6dc",
               "group": "shell",
               "id": "mig-w1-ping-trace-hops"
             }
@@ -34495,7 +34495,7 @@
           "evidence": [
             {
               "assertion": "The destination's port-unreachable ends the trace at hop 2 (10.88.0.2) with status 0.",
-              "definition_sha256": "66e779c03dd7174146c8357be3ae78ba07fe157b0c736668aa72ff43e42c9047",
+              "definition_sha256": "1110ff9189b5ecde7e8472e6437a70a1b545168543278b63514ea5337d0f418c",
               "group": "shell",
               "id": "mig-w1-ping-trace-reached"
             }
@@ -34509,7 +34509,7 @@
           "evidence": [
             {
               "assertion": "Toward a nonexistent host behind the router, probes continue through TTL 1,2,3 and the run ends at -m 3 with status 1.",
-              "definition_sha256": "722c7994d3c4cb650c247ef3aa7777ee5ff8045c236ecffc8f335c5d65550132",
+              "definition_sha256": "30bda47f2df7118c661e5ce3605225c9deaadf31244c7cdc06885498659d8534",
               "group": "shell",
               "id": "mig-w1-ping-trace-unreached"
             }
@@ -34744,8 +34744,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Expected obligation: Positive load of a benign Bash-ABI-matched fixture module enables the builtin ('loaded NAME BUILTIN PATH'), and unload removes it ('unloaded ...'). Recorded case observations: load=0, enabled=yes, invoke=0, unload=0, disabled=yes, messages=yes.",
-              "definition_sha256": "024a2e19d8f6b13b43910e14e02512b643defcbdd0c29021fb9bc144ed3d29b1",
+              "assertion": "Expected obligation: Positive load of a benign Bash-ABI-matched fixture module enables the builtin ('loaded NAME BUILTIN PATH'), and unload removes it ('unloaded ...'). The case reads the executable's linkage from its program headers with GNU readelf. A dynamic executable must show load=0, enabled=yes, invoke=0, unload=0, disabled=yes, messages=yes with no diagnostics. A static executable has no dynamic loader and cannot perform a positive load: it must refuse with status 1 and the documented diagnostic 'this executable is static and cannot load shared objects', enable nothing, and fail the following unload. The case prints 'load-unload: contract=honoured' only when the outcome for that linkage holds.",
+              "definition_sha256": "0870bfcaa9bb84503f27dabca203ef7ed791757ace7c2a40080b4732d22573b4",
               "group": "shell",
               "id": "migration-transfer-pkg-load-unload-positive-r2"
             }
@@ -36393,8 +36393,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Source purpose: Observe setsid through kernel PTY/session state in a live, handshaken child.; saved results: static PASS, dynamic PASS. Across the named cases for this clause: Saved candidate and Python reference observe new SID and PGRP equal to PID, tty_nr 0, first rc 0 and second rc 1 in both builds.",
-              "definition_sha256": "3622a9c30c4f074da5140e158ad362f44ef77c0520397e8411f387ad25d8f37a",
+              "assertion": "A live, handshaken child is observed through /proc descriptors, session IDs, the controlling device and tcgetpgrp while it waits on its control descriptor, leaving descriptor 0 as the participant has it. Candidate and Python reference both show a new SID and PGRP equal to the PID, tty_nr 0, a first setsid status 0 and a second status 1.",
+              "definition_sha256": "8bb2334fd2db9e4baa4af7511635b4a8907199d5df58ebb65a6eb4995c91cd9e",
               "group": "shell",
               "id": "migration-terra-local-pty-b01r2-session-setsid"
             },
@@ -36413,8 +36413,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Source purpose: Observe stdio through kernel PTY/session state in a live, handshaken child.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: Candidate acquires the controlling tty but FD 0 remains the original pipe while 1/2 are the slave; Python reference has all three descriptors on the slave. Both candidate runs are reached FAILs.",
-              "definition_sha256": "c69d01a3aba006206a7d355c20359205602ba3ba06392fa45cc67fe0f1af1af9",
+              "assertion": "A live, handshaken child is observed through /proc descriptors, session IDs, the controlling device and tcgetpgrp while it waits on its control descriptor, leaving descriptor 0 as the participant has it. After pty open-tty PATH the candidate, like the Python reference, is the session leader with PATH as its controlling terminal and foreground group, and descriptors 0, 1 and 2 are all the slave.",
+              "definition_sha256": "58997667025bf1bf0328d10699567a7672449dd3d54e674c36751a6a157d21f2",
               "group": "shell",
               "id": "migration-terra-local-pty-b01r2-session-stdio"
             }
@@ -36441,14 +36441,14 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Source purpose: Observe reject-leader through kernel PTY/session state in a live, handshaken child.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: For both already-controlled leader and nonleader, the reference reports failure and unchanged stdio; candidate returns 0 and changes stdio despite a TIOCSCTTY refusal diagnostic. Both are reached FAILs.",
-              "definition_sha256": "fc6ca368e5caf1103483727e6362e983d2a6c60b3f9c350d2cb847f64bf6c169",
+              "assertion": "A live, handshaken child is observed through /proc descriptors, session IDs, the controlling device and tcgetpgrp while it waits on its control descriptor, leaving descriptor 0 as the participant has it. For a session leader that already has a controlling terminal, candidate and reference both report failure and leave descriptors 0, 1 and 2 unchanged.",
+              "definition_sha256": "39fd9d6cce4d3a05a577aed25273a4803bfd40ad8bbb192587056848f987a1c8",
               "group": "shell",
               "id": "migration-terra-local-pty-b01r2-session-reject-leader"
             },
             {
-              "assertion": "Source purpose: Observe reject-nonleader through kernel PTY/session state in a live, handshaken child.; saved results: static FAIL, dynamic FAIL. Across the named cases for this clause: For both already-controlled leader and nonleader, the reference reports failure and unchanged stdio; candidate returns 0 and changes stdio despite a TIOCSCTTY refusal diagnostic. Both are reached FAILs.",
-              "definition_sha256": "022d900f0ac37231f013c02c8d9a020450b9eed6d1c666d17d860379f4b681c3",
+              "assertion": "A live, handshaken child is observed through /proc descriptors, session IDs, the controlling device and tcgetpgrp while it waits on its control descriptor, leaving descriptor 0 as the participant has it. For a caller that is not a session leader, candidate and reference both report failure and leave descriptors 0, 1 and 2 unchanged.",
+              "definition_sha256": "5fcd056eaeda6d0d851cb6f1f1f5dbc3ec375d7f5033b2b16c91fcd1e911d41f",
               "group": "shell",
               "id": "migration-terra-local-pty-b01r2-session-reject-nonleader"
             }
@@ -36832,8 +36832,8 @@
               "id": "migration-terra-local-pty-b02r3-errors"
             },
             {
-              "assertion": "Both builds returned 124 for idle default and 250 ms waits, with nominal durations within independently reviewed lower/upper timing brackets. Both accepted 60000 with queued output and rejected 60001. The bounds do not prove strict nominal lower duration or a 60000 ms idle wait.",
-              "definition_sha256": "d3577bc5b5da6f2b7c3c4ca7a791e8441600c4696e6eccf0be4e96cc1e08a8c0",
+              "assertion": "Both builds return 124 for idle default and 250 ms waits, with nominal durations within independently reviewed lower/upper timing brackets. Both accept 60000 with queued output and reject 60001. The bounds do not prove strict nominal lower duration or a 60000 ms idle wait.",
+              "definition_sha256": "af0242c3e7347bdbefe98e3c1298a47141c6a2e7ba779b2538b80074ad584e68",
               "group": "shell",
               "id": "migration-terra-local-pty-broker-256-timeout-r1"
             }
@@ -36853,7 +36853,7 @@
             },
             {
               "assertion": "Both builds preserve a distinct 16384-byte event over four ordered 4096-byte drains with statuses 124, 124, 124, 0 and no extra, missing, or duplicate bytes.",
-              "definition_sha256": "97299c38293066257e1d12da9412ea12b455b776a63beda1811becb16675afef",
+              "definition_sha256": "5ce50d2006fc7cb0c84fd901395e1daf07ef6076309bda75bef4ebe33e96b407",
               "group": "shell",
               "id": "migration-terra-local-pty-broker-256-partial-r1"
             }
@@ -38380,7 +38380,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "c454d981eddeadf4b65dbafa560ac4f672e2f145d4ff4d88ba272da988d37e80",
+              "definition_sha256": "51d49c12ce27a01b02d086c276b8dd25c095f8196e8d6fae0542bf326157d30b",
               "group": "shell",
               "id": "protocol-wire-rtsp-basic-evidence-r5"
             }
@@ -38400,7 +38400,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "ef87be0b47540ff14775b1e35c0a645c3ba75ecf2d1249af3f7f8ca0881f545c",
+              "definition_sha256": "213453db24be2a3b8f5b827866cad80d44934836fa3348b5b36625d5296311a7",
               "group": "shell",
               "id": "protocol-wire-rtsp-digest-evidence-r5"
             }
@@ -38432,19 +38432,19 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "c454d981eddeadf4b65dbafa560ac4f672e2f145d4ff4d88ba272da988d37e80",
+              "definition_sha256": "51d49c12ce27a01b02d086c276b8dd25c095f8196e8d6fae0542bf326157d30b",
               "group": "shell",
               "id": "protocol-wire-rtsp-basic-evidence-r5"
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "ef87be0b47540ff14775b1e35c0a645c3ba75ecf2d1249af3f7f8ca0881f545c",
+              "definition_sha256": "213453db24be2a3b8f5b827866cad80d44934836fa3348b5b36625d5296311a7",
               "group": "shell",
               "id": "protocol-wire-rtsp-digest-evidence-r5"
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "18943785dd035132faadfa951e6df47de022c989fb21de94dcbf829d355f6c5d",
+              "definition_sha256": "4709545b3910c0945b297d5abcedacb3ea44be39e5d102d1f9a403b45985ad99",
               "group": "shell",
               "id": "protocol-wire-rtsp-keepalive-evidence-r5"
             }
@@ -38464,7 +38464,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "18943785dd035132faadfa951e6df47de022c989fb21de94dcbf829d355f6c5d",
+              "definition_sha256": "4709545b3910c0945b297d5abcedacb3ea44be39e5d102d1f9a403b45985ad99",
               "group": "shell",
               "id": "protocol-wire-rtsp-keepalive-evidence-r5"
             }
@@ -38511,19 +38511,19 @@
             },
             {
               "assertion": "Static: PASS: malformed response rejected before later request; dynamic: PASS: malformed response rejected before later request. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "4900393a067b120ee94835658038abbfbd4610c14c33e671bd0d8cf600e2074e",
+              "definition_sha256": "bde30f2a6f527138c7374b7da5cf26ad24caf7228b967d0421beb5131cdc7b02",
               "group": "shell",
               "id": "protocol-wire-rtsp-bad-status-evidence-r5"
             },
             {
               "assertion": "Static: FAIL: malformed header followed by DESCRIBE; dynamic: FAIL: malformed header followed by DESCRIBE. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "4bc3c168d7f1d96191ffee336c76762f1c010f760208de0eebffe8e9b6205cc5",
+              "definition_sha256": "40b59455113aa4bd64aa40bb7fb4ba37b6c47a100916cfb11f9f2a149280bedf",
               "group": "shell",
               "id": "protocol-wire-rtsp-bad-header-evidence-r5"
             },
             {
               "assertion": "Static: PASS: malformed response rejected before later request; dynamic: PASS: malformed response rejected before later request. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "90ece43916098fd0860a136014541feff2fa7d588f9981dc228defa210877bb9",
+              "definition_sha256": "1c1fe3e9a4c14f2684812b519bce3ebaae02b48d8503a6858810cc175f085aa3",
               "group": "shell",
               "id": "protocol-wire-rtsp-bad-length-evidence-r5"
             }
@@ -38567,31 +38567,31 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "fa28977796a8cc115f70f3004fee5c495d69aeccc3b97f0e8787d0f922595ba1",
+              "definition_sha256": "717f21f099352bd4a17f41ae899e62caeafed5e6e319cf5e092f96238a2bde99",
               "group": "shell",
               "id": "protocol-wire-rtsp-rtp-version-evidence-r5"
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "d297bf8583087073c4b9d131f3a71f0bcb1cffd903db2bc7177fd298a0b0271f",
+              "definition_sha256": "a3122381475338efb3aff45eab829ce6f696ef0e505e02a6efd7d9d1f56f0e76",
               "group": "shell",
               "id": "protocol-wire-rtsp-rtp-extension-evidence-r5"
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "f4f2cb35a93816c463286c42512810e0639e7c6d0f31c96095862d62deb8bede",
+              "definition_sha256": "24daf4f241687d899338506e9e9bf625f1c8bcdba3149b74790d20db15c0d146",
               "group": "shell",
               "id": "protocol-wire-rtsp-rtp-padding-evidence-r5"
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "bcaa07030d903903b9c31a86778cf4e3de2815a1577636414041d3c4c22dc566",
+              "definition_sha256": "85dca03c8230a7e924f538b392245f45e1b23c84ffeeb4f57da15f7a225fc10b",
               "group": "shell",
               "id": "protocol-wire-rtsp-rtp-stap-evidence-r5"
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "ba16bdc169d408bf054b4ee863230d2946216c25de05f970a55e6be324fef3f9",
+              "definition_sha256": "0560d3d1e2506c92e1b39a1aba6f26df157e18f205b13aae0f7020e82360d517",
               "group": "shell",
               "id": "protocol-wire-rtsp-rtp-fu-evidence-r5"
             }
@@ -38611,7 +38611,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "d6c64d4fb234fc9dd7564c4d5054cdb3c862b23374c1019de6bb4037a66582e4",
+              "definition_sha256": "e24eccf2c031ff45e5902397e4d1eba8ddfdfe37adc2932e901e12b19673b517",
               "group": "shell",
               "id": "protocol-wire-rtsp-eof-partial-evidence-r5"
             }
@@ -38631,7 +38631,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "50dfa2c598cdbc7cd1b27b8291609afd3432fbaf24e730a93f2ac0fca89cf79e",
+              "definition_sha256": "dd3f3342aee713ab7e0ea42fecbc1858eff6bfc456baf872bbad262a0c7709f1",
               "group": "shell",
               "id": "protocol-wire-rtsp-timeout-evidence-r5"
             }
@@ -38675,31 +38675,31 @@
             },
             {
               "assertion": "Static: FAIL: invalid URL returned status 1; expected usage status 2; dynamic: FAIL: invalid URL returned status 1; expected usage status 2. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "2a61669f5685a5abf8cc4e9c62db5e258c733fe9166eb906aedf6fc3f0d56297",
+              "definition_sha256": "9f7a0ba9dc399781d9da57e9e59885a2ca9493fe08608d598e921843fb9de6fa",
               "group": "shell",
               "id": "protocol-wire-rtsp-invalid-url-evidence-r5"
             },
             {
               "assertion": "Static: PASS: usage error and no connection during the observed interval; dynamic: PASS: usage error and no connection during the observed interval. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "672aabbf1aabc3abbafa43fec8bc13fc03a624a33a0a22da80f4322fdf47e1b7",
+              "definition_sha256": "5643e42d3c17e9a2c27c0f8219bac03b68d8b30fb5a78696bbc40665028bc367",
               "group": "shell",
               "id": "protocol-wire-rtsp-invalid-n-evidence-r5"
             },
             {
               "assertion": "Static: PASS: usage error and no connection during the observed interval; dynamic: PASS: usage error and no connection during the observed interval. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "2b3ecb3ad69338b0406e1299d978191c3cffddf345a610cf344f98af67b34e33",
+              "definition_sha256": "101e58892960df3d17e66952e64a35aa1e58c5d5de60e46fae9ac8c4aeaf91ab",
               "group": "shell",
               "id": "protocol-wire-rtsp-invalid-o-evidence-r5"
             },
             {
               "assertion": "Static: PASS: usage error and no connection during the observed interval; dynamic: PASS: usage error and no connection during the observed interval. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "ace95f711db8415b9f973c45aba44dc1e1e24b5e510bdb6e698937e2d31e04f4",
+              "definition_sha256": "a5ee26de48401f3e1f44a12f640c2018b537b194152f2a368fde46f290184291",
               "group": "shell",
               "id": "protocol-wire-rtsp-invalid-k-evidence-r5"
             },
             {
               "assertion": "Static: PASS: usage error and no connection during the observed interval; dynamic: PASS: usage error and no connection during the observed interval. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "40a7cced9cd738669b8cb4fed57b6a6160545c655a3dd7ef0f3d6b08ff7e4378",
+              "definition_sha256": "be1472db6998926c29082b1888004e0270b78ed53cf11419a899e659866dd501",
               "group": "shell",
               "id": "protocol-wire-rtsp-invalid-t-evidence-r5"
             }
@@ -38734,7 +38734,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "4bf53b4f361f37e94ddad2288970d6513d849930d717f2584f6250fd161bc941",
+              "definition_sha256": "39adad1d5cf2e23d15d0576ba24394145dc5bc08db82987b1b9295a7ce5aabf8",
               "group": "shell",
               "id": "protocol-wire-rtsp-output-fd-evidence-r5"
             }
@@ -38760,13 +38760,13 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "2361094cc4293765dd98dd93edb7a1f2a2605ba385d491c963352df54e2c5f19",
+              "definition_sha256": "72e8a5b414fe19058130bbc45c3b109c49de820e07c3a1e5bf596af02ac4c52f",
               "group": "shell",
               "id": "protocol-wire-rtsp-output-full-evidence-r5"
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "c0067181415c32348b13c7321c2a430e88b7bd09558c6919097ee28671d6996f",
+              "definition_sha256": "0a9432352a476e1f30d622e5c2558d96c4c5b4f846cba2c72a4aee9333f77bb6",
               "group": "shell",
               "id": "protocol-wire-rtsp-output-closed-evidence-r5"
             }
@@ -38786,7 +38786,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "c79fc4228e89656d83a2612f3b50f4a2f953985b6132adc3f31e0696930884a0",
+              "definition_sha256": "d3483c8f1ab48a440cb23dc181cb46cf277453a8fb2f3f3c1acef5ca03e0be73",
               "group": "shell",
               "id": "protocol-wire-rtsp-output-pipe-evidence-r5"
             },
@@ -38812,7 +38812,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "97e801884d37bdb9de65130ccd3f2c0fb14f24d55d9953efc49780766e4aaf3f",
+              "definition_sha256": "a905dcb254862a7f17b7792be2bb880c93ef015797ea7d3d19fc59613d87bf3d",
               "group": "shell",
               "id": "protocol-wire-rtsp-repeat-evidence-r5"
             },
@@ -38853,7 +38853,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "ea3cf5047580df378c22554b71b0006eea2112f3af789c21c59680736d70196b",
+              "definition_sha256": "7935c11e04326b43a9a69278dbf0dbb4834727a342cf656acdeb20539f0f8380",
               "group": "shell",
               "id": "protocol-wire-rtsp-single-evidence-r5"
             }
@@ -38873,7 +38873,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "fd8b1191f55b76ce962e9ec4e6200674b71a85806b520dbdd3237109524b0652",
+              "definition_sha256": "4acd84aa73aaf0eb4f8716d4f6025747f67ea80b7e20b9aeee3afd5797b71c43",
               "group": "shell",
               "id": "protocol-wire-rtsp-stap-evidence-r5"
             }
@@ -38893,7 +38893,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "c29a3ede47a1db079d411efd10eeaab5b8672310b5ff102cd40dd7517f38d1a8",
+              "definition_sha256": "4aea9b2d981932b94ac3cc30c44b04fb964c63d2c520941c8c1db5c644ffa7b4",
               "group": "shell",
               "id": "protocol-wire-rtsp-fu-evidence-r5"
             }
@@ -38913,7 +38913,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "a14ad4375cb8f7bf7dcfd996299e111e0bf6f0ca747bc92737b65f0ea036c2d2",
+              "definition_sha256": "82b4853a444136aeea51f252817118ac8e3cc512be6010adbf2d14d89aec3e12",
               "group": "shell",
               "id": "protocol-wire-rtsp-marker-timestamp-evidence-r5"
             }
@@ -38933,7 +38933,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "c0e4c533453de6fe27288c0aef95ffa356176dc8440353ed3ca90c1ada31ae43",
+              "definition_sha256": "b5f33d90d6ea50dec6dbbe5413bcb77f45e808cc22d2b1f51227c74edd0ae6d8",
               "group": "shell",
               "id": "protocol-wire-rtsp-sps-repeat-evidence-r5"
             }
@@ -38959,13 +38959,13 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "a14ad4375cb8f7bf7dcfd996299e111e0bf6f0ca747bc92737b65f0ea036c2d2",
+              "definition_sha256": "82b4853a444136aeea51f252817118ac8e3cc512be6010adbf2d14d89aec3e12",
               "group": "shell",
               "id": "protocol-wire-rtsp-marker-timestamp-evidence-r5"
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "c0e4c533453de6fe27288c0aef95ffa356176dc8440353ed3ca90c1ada31ae43",
+              "definition_sha256": "b5f33d90d6ea50dec6dbbe5413bcb77f45e808cc22d2b1f51227c74edd0ae6d8",
               "group": "shell",
               "id": "protocol-wire-rtsp-sps-repeat-evidence-r5"
             }
@@ -39000,7 +39000,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "5930d406db895d81385f81d77db6f73babc2f7c6ec741c099bdc7464704c919a",
+              "definition_sha256": "3cb1485949e5d0ec9c4e9cec187d4a249a09d61146d95be6b87112a94957ff51",
               "group": "shell",
               "id": "protocol-wire-rtsp-happy-evidence-r5"
             }
@@ -39020,7 +39020,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "5930d406db895d81385f81d77db6f73babc2f7c6ec741c099bdc7464704c919a",
+              "definition_sha256": "3cb1485949e5d0ec9c4e9cec187d4a249a09d61146d95be6b87112a94957ff51",
               "group": "shell",
               "id": "protocol-wire-rtsp-happy-evidence-r5"
             }
@@ -39040,7 +39040,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "5930d406db895d81385f81d77db6f73babc2f7c6ec741c099bdc7464704c919a",
+              "definition_sha256": "3cb1485949e5d0ec9c4e9cec187d4a249a09d61146d95be6b87112a94957ff51",
               "group": "shell",
               "id": "protocol-wire-rtsp-happy-evidence-r5"
             }
@@ -39060,7 +39060,7 @@
             },
             {
               "assertion": "Static: PASS: exact captured requests, receipt and output satisfy this case; dynamic: PASS: exact captured requests, receipt and output satisfy this case. Saved peer-accepted bytes and owned-child reads were compared where a connection was expected; see reports/rtsp-raw.json.",
-              "definition_sha256": "5930d406db895d81385f81d77db6f73babc2f7c6ec741c099bdc7464704c919a",
+              "definition_sha256": "3cb1485949e5d0ec9c4e9cec187d4a249a09d61146d95be6b87112a94957ff51",
               "group": "shell",
               "id": "protocol-wire-rtsp-happy-evidence-r5"
             }
@@ -40608,8 +40608,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Original obligation: scrub live enable installs 'scrub live prune >/dev/null' in PROMPT_COMMAND, prepended to an existing value and not duplicated Recorded statuses static=FAIL, dynamic=FAIL. Static candidate result: . Unreached: explicit prune count, disable restoration and later HISTFILE observations. Independent raw observations: Enable twice produced one prepended hook; saved prompt history contains safe_anchor_b but not safe_anchor_a, and exits 12 before later steps.",
-              "definition_sha256": "066d4d6d6352f71067e712850295f8034b399610b0f11c662a490189c87dc73a",
+              "assertion": "With PROMPT_COMMAND=':' already set, two scrub live enable calls leave exactly 'scrub live prune >/dev/null; :'. The seed records are added by their own command after history -c and are present in a snapshot taken before pruning is enabled.",
+              "definition_sha256": "f2fa67dc6d45056df5e2372605a001b14d7ad6bb6509754d981bf5682c16827a",
               "group": "terminal",
               "id": "trace-vm-scrub-live-history-r1"
             },
@@ -40628,8 +40628,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "Original obligation: At each prompt, in-memory history entries matching the denylist are removed and benign entries kept Recorded statuses static=FAIL, dynamic=FAIL. Static candidate result: . Unreached: explicit prune count, disable restoration and later HISTFILE observations. Independent raw observations: Enable twice produced one prepended hook; saved prompt history contains safe_anchor_b but not safe_anchor_a, and exits 12 before later steps.",
-              "definition_sha256": "066d4d6d6352f71067e712850295f8034b399610b0f11c662a490189c87dc73a",
+              "assertion": "After two prompt cycles with the hook installed, the history snapshot holds neither denied record (private_secret_a, private_secret_b) and both benign anchors; an explicit prune then removes private_secret_c, reports 1 and keeps safe_anchor_c.",
+              "definition_sha256": "f2fa67dc6d45056df5e2372605a001b14d7ad6bb6509754d981bf5682c16827a",
               "group": "terminal",
               "id": "trace-vm-scrub-live-history-r1"
             },
@@ -54519,7 +54519,7 @@
               "id": "migration-who-default-utmp-contract"
             },
             {
-              "assertion": "The candidate lists alice and bob from the default path, /var/run/utmp and /run/utmp.",
+              "assertion": "Outside and inside a namespace with a synthetic /run/utmp, who without FILE and who /var/run/utmp (the default path by its exact name) list the logind sessions, none here, and take the boot row from the default utmp file, identical to GNU who 9.7; who /run/utmp reads the file and lists alice and bob on both.",
               "definition_sha256": "b4e6afcef696617a983f6eeb87401a80fe8d2cf100c40ed54eb0c03e5d80d746",
               "group": "shell",
               "id": "migration-who-default-utmp-namespace"
@@ -54539,7 +54539,7 @@
               "id": "migration-who-default-utmp-contract"
             },
             {
-              "assertion": "GNU who 9.7 (Debian, linked with libsystemd) does not read user records from the utmp file at the default path, even when /var/run/utmp is named explicitly: it reports logind sessions (none in the namespace), so default/-q/-H/-a/'who /var/run/utmp' print no users while the candidate lists the file's two users; both print the file's boot record for -b; 'who /run/utmp' (a different string) makes GNU read the file and both agree. 'who am i' is rejected by the candidate ('extra operand: i', status 1). Parity FAIL.",
+              "assertion": "GNU who 9.7 (Debian, linked with libsystemd) reports logind sessions for the default source, also when /var/run/utmp is named explicitly, so default/-q/-H/-a/'who /var/run/utmp' print no users; both print the file's boot record for -b; 'who /run/utmp' (a different string) reads the file. The candidate output, status and diagnostics are identical for all nine invocations, including 'who am i'.",
               "definition_sha256": "b4e6afcef696617a983f6eeb87401a80fe8d2cf100c40ed54eb0c03e5d80d746",
               "group": "shell",
               "id": "migration-who-default-utmp-namespace"
@@ -54568,8 +54568,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "who -T over real ptys owned by the side (devpts gid 5): mode 0620 prints '+', 0600 '-', /dev/null '+', missing pts/999 '?', identical to GNU who 9.7. who -w (GNU alias of -T) is rejected by the candidate ('invalid option: -w', status 1). Parity FAIL.",
-              "definition_sha256": "9c9530a6a4492b9fe6dbe763f753a2d30bd6979eec7554e2762c2f0aa7a73363",
+              "assertion": "who -T and -w over real ptys owned by the side (devpts gid 5): mode 0620 prints '+', 0600 '-', /dev/null '+', missing pts/999 '?', identical to GNU who 9.7.",
+              "definition_sha256": "5f8287c5648d2bf9f72ccf0cf0bc9d43bd90305093e47f484f0b00fe1a93cd23",
               "group": "shell",
               "id": "migration-who-terminal-state-pty"
             }
@@ -54582,8 +54582,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "who -u/-Tu/-a: access time 10 s ago prints '  .', 3725 s '01:02', 90000 s ' old' and a missing line '  ?', identical to GNU. Differences: a future access time prints '  .' (GNU ' old'), and an access time older than a preceding BOOT_TIME record prints '00:33' (GNU ' old', which compares against the boot record). Parity FAIL.",
-              "definition_sha256": "9c9530a6a4492b9fe6dbe763f753a2d30bd6979eec7554e2762c2f0aa7a73363",
+              "assertion": "who -u/-Tu/-a: access time 10 s ago prints '  .', 3725 s '01:02', 90000 s ' old', a future access time ' old', an access time older than a preceding BOOT_TIME record ' old' and a missing line '  ?', identical to GNU. The per-side time base and boot record file stay outside the compared tree, and the boot record's printed time is compared through a token that replaces only the independently formatted value.",
+              "definition_sha256": "5f8287c5648d2bf9f72ccf0cf0bc9d43bd90305093e47f484f0b00fe1a93cd23",
               "group": "shell",
               "id": "migration-who-terminal-state-pty"
             }
@@ -54596,8 +54596,8 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "With stdin redirected from a given pty (in a subshell), who -m, -mT, -mu and -mH select only that terminal's records, identical to GNU; without a terminal on stdin -m prints nothing on both. who -q -m filters to the terminal (u3, users=1) where GNU ignores -m under -q (all five names). Parity FAIL.",
-              "definition_sha256": "9c9530a6a4492b9fe6dbe763f753a2d30bd6979eec7554e2762c2f0aa7a73363",
+              "assertion": "With stdin redirected from a given pty (in a subshell), who -m, -mT, -mu and -mH select only that terminal's records, identical to GNU; without a terminal on stdin -m prints nothing on both, and -q ignores -m on both.",
+              "definition_sha256": "5f8287c5648d2bf9f72ccf0cf0bc9d43bd90305093e47f484f0b00fe1a93cd23",
               "group": "shell",
               "id": "migration-who-terminal-state-pty"
             }

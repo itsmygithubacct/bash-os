@@ -2173,13 +2173,18 @@ def v_roster_expiry(world, vec):
         trace('expiry-roster-sample', sampled_now=now, read_before_ns=read_before_ns,
               read_after_ns=read_after_ns, node_ids_hex=sorted(node.hex() for node in nodes),
               last_beat=last_beat)
+        # Stamp the sighting after the pump (select up to 10 ms) and the roster read. Stamping
+        # `now` from before them made a removal at exactly last-heard + expiry look up to
+        # ~10 ms early against the 2 ms not-early bounds. A sighting time is an upper bound on
+        # the removal time, so it can no longer be early; every bound and vector is unchanged.
+        seen = time.monotonic()
         if b.node_id not in nodes or c.node_id not in nodes:
             present = False
         if silent_gone is None and silent_node not in nodes:
-            silent_gone = now
+            silent_gone = seen
         if beating_node not in nodes and beating_gone is None:
-            beating_gone = now
-            early = now < stop_beating
+            beating_gone = seen
+            early = seen < stop_beating
     slack = period / 4000.0 + 1.5
     trace('expiry-predicate-inputs', t_silent=t_silent, t_beat=t_beat, last_beat=last_beat,
           silent_gone=silent_gone, beating_gone=beating_gone, early=early,

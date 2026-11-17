@@ -87,11 +87,92 @@ bp_release_signal_fd (struct bp_signal_fd **slot, int close_fd)
   sigprocmask (SIG_UNBLOCK, &unblock, NULL);
 }
 
+/* A listen-unix listener owns the path it bound. close removes that path
+   only while the descriptor is still that listener, the path is still the
+   socket bound there, and the caller is the process that bound it; a
+   descriptor the shell closed or reused, a replaced path and an inherited
+   copy in a child all leave the filesystem alone. */
+struct bp_unix_listener {
+  int fd;
+  pid_t owner;
+  dev_t sock_dev, path_dev;
+  ino_t sock_ino, path_ino;
+  char *path;                   /* absolute, so a later cd cannot redirect it */
+  struct bp_unix_listener *next;
+};
+static struct bp_unix_listener *bp_unix_listeners;
+
+static struct bp_unix_listener **
+bp_unix_find (int fd)
+{
+  struct bp_unix_listener **slot = &bp_unix_listeners;
+  while (*slot && (*slot)->fd != fd) slot = &(*slot)->next;
+  return slot;
+}
+
+static int
+bp_unix_fd_is_listener (const struct bp_unix_listener *entry)
+{
+  struct stat st;
+  return fstat (entry->fd, &st) == 0 && S_ISSOCK (st.st_mode) &&
+         st.st_dev == entry->sock_dev && st.st_ino == entry->sock_ino;
+}
+
+/* Forget *SLOT; with REMOVE_PATH also unlink the path if it is still the
+   socket this process bound. */
+static void
+bp_unix_release (struct bp_unix_listener **slot, int remove_path)
+{
+  struct bp_unix_listener *entry = *slot;
+  struct stat st;
+  *slot = entry->next;
+  if (remove_path && entry->owner == getpid () && lstat (entry->path, &st) == 0 &&
+      S_ISSOCK (st.st_mode) && st.st_dev == entry->path_dev &&
+      st.st_ino == entry->path_ino)
+    (void) unlink (entry->path);
+  free (entry->path);
+  free (entry);
+}
+
+/* Record FD as the listener bound at PATH. Without a usable identity the
+   listener still works; its path is then simply never removed. */
+static void
+bp_unix_remember (int fd, const char *path)
+{
+  struct bp_unix_listener **stale = bp_unix_find (fd);
+  struct bp_unix_listener *entry;
+  struct stat sock_st, path_st;
+  char *absolute = NULL;
+  if (*stale) bp_unix_release (stale, 0);
+  if (fstat (fd, &sock_st) < 0 || lstat (path, &path_st) < 0 ||
+      !S_ISSOCK (path_st.st_mode))
+    return;
+  if (path[0] == '/')
+    absolute = strdup (path);
+  else
+    {
+      char *cwd = getcwd (NULL, 0);
+      if (cwd && cwd[0] == '/' && (absolute = malloc (strlen (cwd) + strlen (path) + 2)))
+        sprintf (absolute, "%s/%s", cwd, path);
+      free (cwd);
+    }
+  entry = absolute ? calloc (1, sizeof *entry) : NULL;
+  if (!entry) { free (absolute); return; }
+  entry->fd = fd;
+  entry->owner = getpid ();
+  entry->sock_dev = sock_st.st_dev; entry->sock_ino = sock_st.st_ino;
+  entry->path_dev = path_st.st_dev; entry->path_ino = path_st.st_ino;
+  entry->path = absolute;
+  entry->next = bp_unix_listeners;
+  bp_unix_listeners = entry;
+}
+
 void
 bashpoll_builtin_unload (char *name)
 {
   (void) name;
   while (bp_signal_fds) bp_release_signal_fd (&bp_signal_fds, 1);
+  while (bp_unix_listeners) bp_unix_release (&bp_unix_listeners, 0);
 }
 
 static int
@@ -231,6 +312,8 @@ bp_listen_unix (WORD_LIST *args)
   if (!path) { builtin_error ("listen-unix needs /path/sock [FDVAR]"); return EX_USAGE; }
   if (strlen (path) >= sizeof (((struct sockaddr_un *) 0)->sun_path))
     { builtin_error ("path too long for AF_UNIX"); return EX_USAGE; }
+  /* Reject an unusable FDVAR before the path is touched or bound. */
+  if (fdvar && !bp_fd_variable_ok (fdvar)) return EXECUTION_FAILURE;
 
   int fd = socket (AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
   if (fd < 0) { builtin_error ("socket: %s", strerror (errno)); return EXECUTION_FAILURE; }
@@ -259,9 +342,23 @@ bp_listen_unix (WORD_LIST *args)
   }
   if (bind (fd, (struct sockaddr *) &sa, sizeof sa) < 0)
     { builtin_error ("bind %s: %s", path, strerror (errno)); close (fd); return EXECUTION_FAILURE; }
+  bp_unix_remember (fd, path);
   if (listen (fd, 16) < 0)
-    { builtin_error ("listen: %s", strerror (errno)); close (fd); return EXECUTION_FAILURE; }
-  return bp_emit_fd (fd, fdvar) < 0 ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+    {
+      struct bp_unix_listener **slot = bp_unix_find (fd);
+      builtin_error ("listen: %s", strerror (errno));
+      close (fd);
+      if (*slot) bp_unix_release (slot, 1);
+      return EXECUTION_FAILURE;
+    }
+  if (bp_emit_fd (fd, fdvar) < 0)
+    {
+      /* bp_emit_fd closed the listener; do not leave its path behind. */
+      struct bp_unix_listener **slot = bp_unix_find (fd);
+      if (*slot) bp_unix_release (slot, 1);
+      return EXECUTION_FAILURE;
+    }
+  return EXECUTION_SUCCESS;
 }
 
 static int
@@ -460,8 +557,11 @@ bp_close (WORD_LIST *args)
   if (bp_parse_fd (args->word->word, "close", &fd) < 0) return EX_USAGE;
   struct bp_signal_fd **slot = &bp_signal_fds;
   while (*slot && (*slot)->fd != fd) slot = &(*slot)->next;
+  struct bp_unix_listener **unix_slot = bp_unix_find (fd);
+  int listener = *unix_slot && bp_unix_fd_is_listener (*unix_slot);
   int rc = close (fd), saved = errno;
   if (*slot) bp_release_signal_fd (slot, 0);
+  if (*unix_slot) bp_unix_release (unix_slot, listener);
   if (rc < 0) { builtin_error ("close: %s", strerror (saved)); return EXECUTION_FAILURE; }
   return EXECUTION_SUCCESS;
 }
@@ -987,6 +1087,8 @@ char *bashpoll_doc[] = {
   "Close signalfds with bashpoll close to restore only owned mask bits.",
   "Overlapping signalfds retain their shared mask until the last close.",
   "Shell redirection close/dup cannot track this mask ownership.",
+  "close on a listen-unix listener also removes its socket path, unless the",
+  "path was replaced or the descriptor no longer is that listener.",
   (char *)NULL
 };
 

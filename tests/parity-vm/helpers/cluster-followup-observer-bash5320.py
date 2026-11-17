@@ -2072,13 +2072,18 @@ def v_roster_expiry(world, vec):
         beating.take()
         world.reactor.pump(0.01)
         nodes = {row[0] for row in rows_of(a)}
+        # Stamp the sighting after the pump (select up to 10 ms) and the roster read. Stamping
+        # `now` from before them made a removal at exactly last-heard + expiry look up to
+        # ~10 ms early against the 2 ms not-early bounds. A sighting time is an upper bound on
+        # the removal time, so it can no longer be early; every bound and vector is unchanged.
+        seen = time.monotonic()
         if b.node_id not in nodes or c.node_id not in nodes:
             present = False
         if silent_gone is None and silent_node not in nodes:
-            silent_gone = now
+            silent_gone = seen
         if beating_node not in nodes and beating_gone is None:
-            beating_gone = now
-            early = now < stop_beating
+            beating_gone = seen
+            early = seen < stop_beating
     slack = period / 4000.0 + 1.5
     vec.check('silent-expires-not-early', silent_gone is not None and silent_gone - t_silent >= expiry - 0.002)
     vec.check('silent-expires-in-bound', silent_gone is not None and silent_gone - t_silent <= expiry + slack)
