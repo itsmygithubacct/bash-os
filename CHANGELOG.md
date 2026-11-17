@@ -9,6 +9,12 @@ The release gate requires every recorded FAIL to be fixed and every required
 static and dynamic qualification case to PASS. This target is not yet met;
 the historical 0.1.3 evidence remains available separately.
 
+- `jq` prints the way jq does: values are indented by two spaces unless
+  `-c` is given, and `--tab` and `--indent N` are accepted. Strings mean
+  their decoded text, so `\uXXXX` escapes, surrogate pairs and `\/` compare,
+  measure, sort and look up like the characters they stand for; output
+  re-encodes them with jq's escapes (no `\/`), and `-r` writes the raw
+  bytes, including NUL. A `-V` variable still receives compact text.
 - The kernel authority has production modules: `bashos_auth_v2.ko`
   (`/dev/bashos-auth-v2`, identity proofs) and `bashos_privcmd_v2.ko`
   (`/dev/bashos-privcmd-v2`, policy, verification, execution, `sudoedit` and

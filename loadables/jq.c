@@ -480,34 +480,79 @@ jq_key_string_cmp (const void *a, const void *b)
 
 static int truthy (const char *v) { return v && strcmp (v, "false") && strcmp (v, "null"); }
 
+/* Append S (N bytes, NUL allowed) as a JSON string literal with jq's escape
+   set: \" \\ \b \f \n \r \t, \u00XX for other control bytes and DEL.
+   '/' and non-ASCII bytes are written as they are. */
+static int
+json_string_to (sbuf_t *b, const char *s, size_t n)
+{
+  if (sb_puts (b, "\"") < 0) return -1;
+  for (const unsigned char *p = (const unsigned char *)s; p < (const unsigned char *)s + n; p++)
+    {
+      char tmp[8];
+      const char *e = NULL;
+      switch (*p)
+        {
+        case '\\': e = "\\\\"; break;
+        case '"':  e = "\\\""; break;
+        case '\b': e = "\\b"; break;
+        case '\f': e = "\\f"; break;
+        case '\n': e = "\\n"; break;
+        case '\t': e = "\\t"; break;
+        case '\r': e = "\\r"; break;
+        default:
+          if (*p < 0x20 || *p == 0x7f) { snprintf (tmp, sizeof tmp, "\\u%04x", *p); e = tmp; }
+        }
+      if (e ? sb_puts (b, e) < 0 : sb_putn (b, (const char *)p, 1) < 0) return -1;
+    }
+  return sb_puts (b, "\"");
+}
+
 static char *
 json_string (const char *s)
 {
   sbuf_t b = {0};
-  if (sb_puts (&b, "\"") < 0) goto oom;
-  for (const unsigned char *p = (const unsigned char *)s; *p; p++)
-    {
-      char tmp[8];
-      switch (*p)
-        {
-        case '\\': if (sb_puts (&b, "\\\\") < 0) goto oom; break;
-        case '"':  if (sb_puts (&b, "\\\"") < 0) goto oom; break;
-        case '\n': if (sb_puts (&b, "\\n") < 0) goto oom; break;
-        case '\t': if (sb_puts (&b, "\\t") < 0) goto oom; break;
-        case '\r': if (sb_puts (&b, "\\r") < 0) goto oom; break;
-        default:
-          if (*p < 0x20) { snprintf (tmp, sizeof tmp, "\\u%04x", *p); if (sb_puts (&b, tmp) < 0) goto oom; }
-          else if (sb_putn (&b, (const char *)p, 1) < 0) goto oom;
-        }
-    }
-  if (sb_puts (&b, "\"") < 0) goto oom;
+  if (json_string_to (&b, s, strlen (s)) < 0) { free (b.p); return NULL; }
   return b.p;
-oom:
-  free (b.p); return NULL;
 }
 
+static int
+utf8_put (sbuf_t *b, unsigned long c)
+{
+  char u[4];
+  size_t n;
+  if (c < 0x80) { u[0] = (char) c; n = 1; }
+  else if (c < 0x800) { u[0] = (char) (0xC0 | c >> 6); u[1] = (char) (0x80 | (c & 63)); n = 2; }
+  else if (c < 0x10000)
+    { u[0] = (char) (0xE0 | c >> 12); u[1] = (char) (0x80 | (c >> 6 & 63)); u[2] = (char) (0x80 | (c & 63)); n = 3; }
+  else
+    {
+      u[0] = (char) (0xF0 | c >> 18); u[1] = (char) (0x80 | (c >> 12 & 63));
+      u[2] = (char) (0x80 | (c >> 6 & 63)); u[3] = (char) (0x80 | (c & 63)); n = 4;
+    }
+  return sb_putn (b, u, n);
+}
+
+static int
+hex4 (const char *p, unsigned long *out)
+{
+  unsigned long v = 0;
+  for (int i = 0; i < 4; i++)
+    {
+      int c = (unsigned char) p[i];
+      if (!isxdigit (c)) return -1;
+      v = v * 16 + (unsigned long) (isdigit (c) ? c - '0' : (tolower (c) - 'a' + 10));
+    }
+  *out = v;
+  return 0;
+}
+
+/* Decode a JSON string literal V into its bytes, as jq does: every short
+   escape, \uXXXX as UTF-8, a surrogate pair as one character and a lone
+   surrogate as U+FFFD. *LEN receives the byte count, which can include NUL
+   from \u0000; the buffer is also NUL-terminated. */
 static char *
-json_unstring (const char *v)
+json_unstring_n (const char *v, size_t *len)
 {
   size_t n = strlen (v);
   if (n < 2 || v[0] != '"' || v[n-1] != '"') return NULL;
@@ -525,12 +570,70 @@ json_unstring (const char *v)
             case 'r': c = '\r'; break;
             case 'b': c = '\b'; break;
             case 'f': c = '\f'; break;
-            default: break;
+            case 'u':
+              {
+                unsigned long cp, lo;
+                if (i + 4 >= n - 1 || hex4 (v + i + 1, &cp) < 0) break;
+                i += 4;
+                if (cp >= 0xD800 && cp <= 0xDBFF && i + 6 < n - 1 && v[i+1] == '\\' && v[i+2] == 'u'
+                    && hex4 (v + i + 3, &lo) == 0 && lo >= 0xDC00 && lo <= 0xDFFF)
+                  { cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00); i += 6; }
+                else if (cp >= 0xD800 && cp <= 0xDFFF)
+                  cp = 0xFFFD;
+                if (utf8_put (&b, cp) < 0) { free (b.p); return NULL; }
+                continue;
+              }
+            default: break;   /* \" \\ \/ stand for themselves */
             }
         }
       if (sb_putn (&b, &c, 1) < 0) { free (b.p); return NULL; }
     }
+  if (len) *len = b.n;
   return b.p ? b.p : xstrdup ("");
+}
+
+static char *
+json_unstring (const char *v)
+{
+  return json_unstring_n (v, NULL);
+}
+
+/* Write compact JSON text V the way jq prints a value: strings re-encoded
+   with jq's escapes, and with INDENT > 0 (or TAB) one member per line, ": "
+   after keys and empty containers kept as {} and []. INDENT 0 is compact. */
+static int
+json_format_to (sbuf_t *b, const char *v, int indent, int tab)
+{
+  int depth = 0, pretty = indent > 0 || tab;
+  for (const char *p = v; *p; p++)
+    {
+      char c = *p;
+      if (c == '"')
+        {
+          const char *q = p + 1;
+          while (*q && *q != '"') q += *q == '\\' && q[1] ? 2 : 1;
+          size_t tl = (size_t) (q - p) + (*q ? 1 : 0), dl = 0;
+          char *lit = xstrndup (p, tl), *text = lit ? json_unstring_n (lit, &dl) : NULL;
+          int rc = text ? json_string_to (b, text, dl) : -1;
+          free (lit); free (text);
+          if (rc < 0) return -1;
+          p += tl - 1;
+          continue;
+        }
+      if (!pretty || !strchr ("{[]},:", c))
+        { if (sb_putn (b, &c, 1) < 0) return -1; continue; }
+      if (c == ':') { if (sb_puts (b, ": ") < 0) return -1; continue; }
+      if ((c == '{' && p[1] == '}') || (c == '[' && p[1] == ']'))
+        { if (sb_putn (b, p, 2) < 0) return -1; p++; continue; }
+      if (c == '}' || c == ']') depth--;
+      if (c != '}' && c != ']' && sb_putn (b, &c, 1) < 0) return -1;
+      if (c == '{' || c == '[') depth++;
+      if (sb_puts (b, "\n") < 0) return -1;
+      for (int d = 0; d < depth; d++)
+        if (tab ? sb_puts (b, "\t") < 0 : sb_putn (b, "        ", (size_t) indent) < 0) return -1;
+      if ((c == '}' || c == ']') && sb_putn (b, &c, 1) < 0) return -1;
+    }
+  return 0;
 }
 
 typedef enum {
@@ -636,9 +739,15 @@ lex_filter (lexer_t *lx, const char *s)
               }
             char *literal = xstrndup (s + st, i - st);
             int valid = literal && jq_validate_json_document (literal) == 0;
+            sbuf_t canon = {0};
+            /* The same single spelling as input strings get. */
+            if (valid && (json_format_to (&canon, literal, 0, 0) < 0 || !canon.p)) valid = -1;
             free (literal);
+            if (valid < 0) { free (canon.p); return -1; }
             if (!valid) return lex_err (lx, "invalid or unsupported string literal; use system+ jq");
-            if (lex_add (lx, FT_STRING, s + st, i - st) < 0) return -1;
+            int added = lex_add (lx, FT_STRING, canon.p, canon.n);
+            free (canon.p);
+            if (added < 0) return -1;
             continue;
           }
         default: break;
@@ -1095,7 +1204,18 @@ json_length (const char *json, double *out)
   int nt = 0; jsmntok_t *toks = jq_tokenize_json (json, strlen (json), &nt);
   if (!toks || nt <= 0) { free (toks); return -1; }
   if (toks[0].type == JSMN_ARRAY || toks[0].type == JSMN_OBJECT) *out = (double) toks[0].size;
-  else if (toks[0].type == JSMN_STRING) *out = (double) (toks[0].end - toks[0].start);
+  else if (toks[0].type == JSMN_STRING)
+    {
+      /* jq counts code points: decode, then skip UTF-8 continuation bytes. */
+      char *lit = xstrndup (json + toks[0].start - 1, (size_t) (toks[0].end - toks[0].start) + 2);
+      size_t dl = 0, cps = 0;
+      char *d = lit ? json_unstring_n (lit, &dl) : NULL;
+      free (lit);
+      if (!d) { free (toks); return -1; }
+      for (size_t i = 0; i < dl; i++) if (((unsigned char) d[i] & 0xC0) != 0x80) cps++;
+      free (d);
+      *out = (double) cps;
+    }
   else if (toks[0].type == JSMN_PRIMITIVE)
     {
       char first = json[toks[0].start];
@@ -3030,7 +3150,7 @@ json_compact (char *text)
    Evaluation remains buffered, including output-variable binding. */
 static int
 run_filter (const char *filter, const char *doc, int raw, int exit_status,
-            const char *out_var, int stream)
+            const char *out_var, int stream, int indent, int tab)
 {
   lexer_t lx = {0};
   node_t *root = NULL;
@@ -3051,6 +3171,14 @@ run_filter (const char *filter, const char *doc, int raw, int exit_status,
   while ((next = json_next_text (&cursor, &value)) > 0)
     {
       json_compact (value);
+      /* One spelling per string ("\u00e9" and "é", "\/" and "/"), so that
+         comparison, length, keys and output see the text, not its escapes. */
+      {
+        sbuf_t canon = {0};
+        if (json_format_to (&canon, value, 0, 0) < 0 || !canon.p)
+          { free (canon.p); free (value); value = NULL; rc = EXECUTION_FAILURE; break; }
+        free (value); value = canon.p;
+      }
       int er = 0;
       if (stream)
         {
@@ -3070,17 +3198,27 @@ run_filter (const char *filter, const char *doc, int raw, int exit_status,
   for (int i = 0; i < out.n; i++)
     {
       json_compact (out.v[i]);
-      char *raw_s = NULL;
-      const char *emit = out.v[i];
+      /* Printed as jq prints: raw strings as their bytes (NUL included),
+         everything else re-encoded and, unless compact, indented. A bound
+         variable always gets the compact text. */
+      sbuf_t text = {0};
+      int fr;
       if (raw && !strcmp (json_type (out.v[i]), "string"))
-        { raw_s = json_unstring (out.v[i]); emit = raw_s ? raw_s : ""; }
+        {
+          size_t dl = 0;
+          char *d = json_unstring_n (out.v[i], &dl);
+          fr = d ? sb_putn (&text, d, dl) : -1;
+          free (d);
+        }
+      else fr = json_format_to (&text, out.v[i], out_var ? 0 : indent, out_var ? 0 : tab);
+      if (fr < 0) { free (text.p); rc = EXECUTION_FAILURE; break; }
       if (out_var)
         {
-          if ((i && sb_puts (&bound, "\n") < 0) || sb_puts (&bound, emit) < 0)
+          if ((i && sb_puts (&bound, "\n") < 0) || sb_puts (&bound, text.p ? text.p : "") < 0)
             rc = EXECUTION_FAILURE;
         }
-      else if (printf ("%s\n", emit) < 0) rc = 2;
-      free (raw_s);
+      else if ((text.n && fwrite (text.p, 1, text.n, stdout) != text.n) || putchar ('\n') == EOF) rc = 2;
+      free (text.p);
     }
   /* stdio can defer a small write until flush. Use Bash's recovery helper
      so a failed redirection cannot leave stdout poisoned for later builtins.
@@ -3105,7 +3243,7 @@ done:
 int
 jq_builtin (WORD_LIST *list)
 {
-  int raw = 0, exit_status = 0, slurp = 0, stream = 0, null_input = 0;
+  int raw = 0, exit_status = 0, slurp = 0, stream = 0, null_input = 0, indent = 2, tab = 0;
   const char *filter = NULL, *file = NULL, *filter_file = NULL;
   const char *input_var = NULL, *out_var = NULL;
   for (WORD_LIST *a = list; a; a = a->next)
@@ -3113,7 +3251,16 @@ jq_builtin (WORD_LIST *list)
       const char *w = a->word->word;
       if (!strcmp (w, "-r") || !strcmp (w, "--raw-output")) raw = 1;
       else if (!strcmp (w, "-e") || !strcmp (w, "--exit-status")) exit_status = 1;
-      else if (!strcmp (w, "-c") || !strcmp (w, "--compact-output")) ;
+      else if (!strcmp (w, "-c") || !strcmp (w, "--compact-output")) { indent = 0; tab = 0; }
+      else if (!strcmp (w, "--tab")) tab = 1;
+      else if (!strcmp (w, "--indent"))
+        {
+          char *end = NULL;
+          long v = a->next ? strtol (a->next->word->word, &end, 10) : -2;
+          if (!a->next || *end || end == a->next->word->word || v < 0 || v > 7)
+            { builtin_error ("--indent takes a number between 0 and 7"); return 2; }
+          a = a->next; indent = (int) v; tab = 0;
+        }
       else if (!strcmp (w, "-n") || !strcmp (w, "--null-input")) null_input = 1;
       else if (!strcmp (w, "-f") || !strcmp (w, "--from-file")) { if (!a->next) { builtin_error ("-f needs file"); return EX_USAGE; } a = a->next; filter_file = a->word->word; }
       else if (!strcmp (w, "-i")) { if (!a->next) { builtin_error ("-i needs INPUT_VAR"); return EX_USAGE; } a = a->next; input_var = a->word->word; }
@@ -3161,7 +3308,7 @@ jq_builtin (WORD_LIST *list)
       free (doc);
       doc = slurped;
     }
-  int rc = run_filter (filter, doc, raw, exit_status, out_var, stream);
+  int rc = run_filter (filter, doc, raw, exit_status, out_var, stream, indent, tab);
   free (filter_buf); free (doc);
   return rc;
 }
@@ -3177,7 +3324,9 @@ char *jq_doc[] = {
   "Supports paths, pipes, [], length/keys/type/has, select/map, comparisons,",
   "boolean ops, arithmetic, //, if/elif/else, literals, postfix ?, and",
   "streaming leaf tuples.",
-  "Input and result streams are buffered; output is compact by default.",
+  "Input and result streams are buffered. Output is indented by two spaces",
+  "as jq's is; -c (or --indent 0) prints compactly, --tab indents with tabs",
+  "and --indent N with N spaces (0-7). A -V variable gets compact text.",
   "-f also accepts --from-file. At most one input FILE is supported.",
   "--stream emits leaf tuples, not the full jq container-end events.",
   "Unsupported syntax returns 2; runtime errors return 5. With -e,",
@@ -3190,6 +3339,6 @@ struct builtin jq_struct = {
   jq_builtin,
   BUILTIN_ENABLED,
   jq_doc,
-  "jq [-r] [-e] [-c] [-n] [-s|--stream] [-i INPUT_VAR] [-V OUT_VAR] {FILTER|-f FILTER_FILE} [FILE]",
+  "jq [-r] [-e] [-c] [--tab] [--indent N] [-n] [-s|--stream] [-i INPUT_VAR] [-V OUT_VAR] {FILTER|-f FILTER_FILE} [FILE]",
   0
 };
