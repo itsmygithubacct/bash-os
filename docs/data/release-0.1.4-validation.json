@@ -1,0 +1,937 @@
+{
+ "release_tag": "v0.1.4",
+ "version": "0.1.4",
+ "architecture": "Linux x86-64",
+ "base_release": "v0.1.3",
+ "base_commit": "115262e9187fa282d07fc2372c293119658476e6",
+ "source_commit": "ceb0e13cec417e28d8f95814842c4cec1cdf94a6",
+ "source_commit_role": "commit the release binaries were built from; later commits change only tests and documentation",
+ "reproducible": "two builds of the source commit on the same toolchain produced identical binaries",
+ "compiler": "cc (Debian 14.2.0-19) 14.2.0",
+ "source_changes": {
+  ".gitignore": "a556f3b32bd997f65fb1338a508c9739eb916c367f47575e38f61502182a1987",
+  "CHANGELOG.md": "6a1c20803d6e925cca8a727f83b159ca53e95fa5381b27396e53857fee03b00e",
+  "Dockerfile.parity": "4f6650a68c66149d3d347fa6d8637127b149f210a88b600be20bdbf67165bebd",
+  "Dockerfile.parity-bash-os": "8221bac7edecb61f24def11e8b6f3f7bf8c2c6c5b189d3669351314c1e4d2d74",
+  "Dockerfile.parity-bash-os.dockerignore": "1ef815971ad97348429f6e927849ea05898316cc7afeaca48806364474eb82e4",
+  "Dockerfile.parity.dockerignore": "e8e22a6037c43d8890ad49d6d77fcb755e05982c6097c9dc6494341a0cbc3164",
+  "README.md": "79165d6acd021c99a39e91eacaa506fda80f13abccdc5de1ea9b03e680a51e77",
+  "VERSION": "8a3dad16d348c163566a456fcf650d85d7aeeda5e53d01ee1fa8dc15212915a7",
+  "build.sh": "5d375cd9cc8f4463e03db4c4e35c4a9defd9d5b491c90780ba781755ccad5b5e",
+  "config/bash-loadables-optional.list": "7eb20c2a057d82f8110dcb880fc424552d13581ec1baedc6d2608586d4031bde",
+  "config/bash-loadables.list": "7e90266caa3da412f6044529023adb3d0a44937fcd0c6acf20801f8af914c512",
+  "config/build-perl.py": "dcd2a2d6cafec9043e397993f05a6ea9ddffa20ebdf2eba2896ff3af203e9134",
+  "config/versions.sh": "47d54f053002d4de072e51fb04d02f2d2644a9c998b64742ebbc44320ca5b0f7",
+  "kernel/bashos-auth/.gitignore": "615adc31c6a164ef068c42e9e04b5711c4179d9065398e957c691bb79f2ce000",
+  "kernel/bashos-auth/CONTRACT.txt": "ce24e45554f77dc68b875dd97dfc495d9492921a1d225d54bb237b4c54c769b8",
+  "kernel/bashos-auth/COPYING": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6",
+  "kernel/bashos-auth/Makefile": "aa1614741329841d2c97c963e0ea249dfcb64df1752beba6478a4cebf2743232",
+  "kernel/bashos-auth/README.txt": "cbfb790bcedfda69cfc8e3ea8f95480ff131f6d21045312acb5b8cabb4c7090b",
+  "kernel/bashos-auth/authority/CONTRACT.txt": "bbe21b8c6270ec5496aa42bf1c4df39f7f34d24bdc0daa51a75d515dd53c703d",
+  "kernel/bashos-auth/authority/Kconfig": "94cee7d8699e3200c6c2f1105ae3282af5b258bf404adc496c89c7574968b26e",
+  "kernel/bashos-auth/authority/Makefile.kunit": "42d70d44828de3db9147c6e10629a9073d21901f658b6da080b47fcfdee2ab4d",
+  "kernel/bashos-auth/authority/Makefile.privcmd": "d33303a32b7c1c087434ed5bd4485d9402df3cadde8963e2778f06ea0043282b",
+  "kernel/bashos-auth/authority/Makefile.privcmd-test": "11323c0c60778c62cb6b562b76c736bfb13f30715a6d535f685f4d41c3c59005",
+  "kernel/bashos-auth/authority/Makefile.protocol": "f7707e42c04f3aa644d4c66782639427bbc48ed1b3799e4ad3c6009a18363958",
+  "kernel/bashos-auth/authority/Makefile.protocol-test": "69bd7198c3281035082e4d3ae8c183d26a50c17fe7fabd73feb05a0a54f62a70",
+  "kernel/bashos-auth/authority/reference.c": "a74aaafebce9610b6ccf2071d2883dc13005b09f80eb85edc2d128e01159192d",
+  "kernel/bashos-auth/authority/reference.h": "d2e81cb3da78f0fd25f85394a35af22b9ff4efc71f56ea35128c46cbb8f390fb",
+  "kernel/bashos-auth/authority/request.c": "c528119d149ff02bcf746f4b1b23f6459fa7c500385afd35db688aa65bb24c99",
+  "kernel/bashos-auth/authority/request.h": "78b993b624967745fe55f0bc9a0696e73b1b709204dbc12827eb7b9189367467",
+  "kernel/bashos-auth/authority/tests/device_boundary.c": "72c5c2d46ece0b8660faaa1a89a12c832e8a008a480802258cd3d27f8ed88620",
+  "kernel/bashos-auth/authority/tests/kunit.c": "1a7ec2ed8d17f4f21b54f1d8e6ad876e2a169e30b58f46d84c38783fef300e79",
+  "kernel/bashos-auth/authority/tests/kunit.config": "20e106022b186a336638a479bfcff8a5a1419564a21295697f0850ec415523e3",
+  "kernel/bashos-auth/authority/tests/vectors.h": "6478cf523c1c7892ccd43db4b1fe916f5421c38edde43dbf7581956ab1e35bc8",
+  "kernel/bashos-auth/authority/v2/PRIVCMD-CONTRACT.txt": "4df14d835b34c02fe3e64feffbb502cbec70ee4eb2943b664fea242ab55c455b",
+  "kernel/bashos-auth/authority/v2/SAFEEDIT-CONTRACT.txt": "8e2188c517cbee54962ccf2259447a5f6e2176021744fe3415e600dd80846d62",
+  "kernel/bashos-auth/authority/v2/audit-store.c": "dd41afd50df0efdb155ed7c7b9b4d4d63ec6a6e9c6fb8b175365afa6eadd5284",
+  "kernel/bashos-auth/authority/v2/audit-store.h": "b62eee8ed7a9da49da040eb6729cd24504f3d81b48706b2ea7de4d13ca04ed6c",
+  "kernel/bashos-auth/authority/v2/environment.c": "a354a6ed1341bfb18522367aea0887941905915378e76deedbfc0e6e319356b2",
+  "kernel/bashos-auth/authority/v2/environment.h": "73773a8b7a4eca1b6ede46416ae4901bc042765f56fb470144bba35b36dd10c7",
+  "kernel/bashos-auth/authority/v2/executor-channel.c": "28c52308a8b03cf3954497a53e2723132fec48190f6b9da7d188c4b804f55e84",
+  "kernel/bashos-auth/authority/v2/executor-channel.h": "7b6cba257635b836a1be5860dd136d1afb7751521157394ac2243566b59f6ee4",
+  "kernel/bashos-auth/authority/v2/executor-protocol.h": "8d19468f3e8ac8f75f422b43a9bc2b57dfde8cfe697add743302ac2f1cf3c38c",
+  "kernel/bashos-auth/authority/v2/executor.c": "25719311d2c9e8dff0f3bfece2387393b28596e3888a92eb2cb1ebb2233d8cf5",
+  "kernel/bashos-auth/authority/v2/identity-device.c": "583cddbd906f11d62912e284e027e0b3ab6e1e2508996547ca6fe716d8d5ffc8",
+  "kernel/bashos-auth/authority/v2/identity-device.h": "e95c61a8227f2dc21dcbac91d5646f6fa4b27217c3439ba5aba4ea7606e1efc4",
+  "kernel/bashos-auth/authority/v2/identity-main.c": "bc5fc4f80d6d50f3dac983c006f96148f59a4d113fa114aafa3ca266f2bb0231",
+  "kernel/bashos-auth/authority/v2/identity-snapshot.c": "1c0510f7999a3db1a891174442633bf298a4bcbab7bc2347b75ecdfac6228f09",
+  "kernel/bashos-auth/authority/v2/identity-snapshot.h": "a902ee9d29f92df1038f26076ddb642315ec2003f46fa72ddee6ac831143bb5c",
+  "kernel/bashos-auth/authority/v2/identity-transport.c": "8fd303c1f7401958fd3524570f7e196a06bdf09a95b86b24a6c73ded0f72b31a",
+  "kernel/bashos-auth/authority/v2/identity-transport.h": "70542a7d59bdce95019b6921c890a8a8d9e5ef9dfe3372ac5b6633e866ff9c5d",
+  "kernel/bashos-auth/authority/v2/policy-snapshot.c": "a5a3cd6bd6ad61d19b89ed84751e240685a5f1b6b17237d9e52b9688be85561b",
+  "kernel/bashos-auth/authority/v2/policy-snapshot.h": "866c43a5fdac1179f56c08156cad5a7412792e9058b6b74c4df4f9d7c9ca266d",
+  "kernel/bashos-auth/authority/v2/privcmd-device.c": "0867991e61059d701edaca2a914b933e4aa7cd20e3f2113e378c18f891e40bcc",
+  "kernel/bashos-auth/authority/v2/privcmd-device.h": "2d3f755881c4ced50e9f13ed7272d27f67f85167413154c04bad5d7a459ccd7e",
+  "kernel/bashos-auth/authority/v2/privcmd-main.c": "6683a11da1e4c5eeff4be8e0b9a870f59445bfdf9afef76957191c4cc0558130",
+  "kernel/bashos-auth/authority/v2/privcmd-test-device.c": "d1d619454f41b11e20184e08c88473bfab3b63522d7b9e83d5f17fa7f1fb2306",
+  "kernel/bashos-auth/authority/v2/program-snapshot.c": "c829a88cc7280e1cf43a5928c7a47c3756277ac85aa6bbf38edb19cfa6ff2c5c",
+  "kernel/bashos-auth/authority/v2/program-snapshot.h": "b577bdc313a1ef3072586f49c2972aeff9f32b2b7358ba521db59dea96c5b438",
+  "kernel/bashos-auth/authority/v2/protocol.h": "aa03246b0eeb07dfdf928de3c63269ec7c09375de10e36102b945618f1cdc233",
+  "kernel/bashos-auth/authority/v2/request-binding.c": "d716fd5090d3005ed63adf9df5bae62fa5e7e3ff5e18569bece61b9e0eb9a804",
+  "kernel/bashos-auth/authority/v2/request-binding.h": "5c63f73d9a8545231fa003c9b678d45af54dff85f0840fed87073aa33e84f380",
+  "kernel/bashos-auth/authority/v2/safeedit.c": "564bafc95f3e0507531364fe5206695db06f3d1da1ab2d29b8f84c8324804a7e",
+  "kernel/bashos-auth/authority/v2/safeedit.h": "80e9afe958f0edd276f790c2dfab6f81a572efc5b08abcff8cfbbde73b02bc33",
+  "kernel/bashos-auth/authority/v2/secrets-under-test.c": "856ce55c166e5fa32dafedc021249e906d23531553fc7fb9f6565ba7629b46ef",
+  "kernel/bashos-auth/authority/v2/test-device.c": "4568efc51d7041eaa4ac7efc02236778c9c7a59948a996d1b30eed6f52e38996",
+  "kernel/bashos-auth/authority/v2/test-uapi.h": "153bf8aa0197ba9706d6ae560b43f2eea5e21005d94b3d2d60a4ce8c1362af1e",
+  "kernel/bashos-auth/authority/v2/timestamp-store.c": "e74757ceca1b231a93cbc00e0cef0f37d0eeb6232ae4211301a08d97485cab01",
+  "kernel/bashos-auth/authority/v2/timestamp-store.h": "2e1bdb0d369fc8d72cda08af36d81d5902cd88645d8a2eb705262d9589aa51f8",
+  "kernel/bashos-auth/authority/v2/trusted-input.c": "1647244426c60ec431dec2548baac28821a317a8d03ebd9fe9c431bf3600e526",
+  "kernel/bashos-auth/authority/v2/trusted-input.h": "177137f0a4e1102012b1d662e1f0ec08ae0d0c00d280f5c2e62dc8cea25f510c",
+  "kernel/bashos-auth/authority/v2/uid-limit.c": "b9d28638a63f35619cd3d607f2e3699886821e7bf61f97e94ea541b6c8c3001a",
+  "kernel/bashos-auth/authority/v2/uid-limit.h": "4426484569e77c732f8eee4a6d0c3639bc64e50e0ebdaa3b75ef4b0553130d02",
+  "kernel/bashos-auth/authority/v2/verifier-channel.c": "eb513e9d30a772a76bb4f2ac9c1aad3c6cd3b58850e423a7cfc55e9c2f1ea0eb",
+  "kernel/bashos-auth/authority/v2/verifier-channel.h": "ec494487e35bdf70eaefc835aff4465d1c2e88797cf5b474fe757aa30845bf42",
+  "kernel/bashos-auth/authority/v2/verifier.c": "b6a9a2b105a93430b37303763ba8feb9dafd93741c1ce8204250e19b35e0285d",
+  "kernel/bashos-auth/device.c": "d3371be8f99e0ec23e12a493edb0413dded19261814ed7c5c0bdb7878ef3cfcb",
+  "kernel/bashos-auth/secrets.c": "0b7b2fb23f27b0fc22a73dafa445ed22df7db3f1bd2e61b813fb0a36615f37b0",
+  "kernel/bashos-auth/secrets.h": "1338596cd61ef970d962c04fdc5ced7384fa2a1a9aa8da69d2551d0822e1f5d8",
+  "kernel/bashos-auth/tests/Kconfig": "c90897d4bdbf6ec0d37d36266793ab714c6eb7752d1655f03a9a66b87cd679d5",
+  "kernel/bashos-auth/tests/Makefile.kunit": "44375db8451647a62245911547981286a0370c50a622a51bb1c89fb7b6a2ea2e",
+  "kernel/bashos-auth/tests/abi_check.c": "31fb09aec8bd1f4444427d072c479de3fcce537e9d8822e4d70f33a1525f3446",
+  "kernel/bashos-auth/tests/abi_map.c": "5a6d0172e64e939e901492ecbce82b5d7635be67978c829f352be5861ea020f1",
+  "kernel/bashos-auth/tests/core_under_test.c": "bfbc544c77af6842e636304ad74d995492bb39ca545898ecb7320603c5b43cf7",
+  "kernel/bashos-auth/tests/device_test.c": "7d7812df997ccac3fc18cd11f0622276b09b2d4ee28168cbdfb86fa9a288b915",
+  "kernel/bashos-auth/tests/kunit.c": "4fd45a62f0762653d83e30fd64eb9e674eb4c2fc826bce0639874e20576d9ea8",
+  "kernel/bashos-auth/tests/kunit.config": "23c1f3701aa533711af3037a5f17861eee28ed3a6514dea4e57ea4ced2c60b94",
+  "kernel/bashos-auth/tools/bashos-auth-bundle": "507101106df0757b73584a023270ab61877535cb729f1b5a491883b6b2eb5ddd",
+  "kernel/bashos-auth/tools/build-authority.sh": "cba7e2f6bee30cc667793c88cd7a8ef103d1799d43495ee0f045cf32a81f0147",
+  "kernel/bashos-auth/tools/policy-check.c": "9f0face2936bbb50e05efb7f2a977858216c268940f69e17ac56da3525cfccd1",
+  "kernel/bashos-auth/uapi/linux/bashos_audit_v2.h": "f0cac2263cde9d583dbadb79a4b6919a335ab4655c2e30198b5d8488b5c58bc4",
+  "kernel/bashos-auth/uapi/linux/bashos_auth.h": "ee020e32a8463e34afa2e6089db030b021f1364bbbcc8825ef09d569baa57b0e",
+  "kernel/bashos-auth/uapi/linux/bashos_auth_v2.h": "de6d23a5344bf3569b07016005750a01206379da98a120cd9d17609b4cf288c1",
+  "kernel/bashos-auth/uapi/linux/bashos_privcmd_v2.h": "e29170905fec95a3b978336ae24d730fbee86c57ea215c7426c0866989787bc5",
+  "loadables/_bashauth/cred_exec.c": "71f7568b361a6995bc1409e282735ba730a5bd8d80a568b68c035e24f5324607",
+  "loadables/_bashauth/cred_exec.h": "ed919a205b0366a4427a02a85b343b84fdffe2180ee02110ed40304004b8a882",
+  "loadables/_bashauth/passwd_lookup.c": "1cd9519eb2aa3be575a48edb1680208638c19ab942f98054a60d31658418db7a",
+  "loadables/_bashauth/pwverify.c": "307e5f8218ec3b240bcdd9953894154f935ade9fe8702e9e3e61c2f6497303c2",
+  "loadables/_bl_proc/slabinfo.h": "9d9bd46a7ae24b867dceaed07d5fd372f18cafeefb42a5423626064f0034de8c",
+  "loadables/_git/sshsig.c": "a90c79662cbfc5e71fe055836269d926e50c75fd63809f2de18b6708249dfa12",
+  "loadables/_git/sshsig.h": "b464fc2145f1884d4f9ae369796ec1acc93ab0b093acabc0d10f1c8c9258aad3",
+  "loadables/_libssh/libmbedcrypto.c": "addac8d625032ca616f4db14f101092d911464168f1b2c8908e746d9b8bc56b7",
+  "loadables/_libssh/libmbedcrypto.h": "2fd818df197ea5ee40fc20f9e8f8c40e6532bf78e000365e4258fdadd97d4a03",
+  "loadables/_libssh/libssh.h": "fa0bedbba7f15be0ab54e88fdacad18ad2bbc65d42d6a4a04501d603cdbc83f1",
+  "loadables/_libssh/session.c": "6998067837cb07ab82d33a43f464e419d68173dc27a2aa22537d6a9d29e168b7",
+  "loadables/_libssh/session.h": "04f727e3039b61501e597a75c8f5d2333ca8bcbc3f605dfd596a69975fe4de83",
+  "loadables/_libssh/socket.c": "4b86a60212881367cd7ecba8fc42f9ecf9b26a7f4edb4217bf6e8f51e8f61829",
+  "loadables/acme.c": "4e7322c246a8617b4ff0c44de2f986629b76cdd9e2a9251eb20d5a146e271234",
+  "loadables/apropos.c": "e3e4f850177bf2d591f20372069d642745dcb162d2113164165b6044749d46d2",
+  "loadables/audit.c": "23b50dcad34ebabb295d252f7b1ff660cb6a7f56bf65acc183f2f8dacde73e08",
+  "loadables/auth.c": "70f00b5f834f799b4d19ecb1cc040da337458fb2dcc924f23677fe1d94fe308b",
+  "loadables/bashclock.c": "603e90cd7669773665fc13b67150ddfddcb62d47179b0e402ba03ea3de06f526",
+  "loadables/bashdhcp.c": "5ce97135704698923e65d2f7bf663fda2b59fcacc6d6254891e5b97deeacc42b",
+  "loadables/bashkmod.c": "d7ff58cb2b762ef2574566fdb697a9e8306747d984b629403d74279726333a31",
+  "loadables/bashpoll.c": "0085a67e19556b5417ee7ee9ea8b3b9e2ad4a30d4bab3dfb59f81eb85a2cc97c",
+  "loadables/bashtermraw.c": "e8d68636be91fa26f89d66e5bdfae33213ff9996a5a6e5f7b0e8f8fb47a3a556",
+  "loadables/batch.c": "6c00ae3fb1e70bf7f0a691945f82c0570050e63b6799246b09e3356ca673ba74",
+  "loadables/bc.c": "d3bd7b560d1355b47ea7c11d19835833ad05a89eb7ab0747355d48ebf41f893c",
+  "loadables/binhex.c": "689f5e8ca877f24b4d7aa8a4db54e9da18ffb80245a3bfe5d2c5703d1272258a",
+  "loadables/blkid.c": "580be1c26ddf7c1c663bf820cf2cf81979dc3b0bd98927d24b1a6c0f5c753b27",
+  "loadables/blockdev.c": "f3623aec8dff5b8c270f7c0402dc29b5f44c3dfb04c2bd55d152b13aaff0275e",
+  "loadables/bsdgames.c": "1e4c25d80118db10d3cc7346d253f86add80fa22351f10cbd474e608f9868866",
+  "loadables/caps.c": "6745dcb269091724fb48f1568c7570d0f687cdd2a0f006663d2d1f244919d202",
+  "loadables/cat.c": "faa328073a32b1133244fec00bf08281ee49ada8d90d998083f10132aea5a97d",
+  "loadables/chattr.c": "22f2532390c420e6118d0f0acebc61458985904c9d17aeaccb30e6fa155d0155",
+  "loadables/chgrp.c": "f7454cbcb484e414051a1c4629a0f889294f5027ccd79ee1c660c297a9faab28",
+  "loadables/chown.c": "40df58e20d877320d62e0b02f17be2ff9efd00af96360be1a02a0c68fc398ad2",
+  "loadables/chrt.c": "9c8c470aff232925047b41768ddbad5d6841f1e0ccf959b2375bfab7bd387d91",
+  "loadables/claude.c": "9db2f8a6319ca3b74f81712024be2699a3f9697edc44f7d54390a2d2a91ce754",
+  "loadables/comm.c": "0ed0490beb0f9a8c5aee57085928da1b85f0f0c34877e454fc4a553f9f6e7540",
+  "loadables/common/_bashcrypto_aead.h": "2942baa9df8ec5c211577f41061e1d339ef16b5028b0d7ac2992aa4e9c92b9a7",
+  "loadables/common/_bashos_audit_v2_uapi.h": "f0cac2263cde9d583dbadb79a4b6919a335ab4655c2e30198b5d8488b5c58bc4",
+  "loadables/common/_bashos_auth_v2_uapi.h": "de6d23a5344bf3569b07016005750a01206379da98a120cd9d17609b4cf288c1",
+  "loadables/common/_bashos_privcmd_v2_uapi.h": "87aa5283c198fcf652a85c1fa3cbd1b00eff7354b766b11ca3f631c6ef6aa92c",
+  "loadables/common/_bashtiv_blocks.h": "cb7f48eba9ee6ba7b41739a9290a09143bc7f335a22860509dd946b3826cef03",
+  "loadables/common/argon2-phc-codec.h": "f8de26ac049ce356c1977e152b7c7dcf3f0f9350e0ef6309f61c6935a285055c",
+  "loadables/common/argon2-phc-record.h": "d39ec5d2ee88f43bf7b3522a73a1549b633410cc71b08787c8a43c9ab5478807",
+  "loadables/common/auth-policy-model.h": "b079015544ee4891b093d340b8bc6fb36abec6ae65ce423bfe4ba46f8406bf22",
+  "loadables/common/auth-policy-parser.h": "e703ae56eb24ea747cc713512f696b9fd5f1ad07077e33982df9b349ed2cf9a1",
+  "loadables/common/auth-policy-types.h": "cb1afecea399f30eed867cb0fa5b6c0e96dca3320d12310d665a00593a73fed7",
+  "loadables/common/auth-v2-client.h": "f131cac124962c412e44dbc1a72c54577dc07afaf702851520fe5ccbf80b3271",
+  "loadables/common/authority-route.h": "4ff47da1f5e9330d221b21e03f892a1ea6bf6d9320579a57435a69ffa0a3d374",
+  "loadables/common/bashkmod-inventory.h": "fc68368b23afc33caaab61f77709756f11f7d0b547b9970510a312f49f2ea007",
+  "loadables/common/chown-operand.h": "0dccaf6ff1ab17e8e8405706bceb946b8e6ea2558e2bd3dc1e4b893484b8f26c",
+  "loadables/common/clear-impl.h": "80fdd807aeddc1740d87d59b338696438459a85e8e2dcb91da89ab00aed4eef8",
+  "loadables/common/escdelay-resolve.h": "178d2b8615c5553fa54e3d1fe92d3d9cef09a533d2316d73c7097f6d044604fc",
+  "loadables/common/gnu-quote.h": "1c097fc812fb16550b4efee23a2f89cd2fe3b1e99532f9b470551cbeb7a042d9",
+  "loadables/common/login-lock-state.h": "11464783edcc9c3747a18bac51f5ba495a5ce4aa05d7c1419878592e62437d77",
+  "loadables/common/pax-stream.h": "e0e7a48e1a9c490e68ba7d355218bc6672d42e3fda05516fa63231ca2a141f41",
+  "loadables/common/privcmd-v2-client.h": "00663f7d67b65632955a42297e0c563c8f4e209b0cf536bfdb397efa8b39cd72",
+  "loadables/common/shell-copies.h": "7c3f1313830b562252ba1cb50b3455b7cf062da1c9a4118219c5cef0104fceaf",
+  "loadables/common/termpixel.h": "edf2cdf17fa31898a59a832ba2d4a4940a6286354c55a81a0e896775bb1166ee",
+  "loadables/coreutils.c": "688138487e9d7a5ad623a1eac643bdbceff77a3da790624ceef3ccf9c893cde3",
+  "loadables/cp.c": "8cb62fe2613148d7a6277264f1bf5f9a6dc4d1d60c81e4a18973e4f4399681da",
+  "loadables/cron.c": "eb43947ca764908f281fd5af4d4bd257f6b05d6662338a61b6a550899d3bcd9c",
+  "loadables/crypto.c": "35a520342f6d890793acdacf6693355b0eb89b4d0a92c52f8d0a07331ae45a1b",
+  "loadables/curl.c": "a327ee8835b5292fc9a52e129c1fcd4b7c54157161791dab3fff88797050efa3",
+  "loadables/date.c": "b842c96c061cb1b8532d1d045c58499e4d364289738bf345ddc45a0783842349",
+  "loadables/dd.c": "90795b5017edf890d1b95e9e8bc8335e1b1ee2c0f1d57ee21d2d711f406ec705",
+  "loadables/df.c": "752843e26e9b6ba7db72f1fa029f2c36659dc452f793a3ae58c122ff8288291f",
+  "loadables/dhcp6.c": "c822af6c7bfb9cf1c8d34bf2686ca11613fbdf6f219783577face65b67d63dfc",
+  "loadables/dhcpd.c": "e323d2352034a25ff0c862857625035efed68017656064fcd37ccb08baf19608",
+  "loadables/dialog.c": "8a53f218950ec2e891081a3446a933ab2a167a0b2e841843c120834d9bf6a57b",
+  "loadables/dmesg.c": "aec93972572a52b2022a2820be11561fe02ae7f02be1df080eac4ed76bc8a629",
+  "loadables/dmsetup.c": "129163acc81234d370bcc6b992a8adde94ca5cc342e566ac214f8ad60b50298d",
+  "loadables/dns.c": "7f52912fb2e77db65e2d095e0dce4c62a51f1466f9912e8ff042e2bb4dd166c8",
+  "loadables/doas.c": "52caaae40b807f98b318f103e22cef0e62f078ea36ec4cba98b07c96bab678f7",
+  "loadables/du.c": "69c07a2057d1f3534e546e39fc75758042598a6c3d9f9f9475adaa0ad083dcb3",
+  "loadables/ed.c": "02c0e7c60ff7fb6d8f66544cfc399e35eb0aa5814d3d54f86ffb204c0f844755",
+  "loadables/escdelay.c": "46e81034b3ce616da3b8dea020bd1beaf1ca75345b49fa3d2fa35d85c2ca2066",
+  "loadables/fail2ban.c": "418136556abefcb8dd6afa3ed5d6c6a4234a80e1f2aa4a17185aac421895753d",
+  "loadables/free.c": "cde2c0819c4b67d9f87dfcd1c9762e23379f931eb94da03f406bfdbfb67fe213",
+  "loadables/fsfreeze.c": "343d7f6d9c810d20dc1e091fd55d8c36df106c0c9a2586125f7b6d3aff506470",
+  "loadables/fstrim.c": "076f25d2621b97ffc8c8ae0e98dc33010ef9ec44aa211348975e2b169fd06819",
+  "loadables/fw.c": "848d6a6c7bad35d5b482be55c4ced9aaf3dc8d22f7ac1db4909fbd50267f5314",
+  "loadables/genl.c": "921cb10525f3d481593f862855e7d0e79062b44cee1ca9f585139295d04d690b",
+  "loadables/git.c": "f069a0ef35c62ab01032ea0576a9a6b6d39d9841fa8de9df8980770127bc0281",
+  "loadables/gpu.c": "14eeb7632f678c8afe45b9ecc25dd4a0387e86891e5e2f99521720295ade22f0",
+  "loadables/grep.c": "dd3ff8f3a5117865d9c5e71ae6ab72c4ceb998e99dea383ccfaf8940b587bdf1",
+  "loadables/hexdump.c": "cd8531dabe3fb7bd722b1324b9a0005f86df73c435e6582d69854ae2d7b06dac",
+  "loadables/hostname.c": "ec239521ac79e4df559bcb1322a25405d9e3683748a46e87e216704594583b5a",
+  "loadables/httpd.c": "74be63b577d85eedce65b746990b33787dbd276911f2e3127b9775209804688c",
+  "loadables/hwclock.c": "acc1a5bee4a79d3d7250bc99e0edb54a071bf829d6363d5e48d7ecd1c43fd367",
+  "loadables/integrity.c": "076be99dae247d0146676618d6bcacfba48dfe702423cdf55c6c7feabf49f2fe",
+  "loadables/ionice.c": "65b14e160e68f99c978843a17d66740121c69bbff5d8c96f18002e2b133d05a0",
+  "loadables/ip.c": "d2a9f6a5d1c343c85956838977b3656844d8169aa96eeb1c25f05335b2dc1c9e",
+  "loadables/ipcmk.c": "9d39aa99bae38bf488b1cc07deb262bd618ea7564d1216563b90a33c6412d2e7",
+  "loadables/jq.c": "f0135a36c63c5e5019040a9b45bf3139d6b53ffccb4e1ecf50d3673b1f1d7400",
+  "loadables/kgetch.c": "30cf52627a01d5bc2206e18b96fd4f78dd413d5d29d0a13224e019c556b9f027",
+  "loadables/killall.c": "22f6dafebb93157162ef27f3b903a4a470f415c59ad2c5fdb060c7139c108484",
+  "loadables/ldap.c": "27bf9eac3198e0e37bcba1f0ca4d337ae8d2005ae97a24fe159a1a7002b55b34",
+  "loadables/less.c": "a9bce8cdcd418ded6b14da0fa0b06934904aad8998177a06ac386fff17411850",
+  "loadables/link.c": "318a80881ad08a6843280551437c0cc8e1b133d132ede7ede617957ea13b5d11",
+  "loadables/login.c": "f721f06ea2ddb47761d5ea01c64a32c28fd1b7cfee8d7f8bc7dc9548f8cde014",
+  "loadables/losetup.c": "576ea527f8e595ddb2f051b25950a1717e4a8f9c28d8b23ca83c85cbb311fec2",
+  "loadables/lpr.c": "a333cb1174fef17fcc120a1e53a7d2f80d58640bfc344a5e2c4841a972280e3c",
+  "loadables/lsblk.c": "a66d85726c614877eecb9fdba510cb806c2194da06efc16a083d9eb98d4c98e4",
+  "loadables/lsof.c": "502f76068bf00add2887a29d53efee5672ca321d8179ed0bb7d1c2ae64af27d5",
+  "loadables/mail.c": "ccd26a7b313eba87967768dbc105666f092fddac7c5249858fa670b2e799aa5b",
+  "loadables/mkswap.c": "b8e4b12a1ab68e9b3f3fc992228fa8ff388c888a78e6cb998ed18fde61c9ee03",
+  "loadables/mlock.c": "da0befca370bf2f71e02471a64d3a9dfdb286103c16ee3ba23c05dd2a4e72bd5",
+  "loadables/more.c": "27f4d878d90c90c72c1fb280a1a89be309aac10ad2fbeb2b4e58c3e16e838d5d",
+  "loadables/mv.c": "cd775e1c3a062fba9797a9c17fdc51f372157a787a3d000a8ab40a65f90bdae0",
+  "loadables/nano.c": "7a554dca54131e84dee35a9ba707ddbadd1add1aa514dff4d548e68a23307009",
+  "loadables/nano2.c": "2013be37b8a7704f2687d0b7cb5f40549e05a56c21fab3a2a4116b882f4f7f63",
+  "loadables/nc.c": "7ce77441de279e9f2f4f8d97958b7ed4d57d7c5ab97837bbb27ce74d2f271316",
+  "loadables/ncdu.c": "9fd848639c50aaba28399533a8d05268a2233a759c326163dfb66f54f323953c",
+  "loadables/nohup.c": "0e3f92a3ce58c7b1f29f87010825d808a09cf90769b8a9affc9cbafac447901d",
+  "loadables/ntp.c": "86960ec277300e4b52daa6c52bb21aa3ae6da806170d009a52615168c526cbf5",
+  "loadables/passwd.c": "aa0f31e563fe6bd9a2582b47a73205a06e90ca1029787cd5f385892e01e1b2f9",
+  "loadables/paste.c": "fe207f9f80e7ec108798c7632424be0a7bbccddb2f7f56fb281512241a70e2be",
+  "loadables/pax.c": "5e8c3d99b60c41b7dd81b3bd41a5bc65728d1ecc2d206076b5a6af061428be87",
+  "loadables/pcap.c": "f626adb8a5f1517c6ce9a3e90a598651314c0cf495e2ba6333435d0b3bc10a91",
+  "loadables/pgrep.c": "2cbc676ba7894590082b18cb16cf184b352b80e2b2c9c922119178729e4eea70",
+  "loadables/pidof.c": "e1a2e222110859697d6ad9f63bef85399d8589d929bb798c3765a77e38a460e8",
+  "loadables/pkg.c": "f9eb940ebb512039525185a90ea130b6fafd8a5b48658e1c0e7bc20d8ee489cf",
+  "loadables/pr.c": "a1e39741196bb8694b5fc6c693a0eb97d784aa6312e7373ef4330c160848ce50",
+  "loadables/prlimit.c": "5e5797686845e4f0e47adfbfeb87ad60f4236da206bddca05271e14299dc6ac8",
+  "loadables/ps.c": "d4728949e7ba1428ff3cbf08d5984966a22708a9edfd5417056645cc2a4560bf",
+  "loadables/pty.c": "e1933cd89b22283dd04d86df13b89b8ef2f20dc82aaf147537bfca8518087847",
+  "loadables/renice.c": "623272a6bd7eaaadddd1c2760c8baebe41c2e4f32901432b18381497a60bd78e",
+  "loadables/rsync.c": "dd925c896611279d6ce6d5d5dcd1111b2e3684cdb9640974887e70a6cf68ef90",
+  "loadables/rtspcat.c": "beff64870af2eabb68179c110f86ce72beca5302b751907c4932436c6ac5201e",
+  "loadables/screen.c": "7e7861590f1d167a25fa95d6cf0d56d004ba0ece585142ef1cdbb72575b206fe",
+  "loadables/sed.c": "c165065934afcffe5ac3ffe9e97a475056ea190d9f5ddc3e8fb0b8247a350ed2",
+  "loadables/setfacl.c": "0ac6f62e492574fb020dd340aa96caac355117d9dbf95aed3a1fe1db9d3145cb",
+  "loadables/setsid.c": "078aa81b860a7be5603ff321dba98b1dd9664691c541058ab174accd2873ad77",
+  "loadables/sftp.c": "64d14fd0a83ea084720ad6cbb1087c1edc94ab2cf7be345167dce679d53af0be",
+  "loadables/slabtop.c": "7f170682551209bf484009a3dd10fe0b4d6ac01d78cd7b148a47285564c72094",
+  "loadables/sort.c": "7e00027efa841fa25a271f3e55dfc1f8d7940d6f7d799c7b9ad603c312496f13",
+  "loadables/split.c": "71bf6885d36a3de1f2fd7ca5e4102a73faee946c981a295bed3306f13e2ab4df",
+  "loadables/sqlite.c": "7e5fb632d0adf8b4bd0741057939010312e70eb376ed953ff0c18534893593df",
+  "loadables/ss.c": "8812255b1ff1131670d59c4c05646731547520c65deb477c24ef87da98e0ea16",
+  "loadables/ssh.c": "bcdb15300ea6db73bd9b0a9ec9f457808bcb4eef8ad10a6c243d5f0975067154",
+  "loadables/sshd.c": "bdc4c1b22b8963843bf362ea4a999561452f0d7b3684e83da1892e83dd29396d",
+  "loadables/strace.c": "872afc83afa5df2c7f36cf2a5e8fa55b7acf3d112c8656a1ba28fa1331adabc6",
+  "loadables/su.c": "cd1fd5857d7d5fd26a9e197627643a1204888a5427751025af2b05b2bb542fdd",
+  "loadables/sudo.c": "d7e57c13798e2458a7684519625f68aad2d6a6893f8d19f576fc08720ffdc320",
+  "loadables/swapoff.c": "e37f67a512e92710bec673b3b6009f72c41161d145038d71a999848c8c9e89fd",
+  "loadables/swapon.c": "15c571cd95147a6707872b7531efbd131c13f6244fc4733416b151246575cd75",
+  "loadables/sysctl.c": "c8960e9242aaaf31efd39014ca3c4fd57e4ba788a1629239f5823b7c21f9f30c",
+  "loadables/tail.c": "9f57394069f6b3bb6fb7390a45f271587e529490d4526eff5291513396358d97",
+  "loadables/tar.c": "71e3124153dbc2e7579c999cecfe021125549e070d8f749f275b4067666478e4",
+  "loadables/taskset.c": "ed0f039c5966123088791a5eacf3920098ed5dec3cfe5b445bcf06046e4f390c",
+  "loadables/termpixel.c": "a3d8b2fcbcb6e43c6bdb4300ea34fb904e1d3a3ae0802f324bb5574cf6eba9e6",
+  "loadables/termpixel_pong.c": "9248a60c46084931d7ea793e905d373650517eae49a077704bf1d3a69604fbd7",
+  "loadables/timeout.c": "b572d3f63dc61219540fb71a8abdbc00fa4d0b66203dbf262a5bb8baf20e8be4",
+  "loadables/tiv.c": "cfa142b892fdd569fae1809d62727d0e27c8f834ab9d94cee6ca3207cb96b386",
+  "loadables/top.c": "ae32e9728c38ea1144ee61a639c56541064f56e6471f88ecd9e180591855de1a",
+  "loadables/touch.c": "d4e459379aef7084f3e133a1d2066115cb0c340c03bdc17e451deb2732667171",
+  "loadables/tput.c": "454e223360badd43006c9640083809eb126ed84a6bc0e084149eb01440f84ad3",
+  "loadables/truncate.c": "7a4e509fd0f72647791b88c55ccc1503a09f8de82dbd642b08ee832673df601f",
+  "loadables/uclampset.c": "fea7876fe4aafe71cd4812361df47a6f6a284583630869fb8c194211563d8f90",
+  "loadables/unexpand.c": "2412a44f2d39a6c1190063614b4446acc900b2b9abe9c46d97aa72fe69a8f26f",
+  "loadables/uniq.c": "64d39ac9912b3462968e13623d8e14c77ff54565aebf104e1772b335917ef4e9",
+  "loadables/uptime.c": "876582c010dfcad0dff6fa7b7b4114572b812287d76c60226ae6a1dcfd4a9d84",
+  "loadables/userdb.c": "b3f3a91159e0fbdb3b3e9d1317f38bbbd00ac324c8ba2f073a1791c081e420c1",
+  "loadables/utf8.c": "3d0f15e539bd26c3d5b461022c2f4312b44c4f515a59b6ca70d5eed2f2bbbee0",
+  "loadables/uudecode.c": "f92ba8d88d70955602cceee17c360f5c4bd82c6deb91a023609f796eb21f3647",
+  "loadables/uv.c": "f7010b30086a76c116274ce4b22cfb387542b547e567f1b5c9343cb9bf645e8c",
+  "loadables/vi.c": "aabd045a05144471782d3244f8a5aa73a7be5fb262504f13b8d2c71de78c38e8",
+  "loadables/vt.c": "18b33ae19a271acf25fa84e38c82abafab8346d7065074252c76c83f8d99930f",
+  "loadables/w.c": "ac32cfc48ae9b076ce019656f4b1a3bc6d7de932a2f6204189ba424d91442d92",
+  "loadables/wall.c": "71ab84d250d3f29a48bb84855cb6a0f332ea23d94e15d8852b709a9c1538be4b",
+  "loadables/watch.c": "7e00702233658aee521ecc88a68b7060ef120184038dbac5f8534180b04ab32d",
+  "loadables/wc.c": "e93490d107926dfec1230ded32cf3ae506c77fc2b583bcf57811f98befc3944c",
+  "loadables/wg.c": "49aa455afba8785e5e2a78e0215602b0d15d5c8909c03edd30cf868da2ed6a8b",
+  "loadables/wgetch.c": "e66773f26fe38082bb902a15121db690cd48c75e7c1a8c6903e7866cbc3c6eb0",
+  "loadables/whatis.c": "d577a81ad79cca9104dfb1004250576c5ac76ec65f5fa5c7a453fb411e3fdd28",
+  "loadables/who.c": "f02ae3ab6f40898c0a01be129b36f972ad9ce44eab80eb143fd103f9f6eca630",
+  "loadables/wipefs.c": "cee9c502b01e50a7e9d40081753d924b512d6d24bf0c7ee83287271a347a79f9",
+  "loadables/xargs.c": "ae593274f9eb9cbc13bdd1eff9bd5a389db27c8b3f652db882fb91c46926d00c",
+  "loadables/zlib.c": "f74161ec59ffeaaac05068279f7cdfe61686fa5a792909bdf426d4f52887e8e5",
+  "patches/async-exec-handshake.patch": "60ec243e512df842a77f02d93ff16cb6f1d510fe01a0ecc86ce468a84faac7d2",
+  "patches/chmod-umask.patch": "d587ab3a1f18c497464e84dacd3478151d2153a332ed80e801c7242408b22d63",
+  "patches/enable-static-uv.patch": "805e76aaffdea5230f178f47bb9b6f5270f0f739090df27f46e77558b103379f",
+  "patches/getconf-gnu.patch": "cb9bef606f101f3eee27d838b3f670fac80e8ae1752bd126a540165ab4eab698",
+  "patches/id-gnu.patch": "d14a45de6588d24e3ed2b2dd853bbda213cc94ba1ac59e0fa89741c322718bab",
+  "patches/sleep-gnu.patch": "6b38cc75b6ea462444a10738fd09c3ddbab797153db0f7326b0b35cf1d83330b",
+  "patches/strptime-gnu.patch": "0347edf434994dfb6aa7ae7cec3d1d3ea37ce4faa811852d122e476a8781d505",
+  "patches/sync-status.patch": "a9d445038507ad3235366d2ec206f31be1258138b7550c95c9ca691e4733da04",
+  "patches/tee-io.patch": "2952a9459ce802b7bcffd1ae47f1eb81e1e995c268c6a69dfa7bc4e68defdd7f",
+  "patches/uname-gnu.patch": "3d1c28284e3844927af16ec5b3f47ebaf76faece6bd506c8abf2f4cb685450be",
+  "patches/unlink-gnu.patch": "89e75389cd6e6d61058e7636496e9e99237561137d06b636875de379899ec95e",
+  "patches/whoami-gnu.patch": "80c39f940c1e4ff47a9d34a1bb5db6eb5eaf1a179b60eb6a335dc5991c08b608",
+  "scripts/docker-parity.py": "5f12af5a8702d98c8fd0d28560a3fa6f468fc4736d59fb09de542124553a5667"
+ },
+ "harness": {
+  "tests/parity-vm/clamp-native-stage-r2.py": "3f6fe1035cbe2ddfb3fa32d732467b93b0e29ea84706059ee3fea97842f785dd",
+  "tests/parity-vm/clamp_guest_support_r2.py": "d0ef131cd7a3c705d1dc30b3a6041490636ee920dcd921515ab3f461160b679c",
+  "tests/parity-vm/clock254-profile.py": "21337f26059d19d993e7e9dcd96f07c7479734f02d3e4dbfedaaf3f6fd91789d",
+  "tests/parity-vm/deferrals.py": "d11090736c23c6806eb1c8d7ee8ecb7919aac6d976de71a54d9e1a22b6710fcd",
+  "tests/parity-vm/device_v8_raw_audit.py": "46113da7520c20d60f5068dd9d3d4cf87428ed846b1f521d37752f4a8ba87f6a",
+  "tests/parity-vm/executor_observer_broker_r2.py": "92d0e3b61b1007eb5594c6b9a7ae7b6dd5ff3f5f1ab082296448583f7b3f90dc",
+  "tests/parity-vm/executor_observer_client_r2.py": "484e5f82028774273ee10a89b3900edb0965ad53cefddd9b20a397f400454c7e",
+  "tests/parity-vm/executor_observer_contract_r2.py": "2fa29bf9cabdf1d3044d3b619d2f6365de1b62e586313143d800333e40272a06",
+  "tests/parity-vm/executor_observer_launcher_r2.py": "e77a80c95644ffed6447ff5a07662ec39c22a93c28ef753b9b8885812922bac5",
+  "tests/parity-vm/executor_observer_transport_r2.py": "f7401859083b9c48552cc44dfb11fdde8b5bc10d08afb8ee386b75310540124e",
+  "tests/parity-vm/foreground_observer.py": "04c753f009ccf6e94712dc67af1fc43dd1c39d780662cf91c95f4bfbf284d724",
+  "tests/parity-vm/guest-clamp-r2.py": "1c56733e55a0991f3d39e155d05b8b2f0adefe1344644af0c13b7cef634c9909",
+  "tests/parity-vm/guest.py": "de49f42983e77c112c93f8f0ccac9d1cdd635bc9b00a91c3630ea6650db5d554",
+  "tests/parity-vm/image-extended.lock.json": "94731c322c9cc0d16f01353bfdbaf7f29874afbb30578e12a2d658d7ee7363bc",
+  "tests/parity-vm/image-gpu.lock.json": "6e9ca24e85bd84fc010c6a07ed0a3344285d7deee2424c1cd4f97fb45019199c",
+  "tests/parity-vm/image-selinux.lock.json": "88daddfb2144e66f747d95c5f92099deb7fff313b88da6f8f8fd2369a481d7e6",
+  "tests/parity-vm/image.lock.json": "13f03b1a6e4ba24323275197bc6f3349853ee7b101556069d4b6342422cd5bb5",
+  "tests/parity-vm/inventory.py": "94a8db0606a3638416cffe62421d16468a6a3496f838484b01ae1524e4eccae3",
+  "tests/parity-vm/kernel_secret_control.py": "da95709fb731947e7bf920c5bc4bbb803c7f2262318f2524d0a8910b0f043174",
+  "tests/parity-vm/network.py": "af5f09a549aa84e8aa32cf2e7a4a3474b1f0b7a3da8ab4c5b4e497ce9569ca12",
+  "tests/parity-vm/primary_broker_evidence.py": "11a2b536f700f78e129e1928cfc094244c85c5f4fb732ed4c0c38aa8612aa30c",
+  "tests/parity-vm/primary_calendar45_evidence.py": "911685c6437e24e1ac4839a362988e935992dd8cff4e8990e98aa9b521f9411a",
+  "tests/parity-vm/primary_calendar_evidence.py": "11403b55b3823ddfcd5a3167da98630c427b21bf8426ac322723c14e6b30bc7a",
+  "tests/parity-vm/primary_clock_evidence.py": "02b206a8dadd3a5a086d6776fde9a267a7e5d47f5ab2bc532b55838c6b4c9cc3",
+  "tests/parity-vm/primary_controller_evidence.py": "b926b5bf88055c763a4ed5f36d5df56681a34d3cf3c160c434d16999ab8b20c0",
+  "tests/parity-vm/primary_device_v8_evidence.py": "5a1d23a86b9aabda77911d7ae56584c343e42795633d99fe8ea2aa4c4ba5920a",
+  "tests/parity-vm/primary_dmesg_native_evidence_r1.py": "11feb98a8b38072a01de0b18b5435ee88753eb6cbf15498592df9aa12cf91072",
+  "tests/parity-vm/primary_modern_evidence.py": "87f56ed376c4396272f2abf4d99f7c8419d6b3d04bf98b07514817e42a0d1d3a",
+  "tests/parity-vm/primary_ncdu_evidence.py": "33f542ec2f48a5d8c372bc472cc0e626faefb0356fac10418a372d0d9584b057",
+  "tests/parity-vm/primary_ns_native_control.py": "400a7cee875899ec1ef8bcbd77e8cc0b3d9fa58b7a7571f54e11db3472a4073b",
+  "tests/parity-vm/primary_owned_crypto_validator.py": "4591c9a07113de118d2689a5ff923cef3ec638391202151e3bcb7923ede58ac6",
+  "tests/parity-vm/primary_owned_passive_validator.py": "abe1dd268d8fbe1ffc11f3b797a46c38e40397c68c50bac3daa73d21c309ccaf",
+  "tests/parity-vm/primary_owned_pty_evidence.py": "bdde1bbd848d9f3e62fb707fc77f993b3cdb6e7f79d4b689098553ba320cba3a",
+  "tests/parity-vm/primary_owner_r12_evidence.py": "a5b400c1009e43865caa2b885e5bf5a9d7aa53b9c11b6b3a58c903c885edefcf",
+  "tests/parity-vm/primary_rtc_evidence.py": "7e5b90cafc5ff283ed7ff19407e9f0df3411974c00c3b220ce44931b9c046acb",
+  "tests/parity-vm/primary_setter45_evidence.py": "1f2f33d04ec161ce8edc004eaf6ecb4e758cac0cfa952df9bd2f8396c12f509c",
+  "tests/parity-vm/primary_ss_multipart_evidence.py": "03d7fbe94ac7eaf4268c26ee7c5616a123df4e78c0f17241a14c9da3b6369edf",
+  "tests/parity-vm/primary_su_v7_evidence.py": "b2b0871b97d54418a8de8f5360b79de9c7a7fd9121facb0a012eeb07f8754eac",
+  "tests/parity-vm/primary_syslog_evidence.py": "e6020bb323542577c20118e2e43ea0d4fa83d7684ae1917f5aca0bdf0ea3117a",
+  "tests/parity-vm/primary_top371_evidence.py": "b5d4df4f51858858ea13eaeb3ffb8d91860d137042883134a3004ca9d7992dac",
+  "tests/parity-vm/primary_top_typed.py": "d157f84b5608ede3b6f44a87ac6372caabc92d0c11b8743afd1e3db78f4ac56b",
+  "tests/parity-vm/primary_uclamp40_evidence.py": "2cd337e46f5248512d85f52af5a3e4620ef57765b1cf14c8f61e0515f4d48611",
+  "tests/parity-vm/primary_uclamp_setter55_evidence.py": "1e5cc987c2f0cad5ba91af0922efd86772704eea86879c3c963a65437a3b3b5d",
+  "tests/parity-vm/primary_vec_i686_evidence_r1.py": "562b9424a5e84341d4f3c72af0357a9027c3687cb55e551332859c1c8532cf05",
+  "tests/parity-vm/primary_watch337_evidence.py": "dbd000c0e8a3c80b031940a4766309b1306080e9a82267ba022ffa078ea24ab0",
+  "tests/parity-vm/primary_watch_evidence.py": "1a467c2e922ff0526ca831051d6c31d18e210e633ad0d5930144ba8648b6374a",
+  "tests/parity-vm/references.py": "d31ca029fba779d30f1eeecbcb58a3280c1869a3888543cffefe6461229b3d30",
+  "tests/parity-vm/schema.py": "d68c2da33413044eb00d6aef6356e8fe0b388682d55fcb4b0a91e8367e7811e0",
+  "tests/parity-vm/scope.py": "63611c3638b270ac3ad71f19ac2cf7368778207f1f223177b794b3c2f47b6d3a",
+  "tests/parity-vm/selfcheck.py": "d2b4e2cdd0faab062e2b4b7bbeca44f3d79694b65129631336ea5f8363e1cdf8",
+  "tests/parity-vm/setter45_inventory.py": "746f72accd577b7669c783f30acbfc9210660dd03160009182f3cbc05943b8d2",
+  "tests/parity-vm/setter45_saved_logic.py": "5ab6150b65178a1d77c91f47737f8f3720bb3d9e82507ef5a8b671f772dad55a",
+  "tests/parity-vm/terminal.py": "4eebe663bb27fb36e3afd98793f355d799b889932ad8d5527aff137ec6c8d409",
+  "tests/parity-vm/terminal_frames.py": "4c6ddbaef89a98a69fbcb16a24de4a6d1a55b7a6de6e93e538bebf7cdce6d435",
+  "tests/parity-vm/terminal_restoration.py": "78dc35f728b3627ec5233225ac4a325309f787d7cc31940071a6c56588400754",
+  "tests/parity-vm/test_clamp_r2_data.py": "40a248f0859706e08d65622b122733fd9ba661c534738e56ba82465d2ef66f80",
+  "tests/parity-vm/uclamp40_case_semantics.py": "d3fb1b566d256eb311afcb65d989120df24065ad921037cad171917684032c8d",
+  "tests/parity-vm/vm-clamp-r2.py": "2c6bde02969b31f1ff1858d0846d2403cc7c741e64361beb4f4af897ff504487",
+  "tests/parity-vm/vm.py": "d19b34c1ab2697b2439e5f7aeb7cd0465dabaf4ff7ea12b1c1c1a2fd0a926eac",
+  "tests/parity-vm/watch337_dynamic_data.py": "c5e35fc058b78ad8ecb360925b90d23059321155d35e7263b8a11206948ea60e",
+  "tests/parity-vm/watch337_static_data.py": "0b6979ab07b7c615df24a0374eb39b97235f732ab3ed4da2548dcbd8b8aa7db2"
+ },
+ "builds": {
+  "dynamic": {
+   "binary_sha256": "966f2d3447abcc6720f971c2deb83c7a2e078cac27da98b0e8d3275fe7f60af9",
+   "binary_bytes": 13002536,
+   "manifest_sha256": "79a8a3a0a63bd77889f2753bf8130c904f786f22ee8d7c82ef632500aec4cbc4",
+   "injected_builtins": 287,
+   "static": false,
+   "ordinary": {
+    "runs": 17,
+    "results_by_group": {
+     "inventory": {
+      "COLLECTED": 1
+     },
+     "legacy": {
+      "DEFERRED": 1,
+      "MIGRATED": 599,
+      "PASS": 3246,
+      "SKIP": 21
+     },
+     "network": {
+      "PASS": 125
+     },
+     "reference": {
+      "PASS": 34,
+      "SKIP": 4
+     },
+     "selfcheck": {
+      "PASS": 16
+     },
+     "shell": {
+      "ERROR": 12,
+      "PASS": 2228
+     },
+     "terminal": {
+      "PASS": 449
+     }
+    }
+   },
+   "extended_image": {
+    "runs": 2,
+    "results_by_group": {
+     "shell": {
+      "PASS": 36
+     },
+     "terminal": {
+      "PASS": 19
+     }
+    }
+   },
+   "selinux_image": {
+    "runs": 1,
+    "results_by_group": {
+     "shell": {
+      "PASS": 1
+     }
+    }
+   },
+   "root_gpu_selinux_root": {
+    "runs": 12,
+    "results_by_group": {
+     "shell": {
+      "ERROR": 11,
+      "FAIL": 1,
+      "PASS": 216
+     },
+     "terminal": {
+      "ERROR": 3,
+      "PASS": 1
+     }
+    }
+   },
+   "clamp_image": {
+    "runs": 5,
+    "results_by_group": {
+     "shell": {
+      "PASS": 39
+     }
+    },
+    "live_sysctl_root": {
+     "runtime-uclamp-live-sysctl-r1": "PASS",
+     "clamp-r2-live-sysctl": "PASS"
+    }
+   },
+   "executor_observer": {
+    "qualification-014-takeover-executor-r1": "PASS"
+   }
+  },
+  "static": {
+   "binary_sha256": "8edb6607d69f49322091e1f05b7da8f198f999ea3fe55e1ca0be14d05d7251ca",
+   "binary_bytes": 15422120,
+   "manifest_sha256": "2542613c37cac7d70419c72aaedb33a15aec27d086f4a774786c9830a280d0d1",
+   "injected_builtins": 287,
+   "static": true,
+   "ordinary": {
+    "runs": 17,
+    "results_by_group": {
+     "inventory": {
+      "COLLECTED": 1
+     },
+     "legacy": {
+      "DEFERRED": 1,
+      "MIGRATED": 599,
+      "PASS": 3246,
+      "SKIP": 21
+     },
+     "network": {
+      "PASS": 125
+     },
+     "reference": {
+      "PASS": 34,
+      "SKIP": 4
+     },
+     "selfcheck": {
+      "PASS": 16
+     },
+     "shell": {
+      "ERROR": 12,
+      "FAIL": 2,
+      "PASS": 2226
+     },
+     "terminal": {
+      "PASS": 449
+     }
+    }
+   },
+   "extended_image": {
+    "runs": 2,
+    "results_by_group": {
+     "shell": {
+      "PASS": 36
+     },
+     "terminal": {
+      "PASS": 19
+     }
+    }
+   },
+   "selinux_image": {
+    "runs": 1,
+    "results_by_group": {
+     "shell": {
+      "PASS": 1
+     }
+    }
+   },
+   "root_gpu_selinux_root": {
+    "runs": 12,
+    "results_by_group": {
+     "shell": {
+      "ERROR": 11,
+      "FAIL": 1,
+      "PASS": 216
+     },
+     "terminal": {
+      "ERROR": 3,
+      "PASS": 1
+     }
+    }
+   },
+   "clamp_image": {
+    "runs": 5,
+    "results_by_group": {
+     "shell": {
+      "PASS": 39
+     }
+    },
+    "live_sysctl_root": {
+     "runtime-uclamp-live-sysctl-r1": "PASS",
+     "clamp-r2-live-sysctl": "PASS"
+    }
+   },
+   "executor_observer": {
+    "qualification-014-takeover-executor-r1": "PASS"
+   }
+  }
+ },
+ "kunit": {
+  "suite": "bashos-auth-authority-next",
+  "pass": 21,
+  "fail": 0,
+  "skip": 0,
+  "config": "KASAN and PROVE_LOCKING",
+  "kernel_sources_changed_since": false
+ },
+ "first_run_non_pass_and_reruns": [
+  {
+   "ids": [
+    "migration-clock254-boundary-large-epoch",
+    "migration-clock254-boundary-max-nanos",
+    "migration-clock254-boundary-negative-epoch",
+    "migration-clock254-boundary-zero",
+    "migration-clock254-domain-boottime",
+    "migration-clock254-domain-monotonic",
+    "migration-clock254-domain-realtime",
+    "migration-clock254-since-borrow",
+    "migration-clock254-since-clock-error",
+    "migration-clock254-since-exact-zero",
+    "migration-clock254-since-future-fraction",
+    "migration-clock254-since-future-integer"
+   ],
+   "first_result": "ERROR on both builds before a candidate result",
+   "cause": "harness: the clock254 guard reads the evaluator command line with an 8 KiB bound, and the 239-case chunk passed 8,737 bytes of case ids",
+   "resolution": "run in a 14-case chunk; no source or fixture change",
+   "commit": null,
+   "reruns": {
+    "migration-clock254-boundary-large-epoch": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "migration-clock254-boundary-max-nanos": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "migration-clock254-boundary-negative-epoch": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "migration-clock254-boundary-zero": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "migration-clock254-domain-boottime": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "migration-clock254-domain-monotonic": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "migration-clock254-domain-realtime": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "migration-clock254-since-borrow": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "migration-clock254-since-clock-error": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "migration-clock254-since-exact-zero": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "migration-clock254-since-future-fraction": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "migration-clock254-since-future-integer": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    }
+   }
+  },
+  {
+   "ids": [
+    "migration-dns-authoritative-rrl-slip-r3"
+   ],
+   "first_result": "FAIL (observer=incomplete) on static",
+   "cause": "observer: a /proc read of the exiting server failed with ESRCH, which the observer did not treat as exit",
+   "resolution": "observer treats ESRCH as server exit",
+   "commit": "d87e76c884f249adec71683073e6b0dfe5ddcf53",
+   "reruns": {
+    "migration-dns-authoritative-rrl-slip-r3": {
+     "static": [
+      "FAIL",
+      "PASS",
+      "PASS",
+      "PASS",
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS",
+      "PASS",
+      "PASS"
+     ]
+    }
+   }
+  },
+  {
+   "ids": [
+    "repair-dns-authoritative-encrypted-peer-policy-bounded-r15"
+   ],
+   "first_result": "FAIL on static",
+   "cause": "not reproduced",
+   "resolution": "unchanged case and binary rerun",
+   "commit": null,
+   "reruns": {
+    "repair-dns-authoritative-encrypted-peer-policy-bounded-r15": {
+     "static": [
+      "PASS",
+      "PASS",
+      "PASS",
+      "PASS",
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS",
+      "PASS",
+      "PASS"
+     ]
+    }
+   }
+  },
+  {
+   "ids": [
+    "mig-w7-fdisk-reread-after-write-root"
+   ],
+   "first_result": "FAIL on static (on dynamic in the first rerun)",
+   "cause": "fixture: udev's inotify watch probed the loop partitions after a write while the next BLKRRPART ran (EBUSY)",
+   "resolution": "the case turns the watch off for loop devices",
+   "commit": "6d4aa9281bc209f4a24c401e681f114f35ef8ebe",
+   "reruns": {
+    "mig-w7-fdisk-reread-after-write-root": {
+     "static": [
+      "PASS",
+      "PASS",
+      "PASS",
+      "PASS"
+     ],
+     "dynamic": [
+      "FAIL",
+      "PASS",
+      "PASS",
+      "PASS"
+     ]
+    }
+   }
+  },
+  {
+   "ids": [
+    "mig-w7-dmsetup-udev-cookie-root"
+   ],
+   "first_result": "FAIL on dynamic (reference stdout)",
+   "cause": "reference run: GNU dmsetup remove --noudevsync met EBUSY from a concurrent udev probe; the candidate removed the device",
+   "resolution": "unchanged case and binary rerun",
+   "commit": null,
+   "reruns": {
+    "mig-w7-dmsetup-udev-cookie-root": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    }
+   }
+  },
+  {
+   "ids": [
+    "auth-stage1-real-auth",
+    "auth-stage1-real-set",
+    "auth-stage1-real-set-artifacts-r1",
+    "auth-stage1-real-set-standard-phc-r2",
+    "auth-stage1-real-verify",
+    "auth-stage1-real-verify-artifacts-r1",
+    "repair-t157-passwd-sigint-change-current-restores-terminal-kernel",
+    "repair-t157-passwd-sigint-set-new-restores-terminal-kernel",
+    "repair-t157-passwd-sigint-set-retype-restores-terminal-kernel",
+    "review06-passwd-change-race-kernel-aba-r3",
+    "review06-passwd-change-race-kernel-lock-r3",
+    "review06-passwd-change-race-kernel-none-r3",
+    "review06-passwd-change-race-kernel-set-r3"
+   ],
+   "first_result": "ERROR on both builds before a candidate result",
+   "cause": "staging: the pinned authority module, test device client and libargon2 were not in the reference directory",
+   "resolution": "the three pinned artifacts were staged; digests match the fixture pins",
+   "commit": null,
+   "reruns": {
+    "auth-stage1-real-auth": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "auth-stage1-real-set": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "auth-stage1-real-set-artifacts-r1": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "auth-stage1-real-set-standard-phc-r2": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "auth-stage1-real-verify": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "auth-stage1-real-verify-artifacts-r1": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "repair-t157-passwd-sigint-change-current-restores-terminal-kernel": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "repair-t157-passwd-sigint-set-new-restores-terminal-kernel": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "repair-t157-passwd-sigint-set-retype-restores-terminal-kernel": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "review06-passwd-change-race-kernel-aba-r3": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "review06-passwd-change-race-kernel-lock-r3": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "review06-passwd-change-race-kernel-none-r3": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    },
+    "review06-passwd-change-race-kernel-set-r3": {
+     "static": [
+      "PASS"
+     ],
+     "dynamic": [
+      "PASS"
+     ]
+    }
+   }
+  },
+  {
+   "ids": [
+    "migration-genl-list-multipart"
+   ],
+   "first_result": "ERROR on both builds before a candidate result (the root run used an interim root variant of the case, since withdrawn)",
+   "cause": "precondition: the guest kernel family dump fits in one receive buffer (see limits)",
+   "resolution": "recorded as a limit; the original case was rerun on both release builds and ends in the same CONTROL-INVALID",
+   "commit": null,
+   "reruns": {
+    "migration-genl-list-multipart": {
+     "static": [
+      "ERROR",
+      "ERROR"
+     ],
+     "dynamic": [
+      "ERROR",
+      "ERROR"
+     ]
+    }
+   }
+  }
+ ],
+ "ledger": {
+  "record": "tests/parity-vm/deferrals-014.json",
+  "record_sha256": "7d899f53104098c59895008f3cff64cf9d7a2aaba3e4fc8739ab7f81d676f6e9",
+  "topics": 600,
+  "coverage": {
+   "full": 599,
+   "partial": 1
+  }
+ },
+ "limits": [
+  {
+   "id": "tput/hardware-init-reset",
+   "result": "DEFERRED",
+   "reason": "physical terminal hardware cannot be qualified in a disposable guest"
+  },
+  {
+   "id": "migration-genl-list-multipart",
+   "result": "ERROR before a candidate result on both builds",
+   "reason": "the case requires a generic netlink family dump spanning two receive buffers; the qualification guest kernel has 26 families in 7,108 bytes, one dump chunk, even with every available module loaded",
+   "covered_by": [
+    "migration-genl-mock-multipart",
+    "migration-genl-mock-foreign-sequence"
+   ]
+  }
+ ],
+ "scope": [
+  "Every count is a case result on one build; static and dynamic totals cover the same cases and must not be added.",
+  "Results are the first full run on the release binaries; reruns are listed with their causes and do not replace those results.",
+  "Rerun lists are chronological; where a commit is named, the runs before it used the previous fixture.",
+  "bashperl and bashpython ship as optional packages: their legacy rows SKIP because the loadables are not built in, and their migrated cases run with the packages staged."
+ ]
+}

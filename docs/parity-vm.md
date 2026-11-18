@@ -227,6 +227,62 @@ execution without the matching VM marker, DMI identity and guest isolation.
 
 See [parity scope](parity-scope.md) for the full inventory and remaining work.
 
+## 0.1.4 release qualification
+
+The 0.1.4 binaries were built twice from the release source with identical
+results, and every fixture definition ran on both of them in disposable
+guests: non-root cases on the base, extended and SELinux images, the uclamp
+cases on the derived clamp image, and root, GPU and SELinux root cases in a
+rented guest. The first full run on the release binaries gives, per build:
+
+| Group | Static PASS | Static FAIL | Static ERROR | Dynamic PASS | Dynamic FAIL | Dynamic ERROR |
+|---|---:|---:|---:|---:|---:|---:|
+| Shell and command contracts | 2,226 | 2 | 12 | 2,228 | 0 | 12 |
+| Terminal | 449 | 0 | 0 | 449 | 0 | 0 |
+| Network | 125 | 0 | 0 | 125 | 0 | 0 |
+| Extended and SELinux images | 56 | 0 | 0 | 56 | 0 | 0 |
+| Clamp image, including two live root cases | 41 | 0 | 0 | 41 | 0 | 0 |
+| Root, GPU and SELinux root | 217 | 1 | 14 | 217 | 1 | 14 |
+| Historical behavior | 3,246 | 0 | 0 | 3,246 | 0 | 0 |
+
+All 34 executed reference corpus records and all 16 guest selfchecks pass,
+the runtime inventory remains `COLLECTED`, and the executor observer case
+passes alone with its ancestor observer. The historical suites record 599
+deferred rows as migrated and one as deferred; 25 records per build are
+explicit SKIPs (four reference corpus records and the 21 historical rows of
+the optional `bashperl` and `bashpython` packages, whose migrated cases pass
+with the packages staged). The kernel authority module passes its 21 KUnit
+tests under KASAN and lockdep.
+
+Every first-run FAIL and ERROR has a recorded cause, and each was rerun:
+
+- The 12 `clock254` ERRORs stop in the guard, which bounds its read of the
+  evaluator's command line at 8 KiB; the chunk passed 8,737 bytes of case ids.
+  In a 14-case chunk all 12 pass on both builds.
+- The 13 kernel authority ERRORs stop because the pinned module, its test
+  client and `libargon2` were not staged; with those artifacts (digests equal
+  to the fixture pins) all 13 pass on both builds.
+- Three races belonged to fixtures, not candidates. The DNS rate-limiting
+  observer took an ESRCH read of the exiting server for an incomplete run. The
+  `fdisk` reread case met udev's write watch probing the partitions. In the
+  `dmsetup` case the reference run hit a udev probe during
+  `remove --noudevsync`. The first two fixtures were corrected; all three
+  cases then pass on both builds.
+- One DNS encrypted-peer case failed once on static and passed five reruns on
+  the same binary; the cause was not reproduced.
+
+Two limits remain. `tput` hardware init and reset needs a physical terminal.
+`migration-genl-list-multipart` requires a generic netlink family dump that
+spans two receive buffers, but the guest kernel's 26 families take 7,108 bytes
+in one dump chunk even with every available module loaded; the multi-buffer
+requirement is covered by the mock kernel cases. In the ledger 599 topics are
+full and one is partial.
+
+The [validation record](data/release-0.1.4-validation.json) lists the binary
+and manifest hashes, the harness and image-lock hashes, the source changes
+since 0.1.3, the results per group and build, and every first-run FAIL or
+ERROR with its cause and reruns.
+
 ## 0.1.3 release qualification
 
 The deferral review ran on frozen candidates built before the release source.

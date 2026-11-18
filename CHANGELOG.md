@@ -3,11 +3,13 @@
 All notable changes to bash-os are recorded here. Versions follow
 [semantic versioning](https://semver.org/); `VERSION` holds the current one.
 
-## 0.1.4 — Unreleased
+## 0.1.4 — 2026-11-18
 
-The release gate requires every recorded FAIL to be fixed and every required
-static and dynamic qualification case to PASS. This target is not yet met;
-the historical 0.1.3 evidence remains available separately.
+Every fixture definition passes on both release builds, apart from two
+recorded limits: `tput` hardware init and reset needs a physical terminal, and
+one generic netlink case cannot reach its multi-buffer precondition on the
+guest kernel (the requirement is covered by mock cases). See the
+[0.1.4 release qualification](docs/parity-vm.md#014-release-qualification).
 
 - `jq` spells numbers as jq 1.7 does: literals keep their digits in
   jq's decimal form (`1e2` prints as `1E+2`, `1.000` stays `1.000`),

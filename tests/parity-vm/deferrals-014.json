@@ -10875,7 +10875,7 @@
       "coverage": "full",
       "current_reason": "",
       "migration": "replacement",
-      "notes": "Source: loadables/date.c:641-737 (option loop), :740-752 (only clock_gettime). No executed mismatch in the 9 executed date cases. Derived r3 premise corrected when date gained GNU's -s and MMDDhhmm setters: the previous wording was \"Unsupported setter syntax is rejected without any clock mutation: 'date -s @0' and 'date 010100002000' return failure with a diagnostic.\". GNU date accepts both syntaxes, so the rejection premise described a candidate limitation, not reference behaviour.",
+      "notes": "Source: loadables/date.c:641-737 (option loop), :740-752 (only clock_gettime). No executed mismatch in the 9 executed date cases. Derived r3 premise corrected when date gained GNU's -s and MMDDhhmm setters: the previous wording was \"Unsupported setter syntax is rejected without any clock mutation: 'date -s @0' and 'date 010100002000' return failure with a diagnostic.\". GNU date accepts both syntaxes, so the rejection premise described a candidate limitation, not reference behaviour. The r1/r2 assertions recorded a candidate that rejected both syntaxes; the 0.1.4 release builds implement the request, and the wording follows the release evidence.",
       "original": {
         "id": "system_clock_setting",
         "kind": "deferred",
@@ -10888,30 +10888,28 @@
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "GNU date -s and MMDDhhmmCCYY under the clock-setter mock print \"Sat Jan  1 00:00:00 UTC 2000\" and issue one CLOCK_REALTIME request sec=946684800 nsec=0; the candidate rejects both as unknown arguments (rc 1, no request): reached FAIL on both builds",
+              "assertion": "GNU date -s and MMDDhhmmCCYY under the clock-setter mock print \"Sat Jan  1 00:00:00 UTC 2000\" and issue one CLOCK_REALTIME request sec=946684800 nsec=0; the candidate prints the same and issues the same single request: PASS on both 0.1.4 release builds",
               "definition_sha256": "018ca5b3a5d9661741ff56cb1e0c6db8b6d8d418cd043c4dc48e8f377527af41",
               "group": "shell",
               "id": "mig-w6-date-setter-request"
             }
           ],
           "gap": "",
-          "id": "r1",
-          "next_step": "not_implemented_by_candidate"
+          "id": "r1"
         },
         {
           "behavior": "The request is recorded against an isolated controllable clock (or mock) without changing the host clock.",
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "requests are recorded by the seccomp-notify mock and the real clock stays within range; the candidate records no request (FAIL retained)",
+              "assertion": "requests are recorded by the seccomp-notify mock and the real clock stays within range for GNU and the candidate (real-clock-unchanged=1): PASS on both 0.1.4 release builds",
               "definition_sha256": "018ca5b3a5d9661741ff56cb1e0c6db8b6d8d418cd043c4dc48e8f377527af41",
               "group": "shell",
               "id": "mig-w6-date-setter-request"
             }
           ],
           "gap": "",
-          "id": "r2",
-          "next_step": "not_implemented_by_candidate"
+          "id": "r2"
         },
         {
           "behavior": "Both setter syntaxes ('date -s @0' and the POSIX operand 'date 010100002000') request exactly one realtime clock change to the named instant, against the mock, and print it, as GNU date does.",
@@ -10925,8 +10923,7 @@
             }
           ],
           "gap": "",
-          "id": "r3",
-          "next_step": "implement_fixture"
+          "id": "r3"
         }
       ],
       "topic": "date/system_clock_setting"
@@ -55266,7 +55263,7 @@
   "original_sha256": "9f7ea6e79298b73552e1129b1dde7b34378ad0493c2755f8f9412237954442f8",
   "policy": "MIGRATED records point to fully exercised requirements on both builds; they are not additional passing tests. FAIL remains FAIL. Partial, skipped, invalid or stale evidence cannot close a topic.",
   "previous_ledger_sha256": "224841d541a8a0819778b43d480e0abda4cdb1f79cf969ebf77949a978d62ca4",
-  "qualification_status": "UNQUALIFIED overall: dmesg was verified on the retained r17 pair; the passwd product change and new candidate pair require fresh complete 600-topic reconciliation. No current-pair whole-topic credit.",
+  "qualification_status": "QUALIFIED for 0.1.4 on the release builds (dynamic 966f2d3447abcc6720f971c2deb83c7a2e078cac27da98b0e8d3275fe7f60af9, static 8edb6607d69f49322091e1f05b7da8f198f999ea3fe55e1ca0be14d05d7251ca): every required ordinary, extended, SMP, SELinux, GPU, root, clamp, executor and kernel-authority case PASSes on both builds, and 599 of 600 topics are full. Two recorded limits remain: tput/hardware-init-reset needs physical terminal hardware (partial), and migration-genl-list-multipart cannot hold its precondition on the qualification guest kernel, whose whole generic netlink family table fits in one dump buffer; the multi-buffer requirement of genl/ctrl-list is covered by the mock cases.",
   "release_target": "0.1.4",
   "schema": 1,
   "takeover_parent_mapping_sha256": "34889b404ccbc44a7c68ed6eb6e611714543a9ba3ce784aa60da14c34290ce0c",

@@ -29,10 +29,10 @@ Three uses drive it:
 ## Build
 
 Prebuilt Linux x86-64 binaries are available in the
-[0.1.3 release](https://github.com/itsmygithubacct/bash-os/releases/tag/v0.1.3).
+[0.1.4 release](https://github.com/itsmygithubacct/bash-os/releases/tag/v0.1.4).
 Choose the static archive for a standalone executable. The dynamic archive
 requires glibc 2.38 or newer and the shared libraries listed in its build record.
-Both include the full 286-builtin collection; optional Perl, Python and uv
+Both include the full 287-builtin collection; optional Perl, Python and uv
 integrations are separate. Verify downloads against the release's `SHA256SUMS`.
 
 ```sh
@@ -232,7 +232,7 @@ config/
   loadables.sh                  shell interface to the parser
   profiles.json                 named inclusion profiles
   dependencies.json             pinned external libraries
-  bash-loadables.list           the full set (NAME|short-doc per line), 286 entries
+  bash-loadables.list           the full set (NAME|short-doc per line), 287 entries
   bash-loadables-pure.list      the curated 28-command baseline
 loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer
