@@ -40,7 +40,9 @@ def owned():
 def dead():
     try:
         info=proc_identity(); return info['state'] in ('Z','X') or info['starttime']!=initial['starttime'] or info['ppid']!=initial['ppid']
-    except FileNotFoundError: return True
+    # A process that is exiting can fail /proc reads with ESRCH before its
+    # directory disappears; either way it is no longer the server.
+    except (FileNotFoundError, ProcessLookupError): return True
 try:
     deadline=time.monotonic()+8
     found={}

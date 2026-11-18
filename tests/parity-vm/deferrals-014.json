@@ -13437,7 +13437,7 @@
             },
             {
               "assertion": "Both builds: the separate no-RRL loopback control received 20 full authoritative answers; the limited burst yielded a full answer and nine received truncated authoritative replies. Source-bound candidate listener, packet framing, timing and cleanup were retained. Missing packet ingress and ordering are not independently traced.",
-              "definition_sha256": "91098b961b8803ff85de1c9aba5f71b0300d889fc8edec176c85e44ab75d0e7b",
+              "definition_sha256": "50710f2bc567004ae52e6440f43404b65e27c7bbab91b11fa121f9f9d01ae0ab",
               "group": "shell",
               "id": "migration-dns-authoritative-rrl-slip-r3"
             }

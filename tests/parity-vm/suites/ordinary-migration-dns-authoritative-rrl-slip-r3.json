@@ -11,7 +11,7 @@
         "dns/dns-authoritative-service"
       ],
       "helpers_sha256": {
-        "helpers/dns-auth-rrl-observe-r3.py": "f5195462ec1614789bf3fc53bce888e2c6012300fa06c7f260fe2cb202228797",
+        "helpers/dns-auth-rrl-observe-r3.py": "f92c5672f7ab715293b6f0b9894176b83c5cf66233e3d66fe0c5a9fc9c63e766",
         "helpers/dns-auth-rrl-review-r3.py": "1f70fcb4220395fd7b949e7d54b732b019ccdebbadf6774d9c4eca4d3797d87e",
         "helpers/dns-loopback-control-r1.py": "3d8a6102b0307253048e48f5d81ab9c44ee9c5474faf84201068bb3fef5c5aa2"
       },
