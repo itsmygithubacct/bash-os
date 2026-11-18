@@ -218,5 +218,23 @@ class Compatibility(unittest.TestCase):
                 self.compare('awk "$1"', program, data=data)
         self.compare("awk '/[/'", data=data, diagnostic=True)
 
+    def test_date_relative_items(self):
+        for value in ("2024-01-31 +1 month", "2024-03-10 12:00:00 -2 days", "2024-02-29 1 year ago",
+                      "2024-01-01 next week", "2024-01-01 3 hours ago", "2024-01-01 +90 minutes",
+                      "2024-01-01 tomorrow", "2024-01-01 yesterday", "2024-01-01 12:00 +1 day",
+                      "2024-03-10 12:00 +0130", "2024-01-03 12:00 2 weeks ago",
+                      "2024-01-03 1 fortnight", "2024-01-03 monday", "2024-01-03 12:00 monday"):
+            with self.subTest(value=value):
+                self.compare('date -u -d "$1" "+%F %T"', value)
+        # Relative to now: compare at day granularity, or at the weekday's midnight.
+        for value in ("yesterday", "tomorrow", "2 days ago", "+1 week", "-3 months", "today",
+                      "now", "next monday", "monday", "last friday", "this sunday", "Tuesday",
+                      "1 year", "next month"):
+            with self.subTest(value=value):
+                self.compare('date -d "$1" "+%F %a"', value)
+        for value in ("bogus words", "@0 +1 day", "3 parsecs ago", "next"):
+            with self.subTest(value=value):
+                self.compare('date -d "$1"', value, diagnostic=True)
+
 if __name__ == "__main__":
     unittest.main()
