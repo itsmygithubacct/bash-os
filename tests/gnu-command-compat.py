@@ -437,6 +437,108 @@ class Compatibility(unittest.TestCase):
                 actual = self.compare(script, data=data, diagnostic=True)
                 ours = actual.stderr.replace(b"compat: line 1: ", b"")
                 self.assertEqual(ours, expected.stderr)
+    def test_patch_against_gnu_patch(self):
+        def lines(seq):
+            return "".join(f"{x}\n" for x in seq).encode()
+        base = list(range(1, 21))
+        changed = ["five" if x == 5 else "fifteen" if x == 15 else x for x in base]
+
+        def udiff(old, new, a="a/f", b="b/f", extra=""):
+            import difflib
+            out = difflib.unified_diff([f"{x}\n" for x in old], [f"{x}\n" for x in new], a, b, lineterm="\n")
+            return (extra + "".join(out)).encode()
+
+        two = udiff(base, changed)
+        plain = udiff(base, changed, "f", "f")
+        stamped = udiff(base, changed, "f\t2026-01-01 00:00:00.000000000 +0000",
+                        "g\t2026-01-02 00:00:00.000000000 +0000")
+        grow = udiff(base, [y for x in base for y in ([x, "3b"] if x == 3 else [x])], "f", "f")
+        cases = [
+            # (name, files, patch, command)
+            ("p1 pipe", {"f": lines(base)}, two, "patch -p1"),
+            ("default basename", {"f": lines(base)}, two, "patch"),
+            ("p0 missing", {"f": lines(base)}, two, "patch -p0"),
+            ("subdir p1", {"sub/f": lines(base)}, udiff(base, changed, "a/sub/f", "b/sub/f"), "patch -p1"),
+            ("input file", {"f": lines(base)}, plain, "patch -i p.diff; cat f"),
+            ("operands", {"f": lines(base), "other": lines(base)}, plain, "patch other p.diff"),
+            ("offset", {"f": lines(["x", "y"] + base)}, plain, "patch"),
+            ("negative offset", {"f": lines(base[3:])}, plain, "patch"),
+            ("fuzz", {"f": lines([x if x != 2 else "two" for x in base])}, plain, "patch"),
+            ("fuzz 2", {"f": lines([x if x != 3 else "three" for x in base])}, plain, "patch"),
+            ("fuzz 0 option", {"f": lines([x if x != 2 else "two" for x in base])}, plain, "patch -F0"),
+            ("first fails", {"f": lines([x if x not in (2, 3, 4) else "X" for x in base])}, stamped, "patch"),
+            ("second fails", {"f": lines([x if x not in (13, 14, 16) else "Z" for x in base])}, stamped, "patch"),
+            ("grow then fail", {"f": lines([x if x not in (13, 14, 16) else "Z" for x in base])},
+             udiff(base, [y for x in changed for y in ([x, "3b"] if x == 3 else [x])], "f", "f"), "patch"),
+            ("all fail", {"f": lines(range(30, 50))}, plain, "patch"),
+            ("reversed default", {"f": lines(changed)}, plain, "patch"),
+            ("reversed -N", {"f": lines(changed)}, plain, "patch -N"),
+            ("reversed -t", {"f": lines(changed)}, plain, "patch -t"),
+            ("reversed -f", {"f": lines(changed)}, plain, "patch -f"),
+            ("reverse", {"f": lines(changed)}, plain, "patch -R"),
+            ("unreversed", {"f": lines(base)}, plain, "patch -R"),
+            ("dry run", {"f": lines(base)}, plain, "patch --dry-run"),
+            ("dry run fail", {"f": lines(range(30, 50))}, plain, "patch --dry-run"),
+            ("silent", {"f": lines(range(30, 50))}, plain, "patch -s"),
+            ("silent ok", {"f": lines(["x"] + base)}, plain, "patch -s"),
+            ("backup", {"f": lines(base)}, plain, "patch -b"),
+            ("suffix", {"f": lines(base)}, plain, "patch -b -z .bak"),
+            ("no mismatch backup", {"f": lines(["x"] + base)}, plain, "patch --no-backup-if-mismatch"),
+            ("reject file", {"f": lines(range(30, 50))}, plain, "patch -r out.rej"),
+            ("reject none", {"f": lines(range(30, 50))}, plain, "patch -r -"),
+            ("output", {"f": lines(base)}, plain, "patch -o out"),
+            ("directory", {"d/f": lines(base)}, plain, "patch -d d -i ../p.diff"),
+            ("growing", {"f": lines(base)}, grow, "patch"),
+            ("create", {}, udiff([], ["a", "b"], "/dev/null", "b/new.txt"), "patch -p1"),
+            ("create subdir", {}, udiff([], ["a"], "/dev/null", "b/dir/new.txt"), "patch -p1"),
+            ("create exists", {"new.txt": b"x\n"}, udiff([], ["a"], "/dev/null", "b/new.txt"), "patch -p1"),
+            ("create empty exists", {"new.txt": b""}, udiff([], ["a"], "/dev/null", "b/new.txt"), "patch -p1"),
+            ("delete", {"f": lines([1, 2])}, udiff([1, 2], [], "a/f", "/dev/null"), "patch -p1"),
+            ("empty kept", {"f": lines([1, 2])}, udiff([1, 2], [], "a/f", "b/f"), "patch -p1"),
+            ("empty removed", {"f": lines([1, 2])}, udiff([1, 2], [], "a/f", "b/f"), "patch -p1 -E"),
+            ("not found", {}, plain, "patch"),
+            ("garbage", {}, b"hello\n", "patch"),
+            ("multi", {"x": lines([1, 2, 3]), "y": lines([1, 2, 3])},
+             udiff([1, 2, 3], [1, 2, 3, 4], "x", "x") + udiff([1, 2, 3], [0, 1, 2, 3], "y", "y"), "patch"),
+            ("multi missing", {"x": lines([1, 2, 3])},
+             udiff([1, 2, 3], [1, 2, 3, 4], "x", "x") + udiff([1, 2, 3], [0, 1, 2, 3], "y", "y"), "patch"),
+            ("git", {"x": lines([1, 2, 3, 4])},
+             b"diff --git a/x b/x\nindex 1..2 100644\n--- a/x\n+++ b/x\n@@ -1,4 +1,3 @@\n 1\n 2\n 3\n-4\n", "patch -p1"),
+            ("git new", {}, b"diff --git a/n b/n\nnew file mode 100644\nindex 0..1\n--- /dev/null\n+++ b/n\n@@ -0,0 +1 @@\n+n\n", "patch -p1"),
+            ("git delete", {"n": b"n\n"}, b"diff --git a/n b/n\ndeleted file mode 100644\nindex 1..0\n--- a/n\n+++ /dev/null\n@@ -1 +0,0 @@\n-n\n", "patch -p1"),
+            ("no newline", {"n": b"a\nb"}, b"--- n\n+++ n\n@@ -1,2 +1,2 @@\n a\n-b\n\\ No newline at end of file\n+c\n\\ No newline at end of file\n", "patch"),
+            ("add newline", {"n": b"a\nb"}, b"--- n\n+++ n\n@@ -1,2 +1,2 @@\n a\n-b\n\\ No newline at end of file\n+b\n", "patch"),
+            ("drop newline", {"n": b"a\nb\n"}, b"--- n\n+++ n\n@@ -1,2 +1,2 @@\n a\n-b\n+b\n\\ No newline at end of file\n", "patch"),
+            ("insert at top", {"f": lines(base)}, udiff(base, [0] + base, "f", "f"), "patch"),
+            ("append at end", {"f": lines(base)}, udiff(base, base + [21], "f", "f"), "patch"),
+            ("top anchored", {"f": lines(["x"] + base)}, udiff(base, [0] + base, "f", "f"), "patch"),
+            ("end anchored", {"f": lines(base + ["x"])}, udiff(base, base + [21], "f", "f"), "patch"),
+            ("normal", {"f": lines(base)}, b"5c5\n< 5\n---\n> five\n15c15\n< 15\n---\n> fifteen\n", "patch f"),
+            ("normal add delete", {"f": lines(base)}, b"2a3,4\n> new1\n> new2\n9,10d10\n< 9\n< 10\n", "patch f"),
+            ("normal offset", {"f": lines(["x"] + base)}, b"5c5\n< 5\n---\n> five\n", "patch f"),
+            ("function header", {"f": lines(range(30, 50))},
+             udiff(base, changed, "f", "f").replace(b"@@ -2,7 +2,7 @@", b"@@ -2,7 +2,7 @@ int main()"), "patch"),
+            ("context lines blank", {"f": b"a\n\nb\n"}, b"--- f\n+++ f\n@@ -1,3 +1,3 @@\n a\n\n-b\n+c\n", "patch"),
+            ("bad option", {"f": lines(base)}, plain, "patch -Q"),
+            ("mode kept", {"f": lines(base)}, plain, "chmod 750 f; patch; stat -c %a f"),
+        ]
+        snap_script = 'find . -path ./p.diff -prune -o -type f -print | LC_ALL=C sort | while read -r f; do echo "== $f"; cat "$f"; done'
+        for name, files, patch_text, command in cases:
+            with self.subTest(case=name):
+                results = []
+                for gnu in (True, False):
+                    work = self.root / ("gnu" if gnu else "ours") / name.replace(" ", "_")
+                    work.mkdir(parents=True)
+                    for path, data in files.items():
+                        (work / path).parent.mkdir(parents=True, exist_ok=True)
+                        (work / path).write_bytes(data)
+                    (work / "p.diff").write_bytes(patch_text)
+                    run = self.run_shell(f"{{ {command}; }} < p.diff", gnu=gnu, cwd=work)
+                    snap = subprocess.run(["/bin/bash", "-c", snap_script], cwd=work, capture_output=True,
+                                          env={**ENV, "PATH": "/usr/bin:/bin"}).stdout
+                    err = run.stderr.replace(b"compat: line 1: ", b"")
+                    results.append((run.returncode, run.stdout, err, snap))
+                self.assertEqual(results[1], results[0])
 
 if __name__ == "__main__":
     unittest.main()

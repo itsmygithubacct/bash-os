@@ -9,11 +9,11 @@ choice, not a runtime disable list.
 |---:|---|---:|---:|---|
 | 0 | `shell` | 0 | 1,364,160 | GNU Bash alone |
 | 1 | `pure` | 28 | 1,447,520 | Small baseline of POSIX utilities |
-| 2 | `core` | 97 | 2,067,616 | Everyday files, text processing and processes |
-| 3 | `device` | 168 | 2,734,528 | Core plus Linux devices, processes and basic networking |
-| 4 | `server` | 223 | — | Device plus services, TLS, SSH, accounts and data |
-| 4 | `desktop` | 163 | — | Core plus editors, terminal graphics and interactive tools |
-| 5 | `full` | 289 | — | Standard collection; optional integrations selected separately |
+| 2 | `core` | 98 | 2,067,616 | Everyday files, text processing and processes |
+| 3 | `device` | 169 | 2,734,528 | Core plus Linux devices, processes and basic networking |
+| 4 | `server` | 224 | — | Device plus services, TLS, SSH, accounts and data |
+| 4 | `desktop` | 164 | — | Core plus editors, terminal graphics and interactive tools |
+| 5 | `full` | 290 | — | Standard collection; optional integrations selected separately |
 
 Sizes are historical stripped x86-64 builds with GCC 14.2 and the default flags. See the
 [benchmarks](../bench/README.md) for static sizes, startup and resident memory.

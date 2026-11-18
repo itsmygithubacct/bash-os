@@ -200,6 +200,16 @@
     },
     {
       "loadables": [
+        "patch"
+      ],
+      "kind": "cli",
+      "packages": [
+        "patch"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
         "grep"
       ],
       "kind": "cli",
