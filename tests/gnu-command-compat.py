@@ -210,6 +210,13 @@ class Compatibility(unittest.TestCase):
                 self.assertEqual(result.stdout, b"alive:1\n", result.stderr)
                 self.assertTrue(result.stderr)
 
+    def test_awk_slash_inside_bracket_expression(self):
+        data = b"a/b\nab\na]b\n1:2\n"
+        for program in ("/[/]/", "$0 ~ /[/]/ {print \"slash\", $0}", "/[]/]/", "/[^]/]b/",
+                        "/[[:digit:]/]/", "{ print ($0 ~ /a[/]b/) }", "{ print 6 / 2 / 3 }"):
+            with self.subTest(program=program):
+                self.compare('awk "$1"', program, data=data)
+        self.compare("awk '/[/'", data=data, diagnostic=True)
 
 if __name__ == "__main__":
     unittest.main()

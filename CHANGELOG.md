@@ -3,6 +3,10 @@
 All notable changes to bash-os are recorded here. Versions follow
 [semantic versioning](https://semver.org/); `VERSION` holds the current one.
 
+## Unreleased
+
+- `awk` accepts a `/` inside a bracket expression of a regex literal (`/[/]/`), as gawk does.
+
 ## 0.1.4 — 2026-11-18
 
 Every fixture definition passes on both release builds, apart from two
