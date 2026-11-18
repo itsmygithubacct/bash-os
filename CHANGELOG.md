@@ -14,6 +14,7 @@ All notable changes to bash-os are recorded here. Versions follow
 - `ps -u USERLIST` and `-U USERLIST` select processes by effective or real user.
 - `diff -y` prints side by side (`-W` width), and `diff` compares directories, recursively with `-r`.
 - `curl` takes `-I`, `-v`, `-F`, `-T`, `-G`, `--data-urlencode`, `--json`, `--retry`, `-x` (HTTP proxies, CONNECT for https), `--compressed`, `--http2` (spoken as HTTP/1.1), `-r` and `-C`, compared with curl 8.14; `crypto tls connect` takes `--fd` for an already connected socket.
+- `md5sum` (with `-c`) joins `core`; `md5sum -c` and `sha256sum -c` print GNU's warnings for unreadable files and mismatched checksums.
 
 ## 0.1.4 — 2026-11-18
 

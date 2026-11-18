@@ -78,6 +78,7 @@
       "setsid",
       "base64",
       "sha256sum",
+      "md5sum",
       "gzip",
       "tar"
     ]

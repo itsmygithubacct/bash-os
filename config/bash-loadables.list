@@ -322,5 +322,6 @@ ptybroker|Persistent local raw PTYs with bounded native I/O
 # GNU-compatible command names
 base64|base64 [-di] [-w COLS] [FILE]
 sha256sum|sha256sum [-bctwz] [--tag] [FILE...]
+md5sum|md5sum [-bctwz] [--tag] [FILE...]
 gzip|gzip [-cdfkntq1-9] [-S SUFFIX] [FILE...]
 tar|tar -c|-t|-x [-zv] [-f ARCHIVE] [-C DIR] [FILE...]

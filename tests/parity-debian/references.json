@@ -69,7 +69,8 @@
         "hostid",
         "cksum",
         "base64",
-        "sha256sum"
+        "sha256sum",
+        "md5sum"
       ],
       "kind": "cli",
       "packages": [

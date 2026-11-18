@@ -367,6 +367,28 @@ class Compatibility(unittest.TestCase):
         actual = self.run_shell("diff -ru A B")
         self.assertEqual((actual.returncode, strip(actual.stdout)), (expected.returncode, strip(expected.stdout)))
         self.compare("diff -r A missing", diagnostic=True)
+    def test_md5_print_and_check(self):
+        names = ["data", "two words", "line\nname", "back\\slash", "-file"]
+        for name in names: (self.root / name).write_bytes(b"abc\x00\n" * 10000)
+        self.compare("md5sum", data=b"abc")
+        for flags in ((), ("-b",), ("-z",), ("--tag",)):
+            self.compare('md5sum "$@"', *flags, "--", *names)
+        manifest = self.run_shell('md5sum -- "$@"', *names, gnu=True).stdout
+        (self.root / "sums").write_bytes(manifest)
+        for flags in ("-c", "--check --quiet", "--check --status", "-c --strict", "-cw"):
+            self.compare(f"md5sum {flags} sums")
+        tagged = self.run_shell('md5sum --tag -- "$@"', *names, gnu=True).stdout
+        (self.root / "tagged").write_bytes(tagged)
+        self.compare("md5sum -c tagged")
+        self.compare("md5sum data > s; md5sum -c s; md5sum -c - < s", data=b"")
+        self.compare("md5sum -c /dev/null", diagnostic=True)
+        (self.root / "data").write_bytes(b"changed")
+        self.compare("md5sum -c sums", diagnostic=True)
+        self.compare("md5sum --status -c sums")
+        (self.root / "mixed").write_bytes(manifest + b"bad line\n" + b"0" * 64 + b"  data\n")
+        self.compare("md5sum -c mixed", diagnostic=True)
+        self.compare("md5sum -c --strict mixed", diagnostic=True)
+        self.compare("md5sum -c missing-file", diagnostic=True)
 
 if __name__ == "__main__":
     unittest.main()

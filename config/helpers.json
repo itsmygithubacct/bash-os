@@ -424,6 +424,11 @@
         "_mbedtls"
       ]
     },
+    "md5sum": {
+      "helpers": [
+        "_mbedtls"
+      ]
+    },
     "gzip": {
       "libs": [
         "-lz"
