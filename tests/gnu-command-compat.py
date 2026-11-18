@@ -236,5 +236,31 @@ class Compatibility(unittest.TestCase):
             with self.subTest(value=value):
                 self.compare('date -d "$1"', value, diagnostic=True)
 
+    def test_mv_verbose(self):
+        def fixture():
+            for name in os.listdir(self.root):
+                path = self.root / name
+                if path.is_dir() and not path.is_symlink():
+                    subprocess.run(["rm", "-rf", "--", str(path)], check=True)
+                else:
+                    path.unlink()
+            (self.root / "f").write_bytes(b"1\n"); (self.root / "g").write_bytes(b"2\n")
+            (self.root / "it's").write_bytes(b"q\n"); (self.root / "D").mkdir()
+            (self.root / "tree/sub").mkdir(parents=True); (self.root / "tree/sub/x").write_bytes(b"x")
+        for script in ("mv -v f f2", "mv -v f g D", "mv -v tree D", "mv -v \"it's\" q",
+                       "mv --verbose g h", "mv -vn f g", "mv -v missing f; echo $?"):
+            with self.subTest(script=script):
+                fixture(); expected = self.run_shell(script, gnu=True)
+                fixture(); actual = self.run_shell(script)
+                self.assertEqual((actual.returncode, actual.stdout), (expected.returncode, expected.stdout))
+        if Path("/dev/shm").is_dir() and os.stat("/dev/shm").st_dev != os.stat(self.root).st_dev:
+            for runner in (True, False):
+                fixture()
+                result = self.run_shell(f'mv -v tree "$1" | sed "s|$1|DEST|"',
+                                        f"/dev/shm/bash-os-mv-{os.getpid()}-{int(runner)}", gnu=runner)
+                if runner: expected = result.stdout
+                else: self.assertEqual(result.stdout, expected, result.stderr)
+                subprocess.run(["rm", "-rf", f"/dev/shm/bash-os-mv-{os.getpid()}-{int(runner)}"], check=True)
+
 if __name__ == "__main__":
     unittest.main()

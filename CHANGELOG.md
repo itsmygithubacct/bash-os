@@ -7,6 +7,7 @@ All notable changes to bash-os are recorded here. Versions follow
 
 - `awk` accepts a `/` inside a bracket expression of a regex literal (`/[/]/`), as gawk does.
 - `date -d` accepts GNU relative items (`yesterday`, `+1 day`, `3 hours ago`, `next monday`, `2024-01-31 +1 month`).
+- `mv -v`/`--verbose` reports each rename, copy and removal as GNU mv does.
 
 ## 0.1.4 — 2026-11-18
 

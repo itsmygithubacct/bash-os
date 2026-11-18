@@ -2,7 +2,7 @@
  *
  * Phase S of bash-os POSIX gap-fillers.
  *
- *   bashmv [-fin] SOURCE... DEST
+ *   bashmv [-finv] SOURCE... DEST
  *
  *   -f   force: silently overwrite (no prompt)
  *   -i   interactive: prompt before overwrite
@@ -32,6 +32,7 @@
 #include <sys/types.h>
 
 #include "loadables.h"
+#include "gnu-quote.h"
 
 typedef struct bmv_link {
     dev_t source_dev, destination_dev;
@@ -41,7 +42,7 @@ typedef struct bmv_link {
 } bmv_link;
 
 typedef struct {
-    int fflag, iflag, nflag, Tflag;
+    int fflag, iflag, nflag, Tflag, vflag;
     const char *target_dir;
     bmv_link *links, *written;
 } bmv_opts;
@@ -238,6 +239,19 @@ bmv_copy_symlink (const char *src, const char *dst, const struct stat *sst)
     return 0;
 }
 
+/* -v: GNU's lines, with names in the always-quoted shell style. */
+static void
+bmv_verbose (const char *what, const char *a, const char *b)
+{
+    char *qa = bos_quoteaf (a), *qb = b ? bos_quoteaf (b) : NULL;
+    if (!qa || (b && !qb)) { free (qa); free (qb); return; }
+    if (b) printf ("%s %s -> %s\n", what, qa, qb);
+    else printf ("%s %s\n", what, qa);
+    fflush (stdout);
+    free (qa);
+    free (qb);
+}
+
 static int
 bmv_copy_dir (const char *src, const char *dst, const struct stat *sst, bmv_opts *o,
               bmv_removals *removals)
@@ -260,6 +274,7 @@ bmv_copy_dir (const char *src, const char *dst, const struct stat *sst, bmv_opts
             return -1;
         }
     }
+    if (o->vflag) bmv_verbose ("created directory", dst, NULL);
     /* The caller's umask may have removed all owner access. Populate the
        new directory before restoring the source's final permissions. */
     if (chmod (dst, (sst->st_mode & 0777) | S_IRWXU) < 0) {
@@ -354,6 +369,7 @@ bmv_xdev_copy (const char *src, const char *dst, bmv_opts *o,
         return -1;
     }
     if (rc < 0) return -1;
+    if (o->vflag && !S_ISDIR (sst.st_mode)) bmv_verbose ("copied", src, dst);
     if (!entry && !S_ISDIR (sst.st_mode) && sst.st_nlink > 1 &&
         bmv_remember_link (&o->links, &sst, dst) < 0) return -1;
     bmv_source *source = malloc (sizeof *source);
@@ -407,6 +423,9 @@ bmv_xdev_move (const char *src, const char *dst, bmv_opts *o)
                 rc = -1;
                 break;
             }
+            if (o->vflag)
+                bmv_verbose (S_ISDIR (st.st_mode) ? "removed directory" : "removed",
+                             source->path, NULL);
         }
     }
     while (removals.head) {
@@ -457,7 +476,10 @@ bmv_one (const char *src, const char *dst, bmv_opts *o)
         return -1;
     }
     /* rename(2) handles same-fs atomically. */
-    if (rename (src, dst) == 0) return 0;
+    if (rename (src, dst) == 0) {
+        if (o->vflag) bmv_verbose ("renamed", src, dst);
+        return 0;
+    }
     if (errno != EXDEV) {
         builtin_error ("rename %s -> %s: %s", src, dst, strerror (errno));
         return -1;
@@ -495,6 +517,7 @@ mv_builtin (WORD_LIST *list)
             continue;
         }
         if (strcmp (w, "--no-target-directory") == 0) { o.Tflag = 1; continue; }
+        if (strcmp (w, "--verbose") == 0) { o.vflag = 1; continue; }
         if (strcmp (w, "--") == 0) {
             for (p = p->next; p; p = p->next) {
                 if (bmv_words_add (&positional, p->word->word) < 0) {
@@ -521,6 +544,7 @@ mv_builtin (WORD_LIST *list)
                 case 'i': o.iflag = 1; o.fflag = 0; o.nflag = 0; break;
                 case 'n': o.nflag = 1; o.fflag = 0; o.iflag = 0; break;
                 case 'T': o.Tflag = 1; break;
+                case 'v': o.vflag = 1; break;
                 default:
                     builtin_error ("unknown flag: -%c", w[i]);
                     free (positional.v);
@@ -562,7 +586,7 @@ mv_builtin (WORD_LIST *list)
         dst_is_dir = 1;
     } else {
         if (positional.n < 2) {
-            builtin_error ("usage: bashmv [-fin] [-t DIR | -T] SOURCE... DEST");
+            builtin_error ("usage: bashmv [-finv] [-t DIR | -T] SOURCE... DEST");
             free (positional.v);
             return EX_USAGE;
         }
@@ -644,13 +668,14 @@ mv_builtin (WORD_LIST *list)
 char *mv_doc[] = {
     "Move (rename) files.",
     "",
-    "    bashmv [-fin] [-T] SOURCE DEST",
-    "    bashmv [-fin] SOURCE... DIRECTORY",
-    "    bashmv [-fin] -t DIRECTORY SOURCE...",
+    "    bashmv [-finv] [-T] SOURCE DEST",
+    "    bashmv [-finv] SOURCE... DIRECTORY",
+    "    bashmv [-finv] -t DIRECTORY SOURCE...",
     "",
     "    -f   force: silently overwrite",
     "    -i   interactive: prompt before overwrite",
     "    -n   no-clobber: never overwrite",
+    "    -v, --verbose   explain what is being done",
     "    -t, --target-directory=DIR   move all SOURCEs into DIR",
     "    -T, --no-target-directory    treat DEST as a normal file, not a dir",
     "",
@@ -664,6 +689,6 @@ struct builtin bashmv_struct = {
     mv_builtin,
     BUILTIN_ENABLED,
     mv_doc,
-    "bashmv [-fin] [-t DIR | -T] SOURCE... DEST",
+    "bashmv [-finv] [-t DIR | -T] SOURCE... DEST",
     0
 };
