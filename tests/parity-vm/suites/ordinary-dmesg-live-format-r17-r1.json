@@ -19,7 +19,7 @@
       "expected_status": 0,
       "group": "shell",
       "helpers_sha256": {
-        "helpers/dmesg-live-format-r17-r1.py": "f1e04e646b04dc45da64daf0ebf4a11cfc1bf327a47ab1db1f36be54a7b69b9d"
+        "helpers/dmesg-live-format-r17-r1.py": "f9517b46748b80136cf9a63671655012d70a21af5187d315d1a8e61d5e5f69e1"
       },
       "id": "qualification-014-dmesg-live-format-r17-r1",
       "kind": "contract",

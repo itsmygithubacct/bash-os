@@ -25,8 +25,8 @@ CANDIDATE = ROOT / 'candidate'
 BASH = Path('/opt/bash-5.3.20/bin/bash')
 UTILITY = Path('/usr/bin/dmesg')
 CANDIDATE_HASHES = {
-    'static': '2e3a622e6a18e2a215a6672c99e35ce12bb58268bf5539f0d6d79faba4055468',
-    'dynamic': '04587baa95655f203395dc778bc7346873fd9682e2727c6c13226e46ac7661c7',
+    'static': 'bae893817ef1d6f249a25a7d3c5e038956019421669fd8377caf19704af334fd',
+    'dynamic': 'd1c51dfcec958854e03d549282871f5238929f163dbc2539e0fad87258f67d63',
 }
 BASH_SHA = '25a9bcfbdb3d52798022550336c8110461d533cf7b5c90e336b117aabee559d8'
 UTILITY_SHA = '605698ef166c53fc53c97338b7d0eadd95cec93daff93fac8b213932a9e8fbd0'
