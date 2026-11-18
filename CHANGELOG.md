@@ -12,6 +12,7 @@ All notable changes to bash-os are recorded here. Versions follow
 - `cmp -n LIMIT` (and `--bytes=LIMIT`) compares at most LIMIT bytes.
 - `split -n CHUNKS` takes `N`, `K/N`, `l/N`, `l/K/N`, `r/N` and `r/K/N`.
 - `ps -u USERLIST` and `-U USERLIST` select processes by effective or real user.
+- `diff -y` prints side by side (`-W` width), and `diff` compares directories, recursively with `-r`.
 
 ## 0.1.4 — 2026-11-18
 

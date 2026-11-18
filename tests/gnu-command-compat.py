@@ -335,5 +335,38 @@ class Compatibility(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertTrue(result.stderr)
 
+    def test_diff_side_by_side(self):
+        files = {"f": b"b 2\na 1\nc 3\n", "g": b"x\n",
+                 "L": b"one\ttab\nlong line that goes on and on and on and on and on and on and on and on and on\nsame\nno newline",
+                 "R": b"one\ttab\nshort\nsame\nadded\nno newline\n",
+                 "C": b"ctl\x01char\rback\bspace\tend\n\xff\xfehigh\n", "E": b""}
+        for name, data in files.items(): (self.root / name).write_bytes(data)
+        for args in (("-y", "f", "g"), ("-y", "L", "R"), ("-y", "R", "L"), ("-y", "-W", "40", "L", "R"),
+                     ("-yW60", "f", "g"), ("-y", "f", "f"), ("--side-by-side", "--width=50", "f", "g"),
+                     ("-y", "C", "f"), ("-y", "E", "f"), ("-y", "f", "E"), ("-yi", "f", "f"),
+                     ("-y", "-W", "7", "L", "R"), ("-y", "-W", "1", "f", "g")):
+            with self.subTest(args=args):
+                self.compare('diff "$@"', *args)
+
+    def test_diff_directories(self):
+        layout = {"A/c": b"1\n2\n3\n", "B/c": b"1\nX\n3\n", "A/s/k": b"same\n", "B/s/k": b"same\n",
+                  "A/s/m": b"a\n", "B/s/m": b"b\n", "B/onlyb": b"o\n", "A/bin": b"\x00bin",
+                  "B/bin": b"\x00bon", "A/t": b"t\n", "A/only/z": b"z\n", "P/a": b"p\n"}
+        for path, data in layout.items():
+            (self.root / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / path).write_bytes(data)
+        (self.root / "B/t").mkdir(); (self.root / "Q").mkdir(); (self.root / "Q/a").write_bytes(b"p\n")
+        for script in ("diff -r A B", "diff -rq A B", "diff A B", "diff -r A A", "diff -r P Q",
+                       "diff -ry P Q", "diff -r A/ B/", "diff --recursive A B", "diff A/c B",
+                       "diff A B/c", "diff -r A/s B/s"):
+            with self.subTest(script=script):
+                self.compare(script)
+        # GNU's unified headers add timestamps; compare everything else.
+        strip = lambda out: b"\n".join(line.split(b"\t")[0] for line in out.splitlines())
+        expected = self.run_shell("diff -ru A B", gnu=True)
+        actual = self.run_shell("diff -ru A B")
+        self.assertEqual((actual.returncode, strip(actual.stdout)), (expected.returncode, strip(expected.stdout)))
+        self.compare("diff -r A missing", diagnostic=True)
+
 if __name__ == "__main__":
     unittest.main()
