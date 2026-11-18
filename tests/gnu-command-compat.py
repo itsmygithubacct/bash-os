@@ -277,5 +277,18 @@ class Compatibility(unittest.TestCase):
                 self.assertEqual((actual.returncode, lines(actual.stdout)),
                                  (expected.returncode, lines(expected.stdout)), actual.stderr)
 
+    def test_cmp_byte_limit(self):
+        (self.root / "f").write_bytes(b"b 2\na 1\nc 3\n"); (self.root / "g").write_bytes(b"x\n")
+        (self.root / "p").write_bytes(b"abc"); (self.root / "q").write_bytes(b"abd")
+        (self.root / "r").write_bytes(b"ab"); (self.root / "s").write_bytes(b"xbz")
+        for args in (("-n", "1", "f", "g"), ("-n", "0", "f", "g"), ("-n2", "f", "f"),
+                     ("-n", "2", "p", "q"), ("-n", "3", "p", "q"), ("-n", "2", "p", "r"),
+                     ("-n", "3", "p", "r"), ("-l", "-n", "3", "p", "s"), ("--bytes=1", "-l", "p", "s"),
+                     ("-s", "-n", "3", "p", "q"), ("-n", "2", "p", "q", "1", "1")):
+            with self.subTest(args=args):
+                self.compare('cmp "$@"', *args, diagnostic=True)
+        self.compare("cmp -n 2 - q", data=b"abz", diagnostic=True)
+        self.compare('cmp -n "$1" p q', "bad", diagnostic=True)
+
 if __name__ == "__main__":
     unittest.main()

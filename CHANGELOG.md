@@ -9,6 +9,7 @@ All notable changes to bash-os are recorded here. Versions follow
 - `date -d` accepts GNU relative items (`yesterday`, `+1 day`, `3 hours ago`, `next monday`, `2024-01-31 +1 month`).
 - `mv -v`/`--verbose` reports each rename, copy and removal as GNU mv does.
 - `rm -v` prints each removed file and directory as GNU rm does.
+- `cmp -n LIMIT` (and `--bytes=LIMIT`) compares at most LIMIT bytes.
 
 ## 0.1.4 — 2026-11-18
 
