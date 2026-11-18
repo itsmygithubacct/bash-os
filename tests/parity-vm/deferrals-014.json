@@ -10875,7 +10875,7 @@
       "coverage": "full",
       "current_reason": "",
       "migration": "replacement",
-      "notes": "Source: loadables/date.c:641-737 (option loop), :740-752 (only clock_gettime). No executed mismatch in the 9 executed date cases.",
+      "notes": "Source: loadables/date.c:641-737 (option loop), :740-752 (only clock_gettime). No executed mismatch in the 9 executed date cases. Derived r3 premise corrected when date gained GNU's -s and MMDDhhmm setters: the previous wording was \"Unsupported setter syntax is rejected without any clock mutation: 'date -s @0' and 'date 010100002000' return failure with a diagnostic.\". GNU date accepts both syntaxes, so the rejection premise described a candidate limitation, not reference behaviour.",
       "original": {
         "id": "system_clock_setting",
         "kind": "deferred",
@@ -10914,12 +10914,12 @@
           "next_step": "not_implemented_by_candidate"
         },
         {
-          "behavior": "Unsupported setter syntax is rejected without any clock mutation: 'date -s @0' and 'date 010100002000' return failure with a diagnostic.",
+          "behavior": "Both setter syntaxes ('date -s @0' and the POSIX operand 'date 010100002000') request exactly one realtime clock change to the named instant, against the mock, and print it, as GNU date does.",
           "coverage": "covered",
           "evidence": [
             {
-              "assertion": "date -s @0 and date 010100002000: status 1, \"unknown arg\" diagnostic, no clock_settime/settimeofday request",
-              "definition_sha256": "f3f66f35c72f3776daee8d91c909db8fe541f131c4e8662b640a754f49bb00ee",
+              "assertion": "date -s @0 and date 010100002000: status 0, the instant printed, exactly one CLOCK_REALTIME request for that instant, no unknown-argument diagnostic",
+              "definition_sha256": "3aa4295e66a5cf6d4edf795f6ccb92f898b6dd2852e70dd27aba7a1c1365fe23",
               "group": "shell",
               "id": "mig-w6-date-setter-rejected"
             }

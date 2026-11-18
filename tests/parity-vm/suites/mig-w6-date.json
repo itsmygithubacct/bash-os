@@ -38,8 +38,8 @@
       "covers": [
         "date/system_clock_setting"
       ],
-      "purpose": "Setter syntax the candidate does not support (date -s @0, date 010100002000) is rejected with failure and a diagnostic, and no clock mutation is requested",
-      "oracle": "The candidate's documented option set (-u -R -I --rfc-3339 -d +FORMAT) as the contract: anything else is an unknown argument; the seccomp-notify mock records no clock_settime/settimeofday call",
+      "purpose": "Both setter syntaxes GNU date accepts (date -s @0 and the POSIX operand date 010100002000) each request exactly one CLOCK_REALTIME change to the named instant and print it, with no unknown-argument diagnostic",
+      "oracle": "GNU date: -s STRING and MMDDhhmm[[CC]YY][.ss] set the realtime clock to that instant (one clock_settime(CLOCK_REALTIME) call), then print it; the seccomp-notify mock answers success and records the request",
       "comparison": "Status, diagnostic and absence of any recorded setter call for two unsupported forms.",
       "requires": [
         "python3",
@@ -53,7 +53,7 @@
       },
       "script": "[[ $UID == 2000 && $EUID == 2000 && $PWD == /tmp/parity-case && $HOME == /tmp/parity-home ]] || exit 125\nIFS= read -r marker </etc/bashos-parity-vm || exit 125\nIFS= read -r vendor </sys/class/dmi/id/sys_vendor || exit 125\n[[ $vendor == QEMU && $marker =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || exit 125\n[[ $(type -t date) == builtin ]] || exit 125\nSEQ=/opt/bashos-parity/harness/helpers/system-sequence.py\nRULES=\"--notify clock_settime --log-args clock_settime=0 --log-mem clock_settime=1:16 --notify settimeofday --log-mem settimeofday=0:16 --reply clock_settime=0 --reply settimeofday=0\"\n# trial LABEL COMMAND : run COMMAND in a filtered shell with clock setters answered by a mock success\ntrial() {\n  local label=$1 cmd=$2 T=$HOME/$1\n  /usr/bin/python3 \"$SEQ\" $RULES --log \"$T.log\" -- \"$BASH\" --noprofile --norc -c \"$cmd\" scn >\"$T.out\" 2>\"$T.err\"\n  local rc=$?\n  /usr/bin/python3 -I - \"$T\" \"$label\" \"$rc\" <<'PY'\nimport json, os, struct, sys\nt, label, rc = sys.argv[1:]\nrows = [json.loads(l) for l in open(t + \".log\")] if os.path.exists(t + \".log\") else []\nreqs = []\nfor r in rows:\n    key = \"memory1\" if r[\"syscall\"] == \"clock_settime\" else \"memory0\"\n    raw = bytes.fromhex(r[key][\"hex\"])\n    sec, sub = struct.unpack(\"<qq\", raw)\n    reqs.append((sec, sub if r[\"syscall\"] == \"clock_settime\" else sub * 1000, r[\"syscall\"] == \"settimeofday\" or r[\"arg0\"] == 0))\nout = open(t + \".out\").read().rstrip(\"\\n\")\nerr = open(t + \".err\").read()\nfirst = \"none\" if not reqs else \"sec=%d nsec=%d realtime=%d\" % reqs[0]\nprint(\"%s: rc=%s out=[%s] requests=%d first: %s unknown-arg=%d\" % (label, rc, out, len(reqs), first, \"unknown arg\" in err))\nPY\n}\ntrial s-at \"date -s @0\"\ntrial mmdd \"date 010100002000\"\n",
       "expected_status": 0,
-      "stdout": "s-at: rc=1 out=[] requests=0 first: none unknown-arg=1\nmmdd: rc=1 out=[] requests=0 first: none unknown-arg=1\n",
+      "stdout": "s-at: rc=0 out=[Thu Jan  1 00:00:00 UTC 1970] requests=1 first: sec=0 nsec=0 realtime=1 unknown-arg=0\nmmdd: rc=0 out=[Sat Jan  1 00:00:00 UTC 2000] requests=1 first: sec=946684800 nsec=0 realtime=1 unknown-arg=0\n",
       "stderr": "",
       "timeout": 40
     }
