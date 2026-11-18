@@ -27,7 +27,7 @@
       "features": [
         "userns"
       ],
-      "script": "export PYTHONDONTWRITEBYTECODE=1 BASH\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 wsess.py inner.sh\necho \"ns status=$?\"\n",
+      "script": "export PYTHONDONTWRITEBYTECODE=1 BASH\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 wsess.py inner.sh\necho \"ns status=$?\"\n# login.txt holds a wall-clock minute; it is an input to wnorm.py, not a result.\n/usr/bin/rm -f login.txt\n",
       "expected_status": 0,
       "timeout": 60
     },
@@ -56,7 +56,7 @@
       "features": [
         "userns"
       ],
-      "script": "export PYTHONDONTWRITEBYTECODE=1 BASH\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 wsess.py inner.sh\necho \"ns status=$?\"\n",
+      "script": "export PYTHONDONTWRITEBYTECODE=1 BASH\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 wsess.py inner.sh\necho \"ns status=$?\"\n# login.txt holds a wall-clock minute; it is an input to wnorm.py, not a result.\n/usr/bin/rm -f login.txt\n",
       "stdout": "w status=0\ncolumn-header=USER TTY FROM LOGIN@ IDLE JCPU PCPU WHAT\nwusera tty-is-pts=yes login-matches-utmp=yes idle-class=colon(want colon) jcpu=2 pcpu=2 what=/usr/bin/python3 burn.py wusera 2\nwuserb tty-is-pts=yes login-matches-utmp=yes idle-class=colon(want colon) jcpu=2 pcpu=2 what=/usr/bin/python3 burn.py wuserb 2\nwuserc tty-is-pts=yes login-matches-utmp=yes idle-class=days(want days) jcpu=2 pcpu=2 what=/usr/bin/python3 burn.py wuserc 2\nwuserd tty-is-pts=yes login-matches-utmp=yes idle-class=seconds(want seconds) jcpu=2 pcpu=2 what=/usr/bin/python3 burn.py wuserd 2\nhelper-exit=0\nns status=0\n",
       "expected_status": 0,
       "timeout": 60
@@ -87,7 +87,7 @@
       "features": [
         "userns"
       ],
-      "script": "export PYTHONDONTWRITEBYTECODE=1 BASH\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 wsess.py inner.sh\necho \"ns status=$?\"\n",
+      "script": "export PYTHONDONTWRITEBYTECODE=1 BASH\n/usr/bin/unshare --user --map-root-user --mount /usr/bin/python3 wsess.py inner.sh\necho \"ns status=$?\"\n# login.txt holds a wall-clock minute; it is an input to wnorm.py, not a result.\n/usr/bin/rm -f login.txt\n",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "w status=0\nheader clock=ok uptime=ok users=ok load=ok\nhelper-exit=0\nns status=0\n"

@@ -51793,7 +51793,7 @@
           "evidence": [
             {
               "assertion": "In 24 rows on each side the HH:MM:SS field lies between /usr/bin/date +%T read just before and after (clock=ok) for both procps uptime and the candidate.",
-              "definition_sha256": "81cbb71882a2b8dd238d163a25ba7e2febadefe6cc1e1b51e694da9a811163a2",
+              "definition_sha256": "99cf1d4404914356087984ce58fdcad0b132ac816fdc609c98f54fb75721ee65",
               "group": "shell",
               "id": "migration-uptime-default-row-timens"
             }
@@ -51819,7 +51819,7 @@
             },
             {
               "assertion": "With /proc/uptime pinned by a time-namespace boottime offset: ' 1:00', ' 2:03' and '1 day,  2:03' agree with procps 4.0.4; under an hour the candidate prints ' 0:05' where procps prints '5 min', and with days and zero hours '2 days,  0:05' / '10 days,  0:05' where procps prints '2 days, 5 min' / '10 days, 5 min'. Parity FAIL.",
-              "definition_sha256": "81cbb71882a2b8dd238d163a25ba7e2febadefe6cc1e1b51e694da9a811163a2",
+              "definition_sha256": "99cf1d4404914356087984ce58fdcad0b132ac816fdc609c98f54fb75721ee65",
               "group": "shell",
               "id": "migration-uptime-default-row-timens"
             }
@@ -51833,7 +51833,7 @@
           "evidence": [
             {
               "assertion": "With a private tmpfs /run (no /run/systemd, so procps counts utmp) holding 0, 1 or 12 sessions: '0 users' and '1 user' agree; 12 sessions print ',  12 users' where procps prints ', 12 users' (%2d); a USER_PROCESS record with an empty name is counted by the candidate ('2 users') but not by procps ('1 user'). Parity FAIL.",
-              "definition_sha256": "81cbb71882a2b8dd238d163a25ba7e2febadefe6cc1e1b51e694da9a811163a2",
+              "definition_sha256": "99cf1d4404914356087984ce58fdcad0b132ac816fdc609c98f54fb75721ee65",
               "group": "shell",
               "id": "migration-uptime-default-row-timens"
             }
@@ -51847,7 +51847,7 @@
           "evidence": [
             {
               "assertion": "The three load averages equal /proc/loadavg read just before or after, formatted with two decimals (load=ok), on both sides in every row.",
-              "definition_sha256": "81cbb71882a2b8dd238d163a25ba7e2febadefe6cc1e1b51e694da9a811163a2",
+              "definition_sha256": "99cf1d4404914356087984ce58fdcad0b132ac816fdc609c98f54fb75721ee65",
               "group": "shell",
               "id": "migration-uptime-default-row-timens"
             }
@@ -53501,7 +53501,7 @@
           "evidence": [
             {
               "assertion": "Four utmp sessions on real ptys: rows with pts tty, utmp login time, JCPU/PCPU of about 2 s summed from /proc and the burner command as WHAT, against an independent model computed from the synthetic utmp and controlled /proc data.",
-              "definition_sha256": "c61597460cf09182d261959a9b2d0f46654aa8eccb27d7dc011045bec696850c",
+              "definition_sha256": "ed0f3693860c7ad3ea45f235765fa3ea18692518b0cea648ffc2aea5532818b2",
               "group": "shell",
               "id": "mig-w7-w-live-rows-model"
             }
@@ -53515,7 +53515,7 @@
           "evidence": [
             {
               "assertion": "Header line: procps w prints time/up/users/load average agreeing with /proc and the utmp count; the candidate prints no header.",
-              "definition_sha256": "e215568e8dfc6d9f0fb44af427d3f87a05677e09051d1b18b7ecbab7865d08c0",
+              "definition_sha256": "f0b3a9d3a1fe2e0b95401ba4e460416dc456478d766a538591b71956da3d73bf",
               "group": "shell",
               "id": "mig-w7-w-live-header"
             }
@@ -53529,7 +53529,7 @@
           "evidence": [
             {
               "assertion": "IDLE derived from tty atimes of 7 s, 90 s, 3700 s and 90000 s: seconds, colon and days classes against the model.",
-              "definition_sha256": "c61597460cf09182d261959a9b2d0f46654aa8eccb27d7dc011045bec696850c",
+              "definition_sha256": "ed0f3693860c7ad3ea45f235765fa3ea18692518b0cea648ffc2aea5532818b2",
               "group": "shell",
               "id": "mig-w7-w-live-rows-model"
             }
@@ -53543,13 +53543,13 @@
           "evidence": [
             {
               "assertion": "procps w and the candidate compared on the same live state (header).",
-              "definition_sha256": "e215568e8dfc6d9f0fb44af427d3f87a05677e09051d1b18b7ecbab7865d08c0",
+              "definition_sha256": "f0b3a9d3a1fe2e0b95401ba4e460416dc456478d766a538591b71956da3d73bf",
               "group": "shell",
               "id": "mig-w7-w-live-header"
             },
             {
               "assertion": "Rows compared with an independent model because procps w prints no rows for the synthetic utmp without -u and blank tty/idle fields with it.",
-              "definition_sha256": "c61597460cf09182d261959a9b2d0f46654aa8eccb27d7dc011045bec696850c",
+              "definition_sha256": "ed0f3693860c7ad3ea45f235765fa3ea18692518b0cea648ffc2aea5532818b2",
               "group": "shell",
               "id": "mig-w7-w-live-rows-model"
             }
