@@ -279,7 +279,7 @@
       "group": "shell",
       "driver": "plain",
       "kind": "contract",
-      "purpose": "The dump spans several receive buffers and ends with NLMSG_DONE; the candidate consumes all of it.",
+      "purpose": "The dump spans several receive buffers and ends with NLMSG_DONE; the candidate consumes all of it. Runs as root in the guest so that setup can load enough generic netlink families for a multi-buffer dump.",
       "oracle": "Independent kernel oracle: the helper's own NETLINK_GENERIC client (hand-encoded request builder, attribute parser including the nested operation and multicast-group arrays, several messages per buffer, several buffers per dump, NLMSG_DONE/NLMSG_ERROR/ACK handling, sequence and port matching) is first calibrated on hand-encoded vectors and then on the real guest kernel (by name, by id, dump, two interleaved requests, NLM_F_ACK, ENOENT); it is the only source of family IDs, versions, header sizes, operations, capability flags, multicast groups and errno values, so no expected value comes from candidate output. Netlink I/O is observed with the pinned seccomp-notify helper system-sequence.py, which counts socket() calls after a captured stdout marker; setup calibrates it against children that create one netlink socket after the marker, none, and one before it. It also counts recvmsg() calls, calibrated against a child that performs a raw dump and reports its own recvmsg count. Setup requires the oracle's own dump to need at least two receive buffers that carry records, every record to carry NLM_F_MULTI and the dump to end with NLMSG_DONE; the same is re-checked before the run. If the guest family table fits in one buffer the control fails and the obligation stays open as a facility gap.",
       "comparison": "status=0 with empty stderr (a candidate that never recognises NLMSG_DONE would wait for its 2 s timeout and fail); families-complete=yes (every family of the raw dump, in order, was printed: independent of layout); recv-buffers-ge2=yes (the candidate made at least two recvmsg calls after the marker); sockets=1. Every key is evaluated for every vector (no early exit). Retained in the case tree: the candidate's raw stdout, stderr and status for each vector (observations.jsonl), the raw oracle netlink transcripts (oracle-*transcript.jsonl), the syscall traces (trace-*.jsonl); the setup control report is the stdout of the setup step. ",
       "covers": [
@@ -295,13 +295,14 @@
         "helpers/genl-review-observer-bash5320.py": "a91454f1714c9638a810e72095764984cdf3f278d2d36dac95770f698605048b",
         "helpers/system-sequence.py": "2b3a0e9793ce2ff8c75da21f0af60146813777e08f585f52917bed69412f66da"
       },
-      "setup_script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup list-multipart",
+      "setup_script": "# The guest's default family table fits in one dump buffer (a kernel netlink\n# dump chunk holds at most about 32 KiB). As root, load modules that register\n# generic netlink families until it cannot; the observer still refuses to\n# judge the candidate unless the raw dump spans two or more buffers.\nfor m in cfg80211 mac80211_hwsim openvswitch wireguard macsec team l2tp_netlink gtp nbd fou tipc batman-adv hsr ip_vs; do\n  /usr/sbin/modprobe -q \"$m\" 2>/dev/null || :\ndone\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py setup list-multipart",
       "setup_timeout": 45,
       "script": "/usr/bin/python3 /opt/bashos-parity/harness/helpers/genl-review-observer-bash5320.py \"$BASH\" list-multipart",
       "expected_status": 0,
       "timeout": 60,
       "stdout": "list-traced status=0 stderr=empty families-complete=yes recv-buffers-ge2=yes sockets=1\n",
-      "stderr": ""
+      "stderr": "",
+      "privilege": "root"
     },
     {
       "id": "migration-genl-list-extra-argument",

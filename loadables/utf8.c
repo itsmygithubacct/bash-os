@@ -801,13 +801,18 @@ static void
 bu_compose_canonical (bu_cpvec *vec)
 {
     if (vec->len < 2) return;
+    /* UAX #15: a character composes only with the last starter (ccc 0)
+       before it, and a pair whose first character is a non-starter never
+       composes. That is what keeps the non-starter decompositions (U+0344,
+       U+0F73, U+0F75, U+0F81) decomposed under NFC and NFKC. */
     size_t starter = 0;
-    uint8_t last_ccc = 0;
+    int have_starter = bu_ccc (vec->v[0]) == 0;
+    uint8_t last_ccc = have_starter ? 0 : bu_ccc (vec->v[0]);
 
     for (size_t i = 1; i < vec->len; i++) {
         uint8_t c = bu_ccc (vec->v[i]);
         uint32_t composed = 0;
-        int blocked = (last_ccc != 0 && last_ccc >= c);
+        int blocked = !have_starter || (last_ccc != 0 && last_ccc >= c);
         if (!blocked && (bu_compose_hangul (vec->v[starter], vec->v[i], &composed) ||
                          bu_find_comp (vec->v[starter], vec->v[i], &composed))) {
             vec->v[starter] = composed;
@@ -818,6 +823,7 @@ bu_compose_canonical (bu_cpvec *vec)
         }
         if (c == 0) {
             starter = i;
+            have_starter = 1;
             last_ccc = 0;
         } else {
             last_ccc = c;

@@ -16,6 +16,9 @@ the historical 0.1.3 evidence remains available separately.
   by value and objects whatever their key order, and `keys` of an array
   lists its indices.
 - `mkswap` accepts `-q`/`--quiet`.
+- `utf8 normalize` composes only from a starter, so NFC and NFKC leave the
+  non-starter decompositions (U+0344, U+0F73, U+0F75, U+0F81) decomposed, as
+  Unicode 17's NormalizationTest requires.
 - `blkid` exits 2 unless some named device had a signature, skips an
   unreadable device without a message, and prints no line for a device when
   `-s` leaves nothing to show, as util-linux does.
