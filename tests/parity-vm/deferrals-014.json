@@ -15796,7 +15796,7 @@
           "evidence": [
             {
               "assertion": "--create-mbr on a partscan loop device rereads the table (kernel set follows, also when shrinking); mounted partition gives a BLKRRPART EBUSY warning with the table still written; clean after umount.",
-              "definition_sha256": "24ce2e06f73f528a839e2c1276cc07fcc411925303c4b5428fb58297b7c8766e",
+              "definition_sha256": "f2f8525b5f019b3a4702ddac0de558c3391a943f4f6322838b996887e6126906",
               "group": "shell",
               "id": "mig-w7-fdisk-reread-after-write-root"
             }
