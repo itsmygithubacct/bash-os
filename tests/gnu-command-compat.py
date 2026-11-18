@@ -5,6 +5,7 @@ import base64
 import gzip
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tarfile
@@ -315,9 +316,12 @@ class Compatibility(unittest.TestCase):
     def test_ps_user_selection(self):
         uid = str(os.getuid())
         import pwd
-        name = pwd.getpwuid(os.getuid()).pw_name
+        try:
+            name = pwd.getpwuid(os.getuid()).pw_name
+        except KeyError:   # a uid with no passwd entry still selects by number
+            name = None
         for flag in ("-u", "-U"):
-            for who in (uid, name, f"{name},{uid}"):
+            for who in (uid, name, f"{name},{uid}") if name else (uid, f"{uid},{uid}"):
                 with self.subTest(flag=flag, who=who):
                     result = self.run_shell(f'ps {flag} "$1" -o pid,uid; echo "self=$$"', who)
                     self.assertEqual(result.returncode, 0, result.stderr)
@@ -435,7 +439,7 @@ class Compatibility(unittest.TestCase):
                 script = f"LC_ALL={locale} iconv {args}"
                 expected = self.run_shell(script, data=data, gnu=True)
                 actual = self.compare(script, data=data, diagnostic=True)
-                ours = actual.stderr.replace(b"compat: line 1: ", b"")
+                ours = re.sub(rb"compat: line \d+: ", b"", actual.stderr)
                 self.assertEqual(ours, expected.stderr)
     def test_patch_against_gnu_patch(self):
         def lines(seq):
@@ -536,7 +540,7 @@ class Compatibility(unittest.TestCase):
                     run = self.run_shell(f"{{ {command}; }} < p.diff", gnu=gnu, cwd=work)
                     snap = subprocess.run(["/bin/bash", "-c", snap_script], cwd=work, capture_output=True,
                                           env={**ENV, "PATH": "/usr/bin:/bin"}).stdout
-                    err = run.stderr.replace(b"compat: line 1: ", b"")
+                    err = re.sub(rb"compat: line \d+: ", b"", run.stderr)
                     results.append((run.returncode, run.stdout, err, snap))
                 self.assertEqual(results[1], results[0])
 
