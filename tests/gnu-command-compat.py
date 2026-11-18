@@ -290,5 +290,27 @@ class Compatibility(unittest.TestCase):
         self.compare("cmp -n 2 - q", data=b"abz", diagnostic=True)
         self.compare('cmp -n "$1" p q', "bad", diagnostic=True)
 
+    def test_split_number_of_chunks(self):
+        def listing():
+            return self.run_shell('for f in y*; do printf "%s:%q|" "$f" "$(cat "$f"; echo .)"; done', gnu=True).stdout
+        inputs = {"t": b"abcdefghij", "l": b"a\nbbbbbbbbbbbb\nc\nd\n", "m": b"a\nb\nc\nd\ne\n",
+                  "e": b"", "s": b"ab", "n": b"one\ntwo\nthree"}
+        for name, data in inputs.items():
+            for chunks in ("1", "2", "3", "4", "5", "l/2", "l/3", "l/4", "l/7", "r/2", "r/3", "r/7"):
+                with self.subTest(name=name, chunks=chunks):
+                    found = []
+                    for gnu in (True, False):
+                        for old in self.root.glob("y*"): old.unlink()
+                        (self.root / name).write_bytes(data)
+                        result = self.run_shell('split -n "$1" "$2" y', chunks, name, gnu=gnu)
+                        found.append((result.returncode, listing()))
+                    self.assertEqual(found[1], found[0])
+                for k in (1, 2, 3):
+                    for kind in ("", "l/", "r/"):
+                        self.compare('split -n "$1" "$2"', f"{kind}{k}/3", name)
+        self.compare("split -n 2 - p; cat paa; echo; cat pab", data=b"abcdefghij")
+        for chunks in ("0", "3/2", "x", "l/0/2", "r/", ""):
+            self.compare('split -n "$1" t y', chunks, diagnostic=True)
+
 if __name__ == "__main__":
     unittest.main()

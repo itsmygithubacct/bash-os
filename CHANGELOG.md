@@ -10,6 +10,7 @@ All notable changes to bash-os are recorded here. Versions follow
 - `mv -v`/`--verbose` reports each rename, copy and removal as GNU mv does.
 - `rm -v` prints each removed file and directory as GNU rm does.
 - `cmp -n LIMIT` (and `--bytes=LIMIT`) compares at most LIMIT bytes.
+- `split -n CHUNKS` takes `N`, `K/N`, `l/N`, `l/K/N`, `r/N` and `r/K/N`.
 
 ## 0.1.4 — 2026-11-18
 
