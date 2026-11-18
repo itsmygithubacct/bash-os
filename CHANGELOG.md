@@ -15,6 +15,7 @@ All notable changes to bash-os are recorded here. Versions follow
 - `diff -y` prints side by side (`-W` width), and `diff` compares directories, recursively with `-r`.
 - `curl` takes `-I`, `-v`, `-F`, `-T`, `-G`, `--data-urlencode`, `--json`, `--retry`, `-x` (HTTP proxies, CONNECT for https), `--compressed`, `--http2` (spoken as HTTP/1.1), `-r` and `-C`, compared with curl 8.14; `crypto tls connect` takes `--fd` for an already connected socket.
 - `md5sum` (with `-c`) joins `core`; `md5sum -c` and `sha256sum -c` print GNU's warnings for unreadable files and mismatched checksums.
+- `iconv` joins `core`: UTF-8, ASCII, Latin-1/9, CP1252, UTF-16/32 and UCS-2/4 with glibc's `-c`, `//IGNORE`, `//TRANSLIT` and error positions.
 
 ## 0.1.4 — 2026-11-18
 

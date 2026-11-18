@@ -44,7 +44,7 @@ The installed tools cover these areas:
   Supporting tools are installed, but an independently specified model, protocol
   peer or separately qualified backend remains necessary.
 
-The current catalog has 288 standard and two optional entries: 180 `cli`,
+The current catalog has 289 standard and two optional entries: 181 `cli`,
 98 `adapter` and 12 `contract-only` mappings. The contract cases include the
 project authority ABI, package/payload policy, membership protocol, integrity
 policy and shell-local queues/buffers. Presence of a supporting tool never

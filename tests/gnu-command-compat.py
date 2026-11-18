@@ -389,6 +389,54 @@ class Compatibility(unittest.TestCase):
         self.compare("md5sum -c mixed", diagnostic=True)
         self.compare("md5sum -c --strict mixed", diagnostic=True)
         self.compare("md5sum -c missing-file", diagnostic=True)
+    def test_iconv_charsets_errors_and_translit(self):
+        accents = "é–“x”…€ß Æ œ ñ ü 中 Ångström Łódź ﬁ © ½ → ≤ ™\n".encode()
+        emoji = "x😀\n".encode()
+        cases = [
+            ("C", accents, "-f utf-8 -t ascii//TRANSLIT"),
+            ("C.UTF-8", accents, "-f utf-8 -t ascii//TRANSLIT"),
+            ("C", "é\n".encode(), "-f utf-8 -t ascii"),
+            ("C", b"a\xffb\n", "-f utf-8 -t latin1"),
+            ("C", b"a\xffb\n", "-c -f utf-8 -t latin1"),
+            ("C", "é中x\n".encode(), "-f utf-8 -t latin1//IGNORE"),
+            ("C", "é中x\n".encode(), "-s -f utf-8 -t latin1//IGNORE"),
+            ("C", "é中x\n".encode(), "-c -f utf-8 -t latin1"),
+            ("C", b"\xe9\xa4\n", "-f latin1 -t utf-8"),
+            ("C", b"\xe9\xa4\xbd\n", "-f iso-8859-15 -t utf-8"),
+            ("C", b"\x80\x93\x94\n", "-f cp1252 -t utf-8"),
+            ("C", b"\x81\n", "-f cp1252 -t utf-8"),
+            ("C", "€œ\n".encode(), "-f utf-8 -t windows-1252"),
+            ("C", emoji, "-f utf-8 -t utf-16"),
+            ("C", emoji, "-f utf-8 -t utf-16le"),
+            ("C", emoji, "-f utf-8 -t UTF-16BE"),
+            ("C", emoji, "-f utf-8 -t utf-32"),
+            ("C", emoji, "-f utf-8 -t ucs-4"),
+            ("C", emoji, "-f utf-8 -t ucs-2"),
+            ("C", b"\xff\xfex\x00=\xd8\x00\xde\n\x00", "-f utf-16 -t utf-8"),
+            ("C", b"\x00x\x00\n", "-f utf-16 -t utf-8"),
+            ("C", b"\xfe\xff\x00x", "-f utf-16 -t utf-8"),
+            ("C", b"x\x00\n", "-f utf-16le -t utf-8"),
+            ("C", b"\x00\x00\x00x", "-f utf-32 -t utf-8"),
+            ("C", b"ok\xe2\x82", "-f utf-8 -t utf-8"),
+            ("C", b"", "-f foo -t utf-8"),
+            ("C", b"", "-f utf-8 -t bar"),
+            ("C", b"", "-f foo -t bar"),
+            ("C", b"abc\n", "-f UTF8 -t US-ASCII"),
+            ("C.UTF-8", "é\n".encode(), "-t latin1"),
+            ("C.UTF-8", b"\xe9\n", "-f latin1"),
+            ("C", "é\n".encode(), "--from-code=utf-8 --to-code=latin1"),
+            ("C", "a\xe9b".encode("latin1"), "-f latin1 -t utf-8 -o out.txt; cat out.txt"),
+            ("C", b"one\n", "-f latin1 -t utf-8 - two"),
+            ("C", b"", "-f latin1 -t utf-8 missing"),
+        ]
+        (self.root / "two").write_bytes(b"two\xe9\n")
+        for locale, data, args in cases:
+            with self.subTest(locale=locale, args=args, data=data):
+                script = f"LC_ALL={locale} iconv {args}"
+                expected = self.run_shell(script, data=data, gnu=True)
+                actual = self.compare(script, data=data, diagnostic=True)
+                ours = actual.stderr.replace(b"compat: line 1: ", b"")
+                self.assertEqual(ours, expected.stderr)
 
 if __name__ == "__main__":
     unittest.main()

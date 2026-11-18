@@ -126,7 +126,8 @@
     },
     {
       "loadables": [
-        "getconf"
+        "getconf",
+        "iconv"
       ],
       "kind": "cli",
       "packages": [
