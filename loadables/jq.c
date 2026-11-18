@@ -95,6 +95,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <math.h>
+#include <float.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -598,6 +599,56 @@ json_unstring (const char *v)
   return json_unstring_n (v, NULL);
 }
 
+/* A JSON number literal in jq 1.7's spelling (decNumber's
+   to-scientific-string): the coefficient without leading zeros and the
+   exponent folded in, plain while the exponent is <= 0 and the adjusted
+   exponent >= -6, otherwise d.dddE+n. So 1e2 is 1E+2, 1.000 stays 1.000
+   and 1e-5 is 0.00001. */
+static int
+num_canon_to (sbuf_t *b, const char *s, size_t n)
+{
+  char dig[n + 2];
+  size_t nd = 0, i = 0;
+  long exp10 = 0, fexp = 0;
+  int neg = 0;
+  if (i < n && s[i] == '-') { neg = 1; i++; }
+  for (; i < n && isdigit ((unsigned char) s[i]); i++) dig[nd++] = s[i];
+  if (i < n && s[i] == '.')
+    for (i++; i < n && isdigit ((unsigned char) s[i]); i++) { dig[nd++] = s[i]; fexp--; }
+  if (i < n && (s[i] == 'e' || s[i] == 'E'))
+    {
+      int eneg = 0; long e = 0;
+      i++;
+      if (i < n && (s[i] == '+' || s[i] == '-')) eneg = s[i++] == '-';
+      for (; i < n && isdigit ((unsigned char) s[i]); i++) if (e < 100000000L) e = e * 10 + (s[i] - '0');
+      exp10 = eneg ? -e : e;
+    }
+  if (i != n || nd == 0) return sb_putn (b, s, n);
+  size_t z = 0;
+  while (z + 1 < nd && dig[z] == '0') z++;
+  const char *c = dig + z; nd -= z;
+  long e = exp10 + fexp, ae = e + (long) nd - 1;
+  if (neg && sb_puts (b, "-") < 0) return -1;
+  if (e <= 0 && ae >= -6)
+    {
+      if (e == 0) return sb_putn (b, c, nd);
+      long point = (long) nd + e;          /* digits before the point */
+      if (point > 0)
+        return sb_putn (b, c, (size_t) point) < 0 || sb_puts (b, ".") < 0
+               || sb_putn (b, c + point, nd - (size_t) point) < 0 ? -1 : 0;
+      if (sb_puts (b, "0.") < 0) return -1;
+      for (long k = point; k < 0; k++) if (sb_puts (b, "0") < 0) return -1;
+      return sb_putn (b, c, nd);
+    }
+  char eb[32];
+  snprintf (eb, sizeof eb, "E%c%ld", ae < 0 ? '-' : '+', ae < 0 ? -ae : ae);
+  if (sb_putn (b, c, 1) < 0) return -1;
+  if (nd > 1 && (sb_puts (b, ".") < 0 || sb_putn (b, c + 1, nd - 1) < 0)) return -1;
+  return sb_puts (b, eb);
+}
+
+static int jq_canon_numbers;   /* set while input values are canonicalized */
+
 /* Write compact JSON text V the way jq prints a value: strings re-encoded
    with jq's escapes, and with INDENT > 0 (or TAB) one member per line, ": "
    after keys and empty containers kept as {} and []. INDENT 0 is compact. */
@@ -618,6 +669,13 @@ json_format_to (sbuf_t *b, const char *v, int indent, int tab)
           free (lit); free (text);
           if (rc < 0) return -1;
           p += tl - 1;
+          continue;
+        }
+      if (jq_canon_numbers && (c == '-' || isdigit ((unsigned char) c)))
+        {
+          size_t l = strspn (p, "-+.eE0123456789");
+          if (num_canon_to (b, p, l) < 0) return -1;
+          p += l - 1;
           continue;
         }
       if (!pretty || !strchr ("{[]},:", c))
@@ -759,7 +817,13 @@ lex_filter (lexer_t *lx, const char *s)
           if (s[i] == '.' && isdigit ((unsigned char)s[i+1])) { i++; while (isdigit ((unsigned char)s[i])) i++; }
           if (s[i] == 'e' || s[i] == 'E') { i++; if (s[i] == '+' || s[i] == '-') i++; while (isdigit ((unsigned char)s[i])) i++; }
           if (!jq_valid_json_number (s + st, i - st)) return lex_err (lx, "invalid numeric literal");
-          if (lex_add (lx, FT_NUMBER, s + st, i - st) < 0) return -1;
+          {
+            sbuf_t nb = {0};
+            if (num_canon_to (&nb, s + st, i - st) < 0 || !nb.p) { free (nb.p); return -1; }
+            int ar = lex_add (lx, FT_NUMBER, nb.p, strlen (nb.p));
+            free (nb.p);
+            if (ar < 0) return -1;
+          }
           continue;
         }
       if (isalpha (c) || c == '_')
@@ -1226,7 +1290,7 @@ json_length (const char *json, double *out)
         {
           char *end;
           double v = strtod (json + toks[0].start, &end);
-          *out = v < 0 ? -v : v;
+          *out = fabs (v);
         }
     }
   else *out = (double) (toks[0].end - toks[0].start);
@@ -1237,6 +1301,15 @@ static char *
 json_keys_array (const char *json)
 {
   int nt = 0; jsmntok_t *toks = jq_tokenize_json (json, strlen (json), &nt);
+  if (toks && nt > 0 && toks[0].type == JSMN_ARRAY)
+    {                                   /* an array's keys are its indices */
+      sbuf_t ib = {0}; char nb[32];
+      sb_puts (&ib, "[");
+      for (int i = 0; i < toks[0].size; i++)
+        { snprintf (nb, sizeof nb, i ? ",%d" : "%d", i); sb_puts (&ib, nb); }
+      sb_puts (&ib, "]");
+      free (toks); return ib.p;
+    }
   if (!toks || nt <= 0 || toks[0].type != JSMN_OBJECT) { free (toks); return NULL; }
   char **keys = (char **)xmalloc ((size_t)toks[0].size * sizeof (char *));
   int nkeys = 0;
@@ -1890,12 +1963,57 @@ json_fromjson_value (const char *v)
   return out;
 }
 
+/* A computed number as jq 1.7 prints a double: NaN is null, infinities
+   are clamped to the largest double, and the shortest digits that read
+   back to the same double are laid out like jq's dtoa formatter, plain
+   unless the decimal exponent is below -4 or the number would need more
+   than 15 zeros of padding (0.30000000000000004, 1e+16, 1e-05). */
 static char *
 fmt_num (double d)
 {
-  char buf[128];
-  if (isfinite (d) && d >= -0x1p63 && d < 0x1p63 && d == trunc (d)) snprintf (buf, sizeof buf, "%lld", (long long)d);
-  else snprintf (buf, sizeof buf, "%.15g", d);
+  char buf[400], dg[40];
+  if (isnan (d)) return xstrdup ("null");
+  if (d > DBL_MAX) d = DBL_MAX;
+  if (d < -DBL_MAX) d = -DBL_MAX;
+  if (d == 0) return xstrdup (signbit (d) ? "-0" : "0");
+  char e[40];
+  int prec;
+  for (prec = 0; prec < 17; prec++)
+    {
+      snprintf (e, sizeof e, "%.*e", prec, d);
+      if (strtod (e, NULL) == d) break;
+    }
+  /* e is [-]D[.DDD]e[+-]XX: digits and decimal point position. */
+  const char *q = e;
+  int neg = *q == '-', nd = 0;
+  if (neg) q++;
+  for (; *q && *q != 'e'; q++) if (isdigit ((unsigned char) *q)) dg[nd++] = *q;
+  int decpt = atoi (q + 1) + 1;
+  while (nd > 1 && dg[nd - 1] == '0') nd--;
+  char *b = buf;
+  if (neg) *b++ = '-';
+  if (decpt <= -4 || decpt > nd + 15)
+    {
+      *b++ = dg[0];
+      if (nd > 1) { *b++ = '.'; memcpy (b, dg + 1, (size_t) nd - 1); b += nd - 1; }
+      int x = decpt - 1;
+      snprintf (b, sizeof buf - (size_t) (b - buf), "e%c%02d", x < 0 ? '-' : '+', x < 0 ? -x : x);
+    }
+  else if (decpt <= 0)
+    {
+      *b++ = '0'; *b++ = '.';
+      for (int k = decpt; k < 0; k++) *b++ = '0';
+      memcpy (b, dg, (size_t) nd); b[nd] = 0;
+    }
+  else
+    {
+      for (int k = 0; k < nd || k < decpt; k++)
+        {
+          if (k == decpt) *b++ = '.';
+          *b++ = k < nd ? dg[k] : '0';
+        }
+      *b = 0;
+    }
   return xstrdup (buf);
 }
 
@@ -2448,11 +2566,8 @@ eval_node (node_t *n, const char *in, vals_t *out)
         if (!saw) return eval_node (n->b, in, out); return 0;
       }
     case N_CALL_LENGTH: { double l = 0; if (json_length (in, &l) < 0) return -1; char buf[64];
-      /* Match jq: integer-valued result prints with no decimal point;
-         otherwise %g (jq uses g-style formatting too). */
-      if (l == (double) (long long) l) snprintf (buf, sizeof buf, "%lld", (long long) l);
-      else snprintf (buf, sizeof buf, "%.15g", l);
-      return vals_add (out, buf); }
+      (void) buf;
+      return vals_add_take (out, fmt_num (l)); }
     case N_CALL_KEYS: return vals_add_take (out, json_keys_array (in));
     case N_CALL_TYPE:
       {
@@ -2610,8 +2725,16 @@ eval_node (node_t *n, const char *in, vals_t *out)
             double d = strtod (raw, &end);
             /* jq accepts leading whitespace; reject if no digits parsed. */
             if (end == raw) { free (raw); jq_eval_error ("tonumber: not a number"); return -1; }
+            (void) d;
+            /* jq keeps the literal: "1.50"|tonumber is 1.50, "1e2" is 1E+2. */
+            const char *st = raw;
+            while (isspace ((unsigned char) *st)) st++;
+            size_t sl = (size_t) (end - st);
+            sbuf_t nb = {0};
+            int nr = jq_valid_json_number (st, sl) ? num_canon_to (&nb, st, sl) : -1;
+            if (nr < 0 || !nb.p) { free (nb.p); nb.p = fmt_num (d); }
             free (raw);
-            return vals_add_take (out, fmt_num (d));
+            return vals_add_take (out, nb.p);
           }
         jq_eval_error ("tonumber: input is not a number or string");
         return -1;
@@ -2628,7 +2751,13 @@ eval_node (node_t *n, const char *in, vals_t *out)
         if (json_type (in)[0] != 's') { jq_eval_error ("fromjson: input is not a string"); return -1; }
         char *res = json_fromjson_value (in);
         if (!res) { jq_eval_error ("fromjson: invalid JSON in string"); return -1; }
-        return vals_add_take (out, res);
+        sbuf_t canon = {0};
+        jq_canon_numbers = 1;
+        int frc = json_format_to (&canon, res, 0, 0);
+        jq_canon_numbers = 0;
+        free (res);
+        if (frc < 0 || !canon.p) { free (canon.p); return -1; }
+        return vals_add_take (out, canon.p);
       }
     case N_CALL_ASCII_DOWNCASE: case N_CALL_ASCII_UPCASE:
       {
@@ -2815,8 +2944,10 @@ eval_node (node_t *n, const char *in, vals_t *out)
       {
         char *a = NULL, *b = NULL; if (eval_one (n->a, in, &a) < 0 || eval_one (n->b, in, &b) < 0) { free (a); free (b); return -1; }
         int r = 0; const char *ta = json_type (a), *tb = json_type (b);
-        if (n->k == N_CMP_EQ) r = !strcmp (a, b);
-        else if (n->k == N_CMP_NE) r = strcmp (a, b) != 0;
+        /* jq equality is its ordering: 1E+2 == 100, and objects are equal
+           whatever order their keys were written in. */
+        if (n->k == N_CMP_EQ) r = json_value_cmp (a, b) == 0;
+        else if (n->k == N_CMP_NE) r = json_value_cmp (a, b) != 0;
         else if (!strcmp (ta, "number") && !strcmp (tb, "number"))
           { double da = strtod (a, NULL), db = strtod (b, NULL); if (n->k == N_CMP_LT) r = da < db; else if (n->k == N_CMP_LE) r = da <= db; else if (n->k == N_CMP_GT) r = da > db; else r = da >= db; }
         else if (!strcmp (ta, "string") && !strcmp (tb, "string"))
@@ -3175,7 +3306,10 @@ run_filter (const char *filter, const char *doc, int raw, int exit_status,
          comparison, length, keys and output see the text, not its escapes. */
       {
         sbuf_t canon = {0};
-        if (json_format_to (&canon, value, 0, 0) < 0 || !canon.p)
+        jq_canon_numbers = 1;
+        int frc = json_format_to (&canon, value, 0, 0);
+        jq_canon_numbers = 0;
+        if (frc < 0 || !canon.p)
           { free (canon.p); free (value); value = NULL; rc = EXECUTION_FAILURE; break; }
         free (value); value = canon.p;
       }

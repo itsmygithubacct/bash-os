@@ -30,7 +30,7 @@
       "purpose": "Check Bash short help against the documented mkswap command synopsis.",
       "script": "help -s mkswap",
       "expected_status": 0,
-      "stdout": "mkswap: mkswap [-L label] [-U uuid] [-p pagesize] [-f] device|file [size]\n",
+      "stdout": "mkswap: mkswap [-L label] [-U uuid] [-p pagesize] [-f] [-q] device|file [size]\n",
       "stderr": "empty"
     },
     {

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 /* mkswap.c — set up a Linux swap area, as a bash builtin.
  *
- *   mkswap [-L label] [-U uuid] [-p pagesize] [-f] device|file [size]
+ *   mkswap [-L label] [-U uuid] [-p pagesize] [-f] [-q] device|file [size]
  *
  *   -L LABEL    set a volume label (truncate to 15 bytes, with a warning)
  *   -U UUID     use this UUID (else a random v4 UUID)
@@ -100,7 +100,7 @@ mkswap_builtin (WORD_LIST *list)
 {
     const char *label = NULL, *uuid_arg = NULL, *dev = NULL, *size_arg = NULL;
     uint64_t pagesize = 0;
-    int force = 0;
+    int force = 0, quiet = 0;
 
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
@@ -110,6 +110,7 @@ mkswap_builtin (WORD_LIST *list)
         if (!strcmp (w, "-U") || !strcmp (w, "--uuid"))  { if (!list->next){builtin_error("-U requires an argument");return EXECUTION_FAILURE;} list=list->next; uuid_arg=list->word->word; list=list->next; continue; }
         if (!strcmp (w, "-p") || !strcmp (w, "--pagesize")) { if (!list->next){builtin_error("-p requires an argument");return EXECUTION_FAILURE;} list=list->next; if(parse_number(list->word->word, &pagesize) || !pagesize){builtin_error("invalid page size: %s",list->word->word);return EXECUTION_FAILURE;} list=list->next; continue; }
         if (!strcmp (w, "-f") || !strcmp (w, "--force")) { force = 1; list = list->next; continue; }
+        if (!strcmp (w, "-q") || !strcmp (w, "--quiet")) { quiet = 1; list = list->next; continue; }
         builtin_error ("unknown option: %s", w); builtin_usage (); return EXECUTION_FAILURE;
     }
 
@@ -210,7 +211,8 @@ mkswap_builtin (WORD_LIST *list)
     if (close(fd) < 0) failed = 1;
     if (failed) { builtin_error("%s: flush or close failed", dev); return EXECUTION_FAILURE; }
 
-    if (label && strlen(label) > 15) builtin_warning("Label was truncated.");
+    if (label && strlen(label) > 15 && !quiet) builtin_warning("Label was truncated.");
+    if (quiet) return EXECUTION_SUCCESS;     /* -q: no messages, as util-linux */
     uint64_t usable = (npages - 1) * ps;
     char human[64]; human_size(usable, human, sizeof human);
     printf ("Setting up swapspace version 1, size = %s (%llu bytes)\n", human,
@@ -226,11 +228,12 @@ mkswap_builtin (WORD_LIST *list)
 char *mkswap_doc[] = {
     "Set up a Linux swap area.",
     "",
-    "    mkswap [-L label] [-U uuid] [-p pagesize] [-f] device|file [size]",
+    "    mkswap [-L label] [-U uuid] [-p pagesize] [-f] [-q] device|file [size]",
     "",
     "    -L LABEL   volume label (truncated to 15 bytes, with warning)",
     "    -U UUID    use this UUID (complete canonical hexadecimal form)",
     "    -p SIZE    page size in bytes          -f       force",
+    "    -q         print nothing on success, and no warnings",
     "    size       optional size in 1024-byte blocks",
     "    pagesize   a power of two from 2048 to 65536 bytes",
     "",
@@ -244,6 +247,6 @@ struct builtin mkswap_struct = {
     mkswap_builtin,
     BUILTIN_ENABLED,
     mkswap_doc,
-    "mkswap [-L label] [-U uuid] [-p pagesize] [-f] device|file [size]",
+    "mkswap [-L label] [-U uuid] [-p pagesize] [-f] [-q] device|file [size]",
     0
 };

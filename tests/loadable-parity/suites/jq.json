@@ -3,7 +3,7 @@
   "loadable": "jq",
   "reference": "Parity cases use the installed jq CLI under system Bash in the mandatory submit-helper namespace. Status, stdout bytes, stderr policy and private fixture trees are compared. Custom subset cases use independent literal expectations and are not jq parity. The jq project CLI is not a GNU utility; the draft GNU-jq label has been corrected.",
   "coverage": [
-    "Ordinary JSON text streams (including empty input and mixed root types), file/stdin and relative filter files with comments; indented (default, --tab, --indent N) and compact output, raw output including NUL, and string escapes decoded for comparison, length and keys.",
+    "Ordinary JSON text streams (including empty input and mixed root types), file/stdin and relative filter files with comments; indented (default, --tab, --indent N) and compact output, raw output including NUL, and string escapes decoded for comparison, length and keys; number literals respelled as jq 1.7 does (1e2 as 1E+2, 1.000 kept) and computed numbers printed as the shortest double, with numbers equal by value.",
     "Paths, arrays, object iteration, collection, select, comparisons, arithmetic, null defaults, conditionals, sorting, strings, slurp and null input.",
     "Optional field/index/iteration type errors versus missing/null values, mixed addition failures, compatible scalar/container addition and add folds.",
     "Exit-status semantics, malformed ordinary JSON, missing and invalid filter files; private fixture output files are compared.",
@@ -14,7 +14,7 @@
     "This establishes selected bounded subset behavior only, not the full jq language or incremental streaming memory usage. Input nesting is limited to 256 containers; no stress or crash inputs are used.",
     "Object construction, variables/functions in filters, assignments, modules, regex functionality and most jq builtins remain outside the language subset. Explicit rejection is tested for representative extension requests.",
     "--stream is a documented custom leaf-tuple interface without jq container-end events; it is checked as a contract, not full jq stream parity.",
-    "Only one optional data FILE is supported; multiple data filenames, combined short flags, all jq CLI switches, jq's respelling of number literals (1e2 prints as 1E+2), arbitrary numeric precision and byte-identical diagnostics are not claimed.",
+    "Only one optional data FILE is supported; multiple data filenames, combined short flags, all jq CLI switches, leading zeros in number literals (jq reads 01 as 1), arbitrary numeric precision in arithmetic and byte-identical diagnostics are not claimed.",
     "No system/hardware operations are required. Metadata is not counted as operation coverage."
   ],
   "cases": [
@@ -93,6 +93,17 @@
         "od"
       ],
       "script": "cat > in.json <<'JSON'\n{\"s\":\"a\\/bé𝄞\\b\\f\\u007f\\u0001 \\\" \\\\\",\"e\":{},\"l\":[],\"n\":[1,{\"x\":[{}],\"y\":true}],\"z\":null}\nJSON\njq . in.json\njq -c . in.json\njq --tab .n in.json\njq --indent 1 .n in.json\njq --indent 0 .n in.json\njq -r .s in.json\nprintf '%s\\n' '\"a\\u0000b\"' | jq -r . | od -An -c\nprintf '%s\\n' '{\"a\":\"é\",\"qA\":\"x\\/y\"}' > u.json\njq -c '.a == \"é\", (.a | length), (\"𝄞\" | length), .qA, .\"qA\", (.qA == \"x/y\"), ([.a, \"é\"] | unique), keys, (.a + \"A\")' u.json",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "number_spelling_and_equality",
+      "kind": "parity",
+      "purpose": "Check that number literals are respelled as jq 1.7 respells them (1e2 as 1E+2, trailing zeros kept), that computed numbers print as the shortest double with jq's exponent form, that infinities clamp to the largest double, and that numbers compare equal by value.",
+      "requires": [
+        "jq"
+      ],
+      "script": "printf '%s\\n' '[1e2,1E2,1e+2,1.5e3,1e-2,1e-5,1.23e-7,0e10,12e0,1.000,-0.0,-0,1.10,5e-324,1e1000,100000000000000000000,3.14159265358979323846,{\"a\":1e2}]' > in.json\njq -c . in.json\njq -c 'map(select(type == \"number\") | . + 0)' in.json\njq -c '[.[0] == 100, .[0] == .[2], .[9] == 1, .[10] == 0, .[17] == (\"{\\\"a\\\":100}\"|fromjson), .[0] != 100]' in.json\njq -c '[(.[0]|tostring), (.[9]|tostring), (.[17]|tojson)]' in.json\njq -c '.[14]+0, .[15]+0, .[16]*1, 1e16+1, 0.1+0.2, 100/3, 1e-5+0, -(.[0]), -0.0' in.json\njq -c 'length, (.[11]|length), ([.[0], .[1], .[2]]|sort|unique), (.[17]|keys), (.|keys|length)' in.json\njq -n -c '1e2, 1.50, -1e2, [range(0;1;0.25)], (\"1e2\"|tonumber), (\"1.50\"|tonumber), (\"[1e2,0.10]\"|fromjson), ([3,1]|keys)'",
       "expected_status": 0,
       "stderr": "empty"
     },

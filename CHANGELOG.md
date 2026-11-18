@@ -9,6 +9,13 @@ The release gate requires every recorded FAIL to be fixed and every required
 static and dynamic qualification case to PASS. This target is not yet met;
 the historical 0.1.3 evidence remains available separately.
 
+- `jq` spells numbers as jq 1.7 does: literals keep their digits in
+  jq's decimal form (`1e2` prints as `1E+2`, `1.000` stays `1.000`),
+  computed numbers print as the shortest double (`0.30000000000000004`,
+  `1e+16`), infinities clamp to the largest double, `==` compares numbers
+  by value and objects whatever their key order, and `keys` of an array
+  lists its indices.
+- `mkswap` accepts `-q`/`--quiet`.
 - `blkid` exits 2 unless some named device had a signature, skips an
   unreadable device without a message, and prints no line for a device when
   `-s` leaves nothing to show, as util-linux does.
