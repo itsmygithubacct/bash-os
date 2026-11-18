@@ -1247,19 +1247,19 @@
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "39f74578c64500d40721c8a2a27f322ce68cd06a16fe4bb2fec2f0211fdb05bb",
+              "definition_sha256": "756ec3fb7261c3d2b6df05b507893535c6cef760620dad3c0571b65be6cee239",
               "group": "shell",
               "id": "migration-clock254-domain-boottime"
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "834cbd7d222be76e211560fdf8758d3b71a1503dd02127afc0e7a383b1d19b36",
+              "definition_sha256": "27d8128906519e897dc0e9dbcdb67b00771ec8d475350a3622831c0e913fdd46",
               "group": "shell",
               "id": "migration-clock254-domain-monotonic"
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "0a3706f3f67ef074e152b04ec348b8f7193d27dc922c8e7ca3adcfbc4e6f9206",
+              "definition_sha256": "adead0ca0ec33ef0a0070a4de7f69719a982c1260ff6fd0714af9626688c27e7",
               "group": "shell",
               "id": "migration-clock254-domain-realtime"
             }
@@ -1293,25 +1293,25 @@
           "evidence": [
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "5f669e9b899a44b097c990ba3bdc65049cac4dd3c99c625ea50ede2d439f864d",
+              "definition_sha256": "ad005ebaa792f275e2f7cf8c05af811b6d1eeb7f124414c7f152ebe47c8ad97a",
               "group": "shell",
               "id": "migration-clock254-boundary-large-epoch"
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "4aa16a20e75085a43ec706bb9beee2393d1a9492a116d486f1c1da5a8eac6297",
+              "definition_sha256": "00707c35e83c5305522e82b9a8bd75006bfa8c611a7b512f4f0616d406567011",
               "group": "shell",
               "id": "migration-clock254-boundary-max-nanos"
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "b7aa3472587ba44f986529bf70717816af6a913fca6f28de3186dcb964b6bc84",
+              "definition_sha256": "d9e532bf354dd0860b37615bfc0d1dddf279b384e0d7066976f519f50e1e3586",
               "group": "shell",
               "id": "migration-clock254-boundary-negative-epoch"
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "b6c865800aae05e02ba264a1099fa179b541ea1737a735d3fd24c342f0910877",
+              "definition_sha256": "5e5c72ca1e3b814e876ce33e702e3153a3b6b2299d4afc2253e28cf99193037b",
               "group": "shell",
               "id": "migration-clock254-boundary-zero"
             }
@@ -1354,7 +1354,7 @@
           "evidence": [
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "ae365e719987cf5757a93d9593a8cb6c171491ebc7a6631fbb8de756da6231f5",
+              "definition_sha256": "bf7ab67d072afa085a4d4d28e94e60fae0ecc2f0767429041dc7c3f28107d8c5",
               "group": "shell",
               "id": "migration-clock254-since-borrow"
             }
@@ -1368,19 +1368,19 @@
           "evidence": [
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "877c4eb9f640255387351bafbf0841fa6a20607c7511305e5267f145c4df43e0",
+              "definition_sha256": "4cde7656b573d94a3c4f6a8f5efddae86e8289028f6777884fc3d5e3dbfe7238",
               "group": "shell",
               "id": "migration-clock254-since-exact-zero"
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "4e2ee47f442eb805b787cf238b1f5b7b661215e0e9f09783168c5fa2f23f0c8a",
+              "definition_sha256": "8d81b3103e3e87659bc56296c7b4dfb863f50e6789f57f0c3befc6a3336034af",
               "group": "shell",
               "id": "migration-clock254-since-future-fraction"
             },
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "107cc46b4316cba946a875a75d31d6dc51089a73fbf456dba7f8d6dc068bf6b9",
+              "definition_sha256": "6b3eb2da40dfebd778e997ee1fb8bfdd7079c5844a61b9f96a65b679a4854d84",
               "group": "shell",
               "id": "migration-clock254-since-future-integer"
             }
@@ -1414,7 +1414,7 @@
           "evidence": [
             {
               "assertion": "The unchanged clock helper semantics are ported to exact hash-bound release-binary call sites. The ordinary fixture verifies the protected guest and native injection control before the candidate boundary, clock-domain, or since-arithmetic observation; unsupported identity or injection remains incomplete.",
-              "definition_sha256": "928a6afd9d7224aa85de20a9cb7b0f24e0957394928740fd95806ae824f69186",
+              "definition_sha256": "cca0f032dd4f1c4b3af15dde8c0bd1b269fa19a92ee9fbd01e5e0cd21e98bc1f",
               "group": "shell",
               "id": "migration-clock254-since-clock-error"
             }
@@ -12414,7 +12414,7 @@
               "group": "shell",
               "id": "qualification-014-dmesg-live-format-r17-r1",
               "assertion": "Default formatting on live records, as literally stated in r1.",
-              "definition_sha256": "dfbb6f19d6a9e72fffc26ad0445ca345cc421bea97e3c81598c1527674c4fb4e"
+              "definition_sha256": "88f621f95dbb0e0aada0afab11605b05e3bd651dfb9b0359e9b5986f225c11ae"
             }
           ],
           "gap": "",
@@ -12443,7 +12443,7 @@
               "group": "shell",
               "id": "qualification-014-dmesg-live-format-r17-r1",
               "assertion": "Valid -r output on live records, as covered by the literal live/fixture requirement.",
-              "definition_sha256": "dfbb6f19d6a9e72fffc26ad0445ca345cc421bea97e3c81598c1527674c4fb4e"
+              "definition_sha256": "88f621f95dbb0e0aada0afab11605b05e3bd651dfb9b0359e9b5986f225c11ae"
             },
             {
               "group": "shell",
