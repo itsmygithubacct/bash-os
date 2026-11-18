@@ -312,5 +312,28 @@ class Compatibility(unittest.TestCase):
         for chunks in ("0", "3/2", "x", "l/0/2", "r/", ""):
             self.compare('split -n "$1" t y', chunks, diagnostic=True)
 
+    def test_ps_user_selection(self):
+        uid = str(os.getuid())
+        import pwd
+        name = pwd.getpwuid(os.getuid()).pw_name
+        for flag in ("-u", "-U"):
+            for who in (uid, name, f"{name},{uid}"):
+                with self.subTest(flag=flag, who=who):
+                    result = self.run_shell(f'ps {flag} "$1" -o pid,uid; echo "self=$$"', who)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    lines = result.stdout.decode().splitlines()
+                    self.assertEqual(lines[0].split(), ["PID", "UID"])
+                    rows = [line.split() for line in lines[1:-1]]
+                    self.assertTrue(rows)
+                    self.assertTrue(all(row[1] == uid for row in rows), rows)
+                    self.assertIn(lines[-1].split("=")[1], [row[0] for row in rows])
+        result = self.run_shell("ps -u 4000000 -o pid")
+        self.assertEqual(result.stdout.decode().split(), ["PID"])
+        result = self.run_shell(f"ps --user={uid} -o uid")
+        self.assertEqual(set(result.stdout.decode().split()[1:]), {uid})
+        result = self.run_shell("ps -u no-such-user-here")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(result.stderr)
+
 if __name__ == "__main__":
     unittest.main()
