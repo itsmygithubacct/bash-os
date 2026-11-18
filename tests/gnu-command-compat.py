@@ -262,5 +262,20 @@ class Compatibility(unittest.TestCase):
                 else: self.assertEqual(result.stdout, expected, result.stderr)
                 subprocess.run(["rm", "-rf", f"/dev/shm/bash-os-mv-{os.getpid()}-{int(runner)}"], check=True)
 
+    def test_rm_verbose(self):
+        def fixture():
+            for name in os.listdir(self.root):
+                subprocess.run(["rm", "-rf", "--", str(self.root / name)], check=True)
+            (self.root / "f").write_bytes(b"1\n"); (self.root / "it's").write_bytes(b"2\n")
+            (self.root / "d/e").mkdir(parents=True); (self.root / "d/e/h").write_bytes(b"h")
+        for script in ("rm -v f", "rm -v \"it's\"", "rm -rv d", "rm -vr d f", "rm -fv missing",
+                       "rm -v missing; echo $?", "rm -v d; echo $?", "printf 'y\\ny\\n' | rm -iv f \"it's\""):
+            with self.subTest(script=script):
+                fixture(); expected = self.run_shell(script, gnu=True)
+                fixture(); actual = self.run_shell(script)
+                lines = lambda out: sorted(out.splitlines()) if "-r" in script else out.splitlines()
+                self.assertEqual((actual.returncode, lines(actual.stdout)),
+                                 (expected.returncode, lines(expected.stdout)), actual.stderr)
+
 if __name__ == "__main__":
     unittest.main()
