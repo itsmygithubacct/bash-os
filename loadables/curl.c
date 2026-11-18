@@ -41,6 +41,27 @@
  *                         maximum time allowed to connect
  *     -m / --max-time SEC overall timeout for the request
  *     -                   read POST body from stdin when -d @-
+ *     -I / --head         HEAD request; the response head is the output
+ *     -v / --verbose      request and response heads on stderr
+ *     -F / --form NAME=VALUE|NAME=@FILE|NAME=<FILE [;type=T][;filename=F]
+ *                         multipart/form-data body
+ *     -T / --upload-file FILE|-
+ *                         PUT the file (a URL without a file part gets
+ *                         its name)
+ *     -G / --get          send the -d data as the URL query
+ *     --data-urlencode [NAME]=TEXT | [NAME]@FILE
+ *     --json DATA         JSON body with JSON Content-Type and Accept
+ *     --retry N [--retry-delay S] [--retry-connrefused] [--retry-all-errors]
+ *                         retry timeouts and HTTP 408/429/500/502/503/504
+ *     -x / --proxy [http://][USER:PASS@]HOST[:PORT]
+ *                         HTTP proxy; https:// goes through a CONNECT
+ *                         tunnel. Proxy environment variables are not read.
+ *     --compressed        ask for and decode gzip/deflate
+ *     --http2, --http1.1  accepted; the exchange is HTTP/1.1, the
+ *                         fallback curl takes when HTTP/2 is not agreed
+ *     -r / --range RANGE  byte range
+ *     -C / --continue-at OFFSET|-
+ *                         resume into the output file
  *
  * Parser compatibility:
  *     Supported long options accept --name=value where Debian curl does.
@@ -49,7 +70,7 @@
  *     (for example: -fsSLo FILE).
  *
  * Deliberately omitted (out of scope, per work-doc):
- *     -F multipart, non-HTTP cookie schemes, --resolve, HTTP/2, OAuth.
+ *     non-HTTP cookie schemes, --resolve, HTTP/2 framing, SOCKS proxies, OAuth.
  *
  * Transport layer:
  *     http://  — raw TCP socket via getaddrinfo + connect.
@@ -97,6 +118,7 @@
 
 #include "loadables.h"
 #include "command-run.h"
+#include <zlib.h>
 
 /* Caps. Response buffer is the dominant memory footprint; curl is
  * meant for small page/file fetches, not multi-GiB downloads. The cap
@@ -150,6 +172,27 @@ typedef struct {
   int         offsite;         /* this hop is not on the first URL's origin */
   int         auth_dropped;    /* a hop left the first origin: -u stays off */
   int         features;        /* --features */
+  int         head;            /* -I/--head: print the response headers */
+  int         verbose;         /* -v/--verbose */
+  int         get_query;       /* -G/--get: -d data goes into the URL */
+  int         compressed;      /* --compressed */
+  int         retries;         /* --retry N */
+  int         retry_delay;     /* --retry-delay SEC (0 = doubling from 1) */
+  int         retry_connrefused; /* --retry-connrefused */
+  int         retry_all;       /* --retry-all-errors */
+  int         json;            /* --json given */
+  int         resume_set;      /* -C/--continue-at given */
+  long long   resume_from;     /* -C offset; -1 = from the output file */
+  int         head_hops;       /* -I -L: response heads written so far */
+  const char *content_type;    /* NULL: form default; "": send none */
+  char       *content_type_alloc;
+  const char *accept;          /* default Accept value */
+  const char *upload;          /* -T/--upload-file FILE */
+  const char *range;           /* -r/--range RANGE */
+  const char *proxy;           /* -x/--proxy [scheme://][user:pass@]host[:port] */
+  const char *forms[BCURL_HEADER_SLOTS]; /* -F/--form specs */
+  int         nforms;
+  char        proxy_auth[512]; /* base64 user:pass from the proxy URL */
 } bc_opts;
 
 typedef struct {
@@ -381,14 +424,36 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
         { bc_error ("header buffer exceeded"); return NULL; }
     }
   if (!bc_user_header (o, "Accept"))
-    bc_hdr_append (builtin_hdrs, sizeof builtin_hdrs, "Accept: */*");
+    {
+      snprintf (line, sizeof line, "Accept: %s", o->accept ? o->accept : "*/*");
+      bc_hdr_append (builtin_hdrs, sizeof builtin_hdrs, line);
+    }
+  if (o->range && !bc_user_header (o, "Range"))
+    {
+      snprintf (line, sizeof line, "Range: bytes=%s", o->range);
+      if (bc_hdr_append (builtin_hdrs, sizeof builtin_hdrs, line) < 0)
+        { bc_error ("header buffer exceeded"); return NULL; }
+    }
+  else if (o->resume_set && o->resume_from > 0 && !bc_user_header (o, "Range"))
+    {
+      snprintf (line, sizeof line, "Range: bytes=%lld-", o->resume_from);
+      bc_hdr_append (builtin_hdrs, sizeof builtin_hdrs, line);
+    }
+  if (o->compressed && !bc_user_header (o, "Accept-Encoding"))
+    bc_hdr_append (builtin_hdrs, sizeof builtin_hdrs, "Accept-Encoding: deflate, gzip");
+  if (o->proxy && strcasecmp (u->scheme, "http") == 0 && o->proxy_auth[0]
+      && !bc_user_header (o, "Proxy-Authorization"))
+    {
+      snprintf (line, sizeof line, "Proxy-Authorization: Basic %s", o->proxy_auth);
+      bc_hdr_append (builtin_hdrs, sizeof builtin_hdrs, line);
+    }
 
   /* The buffer holds the request line, both header blocks, the framing
      lines (" HTTP/1.1", Content-Length, Content-Type and CRLFs: under
      160 bytes) and the body. An -X method of any length is counted. */
   size_t body_len = o->body_set ? o->body_len : 0;
   size_t parts[] = { strlen (o->method), strlen (u->path), strlen (builtin_hdrs),
-                     strlen (hdrs), body_len, 160 };
+                     strlen (hdrs), body_len, 160 + 512 };
   size_t need = 1;
   for (size_t i = 0; i < sizeof parts / sizeof parts[0]; i++)
     {
@@ -399,13 +464,28 @@ bc_build_request (const bc_opts *o, const bc_url *u, size_t *out_len)
   char *req = malloc (need);
   if (!req) { bc_error ("out of memory"); return NULL; }
 
-  char framing[128] = "";
+  char framing[512] = "";
   if (o->body_set && !bc_user_header (o, "Content-Length"))
     snprintf (framing, sizeof framing, "Content-Length: %zu\r\n", body_len);
-  if (o->body_set && !bc_user_header (o, "Content-Type"))
-    strcat (framing, "Content-Type: application/x-www-form-urlencoded\r\n");
-  int n = snprintf (req, need, "%s %s HTTP/1.1\r\n%s%s%s\r\n",
-                    o->method, u->path, builtin_hdrs, hdrs, framing);
+  const char *ctype = o->content_type ? o->content_type
+                      : "application/x-www-form-urlencoded";
+  if (o->body_set && *ctype && !bc_user_header (o, "Content-Type"))
+    {
+      size_t used = strlen (framing);
+      snprintf (framing + used, sizeof framing - used, "Content-Type: %s\r\n", ctype);
+    }
+  /* Through an HTTP proxy, a plain http:// request names its absolute URL. */
+  char target_prefix[sizeof u->host + sizeof u->port + 16] = "";
+  if (o->proxy && strcasecmp (u->scheme, "http") == 0)
+    snprintf (target_prefix, sizeof target_prefix, "http://%s", host);
+  if (strlen (target_prefix) > SIZE_MAX - need)
+    { free (req); bc_error ("request too large"); return NULL; }
+  need += strlen (target_prefix);
+  char *grown = realloc (req, need);
+  if (!grown) { free (req); bc_error ("out of memory"); return NULL; }
+  req = grown;
+  int n = snprintf (req, need, "%s %s%s HTTP/1.1\r\n%s%s%s\r\n",
+                    o->method, target_prefix, u->path, builtin_hdrs, hdrs, framing);
   if (n < 0 || (size_t) n >= need || body_len > need - 1 - (size_t) n)
     { free (req); bc_error ("request framing overflow"); return NULL; }
   if (body_len)
@@ -1110,7 +1190,7 @@ bc_read_until_close (int fd, int timeout_s, int head_request,
 static unsigned char *
 bc_https_exchange (const bc_url *u, const char *req, size_t reqlen,
                    int insecure, const char *cacert, int timeout_s,
-                   int head_request, size_t *out_len)
+                   int head_request, int tunnel_fd, size_t *out_len)
 {
   /* Build a bash one-liner that:
    *   1. cats the request from FIFO-fd 0 via a here-doc-style printf
@@ -1151,16 +1231,27 @@ bc_https_exchange (const bc_url *u, const char *req, size_t reqlen,
       dup2 (out_pipe[1], 1);
       close (in_pipe[0]); close (in_pipe[1]);
       close (out_pipe[0]); close (out_pipe[1]);
-      char hostport[320];
+      char hostport[320], fdbuf[16];
       snprintf (hostport, sizeof hostport, "%s:%s", u->host, u->port);
+      /* A proxy tunnel is already connected: TLS runs over it as fd 3. */
+      if (tunnel_fd >= 0)
+        {
+          if (tunnel_fd != 3 && (dup2 (tunnel_fd, 3) < 0 || close (tunnel_fd) < 0)) _exit (1);
+          snprintf (fdbuf, sizeof fdbuf, "3");
+        }
       /* Run the crypto builtin in this child, so HTTPS works whatever
        * /bin/bash is. The exec below is only for a shell without crypto. */
-      char *argv[11];
+      char *argv[13];
       int argc = 0;
       argv[argc++] = "crypto";
       argv[argc++] = "tls";
       argv[argc++] = "connect";
       argv[argc++] = "--curl-status";
+      if (tunnel_fd >= 0)
+        {
+          argv[argc++] = "--fd";
+          argv[argc++] = fdbuf;
+        }
       argv[argc++] = hostport;
       argv[argc++] = "-s";
       argv[argc++] = (char *) u->host;
@@ -1180,6 +1271,7 @@ bc_https_exchange (const bc_url *u, const char *req, size_t reqlen,
         }
       bos_prepare_child ();
       bos_run_builtin ("crypto", argv, NULL);
+      if (tunnel_fd >= 0) _exit (127);   /* no TLS over a tunnel without the builtin */
       /* crypto is a builtin (no PATH binary). Use `builtin` to
        * force builtin-lookup dispatch; the wrapping /bin/bash is the
        * bash-os shell that has crypto compiled in. `exec
@@ -1204,6 +1296,7 @@ bc_https_exchange (const bc_url *u, const char *req, size_t reqlen,
       _exit (127);
     }
   close (in_pipe[0]); close (out_pipe[1]);
+  if (tunnel_fd >= 0) close (tunnel_fd);
 
   /* Push request to child stdin. */
   if (bc_write_all (in_pipe[1], req, reqlen) < 0)
@@ -1476,7 +1569,7 @@ bc_response_free (bc_response *r)
 
 /* ---- emit body to outfile/stdout ---- */
 static int
-bc_emit (const bc_opts *o, const bc_url *u, const bc_response *r)
+bc_emit (bc_opts *o, const bc_url *u, const bc_response *r)
 {
   const char *out = o->outfile;
   /* nbuf must match u->path's size (BCURL_URL_MAX) so -Wformat-truncation
@@ -1494,18 +1587,33 @@ bc_emit (const bc_opts *o, const bc_url *u, const bc_response *r)
       out = nbuf;
     }
   FILE *fp;
+  /* -I -L writes every hop's head to one output; -C appends. */
+  const char *mode = (o->head && o->head_hops > 0) || (o->resume_set && o->resume_from != 0)
+                     ? "ab" : "wb";
   if (!out || strcmp (out, "-") == 0)
     fp = stdout;
   else
     {
-      fp = fopen (out, "wb");
+      fp = fopen (out, mode);
       if (!fp)
         { bc_error ("%s: %s", out, strerror (errno)); return -1; }
     }
-  size_t w = fwrite (r->body, 1, r->blen, fp);
-  if (fp != stdout) fclose (fp);
+  size_t w, want;
+  if (o->head)
+    {
+      want = r->informational_len + r->hlen + 2;
+      w = r->informational_len ? fwrite (r->informational, 1, r->informational_len, fp) : 0;
+      w += fwrite (r->headers, 1, r->hlen, fp);
+      w += fwrite ("\r\n", 1, 2, fp);
+    }
+  else
+    {
+      want = r->blen;
+      w = fwrite (r->body, 1, r->blen, fp);
+    }
+  if (fp != stdout) { if (fclose (fp) == EOF) w = 0; }
   else fflush (fp);
-  return (w == r->blen) ? 0 : -1;
+  return (w == want) ? 0 : -1;
 }
 
 static int
@@ -1569,6 +1677,209 @@ bc_emit_write_out (const bc_opts *o, const bc_response *r)
   return 0;
 }
 
+/* -x/--proxy: [scheme://][user:pass@]host[:port], port 1080 by default.
+   Only HTTP proxies are spoken; user:pass becomes Proxy-Authorization. */
+static int
+bc_parse_proxy (const char *spec, char *host, size_t hostsz, char *port, size_t portsz,
+                char *auth, size_t authsz)
+{
+  const char *p = spec;
+  const char *scheme_end = strstr (p, "://");
+  auth[0] = '\0';
+  if (scheme_end)
+    {
+      size_t sl = (size_t) (scheme_end - p);
+      if (!(sl == 4 && !strncasecmp (p, "http", 4)))
+        { bc_curl_error (5, "Unsupported proxy scheme for '%s'", spec); bc_errcode = 5; return -1; }
+      p = scheme_end + 3;
+    }
+  const char *end = p + strcspn (p, "/?#");
+  const char *at = NULL;
+  for (const char *q = p; q < end; q++) if (*q == '@') at = q;
+  if (at)
+    {
+      char *b64 = bc_b64encode ((const unsigned char *) p, (size_t) (at - p));
+      if (!b64) { bc_error ("out of memory"); return -1; }
+      snprintf (auth, authsz, "%s", b64);
+      free (b64);
+      p = at + 1;
+    }
+  const char *colon = NULL;
+  if (*p == '[')
+    {
+      const char *close = memchr (p, ']', (size_t) (end - p));
+      if (!close) { bc_curl_error (5, "Couldn't resolve proxy '%s'", spec); bc_errcode = 5; return -1; }
+      snprintf (host, hostsz, "%.*s", (int) (close - p - 1), p + 1);
+      if (close + 1 < end && close[1] == ':') colon = close + 1;
+    }
+  else
+    {
+      colon = memchr (p, ':', (size_t) (end - p));
+      size_t hl = colon ? (size_t) (colon - p) : (size_t) (end - p);
+      snprintf (host, hostsz, "%.*s", (int) hl, p);
+    }
+  if (colon) snprintf (port, portsz, "%.*s", (int) (end - colon - 1), colon + 1);
+  else snprintf (port, portsz, "1080");
+  if (!host[0] || !port[0])
+    { bc_curl_error (5, "Couldn't resolve proxy '%s'", spec); bc_errcode = 5; return -1; }
+  return 0;
+}
+
+/* Open a CONNECT tunnel to HOST:PORT through the proxy. */
+static int
+bc_proxy_tunnel (const bc_opts *o, const bc_url *u, int connect_timeout, int timeout)
+{
+  char phost[256], pport[16], auth[512];
+  if (bc_parse_proxy (o->proxy, phost, sizeof phost, pport, sizeof pport, auth, sizeof auth) < 0)
+    return -1;
+  int fd = bc_connect_tcp (phost, pport, connect_timeout);
+  if (fd < 0) return -1;
+  char req[1024];
+  int n = snprintf (req, sizeof req, "CONNECT %s:%s HTTP/1.1\r\nHost: %s:%s\r\n%s%s%sUser-Agent: %s\r\n\r\n",
+                    u->host, u->port, u->host, u->port,
+                    auth[0] ? "Proxy-Authorization: Basic " : "", auth, auth[0] ? "\r\n" : "",
+                    o->user_agent ? o->user_agent : "curl/" BCURL_VERSION);
+  if (n < 0 || (size_t) n >= sizeof req || bc_write_all (fd, req, (size_t) n) < 0)
+    { bc_error ("proxy CONNECT failed"); close (fd); return -1; }
+  if (o->verbose)
+    fprintf (stderr, "* Establish HTTP proxy tunnel to %s:%s\n> CONNECT %s:%s HTTP/1.1\n",
+             u->host, u->port, u->host, u->port);
+  /* Read the reply one byte at a time so nothing past its blank line is
+     taken from the tunnel. */
+  char reply[BCURL_HEADER_MAX];
+  size_t got = 0;
+  time_t deadline = time (NULL) + timeout;
+  while (got < sizeof reply - 1)
+    {
+      fd_set rfds;
+      time_t now = time (NULL);
+      if (now >= deadline) { bc_error ("timeout reading proxy reply"); bc_errcode = 28; close (fd); return -1; }
+      struct timeval tv = { .tv_sec = deadline - now, .tv_usec = 0 };
+      FD_ZERO (&rfds); FD_SET (fd, &rfds);
+      int sr = select (fd + 1, &rfds, NULL, NULL, &tv);
+      if (sr < 0 && errno == EINTR) continue;
+      if (sr <= 0) { bc_error ("timeout reading proxy reply"); bc_errcode = 28; close (fd); return -1; }
+      ssize_t r = read (fd, reply + got, 1);
+      if (r < 0 && errno == EINTR) continue;
+      if (r <= 0) break;
+      got++;
+      if (got >= 4 && !memcmp (reply + got - 4, "\r\n\r\n", 4)) break;
+    }
+  reply[got] = '\0';
+  int status = got >= 12 && !strncmp (reply, "HTTP/", 5) ? atoi (reply + 9) : 0;
+  if (o->verbose)
+    {
+      const char *eol = strstr (reply, "\r\n");
+      fprintf (stderr, "< %.*s\n", eol ? (int) (eol - reply) : (int) got, reply);
+    }
+  if (status < 200 || status > 299)
+    {
+      bc_curl_error (56, "CONNECT tunnel failed, response %d", status);
+      bc_errcode = 56;
+      close (fd);
+      return -1;
+    }
+  return fd;
+}
+
+/* -v: request and response heads on stderr, as curl marks them. */
+static void
+bc_verbose_block (char mark, const char *data, size_t len)
+{
+  const char *p = data, *end = data + len;
+  while (p < end)
+    {
+      const char *eol = memchr (p, '\n', (size_t) (end - p));
+      size_t n = eol ? (size_t) (eol - p) : (size_t) (end - p);
+      size_t shown = n && p[n - 1] == '\r' ? n - 1 : n;
+      fprintf (stderr, "%c %.*s\n", mark, (int) shown, p);
+      if (!eol) break;
+      p = eol + 1;
+    }
+  fflush (stderr);
+}
+
+/* --compressed: undo gzip or deflate Content-Encoding in place. */
+static int
+bc_header_value (const char *hdrs, const char *name, char *out, size_t outsz)
+{
+  size_t nl = strlen (name);
+  for (const char *line = hdrs; line && *line; )
+    {
+      const char *eol = strstr (line, "\r\n");
+      if (!strncasecmp (line, name, nl) && line[nl] == ':')
+        {
+          const char *v = line + nl + 1;
+          while (*v == ' ' || *v == '\t') v++;
+          size_t vl = eol ? (size_t) (eol - v) : strlen (v);
+          while (vl && (v[vl - 1] == ' ' || v[vl - 1] == '\t')) vl--;
+          snprintf (out, outsz, "%.*s", (int) vl, v);
+          return 1;
+        }
+      line = eol ? eol + 2 : NULL;
+    }
+  return 0;
+}
+
+static int
+bc_inflate_body (bc_response *r)
+{
+  char enc[64];
+  if (!r->headers || !bc_header_value (r->headers, "Content-Encoding", enc, sizeof enc))
+    return 0;
+  int window;
+  if (!strcasecmp (enc, "gzip") || !strcasecmp (enc, "x-gzip")) window = 15 + 16;
+  else if (!strcasecmp (enc, "deflate")) window = 15;
+  else if (!strcasecmp (enc, "identity")) return 0;
+  else return 0;   /* not one we asked for: pass the bytes through, as curl does */
+  if (r->blen == 0) return 0;
+  for (int attempt = 0; attempt < 2; attempt++)
+    {
+      z_stream z;
+      memset (&z, 0, sizeof z);
+      if (inflateInit2 (&z, attempt ? -15 : window) != Z_OK) break;
+      size_t cap = r->blen * 4 + 1024, len = 0;
+      unsigned char *out = malloc (cap);
+      if (!out) { inflateEnd (&z); bc_error ("out of memory"); return -1; }
+      z.next_in = r->body;
+      int zrc;
+      size_t fed = 0;
+      do
+        {
+          if (len == cap)
+            {
+              if (cap >= BCURL_MAX_RESPONSE) { zrc = Z_MEM_ERROR; break; }
+              size_t ncap = cap * 2 > BCURL_MAX_RESPONSE ? BCURL_MAX_RESPONSE : cap * 2;
+              unsigned char *nb = realloc (out, ncap);
+              if (!nb) { zrc = Z_MEM_ERROR; break; }
+              out = nb; cap = ncap;
+            }
+          size_t chunk = r->blen - fed > UINT_MAX ? UINT_MAX : r->blen - fed;
+          if (z.avail_in == 0 && fed < r->blen) { z.next_in = r->body + fed; z.avail_in = (uInt) chunk; fed += chunk; }
+          size_t room = cap - len > UINT_MAX ? UINT_MAX : cap - len;
+          z.next_out = out + len;
+          z.avail_out = (uInt) room;
+          zrc = inflate (&z, Z_NO_FLUSH);
+          len += room - z.avail_out;
+        }
+      while (zrc == Z_OK && (z.avail_in > 0 || fed < r->blen || z.avail_out == 0));
+      inflateEnd (&z);
+      if (zrc == Z_STREAM_END)
+        {
+          free (r->body);
+          r->body = out;
+          r->blen = len;
+          return 0;
+        }
+      free (out);
+      /* "deflate" is sometimes sent without its zlib wrapper. */
+      if (window != 15) break;
+    }
+  bc_curl_error (61, "Error while processing content unencoding: invalid stored block lengths");
+  bc_errcode = 61;
+  return -1;
+}
+
 /* ---- single request roundtrip (no redirect handling at this layer) ---- */
 static int
 bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_resp)
@@ -1591,14 +1902,34 @@ bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_res
   int connect_timeout = o->connect_time > 0 ? o->connect_time : timeout;
   size_t raw_len = 0;
   unsigned char *raw = NULL;
+  if (o->verbose)
+    {
+      const char *end = strstr (req, "\r\n\r\n");
+      fprintf (stderr, "* Connecting to %s port %s%s%s\n", u.host, u.port,
+               o->proxy ? " via proxy " : "", o->proxy ? o->proxy : "");
+      bc_verbose_block ('>', req, end ? (size_t) (end - req) + 2 : reqlen);
+      fprintf (stderr, ">\n");
+    }
   if (is_https)
     {
+      int tunnel = -1;
+      if (o->proxy && (tunnel = bc_proxy_tunnel (o, &u, connect_timeout, timeout)) < 0)
+        { free (req); return -1; }
       raw = bc_https_exchange (&u, req, reqlen, o->insecure, o->cacert,
-                               timeout, strcmp (o->method, "HEAD") == 0, &raw_len);
+                               timeout, strcmp (o->method, "HEAD") == 0, tunnel, &raw_len);
     }
   else
     {
-      int fd = bc_connect_tcp (u.host, u.port, connect_timeout);
+      char phost[256], pport[16], pauth[512];
+      const char *chost = u.host, *cport = u.port;
+      if (o->proxy)
+        {
+          if (bc_parse_proxy (o->proxy, phost, sizeof phost, pport, sizeof pport, pauth, sizeof pauth) < 0)
+            { free (req); return -1; }
+          chost = phost;
+          cport = pport;
+        }
+      int fd = bc_connect_tcp (chost, cport, connect_timeout);
       if (fd < 0) { free (req); return -1; }
       if (bc_write_all (fd, req, reqlen) < 0)
         { bc_error ("write: %s", strerror (errno)); close (fd); free (req); return -1; }
@@ -1612,6 +1943,20 @@ bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_res
 
   int rc = bc_parse_response (raw, raw_len, strcmp (o->method, "HEAD") == 0, out_resp);
   free (raw);
+  if (rc == 0 && o->verbose)
+    {
+      if (out_resp->informational_len)
+        bc_verbose_block ('<', (const char *) out_resp->informational, out_resp->informational_len);
+      bc_verbose_block ('<', out_resp->headers, out_resp->hlen);
+      fprintf (stderr, "<\n");
+      fflush (stderr);
+    }
+  if (rc == 0 && o->compressed && strcmp (o->method, "HEAD") != 0
+      && bc_inflate_body (out_resp) < 0)
+    {
+      bc_response_free (out_resp);
+      return -1;
+    }
   return rc;
 }
 
@@ -1720,7 +2065,10 @@ bc_usage (void)
   builtin_error ("                [--data-binary DATA] [-o FILE] [-D FILE] [-w FORMAT]");
   builtin_error ("                [-u USER:PASS] [-A AGENT] [-b COOKIE|FILE] [-c FILE]");
   builtin_error ("                [--cacert PEM] [--connect-timeout SEC] [-m|--max-time SEC]");
-  builtin_error ("                [--max-redirs N] [--features] [-V|--version] URL");
+  builtin_error ("                [--max-redirs N] [-I] [-v] [-F PART] [-T FILE] [-G]");
+  builtin_error ("                [--data-urlencode DATA] [--json DATA] [--retry N]");
+  builtin_error ("                [-x PROXY] [--compressed] [--http2] [-r RANGE] [-C OFFSET|-]");
+  builtin_error ("                [--features] [-V|--version] URL");
   builtin_error ("                supported long aliases accept --name=value");
 }
 
@@ -1728,7 +2076,7 @@ static void
 bc_print_caps (void)
 {
   puts ("Protocols: http https");
-  puts ("Features: basic-auth cacert connect-timeout cookie cookie-jar cookie-policy data-binary fail location max-redirs output-file output-remote-name show-error silent timeout write-out");
+  puts ("Features: basic-auth cacert compressed connect-timeout continue-at cookie cookie-jar cookie-policy data-binary data-urlencode fail form get head json location max-redirs output-file output-remote-name proxy range retry show-error silent timeout upload-file verbose write-out");
 }
 
 static void
@@ -1736,7 +2084,7 @@ bc_features (void)
 {
   bc_print_caps ();
   puts ("TLS: crypto");
-  puts ("Unsupported: ftp smtp scp http2 multipart non-http-cookie-schemes");
+  puts ("Unsupported: ftp smtp scp http2-framing socks-proxy non-http-cookie-schemes");
 }
 
 static void
@@ -1850,6 +2198,292 @@ bc_set_data_binary_opt (bc_opts *o, const char *arg)
   return rc;
 }
 
+/* --data-urlencode as curl 8 does it: unreserved bytes stay, a space
+   becomes '+', and the rest become %XX. */
+static char *
+bc_urlencode (const char *data, size_t n, size_t *out_len)
+{
+  char *out = malloc (n * 3 + 1);
+  if (!out) return NULL;
+  size_t j = 0;
+  for (size_t i = 0; i < n; i++)
+    {
+      unsigned char c = (unsigned char) data[i];
+      if (isalnum (c) || c == '-' || c == '.' || c == '_' || c == '~')
+        out[j++] = (char) c;
+      else if (c == ' ')
+        out[j++] = '+';
+      else
+        j += (size_t) sprintf (out + j, "%%%02X", c);
+    }
+  out[j] = '\0';
+  *out_len = j;
+  return out;
+}
+
+/* --data-urlencode: "content", "=content", "name=content", "@file" and
+   "name@file", as curl reads them. */
+static int
+bc_set_data_urlencode (bc_opts *o, const char *arg)
+{
+  const char *sep = strpbrk (arg, "=@");
+  const char *name = arg;
+  size_t name_len = 0;
+  char *content = NULL;
+  size_t content_len;
+  if (sep && *sep == '@')
+    {
+      name_len = (size_t) (sep - arg);
+      if (bc_read_data_file (sep, &content, &content_len) != EXECUTION_SUCCESS)
+        return EXECUTION_FAILURE;
+    }
+  else
+    {
+      const char *value = sep ? sep + 1 : arg;
+      name_len = sep ? (size_t) (sep - arg) : 0;
+      content_len = strlen (value);
+      content = malloc (content_len + 1);
+      if (!content) { builtin_error ("out of memory"); return EXECUTION_FAILURE; }
+      memcpy (content, value, content_len + 1);
+    }
+  size_t enc_len;
+  char *enc = bc_urlencode (content, content_len, &enc_len);
+  free (content);
+  if (!enc) { builtin_error ("out of memory"); return EXECUTION_FAILURE; }
+  char *joined = malloc (name_len + 1 + enc_len + 1);
+  if (!joined) { free (enc); builtin_error ("out of memory"); return EXECUTION_FAILURE; }
+  size_t len = 0;
+  if (name_len)
+    {
+      memcpy (joined, name, name_len);
+      joined[name_len] = '=';
+      len = name_len + 1;
+    }
+  memcpy (joined + len, enc, enc_len + 1);
+  len += enc_len;
+  free (enc);
+  int rc = bc_add_data (o, joined, len);
+  free (joined);
+  return rc;
+}
+
+/* --json: data as --data-binary, joined without a separator, sent as JSON. */
+static int
+bc_set_json (bc_opts *o, const char *arg)
+{
+  char *buf = NULL;
+  size_t len;
+  if (arg[0] == '@')
+    {
+      if (bc_read_data_file (arg, &buf, &len) != EXECUTION_SUCCESS)
+        return EXECUTION_FAILURE;
+    }
+  else
+    len = strlen (arg);
+  const char *data = buf ? buf : arg;
+  char *nb = malloc (o->body_len + len + 1);
+  if (!nb) { free (buf); builtin_error ("out of memory"); return EXECUTION_FAILURE; }
+  if (o->body_set) memcpy (nb, o->body, o->body_len);
+  memcpy (nb + (o->body_set ? o->body_len : 0), data, len);
+  o->body_len = (o->body_set ? o->body_len : 0) + len;
+  nb[o->body_len] = '\0';
+  free (buf);
+  free (o->body_alloc);
+  o->body_alloc = nb;
+  o->body = nb;
+  o->body_set = 1;
+  o->json = 1;
+  if (!o->method_set && !strcmp (o->method, "GET")) o->method = "POST";
+  return EXECUTION_SUCCESS;
+}
+
+static const char *
+bc_guess_type (const char *file)
+{
+  static const char *map[][2] = {
+    /* curl's own table (lib/mime.c); anything else is octet-stream. */
+    { ".gif", "image/gif" }, { ".jpg", "image/jpeg" }, { ".jpeg", "image/jpeg" },
+    { ".png", "image/png" }, { ".svg", "image/svg+xml" }, { ".txt", "text/plain" },
+    { ".htm", "text/html" }, { ".html", "text/html" }, { ".pdf", "application/pdf" },
+    { ".xml", "application/xml" },
+  };
+  const char *dot = strrchr (file, '.');
+  if (dot && !strchr (dot, '/'))
+    for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
+      if (!strcasecmp (dot, map[i][0])) return map[i][1];
+  return "application/octet-stream";
+}
+
+static int
+bc_buf_add (char **buf, size_t *len, size_t *cap, const void *data, size_t n)
+{
+  if (n > SIZE_MAX - *len - 1) return -1;
+  if (*len + n + 1 > *cap)
+    {
+      size_t ncap = *cap ? *cap : 1024;
+      while (ncap < *len + n + 1) { if (ncap > SIZE_MAX / 2) return -1; ncap *= 2; }
+      char *nb = realloc (*buf, ncap);
+      if (!nb) return -1;
+      *buf = nb; *cap = ncap;
+    }
+  memcpy (*buf + *len, data, n);
+  *len += n;
+  (*buf)[*len] = '\0';
+  return 0;
+}
+
+/* -F NAME=VALUE, NAME=@FILE (an upload part) and NAME=<FILE (the file's
+   bytes as the value), each with optional ;type= and ;filename=. */
+static int
+bc_build_form (bc_opts *o)
+{
+  unsigned char rnd[8];
+  int rfd = open ("/dev/urandom", O_RDONLY | O_CLOEXEC);
+  if (rfd < 0 || read (rfd, rnd, sizeof rnd) != (ssize_t) sizeof rnd)
+    {
+      if (rfd >= 0) close (rfd);
+      builtin_error ("cannot read /dev/urandom: %s", strerror (errno));
+      return EXECUTION_FAILURE;
+    }
+  close (rfd);
+  char boundary[64];
+  int bl = snprintf (boundary, sizeof boundary, "------------------------");
+  for (size_t i = 0; i < sizeof rnd; i++) bl += snprintf (boundary + bl, sizeof boundary - (size_t) bl, "%02x", rnd[i]);
+  char *body = NULL;
+  size_t len = 0, cap = 0;
+  int rc = EXECUTION_SUCCESS;
+  for (int i = 0; i < o->nforms && rc == EXECUTION_SUCCESS; i++)
+    {
+      const char *spec = o->forms[i];
+      const char *eq = strchr (spec, '=');
+      if (!eq)
+        { builtin_error ("Illegally formatted input field: %s", spec); rc = 26; break; }
+      char name[1024], value[4096], type[256] = "", fname[1024] = "";
+      snprintf (name, sizeof name, "%.*s", (int) (eq - spec), spec);
+      const char *v = eq + 1;
+      int kind = *v == '@' ? '@' : *v == '<' ? '<' : 0;
+      if (kind) v++;
+      /* ;type= and ;filename= after the value are attributes, for
+         literal values as well as files; other text stays in the value. */
+      size_t vl = strlen (v);
+      for (const char *a = strchr (v, ';'); a; a = strchr (a + 1, ';'))
+        if (!strncmp (a + 1, "type=", 5) || !strncmp (a + 1, "filename=", 9))
+          {
+            vl = (size_t) (a - v);
+            for (; a; a = strchr (a + 1, ';'))
+              {
+                const char *next = strchr (a + 1, ';');
+                size_t al = next ? (size_t) (next - a - 1) : strlen (a + 1);
+                if (!strncmp (a + 1, "type=", 5)) snprintf (type, sizeof type, "%.*s", (int) al - 5, a + 6);
+                else if (!strncmp (a + 1, "filename=", 9)) snprintf (fname, sizeof fname, "%.*s", (int) al - 9, a + 10);
+              }
+            break;
+          }
+      snprintf (value, sizeof value, "%.*s", (int) vl, v);
+      char *content = NULL;
+      size_t clen = 0;
+      if (kind)
+        {
+          char at[4100];
+          snprintf (at, sizeof at, "@%s", value);
+          if (bc_read_data_file (at, &content, &clen) != EXECUTION_SUCCESS)
+            { rc = 26; break; }      /* CURLE_READ_ERROR */
+        }
+      char head[3072];
+      int hl;
+      if (kind == '@')
+        {
+          const char *base = !strcmp (value, "-") ? "-" : strrchr (value, '/') ? strrchr (value, '/') + 1 : value;
+          hl = snprintf (head, sizeof head,
+                         "--%s\r\nContent-Disposition: form-data; name=\"%s\"; filename=\"%s\"\r\nContent-Type: %s\r\n\r\n",
+                         boundary, name, fname[0] ? fname : base, type[0] ? type : bc_guess_type (value));
+        }
+      else if (type[0])
+        hl = snprintf (head, sizeof head, "--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\nContent-Type: %s\r\n\r\n",
+                       boundary, name, type);
+      else
+        hl = snprintf (head, sizeof head, "--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n",
+                       boundary, name);
+      if (hl < 0 || (size_t) hl >= sizeof head
+          || bc_buf_add (&body, &len, &cap, head, (size_t) hl) < 0
+          || bc_buf_add (&body, &len, &cap, kind ? content : value, kind ? clen : strlen (value)) < 0
+          || bc_buf_add (&body, &len, &cap, "\r\n", 2) < 0)
+        { builtin_error ("out of memory"); rc = EXECUTION_FAILURE; }
+      free (content);
+    }
+  if (rc == EXECUTION_SUCCESS)
+    {
+      char tail[80];
+      int tl = snprintf (tail, sizeof tail, "--%s--\r\n", boundary);
+      char *ct = malloc (strlen (boundary) + 40);
+      if (!ct || bc_buf_add (&body, &len, &cap, tail, (size_t) tl) < 0)
+        { free (ct); builtin_error ("out of memory"); rc = EXECUTION_FAILURE; }
+      else
+        {
+          sprintf (ct, "multipart/form-data; boundary=%s", boundary);
+          free (o->content_type_alloc);
+          o->content_type_alloc = ct;
+          o->content_type = ct;
+          free (o->body_alloc);
+          o->body_alloc = body;
+          o->body = body;
+          o->body_len = len;
+          o->body_set = 1;
+          body = NULL;
+          if (!o->method_set) o->method = "POST";
+        }
+    }
+  free (body);
+  return rc;
+}
+
+/* -T FILE: PUT the file; a URL with no file part gets the file's name. */
+static int
+bc_set_upload (bc_opts *o, char *url_buf, size_t url_cap)
+{
+  char *buf;
+  size_t len;
+  char at[BCURL_URL_MAX + 2];
+  snprintf (at, sizeof at, "@%s", o->upload);
+  if (bc_read_data_file (at, &buf, &len) != EXECUTION_SUCCESS)
+    return 26;
+  free (o->body_alloc);
+  o->body_alloc = buf;
+  o->body = buf;
+  o->body_len = len;
+  o->body_set = 1;
+  o->content_type = "";
+  if (!o->method_set) o->method = "PUT";
+  if (strcmp (o->upload, "-"))
+    {
+      const char *base = strrchr (o->upload, '/');
+      base = base ? base + 1 : o->upload;
+      const char *rest = strstr (url_buf, "://");
+      rest = rest ? rest + 3 : url_buf;
+      const char *slash = strchr (rest, '/');
+      size_t ul = strlen (url_buf);
+      if (!slash || url_buf[ul - 1] == '/')
+        if (snprintf (url_buf + ul, url_cap - ul, "%s%s", slash ? "" : "/", base) >= (int) (url_cap - ul))
+          { builtin_error ("URL is longer than %d bytes", BCURL_URL_MAX - 1); return EX_USAGE; }
+    }
+  return EXECUTION_SUCCESS;
+}
+
+/* -C OFFSET or -C - (continue from the output file's size). */
+static int
+bc_set_resume (bc_opts *o, const char *arg)
+{
+  o->resume_set = 1;
+  if (!strcmp (arg, "-")) { o->resume_from = -1; return EXECUTION_SUCCESS; }
+  char *end;
+  errno = 0;
+  long long v = strtoll (arg, &end, 10);
+  if (errno || end == arg || *end || v < 0)
+    { builtin_error ("-C: expected a proper numerical parameter"); return 2; }
+  o->resume_from = v;
+  return EXECUTION_SUCCESS;
+}
+
 static int
 bc_apply_short_options (bc_opts *o, const char *w, WORD_LIST **pp)
 {
@@ -1864,6 +2498,34 @@ bc_apply_short_options (bc_opts *o, const char *w, WORD_LIST **pp)
         case 'L': o->follow = 1; break;
         case 'k': o->insecure = 1; break;
         case 'O': o->use_basename = 1; break;
+        case 'I': o->head = 1; break;
+        case 'v': o->verbose = 1; break;
+        case 'G': o->get_query = 1; break;
+        case 'F':
+          arg = p[1] ? p + 1 : NULL;
+          if (!arg && bc_next_arg (pp, "-F", &arg) != EXECUTION_SUCCESS) return EX_USAGE;
+          if (o->nforms >= BCURL_HEADER_SLOTS) { builtin_error ("too many -F parts"); return EX_USAGE; }
+          o->forms[o->nforms++] = arg;
+          return EXECUTION_SUCCESS;
+        case 'T':
+          arg = p[1] ? p + 1 : NULL;
+          if (!arg && bc_next_arg (pp, "-T", &arg) != EXECUTION_SUCCESS) return EX_USAGE;
+          o->upload = arg;
+          return EXECUTION_SUCCESS;
+        case 'r':
+          arg = p[1] ? p + 1 : NULL;
+          if (!arg && bc_next_arg (pp, "-r", &arg) != EXECUTION_SUCCESS) return EX_USAGE;
+          o->range = arg;
+          return EXECUTION_SUCCESS;
+        case 'x':
+          arg = p[1] ? p + 1 : NULL;
+          if (!arg && bc_next_arg (pp, "-x", &arg) != EXECUTION_SUCCESS) return EX_USAGE;
+          o->proxy = arg;
+          return EXECUTION_SUCCESS;
+        case 'C':
+          arg = p[1] ? p + 1 : NULL;
+          if (!arg && bc_next_arg (pp, "-C", &arg) != EXECUTION_SUCCESS) return EX_USAGE;
+          return bc_set_resume (o, arg);
         case 'X':
           arg = p[1] ? p + 1 : NULL;
           if (!arg && bc_next_arg (pp, "-X", &arg) != EXECUTION_SUCCESS) return EX_USAGE;
@@ -1935,7 +2597,7 @@ curl_builtin (WORD_LIST *list)
   bc_quiet = 0;
   bc_errcode = 0;
   /* Parse-time exits (errors, --help, --version) release what -d read. */
-#define BC_PARSE_FAIL(rc) do { free (o.cookie_alloc); free (o.body_alloc); return (rc); } while (0)
+#define BC_PARSE_FAIL(rc) do { free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc); return (rc); } while (0)
 
   for (WORD_LIST *p = list; p; p = p->next)
     {
@@ -1990,6 +2652,56 @@ curl_builtin (WORD_LIST *list)
       else if (!strcmp (w, "--max-redirs"))           { if (bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.max_redirs = atoi (v); }
       else if ((v = bc_long_eq (w, "--max-redirs")))   { o.max_redirs = atoi (v); }
       else if (!strcmp (w, "--features"))              o.features = 1;
+      else if (!strcmp (w, "--head"))                  o.head = 1;
+      else if (!strcmp (w, "--verbose"))               o.verbose = 1;
+      else if (!strcmp (w, "--get"))                   o.get_query = 1;
+      else if (!strcmp (w, "--compressed"))            o.compressed = 1;
+      else if (!strcmp (w, "--http2") || !strcmp (w, "--http1.1")) ;   /* HTTP/1.1 is what is spoken */
+      else if (!strcmp (w, "--retry-connrefused"))     o.retry_connrefused = 1;
+      else if (!strcmp (w, "--retry-all-errors"))      o.retry_all = 1;
+      else if (!strcmp (w, "--form") || (v = bc_long_eq (w, "--form")))
+        {
+          if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE);
+          if (o.nforms >= BCURL_HEADER_SLOTS) { builtin_error ("too many -F parts"); BC_PARSE_FAIL (EX_USAGE); }
+          o.forms[o.nforms++] = v;
+        }
+      else if (!strcmp (w, "--upload-file") || (v = bc_long_eq (w, "--upload-file")))
+        { if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.upload = v; }
+      else if (!strcmp (w, "--range") || (v = bc_long_eq (w, "--range")))
+        { if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.range = v; }
+      else if (!strcmp (w, "--proxy") || (v = bc_long_eq (w, "--proxy")))
+        { if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.proxy = *v ? v : NULL; }
+      else if (!strcmp (w, "--continue-at") || (v = bc_long_eq (w, "--continue-at")))
+        {
+          if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE);
+          int crc = bc_set_resume (&o, v);
+          if (crc != EXECUTION_SUCCESS) BC_PARSE_FAIL (crc);
+        }
+      else if (!strcmp (w, "--data-urlencode") || (v = bc_long_eq (w, "--data-urlencode")))
+        {
+          if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE);
+          if (bc_set_data_urlencode (&o, v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EXECUTION_FAILURE);
+        }
+      else if (!strcmp (w, "--json") || (v = bc_long_eq (w, "--json")))
+        {
+          if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE);
+          if (bc_set_json (&o, v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EXECUTION_FAILURE);
+        }
+      else if (!strcmp (w, "--retry") || (v = bc_long_eq (w, "--retry"))
+               || !strcmp (w, "--retry-delay") || (v = bc_long_eq (w, "--retry-delay"))
+               || !strcmp (w, "--retry-max-time") || (v = bc_long_eq (w, "--retry-max-time")))
+        {
+          const char *opt = w;
+          if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE);
+          char *end;
+          errno = 0;
+          long n = strtol (v, &end, 10);
+          if (errno || end == v || *end || n < 0 || n > 100000)
+            { builtin_error ("%s: expected a proper numerical parameter", opt); BC_PARSE_FAIL (2); }
+          if (!strncmp (opt, "--retry-delay", 13)) o.retry_delay = (int) n;
+          else if (!strncmp (opt, "--retry-max-time", 16)) ;   /* accepted; each try keeps -m */
+          else o.retries = (int) n;
+        }
       else if (!strcmp (w, "--version") || !strcmp (w, "-V")) { bc_version (); BC_PARSE_FAIL (EXECUTION_SUCCESS); }
       else if (!strcmp (w, "-h") || !strcmp (w, "--help"))       { bc_usage (); BC_PARSE_FAIL (EXECUTION_SUCCESS); }
       else if (w[0] == '-' && w[1] != '-' && w[1] != '\0')
@@ -2007,6 +2719,34 @@ curl_builtin (WORD_LIST *list)
     }
   if (o.features) { bc_features (); BC_PARSE_FAIL (EXECUTION_SUCCESS); }
   if (!o.url) { bc_usage (); BC_PARSE_FAIL (EX_USAGE); }
+  if (o.nforms && (o.body_set || o.upload || o.head))
+    {
+      builtin_error ("You can only select one HTTP request method! You asked for both POST (-F, --form) and %s.",
+                     o.head ? "HEAD (-I, --head)" : o.upload ? "PUT (-T, --upload-file)" : "POST (-d, --data)");
+      BC_PARSE_FAIL (2);
+    }
+  if (o.head && (o.body_set || o.upload) && !o.get_query)
+    {
+      builtin_error ("You can only select one HTTP request method! You asked for both POST (-d, --data) and HEAD (-I, --head).");
+      BC_PARSE_FAIL (2);
+    }
+  if (o.json)
+    {
+      if (!o.content_type) o.content_type = "application/json";
+      o.accept = "application/json";
+    }
+  if (o.nforms)
+    {
+      int frc = bc_build_form (&o);
+      if (frc != EXECUTION_SUCCESS) { BC_PARSE_FAIL (frc); }
+    }
+  if (o.head && !o.method_set) o.method = "HEAD";
+  if (o.proxy)
+    {
+      char ph[256], pp[16];
+      if (bc_parse_proxy (o.proxy, ph, sizeof ph, pp, sizeof pp, o.proxy_auth, sizeof o.proxy_auth) < 0)
+        { BC_PARSE_FAIL (bc_errcode ? bc_errcode : 5); }
+    }
 
   /* Coalesce silent/show_error: -s -S keeps error diagnostics, -s alone
    * suppresses them. The bash builtin_error path always goes to stderr;
@@ -2020,14 +2760,56 @@ curl_builtin (WORD_LIST *list)
       builtin_error ("URL is longer than %d bytes", BCURL_URL_MAX - 1);
       BC_PARSE_FAIL (EX_USAGE);
     }
-  bc_url start_url;
+  if (o.upload)
+    {
+      int urc = bc_set_upload (&o, cur_url, sizeof cur_url);
+      if (urc != EXECUTION_SUCCESS) { BC_PARSE_FAIL (urc); }
+    }
+  /* -G: the -d data becomes the query string of a GET (or HEAD). */
+  if (o.get_query && o.body_set && !o.upload)
+    {
+      size_t ul = strlen (cur_url);
+      const char *join = strchr (cur_url, '?') ? "&" : "?";
+      if (ul + 1 + o.body_len >= sizeof cur_url)
+        {
+          builtin_error ("URL is longer than %d bytes", BCURL_URL_MAX - 1);
+          BC_PARSE_FAIL (EX_USAGE);
+        }
+      snprintf (cur_url + ul, sizeof cur_url - ul, "%s%.*s", join, (int) o.body_len, o.body);
+      o.body_set = 0;
+      o.body_len = 0;
+      if (!o.method_set) o.method = o.head ? "HEAD" : "GET";
+    }
+  /* -C -: continue from what the output file already holds. */
+  if (o.resume_set && o.resume_from < 0)
+    {
+      struct stat st;
+      const char *target = o.outfile;
+      char nbuf[BCURL_URL_MAX];
+      if (!target && o.use_basename)
+        {
+          bc_url tu;
+          if (bc_parse_url (cur_url, &tu) == 0)
+            {
+              const char *end = tu.path + strcspn (tu.path, "?#"), *base = end;
+              while (base > tu.path && base[-1] != '/') base--;
+              snprintf (nbuf, sizeof nbuf, "%.*s", (int) (end - base), base);
+              target = nbuf;
+            }
+        }
+      o.resume_from = target && strcmp (target, "-") && stat (target, &st) == 0 ? (long long) st.st_size : 0;
+    }
+  bc_url start_url, hop_url_dummy;
   int have_start_url = bc_parse_url (cur_url, &start_url) == 0;
+  memset (&hop_url_dummy, 0, sizeof hop_url_dummy);
   int cookie_from_file = o.cookie_input && strchr (o.cookie_input, '=') == NULL
                          && have_start_url && access (o.cookie_input, R_OK) == 0;
 
   bc_response r;
   int redirects = 0;
   int rc;
+  int retried = 0;
+  long backoff = 1;
   for (;;)
     {
       memset (&r, 0, sizeof r);
@@ -2054,11 +2836,57 @@ curl_builtin (WORD_LIST *list)
       }
       bc_errcode = 0;
       rc = bc_one_request (&o, cur_url, &r);
+      /* --retry: timeouts and HTTP 408, 429, 500, 502, 503 and 504 are
+         transient; refused connections with --retry-connrefused, and any
+         error with --retry-all-errors. */
+      if (o.retries > retried)
+        {
+          int transient = 0;
+          const char *what = NULL;
+          if (rc < 0)
+            {
+              transient = bc_errcode == 28 || o.retry_all
+                          || (bc_errcode == 7 && o.retry_connrefused);
+              what = bc_errcode == 28 ? "timeout" : "error";
+            }
+          else if (r.status == 408 || r.status == 429 || r.status == 500 || r.status == 502
+                   || r.status == 503 || r.status == 504 || (o.retry_all && r.status >= 400))
+            {
+              transient = 1;
+              what = "HTTP error";
+            }
+          if (transient)
+            {
+              long delay = o.retry_delay > 0 ? o.retry_delay : backoff;
+              char after[32];
+              if (rc == 0 && o.retry_delay == 0 && r.headers
+                  && bc_header_value (r.headers, "Retry-After", after, sizeof after))
+                {
+                  char *end;
+                  long v = strtol (after, &end, 10);
+                  if (end != after && !*end && v >= 0 && v <= 600) delay = v;
+                }
+              int left = o.retries - retried;
+              if (!o.silent)
+                fprintf (stderr, "Warning: Problem : %s. Will retry in %ld second%s. %d retr%s left.\n",
+                         what, delay, delay == 1 ? "" : "s", left, left == 1 ? "y" : "ies");
+              /* Without -f, curl writes each attempt's body before the
+                 next try; a file output is rewritten by the next one. */
+              if (rc == 0 && !o.fail_on_error && !o.head
+                  && bc_emit (&o, have_start_url ? &start_url : &hop_url_dummy, &r) < 0)
+                { bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc); return 23; }
+              if (rc == 0) bc_response_free (&r);
+              if (delay > 0) sleep ((unsigned) delay);
+              if (o.retry_delay == 0 && backoff < 600) backoff *= 2;
+              retried++;
+              continue;
+            }
+        }
       if (rc < 0)
         {
           /* bc_error already honoured -s; report curl's code when known. */
           free (o.cookie_alloc);
-          free (o.body_alloc);
+          free (o.body_alloc); free (o.content_type_alloc);
           return bc_errcode ? bc_errcode : EXECUTION_FAILURE;
         }
       if (o.follow && r.status >= 300 && r.status < 400
@@ -2067,20 +2895,26 @@ curl_builtin (WORD_LIST *list)
           int rcap = o.max_redirs > 0 ? o.max_redirs : BCURL_MAX_REDIRECTS;
           if (++redirects > rcap)
             { bc_curl_error (47, "Maximum (%d) redirects followed", rcap);
-              bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc);
+              bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc);
               return 47; /* CURLE_TOO_MANY_REDIRECTS */ }
           if (r.location_too_long)
             { if (show_errs) builtin_error ("redirect target is longer than %d bytes", BCURL_URL_MAX - 1);
-              bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); return EXECUTION_FAILURE; }
+              bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc); return EXECUTION_FAILURE; }
           if (r.location_bad)
             { bc_curl_error (3, "The redirect target URL could not be parsed: Malformed input to a URL function");
-              bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc);
+              bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc);
               return 3; /* CURLE_URL_MALFORMAT */ }
           char next[BCURL_URL_MAX];
           if (bc_resolve_redirect (cur_url, r.location, next, sizeof next) < 0)
             { if (show_errs) builtin_error ("bad redirect target: %s", r.location);
-              bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); return EXECUTION_FAILURE; }
+              bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc); return EXECUTION_FAILURE; }
           snprintf (cur_url, sizeof cur_url, "%s", next);
+          if (o.head)
+            {
+              if (bc_emit (&o, have_start_url ? &start_url : &hop_url_dummy, &r) < 0)
+                { bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc); return 23; }
+              o.head_hops++;
+            }
           /* RFC 9110 15.4: 303 is retrieved with GET, and curl also turns a
            * POST into GET on 301/302. 307/308 and an explicit -X keep the
            * method and content. */
@@ -2103,8 +2937,26 @@ curl_builtin (WORD_LIST *list)
       bc_curl_error (22, "The requested URL returned error: %d", r.status);
       bc_response_free (&r);
       free (o.cookie_alloc);
-      free (o.body_alloc);
+      free (o.body_alloc); free (o.content_type_alloc);
       return 22; /* curl's CURLE_HTTP_RETURNED_ERROR */
+    }
+
+  if (o.resume_set && o.resume_from > 0 && !o.head)
+    {
+      /* A 416 to a resumed transfer means the file is already complete. */
+      if (r.status == 416)
+        {
+          bc_response_free (&r);
+          free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc);
+          return EXECUTION_SUCCESS;
+        }
+      if (r.status >= 200 && r.status < 300 && r.status != 206)
+        {
+          bc_curl_error (33, "HTTP server doesn't seem to support byte ranges. Cannot resume.");
+          bc_response_free (&r);
+          free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc);
+          return 33;
+        }
     }
 
   bc_url eu;
@@ -2113,28 +2965,28 @@ curl_builtin (WORD_LIST *list)
     {
       bc_response_free (&r);
       free (o.cookie_alloc);
-      free (o.body_alloc);
+      free (o.body_alloc); free (o.content_type_alloc);
       return EXECUTION_FAILURE;
     }
   if (bc_emit_headers (&o, &r) < 0)
     {
       bc_response_free (&r);
       free (o.cookie_alloc);
-      free (o.body_alloc);
+      free (o.body_alloc); free (o.content_type_alloc);
       return 23; /* CURLE_WRITE_ERROR */
     }
   if (bc_emit (&o, have_start_url ? &start_url : &eu, &r) < 0)
     {
       bc_response_free (&r);
       free (o.cookie_alloc);
-      free (o.body_alloc);
+      free (o.body_alloc); free (o.content_type_alloc);
       return 23; /* CURLE_WRITE_ERROR */
     }
   if (bc_emit_write_out (&o, &r) < 0)
     {
       bc_response_free (&r);
       free (o.cookie_alloc);
-      free (o.body_alloc);
+      free (o.body_alloc); free (o.content_type_alloc);
       return EXECUTION_FAILURE;
     }
 
@@ -2142,7 +2994,7 @@ curl_builtin (WORD_LIST *list)
   long missing = r.missing;
   bc_response_free (&r);
   free (o.cookie_alloc);
-  free (o.body_alloc);
+  free (o.body_alloc); free (o.content_type_alloc);
   if (missing > 0)
     {
       bc_curl_error (18, "end of response with %ld bytes missing", missing);
@@ -2158,6 +3010,8 @@ char *curl_doc[] = {
   "           [--data-binary DATA] [-o FILE] [-D FILE] [-w FORMAT]",
   "           [-u USER:PASS] [-A AGENT] [-b COOKIE|FILE] [-c FILE]",
   "           [--cacert PEM] [--connect-timeout SEC] [-m|--max-time SEC] [--max-redirs N]",
+  "           [-I] [-v] [-F PART] [-T FILE] [-G] [--data-urlencode DATA] [--json DATA]",
+  "           [--retry N] [-x PROXY] [--compressed] [--http2] [-r RANGE] [-C OFFSET|-]",
   "           [--features] [-V|--version] URL",
   "Long aliases and --name=value forms are normalized for supported options.",
   "Attached short arguments such as -oFILE and bundles like -fsSLo FILE work.",
@@ -2165,8 +3019,9 @@ char *curl_doc[] = {
   "`crypto tls connect HOST:PORT -s HOST [-c PEM] [-k]` in a bash subshell.",
   "Subset: GET/POST/PUT/etc., common -f/-s/-S/-L/-k/-O bundles, -D, -w %{http_code},",
   "--data-binary (@-/@FILE/literal), Basic auth, -b/--cookie literal or jar input, -c/--cookie-jar output, redirects (default max 20),",
-  "chunked + Content-Length decoding. Out of scope: -F multipart,",
-  "non-HTTP cookie schemes, --resolve, HTTP/2, OAuth. wget(1) shape lives in wget.sh.",
+  "chunked + Content-Length decoding, -F multipart, HTTP proxies (CONNECT for https),",
+  "gzip/deflate with --compressed, ranges and resume. --http2 talks HTTP/1.1.",
+  "Out of scope: non-HTTP cookie schemes, --resolve, HTTP/2 framing, SOCKS, OAuth.",
   (char *) NULL
 };
 

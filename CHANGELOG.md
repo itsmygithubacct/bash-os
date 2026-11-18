@@ -13,6 +13,7 @@ All notable changes to bash-os are recorded here. Versions follow
 - `split -n CHUNKS` takes `N`, `K/N`, `l/N`, `l/K/N`, `r/N` and `r/K/N`.
 - `ps -u USERLIST` and `-U USERLIST` select processes by effective or real user.
 - `diff -y` prints side by side (`-W` width), and `diff` compares directories, recursively with `-r`.
+- `curl` takes `-I`, `-v`, `-F`, `-T`, `-G`, `--data-urlencode`, `--json`, `--retry`, `-x` (HTTP proxies, CONNECT for https), `--compressed`, `--http2` (spoken as HTTP/1.1), `-r` and `-C`, compared with curl 8.14; `crypto tls connect` takes `--fd` for an already connected socket.
 
 ## 0.1.4 — 2026-11-18
 

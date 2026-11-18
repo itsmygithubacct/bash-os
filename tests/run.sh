@@ -186,6 +186,7 @@ check 'expr hang guard' python3 tests/grok-expr-hang.py out/bash
 check 'expr end-list realloc' python3 tests/grok-expr-ends.py out/bash
 check network-smoke python3 tests/network-smoke.py out/bash
 check 'curl HTTPS and redirects' python3 tests/curl-https.py out/bash
+check 'curl request options against curl' python3 tests/curl-options.py out/bash
 check misc-smoke python3 tests/misc-smoke.py out/bash
 check 'bashlogger private datagrams' python3 tests/sol-bashlogger-socket.py out/bash
 check 'bashsyslogd private routing' python3 tests/sol-bashsyslogd-check.py out/bash
