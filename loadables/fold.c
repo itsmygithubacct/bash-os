@@ -30,11 +30,12 @@
 #include <ctype.h>
 #include <wchar.h>
 #include <stdint.h>
+#include <inttypes.h>
 
 #include "loadables.h"
 #include "bl-output.h"
 
-typedef struct { int width; int bflag; int sflag; int cflag; } bf_opts;
+typedef struct { int64_t width; int bflag; int sflag; int cflag; } bf_opts;
 
 /* Decode one strict UTF-8 scalar, independently of LC_CTYPE. Invalid bytes
  * remain separate width-one units (sentinel above Unicode's scalar range).
@@ -122,17 +123,23 @@ bf_files_add (bf_files *files, const char *path)
     return 0;
 }
 
+/* GNU fold accepts 1 .. SIZE_MAX - TAB_WIDTH - 1 columns, with leading
+   blanks and '+' allowed. No line reaches INT64_MAX columns, so a wider
+   request behaves exactly like INT64_MAX. */
 static int
-bf_parse_width (const char *arg, int *width)
+bf_parse_width (const char *arg, int64_t *width)
 {
     char *end = NULL;
-    long n;
+    uintmax_t n;
+    const char *p = arg;
 
+    while (isspace ((unsigned char) *p)) p++;
+    if (*p == '-') return 0;
     errno = 0;
-    n = strtol (arg, &end, 10);
-    if (errno || end == arg || *end != '\0' || n < 1 || n > 2147483647L)
+    n = strtoumax (arg, &end, 10);
+    if (errno || end == arg || *end != '\0' || n < 1 || n > (uintmax_t) SIZE_MAX - 9)
         return 0;
-    *width = (int) n;
+    *width = n > (uintmax_t) INT64_MAX ? INT64_MAX : (int64_t) n;
     return 1;
 }
 

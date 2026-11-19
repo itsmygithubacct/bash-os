@@ -127,7 +127,7 @@ invalid = [['-t3/8'], ['-t3+8'], ['-t3,-8'], ['-t3,\v8'], ['-t3,\r8'],
            ['-t18446744073709551616'], ['-4i']]
 for args in invalid:
     p = run(args, b'\tX')
-    assert p.returncode == 2 and p.stderr and not p.stdout, (args, p)
+    assert p.returncode == 1 and p.stderr and not p.stdout, (args, p)  # GNU expand: 1
     checks += 1
 # Random valid repeated-option forms with an independent stop calculation.
 rng = random.Random(20261019)
@@ -164,7 +164,7 @@ with tempfile.TemporaryDirectory() as directory:
         a, b = Path(directory) / 'a', Path(directory) / 'b'
         a.write_bytes(b'\xe2'); b.write_bytes(b'\x82\xac\tX')
         oracle([a, b], b'', b'\xe2\x82\xac     X', locale)
-    p = run([f], script='for ((i=0;i<100;i++)); do expand -t3 -t3 2>/dev/null; [[ $? == 2 ]] || exit 10; done; expand -t4 "$1"')
+    p = run([f], script='for ((i=0;i<100;i++)); do expand -t3 -t3 2>/dev/null; [[ $? == 1 ]] || exit 10; done; expand -t4 "$1"')
     assert (p.returncode, p.stdout) == (0, b'            X'), p
     checks += 1
 # Pipeline redirections and repeated locale changes in one persistent shell.

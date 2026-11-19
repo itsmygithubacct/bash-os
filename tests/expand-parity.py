@@ -99,8 +99,7 @@ with tempfile.TemporaryDirectory(prefix='expand-parity-') as directory:
     dash.write_bytes(b'\tx\n')
     compare(['--', dash])
 
-    # Invalid options need failure and diagnostics; GNU's usage exit status
-    # differs from Bash's EX_USAGE (2), so do not require identical numbers.
+    # Invalid options fail with GNU's status 1 and a diagnostic.
     for opts in [['-t'], ['--tabs'], ['--bogus'], ['-t', '0'], ['-t', '-1'],
                  ['-t', '3,2'], ['-t', '3,3'], ['-t', '3,0'], ['-t', 'x'],
                  ['-t', '3,/8,12'],
@@ -108,7 +107,7 @@ with tempfile.TemporaryDirectory(prefix='expand-parity-') as directory:
                  ['-t', '99999999999999999999999999999999999']]:
         actual = shell('expand "$@"', opts)
         expected = subprocess.run([gnu, *opts], capture_output=True)
-        assert actual.returncode == 2 and expected.returncode != 0 and actual.stderr, (opts, actual)
+        assert actual.returncode == expected.returncode == 1 and actual.stderr, (opts, actual)
         checks['GNU'] += 1
     # Former limits now have positive GNU oracles: zero extensions are inert,
     # lists grow beyond 64 stops, and widths use the signed allocation range.

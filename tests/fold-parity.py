@@ -147,6 +147,9 @@ with tempfile.TemporaryDirectory(prefix='fold-parity-') as directory:
     for boundary in (8189, 8190, 8191, 8192, 16381):
         contract(['-c', '-w1'], b'a'*boundary+b'\xf0\x9f\x98\x80Z', b'a\n'*boundary+b'\xf0\x9f\x98\x80\nZ')
     compare(['-w', '2147483647'], b'small\tinput\n', refs={'GNU': [gnu]})
+    # GNU accepts 1 .. SIZE_MAX - 9 columns with a leading blank or '+'.
+    for width in ['2147483648', '9223372036854775808', '18446744073709551606', '+5', ' 5', '05']:
+        compare(['-w', width], b'abcdefgh\tinput\n', refs={'GNU': [gnu]})
 
     # Exact option differences: GNU accepts long and historical width forms;
     # this BusyBox also accepts -N, but rejects the other extras below.
@@ -173,10 +176,10 @@ with tempfile.TemporaryDirectory(prefix='fold-parity-') as directory:
     p = shell('cd "$1"; shift; fold -w3 -- "$@"', [root, '-literal'])
     assert p.returncode == 0 and p.stdout == b'abc\nde\n', p
     checks += 1
-    for args in (['-w'], ['--width'], ['-w0'], ['-w-1'], ['-w2147483648'], ['--width=x'],
+    for args in (['-w'], ['--width'], ['-w0'], ['-w-1'], ['-w18446744073709551607'], ['-w5 '], ['-w0x5'], ['--width=x'],
                  ['--unknown'], ['-x'], ['-0'], [first, '--width'], [first, '--unknown']):
         p = builtin(args)
-        assert p.returncode == 2 and p.stderr, (args, p)
+        assert p.returncode == 1 and p.stderr, (args, p)  # GNU fold: 1
         checks += 1
     for args in ([root], [root/'missing'], [root/'missing', first, second]):
         p = builtin(['-w3', *args])
