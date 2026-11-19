@@ -48,14 +48,14 @@ int ipcmk_check_builtin(WORD_LIST *list)
             CHECK(shmctl(id, IPC_STAT, &ds) == 0);
             CHECK(ds.shm_perm.uid == getuid() && ds.shm_perm.cuid == getuid());
             CHECK((ds.shm_perm.mode & 0777) == mode && ds.shm_segsz == amount);
-            CHECK(ds.shm_nattch == 0 && ds.shm_perm.__key == IPC_PRIVATE);
+            CHECK(ds.shm_nattch == 0 && ds.shm_perm.__key != IPC_PRIVATE);
             CHECK(shmctl(id, IPC_RMID, NULL) == 0);
             errno = 0; CHECK(shmctl(id, IPC_STAT, &ds) == -1 && (errno == EINVAL || errno == EIDRM));
         } else if (!strcmp(kind, "sem")) {
             struct semid_ds ds = {0}; union check_semun arg = {.buf = &ds};
             CHECK(semctl(id, 0, IPC_STAT, arg) == 0);
             CHECK(ds.sem_perm.uid == getuid() && ds.sem_perm.cuid == getuid());
-            CHECK(ds.sem_perm.__key == IPC_PRIVATE);
+            CHECK(ds.sem_perm.__key != IPC_PRIVATE);
             CHECK((ds.sem_perm.mode & 0777) == mode && ds.sem_nsems == amount);
             CHECK(semctl(id, 0, IPC_RMID) == 0);
             errno = 0; CHECK(semctl(id, 0, IPC_STAT, arg) == -1 && (errno == EINVAL || errno == EIDRM));
@@ -63,7 +63,7 @@ int ipcmk_check_builtin(WORD_LIST *list)
             struct msqid_ds ds = {0};
             CHECK(msgctl(id, IPC_STAT, &ds) == 0);
             CHECK(ds.msg_perm.uid == getuid() && ds.msg_perm.cuid == getuid());
-            CHECK(ds.msg_perm.__key == IPC_PRIVATE);
+            CHECK(ds.msg_perm.__key != IPC_PRIVATE);
             CHECK((ds.msg_perm.mode & 0777) == mode && ds.msg_qnum == 0 && ds.__msg_cbytes == 0 && ds.msg_qbytes > 0);
             CHECK(msgctl(id, IPC_RMID, NULL) == 0);
             errno = 0; CHECK(msgctl(id, IPC_STAT, &ds) == -1 && (errno == EINVAL || errno == EIDRM));
@@ -71,7 +71,9 @@ int ipcmk_check_builtin(WORD_LIST *list)
     } else {
         const char *colon = strchr(line, ':');
         if (!colon || sscanf(colon + 1, "%255s", value) != 1 || value[0] != '/') return 1;
-        snprintf(expected, sizeof expected, "%s name: %s\n", label, value);
+        /* util-linux: "POSIX shared memory name: /x", "POSIX semaphore name:". */
+        const char *plabel = strstr(kind, "shm") ? "POSIX shared memory" : strstr(kind, "sem") ? "POSIX semaphore" : "POSIX message queue";
+        snprintf(expected, sizeof expected, "%s name: %s\n", plabel, value);
         CHECK(!strcmp(line, expected));
         struct stat st = {0};
         if (!strcmp(kind, "posix-shm")) {

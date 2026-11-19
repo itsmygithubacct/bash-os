@@ -13,6 +13,9 @@ static void builtin_usage(void) { }
 static void builtin_error(const char *format, ...) {
     va_list ap; va_start(ap, format); vfprintf(stderr, format, ap); va_end(ap); fputc('\n', stderr);
 }
+/* Bash's $$. The harness is not a shell, so no ancestor is the invoking
+   shell and only the harness process itself counts as a shell copy. */
+pid_t dollar_dollar_pid;
 static int sh_chkwrite(int status) {
     if (fflush(stdout) == EOF || ferror(stdout)) {
         builtin_error("write error");

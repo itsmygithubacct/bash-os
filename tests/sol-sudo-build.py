@@ -31,6 +31,19 @@ void builtin_usage(void);
 void *builtin_bind_variable(char *, char *, int);
 #endif
 ''')
+(a.output/'unwind_prot.h').write_text('''#ifndef SOL_UNWIND_PROT_H
+#define SOL_UNWIND_PROT_H
+/* Bash's unwind frames for the standalone fixture: run_unwind_frame runs
+   the cleanups added since begin_unwind_frame, most recent first. */
+typedef void sh_uwfunc_t (void *);
+static struct { sh_uwfunc_t *fn; void *arg; } sol_uw_stack[64];
+static int sol_uw_top, sol_uw_frames[16], sol_uw_nframes;
+static inline void begin_unwind_frame (char *tag) { (void) tag; if (sol_uw_nframes < 16) sol_uw_frames[sol_uw_nframes++] = sol_uw_top; }
+static inline void add_unwind_protect (sh_uwfunc_t *fn, void *arg) { if (sol_uw_top < 64) { sol_uw_stack[sol_uw_top].fn = fn; sol_uw_stack[sol_uw_top].arg = arg; sol_uw_top++; } }
+static inline void run_unwind_frame (char *tag) { (void) tag; int base = sol_uw_nframes ? sol_uw_frames[--sol_uw_nframes] : 0; while (sol_uw_top > base) { sol_uw_top--; sol_uw_stack[sol_uw_top].fn (sol_uw_stack[sol_uw_top].arg); } }
+static inline void discard_unwind_frame (char *tag) { (void) tag; sol_uw_top = sol_uw_nframes ? sol_uw_frames[--sol_uw_nframes] : 0; }
+#endif
+''')
 (a.output/'_mbedtls_sha256.h').write_text('#include "'+str(Path('loadables/_mbedtls/sha256.h').resolve())+'"\n')
 for directory in ['_bashauth', '_bashos_authcrypto', '_monocypher']:
     for header in Path('loadables', directory).glob('*.h'):

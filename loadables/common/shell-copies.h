@@ -20,7 +20,7 @@ extern pid_t dollar_dollar_pid;
 static long ka_ancestors[KA_MAX_ANCESTORS];
 static int ka_nancestors;
 
-static long
+static long __attribute__ ((unused))
 ka_parent_of (long pid)
 {
     char path[64], buf[512];
@@ -39,7 +39,7 @@ ka_parent_of (long pid)
     return ppid;
 }
 
-static void
+static void __attribute__ ((unused))
 ka_collect_shell_copies (pid_t self)
 {
     long pid = (long) self;
@@ -55,7 +55,7 @@ ka_collect_shell_copies (pid_t self)
     ka_ancestors[0] = (long) self;
 }
 
-static int
+static int __attribute__ ((unused))
 ka_child_of_shell_copy (int pid)
 {
     long ppid = ka_parent_of ((long) pid);
@@ -65,7 +65,7 @@ ka_child_of_shell_copy (int pid)
     return 0;
 }
 
-static int
+static int __attribute__ ((unused))
 ka_same_file_bytes (const char *a, const char *b)
 {
     char x[4096], y[4096];
@@ -82,7 +82,7 @@ ka_same_file_bytes (const char *a, const char *b)
     return same;
 }
 
-static int
+static int __attribute__ ((unused))
 ka_is_shell_copy (int pid)
 {
     char path[64];

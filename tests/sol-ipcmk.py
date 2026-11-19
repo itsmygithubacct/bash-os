@@ -36,8 +36,9 @@ def cycle(kind, output, mode='600', collision=False):
         options += ' -n "$name"'
     lines.append(f'ipcmk {options} -p {mode} >{out} || exit 10')
     if collision and posix:
-        lines.append(f'if ipcmk {options} -p {mode} >{out}.collision 2>{out}.err; then exit 11; fi')
-        lines.append(f'[[ ! -s {out}.collision ]] || exit 12')
+        # util-linux opens an existing POSIX name again instead of failing.
+        lines.append(f'ipcmk {options} -p {mode} >{out}.collision 2>{out}.err || exit 11')
+        lines.append(f'[[ -s {out}.collision && ! -s {out}.err ]] || exit 12')
     lines.append(f'ipcmk_check {kind} {out} {amount} {mode} || exit 13')
     return '\n'.join(lines) + '\n'
 
@@ -73,11 +74,16 @@ def main():
                 script += f'umask 077\nipcmk {options} -p 666 >{out} || exit 14\nipcmk_check {kind} {out} {amount} 666 || exit 15\n'
             script += 'fds=(/proc/$$/fd/*); [[ ${#fds[@]} == "$before" ]] || exit 16\necho "owned resource properties, collisions, cleanup and fd stability passed"\n'
             run(a.binary, script, kind)
-        invalid = [['--shmem='], ['--semaphore='], ['-Q', '--mode='], ['-s', '--name='], ['-s', '-n', '/' + 'x' * 300], [], ['-M'], ['-S'], ['-m'], ['-p'], ['-n'], ['--wat'], ['-Q', 'operand'], ['-Q', '--', 'x'], ['-Q', '-S', '2'], ['-Q', '-n', '/bad'], ['-s'], ['-q'], ['-m', '2'], ['-s', '-n', 'relative'], ['-s', '-n', '/'], ['-s', '-n', '/a/b']]
-        for option in ('-M', '-m', '-S'):
-            for value in ('', '-1', '+1', ' 1', '0', '1junk', '18446744073709551616', '18446744073709551615K'):
-                invalid.append([option, value])
-        for value in ('', '-0', '+1', ' 600', '888', '1000', '9999999999999999999999'):
+        invalid = [['--shmem='], ['--semaphore='], ['-Q', '--mode='], ['-s', '--name='], ['-s', '-n', '/' + 'x' * 300], [], ['-M'], ['-S'], ['-m'], ['-p'], ['-n'], ['--wat'], ['-s'], ['-q'], ['-m', '2'], ['-s', '-n', '/'], ['-s', '-n', '/a/b']]
+        # Only what util-linux ipcmk 2.41 rejects. It accepts extra operands,
+        # -n on SysV kinds, relative POSIX names, a leading '+' or space in
+        # sizes and counts, and modes such as -0, +1, " 600" and 1000.
+        for option, values in (('-M', ('', '-1', '0', '1junk', '18446744073709551616', '18446744073709551615K')),
+                               ('-S', ('', '-1', '0', '1junk', '18446744073709551616', '18446744073709551615K')),
+                               ('-m', ('', '-1', '+1', ' 1', '0', '1junk', '18446744073709551616', '18446744073709551615K'))):
+            for value in values:
+                invalid.append([option, value])   # -m without -n also lacks its name
+        for value in ('', '888', '9999999999999999999999'):
             invalid.append(['-Q', '-p', value])
         invalid.extend([['-S', '2147483648'], ['-S', '2147483647'], ['-M', '18446744073709551615'], ['-m', '18446744073709551615', '-n', f'/sol_ipcmk_range_{os.getpid()}']])
         script = start
