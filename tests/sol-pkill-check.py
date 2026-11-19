@@ -133,12 +133,15 @@ def fixture_checks(binary, shim, sanitizer=False, regression=False):
                                  ('-SIG0', 0), ('-9', 9), ('-15', 15),
                                  (f'-{signal.SIGRTMAX}', signal.SIGRTMAX)]:
             run([spelling, '-c', '-x', 'worker000'], [2000000000], number)
+        # procps takes the first signal-shaped word anywhere in argv.
+        run(['-c', '-x', 'worker000', '-USR2'], [2000000000], signal.SIGUSR2)
+        run(['-c', '-x', '-9', 'worker000'], [2000000000], 9)
         for args in ([], ['-n'], ['-o'], ['['], ['-x', '['], ['foo', 'bar'], ['-USR1', '['],
-                     ['-u'], ['-P', '-1'], ['-P', '77,'], ['-G', '1,,2'],
+                     ['-u'], ['-P', '-1'],
                      ['-u', '99999999999999999999'], ['-9999999999999999999', '.'],
                      ['-64x', '.'], [f'-{signal.NSIG}', '.'], ['-BOGUS', '.'], ['-v', '.'], ['-l', '.'],
-                     ['-u', 'missing-sol-pkill-user'], ['-s', '2147483648'],
-                     ['-P', ',77'], ['-P', '77,' * 256 + '77'],
+                     ['-u', 'missing-sol-pkill-user'],
+                     ['-P', '99999999999999999999'], ['-P', ''],
                      ['-cv', '.'], ['-cfq', '.'], ['-cfP'], ['-cfUbad-user', '.'],
                      ['-no', '.'], ['-n', '-o', '.']):
             run(args, [], status=2, stdout='')

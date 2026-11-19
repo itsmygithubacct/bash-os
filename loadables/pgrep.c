@@ -287,7 +287,7 @@ bp_procps_cmdline (int pid, char **out, size_t *cap)
 
 /* A selector list is ORed internally; distinct lists are ANDed. */
 enum { BP_EUID, BP_RUID, BP_RGID, BP_PARENT, BP_PGROUP, BP_SESSION, BP_SELECTORS };
-struct bp_selector { unsigned long ids[BP_OMIT_MAX]; int count; };
+struct bp_selector { unsigned long *ids; int count, cap; };
 struct bp_selection {
     struct bp_selector list[BP_SELECTORS];
     int age;                         /* 1 newest, -1 oldest, 0 all */
@@ -312,64 +312,79 @@ bp_selector_kind (int c)
    separators only). */
 #define BP_ID_NONE ULONG_MAX
 
-/* procps-ng splits the list on commas and skips empty elements, so ",PID"
-   and "PID,,1" are valid and "," selects nothing. Numbers follow its
-   strtol/strtoul conversions: process ids may be negative or exceed
+static int
+bp_selector_add (struct bp_selector *sel, unsigned long id)
+{
+    for (int i = 0; i < sel->count; i++)
+        if (sel->ids[i] == id) return 0;
+    if (sel->count == sel->cap) {
+        int cap = sel->cap ? sel->cap * 2 : 16;
+        unsigned long *ids = realloc (sel->ids, (size_t) cap * sizeof *ids);
+        if (!ids) return -1;
+        sel->ids = ids;
+        sel->cap = cap;
+    }
+    sel->ids[sel->count++] = id;
+    return 0;
+}
+
+static void
+bp_selection_free (struct bp_selection *selection)
+{
+    for (int i = 0; i < BP_SELECTORS; i++)
+        free (selection->list[i].ids);
+}
+
+/* procps-ng splits the list on commas and converts every element with
+   strict_atol(): an optional sign then digits, so an empty element, "-"
+   and "+" are 0, and "+5" is 5. Process ids may be negative or exceed
    INT_MAX, user and group ids may exceed UINT_MAX, and such values simply
-   match no process. Only a value that overflows the conversion is an
-   error. */
+   match no process. A value that overflows is "not a number"; a user or
+   group element that is not a number must name one. A process group or
+   session of 0 means the caller's own. The list has no length limit. */
 static int
 bp_selector_parse (struct bp_selector *sel, int kind, const char *spec)
 {
     const char *p = spec;
-    int listed = 0;
     if (!*p) return -1;
-    while (*p) {
+    for (;;) {
         const char *comma = strchr (p, ',');
         size_t len = comma ? (size_t)(comma - p) : strlen (p);
-        char token[256], *end;
-        unsigned long id;
-        if (!len) { p = comma + 1; continue; }
-        if (len >= sizeof token || sel->count == BP_OMIT_MAX) return -1;
-        memcpy (token, p, len);
-        token[len] = '\0';
-        int ids_of_processes = kind == BP_PARENT || kind == BP_PGROUP || kind == BP_SESSION;
-        int numeric = 1;
-        for (size_t i = token[0] == '-' && ids_of_processes; i < len; i++)
-            if (!isdigit ((unsigned char)token[i])) numeric = 0;
-        if (token[0] == '-' && len == 1) numeric = 0;
-        if (numeric && ids_of_processes) {
-            errno = 0;
-            long value = strtol (token, &end, 10);
-            if (errno || *end) return -1;
-            id = value < 0 ? BP_ID_NONE : (unsigned long) value;
-        } else if (numeric) {
-            errno = 0;
-            id = strtoul (token, &end, 10);
-            if (errno || *end) return -1;
-        } else if (kind == BP_EUID || kind == BP_RUID) {
-            struct passwd *pw = getpwnam (token);
-            if (!pw) return -1;
-            id = pw->pw_uid;
-        } else if (kind == BP_RGID) {
-            struct group *gr = getgrnam (token);
-            if (!gr) return -1;
-            id = gr->gr_gid;
-        } else return -1;
-        if (!strcmp (token, "0") && kind == BP_PGROUP) id = getpgrp ();
-        if (!strcmp (token, "0") && kind == BP_SESSION) {
+        size_t i = len && (p[0] == '+' || p[0] == '-');
+        int negative = len && p[0] == '-', numeric = 1;
+        unsigned long value = 0, id;
+        for (size_t j = i; j < len; j++) {
+            if (!isdigit ((unsigned char)p[j])) { numeric = 0; break; }
+            unsigned digit = (unsigned)(p[j] - '0');
+            if (value > ((unsigned long) LONG_MAX - digit) / 10) return -1;
+            value = value * 10 + digit;
+        }
+        if (numeric)
+            id = negative && value ? BP_ID_NONE : value;
+        else {
+            char token[256];
+            if (len >= sizeof token) return -1;
+            memcpy (token, p, len);
+            token[len] = '\0';
+            if (kind == BP_EUID || kind == BP_RUID) {
+                struct passwd *pw = getpwnam (token);
+                if (!pw) return -1;
+                id = pw->pw_uid;
+            } else if (kind == BP_RGID) {
+                struct group *gr = getgrnam (token);
+                if (!gr) return -1;
+                id = gr->gr_gid;
+            } else return -1;
+        }
+        if (numeric && id == 0 && kind == BP_PGROUP) id = getpgrp ();
+        if (numeric && id == 0 && kind == BP_SESSION) {
             pid_t sid = getsid (0);
             if (sid < 0) return -1;
             id = sid;
         }
-        sel->ids[sel->count++] = id;
-        listed = 1;
+        if (bp_selector_add (sel, id) < 0) return -1;
         if (!comma) break;
         p = comma + 1;
-    }
-    if (!listed) {
-        if (sel->count == BP_OMIT_MAX) return -1;
-        sel->ids[sel->count++] = BP_ID_NONE;
     }
     return 0;
 }
@@ -834,11 +849,46 @@ bp_pgrep_help (void)
     return sh_chkwrite (EXECUTION_SUCCESS);
 }
 
+struct bp_selection;
+static int bp_dispatch_words (WORD_LIST *list, int mode, struct bp_selection *selp);
+
+/* procps pkill takes the first argument anywhere in argv that names a
+   signal (signal_option()) before option parsing, so `pkill -P -1` sends
+   SIGHUP and leaves -P without its argument. The word is unlinked for the
+   parse and linked back afterwards, since the shell owns the list. */
 int
 bp_dispatch (WORD_LIST *list, int mode)
 {
-    clearerr (stdout);
     struct bp_selection selection = {0};
+    int rc;
+    if (mode != BP_MODE_KILL) {
+        rc = bp_dispatch_words (list, mode, &selection);
+        bp_selection_free (&selection);
+        return rc;
+    }
+    WORD_LIST *prev = NULL, *w;
+    for (w = list; w; prev = w, w = w->next)
+        if (w->word && w->word->word[0] == '-' && w->word->word[1]
+            && bp_parse_signal (w->word->word + 1) >= 0)
+            break;
+    if (!w || !prev) {
+        rc = bp_dispatch_words (list, mode, &selection);  /* leading -SIG: parsed in place */
+        bp_selection_free (&selection);
+        return rc;
+    }
+    prev->next = w->next;
+    WORD_LIST sig = { .next = list, .word = w->word };
+    rc = bp_dispatch_words (&sig, mode, &selection);
+    prev->next = w;
+    bp_selection_free (&selection);
+    return rc;
+}
+
+static int
+bp_dispatch_words (WORD_LIST *list, int mode, struct bp_selection *selp)
+{
+    clearerr (stdout);
+    struct bp_selection *selection = selp;
     int has_selection = 0;
     int by_cmdline = 0;
     int filter_uid_set = 0;
@@ -924,7 +974,7 @@ bp_dispatch (WORD_LIST *list, int mode)
                     if (!list || !list->word) { builtin_error ("selector needs an argument"); return EX_USAGE; }
                     value = list->word->word;
                 }
-                if (bp_selector_parse (&selection.list[kind], kind, value) < 0) {
+                if (bp_selector_parse (&selection->list[kind], kind, value) < 0) {
                     builtin_error ("invalid selector: %s", value);
                     return EX_USAGE;
                 }
@@ -936,8 +986,8 @@ bp_dispatch (WORD_LIST *list, int mode)
         if ((mode == BP_MODE_GREP || mode == BP_MODE_KILL) && (!strcmp (w, "-n") || !strcmp (w, "--newest") ||
                                      !strcmp (w, "-o") || !strcmp (w, "--oldest"))) {
             int age = (!strcmp (w, "-n") || !strcmp (w, "--newest")) ? 1 : -1;
-            if (selection.age && selection.age != age) { builtin_error ("-n and -o are mutually exclusive"); return EX_USAGE; }
-            selection.age = age;
+            if (selection->age && selection->age != age) { builtin_error ("-n and -o are mutually exclusive"); return EX_USAGE; }
+            selection->age = age;
             list = list->next;
             continue;
         }
@@ -1073,8 +1123,8 @@ bp_dispatch (WORD_LIST *list, int mode)
                 if (mode == BP_MODE_GREP && *c == 'v') { vflag = 1; continue; }
                 if (*c == 'n' || *c == 'o') {
                     int age = *c == 'n' ? 1 : -1;
-                    if (selection.age && selection.age != age) { builtin_error ("-n and -o are mutually exclusive"); return EX_USAGE; }
-                    selection.age = age;
+                    if (selection->age && selection->age != age) { builtin_error ("-n and -o are mutually exclusive"); return EX_USAGE; }
+                    selection->age = age;
                     continue;
                 }
                 if ((mode == BP_MODE_GREP && *c == 'd') || bp_selector_kind (*c) >= 0) {
@@ -1095,7 +1145,7 @@ bp_dispatch (WORD_LIST *list, int mode)
                         odelim = val;
                     } else {
                         int kind = bp_selector_kind (*c);
-                        if (bp_selector_parse (&selection.list[kind], kind, val) < 0) {
+                        if (bp_selector_parse (&selection->list[kind], kind, val) < 0) {
                             builtin_error ("invalid selector: %s", val);
                             builtin_usage ();
                             return EX_USAGE;
@@ -1177,7 +1227,7 @@ bp_dispatch (WORD_LIST *list, int mode)
         builtin_usage ();
         return EX_USAGE;
     }
-    if (selection.age && vflag) {
+    if (selection->age && vflag) {
         builtin_error ("-n/-o and -v are mutually exclusive");
         return EX_USAGE;
     }
@@ -1252,7 +1302,7 @@ bp_dispatch (WORD_LIST *list, int mode)
     }
     int result = bp_walk (patterns, pattern_count, by_cmdline, filter_uid_set,
                           want_uid, mode, sig, count_only, compiled ? &regex : NULL,
-                          (mode == BP_MODE_GREP || mode == BP_MODE_KILL) ? &selection : NULL,
+                          (mode == BP_MODE_GREP || mode == BP_MODE_KILL) ? selection : NULL,
                           lflag, aflag, vflag, odelim,
                           killall5_dry_run, killall5_sid, omit_pids, omit_count);
     if (compiled) regfree (&regex);
