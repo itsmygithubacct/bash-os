@@ -2639,6 +2639,7 @@ typedef struct {
     int        in_func, func_void, loops;
     int        stray_arrays;   /* NAME[] outside an argument list */
     int        void_calls;     /* calls of functions now defined void */
+    int        discard;        /* a semantic error: parse on, run nothing */
     bc_arena  *arena;
 } bc_parser;
 
@@ -3215,7 +3216,9 @@ bc_parse_expr (bc_parser *p)
 /* An expression where a statement needs one: NAME[] may not appear, and
    neither may a call of a function already defined void, except as the
    whole of an expression statement (ALLOW_VOID).  GNU bc rejects the
-   misuse when it parses the line, so nothing on that line runs. */
+   misuse when it parses the line, so nothing on that line runs.  Outside
+   a definition this is yyerror() without a syntax error: parsing goes on
+   normally, so no error-recovery rule swallows the following statement. */
 static bc_node *
 bc_parse_value_void (bc_parser *p, int allow_void)
 {
@@ -3225,6 +3228,12 @@ bc_parse_value_void (bc_parser *p, int allow_void)
     if (n && allow_void && n->kind == E_CALL && !n->paren && p->void_calls == voids + 1)
         p->void_calls = voids;
     if (n && p->void_calls != voids) {
+        if (!p->in_func) {
+            if (!p->err && !p->suppress)
+                bc_syntax_msg (p->ip, p->src->line, "void function used in an expression");
+            p->discard = 1;
+            return n;
+        }
         bc_semantic_error (p, "void function used in an expression");
         return NULL;
     }
@@ -4486,6 +4495,7 @@ bc_run_source (bc_interp *ip, bc_src *src)
         p.suppress = 0;
         p.stray_arrays = 0;
         p.void_calls = 0;
+        p.discard = 0;
         p.loops = 0;
         p.in_func = 0;
 
@@ -4507,14 +4517,16 @@ bc_run_source (bc_interp *ip, bc_src *src)
             int after_semi = 0;
             for (;;) {
                 bc_node *s;
-                if (p.quit || ip->fatal) break;
+                /* Only a failure in this item stops it; one left from an
+                   earlier item must not end every later item unparsed. */
+                if (p.quit || (ip->fatal && !fatal_before)) break;
                 type = bc_peek_type (&p);
                 if (type == T_EOF) break;
                 if (type == T_NL) { bc_consume (&p); break; }
                 if (type == ';') { bc_consume (&p); after_semi = 1; continue; }
                 if (type == T_DEFINE) break;
                 s = bc_parse_stmt (&p);
-                if (p.quit || ip->fatal) break;
+                if (p.quit || (ip->fatal && !fatal_before)) break;
                 if (!s || p.err) {
                     tainted = 1;
                     if (bc_recover (&p, after_semi)) break;
@@ -4548,6 +4560,7 @@ bc_run_source (bc_interp *ip, bc_src *src)
             ip->stop = 1;
             break;
         }
+        if (p.discard) tainted = 1;
         if (tainted || p.err) {
             if (p.err && !tainted) {
                 for (;;) {

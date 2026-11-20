@@ -241,7 +241,8 @@ NESTED = [
     'scale = 5\ndefine r(x) { auto scale; scale = 0; return (x / 3) }\nr(10); scale; 10 / 3\n',
     'define f() { ibase = 16; return (A) }\nf(); A; ibase\n',
     'define f() { auto i; for (i = 0; i < 3; i++) { if (i == 1) return (i * 10) }; return (-1) }\nf()\n',
-    'x[0] = 1; x = 2; define x() { return (3) }\nx[0]; x; x()\n',
+    # POSIX bc only starts a definition at the start of an input item.
+    'x[0] = 1; x = 2\ndefine x() { return (3) }\nx[0]; x; x()\n',
     'define f(x[], x) { return (x[0] + x) }\na[0] = 4; f(a[], 5)\n',
     'last = 3; . + 1; last * 2; .\n',
     'x = 5; x += x -= 3; x\n',
