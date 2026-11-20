@@ -125,9 +125,10 @@ class ProcessNumeric(unittest.TestCase):
         self.assertEqual(result.stdout, b"")
 
     def test_io_priority_never_silently_drops_excess_targets(self):
-        result = self.shell('ionice "$@"', *(["-p", "0"] * 257))
-        self.assertNotEqual(result.returncode, 0)
-        self.assertTrue(result.stderr)
+        reference = subprocess.run(['/usr/bin/ionice', '-p', '0'], capture_output=True, check=True)
+        result = self.shell('ionice -p "$@"', *(['0'] * 257))
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, reference.stdout * 257, b''))
 
     def test_io_priority_classes_without_data_work(self):
         for value, expected in (("0", b"none: prio 0\n"), ("3", b"idle\n")):
