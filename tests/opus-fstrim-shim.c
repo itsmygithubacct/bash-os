@@ -167,11 +167,26 @@ ancestor (const char *path)
     return 0;
 }
 
+/* Absolute tag links point into the simulated device tree. */
+static int
+fixture_link (const char *path, char target[PATH_MAX])
+{
+    ssize_t len = readlink (path, target, PATH_MAX - 1);
+    if (len <= 0 || target[0] != '/')
+        return 0;
+    target[len] = '\0';
+    return !private_path (target);
+}
+
 static int
 fx_stat (const char *path, struct stat *st)
 {
-    if (private_path (path))
+    if (private_path (path)) {
+        char target[PATH_MAX];
+        if (fixture_link (path, target))
+            return fx_stat (target, st);
         return stat (path, st);
+    }
     struct node *nd = find (path);
     memset (st, 0, sizeof *st);
     if (nd) {
@@ -236,12 +251,8 @@ fx_realpath (const char *path, char *resolved)
     }
     if (private_path (path)) {
         char link[PATH_MAX];
-        ssize_t l = readlink (path, link, sizeof link - 1);
-        if (l > 0 && link[0] == '/') {
-            link[l] = '\0';
-            if (!private_path (link))
-                return fx_realpath (link, NULL);
-        }
+        if (fixture_link (path, link))
+            return fx_realpath (link, NULL);
         return realpath (path, NULL);
     }
     struct node *nd = find (path);
