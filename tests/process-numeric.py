@@ -152,12 +152,14 @@ class ProcessNumeric(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertNotEqual(result.stdout, b"bad=0\n")
 
-    def test_invalid_renice_priority_and_uid_are_rejected_before_syscall(self):
+    def test_renice_priority_and_uid_parsing_matches_util_linux(self):
         for priority, uid in (("garbage", "0"), ("19", ""), ("19", "4294967296")):
             with self.subTest(priority=priority, uid=uid):
                 result = self.shell('renice "$1" -u "$2"', priority, uid, deny="priority")
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn(b"invalid", result.stderr)
+                reference = subprocess.run([self.launcher, 'priority', '/usr/bin/renice',
+                                            priority, '-u', uid], env=ENV, capture_output=True, timeout=5)
+                self.assertEqual((result.returncode, result.stdout, result.stderr),
+                                 (reference.returncode, reference.stdout, reference.stderr))
 
 
 if __name__ == "__main__":
