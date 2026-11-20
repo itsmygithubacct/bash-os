@@ -160,7 +160,9 @@ class Delivery(LprFixture):
         r = self.run_shell('lpr --help')
         self.assertEqual(r.returncode, 0)
         self.assertIn(b"BASHLPR_BACKEND", r.stdout)
-        self.assertEqual(self.run_shell('lpr bogus').returncode, 2)
+        missing = self.run_shell('lpr missing-print-file')
+        self.assertEqual(missing.returncode, 1)
+        self.assertIn(b'missing-print-file', missing.stderr)
         self.assertEqual(self.run_shell('lpr submit').returncode, 2)
         self.assertEqual(self.run_shell('lpr submit a b').returncode, 2)
 
