@@ -5080,7 +5080,7 @@ bn_selftest_yank_ring (void)
     bn_cy = 3; bn_cx = 0;
     bn_cut_line ();
     BN_YR_ASSERT ("^K line cut advances active yank slot",
-                  bn_clip && bn_clip_len == 5 && memcmp (bn_clip, "delta", 5) == 0
+                  bn_clip && bn_clip_len == 6 && memcmp (bn_clip, "delta\n", 6) == 0
                   && bn_yank_ring_fill == 2 && bn_yank_ring_active == 0);
 
     bn_yank_ring_rotate (+1);
@@ -5104,7 +5104,7 @@ bn_selftest_yank_ring (void)
 
     bn_yank_ring_rotate (-1);
     BN_YR_ASSERT ("M-} rotates back to newer line yank",
-                  bn_clip && bn_clip_len == 5 && memcmp (bn_clip, "delta", 5) == 0
+                  bn_clip && bn_clip_len == 6 && memcmp (bn_clip, "delta\n", 6) == 0
                   && bn_yank_ring_active == 0);
 
     bn_yank_ring_clear ();
