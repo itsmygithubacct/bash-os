@@ -78,7 +78,7 @@ with tempfile.TemporaryDirectory() as tmp:
                 parity(name, '-c', program, data=json.dumps(value).encode()+b'\n')
             parity(name, '-r', '.name', data=b'{"name":"hello"}\n')
             parity(name, '-s', '-c', 'add', data=b'1\n2\n3\n')
-            run(name, '.', data=b'{broken', rc=1)
+            parity(name, '.', data=b'{broken')
         elif name == 'bc':
             for expr in ['12345678901234567890+98765432109876543210', '2^100',
                          'scale=12; 22/7', 'scale=4; sqrt(2)', '17%5',
