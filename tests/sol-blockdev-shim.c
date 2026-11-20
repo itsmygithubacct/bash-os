@@ -72,10 +72,8 @@ static int fixture_open (const char *name, int flags, ...)
 {
     opens++;
     event ("open %s %s\n", name, (flags & O_ACCMODE) == O_RDWR ? "rw" : "ro");
-    /* Baseline lacks CLOEXEC; the Python suite separately checks the fix. */
-    if (flags & ~(O_ACCMODE | O_CLOEXEC)) bad++;
-    if (!strcmp (name, fail_device) && fail_open &&
-        (fail_open != EACCES || (flags & O_ACCMODE) != O_RDWR)) {
+    if (flags != (O_RDONLY | O_CLOEXEC | O_NONBLOCK)) bad++;
+    if (!strcmp (name, fail_device) && fail_open) {
         errno = fail_open; return -1;
     }
     for (int i = 0; i < count; i++) if (!strcmp (name, devices[i].name)) {

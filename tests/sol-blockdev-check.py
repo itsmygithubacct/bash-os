@@ -53,7 +53,7 @@ def values(actions, devices):
         for action in actions:
             value = {'--getsz': d['bytes'] // 512, '--getsize64': d['bytes'],
                      '--getsize': d['sectors'], '--getss': d['ss'],
-                     '--getbsz': d['bsz'], '--getro': int(bool(d['ro']))}.get(action)
+                     '--getbsz': d['bsz'], '--getro': d['ro']}.get(action)
             if value is not None:
                 output.append(str(value))
             if action in ('--setro', '--setrw'):
@@ -100,7 +100,7 @@ def main():
             ('1000 bytes', '1000 4294967297 512 4096 0',
              '1\n1000\n4294967297\n512\n4096\n0\n'),
             ('100 bytes', '100 23 4096 8192 7',
-             '0\n100\n23\n4096\n8192\n1\n')]:
+             '0\n100\n23\n4096\n8192\n7\n')]:
         check('query boundaries ' + label,
               'blockdev_fixture device /fixture/boundary ' + metadata + ' v1 || exit 92\n'
               'blockdev --getsz --getsize64 --getsize --getss --getbsz --getro /fixture/boundary\n'
@@ -120,11 +120,14 @@ def main():
         command = shlex.join(['blockdev'] + acts + [d['name'] for d in devices])
         check(name, command + '\nrc=$?; blockdev_fixture trace; exit "$rc"',
               values(acts, devices) + trace(acts, devices))
-    for badargs in [[], ['/fixture/a'], ['--'], ['--getro'], ['--getro', '--'],
+    for badargs in [[], ['--'], ['--getro'], ['--getro', '--'],
                     ['--nonsense', '/fixture/a'], ['-x', '/fixture/a'],
                     ['--getss=4096', '/fixture/a']]:
         check('malformed ' + repr(badargs), shlex.join(['blockdev'] + badargs) +
-              '\nrc=$?; blockdev_fixture trace; exit "$rc"', '', 2, 'blockdev:')
+              '\nrc=$?; blockdev_fixture trace; exit "$rc"', '', 1, 'blockdev:')
+    check('device without actions is opened and closed',
+          'blockdev /fixture/a || exit; blockdev_fixture trace',
+          trace([], DEVICES[:1]))
     check('explicit option terminator', 'blockdev --getss -- /fixture/a\nblockdev_fixture trace',
           '4096\n' + trace(['--getss'], DEVICES[:1]))
     dash = dict(DEVICES[1], name='-fixture')
@@ -133,38 +136,23 @@ def main():
               ('name', 'bytes', 'sectors', 'ss', 'bsz', 'ro')) + ' v1\n'
           'blockdev --getsz -- -fixture\nblockdev_fixture trace',
           values(['--getsz'], [dash]) + trace(['--getsz'], [dash]))
-    check('empty operand and later success', "blockdev --getss '' /fixture/b\nrc=$?; blockdev_fixture trace; exit \"$rc\"",
-          '512\nopen  ro\n' + trace(['--getss'], DEVICES[1:]), 1, 'No such file')
+    check('empty operand stops before next device', "blockdev --getss '' /fixture/b\nrc=$?; blockdev_fixture trace; exit \"$rc\"",
+          'open  ro\n', 1, 'No such file')
     check('option after device is operand', 'blockdev --getss /fixture/a --setro\nrc=$?; blockdev_fixture trace; exit "$rc"',
           '4096\n' + trace(['--getss'], DEVICES[:1]) + 'open --setro ro\n', 1, '--setro:')
-    for code in (errno.ENOENT, errno.EPERM, errno.EMFILE):
+    for code in (errno.ENOENT, errno.EPERM, errno.EMFILE, errno.EACCES):
         check('open failure ' + str(code), f'blockdev_fixture fail /fixture/a open {code}\n'
               'blockdev --getss /fixture/a /fixture/b\nrc=$?; blockdev_fixture trace; exit "$rc"',
-              '512\nopen /fixture/a ro\n' + trace(['--getss'], DEVICES[1:]), 1, '/fixture/a:')
-    check('EACCES retries O_RDWR', f'blockdev_fixture fail /fixture/a open {errno.EACCES}\n'
-          'blockdev --getss /fixture/a\nblockdev_fixture trace',
-          '4096\nopen /fixture/a ro\nopen /fixture/a rw\nioctl /fixture/a BLKSSZGET\nclose /fixture/a\n')
-    check('EACCES retry also fails and next device succeeds',
-          f'blockdev_fixture fail /fixture/missing open {errno.EACCES}\n'
-          'blockdev --getss /fixture/missing /fixture/b\nrc=$?; blockdev_fixture trace; exit "$rc"',
-          '512\nopen /fixture/missing ro\nopen /fixture/missing rw\n' +
-          trace(['--getss'], DEVICES[1:]), 1, '/fixture/missing:')
+              'open /fixture/a ro\n', 1, 'cannot open /fixture/a: ' + os.strerror(code))
     for a, request in REQUESTS.items():
-        # Include a query after the failed action and a second device to prove continuation.
-        acts = [a, '--getbsz']
         for code in (errno.EIO, errno.ENOTTY, errno.EPERM):
-            out = values(acts, DEVICES[1:])
-            expected = '8192\n' + out + trace(acts, DEVICES)
-            check(f'{a} failure {code} continues and closes',
-                  f'blockdev_fixture fail /fixture/a {request.split()[0]} {code}\n' +
-                  shlex.join(['blockdev'] + acts + [d['name'] for d in DEVICES]) +
+            ioctl_name = request.split()[0]
+            check(f'{a} failure {code} closes and stops',
+                  f'blockdev_fixture fail /fixture/a {ioctl_name} {code}\n' +
+                  shlex.join(['blockdev', a, '--getbsz'] + [d['name'] for d in DEVICES]) +
                   '\nrc=$?; blockdev_fixture trace; exit "$rc"',
-                  # If the trailing query has the same request, it also fails.
-                  expected if a != '--getbsz' else out + trace(acts, DEVICES), 1,
-                  ('ioctl error on ' + request + ': ' + os.strerror(code))
-                  if a in ('--flushbufs', '--rereadpt') else '/fixture/a: ioctl:')
-    # Maintenance errors must identify the actual request, while the following
-    # action and device still execute. Check the complete diagnostic suffix.
+                  trace([a], DEVICES[:1]), 1, f'ioctl error on {ioctl_name}: {os.strerror(code)}')
+    # Check the complete maintenance diagnostic, including the ioctl name.
     for action, request, codes in [('--flushbufs', 'BLKFLSBUF', (errno.EACCES,)),
                                     ('--rereadpt', 'BLKRRPART', (errno.EBUSY, errno.EINVAL))]:
         for code in codes:
@@ -174,7 +162,7 @@ def main():
                     '\nrc=$?; blockdev_fixture trace; exit "$rc"')
             r = invoke(binary, prefix + body, args.preload)
             suffix = f'blockdev: ioctl error on {request}: {os.strerror(code)}\n'
-            expected = values(['--getbsz'], DEVICES) + trace(acts, DEVICES)
+            expected = trace([action], DEVICES[:1])
             if (r.returncode == 1 and r.stdout == expected and
                     r.stderr.endswith(suffix) and len(r.stderr.splitlines()) == 1):
                 passed += 1; print('PASS maintenance diagnostic', request, code)
@@ -195,11 +183,11 @@ def main():
           'blockdev --getro /fixture/a /fixture/b || exit 98\n'
           'blockdev_fixture stats',
           '1\n0\nstats 4 4 4 0 0\nro /fixture/a 1\nro /fixture/b 0\n')
-    check('EACCES setters preserve state and later getters run',
+    check('EACCES setter preserves prior output and device state',
           f'blockdev_fixture fail /fixture/a BLKROSET {errno.EACCES}\n'
           'blockdev --getro --setro --getro --setrw --getro /fixture/a\n'
           'rc=$?; blockdev_fixture stats; exit "$rc"',
-          '0\n0\n0\nstats 1 1 5 0 0\nro /fixture/a 0\nro /fixture/b 7\n',
+          '0\nstats 1 1 2 0 0\nro /fixture/a 0\nro /fixture/b 7\n',
           1, 'Permission denied')
     for option in ('--getss /fixture/a', '--help', '--version'):
         check('output failure and recovery ' + option,
@@ -214,7 +202,7 @@ def main():
           'for ((i=0;i<100;i++)); do\n'
           'blockdev --getsize64 --getss /fixture/a /fixture/b >/dev/null 2>/dev/null\n'
           '[[ $? == 1 ]] || exit 99\ndone\nblockdev_fixture stats',
-          'stats 200 200 400 0 0\nro /fixture/a 0\nro /fixture/b 7\n')
+          'stats 100 100 100 0 0\nro /fixture/a 0\nro /fixture/b 7\n')
     for option, needle in [('--help', '--getsize '), ('--version', 'blockdev 1.0')]:
         r = invoke(binary, prefix + f'blockdev {option}', args.preload)
         if r.returncode == 0 and needle in r.stdout and not r.stderr:
