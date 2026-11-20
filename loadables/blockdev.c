@@ -224,9 +224,10 @@ blockdev_builtin (WORD_LIST *list)
     size_t nact = 0;
     int want_report = 0;
 
+    if (!list) { builtin_error ("not enough arguments"); return blockdev_try (); }
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
-        if (!strcmp (w, "--")) { list = list->next; if (!nact) first_action = list; continue; }
+        if (!strcmp (w, "--")) { list = list->next; break; }
         else if (!strcmp (w, "--help")) { for (char **lp = blockdev_doc; *lp; lp++) puts (*lp); return finish_output (EXECUTION_SUCCESS); }
         else if (!strcmp (w, "--version")) { puts ("blockdev 1.0 (bash-loadable)"); return finish_output (EXECUTION_SUCCESS); }
         else if (!strcmp (w, "--report")) { want_report = 1; list = list->next; continue; }
@@ -242,9 +243,7 @@ blockdev_builtin (WORD_LIST *list)
         if (nact) { builtin_error ("--report cannot be combined with other actions"); return blockdev_try (); }
         return report (list);
     }
-    if (nact == 0 && !list) { builtin_error ("not enough arguments"); return blockdev_try (); }
-    if (nact == 0) { builtin_error ("Unknown command: %s", list->word->word); return blockdev_try (); }
-    if (!list)     { builtin_error ("no device specified"); return blockdev_try (); }
+    if (!list) { builtin_error ("no device specified"); return blockdev_try (); }
 
     /* The first device that cannot be opened, or the first ioctl that fails,
        ends the command, as in util-linux. */

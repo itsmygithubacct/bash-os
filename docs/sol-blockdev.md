@@ -1,9 +1,9 @@
 # blockdev software-path qualification
 
 `blockdev` applies all leading actions, in order, to each following device
-operand. `--` ends option parsing. An open or ioctl failure sets exit status 1;
-processing continues with later actions and operands. Invalid options or missing
-actions/devices return 2 before opening anything. Help and version return 0
+operand. `--` ends option parsing. The first open or ioctl failure ends the command with status 1.
+An invalid option or missing device also returns 1. A device operand without
+an action is opened and closed. Help and version return 0
 unless writing their output fails.
 
 The action list now uses the original Bash argument list, removing the old
@@ -24,18 +24,17 @@ with no environment-controlled interception in the shipped builtin.
 `tests/sol-blockdev-check.py` loads the module into the targeted Bash executable
 and uses an empty `PATH`. Its independent metadata and request oracle covers:
 
-- All ten advertised actions, separately and together on two devices, with exact
+- The ten fixture actions, separately and together on two devices, with exact
   request traces and setter values, in device-major/action-minor order.
 - `BLKGETSIZE64` in bytes and divided by 512 (including a size above 32-bit
   sector range, a remainder, and a size below one sector); the distinct legacy
-  `BLKGETSIZE` result; logical sector size, block size, and normalized RO state.
+  `BLKGETSIZE` result; logical sector size, block size, and the returned RO flag.
 - Setro/setrw state across actions and separate invocations; flush and reread
   requests with zero arguments; more than 32 actions.
 - Missing actions/operands, unknown/malformed options, an empty device name,
   explicit `--`, and options appearing after the first device operand.
-- EIO, ENOTTY and EPERM for every action, continuation to later actions/devices,
-  exact descriptor cleanup, open failures, the EACCES read-write retry, and
-  close failure handling.
+- EIO, ENOTTY and EPERM for each fixture action, exact descriptor cleanup after
+  the first failure, read-only opens even for setters, and close-error handling.
 - `/dev/full` output errors for queries/help/version followed by recovery in
   the same shell, 200 repeated successful calls, and 100 repeated failed ioctl batches with no
   outstanding fixture handles.
