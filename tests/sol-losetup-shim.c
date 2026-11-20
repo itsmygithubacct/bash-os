@@ -15,6 +15,8 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
+#include <sys/sysmacros.h>
+#include <linux/fs.h>
 #include <linux/loop.h>
 #include "loadables.h"
 static int fixture_open(const char *, int, ...);
@@ -23,6 +25,10 @@ static int fixture_ioctl(int, unsigned long, ...);
 static int fixture_stat(const char *, struct stat *);
 static DIR *fixture_opendir(const char *);
 static int fixture_closedir(DIR *);
+static int fixture_access(const char *, int);
+static FILE *fixture_fopen(const char *, const char *);
+#define access fixture_access
+#define fopen fixture_fopen
 #define open fixture_open
 #define close fixture_close
 #define ioctl fixture_ioctl
@@ -30,6 +36,8 @@ static int fixture_closedir(DIR *);
 #define opendir fixture_opendir
 #define closedir fixture_closedir
 #include "../loadables/losetup.c"
+#undef access
+#undef fopen
 #undef open
 #undef close
 #undef ioctl
@@ -44,9 +52,9 @@ static int kinds[NFDS], modes[NFDS], live, dirs, bad, opens, closes, calls, quie
 static size_t used;
 struct state { int attached; struct loop_info64 info; char file[1024]; };
 static struct state state[NDEV];
-static int failures[8];
+static int failures[9];
 /* fail slots: control open, control ioctl, backing rw, backing ro,
- * device open, SET_FD, SET_STATUS64, CLR_FD. */
+ * device open, SET_FD, SET_STATUS64, CLR_FD, CONFIGURE. */
 static void event(const char *fmt, ...)
 {
     if (quiet) return;
@@ -84,6 +92,12 @@ static int fixture_open(const char *p, int flags, ...)
     } else if (idx >= 0) {
         if (fail(4)) return -1;
         kind = 10 + idx; snprintf(mapped, sizeof mapped, "%s/dev/loop%d", root, idx);
+    } else if (!strncmp(p, "/sys/dev/block/7:", 17)) {
+        int minor, off = 0;
+        if (sscanf(p + 17, "%d/%n", &minor, &off) != 1 || !off || minor < 0 || minor >= NDEV) {
+            errno = ENOENT; return -1;
+        }
+        snprintf(mapped, sizeof mapped, "%s/sys/loop%d/%s", root, minor, p + 17 + off);
     } else if (!strncmp(p, "/sys/block/", 11)) {
         snprintf(mapped, sizeof mapped, "%s/sys/%s", root, p + 11);
     } else if (!strcmp(p, "-dash")) {
@@ -115,13 +129,48 @@ static int fixture_close(int fd)
 }
 static int fixture_stat(const char *p, struct stat *st)
 {
-    if (!confined(p)) { errno = ENOENT; return -1; }
-    return stat(p, st);
+    int idx = device_index(p);
+    if (idx >= 0) {
+        char path[2048];
+        snprintf(path, sizeof path, "%s/dev/loop%d", root, idx);
+        if (stat(path, st) < 0) return -1;
+        st->st_mode = S_IFBLK | 0600;
+        st->st_rdev = makedev(7, idx);
+        return 0;
+    }
+    if (confined(p)) return stat(p, st);
+    if (!strchr(p, '/') && strcmp(p, ".") && strcmp(p, "..")) {
+        char path[2048];
+        snprintf(path, sizeof path, "%s/%s", root, p);
+        return stat(path, st);
+    }
+    errno = ENOENT; return -1;
+}
+static FILE *fixture_fopen(const char *p, const char *mode)
+{
+    char path[2048];
+    if (strcmp(p, "/proc/partitions")) { errno = ENOENT; return NULL; }
+    snprintf(path, sizeof path, "%s/partitions", root);
+    return fopen(path, mode);
+}
+static int fixture_access(const char *p, int mode)
+{
+    char path[2048];
+    if (!strcmp(p, "/sys/block") || !strcmp(p, "/sys/dev/block"))
+        snprintf(path, sizeof path, "%s/sys", root);
+    else if (!strcmp(p, "/dev/loop-control"))
+        snprintf(path, sizeof path, "%s/dev/loop-control", root);
+    else if (!strncmp(p, "/sys/block/", 11))
+        snprintf(path, sizeof path, "%s/sys/%s", root, p + 11);
+    else { errno = ENOENT; return -1; }
+    return access(path, mode);
 }
 static DIR *fixture_opendir(const char *p)
 {
-    if (!root[0] || strcmp(p, "/sys/block")) { bad++; errno = EPERM; return NULL; }
-    char path[2048]; snprintf(path, sizeof path, "%s/sys", root);
+    char path[2048];
+    if (!strcmp(p, "/sys/block")) snprintf(path, sizeof path, "%s/sys", root);
+    else if (!strcmp(p, "/dev")) snprintf(path, sizeof path, "%s/dev", root);
+    else { bad++; errno = EPERM; return NULL; }
     DIR *d = opendir(path); if (d) dirs++;
     return d;
 }
@@ -140,6 +189,52 @@ static int fixture_ioctl(int fd, unsigned long req, ...)
     int idx = kinds[fd] - 10;
     if (idx < 0 || idx >= NDEV) { bad++; errno = ENOTTY; return -1; }
     struct state *d = &state[idx];
+    if (req == LOOP_GET_STATUS64) {
+        va_list ap; va_start(ap, req);
+        struct loop_info64 *status = va_arg(ap, struct loop_info64 *);
+        va_end(ap);
+        event("GET_STATUS loop%d\n", idx);
+        *status = d->info;
+        char field[2048], back[4096];
+        const char *file = d->file;
+        if (!d->attached) {
+            snprintf(field, sizeof field, "%s/sys/loop%d/loop/backing_file", root, idx);
+            FILE *fp = fopen(field, "r");
+            if (!fp) { errno = ENXIO; return -1; }
+            char *line = fgets(back, sizeof back, fp);
+            fclose(fp);
+            if (!line || !back[0] || back[0] == '\n') { errno = ENXIO; return -1; }
+            back[strcspn(back, "\n")] = '\0';
+            file = back;
+        }
+        struct stat st;
+        if (confined(file) && stat(file, &st) == 0) {
+            status->lo_device = st.st_dev;
+            status->lo_inode = st.st_ino;
+        }
+        return 0;
+    }
+    if (req == BLKSSZGET) {
+        va_list ap; va_start(ap, req);
+        *va_arg(ap, int *) = 512;
+        va_end(ap);
+        return 0;
+    }
+    if (req == BL_LOOP_CONFIGURE) {
+        event("CONFIGURE loop%d\n", idx);
+        if (fail(8)) return -1;
+        if (d->attached) { errno = EBUSY; return -1; }
+        va_list ap; va_start(ap, req);
+        const struct loop_config *cfg = va_arg(ap, const struct loop_config *);
+        va_end(ap);
+        if (cfg->fd >= NFDS || kinds[cfg->fd] != 1) { bad++; errno = EBADF; return -1; }
+        for (size_t i = 0; i < sizeof cfg->__reserved / sizeof cfg->__reserved[0]; i++)
+            if (cfg->__reserved[i]) bad++;
+        d->attached = 1;
+        d->info = cfg->info;
+        snprintf(d->file, sizeof d->file, "%s", names[cfg->fd]);
+        return 0;
+    }
     va_list ap; va_start(ap, req);
     int arg = -1; struct loop_info64 *info = NULL;
     if (req == LOOP_SET_FD || req == LOOP_CLR_FD) arg = va_arg(ap, int);
@@ -192,7 +287,7 @@ int losetup_fixture_builtin(WORD_LIST *list)
         /* A pre-existing association belongs to someone else. */
         state[0].attached = 1; strcpy(state[0].file, "foreign");
     } else if (!strcmp(a[0], "fail") && n == 3) {
-        int slot = atoi(a[1]); if (slot < 0 || slot >= 8) return 2;
+        int slot = atoi(a[1]); if (slot < 0 || slot >= 9) return 2;
         failures[slot] = atoi(a[2]);
     } else if (!strcmp(a[0], "expect") && n == 6) {
         int idx = atoi(a[1]);
@@ -201,6 +296,11 @@ int losetup_fixture_builtin(WORD_LIST *list)
         if (!d->attached || d->info.lo_offset != strtoull(a[2], NULL, 10) ||
             d->info.lo_sizelimit != strtoull(a[3], NULL, 10) ||
             d->info.lo_flags != strtoul(a[4], NULL, 10) || strcmp(d->file, a[5])) return 97;
+    } else if (!strcmp(a[0], "expect-name") && n == 3) {
+        int idx = atoi(a[1]);
+        if (idx < 0 || idx >= NDEV || !state[idx].attached ||
+            strnlen((char *) state[idx].info.lo_file_name, LO_NAME_SIZE) != strlen(a[2]) ||
+            memcmp(state[idx].info.lo_file_name, a[2], strlen(a[2]))) return 97;
     } else if (!strcmp(a[0], "quiet") && n == 1) quiet = 1;
     else if (!strcmp(a[0], "trace") && n == 1) fputs(fixture_trace, stdout);
     else if (!strcmp(a[0], "state") && n == 1) {
@@ -219,5 +319,5 @@ int losetup_fixture_builtin(WORD_LIST *list)
 static char *fixture_doc[] = {"Private losetup boundary controller.", NULL};
 struct builtin losetup_fixture_struct = {
     "losetup_fixture", losetup_fixture_builtin, BUILTIN_ENABLED, fixture_doc,
-    "losetup_fixture reset|fail|expect|quiet|trace|state|counts|assert", 0
+    "losetup_fixture reset|fail|expect|expect-name|quiet|trace|state|counts|assert", 0
 };
