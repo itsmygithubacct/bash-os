@@ -66,7 +66,7 @@ with tempfile.TemporaryDirectory() as tmp:
             (d/'two').write_text('BEGIN {print 2}')
             parity(name, '-f', d/'one', '-f', d/'two', data=b'')
             run(name, '{print}', d/'missing', rc=2)
-            run(name, '--invalid', rc=2)
+            parity(name, '--invalid', data=b'')
             run('eval', 'awk "{print}" < /dev/null; awk "{print}" <<< reused', data=b'')
         elif name == 'jq':
             for program, value in [('.a', {'a':[1,2]}), ('map(. * 2)',[1,2,3]),
