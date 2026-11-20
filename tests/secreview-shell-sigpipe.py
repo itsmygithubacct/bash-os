@@ -305,7 +305,7 @@ def test_ssh():
         script = wrapper(setup, f"ssh run 127.0.0.1 true -p {port}\n")
         proc, out, err = run_bash(script, bash_env(), 8)
         # A refused local port must surface ssh's own error. No session is opened.
-        finish(f"ssh {disposition}", proc, out, err, (b"ssh:", b"survived status=1\n"))
+        finish(f"ssh {disposition}", proc, out, err, (b"ssh:", b"survived status=255\n"))
 
 
 def test_pty():
