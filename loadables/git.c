@@ -20074,8 +20074,8 @@ git_push_rejection_advice (git_context *ctx, const struct git_push_want *wants,
             if (!git_advice_wanted (ctx, current ? "pushNonFFCurrent" : "pushNonFFMatching")) return;
             if (current)
                 fputs ("hint: Updates were rejected because the tip of your current branch is behind\n"
-                       "hint: its remote counterpart. Integrate the remote changes (e.g.\n"
-                       "hint: 'git pull ...') before pushing again.\n", stderr);
+                       "hint: its remote counterpart. If you want to integrate the remote changes,\n"
+                       "hint: use 'git pull' before pushing again.\n", stderr);
             else
                 fputs ("hint: Updates were rejected because a pushed branch tip is behind its remote\n"
                        "hint: counterpart. Check out this branch and integrate the remote changes\n"
