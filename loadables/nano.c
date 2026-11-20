@@ -2894,6 +2894,7 @@ bn_justify (int whole)
    skips it, and Esc ends the check. */
 
 static char *bn_speller = NULL;
+static int bn_speller_edits_file;
 static int bn_spell_timeout_ms = 10000;
 #define BN_SPELL_MAX_OUT ((size_t) 1 << 20)
 #define BN_SPELL_MAX_WORDS 4096
@@ -3331,7 +3332,7 @@ bn_spell (void)
     char *text = bn_pt_flatten_range (&bn_b.pt, rs, re, &tl);
     if (!text) { bn_set_status ("Spell check: out of memory"); return; }
     bn_set_status ("Invoking spell checker...");
-    if (bn_speller && *bn_speller) {
+    if (bn_speller_edits_file) {
         char *corrected = NULL, err[256];
         size_t corrected_len = 0;
         int rc = bn_spell_file_helper (bn_speller, text, tl, &corrected,
@@ -6696,7 +6697,9 @@ extern char *nano_doc[];
 int
 nano_builtin (WORD_LIST *list)
 {
-    /* v2 — selftest path doesn't need a TTY. */
+    /* Selftests can supply a word-list helper directly. Only --speller uses
+       the alternate editor protocol, in which the helper receives a file. */
+    bn_speller_edits_file = 0;
     if (list && list->word && strncmp (list->word->word, "selftest", 8) == 0)
         bn_nonewlines = 1;
     if (list && list->word && strcmp (list->word->word, "selftest") == 0)
@@ -6772,6 +6775,7 @@ nano_builtin (WORD_LIST *list)
         else if (strncmp (w, "--speller=", 10) == 0) {
             free (bn_speller);
             bn_speller = strdup (w + 10);
+            bn_speller_edits_file = bn_speller && *bn_speller;
         } else {
             builtin_error ("%s: invalid option", w);
             puts ("Type 'nano -h' for a list of available options.");
