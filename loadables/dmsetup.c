@@ -2576,13 +2576,13 @@ dms_device_size (int fd, const char *name, const char *uuid)
 
 /* libdevmapper's _error_device: replace the live table with one error
    target covering the same size, then resume (clearing on failure). A
-   device without a table fails without a message, as there. */
+   table-less device gets a zero-length error target, rejected by the driver. */
 static int
 dms_error_device (int fd, const struct dms_opts *o, const char *name, const char *uuid,
                   uint32_t resume_flags)
 {
     long long size = dms_device_size (fd, name, uuid);
-    if (size <= 0) return EXECUTION_FAILURE;
+    if (size < 0) return EXECUTION_FAILURE;
     struct dms_spec sp;
     memset (&sp, 0, sizeof sp);
     sp.start = 0;
