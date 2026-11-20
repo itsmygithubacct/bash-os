@@ -643,6 +643,8 @@ def restore(d):
     s.key(EXIT, frame=False)
     s.wait_for(b"Save modified buffer?")
     s.key(b"y", frame=False)
+    s.wait_for(b"Write to File: r.txt")
+    s.key(ENTER, frame=False)
     s.wait_for(b"\x1b[?1049l")
     s.wait_for(FRAME, start=s.out.find(b"\x1b[?1049l"))
     s.key(EXIT, frame=False)

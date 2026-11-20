@@ -455,7 +455,7 @@ def save_paths(d):
 
     def act_writeout(s):
         s.keys(WRITEOUT)
-        s.wait_for(b"File Name to Write: keep.txt")
+        s.wait_for(b"Write to File: keep.txt")
         s.text("2")
         s.keys(ENTER)
         s.wait_for(b"Wrote")
@@ -471,6 +471,8 @@ def save_paths(d):
         s.wait_for(b"Exit cancelled")
         s.keys(EXIT)
         s.key(b"y", render=False)
+        s.wait_for(b"Write to File: keep.txt")
+        s.key(ENTER, render=False)
     st, _ = edit(d, "keep.txt", None, "nano keep.txt", act_guard)
     check(st == 0 and target.read_bytes() == b"yxone\n", "^X guard: Esc stays, Y saves and exits")
 
