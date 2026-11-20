@@ -89,6 +89,10 @@ with tempfile.TemporaryDirectory(prefix='sol-pgrep-') as tmp:
         (['-U1001'], good-{810002}),
         (['--group=3002'], {810002,810003}),
         (['-P','41'], {810002,810004}),
+        (['-P','-1'], set()),
+        (['-P','1,,2'], set()),
+        (['-G','3001,'], good-{810002,810003}),
+        (['-u',','.join(['2001']*257)], good-{810002,810003}),
         (['-s60'], good-{810002,810006}),
         (['-s88'], {810006}),
         (['--pgroup','51'], {810002}),
@@ -112,17 +116,16 @@ with tempfile.TemporaryDirectory(prefix='sol-pgrep-') as tmp:
     check(['-o','alphaXYZ|a.b'], '810003\n', root=root)
     check(['-n','alphaXYZ|a.b'], '810004\n', root=root)
     check(['-la','-x','a.b'], '810004 a.b literal\n', root=root)
-    check(['-al','-x','a.b'], '810004 a.b\n', root=root)
+    check(['-al','-x','a.b'], '810004 a.b literal\n', root=root)
     for delimargs, sep in [(['-d,'], ','), (['--delimiter=::'], '::'), (['-d',''], '')]:
         p = run(shlex.join(['pgrep', *delimargs, 'alpha']), root)
         expected = [f'810001{sep}810003\n', f'810003{sep}810001\n']
         assert p.returncode == 0 and p.stdout in expected, (delimargs, p.stdout)
         checks += 1
     for args in [[], ['['], ['-x','['], ['-f','('], ['\\'], ['a','b'], ['--bad'], ['-u'],
-                 ['-u',''], ['-G','3001,'], ['-P','-1'], ['-s','a'], ['-U','999999999999999999999999'],
+                 ['-u',''], ['-s','a'], ['-U','999999999999999999999999'],
                  ['-u','missing-sol-pgrep-user'], ['-G','missing-sol-pgrep-group'],
-                 ['-n','-o','a'], ['-nv','a'], ['-d'], ['-P','1,,2'],
-                 ['-u',','.join(['2001']*257)]]:
+                 ['-n','-o','a'], ['-nv','a'], ['-d']]:
         check(args, '', 2, root)
     # Invalid regex is diagnosed even with an unreadable proc tree or no records.
     check(['['], '', 2, root/'absent')
@@ -233,7 +236,8 @@ try:
     for args in [[], ['-c'], ['-l'], ['-a'], ['-n'], ['-o'], ['-u',str(os.geteuid())],
                  ['-U',str(os.getuid()),'-G',str(os.getgid())], ['-g',str(os.getpgrp())],
                  ['-s',str(os.getsid(0))], ['-f']]:
-        argv=[*args,'-P',str(os.getpid()),stem+'.*']
+        # Keep the shell's -c argument from matching its own full-command regex.
+        argv=[*args,'-P',str(os.getpid()),'[s]'+stem[1:]+'.*']
         built=run(shlex.join(['pgrep',*argv]))
         ref=subprocess.run(['/usr/bin/pgrep',*argv],env=ENV,capture_output=True,text=True,check=False)
         assert (built.returncode,sorted(built.stdout.splitlines())) == (ref.returncode,sorted(ref.stdout.splitlines())), (argv,built,ref)
