@@ -34,8 +34,15 @@ B prlimit --pid $$ 2>/dev/null | grep -q . && ok "prlimit --pid" || no "prlimit"
 B fincore "$d/f" 2>/dev/null | grep -qi 'file' && ok "fincore" || no "fincore"
 B lsattr "$d/f" 2>/dev/null | grep -q "$d/f" && ok "lsattr" || no "lsattr"
 B getfacl "$d/f" 2>/dev/null | grep -q '^# owner:' && ok "getfacl" || no "getfacl"
-B losetup 2>/dev/null | grep -qi 'NAME' && ok "losetup (list)" || no "losetup list"
-B swapon 2>/dev/null | grep -qi 'filename' && ok "swapon (list)" || no "swapon list"
+for probe in 'losetup --list --output NAME' 'swapon --show=NAME,TYPE --raw'; do
+  read -ra args <<< "$probe"
+  if command -v "${args[0]}" >/dev/null; then
+    "${args[@]}" >"$d/reference" && B "${args[@]}" >"$d/builtin" && cmp -s "$d/reference" "$d/builtin" &&
+      ok "${args[0]} list" || no "${args[0]} list"
+  else
+    B "${args[@]}" >/dev/null && ok "${args[0]} list" || no "${args[0]} list"
+  fi
+done
 B dmsetup version 2>/dev/null | grep -qi 'version' && ok "dmsetup version" || no "dmsetup version"
 for t in blockdev wipefs fsfreeze fstrim hwclock ipcctl; do
   B $t --help >/dev/null 2>&1 && ok "$t --help" || no "$t --help"
