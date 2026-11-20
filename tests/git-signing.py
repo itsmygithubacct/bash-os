@@ -135,17 +135,19 @@ with tempfile.TemporaryDirectory(prefix='git-signing-') as name:
     check(b'Good "git" signature' in verified.stderr, 'commit.gpgsign signs too',
           verified.stderr[:200])
 
-    # What this build cannot sign with, it says so about rather than
-    # writing something that will not verify.
+    # Signing errors must leave HEAD at the last successfully signed commit.
     (repo/'a.txt').write_text('one\ntwo\nthree\n')
     result = bgit('commit', '-q', '-S', '-am', 'no key for this one', cwd=repo,
                   status=128, config=('gpg.format=ssh',))
     check(b'user.signingKey' in result.stderr, 'a signature with no key named',
           result.stderr[:200])
-    result = bgit('commit', '-q', '-S', '-am', 'no key for this one', cwd=repo,
-                  status=128, config=('gpg.format=openpgp', f'user.signingKey={key}'))
-    check(b'ssh keys' in result.stderr, 'a format this build has not got',
+    previous = git(repo, 'rev-parse', 'HEAD').stdout
+    result = bgit('commit', '-q', '-S', '-am', 'failed OpenPGP signing', cwd=repo,
+                  status=128, config=('gpg.format=openpgp', 'gpg.program=/bin/false',
+                                      f'user.signingKey={key}'))
+    check(b'gpg failed to sign the data' in result.stderr, 'OpenPGP signer failure',
           result.stderr[:200])
+    check(git(repo, 'rev-parse', 'HEAD').stdout == previous, 'failed signer leaves HEAD in place')
 
     locked = tmp/'locked-key'
     subprocess.run([KEYGEN, '-q', '-t', 'ed25519', '-N', 'a passphrase', '-f',
