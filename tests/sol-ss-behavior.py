@@ -37,7 +37,8 @@ def convert(text):
             p = line.split(maxsplit=6)
             if p[0].endswith('6'):
                 p[3:5] = [bracket_endpoint(ep) for ep in p[3:5]]
-            out += row(p[0], int(p[1]), int(p[2]), p[3], p[4], p[5], (' '+p[6]) if len(p)>6 else '')
+            state = 'ESTAB' if p[5] == 'ESTABLISHED' else p[5]
+            out += row(p[0], int(p[1]), int(p[2]), p[3], p[4], state, (' '+p[6]) if len(p)>6 else '')
     return out
 
 def expected(proto='tcp', listen=False, large=0):
