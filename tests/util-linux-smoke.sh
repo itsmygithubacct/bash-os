@@ -25,7 +25,7 @@ done
 echo "== they run: locking, sessions, scheduling, queries =="
 [[ "$(B flock -x "$d/f" -c 'echo held')" == held ]] && ok "flock FILE -c CMD" || no "flock -c"
 [[ "$("$BX" -c "PATH=; exec 9>$d/lk; flock -x 9 && echo fd-held")" == fd-held ]] && ok "flock on an open fd (the builtin-only idiom)" || no "flock fd"
-[[ "$(B setsid true; echo $?)" == 0 ]] && ok "setsid" || no "setsid"
+B setsid /bin/true && ok "setsid" || no "setsid"
 B taskset -p $$ 2>/dev/null | grep -q 'current affinity mask' && ok "taskset -p" || no "taskset -p"
 B chrt -p $$ 2>/dev/null | grep -q 'scheduling policy' && ok "chrt -p" || no "chrt -p"
 B uclampset -p $$ 2>/dev/null | grep -q 'util_clamp' && ok "uclampset -p" || no "uclampset -p"
