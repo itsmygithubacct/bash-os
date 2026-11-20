@@ -578,6 +578,7 @@ dispatch:
             ka_push (&head, &tail, "-u");
             ka_push (&head, &tail, user_spec);
         }
+        ka_push (&head, &tail, "--");
         for (WORD_LIST *p = list; p && p->word && p->word->word; p = p->next)
             ka_push (&head, &tail, p->word->word);
         int rc = bp_dispatch (head, BP_MODE_KILLALL);
