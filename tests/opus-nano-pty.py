@@ -385,7 +385,7 @@ def completion(d):
         s.keys(SAVE)
         s.key(EXIT, render=False)
     st, _ = edit(d, "c.txt", b"apple\napricot\n", "nano c.txt", act)
-    check(st == 0 and (d / "c.txt").read_bytes() == b"apple\napricot\napricot",
+    check(st == 0 and (d / "c.txt").read_bytes() == b"apple\napricot\napricot\n",
           "completion: ^] inserts and cycles candidates")
 
     def act_wrap(s):
@@ -397,7 +397,7 @@ def completion(d):
         s.keys(SAVE)
         s.key(EXIT, render=False)
     st, _ = edit(d, "c.txt", b"apple\napricot\n", "nano c.txt", act_wrap)
-    check(st == 0 and (d / "c.txt").read_bytes() == b"apple\napricot\nape",
+    check(st == 0 and (d / "c.txt").read_bytes() == b"apple\napricot\nape\n",
           "completion: after the last candidate the fragment returns")
 
 

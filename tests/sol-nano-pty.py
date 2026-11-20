@@ -193,7 +193,7 @@ def burst(d):
 
     def ours(name, payload):
         (d / name).write_bytes(src)
-        s = ours_session(d, f"nano {name}")
+        s = ours_session(d, f"nano -L {name}")
         os.write(s.fd, payload)
         s.pump(0.6)
         s.keys(SAVE)
@@ -229,7 +229,7 @@ def burst(d):
         payload = b"".join(rng.choice(keyset) for _ in range(rng.randint(20, 60)))
         name = f"o{case}.txt"
         (d / name).write_bytes(text)
-        s = ours_session(d, f"nano {name}")
+        s = ours_session(d, f"nano -L {name}")
         os.write(s.fd, payload)
         s.pump(0.5)
         s.keys(SAVE)
@@ -245,9 +245,7 @@ def burst(d):
             os.write(g.fd, SAVE)
             g.settle(0.3)
             os.write(g.fd, EXIT)
-        # By default GNU nano keeps an empty "magic line" at the end and adds
-        # a final newline; this builtin saves exactly the typed text, which
-        # is GNU nano's --nonewlines model, so the oracle runs with -L.
+        # Use the same exact-byte save mode in both editors.
         theirs = gnu_edit(d, name, "-L", body)
         check(mine == theirs, f"burst oracle {case + 1}: {len(payload)}-byte burst gives GNU nano's file"
               + ("" if mine == theirs else f" ours={mine!r} gnu={theirs!r}"))
@@ -269,7 +267,7 @@ def movement(d):
     for i, seq in enumerate(seqs):
         name = f"m{i}.txt"
         (d / name).write_bytes(text)
-        s = ours_session(d, f"nano {name}")
+        s = ours_session(d, f"nano -L {name}")
         s.keys(*seq, SAVE)
         s.key(EXIT, frame=False)
         check(s.finish() == 0, f"movement {i + 1}: session exits 0")
@@ -553,7 +551,7 @@ def spell(d):
 
 def completion(d):
     (d / "c.txt").write_bytes("über übel üppig\n".encode())
-    s = ours_session(d, "nano c.txt")
+    s = ours_session(d, "nano -L c.txt")
     s.keys(DOWN)
     s.keys("ü".encode(), COMPLETE)
     s.wait_for(b"Completion 1 of 3")
@@ -650,7 +648,7 @@ def restore(d):
     s.key(EXIT, frame=False)
     st = s.finish()
     b, a, c = ((d / n).read_text() for n in ("b.txt", "a.txt", "c.txt"))
-    check(st == 0 and b == a == c and b.strip() and (d / "r.txt").read_bytes() == b"q",
+    check(st == 0 and b == a == c and b.strip() and (d / "r.txt").read_bytes() == b"q\n",
           "termios is identical before, between and after two calls; ^X Y saves a new file")
     check(s.out.count(b"\x1b[?1049h") == 2 and s.out.count(b"\x1b[?1049l") == 2,
           "each call enters and leaves the alternate screen once")
