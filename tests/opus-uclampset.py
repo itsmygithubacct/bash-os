@@ -571,7 +571,7 @@ assert ctypes.get_errno() == errno.EINVAL
         self.assertIn(b"cannot read", r.stderr)
         self.write_sysctl(0, 1024)
         r = self.uc("--system")
-        self.assertEqual((r.returncode, r.stdout), (0, b"system util_clamp: min: 0 max: 1024\n"))
+        self.assertEqual((r.returncode, r.stdout), (0, b"System util_clamp: min: 0 max: 1024\n"))
 
     def test_system_setters(self):
         self.write_sysctl(1024, 1024)
@@ -586,7 +586,7 @@ assert ctypes.get_errno() == errno.EINVAL
                 self.assertEqual((r.returncode, r.stdout, r.stderr), (0, b"", b""))
                 self.assertEqual(self.sysctl(), want)
         r = self.uc("-v", "-m", 10, "-s")
-        self.assertEqual(r.stdout, b"system util_clamp: min: 10 max: 1024\n")
+        self.assertEqual(r.stdout, b"System util_clamp: min: 10 max: 1024\n")
 
     def test_system_validation_before_any_write(self):
         self.write_sysctl(300, 400)
