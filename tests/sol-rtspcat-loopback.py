@@ -339,7 +339,8 @@ def run_suite(binary, standalone=False):
     for url in ('http://127.0.0.1/x', 'rtsp:///x', 'rtsp://127.0.0.1:12oops/x', 'rtsp://127.0.0.1:65536/x', 'rtsp://127.0.0.1/a\r\nInjected:x', 'rtsp://127.0.0.1/' + 'x' * 600):
         cmd = [binary, url] if standalone else [binary, '-c', 'PATH=; rtspcat ' + shlex.quote(url)]
         proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3)
-        assert proc.returncode == 1 and proc.stdout == b'', (url, proc.returncode, proc.stderr)
+        assert proc.returncode == 2 and proc.stdout == b'', (url, proc.returncode, proc.stderr)
+        assert proc.stderr, url
         cases.append('invalid-url-' + repr(url[:35])); print('PASS', cases[-1], flush=True)
     if not standalone:
         repeated(binary)
