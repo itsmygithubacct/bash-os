@@ -131,15 +131,15 @@ trap 'rc=$?; IFS= read -r parent_after < /proc/$$/stat; parent_after=${parent_af
             start = independent_priority(pid)
             self.assertEqual(start, max(10, self.parent_priority))
             result = self.shell('[[ $(type -t renice) == builtin ]] || exit 9; '
-                                'renice 16 -p "$1" || exit; renice -n 16 "$1" || exit; '
-                                'renice 17 "$1"', (pid,), fixture=False,
+                                'renice 16 -p "$1" || exit; renice -n 1 "$1" || exit; '
+                                'renice 18 "$1"', (pid,), fixture=False,
                                 extra_env={'POSIXLY_CORRECT': '1'})
-            # POSIXLY_CORRECT makes -n relative: 16 + 16 clamps to 19, then 17 is absolute.
+            # Both the relative increment and the absolute value are available to an ordinary owner.
             expected = (success(pid, PID, 16, start)
-                        + success(pid, PID, 19, 16)
-                        + success(pid, PID, 17, 19))
+                        + success(pid, PID, 17, 16)
+                        + success(pid, PID, 18, 17))
             self.assertEqual((result.returncode, result.stdout, result.stderr), (0, expected, b''))
-            self.assertEqual(independent_priority(pid), 17)
+            self.assertEqual(independent_priority(pid), 18)
 
     def test_private_process_group(self):
         with children(group=True) as pids:
@@ -239,15 +239,12 @@ trap 'rc=$?; IFS= read -r parent_after < /proc/$$/stat; parent_after=${parent_af
         self.assertEqual(self.calls(), [(0, 7, v) for v in values])
 
     def test_usage_and_a_selector_without_an_id(self):
-        for args in ((), ('-n',), ('19',)):
+        for args in ((), ('-n',), ('-p',), ('19',)):
             with self.subTest(args=args):
                 result = self.shell(args=args)
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertEqual(result.stdout, b'')
                 self.assertEqual(result.stderr, b'renice: not enough arguments\n' + TRY)
-        result = self.shell(args=('-p',))
-        self.assertEqual(result.returncode, 1)
-        self.assertEqual(result.stderr, b"renice: invalid priority '-p'\n" + TRY)
         result = self.shell(args=('19', '-g'))
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'', b''))
         self.assertEqual(self.calls(), [])
@@ -314,13 +311,16 @@ trap 'rc=$?; IFS= read -r parent_after < /proc/$$/stat; parent_after=${parent_af
                             'renice 18 123 || exit; done; '
                             'set -- /proc/$$/fd/*; printf "%s\\n" "$#"')
         baseline = self.shell('set -- /proc/$$/fd/*; printf "%s\\n" "$#"')
-        self.assertEqual((result.returncode, result.stdout), (0, baseline.stdout), result.stderr)
+        changes = success(4242, USER, 19) + success(123, PID, 18)
+        changes += (success(4242, USER, 19, old=19) + success(123, PID, 18, old=18)) * 199
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, changes + baseline.stdout, b''))
         self.assertEqual(self.calls(), [(2, 4242, 19), (0, 123, 18)] * 200)
 
     def test_failed_diagnostics_do_not_poison_later_calls(self):
         result = self.shell('renice -1 -p 12 2>/dev/full; a=$?; '
                             'renice 19 13; b=$?; printf "%s %s\\n" "$a" "$b"')
-        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b'1 0\n', b''))
+        self.assertEqual((result.returncode, result.stdout, result.stderr), (0, success(13, PID, 19) + b'1 0\n', b''))
         self.assertEqual(self.calls(), [(0, 12, -1), (0, 13, 19)])
 
     def test_closed_stdout_fails_the_success_line(self):
