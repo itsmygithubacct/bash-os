@@ -115,6 +115,25 @@ do_swapoff (const char *orig, int quiet, int canonic, int verbose)
 
 struct so_ent { char *path; };
 
+/* libmount reads two unsigned sizes and a signed priority. Only the path is
+ * needed for swapoff, but an out-of-range field invalidates the row. */
+static int
+so_valid_swap_numbers (const char *s)
+{
+    for (int field = 0; field < 3; field++) {
+        char *end;
+        errno = 0;
+        if (field == 2)
+            strtol (s, &end, 10);
+        else
+            strtoull (s, &end, 10);
+        if (end == s || errno == ERANGE)
+            return 0;
+        s = end;
+    }
+    return 1;
+}
+
 /* Snapshot /proc/swaps. Parse errors are reported and skipped. An unreadable
  * table yields no entries (util-linux then still walks fstab). A read error
  * discards the snapshot. *saw is 1 when the file opened. */
@@ -133,8 +152,7 @@ so_read_swaps (struct so_ent **out, size_t *count)
     while ((length = getline (&line, &cap, fp)) >= 0) {
         char *s = line, *nl = strchr (line, '\n');
         char *src = NULL, *type = NULL;
-        unsigned long long size, used;
-        int prio;
+        int numbers = 0;
         lineno++;
         if (memchr (line, 0, (size_t) length)) {
             builtin_error ("%s: parse error at line %zu -- ignored", "/proc/swaps", lineno);
@@ -146,16 +164,14 @@ so_read_swaps (struct so_ent **out, size_t *count)
             s++;
         if (!*s || *s == '#' || !strncmp (s, "Filename\t", 9))
             continue;
-        if (sscanf (s, "%ms %ms %llu %llu %d", &src, &type, &size, &used, &prio) != 5) {
+        if (sscanf (s, "%ms %ms %n", &src, &type, &numbers) != 2
+            || !so_valid_swap_numbers (s + numbers)) {
             free (src);
             free (type);
             builtin_error ("%s: parse error at line %zu -- ignored", "/proc/swaps", lineno);
             continue;
         }
         free (type);
-        (void) size;
-        (void) used;
-        (void) prio;
         so_unmangle (src);
         {
             size_t sl = strlen (src);

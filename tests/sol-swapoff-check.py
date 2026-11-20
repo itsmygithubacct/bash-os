@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import struct
 import subprocess
 import tempfile
 
@@ -160,18 +161,23 @@ def cases():
         'relative': (row('relative'), 'relative'),
         'unknown-type': (row('/never', 'bogus'), '/never'),
         'used-over-size': (row('/never', used='4097'), '/never'),
+        'negative-size': (row('/never', size='-1'), '/never'),
+        'negative-used': (row('/never', used='-1'), '/never'),
         'nul-escape': (row(r'/never\000'), '/never'),
         'unknown-escape': (row(r'/never\141'), '/nevera'),
         'short-escape': (row('/never\\04'), '/never\\04'),
         'bare-backslash': (row('/never\\'), '/never\\'),
     }
+    long_limit = 1 << (8 * struct.calcsize('l') - 1)
+    accepted['priority-long-max'] = (row('/never', priority=str(long_limit - 1)), '/never')
+    accepted['priority-long-min'] = (row('/never', priority=str(-long_limit)), '/never')
     rejected = {
         'one-field': b'/never\n', 'missing-field': b'/never file 4 0\n',
-        'negative-size': row('/never', size='-1'),
         'bad-size': row('/never', size='12x'), 'size-overflow': row('/never', size='18446744073709551616'),
-        'negative-used': row('/never', used='-1'),
-        'bad-priority': row('/never', priority='--1'), 'priority-overflow': row('/never', priority='2147483648'),
-        'priority-underflow': row('/never', priority='-2147483649'),
+        'used-overflow': row('/never', used='18446744073709551616'),
+        'bad-priority': row('/never', priority='--1'),
+        'priority-overflow': row('/never', priority=str(long_limit)),
+        'priority-underflow': row('/never', priority=str(-long_limit - 1)),
         'nul-path': row('/ne\x00ver'),
         'long-bad-row': b'/never ' + b'x' * 20000 + b'\n',
     }
