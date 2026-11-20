@@ -212,9 +212,11 @@ def accounts(d):
     run('passwd', 'verify-fd', 'fixture', 0, data=b'fixture-password\n', env=env)
     # passwd will not write beside files others can replace, says so once, and
     # leaves the password as it was.
+    before = (d/'shadow').read_bytes()
     d.chmod(0o770)
     run('passwd', 'set-fd', 'fixture', 0, data=b'other-password\n', env=env, rc=1,
-        stderr=f'_: line 1: passwd: refusing temp file in group/world-writable dir: {d}\n'.encode())
+        stderr=b'_: line 1: passwd: cannot lock account directory: Operation not permitted\n')
+    assert (d/'shadow').read_bytes() == before
     d.chmod(0o700)
     run('passwd', 'verify-fd', 'fixture', 0, data=b'fixture-password\n', env=env)
     original = (d/'passwd').read_text()
