@@ -93,8 +93,9 @@ def fixtures(binary, shim, directory):
          stderr='absent-fixture: no process found'))
     case('partial-name-diagnostic', lambda: runner.run(['absent-fixture', 'target'],
          calls=[(101, 15, 0)], stderr='absent-fixture: no process found'))
-    for flag, sig in [('-HUP', 1), ('-SIGUSR1', 10), ('-usr2', 12), ('-9', 9), ('-15', 15)]:
+    for flag, sig in [('-HUP', 1), ('-SIGUSR1', 10), ('-USR2', 12), ('-9', 9), ('-15', 15)]:
         case('signal-' + flag, lambda flag=flag, sig=sig: runner.run([flag, 'target'], calls=[(101, sig, 0)]))
+    case('lowercase-user-option', lambda: runner.run(['-usr2', 'target'], rc=1, stderr='Cannot find user sr2'))
     case('full-command-exact', lambda: runner.run(['-f', '/bin/demo arg'], calls=[(n, 15, 0) for n in (101,102,103,104)]))
     case('full-command-substring-rejected', lambda: runner.run(['-f', 'demo'], rc=1))
     case('uid-real-not-effective', lambda: runner.run(['-u', '1234', 'target'], calls=[(101,15,0)]))
@@ -108,10 +109,10 @@ def fixtures(binary, shim, directory):
     entry(root, 105, '--exact')
     case('double-dash', lambda: runner.run(['--', '--exact'], calls=[(105,15,0)]))
     for args in ([], ['-u'], ['-u', '1234'], ['-u', 'no_such_sol_killall_user'],
-                 ['-BOGUS', 'target'], ['-0', 'target'], ['-9999', 'target'],
+                 ['-BOGUS', 'target'], ['-9999', 'target'],
                  ['-4294967311', 'target'], ['-18446744073709551631', 'target'],
                  ['-u', '4294968530', 'target'], ['-u', '18446744073709551616', 'target']):
-        case('invalid-' + shlex.join(args), lambda args=args: runner.run(args, rc=2))
+        case('invalid-' + shlex.join(args), lambda args=args: runner.run(args, rc=1))
     case('exit-race', lambda: runner.run(['target'], rc=1, calls=[(101,15,errno.ESRCH)],
          extra={'SOL_KILLALL_FAIL_PID':'101','SOL_KILLALL_FAIL_ERRNO':str(errno.ESRCH)}, stderr=''))
     case('permission-failure', lambda: runner.run(['target'], rc=1, calls=[(101,15,errno.EPERM)],
@@ -120,11 +121,11 @@ def fixtures(binary, shim, directory):
          extra={'SOL_KILLALL_FAIL_PID':'101','SOL_KILLALL_FAIL_ERRNO':str(errno.ESRCH)}))
     case('disappears-before-read', lambda: runner.run(['target'], rc=1, extra={'SOL_KILLALL_VANISH':'101'}))
     case('proc-fixture-guard', lambda: runner.run(['target'], rc=3, extra={'BASHOS_PROC_ROOT':str(root)}, stderr='read-only'))
-    case('count', lambda: runner.run(['-c', 'target'], stdout='1\n', calls=[(101,15,0)]))
-    case('output-failure', lambda: runner.run([], rc=1, calls=[(101,15,0)], script='killall -c target > /dev/full'))
+    case('unsupported-count', lambda: runner.run(['-c', 'target'], rc=1, stderr='Usage: killall'))
+    case('output-failure', lambda: runner.run([], rc=1, script='killall -l > /dev/full'))
     case('version-output-failure', lambda: runner.run([], rc=1, script='killall --version > /dev/full'))
-    case('output-failure-recovery', lambda: runner.run([], calls=[(101,15,0)], stdout='recovered\n',
-         script='killall -c target > /dev/full; [[ $? == 1 ]] || exit 80; killall --version > /dev/null || exit 81; printf \"recovered\\n\"'))
+    case('output-failure-recovery', lambda: runner.run([], stdout='recovered\n',
+         script='killall -l > /dev/full; [[ $? == 1 ]] || exit 80; killall --version > /dev/null || exit 81; printf \"recovered\\n\"'))
     # Malformed directory PIDs must never wrap to another process or group.
     for name in ['0','-1','101x','4294967397','4294967295','18446744073709551717','999999999999999999999999999999999999']:
         entry(root, name, 'malformed')
@@ -220,6 +221,8 @@ def owned(binary, shim, directory):
            'SOL_KILLALL_OWNED_COMM':name, 'SOL_KILLALL_PARENT':str(os.getpid())}
     try:
         assert line(child) == line(neighbor) == 'ready'
+        verify(child, name)
+        runner.run(['-0', name], calls=[(child.pid, 0, 0)], extra=env)
         for flag, sig in [('-SIGUSR1',signal.SIGUSR1), (str(-signal.SIGUSR2),signal.SIGUSR2)]:
             verify(child, name); verify(neighbor, name + 'x')
             runner.run([flag, name], calls=[(child.pid,sig,0)], extra=env)
