@@ -20062,10 +20062,10 @@ git_push_rejection_advice (git_context *ctx, const struct git_push_want *wants,
         if (!w->refused || w->remote_refused) continue;
         if (!strcmp (w->refused, "fetch first")) {
             if (git_advice_wanted (ctx, "pushFetchFirst"))
-                fputs ("hint: Updates were rejected because the remote contains work that you do\n"
-                       "hint: not have locally. This is usually caused by another repository pushing\n"
-                       "hint: to the same ref. You may want to first integrate the remote changes\n"
-                       "hint: (e.g., 'git pull ...') before pushing again.\n"
+                fputs ("hint: Updates were rejected because the remote contains work that you do not\n"
+                       "hint: have locally. This is usually caused by another repository pushing to\n"
+                       "hint: the same ref. If you want to integrate the remote changes, use\n"
+                       "hint: 'git pull' before pushing again.\n"
                        "hint: See the 'Note about fast-forwards' in 'git push --help' for details.\n", stderr);
             return;
         }
@@ -20078,8 +20078,8 @@ git_push_rejection_advice (git_context *ctx, const struct git_push_want *wants,
                        "hint: use 'git pull' before pushing again.\n", stderr);
             else
                 fputs ("hint: Updates were rejected because a pushed branch tip is behind its remote\n"
-                       "hint: counterpart. Check out this branch and integrate the remote changes\n"
-                       "hint: (e.g. 'git pull ...') before pushing again.\n", stderr);
+                       "hint: counterpart. If you want to integrate the remote changes, use 'git pull'\n"
+                       "hint: before pushing again.\n", stderr);
             fputs ("hint: See the 'Note about fast-forwards' in 'git push --help' for details.\n", stderr);
             return;
         }
