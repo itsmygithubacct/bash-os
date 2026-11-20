@@ -271,12 +271,25 @@ Every first-run FAIL and ERROR has a recorded cause, and each was rerun:
 - One DNS encrypted-peer case failed once on static and passed five reruns on
   the same binary; the cause was not reproduced.
 
-Two limits remain. `tput` hardware init and reset needs a physical terminal.
-`migration-genl-list-multipart` requires a generic netlink family dump that
-spans two receive buffers, but the guest kernel's 26 families take 7,108 bytes
-in one dump chunk even with every available module loaded; the multi-buffer
-requirement is covered by the mock kernel cases. In the ledger 599 topics are
-full and one is partial.
+The original guest returned its 26 generic netlink families in one data buffer.
+A subsequent Debian 13 KVM run qualified `migration-genl-list-multipart` on
+both builds. The kernel returned 191 families across two data buffers and
+each candidate made three `recvmsg` calls on one socket. The independent
+controller dump and the candidate agreed on the entire table.
+
+To reproduce the larger table in a disposable guest with matching kernel
+headers, build and load the fixture there, run the live case, then unload it:
+
+```sh
+fixture=$PWD/tests/parity-vm/fixtures/genl-dump
+make -C "/lib/modules/$(uname -r)/build" M="$fixture" modules
+insmod "$fixture/genl_dump_families.ko"
+# Run migration-genl-list-multipart with the standard guest evaluator.
+rmmod genl_dump_families
+```
+
+The ledger has 599 full topics. Physical terminal qualification for
+`tput init` and `tput reset` remains open.
 
 The [validation record](data/release-0.1.4-validation.json) lists the binary
 and manifest hashes, the harness and image-lock hashes, the source changes

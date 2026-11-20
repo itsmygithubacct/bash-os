@@ -17520,7 +17520,7 @@
       "coverage": "full",
       "current_reason": "Every original obligation is exercised by the named checks on both unchanged builds; candidate FAIL results remain visible.",
       "migration": "replacement",
-      "notes": "Real-kernel100 evidence retained and complemented by frozen mock102. Independent fresh encoding/decoding recomputed all26 vector runs, exact request bytes, all32 flag combinations and unknown bits, multi-buffer NLMSG_DONE termination, foreign sequences and exact rendered text. Mock evidence is explicitly protocol-level. Static100 insufficient-multipart fixture ERROR remains excluded.",
+      "notes": "Real-kernel100 evidence retained and complemented by frozen mock102. Independent fresh encoding/decoding recomputed all26 vector runs, exact request bytes, all32 flag combinations and unknown bits, multi-buffer NLMSG_DONE termination, foreign sequences and exact rendered text. Mock evidence is explicitly protocol-level. Static100 insufficient-multipart fixture ERROR remains excluded. The live multipart case subsequently passed on both repair-branch builds with the genl-dump guest fixture loaded.",
       "original": {
         "id": "ctrl-list",
         "kind": "deferred",
@@ -17621,6 +17621,12 @@
               "definition_sha256": "5a57c9837dfdf12f0697417382324aae1c0ec534c091f4d4f623222ded8478c8",
               "group": "shell",
               "id": "migration-genl-mock-foreign-sequence"
+            },
+            {
+              "assertion": "The Debian 13 kernel controller returned 191 families in two data-bearing buffers. Each build used one socket and three recvmsg calls and returned the complete family table with empty stderr and status 0.",
+              "definition_sha256": "4439c020adcfd13f1bd6695b38ab928a6a10cf349a34d140e9fcf9e710feae5f",
+              "group": "shell",
+              "id": "migration-genl-list-multipart"
             }
           ],
           "gap": "",
@@ -55263,7 +55269,7 @@
   "original_sha256": "9f7ea6e79298b73552e1129b1dde7b34378ad0493c2755f8f9412237954442f8",
   "policy": "MIGRATED records point to fully exercised requirements on both builds; they are not additional passing tests. FAIL remains FAIL. Partial, skipped, invalid or stale evidence cannot close a topic.",
   "previous_ledger_sha256": "224841d541a8a0819778b43d480e0abda4cdb1f79cf969ebf77949a978d62ca4",
-  "qualification_status": "QUALIFIED for 0.1.4 on the release builds (dynamic 966f2d3447abcc6720f971c2deb83c7a2e078cac27da98b0e8d3275fe7f60af9, static 8edb6607d69f49322091e1f05b7da8f198f999ea3fe55e1ca0be14d05d7251ca): every required ordinary, extended, SMP, SELinux, GPU, root, clamp, executor and kernel-authority case PASSes on both builds, and 599 of 600 topics are full. Two recorded limits remain: tput/hardware-init-reset needs physical terminal hardware (partial), and migration-genl-list-multipart cannot hold its precondition on the qualification guest kernel, whose whole generic netlink family table fits in one dump buffer; the multi-buffer requirement of genl/ctrl-list is covered by the mock cases.",
+  "qualification_status": "QUALIFIED for 0.1.4 on the release builds (dynamic 966f2d3447abcc6720f971c2deb83c7a2e078cac27da98b0e8d3275fe7f60af9, static 8edb6607d69f49322091e1f05b7da8f198f999ea3fe55e1ca0be14d05d7251ca): every required ordinary, extended, SMP, SELinux, GPU, root, clamp, executor and kernel-authority case PASSes on both builds, and 599 of 600 topics are full. Two recorded limits remain: tput/hardware-init-reset needs physical terminal hardware (partial), and migration-genl-list-multipart cannot hold its precondition on the qualification guest kernel, whose whole generic netlink family table fits in one dump buffer; the multi-buffer requirement of genl/ctrl-list is covered by the mock cases. Subsequent Debian 13 qualification passed migration-genl-list-multipart on dynamic and static builds using additional registered kernel families. The physical tput requirement remains open.",
   "release_target": "0.1.4",
   "schema": 1,
   "takeover_parent_mapping_sha256": "34889b404ccbc44a7c68ed6eb6e611714543a9ba3ce784aa60da14c34290ce0c",

@@ -64,6 +64,10 @@
         },
         {
           "group": "shell",
+          "id": "migration-genl-list-multipart"
+        },
+        {
+          "group": "shell",
           "id": "migration-genl-list-records"
         },
         {
