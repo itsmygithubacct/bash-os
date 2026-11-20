@@ -91,9 +91,9 @@ def fixtures(base, large=0):
 
 def expected_inet(proto='tcp', listen=False, large=0):
     if large:
-        return ''.join(row('tcp',3,5,f'127.0.0.1:{10000+i}', '0.0.0.0:*' if i%3==0 else '127.0.0.1:60000', 'LISTEN' if i%3==0 else 'ESTAB') for i in range(large) if not listen or i%3==0)
+        return ''.join(row('tcp',3,5,f'127.0.0.1:{10000+i}', '0.0.0.0:*' if i%3==0 else '127.0.0.1:60000', 'LISTEN' if i%3==0 else 'ESTABLISHED') for i in range(large) if not listen or i%3==0)
     if proto == 'tcp':
-        return row('tcp',3,5,'127.0.0.1:41001','0.0.0.0:*','LISTEN') + ('' if listen else row('tcp',3,5,'127.0.0.1:41002','127.0.0.1:41003','ESTAB')) + row('tcp6',3,5,'::1:42001',':::*','LISTEN')
+        return row('tcp',3,5,'127.0.0.1:41001','0.0.0.0:*','LISTEN') + ('' if listen else row('tcp',3,5,'127.0.0.1:41002','127.0.0.1:41003','ESTABLISHED')) + row('tcp6',3,5,'::1:42001',':::*','LISTEN')
     return row('udp',3,5,'127.0.0.1:43001','0.0.0.0:*','UNCONN') + ('' if listen else row('udp',3,5,'127.0.0.1:43002','127.0.0.1:43003','ESTAB'))
 
 def environment(shim=None, fixture=None, transport=None):
@@ -139,12 +139,12 @@ class Suite:
                 ('--udp --numeric --all',expected_inet('udp')),
                 ('-unl',expected_inet('udp',True)),
                 ('--udp --listening',expected_inet('udp',True)),
-                ('-xnl',row('u_str',0,0,'/fixture/listener','*','LISTEN')),
-                ('--unix --listening',row('u_str',0,0,'/fixture/listener','*','LISTEN')),
-                ('-xna',row('u_str',0,0,'/fixture/listener','*','LISTEN')+row('u_str',0,0,'/fixture/connected','*','ESTAB')),
+                ('-xnl',row('u_str',0,0,'/fixture/listener','*','LISTENING')),
+                ('--unix --listening',row('u_str',0,0,'/fixture/listener','*','LISTENING')),
+                ('-xna',row('u_str',0,0,'/fixture/listener','*','LISTENING')+row('u_str',0,0,'/fixture/connected','*','CONNECTED')),
             ):
                 self.case(f'{transport} {opts}',lambda opts=opts,expect=expect,env=env:self.check('netstat '+opts,env,HEADER+'\n'+expect))
-            combined=HEADER+'\n'+expected_inet()+expected_inet('udp')+row('u_str',0,0,'/fixture/listener','*','LISTEN')+row('u_str',0,0,'/fixture/connected','*','ESTAB')
+            combined=HEADER+'\n'+expected_inet()+expected_inet('udp')+row('u_str',0,0,'/fixture/listener','*','LISTENING')+row('u_str',0,0,'/fixture/connected','*','CONNECTED')
             self.case(f'{transport} default families',lambda env=env,combined=combined:self.check('netstat',env,combined))
             self.case(f'{transport} combined families',lambda env=env,combined=combined:self.check('netstat -tuxan',env,combined))
             self.case(f'{transport} option state resets',lambda env=env:self.check('netstat -tna; netstat -una',env,HEADER+'\n'+expected_inet()+HEADER+'\n'+expected_inet('udp')))
@@ -224,18 +224,18 @@ class Suite:
                 if interrupted or name=='mismatched seq':
                     assert r.stdout==HEADER+'\n'+row('tcp6',3,5,'::1:42001',':::*','LISTEN'),r.stdout
                 else:
-                    expected = (row('u_str',0,0,'/fixture/listener','*','LISTEN')+row('u_str',0,0,'/fixture/connected','*','ESTAB')) if target=='1-0' else expected_inet()
+                    expected = (row('u_str',0,0,'/fixture/listener','*','LISTENING')+row('u_str',0,0,'/fixture/connected','*','CONNECTED')) if target=='1-0' else expected_inet()
                     assert r.stdout==HEADER+'\n'+expected,r.stdout
             self.case('malformed '+name,check)
         base=fixtures(Path(tmp)/'invalid-unix-attr')
         payload=struct.pack('=BBBBIII',1,1,10,0,301,0xffffffff,0xffffffff)+struct.pack('=HH',3,0)
         (base/'diag/1-0.bin').write_bytes(msg(payload)+msg(kind=3))
-        self.case('malformed Unix attribute falls back',lambda:self.check('netstat -xnl',environment(self.shim,base,'diag'),HEADER+'\n'+row('u_str',0,0,'/fixture/listener','*','LISTEN')))
+        self.case('malformed Unix attribute falls back',lambda:self.check('netstat -xnl',environment(self.shim,base,'diag'),HEADER+'\n'+row('u_str',0,0,'/fixture/listener','*','LISTENING')))
         base=fixtures(Path(tmp)/'malformed-proc')
         bad='not a socket row\n0: Z:1 Z:2 01 0:0 0:0 0 1000 0 555\n0: 1:1 1:2 01 0:0 0:0 0 1000 0 556\n'
         (base/'proc/net/tcp').write_text('header\n'+bad+proc_row(1,2,1,41002,41003,102))
         (base/'proc/net/tcp6').write_text('header\n0: x:1 x:2 01 0:0 0:0 0 1000 0 557\n')
-        self.case('malformed proc rows skipped',lambda:self.check('netstat -tna',environment(self.shim,base,'proc'),HEADER+'\n'+row('tcp',3,5,'127.0.0.1:41002','127.0.0.1:41003','ESTAB')))
+        self.case('malformed proc rows skipped',lambda:self.check('netstat -tna',environment(self.shim,base,'proc'),HEADER+'\n'+row('tcp',3,5,'127.0.0.1:41002','127.0.0.1:41003','ESTABLISHED')))
         base=fixtures(Path(tmp)/'partial-error')
         (base/'diag/2-6.bin').write_bytes(inet(2,10,41001)+msg(struct.pack('=i',-13)+bytes(16),kind=2))
         self.case('partial netlink failure has no duplicate rows',lambda:self.check('netstat -tna',environment(self.shim,base,'diag'),HEADER+'\n'+expected_inet()))
@@ -250,12 +250,12 @@ class Suite:
                 server=stack.enter_context(listener.accept()[0])
                 udp=sock(family,socket.SOCK_DGRAM);udp.bind((addr,0))
                 peer=sock(family,socket.SOCK_DGRAM);peer.bind((addr,0));peer.connect(udp.getsockname())
-                sockets += [(listener,'LISTEN'),(client,'ESTAB'),(server,'ESTAB'),(udp,'UNCONN'),(peer,'ESTAB')]
+                sockets += [(listener,'LISTEN'),(client,'ESTABLISHED'),(server,'ESTABLISHED'),(udp,'UNCONN'),(peer,'ESTAB')]
             listener=sock(socket.AF_UNIX,socket.SOCK_STREAM)
             listener.bind(str(Path(tmp)/'listener'));listener.listen(8)
             client=sock(socket.AF_UNIX,socket.SOCK_STREAM);client.bind(str(Path(tmp)/'client'));client.connect(listener.getsockname())
             server=stack.enter_context(listener.accept()[0])
-            unixs=[(listener,'LISTEN'),(client,'ESTAB')]
+            unixs=[(listener,'LISTENING'),(client,'CONNECTED')]
             def inet_check(options,listen=False,udp_only=False):
                 r=self.check('netstat '+options,environment())
                 assert r.stdout.splitlines()[0] == HEADER+'        PID/Program',r.stdout
@@ -286,8 +286,8 @@ class Suite:
                         # Accepted endpoint shares the listener path, so ownership
                         # selects this exact socket among the path matches.
                         own=[x for x in lines if f'pid={os.getpid()},fd={s.fileno()}' in ' '.join(x)]
-                        assert len(own)==int(not listen or state=='LISTEN'),(opts,own)
-                        if own:assert own[0][:6]==['u_str','0','8' if state=='LISTEN' else '0',s.getsockname(),'*',state],own
+                        assert len(own)==int(not listen or state=='LISTENING'),(opts,own)
+                        if own:assert own[0][:6]==['u_str','0','8' if state=='LISTENING' else '0',s.getsockname(),'*',state],own
                 self.case('owned private Unix '+opts,check)
 
 def main():
