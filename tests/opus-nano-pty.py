@@ -279,7 +279,7 @@ def spell(d):
         s.wait_for(b"Spell check cancelled (2 replaced)")
         s.keys(SAVE)
         s.key(EXIT, render=False)
-    st, _ = edit(d, "s.txt", src, f"nano --speller={quote(speller)} s.txt", act)
+    st, _ = edit(d, "s.txt", src, f"NANO_SPELLER={quote(speller)} nano s.txt", act)
     check(st == 0 and (d / "s.txt").read_bytes() == b"the cat saw the wrold\n",
           "spell: replacement applies to every occurrence, Esc cancels the rest")
 
@@ -323,7 +323,7 @@ def spell(d):
         s.keys(ESC)
         s.key(EXIT, render=False)
     st, sess = edit(d, "s.txt", src,
-                    'a=(/proc/$$/fd/*); nano --speller=' + quote(speller) + ' s.txt; '
+                    'a=(/proc/$$/fd/*); NANO_SPELLER=' + quote(speller) + ' nano s.txt; '
                     'b=(/proc/$$/fd/*); echo "fds ${#a[@]} ${#b[@]}"', act_fd)
     tail = sess.out.rsplit(b"fds ", 1)[-1].split()[:2]
     check(st == 0 and len(tail) == 2 and tail[0] == tail[1],
@@ -354,7 +354,7 @@ for fd in range(3, 128):
         s.wait_for(b"Finished checking spelling (0 replaced)")
         s.key(EXIT, render=False)
     cmd = str(Path(sys.executable).resolve()) + " " + str(helper)
-    st, _ = edit(d, "isolation.txt", b"teh\n", f"nano --speller={quote(cmd)} isolation.txt", act)
+    st, _ = edit(d, "isolation.txt", b"teh\n", f"NANO_SPELLER={quote(cmd)} nano isolation.txt", act)
     check(st == 0 and (d / "isolation.txt").read_bytes() == b"teh\n",
           "spell helper has no controlling terminal or leaked /dev/null descriptor")
 

@@ -495,7 +495,7 @@ def spell(d):
     helper.write_text("read -r -d '' text || :; printf '%s\\n' teh wrold\n")
     cmd = f"{binary} --norc {helper}"
     (d / "s.txt").write_bytes(b"teh wrold is teh best wrold\n")
-    s = ours_session(d, f"nano --speller={q(cmd)} s.txt")
+    s = ours_session(d, f"NANO_SPELLER={q(cmd)} nano s.txt")
     s.keys(SPELL)
     s.wait_for(b"Edit a replacement: teh")
     s.keys(BS, BS, b"he", ENTER)
@@ -511,7 +511,7 @@ def spell(d):
           and undone == b"teh wrold is teh best wrold\n",
           "spell: a replacement edits every whole word once, Enter unchanged skips, one ^Z undoes it")
 
-    s = ours_session(d, f"nano --speller={q(cmd)} s.txt")
+    s = ours_session(d, f"NANO_SPELLER={q(cmd)} nano s.txt")
     s.keys(SPELL)
     s.wait_for(b"Edit a replacement: teh")
     s.keys(ESC)
@@ -522,7 +522,7 @@ def spell(d):
 
     bad = d / "bad.sh"
     bad.write_text("echo nope >&2; exit 4\n")
-    s = ours_session(d, f"nano --speller={q(f'{binary} --norc {bad}')} s.txt")
+    s = ours_session(d, f"NANO_SPELLER={q(f'{binary} --norc {bad}')} nano s.txt")
     s.keys(SPELL)
     s.wait_for(b"Spell helper failed (exit 4)")
     s.key(EXIT, frame=False)
@@ -531,7 +531,7 @@ def spell(d):
     hang = d / "hang.sh"
     pidfile = d / "hang.pid"
     hang.write_text(f"echo $$ > {q(pidfile)}; while :; do :; done\n")
-    s = ours_session(d, f"trap 'echo GOT-TERM' TERM; nano --speller={q(f'{binary} --norc {hang}')} s.txt || echo RC=$?")
+    s = ours_session(d, f"trap 'echo GOT-TERM' TERM; NANO_SPELLER={q(f'{binary} --norc {hang}')} nano s.txt || echo RC=$?")
     os.write(s.fd, SPELL)
     end = time.monotonic() + 5
     while not pidfile.exists() and time.monotonic() < end:
