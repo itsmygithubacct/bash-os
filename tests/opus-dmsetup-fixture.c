@@ -218,6 +218,16 @@ ctl_open (int flags)
     return fd;
 }
 
+/* Resolve the synthetic mapper major's read-ahead attribute in the fixture. */
+static int
+read_ahead_path (const char *path)
+{
+    unsigned int minor;
+    int used = 0;
+    return sscanf (path, "/sys/dev/block/253:%u/bdi/read_ahead_kb%n", &minor, &used) == 1
+        && used && path[used] == '\0';
+}
+
 #define OPEN_WRAPPER(fn)                                                 \
     int fn (const char *path, int flags, ...)                            \
     {                                                                    \
@@ -228,6 +238,8 @@ ctl_open (int flags)
             mode = va_arg (ap, mode_t); va_end (ap);                     \
         }                                                                \
         if (path && !strcmp (path, CONTROL)) return ctl_open (flags);    \
+        if (path && read_ahead_path (path) && getenv ("DMSFIX_READ_AHEAD")) \
+            return real_open (getenv ("DMSFIX_READ_AHEAD"), flags);      \
         return real_open (path, flags, mode);                            \
     }
 OPEN_WRAPPER (open)
@@ -410,6 +422,7 @@ do_load (struct dm_ioctl *io, struct dev *d)
             return EINVAL;
         }
         if (ts->length == 0 || ts->sector_start != expect
+            || ts->length > (UINT64_MAX >> 9) - expect
             || !valid_target (ts->target_type, params)) {
             table_free (&tb);
             return EINVAL;

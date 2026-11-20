@@ -25,7 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 HDR = struct.Struct("<3I I I I i I I I Q 128s 129s 7s")   # struct dm_ioctl, 312 bytes
 SPEC = struct.Struct("<Q Q i I 16s")                       # struct dm_target_spec, 40 bytes
 assert HDR.size == 312 and SPEC.size == 40
-F_READONLY, F_SUSPEND, F_PERSISTENT, F_TABLE = 1, 2, 8, 16
+F_READONLY, F_SUSPEND, F_EXISTS, F_PERSISTENT, F_TABLE = 1, 2, 4, 8, 16
 F_ACTIVE, F_INACTIVE, F_FULL, F_SKIP_LOCKFS = 32, 64, 256, 1024
 F_NOFLUSH, F_QUERY_INACTIVE, F_UUID, F_DATA_OUT, F_DEFERRED = 2048, 4096, 16384, 65536, 131072
 NR = dict(version=0, remove_all=1, names=2, create=3, remove=4, rename=5, suspend=6,
@@ -101,6 +101,9 @@ class Run:
 class Fixture:
     def __init__(self, bash, so, tmp):
         self.bash, self.so, self.tmp, self.n = bash, so, tmp, 0
+        self.read_ahead = os.path.join(tmp, "read_ahead_kb")
+        with open(self.read_ahead, "w") as f:
+            f.write("128\n")
 
     def run(self, script, state="", root=True, allow=True, env=None, stdin=None, tty=False):
         self.n += 1
@@ -109,7 +112,7 @@ class Fixture:
             f.write(state)
         e = {k: v for k, v in os.environ.items() if not k.startswith(("DMSFIX_", "BASHOS_DMSETUP"))}
         e.update(LD_PRELOAD=self.so + (":" + e["LD_PRELOAD"] if e.get("LD_PRELOAD") else ""),
-                 DMSFIX_STATE=base + ".state", DMSFIX_LOG=base + ".log", DMSFIX_STATS=base + ".stats",
+                 DMSFIX_READ_AHEAD=self.read_ahead, DMSFIX_STATE=base + ".state", DMSFIX_LOG=base + ".log", DMSFIX_STATS=base + ".stats",
                  DMSFIX_EUID="0" if root else "1000")
         if allow:
             e["BASHOS_DMSETUP_ALLOW_MUTATE"] = "1"
@@ -193,10 +196,11 @@ def t_create(fx):
     check(r.cmds() == ["create", "reload", "resume"], "create sends create, reload, resume", r.cmds())
     headers_sane(r, "create")
     c, l, s = r.reqs
-    check(c.name == "newdev" and c.uuid == "NEW-UUID" and c.flags == 0 and c.payload == b"",
-          "create header: name, uuid, no flags, no payload")
-    check(l.name == "newdev" and l.uuid == "" and l.flags & F_READONLY and l.target_count == 3,
-          "reload header: by name, READONLY, three targets", (l.name, l.uuid, l.flags, l.target_count))
+    check(c.name == "newdev" and c.uuid == "NEW-UUID" and c.flags == F_EXISTS and c.payload == b"",
+          "create header: name, uuid, existence flag, no payload")
+    check(l.name == l.uuid == "" and l.dev == os.makedev(253, 3)
+          and l.flags == F_EXISTS | F_PERSISTENT | F_READONLY and l.target_count == 3,
+          "reload header: by allocated device number, READONLY, three targets", (l.name, l.uuid, l.flags, l.target_count))
     want = expected_load_payload([(0, 100, "linear", "8:0 2048"), (100, 7, "zero", ""), (107, 1, "error", "")])
     check(l.payload == want, "reload payload matches the independent encoding",
           f"got {l.payload.hex()}\n        want {want.hex()}")
@@ -246,7 +250,7 @@ def t_create(fx):
     r = fx.run("dmsetup create bad --table '0 10 bogus'", STATE)
     check(r.rc == 1 and r.cmds() == ["create", "reload", "remove"], "kernel-rejected table reverts the create",
           r.cmds())
-    check("device-mapper: reload ioctl on bad  failed: Invalid argument" in r.err, "reload failure wording", r.err)
+    check("device-mapper: reload ioctl on bad (253:3) failed: Invalid argument" in r.err, "reload failure wording", r.err)
     check(r.err.count("Command failed.") == 1, "one Command failed. line", r.err)
     check("dev bad " not in r.stats["text"], "reverted device is gone")
     r = fx.run("dmsetup create gap --table $'0 10 zero\\n20 5 zero'", STATE)
@@ -262,14 +266,27 @@ def t_create(fx):
 
 def t_malformed_tables(fx):
     print("== malformed table text never reaches the kernel ==")
-    cases = {"0 x linear 8:0 0": 1, "abc": 1, "-1 5 zero": 1, "0 5": 1, "0 5 \t": 1,
-             "0 1 abcdefghijklmnopq": 1, "0 99999999999999999999 zero": 1, "0 1 zero\n0x5 1 zero": 2,
-             "# ok\n\n2 3": 3, "0 10zero": 1}
-    for text, line in cases.items():
-        for verb in ("create m", "load alpha"):
-            r = fx.run(f"dmsetup {verb} --table \"$T\"", STATE, env={"T": text})
-            check(r.rc == 1 and f"Invalid format on line {line} of table (--table)" in r.err and not r.reqs,
-                  f"{verb.split()[0]} rejects {text!r} on line {line}", r.err + str(r.cmds()))
+    cases = {"0 x linear 8:0 0": 1, "abc": 1, "0 5": 1, "0 5 \t": 1,
+             "0 1 zero\n0x5 1 zero": 2, "# ok\n\n2 3": 3}
+    for verb in ("create m", "load alpha"):
+        for text, line in cases.items():
+            r = fx.run(f'dmsetup {verb} --table "$T"', STATE, env={"T": text})
+            check(r.rc == 1 and f"Invalid format on line {line} of table ." in r.err and not r.reqs,
+                  f"{verb} rejects {text!r} on line {line}", r.err)
+        r = fx.run(f"dmsetup {verb} --table '0 1 abcdefghijklmnopq'", STATE)
+        check(r.rc == 1 and "Target type name abcdefghijklmnopq is too long." in r.err and not r.reqs,
+              f"{verb} rejects an overlong target type", r.err)
+        for text, start, length in (("-1 5 zero", 2**64 - 1, 5),
+                                    ("0 99999999999999999999 zero", 0, 2**64 - 1),
+                                    ("0 10zero", 0, 10)):
+            r = fx.run(f'dmsetup {verb} --table "$T"', STATE, env={"T": text})
+            ok = length == 10
+            cmds = (["create", "reload", "resume" if ok else "remove"]
+                    if verb.startswith("create") else ["reload"])
+            check(r.rc == (0 if ok else 1) and r.cmds() == cmds
+                  and next(q for q in r.reqs if q.cmd == "reload").payload ==
+                  expected_load_payload([(start, length, "zero", "")]),
+                  f"{verb} passes converted sectors to the mapper for {text!r}", r.err)
     r = fx.run("dmsetup load alpha --table '# nothing'", STATE)
     check(r.rc == 1 and r.cmds() == ["reload"] and r.reqs[0].target_count == 0,
           "an empty table is sent and the kernel refuses it", r.cmds())
@@ -279,11 +296,12 @@ def t_malformed_tables(fx):
     with open(nul, "w") as f:
         f.write("0 1 zero\0\n")
     r = fx.run(f"dmsetup load alpha {nul}", STATE)
-    check(r.rc == 1 and "NUL byte" in r.err and not r.reqs, "NUL in table file rejected", r.err)
+    check(r.rc == 0 and r.cmds() == ["reload"] and r.reqs[0].payload == expected_load_payload([(0, 1, "zero", "")]),
+          "table file uses the text before the first NUL", r.err)
     for verb in ("create nulstdin", "load alpha"):
         r = fx.run(f"dmsetup {verb}", STATE, stdin="0 1 zero\0\n")
-        check(r.rc == 1 and "NUL byte" in r.err and not r.reqs,
-              f"{verb} rejects NUL on stdin", r.err)
+        check(r.rc == 0 and next(q for q in r.reqs if q.cmd == "reload").payload ==
+              expected_load_payload([(0, 1, "zero", "")]), f"{verb} uses stdin up to the NUL", r.err)
 
     # The parser accepts these values; the mapper may reject the resulting table.
     for row, start, length in (("0 0 zero", 0, 0),
@@ -302,24 +320,21 @@ def t_malformed_tables(fx):
             f.write(b"#" + b" " * (size - 1))
         for verb in ("create limit", "load alpha"):
             r = fx.run(f"dmsetup {verb} {path}", STATE)
-            if size <= cap:
-                expected = "create" if verb.startswith("create") else "reload"
-                check(r.cmds() == [expected], f"{verb}: {size} bytes accepted", r.err)
-            else:
-                check(r.rc == 1 and "exceeds" in r.err and not r.reqs,
-                      f"{verb}: {size} bytes rejected before ioctl", r.err)
+            expected = "create" if verb.startswith("create") else "reload"
+            check(r.cmds() == [expected] and r.reqs[0].target_count == 0,
+                  f"{verb}: {size} bytes of comment yield no targets", r.err)
     r = fx.run("dmsetup load alpha", STATE, stdin="#" + " " * cap)
-    check(r.rc == 1 and "exceeds" in r.err and not r.reqs,
-          "oversized stdin rejected before ioctl", r.err)
+    check(r.rc == 1 and r.cmds() == ["reload"] and r.reqs[0].target_count == 0,
+          "a long stdin comment yields an empty reload", r.err)
 
-    # Short rows expand to 48-byte specs and exceed the ioctl limit while
-    # the source text stays below its separate 16 MiB limit.
+    # Short input records can exceed the flattened ioctl allocation limit.
     with open(path, "wb") as f:
         f.write(b"0 0 z\n" * ((64 * 1024 * 1024) // 48 + 1))
     for verb in ("create huge", "load alpha"):
         r = fx.run(f"dmsetup {verb} {path}", STATE)
-        check(r.rc == 1 and "table too large" in r.err and not r.reqs,
-              f"{verb}: expanded table rejected before ioctl", r.err)
+        check(r.rc == 1 and "Huge memory allocation" in r.err and "Couldn\'t create ioctl argument." in r.err
+              and r.cmds() == (["create", "remove"] if verb.startswith("create") else []),
+              f"{verb}: expanded table rejected before reload", r.err)
     r = fx.run("dmsetup create " + "n" * 128 + " -n", STATE)
     check(r.rc == 1 and "too long" in r.err and not r.reqs, "128-byte name rejected, not truncated", r.err)
     r = fx.run("dmsetup create ok -n -u " + "u" * 129, STATE)
@@ -348,7 +363,8 @@ def t_load_cycle(fx):
     r = fx.run("dmsetup load -u UUID-BETA --table '0 3 zero'", STATE)
     check(r.rc == 0 and r.reqs[0].uuid == "UUID-BETA" and r.reqs[0].name == "", "load by -u sends only uuid")
     r = fx.run("dmsetup remove alpha -u UUID-BETA; dmsetup info alpha -u UUID-BETA", STATE)
-    check(r.rc == 1 and not r.reqs and r.err.count("not both") == 2, "name list and -u together refused")
+    check(r.rc == 1 and r.cmds() == ["remove", "info"] and all(q.name == "alpha" and not q.uuid for q in r.reqs)
+          and "Device does not exist." in r.err, "positional name takes precedence over -u")
     with open(os.path.join(fx.tmp, "u.table"), "w") as f:
         f.write("0 4 zero\n")
     r = fx.run(f"dmsetup load -u UUID-BETA {fx.tmp}/u.table", STATE)
@@ -383,26 +399,27 @@ def t_suspend_remove(fx):
         r = fx.run(f"dmsetup suspend {option} alpha; dmsetup info alpha; "
                    "dmsetup resume alpha; dmsetup info alpha", STATE)
         check(r.rc == 0 and r.cmds() == ["suspend", "info", "resume", "info"]
-              and r.reqs[0].flags == F_SUSPEND | flag and r.reqs[2].flags == 0,
+              and r.reqs[0].flags == F_EXISTS | F_SUSPEND | flag and r.reqs[2].flags == F_EXISTS,
               f"suspend {option or 'plain'} and resume request flags", r.cmds())
         check("State:             SUSPENDED" in r.out and "State:             ACTIVE" in r.out,
               f"suspend {option or 'plain'} and resume state readback", r.out)
     r = fx.run("dmsetup suspend --noflush --nolockfs alpha gamma; dmsetup info alpha", STATE)
-    check(r.rc == 0 and all(q.flags == F_SUSPEND | F_NOFLUSH | F_SKIP_LOCKFS for q in r.reqs[:2]),
+    check(r.rc == 0 and all(q.flags == F_EXISTS | F_SUSPEND | F_NOFLUSH | F_SKIP_LOCKFS for q in r.reqs[:2]),
           "suspend flags", [q.flags for q in r.reqs])
     check("State:             SUSPENDED" in r.out, "info shows SUSPENDED")
     r = fx.run("dmsetup suspend alpha beta gamma; rc=$?; dmsetup info alpha gamma; exit $rc", STATE,
                env={"DMSFIX_FAIL": "suspend@beta=1"})
-    check(r.rc == 1 and r.cmds()[:3] == ["suspend"] * 3, "multi-device suspend continues past a failure")
+    check(r.rc == 1 and r.cmds() == ["suspend", "suspend", "info", "info"], "multi-device suspend stops at first failure")
     check("device-mapper: suspend ioctl on beta  failed: Operation not permitted" in r.err, "EPERM wording", r.err)
-    check(r.out.count("SUSPENDED") == 2 and r.err.count("Command failed.") == 1, "a and c suspended", r.out)
+    check(r.out.count("SUSPENDED") == 1 and r.out.count("ACTIVE") == 1 and r.err.count("Command failed.") == 1, "alpha suspended and gamma left active", r.out)
     r = fx.run("dmsetup remove gamma beta nope alpha", STATE)
-    check(r.rc == 1 and r.cmds() == ["remove"] * 4, "remove tries every device")
+    check(r.rc == 1 and r.cmds() == ["remove"] * 2 and [q.name for q in r.reqs] == ["gamma", "beta"],
+          "remove stops at the busy device")
     check("remove ioctl on beta  failed: Device or resource busy" in r.err
-          and "remove ioctl on nope  failed: No such device or address" in r.err, "remove errors", r.err)
-    check(r.stats["devices"] == 1 and "dev beta" in r.stats["text"], "only the open device remains")
+          and r.err.count("remove ioctl") == 1, "remove errors", r.err)
+    check(set(r.stats["devs"]) == {"alpha", "beta"}, "later and busy devices remain")
     r = fx.run("dmsetup remove --deferred beta; dmsetup info beta", STATE)
-    check(r.rc == 0 and r.reqs[0].flags == F_DEFERRED and "(DEFERRED REMOVE)" in r.out, "deferred remove", r.out)
+    check(r.rc == 0 and r.reqs[0].flags == F_EXISTS | F_DEFERRED and "(DEFERRED REMOVE)" in r.out, "deferred remove", r.out)
     r = fx.run("dmsetup remove -f alpha", STATE)
     check(r.rc == 0 and r.cmds() == ["table", "reload", "resume", "remove"], "remove --force wipes first",
           r.cmds())
@@ -412,12 +429,13 @@ def t_suspend_remove(fx):
           and "Device or resource busy" in r.err and r.out == "0 10 error \n",
           "forced remove of an open device leaves an error table on EBUSY", r.out + r.err)
     r = fx.run("dmsetup remove -f gamma", STATE)
-    check(r.rc == 0 and r.err == "" and r.cmds() == ["table", "remove"], "remove -f of a table-less device",
+    check(r.rc == 0 and "reload ioctl on gamma  failed: Invalid argument" in r.err
+          and r.cmds() == ["table", "reload", "remove"], "forced removal follows the failed empty wipe",
           r.err)
     r = fx.run("dmsetup remove -u UUID-BETA", STATE)
     check(r.reqs[0].uuid == "UUID-BETA" and r.reqs[0].name == "" and r.rc == 1, "remove by uuid")
     r = fx.run("dmsetup remove", STATE)
-    check(r.rc == 1 and not r.reqs and "requires a device" in r.err, "remove without a device")
+    check(r.rc == 1 and not r.reqs and "No device specified." in r.err, "remove without a device")
     r = fx.run("dmsetup resume alpha", STATE, env={"DMSFIX_FAIL": "resume=6"})
     check(r.rc == 1 and "resume ioctl on alpha  failed: No such device or address" in r.err, "resume error")
 
@@ -428,7 +446,8 @@ def t_suspend_remove(fx):
           "remove_all request is an empty header")
     check(r.out == "beta\t(253:1)\n", "open device survives remove_all", r.out)
     r = fx.run("dmsetup remove_all --force", STATE)
-    check(r.rc == 0 and r.err == "" and r.cmds() == ["names", "table", "reload", "resume", "table", "reload", "resume", "table", "remove_all"],
+    check(r.rc == 0 and "reload ioctl on gamma  failed: Invalid argument" in r.err
+          and r.cmds() == ["names", "table", "reload", "resume", "table", "reload", "resume", "table", "reload", "remove_all"],
           "remove_all --force wipes each device then removes", r.cmds())
     r = fx.run("dmsetup remove_all alpha", STATE)
     check(r.rc == 1 and not r.reqs, "remove_all refuses device arguments")
@@ -438,7 +457,9 @@ def t_suspend_remove(fx):
     check(r.rc == 0 and r.cmds()[:3] == ["table", "reload", "resume"] and r.out == "0 150 error \n",
           "wipe_table replaces the live table with error", r.out)
     r = fx.run("dmsetup wipe_table gamma", STATE)
-    check(r.rc == 1 and "no live table" in r.err and r.cmds() == ["table"], "wipe_table needs a live table")
+    check(r.rc == 1 and "reload ioctl on gamma  failed: Invalid argument" in r.err
+          and r.cmds() == ["table", "reload"] and r.reqs[1].payload == expected_load_payload([(0, 0, "error", "")]),
+          "wipe of an empty map reports the kernel rejection")
     r = fx.run("dmsetup wipe_table alpha", STATE, env={"DMSFIX_FAIL": "resume@alpha=16"})
     check(r.rc == 1 and r.cmds() == ["table", "reload", "resume", "clear"], "failed wipe resume clears", r.cmds())
 
@@ -447,10 +468,10 @@ def t_rename(fx):
     print("== rename ==")
     r = fx.run("dmsetup rename alpha omega; dmsetup ls", STATE)
     q = r.reqs[0]
-    check(r.rc == 0 and q.name == "alpha" and q.flags == 0 and q.payload == b"omega\0", "rename payload")
+    check(r.rc == 0 and q.name == "alpha" and q.flags == F_EXISTS and q.payload == b"omega\0", "rename payload")
     check("omega\t(253:0)" in r.out, "renamed device listed", r.out)
     r = fx.run("dmsetup rename gamma --setuuid NEWU; dmsetup info gamma", STATE)
-    check(r.rc == 0 and r.reqs[0].flags == F_UUID and r.reqs[0].payload == b"NEWU\0", "setuuid payload/flag")
+    check(r.rc == 0 and r.reqs[0].flags == F_EXISTS | F_UUID and r.reqs[0].payload == b"NEWU\0", "setuuid payload/flag")
     check("UUID: NEWU" in r.out, "uuid set", r.out)
     r = fx.run("dmsetup rename beta --setuuid X", STATE)
     check(r.rc == 1 and "rename ioctl on beta  failed: Invalid argument" in r.err, "uuid cannot change twice")
@@ -519,9 +540,9 @@ def t_queries(fx):
                "dmsetup status beta; dmsetup table; dmsetup targets", STATE)
     check(r.rc == 0, "query batch", r.err)
     want = ("alpha\t(253:0)\nbeta\t(253:1)\ngamma\t(253:2)\n"
-            "Name:              alpha\nState:             ACTIVE\nTables present:    LIVE\nOpen count:        0\n"
+            "Name:              alpha\nState:             ACTIVE\nRead Ahead:        256\nTables present:    LIVE\nOpen count:        0\n"
             "Event number:      0\nMajor, minor:      253, 0\nNumber of targets: 2\n\n"
-            "Name:              beta\nState:             ACTIVE\nTables present:    LIVE\nOpen count:        1\n"
+            "Name:              beta\nState:             ACTIVE\nRead Ahead:        256\nTables present:    LIVE\nOpen count:        1\n"
             "Event number:      0\nMajor, minor:      253, 1\nNumber of targets: 1\nUUID: UUID-BETA\n\n"
             "2 dependencies\t: (8, 0) (8, 16)\n"
             "alpha: 2 dependencies\t: (8, 0) (8, 16)\nbeta: 0 dependencies\t:\ngamma: 0 dependencies\t:\n"
@@ -553,7 +574,8 @@ def t_queries(fx):
     r = fx.run("dmsetup version; dmsetup --version", STATE)
     check(r.rc == 0 and r.out.count("Driver version:    4.48.0") == 2, "version via DM_VERSION")
     r = fx.run("dmsetup version", STATE, env={"DMSFIX_OPEN_ERRNO": "2"})
-    check(r.rc == 0 and "Driver version:    unavailable" in r.out, "version without a control node")
+    check(r.rc == 1 and "Library version:" in r.out and "Driver version:" not in r.out
+          and "Failure to communicate with kernel device-mapper driver." in r.err, "version without a control node")
 
     print("== buffer growth for many devices ==")
     r = fx.run("dmsetup ls; dmsetup info bulk02999", "bulk 3000\n")
@@ -596,7 +618,8 @@ def t_permissions(fx):
     r = fx.run("dmsetup info alpha", STATE, env={"DMSFIX_OPEN_ERRNO": "13"})
     check(r.rc == 1 and "open failed" in r.err, "named info needs the control node")
     r = fx.run("dmsetup ls", STATE, env={"DMSFIX_OPEN_ERRNO": "13"})
-    check(r.rc == 0, "ls falls back to sysfs when the control node is unavailable")
+    check(r.rc == 1 and not r.out and "Permission denied" in r.err and not r.reqs,
+          "ls reports the failed control open")
     r = fx.run("dmsetup table alpha; dmsetup create z -n; dmsetup ls", STATE, env={"DMSFIX_FAIL": "*=1"})
     check(r.rc == 1 and r.err.count("Operation not permitted") == 3, "EPERM from every ioctl", r.err)
     balanced(r, "EPERM")
@@ -689,7 +712,7 @@ def t_record_boundaries(fx):
 
 
 def t_failure_recovery(fx):
-    print("== cleanup failures, multi-device continuation and shell recovery ==")
+    print("== cleanup failures, multi-device errors and shell recovery ==")
     r = fx.run("dmsetup create stranded --table '0 5 zero'", STATE,
                env={"DMSFIX_FAIL": "resume@stranded=5,remove@stranded=16"})
     check(r.rc == 1 and r.cmds() == ["create", "reload", "resume", "remove"],
@@ -704,8 +727,8 @@ def t_failure_recovery(fx):
                    env={"DMSFIX_FAIL": f"{failed_cmd}@beta=1"})
         check(r.rc == 1 and "Operation not permitted" in r.err,
               verb + ": failure is aggregated", r.err)
-        check([q.name for q in r.reqs if q.cmd == failed_cmd] == ["alpha", "beta", "gamma"],
-              verb + ": later devices still attempted", r.cmds())
+        check([q.name for q in r.reqs if q.cmd == failed_cmd] == ["alpha", "beta"],
+              verb + ": stops at the failed device", r.cmds())
         balanced(r, verb + " multi-device failure")
     r = fx.run("dmsetup info alpha >/dev/full; [[ $? == 1 ]] || exit 9; "
                "dmsetup message alpha 0 ping >/dev/full; [[ $? == 1 ]] || exit 9; "
@@ -717,8 +740,8 @@ def t_failure_recovery(fx):
     with open(oversized, "wb") as f:
         f.truncate(16 << 20)
     r = fx.run(f"dmsetup load alpha {oversized}", STATE)
-    check(r.rc == 1 and "exceeds 16777216 bytes" in r.err and not r.reqs,
-          "oversized input refused before TABLE_LOAD", r.err)
+    check(r.rc == 1 and r.cmds() == ["reload"] and r.reqs[0].target_count == 0,
+          "a zero-filled table file has no targets", r.err)
     balanced(r, "oversized input")
 
 
