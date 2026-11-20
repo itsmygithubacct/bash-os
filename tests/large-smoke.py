@@ -209,8 +209,10 @@ vec free "$v"; vec free "$w"; vec free "$n"
             assert (d/'installed').read_bytes()==b'fixture' and stat.S_IMODE((d/'installed').stat().st_mode)==0o600
             run(name,'mknod',d/'fifo','p'); assert stat.S_ISFIFO((d/'fifo').stat().st_mode)
             run(name,'shred','-n','0','-z',d/'installed');assert (d/'installed').read_bytes()==b'\0'*7
-            for verb,flag in [('fmt','-w'),('shred','-n'),('install','-m'),('mknod','-m')]:
+            for verb,flag in [('fmt','-w'),('shred','-n'),('install','-m')]:
                 run(name,verb,d/'source',flag,'invalid',rc=2)
+            run(name,'mknod','-m','invalid',d/'badfifo','p',rc=1)
+            assert not (d/'badfifo').exists()
         elif name == 'bsdgames':
             run(name,'selftest')
             for game in ['trek','snake','tetris','worm','worms','wump','sail']:
