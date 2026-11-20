@@ -66,50 +66,52 @@ def main():
                   'rc=$?\nprintf "status=%s\\n" "$rc"\nfsfreeze_fixture dump\n')
         check(name, script, f'status={status}\n' + (expected or counts()), diagnostic)
 
+    no_action = 'neither --freeze or --unfreeze specified'
+    conflict = 'mutually exclusive arguments: --freeze --unfreeze'
     usage = [
-        ('no arguments', [], 'exactly one'),
-        ('missing action', ['/fixture/mount'], 'exactly one'),
-        ('freeze missing operand', ['-f'], 'a mountpoint'),
-        ('thaw missing operand', ['--unfreeze'], 'a mountpoint'),
-        ('conflicting actions', ['-f', '-u', '/fixture/mount'], 'exactly one'),
-        ('reverse conflict', ['--unfreeze', '--freeze', '/fixture/mount'], 'exactly one'),
-        ('duplicate action', ['-f', '--freeze', '/fixture/mount'], 'exactly one'),
-        ('duplicate thaw', ['-u', '-u', '/fixture/mount'], 'exactly one'),
-        ('extra operands', ['-f', '/fixture/mount', '/fixture/other'], 'too many'),
-        ('extra option after operand', ['-u', '/fixture/mount', '-f'], 'too many'),
-        ('unknown option', ['--invalid'], 'unknown option'),
-        ('unknown short option', ['-x', '/fixture/mount'], 'unknown option'),
-        ('no action after delimiter', ['--', '-mount'], 'exactly one'),
-        ('action word after delimiter', ['--', '-f'], 'exactly one'),
-        ('empty operand', ['-f', ''], 'mountpoint'),
+        ('no arguments', [], no_action),
+        ('missing action', ['/fixture/mount'], no_action),
+        ('freeze missing operand', ['-f'], 'no filename specified'),
+        ('thaw missing operand', ['--unfreeze'], 'no filename specified'),
+        ('conflicting actions', ['-f', '-u', '/fixture/mount'], conflict),
+        ('reverse conflict', ['--unfreeze', '--freeze', '/fixture/mount'], conflict),
+        ('extra operands', ['-f', '/fixture/mount', '/fixture/other'], 'unexpected number of arguments'),
+        ('extra option after operand', ['-u', '/fixture/mount', '-f'], conflict),
+        ('unknown option', ['--invalid'], "unrecognized option '--invalid'"),
+        ('unknown short option', ['-x', '/fixture/mount'], "invalid option -- 'x'"),
+        ('no action after delimiter', ['--', '-mount'], no_action),
+        ('action word after delimiter', ['--', '-f'], no_action),
     ]
     for name, argv, diagnostic in usage:
-        case(name, argv, 2, diagnostic=diagnostic)
-    for action in ('-f', '--freeze', '-u', '--unfreeze'):
-        freeze = action in ('-f', '--freeze')
-        case('success ' + action, [action, '/fixture/mount'], 0,
+        case(name, argv, 1, diagnostic=diagnostic)
+    case('empty operand', ['-f', ''], 1, expected=counts(open=1, trace='open,'),
+         diagnostic='cannot open : No such file or directory')
+    for options in (['-f'], ['--freeze'], ['-u'], ['--unfreeze'],
+                    ['-f', '--freeze'], ['-u', '-u']):
+        freeze = options[0] in ('-f', '--freeze')
+        case('success ' + ' '.join(options), [*options, '/fixture/mount'], 0,
              expected=counts(1, 1, int(freeze), int(not freeze), 1,
-                             'stat,open,' + ('freeze,' if freeze else 'thaw,') + 'close,'))
+                             'open,fstat,' + ('freeze,' if freeze else 'thaw,') + 'close,'))
     case('option delimiter', ['-f', '--', '-mount'], 0,
-         expected=counts(1, 1, 1, 0, 1, 'stat,open,freeze,close,'))
+         expected=counts(1, 1, 1, 0, 1, 'open,fstat,freeze,close,'))
     case('path with spaces', ['-u', '/fixture/with space'], 0,
-         expected=counts(1, 1, 0, 1, 1, 'stat,open,thaw,close,'))
+         expected=counts(1, 1, 0, 1, 1, 'open,fstat,thaw,close,'))
     for kind in ('regular', 'block'):
         case('reject ' + kind, ['-f', '/fixture/mount'], 1, kind,
-             counts(stat=1, trace='stat,'), '/fixture/mount: not a directory')
+             counts(stat=1, open=1, close=1, trace='open,fstat,close,'), '/fixture/mount: is not a directory')
     for e in ('ENOENT', 'EACCES', 'ENOTDIR'):
         case('stat ' + e, ['-u', '/fixture/mount'], 1, 'stat-' + e,
-             counts(stat=1, trace='stat,'), '/fixture/mount: ' + os.strerror(getattr(errno, e)))
+             counts(stat=1, open=1, close=1, trace='open,fstat,close,'), 'stat of /fixture/mount failed: ' + os.strerror(getattr(errno, e)))
     for e in ('EACCES', 'EPERM', 'EMFILE', 'ENOTDIR'):
         case('open ' + e, ['-f', '/fixture/mount'], 1, 'open-' + e,
-             counts(stat=1, open=1, trace='stat,open,'), os.strerror(getattr(errno, e)))
+             counts(open=1, trace='open,'), os.strerror(getattr(errno, e)))
     for action in ('-f', '-u'):
         freeze = action == '-f'
         for e in ('EPERM', 'EACCES', 'ENOTTY', 'EOPNOTSUPP', 'EBUSY', 'EINVAL', 'EINTR'):
             case(f'ioctl {action} {e}', [action, '/fixture/mount'], 1, 'ioctl-' + e,
                  counts(1, 1, int(freeze), int(not freeze), 1,
-                        'stat,open,' + ('freeze,' if freeze else 'thaw,') + 'close,'),
-                 '/fixture/mount: ' + ('freeze: ' if freeze else 'unfreeze: ') + os.strerror(getattr(errno, e)))
+                        'open,fstat,' + ('freeze,' if freeze else 'thaw,') + 'close,'),
+                 '/fixture/mount: ' + ('freeze failed: ' if freeze else 'unfreeze failed: ') + os.strerror(getattr(errno, e)))
 
     # A bounded descriptor table makes leaks fail quickly. Inspect actual shell
     # descriptor counts as well as independent fixture call counters.
@@ -131,7 +133,7 @@ fsfreeze -f /fixture/mount 2>/dev/null; [[ $? == 1 ]] || exit 91
 fsfreeze_fixture reset success || exit 92
 fsfreeze -u /fixture/mount || exit 93
 fsfreeze_fixture dump
-''', counts(1, 1, 0, 1, 1, 'stat,open,thaw,close,'))
+''', counts(1, 1, 0, 1, 1, 'open,fstat,thaw,close,'))
 
     help_text = ('Suspend or resume access to a filesystem.\n\n'
                  '    fsfreeze -f | --freeze    MOUNTPOINT\n'
@@ -147,7 +149,7 @@ fsfreeze --help || exit 92
 fsfreeze_fixture dump
 ''', help_text + counts())
 
-    # Native binary only: paths guaranteed not to reach open/ioctl.
+    # The private regular file exercises the native open and fstat path.
     with tempfile.TemporaryDirectory(prefix='sol-fsfreeze-') as tmp:
         f = Path(tmp, 'file')
         f.write_text('private fixture\n')
@@ -162,7 +164,7 @@ fsfreeze_fixture dump
                      ['-u', str(f), str(f)]):
             check('native parser ' + shlex.join(argv),
                   'fsfreeze ' + shlex.join(argv) + '\nprintf "status=%s\\n" "$?"\n',
-                  'status=2\n', 'fsfreeze', native=True)
+                  'status=1\n', 'fsfreeze', native=True)
         check('native help registration',
               'help fsfreeze >/dev/null; printf "status=%s\\n" "$?"\n',
               'status=0\n', native=True)

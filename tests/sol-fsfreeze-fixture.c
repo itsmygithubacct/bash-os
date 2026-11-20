@@ -13,7 +13,7 @@
 #include <sys/stat.h>
 #include "loadables.h"
 
-static char scenario[40] = "success", fixture_trace[256], stat_path[64];
+static char scenario[40] = "success", fixture_trace[256];
 static unsigned long stats, opens, freezes, thaws, closes, bad;
 static int active_fd = -1, verbose = 1, expect_freeze = 1;
 
@@ -40,18 +40,16 @@ static int injected_errno(const char *prefix)
     return EIO;
 }
 
-static int fixture_stat(const char *path, struct stat *st)
+static int fixture_fstat(int fd, struct stat *st)
 {
     int e;
     stats++;
-    event("stat,");
-    if (strcmp(path, "/fixture/mount") && strcmp(path, "/fixture/with space") &&
-        strcmp(path, "-mount")) {
+    event("fstat,");
+    if (active_fd < 0 || fd != active_fd) {
         bad++;
-        errno = ENOENT;
+        errno = EBADF;
         return -1;
     }
-    strcpy(stat_path, path);
     if ((e = injected_errno("stat-"))) { errno = e; return -1; }
     memset(st, 0, sizeof(*st));
     st->st_mode = !strcmp(scenario, "regular") ? S_IFREG | 0600 :
@@ -62,10 +60,12 @@ static int fixture_stat(const char *path, struct stat *st)
 static int fixture_open(const char *path, int flags, ...)
 {
     int e;
-    if (strcmp(path, stat_path)) bad++;
     opens++;
     event("open,");
-    if (flags != (O_RDONLY | O_DIRECTORY | O_CLOEXEC)) bad++;
+    if (flags != (O_RDONLY | O_CLOEXEC)) bad++;
+    if (!*path) { errno = ENOENT; return -1; }
+    if (strcmp(path, "/fixture/mount") && strcmp(path, "/fixture/with space") &&
+        strcmp(path, "-mount")) { bad++; errno = ENOENT; return -1; }
     if ((e = injected_errno("open-"))) { errno = e; return -1; }
     if (active_fd != -1) { bad++; errno = EMFILE; return -1; }
     active_fd = open("/dev/null", O_RDONLY | O_CLOEXEC);
@@ -110,7 +110,7 @@ static int fixture_close(int fd)
     return rc;
 }
 
-#define stat(...) fixture_stat(__VA_ARGS__)
+#define fstat(...) fixture_fstat(__VA_ARGS__)
 #define open(...) fixture_open(__VA_ARGS__)
 #define ioctl(...) fixture_ioctl(__VA_ARGS__)
 #define close(...) fixture_close(__VA_ARGS__)
@@ -118,7 +118,7 @@ static int fixture_close(int fd)
 #define FSFREEZE_SOURCE "../loadables/fsfreeze.c"
 #endif
 #include FSFREEZE_SOURCE
-#undef stat
+#undef fstat
 #undef open
 #undef ioctl
 #undef close
@@ -133,7 +133,7 @@ static int fsfreeze_fixture_builtin(WORD_LIST *list)
         strcpy(scenario, list->word->word);
         verbose = !(list->next && !strcmp(list->next->word->word, "quiet"));
         stats = opens = freezes = thaws = closes = bad = 0;
-        fixture_trace[0] = stat_path[0] = 0;
+        fixture_trace[0] = 0;
         expect_freeze = 1;
         return EXECUTION_SUCCESS;
     }
