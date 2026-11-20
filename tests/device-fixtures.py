@@ -155,8 +155,12 @@ class DeviceFixtures(unittest.TestCase):
             for value in ("", " ", "garbage", "-1", "18446744073709551616", "8junk"):
                 with self.subTest(flag=flag, value=value):
                     result = self.shell('losetup "$1" "$2" --list', flag, value)
-                    self.assertNotEqual(result.returncode, 0)
-                    self.assertIn(b"invalid byte count", result.stderr)
+                    field = 'size' if flag == '--sizelimit' else 'offset'
+                    reason = ('Numerical result out of range' if value == '18446744073709551616'
+                              else 'Invalid argument')
+                    self.assertEqual(result.returncode, 1)
+                    self.assertTrue(result.stderr.endswith(
+                        f"losetup: failed to parse {field}: '{value}': {reason}\n".encode()), result.stderr)
                     self.assertEqual(result.stdout, b"")
 
 
