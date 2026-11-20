@@ -3372,12 +3372,15 @@ bc_parse_stmt (bc_parser *p)
         return bc_mk (p, S_HALT);
     case T_RETURN:
         bc_consume (p);
-        if (!p->in_func) { bc_semantic_error (p, "return outside of a function"); return NULL; }
         n = bc_mk (p, S_RETURN);
         if (!n) return NULL;
         if (!bc_stmt_end (bc_peek_type (p))) {
             if (p->func_void) { bc_semantic_error (p, "return expression in a void function"); return NULL; }
             if (!(n->a = bc_parse_value (p))) return NULL;
+        }
+        if (!p->in_func) {
+            bc_syntax_msg (p->ip, p->src->line, "return outside of a function");
+            p->discard = 1;
         }
         return n;
     case T_LIMITS:
@@ -4404,8 +4407,7 @@ bc_run_item (bc_interp *ip, bc_node *list)
 
 /* ---- driver ------------------------------------------------------ */
 
-/* A token that can begin a statement.  `define` is an input item of its
-   own, so a following function stays unconsumed for the next item. */
+/* A token that can begin a statement inside an input item. */
 static int
 bc_stmt_start (int type)
 {
@@ -4437,7 +4439,7 @@ bc_recover (bc_parser *p, int after_semi)
         int type = bc_peek_type (p);
         int mark, saved_quit, fatal_now;
 
-        if (type == T_EOF || type == T_DEFINE) return 1;
+        if (type == T_EOF) return 1;
         if (!after_semi && type == T_NL) {
             bc_consume (p);
             return 1;
@@ -4453,10 +4455,13 @@ bc_recover (bc_parser *p, int after_semi)
         bc_parse_stmt (p);
         p->quit = saved_quit;            /* a discarded quit does not stop */
         if (p->ip->fatal && !fatal_now) return 1;
-        if (!p->err) return 0;
+        if (!p->err) {
+            if (p->steps - mark >= 3) p->suppress = 0;
+            return 0;
+        }
         if (p->steps == mark) {
             type = bc_peek_type (p);
-            if (type == T_EOF || type == T_DEFINE) return 1;
+            if (type == T_EOF) return 1;
             bc_consume (p);
         }
     }
@@ -4524,16 +4529,13 @@ bc_run_source (bc_interp *ip, bc_src *src)
                 if (type == T_EOF) break;
                 if (type == T_NL) { bc_consume (&p); break; }
                 if (type == ';') { bc_consume (&p); after_semi = 1; continue; }
-                if (type == T_DEFINE) break;
                 s = bc_parse_stmt (&p);
                 if (p.quit || (ip->fatal && !fatal_before)) break;
                 if (!s || p.err) {
                     tainted = 1;
                     if (bc_recover (&p, after_semi)) break;
                     p.err = 0;
-                    continue;
-                }
-                if (!tainted) {
+                } else if (!tainted) {
                     *tail = s;
                     tail = &s->next;
                 }
