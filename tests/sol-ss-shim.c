@@ -42,8 +42,13 @@ static const char *mapped(const char *path, char *buf, size_t size) {
 FILE *fopen(const char *path, const char *how) {
   FILE *(*real_fn)(const char *, const char *) = dlsym(RTLD_NEXT, "fopen");
   char buf[4096];
-  if (((root() && mode("denied")) || getenv("SOL_SS_NO_PROC")) && strncmp(path, "/proc/net/", 10) == 0) {
-    errno = EACCES; return NULL;
+  const char *denied_table = getenv("SOL_NETSTAT_DENY_TABLE");
+  if (strncmp(path, "/proc/net/", 10) == 0) {
+    int deny_one = denied_table && strcmp(path + 10, denied_table) == 0;
+    if (getenv("SOL_SS_NO_PROC") || (root() && (mode("denied") || deny_one))) {
+      errno = EACCES;
+      return NULL;
+    }
   }
   return real_fn(mapped(path, buf, sizeof buf), how);
 }
