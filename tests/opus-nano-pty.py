@@ -530,9 +530,9 @@ def invalid(d):
     for name in ("BASH_ENV", "LD_PRELOAD", "ASAN_OPTIONS", "UBSAN_OPTIONS", "LSAN_OPTIONS"):
         if os.environ.get(name):
             env[name] = os.environ[name]
-    for args, rc, msg in ((["--bogus"], 2, b"invalid option"), (["-r", "x", "f"], 2, b"invalid fill width"),
-                          (["--fill=12a"], 2, b"invalid fill width"), (["a", "b"], 2, b"only one file"),
-                          (["-r"], 2, b"usage"), (["f"], 1, b"needs a tty")):
+    for args, rc, msg in ((["--bogus"], 1, b"invalid option"), (["-r", "x", "f"], 1, b"invalid fill width"),
+                          (["--fill=12a"], 1, b"invalid fill width"), (["a", "b"], 2, b"only one file"),
+                          (["-r"], 1, b"requires an argument"), (["f"], 1, b"needs a tty")):
         p = subprocess.run([binary, "-c", 'nano "$@"', "_", *args], capture_output=True,
                            stdin=subprocess.DEVNULL, env=env, cwd=d, timeout=10)
         check(p.returncode == rc and msg in p.stderr.lower(),
