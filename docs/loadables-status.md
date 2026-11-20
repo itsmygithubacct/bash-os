@@ -43,21 +43,21 @@ later addition separately.
 <!-- BEGIN SUMMARY -->
 Inventory and coverage references reviewed **2026-10-19** at `7f2a2416d6a4993c6738aaab322a1cdf0448881e`.
 
-Full catalog: **286 loadables** (256 local sources, 30 stock Bash sources), plus **3 [optional integrations](#optional-integrations)** selected explicitly. The CSV contains the 286 full-catalog entries.
+Full catalog: **290 loadables** (260 local sources, 30 stock Bash sources), plus **2 [optional integrations](#optional-integrations)** selected explicitly. The CSV contains the 290 full-catalog entries.
 
-Historical command benchmark, **2026-09-12**: **297 cases covering 248 loadables**; 248 passed the selected output checks and 0 failed on that measured binary. The other 38 full-catalog entries have no individual command timings here; GPU transport measurements are reported separately.
+Historical command benchmark, **2026-09-12**: **297 cases covering 248 loadables**; 248 passed the selected output checks and 0 failed on that measured binary. The other 42 full-catalog entries have no individual command timings here; GPU transport measurements are reported separately.
 
-Metric kinds: **155 compared** against an external program or a BusyBox applet, **93 self-timed** where no counterpart implements the command and the repeated batch is a determinism check instead, **38 with no metric**. A self-timed figure is comparable with another run of the same case, never presented as a ratio.
+Metric kinds: **155 compared** against an external program or a BusyBox applet, **93 self-timed** where no counterpart implements the command and the repeated batch is a determinism check instead, **42 with no metric**. A self-timed figure is comparable with another run of the same case, never presented as a ratio.
 
 | Profile | Included loadables |
 | --- | --- |
 | shell | 0 |
 | pure | 28 |
-| core | 95 |
-| device | 166 |
-| server | 221 |
-| desktop | 161 |
-| full | 286 |
+| core | 98 |
+| device | 169 |
+| server | 224 |
+| desktop | 164 |
+| full | 290 |
 
 Historical command measurement source: `63cb23df1c3012dde4b07657cc27e4f1e5015b2f`. At measurement time, the full catalog contained 279 entries: 248 had individual command timings and 31 did not. The batch used seven samples per case, pinned to one CPU under the shared benchmark lock. The measured binary includes repeated-input fixes for more, less, uuencode, xargs, obj and bsdgames, affinity-aware coreutils nproc, and col output termination. The full test harness was not rerun for that measurement batch.
 
@@ -284,6 +284,7 @@ separate package. Fixture tests use a stand-in
 | [`http`](../loadables/http.c) | D S F | [Contract](../tests/http-framing.py); [S](../tests/http-sanitize.sh) | wget; curl | 13.083 / — / —; [http-response-body](#case-http-response-body), 67 passes; self-timed | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
 | [`httpd`](../loadables/httpd.c) | S F | [Contract](../tests/httpd-host.c); [S](../tests/run.sh) | httpd; HTTP server fixture | 21.646 / — / —; [httpd-part](#case-httpd-part), 72 passes; self-timed | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
 | [`hwclock`](../loadables/hwclock.c) | D S F | [Contract](../docs/sol-hwclock.md); [limited](#scope-notes); [S](../tests/sol-hwclock-build.sh) | hwclock; hwclock | N/M | P3 | The suite sets no host RTC or system clock. Corrected-code timing and broader platform or hardware qualification are not claimed. |
+| [`iconv`](../loadables/iconv.c) | C D S T F | [Parity](../tests/gnu-command-compat.py) | —; iconv (missing) | N/M | P3 | Add a matched workload and timing. |
 | `id`* | P C D S T F | [Parity](../tests/loadable-parity/regressions/id.json) | id; id | 5.229 / 89.174 / 90.460; [id-user](#case-id-user), 108 passes; 3 cases total | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`index`](../loadables/index.c) | S F | [Parity](../tests/sol-index-check.py); [limited](#scope-notes); [S](../tests/sol-index-sanitize.sh) | —; git update-index | 78.713 / — / 40.886; [index-read](#case-index-read), 5 passes | P3 | Remeasure index-read on the current build (1.93× external time in the historical snapshot). |
 | [`integrity`](../loadables/integrity.c) | S F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; API fixture | 87.463 / — / —; [integrity-manifest](#case-integrity-manifest), 8 passes; self-timed | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
@@ -313,6 +314,7 @@ separate package. Fixture tests use a stand-in
 | [`lsof`](../loadables/lsof.c) | D S T F | [Parity](../tests/loadable-parity/regressions/lsof.json) | —; lsof | 80.041 / — / —; [lsof-walk](#case-lsof-walk), 14 passes; self-timed | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
 | [`mail`](../loadables/mail.c) | S F | [Contract](../tests/final-smoke.py); [limited](#scope-notes); [S](../tests/final-sanitize.sh) | sendmail (not in build); sendmail / mailq | 74.488 / — / —; [mail-newaliases](#case-mail-newaliases), 32 passes; self-timed | P3 | No message reaches a live mail service. Historical measurements retain their original source provenance; corrected-code timing is not claimed. |
 | [`man`](../loadables/man.c) | T F | [Contract](../tests/misc-smoke.py) | —; man | 4.080 / — / 1280.398; [man](#case-man), 93 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
+| [`md5sum`](../loadables/md5sum.c) | C D S T F | [Parity](../tests/gnu-command-compat.py) | md5sum; md5sum (missing) | N/M | P3 | Add a matched workload and timing. |
 | `mkdir`* | P C D S T F | [Parity](../tests/loadable-parity/regressions/mkdir.json) | mkdir; mkdir | 5.097 / 125.204 / 138.417; [mkdir](#case-mkdir), 144 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | `mkfifo`* | P C D S T F | [Parity](../tests/loadable-parity/regressions/mkfifo.json) | mkfifo; mkfifo | 5.558 / 100.869 / 102.612; [mkfifo](#case-mkfifo), 133 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`mkfs`](../loadables/mkfs.c) | D S F | [Contract](../tests/misc-smoke.py); [limited](#scope-notes); [S](../tests/sol-mkfs-build.sh) | —; mkfs | N/M | P3 | Historical measurements retain their original source provenance; corrected-code timing and broader platform or hardware qualification are not claimed. |
@@ -340,6 +342,7 @@ separate package. Fixture tests use a stand-in
 | [`pack`](../loadables/pack.c) | S F | [Parity](../tests/loadable-parity/regressions/pack.json); [S](../tests/final-sanitize.sh) | —; git pack-objects / index-pack | 85.684 / — / 85.170; [pack-cat](#case-pack-cat), 7 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`passwd`](../loadables/passwd.c) | S F | [Contract](../tests/passwd-fields.py); [S](../tests/final-sanitize.sh) | passwd; passwd | 71.498 / 346.203 / 112.850; [passwd-list](#case-passwd-list), 26 passes; 2 cases total | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`paste`](../loadables/paste.c) | C D S T F | [Parity](../tests/paste-uniq-parity.py); [S](../tests/paste-uniq-sanitize.sh) | paste; paste | 68.804 / 367.963 / 68.106; [paste](#case-paste), 9 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
+| [`patch`](../loadables/patch.c) | C D S T F | [Parity](../tests/gnu-command-compat.py) | patch; patch (missing) | N/M | P3 | Add a matched workload and timing. |
 | `pathchk`* | P C D S T F | [Parity](../tests/loadable-parity/regressions/pathchk.json) | —; pathchk | 3.741 / — / 91.079; [pathchk](#case-pathchk), 158 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`pax`](../loadables/pax.c) | C D S T F | [Parity](../tests/gnu-command-compat.py); [S](../tests/gnu-command-sanitize.sh) | —; pax (missing) | 4.052 / 60.076 / 87.453; [pax](#case-pax), 80 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`payload`](../loadables/payload.c) | F | [Contract](../tests/opus-payload-installer.py); [limited](#scope-notes); [S](../tests/opus-payload-build-sanitizer.sh) | —; API fixture | 139.990 / — / —; [payload-list](#case-payload-list), 3 passes; self-timed | P3 | Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance. |
@@ -437,6 +440,7 @@ separate package. Fixture tests use a stand-in
 | [`uudecode`](../loadables/uudecode.c) | C D S T F | [Bench checked](#case-uudecode) | uudecode; uudecode (missing) | 36.842 / 100.351 / —; [uudecode](#case-uudecode), 59 passes | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`uuencode`](../loadables/uuencode.c) | C D S T F | [Contract](../tests/repeat-input-check.sh) | uuencode; uuencode (missing) | 52.132 / 101.080 / —; [uuencode](#case-uuencode), 51 passes; 2 cases total | P4 | No historical selected-case priority; remeasure current sizes/options. |
 | [`uuidgen`](../loadables/uuidgen.c) | F | [Contract](../tests/final-smoke.py); [S](../tests/final-sanitize.sh) | —; uuidgen (missing) | 80.899 / — / —; [uuidgen-v3-md5](#case-uuidgen-v3-md5), 4 passes; self-timed; 2 cases total | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
+| [`uv`](../loadables/uv.c) | F | Build/help | —; uv (missing) | N/M | P3 | Add behavioral fixtures, then timing. |
 | [`vec`](../loadables/vec.c) | T F | [Contract](../tests/large-smoke.py); [S](../tests/large-sanitize.sh) | —; NumPy | 65.339 / — / —; [vec-dot](#case-vec-dot), 8 passes; self-timed; 2 cases total | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
 | [`vi`](../loadables/vi.c) | T F | [Parity](../tests/opus-vi-dd.py); [limited](#scope-notes); [S](../tests/helper-sanitize.sh) | vi; vi | 72.150 / — / 364.084; [vi-write](#case-vi-write), 19 passes; 2 cases total | P3 | Retain documented platform and deployment qualification limits; historical measurements keep their original source provenance. |
 | [`vmstat`](../loadables/vmstat.c) | D S T F | [Contract](../tests/helper-smoke.py); [S](../tests/helper-sanitize.sh) | —; vmstat | 37.667 / — / —; [vmstat-diskstats](#case-vmstat-diskstats), 79 passes; self-timed | P4 | Historical self-timed baseline; rerun the same workload to assess the current implementation. No external ratio applies. |
