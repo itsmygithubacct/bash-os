@@ -215,9 +215,14 @@ class Suite:
             target='1-0' if 'Unix' in name else '2-6'
             (base/f'diag/{target}.bin').write_bytes(data+msg(kind=3))
             def check(base=base,target=target,name=name):
-                r=self.check('netstat -xna' if target=='1-0' else 'netstat -tna',environment(self.shim,base,'diag'))
+                interrupted = name == 'interrupted dump'
+                r=self.check('netstat -xna' if target=='1-0' else 'netstat -tna',
+                             environment(self.shim,base,'diag'), code=1 if interrupted else 0)
                 assert '55555' not in r.stdout,r.stdout
-                if name=='mismatched seq': assert r.stdout==HEADER+'\n'+row('tcp6',3,5,'::1:42001',':::*','LISTEN'),r.stdout
+                if interrupted:
+                    assert 'socket diagnostic dump interrupted' in r.stderr, r.stderr
+                if interrupted or name=='mismatched seq':
+                    assert r.stdout==HEADER+'\n'+row('tcp6',3,5,'::1:42001',':::*','LISTEN'),r.stdout
                 else:
                     expected = (row('u_str',0,0,'/fixture/listener','*','LISTEN')+row('u_str',0,0,'/fixture/connected','*','ESTAB')) if target=='1-0' else expected_inet()
                     assert r.stdout==HEADER+'\n'+expected,r.stdout
