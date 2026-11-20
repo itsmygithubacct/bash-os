@@ -87,7 +87,7 @@ int SOL_KILL(pid_t pid, int sig)
         fail = strchr(fail, ',');
         if (fail) fail++;
     }
-    if (!log || pid <= 0 || sig < 0 || sig >= NSIG) abort();
+    if (!log || pid <= 0 || sig < 0 || (sig >= NSIG && error != EINVAL)) abort();
     FILE *out = fopen(log, "a");
     if (!out) abort();
     if (fprintf(out, "%ld %d %d\n", (long)pid, sig, error) < 0) abort();

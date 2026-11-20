@@ -139,10 +139,14 @@ def fixture_checks(binary, shim, sanitizer=False, regression=False):
         run(['-c', '-x', 'worker000', '-USR2'], [2000000000], signal.SIGUSR2)
         run(['-usr2', '-c', '-x', 'worker000'], [2000000000], signal.SIGUSR2)
         run(['-c', '-x', '-9', 'worker000'], [2000000000], 9)
+        run([f'-{signal.NSIG}'], [], status=1)
+        run([f'-{signal.NSIG}', 'missing'], [], diagnostic='')
+        run([f'-{signal.NSIG}', '-x', 'worker000'], [2000000000], signal.NSIG,
+            fail={2000000000: errno.EINVAL}, diagnostic=os.strerror(errno.EINVAL))
         for args in ([], ['['], ['-x', '['], ['foo', 'bar'], ['-USR1', '['],
                      ['-u'], ['-P', '-1'],
                      ['-u', '99999999999999999999'], ['-9999999999999999999', '.'],
-                     ['-64x', '.'], [f'-{signal.NSIG}', '.'], ['-BOGUS', '.'], ['-v', '.'], ['-l', '.'],
+                     ['-64x', '.'], [f'-{signal.NSIG}', '['], ['-BOGUS', '.'], ['-v', '.'], ['-l', '.'],
                      ['-u', 'missing-sol-pkill-user'],
                      ['-P', '99999999999999999999'], ['-P', ''],
                      ['-cv', '.'], ['-cfq', '.'], ['-cfP'], ['-cfUbad-user', '.'],

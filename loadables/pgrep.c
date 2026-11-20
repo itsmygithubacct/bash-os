@@ -546,7 +546,7 @@ static const struct { const char *name; int num; } bp_signals[] = {
 };
 
 static int
-bp_parse_signal (const char *spec)
+bp_parse_signal (const char *spec, int mode)
 {
     /* Strip leading SIG if present. */
     if (strncasecmp (spec, "SIG", 3) == 0) spec += 3;
@@ -555,7 +555,10 @@ bp_parse_signal (const char *spec)
         char *end = NULL;
         errno = 0;
         unsigned long v = strtoul (spec, &end, 10);
-        if (errno || end == spec || *end != '\0' || v >= NSIG) return -1;
+        /* procps accepts numeric pkill options through 127 - SIGRTMIN,
+           even if the kernel will reject the signal at delivery. */
+        unsigned long max = mode == BP_MODE_KILL ? 127 - SIGRTMIN : NSIG - 1;
+        if (errno || end == spec || *end != '\0' || v > max) return -1;
         return (int)v;
     }
     for (int i = 0; bp_signals[i].name; i++)
@@ -868,7 +871,7 @@ bp_dispatch (WORD_LIST *list, int mode)
     WORD_LIST *prev = NULL, *w;
     for (w = list; w; prev = w, w = w->next)
         if (w->word && w->word->word[0] == '-' && w->word->word[1]
-            && bp_parse_signal (w->word->word + 1) >= 0)
+            && bp_parse_signal (w->word->word + 1, mode) >= 0)
             break;
     if (!w || !prev) {
         rc = bp_dispatch_words (list, mode, &selection);  /* leading -SIG: parsed in place */
@@ -941,7 +944,7 @@ bp_dispatch_words (WORD_LIST *list, int mode, struct bp_selection *selp)
         /* Signal names such as -USR1, -URG, -PIPE and -PWR overlap
            attached -U/-P selectors. Preserve whole-signal precedence. */
         if (mode == BP_MODE_KILL) {
-            int signal_number = bp_parse_signal (w + 1);
+            int signal_number = bp_parse_signal (w + 1, mode);
             if (signal_number >= 0) {
                 sig = signal_number;
                 list = list->next;
@@ -1046,7 +1049,7 @@ bp_dispatch_words (WORD_LIST *list, int mode, struct bp_selection *selp)
         }
         if (mode == BP_MODE_KILLALL &&
             (!strcmp (w, "-s") || (!strncmp (w, "-s", 2) &&
-                                    bp_parse_signal (w + 1) < 0) ||
+                                    bp_parse_signal (w + 1, mode) < 0) ||
              !strcmp (w, "--signal") || !strncmp (w, "--signal=", 9))) {
             const char *value;
             int parsed;
@@ -1059,7 +1062,7 @@ bp_dispatch_words (WORD_LIST *list, int mode, struct bp_selection *selp)
                 value = list->word->word;
             } else
                 value = w[1] == '-' ? w + 9 : w + 2;
-            parsed = bp_parse_signal (value);
+            parsed = bp_parse_signal (value, mode);
             if (parsed <= 0) {
                 builtin_error ("invalid signal: %s", value);
                 return EX_USAGE;
@@ -1164,7 +1167,7 @@ bp_dispatch_words (WORD_LIST *list, int mode, struct bp_selection *selp)
            interpreted as a signal selector (pkill and killall both
            accept `-SIGNAL`). */
         if (BP_DELIVERS_SIGNAL (mode)) {
-            int s = bp_parse_signal (w + 1);
+            int s = bp_parse_signal (w + 1, mode);
             if (s > 0 || (s == 0 && mode == BP_MODE_KILL)) {
                 sig = s;
                 if (mode == BP_MODE_KILLALL5) killall5_signal_set = 1;
@@ -1224,6 +1227,10 @@ bp_dispatch_words (WORD_LIST *list, int mode, struct bp_selection *selp)
     }
     if (pattern_count == 0 && !filter_uid_set && !has_selection && !selection->age &&
         mode != BP_MODE_KILLALL5) {
+        if (mode == BP_MODE_KILL && sig >= NSIG) {
+            builtin_error ("invalid signal: %d", sig);
+            return EXECUTION_FAILURE;
+        }
         builtin_usage ();
         return EX_USAGE;
     }
