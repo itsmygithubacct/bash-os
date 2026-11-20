@@ -2260,7 +2260,6 @@ bv_insert_key (int fd, int key)
 static void
 bv_command_key (int fd, int key)
 {
-    (void) fd;
     if (key == BV_KEY_ESC) {
         bv_st.mode = BV_MODE_NORMAL;
         bv_pend.insert_len = 0;
@@ -2271,7 +2270,11 @@ bv_command_key (int fd, int key)
         if (bv_pend.insert_len > 0) {
             bv_pend.insert_buf[bv_pend.insert_len] = '\0';
             if (bv_pend.insert_buf[0] == ':') {
-                (void) bv_ex_command (bv_pend.insert_buf + 1);
+                if (bv_ex_command (bv_pend.insert_buf + 1) < 0 && fd < 0) {
+                    bv_st.rc = 1;
+                    if (bv_st.status[0])
+                        fprintf (stderr, "vi: %s\n", bv_st.status);
+                }
             } else if (bv_pend.insert_buf[0] == '/') {
                 bv_cmd_search (bv_pend.insert_buf + 1);
             }
