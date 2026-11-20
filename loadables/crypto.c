@@ -2675,6 +2675,7 @@ bc_tls_connect_mbedtls_cmd (WORD_LIST *args)
   int curl_status = 0;
   int read_dns_frame = 0;
   int io_timeout_ms = 0;
+  int use_fd = -1;
   size_t max_request = 1024 * 1024;
 
   for (WORD_LIST *p = args; p; p = p->next) {
@@ -2685,6 +2686,19 @@ bc_tls_connect_mbedtls_cmd (WORD_LIST *args)
       else if (strcmp (w, "--print-cipher") == 0) print_cipher = 1;
       else if (strcmp (w, "--curl-status") == 0) curl_status = 1;
       else if (strcmp (w, "--read-dns-frame") == 0) read_dns_frame = 1;
+      else if (strcmp (w, "--fd") == 0)
+        {
+          /* An already connected socket, such as a proxy tunnel. */
+          char *end = NULL;
+          long v;
+          if (!p->next) { builtin_error ("--fd needs FD"); return EX_USAGE; }
+          p = p->next;
+          errno = 0;
+          v = strtol (p->word->word, &end, 10);
+          if (errno || !end || *end || v < 0 || v > INT_MAX || fcntl ((int) v, F_GETFD) < 0)
+            { builtin_error ("--fd: not an open descriptor: %s", p->word->word); return EX_USAGE; }
+          use_fd = (int) v;
+        }
       else if (strcmp (w, "--read-timeout") == 0 || strcmp (w, "--connect-timeout") == 0)
         {
           char *end = NULL;
@@ -2733,7 +2747,7 @@ bc_tls_connect_mbedtls_cmd (WORD_LIST *args)
   if (bc_slurp_fd_cap (STDIN_FILENO, &req, &req_len, max_request) < 0) return EXECUTION_FAILURE;
 
   /* TCP connect. */
-  int sock = bc_tcp_connect_timeout (host, port, io_timeout_ms);
+  int sock = use_fd >= 0 ? use_fd : bc_tcp_connect_timeout (host, port, io_timeout_ms);
   if (sock < 0) { free (req); return EXECUTION_FAILURE; }
   if (bc_set_socket_timeout_ms (sock, io_timeout_ms) < 0)
     { free (req); close (sock); return EXECUTION_FAILURE; }
@@ -5855,7 +5869,7 @@ char *crypto_doc[] = {
   "    base64url  -e|-d  [--pad|--no-pad]   # RFC 4648 §5, JOSE/JWS",
   "    x509-csr   -k SK_HEX -d DOMAIN [-d ...] [--cn CN] [--der]",
   "                 PKCS#10 CSR (ECDSA-P256 + SAN); PEM by default",
-  "    tls connect HOST:PORT [-c CA_PEM] [-s SNI] [-k] [--print-cipher]",
+  "    tls connect HOST:PORT [-c CA_PEM] [-s SNI] [-k] [--fd FD] [--print-cipher]",
   "        [--connect-timeout MS] [--read-timeout MS] [--max-request BYTES]",
   "        [--read-dns-frame]  read one two-byte-length-prefixed DNS response",
   "    tls connect-mbedtls HOST:PORT [...]  # explicit alias for connect",

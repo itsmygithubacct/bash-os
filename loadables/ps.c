@@ -77,6 +77,7 @@ typedef struct {
     int   tty_nr;            /* /proc/[pid]/stat field 7 */
     int   tpgid;             /* /proc/[pid]/stat field 8  (for STAT '+') */
     uid_t uid;
+    uid_t ruid;
     char  state;
     char  comm[64];
     char  args[256];
@@ -234,11 +235,12 @@ bps_read_stat (int pid, bps_proc *p)
                 u = sbuf;
             }
             if (u) {
-                long uid_val = 0;
+                long uid_val = 0, ruid_val = 0;
                 u += 4;
                 while (*u == ' ' || *u == '\t') u++;
-                sscanf (u, "%*u %ld", &uid_val);
+                sscanf (u, "%ld %ld", &ruid_val, &uid_val);
                 p->uid = (uid_t) uid_val;
+                p->ruid = (uid_t) ruid_val;
             }
             /* VmLck: locked pages -> STAT 'L' (rarely nonzero). Never the
                first status line (Name: is), so anchoring on '\n' is safe. */
@@ -761,6 +763,46 @@ bps_is_aux_bsd_key (const char *s)
     return have_a && (have_u || have_x);
 }
 
+/* -u/-U USERLIST: comma or blank separated names or numeric IDs. */
+static int
+bps_add_user_list (const char *s, uid_t *uids, int *n, int max)
+{
+    char *copy = strdup (s);
+    if (!copy) { builtin_error ("out of memory"); return -1; }
+    int rc = 0, any = 0;
+    for (char *save = NULL, *tok = strtok_r (copy, ", \t", &save); tok;
+         tok = strtok_r (NULL, ", \t", &save)) {
+        struct passwd *pw = getpwnam (tok);
+        uid_t uid;
+        if (pw) uid = pw->pw_uid;
+        else {
+            char *end;
+            errno = 0;
+            unsigned long v = strtoul (tok, &end, 10);
+            if (errno || *end || end == tok || tok[0] == '-' || (uid_t) v != v) {
+                builtin_error ("user name does not exist: %s", tok);
+                rc = -1;
+                break;
+            }
+            uid = (uid_t) v;
+        }
+        if (*n >= max) { builtin_error ("too many users"); rc = -1; break; }
+        uids[(*n)++] = uid;
+        any = 1;
+    }
+    if (rc == 0 && !any) { builtin_error ("list of users must follow -u"); rc = -1; }
+    free (copy);
+    return rc;
+}
+
+static int
+bps_uid_in (uid_t uid, const uid_t *uids, int n)
+{
+    for (int i = 0; i < n; i++)
+        if (uids[i] == uid) return 1;
+    return 0;
+}
+
 int
 ps_builtin (WORD_LIST *list)
 {
@@ -771,6 +813,8 @@ ps_builtin (WORD_LIST *list)
     int n_cols = 0;
     int explicit_pids[256];
     int n_pids = 0;
+    uid_t euids[64], ruids[64];
+    int n_euids = 0, n_ruids = 0;
 
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
@@ -799,6 +843,13 @@ ps_builtin (WORD_LIST *list)
         if (!strncmp (w, "--pid=", 6)) {
             if (bps_add_pid_list (w + 6, explicit_pids, &n_pids,
                                   (int) (sizeof explicit_pids / sizeof explicit_pids[0])) < 0)
+                return EXECUTION_FAILURE;
+            list = list->next;
+            continue;
+        }
+        if (!strncmp (w, "--user=", 7) || !strncmp (w, "--User=", 7)) {
+            if (bps_add_user_list (w + 7, w[2] == 'u' ? euids : ruids,
+                                   w[2] == 'u' ? &n_euids : &n_ruids, 64) < 0)
                 return EXECUTION_FAILURE;
             list = list->next;
             continue;
@@ -854,7 +905,7 @@ ps_builtin (WORD_LIST *list)
             switch (*c) {
                 case 'e': case 'A': all = 1; break;
                 case 'f':           full = 1; break;
-                case 'o': case 'p': {
+                case 'o': case 'p': case 'u': case 'U': {
                     /* Argument-taking options inside a combined token, e.g.
                        procps `ps -eo comm` or `ps -ep PID`. The remainder of
                        the token after this letter is the argument; if empty
@@ -867,13 +918,18 @@ ps_builtin (WORD_LIST *list)
                         if (!list) {
                             builtin_error (opt == 'o'
                                 ? "option -o requires a column list"
-                                : "option -p requires a PID list");
+                                : opt == 'p' ? "option -p requires a PID list"
+                                : "list of users must follow -%c", opt);
                             builtin_usage ();
                             return EXECUTION_FAILURE;
                         }
                         arg = list->word->word;
                     }
-                    if (opt == 'o') {
+                    if (opt == 'u' || opt == 'U') {
+                        if (bps_add_user_list (arg, opt == 'u' ? euids : ruids,
+                                               opt == 'u' ? &n_euids : &n_ruids, 64) < 0)
+                            return EXECUTION_FAILURE;
+                    } else if (opt == 'o') {
                         if (bps_add_o_list (arg, cols, &n_cols) < 0) {
                             builtin_usage ();
                             return EXECUTION_FAILURE;
@@ -915,16 +971,19 @@ ps_builtin (WORD_LIST *list)
         list = list->next;
     }
     if (n_pids == 0) all = 1;
+    /* User selection, like procps, adds to any PID selection: walk every
+       process and keep those that match either. */
+    int by_user = n_euids > 0 || n_ruids > 0;
 
     if (aux_mode) bps_print_aux_header ();
     else if (n_cols > 0) bps_print_custom_header (cols, n_cols);
-    else if (n_pids > 0) {
+    else if (n_pids > 0 && !by_user) {
         if (full) printf ("USER       PID  PPID S TIME     CMD\n");
         else printf ("  PID S TIME     CMD\n");
     } else if (full) puts ("UID          PID    PPID  C STIME TTY          TIME CMD");
     else puts ("    PID TTY          TIME CMD");
 
-    if (n_pids > 0) {
+    if (n_pids > 0 && !by_user) {
         for (int i = 0; i < n_pids; i++) {
             bps_proc p = { 0 };
             if (bps_read_stat (explicit_pids[i], &p) == 0) {
@@ -946,6 +1005,13 @@ ps_builtin (WORD_LIST *list)
         if (pid <= 0) continue;
         bps_proc p = { 0 };
         if (bps_read_stat (pid, &p) == 0) {
+            if (by_user) {
+                int keep = bps_uid_in (p.uid, euids, n_euids) ||
+                           bps_uid_in (p.ruid, ruids, n_ruids);
+                for (int i = 0; !keep && i < n_pids; i++)
+                    keep = explicit_pids[i] == pid;
+                if (!keep) continue;
+            }
             if (aux_mode) bps_print_aux_row (&p);
             else if (n_cols > 0) bps_print_custom (&p, cols, n_cols);
             else bps_print_table_row (&p, full);
@@ -959,13 +1025,15 @@ ps_builtin (WORD_LIST *list)
 char *ps_doc[] = {
     "List processes via /proc (POSIX-shape ps).",
     "",
-    "    bashps [-ef] [-o COL,COL,...] [-p PIDLIST] [PID...]",
+    "    bashps [-ef] [-o COL,COL,...] [-p PIDLIST] [-u|-U USERLIST] [PID...]",
     "    bashps aux [PID...]",
     "",
     "    -e        all processes (default if no PID given)",
     "    -f        full format: USER PID PPID STATE TIME CMD",
     "    aux       BSD/procps-style USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND",
     "    -p LIST   select comma-separated process IDs (also --pid=LIST)",
+    "    -u LIST   select by effective user name or ID (also --user=LIST)",
+    "    -U LIST   select by real user name or ID (also --User=LIST)",
     "    -o LIST   custom columns: pid,ppid,pgrp,sid,uid,user,state,stat,comm,args,time,stime,rss,vsz",
     "    --help    print usage information and exit",
     "    -V, --version",
@@ -983,6 +1051,6 @@ struct builtin bashps_struct = {
     ps_builtin,
     BUILTIN_ENABLED,
     ps_doc,
-    "bashps [-ef] [-o COL,COL,...] [-p PIDLIST] [PID...] | bashps aux [PID...]",
+    "bashps [-ef] [-o COL,COL,...] [-p PIDLIST] [-u|-U USERLIST] [PID...] | bashps aux [PID...]",
     0
 };

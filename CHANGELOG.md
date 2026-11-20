@@ -3,6 +3,21 @@
 All notable changes to bash-os are recorded here. Versions follow
 [semantic versioning](https://semver.org/); `VERSION` holds the current one.
 
+## Unreleased
+
+- `awk` accepts a `/` inside a bracket expression of a regex literal (`/[/]/`), as gawk does.
+- `date -d` accepts GNU relative items (`yesterday`, `+1 day`, `3 hours ago`, `next monday`, `2024-01-31 +1 month`).
+- `mv -v`/`--verbose` reports each rename, copy and removal as GNU mv does.
+- `rm -v` prints each removed file and directory as GNU rm does.
+- `cmp -n LIMIT` (and `--bytes=LIMIT`) compares at most LIMIT bytes.
+- `split -n CHUNKS` takes `N`, `K/N`, `l/N`, `l/K/N`, `r/N` and `r/K/N`.
+- `ps -u USERLIST` and `-U USERLIST` select processes by effective or real user.
+- `diff -y` prints side by side (`-W` width), and `diff` compares directories, recursively with `-r`.
+- `curl` takes `-I`, `-v`, `-F`, `-T`, `-G`, `--data-urlencode`, `--json`, `--retry`, `-x` (HTTP proxies, CONNECT for https), `--compressed`, `--http2` (spoken as HTTP/1.1), `-r` and `-C`, compared with curl 8.14; `crypto tls connect` takes `--fd` for an already connected socket.
+- `md5sum` (with `-c`) joins `core`; `md5sum -c` and `sha256sum -c` print GNU's warnings for unreadable files and mismatched checksums.
+- `iconv` joins `core`: UTF-8, ASCII, Latin-1/9, CP1252, UTF-16/32 and UCS-2/4 with glibc's `-c`, `//IGNORE`, `//TRANSLIT` and error positions.
+- `patch` joins `core`: unified and normal diffs from a pipe or file with GNU's offsets, fuzz, `.rej`/`.orig` files, `-p`, `-R`, `-N`, `-E`, `-o`, `-d` and `--dry-run`.
+
 ## 0.1.4 — 2026-11-18
 
 Every fixture definition passes on both release builds, apart from two

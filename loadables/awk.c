@@ -300,8 +300,29 @@ bawk_lex_string (bawk_lex *L, const char *src)
         if (*p == '/' && prev_can_regex) {
             p++;
             const char *s = p;
-            while (*p && *p != '/') {
+            while (*p && *p != '/' && *p != '\n') {
                 if (*p == '\\' && p[1]) p += 2;
+                else if (*p == '[') {
+                    /* A bracket expression may hold '/', as in gawk: /[/]/.
+                       ']' first (after an optional '^') is literal, and
+                       [:class:], [.x.] and [=x=] run to their own closer. */
+                    const char *q = p + 1;
+                    if (*q == '^') q++;
+                    if (*q == ']') q++;
+                    while (*q && *q != ']' && *q != '\n') {
+                        if (*q == '[' && (q[1] == ':' || q[1] == '.' || q[1] == '=')) {
+                            char kind = q[1];
+                            const char *r = q + 2;
+                            while (*r && *r != '\n' && !(r[0] == kind && r[1] == ']')) r++;
+                            if (*r == kind) { q = r + 2; continue; }
+                        }
+                        if (*q == '\\' && q[1] && q[1] != '\n') q++;
+                        q++;
+                    }
+                    /* An unclosed '[' is an ordinary character here; let
+                       the regex compiler report it. */
+                    p = *q == ']' ? q + 1 : p + 1;
+                }
                 else p++;
             }
             if (*p != '/') { builtin_error("unterminated regex"); return -1; }

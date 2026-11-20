@@ -131,9 +131,13 @@ class DiffSafety(unittest.TestCase):
 
     def test_invalid_inputs_and_descriptor_cleanup(self):
         (self.root / "a").write_bytes(b"a\n")
+        (self.root / "empty").mkdir()
+        # As in GNU diff, DIR FILE compares DIR/FILE with FILE: ./a is a
+        # itself, and empty/a is missing.
         result = self.shell('ulimit -n 32; for ((i=0;i<80;i++)); do '
                             'diff a absent 2>/dev/null; [[ $? == 2 ]] || exit 1; '
-                            'diff . a 2>/dev/null; [[ $? == 2 ]] || exit 1; '
+                            'diff empty a 2>/dev/null; [[ $? == 2 ]] || exit 1; '
+                            'diff . a || exit 1; '
                             'diff a a || exit 1; done; printf alive')
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b"alive", b""))
         for args in ((), ("a",), ("a", "a", "a"), ("-Z", "a", "a")):

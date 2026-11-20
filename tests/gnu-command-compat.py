@@ -5,6 +5,7 @@ import base64
 import gzip
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tarfile
@@ -210,6 +211,338 @@ class Compatibility(unittest.TestCase):
                 self.assertEqual(result.stdout, b"alive:1\n", result.stderr)
                 self.assertTrue(result.stderr)
 
+    def test_awk_slash_inside_bracket_expression(self):
+        data = b"a/b\nab\na]b\n1:2\n"
+        for program in ("/[/]/", "$0 ~ /[/]/ {print \"slash\", $0}", "/[]/]/", "/[^]/]b/",
+                        "/[[:digit:]/]/", "{ print ($0 ~ /a[/]b/) }", "{ print 6 / 2 / 3 }"):
+            with self.subTest(program=program):
+                self.compare('awk "$1"', program, data=data)
+        self.compare("awk '/[/'", data=data, diagnostic=True)
+
+    def test_date_relative_items(self):
+        for value in ("2024-01-31 +1 month", "2024-03-10 12:00:00 -2 days", "2024-02-29 1 year ago",
+                      "2024-01-01 next week", "2024-01-01 3 hours ago", "2024-01-01 +90 minutes",
+                      "2024-01-01 tomorrow", "2024-01-01 yesterday", "2024-01-01 12:00 +1 day",
+                      "2024-03-10 12:00 +0130", "2024-01-03 12:00 2 weeks ago",
+                      "2024-01-03 1 fortnight", "2024-01-03 monday", "2024-01-03 12:00 monday"):
+            with self.subTest(value=value):
+                self.compare('date -u -d "$1" "+%F %T"', value)
+        # Relative to now: compare at day granularity, or at the weekday's midnight.
+        for value in ("yesterday", "tomorrow", "2 days ago", "+1 week", "-3 months", "today",
+                      "now", "next monday", "monday", "last friday", "this sunday", "Tuesday",
+                      "1 year", "next month"):
+            with self.subTest(value=value):
+                self.compare('date -d "$1" "+%F %a"', value)
+        for value in ("bogus words", "@0 +1 day", "3 parsecs ago", "next"):
+            with self.subTest(value=value):
+                self.compare('date -d "$1"', value, diagnostic=True)
+
+    def test_mv_verbose(self):
+        def fixture():
+            for name in os.listdir(self.root):
+                path = self.root / name
+                if path.is_dir() and not path.is_symlink():
+                    subprocess.run(["rm", "-rf", "--", str(path)], check=True)
+                else:
+                    path.unlink()
+            (self.root / "f").write_bytes(b"1\n"); (self.root / "g").write_bytes(b"2\n")
+            (self.root / "it's").write_bytes(b"q\n"); (self.root / "D").mkdir()
+            (self.root / "tree/sub").mkdir(parents=True); (self.root / "tree/sub/x").write_bytes(b"x")
+        for script in ("mv -v f f2", "mv -v f g D", "mv -v tree D", "mv -v \"it's\" q",
+                       "mv --verbose g h", "mv -vn f g", "mv -v missing f; echo $?"):
+            with self.subTest(script=script):
+                fixture(); expected = self.run_shell(script, gnu=True)
+                fixture(); actual = self.run_shell(script)
+                self.assertEqual((actual.returncode, actual.stdout), (expected.returncode, expected.stdout))
+        if Path("/dev/shm").is_dir() and os.stat("/dev/shm").st_dev != os.stat(self.root).st_dev:
+            for runner in (True, False):
+                fixture()
+                result = self.run_shell(f'mv -v tree "$1" | sed "s|$1|DEST|"',
+                                        f"/dev/shm/bash-os-mv-{os.getpid()}-{int(runner)}", gnu=runner)
+                if runner: expected = result.stdout
+                else: self.assertEqual(result.stdout, expected, result.stderr)
+                subprocess.run(["rm", "-rf", f"/dev/shm/bash-os-mv-{os.getpid()}-{int(runner)}"], check=True)
+
+    def test_rm_verbose(self):
+        def fixture():
+            for name in os.listdir(self.root):
+                subprocess.run(["rm", "-rf", "--", str(self.root / name)], check=True)
+            (self.root / "f").write_bytes(b"1\n"); (self.root / "it's").write_bytes(b"2\n")
+            (self.root / "d/e").mkdir(parents=True); (self.root / "d/e/h").write_bytes(b"h")
+        for script in ("rm -v f", "rm -v \"it's\"", "rm -rv d", "rm -vr d f", "rm -fv missing",
+                       "rm -v missing; echo $?", "rm -v d; echo $?", "printf 'y\\ny\\n' | rm -iv f \"it's\""):
+            with self.subTest(script=script):
+                fixture(); expected = self.run_shell(script, gnu=True)
+                fixture(); actual = self.run_shell(script)
+                lines = lambda out: sorted(out.splitlines()) if "-r" in script else out.splitlines()
+                self.assertEqual((actual.returncode, lines(actual.stdout)),
+                                 (expected.returncode, lines(expected.stdout)), actual.stderr)
+
+    def test_cmp_byte_limit(self):
+        (self.root / "f").write_bytes(b"b 2\na 1\nc 3\n"); (self.root / "g").write_bytes(b"x\n")
+        (self.root / "p").write_bytes(b"abc"); (self.root / "q").write_bytes(b"abd")
+        (self.root / "r").write_bytes(b"ab"); (self.root / "s").write_bytes(b"xbz")
+        for args in (("-n", "1", "f", "g"), ("-n", "0", "f", "g"), ("-n2", "f", "f"),
+                     ("-n", "2", "p", "q"), ("-n", "3", "p", "q"), ("-n", "2", "p", "r"),
+                     ("-n", "3", "p", "r"), ("-l", "-n", "3", "p", "s"), ("--bytes=1", "-l", "p", "s"),
+                     ("-s", "-n", "3", "p", "q"), ("-n", "2", "p", "q", "1", "1")):
+            with self.subTest(args=args):
+                self.compare('cmp "$@"', *args, diagnostic=True)
+        self.compare("cmp -n 2 - q", data=b"abz", diagnostic=True)
+        self.compare('cmp -n "$1" p q', "bad", diagnostic=True)
+
+    def test_split_number_of_chunks(self):
+        def listing():
+            return self.run_shell('for f in y*; do printf "%s:%q|" "$f" "$(cat "$f"; echo .)"; done', gnu=True).stdout
+        inputs = {"t": b"abcdefghij", "l": b"a\nbbbbbbbbbbbb\nc\nd\n", "m": b"a\nb\nc\nd\ne\n",
+                  "e": b"", "s": b"ab", "n": b"one\ntwo\nthree"}
+        for name, data in inputs.items():
+            for chunks in ("1", "2", "3", "4", "5", "l/2", "l/3", "l/4", "l/7", "r/2", "r/3", "r/7"):
+                with self.subTest(name=name, chunks=chunks):
+                    found = []
+                    for gnu in (True, False):
+                        for old in self.root.glob("y*"): old.unlink()
+                        (self.root / name).write_bytes(data)
+                        result = self.run_shell('split -n "$1" "$2" y', chunks, name, gnu=gnu)
+                        found.append((result.returncode, listing()))
+                    self.assertEqual(found[1], found[0])
+                for k in (1, 2, 3):
+                    for kind in ("", "l/", "r/"):
+                        self.compare('split -n "$1" "$2"', f"{kind}{k}/3", name)
+        self.compare("split -n 2 - p; cat paa; echo; cat pab", data=b"abcdefghij")
+        for chunks in ("0", "3/2", "x", "l/0/2", "r/", ""):
+            self.compare('split -n "$1" t y', chunks, diagnostic=True)
+
+    def test_ps_user_selection(self):
+        uid = str(os.getuid())
+        import pwd
+        try:
+            name = pwd.getpwuid(os.getuid()).pw_name
+        except KeyError:   # a uid with no passwd entry still selects by number
+            name = None
+        for flag in ("-u", "-U"):
+            for who in (uid, name, f"{name},{uid}") if name else (uid, f"{uid},{uid}"):
+                with self.subTest(flag=flag, who=who):
+                    result = self.run_shell(f'ps {flag} "$1" -o pid,uid; echo "self=$$"', who)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    lines = result.stdout.decode().splitlines()
+                    self.assertEqual(lines[0].split(), ["PID", "UID"])
+                    rows = [line.split() for line in lines[1:-1]]
+                    self.assertTrue(rows)
+                    self.assertTrue(all(row[1] == uid for row in rows), rows)
+                    self.assertIn(lines[-1].split("=")[1], [row[0] for row in rows])
+        result = self.run_shell("ps -u 4000000 -o pid")
+        self.assertEqual(result.stdout.decode().split(), ["PID"])
+        result = self.run_shell(f"ps --user={uid} -o uid")
+        self.assertEqual(set(result.stdout.decode().split()[1:]), {uid})
+        result = self.run_shell("ps -u no-such-user-here")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(result.stderr)
+
+    def test_diff_side_by_side(self):
+        files = {"f": b"b 2\na 1\nc 3\n", "g": b"x\n",
+                 "L": b"one\ttab\nlong line that goes on and on and on and on and on and on and on and on and on\nsame\nno newline",
+                 "R": b"one\ttab\nshort\nsame\nadded\nno newline\n",
+                 "C": b"ctl\x01char\rback\bspace\tend\n\xff\xfehigh\n", "E": b""}
+        for name, data in files.items(): (self.root / name).write_bytes(data)
+        for args in (("-y", "f", "g"), ("-y", "L", "R"), ("-y", "R", "L"), ("-y", "-W", "40", "L", "R"),
+                     ("-yW60", "f", "g"), ("-y", "f", "f"), ("--side-by-side", "--width=50", "f", "g"),
+                     ("-y", "C", "f"), ("-y", "E", "f"), ("-y", "f", "E"), ("-yi", "f", "f"),
+                     ("-y", "-W", "7", "L", "R"), ("-y", "-W", "1", "f", "g")):
+            with self.subTest(args=args):
+                self.compare('diff "$@"', *args)
+
+    def test_diff_directories(self):
+        layout = {"A/c": b"1\n2\n3\n", "B/c": b"1\nX\n3\n", "A/s/k": b"same\n", "B/s/k": b"same\n",
+                  "A/s/m": b"a\n", "B/s/m": b"b\n", "B/onlyb": b"o\n", "A/bin": b"\x00bin",
+                  "B/bin": b"\x00bon", "A/t": b"t\n", "A/only/z": b"z\n", "P/a": b"p\n"}
+        for path, data in layout.items():
+            (self.root / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / path).write_bytes(data)
+        (self.root / "B/t").mkdir(); (self.root / "Q").mkdir(); (self.root / "Q/a").write_bytes(b"p\n")
+        for script in ("diff -r A B", "diff -rq A B", "diff A B", "diff -r A A", "diff -r P Q",
+                       "diff -ry P Q", "diff -r A/ B/", "diff --recursive A B", "diff A/c B",
+                       "diff A B/c", "diff -r A/s B/s"):
+            with self.subTest(script=script):
+                self.compare(script)
+        # GNU's unified headers add timestamps; compare everything else.
+        strip = lambda out: b"\n".join(line.split(b"\t")[0] for line in out.splitlines())
+        expected = self.run_shell("diff -ru A B", gnu=True)
+        actual = self.run_shell("diff -ru A B")
+        self.assertEqual((actual.returncode, strip(actual.stdout)), (expected.returncode, strip(expected.stdout)))
+        self.compare("diff -r A missing", diagnostic=True)
+    def test_md5_print_and_check(self):
+        names = ["data", "two words", "line\nname", "back\\slash", "-file"]
+        for name in names: (self.root / name).write_bytes(b"abc\x00\n" * 10000)
+        self.compare("md5sum", data=b"abc")
+        for flags in ((), ("-b",), ("-z",), ("--tag",)):
+            self.compare('md5sum "$@"', *flags, "--", *names)
+        manifest = self.run_shell('md5sum -- "$@"', *names, gnu=True).stdout
+        (self.root / "sums").write_bytes(manifest)
+        for flags in ("-c", "--check --quiet", "--check --status", "-c --strict", "-cw"):
+            self.compare(f"md5sum {flags} sums")
+        tagged = self.run_shell('md5sum --tag -- "$@"', *names, gnu=True).stdout
+        (self.root / "tagged").write_bytes(tagged)
+        self.compare("md5sum -c tagged")
+        self.compare("md5sum data > s; md5sum -c s; md5sum -c - < s", data=b"")
+        self.compare("md5sum -c /dev/null", diagnostic=True)
+        (self.root / "data").write_bytes(b"changed")
+        self.compare("md5sum -c sums", diagnostic=True)
+        self.compare("md5sum --status -c sums")
+        (self.root / "mixed").write_bytes(manifest + b"bad line\n" + b"0" * 64 + b"  data\n")
+        self.compare("md5sum -c mixed", diagnostic=True)
+        self.compare("md5sum -c --strict mixed", diagnostic=True)
+        self.compare("md5sum -c missing-file", diagnostic=True)
+    def test_iconv_charsets_errors_and_translit(self):
+        accents = "é–“x”…€ß Æ œ ñ ü 中 Ångström Łódź ﬁ © ½ → ≤ ™\n".encode()
+        emoji = "x😀\n".encode()
+        cases = [
+            ("C", accents, "-f utf-8 -t ascii//TRANSLIT"),
+            ("C.UTF-8", accents, "-f utf-8 -t ascii//TRANSLIT"),
+            ("C", "é\n".encode(), "-f utf-8 -t ascii"),
+            ("C", b"a\xffb\n", "-f utf-8 -t latin1"),
+            ("C", b"a\xffb\n", "-c -f utf-8 -t latin1"),
+            ("C", "é中x\n".encode(), "-f utf-8 -t latin1//IGNORE"),
+            ("C", "é中x\n".encode(), "-s -f utf-8 -t latin1//IGNORE"),
+            ("C", "é中x\n".encode(), "-c -f utf-8 -t latin1"),
+            ("C", b"\xe9\xa4\n", "-f latin1 -t utf-8"),
+            ("C", b"\xe9\xa4\xbd\n", "-f iso-8859-15 -t utf-8"),
+            ("C", b"\x80\x93\x94\n", "-f cp1252 -t utf-8"),
+            ("C", b"\x81\n", "-f cp1252 -t utf-8"),
+            ("C", "€œ\n".encode(), "-f utf-8 -t windows-1252"),
+            ("C", emoji, "-f utf-8 -t utf-16"),
+            ("C", emoji, "-f utf-8 -t utf-16le"),
+            ("C", emoji, "-f utf-8 -t UTF-16BE"),
+            ("C", emoji, "-f utf-8 -t utf-32"),
+            ("C", emoji, "-f utf-8 -t ucs-4"),
+            ("C", emoji, "-f utf-8 -t ucs-2"),
+            ("C", b"\xff\xfex\x00=\xd8\x00\xde\n\x00", "-f utf-16 -t utf-8"),
+            ("C", b"\x00x\x00\n", "-f utf-16 -t utf-8"),
+            ("C", b"\xfe\xff\x00x", "-f utf-16 -t utf-8"),
+            ("C", b"x\x00\n", "-f utf-16le -t utf-8"),
+            ("C", b"\x00\x00\x00x", "-f utf-32 -t utf-8"),
+            ("C", b"ok\xe2\x82", "-f utf-8 -t utf-8"),
+            ("C", b"", "-f foo -t utf-8"),
+            ("C", b"", "-f utf-8 -t bar"),
+            ("C", b"", "-f foo -t bar"),
+            ("C", b"abc\n", "-f UTF8 -t US-ASCII"),
+            ("C.UTF-8", "é\n".encode(), "-t latin1"),
+            ("C.UTF-8", b"\xe9\n", "-f latin1"),
+            ("C", "é\n".encode(), "--from-code=utf-8 --to-code=latin1"),
+            ("C", "a\xe9b".encode("latin1"), "-f latin1 -t utf-8 -o out.txt; cat out.txt"),
+            ("C", b"one\n", "-f latin1 -t utf-8 - two"),
+            ("C", b"", "-f latin1 -t utf-8 missing"),
+        ]
+        (self.root / "two").write_bytes(b"two\xe9\n")
+        for locale, data, args in cases:
+            with self.subTest(locale=locale, args=args, data=data):
+                script = f"LC_ALL={locale} iconv {args}"
+                expected = self.run_shell(script, data=data, gnu=True)
+                actual = self.compare(script, data=data, diagnostic=True)
+                ours = re.sub(rb"compat: line \d+: ", b"", actual.stderr)
+                self.assertEqual(ours, expected.stderr)
+    def test_patch_against_gnu_patch(self):
+        def lines(seq):
+            return "".join(f"{x}\n" for x in seq).encode()
+        base = list(range(1, 21))
+        changed = ["five" if x == 5 else "fifteen" if x == 15 else x for x in base]
+
+        def udiff(old, new, a="a/f", b="b/f", extra=""):
+            import difflib
+            out = difflib.unified_diff([f"{x}\n" for x in old], [f"{x}\n" for x in new], a, b, lineterm="\n")
+            return (extra + "".join(out)).encode()
+
+        two = udiff(base, changed)
+        plain = udiff(base, changed, "f", "f")
+        stamped = udiff(base, changed, "f\t2026-01-01 00:00:00.000000000 +0000",
+                        "g\t2026-01-02 00:00:00.000000000 +0000")
+        grow = udiff(base, [y for x in base for y in ([x, "3b"] if x == 3 else [x])], "f", "f")
+        cases = [
+            # (name, files, patch, command)
+            ("p1 pipe", {"f": lines(base)}, two, "patch -p1"),
+            ("default basename", {"f": lines(base)}, two, "patch"),
+            ("p0 missing", {"f": lines(base)}, two, "patch -p0"),
+            ("subdir p1", {"sub/f": lines(base)}, udiff(base, changed, "a/sub/f", "b/sub/f"), "patch -p1"),
+            ("input file", {"f": lines(base)}, plain, "patch -i p.diff; cat f"),
+            ("operands", {"f": lines(base), "other": lines(base)}, plain, "patch other p.diff"),
+            ("offset", {"f": lines(["x", "y"] + base)}, plain, "patch"),
+            ("negative offset", {"f": lines(base[3:])}, plain, "patch"),
+            ("fuzz", {"f": lines([x if x != 2 else "two" for x in base])}, plain, "patch"),
+            ("fuzz 2", {"f": lines([x if x != 3 else "three" for x in base])}, plain, "patch"),
+            ("fuzz 0 option", {"f": lines([x if x != 2 else "two" for x in base])}, plain, "patch -F0"),
+            ("first fails", {"f": lines([x if x not in (2, 3, 4) else "X" for x in base])}, stamped, "patch"),
+            ("second fails", {"f": lines([x if x not in (13, 14, 16) else "Z" for x in base])}, stamped, "patch"),
+            ("grow then fail", {"f": lines([x if x not in (13, 14, 16) else "Z" for x in base])},
+             udiff(base, [y for x in changed for y in ([x, "3b"] if x == 3 else [x])], "f", "f"), "patch"),
+            ("all fail", {"f": lines(range(30, 50))}, plain, "patch"),
+            ("reversed default", {"f": lines(changed)}, plain, "patch"),
+            ("reversed -N", {"f": lines(changed)}, plain, "patch -N"),
+            ("reversed -t", {"f": lines(changed)}, plain, "patch -t"),
+            ("reversed -f", {"f": lines(changed)}, plain, "patch -f"),
+            ("reverse", {"f": lines(changed)}, plain, "patch -R"),
+            ("unreversed", {"f": lines(base)}, plain, "patch -R"),
+            ("dry run", {"f": lines(base)}, plain, "patch --dry-run"),
+            ("dry run fail", {"f": lines(range(30, 50))}, plain, "patch --dry-run"),
+            ("silent", {"f": lines(range(30, 50))}, plain, "patch -s"),
+            ("silent ok", {"f": lines(["x"] + base)}, plain, "patch -s"),
+            ("backup", {"f": lines(base)}, plain, "patch -b"),
+            ("suffix", {"f": lines(base)}, plain, "patch -b -z .bak"),
+            ("no mismatch backup", {"f": lines(["x"] + base)}, plain, "patch --no-backup-if-mismatch"),
+            ("reject file", {"f": lines(range(30, 50))}, plain, "patch -r out.rej"),
+            ("reject none", {"f": lines(range(30, 50))}, plain, "patch -r -"),
+            ("output", {"f": lines(base)}, plain, "patch -o out"),
+            ("directory", {"d/f": lines(base)}, plain, "patch -d d -i ../p.diff"),
+            ("growing", {"f": lines(base)}, grow, "patch"),
+            ("create", {}, udiff([], ["a", "b"], "/dev/null", "b/new.txt"), "patch -p1"),
+            ("create subdir", {}, udiff([], ["a"], "/dev/null", "b/dir/new.txt"), "patch -p1"),
+            ("create exists", {"new.txt": b"x\n"}, udiff([], ["a"], "/dev/null", "b/new.txt"), "patch -p1"),
+            ("create empty exists", {"new.txt": b""}, udiff([], ["a"], "/dev/null", "b/new.txt"), "patch -p1"),
+            ("delete", {"f": lines([1, 2])}, udiff([1, 2], [], "a/f", "/dev/null"), "patch -p1"),
+            ("empty kept", {"f": lines([1, 2])}, udiff([1, 2], [], "a/f", "b/f"), "patch -p1"),
+            ("empty removed", {"f": lines([1, 2])}, udiff([1, 2], [], "a/f", "b/f"), "patch -p1 -E"),
+            ("not found", {}, plain, "patch"),
+            ("garbage", {}, b"hello\n", "patch"),
+            ("multi", {"x": lines([1, 2, 3]), "y": lines([1, 2, 3])},
+             udiff([1, 2, 3], [1, 2, 3, 4], "x", "x") + udiff([1, 2, 3], [0, 1, 2, 3], "y", "y"), "patch"),
+            ("multi missing", {"x": lines([1, 2, 3])},
+             udiff([1, 2, 3], [1, 2, 3, 4], "x", "x") + udiff([1, 2, 3], [0, 1, 2, 3], "y", "y"), "patch"),
+            ("git", {"x": lines([1, 2, 3, 4])},
+             b"diff --git a/x b/x\nindex 1..2 100644\n--- a/x\n+++ b/x\n@@ -1,4 +1,3 @@\n 1\n 2\n 3\n-4\n", "patch -p1"),
+            ("git new", {}, b"diff --git a/n b/n\nnew file mode 100644\nindex 0..1\n--- /dev/null\n+++ b/n\n@@ -0,0 +1 @@\n+n\n", "patch -p1"),
+            ("git delete", {"n": b"n\n"}, b"diff --git a/n b/n\ndeleted file mode 100644\nindex 1..0\n--- a/n\n+++ /dev/null\n@@ -1 +0,0 @@\n-n\n", "patch -p1"),
+            ("no newline", {"n": b"a\nb"}, b"--- n\n+++ n\n@@ -1,2 +1,2 @@\n a\n-b\n\\ No newline at end of file\n+c\n\\ No newline at end of file\n", "patch"),
+            ("add newline", {"n": b"a\nb"}, b"--- n\n+++ n\n@@ -1,2 +1,2 @@\n a\n-b\n\\ No newline at end of file\n+b\n", "patch"),
+            ("drop newline", {"n": b"a\nb\n"}, b"--- n\n+++ n\n@@ -1,2 +1,2 @@\n a\n-b\n+b\n\\ No newline at end of file\n", "patch"),
+            ("insert at top", {"f": lines(base)}, udiff(base, [0] + base, "f", "f"), "patch"),
+            ("append at end", {"f": lines(base)}, udiff(base, base + [21], "f", "f"), "patch"),
+            ("top anchored", {"f": lines(["x"] + base)}, udiff(base, [0] + base, "f", "f"), "patch"),
+            ("end anchored", {"f": lines(base + ["x"])}, udiff(base, base + [21], "f", "f"), "patch"),
+            ("normal", {"f": lines(base)}, b"5c5\n< 5\n---\n> five\n15c15\n< 15\n---\n> fifteen\n", "patch f"),
+            ("normal add delete", {"f": lines(base)}, b"2a3,4\n> new1\n> new2\n9,10d10\n< 9\n< 10\n", "patch f"),
+            ("normal offset", {"f": lines(["x"] + base)}, b"5c5\n< 5\n---\n> five\n", "patch f"),
+            ("function header", {"f": lines(range(30, 50))},
+             udiff(base, changed, "f", "f").replace(b"@@ -2,7 +2,7 @@", b"@@ -2,7 +2,7 @@ int main()"), "patch"),
+            ("context lines blank", {"f": b"a\n\nb\n"}, b"--- f\n+++ f\n@@ -1,3 +1,3 @@\n a\n\n-b\n+c\n", "patch"),
+            ("bad option", {"f": lines(base)}, plain, "patch -Q"),
+            ("mode kept", {"f": lines(base)}, plain, "chmod 750 f; patch; stat -c %a f"),
+        ]
+        snap_script = 'find . -path ./p.diff -prune -o -type f -print | LC_ALL=C sort | while read -r f; do echo "== $f"; cat "$f"; done'
+        for name, files, patch_text, command in cases:
+            with self.subTest(case=name):
+                results = []
+                for gnu in (True, False):
+                    work = self.root / ("gnu" if gnu else "ours") / name.replace(" ", "_")
+                    work.mkdir(parents=True)
+                    for path, data in files.items():
+                        (work / path).parent.mkdir(parents=True, exist_ok=True)
+                        (work / path).write_bytes(data)
+                    (work / "p.diff").write_bytes(patch_text)
+                    run = self.run_shell(f"{{ {command}; }} < p.diff", gnu=gnu, cwd=work)
+                    snap = subprocess.run(["/bin/bash", "-c", snap_script], cwd=work, capture_output=True,
+                                          env={**ENV, "PATH": "/usr/bin:/bin"}).stdout
+                    err = re.sub(rb"compat: line \d+: ", b"", run.stderr)
+                    results.append((run.returncode, run.stdout, err, snap))
+                self.assertEqual(results[1], results[0])
 
 if __name__ == "__main__":
     unittest.main()

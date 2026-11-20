@@ -69,7 +69,8 @@
         "hostid",
         "cksum",
         "base64",
-        "sha256sum"
+        "sha256sum",
+        "md5sum"
       ],
       "kind": "cli",
       "packages": [
@@ -125,7 +126,8 @@
     },
     {
       "loadables": [
-        "getconf"
+        "getconf",
+        "iconv"
       ],
       "kind": "cli",
       "packages": [
@@ -193,6 +195,16 @@
       "kind": "cli",
       "packages": [
         "diffutils"
+      ],
+      "notes": "Compare only the common operations and options selected by each fixture."
+    },
+    {
+      "loadables": [
+        "patch"
+      ],
+      "kind": "cli",
+      "packages": [
+        "patch"
       ],
       "notes": "Compare only the common operations and options selected by each fixture."
     },

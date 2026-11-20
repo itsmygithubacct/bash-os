@@ -239,6 +239,216 @@ bd_parse_rfc_lenient (const char *s, time_t *out)
     return 0;
 }
 
+static int bd_parse_d (const char *s, time_t *out, long *nsec, int utc);
+
+/* GNU relative items: "yesterday", "tomorrow", "today", "now",
+   "[+-]N UNIT[s] [ago]", "next|last|this UNIT", and a day of the week
+   with an optional next/last/this.  They apply, in GNU's order, to the
+   current time or to an absolute date written before them: day of week
+   first, then years, months and days on the calendar, then hours,
+   minutes and seconds as elapsed time.  A day of week without a date
+   resets the time of day to midnight, as GNU does.  Returns 0 and sets
+   *out/*nsec, or -1 when any word is not a relative item. */
+static int
+bd_parse_relative (const char *s, time_t base, long base_nsec, int utc,
+                   int dated, time_t *out, long *nsec)
+{
+    static const struct { const char *name; int field; long mult; } units[] = {
+        { "year", 0, 1 }, { "month", 1, 1 }, { "fortnight", 2, 14 },
+        { "week", 2, 7 }, { "day", 2, 1 }, { "hour", 3, 3600 },
+        { "minute", 3, 60 }, { "min", 3, 60 }, { "second", 3, 1 },
+        { "sec", 3, 1 }
+    };
+    static const char *days[] = {
+        "sunday", "monday", "tuesday", "wednesday", "thursday", "friday",
+        "saturday"
+    };
+    long long rel[4] = { 0, 0, 0, 0 };   /* years, months, days, seconds */
+    int day_number = -1, day_ordinal = 0, seen = 0;
+    int last_field = -1;
+    long long last_amount = 0;
+    const char *p = s;
+
+    for (;;) {
+        char word[16];
+        size_t n = 0;
+        long long amount = 1;
+        int have_amount = 0;
+
+        p = bd_skip_space (p);
+        if (!*p) break;
+        if (*p == '+' || *p == '-' || (*p >= '0' && *p <= '9')) {
+            int neg = *p == '-';
+            if (*p == '+' || *p == '-') p = bd_skip_space (p + 1);
+            if (*p < '0' || *p > '9') return -1;
+            amount = 0;
+            while (*p >= '0' && *p <= '9') {
+                if (amount > 100000000LL) return -1;
+                amount = amount * 10 + (*p++ - '0');
+            }
+            if (neg) amount = -amount;
+            have_amount = 1;
+            p = bd_skip_space (p);
+        }
+        while ((*p | 0x20) >= 'a' && (*p | 0x20) <= 'z') {
+            if (n + 1 >= sizeof word) return -1;
+            word[n++] = (char) (*p++ | 0x20);
+        }
+        word[n] = '\0';
+        if (!n) return -1;
+
+        if (!have_amount) {
+            if (!strcmp (word, "now") || !strcmp (word, "today")) { seen = 1; continue; }
+            if (!strcmp (word, "yesterday")) { rel[2] -= 1; seen = 1; continue; }
+            if (!strcmp (word, "tomorrow")) { rel[2] += 1; seen = 1; continue; }
+            if (!strcmp (word, "ago")) {
+                if (last_field < 0) return -1;
+                rel[last_field] -= 2 * last_amount;
+                last_field = -1;
+                continue;
+            }
+            if (!strcmp (word, "next") || !strcmp (word, "last") || !strcmp (word, "this")) {
+                amount = word[0] == 'n' ? 1 : word[0] == 'l' ? -1 : 0;
+                have_amount = 2;
+                p = bd_skip_space (p);
+                n = 0;
+                while ((*p | 0x20) >= 'a' && (*p | 0x20) <= 'z') {
+                    if (n + 1 >= sizeof word) return -1;
+                    word[n++] = (char) (*p++ | 0x20);
+                }
+                word[n] = '\0';
+                if (!n) return -1;
+            }
+        }
+
+        /* Day of the week: the full name, its first three letters, or
+           GNU's "tues", "wednes", "thur" and "thurs". */
+        int wd = -1;
+        for (int i = 0; i < 7 && wd < 0; i++)
+            if (!strcmp (word, days[i]) || (n == 3 && !strncmp (word, days[i], 3)))
+                wd = i;
+        if (!strcmp (word, "tues")) wd = 2;
+        if (!strcmp (word, "wednes")) wd = 3;
+        if (!strcmp (word, "thur") || !strcmp (word, "thurs")) wd = 4;
+        if (wd >= 0) {
+            if (have_amount == 1 || day_number >= 0) return -1;
+            day_number = wd;
+            day_ordinal = have_amount ? (int) amount : 0;
+            seen = 1;
+            if (*p == ',') p++;
+            continue;
+        }
+
+        int u = -1;
+        for (size_t i = 0; i < sizeof units / sizeof units[0]; i++) {
+            size_t len = strlen (units[i].name);
+            if (!strcmp (word, units[i].name) ||
+                (n == len + 1 && !strncmp (word, units[i].name, len) && word[len] == 's')) {
+                u = (int) i;
+                break;
+            }
+        }
+        if (u < 0) return -1;
+        long long add = amount * units[u].mult;
+        rel[units[u].field] += add;
+        last_field = units[u].field;
+        last_amount = add;
+        seen = 1;
+    }
+    if (!seen) return -1;
+
+    struct tm tm;
+    time_t t = base;
+    if (!(utc ? gmtime_r (&t, &tm) : localtime_r (&t, &tm))) return -1;
+    /* GNU ignores a day of the week when a calendar date is also given. */
+    if (day_number >= 0 && !dated) {
+        tm.tm_mday += (day_number - tm.tm_wday + 7) % 7
+            + 7 * (day_ordinal - (0 < day_ordinal && tm.tm_wday != day_number));
+        tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
+        base_nsec = 0;
+    }
+    if (rel[0] > INT_MAX / 2 || rel[0] < -(INT_MAX / 2) ||
+        rel[1] > INT_MAX / 2 || rel[1] < -(INT_MAX / 2) ||
+        rel[2] > INT_MAX / 2 || rel[2] < -(INT_MAX / 2))
+        return -1;
+    tm.tm_year += (int) rel[0];
+    tm.tm_mon += (int) rel[1];
+    tm.tm_mday += (int) rel[2];
+    tm.tm_isdst = -1;
+    errno = 0;
+    t = utc ? timegm (&tm) : mktime (&tm);
+    if (t == (time_t) -1 && errno != 0) return -1;
+    *out = t + (time_t) rel[3];
+    *nsec = base_nsec;
+    return 0;
+}
+
+/* An absolute date followed by relative items ("2024-01-31 +1 month").
+   Like GNU, the shortest absolute prefix wins, so "2024-01-01 3 hours ago"
+   is three hours before midnight; and a signed number right after a time
+   of day is its zone ("12:00 -2 days" is 12:00 at UTC-2, then +1 day). */
+static int
+bd_parse_with_relative (const char *s, time_t *out, long *nsec, int utc)
+{
+    struct timespec now;
+    if (clock_gettime (CLOCK_REALTIME, &now) < 0) return -1;
+    if (bd_parse_relative (s, now.tv_sec, now.tv_nsec, utc, 0, out, nsec) == 0)
+        return 0;
+    size_t len = strlen (s);
+    if (s[0] == '@') return -1;   /* GNU takes nothing after @SECONDS */
+    char *copy = malloc (len + 1);
+    if (!copy) return -1;
+    for (size_t cut = 1; cut < len; cut++) {
+        if (s[cut] != ' ' && s[cut] != '\t') continue;
+        if (s[cut - 1] == ' ' || s[cut - 1] == '\t') continue;
+        memcpy (copy, s, cut);
+        copy[cut] = '\0';
+        time_t base;
+        long base_nsec;
+        if (bd_parse_d (copy, &base, &base_nsec, utc) != 0) continue;
+        const char *rest = bd_skip_space (s + cut);
+        if (strchr (copy, ':') && (*rest == '+' || *rest == '-') &&
+            rest[1] >= '0' && rest[1] <= '9') {
+            /* Numeric zone: H, HH, HHMM or HH:MM after the sign. */
+            const char *z = rest + 1;
+            int digits = 0, value = 0, minutes = 0;
+            while (z[digits] >= '0' && z[digits] <= '9' && digits < 5)
+                value = value * 10 + (z[digits++] - '0');
+            const char *after = z + digits;
+            if (digits <= 2 && *after == ':' && after[1] >= '0' && after[1] <= '9' &&
+                after[2] >= '0' && after[2] <= '9') {
+                minutes = (after[1] - '0') * 10 + (after[2] - '0');
+                after += 3;
+            } else if (digits == 4) {
+                minutes = value % 100;
+                value /= 100;
+            } else if (digits > 2) {
+                continue;
+            }
+            if (*after && *after != ' ' && *after != '\t') continue;
+            long offset = (value * 3600L + minutes * 60L) * (*rest == '-' ? -1 : 1);
+            time_t wall;
+            long wall_nsec;
+            if (bd_parse_d (copy, &wall, &wall_nsec, 1) != 0) continue;
+            base = wall - (time_t) offset;
+            base_nsec = wall_nsec;
+            rest = after;
+            if (!*bd_skip_space (rest)) {
+                free (copy);
+                *out = base;
+                *nsec = base_nsec;
+                return 0;
+            }
+        }
+        if (bd_parse_relative (rest, base, base_nsec, utc, 1, out, nsec) == 0) {
+            free (copy);
+            return 0;
+        }
+    }
+    free (copy);
+    return -1;
+}
+
 static int
 bd_parse_d (const char *s, time_t *out, long *nsec, int utc)
 {
@@ -869,7 +1079,8 @@ date_builtin (WORD_LIST *list)
         nsec = 0;
         set_clock = 1;
     } else if (date_str) {
-        if (bd_parse_d (date_str, &t, &nsec, utc) < 0) {
+        if (bd_parse_d (date_str, &t, &nsec, utc) < 0 &&
+            bd_parse_with_relative (date_str, &t, &nsec, utc) < 0) {
             builtin_error ("date: cannot parse '%s' (try ISO 8601 or @SECONDS)", date_str);
             return EXECUTION_FAILURE;
         }

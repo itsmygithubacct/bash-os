@@ -96,6 +96,7 @@ cmp_builtin (WORD_LIST *list)
     int npath = 0;
     uint64_t skip[2] = { 0, 0 };
     int nskip = 0;
+    uint64_t limit = UINT64_MAX;
 
     for (WORD_LIST *p = list; p; p = p->next) {
         const char *w = p->word->word;
@@ -106,6 +107,13 @@ cmp_builtin (WORD_LIST *list)
         if (strcmp (w, "--version") == 0) {
             puts ("bashcmp 1.0 (bash-loadable)");
             return EXECUTION_SUCCESS;
+        }
+        if (strncmp (w, "--bytes=", 8) == 0) {
+            if (bcm_parse_skip (w + 8, &limit) < 0) {
+                builtin_error ("invalid --bytes value '%s'", w + 8);
+                return 2;
+            }
+            continue;
         }
         if (strcmp (w, "--") == 0) {
             for (p = p->next; p; p = p->next) {
@@ -142,6 +150,25 @@ cmp_builtin (WORD_LIST *list)
         }
         if (w[0] == '-' && w[1] && strcmp (w, "-") != 0) {
             for (int i = 1; w[i]; i++) {
+                if (w[i] == 'n') {
+                    /* -n LIMIT: the count is the rest of the word, or the
+                       next word. */
+                    const char *count = w[i + 1] ? &w[i + 1] : NULL;
+                    if (!count) {
+                        if (!p->next) {
+                            builtin_error ("option requires an argument -- 'n'");
+                            builtin_usage ();
+                            return 2;
+                        }
+                        p = p->next;
+                        count = p->word->word;
+                    }
+                    if (bcm_parse_skip (count, &limit) < 0) {
+                        builtin_error ("invalid --bytes value '%s'", count);
+                        return 2;
+                    }
+                    break;
+                }
                 switch (w[i]) {
                 case 'l': lflag = 1; break;
                 case 's': sflag = 1; break;
@@ -205,7 +232,7 @@ cmp_builtin (WORD_LIST *list)
         goto done;
     }
     if (lflag) {
-        uint64_t remaining = UINT64_MAX;
+        uint64_t remaining = limit;
         for (int j = 0; j < 2; j++) {
             struct stat st;
             off_t position;
@@ -218,7 +245,7 @@ cmp_builtin (WORD_LIST *list)
         }
         /* Unknown-length streams use the signed file-offset range, as GNU
            cmp does. Known regular inputs narrow that bound. */
-        if (remaining == UINT64_MAX)
+        if (remaining == UINT64_MAX && limit == UINT64_MAX)
             remaining = ((uint64_t) 1 << (sizeof (off_t) * CHAR_BIT - 1)) - 1;
         while (remaining >= 10) {
             offset_width++;
@@ -226,6 +253,7 @@ cmp_builtin (WORD_LIST *list)
         }
     }
     for (;;) {
+        if (off - 1 >= limit) break;
         /* Short reads are normal for pipes. Retain each unmatched suffix
            until the other input supplies bytes, and only read(2) == 0 is EOF. */
         for (int j = 0; j < 2; j++) {
@@ -255,6 +283,7 @@ cmp_builtin (WORD_LIST *list)
         }
         size_t n0 = available[0] - used[0], n1 = available[1] - used[1];
         size_t lim = n0 < n1 ? n0 : n1;
+        if ((uint64_t) lim > limit - (off - 1)) lim = (size_t) (limit - (off - 1));
         for (size_t i = 0; i < lim; i++) {
             unsigned char a = buf[0][used[0] + i], b = buf[1][used[1] + i];
             if (a != b) {
@@ -292,11 +321,12 @@ done:
 char *cmp_doc[] = {
     "Byte-compare two files.",
     "",
-    "    bashcmp [-l|-s] FILE1 FILE2 [SKIP1 [SKIP2]]",
+    "    bashcmp [-l|-s] [-n LIMIT] FILE1 FILE2 [SKIP1 [SKIP2]]",
     "        Default: print 'FILE1 FILE2 differ: char N, line M' on first",
     "        diff. Exit 0 (same), 1 (differ), 2 (error).",
     "    -l   list every diff as 'offset oct1 oct2'",
     "    -s   silent: only exit code",
+    "    -n LIMIT, --bytes=LIMIT   compare at most LIMIT bytes",
     "    SKIP — skip leading bytes (default 0).",
     "",
     "Either file may be '-' to read stdin (but only one).",
@@ -308,6 +338,6 @@ struct builtin bashcmp_struct = {
     cmp_builtin,
     BUILTIN_ENABLED,
     cmp_doc,
-    "bashcmp [-ls] FILE1 FILE2 [SKIP1 [SKIP2]]",
+    "bashcmp [-ls] [-n LIMIT] FILE1 FILE2 [SKIP1 [SKIP2]]",
     0
 };

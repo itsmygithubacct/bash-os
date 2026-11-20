@@ -78,6 +78,9 @@
       "setsid",
       "base64",
       "sha256sum",
+      "md5sum",
+      "iconv",
+      "patch",
       "gzip",
       "tar"
     ]

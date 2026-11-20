@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 /* split.c — POSIX split(1) as a bash builtin.
  *
- *   split [-l N | -b SIZE] [-a SUFLEN] [INPUT [PREFIX]]
+ *   split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [INPUT [PREFIX]]
  *
  * Splits INPUT (or stdin) into pieces named PREFIX{aa,ab,ac,...}.
  * Default: -l 1000 lines per piece, -a 2 (suffix length), PREFIX=x.
@@ -159,6 +159,194 @@ bs_close_output (FILE *out, const char *name)
     return 0;
 }
 
+/* Whole input in memory: -n needs the total size before writing. */
+static unsigned char *
+bs_slurp (FILE *in, size_t *size)
+{
+    size_t cap = 65536, len = 0;
+    unsigned char *buf = malloc (cap);
+    if (!buf) { builtin_error ("out of memory"); return NULL; }
+    for (;;) {
+        if (len == cap) {
+            unsigned char *grown = cap > SIZE_MAX / 2 ? NULL : realloc (buf, cap * 2);
+            if (!grown) { free (buf); builtin_error ("out of memory"); return NULL; }
+            buf = grown;
+            cap *= 2;
+        }
+        size_t r = fread (buf + len, 1, cap - len, in);
+        len += r;
+        if (r == 0) break;
+    }
+    *size = len;
+    return buf;
+}
+
+/* Write one -n piece. Index IDX names the file; with K set, only piece K
+   goes to standard output and nothing is created. */
+static int
+bs_put_piece (const unsigned char *data, size_t n, int to_stdout,
+              char *namebuf, size_t namecap, const char *prefix, int suflen,
+              long idx, int numeric, const struct stat *input_stat, FILE **open_out,
+              int append)
+{
+    if (to_stdout) {
+        if (n && fwrite (data, 1, n, stdout) != n) {
+            builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+            return -1;
+        }
+        return 0;
+    }
+    if (!append || !*open_out) {
+        if (*open_out && bs_close_output (*open_out, namebuf) < 0) { *open_out = NULL; return -1; }
+        *open_out = NULL;
+        if (bs_make_name (namebuf, namecap, prefix, suflen, idx, numeric) < 0) {
+            builtin_error ("split: suffix exhausted (try larger -a)");
+            return -1;
+        }
+        *open_out = bs_open_output (namebuf, input_stat);
+        if (!*open_out) return -1;
+    }
+    if (n && fwrite (data, 1, n, *open_out) != n) {
+        builtin_error ("write %s: %s", namebuf, strerror (errno ? errno : EIO));
+        return -1;
+    }
+    return 0;
+}
+
+/* GNU split -n CHUNKS: N, K/N, l/N, l/K/N, r/N, r/K/N. */
+static int
+bs_split_chunks (FILE *fin, int mode, uintmax_t k, uintmax_t n, char *namebuf,
+                 size_t namecap, const char *prefix, int suflen, long start,
+                 int numeric, const struct stat *input_stat)
+{
+    size_t size;
+    unsigned char *data = bs_slurp (fin, &size);
+    if (!data) return -1;
+    if (ferror (fin)) { free (data); return 0; }   /* reported by the caller */
+    FILE *out = NULL;
+    int rc = 0;
+    if (mode == 'b') {
+        uintmax_t base = size / n, rem = size % n;
+        for (uintmax_t c = 1; c <= n && rc == 0; c++) {
+            uintmax_t from = (c - 1) * base + (c - 1 < rem ? c - 1 : rem);
+            uintmax_t to = c * base + (c < rem ? c : rem);
+            if (k && c != k) continue;
+            rc = bs_put_piece (data + from, (size_t) (to - from), k != 0, namebuf, namecap,
+                               prefix, suflen, start + (long) (c - 1), numeric,
+                               input_stat, &out, 0);
+        }
+    } else if (mode == 'l') {
+        /* GNU's lines_chunk_split: piece C ends at the first newline at or
+           after its byte boundary (the boundaries of plain -n N), so a long
+           line can leave later pieces empty; the last piece takes the rest. */
+        uintmax_t base = size / n, rem = size % n, chunk_no = 1;
+        uintmax_t chunk_end = base + (rem ? 1 : 0);   /* one past the boundary byte */
+        size_t pos = 0;
+        if (!k) rc = bs_put_piece (data, 0, 0, namebuf, namecap, prefix, suflen,
+                                   start, numeric, input_stat, &out, 0);
+        while (rc == 0 && pos < size) {
+            size_t look = chunk_end > pos + 1 ? (size_t) chunk_end - 1 : pos;
+            if (chunk_no == n) look = size;
+            const unsigned char *nl = look < size ? memchr (data + look, '\n', size - look) : NULL;
+            size_t stop = nl ? (size_t) (nl - data) + 1 : size;
+            if (!k || k == chunk_no)
+                rc = bs_put_piece (data + pos, stop - pos, k != 0, namebuf, namecap, prefix,
+                                   suflen, start + (long) (chunk_no - 1), numeric,
+                                   input_stat, &out, 1);
+            pos = stop;
+            if (rc || pos >= size) break;
+            /* Advance to the piece the next line starts in, creating any
+               piece a long line skipped over. */
+            do {
+                chunk_no++;
+                if (k && chunk_no > k) goto done;
+                chunk_end = chunk_no == n ? size
+                    : chunk_no * base + (chunk_no < rem ? chunk_no : rem);
+                if (!k)
+                    rc = bs_put_piece (data, 0, 0, namebuf, namecap, prefix, suflen,
+                                       start + (long) (chunk_no - 1), numeric,
+                                       input_stat, &out, 0);
+            } while (rc == 0 && chunk_end <= pos && chunk_no < n);
+        }
+        while (rc == 0 && !k && chunk_no < n) {
+            chunk_no++;
+            rc = bs_put_piece (data, 0, 0, namebuf, namecap, prefix, suflen,
+                               start + (long) (chunk_no - 1), numeric, input_stat, &out, 0);
+        }
+    } else {
+        /* Round robin: line I goes to piece I mod N. All N files exist. */
+        FILE **outs = NULL;
+        char **names = NULL;
+        if (!k) {
+            outs = calloc ((size_t) n, sizeof *outs);
+            names = calloc ((size_t) n, sizeof *names);
+            if (!outs || !names) { builtin_error ("out of memory"); rc = -1; }
+            for (uintmax_t c = 0; rc == 0 && c < n; c++) {
+                names[c] = malloc (namecap);
+                if (!names[c]) { builtin_error ("out of memory"); rc = -1; break; }
+                if (bs_make_name (names[c], namecap, prefix, suflen, start + (long) c, numeric) < 0) {
+                    builtin_error ("split: suffix exhausted (try larger -a)");
+                    rc = -1;
+                    break;
+                }
+                outs[c] = bs_open_output (names[c], input_stat);
+                if (!outs[c]) rc = -1;
+            }
+        }
+        size_t pos = 0;
+        uintmax_t line = 0;
+        while (rc == 0 && pos < size) {
+            const unsigned char *nl = memchr (data + pos, '\n', size - pos);
+            size_t stop = nl ? (size_t) (nl - data) + 1 : size;
+            uintmax_t c = line++ % n;
+            FILE *dst = k ? (c + 1 == k ? stdout : NULL) : outs[c];
+            if (dst && fwrite (data + pos, 1, stop - pos, dst) != stop - pos) {
+                builtin_error ("write %s: %s", k ? "error" : names[c], strerror (errno ? errno : EIO));
+                rc = -1;
+            }
+            pos = stop;
+        }
+        for (uintmax_t c = 0; outs && c < n; c++)
+            if (outs[c] && bs_close_output (outs[c], names[c]) < 0) rc = -1;
+        for (uintmax_t c = 0; names && c < n; c++) free (names[c]);
+        free (outs);
+        free (names);
+    }
+done:
+    if (out && bs_close_output (out, namebuf) < 0) rc = -1;
+    if (k && fflush (stdout) == EOF) {
+        builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+        rc = -1;
+    }
+    free (data);
+    return rc;
+}
+
+/* Parse -n CHUNKS. Returns 0 and the mode ('b', 'l' or 'r'), K and N. */
+static int
+bs_parse_chunks (const char *v, int *mode, uintmax_t *k, uintmax_t *n)
+{
+    *mode = 'b';
+    *k = 0;
+    if ((v[0] == 'l' || v[0] == 'r') && v[1] == '/') { *mode = v[0]; v += 2; }
+    const char *slash = strchr (v, '/');
+    char *end;
+    if (slash) {
+        if (*v < '0' || *v > '9') return -1;
+        errno = 0;
+        *k = strtoumax (v, &end, 10);
+        if (errno || end != slash) return -1;
+        if (*k == 0) return -2;
+        v = slash + 1;
+    }
+    if (*v < '0' || *v > '9') return -1;
+    errno = 0;
+    *n = strtoumax (v, &end, 10);
+    if (errno || *end || *n == 0 || *n > 100000000) return -1;
+    if (*k > *n) return -2;
+    return 0;
+}
+
 int
 split_builtin (WORD_LIST *list)
 {
@@ -169,6 +357,7 @@ split_builtin (WORD_LIST *list)
     long start = 0;
     const char *prefix = "x";
     const char *input = NULL;
+    const char *chunks = NULL;
 
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
@@ -208,6 +397,14 @@ invalid_start:
             const char *v = w[2] ? w + 2 : (list = list->next, list ? list->word->word : NULL);
             if (!v) { builtin_error ("-b needs SIZE"); builtin_usage (); return EXECUTION_FAILURE; }
             if (bs_parse_size (v, &byte_chunk) < 0) { builtin_error ("-b: bad SIZE: %s", v); builtin_usage (); return EXECUTION_FAILURE; }
+            list = list->next;
+            continue;
+        }
+        if (!strncmp (w, "-n", 2) || !strncmp (w, "--number=", 9)) {
+            const char *v = w[1] == '-' ? w + 9
+                : w[2] ? w + 2 : (list = list->next, list ? list->word->word : NULL);
+            if (!v) { builtin_error ("option requires an argument -- 'n'"); builtin_usage (); return EXECUTION_FAILURE; }
+            chunks = v;
             list = list->next;
             continue;
         }
@@ -260,7 +457,23 @@ invalid_start:
     long idx = start;
     int rc = EXECUTION_SUCCESS;
 
-    if (byte_chunk > 0) {
+    if (chunks) {
+        int mode;
+        uintmax_t k, n;
+        int bad = bs_parse_chunks (chunks, &mode, &k, &n);
+        if (bad == -2) {
+            builtin_error ("invalid chunk number: '%ju'", k);
+            rc = EXECUTION_FAILURE;
+        } else if (bad < 0) {
+            const char *num = chunks;
+            if ((num[0] == 'l' || num[0] == 'r') && num[1] == '/') num += 2;
+            const char *slash = strrchr (num, '/');
+            builtin_error ("invalid number of chunks: '%s'", slash ? slash + 1 : num);
+            rc = EXECUTION_FAILURE;
+        } else if (bs_split_chunks (fin, mode, k, n, namebuf, namecap, prefix, suflen,
+                                    start, numeric, &input_stat) < 0)
+            rc = EXECUTION_FAILURE;
+    } else if (byte_chunk > 0) {
         /* Byte-based splitting. */
         unsigned char buf[8192];
         uintmax_t left_in_chunk = 0;
@@ -355,11 +568,13 @@ invalid_start:
 char *split_doc[] = {
     "Split a file into pieces (POSIX split).",
     "",
-    "    split [-l N | -b SIZE] [-a SUFLEN] [INPUT [PREFIX]]",
+    "    split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [INPUT [PREFIX]]",
     "",
     "    -l N        N lines per piece (default 1000)",
     "    -b SIZE     SIZE bytes per piece; b=512, K=1024, KB=1000, KiB=1024",
     "                Units K, M, G, T, P, E, Z, Y, R, Q; k/m also accepted",
+    "    -n CHUNKS   N, K/N, l/N, l/K/N, r/N or r/K/N pieces, as GNU split;",
+    "                with K, piece K goes to standard output",
     "    -a SUFLEN   suffix length (default 2 → aa..zz, max 26^2 = 676)",
     "    --numeric-suffixes=FROM  use fixed-width decimal suffixes from FROM",
     "",
@@ -373,6 +588,6 @@ struct builtin split_struct = {
     split_builtin,
     BUILTIN_ENABLED,
     split_doc,
-    "split [-l N | -b SIZE] [-a SUFLEN] [INPUT [PREFIX]]",
+    "split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [INPUT [PREFIX]]",
     0
 };

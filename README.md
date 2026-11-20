@@ -32,7 +32,7 @@ Prebuilt Linux x86-64 binaries are available in the
 [0.1.4 release](https://github.com/itsmygithubacct/bash-os/releases/tag/v0.1.4).
 Choose the static archive for a standalone executable. The dynamic archive
 requires glibc 2.38 or newer and the shared libraries listed in its build record.
-Both include the full 287-builtin collection; optional Perl, Python and uv
+Both include the full 290-builtin collection; optional Perl, Python and uv
 integrations are separate. Verify downloads against the release's `SHA256SUMS`.
 
 ```sh
@@ -93,7 +93,7 @@ measured workloads and remaining option limits.
 `clear` (also named `bashclear`) clears the terminal from `core` upward,
 including static builds without terminfo files. Use `clear -x` to preserve
 scrollback or `clear -T xterm` to override `TERM`.
-`base64`, `sha256sum`, `gzip`, and `tar` are also builtins from `core` upward.
+`base64`, `sha256sum`, `md5sum`, `gzip`, and `tar` are also builtins from `core` upward.
 The GNU interfaces and supported options are documented in
 [GNU command compatibility](docs/gnu-compatibility.md).
 
@@ -232,7 +232,7 @@ config/
   loadables.sh                  shell interface to the parser
   profiles.json                 named inclusion profiles
   dependencies.json             pinned external libraries
-  bash-loadables.list           the full set (NAME|short-doc per line), 287 entries
+  bash-loadables.list           the full set (NAME|short-doc per line), 290 entries
   bash-loadables-pure.list      the curated 28-command baseline
 loadables/                      the loadable C sources this repo carries
   common/  _jsmn/               shared headers and a vendored JSON tokenizer

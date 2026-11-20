@@ -2,8 +2,10 @@
  *
  * Phase T of bash-os POSIX gap-fillers.
  *
- *   bashdiff [-u] [-q] [-i] [--help|--version] FILE1 FILE2
+ *   bashdiff [-u|-y [-W NUM]] [-q] [-i] [-r] [--help|--version] FILE1 FILE2
  *
+ *   -y   side-by-side, laid out as GNU diff (-W NUM width, default 130)
+ *   -r   recursive directory comparison, with GNU's "Only in" lines
  *   -u   unified diff (with @@ hunks + 3 lines context)
  *   -q   quiet: only report whether files differ (no content)
  *   -i   ignore case
@@ -37,11 +39,16 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <dirent.h>
 
 #include "loadables.h"
 #include "bl-output.h"
 
-typedef struct { int uflag, qflag, iflag; } bd_opts;
+typedef struct {
+    int uflag, qflag, iflag, yflag, rflag;
+    long width;              /* -W: side-by-side output width */
+    const char *switches;    /* option words as given, for -r headers */
+} bd_opts;
 typedef struct { const unsigned char *data; size_t len; } bd_line;
 
 static int
@@ -511,6 +518,116 @@ bd_emit_unified (bl_output *out, bd_line *A, int n, bd_line *B, int m, bd_op *op
     }
 }
 
+/* Side-by-side output (-y), laid out as GNU diff does: two half columns,
+   a marker gutter in the middle, tabs used to reach each column. Character
+   widths follow the C locale: printable ASCII is one column, other bytes
+   take no column. */
+typedef struct { long half, col2; } bd_sbs;
+
+static long
+bd_tab_to (bl_output *out, long from, long to)
+{
+    long col = from;
+    for (long i = col - col % 8 + 8; i <= to; i += 8) {
+        bl_output_byte (out, '\t');
+        col = i;
+    }
+    for (; col < to; col++) bl_output_byte (out, ' ');
+    return col;
+}
+
+static long
+bd_half_line (bl_output *out, const bd_line *line, long indent, long bound)
+{
+    long in = 0, outpos = 0;
+    for (size_t i = 0; i < line->len; i++) {
+        unsigned char c = line->data[i];
+        if (c == '\t') {
+            long spaces = 8 - ((in + indent) % 8);
+            if (in == outpos && outpos + spaces < bound) {
+                outpos += spaces;
+                bl_output_byte (out, c);
+            }
+            in += spaces;
+        } else if (c == '\r') {
+            bl_output_byte (out, c);
+            bd_tab_to (out, 0, indent);
+            in = outpos = 0;
+        } else if (c == '\b') {
+            if (in != 0 && --in < outpos) bl_output_byte (out, c);
+        } else if (c >= 0x20 && c < 0x7f) {
+            if (++in <= bound) { outpos = in; bl_output_byte (out, c); }
+        } else if (c < 0x20 && c != '\f' && c != '\v') {
+            if (in <= bound) { outpos = in; bl_output_byte (out, c); }
+        } else if (in < bound) {
+            bl_output_byte (out, c);
+        }
+    }
+    return outpos;
+}
+
+static void
+bd_sbs_line (bl_output *out, const bd_sbs *g, const bd_line *left, int left_nl,
+             char sep, const bd_line *right, int right_nl)
+{
+    long col = 0;
+    int newline = 0;
+    if (left) {
+        newline |= left_nl;
+        col = bd_half_line (out, left, 0, g->half);
+    }
+    if (sep != ' ') {
+        col = bd_tab_to (out, col, (g->half + g->col2 - 1) / 2) + 1;
+        if (sep == '|' && newline != right_nl) sep = newline ? '/' : '\\';
+        bl_output_byte (out, sep);
+    }
+    if (right) {
+        newline |= right_nl;
+        if (right->len) {
+            col = bd_tab_to (out, col, g->col2);
+            bd_half_line (out, right, col, g->half);
+        }
+    }
+    if (newline) bl_output_byte (out, '\n');
+}
+
+static void
+bd_emit_side_by_side (bl_output *out, bd_line *A, int n, bd_line *B, int m,
+                      bd_op *ops, int n_ops, long width,
+                      int no_newline_a, int no_newline_b)
+{
+    bd_sbs g;
+    long off = (width + 8 + 3) / 16 * 8;
+    g.half = off - 3 < width - off ? off - 3 : width - off;
+    if (g.half < 0) g.half = 0;
+    g.col2 = g.half ? off : width;
+    int i = 0;
+    while (i < n_ops) {
+        if (ops[i].op == BDOP_EQ) {
+            int la = ops[i].la, lb = ops[i].lb;
+            bd_sbs_line (out, &g, &A[la], !(no_newline_a && la == n - 1), ' ',
+                         &B[lb], !(no_newline_b && lb == m - 1));
+            i++;
+            continue;
+        }
+        int j = i, nd = 0, ni = 0;
+        int dels[2] = { -1, -1 }, ins[2] = { -1, -1 };
+        while (j < n_ops && ops[j].op != BDOP_EQ) {
+            if (ops[j].op == BDOP_DEL) { if (dels[0] < 0) dels[0] = ops[j].la; dels[1] = ops[j].la; nd++; }
+            else { if (ins[0] < 0) ins[0] = ops[j].lb; ins[1] = ops[j].lb; ni++; }
+            j++;
+        }
+        for (int k = 0; k < nd || k < ni; k++) {
+            const bd_line *l = k < nd ? &A[dels[0] + k] : NULL;
+            const bd_line *r = k < ni ? &B[ins[0] + k] : NULL;
+            int lnl = l && !(no_newline_a && dels[0] + k == n - 1);
+            int rnl = r && !(no_newline_b && ins[0] + k == m - 1);
+            bd_sbs_line (out, &g, l, lnl, l && r ? '|' : l ? '<' : '>', r, rnl);
+        }
+        i = j;
+    }
+}
+
 static int
 bd_finish_output (int status)
 {
@@ -522,67 +639,22 @@ bd_finish_output (int status)
     return status;
 }
 
-int
-diff_builtin (WORD_LIST *list)
+/* Compare two non-directory operands. HEADER, when set, is the
+   "diff -r A B" line printed before a textual difference. */
+static int
+bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *header)
 {
-    bd_opts o = {0};
-    const char *paths[2] = { NULL, NULL };
-    int npos = 0;
-    for (WORD_LIST *p = list; p; p = p->next) {
-        const char *w = p->word->word;
-        if (strcmp (w, "--help") == 0) { builtin_usage (); return EXECUTION_SUCCESS; }
-        if (strcmp (w, "--version") == 0 || strcmp (w, "-v") == 0) {
-            puts ("bashdiff 1.0 (bash-loadable)");
-            return EXECUTION_SUCCESS;
-        }
-        if (strcmp (w, "--") == 0) {
-            for (p = p->next; p; p = p->next) {
-                if (npos < 2) paths[npos++] = p->word->word;
-                else {
-                    builtin_error ("extra operand: %s", p->word->word);
-                    builtin_usage ();
-                    return EX_USAGE;
-                }
-            }
-            break;
-        }
-        if (w[0] == '-' && w[1] && strcmp (w, "-") != 0) {
-            for (int i = 1; w[i]; i++) {
-                switch (w[i]) {
-                case 'u': o.uflag = 1; break;
-                case 'q': o.qflag = 1; break;
-                case 'i': o.iflag = 1; break;
-                default:
-                    builtin_error ("unknown flag: -%c", w[i]);
-                    builtin_usage ();
-                    return EX_USAGE;
-                }
-            }
-        } else {
-            if (npos < 2) paths[npos++] = w;
-            else {
-                builtin_error ("extra operand: %s", w);
-                builtin_usage ();
-                return EX_USAGE;
-            }
-        }
-    }
-    if (npos != 2) {
-        builtin_usage ();
-        return EX_USAGE;
-    }
-
     /* GNU diff treats these as the same input without reading it. In
        particular, do not consume a pipe or wait for EOF before returning. */
-    if (bd_is_stdin (paths[0]) && bd_is_stdin (paths[1]))
+    if (bd_is_stdin (p0) && bd_is_stdin (p1))
         return EXECUTION_SUCCESS;
 
     /* Load distinct operands once each; a single "-" borrows stdin. */
     unsigned char *da = NULL, *db = NULL;
     size_t la = 0, lb = 0;
-    if (bd_load (paths[0], &da, &la) < 0)
+    if (bd_load (p0, &da, &la) < 0)
         return 2;
-    if (bd_load (paths[1], &db, &lb) < 0) {
+    if (bd_load (p1, &db, &lb) < 0) {
         free (da);
         return 2;
     }
@@ -590,15 +662,15 @@ diff_builtin (WORD_LIST *list)
     /* Equal bytes imply equal lines for every supported comparison mode.
        Avoid indexing lines and building an edit trace when
        the complete inputs already establish that there is no difference. */
-    if (bd_files_equal (da, la, db, lb)) {
+    if (!o->yflag && bd_files_equal (da, la, db, lb)) {
         free (da);
         free (db);
         return EXECUTION_SUCCESS;
     }
 
     /* Byte inequality fully answers a case-sensitive quiet comparison. */
-    if (o.qflag && !o.iflag) {
-        printf ("Files %s and %s differ\n", paths[0], paths[1]);
+    if (o->qflag && !o->iflag) {
+        printf ("Files %s and %s differ\n", p0, p1);
         free (da);
         free (db);
         return bd_finish_output (1);
@@ -615,10 +687,10 @@ diff_builtin (WORD_LIST *list)
         if (same)
             rc = 0;
         else {
-            if (o.qflag)
-                printf ("Files %s and %s differ\n", paths[0], paths[1]);
+            if (o->qflag)
+                printf ("Files %s and %s differ\n", p0, p1);
             else
-                printf ("Binary files %s and %s differ\n", paths[0], paths[1]);
+                printf ("Binary files %s and %s differ\n", p0, p1);
             rc = 1;
         }
         free (da);
@@ -627,13 +699,13 @@ diff_builtin (WORD_LIST *list)
     }
 
     int n, m, no_newline_a = 0, no_newline_b = 0;
-    bd_line *A = bd_slurp (da, la, paths[0], &n, &no_newline_a);
+    bd_line *A = bd_slurp (da, la, p0, &n, &no_newline_a);
     if (!A) {
         free (da);
         free (db);
         return 2;
     }
-    bd_line *B = bd_slurp (db, lb, paths[1], &m, &no_newline_b);
+    bd_line *B = bd_slurp (db, lb, p1, &m, &no_newline_b);
     if (!B) {
         free (A);
         free (da);
@@ -643,15 +715,15 @@ diff_builtin (WORD_LIST *list)
     int n_ops;
     bd_op *ops = NULL;
     int rc = 2;
-    if (o.qflag) {
+    if (o->qflag) {
         int equal = n == m && no_newline_a == no_newline_b;
         for (int i = 0; equal && i < n; i++)
-            equal = bd_lineq (&A[i], &B[i], o.iflag);
-        if (!equal) printf ("Files %s and %s differ\n", paths[0], paths[1]);
+            equal = bd_lineq (&A[i], &B[i], o->iflag);
+        if (!equal) printf ("Files %s and %s differ\n", p0, p1);
         rc = bd_finish_output (equal ? 0 : 1);
         goto cleanup;
     }
-    ops = bd_myers (A, n, B, m, o.iflag, no_newline_a, no_newline_b, &n_ops);
+    ops = bd_myers (A, n, B, m, o->iflag, no_newline_a, no_newline_b, &n_ops);
     if (n_ops < 0) goto cleanup;
 
     /* Detect "differ at all" by scanning for non-EQ. */
@@ -663,10 +735,13 @@ diff_builtin (WORD_LIST *list)
         differ = 1;
 
     rc = differ ? 1 : 0;
-    if (differ && !o.qflag) {
+    if ((differ || o->yflag) && !o->qflag) {
         bl_output out;
         bl_output_init (&out, stdout);
-        if (o.uflag) bd_emit_unified (&out, A, n, B, m, ops, n_ops, paths[0], paths[1],
+        if (header && (differ || o->yflag)) { bd_text (&out, header); bl_output_byte (&out, '\n'); }
+        if (o->yflag) bd_emit_side_by_side (&out, A, n, B, m, ops, n_ops, o->width,
+                                           no_newline_a, no_newline_b);
+        else if (o->uflag) bd_emit_unified (&out, A, n, B, m, ops, n_ops, p0, p1,
                                      no_newline_a, no_newline_b);
         else         bd_emit_ed (&out, A, n, B, m, ops, n_ops, no_newline_a, no_newline_b);
         bl_output_flush (&out);
@@ -675,8 +750,8 @@ diff_builtin (WORD_LIST *list)
             clearerr (stdout);
             rc = 2;
         }
-    } else if (differ && o.qflag) {
-        printf ("Files %s and %s differ\n", paths[0], paths[1]);
+    } else if (differ && o->qflag) {
+        printf ("Files %s and %s differ\n", p0, p1);
     }
 
     rc = bd_finish_output (rc);
@@ -689,12 +764,283 @@ cleanup:
     return rc;
 }
 
+static char *
+bd_join (const char *dir, const char *name)
+{
+    size_t dl = strlen (dir), nl = strlen (name);
+    int slash = dl && dir[dl - 1] == '/' ? 0 : 1;
+    char *path = malloc (dl + slash + nl + 1);
+    if (!path) { builtin_error ("out of memory"); return NULL; }
+    memcpy (path, dir, dl);
+    if (slash) path[dl] = '/';
+    memcpy (path + dl + slash, name, nl + 1);
+    return path;
+}
+
+static const char *
+bd_file_type (const struct stat *st)
+{
+    if (S_ISREG (st->st_mode)) return st->st_size ? "regular file" : "regular empty file";
+    if (S_ISDIR (st->st_mode)) return "directory";
+    if (S_ISLNK (st->st_mode)) return "symbolic link";
+    if (S_ISFIFO (st->st_mode)) return "fifo";
+    if (S_ISSOCK (st->st_mode)) return "socket";
+    if (S_ISCHR (st->st_mode)) return "character special file";
+    if (S_ISBLK (st->st_mode)) return "block special file";
+    return "weird file";
+}
+
+static int
+bd_name_cmp (const void *a, const void *b)
+{
+    return strcmp (*(char *const *) a, *(char *const *) b);
+}
+
+/* Sorted entry names of DIR, without "." and "..". */
+static char **
+bd_list_dir (const char *dir, size_t *count)
+{
+    DIR *d = opendir (dir);
+    if (!d) { builtin_error ("%s: %s", dir, strerror (errno)); return NULL; }
+    size_t n = 0, cap = 16;
+    char **names = malloc (cap * sizeof *names);
+    struct dirent *de;
+    while (names && (errno = 0, de = readdir (d))) {
+        if (!strcmp (de->d_name, ".") || !strcmp (de->d_name, "..")) continue;
+        if (n == cap) {
+            char **grown = realloc (names, (cap *= 2) * sizeof *names);
+            if (!grown) { for (size_t i = 0; i < n; i++) free (names[i]); free (names); names = NULL; break; }
+            names = grown;
+        }
+        if (!(names[n] = strdup (de->d_name))) { for (size_t i = 0; i < n; i++) free (names[i]); free (names); names = NULL; break; }
+        n++;
+    }
+    if (names && errno) {
+        builtin_error ("%s: %s", dir, strerror (errno));
+        for (size_t i = 0; i < n; i++) free (names[i]);
+        free (names);
+        names = NULL;
+    } else if (!names) builtin_error ("out of memory");
+    closedir (d);
+    if (names) qsort (names, n, sizeof *names, bd_name_cmp);
+    *count = n;
+    return names;
+}
+
+static int bd_compare_paths (const char *p0, const char *p1, const bd_opts *o, int top);
+
+/* Two directories, as GNU diff does: entries in name order, "Only in"
+   for one-sided names, recursion with -r, else "Common subdirectories". */
+static int
+bd_compare_dirs (const char *d0, const char *d1, const bd_opts *o)
+{
+    size_t n0 = 0, n1 = 0;
+    char **a = bd_list_dir (d0, &n0);
+    if (!a) return 2;
+    char **b = bd_list_dir (d1, &n1);
+    if (!b) { for (size_t i = 0; i < n0; i++) free (a[i]); free (a); return 2; }
+    int rc = 0;
+    size_t i = 0, j = 0;
+    while (i < n0 || j < n1) {
+        int c = i >= n0 ? 1 : j >= n1 ? -1 : strcmp (a[i], b[j]);
+        int r;
+        if (c) {
+            const char *dir = c < 0 ? d0 : d1, *name = c < 0 ? a[i++] : b[j++];
+            fflush (stdout);
+            printf ("Only in %s: %s\n", dir, name);
+            r = 1;
+        } else {
+            char *q0 = bd_join (d0, a[i]), *q1 = q0 ? bd_join (d1, b[j]) : NULL;
+            r = q1 ? bd_compare_paths (q0, q1, o, 0) : 2;
+            free (q0);
+            free (q1);
+            i++, j++;
+        }
+        if (r > rc) rc = r;
+    }
+    for (size_t k = 0; k < n0; k++) free (a[k]);
+    for (size_t k = 0; k < n1; k++) free (b[k]);
+    free (a);
+    free (b);
+    return rc;
+}
+
+static int
+bd_compare_paths (const char *p0, const char *p1, const bd_opts *o, int top)
+{
+    struct stat s0, s1;
+    int d0 = 0, d1 = 0;
+    if (!bd_is_stdin (p0)) {
+        if (stat (p0, &s0) < 0) { builtin_error ("%s: %s", p0, strerror (errno)); return 2; }
+        d0 = S_ISDIR (s0.st_mode);
+    }
+    if (!bd_is_stdin (p1)) {
+        if (stat (p1, &s1) < 0) { builtin_error ("%s: %s", p1, strerror (errno)); return 2; }
+        d1 = S_ISDIR (s1.st_mode);
+    }
+    if (d0 && d1) {
+        if (top == 1 || o->rflag) return bd_compare_dirs (p0, p1, o);
+        fflush (stdout);
+        printf ("Common subdirectories: %s and %s\n", p0, p1);
+        return bd_finish_output (0);
+    }
+    if (d0 != d1) {
+        if (top != 1) {
+            fflush (stdout);
+            printf ("File %s is a %s while file %s is a %s\n", p0,
+                    bd_file_type (&s0), p1, bd_file_type (&s1));
+            return bd_finish_output (1);
+        }
+        /* DIR FILE compares DIR/basename(FILE) with FILE. */
+        const char *file = d0 ? p1 : p0, *dir = d0 ? p0 : p1;
+        if (bd_is_stdin (file)) { builtin_error ("cannot compare '-' to a directory"); return 2; }
+        const char *base = strrchr (file, '/');
+        base = base ? base + 1 : file;
+        char *joined = bd_join (dir, base);
+        if (!joined) return 2;
+        /* Level 2: compared like a top-level pair, without a header. */
+        int rc = d0 ? bd_compare_paths (joined, p1, o, 2) : bd_compare_paths (p0, joined, o, 2);
+        free (joined);
+        return rc;
+    }
+    if (top) return bd_compare_files (p0, p1, o, NULL);
+    size_t len = strlen (o->switches) + strlen (p0) + strlen (p1) + 8;
+    char *header = malloc (len);
+    if (!header) { builtin_error ("out of memory"); return 2; }
+    snprintf (header, len, "diff%s %s %s", o->switches, p0, p1);
+    fflush (stdout);
+    int rc = bd_compare_files (p0, p1, o, header);
+    free (header);
+    return rc;
+}
+
+int
+diff_builtin (WORD_LIST *list)
+{
+    bd_opts o = {0};
+    const char *paths[2] = { NULL, NULL };
+    int npos = 0;
+    size_t sw_len = 0;
+    o.width = 130;
+    /* Option words as given, for the "diff OPTIONS A B" lines of -r. */
+    for (WORD_LIST *p = list; p; p = p->next)
+        sw_len += strlen (p->word->word) + 1;
+    char *switches = malloc (sw_len + 1);
+    if (!switches) { builtin_error ("out of memory"); return 2; }
+    switches[0] = '\0';
+#define BD_USAGE_FAIL do { free (switches); builtin_usage (); return EX_USAGE; } while (0)
+    for (WORD_LIST *p = list; p; p = p->next) {
+        const char *w = p->word->word;
+        if (strcmp (w, "--help") == 0) { free (switches); builtin_usage (); return EXECUTION_SUCCESS; }
+        if (strcmp (w, "--version") == 0 || strcmp (w, "-v") == 0) {
+            free (switches);
+            puts ("bashdiff 1.0 (bash-loadable)");
+            return EXECUTION_SUCCESS;
+        }
+        if (strcmp (w, "--") == 0) {
+            for (p = p->next; p; p = p->next) {
+                if (npos < 2) paths[npos++] = p->word->word;
+                else {
+                    builtin_error ("extra operand: %s", p->word->word);
+                    BD_USAGE_FAIL;
+                }
+            }
+            break;
+        }
+        if (w[0] == '-' && w[1] == '-') {
+            const char *width = NULL;
+            if (!strcmp (w, "--side-by-side")) o.yflag = 1;
+            else if (!strcmp (w, "--recursive")) o.rflag = 1;
+            else if (!strcmp (w, "--unified")) o.uflag = 1;
+            else if (!strcmp (w, "--brief")) o.qflag = 1;
+            else if (!strcmp (w, "--ignore-case")) o.iflag = 1;
+            else if (!strncmp (w, "--width=", 8)) width = w + 8;
+            else {
+                builtin_error ("unknown option: %s", w);
+                BD_USAGE_FAIL;
+            }
+            strcat (switches, " ");
+            strcat (switches, w);
+            if (width) {
+                char *end;
+                errno = 0;
+                long v = strtol (width, &end, 10);
+                if (errno || end == width || *end || v <= 0) {
+                    builtin_error ("invalid width '%s'", width);
+                    BD_USAGE_FAIL;
+                }
+                o.width = v;
+            }
+            continue;
+        }
+        if (w[0] == '-' && w[1] && strcmp (w, "-") != 0) {
+            strcat (switches, " ");
+            strcat (switches, w);
+            for (int i = 1; w[i]; i++) {
+                if (w[i] == 'W') {
+                    /* -W NUM: the rest of the word, or the next word. */
+                    const char *width = w[i + 1] ? &w[i + 1] : NULL;
+                    if (!width) {
+                        if (!p->next) {
+                            builtin_error ("option requires an argument -- 'W'");
+                            BD_USAGE_FAIL;
+                        }
+                        p = p->next;
+                        width = p->word->word;
+                        strcat (switches, " ");
+                        strcat (switches, width);
+                    }
+                    char *end;
+                    errno = 0;
+                    long v = strtol (width, &end, 10);
+                    if (errno || end == width || *end || v <= 0) {
+                        builtin_error ("invalid width '%s'", width);
+                        BD_USAGE_FAIL;
+                    }
+                    o.width = v;
+                    break;
+                }
+                switch (w[i]) {
+                case 'u': o.uflag = 1; break;
+                case 'q': o.qflag = 1; break;
+                case 'i': o.iflag = 1; break;
+                case 'y': o.yflag = 1; break;
+                case 'r': o.rflag = 1; break;
+                default:
+                    builtin_error ("unknown flag: -%c", w[i]);
+                    BD_USAGE_FAIL;
+                }
+            }
+        } else {
+            if (npos < 2) paths[npos++] = w;
+            else {
+                builtin_error ("extra operand: %s", w);
+                BD_USAGE_FAIL;
+            }
+        }
+    }
+    if (npos != 2) BD_USAGE_FAIL;
+#undef BD_USAGE_FAIL
+    if (o.yflag && o.uflag) {
+        free (switches);
+        builtin_error ("conflicting output style options");
+        builtin_usage ();
+        return EX_USAGE;
+    }
+    o.switches = switches;
+    int rc = bd_compare_paths (paths[0], paths[1], &o, 1);
+    free (switches);
+    return bd_finish_output (rc);
+}
+
 char *diff_doc[] = {
     "Compare two files line by line (Myers O(ND)).",
     "",
-    "    bashdiff [-u] [-q] [-i] [--help|--version] FILE1 FILE2",
+    "    bashdiff [-u|-y [-W NUM]] [-q] [-i] [-r] [--help|--version] FILE1 FILE2",
     "",
     "    -u   unified diff (3 lines context per hunk)",
+    "    -y   side-by-side output; -W NUM sets the width (default 130)",
+    "    -r   compare directories recursively",
     "    -q   only report whether files differ",
     "    -i   ignore case",
     "    -v, --version  show version",
@@ -710,6 +1056,6 @@ struct builtin bashdiff_struct = {
     diff_builtin,
     BUILTIN_ENABLED,
     diff_doc,
-    "bashdiff [-uqi] [--help|--version] FILE1 FILE2",
+    "bashdiff [-uqiyr] [-W NUM] [--help|--version] FILE1 FILE2",
     0
 };
