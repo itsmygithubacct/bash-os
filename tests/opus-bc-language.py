@@ -11,7 +11,7 @@ limits and the cleanup after errors, output failures and interrupts.
 Every program in the differential corpora runs through the builtin and
 through GNU bc 1.07.1 as a separate process; standard output must be
 byte-identical, with the same recovery exit status. Explicit strict-status
-contracts are checked separately; diagnostic presence is compared too.
+contracts are checked separately. Diagnostics must match byte for byte.
 """
 from pathlib import Path
 import os
@@ -65,8 +65,8 @@ def differential(program, options=(), line_length='0', label=None):
     ours = bashos('bc "$@"', *options, data=program, env=env)
     ref = gnu(program, options, env=host)
     want_rc = ref.returncode
-    assert (ours.stdout, ours.returncode, bool(ours.stderr)) == (
-        ref.stdout, want_rc, bool(ref.stderr)), (
+    assert (ours.stdout, ours.returncode, ours.stderr) == (
+        ref.stdout, want_rc, ref.stderr), (
         label, program[:300], options, line_length, ours.stdout[:400], ref.stdout[:400],
         ours.returncode, want_rc, ours.stderr[:300], ref.stderr[:300])
     checks += 1
@@ -395,8 +395,8 @@ define g() { return (v + n) }; g()'
 ''')
     assert p.stdout == (b'8\nFF\n9\nrc=0\n0\n10\n255\n255\n0\n20\n0\n0\nrc=0\n'
                         b'99\n42\n99\n42\nrc=0\n0\n0\n0\n'), (p.stdout, p.stderr)
-    assert p.stderr.count(b'function f not defined') == 1, p.stderr
-    assert p.stderr.count(b'divide by zero') == 2, p.stderr
+    assert p.stderr.count(b'Function f not defined.') == 1, p.stderr
+    assert p.stderr.count(b'Divide by zero') == 2, p.stderr
     checks += 1
     # Twenty-five calls in one shell, each defining and recursing.
     p = bashos('for ((i = 0; i < 25; i++)); do bc <<< "define f(n) { if (n < 2) return (n); return (f(n-1) + f(n-2)) }; f(15); a[i++] = i; a[0]"; done')
@@ -442,8 +442,8 @@ x'; echo "rc=$?"; bc <<< '2 + 2'
                         (['lib.bc', 'bad.bc', 'main.bc'], b''), (['reader.bc'], b'6\n7\n')]:
         ours = bashos('cd "$1" && shift && bc "$@"', d, *files, data=data)
         ref = gnu(data, files, cwd=d)
-        assert (ours.stdout, ours.returncode, bool(ours.stderr)) == (
-            ref.stdout, ref.returncode, bool(ref.stderr)), (
+        assert (ours.stdout, ours.returncode, ours.stderr) == (
+            ref.stdout, ref.returncode, ref.stderr), (
             files, ours.stdout, ref.stdout, ours.stderr, ref.stderr)
         checks += 1
     p = bashos('bc "$1" < /dev/null', d/'bad.bc')
@@ -547,7 +547,9 @@ bc -l "$1" <<< $'3\\n4'""", d/'churn.bc', env=churn_env, timeout=600)
     assert sanitized or after - before < 256, (before, after, p.stderr[-300:])
     assert lines[1] == b'235298' and lines[-3:] == [b'.561424135265014541343501', b'strp', b''], (
         p.stdout, p.stderr)
-    assert p.returncode == 0 and b'func=g): divide by zero' in p.stderr, p.stderr
+    reference = gnu(b'3\n4\n', ('-l', str(d/'churn.bc')))
+    error, = (line for line in reference.stderr.splitlines() if line.startswith(b'Runtime error (func=g,'))
+    assert p.returncode == 0 and error in p.stderr.splitlines(), (error, p.stderr)
     checks += 1
 
     # 9. With an empty PATH the command is the builtin.

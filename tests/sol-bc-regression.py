@@ -30,8 +30,8 @@ def differential(program, options=()):
                          capture_output=True, env=env, timeout=60)
     assert ref.returncode == 0, ref
     p = run('bc "$@"', data, options)
-    assert (p.stdout, p.returncode, bool(p.stderr)) == (
-        ref.stdout, ref.returncode, bool(ref.stderr)), (
+    assert (p.stdout, p.returncode, p.stderr) == (
+        ref.stdout, ref.returncode, ref.stderr), (
         data[:500], p.returncode, p.stdout[:500], p.stderr[:500],
         ref.stdout[:500], ref.stderr[:500])
     checks += 1

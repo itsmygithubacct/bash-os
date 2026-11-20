@@ -193,7 +193,7 @@ with tempfile.TemporaryDirectory(prefix='bash-os-bc-') as tmp:
     # A runtime error is reported, and leaves nothing behind for the next call.
     p = bashos('bc <<< "1/0"; echo "rc=$?"; bc <<< "scale=2; 1/4"', )
     assert p.stdout == b'rc=0\n.25\n', (p.stdout, p.stderr)
-    assert b'divide by zero' in p.stderr, p.stderr
+    assert p.stderr == gnu(b'1/0\n')[1], p.stderr
     checks += 1
     for exponent in ('-1', '-2', '-.5'):
         program = f'0^{exponent}\n'.encode()

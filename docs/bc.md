@@ -107,7 +107,7 @@ deliberate differences are:
 | Exit status after a syntax or runtime error | 0 | 0 by default; 1 with `--strict-errors`, `-e` or `-f` |
 | Exit status when a named file cannot be opened | 1 | 1 |
 | Exit status after an output write error (`/dev/full`) | 1 | 1 |
-| Diagnostic text | `(standard_in) 2: syntax error`, `Runtime error (func=f, adr=12): Divide by zero` | `bc: (standard_in) 2: syntax error`, `bc: (standard_in) 1: runtime error (func=f): divide by zero` on standard error, prefixed by the shell; a diagnostic is written exactly when GNU writes one |
+| Diagnostic text | `(standard_in) 2: syntax error`, `Runtime error (func=f, adr=12): Divide by zero` | The same syntax and runtime diagnostics on standard error, including the function and instruction address |
 | `read()` | reads a number | reads the next line of standard input and evaluates it as an expression in the current `ibase` (the builtin's original contract) |
 | Recursion depth | heap-bounded (100,000 calls is fine) | bounded by the C stack: about 7 MiB under the default 8 MiB limit, which is roughly 10,000 nested calls of a simple recursive function; deeper, the item fails with `nested too deeply` instead of crashing the shell, and the same bound applies to absurdly nested source |
 | A void function used in an expression | rejected while parsing | the same when it was defined void earlier; a later redefinition is caught when it runs |
@@ -189,7 +189,7 @@ remainder, fractional divisors, negative powers, square roots).
 Arithmetic comparisons set `BC_LINE_LENGTH=0` to keep long GNU results unwrapped.
 
 `tests/opus-bc-language.py` compares standard output, the presence of a
-diagnostic and the exit-status contract with GNU bc for:
+diagnostic text and exit status with GNU bc for:
 
 * about 200 hand-written programs: every statement form, functions with
   scalar, array and reference parameters, autos, recursion (factorial,

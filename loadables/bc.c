@@ -2118,6 +2118,7 @@ struct bc_node {
     short    op;
     int      id;
     int      line;
+    size_t   addr;           /* GNU bc instruction offset used in runtime diagnostics */
     int      paren;          /* written in parentheses */
     bc_node *a, *b, *c, *d;
     bc_node *next;           /* next statement / argument / print item */
@@ -2223,6 +2224,7 @@ typedef struct {
     bc_src    *src;      /* the source being read, for diagnostics */
     const char *func;    /* the function running, for diagnostics */
     int        line;     /* line of the statement running */
+    size_t     addr;     /* instruction reporting a runtime error or warning */
     char      *stack_base;
     size_t     stack_limit;
 } bc_interp;
@@ -2248,20 +2250,19 @@ static BC_NOINLINE void
 bc_syntax_msg (bc_interp *ip, int line, const char *msg)
 {
     bc_flush_for_message (ip);
-    builtin_error ("%s %d: %s", ip->src ? ip->src->name : "(standard_in)", line, msg);
+    fprintf (stderr, "%s %d: %s\n", ip->src ? ip->src->name : "(standard_in)", line, msg);
     ip->failed = 1;
 }
 
 static BC_NOINLINE void
 bc_rt_error (bc_interp *ip, const char *fmt, const char *arg)
 {
-    char msg[256];
     if (ip->err) return;           /* only the first error of an item */
-    snprintf (msg, sizeof msg, fmt, arg ? arg : "");
     bc_flush_for_message (ip);
-    builtin_error ("%s %d: runtime error (func=%s): %s",
-                   ip->src ? ip->src->name : "(standard_in)", ip->line,
-                   ip->func ? ip->func : "(main)", msg);
+    fprintf (stderr, "Runtime error (func=%s, adr=%zu): ",
+             ip->func ? ip->func : "(main)", ip->addr);
+    fprintf (stderr, fmt, arg ? arg : "");
+    fputc ('\n', stderr);
     ip->err = 1;
     ip->failed = 1;
 }
@@ -2277,9 +2278,8 @@ static BC_NOINLINE void
 bc_rt_warn (bc_interp *ip, const char *msg)
 {
     bc_flush_for_message (ip);
-    builtin_warning ("%s %d: runtime warning (func=%s): %s",
-                     ip->src ? ip->src->name : "(standard_in)", ip->line,
-                     ip->func ? ip->func : "(main)", msg);
+    fprintf (stderr, "Runtime warning (func=%s, adr=%zu): %s\n",
+             ip->func ? ip->func : "(main)", ip->addr, msg);
 }
 
 /* Has the C stack used up its budget?  Recursion in a bc program becomes
@@ -2632,13 +2632,13 @@ typedef struct {
     bc_src    *src;
     int        have;           /* tok holds an unconsumed token */
     bc_tok     tok;
-    int        err;            /* a syntax error was reported in this item */
-    int        suppress;       /* further diagnostics in this item stay quiet */
+    int        err;            /* 1 for syntax errors, 2 for semantic errors */
+    int        suppress;       /* shifts before another syntax diagnostic */
     int        steps;          /* tokens consumed; recovery uses this to move */
     int        quit;
     int        in_func, func_void, loops;
     int        stray_arrays;   /* NAME[] outside an argument list */
-    int        void_calls;     /* calls of functions now defined void */
+    size_t     pc;             /* bytecode position within this input item or function */
     int        discard;        /* a semantic error: parse on, run nothing */
     bc_arena  *arena;
 } bc_parser;
@@ -2856,6 +2856,7 @@ bc_consume (bc_parser *p)
     bc_tok_free (&p->tok);
     p->have = 0;
     p->steps++;
+    if (p->suppress) p->suppress--;
 }
 
 /* Take the current token's text, leaving the token consumed. */
@@ -2869,6 +2870,7 @@ bc_take_text (bc_parser *p, size_t *len)
     p->tok.text = NULL;
     p->have = 0;
     p->steps++;
+    if (p->suppress) p->suppress--;
     return text;
 }
 
@@ -2877,7 +2879,7 @@ bc_syntax_error (bc_parser *p)
 {
     if (!p->err && !p->suppress) {
         bc_syntax_msg (p->ip, p->src->line, "syntax error");
-        p->suppress = 1;
+        p->suppress = 3;
     }
     p->err = 1;
 }
@@ -2887,9 +2889,9 @@ bc_semantic_error (bc_parser *p, const char *msg)
 {
     if (!p->err && !p->suppress) {
         bc_syntax_msg (p->ip, p->src->line, msg);
-        p->suppress = 1;
+        p->suppress = 3;
     }
-    p->err = 1;
+    p->err = 2;
 }
 
 static void
@@ -2970,6 +2972,28 @@ bc_is_named (const bc_node *n)
     return n && !n->paren && (n->kind == E_VAR || n->kind == E_ELEM || n->kind == E_SPECIAL);
 }
 
+/* GNU bc encodes a named operand as an opcode and a one- or two-byte ID.
+   User variables follow five special variables; array and function IDs start at 1. */
+static size_t
+bc_name_width (const bc_node *n)
+{
+    int first = n->kind == E_VAR ? 5 : 1;
+    return n->kind == E_SPECIAL || n->id + first < 128 ? 2 : 3;
+}
+
+static int
+bc_parse_is_void (bc_parser *p, const bc_node *n)
+{
+    return n && n->kind == E_CALL && n->id >= 0 && p->ip->funcs[n->id].is_void;
+}
+
+static void
+bc_void_error (bc_parser *p, const char *msg)
+{
+    bc_syntax_msg (p->ip, p->src->line, msg);
+    p->discard = 1;
+}
+
 /* NAME, NAME[expr], NAME(args), NAME[] (an array argument). */
 static bc_node *
 bc_parse_name (bc_parser *p)
@@ -2993,8 +3017,6 @@ bc_parse_name (bc_parser *p)
         n = bc_mk (p, E_CALL);
         if (!n) { free (name); return NULL; }
         n->id = bc_func_id (p->ip, nm);
-        if (n->id >= 0 && p->ip->funcs[n->id].defined && p->ip->funcs[n->id].is_void)
-            p->void_calls++;
         bc_node **tail = &n->a;
         if (bc_peek_type (p) != ')') {
             for (;;) {
@@ -3008,6 +3030,7 @@ bc_parse_name (bc_parser *p)
                     }
                     p->stray_arrays = before;
                 }
+                if (bc_parse_is_void (p, arg)) bc_void_error (p, "void argument");
                 *tail = arg;
                 tail = &arg->next;
                 n->op++;
@@ -3016,12 +3039,20 @@ bc_parse_name (bc_parser *p)
             }
         }
         bc_expect (p, ')');
+        n->addr = p->pc += bc_name_width (n);
+        p->pc += n->op + 1;  /* parameter type bytes and terminator */
     } else if (type == '[') {
         bc_consume (p);
         if (bc_peek_type (p) == ']') {
             bc_consume (p);
             n = bc_mk (p, E_ARRARG);
-            if (n) n->id = bc_array_id (p->ip, nm);
+            if (n) {
+                n->id = bc_array_id (p->ip, nm);
+                /* Array arguments are compiled as numeric constants containing their ID. */
+                int number = n->id + 1;
+                p->pc += 3;
+                while (number >= 10) { p->pc++; number /= 10; }
+            }
             p->stray_arrays++;
         } else {
             n = bc_mk (p, E_ELEM);
@@ -3030,6 +3061,7 @@ bc_parse_name (bc_parser *p)
                 n->a = bc_parse_expr (p);
             }
             bc_expect (p, ']');
+            if (n && bc_parse_is_void (p, n->a)) bc_void_error (p, "void expression as subscript");
         }
     } else {
         n = bc_mk (p, E_VAR);
@@ -3050,7 +3082,22 @@ bc_parse_builtin1 (bc_parser *p, int kind)
     n->a = bc_parse_expr (p);
     if (!n->a) return NULL;
     if (!bc_expect (p, ')')) return NULL;
+    if (bc_parse_is_void (p, n->a))
+        bc_void_error (p, kind == E_SQRT ? "void expression in sqrt()" : "void expression in length()");
+    n->addr = p->pc += 2;
     return n;
+}
+
+/* The reference strips leading zeroes and a trailing decimal point before
+   encoding constants. Zero and one each have a one-byte instruction. */
+static size_t
+bc_constant_width (const bc_tok *token)
+{
+    const char *digits = token->text;
+    size_t len = token->len;
+    if (len && digits[len - 1] == '.') len--;
+    while (len > 1 && *digits == '0') { digits++; len--; }
+    return len == 1 && (*digits == '0' || *digits == '1') ? 1 : len + 2;
 }
 
 static bc_node *
@@ -3068,6 +3115,7 @@ bc_parse_primary (bc_parser *p)
     case T_NUM:
         n = bc_mk (p, E_NUM);
         if (!n) return NULL;
+        p->pc += bc_constant_width (&p->tok);
         if (p->tok.len == 1) {
             /* One digit has the same value in every base: point at a shared
                constant now, with no conversion or allocation per item. */
@@ -3082,6 +3130,7 @@ bc_parse_primary (bc_parser *p)
         bc_consume (p);
         n = bc_parse_expr (p);
         if (!n || !bc_expect (p, ')')) return NULL;
+        if (bc_parse_is_void (p, n)) bc_void_error (p, "void expression in parenthesis");
         n->paren = 1;
         return n;
     case T_NAME:
@@ -3094,6 +3143,8 @@ bc_parse_primary (bc_parser *p)
             if (!n) return NULL;
             n->a = bc_parse_expr (p);
             if (!n->a || !bc_expect (p, ')')) return NULL;
+            if (bc_parse_is_void (p, n->a)) bc_void_error (p, "void expression in scale()");
+            n->addr = p->pc += 2;
             return n;
         }
         n = bc_mk (p, E_SPECIAL);
@@ -3111,6 +3162,7 @@ bc_parse_primary (bc_parser *p)
     case T_READ:
         bc_consume (p);
         if (!bc_expect (p, '(') || !bc_expect (p, ')')) return NULL;
+        p->pc += 2;
         return bc_mk (p, E_READ);
     default:
         bc_syntax_error (p);
@@ -3138,6 +3190,8 @@ bc_parse_unary (bc_parser *p)
         n = bc_mk (p, E_NEG);
         if (!n) return NULL;
         n->a = bc_parse_unary (p);
+        if (bc_parse_is_void (p, n->a)) bc_void_error (p, "void expression with unary -");
+        p->pc++;
         return n->a ? n : NULL;
     }
     if (type == '!') {
@@ -3145,6 +3199,8 @@ bc_parse_unary (bc_parser *p)
         n = bc_mk (p, E_NOT);
         if (!n) return NULL;
         n->a = bc_parse_binary (p, PREC_REL);
+        if (bc_parse_is_void (p, n->a)) bc_void_error (p, "void expression with !");
+        p->pc++;
         return n->a ? n : NULL;
     }
     if (type == T_INC || type == T_DEC) {
@@ -3156,6 +3212,9 @@ bc_parse_unary (bc_parser *p)
         if (!n) return NULL;
         n->op = type == T_DEC ? ID_DEC : 0;
         n->a = target;
+        if (target->kind == E_ELEM) p->pc++;  /* duplicate subscript */
+        target->addr = n->addr = p->pc += bc_name_width (target);
+        p->pc += bc_name_width (target);      /* load updated value */
         return n;
     }
 
@@ -3169,6 +3228,10 @@ bc_parse_unary (bc_parser *p)
         if (!inc) return NULL;
         inc->op = ID_POST | (type == T_DEC ? ID_DEC : 0);
         inc->a = n;
+        if (n->kind == E_ELEM) p->pc++;
+        n->addr = p->pc += bc_name_width (n); /* load before updating */
+        if (n->kind == E_ELEM) p->pc++;       /* exchange subscript and value */
+        inc->addr = p->pc += bc_name_width (n);
         return inc;
     }
     if (type == T_ASSIGN) {
@@ -3178,9 +3241,18 @@ bc_parse_unary (bc_parser *p)
         if (!as) return NULL;
         as->op = (short) op;
         as->a = n;
+        if (op != '=') {
+            if (n->kind == E_ELEM) p->pc++;
+            n->addr = p->pc += bc_name_width (n);
+        }
         as->b = bc_parse_binary (p, PREC_ADD);
+        if (bc_parse_is_void (p, as->b)) bc_void_error (p, "Assignment of a void expression");
+        if (op != '=') p->pc++;              /* arithmetic before store */
+        as->addr = p->pc += bc_name_width (n);
+        if (op == '=') n->addr = as->addr;
         return as->b ? as : NULL;
     }
+    n->addr = p->pc += bc_name_width (n);
     return n;
 }
 
@@ -3195,6 +3267,8 @@ bc_parse_binary (bc_parser *p, int minprec)
         if (!prec || prec < minprec) break;
         int type = p->tok.type;
         bc_consume (p);
+        if (type == T_AND) p->pc += 5;        /* duplicate, branch if zero, pop */
+        if (type == T_OR) p->pc += 3;         /* branch if nonzero */
         bc_node *rhs = bc_parse_binary (p, right ? prec : prec + 1);
         if (!rhs) return NULL;
         bc_node *n = bc_mk (p, type == T_OR ? E_OR : type == T_AND ? E_AND : E_BIN);
@@ -3202,6 +3276,16 @@ bc_parse_binary (bc_parser *p, int minprec)
         n->op = (short) op;
         n->a = left;
         n->b = rhs;
+        if (bc_parse_is_void (p, left) || bc_parse_is_void (p, rhs)) {
+            static const char *const messages[] = {
+                "void expression with +", "void expression with -", "void expression with *",
+                "void expression with /", "void expression with %", "void expression with ^"
+            };
+            bc_void_error (p, type == T_AND ? "void expression with &&" :
+                           type == T_OR ? "void expression with ||" :
+                           op >= OP_EQ ? "void expression with comparison" : messages[op - OP_ADD]);
+        }
+        n->addr = p->pc += type == T_AND ? 6 : type == T_OR ? 8 : 1;
         left = n;
     }
     return p->err ? NULL : left;
@@ -3213,37 +3297,15 @@ bc_parse_expr (bc_parser *p)
     return bc_parse_binary (p, PREC_OR);
 }
 
-/* An expression where a statement needs one: NAME[] may not appear, and
-   neither may a call of a function already defined void, except as the
-   whole of an expression statement (ALLOW_VOID).  GNU bc rejects the
-   misuse when it parses the line, so nothing on that line runs.  Outside
-   a definition this is yyerror() without a syntax error: parsing goes on
-   normally, so no error-recovery rule swallows the following statement. */
+/* Semantic errors invalidate the entire item but still consume its grammar. */
 static bc_node *
-bc_parse_value_void (bc_parser *p, int allow_void)
+bc_parse_value (bc_parser *p, const char *void_message)
 {
-    int before = p->stray_arrays, voids = p->void_calls;
+    int before = p->stray_arrays;
     bc_node *n = bc_parse_expr (p);
     if (n && p->stray_arrays != before) { bc_syntax_error (p); return NULL; }
-    if (n && allow_void && n->kind == E_CALL && !n->paren && p->void_calls == voids + 1)
-        p->void_calls = voids;
-    if (n && p->void_calls != voids) {
-        if (!p->in_func) {
-            if (!p->err && !p->suppress)
-                bc_syntax_msg (p->ip, p->src->line, "void function used in an expression");
-            p->discard = 1;
-            return n;
-        }
-        bc_semantic_error (p, "void function used in an expression");
-        return NULL;
-    }
+    if (void_message && bc_parse_is_void (p, n)) bc_void_error (p, void_message);
     return n;
-}
-
-static bc_node *
-bc_parse_value (bc_parser *p)
-{
-    return bc_parse_value_void (p, 0);
 }
 
 static void
@@ -3321,10 +3383,12 @@ bc_parse_stmt (bc_parser *p)
         bc_consume (p);
         n = bc_mk (p, S_IF);
         if (!n || !bc_expect (p, '(')) return NULL;
-        if (!(n->a = bc_parse_value (p)) || !bc_expect (p, ')')) return NULL;
+        if (!(n->a = bc_parse_value (p, "void expression")) || !bc_expect (p, ')')) return NULL;
+        p->pc += 3;  /* jump over the branch */
         bc_skip_one_newline (p);
         if (!(n->b = bc_parse_stmt (p))) return NULL;
         if (bc_peek_type (p) == T_ELSE) {
+            p->pc += 3;
             bc_consume (p);
             bc_skip_one_newline (p);
             if (!(n->c = bc_parse_stmt (p))) return NULL;
@@ -3334,34 +3398,41 @@ bc_parse_stmt (bc_parser *p)
         bc_consume (p);
         n = bc_mk (p, S_WHILE);
         if (!n || !bc_expect (p, '(')) return NULL;
-        if (!(n->a = bc_parse_value (p)) || !bc_expect (p, ')')) return NULL;
+        if (!(n->a = bc_parse_value (p, "void expression")) || !bc_expect (p, ')')) return NULL;
+        p->pc += 3;
         bc_skip_one_newline (p);
         p->loops++;
         n->b = bc_parse_stmt (p);
         p->loops--;
+        p->pc += 3;  /* jump back to the condition */
         return n->b ? n : NULL;
     case T_FOR:
         bc_consume (p);
         n = bc_mk (p, S_FOR);
         if (!n || !bc_expect (p, '(')) return NULL;
-        if (bc_peek_type (p) != ';' && !(n->a = bc_parse_value (p))) return NULL;
+        if (bc_peek_type (p) != ';' && !(n->a = bc_parse_value (p, "first expression is void"))) return NULL;
+        if (n->a) p->pc++;
         if (!bc_expect (p, ';')) return NULL;
-        if (bc_peek_type (p) != ';' && !(n->b = bc_parse_value (p))) return NULL;
+        if (bc_peek_type (p) != ';' && !(n->b = bc_parse_value (p, "second expression is void"))) return NULL;
+        p->pc += n->b ? 6 : 7;  /* two jumps, implicit true for an empty condition */
         if (!bc_expect (p, ';')) return NULL;
-        if (bc_peek_type (p) != ')' && !(n->c = bc_parse_value (p))) return NULL;
+        if (bc_peek_type (p) != ')' && !(n->c = bc_parse_value (p, "third expression is void"))) return NULL;
+        p->pc += n->c ? 4 : 3;
         if (!bc_expect (p, ')')) return NULL;
         bc_skip_one_newline (p);
         p->loops++;
         n->d = bc_parse_stmt (p);
         p->loops--;
+        p->pc += 3;
         return n->d ? n : NULL;
     case T_BREAK: case T_CONTINUE:
         bc_consume (p);
         if (!p->loops) {
-            bc_semantic_error (p, type == T_BREAK ? "break outside a for/while"
-                                                  : "continue outside a for/while");
+            bc_semantic_error (p, type == T_BREAK ? "Break outside a for/while"
+                                                  : "Continue outside a for");
             return NULL;
         }
+        p->pc += 3;
         return bc_mk (p, type == T_BREAK ? S_BREAK : S_CONTINUE);
     case T_QUIT:
         bc_consume (p);
@@ -3369,17 +3440,19 @@ bc_parse_stmt (bc_parser *p)
         return NULL;
     case T_HALT:
         bc_consume (p);
+        p->pc++;
         return bc_mk (p, S_HALT);
     case T_RETURN:
         bc_consume (p);
         n = bc_mk (p, S_RETURN);
         if (!n) return NULL;
         if (!bc_stmt_end (bc_peek_type (p))) {
-            if (p->func_void) { bc_semantic_error (p, "return expression in a void function"); return NULL; }
-            if (!(n->a = bc_parse_value (p))) return NULL;
+            if (!(n->a = bc_parse_value (p, "return requires non-void expression"))) return NULL;
+            if (p->func_void) bc_void_error (p, "Return expression in a void function.");
         }
+        p->pc += n->a ? 1 : 2;  /* default zero result, then return */
         if (!p->in_func) {
-            bc_syntax_msg (p->ip, p->src->line, "return outside of a function");
+            bc_syntax_msg (p->ip, p->src->line, "Return outside of a function.");
             p->discard = 1;
         }
         return n;
@@ -3393,7 +3466,10 @@ bc_parse_stmt (bc_parser *p)
         return bc_mk (p, S_EMPTY);
     case T_STR:
         n = bc_mk (p, S_STR);
-        if (n) n->text = bc_take_text (p, &n->tlen);
+        if (n) {
+            n->text = bc_take_text (p, &n->tlen);
+            p->pc += n->tlen + 2;
+        }
         return n;
     case T_PRINT: {
         bc_consume (p);
@@ -3406,8 +3482,10 @@ bc_parse_stmt (bc_parser *p)
                 item = bc_mk (p, S_STR);
                 if (!item) return NULL;
                 item->text = bc_take_text (p, &item->tlen);
-            } else if (!(item = bc_parse_value (p))) {
-                return NULL;
+                p->pc += item->tlen + 2;
+            } else {
+                if (!(item = bc_parse_value (p, "void expression in print"))) return NULL;
+                p->pc++;
             }
             *tail = item;
             tail = &item->next;
@@ -3419,7 +3497,8 @@ bc_parse_stmt (bc_parser *p)
     default:
         n = bc_mk (p, S_EXPR);
         if (!n) return NULL;
-        n->a = bc_parse_value_void (p, 1);
+        n->a = bc_parse_value (p, NULL);
+        p->pc++;  /* print or discard */
         return n->a ? n : NULL;
     }
 }
@@ -3436,19 +3515,20 @@ bc_add_param (bc_parser *p, bc_param **list, int *count, int id, int kind)
     return 1;
 }
 
-/* define [void] NAME ( params ) [newline] { [auto list] statements } */
-static void
+/* Return true for a malformed header: recover its remaining tokens in main. */
+static int
 bc_parse_define (bc_parser *p)
 {
     bc_interp *ip = p->ip;
     bc_func f;
     bc_arena arena = { NULL };
     bc_arena *outer = p->arena;
+    int in_header = 1;
     char *name = NULL;
 
     memset (&f, 0, sizeof f);
     bc_consume (p);
-    if (bc_peek_type (p) != T_NAME) { bc_syntax_error (p); return; }
+    if (bc_peek_type (p) != T_NAME) { bc_syntax_error (p); return 1; }
     name = bc_take_text (p, NULL);
     if (!strcmp (name, "void") && bc_peek_type (p) == T_NAME) {
         free (name);
@@ -3523,13 +3603,14 @@ bc_parse_define (bc_parser *p)
         bc_consume (p);
     }
 
+    in_header = 0;
     p->in_func = 1;
     p->func_void = f.is_void;
     p->loops = 0;
     f.body = bc_parse_block (p);
     p->in_func = 0;
     p->func_void = 0;
-    if (!f.body || p->err || p->quit) goto fail;
+    if (!f.body || p->err || p->quit || p->discard) goto fail;
 
     int id = bc_func_id (ip, name);
     if (id < 0) { bc_parse_failure (p, "too many names"); goto fail; }
@@ -3544,7 +3625,7 @@ bc_parse_define (bc_parser *p)
     *old = f;
     p->arena = outer;
     free (name);
-    return;
+    return 0;
 
 fail:
     p->in_func = 0;
@@ -3554,7 +3635,8 @@ fail:
     free (f.params);
     free (f.autos);
     free (name);
-    if (!p->err && !p->quit) bc_syntax_error (p);
+    if (!p->err && !p->quit && !p->discard) bc_syntax_error (p);
+    return in_header && p->err == 1;
 }
 
 /* ---- evaluation -------------------------------------------------- */
@@ -3640,12 +3722,12 @@ bc_special_set (bc_interp *ip, int which, const bc_num *v)
         ip->scale = (int) x;
         break;
     case SP_IBASE:
-        if (x < 2) { bc_rt_warn (ip, "ibase too small, set to 2"); x = 2; }
+        if (x < 2) { bc_rt_warn (ip, v->sign ? "negative ibase, set to 2" : "ibase too small, set to 2"); x = 2; }
         else if (big || x > 36) { bc_rt_warn (ip, "ibase too large, set to 36"); x = 36; }
         ip->ibase = (int) x;
         break;
     case SP_OBASE:
-        if (x < 2) { bc_rt_warn (ip, "obase too small, set to 2"); x = 2; }
+        if (x < 2) { bc_rt_warn (ip, v->sign ? "negative obase, set to 2" : "obase too small, set to 2"); x = 2; }
         else if (big || x > INT_MAX) { bc_rt_warn (ip, "obase too large, set to 2147483647"); x = INT_MAX; }
         ip->obase = x;
         break;
@@ -3666,7 +3748,8 @@ bc_subscript (bc_interp *ip, bc_node *n)
        out of bounds too. */
     if ((v.sign && !bc_is_zero (&v)) || big || idx > BC_INDEX_MAX
         || (idx == 0 && !bc_is_zero (&v))) {
-        bc_rt_error (ip, "array %s subscript out of bounds", ip->anames.names[n->id]);
+        ip->addr = n->addr;
+        bc_rt_error (ip, "Array %s subscript out of bounds.", ip->anames.names[n->id]);
         idx = -1;
     }
     bc_free (&v);
@@ -3720,10 +3803,10 @@ bc_arith (bc_interp *ip, int op, const bc_num *l, const bc_num *r)
     case OP_SUB: return bc_sub (l, r, ip->scale);
     case OP_MUL: return bc_mul (l, r, ip->scale);
     case OP_DIV:
-        if (bc_is_zero (r)) { bc_rt_error (ip, "divide by zero", NULL); return bc_zero (); }
+        if (bc_is_zero (r)) { bc_rt_error (ip, "Divide by zero", NULL); return bc_zero (); }
         return bc_div (l, r, ip->scale);
     case OP_MOD:
-        if (bc_is_zero (r)) { bc_rt_error (ip, "modulo by zero", NULL); return bc_zero (); }
+        if (bc_is_zero (r)) { bc_rt_error (ip, "Modulo by zero", NULL); return bc_zero (); }
         return bc_mod (l, r, ip->scale);
     case OP_POW: {
         int big;
@@ -3864,12 +3947,13 @@ bc_update (bc_interp *ip, bc_node *n, int want)
         r = none;
         if (want) r = (n->op & ID_POST) ? (borrowed ? bc_dup (old) : l) : bc_dup (&v);
         if (!want || !(n->op & ID_POST) || borrowed) bc_release (&l);
+        ip->addr = n->addr;
         bc_named_put (ip, t, idx, &v);
         return r;
     }
 
     if (bc_is_void_call (ip, n->b)) {
-        bc_rt_error (ip, "assignment of a void expression", NULL);
+        bc_rt_error (ip, "Assignment of a void expression", NULL);
         return want ? bc_zero () : none;
     }
     if (n->op == '=') {
@@ -3885,12 +3969,14 @@ bc_update (bc_interp *ip, bc_node *n, int want)
             lp = ip->vars[t->id].digits ? &ip->vars[t->id] : &_bc_zero;
         else { l = bc_named_get (ip, t, idx); lp = &l; }
         rp = bc_eval_ref (ip, n->b, &rt);
+        ip->addr = n->addr - bc_name_width (t);
         r = ip->err ? bc_zero () : bc_arith (ip, codes[strchr (ops, n->op) - ops], lp, rp);
         bc_release (&l);
         bc_release (&rt);
     }
     if (ip->err) { bc_free (&r); return want ? bc_zero () : none; }
     v = want ? bc_dup (&r) : none;
+    ip->addr = n->addr;
     bc_named_put (ip, t, idx, &r);
     return v;
 }
@@ -3950,6 +4036,7 @@ bc_eval (bc_interp *ip, bc_node *n)
     case E_BIN: {
         const bc_num *lp, *rp;
         bc_operands (ip, n, &lp, &l, &rp, &r);
+        ip->addr = n->addr;
         v = ip->err ? bc_zero () : bc_arith (ip, n->op, lp, rp);
         bc_release (&l);
         bc_release (&r);
@@ -3978,7 +4065,8 @@ bc_eval (bc_interp *ip, bc_node *n)
         if (ip->err) { bc_free (&v); return bc_zero (); }
         if (v.sign) {               /* including GNU's -0 */
             bc_free (&v);
-            bc_rt_error (ip, "square root of a negative number", NULL);
+            ip->addr = n->addr;
+            bc_rt_error (ip, "Square root of a negative number", NULL);
             return bc_zero ();
         }
         r = bc_sqrt (&v, ip->scale);
@@ -4062,11 +4150,11 @@ bc_call_lib (bc_interp *ip, bc_func *f, bc_node *n)
     /* read() in an argument may intern function names and move ip->funcs. */
     int native = f->native;
     int want = native == 6 ? 2 : 1, got = 0;
-    if (n->op != want) { bc_rt_error (ip, "parameter number mismatch", NULL); return bc_zero (); }
+    if (n->op != want) { bc_rt_error (ip, "Parameter number mismatch", NULL); return bc_zero (); }
     for (bc_node *a = n->a; a; a = a->next) {
         if (a->kind == E_ARRARG) {
             while (got > 0) bc_free (&args[--got]);
-            bc_rt_error (ip, "parameter type mismatch", NULL);
+            bc_rt_error (ip, "Parameter type mismatch", NULL);
             return bc_zero ();
         }
         args[got++] = bc_eval (ip, a);
@@ -4111,7 +4199,8 @@ bc_bind (bc_interp *ip, bc_func *f, bc_node *n)
     for (bc_node *a = n->a; a && !ip->err; a = a->next, i++) {
         bc_param *par = &f->params[i];
         if ((a->kind == E_ARRARG) != (par->kind != 0)) {
-            bc_rt_error (ip, "parameter type mismatch, parameter %s",
+            ip->addr = n->addr + np - i;
+            bc_rt_error (ip, "Parameter type mismatch parameter %s.",
                          par->kind ? ip->anames.names[par->id] : ip->vnames.names[par->id]);
             break;
         }
@@ -4151,8 +4240,9 @@ bc_call (bc_interp *ip, bc_node *n, int allow_void)
     bc_func *f = &ip->funcs[n->id];
 
     if (ip->err || ip->stop) return bc_zero ();
+    ip->addr = n->addr;
     if (!f->defined && !f->native) {
-        bc_rt_error (ip, "function %s not defined", ip->fnames.names[n->id]);
+        bc_rt_error (ip, "Function %s not defined.", ip->fnames.names[n->id]);
         return bc_zero ();
     }
     if (f->defined && f->is_void && !allow_void) {
@@ -4160,7 +4250,11 @@ bc_call (bc_interp *ip, bc_node *n, int allow_void)
         return bc_zero ();
     }
     if (!f->defined) return bc_call_lib (ip, f, n);
-    if (n->op != f->nparams) { bc_rt_error (ip, "parameter number mismatch", NULL); return bc_zero (); }
+    if (n->op != f->nparams) {
+        ip->addr += 1 + (n->op < f->nparams ? n->op : f->nparams);
+        bc_rt_error (ip, "Parameter number mismatch", NULL);
+        return bc_zero ();
+    }
     if (bc_stack_exhausted (ip)) { bc_rt_failure (ip, "function calls nested too deeply", NULL); return bc_zero (); }
     if (bc_check_interrupt (ip)) return bc_zero ();
 
@@ -4212,7 +4306,7 @@ bc_read (bc_interp *ip)
     bc_src *outer = ip->src;
     int outer_line = ip->line;
     ip->src = &src;
-    bc_node *e = bc_parse_value (&rp);
+    bc_node *e = bc_parse_value (&rp, "void expression");
     if (e && bc_peek_type (&rp) != T_EOF) bc_syntax_error (&rp);
     if (rp.have) bc_tok_free (&rp.tok);
     ip->src = outer;
@@ -4434,7 +4528,7 @@ bc_recover (bc_parser *p, int after_semi)
 {
     int guard = 0;
 
-    p->suppress = 1;
+    p->suppress = 3;
     while (guard++ < 1000000) {
         int type = bc_peek_type (p);
         int mark, saved_quit, fatal_now;
@@ -4446,6 +4540,7 @@ bc_recover (bc_parser *p, int after_semi)
         }
         if (!bc_stmt_start (type)) {
             bc_consume (p);
+            p->suppress = 3;  /* discarding a token is not a successful shift */
             continue;
         }
         mark = p->steps;
@@ -4455,10 +4550,7 @@ bc_recover (bc_parser *p, int after_semi)
         bc_parse_stmt (p);
         p->quit = saved_quit;            /* a discarded quit does not stop */
         if (p->ip->fatal && !fatal_now) return 1;
-        if (!p->err) {
-            if (p->steps - mark >= 3) p->suppress = 0;
-            return 0;
-        }
+        if (!p->err) return 0;
         if (p->steps == mark) {
             type = bc_peek_type (p);
             if (type == T_EOF) return 1;
@@ -4499,15 +4591,14 @@ bc_run_source (bc_interp *ip, bc_src *src)
         p.err = 0;
         p.suppress = 0;
         p.stray_arrays = 0;
-        p.void_calls = 0;
+        p.pc = 0;
         p.discard = 0;
         p.loops = 0;
         p.in_func = 0;
 
         type = bc_peek_type (&p);
         if (type == T_EOF && !p.err) { bc_arena_free (&arena); break; }
-        if (type == T_DEFINE) {
-            bc_parse_define (&p);
+        if (type == T_DEFINE && !bc_parse_define (&p)) {
             if (p.err) {
                 tainted = 1;
                 for (;;) {
@@ -4543,7 +4634,8 @@ bc_run_source (bc_interp *ip, bc_src *src)
                 if (type != ';' && type != T_NL && type != T_EOF) {
                     bc_syntax_error (&p);
                     tainted = 1;
-                    if (bc_recover (&p, after_semi)) break;
+                    /* The statement was complete; a newline can end recovery. */
+                    if (bc_recover (&p, 0)) break;
                     p.err = 0;
                     continue;
                 }
