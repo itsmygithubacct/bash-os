@@ -114,6 +114,8 @@ def fixture_checks(binary, shim, sanitizer=False, regression=False):
                 [2000000000], signal.SIGUSR1, stdout='1\n')
         run(['-cfP77', '--', '--task 0$'], [2000000000], stdout='1\n')
         run(['-cfu', '2001', '--', '--task 0$'], [2000000000], stdout='1\n')
+        run(['-n'], [2000000511])
+        run(['-o'], [2000000000])
         run(['-USR1', '-n', 'worker'], [2000000510], signal.SIGUSR1)
         run(['-USR2', '--oldest', 'worker'], [2000000000], signal.SIGUSR2)
         run(['-nc', 'worker'], [2000000510], stdout='1\n')
@@ -137,7 +139,7 @@ def fixture_checks(binary, shim, sanitizer=False, regression=False):
         run(['-c', '-x', 'worker000', '-USR2'], [2000000000], signal.SIGUSR2)
         run(['-usr2', '-c', '-x', 'worker000'], [2000000000], signal.SIGUSR2)
         run(['-c', '-x', '-9', 'worker000'], [2000000000], 9)
-        for args in ([], ['-n'], ['-o'], ['['], ['-x', '['], ['foo', 'bar'], ['-USR1', '['],
+        for args in ([], ['['], ['-x', '['], ['foo', 'bar'], ['-USR1', '['],
                      ['-u'], ['-P', '-1'],
                      ['-u', '99999999999999999999'], ['-9999999999999999999', '.'],
                      ['-64x', '.'], [f'-{signal.NSIG}', '.'], ['-BOGUS', '.'], ['-v', '.'], ['-l', '.'],

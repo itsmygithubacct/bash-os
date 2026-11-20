@@ -604,8 +604,7 @@ bp_match (const char *hay, WORD_LIST *patterns, int pattern_count, int mode,
         return 1;
 
     if (pattern_count == 0) {
-        /* -u USER with no PATTERN: every uid-matching PID is a hit
-           (cmdline-empty already filtered above when by_cmdline). */
+        /* With only selectors, every process they admit is a match. */
         return 1;
     }
 
@@ -1223,7 +1222,8 @@ bp_dispatch_words (WORD_LIST *list, int mode, struct bp_selection *selp)
             return 1;
         }
     }
-    if (pattern_count == 0 && !filter_uid_set && !has_selection && mode != BP_MODE_KILLALL5) {
+    if (pattern_count == 0 && !filter_uid_set && !has_selection && !selection->age &&
+        mode != BP_MODE_KILLALL5) {
         builtin_usage ();
         return EX_USAGE;
     }
