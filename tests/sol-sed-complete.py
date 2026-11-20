@@ -77,7 +77,9 @@ with tempfile.TemporaryDirectory(prefix='sol-sed-complete-') as tmp:
         check('unreached write',(actual,left.read_bytes()),(expected,right.read_bytes()))
     f.write_bytes(b'')
     parity(['-f',f], b'a\0b\n')
-    # Private PTY; both canonical and raw input retain every lookahead byte.
+    # Private PTY. Raw input retains every lookahead byte. A canonical tty
+    # returns one line or one EOF mark per read, and only a read can tell
+    # them apart, so like GNU sed the line read to decide '$' is consumed.
     for raw in (False,True):
         for suffix in (b'b\nc\n', b'\0b\n'):
             master,slave=pty.openpty()
@@ -93,10 +95,22 @@ with tempfile.TemporaryDirectory(prefix='sol-sed-complete-') as tmp:
                 rest=b''
                 while select.select([slave],[],[],0)[0]:
                     rest+=os.read(slave,4096)
-                check(('tty suffix',raw,suffix),rest,suffix)
+                check(('tty suffix',raw,suffix),rest,suffix if raw else suffix[suffix.index(b'\n')+1:])
             finally:
                 if p.poll() is None:p.kill();p.wait()
                 os.close(master);os.close(slave)
+    # An EOF mark typed after a canonical line makes that line '$'.
+    master,slave=pty.openpty()
+    attrs=termios.tcgetattr(slave); attrs[3] &= ~termios.ECHO
+    termios.tcsetattr(slave,termios.TCSANOW,attrs)
+    p=subprocess.Popen([binary,'-c',"sed -n '$p'"],stdin=slave,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env)
+    try:
+        os.write(master,b'a\n\x04b\n')
+        out,err=p.communicate(timeout=5)
+        check('tty EOF mark',(p.returncode,out),(0,b'a\n'))
+    finally:
+        if p.poll() is None:p.kill();p.wait()
+        os.close(master);os.close(slave)
     # poll readiness can require VMIN bytes even when a one-byte read would
     # succeed. Check both a queued suffix and a producer that delivers it later.
     for delayed in (False,True):
