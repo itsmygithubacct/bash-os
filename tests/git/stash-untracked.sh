@@ -49,7 +49,14 @@ printf 'one\nTHREE\n' > a.txt
 printf 'another\n' > d.txt
 git stash push -u -q
 printf 'in the way\n' > d.txt
-git stash pop || echo "pop said no: $?"
+pop_status=0
+git stash pop || pop_status=$?
+# Git reports a colliding untracked path as either a command or a fatal
+# error. The file and stash that must survive are checked immediately below.
+case "$pop_status" in
+    1|128) echo 'pop refused the untracked collision' ;;
+    *) echo "unexpected stash pop status $pop_status" >&2; exit 1 ;;
+esac
 cat d.txt
 git stash list
 git status --short
