@@ -119,4 +119,4 @@ done
                 private_pty([shell, '--noprofile', '--norc', '-c', 'PATH=; su fixture'], 143, env, cancel=True)
                 print('native canceled password child returns 143 and parent restores terminal')
         print('native parsing, empty PATH and repeated help/output-failure checks passed')
-print('GAP: live /dev/bashos-auth mint/consume and privileged target transition remain unqualified')
+print('Local su checks exercise the fixture. Production v2 device qualification is recorded in docs/authority-routes.md.')

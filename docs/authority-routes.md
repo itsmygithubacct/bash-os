@@ -102,6 +102,14 @@ drains it with `auth audit-v2-drain`.
 
 ## Qualification
 
+In a Debian 13 KVM guest, the production identity module verified a target
+password and issued a proof to `su`. The same child consumed the proof,
+set its supplementary groups, and installed the target's real, effective,
+saved and filesystem IDs. This passed for an ordinary account and for uid 0.
+The caller had a nonzero real uid and the effective privileges needed to open
+the mode-0600 device. A wrong password returned `EACCES` at verification and
+the target did not run.
+
 `tests/parity-vm/suites/qualification-authority-v2.json` runs the control
 packets in `tests/authority-next` against the production modules in a root
 guest that loads them itself, and again against the test modules for the
