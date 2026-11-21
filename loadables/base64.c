@@ -50,6 +50,9 @@ static int base64_decode(int fd, int ignore)
         used = 0;
         if (invalid) break;
     }
+#ifdef BASHOS_BASE64_REQUIRE_PADDING
+    if (count) invalid = 1;
+#endif
     if (invalid || need_pad || count == 1) {
         builtin_error("invalid input");
         return 1;

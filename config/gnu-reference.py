@@ -23,3 +23,6 @@ with tempfile.TemporaryDirectory() as directory:
     uniq = probe('uniq', '-f', '-0')
     if uniq and uniq.returncode == 1 and b'invalid number of fields to skip' in uniq.stderr:
         print('#define BASHOS_UNIQ_REJECT_NEGATIVE_ZERO 1')
+    base64 = probe('base64', '-d', data=b'YQ')
+    if base64 and base64.returncode == 1 and base64.stdout == b'a':
+        print('#define BASHOS_BASE64_REQUIRE_PADDING 1')
