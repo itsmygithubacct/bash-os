@@ -15,11 +15,11 @@ helpers="$scratch/helpers/builtins"
 flags=(-O1 -g -fPIC -shared -Wl,-Bsymbolic -fsanitize=address,undefined
        -DHAVE_CONFIG_H -I"$tree" -I"$tree/include" -I"$tree/builtins"
        -I"$tree/examples/loadables" -Iloadables/common -I"$helpers")
-for name in base64 cat cp touch gzip sha256sum tar; do
+for name in base64 cat cp touch gzip sha256sum tar ps mv iconv; do
     sources=("loadables/$name.c")
     libraries=()
     case "$name" in
-        cp|touch)
+        cp|touch|ps|mv)
             cat > "$scratch/$name-struct.c" <<EOF
 #include <config.h>
 #include "loadables.h"
