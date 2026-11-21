@@ -165,6 +165,17 @@ git rebase --continue
 git log --format='%s'
 git log --format='%p %s' -1
 git status --short
+# Newer Git abbreviates the id in this editor comment. Resolve it in the
+# repository that produced the message so the comparison checks the full id.
+while IFS= read -r line; do
+    case "$line" in '#    merge -C '*)
+        rest=${line#"#    merge -C "}
+        oid=$(git rev-parse --verify "${rest%% *}^{commit}") || exit 1
+        line="#    merge -C $oid ${rest#* }" ;;
+    esac
+    printf '%s\n' "$line"
+done < editor-saw > editor-normalized
+mv editor-normalized editor-saw
 cat editor-saw
 
 echo '=== and one that is called off ==='
