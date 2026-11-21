@@ -909,9 +909,8 @@ bt_get_str (const bt_entry *e, const char *name, const char **out)
   return -1;
 }
 
-/* tput search. TERMINFO, when set, is the only directory. Otherwise
-   ~/.terminfo, then TERMINFO_DIRS (an empty element is the system
-   default), then the system directories. Each name tic wrote, including
+/* tput searches TERMINFO, ~/.terminfo, TERMINFO_DIRS (an empty element
+   selects the system default), then the system directories. Each name tic wrote, including
    aliases after '|', is its own file under the first-character and
    two-digit hashed paths. BASHTINFO_PATH stays on the tinfo command. */
 static int
@@ -959,8 +958,8 @@ bt_load_tput_term (const char *term, unsigned char **out, size_t *out_len)
     "/usr/lib/terminfo", "/boot/system/data/terminfo", NULL
   };
 
-  if (terminfo && *terminfo)
-    return bt_try_dir (terminfo, term, out, out_len);
+  if (terminfo && *terminfo && bt_try_dir (terminfo, term, out, out_len) == 0)
+    return 0;
 
   home = getenv ("HOME");
   if (home && *home)
@@ -973,8 +972,8 @@ bt_load_tput_term (const char *term, unsigned char **out, size_t *out_len)
     }
 
   dirs = getenv ("TERMINFO_DIRS");
-  if (dirs && *dirs)
-    return bt_try_dir_list (dirs, term, out, out_len);
+  if (dirs && *dirs && bt_try_dir_list (dirs, term, out, out_len) == 0)
+    return 0;
 
   for (int i = 0; common[i]; i++)
     if (bt_try_dir (common[i], term, out, out_len) == 0)

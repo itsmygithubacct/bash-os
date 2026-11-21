@@ -28,6 +28,10 @@ with tempfile.TemporaryDirectory() as tmp:
     d = Path(tmp)
     names = "pty expect termpixel termpixel_pong escdelay fifo kgetch wgetch wget_wch mouse script buf undo clip nano2 watch wall write"
     for name in names.split(): assert run("type", "-t", name) == b"builtin\n"
+    # A partial application database must still find the system Linux entry.
+    for variable in ("TERMINFO", "TERMINFO_DIRS"):
+        settings = {"HOME": tmp, "TERMINFO": "", "TERMINFO_DIRS": "", variable: tmp}
+        assert run("tput", "-T", "linux", "u7", env=settings) == b"\x1b[6n"
     run("termpixel", "selftest")
     run("termpixel_pong", "--selftest")
     run("termpixel_pong", "--dump-frame", "--seed", "1")
