@@ -508,6 +508,9 @@ iconv_builtin (WORD_LIST *list)
         fflush (st.out);
         builtin_error ("illegal input sequence at position %llu", st.consumed);
     }
+#ifdef BASHOS_ICONV_OMIT_SUCCEEDS
+    if (omit) st.failed = 0;
+#endif
     if (rc == 0 && st.failed) rc = 1;
     if (st.out != stdout) {
         if (fclose (st.out) == EOF) { builtin_error ("write error: %s", strerror (errno)); rc = 1; }

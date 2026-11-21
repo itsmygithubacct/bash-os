@@ -26,3 +26,6 @@ with tempfile.TemporaryDirectory() as directory:
     base64 = probe('base64', '-d', data=b'YQ')
     if base64 and base64.returncode == 1 and base64.stdout == b'a':
         print('#define BASHOS_BASE64_REQUIRE_PADDING 1')
+    iconv = probe('iconv', '-c', '-f', 'UTF-8', '-t', 'ASCII', data=b'a\xffb')
+    if iconv and iconv.returncode == 0 and iconv.stdout == b'ab':
+        print('#define BASHOS_ICONV_OMIT_SUCCEEDS 1')
