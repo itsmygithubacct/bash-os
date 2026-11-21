@@ -345,8 +345,9 @@ def main():
             flaky.pop('/flaky/short', None)
         compare('retry exhausted', ['-s', '--retry', '1', f'{H}/flaky/short'], work, setup=reset_short)
         compare('retry exhausted fail', ['-sf', '--retry', '1', f'{H}/always503'], work)
-        compare('retry warning', ['--retry', '1', '-o', '/dev/null', f'{H}/always503'], work,
-                stderr_has=['Will retry in'])
+        compare('retry warning', ['--retry', '1', '-o', 'retry-body', f'{H}/always503'], work,
+                stderr_has=['Will retry in'], files=['retry-body'],
+                setup=lambda: (work / 'retry-body').unlink(missing_ok=True))
         compare('retry no transient', ['-s', '--retry', '3', f'{H}/plain'], work)
 
         # -x/--proxy: absolute-form forwarding, CONNECT tunnels and refusals.
