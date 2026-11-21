@@ -320,19 +320,22 @@ class Compatibility(unittest.TestCase):
             name = pwd.getpwuid(os.getuid()).pw_name
         except KeyError:   # a uid with no passwd entry still selects by number
             name = None
-        for flag in ("-u", "-U"):
+        for flag, column in (("-u", "uid"), ("-U", "ruid")):
             for who in (uid, name, f"{name},{uid}") if name else (uid, f"{uid},{uid}"):
                 with self.subTest(flag=flag, who=who):
-                    result = self.run_shell(f'ps {flag} "$1" -o pid,uid; echo "self=$$"', who)
-                    self.assertEqual(result.returncode, 0, result.stderr)
-                    lines = result.stdout.decode().splitlines()
-                    self.assertEqual(lines[0].split(), ["PID", "UID"])
-                    rows = [line.split() for line in lines[1:-1]]
-                    self.assertTrue(rows)
-                    self.assertTrue(all(row[1] == uid for row in rows), rows)
-                    self.assertIn(lines[-1].split("=")[1], [row[0] for row in rows])
+                    for gnu in (True, False):
+                        result = self.run_shell(f'ps {flag} "$1" -o pid,{column} || exit; echo "self=$$"', who, gnu=gnu)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        lines = result.stdout.decode().splitlines()
+                        self.assertEqual(lines[0].split(), ["PID", column.upper()])
+                        rows = [line.split() for line in lines[1:-1]]
+                        self.assertTrue(rows)
+                        self.assertTrue(all(row[1] == uid for row in rows), rows)
+                        self.assertIn(lines[-1].split("=")[1], [row[0] for row in rows])
         result = self.run_shell("ps -u 4000000 -o pid")
         self.assertEqual(result.stdout.decode().split(), ["PID"])
+        self.assertEqual(result.returncode, 1)
+        self.compare("ps -U 4000000 -o pid=")
         result = self.run_shell(f"ps --user={uid} -o uid")
         self.assertEqual(set(result.stdout.decode().split()[1:]), {uid})
         result = self.run_shell("ps -u no-such-user-here")

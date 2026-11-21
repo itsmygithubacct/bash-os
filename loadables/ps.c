@@ -52,6 +52,7 @@ typedef enum {
     BPS_COL_PGRP,
     BPS_COL_SID,
     BPS_COL_UID,
+    BPS_COL_RUID,
     BPS_COL_USER,
     BPS_COL_STATE,
     BPS_COL_STAT,
@@ -400,6 +401,7 @@ bps_col_from_name (const char *name, bps_colspec *out)
         { "pgid",     BPS_COL_PGRP,     "PGID" },
         { "sid",      BPS_COL_SID,      "SID" },
         { "uid",      BPS_COL_UID,      "UID" },
+        { "ruid",     BPS_COL_RUID,     "RUID" },
         { "user",     BPS_COL_USER,     "USER" },
         { "state",    BPS_COL_STATE,    "S" },
         { "stat",     BPS_COL_STAT,     "STAT" },
@@ -616,6 +618,7 @@ bps_print_custom (const bps_proc *p, const bps_colspec *cols, int n_cols)
             case BPS_COL_PGRP:     printf ("%d", p->pgrp); break;
             case BPS_COL_SID:      printf ("%d", p->sid); break;
             case BPS_COL_UID:      printf ("%u", (unsigned) p->uid); break;
+            case BPS_COL_RUID:     printf ("%u", (unsigned) p->ruid); break;
             case BPS_COL_USER:     printf ("%s", bps_user (p->uid)); break;
             case BPS_COL_STATE:    printf ("%c", p->state); break;
             case BPS_COL_STAT:     { char sb[16]; bps_build_stat (p, sb, sizeof sb); fputs (sb, stdout); } break;
@@ -999,6 +1002,7 @@ ps_builtin (WORD_LIST *list)
     DIR *d = opendir (bps_proc_root ());
     if (!d) { builtin_error ("opendir %s: %s", bps_proc_root (), strerror (errno)); return EXECUTION_FAILURE; }
     struct dirent *de;
+    int printed = 0;
     while ((de = readdir (d))) {
         if (de->d_name[0] < '0' || de->d_name[0] > '9') continue;
         int pid = atoi (de->d_name);
@@ -1015,11 +1019,12 @@ ps_builtin (WORD_LIST *list)
             if (aux_mode) bps_print_aux_row (&p);
             else if (n_cols > 0) bps_print_custom (&p, cols, n_cols);
             else bps_print_table_row (&p, full);
+            printed = 1;
         }
         (void) all;
     }
     closedir (d);
-    return EXECUTION_SUCCESS;
+    return by_user && !printed ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
 }
 
 char *ps_doc[] = {
@@ -1034,7 +1039,7 @@ char *ps_doc[] = {
     "    -p LIST   select comma-separated process IDs (also --pid=LIST)",
     "    -u LIST   select by effective user name or ID (also --user=LIST)",
     "    -U LIST   select by real user name or ID (also --User=LIST)",
-    "    -o LIST   custom columns: pid,ppid,pgrp,sid,uid,user,state,stat,comm,args,time,stime,rss,vsz",
+    "    -o LIST   custom columns: pid,ppid,pgrp,sid,uid,ruid,user,state,stat,comm,args,time,stime,rss,vsz",
     "    --help    print usage information and exit",
     "    -V, --version",
     "              print version information and exit",
