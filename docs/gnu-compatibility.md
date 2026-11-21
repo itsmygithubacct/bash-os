@@ -15,12 +15,14 @@ builds. No host utility is invoked. `clear` and `bashclear` are described in
 `bashbase64` keeps its original unwrapped encoding default and extended
 decoding rules. Use `base64` for the GNU interface.
 
-Native builds check the installed reference tools for five conventions that
+Native builds check the installed reference tools for conventions that
 differ between Ubuntu 24.04 and Debian 13. Ubuntu's tools warn for `cp -n`,
 reject `uniq -f -0`, require padding at the end of a base64 group, return
 success for input discarded by `iconv -c`, and report an existing destination
 as a failure for `mv -n`. Debian 13 has the opposite behavior for these
-cases. Bare `uniq -0` skips zero fields on both systems. The selected
+cases. Ubuntu's `uniq` also reads an overflowing `+N` operand as a filename,
+while Debian's treats it as an unbounded character offset. Bare `uniq -0`
+skips zero fields on both systems. The selected
 conventions are compiled into the builtins. Cross builds use the Debian 13
 defaults.
 
