@@ -7,7 +7,7 @@ builds. No host utility is invoked. `clear` and `bashclear` are described in
 
 | Command | Supported interface |
 |---|---|
-| `base64` | Encode or decode a file or stdin; `-d`, `-i`, `-w`, their long names, clustered short options, and `--`. Encoding wraps at 76 columns by default; `-w0` disables wrapping and the final newline. Decoding accepts concatenated padded groups and GNU-style incomplete final groups, reports invalid input, and preserves binary bytes. |
+| `base64` | Encode or decode a file or stdin with `-d`, `-i`, `-w`, their long names, clustered short options, and `--`. Encoding wraps at 76 columns by default. `-w0` disables wrapping and the final newline. Decoding accepts concatenated padded groups, reports invalid input, and preserves binary bytes. |
 | `sha256sum` | Files or stdin; text/binary markers, `--tag`, `-z`, escaped filenames, and `-c` verification of GNU and BSD checksum files. Check mode supports `--quiet`, `--status`, `--warn`, `--strict`, and `--ignore-missing`. |
 | `gzip` | File compression/decompression and stdin/stdout filters; `-c`, `-d`, `-k`, `-f`, `-t`, `-n`, `-q`, `-1` through `-9`, and `-S`. Checks CRCs and truncation and decodes concatenated members. File output is published only after a complete stream; failed decompression retains its input. |
 | `tar` | Create, list, and extract ustar/PAX archives; `-c`, `-t`, `-x`, `-f`, `-C`, `-z`, `-v`, `-O`, `-p`, `--strip-components`, and `--no-recursion`. Supports traditional `tar cf archive files` syntax. `-C` affects member paths and restores the caller's working directory on success and failure. |
@@ -15,8 +15,17 @@ builds. No host utility is invoked. `clear` and `bashclear` are described in
 `bashbase64` keeps its original unwrapped encoding default and extended
 decoding rules. Use `base64` for the GNU interface.
 
+Native builds check the installed reference tools for five conventions that
+differ between Ubuntu 24.04 and Debian 13. Ubuntu's tools warn for `cp -n`,
+reject `uniq -f -0`, require padding at the end of a base64 group, return
+success for input discarded by `iconv -c`, and report an existing destination
+as a failure for `mv -n`. Debian 13 has the opposite behavior for these
+cases. Bare `uniq -0` skips zero fields on both systems. The selected
+conventions are compiled into the builtins. Cross builds use the Debian 13
+defaults.
+
 `cp -n` and `--no-clobber` skip existing destination entries with successful
-status and no output. Copying regular data to a dangling destination symlink
+status. Copying regular data to a dangling destination symlink
 still fails, as GNU cp does. `-f` does not cancel `-n`;
 the last `-i` or `-n` wins. Recursive directory copies still merge directories.
 Exclusive creation also protects a destination created after the initial check.
