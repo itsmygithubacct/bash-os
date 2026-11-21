@@ -50059,10 +50059,10 @@
       "topic": "tput/compiled-terminfo"
     },
     {
-      "coverage": "partial",
-      "current_reason": "Physical hardware qualification (r4) is not applicable in a disposable VM.",
-      "migration": null,
-      "notes": "Root reviewed original compound obligations, current fixture definitions and matching raw VM results on both unchanged builds. Only reached assertions qualify; candidate FAIL is retained, while invalid or superseded fixture results are excluded.",
+      "coverage": "full",
+      "current_reason": "The post-release dynamic and static builds passed init and reset on an assigned framebuffer console and through a Debian KVM guest attached to that console.",
+      "migration": "replacement",
+      "notes": "Requirements r1 through r3 retain their historical PTY and no-terminal observations. The physical console receipt for r4 identifies the later repaired builds and their independent ncurses comparison.",
       "original": {
         "id": "hardware-init-reset",
         "kind": "deferred",
@@ -50114,9 +50114,16 @@
         },
         {
           "behavior": "Physical hardware qualification",
-          "coverage": "missing",
-          "evidence": [],
-          "gap": "Not applicable in a VM; the PTY is the terminal under test. Physical serial/console hardware would need real hardware and is out of scope for a disposable VM.",
+          "coverage": "covered",
+          "evidence": [
+            {
+              "assertion": "Both builds matched ncurses on a spare i915 framebuffer console for init and reset. The kernel screen cells, cursor and termios agreed. A Debian KVM guest on the same console also matched the reference UART bytes, modes and screen state.",
+              "definition_sha256": "1bad90b586d9cec299ade0ebc93a7dc43146dd4547ad8e6b9af4fb9cffe4d10d",
+              "group": "shell",
+              "id": "tput-physical-console-init-reset"
+            }
+          ],
+          "gap": "",
           "id": "r4"
         }
       ],
@@ -55269,7 +55276,7 @@
   "original_sha256": "9f7ea6e79298b73552e1129b1dde7b34378ad0493c2755f8f9412237954442f8",
   "policy": "MIGRATED records point to fully exercised requirements on both builds; they are not additional passing tests. FAIL remains FAIL. Partial, skipped, invalid or stale evidence cannot close a topic.",
   "previous_ledger_sha256": "224841d541a8a0819778b43d480e0abda4cdb1f79cf969ebf77949a978d62ca4",
-  "qualification_status": "QUALIFIED for 0.1.4 on the release builds (dynamic 966f2d3447abcc6720f971c2deb83c7a2e078cac27da98b0e8d3275fe7f60af9, static 8edb6607d69f49322091e1f05b7da8f198f999ea3fe55e1ca0be14d05d7251ca): every required ordinary, extended, SMP, SELinux, GPU, root, clamp, executor and kernel-authority case PASSes on both builds, and 599 of 600 topics are full. Two recorded limits remain: tput/hardware-init-reset needs physical terminal hardware (partial), and migration-genl-list-multipart cannot hold its precondition on the qualification guest kernel, whose whole generic netlink family table fits in one dump buffer; the multi-buffer requirement of genl/ctrl-list is covered by the mock cases. Subsequent Debian 13 qualification passed migration-genl-list-multipart on dynamic and static builds using additional registered kernel families. The physical tput requirement remains open.",
+  "qualification_status": "QUALIFIED for 0.1.4 on the release builds (dynamic 966f2d3447abcc6720f971c2deb83c7a2e078cac27da98b0e8d3275fe7f60af9, static 8edb6607d69f49322091e1f05b7da8f198f999ea3fe55e1ca0be14d05d7251ca): every required ordinary, extended, SMP, SELinux, GPU, root, clamp, executor and kernel-authority case PASSes on both builds, and 599 of 600 topics are full. The original run recorded two limits: tput/hardware-init-reset needs physical terminal hardware (partial), and migration-genl-list-multipart cannot hold its precondition on the qualification guest kernel, whose whole generic netlink family table fits in one dump buffer; the multi-buffer requirement of genl/ctrl-list is covered by the mock cases. Subsequent Debian 13 qualification passed migration-genl-list-multipart on dynamic and static builds using additional registered kernel families. On 2026-11-21 the post-release terminfo repair passed physical console qualification on dynamic and static builds. The cumulative ledger now has 600 full topics and 2,513 covered requirements. The physical receipt identifies the tested binaries.",
   "release_target": "0.1.4",
   "schema": 1,
   "takeover_parent_mapping_sha256": "34889b404ccbc44a7c68ed6eb6e611714543a9ba3ce784aa60da14c34290ce0c",

@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "id": "tput-physical-console-init-reset",
+      "group": "shell",
+      "driver": "plain",
+      "kind": "contract",
+      "loadable": "tput",
+      "covers": [
+        "tput/hardware-init-reset"
+      ],
+      "purpose": "Exercise init and reset on a reserved kernel text console mapped to a connected, enabled Intel display.",
+      "oracle": "Debian ncurses tput, the VT termios state, /dev/vcsa screen cells and cursor, and a no-op control against explicitly seeded states.",
+      "comparison": "Compare status, complete termios, screen contents and cursor for the packaged linux entry and a separately compiled entry with identifiable init/reset effects.",
+      "privilege": "root",
+      "requires": [
+        "python3",
+        "tic",
+        "tput"
+      ],
+      "candidate_script": "test -n \"$BASHOS_PHYSICAL_VT\" || exit 125\n/usr/bin/python3 /opt/bashos-parity/harness/helpers/tput-physical-console.py --vt \"$BASHOS_PHYSICAL_VT\" --shell /opt/bashos-parity/candidate --output \"$HOME/tput-physical.json\"\n",
+      "expected_status": 0,
+      "observation_error_status": 125,
+      "stdout": "PASS\n",
+      "stderr": "",
+      "diagnostic_files": [
+        "tput-physical.json"
+      ],
+      "timeout": 60,
+      "helpers_sha256": {
+        "helpers/tput-physical-console.py": "9c80bb55d102bc479580b18ad573b67005e0c5e30b4903fb2b0a7b6989dba454"
+      }
+    }
+  ]
+}

@@ -288,8 +288,32 @@ insmod "$fixture/genl_dump_families.ko"
 rmmod genl_dump_families
 ```
 
-The ledger has 599 full topics. Physical terminal qualification for
-`tput init` and `tput reset` remains open.
+The 0.1.4 release run covered 599 of the 600 historical topics. On
+2026-11-21, dynamic and static builds of the terminfo search repair
+(`102b3ca9`) qualified the last requirement, physical `tput init` and
+`tput reset`. The cumulative ledger now covers all 2,513 requirements
+across 600 topics.
+
+Both builds matched Debian ncurses on a spare Linux text console mapped
+to the Intel framebuffer driving a connected, enabled panel. The observer
+read the kernel's screen cells and cursor through the console's VCSA device
+and compared the full terminal settings. A Debian 13.7 KVM guest also sent
+both commands through its auxiliary UART directly to the same console.
+The guest bytes, modes and console results matched ncurses for the system
+`linux` entry and a compiled entry with identifiable initialization and
+reset strings. The foreground console stayed active. The observed screen
+was the spare VT's backing store. [Hardware observations and binary hashes](data/tput-physical-console.json)
+
+To repeat the driver check, allocate a fresh blank, inactive VT on an i915
+display and assign its tty, matching VCSA device and read-only framebuffer
+to the isolated runner. Supply a report path writable by uid 1000. The
+opener may start as root to open the assigned nodes and drop to uid 1000 for
+every trial. Run once per candidate and release the spare VT afterwards.
+
+```sh
+python3 tests/parity-vm/helpers/tput-physical-console.py \
+  --vt "$vt" --shell "$candidate" --output "$report"
+```
 
 The [validation record](data/release-0.1.4-validation.json) lists the binary
 and manifest hashes, the harness and image-lock hashes, the source changes

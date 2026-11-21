@@ -1,0 +1,269 @@
+{
+  "schema": 1,
+  "case": "tput-physical-console-init-reset",
+  "definition_sha256": "1bad90b586d9cec299ade0ebc93a7dc43146dd4547ad8e6b9af4fb9cffe4d10d",
+  "date_utc": "2026-11-21",
+  "source_commit": "102b3ca9660d1f4f13111a16d57e0a976fe4214b",
+  "reference": "Debian ncurses 6.5.20250216",
+  "reference_sha256": "594542601af6859f003913fe1b615defb8b6f7347b7770af793c871b64b6221e",
+  "linux_terminfo_sha256": "b70a4941416eb703a01b5a06fd1c914880452302b0e0b2a7dea12600607824a7",
+  "probe_source_sha256": "b397c2fc9bb91f9ae6ca811dddfa2180e8b2698e1699ef96c8d22794f67a8687",
+  "tested_uid": 1000,
+  "hardware": {
+    "vt": 8,
+    "foreground": "tty7",
+    "framebuffer": "fb0",
+    "driver": "i915drmfb",
+    "pci_driver": "i915",
+    "connectors": [
+      "card0-eDP-1"
+    ],
+    "edid_base_checksum_valid": true,
+    "tty_rdev": [4, 8],
+    "vcsa_rdev": [7, 136],
+    "kd_mode": "KD_TEXT",
+    "rows": 67,
+    "cols": 240
+  },
+  "guest": {
+    "debian": "13.7",
+    "kernel": "6.12.117+deb13-amd64",
+    "acceleration": "kvm",
+    "command_channel": "/dev/ttyS0",
+    "auxiliary_uart": "/dev/ttyS1",
+    "qemu_stdio_output": "/dev/tty8",
+    "shutdown": true
+  },
+  "builds": {
+    "dynamic": "30f1edae6f223f04448fac4c7dc25c3819b8551930696792200cb3a2e674e9b4",
+    "static": "e66725accfbfd3330a4ab753f822402c4366ba6170e5ebe8262c7723916307cd"
+  },
+  "original_failure": {
+    "build": "dynamic",
+    "sha256": "b3fae20cb71665e0e7396bc23331f9f1516b959c2728367d6abbbf3ef12a2b75",
+    "linux_init_status": 3,
+    "linux_reset_status": 3,
+    "diagnostic": "tput: unknown terminal \"linux\""
+  },
+  "restoration": {
+    "direct": true,
+    "kvm": true,
+    "released_vt": 8,
+    "foreground_before": 7,
+    "foreground_after": 7
+  },
+  "raw_sha256": {
+    "before-dynamic.json": "196838c312100596c342630f948fe0028b7d86282adc1feb58a36f0c52d51556",
+    "direct-dynamic.json": "bf44b98b3cbb1fa3c42b4256b9821a21704f90d411e3ffa0ba77b5f9db6e65c9",
+    "direct-static.json": "682ba6fa5e96cb91cc04f4d45627bcfcedb9b48c245a2f90227c5d8ada5ef83e",
+    "kvm.json": "e4e4c6a7bd8cc12eae52fd43b8ed1ac04bd8418ee9054cb94dc09edf9f6c5f43",
+    "guest-wire.bin": "8ad03c27aba6f568b3b17c094d22d221f809f9cb77c5b392fa448acf8d251d47"
+  },
+  "modes": {
+    "m1": [
+      17664,
+      5,
+      1215,
+      35387,
+      15,
+      15,
+      [0, 28, 0, 0, 4, 0, 1, 0, 17, 19, 26, 0, 18, 15, 23, 22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    "m2": [
+      17664,
+      5,
+      1215,
+      35387,
+      15,
+      15,
+      [3, 28, 127, 21, 4, 0, 1, 0, 17, 19, 26, 0, 18, 15, 23, 22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    "m3": [
+      17664,
+      1,
+      1215,
+      35377,
+      15,
+      15,
+      [0, 0, 0, 0, 0, 0, 1, 0, 17, 19, 0, 0, 18, 15, 23, 22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    "m4": [
+      25862,
+      5,
+      1215,
+      35387,
+      15,
+      15,
+      [3, 28, 127, 21, 4, 0, 1, 0, 17, 19, 26, 0, 18, 15, 23, 22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    "m5": "2502:5:cbf:8a3b:0:1c:0:0:4:0:1:0:11:13:1a:0:12:f:17:16:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0",
+    "m6": "2502:5:cbf:8a3b:3:1c:7f:15:4:0:1:0:11:13:1a:0:12:f:17:16:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0",
+    "m7": "2502:1:cbf:8a31:0:0:0:0:0:0:1:0:11:13:0:0:12:f:17:16:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0",
+    "m8": "2506:5:cbf:8a3b:3:1c:7f:15:4:0:1:0:11:13:1a:0:12:f:17:16:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0:0"
+  },
+  "screens": {
+    "s1": {
+      "rows": 67,
+      "cols": 240,
+      "cursor": [9, 0],
+      "sha256": "3ec4d2b95e90044dbf765894c2c562db6d0d47e2b04b414914b3953eb1e53e0f",
+      "text": [
+        [
+          0,
+          "TPUT-BASE"
+        ]
+      ]
+    },
+    "s2": {
+      "rows": 67,
+      "cols": 240,
+      "cursor": [0, 0],
+      "sha256": "13fd8f89ffb1d3cba6edaf882794b16866906ab9e652a3ccc2746fa31c2a0c54",
+      "text": []
+    },
+    "s3": {
+      "rows": 67,
+      "cols": 240,
+      "cursor": [8, 2],
+      "sha256": "68e0a5c68acd051e0649f0571ef1eb9db5d10076fa2a0c9a84ce18dbf641de37",
+      "text": [
+        [
+          2,
+          "    INIT"
+        ]
+      ]
+    },
+    "s4": {
+      "rows": 67,
+      "cols": 240,
+      "cursor": [11, 3],
+      "sha256": "5974c21fdbad03dfc2d0520afb5f45a4762c8ebae3f84c211a2645e37187fd6e",
+      "text": [
+        [
+          3,
+          "      RESET"
+        ]
+      ]
+    }
+  },
+  "direct": {
+    "dynamic": [
+      {
+        "term": "linux",
+        "verb": "init",
+        "runs": {
+          "control": {"status": 0, "modes_before": "m1", "modes_after": "m1", "screen_before": "s1", "screen_after": "s1"},
+          "reference": {"status": 0, "modes_before": "m1", "modes_after": "m2", "screen_before": "s1", "screen_after": "s1"},
+          "candidate": {"status": 0, "modes_before": "m1", "modes_after": "m2", "screen_before": "s1", "screen_after": "s1"}
+        }
+      },
+      {
+        "term": "linux",
+        "verb": "reset",
+        "runs": {
+          "control": {"status": 0, "modes_before": "m3", "modes_after": "m3", "screen_before": "s1", "screen_after": "s1"},
+          "reference": {"status": 0, "modes_before": "m3", "modes_after": "m4", "screen_before": "s1", "screen_after": "s2"},
+          "candidate": {"status": 0, "modes_before": "m3", "modes_after": "m4", "screen_before": "s1", "screen_after": "s2"}
+        }
+      },
+      {
+        "term": "tput-fbcon",
+        "verb": "init",
+        "runs": {
+          "control": {"status": 0, "modes_before": "m1", "modes_after": "m1", "screen_before": "s1", "screen_after": "s1"},
+          "reference": {"status": 0, "modes_before": "m1", "modes_after": "m2", "screen_before": "s1", "screen_after": "s3"},
+          "candidate": {"status": 0, "modes_before": "m1", "modes_after": "m2", "screen_before": "s1", "screen_after": "s3"}
+        }
+      },
+      {
+        "term": "tput-fbcon",
+        "verb": "reset",
+        "runs": {
+          "control": {"status": 0, "modes_before": "m3", "modes_after": "m3", "screen_before": "s1", "screen_after": "s1"},
+          "reference": {"status": 0, "modes_before": "m3", "modes_after": "m4", "screen_before": "s1", "screen_after": "s4"},
+          "candidate": {"status": 0, "modes_before": "m3", "modes_after": "m4", "screen_before": "s1", "screen_after": "s4"}
+        }
+      }
+    ],
+    "static": [
+      {
+        "term": "linux",
+        "verb": "init",
+        "runs": {
+          "control": {"status": 0, "modes_before": "m1", "modes_after": "m1", "screen_before": "s1", "screen_after": "s1"},
+          "reference": {"status": 0, "modes_before": "m1", "modes_after": "m2", "screen_before": "s1", "screen_after": "s1"},
+          "candidate": {"status": 0, "modes_before": "m1", "modes_after": "m2", "screen_before": "s1", "screen_after": "s1"}
+        }
+      },
+      {
+        "term": "linux",
+        "verb": "reset",
+        "runs": {
+          "control": {"status": 0, "modes_before": "m3", "modes_after": "m3", "screen_before": "s1", "screen_after": "s1"},
+          "reference": {"status": 0, "modes_before": "m3", "modes_after": "m4", "screen_before": "s1", "screen_after": "s2"},
+          "candidate": {"status": 0, "modes_before": "m3", "modes_after": "m4", "screen_before": "s1", "screen_after": "s2"}
+        }
+      },
+      {
+        "term": "tput-fbcon",
+        "verb": "init",
+        "runs": {
+          "control": {"status": 0, "modes_before": "m1", "modes_after": "m1", "screen_before": "s1", "screen_after": "s1"},
+          "reference": {"status": 0, "modes_before": "m1", "modes_after": "m2", "screen_before": "s1", "screen_after": "s3"},
+          "candidate": {"status": 0, "modes_before": "m1", "modes_after": "m2", "screen_before": "s1", "screen_after": "s3"}
+        }
+      },
+      {
+        "term": "tput-fbcon",
+        "verb": "reset",
+        "runs": {
+          "control": {"status": 0, "modes_before": "m3", "modes_after": "m3", "screen_before": "s1", "screen_after": "s1"},
+          "reference": {"status": 0, "modes_before": "m3", "modes_after": "m4", "screen_before": "s1", "screen_after": "s4"},
+          "candidate": {"status": 0, "modes_before": "m3", "modes_after": "m4", "screen_before": "s1", "screen_after": "s4"}
+        }
+      }
+    ]
+  },
+  "kvm": [
+    {
+      "term": "linux",
+      "verb": "init",
+      "runs": {
+        "control": {"status": 0, "modes_before": "m5", "modes_after": "m5", "wire_hex": "", "screen_after": "s1"},
+        "reference": {"status": 0, "modes_before": "m5", "modes_after": "m6", "wire_hex": "", "screen_after": "s1"},
+        "dynamic": {"status": 0, "modes_before": "m5", "modes_after": "m6", "wire_hex": "", "screen_after": "s1"},
+        "static": {"status": 0, "modes_before": "m5", "modes_after": "m6", "wire_hex": "", "screen_after": "s1"}
+      }
+    },
+    {
+      "term": "linux",
+      "verb": "reset",
+      "runs": {
+        "control": {"status": 0, "modes_before": "m7", "modes_after": "m7", "wire_hex": "", "screen_after": "s1"},
+        "reference": {"status": 0, "modes_before": "m7", "modes_after": "m8", "wire_hex": "1b631b5d52", "screen_after": "s2"},
+        "dynamic": {"status": 0, "modes_before": "m7", "modes_after": "m8", "wire_hex": "1b631b5d52", "screen_after": "s2"},
+        "static": {"status": 0, "modes_before": "m7", "modes_after": "m8", "wire_hex": "1b631b5d52", "screen_after": "s2"}
+      }
+    },
+    {
+      "term": "tput-fbcon",
+      "verb": "init",
+      "runs": {
+        "control": {"status": 0, "modes_before": "m5", "modes_after": "m5", "wire_hex": "", "screen_after": "s1"},
+        "reference": {"status": 0, "modes_before": "m5", "modes_after": "m6", "wire_hex": "1b5b324a1b5b333b3548494e4954", "screen_after": "s3"},
+        "dynamic": {"status": 0, "modes_before": "m5", "modes_after": "m6", "wire_hex": "1b5b324a1b5b333b3548494e4954", "screen_after": "s3"},
+        "static": {"status": 0, "modes_before": "m5", "modes_after": "m6", "wire_hex": "1b5b324a1b5b333b3548494e4954", "screen_after": "s3"}
+      }
+    },
+    {
+      "term": "tput-fbcon",
+      "verb": "reset",
+      "runs": {
+        "control": {"status": 0, "modes_before": "m7", "modes_after": "m7", "wire_hex": "", "screen_after": "s1"},
+        "reference": {"status": 0, "modes_before": "m7", "modes_after": "m8", "wire_hex": "1b631b5b343b37485245534554", "screen_after": "s4"},
+        "dynamic": {"status": 0, "modes_before": "m7", "modes_after": "m8", "wire_hex": "1b631b5b343b37485245534554", "screen_after": "s4"},
+        "static": {"status": 0, "modes_before": "m7", "modes_after": "m8", "wire_hex": "1b631b5b343b37485245534554", "screen_after": "s4"}
+      }
+    }
+  ]
+}

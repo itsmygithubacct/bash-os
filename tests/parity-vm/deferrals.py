@@ -370,8 +370,48 @@ def retained_overlay_cleanup(spec, directory, summary, provenance, expected_bina
             "selfcheck_ids": pin["selfcheck_ids"]}
 
 
+def load_physical_tput(spec, expected_binary, expected_build, repo):
+    # This receipt identifies the two post-release binaries that actually
+    # touched the console. It cannot qualify an earlier release binary.
+    path = repo / "docs/data/tput-physical-console.json"
+    receipt_hash = file_digest(path)
+    check(receipt_hash == "e20c6b97042253fd4e0cf3a514958c83e3753882e5d4cb2b4a656e7fe6aa2555",
+          "physical console receipt differs from the reviewed observations")
+    receipt = read(path)
+    case, = read(repo / "tests/parity-vm/evidence-suites/tput-physical-console.json")["cases"]
+    schema.verify_helpers(case, repo / "tests/parity-vm")
+    check(digest(case) == receipt["definition_sha256"] and case["id"] == receipt["case"],
+          "physical console fixture changed")
+    check(expected_build in receipt["builds"] and receipt["builds"][expected_build] == expected_binary,
+          "physical console receipt belongs to a different build")
+    check(case["group"] in spec.get("groups", [case["group"]])
+          and case["id"] in spec.get("ids", [case["id"]])
+          and case["id"] not in spec.get("exclude_ids", []), "physical console case excluded")
+    cases = {(term, verb) for term in ("linux", "tput-fbcon") for verb in ("init", "reset")}
+    matches = True
+    for trials, side in ((receipt["direct"][expected_build], "candidate"),
+                         (receipt["kvm"], expected_build)):
+        check(len(trials) == len(cases) and {(t["term"], t["verb"]) for t in trials} == cases,
+              "incomplete hardware trial matrix")
+        for trial in trials:
+            runs = trial["runs"]
+            control, reference = runs["control"], runs["reference"]
+            check(control["status"] == reference["status"] == 0 and
+                  control["modes_before"] == control["modes_after"] == reference["modes_before"]
+                  and reference["modes_before"] != reference["modes_after"],
+                  "physical console trial lacks a working terminal-mode control")
+            matches = matches and runs[side] == reference
+    record = {"group": case["group"], "id": case["id"], "status": "PASS" if matches else "FAIL"}
+    name = spec.get("name", case["id"])
+    return ([{"record": record, "definition": case, "sources": {}, "run": name}],
+            {"name": name, "groups": [case["group"]], "selected_records": 1,
+             "candidate_sha256": expected_binary, "artifacts_sha256": {path.name: receipt_hash}})
+
+
 def load_run(spec, expected_binary, expected_build=None, repo=REPO):
     if "evidence_format" in spec:
+        if spec["evidence_format"] == "tput-physical-console-v1":
+            return load_physical_tput(spec, expected_binary, expected_build, repo)
         if spec["evidence_format"] == "primary-qualified-dmesg-ordinary-r2":
             from primary_dmesg_native_evidence_r1 import load_qualified_dmesg_ordinary
             return load_qualified_dmesg_ordinary(spec, expected_binary, expected_build, repo)

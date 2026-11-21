@@ -15,7 +15,7 @@
     "Metadata is excluded from operation coverage. Version/implementation identity is a custom contract, not an ncurses byte-equality requirement.",
     "The curated data is qualified against the installed independent reference entries, not arbitrary compiled terminfo databases or user database replacements.",
     "Only the twelve listed common booleans are supported; the complete standard/extended capability namespace is outside this suite.",
-    "init/reset terminal driver actions, serial padding timing, live dimensions, hardware and visible screen effects remain deferred."
+    "The byte-only cases exclude terminal-driver changes, serial padding timing, live dimensions and physical screen effects. The migrated cases below identify the separate terminal qualifications."
   ],
   "cases": [
     {
@@ -209,8 +209,25 @@
     {
       "id": "hardware-init-reset",
       "purpose": "Hardware and init/reset terminal-driver qualification requires a controlled terminal mock or disposable hardware environment. These mode-setting operations are not exercised in the byte fixtures.",
-      "kind": "deferred",
-      "reason": "Physical hardware qualification (r4) is not applicable in a disposable VM."
+      "kind": "migrated",
+      "replacement_cases": [
+        {
+          "group": "shell",
+          "id": "migration-tput-init-reset-no-terminal"
+        },
+        {
+          "group": "shell",
+          "id": "tput-physical-console-init-reset"
+        },
+        {
+          "group": "terminal",
+          "id": "mig-w8-tput-reset-special-chars"
+        },
+        {
+          "group": "terminal",
+          "id": "migration-tput-init-bytes"
+        }
+      ]
     }
   ]
 }
