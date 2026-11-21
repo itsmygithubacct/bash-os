@@ -127,7 +127,23 @@ def run_scenario(script, workdir, home, side):
     stderr = b'\n'.join(line for line in result.stderr.splitlines()
                         if not line.startswith(b'hint:')
                         and not line.startswith(b'Could not apply '))
-    return {'status': result.returncode, 'stdout': result.stdout, 'stderr': stderr}
+    stdout = result.stdout
+    if script.stem in ('blame', 'plumbing-objects'):
+        # Git can use seven or eight hex digits when a blame listing has
+        # no boundary marker. Compare the actual commit behind each prefix.
+        resolved = {}
+        def blame_id(match):
+            prefix = match[0]
+            if prefix == b'0' * len(prefix):
+                return b'0' * 40
+            if prefix not in resolved:
+                status, oid = git_out(workdir, 'rev-parse', '--verify', prefix.decode() + '^{commit}')
+                if status or not re.fullmatch(rb'[0-9a-f]{40}\n', oid):
+                    raise ValueError(f'blame printed an unresolved commit {prefix!r}')
+                resolved[prefix] = oid.rstrip()
+            return resolved[prefix]
+        stdout = re.sub(rb'(?m)^[0-9a-f]{7,8}(?=\s+(?:\(|[0-9]+\)))', blame_id, stdout)
+    return {'status': result.returncode, 'stdout': stdout, 'stderr': stderr}
 
 
 def git_out(directory, *args):
