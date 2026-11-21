@@ -88,6 +88,18 @@ with tempfile.TemporaryDirectory() as directory:
                     '+' + '9' * 200, '0' * 200 + '1']
     invalid_counts = ['', ' ', '+', '-', '-1', '  -1', '-18446744073709551616',
                       '1 ', '1junk', '1K', '0x1', '++1', '+-0', '9' * 200 + 'x']
+    zero_probe = subprocess.run(['/usr/bin/uniq', '-f', '-0'], input=b'',
+                                capture_output=True, env=environment)
+    if zero_probe.returncode:
+        assert zero_probe.returncode == 1
+        assert zero_probe.stderr.endswith(b': -0: invalid number of fields to skip\n')
+        for value in ('-0', '-000'):
+            valid_counts.remove(value)
+            invalid_counts.append(value)
+        rejected = builtin('uniq', ['-f', '-0'], b'sample\n')
+        assert rejected.returncode == 1 and not rejected.stdout
+        assert rejected.stderr.endswith(b': -0: invalid number of fields to skip\n'), rejected.stderr
+    compare('uniq', ['-0'], b'a\na\n', expected_status=0)
     for short,long in [('-f','--skip-fields'),('-s','--skip-chars'),('-w','--check-chars')]:
         for value in valid_counts + invalid_counts:
             valid = value in valid_counts

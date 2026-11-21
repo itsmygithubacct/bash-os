@@ -20,3 +20,6 @@ with tempfile.TemporaryDirectory() as directory:
     cp = probe('cp', '-n', 'source', 'destination')
     if cp and b'behavior of -n is non-portable' in cp.stderr:
         print('#define BASHOS_CP_WARN_NO_CLOBBER 1')
+    uniq = probe('uniq', '-f', '-0')
+    if uniq and uniq.returncode == 1 and b'invalid number of fields to skip' in uniq.stderr:
+        print('#define BASHOS_UNIQ_REJECT_NEGATIVE_ZERO 1')

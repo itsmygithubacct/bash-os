@@ -148,6 +148,9 @@ bu_parse_size (const char *s, size_t *out)
     if (!s) return -1;
     while (isspace ((unsigned char) *s)) s++;
     int negative = *s == '-';
+#ifdef BASHOS_UNIQ_REJECT_NEGATIVE_ZERO
+    if (negative) return -1;
+#endif
     if (*s == '+' || negative) s++;
     if (*s < '0' || *s > '9') return -1;
     size_t value = 0;
@@ -155,7 +158,7 @@ bu_parse_size (const char *s, size_t *out)
         if (*s < '0' || *s > '9') return -1;
         value = bu_size_digit (value, (unsigned int) (*s - '0'));
     }
-    /* A signed zero is valid, but negative nonzero counts are not. */
+    /* Newer GNU versions accept signed zero. */
     if (negative && value) return -1;
     *out = value;
     return 0;
