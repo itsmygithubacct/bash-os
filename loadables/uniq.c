@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include <limits.h>
+#include <inttypes.h>
 
 #include "loadables.h"
 #include "bl-output.h"
@@ -192,6 +193,11 @@ bu_is_plus_number (const char *s)
     for (const char *p = s + 1; *p; p++)
         if (*p < '0' || *p > '9')
             return 0;
+#ifdef BASHOS_UNIQ_LARGE_PLUS_IS_FILE
+    errno = 0;
+    (void) strtoumax (s + 1, NULL, 10);
+    if (errno == ERANGE) return 0;
+#endif
     return 1;
 }
 

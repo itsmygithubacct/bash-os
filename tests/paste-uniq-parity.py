@@ -15,17 +15,17 @@ environment = dict(os.environ, LC_ALL='C', PATH='')
 prefix = 'if [[ -n ${TEXT_OUTPUT_MODULE:-} ]]; then enable -f "$TEXT_OUTPUT_MODULE" paste; enable -f "$TEXT_OUTPUT_MODULE" uniq; fi\n'
 checks = 0
 
-def builtin(tool, args, data):
+def builtin(tool, args, data, cwd=None):
     p = subprocess.run([binary, '-c', prefix+'"$@"', '_', tool, *map(str,args)],
-                       input=data, capture_output=True, env=environment, timeout=20)
+                       input=data, capture_output=True, env=environment, timeout=20, cwd=cwd)
     assert b'AddressSanitizer' not in p.stderr and b'runtime error:' not in p.stderr,p.stderr
     return p
 
-def compare(tool, args=(), data=b'', expected_status=None):
+def compare(tool, args=(), data=b'', expected_status=None, cwd=None):
     global checks
-    actual = builtin(tool,args,data)
+    actual = builtin(tool,args,data,cwd=cwd)
     expected = subprocess.run(['/usr/bin/'+tool,*map(str,args)], input=data,
-                              capture_output=True, env=environment, timeout=20)
+                              capture_output=True, env=environment, timeout=20, cwd=cwd)
     if expected_status is not None:
         assert expected.returncode == expected_status, (args,expected.stderr)
         assert bool(actual.stderr) == bool(expected.stderr), (args,actual.stderr,expected.stderr)
@@ -115,8 +115,14 @@ with tempfile.TemporaryDirectory() as directory:
         compare('uniq',[short,'9'*200+'x',first,second],expected_status=1)
         assert first.read_bytes()==b'preserve input\n'
         assert second.read_bytes()==b'preserve output\n'
+    large_operand = '+18446744073709551616'
+    (d / large_operand).write_bytes(b'from file\n')
+    compare('uniq', [large_operand], b'from stdin\n', expected_status=0, cwd=d)
+    reads_file = builtin('uniq', [large_operand], b'from stdin\n', cwd=d).stdout == b'from file\n'
+    (d / large_operand).unlink()
+    compare('uniq', [large_operand], b'from stdin\n', expected_status=int(reads_file), cwd=d)
     for args in [['-18446744073709551616'],['-999999999999999999999999'],
-                 ['-999999999999999999999999d'],['+18446744073709551616'],
+                 ['-999999999999999999999999d'],
                  ['-18446744073709551616','-1'],['-1','-2'],
                  ['-f','1','-2'],['-2','-f','1'],['-f','+1','-2'],
                  ['-18446744073709551616','-f','1']]:
