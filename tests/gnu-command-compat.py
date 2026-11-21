@@ -88,8 +88,12 @@ class Compatibility(unittest.TestCase):
                     if target == "regular": path.write_bytes(b"old")
                     if target == "dangling" and not path.is_symlink(): path.symlink_to("absent")
                     result = self.run_shell('cp "$@"', *flags, "source", target)
+                    reference = self.run_shell('cp "$@"', *flags, "source", target, gnu=True)
                     self.assertEqual(result.returncode, 1 if target == "dangling" else 0, result.stderr)
-                    self.assertEqual(bool(result.stderr), target == "dangling")
+                    self.assertEqual(result.returncode, reference.returncode)
+                    self.assertEqual(bool(result.stderr), bool(reference.stderr))
+                    warning = b'behavior of -n is non-portable'
+                    self.assertEqual(result.stderr.count(warning), reference.stderr.count(warning))
                     if target == "regular": self.assertEqual(path.read_bytes(), b"old")
                     if target == "dangling": self.assertEqual(os.readlink(path), "absent")
         result = self.run_shell("cp -ni source regular", data=b"y\n")

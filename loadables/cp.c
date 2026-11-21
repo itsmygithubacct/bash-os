@@ -736,7 +736,7 @@ cp_builtin (WORD_LIST *list)
             return EXECUTION_SUCCESS;
         }
         if (!strcmp (w, "--parents")) { o.parents = 1; continue; }
-        if (!strcmp (w, "--no-clobber")) { o.nflag = 1; o.iflag = 0; continue; }
+        if (!strcmp (w, "--no-clobber")) w = "-n";
         if (!strcmp (w, "--interactive")) { o.iflag = 1; o.nflag = 0; continue; }
         if (!strcmp (w, "--force")) { o.fflag = 1; continue; }
         if (strcmp (w, "--") == 0) {
@@ -763,7 +763,11 @@ cp_builtin (WORD_LIST *list)
                     break;
                 case 'f': o.fflag = 1; break;
                 case 'i': o.iflag = 1; o.nflag = 0; break;
-                case 'n': o.nflag = 1; o.iflag = 0; break;
+                case 'n':
+#ifdef BASHOS_CP_WARN_NO_CLOBBER
+                    builtin_warning ("behavior of -n is non-portable and may change in future; use --update=none instead");
+#endif
+                    o.nflag = 1; o.iflag = 0; break;
                 case 'p': o.pflag = 1; break;
                 case 'R': case 'r': o.rflag = 1; break;
                 case 'H': o.Hflag = 1; o.Lflag = 0; o.Pflag = 0; break;

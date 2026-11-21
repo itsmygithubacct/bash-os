@@ -183,6 +183,10 @@ CROSS_CACHE=(bash_cv_getcwd_malloc=yes bash_cv_job_control_missing=present
 CFGX=(); if [[ $CROSS == 1 ]]; then CFGX=("${CROSS_CACHE[@]}"); [[ "${CONFIGURE_EXTRA:-}" == *--host=* ]] || CFGX+=("--host=$TARGET"); fi
 
 # Stamp: a hash of every input, so an unchanged rebuild is a no-op.
+GNU_REFERENCE=
+if [[ $CROSS == 0 ]]; then
+  GNU_REFERENCE=$(python3 config/gnu-reference.py)
+fi
 mkdir -p "$OUTDIR" "$DL" build
 exec {BUILD_LOCK}> "$HERE/build/.lock"
 flock "$BUILD_LOCK"
@@ -192,7 +196,7 @@ while read -r stock_name stock_patch; do
   STOCK_PATCHES["$stock_name"]=$stock_patch
 done <<< "$PATCHES_TEXT"
 STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS cppflags=$CPPFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-}";
-           printf '%s\n' "$SELECTION"; "$CC" --version;
+           printf '%s\n' "$SELECTION" "$GNU_REFERENCE"; "$CC" --version;
            cat VERSION config/versions.sh config/helpers.json config/profiles.json config/loadables.py config/bash-loadables-optional.list config/stage-helpers.py config/build-cache.py config/relocate-build.py config/publish-binary.py config/stock-patches.json build.sh patches/*.patch;
            printf '%s\n' "$PERL_CONFIG";
            printf '%s\n' "$PYTHON_CONFIG";
@@ -335,6 +339,7 @@ PY
 
 # --- 6. configure ----------------------------------------------------------
 say "configure"
+printf '\n%s\n' "$GNU_REFERENCE" >> config-bot.h
 ./configure --disable-nls --without-bash-malloc ${CONFIGURE_EXTRA:-} "${CFGX[@]}" \
     CC="$CC" CFLAGS="$CFLAGS" CPPFLAGS="$CPPFLAGS" LDFLAGS="$LDFLAGS" LOCAL_LIBS="$LOCAL_LIBS" \
     >>"$LOG" 2>&1 || { tail -30 "$LOG"; die "configure failed (see $LOG)"; }
