@@ -64,6 +64,18 @@ static int (*real_close) (int);
 static int (*real_ioctl) (int, unsigned long, ...);
 static uid_t (*real_geteuid) (void);
 
+/* The ioctl model and its procfs discovery must expose the same major. */
+FILE *
+fopen (const char *path, const char *mode)
+{
+    static FILE *(*next_fopen) (const char *, const char *);
+    static char devices[] = "Character devices:\n 10 misc\n\nBlock devices:\n253 device-mapper\n";
+    if (!strcmp (path, "/proc/devices") && mode[0] == 'r')
+        return fmemopen (devices, sizeof devices - 1, "r");
+    if (!next_fopen) next_fopen = dlsym (RTLD_NEXT, "fopen");
+    return next_fopen (path, mode);
+}
+
 static void
 die (const char *m)
 {
