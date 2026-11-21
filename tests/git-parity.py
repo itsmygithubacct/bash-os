@@ -20,6 +20,9 @@ then the repository itself, read by real git in both trees: every ref, HEAD and
 its tree, the index, `status --porcelain=v2`, the working tree's files with
 their modes and contents, and `fsck --strict`.
 
+GIT_PARITY_BINDIR can name the directory of the reference git. The same
+installation runs the shell scenarios and inspects both repositories.
+
 A scenario names what it needs in `# requires:` (commands) and
 `# requires-feature:` (a whole feature, such as patch output) lines, and is
 skipped while bash-os lacks any of them, so a scenario for work still to come
@@ -43,7 +46,9 @@ binary = Path(sys.argv[1] if len(sys.argv) > 1 else 'out/bash')
 if not binary.is_absolute():
     binary = (ROOT/binary).resolve()
 names = sys.argv[2:]
-GIT = shutil.which('git')
+GIT = shutil.which('git', path=os.environ.get('GIT_PARITY_BINDIR'))
+if GIT:
+    GIT = os.path.abspath(GIT)
 checks = 0
 problems = []
 
@@ -119,7 +124,7 @@ def run_scenario(script, workdir, home, side):
         env['PATH'] = ''
     else:
         argv = ['/bin/bash', '--noprofile', '--norc', str(script)]
-        env['PATH'] = '/usr/bin:/bin'
+        env['PATH'] = os.pathsep.join((os.path.dirname(GIT), '/usr/bin', '/bin'))
     result = subprocess.run(argv, cwd=workdir, env=env, capture_output=True, timeout=300)
     # `hint:` lines are advice git rewords freely, and so is the line a
     # stopped rebase ends with — 2.47 writes "Could not apply <id>... <subject>"
