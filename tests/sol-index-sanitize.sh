@@ -92,13 +92,11 @@ start_watch() {
         [[ -r $cmd ]] || continue
         pid=${cmd#/proc/}; pid=${pid%/cmdline}
         exe=
-        IFS= read -r -d '' exe <"$cmd" || true
+        # The task may exit between the directory scan and this read.
+        { IFS= read -r -d '' exe <"$cmd"; } 2>/dev/null || continue
         [[ $exe == "$bin" ]] || continue
-        if [[ -r /proc/$pid/maps ]] && grep -q libasan "/proc/$pid/maps"; then
-          {
-            echo "pid=$pid"
-            grep libasan "/proc/$pid/maps" || true
-          } > "$d/live/$label.hit"
+        if maps=$(grep libasan "/proc/$pid/maps" 2>/dev/null); then
+          printf 'pid=%s\n%s\n' "$pid" "$maps" > "$d/live/$label.hit"
         fi
       done
     done
