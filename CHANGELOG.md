@@ -3,6 +3,19 @@
 All notable changes to bash-os are recorded here. Versions follow
 [semantic versioning](https://semver.org/); `VERSION` holds the current one.
 
+## 0.1.5 — Unreleased
+
+- The `jq` builtin accepts array and string slices, object constructors,
+  `--arg NAME VALUE`, `reduce`, `def`, regular expressions, and `@` formats.
+  Filters work with stdin, files, and the Bash `-i` and `-V` variable options.
+  For example, `jq -nc --arg key rest '{($key): ([1,2,3] | .[1:])}'`
+  prints `{"rest":[2,3]}`.
+- `blkid -p` probes named devices and image files directly. It accepts byte
+  offsets and size limits, filesystem and usage filters, and repeated tag
+  selection. For example, `blkid -p -s TYPE -o value disk.img` prints the
+  filesystem type. A match exits 0, an unidentified image exits 2, and an
+  image with conflicting filesystem signatures exits 8.
+
 ## 0.1.4 — 2026-11-18
 
 The first qualification recorded two limits. Both are closed in the published

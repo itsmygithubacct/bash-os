@@ -433,8 +433,8 @@ completed for twelve sources; its coreutils run crashed, so Clang's analyzer
 was used for that file. Remaining reports concern a buffer filled by fread,
 a stream protected by a `!= stdin` close guard, and unused assignments.
 
-These are the upstream subsets. jq uses compact output and a bounded filter
-language; bc has no user-defined functions or output-base conversion; fw's
+At import time jq used compact output and a bounded filter language, and bc
+lacked user-defined functions and output-base conversion. The fw command’s
 pure backend stores rules without installing kernel filters. curl's TLS path
 requires the crypto loadable. Tests exercise nft/iptables dry runs only.
 
@@ -453,6 +453,17 @@ same manifest selects external libraries. The full build now needs development
 libraries for PCRE2, zlib, liblzma, libzstd, and bzip2; static builds also need
 their static archives. The pure list still needs only its original libraries.
 The builtin archive is revisited in a linker group for circular helper calls.
+
+Beginning with 0.1.5, the `jq` builtin compiles slices, object construction,
+variable bindings, reductions, definitions, regex functions and format filters
+with libjq 1.8.2. The release includes Oniguruma and the decNumber library.
+The build gives jq’s Bison parser private names so it can coexist with Bash's
+parser. The `blkid` builtin uses util-linux libblkid 2.41.6 for `-p`. A local
+patch preserves the ambiguous-signature return from the probe chain so the
+command can report exit 8. Source archives and hashes are recorded in
+[`config/dependencies.json`](../config/dependencies.json). Dependency builds
+stage upstream notices in `share/licenses/jq` and `share/licenses/blkid` under
+the chosen prefix.
 
 These imports expose upstream subsets. SQLite's handle API uses an unlocked
 VFS for file databases: separate processes must not write one database

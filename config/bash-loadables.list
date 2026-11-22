@@ -102,7 +102,7 @@ bashdhcp|DHCPv4 client (RFC2131 DISCOVER/OFFER/REQUEST/ACK + parse-message)
 nice|nice [-n N] CMD
 nohup|nohup CMD
 link|link TARGET NAME
-blkid|blkid [DEV]
+blkid|blkid [-p] [-o FORMAT] [-s TAG] [DEV...]
 lsblk|lsblk
 diff|diff A B
 ss|ss [-tuln]
@@ -244,7 +244,7 @@ write|write
 
 # Additional upstream loadables
 awk|awk
-jq|jq [-r] [-e] [-c] [--tab] [--indent N] [-n] [-s|--stream] [-i INPUT_VAR] [-V OUT_VAR] {FILTER|-f FILTER_FILE} [FILE]
+jq|jq [-r] [-e] [-c] [--tab] [--indent N] [-n] [-s|--stream] [--arg NAME VALUE]... [-i INPUT_VAR] [-V OUT_VAR] {FILTER|-f FILTER_FILE} [FILE]
 bc|bc
 vec|vec
 sv|sv

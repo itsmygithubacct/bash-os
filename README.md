@@ -64,8 +64,10 @@ are pinned by SHA-256 in `config/versions.sh`.
 All builds need Python 3 and the usual C build tools. The `shell` and `pure`
 profiles need no additional development libraries. The `core` and `device`
 profiles require PCRE2 for grep. Larger selections may also need zlib, liblzma,
-libzstd and bzip2. `build-deps.sh` builds pinned static libraries
-for a host or cross compiler in a private prefix:
+libzstd and bzip2. Builds that select `jq` or `blkid` automatically prepare
+the pinned libjq, Oniguruma, or libblkid archives they need. The first such
+build downloads sources and needs Python 3.12+ and make. To prepare all
+libraries for a host or cross compiler in a private prefix, run
 
 ```sh
 CC=riscv64-unknown-linux-musl-gcc ./build-deps.sh

@@ -120,12 +120,17 @@ or TLS development libraries. The `core` and `device` profiles require PCRE2
 for grep. Other selections may also use zlib, liblzma, libzstd and bzip2. The build resolves only the libraries needed by
 the selected commands. Static builds require static archives.
 
+Selecting `jq` adds libjq and its bundled Oniguruma regex engine. Selecting
+`blkid` adds libblkid for low-level probing. By default the build downloads
+the pinned sources and compiles those archives into a private target-specific
+prefix under `out/builtin-deps`. Both executable types embed the archives.
+
 For static glibc builds, `coreutils install -o/-g` resolves account names from
 `/etc/passwd` and `/etc/group`, and also accepts numeric IDs. It does not load
 host NSS plugins for these lookups; a missing name produces an error. Dynamic
 builds retain the host's NSS lookup behavior.
 
-`build-deps.sh` builds pinned static archives for all five external libraries.
+`build-deps.sh` builds pinned static archives for all external command libraries.
 It additionally needs CMake and Python 3.12+. URLs and SHA-256 checksums are in
 [`config/dependencies.json`](../config/dependencies.json). It installs headers,
 archives, license notices and a build record into a private prefix, and refuses
