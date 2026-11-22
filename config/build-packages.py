@@ -310,6 +310,15 @@ def main():
     closures = {name: list(dict.fromkeys(requires(name) + requires(definers[name])))
                 for name in definers}
     commands = sorted({command for closure in closures.values() for command in closure})
+    private = [name for name in ('jq', 'blkid') if name in commands]
+    prefixes = [deps] if deps else []
+    needed = {'jq': ('jq', 'onig'), 'blkid': ('blkid',)}
+    missing = [name for name in private if not deps or
+               any(not (deps/'lib'/f'lib{lib}.a').is_file() for lib in needed[name])]
+    if missing:
+        prefix = subprocess.check_output([sys.executable, ROOT/'config/build-deps.py',
+                                          '--for-builtins', *missing], text=True).strip()
+        prefixes.insert(0, Path(prefix))
 
     work = Path(tempfile.mkdtemp(prefix='.packages.', dir=ROOT/'build'))
     try:
@@ -353,7 +362,7 @@ def main():
             '-DHAVE_CONFIG_H', '-DSHELL', *shlex.split(os.environ.get('CPPFLAGS', '')),
             f'-I{stage}/builtins', f'-I{ROOT}/loadables/common', f'-I{tree}', f'-I{tree}/include',
             f'-I{tree}/lib', f'-I{tree}/builtins', f'-I{tree}/examples/loadables',
-            *([f'-I{deps}/include'] if deps else [])]
+            *[f'-I{prefix}/include' for prefix in prefixes]]
         units = {command: (stage/'builtins'/f'{command}.c', work/'obj'/f'{command}.o')
                  for command in commands if not staged[command]}
         helper_units = {}
@@ -395,7 +404,9 @@ def main():
                 if flag in IN_LIBC or flag == '-lm':
                     continue
                 name = f'lib{flag[2:]}.a'
-                path = deps/'lib'/name if deps and (deps/'lib'/name).is_file() else tools.library(name)
+                path = next((prefix/'lib'/name for prefix in prefixes if (prefix/'lib'/name).is_file()), None)
+                if not path:
+                    path = tools.library(name)
                 if not path:
                     raise Failure(f'no static {name} for {flag}; run ./build-deps.sh')
                 found.append(path)

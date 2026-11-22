@@ -1,4 +1,14 @@
 {
+  "jq": {
+    "version": "1.8.2",
+    "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-1.8.2.tar.gz",
+    "sha256": "71b8d6e8f5fe81f6c6d0d110e3892251f6ce76ed095abd315e26e6e1193af3af"
+  },
+  "blkid": {
+    "version": "2.41.6",
+    "url": "https://cdn.kernel.org/pub/linux/utils/util-linux/v2.41/util-linux-2.41.6.tar.xz",
+    "sha256": "e596083744e746be7d2823b62b43f4418dd7bf56303b4dc09e6fe8112fe3d7ed"
+  },
   "pcre2": {
     "version": "10.47",
     "url": "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.47/pcre2-10.47.tar.gz",

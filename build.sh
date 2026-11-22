@@ -142,15 +142,28 @@ CFLAGS="${CFLAGS:--O2 -fstack-protector-strong -D_FORTIFY_SOURCE=2}"
 LDFLAGS="-Wl,--build-id=none -Wl,-z,relro -Wl,-z,now ${LDFLAGS_EXTRA:-}"; [[ $STATIC == 1 ]] && LDFLAGS="-static $LDFLAGS"
 CPPFLAGS="${CPPFLAGS:-}"
 [[ $STATIC == 0 ]] || CPPFLAGS="$CPPFLAGS -DBASHOS_STATIC=1"
-if [[ -n $DEPS_PREFIX ]]; then
-  [[ $DEPS_PREFIX != *[[:space:]]* ]] || die "--deps-prefix cannot contain whitespace"
-  [[ -d $DEPS_PREFIX/include && -d $DEPS_PREFIX/lib ]] || die "dependency prefix needs include/ and lib/"
-  CPPFLAGS="$CPPFLAGS -I$DEPS_PREFIX/include"
-  LDFLAGS="$LDFLAGS -L$DEPS_PREFIX/lib"
+COMMAND_DEPS=$DEPS_PREFIX
+if [[ -z $COMMAND_DEPS ]]; then
+  COMMAND_DEPS=$(CC="$CC" JOBS="$JOBS" ./build-deps.sh --for-builtins "${NAMES[@]}")
 fi
-# LOCAL_LIBS is bash's own hook for libraries the injected builtins pull in:
-# fltexpr needs libm, so -lm by default (a consumer adds e.g. -lz).
-LOCAL_LIBS="${LOCAL_LIBS:--lm} $(python3 config/stage-helpers.py --libs "$HERE" - "${NAMES[@]}")"
+if [[ -n $COMMAND_DEPS ]]; then
+  [[ $COMMAND_DEPS != *[[:space:]]* ]] || die "--deps-prefix cannot contain whitespace"
+  [[ -d $COMMAND_DEPS/include && -d $COMMAND_DEPS/lib ]] || die "dependency prefix needs include/ and lib/"
+  CPPFLAGS="$CPPFLAGS -I$COMMAND_DEPS/include"
+  LDFLAGS="$LDFLAGS -L$COMMAND_DEPS/lib"
+fi
+# jq and blkid are embedded in dynamic as well as static shells.
+BUILTIN_LIBS=$(python3 config/stage-helpers.py --libs "$HERE" - "${NAMES[@]}")
+LOCAL_LIBS=${LOCAL_LIBS:--lm}
+for flag in $BUILTIN_LIBS; do
+  case $flag in
+    -ljq|-lonig|-lblkid)
+      flag="$COMMAND_DEPS/lib/lib${flag#-l}.a"
+      [[ -r $flag ]] || die "missing $flag; prepare the prefix with ./build-deps.sh"
+      ;;
+  esac
+  LOCAL_LIBS+=" $flag"
+done
 PERL_CONFIG=""
 if [[ " ${NAMES[*]} " == *" bashperl "* ]]; then
   if [[ -z $PERL_PREFIX ]]; then
@@ -200,7 +213,7 @@ STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$ST
            cat VERSION config/versions.sh config/helpers.json config/profiles.json config/loadables.py config/bash-loadables-optional.list config/stage-helpers.py config/build-cache.py config/relocate-build.py config/publish-binary.py config/stock-patches.json build.sh patches/*.patch;
            printf '%s\n' "$PERL_CONFIG";
            printf '%s\n' "$PYTHON_CONFIG";
-           [[ -z $DEPS_PREFIX ]] || find "$DEPS_PREFIX/include" "$DEPS_PREFIX/lib" -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum;
+           [[ -z $COMMAND_DEPS ]] || find "$COMMAND_DEPS/include" "$COMMAND_DEPS/lib" -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum;
            find -L loadables "${EXTRA_DIRS[@]}" -type f \( -name '*.c' -o -name '*.h' -o -name '*.data' \) -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum; } | sha256sum | cut -c1-64)
 if [[ "$CLEAN" != 1 ]] && python3 config/build-cache.py "$OUTBIN" "$SRC" "$STAMP"; then
   say "up to date — $OUTBIN (pass --clean to force)"; build_authority; exit 0

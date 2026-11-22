@@ -1,0 +1,9 @@
+--- a/libblkid/src/probe.c
++++ b/libblkid/src/probe.c
+@@ -1828,2 +1828,4 @@ int blkid_do_safeprobe(blkid_probe pr)
+-	if (rc < 0)
+-		return BLKID_PROBE_ERROR;
++	if (rc == BLKID_PROBE_AMBIGUOUS)
++		return rc;
++	if (rc < 0)
++		return BLKID_PROBE_ERROR;

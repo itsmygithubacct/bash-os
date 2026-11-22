@@ -36,8 +36,13 @@ assert {'ssh','sshd','crypto','sqlite'} <= set(p['server']['names'])
 assert {'nano','ts','hl','tiv','gpu'} <= set(p['desktop']['names'])
 assert not p['shell']['libraries'] and not p['pure']['libraries']
 for profile in ('core', 'device'):
-    assert set(p[profile]['libraries']) == {'-lpcre2-8', '-lz', '-lpthread'}
-    assert set(plan('--profile', profile, '--exclude', 'grep')['libraries']) == {'-lz', '-lpthread'}
+    libraries = {'-lz', '-lpthread'}
+    if profile == 'device':
+        libraries.add('-lblkid')
+    assert set(p[profile]['libraries']) == libraries | {'-lpcre2-8'}
+    assert set(plan('--profile', profile, '--exclude', 'grep')['libraries']) == libraries
+assert set(plan('--include', 'jq')['libraries']) == {'-ljq', '-lonig', '-lm'}
+assert plan('--include', 'blkid')['libraries'] == ['-lblkid']
 assert plan('--include', 'grep')['libraries'] == ['-lpcre2-8']
 for level,name in enumerate(['shell','pure','core','device','server','full']):
     assert plan('--level',str(level))['names']==p[name]['names']

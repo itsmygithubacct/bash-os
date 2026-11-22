@@ -1,5 +1,11 @@
 {
   "commands": {
+    "jq": {
+      "libs": ["-ljq", "-lonig", "-lm"]
+    },
+    "blkid": {
+      "libs": ["-lblkid"]
+    },
     "grep": {
       "libs": [
         "-lpcre2-8"
