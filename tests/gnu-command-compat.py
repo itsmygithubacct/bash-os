@@ -257,7 +257,13 @@ class Compatibility(unittest.TestCase):
             with self.subTest(script=script):
                 fixture(); expected = self.run_shell(script, gnu=True)
                 fixture(); actual = self.run_shell(script)
-                self.assertEqual((actual.returncode, actual.stdout), (expected.returncode, expected.stdout))
+                self.assertEqual(actual.stdout, expected.stdout)
+                # mv -n skips an existing file and exits 0, as coreutils 9.7 does.
+                # Coreutils 9.2 through 9.4 exit 1 and print nothing for this skip.
+                if script == "mv -vn f g":
+                    self.assertEqual(actual.returncode, 0, actual.stderr)
+                else:
+                    self.assertEqual(actual.returncode, expected.returncode, actual.stderr)
         if Path("/dev/shm").is_dir() and os.stat("/dev/shm").st_dev != os.stat(self.root).st_dev:
             for runner in (True, False):
                 fixture()
