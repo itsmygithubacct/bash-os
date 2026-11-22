@@ -7,9 +7,11 @@
  *   -f         "full" format: USER PID PPID S TIME CMD
  *              (subset of POSIX -f: no TTY, no STIME — bashps's TTY
  *              detection isn't implemented; use -o pid,stime for STIME)
- *   -o LIST    custom column list. Recognized columns:
+ *   -o LIST    custom column list. Repeat -o to append columns; use
+ *              field= for each column to suppress the header row.
+ *              Recognized columns:
  *              pid, ppid, pgrp, sid, uid, user, state, ttybytes,
- *              comm, args, time, stime, %cpu, rss, vsz
+ *              comm, args, time, stime, lstart, %cpu, rss, vsz
  *
  * Output is one line per matching PID. `aux` is a bounded procps/BSD-key
  * compatibility surface with a fixed USER/PID/%CPU/%MEM/VSZ/RSS/TTY/STAT/
@@ -61,6 +63,7 @@ typedef enum {
     BPS_COL_ARGS,
     BPS_COL_TIME,
     BPS_COL_STIME,
+    BPS_COL_LSTART,
     BPS_COL_PCPU,
     BPS_COL_RSS,
     BPS_COL_VSZ
@@ -413,6 +416,7 @@ bps_col_from_name (const char *name, bps_colspec *out)
         { "args",     BPS_COL_ARGS,     "COMMAND" },
         { "time",     BPS_COL_TIME,     "TIME" },
         { "stime",    BPS_COL_STIME,    "STIME" },
+        { "lstart",   BPS_COL_LSTART,   "STARTED" },
         { "%cpu",     BPS_COL_PCPU,     "%CPU" },
         { "pcpu",     BPS_COL_PCPU,     "%CPU" },
         { "rss",      BPS_COL_RSS,      "RSS" },
@@ -485,6 +489,23 @@ bps_print_time_field (long ticks)
             (total_secs % 3600) / 60, total_secs % 60);
 }
 
+static int
+bps_custom_col_width (const bps_colspec *cols, int i, int n_cols)
+{
+    /* procps uses a 24-character lstart field and a left-aligned STAT
+       field in the stat/lstart layout. Keep the compact layout elsewhere. */
+    int width;
+    if (cols[i].col == BPS_COL_LSTART)
+        width = 24;
+    else if (cols[i].col == BPS_COL_STAT && i + 1 < n_cols &&
+             cols[i + 1].col == BPS_COL_LSTART)
+        width = 4;
+    else
+        return 0;
+    int header_width = (int) strlen (cols[i].header_override);
+    return header_width > width ? header_width : width;
+}
+
 static void
 bps_print_custom_header (const bps_colspec *cols, int n_cols)
 {
@@ -497,18 +518,15 @@ bps_print_custom_header (const bps_colspec *cols, int n_cols)
     for (int i = 0; i < n_cols; i++) {
         const char *h = cols[i].has_override ? cols[i].header_override : cols[i].header;
         if (i) putchar (' ');
-        printf ("%s", h ? h : "");
+        int width = bps_custom_col_width (cols, i, n_cols);
+        printf ("%*s", cols[i].col == BPS_COL_LSTART ? width : -width, h);
     }
     putchar ('\n');
 }
 
-/* Format a /proc/PID/stat-style starttime (ticks since boot) into the
-   ps(1) STIME shape: "HH:MM" if the process started today, otherwise
-   "MMMDD" (3-letter abbreviated month + 2-digit day, matching procps).
-   btime is read from the current proc root. On failure (no btime
-   line, no CLK_TCK, localtime failure) emits "?". */
-static void
-bps_fmt_stime (long ticks_since_boot, char *buf, size_t bufsz)
+/* Convert /proc/PID/stat start ticks using btime from the current proc root. */
+static int
+bps_start_localtime (long ticks_since_boot, struct tm *tm_start)
 {
     time_t btime = 0;
     {
@@ -526,16 +544,34 @@ bps_fmt_stime (long ticks_since_boot, char *buf, size_t bufsz)
     }
     long hz = sysconf (_SC_CLK_TCK);
     if (hz <= 0) hz = 100;
-    if (btime == 0) { snprintf (buf, bufsz, "?"); return; }
+    if (btime == 0) return 0;
     time_t start = btime + ticks_since_boot / hz;
-    time_t now   = time (NULL);
+    return localtime_r (&start, tm_start) != NULL;
+}
+
+/* STIME displays HH:MM for today's processes and MMMDD for older ones. */
+static void
+bps_fmt_stime (long ticks_since_boot, char *buf, size_t bufsz)
+{
+    time_t now = time (NULL);
     struct tm tm_start, tm_now;
-    if (!localtime_r (&start, &tm_start) || !localtime_r (&now, &tm_now))
+    if (!bps_start_localtime (ticks_since_boot, &tm_start) ||
+        !localtime_r (&now, &tm_now))
         { snprintf (buf, bufsz, "?"); return; }
     if (tm_start.tm_year == tm_now.tm_year && tm_start.tm_yday == tm_now.tm_yday)
         strftime (buf, bufsz, "%H:%M", &tm_start);
     else
         strftime (buf, bufsz, "%b%d", &tm_start);
+}
+
+static void
+bps_fmt_lstart (long ticks_since_boot, char *buf, size_t bufsz)
+{
+    struct tm tm_start;
+    tzset ();
+    if (!bps_start_localtime (ticks_since_boot, &tm_start) ||
+        strftime (buf, bufsz, "%a %b %e %H:%M:%S %Y", &tm_start) == 0)
+        snprintf (buf, bufsz, "?");
 }
 
 /* Build the procps STAT string: the run-state char followed by mode flags
@@ -621,12 +657,23 @@ bps_print_custom (const bps_proc *p, const bps_colspec *cols, int n_cols)
             case BPS_COL_RUID:     printf ("%u", (unsigned) p->ruid); break;
             case BPS_COL_USER:     printf ("%s", bps_user (p->uid)); break;
             case BPS_COL_STATE:    printf ("%c", p->state); break;
-            case BPS_COL_STAT:     { char sb[16]; bps_build_stat (p, sb, sizeof sb); fputs (sb, stdout); } break;
+            case BPS_COL_STAT: {
+                char sb[16];
+                bps_build_stat (p, sb, sizeof sb);
+                printf ("%-*s", bps_custom_col_width (cols, i, n_cols), sb);
+                break;
+            }
             case BPS_COL_TTYBYTES: printf ("?"); break;
             case BPS_COL_COMM:     printf ("%s", p->comm); break;
             case BPS_COL_ARGS:     printf ("%s", p->args[0] ? p->args : p->comm); break;
             case BPS_COL_TIME:     bps_print_time_field (p->utime + p->stime); break;
             case BPS_COL_STIME:    { char sb[16]; bps_fmt_stime (p->starttime_ticks, sb, sizeof sb); fputs (sb, stdout); } break;
+            case BPS_COL_LSTART: {
+                char sb[128];
+                bps_fmt_lstart (p->starttime_ticks, sb, sizeof sb);
+                printf ("%*s", bps_custom_col_width (cols, i, n_cols), sb);
+                break;
+            }
             case BPS_COL_PCPU:     printf ("%.1f", bps_cpu_percent (p)); break;
             case BPS_COL_RSS:      printf ("%ld", bps_rss_kb (p)); break;
             case BPS_COL_VSZ:      printf ("%ld", p->vsize_bytes / 1024); break;
@@ -1039,7 +1086,9 @@ char *ps_doc[] = {
     "    -p LIST   select comma-separated process IDs (also --pid=LIST)",
     "    -u LIST   select by effective user name or ID (also --user=LIST)",
     "    -U LIST   select by real user name or ID (also --User=LIST)",
-    "    -o LIST   custom columns: pid,ppid,pgrp,sid,uid,ruid,user,state,stat,comm,args,time,stime,rss,vsz",
+    "    -o LIST   custom columns: pid,ppid,pgrp,sid,uid,ruid,user,state,stat,comm,args,time,stime,lstart,rss,vsz",
+    "              repeat -o to append columns; use field= to leave a heading blank",
+    "              if all headings are blank, omit the header row",
     "    --help    print usage information and exit",
     "    -V, --version",
     "              print version information and exit",
@@ -1047,6 +1096,7 @@ char *ps_doc[] = {
     "Without -f, output is `PID STATE TIME CMD`. CMD comes from",
     "/proc/PID/cmdline (or [comm] for kernel threads).",
     "TTY is resolved from the controlling device when available.",
+    "The lstart column (STARTED) shows the full local start date and time.",
     "POSIX-shape — for richer formats use system+ procps.",
     (char *)NULL
 };

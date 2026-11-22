@@ -7,6 +7,7 @@
     "GNU ps versus candidate rejection of an unknown -o column, preserving status and diagnostic presence.",
     "Synthetic proc records for stat field parsing, UID fallback, STAT flags, comm containing a right parenthesis, and NUL-separated argv conversion.",
     "Full-format row layout, explicit PID-list order, and the documented [comm] fallback for empty cmdline.",
+    "Procps-shaped lstart with a fixed boot time, local timezone, repeated -o options and empty headings.",
     "Exact synthetic PID selection and empty headers for -p and --pid; invalid attached, combined and repeated column options, missing column list, invalid PID list and unknown option."
   ],
   "exclusions": [
@@ -136,6 +137,18 @@
       "expected_status": 0,
       "stderr": "empty",
       "stdout": "9101\n9102\n"
+    },
+    {
+      "id": "synthetic-lstart-repeated-o",
+      "kind": "contract",
+      "purpose": "Check the procps lstart date format, local timezone, space-padded day and whole-second clock-tick conversion. Exercise the Codex query with repeated -o and empty headings, then check the default heading and reversed column order.",
+      "requires": [
+        "getconf"
+      ],
+      "script": "export BASHOS_PROC_ROOT=procfix LC_ALL=C TZ=UTC-2\nhz=$(getconf CLK_TCK) || exit 1\nmkdir -p procfix/9001 || exit 1\nprintf 'btime 1704067200\\n' > procfix/stat\nprintf '%s\\n' \"9001 (worker) S 1 77 70 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 $((3723 * hz + hz - 1)) 8192 4\" > procfix/9001/stat\nprintf 'Name:\\tworker\\nUid:\\t70001\\t70001\\t70001\\t70001\\n' > procfix/9001/status\n: > procfix/9001/cmdline\nps -p 9001 -o stat= -o lstart= || exit 1\nps -p 9001 -o stat,lstart || exit 1\nps -p 9001 -o lstart= -o stat=",
+      "expected_status": 0,
+      "stdout": "S    Mon Jan  1 03:02:03 2024\nSTAT                  STARTED\nS    Mon Jan  1 03:02:03 2024\nMon Jan  1 03:02:03 2024 S\n",
+      "stderr": "empty"
     },
     {
       "id": "gnu-invalid-pid-spellings",

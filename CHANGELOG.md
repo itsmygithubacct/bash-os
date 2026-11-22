@@ -15,6 +15,9 @@ All notable changes to bash-os are recorded here. Versions follow
   selection. For example, `blkid -p -s TYPE -o value disk.img` prints the
   filesystem type. A match exits 0, an unidentified image exits 2, and an
   image with conflicting filesystem signatures exits 8.
+- `ps` supports the procps `lstart` column for the full local process start
+  date and time. `ps -p PID -o stat= -o lstart=` prints both fields without
+  a header.
 
 ## 0.1.4 — 2026-11-18
 
