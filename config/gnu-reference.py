@@ -34,6 +34,3 @@ with tempfile.TemporaryDirectory() as directory:
     iconv = probe('iconv', '-c', '-f', 'UTF-8', '-t', 'ASCII', data=b'a\xffb')
     if iconv and iconv.returncode == 0 and iconv.stdout == b'ab':
         print('#define BASHOS_ICONV_OMIT_SUCCEEDS 1')
-    mv = probe('mv', '-n', 'source', 'destination')
-    if mv and mv.returncode == 1 and b'not replacing' in mv.stderr:
-        print('#define BASHOS_MV_DIAGNOSE_NO_CLOBBER 1')

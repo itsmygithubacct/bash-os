@@ -451,16 +451,8 @@ bmv_one (const char *src, const char *dst, bmv_opts *o)
     struct stat dst_st;
     int dst_exists = (lstat (dst, &dst_st) == 0);
     if (dst_exists) {
-        if (o->nflag) {
-#ifdef BASHOS_MV_DIAGNOSE_NO_CLOBBER
-            char *quoted = bos_quoteaf (dst);
-            fprintf (stderr, "mv: not replacing %s\n", quoted ? quoted : dst);
-            free (quoted);
-            return -1;
-#else
-            return 1;  /* skipped, not a new destination */
-#endif
-        }
+        if (o->nflag)
+            return 1;  /* skipped, not a new destination; Debian 9.7 exits 0 */
         if (o->iflag && !o->fflag) {
             fprintf (stderr, "bashmv: overwrite '%s'? ", dst);
             fflush (stderr);

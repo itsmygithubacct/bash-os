@@ -14,6 +14,7 @@ framebuffer console. The migration ledger has 600 full topics. See the
 - `awk` accepts a `/` inside a bracket expression of a regex literal (`/[/]/`), as gawk does.
 - `date -d` accepts GNU relative items (`yesterday`, `+1 day`, `3 hours ago`, `next monday`, `2024-01-31 +1 month`).
 - `mv -v`/`--verbose` reports each rename, copy and removal as GNU mv does.
+- `mv -n` skips an existing destination and exits 0, as coreutils 9.7 does. Coreutils 9.2 through 9.4 exit 1 and diagnose the skip.
 - `rm -v` prints each removed file and directory as GNU rm does.
 - `cmp -n LIMIT` (and `--bytes=LIMIT`) compares at most LIMIT bytes.
 - `split -n CHUNKS` takes `N`, `K/N`, `l/N`, `l/K/N`, `r/N` and `r/K/N`.
