@@ -9,6 +9,7 @@ All notable changes to bash-os are recorded here. Versions follow
 - `find -quit` stops at the current entry across all starting paths.
 - `sort` accepts `--parallel=N` and options following file operands, including `sort numbers -n`.
 - `sed --debug` prints the parsed script and traces its execution.
+- Native builds with jq use glibc’s regex entry points for `sed`, `expr` and `tac`. This fixes a crash when using those builtins with a regular expression.
 - `find -depth` visits directory contents before the directory itself.
   It applies to the whole search and disables pruning.
 - `tar --mtime=@SECONDS` and `pax -w -o mtime:=SECONDS` can produce archives with a fixed modification time.

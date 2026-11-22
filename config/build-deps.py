@@ -177,6 +177,10 @@ def build(parser, args, cc, target, prefix, needed):
                     for header in ('jv.h', 'jq.h'):
                         shutil.copy2(source/'src'/header, install/'include')
                     shutil.copy2(source/'vendor/oniguruma/src/.libs/libonig.a', install/'lib')
+                    # jq uses the onig_* API. The optional GNU compatibility
+                    # object exports re_compile_pattern and re_search with
+                    # incompatible signatures for callers of glibc regex.
+                    run([env['AR'], 'd', str(install/'lib/libonig.a'), 'reggnu.o'])
                     notices = install/'share/licenses/jq'
                     notices.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(source/'vendor/oniguruma/COPYING', notices/'COPYING-oniguruma')
