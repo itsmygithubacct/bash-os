@@ -60,6 +60,7 @@ fi
 check 'release version in build manifests' python3 tests/build-version.py out/bash
 check 'host-smoke (default list)' bash tests/host-smoke.sh out/bash config/bash-loadables.list
 check 'builtin regressions' python3 tests/regressions.py out/bash
+check 'blkid low-level probe on image files' python3 tests/blkid-probe.py out/bash
 check 'GNU command compatibility and archive interoperability' python3 tests/gnu-command-compat.py out/bash
 check 'clear terminal bytes and shell output recovery' python3 tests/clear-check.py out/bash
 check 'clip contract' python3 tests/sol-clip-check.py out/bash

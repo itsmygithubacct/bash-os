@@ -685,21 +685,22 @@ bblk_print_safe (const char *s)
     }
 }
 
+static int
+bblk_wanted(const char *const *tags, const char *key)
+{
+    if (!tags) return 1;
+    for (; *tags; tags++)
+        if (!strcmp(*tags, key)) return 1;
+    return 0;
+}
+
 /* Emit one TAG="VALUE" pair (default + value formats). */
 static void
-bblk_emit_kv (const char *tag, const char *val, const char *only_tag,
+bblk_emit_kv (const char *tag, const char *val, const char *const *only_tag,
               const char *fmt, int *count)
 {
     if (val[0] == '\0') return;
-    if (only_tag) {
-        const char *p = only_tag;
-        size_t len = strlen (tag);
-        while (*p) {
-            if (strncmp (p, tag, len) == 0 && p[len] == '\0') break;
-            p += strlen (p) + 1;
-        }
-        if (!*p) return;
-    }
+    if (!bblk_wanted(only_tag, tag)) return;
 
     if (strcmp (fmt, "count") == 0) {   /* dry run: count what would print */
         (*count)++;
@@ -757,7 +758,7 @@ bblk_emit_kv (const char *tag, const char *val, const char *only_tag,
 
 /* Tags in the order libblkid records them for the detected type. */
 static void
-bblk_emit_tags (const bblk_info *info, const char *only_tag, const char *fmt, int *count)
+bblk_emit_tags (const bblk_info *info, const char *const *only_tag, const char *fmt, int *count)
 {
     if (!strcmp (info->type, "vfat")) {
         bblk_emit_kv ("SEC_TYPE", info->sec_type, only_tag, fmt, count);
@@ -787,7 +788,7 @@ bblk_emit_tags (const bblk_info *info, const char *only_tag, const char *fmt, in
 static int bblk_blocks;   /* export/udev blocks printed by this invocation */
 
 static void
-bblk_emit (const char *dev, const bblk_info *info, const char *only_tag,
+bblk_emit (const char *dev, const bblk_info *info, const char *const *only_tag,
            const char *fmt)
 {
     int count = 0;
@@ -991,7 +992,7 @@ bblk_each_disk (int (*probe_one) (const char *dev, const char *parent_dev,
 
 typedef struct {
     const char *fmt;        /* "default" / "value" / "export" */
-    const char *tag;        /* -s TAG */
+    const char *const *tags; /* repeated -s TAG */
     const char *find_label; /* -L LABEL */
     const char *find_uuid;  /* -U UUID */
     int any_match;          /* set by find_match_one when a hit lands */
@@ -1037,7 +1038,7 @@ bblk_probe_one_ex (const char *path, const char *parent_path, int partno,
         opt->any_match = 1;
         return 0;
     }
-    bblk_emit (path, &info, opt->tag, opt->fmt);
+    bblk_emit (path, &info, opt->tags, opt->fmt);
     opt->any_match = 1;
     return 0;
 }
@@ -1073,116 +1074,140 @@ bblk_probe_one_ctx (const char *path, const char *parent_path, int partno, void 
     return bblk_probe_one_ex (path, parent_path, partno, (bblk_opts *) ctx);
 }
 
-int
-blkid_builtin (WORD_LIST *list)
-{
-    bblk_opts opt = { "default", NULL, NULL, NULL, 0 };
-    bblk_blocks = 0;
-    char tags[2048] = {0};
-    size_t tags_len = 0;
-    int n_pos = 0;
-    const char *pos[256];
+#include "blkid-probe.h"
 
+static int
+bblk_command(WORD_LIST *list, const char **paths, const char **tags)
+{
+    bblk_opts opt = {.fmt = "default"};
+    bblk_low_opts low = {0};
+    size_t tag_count = 0, count = 0;
+    int end = 0, low_options = 0, output_given = 0;
+    bblk_blocks = 0;
+    static const struct { const char *name; char option; } long_opts[] = {
+        {"probe", 'p'}, {"info", 'i'}, {"output", 'o'}, {"match-tag", 's'},
+        {"offset", 'O'}, {"size", 'S'}, {"match-types", 'n'}, {"usages", 'u'},
+        {"no-part-details", 'D'}, {"no-encoding", 'd'}, {"hint", 'H'},
+        {"label", 'L'}, {"uuid", 'U'}, {"cache-file", 'c'}, {"help", 'h'}
+    };
     for (WORD_LIST *p = list; p; p = p->next) {
         const char *w = p->word->word;
-        if (strcmp (w, "--help") == 0) {
-            builtin_usage ();
-            return EXECUTION_SUCCESS;
+        if (end || w[0] != '-' || !w[1]) { paths[count++] = w; continue; }
+        if (!strcmp(w, "--")) { end = 1; continue; }
+        const char *opts = w + 1, *attached = NULL;
+        char single[2] = {0};
+        if (*opts == '-') {
+            const char *name = opts + 1;
+            size_t len = strcspn(name, "=");
+            for (size_t i = 0; i < sizeof long_opts / sizeof long_opts[0]; i++)
+                if (len == strlen(long_opts[i].name) && !strncmp(name, long_opts[i].name, len))
+                    single[0] = long_opts[i].option;
+            if (!single[0]) { builtin_error("unknown flag: %s", w); return low.probe || low.topology ? 1 : EX_USAGE; }
+            if (name[len]) attached = name + len + 1;
+            opts = single;
         }
-        if (strcmp (w, "--") == 0) {
-            for (p = p->next; p; p = p->next) {
-                if (n_pos < 256) pos[n_pos++] = p->word->word;
+        while (*opts) {
+            char c = *opts++;
+            const char *arg = NULL;
+            if (strchr("osOSnuHLUc", c)) {
+                if (attached) arg = attached;
+                else if (*opts) arg = opts;
+                else if (p->next) { p = p->next; arg = p->word->word; }
+                else { builtin_error("-%c requires an argument", c); return low.probe || low.topology ? 1 : EX_USAGE; }
+                opts = "";
+            } else if (attached) { builtin_error("option does not take a value: %s", w); return low.probe || low.topology ? 1 : EX_USAGE; }
+            switch (c) {
+            case 'h': builtin_usage(); return EXECUTION_SUCCESS;
+            case 'p': low.probe = 1; break;
+            case 'i': low.topology = 1; break;
+            case 'o': opt.fmt = arg; output_given = 1; break;
+            case 'L': opt.find_label = arg; break;
+            case 'U': opt.find_uuid = arg; break;
+            case 's': tags[tag_count++] = arg; opt.tags = tags; break;
+            case 'd': low.raw = 1; low_options = 1; break;
+            case 'D': low.no_details = 1; low_options = 1; break;
+            case 'n': low.types = arg; low_options = 1; break;
+            case 'u': low.usages = arg; low_options = 1; break;
+            case 'H': low.hint = arg; low_options = 1; break;
+            case 'c': low_options = 1; break;  /* low-level probes bypass the cache */
+            case 'O': case 'S': {
+                uint64_t size;
+                int rc = bashos_parse_size(arg, &size);
+                if (rc || size > INT64_MAX) {
+                    fprintf(stderr, "blkid: invalid %s argument: '%s': %s\n",
+                            c == 'O' ? "offset" : "size", arg, strerror(rc ? -rc : ERANGE));
+                    return 4;
+                }
+                if (c == 'O') low.offset = size;
+                else low.size = size;
+                low_options = 1;
+                break;
             }
-            break;
-        }
-        if (strcmp (w, "-o") == 0) {
-            if (!p->next) {
-                builtin_error ("-o requires an argument");
-                return EX_USAGE;
+            default: builtin_error("unknown flag: %s", w); return low.probe || low.topology ? 1 : EX_USAGE;
             }
-            p = p->next;
-            opt.fmt = p->word->word;
-            if (strcmp (opt.fmt, "default") != 0
-                && strcmp (opt.fmt, "value") != 0
-                && strcmp (opt.fmt, "export") != 0
-                && strcmp (opt.fmt, "udev") != 0) {
-                builtin_error ("unknown -o format: %s (want default/value/export/udev)",
-                               opt.fmt);
-                return EX_USAGE;
-            }
-            continue;
         }
-        if (strcmp (w, "-s") == 0) {
-            if (!p->next) { builtin_error ("-s requires TAG"); return EX_USAGE; }
-            p = p->next;
-            size_t len = strlen (p->word->word) + 1;
-            if (tags_len + len >= sizeof tags) {
-                builtin_error ("too many or too long tags");
-                return EX_USAGE;
-            }
-            memcpy (tags + tags_len, p->word->word, len);
-            tags_len += len;
-            opt.tag = tags;
-            continue;
-        }
-        if (strcmp (w, "-L") == 0) {
-            if (!p->next) { builtin_error ("-L requires LABEL"); return EX_USAGE; }
-            p = p->next;
-            opt.find_label = p->word->word;
-            continue;
-        }
-        if (strcmp (w, "-U") == 0) {
-            if (!p->next) { builtin_error ("-U requires UUID"); return EX_USAGE; }
-            p = p->next;
-            opt.find_uuid = p->word->word;
-            continue;
-        }
-        if (w[0] == '-' && w[1] != '\0') {
-            builtin_error ("unknown flag: %s", w);
-            builtin_usage ();
-            return EX_USAGE;
-        }
-        if (n_pos < 256) pos[n_pos++] = w;
     }
 
-    if (opt.find_label && opt.find_uuid) {
-        builtin_error ("-L and -U are mutually exclusive");
+    if (low.topology && !output_given) opt.fmt = "export";
+    if (!strcmp(opt.fmt, "full")) opt.fmt = "default";
+    int probe = low.probe || low.topology;
+    if (strcmp(opt.fmt, "default") && strcmp(opt.fmt, "value") &&
+        strcmp(opt.fmt, "export") && strcmp(opt.fmt, "udev") &&
+        !(probe && (!strcmp(opt.fmt, "json") || !strcmp(opt.fmt, "device")))) {
+        if (probe) {
+            if (!strcmp(opt.fmt, "list"))
+                fputs("blkid: The low-level probing mode does not support 'list' output format\n", stderr);
+            else fprintf(stderr, "blkid: unsupported output format %s\n", opt.fmt);
+            return 4;
+        }
+        builtin_error("unknown -o format: %s (want default/value/export/udev)", opt.fmt);
         return EX_USAGE;
     }
-
-    if (n_pos > 0) {
+    if (probe) return bblk_low_command(&low, &opt, count, paths);
+    if (low_options) { builtin_error("low-level options require -p or -i"); return EX_USAGE; }
+    if (opt.find_label && opt.find_uuid) { builtin_error("-L and -U are mutually exclusive"); return EX_USAGE; }
+    if (count) {
         int rc = EXECUTION_SUCCESS;
-        for (int i = 0; i < n_pos; i++) {
-            if (bblk_probe_one (pos[i], &opt) < 0)
-                rc = EXECUTION_FAILURE;
-        }
-        /* util-linux: 2 unless some named device had a signature. */
-        if (!opt.any_match)
-            return 2;
-        return rc;
+        for (size_t i = 0; i < count; i++)
+            if (bblk_probe_one(paths[i], &opt) < 0) rc = EXECUTION_FAILURE;
+        return opt.any_match ? rc : 2;
     }
-
-    /* The fixture hooks describe a flat directory of nodes; the system
-       itself is walked as libblkid walks it. */
-    const char *hook_sys = getenv ("BASHBLKID_SYS_BLOCK_DIR"), *hook_dev = getenv ("BASHBLKID_DEV_ROOT");
+    const char *sys = getenv("BASHBLKID_SYS_BLOCK_DIR"), *dev = getenv("BASHBLKID_DEV_ROOT");
     opt.listing = 1;
-    int v = ((hook_sys && *hook_sys) || (hook_dev && *hook_dev))
-        ? bblk_each_sys_block (bblk_probe_one_ctx, &opt)
-        : bblk_each_disk (bblk_probe_one_ctx, &opt);
-    if (v < 0) return EXECUTION_FAILURE;
+    int rc = ((sys && *sys) || (dev && *dev)) ? bblk_each_sys_block(bblk_probe_one_ctx, &opt)
+                                               : bblk_each_disk(bblk_probe_one_ctx, &opt);
+    if (rc < 0) return EXECUTION_FAILURE;
     return opt.any_match ? EXECUTION_SUCCESS : 2;
+}
+
+int
+blkid_builtin(WORD_LIST *list)
+{
+    size_t n = 0;
+    for (WORD_LIST *p = list; p; p = p->next) n++;
+    /* Paths and tag filters point into the shell-owned argument list. */
+    const char **args = calloc(n + 1, 2 * sizeof(*args));
+    if (!args) return EXECUTION_FAILURE;
+    int status = bblk_command(list, args, args + n + 1);
+    free(args);
+    return sh_chkwrite(status);
 }
 
 char *blkid_doc[] = {
     "Probe filesystem and partition-table signatures (blkid).",
     "",
-    "    bashblkid [-o FMT] [-s TAG] [DEV...]",
-    "    bashblkid -L LABEL",
-    "    bashblkid -U UUID",
+    "    blkid [-o FMT] [-s TAG] [DEV...]",
+    "    blkid -p [-O OFFSET] [-S SIZE] [-n TYPES | -u USAGES] [-s TAG] [-o FMT] DEV...",
+    "    blkid -L LABEL",
+    "    blkid -U UUID",
     "",
     "Reads the first 128 KiB of each DEV and matches against ext2/3/4,",
     "xfs, btrfs, f2fs, vfat, ntfs, exfat, swap, MBR, and GPT signatures.",
     "Prints LABEL/UUID/TYPE/PTTYPE/PARTLABEL/PARTUUID/SEC_TYPE for matched devices.",
+    "",
+    "-p/--probe reads each named device directly with libblkid. Ambiguous signatures",
+    "return 8, an unidentified device returns 2, and invalid probe options return 4.",
+    "Low-level formats include full, value, export, udev, device and json.",
     "",
     "Output formats (-o FMT):",
     "    default   tag=val tag=val …",
@@ -1202,6 +1227,6 @@ struct builtin bashblkid_struct = {
     blkid_builtin,
     BUILTIN_ENABLED,
     blkid_doc,
-    "bashblkid [-o FMT] [-s TAG] [-L LABEL | -U UUID] [DEV...]",
+    "blkid [-p] [-o FMT] [-s TAG] [-L LABEL | -U UUID] [DEV...]",
     0
 };
