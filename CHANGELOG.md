@@ -3,7 +3,13 @@
 All notable changes to bash-os are recorded here. Versions follow
 [semantic versioning](https://semver.org/); `VERSION` holds the current one.
 
-## Unreleased
+## 0.1.4 — 2026-11-18
+
+The first qualification recorded two limits. Both are closed in the published
+source. A Debian 13 guest passed the generic netlink listing across two kernel
+dump buffers, and physical `tput init` and `reset` passed on a spare
+framebuffer console. The migration ledger has 600 full topics. See the
+[0.1.4 release qualification](docs/parity-vm.md#014-release-qualification).
 
 - `awk` accepts a `/` inside a bracket expression of a regex literal (`/[/]/`), as gawk does.
 - `date -d` accepts GNU relative items (`yesterday`, `+1 day`, `3 hours ago`, `next monday`, `2024-01-31 +1 month`).
@@ -17,14 +23,6 @@ All notable changes to bash-os are recorded here. Versions follow
 - `md5sum` (with `-c`) joins `core`; `md5sum -c` and `sha256sum -c` print GNU's warnings for unreadable files and mismatched checksums.
 - `iconv` joins `core`: UTF-8, ASCII, Latin-1/9, CP1252, UTF-16/32 and UCS-2/4 with glibc's `-c`, `//IGNORE`, `//TRANSLIT` and error positions.
 - `patch` joins `core`: unified and normal diffs from a pipe or file with GNU's offsets, fuzz, `.rej`/`.orig` files, `-p`, `-R`, `-N`, `-E`, `-o`, `-d` and `--dry-run`.
-
-## 0.1.4 — 2026-11-18
-
-Every fixture definition passes on both release builds, apart from two
-recorded limits: `tput` hardware init and reset needs a physical terminal, and
-one generic netlink case cannot reach its multi-buffer precondition on the
-guest kernel (the requirement is covered by mock cases). See the
-[0.1.4 release qualification](docs/parity-vm.md#014-release-qualification).
 
 - `jq` spells numbers as jq 1.7 does: literals keep their digits in
   jq's decimal form (`1e2` prints as `1E+2`, `1.000` stays `1.000`),

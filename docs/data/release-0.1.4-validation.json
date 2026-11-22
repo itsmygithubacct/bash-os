@@ -5,7 +5,7 @@
  "base_release": "v0.1.3",
  "base_commit": "115262e9187fa282d07fc2372c293119658476e6",
  "source_commit": "ceb0e13cec417e28d8f95814842c4cec1cdf94a6",
- "source_commit_role": "commit the release binaries were built from; later commits change only tests and documentation",
+ "source_commit_role": "commit the first qualification binaries were built from; later commits repair commands and tests, and the published tag names the later source",
  "reproducible": "two builds of the source commit on the same toolchain produced identical binaries",
  "compiler": "cc (Debian 14.2.0-19) 14.2.0",
  "source_changes": {
@@ -905,27 +905,32 @@
  ],
  "ledger": {
   "record": "tests/parity-vm/deferrals-014.json",
-  "record_sha256": "7d899f53104098c59895008f3cff64cf9d7a2aaba3e4fc8739ab7f81d676f6e9",
+  "record_sha256": "63544a824ca60f230d2982f338a6c25fe1472a3105e187aaaa06000fbc4774aa",
+  "first_qualification_record_sha256": "7d899f53104098c59895008f3cff64cf9d7a2aaba3e4fc8739ab7f81d676f6e9",
   "topics": 600,
   "coverage": {
-   "full": 599,
-   "partial": 1
+   "full": 600,
+   "partial": 0
   }
  },
  "limits": [
   {
    "id": "tput/hardware-init-reset",
-   "result": "DEFERRED",
-   "reason": "physical terminal hardware cannot be qualified in a disposable guest"
+   "first_result": "DEFERRED",
+   "result": "CLOSED",
+   "reason": "physical terminal hardware cannot be qualified in a disposable guest",
+   "closure": "2026-11-21 physical init and reset on a spare framebuffer console, dynamic and static builds, docs/data/tput-physical-console.json"
   },
   {
    "id": "migration-genl-list-multipart",
-   "result": "ERROR before a candidate result on both builds",
+   "first_result": "ERROR before a candidate result on both builds",
+   "result": "CLOSED",
    "reason": "the case requires a generic netlink family dump spanning two receive buffers; the qualification guest kernel has 26 families in 7,108 bytes, one dump chunk, even with every available module loaded",
    "covered_by": [
     "migration-genl-mock-multipart",
     "migration-genl-mock-foreign-sequence"
-   ]
+   ],
+   "closure": "Debian 13 guest, 191 families and 50616 bytes across two receive buffers, dynamic and static builds, commit 0c0db702d63466435efc7ab90fa8ea02a88388fa"
   }
  ],
  "scope": [
