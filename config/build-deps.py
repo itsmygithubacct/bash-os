@@ -90,9 +90,11 @@ def build(parser, args, cc, target, prefix, needed):
                     ar=env['AR'], ranlib=env['RANLIB'],
                     compiler=subprocess.check_output([cc, '--version'], text=True),
                     recipe=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
-    probe_patch = ROOT/'patches/deps/libblkid-safeprobe.patch'
+    blkid_patches = [ROOT/'patches/deps/libblkid-safeprobe.patch',
+                     ROOT/'patches/deps/libblkid-openat2-header.patch']
     if 'blkid' in names:
-        identity['blkid_patch'] = hashlib.sha256(probe_patch.read_bytes()).hexdigest()
+        identity['blkid_patches'] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+                                     for p in blkid_patches}
     archives = {'pcre2': ['libpcre2-8.a'], 'zlib': ['libz.a'], 'xz': ['liblzma.a'],
                 'zstd': ['libzstd.a'], 'bzip2': ['libbz2.a'], 'jq': ['libjq.a', 'libonig.a'],
                 'blkid': ['libblkid.a'], 'libffi': ['libffi.a'], 'openssl': ['libssl.a', 'libcrypto.a']}
@@ -149,8 +151,8 @@ def build(parser, args, cc, target, prefix, needed):
                     print(log.read_text(errors='replace')[-12000:])
                     raise RuntimeError(f'{name}: build command failed with exit {result.returncode}: {command[0]}')
             if name == 'blkid':
-                # Preserve libblkid's documented ambiguous result through the public API.
-                run(['patch', '-p1', '-i', str(probe_patch)])
+                for patch in blkid_patches:
+                    run(['patch', '-p1', '-i', str(patch)])
             if name in ('jq', 'blkid'):
                 options = ['--with-oniguruma=builtin', '--disable-docs'] if name == 'jq' else [
                     '--disable-all-programs', '--enable-libblkid', '--disable-nls',
