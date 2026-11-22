@@ -8,13 +8,14 @@
     "Optional field/index/iteration type errors versus missing/null values, mixed addition failures, compatible scalar/container addition and add folds.",
     "Exit-status semantics, malformed ordinary JSON, missing and invalid filter files; private fixture output files are compared.",
     "Custom variable input/output binding, leaf-only --stream tuples and explicit unsupported-language/path diagnostics.",
-    "Distinct Cartesian order, empty and multivalue condition streams, earlier values before nested runtime errors, and output-error recovery with closed stdout."
+    "Distinct Cartesian order, empty and multivalue condition streams, earlier values before nested runtime errors, and output-error recovery with closed stdout.",
+    "Slices, constructed objects, named strings, reductions and functions in filter files, regular expressions and formatted output."
   ],
   "exclusions": [
     "This establishes selected bounded subset behavior only, not the full jq language or incremental streaming memory usage. Input nesting is limited to 256 containers; no stress or crash inputs are used.",
-    "Object construction, variables/functions in filters, assignments, modules, regex functionality and most jq builtins remain outside the language subset. Explicit rejection is tested for representative extension requests.",
+    "The Bash builtin keeps the bounded exact-path and leaf-stream contracts checked below. The suite covers the named jq constructs and does not qualify every module or CLI option.",
     "--stream is a documented custom leaf-tuple interface without jq container-end events; it is checked as a contract, not full jq stream parity.",
-    "Only one optional data FILE is supported; multiple data filenames, combined short flags, all jq CLI switches, leading zeros in number literals (jq reads 01 as 1), arbitrary numeric precision in arithmetic and byte-identical diagnostics are not claimed.",
+    "Only one optional data FILE is supported; multiple data filenames, all jq CLI switches, leading zeros in number literals (jq reads 01 as 1), arbitrary numeric precision in arithmetic and byte-identical diagnostics are not claimed.",
     "No system/hardware operations are required. Metadata is not counted as operation coverage."
   ],
   "cases": [
@@ -225,13 +226,55 @@
       "stdout": "[[\"a\",0],1]\n[[\"a\",1],{}]\n[[\"b\"],[]]\n[[],\"x\"]\n[[],null]\n[[0],1]\n[[1],2]\n"
     },
     {
-      "id": "unsupported_extensions",
-      "purpose": "Unsupported language forms are explicit subset errors with status 2 and diagnostics, including filter files. This is a custom subset limit, since full jq accepts these forms. Invalid numeric and string literals must also fail compilation.",
+      "id": "slices_objects_args",
+      "kind": "parity",
+      "purpose": "Construct nested objects with dynamic keys and string arguments, slice an array and a Unicode string, and retain jq value-stream order.",
+      "script": "printf '%s\\n' '{\"a\":[0,1,2,3],\"s\":\"abé🍐\"}' | jq -c --arg k 'two words' '{($k): [.a[:2], .a[-2:], .a[2:2]], s: .s[1:3], args:$ARGS.named}'",
+      "requires": [
+        "jq"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "reduce_inputs_def_file",
+      "kind": "parity",
+      "purpose": "A definition in a filter file reduces the shared input stream with a lexical argument.",
+      "script": "printf '%s\\n' 'def addall(start): reduce inputs as $n (start; .+$n); addall(10)' > filter.jq\nprintf '%s\\n' 1 2 3 | jq -nc -f filter.jq",
+      "requires": [
+        "jq"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "regex_formats",
+      "kind": "parity",
+      "purpose": "Collect named Unicode captures, transform matches, and encode raw output using jq format filters.",
+      "script": "printf '%s\\n' '\"é1-é22\"' | jq -rc '[(match(\"é(?<n>[0-9]+)\";\"g\") | .captures[0].string), gsub(\"[0-9]+\";\"x\")] | @csv'\njq -nr --arg value '<a b>' '$value | [@html, @uri, @base64, (@base64|@base64d)] | @tsv'",
+      "requires": [
+        "jq"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "extended_error_recovery",
       "kind": "contract",
-      "script": "for f in '{a:1}' '. as $x | $x' 'def f: .; f' 'match(\"x\")' '(unknown_filter)?' '1e' '\"unterminated'; do\n  if jq -n \"$f\"; then exit 91; else rc=$?; fi\n  printf '%s\\n' \"$rc\"\n  test \"$rc\" -eq 2\ndone\nprintf '%s\\n' '{a:1}' > unsupported.jq\nif jq -n -f unsupported.jq; then exit 92; else rc=$?; fi\nprintf '%s\\n' \"$rc\"\ntest \"$rc\" -eq 2",
+      "purpose": "A failed extended compile or evaluation leaves the Bash output variable intact and a later jq invocation succeeds.",
+      "script": "v=original\nfor f in '$missing' '{x:(1|.key)}'; do\n  if jq -n -V v \"$f\"; then exit 1; else printf '%s %s\\n' \"$?\" \"$v\"; fi\ndone\njq -nc '{ok:true}'",
       "expected_status": 0,
       "stderr": "nonempty",
-      "stdout": "2\n2\n2\n2\n2\n2\n2\n2\n"
+      "stdout": "3 original\n5 original\n{\"ok\":true}\n"
+    },
+    {
+      "id": "invalid_legacy_filters",
+      "purpose": "Invalid plain filters and files still give a subset diagnostic and status 2.",
+      "kind": "contract",
+      "script": "for f in '(unknown_filter)?' '1e' '\"unterminated'; do\n  if jq -n \"$f\"; then exit 91; else rc=$?; fi\n  printf '%s\\n' \"$rc\"\n  test \"$rc\" -eq 2\ndone\nprintf '%s\\n' 'unknown_filter' > unsupported.jq\nif jq -n -f unsupported.jq; then exit 92; else rc=$?; fi\nprintf '%s\\n' \"$rc\"\ntest \"$rc\" -eq 2",
+      "expected_status": 0,
+      "stderr": "nonempty",
+      "stdout": "2\n2\n2\n2\n"
     },
     {
       "id": "unsupported_exact_paths",

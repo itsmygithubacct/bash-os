@@ -7,10 +7,15 @@ BT="build/bash-$(. config/versions.sh; echo "$BASH_SRC_VERSION")"
 d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
 names=(awk jq bc vec coreutils fdisk dhcpd curl bsdgames)
 printf 'set -e\n' > "$d/load.sh"
+deps_prefix=$(CC="$CC" ./build-deps.sh --for-builtins jq blkid)
 for name in "${names[@]}"; do
+  libraries=()
+  if [[ $name == jq ]]; then
+    libraries=("$deps_prefix/lib/libjq.a" "$deps_prefix/lib/libonig.a")
+  fi
   "$CC" -O1 -g -fPIC -shared -Wl,-Bsymbolic -fsanitize=address,undefined \
     -DHAVE_CONFIG_H -I"$BT" -I"$BT/include" -Iloadables/common \
-    -I"$BT/builtins" -I"$BT/examples/loadables" "loadables/$name.c" -lm -o "$d/$name.so"
+    -I"$BT/builtins" -I"$BT/examples/loadables" -I"$deps_prefix/include" "loadables/$name.c" "${libraries[@]}" -lm -o "$d/$name.so"
   printf 'enable -f %q %q\n' "$d/$name.so" "$name" >> "$d/load.sh"
 done
 LARGE_LOAD_ENV="$d/load.sh" LARGE_ASAN_LIB=$("$CC" -print-file-name=libasan.so) \

@@ -4,8 +4,8 @@
  * This ports the documented /bash-os/jq.sh functional subset into C:
  * paths, pipes, iteration, length/keys/type, select/map, comparisons,
  * boolean ops, arithmetic, default //, if/elif/else, literals, and -r/-e.
- * Deliberately unsupported jq features return EX_USAGE with a direct
- * "use system+ jq" diagnostic rather than silently drifting.
+ * Slices, objects, named bindings, reductions, definitions, regular expressions
+ * and format filters are compiled together by the embedded libjq.
  *
  * ──── Identifier-dispatch surface (parser table at line ~624) ────
  * Identifiers recognized by the parser:
@@ -14,9 +14,9 @@
  *                to_entries, from_entries, tostring, tonumber,
  *                tojson, fromjson, ascii_downcase, ascii_upcase,
  *                floor, ceil, fabs, sqrt
- *   Wave 4 (10): exp, log (0-arg math),
+ *   Wave 4: exp, log (0-arg math),
  *                ltrimstr, rtrimstr, startswith, endswith, contains,
- *                split, join, splits (1-arg string/value form,
+ *                join (1-arg string/value form,
  *                parsed like has/select/map).
  *   Wave 5 (7):  range (1/2/3-arg via the new `;` call-arg form),
  *                nth (2-arg N;F filter), getpath (1-arg path array),
@@ -95,6 +95,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <math.h>
+#include <jq.h>
 #include <float.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -745,7 +746,7 @@ lex_filter (lexer_t *lx, const char *s)
          Now emits FT_RECURSE, which parse_primary lifts into N_RECURSE.
          Must be checked BEFORE the single-dot case so `.` doesn't win. */
       if (c == '.' && s[i+1] == '.') { if (lex_add (lx, FT_RECURSE, NULL, 0) < 0) return -1; i += 2; continue; }
-      if (c == '{' || c == '}') return lex_err (lx, "object construction not supported; use system+ jq.");
+      if (strchr ("{:$@", c)) return 1;  /* libjq compiles the entire filter. */
       switch (c)
         {
         case '.': if (lex_add (lx, FT_DOT, NULL, 0) < 0) return -1; i++; continue;
@@ -769,7 +770,7 @@ lex_filter (lexer_t *lx, const char *s)
           else { if (lex_add (lx, FT_DIV, NULL, 0) < 0) return -1; i++; }
           continue;
         case '=':
-          if (s[i+1] != '=') return lex_err (lx, "expected ==");
+          if (s[i+1] != '=') return 1;  /* Assignment composes with slices and objects. */
           if (lex_add (lx, FT_EQ, NULL, 0) < 0) return -1;
           i += 2;
           continue;
@@ -791,6 +792,7 @@ lex_filter (lexer_t *lx, const char *s)
             size_t st = i++;
             while (s[i])
               {
+                if (s[i] == '\\' && s[i+1] == '(') return 1;
                 if (s[i] == '\\' && s[i+1]) { i += 2; continue; }
                 if (s[i] == '"') { i++; break; }
                 i++;
@@ -831,6 +833,14 @@ lex_filter (lexer_t *lx, const char *s)
           size_t st = i++;
           while (isalnum ((unsigned char)s[i]) || s[i] == '_') i++;
           size_t n = i - st;
+          /* Regex functions take jq filters as arguments and may emit a stream.
+             Keep field names such as .match on the normal path. */
+          static const char *const functions[] = {
+            "test", "match", "capture", "scan", "split", "splits", "sub", "gsub", "def", "reduce", "input", "inputs"
+          };
+          if (!lx->n || lx->v[lx->n - 1].t != FT_DOT)
+            for (size_t k = 0; k < sizeof functions / sizeof functions[0]; k++)
+              if (n == strlen (functions[k]) && !strncmp (s + st, functions[k], n)) return 1;
           ftok_t t = FT_IDENT;
           if (n == 2 && !strncmp (s + st, "if", n)) t = FT_IF;
           else if (n == 4 && !strncmp (s + st, "then", n)) t = FT_THEN;
@@ -867,7 +877,7 @@ typedef enum {
      arg string/value filters parsed with the has(EXPR) call form. */
   N_CALL_EXP, N_CALL_LOG,
   N_CALL_LTRIMSTR, N_CALL_RTRIMSTR, N_CALL_STARTSWITH, N_CALL_ENDSWITH,
-  N_CALL_CONTAINS, N_CALL_SPLIT, N_CALL_JOIN, N_CALL_SPLITS,
+  N_CALL_CONTAINS, N_CALL_JOIN,
   /* HOST-SAFE-RESIDUALS Wave 5 (2026-05-26): comma-stream + multi-arg
      filter dispatchers. N_COMMA is the value-stream concat operator.
      N_CALL_RANGE accepts 1/2/3 args (a/b/c slots — NULL = absent).
@@ -1083,9 +1093,7 @@ parse_primary (parser_t *p)
       if (!strcmp (name, "startswith")) { if (!expect (p, FT_LP)) return NULL; node_t *a = parse_expr (p); if (!expect (p, FT_RP)) { node_free (a); return NULL; } return node_new (N_CALL_STARTSWITH, a, NULL, NULL, NULL); }
       if (!strcmp (name, "endswith")) { if (!expect (p, FT_LP)) return NULL; node_t *a = parse_expr (p); if (!expect (p, FT_RP)) { node_free (a); return NULL; } return node_new (N_CALL_ENDSWITH, a, NULL, NULL, NULL); }
       if (!strcmp (name, "contains")) { if (!expect (p, FT_LP)) return NULL; node_t *a = parse_expr (p); if (!expect (p, FT_RP)) { node_free (a); return NULL; } return node_new (N_CALL_CONTAINS, a, NULL, NULL, NULL); }
-      if (!strcmp (name, "split")) { if (!expect (p, FT_LP)) return NULL; node_t *a = parse_expr (p); if (!expect (p, FT_RP)) { node_free (a); return NULL; } return node_new (N_CALL_SPLIT, a, NULL, NULL, NULL); }
       if (!strcmp (name, "join")) { if (!expect (p, FT_LP)) return NULL; node_t *a = parse_expr (p); if (!expect (p, FT_RP)) { node_free (a); return NULL; } return node_new (N_CALL_JOIN, a, NULL, NULL, NULL); }
-      if (!strcmp (name, "splits")) { if (!expect (p, FT_LP)) return NULL; node_t *a = parse_expr (p); if (!expect (p, FT_RP)) { node_free (a); return NULL; } return node_new (N_CALL_SPLITS, a, NULL, NULL, NULL); }
       /* HOST-SAFE-RESIDUALS Wave 5 (2026-05-26): multi-arg call form
          using the new `;` separator. Each filter declares its arity
          range; parse_call_args enforces. */
@@ -1879,53 +1887,6 @@ json_contains (const char *in, const char *v)
   if (!strcmp (ti, "object"))  return json_contains_object (in, v);
   /* numbers / booleans / null: byte-equality (jq parity for these). */
   return !strcmp (in, v);
-}
-
-/* Split a raw (already-unquoted) string by separator. Empty separator
-   → array of single chars (jq parity). Returns an allocated JSON array
-   literal of JSON-string elements. */
-static char *
-json_split_to_array (const char *raw, const char *sep)
-{
-  sbuf_t b = {0};
-  if (sb_puts (&b, "[") < 0) goto oom;
-  size_t slen = strlen (sep);
-  int first = 1;
-  if (slen == 0)
-    {
-      /* Per-char split. Match jq: "" → [], "a" → ["a"], "abc" → ["a","b","c"]. */
-      for (const char *p = raw; *p; p++)
-        {
-          char ch[2] = { *p, 0 };
-          char *js = json_string (ch);
-          if (!js) goto oom;
-          if (!first && sb_puts (&b, ",") < 0) { free (js); goto oom; }
-          if (sb_puts (&b, js) < 0) { free (js); goto oom; }
-          free (js); first = 0;
-        }
-    }
-  else
-    {
-      const char *p = raw;
-      for (;;)
-        {
-          const char *q = strstr (p, sep);
-          size_t n = q ? (size_t) (q - p) : strlen (p);
-          char *piece = xstrndup (p, n);
-          char *js = piece ? json_string (piece) : NULL;
-          free (piece);
-          if (!js) goto oom;
-          if (!first && sb_puts (&b, ",") < 0) { free (js); goto oom; }
-          if (sb_puts (&b, js) < 0) { free (js); goto oom; }
-          free (js); first = 0;
-          if (!q) break;
-          p = q + slen;
-        }
-    }
-  if (sb_puts (&b, "]") < 0) goto oom;
-  return b.p ? b.p : xstrdup ("[]");
-oom:
-  free (b.p); return NULL;
 }
 
 /* Coerce a single JSON value to a raw string for join(). Numbers use
@@ -2873,46 +2834,6 @@ eval_node (node_t *n, const char *in, vals_t *out)
         free (arg);
         return vals_add (out, r ? "true" : "false");
       }
-    case N_CALL_SPLIT:
-      {
-        if (json_type (in)[0] != 's')
-          { jq_eval_error ("split: input is not a string"); return -1; }
-        char *arg = NULL;
-        if (eval_one (n->a, in, &arg) < 0) return -1;
-        if (json_type (arg)[0] != 's')
-          { free (arg); jq_eval_error ("split: separator is not a string"); return -1; }
-        char *raw = json_unstring (in), *sep = json_unstring (arg);
-        free (arg);
-        if (!raw || !sep) { free (raw); free (sep); return -1; }
-        char *res = json_split_to_array (raw, sep);
-        free (raw); free (sep);
-        if (!res) return -1;
-        return vals_add_take (out, res);
-      }
-    case N_CALL_SPLITS:
-      {
-        /* splits emits one value per part (a stream, not an array). */
-        if (json_type (in)[0] != 's')
-          { jq_eval_error ("splits: input is not a string"); return -1; }
-        char *arg = NULL;
-        if (eval_one (n->a, in, &arg) < 0) return -1;
-        if (json_type (arg)[0] != 's')
-          { free (arg); jq_eval_error ("splits: separator is not a string"); return -1; }
-        char *raw = json_unstring (in), *sep = json_unstring (arg);
-        free (arg);
-        if (!raw || !sep) { free (raw); free (sep); return -1; }
-        char *arr = json_split_to_array (raw, sep);
-        free (raw); free (sep);
-        if (!arr) return -1;
-        vals_t parts = {0};
-        int rc = json_array_each (arr, &parts);
-        free (arr);
-        if (rc < 0) { vals_free (&parts); return -1; }
-        for (int i = 0; i < parts.n; i++)
-          if (vals_add (out, parts.v[i]) < 0) { vals_free (&parts); return -1; }
-        vals_free (&parts);
-        return 0;
-      }
     case N_CALL_JOIN:
       {
         if (json_type (in)[0] != 'a')
@@ -3276,12 +3197,140 @@ json_compact (char *text)
   *out = 0;
 }
 
+/* libjq shares one input cursor between its outer loop and the input/inputs
+   filters. With -n, open the input only if the program actually asks for it. */
+typedef struct {
+  const char *cursor, *file;
+  char *buffer;
+  int lazy, slurp, stream, at;
+  vals_t leaves;
+} jq_reader;
+
+static jv
+jq_read_value (jq_state *jq, void *data)
+{
+  jq_reader *r = data;
+  if (r->lazy)
+    {
+      size_t len = 0;
+      r->lazy = 0;
+      int rc = r->file && strcmp (r->file, "-")
+        ? slurp_file (r->file, &r->buffer, &len)
+        : slurp_fd (STDIN_FILENO, &r->buffer, &len);
+      if (rc < 0) return jv_invalid_with_msg (jv_string ("cannot read input"));
+      if (r->slurp)
+        {
+          char *array = json_slurp_array (r->buffer);
+          free (r->buffer);
+          r->buffer = array;
+          if (!array) return jv_invalid_with_msg (jv_string ("cannot slurp JSON input"));
+        }
+      r->cursor = r->buffer;
+    }
+  while (r->at == r->leaves.n)
+    {
+      vals_free (&r->leaves);
+      r->at = 0;
+      char *text = NULL;
+      int next = json_next_text (&r->cursor, &text);
+      if (!next) return jv_invalid ();
+      if (next < 0)
+        {
+          r->cursor = "";
+          return jv_invalid_with_msg (jv_string ("invalid JSON input"));
+        }
+      if (!r->stream)
+        {
+          jv value = jv_parse (text);
+          free (text);
+          return value;
+        }
+      int rc = json_stream_values (text, &r->leaves);
+      free (text);
+      if (rc < 0) return jv_invalid_with_msg (jv_string ("invalid stream input"));
+    }
+  return jv_parse (r->leaves.v[r->at++]);
+}
+
+static void
+jq_filter_diagnostic (void *unused, jv error)
+{
+  if (jv_get_kind (error) != JV_KIND_STRING) error = jv_dump_string (error, 0);
+  builtin_error ("%s", jv_string_value (error));
+  jv_free (error);
+}
+
+static int
+jq_extended_filter (const char *filter, jv named, jq_reader *reader, vals_t *out)
+{
+  jq_state *jq = jq_init ();
+  if (!jq) return EXECUTION_FAILURE;
+  jq_set_error_cb (jq, jq_filter_diagnostic, NULL);
+  jq_set_input_cb (jq, jq_read_value, reader);
+  jq_set_attr (jq, jv_string ("PROGRAM_ORIGIN"), jv_string ("."));
+  jq_set_attr (jq, jv_string ("JQ_ORIGIN"), jv_string ("."));
+  jv args = JV_OBJECT (jv_string ("named"), jv_copy (named),
+                       jv_string ("positional"), jv_array ());
+  jv bindings = jv_object_set (jv_copy (named), jv_string ("ARGS"), args);
+  /* Preserve the two legacy function names when combined with new syntax. */
+  jv program = jv_string_concat (jv_string ("def recurse_down: recurse; "
+                                            "def leaf_paths: paths(type != \"array\" and type != \"object\");\n"),
+                                 jv_string (filter));
+  int compiled = jq_compile_args (jq, jv_string_value (program), bindings);
+  jv_free (program);
+  int rc = compiled ? EXECUTION_SUCCESS : 3;
+  int once = reader->lazy;
+  while (rc == EXECUTION_SUCCESS)
+    {
+      jv value = once ? jv_null () : jq_read_value (jq, reader);
+      if (!jv_is_valid (value))
+        {
+          if (jv_invalid_has_msg (jv_copy (value)))
+            { jq_filter_diagnostic (NULL, jv_invalid_get_msg (value)); rc = 5; }
+          else jv_free (value);
+          break;
+        }
+      jq_start (jq, value, 0);
+      jv result;
+      while (jv_is_valid (result = jq_next (jq)))
+        {
+          jv text = jv_dump_string (result, 0);
+          int saved = vals_add (out, jv_string_value (text));
+          jv_free (text);
+          if (saved < 0) { rc = EXECUTION_FAILURE; break; }
+        }
+      if (rc) break;
+      if (jv_invalid_has_msg (jv_copy (result)))
+        { jq_filter_diagnostic (NULL, jv_invalid_get_msg (result)); rc = 5; }
+      else jv_free (result);
+      if (jq_halted (jq))
+        {
+          jv code = jq_get_exit_code (jq);
+          if (jv_get_kind (code) == JV_KIND_NUMBER) rc = (int) jv_number_value (code);
+          jv_free (code);
+          jv msg = jq_get_error_message (jq);
+          if (jv_get_kind (msg) == JV_KIND_STRING)
+            fwrite (jv_string_value (msg), 1, jv_string_length_bytes (jv_copy (msg)), stderr);
+          else if (jv_is_valid (msg) && jv_get_kind (msg) != JV_KIND_NULL)
+            jq_filter_diagnostic (NULL, jv_copy (msg));
+          jv_free (msg);
+          break;
+        }
+      if (once) break;
+    }
+  vals_free (&reader->leaves);
+  free (reader->buffer);
+  jq_teardown (&jq);
+  return rc;
+}
+
 /* Compile once, evaluate every ordinary JSON text independently. The custom
    --stream mode transforms each text to leaf tuples before applying the filter.
    Evaluation remains buffered, including output-variable binding. */
 static int
 run_filter (const char *filter, const char *doc, int raw, int exit_status,
-            const char *out_var, int stream, int indent, int tab)
+            const char *out_var, int stream, int indent, int tab, jv named,
+            int null_input, const char *file, int slurp)
 {
   lexer_t lx = {0};
   node_t *root = NULL;
@@ -3289,7 +3338,15 @@ run_filter (const char *filter, const char *doc, int raw, int exit_status,
   sbuf_t bound = {0};
   int rc = EXECUTION_SUCCESS;
   jq_optional_depth = jq_unsupported = 0;
-  if (lex_filter (&lx, filter) < 0)
+  int syntax = lex_filter (&lx, filter);
+  if (syntax > 0)
+    {
+      jq_reader reader = {.cursor = doc, .file = file, .lazy = null_input,
+                          .slurp = slurp, .stream = stream};
+      rc = jq_extended_filter (filter, named, &reader, &out);
+      goto emit;
+    }
+  if (syntax < 0)
     { builtin_error ("%s", lx.err[0] ? lx.err : "lex failed"); rc = EX_USAGE; goto done; }
   parser_t p = { .lx = &lx };
   root = parse_expr (&p);
@@ -3329,6 +3386,7 @@ run_filter (const char *filter, const char *doc, int raw, int exit_status,
   if (next < 0)
     { builtin_error ("invalid JSON input (nesting limit: 256)"); rc = 5; }
 
+emit:
   for (int i = 0; i < out.n; i++)
     {
       json_compact (out.v[i]);
@@ -3374,8 +3432,8 @@ done:
   return rc;
 }
 
-int
-jq_builtin (WORD_LIST *list)
+static int
+jq_command (WORD_LIST *list, jv *named)
 {
   int raw = 0, exit_status = 0, slurp = 0, stream = 0, null_input = 0, indent = 2, tab = 0;
   const char *filter = NULL, *file = NULL, *filter_file = NULL;
@@ -3383,9 +3441,21 @@ jq_builtin (WORD_LIST *list)
   for (WORD_LIST *a = list; a; a = a->next)
     {
       const char *w = a->word->word;
-      if (!strcmp (w, "-r") || !strcmp (w, "--raw-output")) raw = 1;
-      else if (!strcmp (w, "-e") || !strcmp (w, "--exit-status")) exit_status = 1;
-      else if (!strcmp (w, "-c") || !strcmp (w, "--compact-output")) { indent = 0; tab = 0; }
+      if (w[0] == '-' && w[1] && strspn (w + 1, "recns") == strlen (w + 1))
+        {
+          for (const char *p = w + 1; *p; p++)
+            switch (*p)
+              {
+              case 'r': raw = 1; break;
+              case 'e': exit_status = 1; break;
+              case 'c': indent = 0; tab = 0; break;
+              case 'n': null_input = 1; break;
+              case 's': slurp = 1; break;
+              }
+        }
+      else if (!strcmp (w, "--raw-output")) raw = 1;
+      else if (!strcmp (w, "--exit-status")) exit_status = 1;
+      else if (!strcmp (w, "--compact-output")) { indent = 0; tab = 0; }
       else if (!strcmp (w, "--tab")) tab = 1;
       else if (!strcmp (w, "--indent"))
         {
@@ -3395,11 +3465,20 @@ jq_builtin (WORD_LIST *list)
             { builtin_error ("--indent takes a number between 0 and 7"); return 2; }
           a = a->next; indent = (int) v; tab = 0;
         }
-      else if (!strcmp (w, "-n") || !strcmp (w, "--null-input")) null_input = 1;
+      else if (!strcmp (w, "--null-input")) null_input = 1;
+      else if (!strcmp (w, "--arg"))
+        {
+          if (!a->next || !a->next->next)
+            { builtin_error ("--arg needs a name and a value"); return EX_USAGE; }
+          const char *name = a->next->word->word;
+          a = a->next->next;
+          if (!jv_object_has (jv_copy (*named), jv_string (name)))
+            *named = jv_object_set (*named, jv_string (name), jv_string (a->word->word));
+        }
       else if (!strcmp (w, "-f") || !strcmp (w, "--from-file")) { if (!a->next) { builtin_error ("-f needs file"); return EX_USAGE; } a = a->next; filter_file = a->word->word; }
       else if (!strcmp (w, "-i")) { if (!a->next) { builtin_error ("-i needs INPUT_VAR"); return EX_USAGE; } a = a->next; input_var = a->word->word; }
       else if (!strcmp (w, "-V")) { if (!a->next) { builtin_error ("-V needs OUT_VAR"); return EX_USAGE; } a = a->next; out_var = a->word->word; }
-      else if (!strcmp (w, "-s") || !strcmp (w, "--slurp")) slurp = 1;
+      else if (!strcmp (w, "--slurp")) slurp = 1;
       else if (!strcmp (w, "--stream")) stream = 1;
       /* A leading '-' followed by a non-alphabetic char is a FILTER beginning
          with unary minus (jq's `-.`, `-5`, `-(...)`), not a flag. Only treat
@@ -3442,28 +3521,40 @@ jq_builtin (WORD_LIST *list)
       free (doc);
       doc = slurped;
     }
-  int rc = run_filter (filter, doc, raw, exit_status, out_var, stream, indent, tab);
+  int rc = run_filter (filter, doc, raw, exit_status, out_var, stream, indent, tab,
+                       *named, null_input && !input_var, file, slurp);
   free (filter_buf); free (doc);
   return rc;
 }
 
+int
+jq_builtin (WORD_LIST *list)
+{
+  jv named = jv_object ();
+  int rc = jq_command (list, &named);
+  jv_free (named);
+  return rc;
+}
+
 char *jq_doc[] = {
-  "jq-subset filter evaluator for bash-os (Stage 48).",
+  "jq-subset filter evaluator for bash-os with embedded libjq.",
   "    jq [-r] [-e] FILTER [FILE]",
-  "    jq -n FILTER",
+  "    jq -n [--arg NAME VALUE]... FILTER",
   "    jq FILTER -i INPUT_VAR -V OUT_VAR",
   "    jq -f FILTER_FILE [FILE]",
   "    jq --slurp FILTER [FILE]",
   "    jq --stream FILTER [FILE]",
   "Supports paths, pipes, [], length/keys/type/has, select/map, comparisons,",
   "boolean ops, arithmetic, //, if/elif/else, literals, postfix ?, and",
-  "streaming leaf tuples.",
+  "streaming leaf tuples. Use slices, object constructors, --arg, reduce, def,",
+  "regular expressions and @ formats in ordinary jq programs.",
   "Input and result streams are buffered. Output is indented by two spaces",
   "as jq's is; -c (or --indent 0) prints compactly, --tab indents with tabs",
   "and --indent N with N spaces (0-7). A -V variable gets compact text.",
   "-f also accepts --from-file. At most one input FILE is supported.",
   "--stream emits leaf tuples, not the full jq container-end events.",
-  "Unsupported syntax returns 2; runtime errors return 5. With -e,",
+  "Unrecognized subset syntax exits 2. A libjq compile error exits 3.",
+  "Runtime errors exit 5. With -e,",
   "no output returns 4 and a final false or null returns 1.",
   (char *)NULL
 };
@@ -3473,6 +3564,6 @@ struct builtin jq_struct = {
   jq_builtin,
   BUILTIN_ENABLED,
   jq_doc,
-  "jq [-r] [-e] [-c] [--tab] [--indent N] [-n] [-s|--stream] [-i INPUT_VAR] [-V OUT_VAR] {FILTER|-f FILTER_FILE} [FILE]",
+  "jq [-r] [-e] [-c] [--tab] [--indent N] [-n] [-s|--stream] [--arg NAME VALUE]... [-i INPUT_VAR] [-V OUT_VAR] {FILTER|-f FILTER_FILE} [FILE]",
   0
 };

@@ -78,6 +78,34 @@ with tempfile.TemporaryDirectory() as tmp:
                 parity(name, '-c', program, data=json.dumps(value).encode()+b'\n')
             parity(name, '-r', '.name', data=b'{"name":"hello"}\n')
             parity(name, '-s', '-c', 'add', data=b'1\n2\n3\n')
+            for program, value in [
+                    ('[.[:2], .[1:-1], .[-2:], .[20:30]]', [0, 1, 2, 3]),
+                    ('.[1:3]', 'xé🍐z'),
+                    ('.items |= .[1:]', {'items': [1, 2, 3]}),
+                    ('{value, (.["key"]): .items[1:]}', {'value': 4, 'key': 'answer', 'items': [2, 3]}),
+                    ('def twice(f): f | f; def plus($n): . + $n; twice(plus(2))', 1),
+                    ('reduce .[] as $x ({}; .[$x] += 1)', ['a', 'b', 'a']),
+                    ('[test("^é";"i"), [match("(?<n>[0-9]+)";"g") | .captures[0]], '
+                     'capture("(?<number>[0-9]+)"), [scan("[0-9]+")], sub("[0-9]+";"x"), '
+                     'gsub("[0-9]+";"x"), [splits("[0-9]+")]]', 'É12/34'),
+                    ('[split("[,:]"; ""), [splits("[,:]")]]', 'a,b:c'),
+                    ('[(@text), @json, @html, @uri, @base64, (@base64|@base64d)]', '<café &>'),
+                    ('[@csv, @tsv, @sh]', ['a,b', "it's", 'two\twords'])]:
+                parity(name, '-c', program, data=json.dumps(value).encode())
+            parity(name, '-nc', '--arg', 'key', 'two words', '--arg', 'key', 'ignored',
+                   '--arg', 'empty', '', '{($key): $empty, args: $ARGS.named}')
+            parity(name, '-nr', '--arg', 'q', 'a&b c', r'$q | @uri "q=\(.)"')
+            parity(name, 'test("[")', data=b'"text"')
+            parity(name, '-nc', 'reduce inputs as $n (0; . + $n)', data=b'1 2 3\n')
+            parity(name, '-c', '[., input]', data=b'1 2 3 4\n')
+            parity(name, '-ne', '{ok:false} | .ok')
+            parity(name, '-ne', '{ok:null} | empty')
+            program_file = d/'filter.jq'
+            program_file.write_text('def tail: .[1:]; {($name): tail}')
+            parity(name, '-c', '--arg', 'name', 'rest', '-f', program_file, data=b'[1,2,3]')
+            assert run('eval', 'v="[0,1,2]"; jq -i v -V out --arg k x \'{($k): .[1:]}\'; '
+                       'printf "%s" "$out"') == b'{"x":[1,2]}'
+            assert run(name, '-c', '{p:[leaf_paths]}', data=b'[false,null,[],{}]') == b'{"p":[[0],[1]]}\n'
             parity(name, '.', data=b'{broken')
         elif name == 'bc':
             for expr in ['12345678901234567890+98765432109876543210', '2^100',
