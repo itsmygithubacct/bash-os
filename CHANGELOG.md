@@ -5,6 +5,7 @@ All notable changes to bash-os are recorded here. Versions follow
 
 ## 0.1.5 — Unreleased
 
+- `tar --mtime=@SECONDS` and `pax -w -o mtime:=SECONDS` can produce archives with a fixed modification time.
 - The `jq` builtin accepts array and string slices, object constructors,
   `--arg NAME VALUE`, `reduce`, `def`, regular expressions, and `@` formats.
   Filters work with stdin, files, and the Bash `-i` and `-V` variable options.

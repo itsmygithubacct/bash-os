@@ -47,6 +47,12 @@ int tar_builtin(WORD_LIST *list)
         else if (!end_options && !strcmp(w, "--to-stdout")) opts = "O";
         else if (!end_options && !strcmp(w, "--same-permissions")) opts = "p";
         else if (!end_options && !strcmp(w, "--no-recursion")) { no_recurse = 1; continue; }
+        else if (!end_options && (!strcmp(w, "--mtime") || !strncmp(w, "--mtime=", 8))) {
+            if (w[7] == '=') value = w + 8;
+            else { if (!(list = list->next)) goto invalid; value = list->word->word; }
+            if (*value != '@' || bashos_pax_set_mtime(&writer, value + 1) < 0) goto invalid;
+            continue;
+        }
         else if (!end_options && !strcmp(w, "--file")) opts = "f";
         else if (!end_options && !strcmp(w, "--directory")) opts = "C";
         else if (!end_options && !strncmp(w, "--file=", 7)) { value_option = 'f'; value = w + 7; }
@@ -83,7 +89,7 @@ int tar_builtin(WORD_LIST *list)
         else if (value_option == 'C') args[used++] = (struct tar_arg){value, 1};
         else { args[used++] = (struct tar_arg){w, 0}; members[member_count++] = w; }
     }
-    if (!mode || (mode == 'c' && !member_count)) goto invalid;
+    if (!mode || (mode == 'c' && !member_count) || (writer.override_mtime && mode != 'c')) goto invalid;
     if (mode == 'c' && (read_options.to_stdout || read_options.strip)) goto invalid;
     saved = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (saved < 0) { builtin_error("save working directory: %s", strerror(errno)); rc = 2; goto done; }
@@ -149,6 +155,7 @@ done:
 char *tar_doc[] = {
     "Create (-c), list (-t), or extract (-x) ustar/PAX archives; -f selects the archive.",
     "Supports -C directory, -z gzip, -v, -O stdout, -p permissions, --strip-components.",
+    "Creation accepts --mtime=@EPOCH_SECONDS to normalize all archived timestamps.",
     "Uses the pax engine. Unsupported options fail instead of being ignored.",
     "Preserves regular-file hardlinks with nonconflicting member names; supports FIFOs and devices.",
     "No append/update, sparse entries, absolute member names or automatic compression detection.", NULL

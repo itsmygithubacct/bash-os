@@ -46,6 +46,22 @@
       ]
     },
     {
+      "id": "normalized-archive-mtime",
+      "kind": "parity",
+      "purpose": "Build the same archive after changing the input timestamp and confirm its extracted timestamp is the requested epoch.",
+      "script": "mkdir src restored\nprintf 'same bytes\\n' > src/member\ntouch -t 202001010000 src/member\ntar --mtime=@0 -cf a.tar -C src member\ntouch -t 202001020000 src/member\ntar --mtime @0 -cf b.tar -C src member\ncmp a.tar b.tar || exit 1\ntar -xf b.tar -C restored\nstat -c %Y restored/member\nrm a.tar b.tar",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "cmp",
+        "mkdir",
+        "rm",
+        "stat",
+        "tar",
+        "touch"
+      ]
+    },
+    {
       "id": "extract-independent-ustar-links",
       "kind": "parity",
       "purpose": "Extracts a fixed USTAR archive encoded independently with Python tarfile, covering a directory, binary file, symbolic link and hard link; GNU tar listings and extracted filesystem/link relationships are the oracle.",

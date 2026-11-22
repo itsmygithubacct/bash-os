@@ -46,12 +46,14 @@ static void put_octal(char *dst, size_t n, unsigned long v){
 #define PAX_EXT_SIZE 1
 #define PAX_EXT_UID  2
 #define PAX_EXT_GID  4
+#define PAX_EXT_MTIME 8
 /* Which numeric fields of st overflow their ustar octal field. */
 static int pax_numeric_ext(const struct stat *st, int regular){
     int f = 0;
     if(regular && (unsigned long long)st->st_size > 077777777777ULL) f |= PAX_EXT_SIZE;   /* 11 octal digits */
     if((unsigned long)st->st_uid > 07777777UL) f |= PAX_EXT_UID;                            /* 7 octal digits */
     if((unsigned long)st->st_gid > 07777777UL) f |= PAX_EXT_GID;
+    if(st->st_mtime < 0 || (unsigned long long)st->st_mtime > 077777777777ULL) f |= PAX_EXT_MTIME;
     return f;
 }
 /* Skip N bytes of the archive. fseek only works on a seekable file; on a
@@ -127,9 +129,18 @@ static int pax_parse_decimal_ulong(const char *s, unsigned long *out){
 }
 
 static int pax_parse_time(const char *s, time_t *out){
-    char *e; errno = 0; double v = strtod(s, &e);
-    if(errno || e == s || (*e && *e != '\n')) return -1;
-    *out = (time_t)v; return 0;
+    char *e;
+    errno = 0;
+    long long v = strtoll(s, &e, 10);
+    if(errno || e == s || (long long)(time_t)v != v) return -1;
+    if(*e == '.'){
+        const char *fraction = ++e;
+        while(*e >= '0' && *e <= '9') e++;
+        if(e == fraction) return -1;
+    }
+    if(*e && *e != '\n') return -1;
+    *out = (time_t)v;
+    return 0;
 }
 
 static int pax_set_string(char **dst, const char *val, size_t n){
@@ -684,6 +695,7 @@ static int write_pax_ext(FILE *out, const char *name, int want_path, const char 
     if(numext & PAX_EXT_SIZE){ snprintf(num, sizeof num, "%llu", (unsigned long long)st->st_size); if(append_pax_record(&body, &len, &cap, "size", num) < 0){ free(body); return -1; } }
     if(numext & PAX_EXT_UID){ snprintf(num, sizeof num, "%lu", (unsigned long)st->st_uid); if(append_pax_record(&body, &len, &cap, "uid", num) < 0){ free(body); return -1; } }
     if(numext & PAX_EXT_GID){ snprintf(num, sizeof num, "%lu", (unsigned long)st->st_gid); if(append_pax_record(&body, &len, &cap, "gid", num) < 0){ free(body); return -1; } }
+    if(numext & PAX_EXT_MTIME){ snprintf(num, sizeof num, "%lld", (long long)st->st_mtime); if(append_pax_record(&body, &len, &cap, "mtime", num) < 0){ free(body); return -1; } }
     if(!body) return 0;
     struct stat xst = *st;
     xst.st_mode = 0644;
@@ -703,10 +715,18 @@ static int write_pax_ext(FILE *out, const char *name, int want_path, const char 
    in write_member below. */
 static int path_join3(char *out, size_t outsz, const char *a, const char *b);
 
-/* -d (POSIX pax "do not descend directories"); reset per invocation in
-   pax_builtin. When 0 (default), write_member recurses into directories
-   so `pax -w .` archives the full tree like GNU tar. */
-static int bp_no_recurse = 0;
+/* Parse an explicit archive timestamp without changing any input file. */
+int bashos_pax_set_mtime(struct bashos_pax_write_context *ctx, const char *seconds){
+    const char *digits = seconds + (*seconds == '-' || *seconds == '+');
+    char *end;
+    if(*digits < '0' || *digits > '9') return -1;
+    errno = 0;
+    long long value = strtoll(seconds, &end, 10);
+    if(errno || *end || (long long)(time_t)value != value) return -1;
+    ctx->mtime = (time_t)value;
+    ctx->override_mtime = 1;
+    return 0;
+}
 
 struct bashos_pax_hardlink {
     dev_t device;
@@ -737,6 +757,7 @@ static int write_member(FILE *out, const char *path, struct bashos_pax_write_con
     struct stat st;
     if(lstat(path, &st) < 0){ builtin_error("%s: %s", path, strerror(errno)); return 1; }
 
+    if(ctx->override_mtime) st.st_mtime = ctx->mtime;
     const char *stored_path = ustar_name_ok(path) ? path : pax_fallback_name(path);
     int need_path_ext = !ustar_name_ok(path);
 
@@ -828,13 +849,12 @@ static int pax_list_extract(const char *archive, int extract, int verbose){
     return rc;
 }
 
-static int pax_write(const char *archive, WORD_LIST *files){
+static int pax_write(const char *archive, WORD_LIST *files, struct bashos_pax_write_context *ctx){
     FILE *out = archive ? fopen(archive,"wb") : stdout;
     if(!out){ builtin_error("%s: %s", archive, strerror(errno)); return EXECUTION_FAILURE; }
     int rc = 0;
-    struct bashos_pax_write_context ctx = { .no_recurse = bp_no_recurse };
-    for(; files; files = files->next) rc |= bashos_pax_write_member_context(out, files->word->word, &ctx);
-    bashos_pax_write_clear(&ctx);
+    for(; files; files = files->next) rc |= bashos_pax_write_member_context(out, files->word->word, ctx);
+    bashos_pax_write_clear(ctx);
     unsigned char z[1024]; memset(z, 0, sizeof z);
     fwrite(z, 1, sizeof z, out);
     if(out != stdout) fclose(out);
@@ -926,11 +946,17 @@ static int pax_copy(WORD_LIST *files){
 
 int pax_builtin(WORD_LIST *list){
     int mode=0, verbose=0; const char *archive=NULL; WORD_LIST *files=NULL;
-    bp_no_recurse=0;
+    struct bashos_pax_write_context writer = {0};
     while(list){
         char *w=list->word->word;
         if(!strcmp(w,"-v")) verbose=1;
-        else if(!strcmp(w,"-d")) bp_no_recurse=1;
+        else if(!strcmp(w,"-d")) writer.no_recurse=1;
+        else if(!strcmp(w,"-o")){
+            if(!(list = list->next) || strncmp(list->word->word, "mtime:=", 7) ||
+               bashos_pax_set_mtime(&writer, list->word->word + 7) < 0){
+                builtin_error("-o requires mtime:=EPOCH_SECONDS"); return EX_USAGE;
+            }
+        }
         else if(!strcmp(w,"-f")){
             if(!list->next){ builtin_error("-f needs archive"); return EX_USAGE; }
             list=list->next; archive=list->word->word;
@@ -941,7 +967,8 @@ int pax_builtin(WORD_LIST *list){
         else { files=list; break; }
         list=list->next;
     }
-    if(mode==1) return pax_write(archive,files);
+    if(mode==1) return pax_write(archive,files,&writer);
+    if(writer.override_mtime){ builtin_error("mtime override requires -w"); return EX_USAGE; }
     if(mode==2) return pax_list_extract(archive,1,verbose);
     if(mode==3) return pax_copy(files);
     return pax_list_extract(archive,0,verbose);
@@ -949,6 +976,7 @@ int pax_builtin(WORD_LIST *list){
 
 char *pax_doc[] = {
     "POSIX pax ustar subset: list, -w create, -r extract, -rw copy.",
+    "With -w, -o mtime:=EPOCH_SECONDS sets the archived modification time.",
     "    bashpax [-v] [-f ARCHIVE] | bashpax -w -f ARCHIVE FILE... | bashpax -r -f ARCHIVE | bashpax -rw FILE... DIR",
     (char*)NULL
 };
