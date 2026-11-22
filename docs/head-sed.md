@@ -93,7 +93,7 @@ The compatibility boundaries are:
   shapes pass no registers and run.
   `-z`, `--sandbox`,
   `--follow-symlinks` and `\cREGEXc` addresses are supported. Version 0.1.5 adds `--debug` tracing.
-  The builtin rejects `--posix`. See [the focused completion notes](sol-sed.md) and
+  Use `--posix` to select POSIX script and regex syntax. See [the focused completion notes](sol-sed.md) and
   [the follow-up notes](opus-sed-followup.md) for the tested scope.
 - `sed q` and `l` follow GNU framing, including an unterminated last pattern;
   `R` preserves an unterminated auxiliary record. BusyBox 1.37 differs for

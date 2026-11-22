@@ -12,7 +12,7 @@
     "Bash builtin type/help metadata and the loadable-only -a, -q, and -v contracts."
   ],
   "exclusions": [
-    "GNU-only realpath options such as -m, --relative-to, and -z are outside the Bash loadable's documented interface.",
+    "GNU-only realpath options such as --relative-to and -z are outside the Bash loadable's documented interface.",
     "The loadable's -a array assignment and -v formatting have no GNU CLI equivalent, so they are contract cases rather than claimed GNU parity.",
     "No privileged, hardware, network, or host-system path behavior is included; all operations use ordinary fixture paths."
   ],
@@ -150,6 +150,42 @@
       "script": "printf x > regular; ln -s absent dangling; ln -s regular filelink\nfor p in absent missing/leaf dangling regular/child missing/../leaf regular/../leaf dangling/child filelink/child; do\n if value=$(realpath -s \"$p\"); then rc=0; else rc=$?; fi\n printf '%s=%s:%s\\n' \"$p\" \"$rc\" \"$value\"\ndone",
       "expected_status": 0,
       "stderr": "nonempty"
+    },
+    {
+      "id": "missing-path-components",
+      "kind": "parity",
+      "purpose": "Canonicalizes nonexistent components and paths descending through a regular file.",
+      "requires": [
+        "realpath"
+      ],
+      "script": ": > f\nrealpath -m nonexistent/a/../b f/x/.. /../../tmp",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-physical",
+      "kind": "parity",
+      "purpose": "Follows links, including a dangling relative target, before applying dot-dot.",
+      "requires": [
+        "realpath",
+        "mkdir",
+        "ln"
+      ],
+      "script": "mkdir -p real/deep\nln -s real/deep dir\nln -s ../missing real/deep/dangling\nrealpath -m dir/../file dir/dangling/tail dir/../../../x\nrealpath -sm dir/../file",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "missing-loop",
+      "kind": "parity",
+      "purpose": "Treats a loop as unresolved and continues with the rest of the operand.",
+      "requires": [
+        "realpath",
+        "ln"
+      ],
+      "script": "ln -s b a; ln -s a b\nrealpath -m a/missing b/../file",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

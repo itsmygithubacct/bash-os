@@ -304,6 +304,29 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "utc-calendar",
+      "kind": "parity",
+      "purpose": "Parses minute and second precision UTC independently of the process time zone.",
+      "requires": [
+        "touch",
+        "stat"
+      ],
+      "script": "export TZ=EST5\ntouch -d '2000-01-02 12:00 UTC' f && stat -c %Y f && touch --date='2000-01-02 12:34:56 UTC' f && stat -c %Y f",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "utc-invalid-day",
+      "kind": "parity",
+      "purpose": "Rejects an impossible calendar date.",
+      "requires": [
+        "touch"
+      ],
+      "script": "touch -d '2001-02-29 12:00 UTC' f",
+      "expected_status": 1,
+      "stderr": "nonempty"
     }
   ]
 }

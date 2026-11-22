@@ -40,12 +40,14 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <dirent.h>
+#include <time.h>
 
 #include "loadables.h"
 #include "bl-output.h"
 
 typedef struct {
-    int uflag, qflag, iflag, yflag, rflag;
+    int uflag, qflag, iflag, yflag, rflag, wflag;
+    const char *labels[2];
     long width;              /* -W: side-by-side output width */
     const char *switches;    /* option words as given, for -r headers */
 } bd_opts;
@@ -60,7 +62,7 @@ bd_is_stdin (const char *path)
 /* Read PATH into a buffer. "-" uses the caller's stdin descriptor, which
    this loader never opens or closes. */
 static int
-bd_load (const char *path, unsigned char **data, size_t *len)
+bd_load (const char *path, unsigned char **data, size_t *len, struct timespec *mtime)
 {
     int fd, owned = 0;
     if (bd_is_stdin (path)) {
@@ -72,6 +74,16 @@ bd_load (const char *path, unsigned char **data, size_t *len)
             return -1;
         }
         owned = 1;
+    }
+    if (mtime) {
+        struct stat st;
+        int rc = owned ? fstat (fd, &st) : clock_gettime (CLOCK_REALTIME, mtime);
+        if (rc < 0) {
+            builtin_error ("%s: %s", path, strerror (errno));
+            if (owned) close (fd);
+            return -1;
+        }
+        if (owned) *mtime = st.st_mtim;
     }
     size_t cap = 4096, n = 0;
     unsigned char *buf = malloc (cap);
@@ -186,10 +198,20 @@ fail:
 }
 
 static int
-bd_lineq (const bd_line *a, const bd_line *b, int icase)
+bd_lineq (const bd_line *a, const bd_line *b, const bd_opts *o)
 {
+    if (o->wflag) {
+        size_t i = 0, j = 0;
+        for (;;) {
+            while (i < a->len && isspace (a->data[i])) i++;
+            while (j < b->len && isspace (b->data[j])) j++;
+            if (i == a->len || j == b->len) return i == a->len && j == b->len;
+            int x = a->data[i++], y = b->data[j++];
+            if ((o->iflag ? tolower (x) != tolower (y) : x != y)) return 0;
+        }
+    }
     if (a->len != b->len) return 0;
-    if (!icase) return memcmp (a->data, b->data, a->len) == 0;
+    if (!o->iflag) return memcmp (a->data, b->data, a->len) == 0;
     for (size_t i = 0; i < a->len; i++)
         if (tolower (a->data[i]) != tolower (b->data[i])) return 0;
     return 1;
@@ -239,7 +261,7 @@ bd_trace_x (const int *row, int d, int k)
     return row[(k + d) / 2];
 }
 static bd_op *
-bd_myers (bd_line *A, int n, bd_line *B, int m, int icase,
+bd_myers (bd_line *A, int n, bd_line *B, int m, const bd_opts *o,
           int no_newline_a, int no_newline_b, int *n_ops_out)
 {
     *n_ops_out = -1;
@@ -289,8 +311,8 @@ bd_myers (bd_line *A, int n, bd_line *B, int m, int icase,
             else
                 x = v[k - 1 + max] + 1;      /* deletion */
             int y = x - k;
-            while (x < n && y < m && bd_lineq (&A[x], &B[y], icase) &&
-                   (x == n - 1 && no_newline_a) == (y == m - 1 && no_newline_b)) {
+            while (x < n && y < m && bd_lineq (&A[x], &B[y], o) &&
+                   (o->wflag || (x == n - 1 && no_newline_a) == (y == m - 1 && no_newline_b))) {
                 x++; y++;
             }
             v[k + max] = x;
@@ -426,19 +448,56 @@ bd_emit_ed (bl_output *out, bd_line *A, int n, bd_line *B, int m, bd_op *ops, in
     }
 }
 
+/* GNU unified headers C-quote an implicit filename when it contains
+   whitespace, a quote, a backslash or a byte outside printable ASCII. */
+static void
+bd_timestamped_name (bl_output *out, const char *name, const struct timespec *mtime)
+{
+    int quote = 0;
+    for (const unsigned char *p = (const unsigned char *) name; *p; p++)
+        if (*p <= ' ' || *p >= 127 || *p == '"' || *p == '\\') quote = 1;
+    if (!quote) bd_text (out, name);
+    else {
+        bl_output_byte (out, '"');
+        for (const unsigned char *p = (const unsigned char *) name; *p; p++) {
+            const char *esc = strchr ("\a\b\t\n\v\f\r", *p);
+            if (esc) {
+                const char *controls = "abtnvfr";
+                bl_output_byte (out, '\\');
+                bl_output_byte (out, controls[*p - '\a']);
+            } else if (*p < ' ' || *p >= 127) bd_format (out, "\\%03o", (unsigned) *p);
+            else {
+                if (*p == '"' || *p == '\\') bl_output_byte (out, '\\');
+                bl_output_byte (out, *p);
+            }
+        }
+        bl_output_byte (out, '"');
+    }
+    char date[64], zone[32];
+    struct tm tm;
+    tzset ();
+    if (localtime_r (&mtime->tv_sec, &tm) &&
+        strftime (date, sizeof date, "%Y-%m-%d %H:%M:%S", &tm) &&
+        strftime (zone, sizeof zone, "%z", &tm))
+        bd_format (out, "\t%s.%09ld %s", date, mtime->tv_nsec, zone);
+}
+
 /* Emit unified diff (-u). 3 lines context per hunk; fuse hunks within
    6 lines of each other. */
 #define BD_CTX 3
 static void
 bd_emit_unified (bl_output *out, bd_line *A, int n, bd_line *B, int m, bd_op *ops, int n_ops,
-                 const char *fname1, const char *fname2,
+                 const char *fname1, const char *fname2, const struct timespec *mtime2,
                  int no_newline_a, int no_newline_b)
 {
     (void) m;
     if (n_ops == 0) return;
     /* Print file headers. */
     bd_text (out, "--- "); bd_text (out, fname1); bd_text (out, "\n");
-    bd_text (out, "+++ "); bd_text (out, fname2); bd_text (out, "\n");
+    bd_text (out, "+++ ");
+    if (mtime2) bd_timestamped_name (out, fname2, mtime2);
+    else bd_text (out, fname2);
+    bd_text (out, "\n");
 
     /* Walk ops, group into hunks bounded by ≥ 2*BD_CTX equals. */
     int i = 0;
@@ -652,13 +711,17 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
     /* Load distinct operands once each; a single "-" borrows stdin. */
     unsigned char *da = NULL, *db = NULL;
     size_t la = 0, lb = 0;
-    if (bd_load (p0, &da, &la) < 0)
+    struct timespec stamp;
+    struct timespec *mtime2 = o->uflag && o->labels[0] && !o->labels[1] ? &stamp : NULL;
+    if (bd_load (p0, &da, &la, NULL) < 0)
         return 2;
-    if (bd_load (p1, &db, &lb) < 0) {
+    if (bd_load (p1, &db, &lb, mtime2) < 0) {
         free (da);
         return 2;
     }
 
+    const char *name0 = o->labels[0] ? o->labels[0] : p0;
+    const char *name1 = o->labels[1] ? o->labels[1] : p1;
     /* Equal bytes imply equal lines for every supported comparison mode.
        Avoid indexing lines and building an edit trace when
        the complete inputs already establish that there is no difference. */
@@ -669,8 +732,8 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
     }
 
     /* Byte inequality fully answers a case-sensitive quiet comparison. */
-    if (o->qflag && !o->iflag) {
-        printf ("Files %s and %s differ\n", p0, p1);
+    if (o->qflag && !o->iflag && !o->wflag) {
+        printf ("Files %s and %s differ\n", name0, name1);
         free (da);
         free (db);
         return bd_finish_output (1);
@@ -688,9 +751,9 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
             rc = 0;
         else {
             if (o->qflag)
-                printf ("Files %s and %s differ\n", p0, p1);
+                printf ("Files %s and %s differ\n", name0, name1);
             else
-                printf ("Binary files %s and %s differ\n", p0, p1);
+                printf ("Binary files %s and %s differ\n", name0, name1);
             rc = 1;
         }
         free (da);
@@ -716,14 +779,14 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
     bd_op *ops = NULL;
     int rc = 2;
     if (o->qflag) {
-        int equal = n == m && no_newline_a == no_newline_b;
+        int equal = n == m && (o->wflag || no_newline_a == no_newline_b);
         for (int i = 0; equal && i < n; i++)
-            equal = bd_lineq (&A[i], &B[i], o->iflag);
-        if (!equal) printf ("Files %s and %s differ\n", p0, p1);
+            equal = bd_lineq (&A[i], &B[i], o);
+        if (!equal) printf ("Files %s and %s differ\n", name0, name1);
         rc = bd_finish_output (equal ? 0 : 1);
         goto cleanup;
     }
-    ops = bd_myers (A, n, B, m, o->iflag, no_newline_a, no_newline_b, &n_ops);
+    ops = bd_myers (A, n, B, m, o, no_newline_a, no_newline_b, &n_ops);
     if (n_ops < 0) goto cleanup;
 
     /* Detect "differ at all" by scanning for non-EQ. */
@@ -731,7 +794,7 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
     for (int i = 0; i < n_ops; i++) {
         if (ops[i].op != BDOP_EQ) { differ = 1; break; }
     }
-    if (no_newline_a != no_newline_b)
+    if (!o->wflag && no_newline_a != no_newline_b)
         differ = 1;
 
     rc = differ ? 1 : 0;
@@ -741,7 +804,7 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
         if (header && (differ || o->yflag)) { bd_text (&out, header); bl_output_byte (&out, '\n'); }
         if (o->yflag) bd_emit_side_by_side (&out, A, n, B, m, ops, n_ops, o->width,
                                            no_newline_a, no_newline_b);
-        else if (o->uflag) bd_emit_unified (&out, A, n, B, m, ops, n_ops, p0, p1,
+        else if (o->uflag) bd_emit_unified (&out, A, n, B, m, ops, n_ops, name0, name1, mtime2,
                                      no_newline_a, no_newline_b);
         else         bd_emit_ed (&out, A, n, B, m, ops, n_ops, no_newline_a, no_newline_b);
         bl_output_flush (&out);
@@ -751,7 +814,7 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
             rc = 2;
         }
     } else if (differ && o->qflag) {
-        printf ("Files %s and %s differ\n", p0, p1);
+        printf ("Files %s and %s differ\n", name0, name1);
     }
 
     rc = bd_finish_output (rc);
@@ -921,6 +984,7 @@ diff_builtin (WORD_LIST *list)
     const char *paths[2] = { NULL, NULL };
     int npos = 0;
     size_t sw_len = 0;
+    int nlabels = 0;
     o.width = 130;
     /* Option words as given, for the "diff OPTIONS A B" lines of -r. */
     for (WORD_LIST *p = list; p; p = p->next)
@@ -952,6 +1016,19 @@ diff_builtin (WORD_LIST *list)
             if (!strcmp (w, "--side-by-side")) o.yflag = 1;
             else if (!strcmp (w, "--recursive")) o.rflag = 1;
             else if (!strcmp (w, "--unified")) o.uflag = 1;
+            else if (!strcmp (w, "--ignore-all-space")) o.wflag = 1;
+            else if (!strcmp (w, "--label") || !strncmp (w, "--label=", 8)) {
+                if (nlabels == 2) { builtin_error ("too many file label options"); BD_USAGE_FAIL; }
+                if (w[7]) o.labels[nlabels++] = w + 8;
+                else {
+                    if (!p->next) { builtin_error ("--label requires an argument"); BD_USAGE_FAIL; }
+                    p = p->next;
+                    o.labels[nlabels++] = p->word->word;
+                    strcat (switches, " ");
+                    strcat (switches, w);
+                    w = p->word->word;
+                }
+            }
             else if (!strcmp (w, "--brief")) o.qflag = 1;
             else if (!strcmp (w, "--ignore-case")) o.iflag = 1;
             else if (!strncmp (w, "--width=", 8)) width = w + 8;
@@ -1001,6 +1078,18 @@ diff_builtin (WORD_LIST *list)
                     break;
                 }
                 switch (w[i]) {
+                case 'w': o.wflag = 1; break;
+                case 'L':
+                    if (nlabels == 2) { builtin_error ("too many file label options"); BD_USAGE_FAIL; }
+                    if (w[i+1]) o.labels[nlabels++] = w+i+1;
+                    else {
+                        if (!p->next) { builtin_error ("-L requires an argument"); BD_USAGE_FAIL; }
+                        p = p->next;
+                        o.labels[nlabels++] = p->word->word;
+                        strcat (switches, " "); strcat (switches, p->word->word);
+                    }
+                    i = strlen (w) - 1;
+                    break;
                 case 'u': o.uflag = 1; break;
                 case 'q': o.qflag = 1; break;
                 case 'i': o.iflag = 1; break;
@@ -1038,6 +1127,8 @@ char *diff_doc[] = {
     "",
     "    bashdiff [-u|-y [-W NUM]] [-q] [-i] [-r] [--help|--version] FILE1 FILE2",
     "",
+    "    -w, --ignore-all-space  ignore whitespace within each line",
+    "    -L LABEL, --label LABEL  set a file label (up to two)",
     "    -u   unified diff (3 lines context per hunk)",
     "    -y   side-by-side output; -W NUM sets the width (default 130)",
     "    -r   compare directories recursively",

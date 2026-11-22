@@ -13,7 +13,7 @@
  *     -c       don't create if missing
  *     -r REF   copy atime+mtime from REF
  *     -t TIME  use TIME ([[CC]YY]MMDDhhmm[.SS])
- *     -d DATE  use ISO 8601 or @SECONDS[.NANOSECONDS]
+ *     -d DATE  use an ISO date/time (optionally UTC) or @SECONDS[.NANOSECONDS]
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c / bashtail.c / bashlink.c.
@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <time.h>
@@ -104,7 +105,29 @@ static int
 bt_date (const char *s, struct timespec *out)
 {
     out->tv_nsec = 0;
-    if (*s != '@') return bt_parsetime (s, &out->tv_sec);
+    if (*s != '@') {
+        size_t n = strlen (s);
+        if (n >= 10 && s[4] == '-' && s[7] == '-') {
+            int utc = 0;
+            if (n >= 4 && !strcasecmp (s + n - 4, " UTC")) {
+                n -= 4;
+                utc = 1;
+            } else if (s[n - 1] == 'Z') {
+                n--;
+                utc = 1;
+            }
+            /* Normalize date-only and minute precision to the validated
+               second-precision ISO parser, keeping UTC independent of TZ. */
+            if (n != 10 && n != 16 && n != 19) return -1;
+            if (n > 10 && s[10] != ' ' && s[10] != 'T') return -1;
+            char iso[21] = "0000-00-00T00:00:00";
+            memcpy (iso, s, n);
+            iso[10] = 'T';
+            if (utc) iso[19] = 'Z';
+            return bt_parsetime (iso, &out->tv_sec);
+        }
+        return bt_parsetime (s, &out->tv_sec);
+    }
     s++;
     int negative = *s == '-';
     if (*s == '-' || *s == '+') s++;
@@ -390,7 +413,7 @@ char *touch_doc[] = {
     "    -f        (ignored, for compatibility)",
     "    -r, --reference=REF  use REF's timestamps",
     "    -t TIME   use TIME ([[CC]YY]MMDDhhmm[.SS])",
-    "    -d, --date=DATE      use ISO 8601 or @SECONDS[.NANOSECONDS]",
+    "    -d, --date=DATE      use an ISO date/time (optionally UTC) or @SECONDS[.NANOSECONDS]",
     "    --time=WORD          WORD=access|atime|use → -a; modify|mtime → -m",
     "    --help    show this help",
     "    --version show version",

@@ -1,9 +1,6 @@
 --- builtins/realpath.c
 +++ builtins/realpath.c
-@@ -63,11 +63,96 @@
- 
- extern char	*sh_realpath(const char *, char *);
- 
+@@ -65,0 +66,148 @@
 +/* GNU's default permits a missing final component, including the target of
 +   a dangling final symlink. Resolve every parent before accepting that leaf. */
 +static char *
@@ -89,63 +86,98 @@
 +  return result;
 +}
 +
- int
- realpath_builtin(WORD_LIST *list)
- {
- 	int	opt, cflag, vflag, qflag, sflag, aflag, es;
++/* Resolve symlinks as components are encountered so a subsequent ".."
++   applies to the link target. In missing mode every other component is
++   accepted, even below a nonexistent or nondirectory parent. */
++typedef struct rp_frame {
++  char *text, *rest, *link_path;
++  struct rp_frame *parent;
++} rp_frame;
++
++static char *
++realpath_missing (const char *path, int physical)
++{
++  char *base, *part;
++  rp_frame start, *frame = &start;
++  if (!*path) { errno = ENOENT; return 0; }
++  base = *path == '/' ? savestring ("/") : getcwd (0, 0);
++  if (!base) return 0;
++  start.text = start.rest = savestring (path);
++  start.link_path = 0;
++  start.parent = 0;
++  while (frame) {
++    char *next;
++    part = strsep (&frame->rest, "/");
++    if (!part) {
++      rp_frame *parent = frame->parent;
++      free (frame->text);
++      free (frame->link_path);
++      if (parent) free (frame);
++      frame = parent;
++      continue;
++    }
++    if (!*part || STREQ (part, ".")) continue;
++    if (STREQ (part, "..")) {
++      char *last = strrchr (base, '/');
++      if (last != base) *last = 0;
++      else base[1] = 0;
++      continue;
++    }
++    next = sh_makepath (base, part, 0);
++    if (physical) {
++      char link[PATH_MAX + 1];
++      ssize_t n = readlink (next, link, sizeof link - 1);
++      if (n > 0) {
++        rp_frame *seen;
++        for (seen = frame; seen->link_path; seen = seen->parent)
++          if (STREQ (seen->link_path, next)) break;
++        if (!seen->link_path) {
++          rp_frame *target = xmalloc (sizeof *target);
++          link[n] = 0;
++          target->text = target->rest = savestring (link);
++          target->link_path = next;
++          target->parent = frame;
++          frame = target;
++          if (link[0] == '/') base[1] = 0;
++          continue;
++        }
++      }
++    }
++    free (base);
++    base = next;
++  }
++  return base;
++}
++
+@@ -69,2 +217,2 @@
+-	int	opt, cflag, vflag, qflag, sflag, aflag, es;
 -	char	*r, realbuf[PATH_MAX], *p, *newpath;
++	int	opt, cflag, vflag, qflag, sflag, aflag, mflag, es;
 +	char	*r, *p;
- 	struct stat sb;
- #if defined (ARRAY_VARS)
- 	arrayind_t	ind;
-@@ -77,7 +162,7 @@
- 
- 	if (list == 0) {
- 		builtin_usage();
+@@ -80 +228 @@
 -		return (EX_USAGE);
 +		return (EXECUTION_FAILURE);
- 	}
- 
- 	vflag = cflag = qflag = aflag = sflag = 0;
-@@ -87,7 +172,7 @@
- 	ind = 0;
- #endif
- 	reset_internal_getopt();
+@@ -83 +231 @@
+-	vflag = cflag = qflag = aflag = sflag = 0;
++	vflag = cflag = qflag = aflag = sflag = mflag = 0;
+@@ -90 +238 @@
 -	while ((opt = internal_getopt (list, "a:cqsv")) != -1) {
-+	while ((opt = internal_getopt (list, "a:ceqsv")) != -1) {
- 		switch (opt) {
- #if defined (ARRAY_VARS)
- 		case 'a':
-@@ -95,6 +180,7 @@
- 			aname = list_optarg;
- 			break;
- #endif
++	while ((opt = internal_getopt (list, "a:cemqsv")) != -1) {
+@@ -97,0 +246,4 @@
 +		case 'e':
- 		case 'c':
- 			cflag = 1;
- 			break;
-@@ -110,7 +196,7 @@
- 		CASE_HELPOPT;
- 		default:
- 			builtin_usage();
++		case 'm':
++			mflag = 1; cflag = 0;
++			break;
+@@ -99 +251 @@
+-			cflag = 1;
++			cflag = 1; mflag = 0;
+@@ -113 +265 @@
 -			return (EX_USAGE);
 +			return (EXECUTION_FAILURE);
- 		}
- 	}
- 
-@@ -118,7 +204,7 @@
- 
- 	if (list == 0) {
- 		builtin_usage();
+@@ -121 +273 @@
 -		return (EX_USAGE);
 +		return (EXECUTION_FAILURE);
- 	}
- 
- #if defined (ARRAY_VARS)
-@@ -146,13 +232,7 @@
- 
- 	for (es = EXECUTION_SUCCESS; list; list = list->next) {
- 		p = list->word->word;
+@@ -149,7 +301,2 @@
 -		if (sflag) {
 -			/* sh_canonpath doesn't convert to absolute pathnames */
 -			newpath = make_absolute(p, get_string_value("PWD"));
@@ -153,35 +185,19 @@
 -			free(newpath);
 -		} else
 -			r = sh_realpath(p, realbuf);
-+		r = sflag ? realpath_lexical (p) : realpath_leaf (p, 0);
- 		if (r == 0) {
- 			es = EXECUTION_FAILURE;
- 			if (qflag == 0)
-@@ -163,6 +243,7 @@
- 			es = EXECUTION_FAILURE;
- 			if (qflag == 0)
- 				builtin_error("%s: %s", p, strerror(errno));
++		if (mflag) r = realpath_missing (p, !sflag);
++		else r = sflag ? realpath_lexical (p) : realpath_leaf (p, 0);
+@@ -165,0 +313 @@
 +			free (r);
- 			continue;
- 		}
- #if defined (ARRAY_VARS)
-@@ -176,8 +257,7 @@
- 				printf ("%s -> ", p);
- 			printf("%s\n", r);
- 		}
+@@ -179,2 +327 @@
 -		if (sflag)
 -			free (r);
 +		free (r);
- 	}
- 	return es;
- }
-@@ -189,7 +269,8 @@
- 	"symbolic links.",
- 	"The -a option stores each canonicalized PATHNAME argument into the indexed",
- 	"array VARNAME.",
+@@ -192 +339,3 @@
 -	"The -c option checks whether or not each resolved name exists.",
 +	"The -c or -e option requires each resolved name to exist.",
 +	"By default, a missing final pathname component is permitted.",
- 	"The -q option produces no output; the exit status determines the",
- 	"validity of each PATHNAME, but any array assignment is still performed.",
- 	"If the -s option is supplied, canonicalize . and .. pathname components",
++	"With -m, any component of a pathname may be missing.",
+@@ -207 +356 @@
+-	"realpath [-a varname] [-cqsv] pathname [pathname...]",	/* usage synopsis */
++	"realpath [-a varname] [-cemqsv] pathname [pathname...]",	/* usage synopsis */

@@ -85,9 +85,13 @@ unterminated `a` prints `aa\na`.
   opened without blocking and then checked with `fstat`.
 - `-b`/`--binary` is accepted and does nothing, as on other POSIX systems.
   `--version` prints a `sed (bash-os loadable)` line and returns 0.
-- Version 0.1.5 adds `--debug` tracing. The unsupported `--posix` option
-  fails with status 1 and prints
-  `unsupported option`. The suite checks this.
+- Version 0.1.5 adds `--debug` tracing and `--posix` dialect selection.
+  For example, `sed --posix 's/beta/BETA/'` replaces the first match on each
+  line. In a basic regex, `\+`, `\?` and `\|` match their literal characters.
+  Use `-E` for extended regex syntax. POSIX mode requires a backslash before
+  append, insert or change text. An `N` at end of input drops the unfinished
+  pattern. GNU-only commands such as `z`, stepped addresses and the
+  substitution flags `I`, `M` and `e` give a script error.
 
 These settings belong to one invocation. The suite checks in one persistent
 shell with empty PATH and a 32-descriptor limit that `-z`, `--sandbox` and
@@ -220,7 +224,6 @@ and fixture, are in the task receipt as `bench-ab1-musl.json`,
 - **Non-Linux kernels.** The `tee(2)` pipe peek is Linux-only. Other systems
   use `MSG_PEEK`, `poll`/`FIONREAD` and stdio fallbacks, and none of these
   paths has run on a non-Linux kernel.
-- **`--posix`.** Rejected, as described above.
 
 ## Validation
 

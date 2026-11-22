@@ -287,6 +287,16 @@ grep --after-context=1 --before-context=0 baz t.txt
 grep --fixed-strings --ignore-case FOO t.txt
 grep --null-data -c a z.bin
 grep --colour foo t.txt
+grep --regexp b t.txt
+grep --regexp=foo --regexp bar t.txt
+grep --color=always b t.txt
+grep --color=always -nHb -E 'ba.|oo' t.txt
+grep --colour=always -on --regexp a t.txt
+grep --color=always -Hc foo t.txt misc.txt
+grep --color=always -lZ foo t.txt misc.txt
+grep --color=always -1 ctx5001 big.txt
+GREP_COLORS='ms=33:mc=36:sl=34:cx=32:ne:rv' grep -vC1 --color=always --regexp oo t.txt
+grep --color=never foo t.txt
 grep --color foo t.txt
 grep --binary-files=without-match foo bin.dat
 # patterns: several, empty, from files, newlines

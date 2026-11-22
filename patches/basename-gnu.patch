@@ -1,26 +1,113 @@
 --- builtins/basename.c
 +++ builtins/basename.c
-@@ -40,10 +40,10 @@
- 
-   if (no_options (list))
--    return (EX_USAGE);
-+    return (EXECUTION_FAILURE);
-   list = loptend;
-   if (list == 0)
-     {
-       builtin_usage ();
--      return (EX_USAGE);
-+      return (EXECUTION_FAILURE);
-     }    
- 
-@@ -59,6 +59,9 @@
-     {
-       builtin_usage ();
--      return (EX_USAGE);
-+      return (EXECUTION_FAILURE);
-     }
+@@ -34,0 +35,17 @@
++static void
++basename_print (const char *path, const char *suffix)
++{
++  size_t end = strlen (path), start, n;
++  while (end && path[end - 1] == '/') end--;
++  if (!end && *path) { puts ("/"); return; }
++  start = end;
++  while (start && path[start - 1] != '/') start--;
++  n = end - start;
++  if (suffix) {
++    size_t len = strlen (suffix);
++    if (len < n && !memcmp (path + end - len, suffix, len)) n -= len;
++  }
++  fwrite (path + start, 1, n, stdout);
++  putchar ('\n');
++}
 +
-+  if (*string == 0)
-+    { putchar ('\n'); return sh_chkwrite (EXECUTION_SUCCESS); }
- 
-   slen = strlen (string);
+@@ -38,7 +55,14 @@ basename_builtin (WORD_LIST *list)
+-  int slen, sufflen, off;
+-  char *string, *suffix, *fn;
+-
+-  if (no_options (list))
+-    return (EX_USAGE);
+-  list = loptend;
+-  if (list == 0)
++  int multiple = 0;
++  for (; list; list = list->next) {
++    const char *w = list->word->word;
++    if (w[0] != '-' || !w[1]) break;
++    if (!strcmp (w, "--")) { list = list->next; break; }
++    if (!strcmp (w, "--multiple") || w[1 + strspn (w + 1, "a")] == 0) {
++      multiple = 1;
++      continue;
++    }
++    if (!strcmp (w, "--help")) { builtin_help (); return EXECUTION_SUCCESS; }
++    builtin_error ("invalid option: %s", w);
++    return EXECUTION_FAILURE;
++  }
++  if (!list || (!multiple && list->next && list->next->next))
+@@ -47 +71 @@ basename_builtin (WORD_LIST *list)
+-      return (EX_USAGE);
++      return (EXECUTION_FAILURE);
+@@ -50,60 +74,5 @@ basename_builtin (WORD_LIST *list)
+-  string = list->word->word;
+-  suffix = (char *)NULL;
+-  if (list->next)
+-    {
+-      list = list->next;
+-      suffix = list->word->word;
+-    }
+-
+-  if (list->next)
+-    {
+-      builtin_usage ();
+-      return (EX_USAGE);
+-    }
+-
+-  slen = strlen (string);
+-
+-  /* Strip trailing slashes */
+-  while (slen > 0 && string[slen - 1] == '/')
+-    slen--;
+-
+-  /* (2) If string consists entirely of slash characters, string shall be
+-	 set to a single slash character.  In this case, skip steps (3)
+-	 through (5). */
+-  if (slen == 0)
+-    {
+-      fputs ("/\n", stdout);
+-      return (EXECUTION_SUCCESS);
+-    }
+-
+-  /* (3) If there are any trailing slash characters in string, they
+-	 shall be removed. */
+-  string[slen] = '\0';
+-
+-  /* (4) If there are any slash characters remaining in string, the prefix
+-	 of string up to an including the last slash character in string
+-	 shall be removed. */
+-  while (--slen >= 0)
+-    if (string[slen] == '/')
+-      break;
+-
+-  fn = string + slen + 1;
+-
+-  /* (5) If the suffix operand is present, is not identical to the
+-	 characters remaining in string, and is identical to a suffix
+-	 of the characters remaining in string, the suffix suffix
+-	 shall be removed from string.  Otherwise, string shall not be
+-	 modified by this step. */
+-  if (suffix)
+-    {
+-      sufflen = strlen (suffix);
+-      slen = strlen (fn);
+-      if (sufflen < slen)
+-        {
+-          off = slen - sufflen;
+-          if (strcmp (fn + off, suffix) == 0)
+-            fn[off] = '\0';
+-        }
+-    }
+-  printf ("%s\n", fn);
+-  return (EXECUTION_SUCCESS);
++  if (multiple)
++    for (; list; list = list->next) basename_print (list->word->word, 0);
++  else
++    basename_print (list->word->word, list->next ? list->next->word->word : 0);
++  return sh_chkwrite (EXECUTION_SUCCESS);
+@@ -117,0 +87 @@ char *basename_doc[] = {
++	"With -a or --multiple, print the basename of every operand.",

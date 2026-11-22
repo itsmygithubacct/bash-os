@@ -12,7 +12,7 @@
     "Bash builtin type/help metadata and the loadable-only -a, -q, and -v contracts."
   ],
   "exclusions": [
-    "GNU-only realpath options such as -m, --relative-to, and -z are outside the Bash loadable's documented interface.",
+    "GNU-only realpath options such as --relative-to and -z are outside the Bash loadable's documented interface.",
     "The loadable's -a array assignment and -v formatting have no GNU CLI equivalent, so they are contract cases rather than claimed GNU parity.",
     "No privileged, hardware, network, or host-system path behavior is included; all operations use ordinary fixture paths."
   ],

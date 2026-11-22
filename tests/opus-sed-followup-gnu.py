@@ -204,15 +204,30 @@ for script in ('p;w /dev/stdout', 'W /dev/stdout', 'w /dev/stdout', '$!d;w /dev/
         parity([script], data)
         parity(['-z', script], data.replace(b'\n', b'\0'))
 
-# 9. Option surface: -b/--binary is a no-op, --version succeeds, and --posix
-#    is rejected with status 1. Debug traces are compared as bytes.
+# 9. Option handling, dialect selection and byte-level debug traces.
 for args in (['-b', 'p'], ['--binary', 'p'], ['-nbz', 'p']):
     parity(args, b'a\nb\0')
 a = run(['--version'])
 check('--version', (a.returncode, a.stdout.split(b'\n')[0].startswith(b'sed ')), (0, True))
-for option in ('--posix', '--no-such-option'):
-    a = run([option, 'p'], b'a\n')
-    check(('unsupported option', option), (a.returncode, a.stdout, b'unsupported option' in a.stderr), (1, b'', True))
+a = run(['--no-such-option', 'p'], b'a\n')
+check('unsupported option', (a.returncode, a.stdout, b'unsupported option' in a.stderr),
+      (1, b'', True))
+
+for opts in ([], ['-E'], ['-z'], ['--debug']):
+    for script in (r's/beta/BETA/', r's/a\+/X/g', r's/a\|b/X/g', r's/\w/X/g',
+                   r's/(a)+/X/g', r's/\(a\)\1/<\1>/g', r's/[\x61]/X/g',
+                   r's/\x61/\U&\E/g', r's/a/\0\9/', r'a\text;more\t\x00hi',
+                   r'1,2c\new', r'\@a@p', 'N'):
+        for data in (b'beta\na+ a|b waa\\x61\n', b'a'):
+            parity(['--posix', *opts, script], data)
+for script in ('z', 'F', 'Q', 'T', 'R data', 'W data', 'e', 'v', '1~2p', '1,+2p',
+               '1,~2p', '0,/x/p', '/x/Ip', '1,2l', '1,2q', 'q 7', 'l 6',
+               'a text', 'i text', 'c text', 's/x/Y/I', 's/x/Y/M', 's/x/Y/e'):
+    result = run(['--posix', script], b'x\n')
+    ref = gnu(['--posix', script], b'x\n')
+    check(('POSIX script rejection', script),
+          (result.returncode, result.stdout, bool(result.stderr)),
+          (ref.returncode, ref.stdout, bool(ref.stderr)))
 
 # Commands, addresses, captures and buffer changes must be visible to a user
 # who traces an actual script, including quiet, multiline and NUL input.
@@ -259,7 +274,9 @@ for ((i=0;i<64;i++)); do
   sed -n --follow-symlinks F l >/dev/null || exit 16
   [[ $(sed -n 1F l) == l ]] || exit 17
   sed -n '\\,a,p' t >/dev/null || exit 18
-  sed --posix p t >/dev/null 2>&1 && exit 19
+  sed --posix z t >/dev/null 2>&1 && exit 19
+  [[ $(sed --posix -n 's/a/Z/p' t) == Z ]] || exit 28
+  [[ $(sed -n '1{s/a/z/I;p}' t) == z ]] || exit 29
   sed 's1a1[\\1]1' t >/dev/null || exit 20
   printf 'a\\0b' | sed -z p >/dev/full 2>/dev/null; [[ $? == 4 ]] || exit 22
   BASHSED_ALLOW_EXEC=1 sed 'e printf X' t >/dev/full 2>/dev/null; [[ $? == 4 ]] || exit 23

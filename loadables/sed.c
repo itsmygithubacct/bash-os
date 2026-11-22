@@ -53,6 +53,7 @@
  *   -b            accepted for GNU compatibility (no text mode on POSIX)
  *   --sandbox     reject e, r, R, w and W commands
  *   --follow-symlinks  -i edits, and F names, the final symlink target
+ *   --posix       use the POSIX sed dialect
  *   --debug       print the program and trace each editing cycle
  *
  * Security: e / s///e shell execution is disabled unless
@@ -106,7 +107,7 @@ typedef enum { BS_ADDR_NONE, BS_ADDR_LINE, BS_ADDR_LAST, BS_ADDR_REGEX,
              } bs_addrkind;
 
 typedef struct bs_prog bs_prog;
-static int bs_debug;
+static int bs_debug, bs_posix;
 
 typedef struct {
     char *bytes;
@@ -181,6 +182,7 @@ typedef struct {
     /* block grouping */
     int        block_close_idx;
     /* a/i/c text */
+    size_t     edit_len;   /* byte length of a/i/c text */
     char      *text;
     /* y/SET1/SET2/ — 256-byte translation table; y_active=1 if populated. */
     unsigned char y_table[256];
@@ -317,7 +319,7 @@ static int bs_re_alt (const bs_re_scan *sc)
 {
     if (bs_re_end (sc)) return 0;
     if (sc->ext) return sc->s[sc->i] == '|';
-    return sc->s[sc->i] == '\\' && sc->i + 1 < sc->n && sc->s[sc->i + 1] == '|';
+    return !bs_posix && sc->s[sc->i] == '\\' && sc->i + 1 < sc->n && sc->s[sc->i + 1] == '|';
 }
 static int bs_re_group_end (const bs_re_scan *sc)
 {
@@ -364,8 +366,8 @@ bs_re_quant (bs_re_scan *sc, int *qmin, int *qmax)
     char c = sc->s[sc->i];
     if (!sc->ext && c == '\\' && sc->i + 1 < sc->n) {
         char e = sc->s[sc->i + 1];
-        if (e == '+') { *qmin = 1; *qmax = -1; sc->i += 2; return 1; }
-        if (e == '?') { *qmin = 0; *qmax = 1; sc->i += 2; return 1; }
+        if (!bs_posix && e == '+') { *qmin = 1; *qmax = -1; sc->i += 2; return 1; }
+        if (!bs_posix && e == '?') { *qmin = 0; *qmax = 1; sc->i += 2; return 1; }
         if (e == '{') { bre_brace = 1; sc->i += 2; }
         else return 0;
     } else if (sc->ext && c == '*') { *qmin = 0; *qmax = -1; sc->i++; return 1; }
@@ -478,7 +480,10 @@ bs_re_atom (bs_re_scan *sc, int alt, int first)
         return info;
     } else if (c == '\\' && sc->i + 1 < sc->n) {
         char e = sc->s[sc->i + 1];
-        if (e == '\'') {
+        if (bs_posix && strchr ("'sSwW`<>bB", e)) {
+            sc->i += 2; info.consumed = 1;
+            bs_re_push (sc, alt, BS_ATOM_LIT, (unsigned char)e);
+        } else if (e == '\'') {
             /* \' is an end anchor in the regex engine. It does not make
                set_regs loop, and matching it as a literal is wrong. */
             sc->i += 2;
@@ -837,6 +842,10 @@ bs_compile_re (regex_t *re, const char *pat, size_t len, int flags, bs_prog **pr
         ? RE_SYNTAX_POSIX_EXTENDED : RE_SYNTAX_POSIX_BASIC;
     syntax &= ~(RE_DOT_NOT_NULL | RE_UNMATCHED_RIGHT_PAREN_ORD);
     syntax |= RE_NO_POSIX_BACKTRACKING;
+    if (bs_posix) {
+        syntax |= RE_NO_GNU_OPS | RE_UNMATCHED_RIGHT_PAREN_ORD;
+        if (!(flags & REG_EXTENDED)) syntax |= RE_LIMITED_OPS;
+    }
     /* GNU sed gives case-sensitive patterns a fastmap: searches then skip
        positions whose first byte cannot start a match. */
     re->buffer = NULL; re->allocated = 0; re->translate = NULL; re->fastmap = NULL;
@@ -1010,6 +1019,8 @@ bs_numeric_escape (const char **pp, unsigned char *value)
    other escape is considered, so that character keeps its plain regex
    meaning (`s.a\.b.X.` has an active dot; `sn\nnXn` matches a letter n),
    matching GNU sed. */
+static const char *bs_scan_bracket (const char *);
+
 static char *
 bs_regex_text (const char *pat, char delim, int extended, size_t *len)
 {
@@ -1018,6 +1029,14 @@ bs_regex_text (const char *pat, char delim, int extended, size_t *len)
     if (!out) return NULL;
     size_t j = 0;
     for (size_t i = 0; pat[i]; i++) {
+        if (bs_posix && pat[i] == '[') {
+            const char *end = bs_scan_bracket (pat + i);
+            if (end) {
+                size_t width = (size_t)(end - (pat + i));
+                memmove (out + j, pat + i, width);
+                j += width; i += width - 1; continue;
+            }
+        }
         if (pat[i] == '\\' && pat[i + 1]) {
             char ch = pat[++i];
             if (ch == delim) { out[j++] = ch; continue; }
@@ -1355,7 +1374,7 @@ bs_parse_addr (const char **psp, bs_addr *a, int extended)
     a->kind = BS_ADDR_NONE; a->re_ok = 0;
     if (*p == '$') { a->kind = BS_ADDR_LAST; *psp = p + 1; return 1; }
     /* GNU relative end-addresses (valid only as addr2): ,+N and ,~N. */
-    if (*p == '+' || *p == '~') {
+    if (!bs_posix && (*p == '+' || *p == '~')) {
         int mult = (*p == '~');
         p++;
         long n = 0;
@@ -1372,7 +1391,7 @@ bs_parse_addr (const char **psp, bs_addr *a, int extended)
         if (bs_number (&p, &n) < 0) return -1;
         a->line = n;
         /* GNU step address: first~step (e.g. 1~2 = every other line). */
-        if (*p == '~') {
+        if (!bs_posix && *p == '~') {
             p++;
             long st = 0;
             if (bs_number (&p, &st) < 0) return -1;
@@ -1400,7 +1419,7 @@ bs_parse_addr (const char **psp, bs_addr *a, int extended)
         if (!pat) return -1;
         int flags = extended ? REG_EXTENDED : 0;
         p++;
-        while (*p == 'I' || *p == 'M') {
+        while (!bs_posix && (*p == 'I' || *p == 'M')) {
             if (*p++ == 'I') flags |= REG_ICASE;
             else flags |= REG_NEWLINE;
         }
@@ -1689,6 +1708,20 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
         if (!*p) { builtin_error ("missing command"); goto err; }
         /* Command character. */
         char op = c->op = *p++;
+        if (bs_posix) {
+            if (strchr ("eFvzQTRW", op)) {
+                builtin_error ("unknown command: %c", op); goto err;
+            }
+            if (c->has_a2 && strchr ("ail=rq", op)) {
+                builtin_error ("command only uses one address"); goto err;
+            }
+            if (c->has_a1 && (op == ':' || op == '}')) {
+                builtin_error ("unexpected address"); goto err;
+            }
+            if (c->addr1.kind == BS_ADDR_LINE && c->addr1.line == 0) {
+                builtin_error ("invalid usage of line address 0"); goto err;
+            }
+        }
         if (bs_sandbox && strchr ("erRwW", op)) {
             builtin_error ("e/r/w commands disabled in sandbox mode"); goto err;
         }
@@ -1732,6 +1765,11 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 /* flags */
                 while (*p && *p != ';' && *p != '\n')
                 {
+                    if (bs_posix && (strchr ("iImMe", *p) ||
+                        (*p == 'g' && c->s_global) || (*p == 'p' && c->s_print) ||
+                        (isdigit ((unsigned char)*p) && c->s_n))) {
+                        free (pat); builtin_error ("invalid substitution flag: %c", *p); goto err;
+                    }
                     if      (*p == 'g') c->s_global = 1;
                     else if (*p == 'p') c->s_print = 1;
                     else if (*p == 'i' || *p == 'I') c->s_icase = 1;
@@ -1746,6 +1784,9 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                         while (*p == ' ' || *p == '\t') p++;
                         const char *wf = p;
                         while (*p && *p != '\n') p++;
+                        if (bs_posix && wf == p) {
+                            free (pat); builtin_error ("missing filename"); goto err;
+                        }
                         c->s_wfile = strndup (wf, (size_t) (p - wf));
                         break;
                     }
@@ -1790,7 +1831,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                     memcpy (c->display.bytes, pat_compat, rlen);
                     c->display.len = rlen;
                 }
-                if ((size_t) c->s_needed_sub > c->s_re.re_nsub) {
+                if (!bs_posix && (size_t) c->s_needed_sub > c->s_re.re_nsub) {
                     builtin_error ("invalid backreference in replacement"); free (pat_compat); goto err;
                 }
                 if (!c->s_icase && *pat_compat && !memchr (pat_compat, 0, rlen)
@@ -1813,7 +1854,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 c->debug_q_code = -1;
                 /* optional exit code: q N / Q N (POSIX). Default 0. */
                 while (*p == ' ' || *p == '\t') p++;
-                if (*p >= '0' && *p <= '9') {
+                if (!bs_posix && *p >= '0' && *p <= '9') {
                     long code;
                     if (bs_number (&p, &code) < 0 || code > INT_MAX) {
                         builtin_error ("invalid quit code"); goto err;
@@ -1917,7 +1958,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 c->kind = BS_L_CMD;
                 c->l_width = -1;
                 while (*p == ' ' || *p == '\t') p++;
-                if (*p >= '0' && *p <= '9' && bs_number (&p, &c->l_width) < 0) {
+                if (!bs_posix && *p >= '0' && *p <= '9' && bs_number (&p, &c->l_width) < 0) {
                     builtin_error ("invalid list width"); goto err;
                 }
                 break;
@@ -1927,6 +1968,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 {
                     const char *s = p;
                     while (*p && *p != ' ' && *p != '\t' && *p != ';' && *p != '\n') p++;
+                    if (bs_posix && p == s) { builtin_error ("missing label"); goto err; }
                     c->label = strndup (s, (size_t) (p - s));
                 }
                 break;
@@ -1937,6 +1979,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 while (*p == ' ' || *p == '\t') p++;
                 const char *s = p;
                 while (*p && *p != '\n') p++;
+                if (bs_posix && p == s) { builtin_error ("missing filename"); goto err; }
                 c->text = strndup (s, (size_t) (p - s));
                 break;
             }
@@ -1947,6 +1990,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 while (*p == ' ' || *p == '\t') p++;
                 const char *s = p;
                 while (*p && *p != '\n') p++;
+                if (bs_posix && p == s) { builtin_error ("missing filename"); goto err; }
                 c->text = strndup (s, (size_t) (p - s));
                 break;
             }
@@ -2010,6 +2054,33 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                    Un-continued `\n` or `;` terminates the TEXT. */
                 c->kind = (op == 'a') ? BS_A : (op == 'i') ? BS_I : BS_C;
                 {
+                    if (bs_posix) {
+                        while (*p == ' ' || *p == '\t') ++p;
+                        if (*p != '\\' || !p[1]) {
+                            builtin_error ("expected text after backslash"); goto err;
+                        }
+                        ++p;
+                        if (*p == '\n') ++p;
+                        /* A semicolon is ordinary text here. Escaped newlines
+                           continue the text with leading whitespace intact. */
+                        size_t cap = 0;
+                        while (*p && *p != '\n') {
+                            char ch = *p++;
+                            if (ch == '\\') {
+                                if (!*p) { builtin_error ("incomplete command"); goto err; }
+                                unsigned char value;
+                                static const char escapes[] = "afnrtv";
+                                const char *esc = strchr (escapes, *p);
+                                if (bs_numeric_escape (&p, &value)) ch = (char)value;
+                                else if (esc) { ch = "\a\f\n\r\t\v"[esc - escapes]; ++p; }
+                                else ch = *p++;
+                            }
+                            if (bs_text_push (&c->text, &c->edit_len, &cap, ch) < 0) goto err;
+                        }
+                        size_t bytes = c->edit_len;
+                        if (bs_text_push (&c->text, &bytes, &cap, '\0') < 0) goto err;
+                        break;
+                    }
                     /* Skip optional leading whitespace and `\` continuation. */
                     if (*p == '\\') {
                         p++;
@@ -2053,6 +2124,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                         }
                     }
                     c->text[out_i] = '\0';
+                    c->edit_len = out_i;
                 }
                 break;
             default:
@@ -2157,7 +2229,7 @@ bs_emit_replace (bs_cmd *c, bs_string *pat, regmatch_t *m, size_t off, bs_string
     int one  = 0;   /* 0 / 'u' / 'l' : \u \l one-shot */
     for (const char *r = c->s_repl; *r; r++)
     {
-        if (*r == '\\' && r[1] >= '1' && r[1] <= '9') {
+        if (*r == '\\' && r[1] >= (bs_posix ? '0' : '1') && r[1] <= '9') {
             int idx = r[1] - '0';
             r++;
             if (m[idx].rm_so >= 0) {
@@ -2176,7 +2248,7 @@ bs_emit_replace (bs_cmd *c, bs_string *pat, regmatch_t *m, size_t off, bs_string
                 r = end - 1; continue;
             }
             /* Case-conversion directives (GNU sed). */
-            switch (*r) {
+            if (!bs_posix) switch (*r) {
                 case 'U': mode = 'U'; continue;
                 case 'L': mode = 'L'; continue;
                 case 'E': mode = 0;   continue;
@@ -2287,10 +2359,10 @@ bs_debug_replacement (const char *p)
         int ch = (unsigned char)*p, register_ref = 0;
         if (ch == '\\' && p[1]) {
             ch = (unsigned char)*++p;
-            if (ch == 'L' || ch == 'U' || ch == 'E') {
+            if (!bs_posix && (ch == 'L' || ch == 'U' || ch == 'E')) {
                 mode = ch == 'E' ? 0 : ch; once = 0; continue;
             }
-            if (ch == 'l' || ch == 'u') { once = ch; continue; }
+            if (!bs_posix && (ch == 'l' || ch == 'u')) { once = ch; continue; }
             unsigned char byte;
             const char *end = p;
             if (bs_numeric_escape (&end, &byte)) { ch = byte; p = end - 1; }
@@ -2355,7 +2427,8 @@ bs_debug_command (const bs_cmd *c, const char *prefix, int *depth)
         case 'l': if (c->l_width >= 0) printf (" %ld", c->l_width); break;
         case 'w': case 'W': fputs (c->text, stdout); break;
         case 'r': case 'R': printf (" %s", c->text); break;
-        case 'a': case 'i': case 'c': printf ("\\%s\n", c->text); break;
+        case 'a': case 'i': case 'c':
+            putchar ('\\'); fwrite (c->text, 1, c->edit_len, stdout); putchar ('\n'); break;
         case 'e':
             putchar (' ');
             if (c->text) {
@@ -2390,7 +2463,7 @@ bs_apply_s (bs_cmd *c, bs_string *pat, int *chomped)
     regex_t *re = c->s_empty_re ? bs_last_re : &c->s_re;
     if (!re) { builtin_error ("no previous regular expression"); bs_runtime_error = 1; return -1; }
     bs_last_re = re;
-    if ((size_t) c->s_needed_sub > re->re_nsub) {
+    if (!bs_posix && (size_t) c->s_needed_sub > re->re_nsub) {
         builtin_error ("invalid backreference in replacement"); bs_runtime_error = 1; return -1;
     }
     bs_string out = bs_s_scratch;
@@ -3008,7 +3081,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     break;
                 case BS_I:
                     /* Insert: emit text immediately (before pat prints). */
-                    if (c->text) bs_emit (out, c->text, strlen (c->text), 1);
+                    if (c->text) bs_emit (out, c->text, c->edit_len, 1);
                     break;
                 case BS_Y:
                     /* Transliterate per the y_table. */
@@ -3054,14 +3127,14 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     if (bs_input_last (in)) {
                         if (in->error >= 4 || bs_interrupted ()) goto done;
                         if (bs_debug) puts ("END-OF-CYCLE:");
-                        if (!suppress_default) bs_emit (out, pat.str, pat.len, pat_nl);
+                        if (!bs_posix && !suppress_default) bs_emit (out, pat.str, pat.len, pat_nl);
                         if (append_pending) bs_flush_queue (out, &a_queue, &append_pending);
                         goto done;
                     }
                     if (append_pending) bs_flush_queue (out, &a_queue, &append_pending);
                     rd = bs_input_read (in, &cur, &cur_cap);
                     if (rd < 0) {
-                        if (!suppress_default) bs_emit (out, pat.str, pat.len, pat_nl);
+                        if (!bs_posix && !suppress_default) bs_emit (out, pat.str, pat.len, pat_nl);
                         goto done;
                     }
                     bs_str_append (&pat, &bs_delim, 1);
@@ -3093,7 +3166,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     append_pending = 1;
                     /* Append: queue text for emission after pat default-print. */
                     if (c->text) {
-                        bs_str_append (&a_queue, c->text, strlen (c->text));
+                        bs_str_append (&a_queue, c->text, c->edit_len);
                         bs_str_append (&a_queue, "\n", 1);
                     }
                     break;
@@ -3150,7 +3223,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                        always; for range, emit only when range closes
                        (i.e. addr_match was true and range_active is now 0). */
                     if ((!c->has_a2 || !range_active[ci]) && c->text)
-                        bs_emit (out, c->text, strlen (c->text), 1);
+                        bs_emit (out, c->text, c->edit_len, 1);
                     if (bs_debug) puts ("END-OF-CYCLE:");
                     goto next_line;
             }
@@ -3423,7 +3496,7 @@ sed_builtin (WORD_LIST *list)
     int suppress_default = 0, extended = 0, separate = 0;
     int inplace = 0, unbuffered = 0;
     bs_list_width = 70; bs_io_error = 0; bs_unbuffered = 0; bs_interrupt_signal = 0;
-    bs_debug = 0; bs_delim = '\n'; bs_sandbox = 0; bs_follow_symlinks = 0;
+    bs_debug = bs_posix = 0; bs_delim = '\n'; bs_sandbox = 0; bs_follow_symlinks = 0;
     char inplace_suffix[64] = {0};
     char *script = NULL;
     FILE *script_file = NULL;
@@ -3468,7 +3541,7 @@ sed_builtin (WORD_LIST *list)
                 else {
                     puts ("bashsed: stream editor");
                     puts ("Usage: bashsed [-bnsiEuz] [-l WIDTH] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]");
-                    puts ("Long options: --debug --sandbox --follow-symlinks --null-data --version");
+                    puts ("Long options: --posix --debug --sandbox --follow-symlinks --null-data --version");
                 }
                 free (files); free (script);
                 int failed = fflush (stdout) == EOF || ferror (stdout);
@@ -3491,11 +3564,11 @@ sed_builtin (WORD_LIST *list)
             else if (!strncmp (w, "--in-place=", 11)) { long_value = w + 11; w = "-i"; }
             else if (!strcmp (w, "--null-data") || !strcmp (w, "--zero-terminated")) w = "-z";
             else if (!strcmp (w, "--binary")) w = "-b";
+            else if (!strcmp (w, "--posix")) { bs_posix = 1; goto next_word; }
             else if (!strcmp (w, "--debug")) { bs_debug = 1; goto next_word; }
             else if (!strcmp (w, "--sandbox")) { bs_sandbox = 1; goto next_word; }
             else if (!strcmp (w, "--follow-symlinks")) { bs_follow_symlinks = 1; goto next_word; }
             else if (w[1] == '-') {
-                /* Includes the unsupported --posix mode. */
                 builtin_error ("unsupported option: %s", w);
                 builtin_usage ();
                 free (files); free (script);
@@ -3716,6 +3789,7 @@ char *sed_doc[] = {
     "",
     "Flags:",
     "    -n            suppress default print",
+    "    --posix       use the POSIX sed dialect",
     "    --debug       print the program and trace each editing cycle",
     "    -u            unbuffered output",
     "    -l WIDTH      l-command width (zero disables wrapping)",

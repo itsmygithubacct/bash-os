@@ -12,7 +12,7 @@
     "empty input and invalid operand counts"
   ],
   "exclusions": [
-    "GNU-only multi-name, NUL-output, and option-driven modes are outside the stock Bash loadable's documented string [suffix] interface.",
+    "GNU NUL-output and option-driven suffix modes are outside the stock Bash loadable's documented string [suffix] interface.",
     "The operation has no filesystem or privileged side effects, so no VM or syscall-mock case is needed."
   ],
   "cases": [

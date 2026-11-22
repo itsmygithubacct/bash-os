@@ -635,6 +635,66 @@
         "xargs",
         "printf"
       ]
+    },
+    {
+      "id": "delimiter-literal",
+      "kind": "parity",
+      "purpose": "Compare custom delimiter parsing, grouping and exit status against GNU xargs.",
+      "requires": [
+        "xargs",
+        "printf"
+      ],
+      "script": "printf '%s' \"a b,,c'd,tail\" | xargs -d, printf '<%s>\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "delimiter-hex",
+      "kind": "parity",
+      "purpose": "Compare custom delimiter parsing, grouping and exit status against GNU xargs.",
+      "requires": [
+        "xargs",
+        "printf"
+      ],
+      "script": "printf 'one,two,' | xargs --delimiter='\\x2c' -I@ printf '[@%s]\\n' @",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "delimiter-octal",
+      "kind": "parity",
+      "purpose": "Compare custom delimiter parsing, grouping and exit status against GNU xargs.",
+      "requires": [
+        "xargs",
+        "printf"
+      ],
+      "script": "printf 'x:y:z' | xargs -d '\\072' -L 2 printf '<%s>\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "delimiter-last-option",
+      "kind": "parity",
+      "purpose": "Compare custom delimiter parsing, grouping and exit status against GNU xargs.",
+      "requires": [
+        "xargs",
+        "printf"
+      ],
+      "script": "printf 'a,b\\0c,d' | xargs -d, -0 printf '<%s>\\n'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "delimiter-invalid",
+      "kind": "parity",
+      "purpose": "Compare custom delimiter parsing, grouping and exit status against GNU xargs.",
+      "requires": [
+        "xargs",
+        "printf"
+      ],
+      "script": "xargs -d '\\400' echo </dev/null",
+      "expected_status": 1,
+      "stderr": "nonempty"
     }
   ]
 }

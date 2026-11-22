@@ -12,7 +12,7 @@
     "empty input and invalid operand counts"
   ],
   "exclusions": [
-    "GNU-only multi-name, NUL-output, and option-driven modes are outside the stock Bash loadable's documented string [suffix] interface.",
+    "GNU NUL-output and option-driven suffix modes are outside the stock Bash loadable's documented string [suffix] interface.",
     "The operation has no filesystem or privileged side effects, so no VM or syscall-mock case is needed."
   ],
   "cases": [
@@ -112,6 +112,28 @@
       "requires": [
         "basename"
       ]
+    },
+    {
+      "id": "multiple-short",
+      "kind": "parity",
+      "purpose": "Extracts every basename, including the empty and root names.",
+      "requires": [
+        "basename"
+      ],
+      "script": "basename -a dir/a dir/b '' ////",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "multiple-long",
+      "kind": "parity",
+      "purpose": "Handles the long option and literal dash-prefixed names.",
+      "requires": [
+        "basename"
+      ],
+      "script": "basename --multiple -- dir/name -a /other/name",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

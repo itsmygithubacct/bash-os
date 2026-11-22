@@ -129,6 +129,28 @@ bx_is_fatal (int rc)
         || rc == BX_NOEXEC    || rc == BX_NOTFOUND;
 }
 
+/* Return a literal byte, or -1 for an invalid GNU -d spelling. */
+static int
+bx_delimiter (const char *s)
+{
+    if (!*s) return -1;
+    if (!s[1]) return (unsigned char)*s;
+    if (*s++ != '\\') return -1;
+
+    static const char escapes[] = "abfnrtv\\";
+    static const char values[] = "\a\b\f\n\r\t\v\\";
+    const char *named = strchr (escapes, *s);
+    if (named) return (unsigned char)values[named - escapes];
+
+    int base = 8;
+    if (*s == 'x') { base = 16; ++s; }
+    else if (*s < '0' || *s > '7') return -1;
+    char *end;
+    errno = 0;
+    unsigned long n = strtoul (s, &end, base);
+    return !errno && !*end && n <= UCHAR_MAX ? (int)n : -1;
+}
+
 static int
 bx_parse_positive_int (const char *s, int *out)
 {
@@ -221,7 +243,7 @@ bx_read_byte (FILE *in)
 }
 
 static char *
-bx_read_arg_into (FILE *in, int nul_sep, int line_mode, int *errp,
+bx_read_arg_into (FILE *in, int delimiter, int line_mode, int *errp,
                   bx_arg_buffer *storage, int plain_span,
                   bx_input_state *input, size_t *arg_line)
 {
@@ -242,7 +264,7 @@ bx_read_arg_into (FILE *in, int nul_sep, int line_mode, int *errp,
     int c;
 
     len = 0;
-    if (!nul_sep) {
+    if (delimiter < 0) {
         while ((c = bx_read_byte (in)) != EOF && BX_ARG_ISSPACE (c))
             bx_input_separator (input, c);
         if (c == EOF) return NULL;
@@ -255,8 +277,8 @@ bx_read_arg_into (FILE *in, int nul_sep, int line_mode, int *errp,
     int quote = 0;
     for (;;) {
         if (c == EOF) break;
-        if (nul_sep) {
-            if (c == '\0') { input->line++; break; }
+        if (delimiter >= 0) {
+            if (c == delimiter) { input->line++; break; }
         } else {
             if (c == '\n' && quote) {
                 if (errp) *errp = quote;
@@ -293,7 +315,7 @@ bx_read_arg_into (FILE *in, int nul_sep, int line_mode, int *errp,
            A plain run in the current input buffer invokes no refill,
            conversion, or allocation callback. Commit only that run;
            syntax and buffer boundaries retain the scalar path. */
-        if (plain_span && !nul_sep && !line_mode && !quote && cap - len > 1 &&
+        if (plain_span && delimiter < 0 && !line_mode && !quote && cap - len > 1 &&
             in == &_IO_2_1_stdin_ && &__libc_single_threaded &&
             *(volatile char *) &__libc_single_threaded) {
             const unsigned char *first = (const unsigned char *) in->_IO_read_ptr;
@@ -314,7 +336,7 @@ bx_read_arg_into (FILE *in, int nul_sep, int line_mode, int *errp,
         c = bx_read_byte (in);
     }
 
-    if (quote && !nul_sep) {
+    if (quote && delimiter < 0) {
         if (errp) *errp = quote;
         return NULL;
     }
@@ -326,11 +348,11 @@ bx_read_arg_into (FILE *in, int nul_sep, int line_mode, int *errp,
 }
 
 static char *
-bx_read_arg (FILE *in, int nul_sep, int line_mode, int *errp)
+bx_read_arg (FILE *in, int delimiter, int line_mode, int *errp)
 {
     bx_arg_buffer storage = { 0 };
     bx_input_state input = { 0 };
-    char *arg = bx_read_arg_into (in, nul_sep, line_mode, errp, &storage, 0,
+    char *arg = bx_read_arg_into (in, delimiter, line_mode, errp, &storage, 0,
                                   &input, NULL);
     if (!arg) free (storage.data);
     return arg;
@@ -1218,7 +1240,7 @@ bx_wait_one (pid_t *pids, char **cmds, int *n_pids, int *fatal,
 int
 xargs_builtin (WORD_LIST *list)
 {
-    int nul_sep = 0, rflag = 0, tflag = 0, pflag = 0;
+    int delimiter = -1, rflag = 0, tflag = 0, pflag = 0;
     int max_n = 0, max_l = 0, max_p = 1;
     /* Reading stdin in the shell process leaves the EOF flag set for the next
        invocation, which would then build no command lines and exit 0. */
@@ -1238,7 +1260,22 @@ xargs_builtin (WORD_LIST *list)
             puts ("bashxargs 1.0 (bash-loadable)");
             return EXECUTION_SUCCESS;
         }
-        if (!strcmp (w, "-0")) { nul_sep = 1; list = list->next; continue; }
+        if (!strcmp (w, "-0") || !strcmp (w, "--null")) {
+            delimiter = 0; list = list->next; continue;
+        }
+        if (w[1] == 'd' || !strcmp (w, "--delimiter") || !strncmp (w, "--delimiter=", 12)) {
+            const char *arg;
+            if (w[1] == 'd' && w[2]) arg = w + 2;
+            else if (w[1] == '-' && w[11] == '=') arg = w + 12;
+            else {
+                list = list->next;
+                if (!list) { builtin_error ("-d requires a delimiter"); return EXECUTION_FAILURE; }
+                arg = list->word->word;
+            }
+            delimiter = bx_delimiter (arg);
+            if (delimiter < 0) { builtin_error ("invalid input delimiter: %s", arg); return EXECUTION_FAILURE; }
+            list = list->next; continue;
+        }
         if (!strcmp (w, "-r")) { rflag = 1; list = list->next; continue; }
         if (!strcmp (w, "-t")) { tflag = 1; list = list->next; continue; }
         if (!strcmp (w, "-p")) { pflag = 1; tflag = 1; list = list->next; continue; }
@@ -1446,7 +1483,7 @@ xargs_builtin (WORD_LIST *list)
         /* -I REPL: run CMD once per input, with REPL replaced by the input. */
         char *arg;
         int read_error = 0;
-        while ((arg = bx_read_arg (stdin, nul_sep, 1, &read_error)) != NULL) {
+        while ((arg = bx_read_arg (stdin, delimiter, 1, &read_error)) != NULL) {
             got_any = 1;
             char **argv = malloc ((size_t) (tmpl_n + 1) * sizeof *argv);
             if (!argv) { free (arg); break; }
@@ -1585,7 +1622,7 @@ xargs_builtin (WORD_LIST *list)
            whether the preceding batch must run, including fatal stops.
            Swapping its storage with each slot reuses argument capacities
            without copying bytes or overwriting the batch being launched. */
-        while ((arg = bx_read_arg_into (stdin, nul_sep, 0, &read_error,
+        while ((arg = bx_read_arg_into (stdin, delimiter, 0, &read_error,
                                        &buffers.lookahead,
                                        bx_plain_span_allowed (&spawn_state),
                                        &input, &arg_line)) != NULL) {
@@ -1761,10 +1798,11 @@ char *xargs_doc[] = {
     "Run an enabled builtin or external command for each argument batch.",
     "Build and run command lines from stdin.",
     "",
-    "    bashxargs [-0rtp] [-n MAX] [-L MAX] [-P MAX] [-s SIZE]",
+    "    bashxargs [-0rtp] [-d DELIM] [-n MAX] [-L MAX] [-P MAX] [-s SIZE]",
     "              [-I REPL] [CMD [ARG...]]",
     "    bashxargs --help | --version",
     "",
+    "    -d DELIM, --delimiter=DELIM  split literal items at the given byte",
     "    -0        NUL-separated input (pair with `find -print0`)",
     "    -r        no-run-if-empty",
     "    -t        echo command before run",
@@ -1782,6 +1820,6 @@ struct builtin bashxargs_struct = {
     xargs_builtin,
     BUILTIN_ENABLED,
     xargs_doc,
-    "bashxargs [-0rtp] [-n MAX] [-L MAX] [-P MAX] [-s SIZE] [-I REPL] [CMD [ARG...]]",
+    "bashxargs [-0rtp] [-d DELIM] [-n MAX] [-L MAX] [-P MAX] [-s SIZE] [-I REPL] [CMD [ARG...]]",
     0
 };

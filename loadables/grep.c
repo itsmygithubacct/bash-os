@@ -28,7 +28,7 @@
  *
  * Flags: -E -F -G -P -i -y -v -c -l -L -n -b -o -q -s -H -h -w -x -r -R -a
  * -I -Z -z -m N -e PAT -f FILE -A N -B N -C N -NUM --include --exclude
- * --exclude-dir --binary-files --color (accepted, no color is emitted).
+ * --exclude-dir --binary-files --color.
  *
  * SPDX-License-Identifier: MIT
  * MIT License — same boilerplate as binhex.c.
@@ -83,6 +83,8 @@
 
 typedef struct { char *s; size_t n; size_t k; } bg_str;   /* k: index of its rarest byte */
 
+enum bg_color { BG_MS, BG_MC, BG_SL, BG_CX, BG_FN, BG_LN, BG_BN, BG_SE, BG_NCOLORS };
+
 enum bg_mode { BG_FIXED, BG_REGEX, BG_PCRE };
 
 typedef struct {
@@ -117,6 +119,9 @@ typedef struct {
     int pcre_utf;                  /* effective mode, including (*UTF) */
     size_t *kw_blk, *kw_line;       /* needle caches: the block scan, the line scan */
     char *ob; size_t on;            /* the output buffer: bash line-buffers stdout, a write per line */
+    int color, no_erase, reverse_colors;
+    const char *sgr[BG_NCOLORS];
+    char *color_env;
     int out_tty;                    /* stdout is a terminal: selected lines appear before the next read */
 } bg_opts;
 
@@ -1205,13 +1210,72 @@ bg_out_num (bg_opts *o, long long v)
     bg_out (o, d + k, sizeof d - (size_t) k);
 }
 
+static int
+bg_setup_colors (bg_opts *o)
+{
+    const char *names[] = { "ms", "mc", "sl", "cx", "fn", "ln", "bn", "se" };
+    const char *defaults[] = { "01;31", "01;31", "", "", "35", "32", "32", "36" };
+    memcpy (o->sgr, defaults, sizeof defaults);
+    const char *env = getenv ("GREP_COLORS");
+    if (!env || !*env) return 0;
+    o->color_env = strdup (env);
+    if (!o->color_env) return -1;
+    char *cursor = o->color_env, *cap;
+    while ((cap = strsep (&cursor, ":")) != NULL) {
+        char *value = strchr (cap, '=');
+        if (!value) {
+            if (!strcmp (cap, "ne")) o->no_erase = 1;
+            if (!strcmp (cap, "rv")) o->reverse_colors = 1;
+            continue;
+        }
+        *value++ = 0;
+        if (value[strspn (value, "0123456789;")]) break;
+        if (!strcmp (cap, "mt")) o->sgr[BG_MS] = o->sgr[BG_MC] = value;
+        for (int c = 0; c < BG_NCOLORS; c++)
+            if (!strcmp (cap, names[c])) o->sgr[c] = value;
+    }
+    return 0;
+}
+
+static void
+bg_style (bg_opts *o, enum bg_color color, int begin)
+{
+    if (!o->color || !*o->sgr[color]) return;
+    bg_out (o, "\033[", 2);
+    if (begin) bg_out (o, o->sgr[color], strlen (o->sgr[color]));
+    bg_outc (o, 'm');
+    if (!o->no_erase) bg_out (o, "\033[K", 3);
+}
+
+static void
+bg_separator (bg_opts *o, int c)
+{
+    if (c) bg_style (o, BG_SE, 1);
+    bg_outc (o, c);
+    if (c) bg_style (o, BG_SE, 0);
+}
+
+static void
+bg_filename (bg_opts *o, const char *name)
+{
+    bg_style (o, BG_FN, 1);
+    bg_out (o, name, strlen (name));
+    bg_style (o, BG_FN, 0);
+}
+
 static void
 bg_prefix (bg_state *st, size_t ls, off_t boff, int sep)
 {
     bg_opts *o = st->o;
-    if (st->prefix) { bg_out (o, st->name, strlen (st->name)); bg_outc (o, o->Zflag ? '\0' : sep); }
-    if (o->nflag) { bg_out_num (o, bg_lineno (st, ls)); bg_outc (o, sep); }
-    if (o->bflag) { bg_out_num (o, (long long) boff); bg_outc (o, sep); }
+    if (st->prefix) { bg_filename (o, st->name); bg_separator (o, o->Zflag ? '\0' : sep); }
+    if (o->nflag) {
+        bg_style (o, BG_LN, 1); bg_out_num (o, bg_lineno (st, ls)); bg_style (o, BG_LN, 0);
+        bg_separator (o, sep);
+    }
+    if (o->bflag) {
+        bg_style (o, BG_BN, 1); bg_out_num (o, (long long) boff); bg_style (o, BG_BN, 0);
+        bg_separator (o, sep);
+    }
 }
 
 /* Print the line [LS, LE) with SEP (':' selected, '-' context). MATCHING
@@ -1226,37 +1290,48 @@ bg_emit (bg_state *st, size_t ls, size_t le, int sep, int matching)
     char *line = st->in.buf + ls; size_t llen = le - ls;
     off_t base = st->in.off + (off_t) ls;
     if (st->quiet) return;
-    if (o->oflag)
-    {
-        if (matching)
-        {
-            size_t pos = 0; regmatch_t m;
-            while (pos < llen)
-            {
-                int r = bg_match_line (o, line, llen, pos, &m);
-                if (r < 0) { st->err = 1; break; }
-                if (!r) break;
-                if (m.rm_eo == m.rm_so)
-                {
-                    pos = (size_t) m.rm_so + 1;
-                    if (o->mode == BG_PCRE && o->mb)
-                        while (pos < llen && ((unsigned char) line[pos] & 0xC0) == 0x80) pos++;
-                    continue;
-                }
-                if (!o->aflag && bg_encoding_error (o, line + m.rm_so, (size_t) (m.rm_eo - m.rm_so)))
-                { st->enc_err = 1; return; }
-                bg_prefix (st, ls, base + m.rm_so, sep);
-                bg_out (o, line + m.rm_so, (size_t) (m.rm_eo - m.rm_so));
-                bg_outc (o, o->delim);
-                pos = (size_t) m.rm_eo;
-            }
-        }
-    }
-    else
-    {
+    enum bg_color line_style = ((sep == ':') != (o->vflag && o->reverse_colors)) ? BG_SL : BG_CX;
+    enum bg_color match_style = sep == ':' ? BG_MS : BG_MC;
+    if (!o->oflag) {
         if (!o->aflag && bg_encoding_error (o, line, llen)) { st->enc_err = 1; return; }
         bg_prefix (st, ls, base, sep);
-        bg_out (o, line, llen);
+    }
+    size_t written = 0;
+    if (matching && (o->oflag || (o->color && *o->sgr[match_style]))) {
+        size_t pos = 0;
+        while (pos < llen) {
+            regmatch_t m;
+            int r = bg_match_line (o, line, llen, pos, &m);
+            if (r < 0) { st->err = 1; break; }
+            if (!r) break;
+            if (m.rm_eo == m.rm_so) {
+                pos = (size_t) m.rm_so + 1;
+                if (o->mode == BG_PCRE && o->mb)
+                    while (pos < llen && ((unsigned char) line[pos] & 0xC0) == 0x80) pos++;
+                continue;
+            }
+            size_t start = m.rm_so, length = m.rm_eo - m.rm_so;
+            if (o->oflag) {
+                if (!o->aflag && bg_encoding_error (o, line + start, length))
+                { st->enc_err = 1; return; }
+                bg_prefix (st, ls, base + start, sep);
+            } else {
+                bg_style (o, line_style, 1);
+                bg_out (o, line + written, start - written);
+            }
+            bg_style (o, match_style, 1);
+            bg_out (o, line + start, length);
+            bg_style (o, match_style, 0);
+            if (o->oflag) bg_outc (o, o->delim);
+            written = pos = (size_t) m.rm_eo;
+        }
+    }
+    if (!o->oflag) {
+        if (written < llen) {
+            bg_style (o, line_style, 1);
+            bg_out (o, line + written, llen - written);
+            bg_style (o, line_style, 0);
+        }
         bg_outc (o, o->delim);
     }
     st->last_out = base + (off_t) llen + 1;
@@ -1281,7 +1356,12 @@ bg_select (bg_state *st, size_t ls, size_t le)
             p = q ? (size_t) (q - buf) + 1 : bp;
         }
         if (o->ctx && o->used && st->in.off + (off_t) p != st->last_out)
-            bg_out (o, "--\n", 3);
+        {
+            bg_style (o, BG_SE, 1);
+            bg_out (o, "--", 2);
+            bg_style (o, BG_SE, 0);
+            bg_outc (o, '\n');
+        }
         while (p < ls && !st->quiet)
         {
             char *e = memchr (buf + p, d, ls - p);
@@ -1409,7 +1489,7 @@ bg_grep_file (bg_opts *o, const char *path, int n_files, int from_recursion)
     int simple_fixed = o->mode == BG_FIXED && o->n_needles == 1
         && o->needles[0].n > 0 && !o->fold && !o->wrap_l && !o->wrap_r
         && !o->wflag && !o->xflag && !o->vflag && !o->ctx && !o->mflag_set
-        && !st.done_on_match && !o->oflag && !o->nflag && !o->bflag
+        && !st.done_on_match && !o->color && !o->oflag && !o->nflag && !o->bflag
         && (o->cflag || !st.prefix);
 
     for (;;)
@@ -1484,12 +1564,12 @@ bg_grep_file (bg_opts *o, const char *path, int n_files, int from_recursion)
 
     if (o->cflag && !st.err)
     {
-        if (st.prefix) { bg_out (o, st.name, strlen (st.name)); bg_outc (o, o->Zflag ? '\0' : ':'); }
+        if (st.prefix) { bg_filename (o, st.name); bg_separator (o, o->Zflag ? '\0' : ':'); }
         bg_out_num (o, st.count); bg_outc (o, '\n');
     }
     else if (!st.err && ((o->lflag && st.count > 0) || (o->Lflag && st.count == 0)))
     {
-        bg_out (o, st.name, strlen (st.name));
+        bg_filename (o, st.name);
         bg_outc (o, o->Zflag ? '\0' : '\n');
     }
     bg_out_flush (o);
@@ -1987,7 +2067,7 @@ bg_print_help (void)
     puts ("  -B, --before-context=NUM    print NUM lines of leading context");
     puts ("  -A, --after-context=NUM     print NUM lines of trailing context");
     puts ("  -C, --context=NUM, -NUM     print NUM lines of output context");
-    puts ("      --color[=WHEN]          accepted; no color is emitted");
+    puts ("      --color[=WHEN]          highlight matches (always, auto, never)");
     puts ("Exit status is 0 if any line is selected, 1 otherwise; 2 on an error.");
 }
 
@@ -2053,7 +2133,16 @@ grep_builtin (WORD_LIST *list)
             else if (!strcmp (w, "--byte-offset")) o.bflag = 1;
             else if (!strcmp (w, "--null-data")) o.zdflag = 1;
             else if ((!strncmp (w, "--color", 7) && (w[7] == '\0' || w[7] == '='))
-                     || (!strncmp (w, "--colour", 8) && (w[8] == '\0' || w[8] == '='))) { /* no color */ }
+                     || (!strncmp (w, "--colour", 8) && (w[8] == '\0' || w[8] == '='))) {
+                const char *eq = strchr (w, '=');
+                const char *when = eq ? eq + 1 : "auto";
+                if (!strcmp (when, "always") || !strcmp (when, "yes") || !strcmp (when, "force")) o.color = 1;
+                else if (!strcmp (when, "never") || !strcmp (when, "no") || !strcmp (when, "none")) o.color = 0;
+                else if (!strcmp (when, "auto") || !strcmp (when, "if-tty") || !strcmp (when, "tty")) {
+                    const char *term = getenv ("TERM");
+                    o.color = term && strcmp (term, "dumb") && isatty (STDOUT_FILENO);
+                } else { builtin_error ("invalid color mode: %s", when); BG_FAIL (EX_USAGE); }
+            }
             else if (!strcmp (w, "--only-matching")) o.oflag = 1;
             else if (!strcmp (w, "--recursive")) o.rflag = 1;
             else if (!strcmp (w, "--dereference-recursive")) { o.rflag = 1; o.Rflag = 1; }
@@ -2081,9 +2170,15 @@ grep_builtin (WORD_LIST *list)
                 if (bg_parse_count (val, &n) < 0) { builtin_error ("invalid max count"); BG_FAIL (EX_USAGE); }
                 o.mflag = n; o.mflag_set = 1;
             }
-            else if (!strncmp (w, "--regexp=", 9))
+            else if (!strcmp (w, "--regexp") || !strncmp (w, "--regexp=", 9))
             {
-                if (bg_add_patterns (&o, w + 9, strlen (w + 9)) < 0) BG_FAIL (EXECUTION_FAILURE);
+                if (w[8]) val = w + 9;
+                else {
+                    if (!p->next) { builtin_error ("--regexp requires an argument"); BG_FAIL (EX_USAGE); }
+                    p = p->next;
+                    val = p->word->word;
+                }
+                if (bg_add_patterns (&o, val, strlen (val)) < 0) BG_FAIL (EXECUTION_FAILURE);
                 have_e = 1;
             }
             else if (!strncmp (w, "--file=", 7))
@@ -2220,6 +2315,7 @@ grep_builtin (WORD_LIST *list)
         p = p->next;
     }
 
+    if (o.color && bg_setup_colors (&o) < 0) BG_FAIL (2);
     if (!have_e)
     {
         bg_usage ();
@@ -2280,6 +2376,7 @@ out:
         clearerr (stdout);
         rc = 2;
     }
+    free (o.color_env);
     bg_free (&o);
     free (paths);
     return rc;

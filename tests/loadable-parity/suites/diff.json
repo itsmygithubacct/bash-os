@@ -156,6 +156,73 @@
       ],
       "expected_status": 1,
       "stderr": "empty"
+    },
+    {
+      "id": "ignore-whitespace",
+      "kind": "parity",
+      "purpose": "Compare whitespace or labeled output and exit status with GNU diff.",
+      "script": "printf \"a b\\tc\\n\" > left\nprintf \"abc\" > right\ndiff -w left right",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "quiet-case-and-space",
+      "kind": "parity",
+      "purpose": "Compare whitespace or labeled output and exit status with GNU diff.",
+      "script": "printf \"A B\\n\" > left\nprintf \"ab\\n\" > right\ndiff -qiw left right",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "space-preserves-lines",
+      "kind": "parity",
+      "purpose": "Compare whitespace or labeled output and exit status with GNU diff.",
+      "script": "printf \"ab\\ncd\\n\" > left\nprintf \"abcd\\n\" > right\ndiff --ignore-all-space left right",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "unified-labels",
+      "kind": "parity",
+      "purpose": "Compare whitespace or labeled output and exit status with GNU diff.",
+      "script": "printf \"old\\n\" > left\nprintf \"new\\n\" > right\ndiff -u --label \"old file\" --label=\"new file\" left right",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "short-labels",
+      "kind": "parity",
+      "purpose": "Compare whitespace or labeled output and exit status with GNU diff.",
+      "script": "printf \"old\\n\" > left\nprintf \"new\\n\" > right\ndiff -uLbefore -L after left right",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "unified-single-label",
+      "kind": "parity",
+      "purpose": "A single label retains the timestamp and quoted filename on the second header.",
+      "script": "printf \"old\\n\" > before\nprintf \"new\\n\" > \"after file\"\n/usr/bin/touch -d @1234567890.123456789 \"after file\"\nTZ=UTC diff -u --label before before \"after file\"",
+      "requires": [
+        "diff",
+        "touch"
+      ],
+      "expected_status": 1,
+      "stderr": "empty"
     }
   ]
 }

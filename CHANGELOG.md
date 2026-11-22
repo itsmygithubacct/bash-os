@@ -5,6 +5,9 @@ All notable changes to bash-os are recorded here. Versions follow
 
 ## 0.1.5 — Unreleased
 
+- `grep` accepts a separate argument to `--regexp` and highlights matches with `--color`. `diff -w` ignores whitespace and `diff -u --label` sets patch headers.
+- `sed --posix` selects POSIX script and regular expression behavior. `xargs -d` reads arguments separated by a specified byte.
+- `basename -a` accepts multiple paths, `realpath -m` resolves paths with missing components, and `touch -d` accepts a date and time followed by UTC.
 - `cp -t DIRECTORY` and `cp --target-directory=DIRECTORY` copy source files into a named directory.
 - `find -quit` stops at the current entry across all starting paths.
 - `sort` accepts `--parallel=N` and options following file operands, including `sort numbers -n`.

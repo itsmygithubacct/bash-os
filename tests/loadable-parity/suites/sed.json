@@ -21,6 +21,17 @@
   ],
   "cases": [
     {
+      "id": "posix-gnu-dialect-selection",
+      "kind": "parity",
+      "purpose": "Compare ordinary substitution, literal BRE extensions and POSIX end-of-input behavior.",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 'beta\\n' | sed --posix 's/beta/BETA/'; printf 'aaa a+\\n' | sed --posix 's/a\\+/X/g'; printf 'orphan\\n' | sed --posix N",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
       "id": "debug-substitution-cycles",
       "kind": "parity",
       "purpose": "Compare the program listing, two input cycles, match registers, changed pattern and normal output with GNU sed.",
