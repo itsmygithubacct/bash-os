@@ -221,7 +221,13 @@ def build(parser, args, cc, target, prefix, needed):
                 cmake_source = source/'build/cmake' if name == 'zstd' else source
                 build = work/(name+'-build')
                 options = {
-                    'pcre2': ['-DPCRE2_BUILD_PCRE2GREP=OFF', '-DPCRE2_BUILD_TESTS=OFF', '-DPCRE2_SUPPORT_JIT=OFF', '-DPCRE2_BUILD_PCRE2_16=OFF', '-DPCRE2_BUILD_PCRE2_32=OFF'],
+                    # Only the library is shipped. The optional pcre2grep and
+                    # pcre2test dependencies can add host headers to a cross build.
+                    'pcre2': ['-DPCRE2_BUILD_PCRE2GREP=OFF', '-DPCRE2_BUILD_TESTS=OFF',
+                              '-DPCRE2_SUPPORT_LIBBZ2=OFF', '-DPCRE2_SUPPORT_LIBZ=OFF',
+                              '-DPCRE2_SUPPORT_LIBEDIT=OFF', '-DPCRE2_SUPPORT_LIBREADLINE=OFF',
+                              '-DPCRE2_SUPPORT_JIT=OFF', '-DPCRE2_BUILD_PCRE2_16=OFF',
+                              '-DPCRE2_BUILD_PCRE2_32=OFF'],
                     'xz': ['-DXZ_TOOL_XZ=OFF', '-DXZ_TOOL_XZDEC=OFF', '-DXZ_TOOL_LZMADEC=OFF', '-DXZ_TOOL_LZMAINFO=OFF', '-DXZ_TOOL_SCRIPTS=OFF', '-DXZ_DOC=OFF', '-DBUILD_TESTING=OFF'],
                     'zstd': ['-DZSTD_BUILD_PROGRAMS=OFF', '-DZSTD_BUILD_TESTS=OFF', '-DZSTD_BUILD_SHARED=OFF', '-DZSTD_BUILD_STATIC=ON'],
                 }[name]
