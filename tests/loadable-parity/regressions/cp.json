@@ -365,6 +365,53 @@
       "script": "mkdir -p source/sub\nprintf payload > source/sub/file\nprintf keep > destination\nif cp --parents source/sub/file destination; then a=0; else a=$?; fi\nif cp --parents source/sub/file absent; then b=0; else b=$?; fi\nprintf '%s %s\\n' \"$a\" \"$b\"\n[[ $a == 1 && $b == 1 && ! -e absent ]]",
       "expected_status": 0,
       "stderr": "nonempty"
+    },
+    {
+      "id": "explicit-target-short",
+      "kind": "parity",
+      "purpose": "Copies each source into an existing directory using a grouped short option and attached argument.",
+      "requires": [
+        "cp",
+        "mkdir"
+      ],
+      "script": "mkdir dest\nprintf one > a; printf two > b\ncp a -vtdest b",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "explicit-target-long",
+      "kind": "parity",
+      "purpose": "Accepts the long forms and treats leading-dash operands literally after --.",
+      "requires": [
+        "cp",
+        "mkdir"
+      ],
+      "script": "mkdir dest\n: > ./-a; : > b\ncp --target-directory=dest -- -a && cp --target-directory dest b",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "explicit-target-file",
+      "kind": "parity",
+      "purpose": "Rejects a regular file as an explicit target and leaves its contents intact.",
+      "requires": [
+        "cp"
+      ],
+      "script": "printf one > a; printf before > dest\ncp -t dest a",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "explicit-target-duplicate",
+      "kind": "parity",
+      "purpose": "Rejects multiple targets before copying.",
+      "requires": [
+        "cp",
+        "mkdir"
+      ],
+      "script": "mkdir x y; : > a\ncp -tx -t y a",
+      "expected_status": 1,
+      "stderr": "nonempty"
     }
   ]
 }

@@ -63,8 +63,8 @@ released before checking Bash's pending interrupt state.
 
 The command remains a GNU sed subset. `-z`, `--sandbox`, `--follow-symlinks`,
 `--version`, `\cREGEXc` addresses, `z`, `v` and `e COMMAND` were added later
-(see [the follow-up](opus-sed-followup.md)). `--posix` and `--debug` are
-rejected, and execution still requires `BASHSED_ALLOW_EXEC=1`. Numeric overflow is rejected instead of saturated;
+(see [the follow-up](opus-sed-followup.md)). Version 0.1.5 adds program and execution traces with `--debug`.
+The builtin rejects `--posix`. Execution still requires `BASHSED_ALLOW_EXEC=1`. Numeric overflow is rejected instead of saturated;
 in-place backup suffixes remain bounded and literal. Script files containing
 literal NUL are not supported; use numeric escapes in regex and replacement
 text. This is not a full GNU command-line or locale-collation equivalence claim.

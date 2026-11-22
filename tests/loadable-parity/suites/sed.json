@@ -21,6 +21,17 @@
   ],
   "cases": [
     {
+      "id": "debug-substitution-cycles",
+      "kind": "parity",
+      "purpose": "Compare the program listing, two input cycles, match registers, changed pattern and normal output with GNU sed.",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 'beta\\nalpha\\n' | sed --debug 's/beta/BETA/'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
       "id": "bre-captures-global",
       "kind": "parity",
       "purpose": "Check BRE bracket classes, two capture groups, backreference replacement, global replacement, and unchanged nonmatching input.",

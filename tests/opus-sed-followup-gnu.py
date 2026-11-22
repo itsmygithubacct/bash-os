@@ -205,14 +205,39 @@ for script in ('p;w /dev/stdout', 'W /dev/stdout', 'w /dev/stdout', '$!d;w /dev/
         parity(['-z', script], data.replace(b'\n', b'\0'))
 
 # 9. Option surface: -b/--binary is a no-op, --version succeeds, and --posix
-#    and --debug are explicit, tested limits: rejected with status 1.
+#    is rejected with status 1. Debug traces are compared as bytes.
 for args in (['-b', 'p'], ['--binary', 'p'], ['-nbz', 'p']):
     parity(args, b'a\nb\0')
 a = run(['--version'])
 check('--version', (a.returncode, a.stdout.split(b'\n')[0].startswith(b'sed ')), (0, True))
-for option in ('--posix', '--debug', '--no-such-option'):
+for option in ('--posix', '--no-such-option'):
     a = run([option, 'p'], b'a\n')
     check(('unsupported option', option), (a.returncode, a.stdout, b'unsupported option' in a.stderr), (1, b'', True))
+
+# Commands, addresses, captures and buffer changes must be visible to a user
+# who traces an actual script, including quiet, multiline and NUL input.
+for args, data in [
+    (['s/beta/BETA/'], b'beta\nalpha\n'),
+    (['s/no/match/'], b''),
+    (['-n', '-E', '2!{s@(a+)@<\\1>@gIp;h;x}'], b'zaa\nx\nA\n'),
+    (['-E', 's/(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)(k)/X/'], b'abcdefghijk\n'),
+    ([':again;s/a/b/;t again;p'], b'aa\n'),
+    (['-z', 'N;P;D'], b'a\0b\0c\0'),
+    (['-e', 'H;g;G;z', '-e', 'y/ba/cd/'], b'a\\\t\x01\n'),
+    (['2q 7'], b'one\ntwo\nthree\n'),
+    (['1c new\np'], b'old\nnext\n'),
+]:
+    parity(['--debug', *args], data)
+
+parity(['--debug', 'e printf xyz'], b'one\ntwo\n', allow)
+
+with tempfile.TemporaryDirectory(prefix='sed-debug-') as tmp:
+    d = Path(tmp)
+    (d/'words').write_bytes(b'beta\nalpha\n')
+    args = ['--debug', 's/beta/BETA/', 'words']
+    a, g = run(args, cwd=d), gnu(args, cwd=d)
+    check('named input in debug trace', (a.returncode, a.stdout, a.stderr),
+          (g.returncode, g.stdout, g.stderr))
 
 # 10. One persistent shell, empty PATH: -z, --sandbox and --follow-symlinks
 #     never leak into later calls; failures in between recover cleanly.
@@ -221,6 +246,9 @@ with tempfile.TemporaryDirectory(prefix='opus-sed-state-') as tmp:
     (d/'t').write_bytes(b'a\nb\n'); os.symlink('t', d/'l')
     got = run([d], script='''cd "$1" || exit 9
 ulimit -n 32
+sed --debug p t >/dev/null || exit 25
+sed --debug 's/foo' t >/dev/null 2>&1 && exit 26
+[[ $(sed -n 1p t) == a ]] || exit 27
 for ((i=0;i<64;i++)); do
   printf 'a\\0b\\0' | sed -z '$!d' > z || exit 10
   [[ $(sed -n l z) == 'b\\000$' ]] || exit 11

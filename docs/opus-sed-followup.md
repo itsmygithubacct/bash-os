@@ -85,8 +85,8 @@ unterminated `a` prints `aa\na`.
   opened without blocking and then checked with `fstat`.
 - `-b`/`--binary` is accepted and does nothing, as on other POSIX systems.
   `--version` prints a `sed (bash-os loadable)` line and returns 0.
-- `--posix` and `--debug` are **not implemented**. They, like any other
-  unknown long option, fail with status 1 and print
+- Version 0.1.5 adds `--debug` tracing. The unsupported `--posix` option
+  fails with status 1 and prints
   `unsupported option`. The suite checks this.
 
 These settings belong to one invocation. The suite checks in one persistent
@@ -220,7 +220,7 @@ and fixture, are in the task receipt as `bench-ab1-musl.json`,
 - **Non-Linux kernels.** The `tee(2)` pipe peek is Linux-only. Other systems
   use `MSG_PEEK`, `poll`/`FIONREAD` and stdio fallbacks, and none of these
   paths has run on a non-Linux kernel.
-- **`--posix`, `--debug`.** Rejected, as described above.
+- **`--posix`.** Rejected, as described above.
 
 ## Validation
 

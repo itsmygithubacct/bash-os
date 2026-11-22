@@ -259,6 +259,77 @@
       "script": "mkdir tree\nprintf hidden > tree/file\nchmod 000 tree\nif find tree -maxdepth 0; then rc=0; else rc=$?; fi\nchmod 700 tree\nexit \"$rc\"",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "quit-multiple-starts",
+      "kind": "parity",
+      "purpose": "Stops before descent and a later missing operand.",
+      "requires": [
+        "find",
+        "mkdir"
+      ],
+      "script": "mkdir tree; : > tree/file\nfind tree missing -print -quit",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "quit-depth",
+      "kind": "parity",
+      "purpose": "Stops the depth-first traversal without evaluating its parent or later actions.",
+      "requires": [
+        "find",
+        "mkdir"
+      ],
+      "script": "mkdir -p tree/sub; : > tree/sub/file\nfind tree -depth -print -quit -print",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "quit-negated",
+      "kind": "parity",
+      "purpose": "Negation and disjunction cannot resume evaluation after quit.",
+      "requires": [
+        "find",
+        "mkdir"
+      ],
+      "script": "mkdir tree; : > tree/file\nfind tree ! -quit -o -print",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "quit-short-circuit",
+      "kind": "parity",
+      "purpose": "A skipped quit leaves implicit printing active.",
+      "requires": [
+        "find"
+      ],
+      "script": ": > a; : > b\nfind a b -name a -o -quit",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "quit-exec-batch",
+      "kind": "parity",
+      "purpose": "Flushes the pending command arguments on quit.",
+      "requires": [
+        "find",
+        "printf"
+      ],
+      "script": ": > a; : > b\nfind a b -exec printf '%s\\n' '{}' + -quit",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "quit-exec-batch-status",
+      "kind": "parity",
+      "purpose": "Returns failure if the pending command fails during quit.",
+      "requires": [
+        "find",
+        "false"
+      ],
+      "script": ": > a\nfind a -exec false '{}' + -quit",
+      "expected_status": 1,
+      "stderr": "empty"
     }
   ]
 }

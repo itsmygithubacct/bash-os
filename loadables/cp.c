@@ -2,7 +2,7 @@
  *
  * Phase S of bash-os POSIX gap-fillers.
  *
- *   bashcp [-afinpRrv] [-HLP] SOURCE... DEST
+ *   bashcp [-afinpRrv] [-HLP] {SOURCE... DEST | -t DIR SOURCE...}
  *
  *   -a      archive: same as -dpR (preserve symlinks-as-symlinks, preserve
  *           metadata, recursive). Matches GNU coreutils cp -a semantics.
@@ -723,6 +723,7 @@ cp_builtin (WORD_LIST *list)
     bcp_opts o = {0};
     /* Parse flags + collect SOURCE list + DEST. */
     bcp_words positional = {0};
+    const char *target_dir = NULL;
     for (WORD_LIST *p = list; p; p = p->next) {
         const char *w = p->word->word;
         if (strcmp (w, "--help") == 0) {
@@ -735,6 +736,12 @@ cp_builtin (WORD_LIST *list)
             free (positional.v);
             return EXECUTION_SUCCESS;
         }
+        if (!strncmp (w, "--target-directory=", 19)) {
+            if (target_dir) goto duplicate_target;
+            target_dir = w + 19;
+            continue;
+        }
+        if (!strcmp (w, "--target-directory")) w = "-t";
         if (!strcmp (w, "--parents")) { o.parents = 1; continue; }
         if (!strcmp (w, "--no-clobber")) w = "-n";
         if (!strcmp (w, "--interactive")) { o.iflag = 1; o.nflag = 0; continue; }
@@ -773,6 +780,20 @@ cp_builtin (WORD_LIST *list)
                 case 'H': o.Hflag = 1; o.Lflag = 0; o.Pflag = 0; break;
                 case 'L': o.Lflag = 1; o.Hflag = 0; o.Pflag = 0; break;
                 case 'P': o.Hflag = 0; o.Lflag = 0; o.Pflag = 1; break;
+                case 't':
+                    if (target_dir) goto duplicate_target;
+                    if (w[i + 1]) {
+                        target_dir = w + i + 1;
+                    } else if (p->next) {
+                        p = p->next;
+                        target_dir = p->word->word;
+                    } else {
+                        builtin_error ("option -t requires a directory");
+                        free (positional.v);
+                        return EXECUTION_FAILURE;
+                    }
+                    i += strlen (w + i + 1); /* -t consumes the rest of this word */
+                    break;
                 case 'v': o.vflag = 1; break;
                 default:
                     builtin_error ("unknown flag: -%c", w[i]);
@@ -788,20 +809,20 @@ cp_builtin (WORD_LIST *list)
             }
         }
     }
-    if (positional.n < 2) {
+    if (positional.n < (target_dir ? 1 : 2)) {
         builtin_error ("missing file operand");
         builtin_usage ();
         free (positional.v);
-        return EX_USAGE;
+        return target_dir ? EXECUTION_FAILURE : EX_USAGE;
     }
-    const char *dest = positional.v[positional.n - 1];
-    int nsrc = positional.n - 1;
+    const char *dest = target_dir ? target_dir : positional.v[positional.n - 1];
+    int nsrc = target_dir ? positional.n : positional.n - 1;
 
     /* Is DEST a directory? */
     struct stat dst_st;
     int dst_is_dir = (stat (dest, &dst_st) == 0 && S_ISDIR (dst_st.st_mode));
 
-    if ((nsrc > 1 || o.parents) && !dst_is_dir) {
+    if ((target_dir || nsrc > 1 || o.parents) && !dst_is_dir) {
         builtin_error ("target '%s' is not a directory", dest);
         free (positional.v);
         return EXECUTION_FAILURE;
@@ -844,12 +865,18 @@ cp_builtin (WORD_LIST *list)
         o.links = next;
     }
     return rc;
+
+duplicate_target:
+    builtin_error ("multiple target directories specified");
+    free (positional.v);
+    return EXECUTION_FAILURE;
 }
 
 char *cp_doc[] = {
     "Copy files and directories.",
     "",
     "    bashcp [-afinpRrv] [-HLP] SOURCE... DEST",
+    "    bashcp [-afinpRrv] [-HLP] -t DIR SOURCE...",
     "",
     "    -a   archive: same as -dpR (clone symlinks as symlinks,",
     "         preserve hard links and metadata, recursive)",
@@ -859,6 +886,7 @@ char *cp_doc[] = {
     "    -p   preserve mode/owner/group/timestamps",
     "    --parents   retain source paths under an existing destination directory",
     "    -R, -r   recursive",
+    "    -t DIR, --target-directory=DIR   copy all sources into DIR",
     "    -v   verbose: print each completed copy",
     "    -H   follow symlinks named on the command line",
     "    -L   always follow symlinks",
@@ -872,6 +900,6 @@ struct builtin bashcp_struct = {
     cp_builtin,
     BUILTIN_ENABLED,
     cp_doc,
-    "bashcp [-afinpRrv] [-HLP] SOURCE... DEST",
+    "bashcp [-afinpRrv] [-HLP] {SOURCE... DEST | -t DIR SOURCE...}",
     0
 };

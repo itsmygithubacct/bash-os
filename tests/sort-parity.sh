@@ -56,6 +56,16 @@ open("sorted", "w").write("\n".join(str(v) for v in sorted(ints)) + "\n")
 open("m1", "w").write("1\n3\n5\n"); open("m2", "w").write("2\n4\n6\n")
 PYX
 for loc in C C.UTF-8; do
+  cmp_out "options after files" $loc ints -n
+  cmp_out "separated parallel count" $loc ints --parallel 3 -nu
+  cmp_out "parallel stable" $loc --parallel=4 ints -ns
+  cmp_out "operands around key option" $loc fields -k 2n fields
+  cp m1 ./-n
+  cmp_out "literal option-shaped file" $loc m2 -- -n
+  POSIXLY_CORRECT=1 cmp_out "POSIX option-shaped file" $loc m2 -n
+  cmp_out "zero workers" $loc --parallel=0 m1
+  cmp_out "invalid workers" $loc --parallel=-1 m1
+  cmp_out "missing worker count" $loc m1 --parallel
   # numeric keys on the whole line
   for f in ints floats junk; do
     for args in "-n" "-rn" "-n -u" "-n -s" "-rn -s" "-n -u -s" "-n -r -u" "-nu" "-nr"; do cmp_out "$f" $loc $args "$f"; done

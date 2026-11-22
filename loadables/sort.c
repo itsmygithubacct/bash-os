@@ -48,6 +48,8 @@
 #include <math.h>
 #include <stdint.h>
 #include <time.h>
+#include <pthread.h>
+#include <signal.h>
 #include <locale.h>
 #include <sys/stat.h>
 
@@ -1116,6 +1118,69 @@ bs_compare (const void *va, const void *vb)
     return bs_full_compare (ea->ln, eb->ln, o);
 }
 
+/* Sort disjoint halves with a shared merge buffer. Each subtree has its
+   own worker allowance and writes only its slice of each array. */
+typedef struct {
+    bs_elem *items, *scratch;
+    size_t count;
+    unsigned long workers;
+} bs_sort_job;
+
+static void *
+bs_sort_partition (void *arg)
+{
+    bs_sort_job *job = arg;
+    size_t n = job->count, mid = n / 2;
+    if (job->workers > 1 && n >= 8192) {
+        unsigned long half = job->workers / 2;
+        bs_sort_job left = { job->items, job->scratch, mid, half };
+        bs_sort_job right = { job->items + mid, job->scratch + mid,
+                              n - mid, job->workers - half };
+        pthread_t thread;
+        if (pthread_create (&thread, NULL, bs_sort_partition, &left) == 0) {
+            bs_sort_partition (&right);
+            pthread_join (thread, NULL);
+            size_t i = 0, j = mid;
+            for (size_t k = 0; k < n; k++) {
+                if (j == n || (i < mid && bs_compare (&job->items[i], &job->items[j]) <= 0))
+                    job->scratch[k] = job->items[i++];
+                else
+                    job->scratch[k] = job->items[j++];
+            }
+            memcpy (job->items, job->scratch, n * sizeof *job->items);
+            return NULL;
+        }
+    }
+    qsort (job->items, n, sizeof *job->items, bs_compare);
+    return NULL;
+}
+
+static void
+bs_sort_elements (bs_elem *items, size_t n, unsigned long workers)
+{
+    if (workers > 1 && n >= 8192) {
+        long cpus = sysconf (_SC_NPROCESSORS_ONLN);
+        if (cpus > 0 && workers > (unsigned long) cpus)
+            workers = cpus;
+        bs_elem *scratch = workers > 1 ? malloc (n * sizeof *items) : NULL;
+        if (scratch) {
+            /* Keep shell signal handlers away from worker stacks and defer
+               a nonlocal exit from the builtin until all workers join. */
+            sigset_t all, oldmask;
+            sigfillset (&all);
+            if (pthread_sigmask (SIG_BLOCK, &all, &oldmask) == 0) {
+                bs_sort_job job = { items, scratch, n, workers };
+                bs_sort_partition (&job);
+                free (scratch);
+                pthread_sigmask (SIG_SETMASK, &oldmask, NULL);
+                return;
+            }
+            free (scratch);
+        }
+    }
+    qsort (items, n, sizeof *items, bs_compare);
+}
+
 /* --- output: one buffer rather than a stdio call per line ----------------- */
 typedef struct {
     FILE *f;
@@ -1181,16 +1246,50 @@ bs_emit_merged (bs_out *ob, bs_line *lines, bs_run *runs, size_t nruns, const bs
 }
 
 
-int
-sort_builtin (WORD_LIST *list)
+static int
+bs_sort (WORD_LIST *list, const char **files)
 {
     bs_opts o = {0};
     const char *output_file = NULL;
     const char *random_source = NULL;
     /* Parse flags. */
-    while (list && list->word->word[0] == '-' && list->word->word[1]) {
+    unsigned long workers = 1;
+    size_t n_files = 0;
+    int operands_only = 0;
+    int posix = getenv ("POSIXLY_CORRECT") != NULL;
+    while (list) {
         const char *w = list->word->word;
-        if (!strcmp (w, "--")) { list = list->next; break; }
+        if (operands_only || w[0] != '-' || !w[1]) {
+            files[n_files++] = w;
+            if (posix) operands_only = 1;
+            list = list->next;
+            continue;
+        }
+        if (!strcmp (w, "--")) { operands_only = 1; list = list->next; continue; }
+        if (!strcmp (w, "--parallel") || !strncmp (w, "--parallel=", 11)) {
+            const char *value;
+            if (w[10] == '=') value = w + 11;
+            else {
+                if (!list->next) { builtin_error ("--parallel needs a count"); return EX_USAGE; }
+                list = list->next;
+                value = list->word->word;
+            }
+            const char *digits = value;
+            while (isspace ((unsigned char) *digits)) digits++;
+            if (*digits == '+') digits++;
+            char *end;
+            workers = strtoul (digits, &end, 10);
+            if (!isdigit ((unsigned char) *digits) || *end) {
+                builtin_error ("invalid --parallel argument '%s'", value);
+                return EX_USAGE;
+            }
+            if (!workers) {
+                builtin_error ("number in parallel must be nonzero");
+                return EX_USAGE;
+            }
+            list = list->next;
+            continue;
+        }
         if (!strcmp (w, "--help")) {
             builtin_usage ();
             return EXECUTION_SUCCESS;
@@ -1386,8 +1485,6 @@ sort_builtin (WORD_LIST *list)
 
     /* Read every input whole; a record is a span of that buffer. */
     bs_input in = {0};
-    int n_files = 0;
-    for (WORD_LIST *p = list; p; p = p->next) n_files++;
     bs_run *runs = calloc ((size_t) (n_files > 0 ? n_files : 1), sizeof *runs);
     size_t nruns = 0;
     if (!runs)
@@ -1409,20 +1506,20 @@ sort_builtin (WORD_LIST *list)
             bs_rc = EXECUTION_FAILURE;
         runs[nruns++] = (bs_run) { start, in.n, start, "-" };
     } else {
-        for (WORD_LIST *p = list; p; p = p->next) {
+        for (size_t i = 0; i < n_files; i++) {
             FILE *f = stdin;
             size_t start = in.n;
             int r;
-            if (strcmp (p->word->word, "-") != 0)
-                f = fopen (p->word->word, "r");
+            if (strcmp (files[i], "-") != 0)
+                f = fopen (files[i], "r");
             else
                 clearerr (stdin);
             if (!f) {
-                builtin_error ("%s: %s", p->word->word, strerror (errno));
+                builtin_error ("%s: %s", files[i], strerror (errno));
                 bs_rc = EXECUTION_FAILURE;
                 continue;
             }
-            r = bs_read_input (&in, f, p->word->word, record_delim);
+            r = bs_read_input (&in, f, files[i], record_delim);
             if (f != stdin)
                 fclose (f);
             if (r < 0) {
@@ -1432,7 +1529,7 @@ sort_builtin (WORD_LIST *list)
             }
             if (r > 0)
                 bs_rc = EXECUTION_FAILURE;
-            runs[nruns++] = (bs_run) { start, in.n, start, p->word->word };
+            runs[nruns++] = (bs_run) { start, in.n, start, files[i] };
         }
     }
     bs_line *lines = in.lines;
@@ -1516,7 +1613,7 @@ sort_builtin (WORD_LIST *list)
     }
 
     if (!o.mergeflag && n > 1)
-        qsort (elems, n, sizeof *elems, bs_compare);
+        bs_sort_elements (elems, n, workers);
 
     FILE *outf = stdout;
     if (output_file && strcmp (output_file, "-") != 0) {
@@ -1557,6 +1654,18 @@ out:
     return rc;
 }
 
+int
+sort_builtin (WORD_LIST *list)
+{
+    size_t count = 0;
+    for (WORD_LIST *p = list; p; p = p->next) count++;
+    const char **files = calloc (count ? count : 1, sizeof *files);
+    if (!files) return EXECUTION_FAILURE;
+    int rc = bs_sort (list, files);
+    free (files);
+    return rc;
+}
+
 char *sort_doc[] = {
     "Sort lines in FILEs (or stdin).",
     "",
@@ -1570,6 +1679,7 @@ char *sort_doc[] = {
     "    -R   random compare (shuffle, grouping equal keys)",
     "         --random-source=FILE  seed random ordering from FILE bytes",
     "    -M   month compare (Jan..Dec; unknown names sort before Jan)",
+    "    --parallel=N  use up to N concurrent sorting workers",
     "    -m, --merge  merge already-sorted inputs",
     "    -b   ignore leading blanks in comparison keys",
     "    -d   dictionary order: compare only blanks and alphanumeric bytes",

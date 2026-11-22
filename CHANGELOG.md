@@ -5,6 +5,10 @@ All notable changes to bash-os are recorded here. Versions follow
 
 ## 0.1.5 — Unreleased
 
+- `cp -t DIRECTORY` and `cp --target-directory=DIRECTORY` copy source files into a named directory.
+- `find -quit` stops at the current entry across all starting paths.
+- `sort` accepts `--parallel=N` and options following file operands, including `sort numbers -n`.
+- `sed --debug` prints the parsed script and traces its execution.
 - `find -depth` visits directory contents before the directory itself.
   It applies to the whole search and disables pruning.
 - `tar --mtime=@SECONDS` and `pax -w -o mtime:=SECONDS` can produce archives with a fixed modification time.

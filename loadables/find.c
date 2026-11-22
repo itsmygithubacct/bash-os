@@ -52,7 +52,7 @@ typedef enum {
     BF_AND, BF_OR, BF_NOT,
     BF_NAME, BF_INAME, BF_PATH,
     BF_TYPE, BF_SIZE, BF_MTIME, BF_MAXDEPTH, BF_MINDEPTH, BF_XDEV,
-    BF_PRUNE, BF_EMPTY, BF_NEWER,
+    BF_PRUNE, BF_QUIT, BF_EMPTY, BF_NEWER,
     BF_PRINT, BF_PRINT0, BF_PRINTF, BF_EXEC, BF_EXECDIR, BF_DELETE,
     BF_MMIN, BF_AMIN, BF_CMIN, BF_ATIME, BF_CTIME,
     BF_REGEX, BF_IREGEX,
@@ -101,6 +101,7 @@ typedef struct {
     bf_expr *root;
     int      maxdepth;         /* -1 = unbounded */
     int      mindepth;         /* 0 = no min */
+    int      quit;             /* stop the expression and all remaining traversal */
     int      pruned;           /* set by -prune for current dir */
     int      had_action;       /* if no -print/-print0 specified, default to -print */
     int      print0;           /* default action: 0 = newline, 1 = NUL */
@@ -301,6 +302,7 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
     else if (!strcmp (t, "-mindepth")) { k = BF_MINDEPTH; needs_arg = 1; is_action = 1; }
     else if (!strcmp (t, "-depth"))    { k = BF_TRUE;    ctx->postorder = 1; }
     else if (!strcmp (t, "-xdev") || !strcmp (t, "-mount")) { k = BF_XDEV; ctx->xdev = 1; }
+    else if (!strcmp (t, "-quit"))     { k = BF_QUIT; }
     else if (!strcmp (t, "-prune"))    { k = BF_PRUNE; }
     else if (!strcmp (t, "-empty"))    { k = BF_EMPTY; }
     else if (!strcmp (t, "-newer"))    { k = BF_NEWER;    needs_arg = 1; }
@@ -764,18 +766,18 @@ bf_exec_flush (bf_expr *e)
 
 /* Recursively flush all BF_EXEC `+` batches in the AST. */
 static void
-bf_flush_all (bf_expr *e)
+bf_flush_all (bf_expr *e, bf_ctx *ctx)
 {
     if (!e) return;
-    bf_flush_all (e->a);
-    bf_flush_all (e->b);
-    if (e->kind == BF_EXEC && e->exec_batch) bf_exec_flush (e);
+    bf_flush_all (e->a, ctx);
+    bf_flush_all (e->b, ctx);
+    if (e->kind == BF_EXEC && e->exec_batch && !bf_exec_flush (e)) ctx->exit_status = 1;
 }
 
 /* Append a path to a `+`-form node's pending batch. Flush if batch is
    getting large (env limit minus reserved slack). */
 static int
-bf_exec_batch_append (bf_expr *e, const char *path)
+bf_exec_batch_append (bf_expr *e, const char *path, bf_ctx *ctx)
 {
     /* Use a conservative cap — half ARG_MAX or 64 KiB, whichever smaller. */
     long arg_max = sysconf (_SC_ARG_MAX);
@@ -783,8 +785,8 @@ bf_exec_batch_append (bf_expr *e, const char *path)
     size_t cap_bytes = (size_t) arg_max / 2;
     if (cap_bytes > 65536) cap_bytes = 65536;
     size_t plen = strlen (path) + 1;
-    if (e->pending_count > 0 && e->pending_bytes + plen > cap_bytes)
-        bf_exec_flush (e);
+    if (e->pending_count > 0 && e->pending_bytes + plen > cap_bytes && !bf_exec_flush (e))
+        ctx->exit_status = 1;
     if (e->pending_count >= e->pending_cap) {
         size_t nc = e->pending_cap ? e->pending_cap * 2 : 16;
         char **n = realloc (e->pending_paths, nc * sizeof *n);
@@ -914,6 +916,7 @@ bf_printf_emit (bf_pinfo *p, const char *fmt)
 static int
 bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
 {
+    if (ctx->quit) return 0;
     if (!e) return 1;
     switch (e->kind)
     {
@@ -1088,6 +1091,9 @@ bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
                 return empty;
             }
             return 0;
+        case BF_QUIT:
+            ctx->quit = 1;
+            return 0;
         case BF_PRUNE:
             if (!ctx->postorder)
                 ctx->pruned = 1;
@@ -1102,7 +1108,7 @@ bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
             return bf_printf_emit (p, e->sval);
         case BF_EXEC:
             if (e->exec_batch)
-                return bf_exec_batch_append (e, p->path);
+                return bf_exec_batch_append (e, p->path, ctx);
             return bf_exec_once (e, p->path);
         case BF_MAXDEPTH:
         case BF_MINDEPTH:
@@ -1240,7 +1246,7 @@ bf_walk (const char *path, int depth, bf_ctx *ctx, bf_seen *seen)
     if (!ctx->postorder && depth >= ctx->mindepth)
     {
         int matched = bf_eval (ctx->root, &info, ctx);
-        if (matched && !ctx->had_action)
+        if (!ctx->quit && matched && !ctx->had_action)
         {
             /* default action: -print */
             fputs (path, stdout);
@@ -1248,7 +1254,7 @@ bf_walk (const char *path, int depth, bf_ctx *ctx, bf_seen *seen)
         }
     }
 
-    if (is_dir && !ctx->pruned
+    if (is_dir && !ctx->quit && !ctx->pruned
         && (ctx->maxdepth < 0 || depth < ctx->maxdepth)
         && (!ctx->xdev || depth == 0 || !ctx->root_dev_valid
             || st.st_dev == ctx->root_dev))
@@ -1257,7 +1263,7 @@ bf_walk (const char *path, int depth, bf_ctx *ctx, bf_seen *seen)
         if (d)
         {
             struct dirent *de;
-            while ((de = readdir (d)) != NULL)
+            while (!ctx->quit && (de = readdir (d)) != NULL)
             {
                 const char *n = de->d_name;
                 if (!strcmp (n, ".") || !strcmp (n, "..")) continue;
@@ -1286,10 +1292,10 @@ bf_walk (const char *path, int depth, bf_ctx *ctx, bf_seen *seen)
         }
     }
 
-    if (ctx->postorder && depth >= ctx->mindepth)
+    if (!ctx->quit && ctx->postorder && depth >= ctx->mindepth)
     {
         int matched = bf_eval (ctx->root, &info, ctx);
-        if (matched && !ctx->had_action)
+        if (!ctx->quit && matched && !ctx->had_action)
         {
             /* default action: -print */
             fputs (path, stdout);
@@ -1375,13 +1381,13 @@ find_builtin (WORD_LIST *list)
     }
 
     bf_seen seen = {0};
-    for (int j = 0; j < paths_count; j++) {
+    for (int j = 0; j < paths_count && !ctx.quit; j++) {
         ctx.root_dev_valid = 0;
         bf_walk (paths[j], 0, &ctx, &seen);
     }
 
     /* Flush any pending `-exec ... +` batches. */
-    bf_flush_all (ctx.root);
+    bf_flush_all (ctx.root, &ctx);
 
     bf_free (ctx.root);
     free (seen.dev);
@@ -1422,6 +1428,7 @@ char *find_doc[] = {
     "    -mindepth N      skip output until depth >= N",
     "    -depth           evaluate each directory after its contents (always true)",
     "    -xdev, -mount    do not descend into directories on other filesystems",
+    "    -quit            stop immediately after flushing pending -exec ... + batches",
     "    -prune           skip subtree below this point unless -depth or -delete is used",
     "    -empty           zero-size files / empty directories",
     "    -newer FILE      modified after FILE's mtime",

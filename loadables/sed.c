@@ -53,7 +53,7 @@
  *   -b            accepted for GNU compatibility (no text mode on POSIX)
  *   --sandbox     reject e, r, R, w and W commands
  *   --follow-symlinks  -i edits, and F names, the final symlink target
- *   --posix and --debug are not implemented and are rejected.
+ *   --debug       print the program and trace each editing cycle
  *
  * Security: e / s///e shell execution is disabled unless
  * BASHSED_ALLOW_EXEC=1 is set.
@@ -106,6 +106,13 @@ typedef enum { BS_ADDR_NONE, BS_ADDR_LINE, BS_ADDR_LAST, BS_ADDR_REGEX,
              } bs_addrkind;
 
 typedef struct bs_prog bs_prog;
+static int bs_debug;
+
+typedef struct {
+    char *bytes;
+    size_t len;
+    int flags;
+} bs_debug_regex;
 
 typedef struct {
     bs_addrkind kind;
@@ -113,6 +120,7 @@ typedef struct {
     long        step;        /* for ADDR_STEP (GNU first~step) */
     regex_t     re;          /* for ADDR_REGEX */
     bs_prog    *prog;        /* bounded matcher; kept off glibc set_regs */
+    bs_debug_regex display;
     int         re_ok;
 } bs_addr;
 
@@ -138,6 +146,12 @@ typedef enum {
 
 typedef struct {
     bs_cmdkind kind;
+    char op;
+    int exec_text_used;      /* GNU debug shows the final NUL of executed e text */
+    bs_debug_regex display;
+    char *debug_y;
+    size_t debug_y_len;
+    long debug_q_code;       /* -1 when q/Q has no argument */
     bs_addr    addr1;        /* optional */
     bs_addr    addr2;        /* optional (range) */
     int        has_a1, has_a2;
@@ -855,12 +869,20 @@ bs_compile_re (regex_t *re, const char *pat, size_t len, int flags, bs_prog **pr
 
 }
 
+static void
+bs_debug_register (size_t index, const char *subject, regoff_t start, regoff_t end)
+{
+    printf ("  regex[%zu] = %d-%d '", index, (int)start, (int)end);
+    fwrite (subject + start, 1, (size_t)(end - start), stdout);
+    puts ("'");
+}
+
 /* Preserve the entire subject, including the character preceding the search
    offset (word boundaries and multiline anchors depend on it). Matches are
    returned relative to off for the replacement expander. */
 static int
 bs_search (regex_t *re, const char *str, size_t len, size_t off,
-           size_t nmatch, regmatch_t *matches)
+           size_t nmatch, regmatch_t *matches, int trace)
 {
     if (len > INT_MAX) { bs_runtime_error = 1; return REG_ESPACE; }
     regoff_t starts[10], ends[10];
@@ -888,6 +910,11 @@ bs_search (regex_t *re, const char *str, size_t len, size_t off,
         }
         if (prog) {
             int found = bs_prog_find (prog, str, beg, start, end, nmatch, matches, off);
+            if (found == 0 && trace) {
+                puts ("MATCHED REGEX REGISTERS");
+                for (size_t i = 0; i < nmatch && i <= re->re_nsub && matches[i].rm_so >= 0; i++)
+                    bs_debug_register (i, str, matches[i].rm_so, matches[i].rm_eo);
+            }
             if (bs_runtime_error || found == 0 || end == len) return found;
             beg = start = end + 1;
             continue;
@@ -912,8 +939,30 @@ bs_search (regex_t *re, const char *str, size_t len, size_t off,
             beg = start = end + 1;
             continue;
         }
+        /* Replacements reference at most nine groups. Debug output also shows
+           higher captures in the first match, so ask the same search for them. */
+        regoff_t *extra = NULL;
+        if (trace && re->re_nsub >= 10) {
+            size_t count = re->re_nsub + 1;
+            if (count > UINT_MAX || !count || count > SIZE_MAX / (2 * sizeof *extra)
+                || !(extra = malloc (2 * count * sizeof *extra))) {
+                bs_runtime_error = 1; return REG_ESPACE;
+            }
+            regs = (struct re_registers){ count, extra, extra + count };
+            for (size_t i = 0; i < count; i++) regs.start[i] = regs.end[i] = -1;
+        }
         result = re_search (re, str + beg, (regoff_t) (end - beg), (regoff_t) (start - beg),
                             (regoff_t) (end - start), nmatch ? &regs : NULL);
+        if (trace && result >= 0) {
+            puts ("MATCHED REGEX REGISTERS");
+            for (size_t i = 0; i <= re->re_nsub && regs.start[i] >= 0; i++)
+                bs_debug_register (i, str, (regoff_t)beg + regs.start[i], (regoff_t)beg + regs.end[i]);
+            if (extra) {
+                memcpy (starts, regs.start, sizeof starts);
+                memcpy (ends, regs.end, sizeof ends);
+            }
+        }
+        free (extra);
         if (result == -2) { bs_runtime_error = 1; return REG_ESPACE; }
         if (result >= 0 || end == len) break;
         beg = start = end + 1;
@@ -1363,7 +1412,8 @@ bs_parse_addr (const char **psp, bs_addr *a, int extended)
             if (cre != -2) builtin_error ("bad regex in address: %s", pat);
             free (pat); return -1;
         }
-        free (pat);
+        if (bs_debug) a->display = (bs_debug_regex){ pat, rlen, flags };
+        else free (pat);
         a->kind = BS_ADDR_REGEX;
         a->re_ok = rlen != 0;
         *psp = p;
@@ -1524,7 +1574,7 @@ bs_addr_match (bs_addr *a, long lineno, int is_last, const char *line, size_t le
                 bs_runtime_error = 1;
                 return 0;
             }
-            return bs_search (bs_last_re, line, len, 0, 0, NULL) == 0;
+            return bs_search (bs_last_re, line, len, 0, 0, NULL, 0) == 0;
     }
     return 0;
 }
@@ -1533,6 +1583,10 @@ bs_addr_match (bs_addr *a, long lineno, int is_last, const char *line, size_t le
 static void
 bs_cmd_free (bs_cmd *c)
 {
+    free (c->display.bytes);
+    free (c->addr1.display.bytes);
+    free (c->addr2.display.bytes);
+    free (c->debug_y);
     free (c->addr1.prog);
     free (c->addr2.prog);
     free (c->s_prog);
@@ -1634,7 +1688,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
 
         if (!*p) { builtin_error ("missing command"); goto err; }
         /* Command character. */
-        char op = *p++;
+        char op = c->op = *p++;
         if (bs_sandbox && strchr ("erRwW", op)) {
             builtin_error ("e/r/w commands disabled in sandbox mode"); goto err;
         }
@@ -1730,6 +1784,12 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                     free (pat_compat); goto err;
                 }
                 c->s_re_ok = 1;
+                if (bs_debug) {
+                    c->display.bytes = malloc (rlen);
+                    if (!c->display.bytes) { free (pat_compat); goto err; }
+                    memcpy (c->display.bytes, pat_compat, rlen);
+                    c->display.len = rlen;
+                }
                 if ((size_t) c->s_needed_sub > c->s_re.re_nsub) {
                     builtin_error ("invalid backreference in replacement"); free (pat_compat); goto err;
                 }
@@ -1750,6 +1810,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
             case 'p': c->kind = BS_P; break;
             case 'q': case 'Q':
                 c->kind = (op == 'q') ? BS_Q : BS_BIGQ;  /* Q quits without auto-print */
+                c->debug_q_code = -1;
                 /* optional exit code: q N / Q N (POSIX). Default 0. */
                 while (*p == ' ' || *p == '\t') p++;
                 if (*p >= '0' && *p <= '9') {
@@ -1757,6 +1818,7 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                     if (bs_number (&p, &code) < 0 || code > INT_MAX) {
                         builtin_error ("invalid quit code"); goto err;
                     }
+                    c->debug_q_code = code;
                     c->q_code = code & 0xff;
                 }
                 break;
@@ -1922,6 +1984,13 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                     if (*p != delim) { builtin_error ("y: missing 3rd delim"); goto err; }
                     p++;
                     if (l1 != l2) { builtin_error ("y: SET1 and SET2 must be same length"); goto err; }
+                    if (bs_debug && MB_CUR_MAX > 1 && l1) {
+                        c->debug_y = malloc (2 * l1);
+                        if (!c->debug_y) goto err;
+                        memcpy (c->debug_y, set1, l1);
+                        memcpy (c->debug_y + l1, set2, l1);
+                        c->debug_y_len = l1;
+                    }
                     /* identity table, then map SET1[i] -> SET2[i]. */
                     for (int i = 0; i < 256; i++) c->y_table[i] = (unsigned char) i;
                     for (size_t i = 0; i < l1; i++)
@@ -2162,6 +2231,150 @@ bs_find (const char *h, size_t hl, const char *n, size_t nl)
     return NULL;
 }
 
+/* GNU's debug representation uses named escapes for control characters
+   and octal for the remaining non-printable input bytes. */
+static void
+bs_debug_bytes (const char *s, size_t len, int regex)
+{
+    for (size_t i = 0; i < len; i++) {
+        char ch = s[i];
+        switch (ch) {
+            case '\a': fputs ("\\a", stdout); break;
+            case '\f': fputs ("\\f", stdout); break;
+            case '\n': fputs ("\\n", stdout); break;
+            case '\r': fputs ("\\r", stdout); break;
+            case '\t': fputs ("\\t", stdout); break;
+            case '\v': fputs ("\\v", stdout); break;
+            case '\\': fputs ("\\\\", stdout); break;
+            default:
+                if ((unsigned char)ch >= 32 && (unsigned char)ch < 127) {
+                    if (regex && ch == '/') putchar ('\\');
+                    putchar (ch);
+                } else printf ("\\o%03o", (unsigned int)(int)ch);
+        }
+    }
+}
+
+static void
+bs_debug_address (const bs_addr *a)
+{
+    switch (a->kind) {
+        case BS_ADDR_REGEX:
+            putchar ('/'); bs_debug_bytes (a->display.bytes, a->display.len, 1); putchar ('/');
+            if (a->display.flags & REG_ICASE) putchar ('I');
+            if (a->display.flags & REG_NEWLINE) putchar ('M');
+            break;
+        case BS_ADDR_LINE: printf ("%ld", a->line); break;
+        case BS_ADDR_LAST: putchar ('$'); break;
+        case BS_ADDR_STEP:
+            printf ("%ld", a->line);
+            if (a->step) printf ("~%ld", a->step);
+            break;
+        case BS_ADDR_PLUS: printf ("+%ld", a->step); break;
+        case BS_ADDR_MULT: printf ("~%ld", a->step); break;
+        case BS_ADDR_NONE: break;
+    }
+}
+
+/* Render each run of replacement text with its effective case mode.
+   The program listing uses & for register zero and expands byte escapes. */
+static void
+bs_debug_replacement (const char *p)
+{
+    int mode = 0, shown = 0, once = 0;
+    static const char escapes[] = "afnrtv";
+    for (; *p; ++p) {
+        int ch = (unsigned char)*p, register_ref = 0;
+        if (ch == '\\' && p[1]) {
+            ch = (unsigned char)*++p;
+            if (ch == 'L' || ch == 'U' || ch == 'E') {
+                mode = ch == 'E' ? 0 : ch; once = 0; continue;
+            }
+            if (ch == 'l' || ch == 'u') { once = ch; continue; }
+            unsigned char byte;
+            const char *end = p;
+            if (bs_numeric_escape (&end, &byte)) { ch = byte; p = end - 1; }
+            else if (ch >= '1' && ch <= '9') register_ref = 1;
+            else if (ch == '0') ch = '&';
+            else {
+                const char *esc = strchr (escapes, ch);
+                if (esc) ch = "\a\f\n\r\t\v"[esc - escapes];
+            }
+        }
+        if (mode != shown) { putchar ('\\'); putchar (mode ? mode : 'E'); shown = mode; }
+        if (once) { putchar ('\\'); putchar (once); once = 0; }
+        if (register_ref) putchar ('\\');
+        putchar (ch);
+    }
+}
+
+static void
+bs_debug_command (const bs_cmd *c, const char *prefix, int *depth)
+{
+    if (c->op == 'v') return;
+    if (c->op == '}' && *depth > 0) --*depth;
+    fputs (prefix, stdout);
+    for (int i = 0; i < *depth; ++i) fputs ("  ", stdout);
+    if (c->has_a1) bs_debug_address (&c->addr1);
+    if (c->has_a2) { putchar (','); bs_debug_address (&c->addr2); }
+    if (c->negate) putchar ('!');
+    if (c->has_a1) putchar (' ');
+    putchar (c->op);
+    switch (c->op) {
+        case '{': ++*depth; break;
+        case 's':
+            putchar ('/'); bs_debug_bytes (c->display.bytes, c->display.len, 1); putchar ('/');
+            bs_debug_replacement (c->s_repl);
+            putchar ('/');
+            if (c->s_icase) putchar ('i');
+            if (c->s_multiline) putchar ('m');
+            if (c->s_global) putchar ('g');
+            if (c->s_exec) putchar ('e');
+            if (c->s_print) putchar ('p');
+            if (c->s_n) printf ("%d", c->s_n);
+            if (c->s_wfile) printf ("w%s", c->s_wfile);
+            break;
+        case 'y':
+            for (int dst = 0; dst < 2; ++dst) {
+                putchar ('/');
+                if (MB_CUR_MAX == 1) {
+                    for (int i = 0; i < 256; ++i)
+                        if (c->y_table[i] != i) putchar (dst ? c->y_table[i] : i);
+                } else if (c->debug_y_len) {
+                    fwrite (c->debug_y + dst * c->debug_y_len, 1, c->debug_y_len, stdout);
+                }
+            }
+            putchar ('/'); break;
+        case 'b': case 't': case 'T':
+            if (c->label && *c->label) printf (" %s", c->label);
+            break;
+        case ':': fputs (c->label, stdout); break;
+        case 'q': case 'Q':
+            if (c->debug_q_code >= 0) printf (" %ld", c->debug_q_code);
+            break;
+        case 'l': if (c->l_width >= 0) printf (" %ld", c->l_width); break;
+        case 'w': case 'W': fputs (c->text, stdout); break;
+        case 'r': case 'R': printf (" %s", c->text); break;
+        case 'a': case 'i': case 'c': printf ("\\%s\n", c->text); break;
+        case 'e':
+            putchar (' ');
+            if (c->text) {
+                fputs (c->text, stdout);
+                putchar (c->exec_text_used ? '\0' : '\n');
+            }
+            break;
+    }
+    putchar ('\n');
+}
+
+static void
+bs_debug_space (const char *title, const bs_string *space)
+{
+    fputs (title, stdout);
+    bs_debug_bytes (space->str, space->len, 0);
+    putchar ('\n');
+}
+
 /* Apply s/// to pattern space. Returns 1 if matched (and substituted).
    s///e output loses one trailing record separator. GNU sed's shortcut for
    an empty replacement whose first match starts a non-global substitution
@@ -2219,7 +2432,7 @@ bs_apply_s (bs_cmd *c, bs_string *pat, int *chomped)
             if (!c->s_repl_literal)
                 for (int i = 1; i < 10; i++) m[i].rm_so = m[i].rm_eo = -1;
         }
-        else if (bs_search (re, pat->str, pat->len, off, 10, m) != 0) {
+        else if (bs_search (re, pat->str, pat->len, off, 10, m, first && bs_debug) != 0) {
             if (bs_runtime_error) {
                 out.len = 0; out.failed = 0;
                 bs_s_scratch = out;
@@ -2228,6 +2441,10 @@ bs_apply_s (bs_cmd *c, bs_string *pat, int *chomped)
             break;
         }
         if (first) {
+            if (bs_debug && literal) {
+                puts ("MATCHED REGEX REGISTERS");
+                bs_debug_register (0, pat->str, m[0].rm_so, m[0].rm_eo);
+            }
             first = 0;
             completes = c->s_repl_len == 0 && c->s_n <= 1
                 && ((m[0].rm_so == 0 && !c->s_global) || (size_t) m[0].rm_eo == pat->len);
@@ -2582,6 +2799,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
         goto done;
     }
     long lineno = 0;
+    int debug_depth = 0;
     while ((rd = bs_input_read (in, &cur, &cur_cap)) >= 0)
     {
         lineno++;
@@ -2589,8 +2807,12 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
         int is_last = -1;
         bs_str_set (&pat, cur, (size_t) rd - pat_nl);
 
+        if (bs_debug) {
+            printf ("INPUT:   '%s' line %ld\n", in->use_stdin ? "STDIN" : in->name, lineno);
+            bs_debug_space ("PATTERN: ", &pat);
+        }
         int last_subst = 0;
-        int suppress_this_line = 0;   /* set by BS_C */
+
     restart_script:
         for (int ci = 0; ci < n_cmds; ci++)
         {
@@ -2598,6 +2820,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
             if (ferror (out->fp)) goto done;
             bs_cmd *c = &cmds[ci];
 
+            if (bs_debug) bs_debug_command (c, "COMMAND: ", &debug_depth);
             /* Address matching. */
             int addr_match = 1;
             if (c->has_a1 && !c->has_a2)
@@ -2649,7 +2872,10 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
             if (c->negate) addr_match = !addr_match;
             if (!addr_match) {
                 /* For BLOCK_OPEN with no match, skip to matching close. */
-                if (c->kind == BS_BLOCK_OPEN) ci = c->block_close_idx;
+                if (c->kind == BS_BLOCK_OPEN) {
+                    ci = c->block_close_idx;
+                    if (bs_debug) bs_debug_command (&cmds[ci], "COMMAND: ", &debug_depth);
+                }
                 continue;
             }
 
@@ -2672,6 +2898,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     break;
                 }
                 case BS_D:
+                    if (bs_debug) puts ("END-OF-CYCLE:");
                     /* Skip to next input line. */
                     pat.len = 0;
                     if (pat.str) pat.str[0] = '\0';
@@ -2711,6 +2938,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                         goto done;
                     }
                     if (c->text) {
+                        c->exec_text_used = 1;
                         /* e COMMAND: its output precedes this cycle's output. */
                         if (out->missing_newline) fputc (bs_delim, out->fp);
                         out->missing_newline = 0;
@@ -2758,13 +2986,13 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                 case BS_BLOCK_CLOSE:
                     break;
                 case BS_B:
-                    if (c->target_idx >= 0) ci = c->target_idx;
+                    if (c->target_idx >= 0) ci = c->target_idx - (bs_debug ? 1 : 0);
                     else ci = n_cmds;       /* branch to end */
                     break;
                 case BS_T:
                     if (last_subst) {
                         last_subst = 0;
-                        if (c->target_idx >= 0) ci = c->target_idx;
+                        if (c->target_idx >= 0) ci = c->target_idx - (bs_debug ? 1 : 0);
                         else ci = n_cmds;
                     }
                     break;
@@ -2773,7 +3001,7 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                        or branch taken. The flag is reset when the branch is
                        taken (it is already 0 here) — mirror of BS_T. */
                     if (!last_subst) {
-                        if (c->target_idx >= 0) ci = c->target_idx;
+                        if (c->target_idx >= 0) ci = c->target_idx - (bs_debug ? 1 : 0);
                         else ci = n_cmds;
                     }
                     last_subst = 0;
@@ -2812,19 +3040,20 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     }
                     if (append_pending) bs_flush_queue (out, &a_queue, &append_pending);
                     rd = bs_input_read (in, &cur, &cur_cap);
-                    if (rd < 0) goto done;
+                    if (rd < 0) { if (bs_debug) puts ("END-OF-CYCLE:"); goto done; }
                     lineno++;
                     pat_nl = rd > 0 && cur[rd - 1] == bs_delim;
                     is_last = -1;
                     last_subst = 0;
                     bs_str_set (&pat, cur, (size_t) rd - pat_nl);
-                    suppress_this_line = 0;
+
                     break;
                 case BS_NUP_CMD:
                     /* GNU checks EOF before draining the append queue. At
                        EOF, print the current pattern before queued r/R data. */
                     if (bs_input_last (in)) {
                         if (in->error >= 4 || bs_interrupted ()) goto done;
+                        if (bs_debug) puts ("END-OF-CYCLE:");
                         if (!suppress_default) bs_emit (out, pat.str, pat.len, pat_nl);
                         if (append_pending) bs_flush_queue (out, &a_queue, &append_pending);
                         goto done;
@@ -2851,7 +3080,8 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                             memmove (pat.str, pat.str + drop, rest);
                             pat.str[rest] = '\0';
                             pat.len = rest;
-                            suppress_this_line = 0;
+
+                            if (bs_debug) bs_debug_space ("PATTERN: ", &pat);
                             goto restart_script;
                         }
                     }
@@ -2919,18 +3149,18 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     /* Change: replace pat with text. For single-address,
                        always; for range, emit only when range closes
                        (i.e. addr_match was true and range_active is now 0). */
-                    if (c->has_a2 && range_active[ci]) {
-                        /* Mid-range: suppress pat-print but don't emit text yet. */
-                        suppress_this_line = 1;
-                    } else {
-                        /* End of range OR single-address: emit text, suppress pat. */
-                        if (c->text) bs_emit (out, c->text, strlen (c->text), 1);
-                        suppress_this_line = 1;
-                    }
-                    break;
+                    if ((!c->has_a2 || !range_active[ci]) && c->text)
+                        bs_emit (out, c->text, strlen (c->text), 1);
+                    if (bs_debug) puts ("END-OF-CYCLE:");
+                    goto next_line;
+            }
+            if (bs_debug) {
+                if (strchr ("syznNGx", c->op)) bs_debug_space ("PATTERN: ", &pat);
+                if (strchr ("hHgx", c->op)) bs_debug_space ("HOLD:    ", &hold);
             }
         }
-        if (!suppress_default && !suppress_this_line) {
+        if (bs_debug) puts ("END-OF-CYCLE:");
+        if (!suppress_default) {
             bs_emit (out, pat.str, pat.len, pat_nl);
         }
     next_line:
@@ -3193,7 +3423,7 @@ sed_builtin (WORD_LIST *list)
     int suppress_default = 0, extended = 0, separate = 0;
     int inplace = 0, unbuffered = 0;
     bs_list_width = 70; bs_io_error = 0; bs_unbuffered = 0; bs_interrupt_signal = 0;
-    bs_delim = '\n'; bs_sandbox = 0; bs_follow_symlinks = 0;
+    bs_debug = 0; bs_delim = '\n'; bs_sandbox = 0; bs_follow_symlinks = 0;
     char inplace_suffix[64] = {0};
     char *script = NULL;
     FILE *script_file = NULL;
@@ -3238,7 +3468,7 @@ sed_builtin (WORD_LIST *list)
                 else {
                     puts ("bashsed: stream editor");
                     puts ("Usage: bashsed [-bnsiEuz] [-l WIDTH] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]");
-                    puts ("Long options: --sandbox --follow-symlinks --null-data --version");
+                    puts ("Long options: --debug --sandbox --follow-symlinks --null-data --version");
                 }
                 free (files); free (script);
                 int failed = fflush (stdout) == EOF || ferror (stdout);
@@ -3261,10 +3491,11 @@ sed_builtin (WORD_LIST *list)
             else if (!strncmp (w, "--in-place=", 11)) { long_value = w + 11; w = "-i"; }
             else if (!strcmp (w, "--null-data") || !strcmp (w, "--zero-terminated")) w = "-z";
             else if (!strcmp (w, "--binary")) w = "-b";
+            else if (!strcmp (w, "--debug")) { bs_debug = 1; goto next_word; }
             else if (!strcmp (w, "--sandbox")) { bs_sandbox = 1; goto next_word; }
             else if (!strcmp (w, "--follow-symlinks")) { bs_follow_symlinks = 1; goto next_word; }
             else if (w[1] == '-') {
-                /* Includes --posix and --debug, which are not implemented. */
+                /* Includes the unsupported --posix mode. */
                 builtin_error ("unsupported option: %s", w);
                 builtin_usage ();
                 free (files); free (script);
@@ -3382,12 +3613,17 @@ sed_builtin (WORD_LIST *list)
         return -parsed;
     }
     bs_prog_bind (cmds, n_cmds);
+    if (bs_debug) {
+        int depth = 0;
+        puts ("SED PROGRAM:");
+        for (int i = 0; i < n_cmds; ++i) bs_debug_command (&cmds[i], "  ", &depth);
+    }
 
     /* A script that only uses its main input/output can buffer regular
        file output. Auxiliary streams and execution retain their original
        ordering and may block, so keep immediate stdout delivery for them. */
     bs_unbuffered = unbuffered;
-    int buffer_output = !unbuffered && !isatty (STDOUT_FILENO);
+    int buffer_output = !bs_debug && !unbuffered && !isatty (STDOUT_FILENO);
     for (int i = 0; i < n_cmds; i++) {
         bs_cmd *c = &cmds[i];
         if (c->kind == BS_R || c->kind == BS_BIGR
@@ -3480,6 +3716,7 @@ char *sed_doc[] = {
     "",
     "Flags:",
     "    -n            suppress default print",
+    "    --debug       print the program and trace each editing cycle",
     "    -u            unbuffered output",
     "    -l WIDTH      l-command width (zero disables wrapping)",
     "    -i [SUFFIX]   in-place edit; SUFFIX saves backup",
