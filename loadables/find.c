@@ -6,7 +6,7 @@
  * Supported predicates: -name, -iname, -path, -type, -size, -mtime,
  * -mmin, -amin, -cmin, -atime, -ctime, -perm, -user, -group,
  * -uid, -gid, -nouser, -nogroup, -regex, -iregex, -maxdepth,
- * -mindepth, -xdev/-mount, -prune, -empty, -newer.
+ * -mindepth, -depth, -xdev/-mount, -prune, -empty, -newer.
  * Operators: `-a` (implicit AND between predicates), `-o`, `!`,
  *           `(` `)`.
  * Actions: -print (default), -print0, -printf FORMAT, -delete,
@@ -108,7 +108,7 @@ typedef struct {
     int      xdev;             /* -xdev/-mount: do not descend across devices */
     int      root_dev_valid;   /* root_dev is set once per starting path */
     dev_t    root_dev;
-    int      postorder;        /* set by -delete: evaluate after children */
+    int      postorder;        /* set by -depth or -delete */
     int      exit_status;      /* 1 if any search operation failed */
     const char *start_path;    /* current command-line starting point (depth 0); for -printf %P */
 } bf_ctx;
@@ -299,6 +299,7 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
     else if (!strcmp (t, "-mtime"))    { k = BF_MTIME;    needs_arg = 1; }
     else if (!strcmp (t, "-maxdepth")) { k = BF_MAXDEPTH; needs_arg = 1; is_action = 1; }
     else if (!strcmp (t, "-mindepth")) { k = BF_MINDEPTH; needs_arg = 1; is_action = 1; }
+    else if (!strcmp (t, "-depth"))    { k = BF_TRUE;    ctx->postorder = 1; }
     else if (!strcmp (t, "-xdev") || !strcmp (t, "-mount")) { k = BF_XDEV; ctx->xdev = 1; }
     else if (!strcmp (t, "-prune"))    { k = BF_PRUNE; }
     else if (!strcmp (t, "-empty"))    { k = BF_EMPTY; }
@@ -1088,7 +1089,8 @@ bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
             }
             return 0;
         case BF_PRUNE:
-            ctx->pruned = 1;
+            if (!ctx->postorder)
+                ctx->pruned = 1;
             return 1;       /* always true */
         case BF_PRINT:
             fputs (p->path, stdout); putchar ('\n');
@@ -1418,8 +1420,9 @@ char *find_doc[] = {
     "    -iregex PAT      case-insensitive -regex",
     "    -maxdepth N      limit recursion",
     "    -mindepth N      skip output until depth >= N",
+    "    -depth           evaluate each directory after its contents (always true)",
     "    -xdev, -mount    do not descend into directories on other filesystems",
-    "    -prune           skip subtree below this point",
+    "    -prune           skip subtree below this point unless -depth or -delete is used",
     "    -empty           zero-size files / empty directories",
     "    -newer FILE      modified after FILE's mtime",
     "Operators: -a (implicit), -o, ! / -not, ( )",

@@ -4,6 +4,7 @@
   "reference": "GNU find on the runner's reference PATH is the independent oracle for parity cases. The runner validates each script status against GNU find, compares stdout bytes and the resulting fixture tree, including modes and links. The metadata contract uses Bash type/help builtins and the documented loadable registry; it is not counted as operation coverage.",
   "coverage": [
     "Bounded depth and default -print on a small nested relative tree.",
+    "POSIX -depth postorder, default -print, and traversal effects across Boolean branches and starting paths.",
     "Boolean expression grouping, basename globs, and -prune traversal control.",
     "-P, -L, and -H behavior on an ordinary directory symlink without a cycle.",
     "Byte-size boundaries, exact and symbolic permission masks, and -empty.",
@@ -32,6 +33,24 @@
       "expected_status": 0,
       "stderr": "empty",
       "script": "mkdir -p tree/one/two tree/two\nprintf a > tree/top\nprintf b > tree/one/mid\nprintf c > tree/one/two/deep\nprintf d > tree/two/other\nfind tree -mindepth 1 -maxdepth 2 -type f"
+    },
+    {
+      "id": "depth-postorder",
+      "kind": "parity",
+      "purpose": "Check that -depth takes no argument, is true for default printing, and visits descendants before each directory.",
+      "requires": ["find", "mkdir"],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p tree/sub\nprintf x > tree/sub/item\nfind tree -depth"
+    },
+    {
+      "id": "depth-global",
+      "kind": "parity",
+      "purpose": "Check that -depth sets postorder for all roots even in a branch skipped by short-circuit evaluation, and that -prune is true without blocking descent.",
+      "requires": ["find", "mkdir"],
+      "expected_status": 0,
+      "stderr": "empty",
+      "script": "mkdir -p first/sub second/sub\nprintf x > first/sub/item\nprintf y > second/sub/item\nfind first second \\( -prune -print \\) -o \\( ! -depth \\)"
     },
     {
       "id": "expression-prune",

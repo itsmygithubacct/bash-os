@@ -5,6 +5,8 @@ All notable changes to bash-os are recorded here. Versions follow
 
 ## 0.1.5 — Unreleased
 
+- `find -depth` visits directory contents before the directory itself.
+  It applies to the whole search and disables pruning.
 - `tar --mtime=@SECONDS` and `pax -w -o mtime:=SECONDS` can produce archives with a fixed modification time.
 - The `jq` builtin accepts array and string slices, object constructors,
   `--arg NAME VALUE`, `reduce`, `def`, regular expressions, and `@` formats.
