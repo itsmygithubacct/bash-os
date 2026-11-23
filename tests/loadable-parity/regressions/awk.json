@@ -16,7 +16,10 @@
     "A gated system() call restricted to a shell builtin and a relative fixture output",
     "Invalid option status with diagnostic presence",
     "Writable NR/FNR assignments, compound and increment forms, strings/fractions and new-input FNR reset.",
-    "Counter changes with fallback AST dispatch and main-input getline."
+    "Counter changes with fallback AST dispatch and main-input getline.",
+    "POSIX numeric-string comparisons (guest pass 2, G21).",
+    "RS paragraph, single-character and regex modes (G22).",
+    "VAR=VALUE operands, -v escapes and array parameters by reference (G23)."
   ],
   "exclusions": [
     "RT is outside the implementation's documented scope.",
@@ -218,6 +221,39 @@
         "gawk"
       ],
       "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nawk_cmd 'BEGIN { NR=2.5; FNR=3.5; print \"assigned\",NR,FNR; print \"expr\",(NR=4.5),(FNR=5.5); print \"read\",NR,FNR; NR=\"004.5\"; FNR=\"005.5\"; print \"str\",NR,FNR; print \"post\",NR++,FNR++; print \"read\",NR,FNR }'\nprintf '%s\\n' a b | awk_cmd 'BEGIN { NR=10; FNR=20; print \"begin\",NR,FNR } { print \"record\",NR,FNR }'\nprintf '%s\\n' a b | awk_cmd 'BEGIN { FNR=20; print \"getline\",(getline x),NR,FNR } { print \"record\",NR,FNR }'\nprintf '%s\\n' a b > counter-file\nawk_cmd -v FNR=20 'BEGIN { print \"file-preset\",FNR } { print \"file-record\",NR,FNR }' counter-file\nawk_cmd 'BEGIN { FNR=20; print \"file-begin\",FNR } { print \"file-record\",NR,FNR }' counter-file\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "numeric-string-comparisons",
+      "kind": "parity",
+      "purpose": "Guest compatibility pass 2 (G21): fields, -v values, getline and split() pieces that look numeric compare as numbers; string constants and non-numeric strings compare as strings; an unset variable is both \"\" and 0.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\necho '9 10' | awk_cmd '{ print ($1 < $2) }'\nprintf '5\\n12\\n3\\n' | awk_cmd '$1 > max { max = $1 } END { print max }'\necho '2.0 2 abc' | awk_cmd '{ print ($1 == $2), ($3 < 1), ($1 == \"2\") }'\necho 9 | awk_cmd -v t=10 '{ print ($1 < t) }'\nawk_cmd 'BEGIN { x = \"9\"; y = \"10\"; print (x < y), (\"10\" < 9), (u == 0), (u == \"\"), (u < -1) }'\nprintf '7\\n30\\n' > nums\nawk_cmd 'BEGIN { getline a < \"nums\"; getline b < \"nums\"; print (a < b); n = split(\"8 40\", p); print (p[1] < p[2]); s = $1; print (s == 0) }'\necho ' 10 ' | awk_cmd -F, '{ print ($1 == 10), ($1 \" \" == \"10\") }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "record-separator-modes",
+      "kind": "parity",
+      "purpose": "Guest compatibility pass 2 (G22): RS=\"\" paragraph mode (blank-line runs end records, newline always separates fields, also with -F), a single-character RS and a regex RS.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf '\\n\\na x\\nb\\n\\n\\n\\nc\\n' | awk_cmd 'BEGIN { RS = \"\" } { print NR \": \" NF \" [\" $1 \"|\" $NF \"]\" } END { print NR }'\nprintf 'a:b\\nc:d\\n\\ne:f\\n' | awk_cmd -F: 'BEGIN { RS = \"\" } { print NF, $3 }'\nprintf 'a;b;c' | awk_cmd 'BEGIN { RS = \";\" } { printf \"%s|\", $0 } END { print NR }'\nprintf 'a;b,,c' | awk_cmd 'BEGIN { RS = \"[,;]+\" } { printf \"%s|\", $0 } END { print NR }'\nprintf 'one\\n\\ntwo\\nthree\\n' > para\nawk_cmd 'BEGIN { RS = \"\"; while ((getline r < \"para\") > 0) n++; print n, r }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "operand-assignments-escapes-array-params",
+      "kind": "parity",
+      "purpose": "Guest compatibility pass 2 (G23): VAR=VALUE operands are assignments made when reached (and stdin is read when there are no file operands), -v and operand values have escapes processed, arrays and untyped variables pass to functions by reference, and parameters without arguments are local arrays.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\necho a > f\necho b > g\nawk_cmd '{ print v, $0 }' v=1 f v=2 g\necho in | awk_cmd '{ print v \"-\" $0 }' v=only\nawk_cmd -v 'x=a\\tb\\\\n' 'BEGIN { print x }'\nawk_cmd '{ print y }' 'y=c\\td' f\nawk_cmd 'function fill(a, n) { a[\"k\"] = n } function fwd(b) { fill(b, 2) } BEGIN { fill(t, 1); print t[\"k\"]; fwd(u); print u[\"k\"]; arr[\"x\"] = 5; fill(arr, 3); print arr[\"x\"], arr[\"k\"] }'\nawk_cmd 'function g(v,  loc) { loc[1] = v; return loc[1] + length(loc) } BEGIN { print g(4), length(loc); s = 1 }'\nawk_cmd 'function sc(p) { p = 9; return p } BEGIN { print sc(q), \"[\" q \"]\" }'",
       "expected_status": 0,
       "stderr": "empty"
     }
