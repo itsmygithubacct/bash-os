@@ -18,7 +18,7 @@
  *   [ADDR] a TEXT            append TEXT after current line
  *   [ADDR] i TEXT            insert TEXT before current line
  *   [ADDR] c TEXT            replace addressed range with TEXT
- *   [ADDR] y/SET1/SET2/      transliterate (1:1 byte map; sets same length)
+ *   [ADDR] y/SET1/SET2/      transliterate characters (multibyte in UTF-8; same count)
  *   [ADDR] n                 next: print pattern, replace with next line
  *   [ADDR] N                 append next input line to pattern space
  *   [ADDR] D                 delete to first \n in pattern, restart cycle
@@ -79,6 +79,8 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
+#include <wchar.h>
+#include <wctype.h>
 #if defined (__GLIBC__) && !defined (BASHSED_PORTABLE_REGEX)
 # include <regex.h>
 #else
@@ -151,7 +153,7 @@ typedef struct {
     int exec_text_used;      /* GNU debug shows the final NUL of executed e text */
     bs_debug_regex display;
     char *debug_y;
-    size_t debug_y_len;
+    size_t debug_y_len, debug_y_len2;
     long debug_q_code;       /* -1 when q/Q has no argument */
     bs_addr    addr1;        /* optional */
     bs_addr    addr2;        /* optional (range) */
@@ -187,6 +189,11 @@ typedef struct {
     /* y/SET1/SET2/ — 256-byte translation table; y_active=1 if populated. */
     unsigned char y_table[256];
     int        y_active;
+    /* y with multibyte characters (UTF-8 locales): y_mb_n pairs of byte
+       runs in y_mb_buf; from[i] is off1/len1, to[i] off2/len2. */
+    size_t     y_mb_n;
+    char      *y_mb_buf;
+    unsigned short *y_mb_off;    /* 4 * y_mb_n: off1, len1, off2, len2 */
 } bs_cmd;
 
 typedef struct {
@@ -1213,6 +1220,32 @@ bs_l_emit (FILE *out, const char *s, size_t len, long width)
 /* Decode one y/// set up to (but not consuming) the unescaped delimiter,
    resolving POSIX escapes (\n \t \r \a \f \v \\ and \<delim>). Leaves *pp at
    the delimiter. Returns 0 on success, -1 on overflow. */
+/* Length of the character at S (at most N bytes) in the current locale;
+   an invalid or truncated sequence counts as one byte, as in GNU sed. */
+static size_t
+bs_mb_len (const char *s, size_t n)
+{
+    if (n == 0) return 0;
+    if (MB_CUR_MAX == 1 || (unsigned char) *s < 0x80) return 1;
+    mbstate_t st;
+    memset (&st, 0, sizeof st);
+    size_t k = mbrlen (s, n, &st);
+    return (k == 0 || k == (size_t) -1 || k == (size_t) -2) ? 1 : k;
+}
+
+/* Characters in S[0..N); sets *multibyte when any takes several bytes. */
+static size_t
+bs_mb_count (const unsigned char *s, size_t n, int *multibyte)
+{
+    size_t count = 0;
+    for (size_t i = 0; i < n; count++) {
+        size_t k = bs_mb_len ((const char *) s + i, n - i);
+        if (k > 1) *multibyte = 1;
+        i += k;
+    }
+    return count;
+}
+
 static int
 bs_y_decode (const char **pp, char delim, unsigned char *out, size_t cap, size_t *outlen)
 {
@@ -1606,6 +1639,8 @@ bs_cmd_free (bs_cmd *c)
     free (c->addr1.display.bytes);
     free (c->addr2.display.bytes);
     free (c->debug_y);
+    free (c->y_mb_buf);
+    free (c->y_mb_off);
     free (c->addr1.prog);
     free (c->addr2.prog);
     free (c->s_prog);
@@ -2027,13 +2062,43 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                         { builtin_error ("y: SET2 too long"); goto err; }
                     if (*p != delim) { builtin_error ("y: missing 3rd delim"); goto err; }
                     p++;
-                    if (l1 != l2) { builtin_error ("y: SET1 and SET2 must be same length"); goto err; }
+                    /* In a multibyte locale the sets pair characters, not
+                       bytes (GNU sed): "y/éà/ea/" maps é to e. */
+                    size_t n1 = l1, n2 = l2;
+                    int multibyte = 0;
+                    if (MB_CUR_MAX > 1) {
+                        n1 = bs_mb_count (set1, l1, &multibyte);
+                        n2 = bs_mb_count (set2, l2, &multibyte);
+                    }
+                    if (n1 != n2) { builtin_error ("y: SET1 and SET2 must be same length"); goto err; }
                     if (bs_debug && MB_CUR_MAX > 1 && l1) {
-                        c->debug_y = malloc (2 * l1);
+                        c->debug_y = malloc (l1 + l2);
                         if (!c->debug_y) goto err;
                         memcpy (c->debug_y, set1, l1);
-                        memcpy (c->debug_y + l1, set2, l1);
+                        memcpy (c->debug_y + l1, set2, l2);
                         c->debug_y_len = l1;
+                        c->debug_y_len2 = l2;
+                    }
+                    if (multibyte) {
+                        c->y_mb_buf = malloc (l1 + l2 + 1);
+                        c->y_mb_off = malloc ((4 * n1 + 1) * sizeof *c->y_mb_off);
+                        if (!c->y_mb_buf || !c->y_mb_off) goto err;
+                        memcpy (c->y_mb_buf, set1, l1);
+                        memcpy (c->y_mb_buf + l1, set2, l2);
+                        size_t a = 0, b = 0;
+                        for (size_t i = 0; i < n1; i++) {
+                            size_t ka = bs_mb_len ((const char *) set1 + a, l1 - a);
+                            size_t kb = bs_mb_len ((const char *) set2 + b, l2 - b);
+                            c->y_mb_off[4 * i] = (unsigned short) a;
+                            c->y_mb_off[4 * i + 1] = (unsigned short) ka;
+                            c->y_mb_off[4 * i + 2] = (unsigned short) (l1 + b);
+                            c->y_mb_off[4 * i + 3] = (unsigned short) kb;
+                            a += ka;
+                            b += kb;
+                        }
+                        c->y_mb_n = n1;
+                        c->y_active = 1;
+                        break;
                     }
                     /* identity table, then map SET1[i] -> SET2[i]. */
                     for (int i = 0; i < 256; i++) c->y_table[i] = (unsigned char) i;
@@ -2201,11 +2266,65 @@ err:
    ('u'/'l'/0 from \u \l) consumed on the first emitted character. The
    one-shot takes precedence over the span for that one character. A chunk
    of length 0 leaves *one pending for the next chunk (matches GNU). */
+/* y/// with multibyte sets: map each character of the pattern space. */
+static void
+bs_y_mb_apply (const bs_cmd *c, bs_string *pat)
+{
+    bs_string out = {0};
+    for (size_t i = 0; i < pat->len; ) {
+        size_t k = bs_mb_len (pat->str + i, pat->len - i);
+        const char *rep = pat->str + i;
+        size_t rlen = k;
+        for (size_t j = 0; j < c->y_mb_n; j++) {
+            const unsigned short *o = c->y_mb_off + 4 * j;
+            if (o[1] == k && !memcmp (c->y_mb_buf + o[0], pat->str + i, k)) {
+                rep = c->y_mb_buf + o[2];
+                rlen = o[3];
+                break;
+            }
+        }
+        bs_str_append (&out, rep, rlen);
+        i += k;
+    }
+    if (!out.failed)
+        bs_str_set (pat, out.str ? out.str : "", out.len);
+    free (out.str);
+}
+
+/* GNU sed converts case per character (towupper/towlower) in multibyte
+   locales; returns the bytes used at S, or 0 when S does not start a
+   valid multibyte character. */
+static size_t
+bs_case_mb (bs_string *out, const char *s, size_t n, int upper)
+{
+    wchar_t wc;
+    mbstate_t st;
+    char buf[MB_LEN_MAX];
+    memset (&st, 0, sizeof st);
+    size_t k = mbrtowc (&wc, s, n, &st);
+    if (k == 0 || k == (size_t) -1 || k == (size_t) -2) return 0;
+    wc = upper ? (wchar_t) towupper ((wint_t) wc) : (wchar_t) towlower ((wint_t) wc);
+    memset (&st, 0, sizeof st);
+    size_t m = wcrtomb (buf, wc, &st);
+    if (m == (size_t) -1) return 0;
+    bs_str_append (out, buf, m);
+    return k;
+}
+
 static void
 bs_case_append (bs_string *out, const char *s, size_t n, int *mode, int *one)
 {
     for (size_t i = 0; i < n; i++) {
         char ch = s[i];
+        if ((*one || *mode) && MB_CUR_MAX > 1 && (unsigned char) ch >= 0x80) {
+            int upper = *one ? *one == 'u' : *mode == 'U';
+            size_t k = bs_case_mb (out, s + i, n - i, upper);
+            if (k) {
+                *one = 0;
+                i += k - 1;
+                continue;
+            }
+        }
         if (*one == 'u')      { ch = (char) toupper ((unsigned char) ch); *one = 0; }
         else if (*one == 'l') { ch = (char) tolower ((unsigned char) ch); *one = 0; }
         else if (*mode == 'U') ch = (char) toupper ((unsigned char) ch);
@@ -2276,7 +2395,11 @@ bs_emit_replace (bs_cmd *c, bs_string *pat, regmatch_t *m, size_t off, bs_string
             bs_case_append (out, pat->str + s, e - s, &mode, &one);
         }
         else {
-            bs_case_append (out, r, 1, &mode, &one);
+            /* A whole (possibly multibyte) literal character, so \U can
+               convert it. */
+            size_t k = (mode || one) ? bs_mb_len (r, strlen (r)) : 1;
+            bs_case_append (out, r, k, &mode, &one);
+            r += k - 1;
         }
     }
 }
@@ -2413,7 +2536,8 @@ bs_debug_command (const bs_cmd *c, const char *prefix, int *depth)
                     for (int i = 0; i < 256; ++i)
                         if (c->y_table[i] != i) putchar (dst ? c->y_table[i] : i);
                 } else if (c->debug_y_len) {
-                    fwrite (c->debug_y + dst * c->debug_y_len, 1, c->debug_y_len, stdout);
+                    fwrite (c->debug_y + (dst ? c->debug_y_len : 0), 1,
+                            dst ? c->debug_y_len2 : c->debug_y_len, stdout);
                 }
             }
             putchar ('/'); break;
@@ -3085,7 +3209,9 @@ bs_run (bs_cmd *cmds, int n_cmds, bs_input *in, bs_output *out, int suppress_def
                     break;
                 case BS_Y:
                     /* Transliterate per the y_table. */
-                    if (c->y_active && pat.str) {
+                    if (c->y_mb_n && pat.str) {
+                        bs_y_mb_apply (c, &pat);
+                    } else if (c->y_active && pat.str) {
                         for (size_t i = 0; i < pat.len; i++)
                             pat.str[i] = (char) c->y_table[(unsigned char) pat.str[i]];
                     }

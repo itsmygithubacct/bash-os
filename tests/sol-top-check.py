@@ -208,7 +208,9 @@ class Terminal:
 
 def checks(r, root):
     n=0
-    for alias in ['--once','-b','--batch']:
+    # -b/--batch write the procps layout (guest compatibility pass 1);
+    # --once keeps the bash-os snapshot layout checked here.
+    for alias in ['--once']:
         for sort in ['cpu','mem','pid','time']:
             for cap in [0,3,100]:
                 actual=r.run(f'top {alias} -o {sort} -r {cap}')

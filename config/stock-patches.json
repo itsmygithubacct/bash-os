@@ -2,7 +2,6 @@
   "head": "head-stdin.patch",
   "tee": "tee-io.patch",
   "chmod": "chmod-umask.patch",
-  "mktemp": "mktemp-u.patch",
   "setpgid": "setpgid-ids.patch",
   "mkdir": "mkdir-gnu.patch",
   "printenv": "printenv-gnu.patch",
@@ -26,6 +25,5 @@
   "unlink": "unlink-gnu.patch",
   "strptime": "strptime-gnu.patch",
   "asort": "asort-status.patch",
-  "ln": "ln-gnu.patch",
   "sync": "sync-status.patch"
 }

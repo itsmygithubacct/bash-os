@@ -327,6 +327,39 @@
       "script": "touch -d '2001-02-29 12:00 UTC' f",
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "date_strings_and_fractions",
+      "kind": "parity",
+      "purpose": "touch -d reads date -d's strings: fractional seconds, month names and slash dates (guest pass 2, G34).",
+      "requires": [
+        "touch",
+        "stat"
+      ],
+      "script": "export TZ=UTC0\ntouch -d '2024-03-05 07:08:09.5' a\ntouch -d 'Mar 5 2024 07:08' b\ntouch -d '5 March 2024' c\ntouch -d '03/05/2024 10:00:00.25 UTC' d\nstat -c '%n %x | %y' a b c d",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "reference_plus_relative",
+      "kind": "parity",
+      "purpose": "With -r REF, relative -d items apply to each of REF's timestamps, as in GNU touch; relative items alone apply to now (guest pass 2, G34).",
+      "requires": [
+        "touch",
+        "stat"
+      ],
+      "script": "export TZ=UTC0\ntouch -d @1709622489.25 r\ntouch -a -d @1709000000 r\ntouch -r r -d '+1 minute' b\ntouch -r r -d '1 hour ago' c\ntouch -r r -d '2024-01-01' d\nstat -c '%n %x | %y' b c d\ntouch -d '1 hour ago' old\ntouch -d 'tomorrow' new\n[[ new -nt old ]] && echo ordered\ntouch -d 'not a date' bad || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "help-stdout-status",
+      "kind": "contract",
+      "purpose": "GNU tools answer --help with help on stdout and status 0; touch --help used to write usage to stderr or exit nonzero (guest pass 2, G38).",
+      "script": "touch --help >o 2>e; echo rc=$?; [[ -s o && ! -s e ]] && echo stdout-only",
+      "expected_status": 0,
+      "stdout": "rc=0\nstdout-only\n",
+      "stderr": "empty"
     }
   ]
 }

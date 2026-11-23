@@ -10,7 +10,8 @@
     "A missing operand among valid paths reports an error, preserves valid output, continues to later operands, and returns failure.",
     "Missing operands and unknown options return usage errors.",
     "Real GNU base/multiple/error comparisons plus independently seeded named access/default ACLs and effective-mask comments.",
-    "Default-only versus ordinary output from the same independently specified directory ACL."
+    "Default-only versus ordinary output from the same independently specified directory ACL.",
+    "-R recursion, leading-slash stripping, -p and the # flags: line."
   ],
   "exclusions": [
     "No real account or authentication configuration is changed; named ACL IDs are fixture-mapped and occur only in test-owned private file xattrs.",
@@ -23,7 +24,7 @@
       "id": "bash-metadata",
       "kind": "contract",
       "purpose": "Verify Bash exposes the command as a builtin and that its help contains the documented synopsis and description.",
-      "script": "help_text=$(help getfacl)\nif [[ $(type -t getfacl) == builtin && $help_text == *'getfacl [-a] [-d] [--omit-header] file...'* && $help_text == *'Display POSIX.1e file access control lists.'* ]]; then\n  printf 'builtin synopsis and help present\\n'\nelse\n  exit 1\nfi",
+      "script": "help_text=$(help getfacl)\nif [[ $(type -t getfacl) == builtin && $help_text == *'getfacl [-adcpRnesE] [--omit-header] file...'* && $help_text == *'Display POSIX.1e file access control lists.'* ]]; then\n  printf 'builtin synopsis and help present\\n'\nelse\n  exit 1\nfi",
       "expected_status": 0,
       "stdout": "builtin synopsis and help present\n",
       "stderr": "empty"
@@ -221,6 +222,35 @@
         "getfacl",
         "ln"
       ]
+    },
+    {
+      "id": "gnu_recursive_absolute_flags",
+      "kind": "parity",
+      "purpose": "getfacl -R walks a tree, strips a leading '/' (with GNU's one-time warning) unless -p, and prints # flags: for set-ID/sticky bits.",
+      "requires": [
+        "getfacl",
+        "mkdir",
+        "chmod",
+        "sed",
+        "cat"
+      ],
+      "script": "mkdir -p t/a\n: > t/a/f\nchmod 1777 t\ngetfacl -R t\ngetfacl \"$PWD/t\" 2>err | sed 1d\ncat err\ngetfacl -p \"$PWD/t/a/f\" | sed -n 1p | sed \"s|$PWD|PWD|\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu_numeric_effective_skip_file_specs",
+      "kind": "parity",
+      "requires": [
+        "getfacl",
+        "setfacl",
+        "chmod",
+        "sed"
+      ],
+      "purpose": "Guest compatibility pass 3 (G42): getfacl -n (numeric ids), -e/-E (effective comments always/never), -s (skip base-only files) alone and clustered; setfacl -M FILE / -M - / -X FILE / --set-file with comments and blank lines. Named entries need mapped IDs (the VM smoke acl-42 covers those).",
+      "script": "touch f g h\nchmod 664 f g h\nsetfacl -m m::r f\ngetfacl -n f | sed -e 's/^# owner: [0-9]*$/# owner: N/' -e 's/^# group: [0-9]*$/# group: N/'\ngetfacl -nc f\ngetfacl -ec f\ngetfacl -Ec f\ngetfacl -c --all-effective g\ngetfacl -sc f g\nprintf 'm::r\\n# comment\\n\\ng::rw\\n' > spec\nsetfacl -M spec g && getfacl -c g\nprintf 'm::rwx\\n' | setfacl -M - h && getfacl -c h\nprintf 'u::rwx\\ng::r\\no::-\\n' > full\nsetfacl --set-file=full h && getfacl -c h\nsetfacl -M missing-spec f 2>/dev/null || echo M-missing=$?\nsetfacl -nM spec f && getfacl -c f",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

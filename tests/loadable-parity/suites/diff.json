@@ -50,10 +50,11 @@
     {
       "id": "unified-context",
       "kind": "parity",
-      "purpose": "Compare every byte of the documented filename-only unified output against GNU diff with explicit labels. The deliberate reference adapter asks GNU for those headers; no output bytes or timestamps are removed.",
-      "script": "printf 'first\\nold\\nmiddle\\nlast\\n' > left\nprintf 'first\\nnew\\nmiddle\\nlast\\n' > right\nif [[ $(type -t diff) == builtin ]]; then\n  diff -u left right\nelse\n  diff -u --label left --label right left right\nfi",
+      "purpose": "Compare every byte of unified output, including the file modification times GNU prints in the headers (fixed with touch, shown in UTC).",
+      "script": "export TZ=UTC\nprintf 'first\\nold\\nmiddle\\nlast\\n' > left\nprintf 'first\\nnew\\nmiddle\\nlast\\n' > right\n/usr/bin/touch -d @1234567890.123456789 left\n/usr/bin/touch -d @1234567891 right\ndiff -u left right",
       "requires": [
-        "diff"
+        "diff",
+        "touch"
       ],
       "expected_status": 1,
       "stderr": "empty"

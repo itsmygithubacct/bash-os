@@ -19,7 +19,8 @@
   ],
   "exclusions": [
     "Device nodes, FIFOs, sockets, ACLs, extended attributes, and security labels are outside this private regular-file/symlink fixture suite.",
-    "The suite does not claim full GNU option coverage or compare timestamps because the harness tree snapshot records contents, modes, and link relationships but not timestamps."
+    "The suite does not claim full GNU option coverage or compare timestamps because the harness tree snapshot records contents, modes, and link relationships but not timestamps.",
+    "Named-entry ACL behaviour added in guest compatibility pass 1 (ACL preservation by -p/-a, including a directory's default ACL) needs mapped IDs that this sandbox lacks (EINVAL for both arms); bashy-box's image smoke acl-42 checks it as root in the VM."
   ],
   "cases": [
     {

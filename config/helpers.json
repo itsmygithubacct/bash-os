@@ -193,7 +193,8 @@
     },
     "cksum": {
       "helpers": [
-        "_mbedtls"
+        "_mbedtls",
+        "_monocypher"
       ]
     },
     "obj": {

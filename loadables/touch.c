@@ -13,7 +13,9 @@
  *     -c       don't create if missing
  *     -r REF   copy atime+mtime from REF
  *     -t TIME  use TIME ([[CC]YY]MMDDhhmm[.SS])
- *     -d DATE  use an ISO date/time (optionally UTC) or @SECONDS[.NANOSECONDS]
+ *     -d DATE  use DATE: the GNU date strings date -d reads (common/date-parse.h),
+ *              e.g. "2024-03-05 07:08:09.5", "Mar 5 2024", "1 hour ago";
+ *              with -r, relative items apply to REF's times
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c / bashtail.c / bashlink.c.
@@ -36,6 +38,7 @@
 #include <sys/stat.h>
 
 #include "loadables.h"
+#include "date-parse.h"
 
 /* Parse a -t/-d argument into a time_t. Supports the same length-keyed
    sbase format set: 8/10/11/12/13/15 (-t) and 19/20 (-d ISO). Returns 0
@@ -163,6 +166,22 @@ bt_date (const char *s, struct timespec *out)
     return 0;
 }
 
+/* Resolve a -d DATE against BASE (now, or one of -r REF's times): the
+   touch-specific epoch, ISO and -t shapes first, then date -d's grammar. */
+static int
+bt_resolve_date (const char *s, const struct timespec *base, struct timespec *out)
+{
+    time_t t;
+    long nsec;
+    if (bt_date (s, out) == 0)
+        return 0;
+    if (bd_parse_date (s, base, &t, &nsec, 0) < 0)
+        return -1;
+    out->tv_sec = t;
+    out->tv_nsec = nsec;
+    return 0;
+}
+
 /* Map a --time=WORD value to atime/mtime selection (GNU touch): access /
    atime / use → atime; modify / mtime → mtime. Returns 0 on success and
    sets *a or *m; -1 on an unrecognized word. */
@@ -214,6 +233,7 @@ touch_builtin (WORD_LIST *list)
 {
     int aflag = 0, mflag = 0, cflag = 0, hflag = 0;
     const char *ref = NULL;
+    const char *date_arg = NULL;
     struct timespec fixed = {0};
     int have_fixed = 0;
 
@@ -223,7 +243,7 @@ touch_builtin (WORD_LIST *list)
         const char *w = list->word->word;
         if (!strcmp (w, "--")) { list = list->next; break; }
         if (!strcmp (w, "--help")) {
-            builtin_usage ();
+            builtin_help ();
             return EXECUTION_SUCCESS;
         }
         if (!strcmp (w, "--version")) {
@@ -263,12 +283,8 @@ touch_builtin (WORD_LIST *list)
                 list = list->next;
                 arg = list->word->word;
             }
-            if (bt_date (arg, &fixed) < 0) {
-                builtin_error ("invalid time/date: %s", arg);
-                builtin_usage ();
-                return EXECUTION_FAILURE;
-            }
-            have_fixed = 1;
+            date_arg = arg;
+            have_fixed = 0;
             list = list->next;
             continue;
         }
@@ -320,24 +336,32 @@ touch_builtin (WORD_LIST *list)
                 return EXECUTION_FAILURE;
             }
             list = list->next;
-            if ((w[1] == 'd' ? bt_date (list->word->word, &fixed) :
-                (fixed.tv_nsec = 0, bt_parsetime (list->word->word, &fixed.tv_sec))) < 0) {
+            if (w[1] == 'd') {
+                date_arg = list->word->word;
+                have_fixed = 0;
+            } else if ((fixed.tv_nsec = 0, bt_parsetime (list->word->word, &fixed.tv_sec)) < 0) {
                 builtin_error ("invalid time/date: %s", list->word->word);
                 builtin_usage ();
                 return EXECUTION_FAILURE;
+            } else {
+                have_fixed = 1;
+                date_arg = NULL;
             }
-            have_fixed = 1;
             list = list->next;
             continue;
         }
         if ((!strncmp (w, "-t", 2) || !strncmp (w, "-d", 2)) && w[2]) {
-            if ((w[1] == 'd' ? bt_date (w + 2, &fixed) :
-                (fixed.tv_nsec = 0, bt_parsetime (w + 2, &fixed.tv_sec))) < 0) {
+            if (w[1] == 'd') {
+                date_arg = w + 2;
+                have_fixed = 0;
+            } else if ((fixed.tv_nsec = 0, bt_parsetime (w + 2, &fixed.tv_sec)) < 0) {
                 builtin_error ("invalid time/date: %s", w + 2);
                 builtin_usage ();
                 return EXECUTION_FAILURE;
+            } else {
+                have_fixed = 1;
+                date_arg = NULL;
             }
-            have_fixed = 1;
             list = list->next;
             continue;
         }
@@ -365,6 +389,25 @@ touch_builtin (WORD_LIST *list)
         list = list->next;
     }
 
+    /* -d is read once the options are known: with -r its relative items
+       apply to each of REF's times, as in GNU touch. */
+    struct stat ref_st;
+    if (ref && stat (ref, &ref_st) < 0) {
+        builtin_error ("stat '%s': %s", ref, strerror (errno));
+        return EXECUTION_FAILURE;
+    }
+    struct timespec dated[2];
+    if (date_arg) {
+        struct timespec now;
+        clock_gettime (CLOCK_REALTIME, &now);
+        if (bt_resolve_date (date_arg, ref ? &ref_st.st_atim : &now, &dated[0]) < 0 ||
+            bt_resolve_date (date_arg, ref ? &ref_st.st_mtim : &now, &dated[1]) < 0) {
+            builtin_error ("invalid time/date: %s", date_arg);
+            builtin_usage ();
+            return EXECUTION_FAILURE;
+        }
+    }
+
     if (!list) {
         builtin_error ("missing file operand");
         builtin_usage ();
@@ -374,19 +417,18 @@ touch_builtin (WORD_LIST *list)
     /* Default: both atime and mtime. */
     if (!aflag && !mflag) aflag = mflag = 1;
 
-    /* Resolve the reference times. Precedence: -r > -t/-d > now. */
+    /* Resolve the times. Precedence: -d (relative to -r REF when both are
+       given) > -r > -t > now. */
     struct timespec times[2] = {
         { .tv_sec = 0, .tv_nsec = UTIME_NOW },
         { .tv_sec = 0, .tv_nsec = UTIME_NOW },
     };
-    if (ref) {
-        struct stat st;
-        if (stat (ref, &st) < 0) {
-            builtin_error ("stat '%s': %s", ref, strerror (errno));
-            return EXECUTION_FAILURE;
-        }
-        times[0] = st.st_atim;
-        times[1] = st.st_mtim;
+    if (date_arg) {
+        times[0] = dated[0];
+        times[1] = dated[1];
+    } else if (ref) {
+        times[0] = ref_st.st_atim;
+        times[1] = ref_st.st_mtim;
     } else if (have_fixed) {
         times[0] = times[1] = fixed;
     }
@@ -413,7 +455,9 @@ char *touch_doc[] = {
     "    -f        (ignored, for compatibility)",
     "    -r, --reference=REF  use REF's timestamps",
     "    -t TIME   use TIME ([[CC]YY]MMDDhhmm[.SS])",
-    "    -d, --date=DATE      use an ISO date/time (optionally UTC) or @SECONDS[.NANOSECONDS]",
+    "    -d, --date=DATE      use DATE, a date -d string: ISO date/time with optional",
+    "                         .FRAC and zone, @SECONDS[.FRAC], \"Mar 5 2024 07:08\",",
+    "                         \"1 hour ago\"; with -r, relative to REF's times",
     "    --time=WORD          WORD=access|atime|use → -a; modify|mtime → -m",
     "    --help    show this help",
     "    --version show version",

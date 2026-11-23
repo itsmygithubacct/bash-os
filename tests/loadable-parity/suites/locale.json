@@ -20,7 +20,7 @@
       "id": "metadata-type-help",
       "kind": "contract",
       "purpose": "Bash type/help metadata must identify locale as a builtin and advertise the documented verbs and supported locale names.",
-      "script": "[[ $(type -t locale) == builtin ]] || exit 1\nhelp_text=$(help locale)\n[[ $help_text == *\"Minimal LC_* environment plumbing for bash-os.\"* ]] || exit 1\n[[ $help_text == *\"locale set CATEGORY VALUE\"* ]] || exit 1\n[[ $help_text == *\"locale current\"* ]] || exit 1\n[[ $help_text == *\"locale validate VALUE\"* ]] || exit 1\n[[ $help_text == *\"Recognized locale values: C, POSIX, C.UTF-8.\"* ]] || exit 1\nprintf 'builtin\\nhelp-contract-ok\\n'",
+      "script": "[[ $(type -t locale) == builtin ]] || exit 1\nhelp_text=$(help locale)\n[[ $help_text == *\"Print locale settings (POSIX locale) and manage LC_* for bash-os.\"* ]] || exit 1\n[[ $help_text == *\"locale set CATEGORY VALUE\"* ]] || exit 1\n[[ $help_text == *\"locale current\"* ]] || exit 1\n[[ $help_text == *\"locale validate VALUE\"* ]] || exit 1\n[[ $help_text == *\"Recognized locale values: C, POSIX, C.UTF-8.\"* ]] || exit 1\nprintf 'builtin\\nhelp-contract-ok\\n'",
       "expected_status": 0,
       "stderr": "empty",
       "stdout": "builtin\nhelp-contract-ok\n"
@@ -109,9 +109,9 @@
     {
       "id": "unknown-verb",
       "kind": "contract",
-      "purpose": "An unrecognized verb is reported as a usage error.",
+      "purpose": "A word that is not a set/current/validate verb is a locale keyword query (glibc locale NAME): an unknown name prints glibc's diagnostic and exits 1.",
       "script": "locale unknown",
-      "expected_status": 2,
+      "expected_status": 1,
       "stderr": "nonempty",
       "stdout": ""
     },

@@ -60,8 +60,26 @@ bz_read_more (int fd, z_stream *s, unsigned char *buf, size_t size)
     return n;
 }
 
+/* zcat -f: input that is not gzip is copied through unchanged. */
 static enum bz_result
-bz_pump (int fd, const char *name)
+bz_passthrough (int fd, const char *name, const unsigned char *head, size_t len)
+{
+    unsigned char buf[8192];
+    if (bz_write_all (head, len) < 0) goto write_error;
+    for (;;) {
+        ssize_t n = read (fd, buf, sizeof buf);
+        if (n < 0 && errno == EINTR) continue;
+        if (n < 0) { builtin_error ("%s: %s", name, strerror (errno)); return BZ_FATAL_ERROR; }
+        if (n == 0) return BZ_OK;
+        if (bz_write_all (buf, (size_t) n) < 0) goto write_error;
+    }
+write_error:
+    builtin_error ("write: %s", strerror (errno));
+    return BZ_FATAL_ERROR;
+}
+
+static enum bz_result
+bz_pump (int fd, const char *name, int force)
 {
     z_stream s;
     unsigned char inbuf[8192], outbuf[8192];
@@ -82,6 +100,11 @@ bz_pump (int fd, const char *name)
                 ssize_t n = bz_read_more (fd, &s, inbuf, sizeof inbuf);
                 if (n < 0) goto read_error;
                 if (n == 0) eof = 1;
+            }
+            if (!seen_member && force &&
+                (s.avail_in < 2 || s.next_in[0] != 0x1f || s.next_in[1] != 0x8b)) {
+                result = bz_passthrough (fd, name, s.next_in, s.avail_in);
+                break;
             }
             if (s.avail_in < 2) {
                 if (seen_member) result = BZ_OK;
@@ -161,8 +184,26 @@ read_error:
 int
 zcat_builtin (WORD_LIST *list)
 {
+    int force = 0;
+    /* gzip -cd options: -f passes non-gzip input through; -c, -d, -n, -N
+       and -q change nothing for zcat. */
+    while (list && list->word->word[0] == '-' && list->word->word[1]) {
+        const char *w = list->word->word;
+        if (!strcmp (w, "--")) { list = list->next; break; }
+        if (!strcmp (w, "--force")) force = 1;
+        else if (strcmp (w, "--stdout") && strcmp (w, "--to-stdout") && strcmp (w, "--decompress") &&
+                 strcmp (w, "--quiet") && strcmp (w, "--no-name") && strcmp (w, "--name")) {
+            if (w[1] == '-' || w[strspn (w + 1, "fcdnNq") + 1]) {
+                builtin_error ("%s: unsupported option", w);
+                builtin_usage ();
+                return EX_USAGE;
+            }
+            if (strchr (w, 'f')) force = 1;
+        }
+        list = list->next;
+    }
     if (!list)
-        return bz_pump (STDIN_FILENO, "stdin") == BZ_OK
+        return bz_pump (STDIN_FILENO, "stdin", force) == BZ_OK
                ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 
     int rc = EXECUTION_SUCCESS;
@@ -175,7 +216,7 @@ zcat_builtin (WORD_LIST *list)
             rc = EXECUTION_FAILURE;
             continue;
         }
-        enum bz_result result = bz_pump (fd, is_stdin ? "stdin" : path);
+        enum bz_result result = bz_pump (fd, is_stdin ? "stdin" : path, force);
         if (!is_stdin) close (fd);
         if (result != BZ_OK) {
             rc = EXECUTION_FAILURE;
@@ -190,10 +231,12 @@ zcat_builtin (WORD_LIST *list)
 char *zcat_doc[] = {
     "Decompress gzip files to stdout (POSIX zcat).",
     "",
-    "    zcat [FILE...]",
+    "    zcat [-f] [FILE...]",
     "",
     "Reads each FILE (or stdin if none given, or `-` in the list) as",
-    "gzip-format and writes the decompressed bytes to stdout. For xz,",
+    "gzip-format and writes the decompressed bytes to stdout. With -f",
+    "(--force), input that is not gzip is copied unchanged, as gzip -cdf",
+    "does; -c, -d, -n, -N and -q are accepted. For xz,",
     "zstd, or zlib formats use `zlib -d -f FORMAT` directly.",
     (char *)NULL
 };
@@ -203,6 +246,6 @@ struct builtin zcat_struct = {
     zcat_builtin,
     BUILTIN_ENABLED,
     zcat_doc,
-    "zcat [FILE...]",
+    "zcat [-f] [FILE...]",
     0
 };

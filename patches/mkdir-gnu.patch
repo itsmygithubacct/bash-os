@@ -1,13 +1,24 @@
 --- builtins/mkdir.c
 +++ builtins/mkdir.c
-@@ -72,5 +72,5 @@
+@@ -56,4 +56,10 @@
+   WORD_LIST *l;
+ 
++  /* GNU mkdir --help: usage on stdout, status 0. */
++  if (list && STREQ (list->word->word, "--help"))
++    {
++      builtin_help ();
++      return (EXECUTION_SUCCESS);
++    }
+   reset_internal_getopt ();
+   pflag = mflag = 0;
+@@ -72,5 +78,5 @@
  	default:
  	  builtin_usage();
 -	  return (EX_USAGE);
 +	  return (EXECUTION_FAILURE);
        }
    list = loptend;
-@@ -78,6 +78,6 @@
+@@ -78,6 +84,6 @@
    if (list == 0)
      {
 -      builtin_usage ();
@@ -16,14 +27,14 @@
 +      return (EXECUTION_FAILURE);
      }
  
-@@ -112,5 +112,5 @@
+@@ -112,5 +118,5 @@
  
    /* Adjust new mode based on mode argument */
 -  nmode &= omode;
 +  nmode = mflag ? omode : nmode;
  
    for (rval = EXECUTION_SUCCESS, l = list; l; l = l->next)
-@@ -121,8 +121,15 @@
+@@ -121,8 +127,15 @@
  	  continue;
  	}
 -      else if (pflag == 0 && mkdir (l->word->word, nmode) < 0)
@@ -42,7 +53,7 @@
 +            }
          }
      }
-@@ -150,9 +157,5 @@
+@@ -150,9 +163,5 @@
  	}
  	
 -      if (user_mode && chmod (path, nmode))

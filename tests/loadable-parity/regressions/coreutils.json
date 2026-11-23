@@ -11,7 +11,9 @@
     "shuf zero-count and singleton range boundaries",
     "install content, exact modes, and parent directory creation in the private tree",
     "mknod FIFO creation and shred zero-fill/unlink on private relative files",
-    "Private FIFO default/explicit modes across umasks, existing-entry preservation, and restored masks after errors."
+    "Private FIFO default/explicit modes across umasks, existing-entry preservation, and restored masks after errors.",
+    "numfmt GNU options: --suffix, --padding, --field, --format, --round, --header, --from/--to-unit, --invalid modes, -d and option/conversion diagnostics (guest pass 2 G27)",
+    "install -t DIR / --target-directory, -D -t, -T and -c (guest pass 2 G35)"
   ],
   "exclusions": [
     "Shuf permutation distribution and seeded output are not GNU byte-parity claims because the documented implementation uses a different random-source algorithm.",
@@ -196,6 +198,86 @@
       "requires": [
         "shred"
       ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "numfmt-gnu-output-options",
+      "kind": "parity",
+      "purpose": "Apply --suffix, --padding (both alignments), --format width/zero/precision/prefix text, every --round method and --to-unit/--from-unit scaling instead of printing a stray 0 (guest pass 2 G27).",
+      "requires": [
+        "numfmt",
+        "od"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ncu numfmt --to=iec --suffix=B 1024\ncu numfmt --from=iec --suffix=B 1KB\ncu numfmt --padding=8 1024; cu numfmt --padding=-8 1024 | od -c\ncu numfmt --format=%04f 1; cu numfmt --format='x%08.2fy' 3.14159; cu numfmt --format='%08.1f' --to=iec 1500\nfor r in up down from-zero towards-zero nearest; do cu numfmt --to=iec --round=$r 1025 1500 1075; done\ncu numfmt --to=si --format=%.3f 1234567; cu numfmt --to=iec-i --padding=10 --suffix=B 1048576\ncu numfmt --to=iec --from-unit=512 4; cu numfmt --to-unit=1K 4096; cu numfmt --from-unit=1Ki 1\ncu numfmt 1.5 1.50 .5 -- -.5; cu numfmt --to=iec 1.5 2.5 9.95 999 1023 1000000\ncu numfmt --from=auto 1Ki 1K 1Mi",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "numfmt-fields-and-header",
+      "kind": "parity",
+      "purpose": "Convert only the --field selection (lists, ranges, custom -d delimiter, auto-padding of blank-separated fields) and pass --header lines through untouched.",
+      "requires": [
+        "numfmt"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nprintf 'a 2048\\n' | cu numfmt --field=2 --to=iec\nprintf 'H\\n1024\\n' | cu numfmt --header --to=iec\nprintf 'H1\\nH2\\n1024\\n' | cu numfmt --header=2 --to=iec\ncu numfmt -d: --field=2 --to=iec 'a:2048:3'\ncu numfmt --field=2-3 --to=iec 'a 2048 4096 x'\ncu numfmt --field=- --to=iec '1024 2048'; cu numfmt --field=1,3 --to=iec '1024 2048 4096'\ncu numfmt --field 2 --to iec 'a  2048'; cu numfmt --to=iec '  1024'; cu numfmt ' 12 '\nprintf 'total 0\\n-rw-r--r-- 1 u g 123456 Jan 1 x\\n' | cu numfmt --header --field 5 --to=iec",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "numfmt-invalid-input-status",
+      "kind": "parity",
+      "purpose": "Invalid numbers and rejected suffixes print a diagnostic and exit 2 without a stray 0: abort stops at the first error, fail/warn/ignore keep the original text with their own statuses.",
+      "requires": [
+        "numfmt"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ns() { local rc=0; \"$@\" || rc=$?; echo \"rc=$rc\"; }\ns cu numfmt abc; s cu numfmt 1 abc 3; s cu numfmt 1K; s cu numfmt 1e3; s cu numfmt 1.\ns cu numfmt --invalid=fail abc 5; s cu numfmt --invalid=warn abc 5; s cu numfmt --invalid=ignore abc 5\ns cu numfmt --from=si 1Kx; s cu numfmt --from=iec-i 1K; s cu numfmt 99999999999999999999\nprintf '1\\nbad\\n3\\n' | s cu numfmt --to=iec",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "numfmt-option-errors",
+      "kind": "parity",
+      "purpose": "Option errors exit 1 with GNU's checks: unknown options, invalid --to/--round arguments, padding 0, bad --format, field lists, delimiter length and --grouping conflicts.",
+      "requires": [
+        "numfmt"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ns() { local rc=0; \"$@\" >/dev/null || rc=$?; echo \"rc=$rc\"; }\ns cu numfmt --bogus; s cu numfmt --to=bogus 1; s cu numfmt --to=i 1; s cu numfmt --round=x 1\ns cu numfmt --padding=0 1; s cu numfmt --format=%d 1; s cu numfmt --format='%f%f' 1; s cu numfmt --format=abc 1\ns cu numfmt --field=0 1; s cu numfmt --field=3-1 1; s cu numfmt --field=1 --field=2 1; s cu numfmt -d ab 1\ns cu numfmt --grouping --to=si 1; s cu numfmt --from-unit=0 1; s cu numfmt --header=0 1; s cu numfmt -x 1",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "install-target-directory",
+      "kind": "parity",
+      "purpose": "install -t DIR and --target-directory=DIR copy every source into DIR with the requested mode; -D -t creates DIR; -T installs onto the exact name; -c is accepted (guest pass 2 G35).",
+      "requires": [
+        "install",
+        "stat"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\numask 022\nprintf 'x\\n' > s; printf 'y\\n' > s2; mkdir D E\ncu install -m 755 -t D s s2\ncu install -m 640 --target-directory=E s\ncu install -D -t new/sub s\ncu install -T s exact\ncu install -c -m 600 s2 copied\nstat -c '%n %a' D/s D/s2 E/s new/sub/s exact copied",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-target-directory-errors",
+      "kind": "parity",
+      "purpose": "-t on a missing or non-directory target fails with status 1; -t with -T is rejected; -T refuses an existing directory and extra operands.",
+      "requires": [
+        "install",
+        "ls"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ns() { local rc=0; \"$@\" || rc=$?; echo \"rc=$rc\"; }\nprintf 'x\\n' > s; mkdir dd\ns cu install -t nodir s; s cu install -t s s; s cu install -t dd -T s; s cu install -T s dd; ls -A dd",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "shred-verbose-and-remove",
+      "kind": "parity",
+      "purpose": "shred -v reports each pass (random, then 000000 for -z) on stderr; --remove=unlink, --remove=wipe and -u report removing / renamed to / removed, wipe renames through shorter all-'0' names and skips names in use (guest pass 3, G53). -x keeps the fixture size: without it GNU rounds the overwrite up to a whole block, which this shred does not do.",
+      "requires": [
+        "shred"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nprintf 'data\\n' > f; cu shred -v -x -n 2 -z f 2>&1\nprintf 'x\\n' > abc; cu shred -v --remove=wipe -n 1 abc 2>&1; [[ -e abc ]] || echo gone\nprintf 'x\\n' > g; : > 0; cu shred -vu -n1 g 2>&1; [[ -e 1 ]] || echo no-1\nprintf 'x\\n' > h; cu shred --remove=unlink -v --iterations=1 h 2>&1\nprintf 'x\\n' > k; cu shred --zero -n 0 --remove k; [[ -e k ]] || echo k-gone\ncu shred -u -n 1 nofile 2>/dev/null || echo rc=$?\ncu shred --remove=bad k 2>/dev/null || echo bad-rejected",
       "expected_status": 0,
       "stderr": "empty"
     }

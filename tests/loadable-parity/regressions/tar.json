@@ -12,13 +12,16 @@
     "Regular hardlink creation for nonconflicting member names, recursive/PAX link targets, duplicate same-inode operands and strip-components link rewriting.",
     "Archive-lifetime writer context across -C and repeated successful/failed calls.",
     "Ordinary FIFO metadata creation/extraction, independent USTAR input, -p and default umask behavior.",
-    "Observe GNU-compatible late hardlink binding after an ordinary archive-name collision; this does not qualify preservation of source topology or data across collisions."
+    "Observe GNU-compatible late hardlink binding after an ordinary archive-name collision; this does not qualify preservation of source topology or data across collisions.",
+    "--same-owner/--no-same-owner/--numeric-owner owner restoration against GNU tar in the same unprivileged sandbox (H2); delayed directory times.",
+    "G39-G41: leading '/' removal and -P, uname/gname in headers, --exclude/--wildcards on extract, -S sparse members, --acls, --transform, --delete and --to-command, against GNU tar."
   ],
   "exclusions": [
     "Append/update, sparse formats, unsafe or absolute member/link paths, device nodes, and exact archive/compression bytes are not asserted.",
     "Device-node parity is deferred pending an isolated synthetic mknod/stat fixture or reviewed syscall mock.",
     "Only stable ordinary regular-file hardlinks and FIFO metadata are extended. Character/block devices, copy-mode special files, concurrent mutation, forward hardlinks, fault injection and exhaustive archive dialects remain outside this coverage.",
-    "Distinct source inodes mapped onto one archive pathname can make a later hardlink alias bind to the replacement data, as independently observed with GNU tar. General preservation of source data/topology across conflicting archive member names is not claimed."
+    "Distinct source inodes mapped onto one archive pathname can make a later hardlink alias bind to the replacement data, as independently observed with GNU tar. General preservation of source data/topology across conflicting archive member names is not claimed.",
+    "Root's default owner restoration cannot be observed in the unprivileged sandbox; it shares the --same-owner path and is checked in the image as root."
   ],
   "cases": [
     {
@@ -268,6 +271,151 @@
         "rm"
       ],
       "script": "mkdir first second restored\nprintf first-data > first/a\nln first/a first/alias\nprintf second-data > second/a\ntar -cf archive.tar -C first a -C ../second a -C ../first alias\n/usr/bin/tar -xf archive.tar -C restored\nprintf 'a=%s\\nalias=%s\\n' \"$(<restored/a)\" \"$(<restored/alias)\"\nif [[ restored/a -ef restored/alias ]]; then printf 'topology=linked\\n'; else printf 'topology=distinct\\n'; fi\nrm archive.tar",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "tar-same-owner-foreign-owner-non-root",
+      "kind": "parity",
+      "purpose": "H2: --same-owner makes extraction chown each member to the archived owner; as a non-root user a foreign uid fails with GNU's per-member diagnostic (file before its directory) and exit 2.",
+      "requires": [
+        "tar"
+      ],
+      "script": "/usr/bin/mkdir -p s out\nprintf hi > s/f\n/usr/bin/chmod 4755 s/f\n/usr/bin/tar --owner=12345 --group=12345 -cf other.tar s\ntar --same-owner -xf other.tar -C out 2>/tmp/err || echo rc=$?\n/usr/bin/sed 's/^.*tar: /tar: /' /tmp/err\n/usr/bin/stat -c '%a %n' out/s/f\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "tar-default-non-root-keeps-self-owner",
+      "kind": "parity",
+      "purpose": "H2: without --same-owner a non-root extraction does not chown (no diagnostics), and applies the umask (set-id bits dropped) unless -p.",
+      "requires": [
+        "tar"
+      ],
+      "script": "/usr/bin/mkdir -p s out\nprintf hi > s/f\n/usr/bin/chmod 4755 s/f\n/usr/bin/tar --owner=12345 --group=12345 -cf other.tar s\ntar -xf other.tar -C out\n/usr/bin/stat -c '%a %n' out/s/f\n/usr/bin/mkdir p\ntar -p -xf other.tar -C p\n/usr/bin/stat -c '%a %n' p/s/f\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "tar-same-owner-name-wins-over-id",
+      "kind": "parity",
+      "purpose": "H2: the archived user/group names are used when they exist locally (here the runner's own), so chown succeeds; --numeric-owner uses the archived ids instead and fails for a foreign id.",
+      "requires": [
+        "tar"
+      ],
+      "script": "/usr/bin/mkdir -p s out num\nprintf hi > s/f\n/usr/bin/tar --owner=runner:12345 --group=runner:12345 -cf named.tar s/f\ntar --same-owner -xf named.tar -C out && echo named-ok\ntar --same-owner --numeric-owner -xf named.tar -C num 2>/tmp/err || echo rc=$?\n/usr/bin/sed 's/^.*tar: /tar: /' /tmp/err\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "tar-no-same-owner-overrides",
+      "kind": "parity",
+      "purpose": "H2: --no-same-owner after --same-owner turns owner restoration off again (the last option wins).",
+      "requires": [
+        "tar"
+      ],
+      "script": "/usr/bin/mkdir -p s out\nprintf hi > s/f\n/usr/bin/chmod 4755 s/f\n/usr/bin/tar --owner=12345 --group=12345 -cf other.tar s\ntar --same-owner --no-same-owner -xf other.tar -C out && echo quiet\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "tar-directory-mtime-set-after-contents",
+      "kind": "parity",
+      "purpose": "Directory times (and owners) are applied once the members inside the directory are extracted, so an archived directory keeps its modification time.",
+      "requires": [
+        "tar"
+      ],
+      "script": "/usr/bin/mkdir -p s/d out\nprintf hi > s/d/f\n/usr/bin/touch -d @86400 s/d s\n/usr/bin/tar -cf d.tar s\ntar -xf d.tar -C out\n/usr/bin/stat -c '%Y %n' out/s out/s/d\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "absolute-names",
+      "kind": "parity",
+      "requires": [
+        "tar"
+      ],
+      "purpose": "G40: tar -c of an absolute path stores it without the leading '/' (GNU's warning on stderr) and the archive extracts; -P keeps the '/' on create and list.",
+      "script": "mkdir src; echo payload > src/f\ntar -cf /tmp/a.tar \"$PWD/src/f\" 2>/tmp/err\n/usr/bin/sed 's/^.*tar: /tar: /' /tmp/err\ntar -tf /tmp/a.tar | /usr/bin/sed \"s|^${PWD#/}|PWD|\"\nmkdir x; (cd x && tar -xf /tmp/a.tar) && echo extracted\ntar -cPf /tmp/p.tar \"$PWD/src/f\" 2>/tmp/err; /usr/bin/wc -c < /tmp/err\ntar -tPf /tmp/p.tar | /usr/bin/sed \"s|^$PWD|/PWD|\"\n/usr/bin/rm -rf x/*\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "owner-names-in-headers",
+      "kind": "parity",
+      "requires": [
+        "tar"
+      ],
+      "purpose": "G40: plain archives carry the owner's user and group names (ustar uname/gname), so tar -tv shows names, not ids.",
+      "script": "touch plain\ntar -cf /tmp/u.tar plain\n/usr/bin/dd if=/tmp/u.tar bs=1 skip=265 count=32 2>/dev/null | /usr/bin/tr -d '\\0'; echo\n/usr/bin/dd if=/tmp/u.tar bs=1 skip=297 count=32 2>/dev/null | /usr/bin/tr -d '\\0'; echo\ntar -tvf /tmp/u.tar | /usr/bin/awk '{print $1, $2, $3, $NF}'\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "extract-exclude-and-wildcards",
+      "kind": "parity",
+      "requires": [
+        "tar"
+      ],
+      "purpose": "G39: --exclude applies on extraction and listing; --wildcards makes member operands fnmatch patterns ('*.c' matches s/a.c).",
+      "script": "mkdir s; touch s/a.c s/b.o\ntar -cf /tmp/x.tar s\nmkdir o1; tar -xf /tmp/x.tar -C o1 --exclude='*.o'; (cd o1 && /usr/bin/find . | /usr/bin/sort)\ntar -tf /tmp/x.tar --exclude=a.c\nmkdir o2; tar -xf /tmp/x.tar -C o2 --wildcards '*.c' || echo rc=$?\n(cd o2 && /usr/bin/find . -type f | /usr/bin/sort)\ntar -tf /tmp/x.tar --wildcards 's/*.o'\ntar -tf /tmp/x.tar '*.c' 2>/tmp/err || echo rc=$?\n/usr/bin/sed 's/^.*tar: /tar: /' /tmp/err\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "sparse-members",
+      "kind": "parity",
+      "requires": [
+        "tar"
+      ],
+      "purpose": "G39: -S stores a file with an 512 KiB hole as a sparse member (small archive), tar -tv shows the real size, and extraction restores the hole and the bytes.",
+      "script": "/usr/bin/truncate -s 512K sp; printf x >> sp\ntar -cSf /tmp/sp.tar sp\n[ $(/usr/bin/stat -c %s /tmp/sp.tar) -lt 65536 ] && echo small-archive\ntar -tvf /tmp/sp.tar | /usr/bin/awk '{print $3, $NF}'\nmkdir o; tar -xf /tmp/sp.tar -C o\n/usr/bin/cmp sp o/sp && echo same\n[ $(/usr/bin/stat -c %b o/sp) -le 64 ] && echo has-hole\ntar -xOf /tmp/sp.tar | /usr/bin/wc -c\n/usr/bin/rm -f sp o/sp\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "transform-names",
+      "kind": "parity",
+      "requires": [
+        "tar"
+      ],
+      "purpose": "G41: --transform/--xform rewrite member names with sed s expressions (flags g, x, number) on create and extract; a bad expression is a usage error.",
+      "script": "mkdir s; touch s/f s/aaa\ntar -cf /tmp/t.tar --transform='s,^s,p,' s/f\ntar -tf /tmp/t.tar\ntar -cf /tmp/u.tar --xform='s/a/b/2' --transform='s|s/|q/|' s/aaa\ntar -tf /tmp/u.tar\ntar -cf /tmp/g.tar s/aaa; mkdir o; tar -xf /tmp/g.tar -C o --transform='s/a/A/g;s,^s/,,'; /usr/bin/ls o\ntar -cf /tmp/v.tar --transform='s/(f)/[\\1]/x' s/f; tar -tf /tmp/v.tar\ntar -cf /tmp/w.tar --transform=foo s/f 2>/tmp/err || echo rc=$?\n/usr/bin/sed -n '1s/^.*tar: /tar: /p' /tmp/err\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "delete-members",
+      "kind": "parity",
+      "requires": [
+        "tar"
+      ],
+      "purpose": "G41: --delete removes the named members (and directory contents) in place; a missing member is reported with exit 2.",
+      "script": "mkdir d; touch a b d/c\ntar -cf /tmp/t.tar a b d\ntar --delete -f /tmp/t.tar a d\ntar -tf /tmp/t.tar\ntar --delete -f /tmp/t.tar zz 2>/tmp/err || echo rc=$?\n/usr/bin/sed 's/^.*tar: /tar: /' /tmp/err\ntar -tf /tmp/t.tar\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "to-command",
+      "kind": "parity",
+      "requires": [
+        "tar"
+      ],
+      "purpose": "G41: --to-command pipes each regular member to a sh -c command with TAR_FILENAME, TAR_SIZE, TAR_MODE and TAR_FILETYPE; a failing command is reported and tar exits 2.",
+      "script": "mkdir d; echo abc > d/f; chmod 640 d/f; ln -s f d/l\ntar -cf /tmp/t.tar d\ntar -xf /tmp/t.tar --to-command='echo \"$TAR_FILENAME $TAR_SIZE $TAR_MODE $TAR_FILETYPE\"; /usr/bin/tr a-z A-Z'\ntar -xf /tmp/t.tar --to-command='/usr/bin/cat >/dev/null; exit 3' 2>/tmp/err || echo rc=$?\n/usr/bin/sed 's/^.*tar: [0-9]*: /tar: PID: /; s/^.*tar: /tar: /' /tmp/err\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "acls-roundtrip",
+      "kind": "parity",
+      "requires": [
+        "tar",
+        "setfacl",
+        "getfacl"
+      ],
+      "purpose": "G39: --acls stores POSIX ACLs as SCHILY.acl.access/default records and restores them on extract; without --acls none are restored.",
+      "script": "echo q > q; mkdir dd\n/usr/bin/setfacl -m u:$UID:rw q 2>/dev/null || exit 0\n/usr/bin/setfacl -d -m u:$UID:rx dd\ntar --acls -cf /tmp/q.tar q dd\nmkdir o; tar --acls -xf /tmp/q.tar -C o\n/usr/bin/getfacl -c -n o/q o/dd 2>/dev/null\nmkdir n; tar -xf /tmp/q.tar -C n\n/usr/bin/getfacl -c -n n/q 2>/dev/null\n",
       "expected_status": 0,
       "stderr": "empty"
     }

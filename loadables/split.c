@@ -1,10 +1,14 @@
 /* SPDX-License-Identifier: MIT */
 /* split.c — POSIX split(1) as a bash builtin.
  *
- *   split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [INPUT [PREFIX]]
+ *   split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d | -x]
+ *         [--additional-suffix=SUFFIX] [INPUT [PREFIX]]
  *
  * Splits INPUT (or stdin) into pieces named PREFIX{aa,ab,ac,...}.
  * Default: -l 1000 lines per piece, -a 2 (suffix length), PREFIX=x.
+ * -d / --numeric-suffixes[=FROM] and -x / --hex-suffixes[=FROM] use
+ * decimal or hexadecimal suffixes; --additional-suffix appends a fixed
+ * string (no '/') after the generated suffix, as GNU split does.
  *
  * SIZE accepts GNU byte units: b (512), K..Q (powers of 1024),
  * KB..QB (powers of 1000), and KiB..QiB (powers of 1024).
@@ -79,24 +83,29 @@ bs_parse_size (const char *s, uintmax_t *size)
     return 0;
 }
 
-/* Compose PREFIX + a fixed-width suffix from `index`, using lowercase
-   letters or decimal digits. Returns -1 if index exceeds capacity. */
+/* --additional-suffix for the current invocation ("" when unset). */
+static const char *bs_extra_suffix = "";
+
+/* Compose PREFIX + a fixed-width suffix from `index` + the additional
+   suffix. NUMERIC is 0 for lowercase letters, or the digit base (10 or
+   16). Returns -1 if index exceeds capacity. */
 static int
 bs_make_name (char *out, size_t cap, const char *prefix, int suflen, long index,
               int numeric)
 {
-    size_t plen = strlen (prefix);
-    if (plen + (size_t) suflen + 1 > cap) return -1;
+    static const char digits[] = "0123456789abcdef";
+    size_t plen = strlen (prefix), xlen = strlen (bs_extra_suffix);
+    if (plen + (size_t) suflen + xlen + 1 > cap) return -1;
     memcpy (out, prefix, plen);
     long max = 1;
-    int base = numeric ? 10 : 26;
+    int base = numeric ? numeric : 26;
     for (int i = 0; i < suflen; i++) max *= base;
     if (index >= max) return -1;
     for (int i = suflen - 1; i >= 0; i--) {
-        out[plen + i] = (numeric ? '0' : 'a') + (char) (index % base);
+        out[plen + i] = numeric ? digits[index % base] : 'a' + (char) (index % base);
         index /= base;
     }
-    out[plen + suflen] = '\0';
+    memcpy (out + plen + suflen, bs_extra_suffix, xlen + 1);
     return 0;
 }
 
@@ -359,25 +368,57 @@ split_builtin (WORD_LIST *list)
     const char *input = NULL;
     const char *chunks = NULL;
 
+    bs_extra_suffix = "";
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
         if (!strcmp (w, "--")) { list = list->next; break; }
-        if (!strncmp (w, "--numeric-suffixes=", 19)) {
-            const char *p = w + 19;
+        if (!strcmp (w, "-d") || !strcmp (w, "--numeric-suffixes")) {
+            numeric = 10;
+            list = list->next;
+            continue;
+        }
+        if (!strcmp (w, "-x") || !strcmp (w, "--hex-suffixes")) {
+            numeric = 16;
+            list = list->next;
+            continue;
+        }
+        if (!strncmp (w, "--numeric-suffixes=", 19) || !strncmp (w, "--hex-suffixes=", 15)) {
+            int base = w[2] == 'n' ? 10 : 16;
+            const char *from = w + (base == 10 ? 19 : 15), *p = from;
             long value = 0;
             /* GNU treats an explicitly empty starting value as zero. */
             for (; *p; p++) {
-                if (*p < '0' || *p > '9' || value > (LONG_MAX - (*p - '0')) / 10)
+                int d = isdigit ((unsigned char) *p) ? *p - '0'
+                    : base == 16 && isxdigit ((unsigned char) *p) ? tolower ((unsigned char) *p) - 'a' + 10
+                    : -1;
+                if (d < 0 || value > (LONG_MAX - d) / base)
                     goto invalid_start;
-                value = value * 10 + (*p - '0');
+                value = value * base + d;
             }
-            numeric = 1;
+            numeric = base;
             start = value;
             list = list->next;
             continue;
 invalid_start:
-            builtin_error ("invalid start value for numerical suffix: %s", w + 19);
+            builtin_error ("invalid start value for numerical suffix: %s", from);
             return EXECUTION_FAILURE;
+        }
+        if (!strcmp (w, "--additional-suffix") || !strncmp (w, "--additional-suffix=", 20)) {
+            const char *v = w[19] == '=' ? w + 20
+                : (list = list->next, list ? list->word->word : NULL);
+            if (!v) {
+                builtin_error ("option '--additional-suffix' requires an argument");
+                builtin_usage ();
+                return EXECUTION_FAILURE;
+            }
+            if (strchr (v, '/')) {
+                builtin_error ("invalid suffix '%s', contains directory separator", v);
+                builtin_usage ();
+                return EXECUTION_FAILURE;
+            }
+            bs_extra_suffix = v;
+            list = list->next;
+            continue;
         }
         if (!strcmp (w, "-l") || !strncmp (w, "-l", 2)) {
             const char *v = w[2] ? w + 2 : (list = list->next, list ? list->word->word : NULL);
@@ -427,7 +468,7 @@ invalid_start:
 
     if (numeric) {
         long capacity = 1;
-        for (int i = 0; i < suflen; i++) capacity *= 10;
+        for (int i = 0; i < suflen; i++) capacity *= numeric;
         if (start >= capacity) {
             builtin_error ("numerical suffix start value is too large for the suffix length");
             return EXECUTION_FAILURE;
@@ -447,7 +488,7 @@ invalid_start:
         fclose (fin);
         return EXECUTION_FAILURE;
     }
-    size_t namecap = strlen (prefix) + (size_t) suflen + 1;
+    size_t namecap = strlen (prefix) + (size_t) suflen + strlen (bs_extra_suffix) + 1;
     char *namebuf = malloc (namecap);
     if (!namebuf) {
         builtin_error ("out of memory");
@@ -568,7 +609,8 @@ invalid_start:
 char *split_doc[] = {
     "Split a file into pieces (POSIX split).",
     "",
-    "    split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [INPUT [PREFIX]]",
+    "    split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d | -x]",
+    "          [--additional-suffix=SUFFIX] [INPUT [PREFIX]]",
     "",
     "    -l N        N lines per piece (default 1000)",
     "    -b SIZE     SIZE bytes per piece; b=512, K=1024, KB=1000, KiB=1024",
@@ -576,7 +618,9 @@ char *split_doc[] = {
     "    -n CHUNKS   N, K/N, l/N, l/K/N, r/N or r/K/N pieces, as GNU split;",
     "                with K, piece K goes to standard output",
     "    -a SUFLEN   suffix length (default 2 → aa..zz, max 26^2 = 676)",
-    "    --numeric-suffixes=FROM  use fixed-width decimal suffixes from FROM",
+    "    -d, --numeric-suffixes[=FROM]  decimal suffixes (from FROM, default 0)",
+    "    -x, --hex-suffixes[=FROM]      hexadecimal suffixes (FROM in hex)",
+    "    --additional-suffix=SUFFIX     append SUFFIX (no '/') to every name",
     "",
     "INPUT defaults to stdin (or `-`). Output files are named",
     "PREFIXaa, PREFIXab, ... where PREFIX defaults to `x`.",
@@ -588,6 +632,6 @@ struct builtin split_struct = {
     split_builtin,
     BUILTIN_ENABLED,
     split_doc,
-    "split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [INPUT [PREFIX]]",
+    "split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [--additional-suffix=S] [INPUT [PREFIX]]",
     0
 };

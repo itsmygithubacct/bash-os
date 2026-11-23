@@ -254,9 +254,9 @@
 +    {
 +      p = list->word->word;
 +      if (STREQ (p, "--")) { list = list->next; break; }
++      if (STREQ (p, "--help")) { builtin_help (); return EXECUTION_SUCCESS; }
 +      if (p[1] && strchr ("rwxXstugo=+-", p[1]))
 +        { flags |= CHMOD_DIAGNOSE; break; }
-+      if (STREQ (p, "--help")) { builtin_help (); return EX_USAGE; }
 +      if (STREQ (p, "--recursive")) flags |= CHMOD_RECURSE;
 +      else if (STREQ (p, "--quiet") || STREQ (p, "--silent")) flags |= CHMOD_QUIET;
 +      else if (STREQ (p, "--verbose")) flags |= CHMOD_VERBOSE;

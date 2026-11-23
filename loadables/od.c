@@ -9,7 +9,8 @@
  *   -x              16-bit hex
  *   -o              16-bit octal (default if no -[cxodb])
  *   -d              16-bit decimal
- *   -t TYPE         a, c, [doux]{1,2,4}
+ *   -t TYPE         a, c, [doux]{1,2,4,8}, f; a trailing z adds the
+ *                   printable bytes of each line as ">...<" (GNU)
  *   -w[WIDTH]       bytes per output line (default 16)
  *   -v              do not collapse runs of identical lines into "*"
  *   -s [N]          strings: print runs of >= N (default 3) printable chars
@@ -47,6 +48,7 @@ typedef struct {
     char base;     /* for kind 'i': 'x' 'o' 'd' (signed) 'u' (unsigned) */
     int  bytes;    /* element width in bytes (1,2,4,8) */
     int  field;    /* natural field width incl. leading separator space */
+    int  zchars;   /* 'z' suffix: append ">printable<" to each line */
 } od_spec;
 
 typedef struct {
@@ -85,16 +87,30 @@ od_spec_field (char kind, char base, int bytes)
     }
 }
 
-static void
+static od_spec *
 od_add_spec (od_opts *o, char kind, char base, int bytes)
 {
     if (o->nspecs >= OD_MAX_SPECS)
-        return;
+        return NULL;
     od_spec *s = &o->specs[o->nspecs++];
     s->kind  = kind;
     s->base  = base;
     s->bytes = bytes;
     s->field = od_spec_field (kind, base, bytes);
+    s->zchars = 0;
+    return s;
+}
+
+/* The 'z' column: pad the line to its full width, then two spaces and
+   the line's bytes between '>' and '<', non-printables shown as '.'. */
+static void
+od_emit_zchars (const unsigned char *buf, size_t n, int pad)
+{
+    for (int p = 0; p < pad + 2; p++) putchar (' ');
+    putchar ('>');
+    for (size_t i = 0; i < n; i++)
+        putchar (buf[i] >= 0x20 && buf[i] < 0x7f ? buf[i] : '.');
+    putchar ('<');
 }
 
 static void
@@ -249,6 +265,11 @@ od_emit_spec_line (const od_spec *s, const unsigned char *buf, size_t n,
                 used = 0;
             }
         }
+        if (s->zchars) {
+            fwrite (text, 1, used, stdout);
+            used = 0;
+            od_emit_zchars (buf, n, (int) ((size_t) width - n) * 3);
+        }
         text[used++] = '\n';
         fwrite (text, 1, used, stdout);
         return;
@@ -259,6 +280,7 @@ od_emit_spec_line (const od_spec *s, const unsigned char *buf, size_t n,
     int elems_per_group = groupbytes / s->bytes;
     int base_field = gwidth / elems_per_group;
     int extra = gwidth - base_field * elems_per_group;   /* goes on first elem */
+    int printed = 0;
     for (int g = 0; g < width; g += groupbytes) {
         if ((size_t) g >= n) break;                  /* no data left */
         int e = 0;
@@ -267,6 +289,7 @@ od_emit_spec_line (const od_spec *s, const unsigned char *buf, size_t n,
              i += (size_t) s->bytes, e++) {
             int target = base_field + (e == 0 ? extra : 0);
             int pad = target - s->field;             /* left-pad to align */
+            printed += target;
             for (int p = 0; p < pad; p++) putchar (' ');
             if (s->kind == 'c')      od_emit_c (buf[i]);
             else if (s->kind == 'a') od_emit_a (buf[i]);
@@ -274,6 +297,8 @@ od_emit_spec_line (const od_spec *s, const unsigned char *buf, size_t n,
             else od_emit_int (od_read_le (buf, i, n, s->bytes), s->base, s->bytes);
         }
     }
+    if (s->zchars)
+        od_emit_zchars (buf, n, (width / groupbytes) * gwidth - printed);
     putchar ('\n');
 }
 
@@ -590,39 +615,43 @@ od_size_letter (char c)
 /* Parse a -t TYPE token. Accepts: c, a, {d,o,u,x} with optional width
    1/2/4/8 or named-size letter C/S/I/L (default 4), and f with width
    4/8 or named-size F(4)/D(8) (default 8). Multiple specs may be packed
-   into one token (e.g. "x1z"). Returns 0 on success. */
+   into one token (e.g. "x1c"); each may end in 'z' for the ">...<"
+   printable column (e.g. "x1z"). Returns 0 on success. */
 static int
 od_parse_type (const char *type, od_opts *o)
 {
-    if (!strcmp (type, "c")) { od_add_spec (o, 'c', 0, 1); return 0; }
-    if (!strcmp (type, "a")) { od_add_spec (o, 'a', 0, 1); return 0; }
-
     const char *p = type;
     while (*p) {
         char base = *p++;
         int bytes;
-        if (base == 'f') {
+        od_spec *added;
+        if (base == 'c' || base == 'a') {
+            added = od_add_spec (o, base, 0, 1);
+        } else if (base == 'f') {
             /* float: width 4/8 or named-size F(4)/D(8), default 8 (double). */
             if (*p == '4')      { bytes = 4; p++; }
             else if (*p == '8') { bytes = 8; p++; }
             else if (*p == 'F') { bytes = 4; p++; }
             else if (*p == 'D') { bytes = 8; p++; }
             else                  bytes = 8;   /* GNU default for f */
-            od_add_spec (o, 'f', 0, bytes);
-            continue;
-        }
-        if (base != 'x' && base != 'o' && base != 'd' && base != 'u') {
+            added = od_add_spec (o, 'f', 0, bytes);
+        } else if (base == 'x' || base == 'o' || base == 'd' || base == 'u') {
+            int sl;
+            if (*p == '1')               { bytes = 1; p++; }
+            else if (*p == '2')          { bytes = 2; p++; }
+            else if (*p == '4')          { bytes = 4; p++; }
+            else if (*p == '8')          { bytes = 8; p++; }
+            else if ((sl = od_size_letter (*p))) { bytes = sl; p++; }
+            else                           bytes = 4;   /* GNU default width for int types */
+            added = od_add_spec (o, 'i', base, bytes);
+        } else {
             builtin_error ("-t: unsupported TYPE '%s'", type);
             return -1;
         }
-        int sl;
-        if (*p == '1')               { bytes = 1; p++; }
-        else if (*p == '2')          { bytes = 2; p++; }
-        else if (*p == '4')          { bytes = 4; p++; }
-        else if (*p == '8')          { bytes = 8; p++; }
-        else if ((sl = od_size_letter (*p))) { bytes = sl; p++; }
-        else                           bytes = 4;   /* GNU default width for int types */
-        od_add_spec (o, 'i', base, bytes);
+        if (*p == 'z') {
+            if (added) added->zchars = 1;
+            p++;
+        }
     }
     return 0;
 }
@@ -897,7 +926,9 @@ char *od_doc[] = {
     "    -j BYTES   skip BYTES input bytes before dumping",
     "    -x         16-bit hex words (LE)",
     "    -t TYPE    a, c, [doux] with width 1/2/4/8 or size C/S/I/L (e.g. x4,",
-    "               dL), or f with width 4/8 or size F/D (IEEE float/double)",
+    "               dL), or f with width 4/8 or size F/D (IEEE float/double);",
+    "               a trailing z (e.g. x1z) appends each line's printable",
+    "               bytes as >...<, non-printables as '.'",
     "    -w[WIDTH]  bytes per output line (default 16; bare -w => 32)",
     "    -v         do not collapse runs of identical lines into a single '*'",
     "    -N BYTES   stop after BYTES bytes of input (POSIX -N)",

@@ -23,10 +23,10 @@
     {
       "id": "metadata-short-help",
       "kind": "contract",
-      "purpose": "Confirm help exposes the documented short usage string registered for ln without invoking the loadable operation.",
+      "purpose": "Confirm help exposes the documented short usage string registered for ln without invoking the loadable operation. The synopsis lists the GNU options ln gained in guest compatibility pass 1.",
       "script": "PATH=; help -s ln",
       "expected_status": 0,
-      "stdout": "ln: ln\n",
+      "stdout": "ln: ln [-bfhinLPrsTv] [-S SUFFIX] [-t DIR] TARGET... [LINK_NAME|DIRECTORY]\n",
       "stderr": "empty"
     },
     {

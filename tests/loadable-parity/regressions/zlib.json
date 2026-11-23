@@ -8,7 +8,8 @@
     "Private fixture operations and final decoded mode/content parity; compressed artifacts are removed before tree comparison.",
     "Fixed independently authored gzip, concatenated-gzip, RFC 1950 and raw-DEFLATE decoder vectors with binary payloads.",
     "Fixed Python standard-library XZ/bzip2 decoder vectors and an independently authored binary Zstandard raw-block frame.",
-    "Identical fixed gzip truncation/CRC inputs, streamed error output and same-shell write-error recovery."
+    "Identical fixed gzip truncation/CRC inputs, streamed error output and same-shell write-error recovery.",
+    "G30: zlib -l -f xz (the image's xz -l) prints xz --list's table: streams, blocks, sizes, ratio, check, and totals."
   ],
   "exclusions": [
     "Compressed stream bytes are not asserted identical; codec headers and compressor choices may vary. Round trips and decoded bytes are compared, and temporary compressed artifacts are removed before tree comparison.",
@@ -221,6 +222,28 @@
       "script": "printf '%b' '\\x28\\xb5\\x2f\\xfd\\x20\\x05\\x29\\x00\\x00\\x41\\x00\\x42\\xff\\x0a' | zlib -f zstd",
       "expected_status": 0,
       "stdout_base64": "QQBC/wo=",
+      "stderr": "empty"
+    },
+    {
+      "id": "xz-list-table",
+      "kind": "parity",
+      "requires": [
+        "xz"
+      ],
+      "purpose": "G30: zlib -l -f xz FILE... matches xz -l for single, concatenated, empty and differently-checked streams, with a totals row for several files.",
+      "script": "xzl() { if [[ $(type -t zlib) == builtin ]]; then zlib -l -f xz \"$@\"; else xz -l \"$@\"; fi; }\n/usr/bin/seq 1 3000 > s\n/usr/bin/xz -k s\n/usr/bin/xz -C crc32 -c s > s32.xz\n/usr/bin/cat s.xz s.xz > ss.xz\n: | /usr/bin/xz > e.xz\nxzl s.xz\nxzl s32.xz ss.xz e.xz\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "xz-list-errors",
+      "kind": "parity",
+      "requires": [
+        "xz"
+      ],
+      "purpose": "G30: a missing file or a non-xz file fails xz -l with exit 1 after listing the rest.",
+      "script": "xzl() { if [[ $(type -t zlib) == builtin ]]; then zlib -l -f xz \"$@\"; else xz -l \"$@\"; fi; }\n/usr/bin/seq 1 30 > s\n/usr/bin/xz -k s\nxzl s.xz nope s 2>/dev/null || echo rc=$?\n",
+      "expected_status": 0,
       "stderr": "empty"
     }
   ]

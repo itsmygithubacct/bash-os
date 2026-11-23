@@ -23,7 +23,7 @@
       "id": "bash-metadata",
       "kind": "contract",
       "purpose": "Verify Bash exposes the command as a builtin and that its help contains the documented synopsis and description.",
-      "script": "help_text=$(help getfacl)\nif [[ $(type -t getfacl) == builtin && $help_text == *'getfacl [-a] [-d] [--omit-header] file...'* && $help_text == *'Display POSIX.1e file access control lists.'* ]]; then\n  printf 'builtin synopsis and help present\\n'\nelse\n  exit 1\nfi",
+      "script": "help_text=$(help getfacl)\nif [[ $(type -t getfacl) == builtin && $help_text == *'getfacl [-adcpRnesE] [--omit-header] file...'* && $help_text == *'Display POSIX.1e file access control lists.'* ]]; then\n  printf 'builtin synopsis and help present\\n'\nelse\n  exit 1\nfi",
       "expected_status": 0,
       "stdout": "builtin synopsis and help present\n",
       "stderr": "empty"

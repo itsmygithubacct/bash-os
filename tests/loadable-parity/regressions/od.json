@@ -15,7 +15,8 @@
     "Bash type/help metadata for the registered builtin",
     "Empty and odd-sized operands, typed groups and line/dedup/string state across file boundaries",
     "Global skip/count, early stop before later operands, exact EOF and beyond-EOF skip",
-    "Interleaved shared stdin and named files; recovery around missing paths with status and diagnostics"
+    "Interleaved shared stdin and named files; recovery around missing paths with status and diagnostics",
+    "-t TYPEz printable-character column (guest pass 2 G35)"
   ],
   "exclusions": [
     "The source documents a custom -s strings mode whose meaning differs from GNU od's -s; it is excluded from GNU parity claims.",
@@ -261,6 +262,17 @@
       "script": "od -N0 absent",
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "type-z-printable-column",
+      "kind": "parity",
+      "purpose": "A trailing z on a -t type appends each line's printable bytes between '>' and '<', padded to the full line, for x1, x2, c and a types, with -An, -w and partial lines (guest pass 2 G35).",
+      "requires": [
+        "od"
+      ],
+      "script": "printf ab | od -t x1z\nprintf 'abcdefghijklmnopqrst\\001' | od -t x1z -t cz\nprintf abc | od -t x2z\nprintf 'a\\nb' | od -An -t x1z\nprintf abc | od -t az\nprintf 'abcdefghijklmnopabcdefghijklmnopx' | od -t x1z -w8 -tc",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

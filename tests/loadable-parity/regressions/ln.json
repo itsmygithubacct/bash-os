@@ -5,7 +5,8 @@
   "coverage": [
     "Hard links, relative and dangling symlinks, multiple operands, collisions, force replacement, spaced names and missing operands.",
     "Single-operand destination, -- and dash names, symlink replacement, partial failure and repeated calls.",
-    "Bash registration and help metadata; separately identified from operations."
+    "Bash registration and help metadata; separately identified from operations.",
+    "GNU -r/--relative, -t/-T, -v, -b/-S/--backup, -L/-P and option diagnostics."
   ],
   "exclusions": [
     "Interactive prompting and filesystem fault injection are outside this bounded suite; no privileged operation is needed for ordinary links."
@@ -23,10 +24,10 @@
     {
       "id": "metadata-short-help",
       "kind": "contract",
-      "purpose": "Confirm help exposes the documented short usage string registered for ln without invoking the loadable operation.",
+      "purpose": "Confirm help exposes the documented short usage string registered for ln without invoking the loadable operation. The synopsis lists the GNU options ln gained in guest compatibility pass 1.",
       "script": "PATH=; help -s ln",
       "expected_status": 0,
-      "stdout": "ln: ln\n",
+      "stdout": "ln: ln [-bfhinLPrsTv] [-S SUFFIX] [-t DIR] TARGET... [LINK_NAME|DIRECTORY]\n",
       "stderr": "empty"
     },
     {
@@ -221,6 +222,78 @@
         "ln",
         "mkdir"
       ]
+    },
+    {
+      "id": "gnu-relative",
+      "kind": "parity",
+      "purpose": "-r/--relative makes the symlink target relative to the link's directory (guest compatibility pass 1).",
+      "script": "mkdir -p a/b c/d\nprintf x > a/b/f\nln -sr a/b/f c/d/l1\nreadlink c/d/l1\nln -s --relative a/b/f l2\nreadlink l2\nln -sr a/b a/b2\nreadlink a/b2\nln -sr c/d/l1 c/l3\nreadlink c/l3\ncat c/d/l1 l2\nln -r a/b/f nos || echo rc=$?",
+      "requires": [
+        "ln",
+        "mkdir",
+        "readlink",
+        "cat"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "gnu-target-directory-and-T",
+      "kind": "parity",
+      "purpose": "-t DIR links each TARGET into DIR; -T treats LINK_NAME as a file even when it is a directory.",
+      "script": "mkdir dir other\nprintf 1 > one; printf 2 > two\nln -t dir one two\n[[ one -ef dir/one && two -ef dir/two ]] && echo t-ok\nln --target-directory=other -s ../one\nreadlink other/one\nln -T one other || echo rc=$?\nln -sT one newname && readlink newname\nln -t dir -T one x || echo rc=$?",
+      "requires": [
+        "ln",
+        "mkdir",
+        "readlink"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "gnu-verbose-backup",
+      "kind": "parity",
+      "purpose": "-v prints each link; -b and --backup=numbered keep the replaced destination.",
+      "script": "printf a > a; printf b > b; printf c > c\nln -sv a s1\nln -sfvb b s1\nreadlink s1 s1~\nln -f --backup=numbered c b\nln -f --backup=numbered a b\nls b b.~1~ b.~2~\nln -S .old -fb c a\nls a a.old",
+      "requires": [
+        "ln",
+        "readlink",
+        "ls"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-option-errors",
+      "kind": "parity",
+      "purpose": "Unknown options, --relative without --symbolic and missing operands follow GNU's messages and status.",
+      "script": "ln --bogus a b || echo rc=$?\nln -Z a b || echo rc=$?\nln -s || echo rc=$?\nln -T a || echo rc=$?\nprintf x > a; ln a b c || echo rc=$?",
+      "requires": [
+        "ln"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "gnu-logical-physical",
+      "kind": "parity",
+      "purpose": "-L hard-links a symlink's referent; -P (the default) links the symlink itself.",
+      "script": "printf x > target\nln -s target sym\nln -L sym hl\nln -P sym hp\n[[ hl -ef target ]] && echo L-ok\n[[ -L hp ]] && readlink hp",
+      "requires": [
+        "ln",
+        "readlink"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-help-on-stdout",
+      "kind": "contract",
+      "purpose": "Guest compatibility pass 2 (G38): `--help` prints help on stdout and exits 0, as GNU tools do, for ln and the other builtins fixed with it.",
+      "script": "for c in ln mktemp cp sort tail wc tr xargs stat mkdir chmod uniq; do\n  $c --help >o 2>e; r=$?\n  [[ $r == 0 && -s o && ! -s e ]] && echo \"$c ok\" || echo \"$c rc=$r\"\ndone",
+      "expected_status": 0,
+      "stdout": "ln ok\nmktemp ok\ncp ok\nsort ok\ntail ok\nwc ok\ntr ok\nxargs ok\nstat ok\nmkdir ok\nchmod ok\nuniq ok\n",
+      "stderr": "empty"
     }
   ]
 }

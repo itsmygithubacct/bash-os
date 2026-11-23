@@ -16,11 +16,11 @@ cut|cut -b LIST | -c LIST | -f LIST [-d DELIM] [-s] [-z] [--complement] [--outpu
 dirname|dirname [-z|--zero] [--] NAME...
 head|head
 id|id [-aGgnruz] [USER ...]
-ln|ln
+ln|ln [-bfhinLPrsTv] [-S SUFFIX] [-t DIR] TARGET... [LINK_NAME|DIRECTORY]
 logname|logname [--help] [--version]
 mkdir|mkdir [-p] [-m MODE] DIRECTORY...
 mkfifo|mkfifo [-m mode] fifo_name [fifo_name ...]
-mktemp|mktemp [-dqu] [-t PREFIX] [-v VAR] [TEMPLATE...]
+mktemp|mktemp [-dqtu] [-p DIR|--tmpdir[=DIR]] [--suffix=SUFF] [-v VAR] [TEMPLATE]
 pathchk|pathchk [-p] pathname ...
 printenv|printenv [-0|--null] [--] [VARIABLE...]
 realpath|realpath [-a varname] [-ceqsv] pathname [pathname...]
@@ -104,7 +104,7 @@ nohup|nohup CMD
 link|link TARGET NAME
 blkid|blkid [-p] [-o FORMAT] [-s TAG] [DEV...]
 lsblk|lsblk
-diff|diff A B
+diff|diff [-abBcdiNpqrsuwyZ] [-C N|-U N] [-x PAT] [-X FILE] FILE1 FILE2
 ss|ss [-tuln]
 netstat|netstat -tuln (via ss backend)
 ping|ping [-c N] HOST
@@ -146,7 +146,7 @@ uclampset|Show and change task or system utilization clamps
 # text and formatting tools (imported 2026-09-06 from the upstream collection)
 expand|Convert tabs to spaces (POSIX expand)
 unexpand|Convert spaces to tabs (POSIX unexpand)
-split|split [-l N | -b SIZE] [-a SUFLEN] [INPUT [PREFIX]]
+split|split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [--additional-suffix=S] [INPUT [PREFIX]]
 csplit|Context-split a file (POSIX csplit)
 join|Relational join on two sorted files (POSIX join)
 pr|Format text for printing (POSIX pr)
@@ -220,7 +220,7 @@ cal|cal
 man|man
 apropos|apropos
 whatis|whatis NAME [NAME ...]
-file|file [-bE] [--help|--version] FILE [FILE...]
+file|file [-bEhiL] [--mime-type] [--mime-encoding] [--help|--version] FILE [FILE...]
 
 # Additional upstream loadables
 pty|pty

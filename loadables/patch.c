@@ -19,7 +19,9 @@
  * file that cannot be found, a creation over an existing file) are answered
  * with their defaults, as GNU answers them without a terminal; -N skips
  * reversed patches and -t applies them reversed. -p absent means the base
- * name. Context diffs (diff -c) are not supported.
+ * name. Context diffs (diff -c) are not supported. Fuzz never exceeds a
+ * hunk's context, so deleted lines always match exactly. A header time at
+ * the Epoch (diff -N) marks a file absent: created, or removed once empty.
  *
  * Exit status: 0 when everything applied, 1 when a hunk failed or was
  * skipped, 2 on a malformed patch or another error.
@@ -766,6 +768,33 @@ bp_hunks_word (size_t n)
     return n == 1 ? "hunk" : "hunks";
 }
 
+/* Does a header time (from the tab on) name the Epoch? diff -N writes a
+   missing side as "1970-01-01 00:00:00.000000000 +0000" (in its time zone),
+   and GNU patch then treats that file as absent: created, or removed when
+   the patch leaves it empty. */
+static int
+bp_is_epoch (const char *t)
+{
+    if (!t) return 0;
+    while (*t == '\t' || *t == ' ') t++;
+    int y, mo, d, h, mi, sec, n = 0;
+    if (sscanf (t, "%4d-%2d-%2d %2d:%2d:%2d%n", &y, &mo, &d, &h, &mi, &sec, &n) != 6) return 0;
+    t += n;
+    if (*t == '.') { t++; while (*t == '0') t++; if (isdigit ((unsigned char) *t)) return 0; }
+    long zone = 0;
+    while (*t == ' ') t++;
+    if (*t == '+' || *t == '-') {
+        int sign = *t == '-' ? -1 : 1, hh, mm;
+        if (sscanf (t + 1, "%2d%2d", &hh, &mm) != 2) return 0;
+        zone = sign * (hh * 3600L + mm * 60L);
+    }
+    /* Days from the civil date (proleptic Gregorian). */
+    long yy = y - (mo <= 2), era = (yy >= 0 ? yy : yy - 399) / 400;
+    long yoe = yy - era * 400, doy = (153L * (mo + (mo > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    long days = era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468;
+    return days * 86400 + h * 3600L + mi * 60L + sec - zone == 0;
+}
+
 /* Patch one file. Returns 0, 1 (hunks failed or skipped) or 2. */
 static int
 bp_patch_file (const bp_opts *o, bp_file *f)
@@ -781,6 +810,7 @@ bp_patch_file (const bp_opts *o, bp_file *f)
     if (o->origfile) name = o->origfile;
     else if (f->old_null || f->git_new) { name = new ? new : old; creating = 1; }
     else if (f->new_null || f->git_delete) name = old ? old : new;
+    else if (bp_is_epoch (f->old_time) && !bp_exists (new) && !bp_exists (old)) { name = new ? new : old; creating = 1; }
     else {
         int oe = bp_exists (old), ne = bp_exists (new);
         if (oe && ne) name = bp_better (old, new) ? old : new;
@@ -838,7 +868,14 @@ bp_patch_file (const bp_opts *o, bp_file *f)
     for (size_t hi = 0; hi < f->nh; hi++) {
         bp_hunk *h = &f->hunks[hi];
         long where = 0, fuzz = 0;
-        long mymaxfuzz = o->maxfuzz;
+        /* GNU caps the fuzz at the hunk's context (pch_context): fuzz only
+           drops context lines, never the lines a hunk deletes or changes. */
+        long mymaxfuzz = o->maxfuzz, hprefix = 0, hsuffix = 0;
+        for (size_t k = 0; k < h->n && h->lines[k].kind == ' '; k++) hprefix++;
+        for (size_t k = h->n; k > 0 && h->lines[k - 1].kind == ' '; k--) hsuffix++;
+        if (hprefix == (long) h->n) hsuffix = 0;
+        if (mymaxfuzz > (hprefix > hsuffix ? hprefix : hsuffix))
+            mymaxfuzz = hprefix > hsuffix ? hprefix : hsuffix;
         if (!skip) {
             do {
                 where = bp_locate (&t, h, fuzz);
@@ -911,7 +948,7 @@ bp_patch_file (const bp_opts *o, bp_file *f)
     }
     if (!skip && !o->dry_run) {
         if (bp_copy_to (&out, &t, (long) t.nin) < 0) { builtin_error ("out of memory"); rc = 2; goto out; }
-        int remove = !out.n && (o->remove_empty || f->new_null || f->git_delete) && !o->output;
+        int remove = !out.n && (o->remove_empty || f->new_null || f->git_delete || bp_is_epoch (f->new_time)) && !o->output;
         if (existed && (o->backup || (mismatch && o->backup_mismatch)) && !o->output) {
             if (bp_backup (o, name) < 0) { builtin_error ("**** Can't back up %s : %s", name, strerror (errno)); rc = 2; goto out; }
         }

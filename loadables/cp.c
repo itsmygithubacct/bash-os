@@ -45,6 +45,7 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <sys/xattr.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <utime.h>
@@ -258,7 +259,32 @@ bcp_copy_data (int sfd, int dfd, const char *src, const char *dst, int holes)
 }
 
 static int
-bcp_apply_metadata (const char *dst, const struct stat *st, const bcp_opts *o)
+bcp_copy_acl (const char *src, const char *dst, const char *xname)
+{
+    unsigned char buf[8192];
+    ssize_t n = getxattr (src, xname, buf, sizeof buf);
+    if (n < 0) {
+        if (errno != ENODATA && errno != EOPNOTSUPP && errno != ENOTSUP) {
+            builtin_error ("preserving permissions for '%s': %s", dst, strerror (errno));
+            return -1;
+        }
+        /* No ACL on the source: drop one the destination inherited. */
+        if (removexattr (dst, xname) < 0 && errno != ENODATA && errno != EOPNOTSUPP && errno != ENOTSUP) {
+            builtin_error ("preserving permissions for '%s': %s", dst, strerror (errno));
+            return -1;
+        }
+        return 0;
+    }
+    if (setxattr (dst, xname, buf, (size_t) n, 0) < 0) {
+        builtin_error ("preserving permissions for '%s': %s", dst, strerror (errno));
+        return -1;
+    }
+    return 0;
+}
+
+/* SRC may be NULL (--parents directories): then ACLs are not copied. */
+static int
+bcp_apply_metadata (const char *src, const char *dst, const struct stat *st, const bcp_opts *o)
 {
     int rc = 0;
     /* chown can clear set-ID bits, so apply the final mode afterwards. */
@@ -271,6 +297,12 @@ bcp_apply_metadata (const char *dst, const struct stat *st, const bcp_opts *o)
     if (o->pmode && chmod (dst, st->st_mode & 07777) < 0) {
         builtin_error ("chmod %s: %s", dst, strerror (errno));
         rc = -1;
+    }
+    /* GNU: preserving mode preserves the access ACL, and a directory's
+       default ACL. */
+    if (o->pmode && src) {
+        if (bcp_copy_acl (src, dst, "system.posix_acl_access") < 0) rc = -1;
+        if (S_ISDIR (st->st_mode) && bcp_copy_acl (src, dst, "system.posix_acl_default") < 0) rc = -1;
     }
     if (!o->ptime)
         return rc;
@@ -514,7 +546,7 @@ bcp_copy_regular (const char *src, const char *dst,
         rc = -1;
     }
     if (rc < 0) return -1;
-    if (o->pflag && dst_regular && bcp_apply_metadata (dst, sst, o) < 0) return -1;
+    if (o->pflag && dst_regular && bcp_apply_metadata (src, dst, sst, o) < 0) return -1;
     if (o->vflag)
         bcp_verbose (src, dst);  /* GNU cp -v writes to stdout */
     return 0;
@@ -719,7 +751,7 @@ restore_mode:
         builtin_error ("chmod %s: %s", dst, strerror (errno));
         rc = -1;
     }
-    if (o->pflag && bcp_apply_metadata (dst, sst, o) < 0) rc = -1;
+    if (o->pflag && bcp_apply_metadata (src, dst, sst, o) < 0) rc = -1;
     return rc;
 }
 
@@ -958,7 +990,7 @@ bcp_copy_parents (const char *src, const char *dest, bcp_opts *o)
         bcp_parent *parent = parents;
         parents = parent->next;
         if (o->pflag) {
-            if (bcp_apply_metadata (parent->path, &parent->source, o) < 0) rc = -1;
+            if (bcp_apply_metadata (NULL, parent->path, &parent->source, o) < 0) rc = -1;
         } else if (chmod (parent->path, parent->mode) < 0) {
             builtin_error ("chmod %s: %s", parent->path, strerror (errno));
             rc = -1;
@@ -1083,7 +1115,7 @@ cp_builtin (WORD_LIST *list)
     for (WORD_LIST *p = list; p; p = p->next) {
         const char *w = p->word->word;
         if (strcmp (w, "--help") == 0) {
-            builtin_usage ();
+            builtin_help ();
             free (positional.v);
             return EXECUTION_SUCCESS;
         }

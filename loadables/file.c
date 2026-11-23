@@ -1,10 +1,16 @@
 /* SPDX-License-Identifier: MIT */
 /* file.c — file(1)-style magic-byte file-type detection.
  *
- *   file [-bE] [--help|--version] FILE [FILE...]
+ *   file [-bEhiL] [--mime-type] [--mime-encoding] [--help|--version] FILE...
  *
- * Reads up to the first 512 bytes of each FILE and matches against a
- * curated table of magic-byte signatures. Output mirrors file(1):
+ * Reads up to 7 MiB of each FILE (libmagic's bytes_max). Text is classified
+ * with libmagic's character classes and line scan (encoding, line
+ * terminators, very long lines, escapes); #! scripts, HTML, XML, PNG, GIF,
+ * JPEG, gzip, bzip2, xz, PDF and PostScript get the detailed descriptions
+ * file 5.46 prints; the first 512 bytes are matched against a curated table
+ * of magic-byte signatures. -i/--mime, --mime-type and --mime-encoding
+ * print MIME types; -L follows symbolic links, which are otherwise shown
+ * as "symbolic link to TARGET". Output mirrors file(1):
  *   FILE: TYPE-DESCRIPTION
  *
  * Coverage: ELF (32/64, exec/dyn), MS-DOS executable, gzip, zlib, Unix compress,
@@ -33,11 +39,14 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <time.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 
 #include "loadables.h"
 
 #define BF_PROBE_LEN 512
+#define BF_BYTES_MAX (7 * 1024 * 1024)   /* libmagic's default bytes_max */
 #define BF_ISO9660_MAGIC_OFFSET 32769
 
 typedef struct {
@@ -578,7 +587,7 @@ bf_is_text (const unsigned char *p, size_t n)
        common controls (\n \t \r \b \f). Stop early on any other. */
     for (size_t i = 0; i < n; i++) {
         unsigned char c = p[i];
-        if (c == '\n' || c == '\t' || c == '\r' || c == '\b' || c == '\f') continue;
+        if ((c >= 7 && c <= 13) || c == 27) continue;
         if (c < 0x20 || c == 0x7f) return 0;
     }
     return 1;
@@ -910,6 +919,440 @@ bf_is_iso9660 (int fd)
            memcmp (magic, "CD001", sizeof magic) == 0;
 }
 
+/* libmagic's text_chars classes: F never in text, T plain ASCII text,
+   I ISO-8859 text, X non-ISO extended ASCII (0x80-0x9f, NEL is T). */
+enum { BF_F, BF_T, BF_I, BF_X };
+
+static int
+bf_char_class (unsigned char c)
+{
+    if (c < 0x20) return (c >= 7 && c <= 13) || c == 27 ? BF_T : BF_F;
+    if (c < 0x7f) return BF_T;
+    if (c == 0x7f) return BF_F;
+    if (c == 0x85) return BF_T;
+    return c < 0xa0 ? BF_X : BF_I;
+}
+
+/* The encoding of a text buffer, as libmagic's file_encoding names it,
+   with its line-terminator, long-line, escape and overstrike notes. */
+typedef struct {
+    const char *name;          /* "ASCII", "Unicode text, UTF-8", ... */
+    const char *charset;       /* MIME charset */
+    char notes[160];           /* ", with CRLF line terminators" ... */
+} bf_text;
+
+static int
+bf_text_info (const unsigned char *p, size_t n, bf_text *t)
+{
+    size_t start = 0;
+    int ascii = 1, latin = 1, ext = 1, utf8 = 1, multibyte = 0;
+    for (size_t i = 0; i < n; i++) {
+        int k = bf_char_class (p[i]);
+        if (k != BF_T) ascii = 0;
+        if (k == BF_F) latin = ext = 0;
+        else if (k == BF_X) latin = 0;
+    }
+    /* UTF-8 as libmagic's looks_utf8: well-formed sequences (one cut off
+       by the end of the buffer is accepted) and ASCII bytes that are text. */
+    if (n >= 3 && !memcmp (p, "\xef\xbb\xbf", 3)) start = 3;
+    for (size_t i = start; utf8 && i < n; ) {
+        unsigned char c = p[i];
+        if (c < 0x80) {
+            if (bf_char_class (c) != BF_T) utf8 = 0;
+            i++;
+            continue;
+        }
+        size_t need = (c & 0xe0) == 0xc0 ? 1 : (c & 0xf0) == 0xe0 ? 2 : (c & 0xf8) == 0xf0 ? 3 : 0;
+        if (!need) { utf8 = 0; break; }
+        size_t k = 1;
+        for (; k <= need && i + k < n; k++)
+            if ((p[i + k] & 0xc0) != 0x80) { utf8 = 0; break; }
+        if (!utf8 || k <= need) break;
+        multibyte = 1;
+        i += need + 1;
+    }
+    int is_utf8 = 0;
+    if (ascii) { t->name = "ASCII"; t->charset = "us-ascii"; }
+    else if (utf8 && start) { t->name = "Unicode text, UTF-8 (with BOM)"; t->charset = "utf-8"; is_utf8 = 1; }
+    else if (utf8 && multibyte) { t->name = "Unicode text, UTF-8"; t->charset = "utf-8"; is_utf8 = 1; }
+    else if (latin) { t->name = "ISO-8859"; t->charset = "iso-8859-1"; }
+    else if (ext) { t->name = "Non-ISO extended-ASCII"; t->charset = "unknown-8bit"; }
+    else return 0;
+
+    /* libmagic's ascmagic line scan, over characters (code points for
+       UTF-8, bytes otherwise). */
+    size_t n_crlf = 0, n_cr = 0, n_lf = 0, n_nel = 0, longest = 0, ci = 0;
+    size_t last = (size_t) -1;
+    int seen_cr = 0, escapes = 0, backspace = 0;
+    for (size_t i = is_utf8 ? start : 0; i < n; ci++) {
+        unsigned long u = p[i];
+        size_t len = 1;
+        if (is_utf8 && u >= 0x80) {
+            if (i + ((u & 0xe0) == 0xc0 ? 2 : (u & 0xf0) == 0xe0 ? 3 : 4) > n) break;
+            len = (u & 0xe0) == 0xc0 ? 2 : (u & 0xf0) == 0xe0 ? 3 : 4;
+            u &= len == 2 ? 0x1f : len == 3 ? 0x0f : 0x07;
+            for (size_t k = 1; k < len; k++) u = (u << 6) | (p[i + k] & 0x3f);
+        }
+        i += len;
+        if (u == '\n') {
+            if (seen_cr) n_crlf++; else n_lf++;
+            last = ci;
+        } else if (seen_cr)
+            n_cr++;
+        seen_cr = u == '\r';
+        if (seen_cr) last = ci;
+        if (u == 0x85) { n_nel++; last = ci; }
+        if (ci > last + 300 && ci - last > longest) longest = ci - last;
+        if (u == 033) escapes = 1;
+        if (u == '\b') backspace = 1;
+    }
+    size_t cap = sizeof t->notes;
+    t->notes[0] = '\0';
+#define BF_NOTE(...) do { size_t used = strlen (t->notes); snprintf (t->notes + used, cap - used, __VA_ARGS__); } while (0)
+    if (longest) BF_NOTE (", with very long lines (%zu)", longest);
+    if ((!n_crlf && !n_cr && !n_nel && !n_lf) || n_crlf || n_cr || n_nel) {
+        BF_NOTE (", with");
+        if (!n_crlf && !n_cr && !n_nel && !n_lf) BF_NOTE (" no");
+        else {
+            if (n_crlf) BF_NOTE (" CRLF%s", n_cr || n_lf || n_nel ? "," : "");
+            if (n_cr) BF_NOTE (" CR%s", n_lf || n_nel ? "," : "");
+            if (n_lf) BF_NOTE (" LF%s", n_nel ? "," : "");
+            if (n_nel) BF_NOTE (" NEL");
+        }
+        BF_NOTE (" line terminators");
+    }
+    if (escapes) BF_NOTE (", with escape sequences");
+    if (backspace) BF_NOTE (", with overstriking");
+#undef BF_NOTE
+    return 1;
+}
+
+/* The result for one file: the description, MIME type and charset. */
+typedef struct {
+    char desc[512];
+    const char *mime;
+    const char *charset;
+} bf_result;
+
+static unsigned long
+bf_le32 (const unsigned char *p)
+{
+    return (unsigned long) p[0] | ((unsigned long) p[1] << 8) |
+           ((unsigned long) p[2] << 16) | ((unsigned long) p[3] << 24);
+}
+
+#define BF_ADD(r, ...) do { size_t used_ = strlen ((r)->desc); \
+    snprintf ((r)->desc + used_, sizeof (r)->desc - used_, __VA_ARGS__); } while (0)
+
+/* #! interpreters libmagic names, by base name: description, MIME type
+   and whether the encoding follows (perl's entry already says "text"). */
+static const struct { const char *name, *desc, *mime; int style; } bf_interp[] = {
+    { "bash", "Bourne-Again shell script", "text/x-shellscript", 0 },
+    { "zsh", "Paul Falstad's zsh script", "text/x-shellscript", 0 },
+    { "dash", "Dash shell script", "text/x-shellscript", 0 },
+    { "ksh", "Korn shell script", "text/x-shellscript", 0 },
+    { "tcsh", "Tenex C shell script", "text/x-shellscript", 0 },
+    { "csh", "C shell script", "text/x-shellscript", 0 },
+    { "python", "Python script", "text/x-script.python", 0 },
+    { "perl", "Perl script text executable", "text/x-perl", 1 },
+    { "ruby", "Ruby script", "text/x-ruby", 0 },
+    { "node", "Node.js script executable", "application/javascript", 2 },
+    { "lua", "Lua script", "text/x-lua", 0 },
+    { "tclsh", "Tcl/Tk script", "text/x-tcl", 0 },
+    { "wish", "Tcl/Tk script", "text/x-tcl", 0 },
+    { "php", "PHP script", "text/x-php", 0 },
+    { "awk", "awk script", "text/x-awk", 0 },
+    { "gawk", "GNU awk script", "text/x-gawk", 0 },
+};
+
+/* A "#!" script. Returns 1 with R filled in. */
+static int
+bf_script (const unsigned char *p, size_t n, const bf_text *tx, int text, bf_result *r)
+{
+    if (n < 2 || p[0] != '#' || p[1] != '!') return 0;
+    size_t i = 2, end;
+    while (i < n && (p[i] == ' ' || p[i] == '\t')) i++;
+    for (end = i; end < n && p[end] != '\n' && p[end] != '\r'; end++)
+        continue;
+    char line[256];
+    size_t len = end - i < sizeof line - 1 ? end - i : sizeof line - 1;
+    memcpy (line, p + i, len);
+    line[len] = '\0';
+    while (len && (line[len - 1] == ' ' || line[len - 1] == '\t')) line[--len] = '\0';
+    char prog[256];
+    const char *word = line, *generic = line;
+    size_t wl = strcspn (line, " \t");
+    if (wl == 12 && !strncmp (line, "/usr/bin/env", 12)) {
+        word = line + 12;
+        while (*word == ' ' || *word == '\t') word++;
+        generic = word;
+        wl = strcspn (word, " \t");
+        memcpy (prog, word, wl);
+        prog[wl] = '\0';
+    } else {
+        /* Only the usual directories pick a named interpreter. */
+        const char *base = NULL;
+        for (size_t k = 0; k < wl; k++) if (line[k] == '/') base = line + k;
+        size_t dl = base ? (size_t) (base - line) : 0;
+        int usual = base && ((dl == 4 && !strncmp (line, "/bin", 4)) ||
+                             (dl == 8 && !strncmp (line, "/usr/bin", 8)) ||
+                             (dl == 14 && !strncmp (line, "/usr/local/bin", 14)));
+        if (usual) { memcpy (prog, base + 1, wl - dl - 1); prog[wl - dl - 1] = '\0'; }
+        else prog[0] = '\0';
+    }
+    const char *desc = NULL, *mime = "text/plain";
+    int style = 0;
+    if (!strcmp (line, "/bin/sh") || !strncmp (line, "/bin/sh ", 8)) {
+        desc = "POSIX shell script"; mime = "text/x-shellscript";
+    } else if (prog[0]) {
+        for (size_t k = 0; k < sizeof bf_interp / sizeof bf_interp[0]; k++) {
+            size_t nl = strlen (bf_interp[k].name);
+            int match = !strcmp (prog, bf_interp[k].name);
+            /* python3, python3.11, perl5.36 ... */
+            if (!match && !strncmp (prog, bf_interp[k].name, nl) &&
+                (!strcmp (bf_interp[k].name, "python") || !strcmp (bf_interp[k].name, "perl")))
+                match = isdigit ((unsigned char) prog[nl]) != 0;
+            if (match) { desc = bf_interp[k].desc; mime = bf_interp[k].mime; style = bf_interp[k].style; break; }
+        }
+    }
+    if (desc) snprintf (r->desc, sizeof r->desc, "%s", desc);
+    else snprintf (r->desc, sizeof r->desc, "a %s script", generic);
+    r->mime = mime;
+    if (!text) {
+        if (style != 1) BF_ADD (r, " executable (binary data)");
+        r->charset = "binary";
+        return 1;
+    }
+    r->charset = tx->charset;
+    if (style == 0) BF_ADD (r, ", %s text executable%s", tx->name, tx->notes);
+    else if (style == 2) BF_ADD (r, ", %s text%s", tx->name, tx->notes);
+    return 1;
+}
+
+static void
+bf_utc_date (bf_result *r, time_t t)
+{
+    struct tm tm;
+    char buf[64];
+    if (gmtime_r (&t, &tm) && strftime (buf, sizeof buf, "%a %b %e %H:%M:%S %Y", &tm))
+        BF_ADD (r, "%s", buf);
+}
+
+/* Formats whose libmagic description carries decoded header fields.
+   TAIL is the file's last four bytes when known (gzip's size). */
+static int
+bf_detailed (const unsigned char *p, size_t n, const unsigned char *tail, bf_result *r)
+{
+    static const char *const png_color[] = { "grayscale", NULL, "/color RGB", "colormap",
+                                             "gray+alpha", NULL, "/color RGBA" };
+    r->charset = "binary";
+    if (n >= 29 && !memcmp (p, "\x89PNG\r\n\x1a\n", 8) && !memcmp (p + 12, "IHDR", 4)) {
+        snprintf (r->desc, sizeof r->desc, "PNG image data, %lu x %lu,", bf_be32 (p + 16), bf_be32 (p + 20));
+        unsigned depth = p[24], color = p[25];
+        if (depth == 1 || depth == 2 || depth == 4 || depth == 8 || depth == 16) BF_ADD (r, " %u-bit", depth);
+        if (color < 7 && png_color[color])
+            BF_ADD (r, "%s%s,", png_color[color][0] == '/' ? "" : " ", png_color[color]);
+        if (p[28] == 0) BF_ADD (r, " non-interlaced");
+        else if (p[28] == 1) BF_ADD (r, " interlaced");
+        r->mime = "image/png";
+        return 1;
+    }
+    if (n >= 10 && (!memcmp (p, "GIF87a", 6) || !memcmp (p, "GIF89a", 6))) {
+        snprintf (r->desc, sizeof r->desc, "GIF image data, version %.3s, %u x %u", p + 3,
+                  bf_le16 (p + 6), bf_le16 (p + 8));
+        r->mime = "image/gif";
+        return 1;
+    }
+    if (n >= 3 && p[0] == 0xff && p[1] == 0xd8 && p[2] == 0xff) {
+        snprintf (r->desc, sizeof r->desc, "JPEG image data");
+        if (n >= 20 && !memcmp (p + 6, "JFIF", 4)) {
+            static const char *const units[] = { "aspect ratio", "resolution (DPI)", "resolution (DPCM)" };
+            BF_ADD (r, ", JFIF standard %u.%02u", p[11], p[12]);
+            if (p[13] < 3) BF_ADD (r, ", %s", units[p[13]]);
+            BF_ADD (r, ", density %ux%u, segment length %u", bf_be16 (p + 14), bf_be16 (p + 16), bf_be16 (p + 4));
+            if (p[18]) BF_ADD (r, ", thumbnail %ux%u", p[18], p[19]);
+        }
+        static const char *const sof[16] = {
+            "baseline", "extended sequential", "progressive", "lossless", NULL,
+            "differential sequential", "differential progressive", "differential lossless", NULL,
+            "extended sequential, arithmetic coding", "progressive, arithmetic coding",
+            "lossless, arithmetic coding", NULL, "differential sequential, arithmetic coding",
+            "differential progressive, arithmetic coding", "differential lossless, arithmetic coding" };
+        size_t at = 2;
+        while (at + 4 <= n && p[at] == 0xff) {
+            unsigned mk = p[at + 1];
+            if (mk == 0xd8 || mk == 0x01 || (mk >= 0xd0 && mk <= 0xd7) || mk == 0xff) { at += mk == 0xff ? 1 : 2; continue; }
+            if (mk == 0xda || mk == 0xd9) break;
+            unsigned len = bf_be16 (p + at + 2);
+            if (mk == 0xfe && len >= 2 && at + 2 + len <= n) {
+                BF_ADD (r, ", comment: \"%.*s\"", (int) (len - 2 < 200 ? len - 2 : 200), (const char *) p + at + 4);
+            } else if (mk >= 0xc0 && mk <= 0xcf && sof[mk - 0xc0] && at + 10 <= n) {
+                BF_ADD (r, ", %s, precision %u, %ux%u, components %u", sof[mk - 0xc0], p[at + 4],
+                        bf_be16 (p + at + 7), bf_be16 (p + at + 5), p[at + 9]);
+                break;
+            }
+            if (len < 2) break;
+            at += 2 + len;
+        }
+        r->mime = "image/jpeg";
+        return 1;
+    }
+    if (n >= 10 && p[0] == 0x1f && p[1] == 0x8b) {
+        static const char *const os[] = {
+            "FAT filesystem (MS-DOS, OS/2, NT)", "Amiga", "VMS", "Unix", "VM/CMS", "Atari",
+            "HPFS filesystem (OS/2, NT)", "MacOS", "Z-System", "CP/M", "TOPS-20",
+            "NTFS filesystem (NT)", "QDOS", "Acorn RISCOS" };
+        unsigned flg = p[3];
+        snprintf (r->desc, sizeof r->desc, "gzip compressed data");
+        if (p[2] < 8) BF_ADD (r, ", reserved method");
+        else if (p[2] > 8) BF_ADD (r, ", unknown method");
+        if (flg & 0x01) BF_ADD (r, ", ASCII");
+        if (flg & 0x02) BF_ADD (r, ", has CRC");
+        if (flg & 0x04) BF_ADD (r, ", extra field");
+        if ((flg & 0x0c) == 0x08) {
+            size_t e = 10;
+            while (e < n && p[e] && e < 10 + 255) e++;
+            BF_ADD (r, ", was \"%.*s\"", (int) (e - 10), (const char *) p + 10);
+        }
+        if (flg & 0x10) BF_ADD (r, ", has comment");
+        if (flg & 0x20) BF_ADD (r, ", encrypted");
+        unsigned long mt = bf_le32 (p + 4);
+        if (mt) { BF_ADD (r, ", last modified: "); bf_utc_date (r, (time_t) mt); }
+        if (p[8] == 2) BF_ADD (r, ", max compression");
+        else if (p[8] == 4) BF_ADD (r, ", max speed");
+        if (p[9] < sizeof os / sizeof os[0]) BF_ADD (r, ", from %s", os[p[9]]);
+        if (tail) BF_ADD (r, ", original size modulo 2^32 %lu", bf_le32 (tail));
+        r->mime = "application/gzip";
+        return 1;
+    }
+    if (n >= 4 && !memcmp (p, "BZh", 3) && p[3] >= '1' && p[3] <= '9') {
+        snprintf (r->desc, sizeof r->desc, "bzip2 compressed data, block size = %c00k", p[3]);
+        r->mime = "application/x-bzip2";
+        return 1;
+    }
+    if (n >= 8 && !memcmp (p, "\xfd" "7zXZ\0", 6)) {
+        const char *ck = p[7] == 0 ? "NONE" : p[7] == 1 ? "CRC32" : p[7] == 4 ? "CRC64" : p[7] == 10 ? "SHA-256" : NULL;
+        snprintf (r->desc, sizeof r->desc, "XZ compressed data");
+        if (ck) BF_ADD (r, ", checksum %s", ck);
+        r->mime = "application/x-xz";
+        return 1;
+    }
+    if (n >= 8 && !memcmp (p, "%PDF-", 5)) {
+        size_t e = 5;
+        while (e < n && e < 16 && (isdigit (p[e]) || p[e] == '.')) e++;
+        snprintf (r->desc, sizeof r->desc, "PDF document, version %.*s", (int) (e - 5), (const char *) p + 5);
+        r->mime = "application/pdf";
+        r->charset = NULL;       /* from the text check */
+        return 1;
+    }
+    if (n >= 4 && !memcmp (p, "%!PS", 4)) {
+        snprintf (r->desc, sizeof r->desc, "PostScript document text");
+        if (n >= 15 && !memcmp (p + 4, "-Adobe-", 7)) {
+            size_t e = 11;
+            while (e < n && e < 24 && (isdigit (p[e]) || p[e] == '.')) e++;
+            if (e > 11) BF_ADD (r, " conforming DSC level %.*s", (int) (e - 11), (const char *) p + 11);
+        }
+        r->mime = "application/postscript";
+        r->charset = NULL;
+        return 1;
+    }
+    if (n >= 264 && !memcmp (p + 257, "ustar  \0", 8)) {
+        snprintf (r->desc, sizeof r->desc, "POSIX tar archive (GNU)");
+        r->mime = "application/x-tar";
+        return 1;
+    }
+    return 0;
+}
+
+/* MIME types for the table's descriptions, by prefix. */
+static const struct { const char *prefix, *mime; } bf_mimes[] = {
+    { "ELF relocatable", "application/x-object" }, { "ELF shared object", "application/x-sharedlib" },
+    { "ELF core", "application/x-coredump" }, { "ELF", "application/x-executable" },
+    { "MS-DOS executable", "application/x-dosexec" }, { "gzip", "application/gzip" },
+    { "XZ", "application/x-xz" }, { "Zstandard", "application/zstd" },
+    { "bzip2", "application/x-bzip2" }, { "lzip", "application/x-lzip" },
+    { "LZ4", "application/x-lz4" }, { "lzop", "application/x-lzop" },
+    { "compress'd", "application/x-compress" }, { "Zip archive", "application/zip" },
+    { "7-zip", "application/x-7z-compressed" }, { "RAR archive", "application/x-rar" },
+    { "POSIX tar", "application/x-tar" }, { "Debian binary package", "application/vnd.debian.binary-package" },
+    { "ar archive", "application/x-archive" }, { "cpio", "application/x-cpio" },
+    { "RPM", "application/x-rpm" }, { "Java class", "application/x-java-applet" },
+    { "PNG", "image/png" }, { "JPEG image", "image/jpeg" }, { "GIF", "image/gif" },
+    { "BMP", "image/bmp" }, { "TIFF", "image/tiff" }, { "WebP", "image/webp" },
+    { "Windows ICO", "image/vnd.microsoft.icon" }, { "PDF", "application/pdf" },
+    { "PostScript", "application/postscript" }, { "WAVE", "audio/x-wav" },
+    { "FLAC", "audio/flac" }, { "Ogg", "audio/ogg" }, { "MP3", "audio/mpeg" },
+    { "Matroska", "video/x-matroska" }, { "WebM", "video/webm" }, { "MP4", "video/mp4" },
+    { "ISO 9660", "application/x-iso9660-image" }, { "SQLite 3", "application/vnd.sqlite3" },
+    { "JSON", "application/json" }, { "HTML", "text/html" }, { "XML", "text/xml" },
+    { "PEM", "application/x-pem-file" }, { "PGP message", "application/pgp-encrypted" },
+    { "PGP signature", "application/pgp-signature" }, { "PGP public key", "application/pgp-keys" },
+    { "vCard", "text/vcard" }, { "iCalendar", "text/calendar" }, { "Rich Text", "text/rtf" },
+    { "WebAssembly", "application/wasm" }, { "Squashfs", "application/octet-stream" },
+};
+
+static void
+bf_set_mime (bf_result *r)
+{
+    if (r->mime) return;
+    r->mime = "application/octet-stream";
+    for (size_t k = 0; k < sizeof bf_mimes / sizeof bf_mimes[0]; k++)
+        if (!strncmp (r->desc, bf_mimes[k].prefix, strlen (bf_mimes[k].prefix))) {
+            r->mime = bf_mimes[k].mime;
+            break;
+        }
+}
+
+/* Describe the first N bytes of a regular file or stream. */
+static void
+bf_describe (const unsigned char *buf, size_t n, const unsigned char *tail, int fd, bf_result *r)
+{
+    bf_text tx;
+    int text = n && bf_text_info (buf, n, &tx);
+    r->mime = NULL;
+    r->charset = NULL;
+    r->desc[0] = '\0';
+    if (n == 0) {
+        snprintf (r->desc, sizeof r->desc, "empty");
+        r->mime = "inode/x-empty";
+        r->charset = "binary";
+        return;
+    }
+    if (bf_detailed (buf, n, tail, r)) {
+        if (!r->charset) r->charset = text ? tx.charset : "binary";
+        return;
+    }
+    if (bf_script (buf, n, &tx, text, r)) return;
+    size_t probe = n < BF_PROBE_LEN ? n : BF_PROBE_LEN;
+    const char *desc = bf_classify (buf, probe);
+    if (!strcmp (desc, "data") && fd >= 0 && bf_is_iso9660 (fd))
+        desc = "ISO 9660 CD-ROM filesystem data";
+    r->charset = text ? tx.charset : "binary";
+    if (text && (!strcmp (desc, "HTML document") || !strcmp (desc, "XML document"))) {
+        if (desc[0] == 'X' && n > 15 && !memcmp (buf, "<?xml version=\"", 15)) {
+            size_t e = 15;
+            while (e < n && e < 24 && buf[e] != '"') e++;
+            snprintf (r->desc, sizeof r->desc, "XML %.*s document", (int) (e - 15), (const char *) buf + 15);
+        } else snprintf (r->desc, sizeof r->desc, "%s", desc);
+        BF_ADD (r, ", %s text%s", tx.name, tx.notes);
+        r->mime = desc[0] == 'H' ? "text/html" : "text/xml";
+        return;
+    }
+    if (!strcmp (desc, "ASCII text") || !strcmp (desc, "UTF-8 text") || !strcmp (desc, "ISO-8859 text") ||
+        !strcmp (desc, "data") || !strcmp (desc, "Unicode text, UTF-8 (with BOM) text")) {
+        if (text) {
+            snprintf (r->desc, sizeof r->desc, "%s text%s", tx.name, tx.notes);
+            r->mime = "text/plain";
+        } else {
+            snprintf (r->desc, sizeof r->desc, "data");
+            r->mime = "application/octet-stream";
+        }
+        return;
+    }
+    snprintf (r->desc, sizeof r->desc, "%s", desc);
+    bf_set_mime (r);
+}
+
 /* Width comes from operand spellings (including the literal "-"), not from
    the substituted stdin label. Brief output also suppresses error labels. */
 static void
@@ -933,10 +1376,46 @@ bf_error (const char *path, int brief, size_t width, int error_mode,
             operation, path, strerror (error_number));
 }
 
+/* Read up to BF_BYTES_MAX bytes, as libmagic does. */
+static ssize_t
+bf_read (int fd, unsigned char *buf, size_t cap)
+{
+    size_t n = 0;
+    while (n < cap) {
+        ssize_t r = read (fd, buf + n, cap - n);
+        if (r < 0 && errno == EINTR) continue;
+        if (r < 0) return n ? (ssize_t) n : -1;
+        if (r == 0) break;
+        n += (size_t) r;
+    }
+    return (ssize_t) n;
+}
+
+enum { BF_OUT_DESC, BF_OUT_MIME, BF_OUT_TYPE, BF_OUT_ENC };
+
+static void
+bf_emit (const char *label, int brief, size_t width, int out, const bf_result *r)
+{
+    bf_prefix (label, brief, width);
+    if (out == BF_OUT_DESC) puts (r->desc);
+    else if (out == BF_OUT_TYPE) puts (r->mime);
+    else if (out == BF_OUT_ENC) puts (r->charset ? r->charset : "ERROR: (null)");
+    else if (!r->charset) puts (r->mime);
+    else printf ("%s; charset=%s\n", r->mime, r->charset);
+}
+
+static void
+bf_inode (bf_result *r, const char *desc, const char *mime)
+{
+    snprintf (r->desc, sizeof r->desc, "%s", desc);
+    r->mime = mime;
+    r->charset = "binary";
+}
+
 int
 file_builtin (WORD_LIST *list)
 {
-    int brief = 0, error_mode = 0;
+    int brief = 0, error_mode = 0, deref = 0, out = BF_OUT_DESC;
 
     /* Leading options (file(1) subset). */
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
@@ -947,27 +1426,41 @@ file_builtin (WORD_LIST *list)
             puts ("file 1.0 (bash-loadable)");
             return EXECUTION_SUCCESS;
         }
-        if (strcmp (w, "--brief") == 0) {
-            brief = 1; list = list->next; continue;
-        }
-        if (w[1] != '-') {
-            const char *option = w + 1;
-            while (*option == 'b' || *option == 'E') option++;
-            if (!*option) {
-                for (option = w + 1; *option; option++) {
-                    if (*option == 'b') brief = 1;
-                    else error_mode = 1;
-                }
-                list = list->next; continue;
+        if (w[1] == '-') {
+            if (!strcmp (w, "--brief")) brief = 1;
+            else if (!strcmp (w, "--mime")) out = BF_OUT_MIME;
+            else if (!strcmp (w, "--mime-type")) out = out == BF_OUT_ENC ? BF_OUT_MIME : BF_OUT_TYPE;
+            else if (!strcmp (w, "--mime-encoding")) out = out == BF_OUT_TYPE ? BF_OUT_MIME : BF_OUT_ENC;
+            else if (!strcmp (w, "--dereference")) deref = 1;
+            else if (!strcmp (w, "--no-dereference")) deref = 0;
+            else {
+                builtin_error ("unknown flag: %s", w);
+                builtin_usage ();
+                return EXECUTION_FAILURE;
             }
+            list = list->next;
+            continue;
         }
-        builtin_error ("unknown flag: %s", w);
-        builtin_usage ();
-        return EXECUTION_FAILURE;
+        const char *option;
+        for (option = w + 1; *option && strchr ("bEiLh", *option); option++)
+            continue;
+        if (*option) {
+            builtin_error ("unknown flag: %s", w);
+            builtin_usage ();
+            return EXECUTION_FAILURE;
+        }
+        for (option = w + 1; *option; option++) {
+            if (*option == 'b') brief = 1;
+            else if (*option == 'E') error_mode = 1;
+            else if (*option == 'i') out = BF_OUT_MIME;
+            else if (*option == 'L') deref = 1;
+            else deref = 0;
+        }
+        list = list->next;
     }
 
     if (!list) {
-        builtin_error ("usage: file [-bE] FILE [FILE...]");
+        builtin_error ("usage: file [-bEhiL] [--mime-type] [--mime-encoding] FILE [FILE...]");
         return EXECUTION_FAILURE;
     }
 
@@ -977,71 +1470,103 @@ file_builtin (WORD_LIST *list)
         if (len > width) width = len;
     }
 
+    unsigned char *buf = malloc (BF_BYTES_MAX);
+    if (!buf) { builtin_error ("out of memory"); return EXECUTION_FAILURE; }
+    bf_result res;
     int rc = EXECUTION_SUCCESS;
     for (WORD_LIST *p = list; p; p = p->next) {
         const char *path = p->word->word;
 
         /* "-" reads standard input; file(1) labels it "/dev/stdin". */
         if (strcmp (path, "-") == 0) {
-            unsigned char probe[BF_PROBE_LEN];
-            ssize_t n = read (STDIN_FILENO, probe, sizeof probe);
+            ssize_t n = bf_read (STDIN_FILENO, buf, BF_BYTES_MAX);
             if (n < 0) n = 0;
-            BF_EMIT ("/dev/stdin", bf_classify (probe, (size_t) n));
+            bf_describe (buf, (size_t) n, n >= 4 ? buf + n - 4 : NULL, -1, &res);
+            bf_emit ("/dev/stdin", brief, width, out, &res);
             continue;
         }
 
         struct stat st;
-        if (lstat (path, &st) < 0) {
+        if ((deref ? stat (path, &st) : lstat (path, &st)) < 0) {
             bf_error (path, brief, width, error_mode,
                       error_mode ? "cannot stat" : "cannot open", errno);
             if (error_mode) rc = EXECUTION_FAILURE;
             continue;
         }
-        if (S_ISDIR (st.st_mode))  { BF_EMIT (path, "directory");         continue; }
-        if (S_ISLNK (st.st_mode))  { BF_EMIT (path, "symbolic link");     continue; }
-        if (S_ISFIFO (st.st_mode)) { BF_EMIT (path, "named pipe (FIFO)"); continue; }
-        if (S_ISSOCK (st.st_mode)) { BF_EMIT (path, "socket");            continue; }
-        if (S_ISBLK (st.st_mode))  { BF_EMIT (path, "block special");     continue; }
-        if (S_ISCHR (st.st_mode))  { BF_EMIT (path, "character special"); continue; }
-        if (!S_ISREG (st.st_mode)) { BF_EMIT (path, "special file");      continue; }
-        int fd = open (path, O_RDONLY | O_CLOEXEC);
-        if (fd < 0) {
-            bf_error (path, brief, width, error_mode, "cannot open", errno);
-            if (error_mode) rc = EXECUTION_FAILURE;
+        if (S_ISLNK (st.st_mode)) {
+            char target[4096];
+            ssize_t tl = readlink (path, target, sizeof target - 1);
+            target[tl < 0 ? 0 : tl] = '\0';
+            struct stat ts;
+            int broken = stat (path, &ts) < 0;
+            snprintf (res.desc, sizeof res.desc, "%ssymbolic link to %s", broken ? "broken " : "", target);
+            res.mime = "inode/symlink";
+            /* file 5.46 gives a broken link no charset ("ERROR: (null)"
+               for --mime-encoding); mirror it. */
+            res.charset = broken ? NULL : "binary";
+            bf_emit (path, brief, width, out, &res);
             continue;
         }
-        unsigned char probe[BF_PROBE_LEN];
-        ssize_t n = read (fd, probe, sizeof probe);
-        if (n < 0) {
-            int saved_errno = errno;
+        char special[64];
+        if (S_ISDIR (st.st_mode)) bf_inode (&res, "directory", "inode/directory");
+        else if (S_ISFIFO (st.st_mode)) bf_inode (&res, "fifo (named pipe)", "inode/fifo");
+        else if (S_ISSOCK (st.st_mode)) bf_inode (&res, "socket", "inode/socket");
+        else if (S_ISBLK (st.st_mode) || S_ISCHR (st.st_mode)) {
+            snprintf (special, sizeof special, "%s special (%u/%u)",
+                      S_ISBLK (st.st_mode) ? "block" : "character",
+                      major (st.st_rdev), minor (st.st_rdev));
+            bf_inode (&res, special, S_ISBLK (st.st_mode) ? "inode/blockdevice" : "inode/chardevice");
+        } else if (!S_ISREG (st.st_mode)) bf_inode (&res, "special file", "application/octet-stream");
+        else {
+            int fd = open (path, O_RDONLY | O_CLOEXEC);
+            if (fd < 0) {
+                bf_error (path, brief, width, error_mode, "cannot open", errno);
+                if (error_mode) rc = EXECUTION_FAILURE;
+                continue;
+            }
+            ssize_t n = bf_read (fd, buf, BF_BYTES_MAX);
+            if (n < 0) {
+                int saved_errno = errno;
+                close (fd);
+                bf_error (path, brief, width, error_mode, "read error", saved_errno);
+                if (error_mode) rc = EXECUTION_FAILURE;
+                continue;
+            }
+            unsigned char tail[4];
+            const unsigned char *tp = NULL;
+            if (st.st_size >= 4 && (off_t) n == st.st_size) tp = buf + n - 4;
+            else if (st.st_size >= 4 && pread (fd, tail, 4, st.st_size - 4) == 4) tp = tail;
+            bf_describe (buf, (size_t) n, tp, fd, &res);
             close (fd);
-            bf_error (path, brief, width, error_mode, "read error", saved_errno);
-            if (error_mode) rc = EXECUTION_FAILURE;
-            continue;
         }
-        const char *desc = bf_classify (probe, (size_t) n);
-        if (strcmp (desc, "data") == 0 && bf_is_iso9660 (fd))
-            desc = "ISO 9660 CD-ROM filesystem data";
-        close (fd);
-        BF_EMIT (path, desc);
+        bf_emit (path, brief, width, out, &res);
     }
+    free (buf);
     return rc;
 }
 
 char *file_doc[] = {
     "Identify file types via magic-byte signatures.",
     "",
-    "    file [-bE] [--help|--version] FILE [FILE...]",
+    "    file [-bEhiL] [--mime-type] [--mime-encoding] [--help|--version] FILE [FILE...]",
     "",
     "    -b, --brief    do not prepend `FILE: ' (print the type only)",
     "    -E             report filesystem errors with failure status",
+    "    -i, --mime     print the MIME type and charset (text/plain; charset=us-ascii)",
+    "    --mime-type    print only the MIME type",
+    "    --mime-encoding  print only the charset",
+    "    -L, --dereference  follow symbolic links",
+    "    -h, --no-dereference  describe a symbolic link itself (the default)",
     "    --help         show this help",
     "    -v, --version  show version",
     "",
     "A FILE of `-' reads standard input (reported as /dev/stdin).",
     "",
-    "Reads the first 512 bytes of each FILE and matches against a",
-    "curated table of signatures: ELF, MS-DOS executable, gzip/zlib/compress/xz/zstd/lz4/lzip/lzop/lrzip/snappy-framed/bzip2, zip/7z/tar/deb/cabinet/wim/zim/CRX/xar/squashfs/",
+    "Reads up to 7 MiB of each FILE. Text is classified as file 5.46 does",
+    "(ASCII, UTF-8, ISO-8859 ..., with CRLF/CR/no line terminators, very long",
+    "lines, escape sequences); scripts, HTML, XML, PNG, GIF, JPEG, gzip, bzip2,",
+    "xz, PDF and PostScript get file's detailed descriptions. The first 512",
+    "bytes are also matched against a curated table of signatures: ELF, MS-DOS executable, gzip/zlib/compress/xz/zstd/lz4/lzip/lzop/lrzip/snappy-framed/bzip2, zip/7z/tar/deb/cabinet/wim/zim/CRX/xar/squashfs/",
     "cpio/cpio-crc/ar/rpm, scripts (#!), Java class, Java serialization, Dalvik DEX, OLE2 compound document, Mach-O, Mach-O universal/fat binary, LLVM bitcode, GNU message catalog, DICOM, LUKS encrypted file, DOS/MBR boot sector, pcap/pcapng, WebAssembly,",
     "Lua bytecode, Blender3D, QOI, MIDI, iNES ROM, Game Boy ROM, Apple binary plist, QEMU QCOW/VMware VMDK image, KeePass KDBX, OpenEXR, Git pack,",
     "JPEG/PNG/GIF/BMP/TIFF/BigTIFF/PSD/PCX/XCF/JP2/JPEG XL/BPG/FLIF/Netpbm/PAM, WebP/AIFF/AIFF-C/AU/Ogg/Opus/Vorbis/FLAC/MP3/FLV/SWF/MPEG, WebM/Matroska/MP4/AVIF,",
@@ -1058,6 +1583,6 @@ struct builtin file_struct = {
     file_builtin,
     BUILTIN_ENABLED,
     file_doc,
-    "file [-bE] [--help|--version] FILE [FILE...]",
+    "file [-bEhiL] [--mime-type] [--mime-encoding] [--help|--version] FILE [FILE...]",
     0
 };

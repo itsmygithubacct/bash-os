@@ -7,7 +7,7 @@
  *   bashdd [if=FILE] [of=FILE] [bs=N|ibs=N obs=N] [count=N]
  *          [skip=N] [seek=N]
  *          [cbs=N]
- *          [conv=notrunc,sync,noerror,swab,fsync,fdatasync,excl,nocreat,ucase,lcase,block,unblock]
+ *          [conv=notrunc,sync,noerror,swab,fsync,fdatasync,excl,nocreat,ucase,lcase,block,unblock,sparse]
  *          [iflag=fullblock,count_bytes,skip_bytes]
  *          [oflag=append,seek_bytes]
  *          [status=none|noxfer|progress]
@@ -62,6 +62,7 @@
 #define DDC_LCASE     (1<<9)
 #define DDC_BLOCK     (1<<10)
 #define DDC_UNBLOCK   (1<<11)
+#define DDC_SPARSE    (1<<12)
 /* iflag= */
 #define DDI_FULLBLOCK (1<<0)
 #define DDI_COUNT_BYTES (1<<1)
@@ -544,6 +545,7 @@ dd_builtin (WORD_LIST *list)
         { "lcase",   DDC_LCASE   },
         { "block",   DDC_BLOCK   },
         { "unblock", DDC_UNBLOCK },
+        { "sparse",  DDC_SPARSE  },
         { NULL, 0 }
     };
     static const dd_flag_entry iflag_tbl[] = {
@@ -712,6 +714,7 @@ dd_builtin (WORD_LIST *list)
     /* Main copy loop. */
     long long ifull = 0, ipart = 0, ofull = 0, opart = 0;
     long long bytes_total = 0;
+    int final_seek = 0;     /* conv=sparse: the last output block was a seek */
     double start_time = dd_now_seconds ();
     double next_progress = start_time + 1.0;
     struct sigaction old_usr1;
@@ -891,8 +894,23 @@ dd_builtin (WORD_LIST *list)
             }
         }
 
-        /* Write loop — handle EINTR + short writes. */
+        /* conv=sparse (GNU): seek over an all-NUL output block instead of
+           writing it; an unseekable output drops the advisory request. */
         size_t off = 0;
+        if ((conv & DDC_SPARSE) && wlen > 0) {
+            size_t z = 0;
+            while (z < wlen && wbuf[z] == 0) z++;
+            if (z == wlen) {
+                if (lseek (ofd, (off_t) wlen, SEEK_CUR) < 0)
+                    conv &= ~DDC_SPARSE;
+                else {
+                    final_seek = 1;
+                    off = wlen;
+                }
+            }
+            if (off < wlen) final_seek = 0;
+        }
+        /* Write loop — handle EINTR + short writes. */
         while (off < wlen) {
             ssize_t w = write (ofd, wbuf + off, wlen - off);
             if (w <= 0) {
@@ -967,6 +985,19 @@ dd_builtin (WORD_LIST *list)
     }
 
 done:
+    /* A trailing sparse seek leaves the file short: extend it, as GNU dd
+       does, so the hole is part of the output. */
+    if (final_seek) {
+        struct stat st;
+        off_t end = lseek (ofd, 0, SEEK_CUR);
+        if (fstat (ofd, &st) == 0 && S_ISREG (st.st_mode) && end > st.st_size
+            && ftruncate (ofd, end) < 0) {
+            builtin_error ("failed to truncate to %lld bytes in output file %s: %s",
+                           (long long) end, output_owned ? oname : "standard output",
+                           strerror (errno));
+            rc = EXECUTION_FAILURE;
+        }
+    }
     free (rebuf);
     free (swbuf);
     free (ibuf);
@@ -1019,7 +1050,7 @@ char *dd_doc[] = {
     "    bashdd [if=FILE] [of=FILE] [bs=N|ibs=N obs=N] [cbs=N] [count=N]",
     "           [skip=N] [seek=N]",
     "           [conv=notrunc,sync,noerror,swab,fsync,fdatasync,excl,nocreat,",
-    "                 ucase,lcase,block,unblock]",
+    "                 ucase,lcase,block,unblock,sparse]",
     "           [iflag=fullblock,count_bytes,skip_bytes]",
     "           [oflag=append,seek_bytes]",
     "           [status=none|noxfer|progress]",
@@ -1031,6 +1062,7 @@ char *dd_doc[] = {
     "conv=block reblocks newline-delimited records to fixed cbs-byte",
     "records (space-padded / truncated); conv=unblock reverses it",
     "(strip trailing spaces, append newline). Both require cbs=N.",
+    "conv=sparse seeks over all-NUL output blocks instead of writing them.",
     "",
     "Differences from POSIX dd:",
     "  - conv=ascii|ebcdic dropped (use tr).",

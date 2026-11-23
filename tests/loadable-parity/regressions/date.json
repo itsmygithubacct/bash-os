@@ -9,7 +9,8 @@
     "GNU ISO-8601, RFC 3339, RFC email, and extended strftime formats",
     "Documented compact, slash-separated, and RFC-style date input shapes",
     "Invalid calendar input statuses and invalid ISO timespec status",
-    "Bash type/help metadata for the registered date builtin"
+    "Bash type/help metadata for the registered date builtin",
+    "-r/--reference=FILE modification times and their conflicts with -d (guest compatibility pass 1)."
   ],
   "exclusions": [
     "Current-time output and the documented now input alias are omitted because they depend on wall-clock timing.",
@@ -119,6 +120,71 @@
       "kind": "deferred",
       "purpose": "GNU date can request a system wall-clock change, but exercising that operation here would mutate clock state and the loadable documentation does not advertise it.",
       "reason": "Do not execute date -s or another clock-setting path in this environment. A future test requires a disposable VM with an isolated controllable wall clock, or a reviewed clock syscall mock that records the requested timestamp without changing the host clock."
+    },
+    {
+      "id": "reference_file",
+      "kind": "parity",
+      "purpose": "-r FILE, -rFILE and --reference=FILE print FILE's modification time (guest pass 1, G14).",
+      "requires": [
+        "date",
+        "touch"
+      ],
+      "script": "touch -d @1234567890 f\ndate -u -r f +%s\ndate -u -rf '+%F %T'\ndate -u --reference=f +%s\ndate -u -r f -d now +%s || echo rc=$?\ndate -r missing || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "month_name_slash_and_item_inputs",
+      "kind": "parity",
+      "purpose": "GNU date -d calendar items: month names in either order, MM/DD/YYYY, D-Mon-YYYY, the default date(1) output read back, fractional seconds, am/pm, zone abbreviations and numeric zones, YYYYMMDD HHMM, and relative items after such a date (guest pass 2, G29).",
+      "requires": [
+        "date"
+      ],
+      "script": "export TZ=UTC0\nfor s in 'Mar 5 2024' '5 March 2024' 'March 5, 2024' 'Tuesday, March 5, 2024' '03/05/2024' '3/5/24' '5 Mar 24' '5-Mar-2024' 'Mar-5-2024' 'Tue Mar  5 07:08:09 UTC 2024' '2024-03-05 07:08:09.5' '2024-03-05T07:08:09,25Z' 'Mar 5 2024 7:08:09.123456789' 'Mar 5 2024 7:30 pm' '5 Mar 2024 12:00 am' 'Mar 5 2024 10:00 EST' '2024-03-05 10:00 PST' '5 Mar 2024 12:00:00 +0100' 'Mar 5 2024 10:00 -05:30' '20240305 1230' '2024/3/5' 'Sept 9 1999' 'Jan. 2 2020' 'Mar 5 2024 +1 month' '5 March 2024 3 days ago' 'Mar 5 2024 10:00 +1 day'; do\n  date -d \"$s\" '+%F %T.%N'\ndone",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "invalid_calendar_items",
+      "kind": "parity",
+      "purpose": "Strings GNU date rejects stay rejected with status 1: a month without its day, an out-of-range day or month, an ordinal suffix, a two-digit hour-like year without a comma (guest pass 2, G29).",
+      "requires": [
+        "date"
+      ],
+      "script": "export TZ=UTC0\nfor s in 'Mar' 'Mar 2024' 'Mar 32 2024' '13/05/2024' 'Feb 29 2023' 'march 5th 2024' 'Mar 5 24' '2024-03-05 25:00' '13pm'; do\n  date -d \"$s\" +%F || echo \"rc=$? $s\"\ndone",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "file_batch_input",
+      "kind": "parity",
+      "purpose": "-f FILE, --file=FILE and -f - parse one date per line; a bad line is diagnosed and the rest still print with status 1; -f conflicts with -d and a missing file fails (guest pass 2, G29).",
+      "requires": [
+        "date"
+      ],
+      "script": "printf '2024-03-05\\nbogus\\nMar 6 2024\\n@0\\n' > dates\ndate -u -f dates +%F || echo rc=$?\nprintf '2024-03-07\\n5 Mar 2024 10:00\\n' | date -u -f - '+%F %T'\ndate -u --file=dates -d now || echo rc=$?\ndate -u -f missing || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "quarter_and_nanosecond_forms",
+      "kind": "parity",
+      "purpose": "+%q quarter (with GNU padding flags), -Ins, --iso-8601=ns, --rfc-3339=ns and argmatch abbreviations such as -Is and --rfc-3339=s (guest pass 2, G29).",
+      "requires": [
+        "date"
+      ],
+      "script": "date -u -d @1709622489.5 '+%q|%-q|%3q|%_3q|%03q'\nfor m in 01 04 07 12; do date -u -d 2024-$m-15 +%q; done\ndate -u -d @1709622489.5 -Ins\ndate -u -d @1709622489.5 --iso-8601=ns\ndate -u -d @1709622489.5 --rfc-3339=ns\ndate -u -d @1709622489.5 -Is\ndate -u -d @1709622489.5 -Ih\ndate -u -d @1709622489.5 --rfc-3339=s",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "help-stdout-status",
+      "kind": "contract",
+      "purpose": "GNU tools answer --help with help on stdout and status 0; date --help used to write usage to stderr or exit nonzero (guest pass 2, G38).",
+      "script": "date --help >o 2>e; echo rc=$?; [[ -s o && ! -s e ]] && echo stdout-only",
+      "expected_status": 0,
+      "stdout": "rc=0\nstdout-only\n",
+      "stderr": "empty"
     }
   ]
 }

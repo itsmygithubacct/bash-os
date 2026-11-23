@@ -1253,7 +1253,7 @@ xargs_builtin (WORD_LIST *list)
         const char *w = list->word->word;
         if (!strcmp (w, "--")) { list = list->next; break; }
         if (!strcmp (w, "--help")) {
-            builtin_usage ();
+            builtin_help ();
             return EXECUTION_SUCCESS;
         }
         if (!strcmp (w, "--version")) {

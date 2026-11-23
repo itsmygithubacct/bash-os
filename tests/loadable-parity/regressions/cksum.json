@@ -12,10 +12,11 @@
     "A filename containing a newline",
     "Explicit dash operands retain their name, including repeated EOF and NUL-delimited records.",
     "Same-shell parser failures leave input unread and reset options for later invocations.",
-    "Missing/directory/closed-input failures retain failure status while later checksums work."
+    "Missing/directory/closed-input failures retain failure status while later checksums work.",
+    "--check over tagged lines of every supported digest and untagged lines with -a, with --quiet/--status/--strict/--warn/--ignore-missing and GNU option conflicts; blake2b digests (guest pass 3 G47)"
   ],
   "exclusions": [
-    "GNU --check, --raw, --base64, --length, legacy sysv/bsd/crc32b modes, and algorithms outside the documented set",
+    "GNU --raw, --base64, --length, legacy sysv/bsd/crc32b modes, and algorithms outside the documented set",
     "Version banner identity and exact diagnostic wording",
     "Very large inputs beyond the harness fixture limits"
   ],
@@ -194,6 +195,40 @@
       "script": "mkdir folder\nprintf 'abc' > present\nrc=0; cksum absent folder - present < present || rc=$?\n[[ $rc == 1 ]]\nprintf 'operands=%s\\n' \"$rc\"\nrc=0; cksum <&- || rc=$?\n[[ $rc == 1 ]]\nrc=0; cksum -a sha256 <&- || rc=$?\n[[ $rc == 1 ]]\nprintf 'closed-inputs-rejected\\n'\ncksum present",
       "expected_status": 0,
       "stderr": "nonempty"
+    },
+    {
+      "id": "check-tagged-and-untagged",
+      "kind": "parity",
+      "purpose": "cksum --check verifies tagged lines of any digest (including BLAKE2b and upper-case hex) and, with -a, untagged lines of that algorithm; mismatches, malformed lines and missing files are reported as GNU cksum does (guest pass 3 G47).",
+      "requires": [
+        "cksum",
+        "sha256sum"
+      ],
+      "script": "printf 'a\\n' > a; printf 'b\\n' > b\ns() { local rc=0; \"$@\" || rc=$?; echo \"rc=$rc\"; }\ncksum -a sha256 a > c; cksum -a md5 b >> c; cksum -a blake2b a >> c; cksum -a sha1 b >> c\ns cksum --check c; s cksum -c --quiet c; s cksum -c --status c\ncksum -a sha512 --untagged a > u; s cksum -a sha512 -c u; s cksum -c u; s cksum -a sha256 -c c\nprintf 'SHA256 (a) = %064d\\njunk\\n' 0 > bad; s cksum -c bad; s cksum -c -w bad; s cksum -c --strict c bad\nprintf 'SHA256 (zz) = %064d\\n' 0 > miss; s cksum -c miss; s cksum -c --ignore-missing miss; cat miss c > mix; s cksum -c --ignore-missing mix\ns cksum -c < c",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "check-option-conflicts",
+      "kind": "parity",
+      "purpose": "Check-only options without --check, --tag or -z with --check, and --check with the CRC algorithm exit 1.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "printf 'a\\n' > a; cksum -a sha256 a > c\ns() { local rc=0; \"$@\" >/dev/null 2>&1 || rc=$?; echo \"rc=$rc\"; }\ns cksum --quiet a; s cksum --status a; s cksum -c --tag c; s cksum -c -z c; s cksum -a crc -c c; s cksum -c nofile",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "blake2b-digest",
+      "kind": "parity",
+      "purpose": "cksum -a blake2b prints the BSD-tagged BLAKE2b-512 digest and --untagged the plain form.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "printf 'abc' > f; cksum -a blake2b f; cksum -a blake2b --untagged f; printf '' | cksum -a blake2b",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

@@ -34,6 +34,7 @@
 #include <sys/sysmacros.h>
 #include <sys/syscall.h>
 #include <sys/xattr.h>
+#include <sys/statfs.h>
 #include <fcntl.h>
 #include "loadables.h"
 #include "bashgetopt.h"
@@ -52,10 +53,20 @@
   "Access: (%04a/%10.10A)  Uid: (%5u/%8U)   Gid: (%5g/%8G)\n" \
   "Access: %x\nModify: %y\nChange: %z\n Birth: %w\n"
 #define STAT_FMT_TERSE "%n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %W %o\n"
+/* -f, --file-system */
+#define STAT_FMT_FS \
+  "  File: \"%n\"\n" \
+  "    ID: %-8i Namelen: %-7l Type: %T\n" \
+  "Block size: %-10s Fundamental block size: %S\n" \
+  "Blocks: Total: %-10b Free: %-10f Available: %a\n" \
+  "Inodes: Total: %-10c Free: %d\n"
+#define STAT_FMT_FS_TERSE "%n %i %l %t %s %S %b %f %a %c %d\n"
 
 struct stat_file {
   const char *name;
   struct stat st;
+  struct statfs fs;             /* -f: the file system holding NAME */
+  int is_fs;
   char link[PATH_MAX + 1];      /* target if NAME is a symlink we did not follow */
   int is_link;
   int quote_always;             /* %N: coreutils always quotes in a user format */
@@ -249,6 +260,71 @@ stat_directive (const struct stat_file *f, int prefix, int c, char *val, size_t 
   return 0;
 }
 
+/* File-system type names, as coreutils' stat -f prints them. */
+static const char *
+stat_fs_type_name (unsigned long t)
+{
+  static const struct { unsigned long magic; const char *name; } names[] = {
+    { 0x01021994, "tmpfs" }, { 0xEF53, "ext2/ext3" }, { 0x9123683E, "btrfs" },
+    { 0x58465342, "xfs" }, { 0x01021997, "v9fs" }, { 0x9FA0, "proc" },
+    { 0x62656572, "sysfs" }, { 0x1CD1, "devpts" }, { 0x858458F6, "ramfs" },
+    { 0x4D44, "msdos" }, { 0x794C7630, "overlayfs" }, { 0x73717368, "squashfs" },
+    { 0x6969, "nfs" }, { 0x63677270, "cgroup2fs" }, { 0x27E0EB, "cgroupfs" },
+    { 0x65735546, "fuseblk" }, { 0x65735543, "fusectl" }, { 0x9660, "isofs" },
+    { 0x2FC12FC1, "zfs" }, { 0x5346544E, "ntfs" }, { 0x2011BAB0, "exfat" },
+    { 0xF2F52010, "f2fs" }, { 0x73636673, "securityfs" }, { 0x64626720, "debugfs" },
+    { 0x74726163, "tracefs" }, { 0xCAFE4A11, "bpf_fs" }, { 0x19800202, "mqueue" },
+    { 0x958458F6, "hugetlbfs" }, { 0x0187, "autofs" }, { 0x42494E4D, "binfmt_misc" },
+    { 0x50495045, "pipefs" }, { 0x534F434B, "sockfs" }, { 0xDE5E81E4, "efivarfs" },
+    { 0x6165676C, "pstore" }, { 0x62656570, "configfs" }, { 0xFF534D42, "cifs" },
+    { 0xFE534D42, "smb2" }, { 0x7461636F, "ocfs2" }, { 0x3153464A, "jfs" },
+    { 0x52654973, "reiserfs" }, { 0x28CD3D45, "cramfs" }, { 0x453DCD28, "cramfs-wend" },
+    { 0x5A3C69F0, "aafs" }, { 0x6E736673, "nsfs" }, { 0x43415D53, "daxfs" },
+    { 0x13661366, "balloon-kvm-fs" }, { 0xABBA1974, "xenfs" }, { 0x01161970, "gfs/gfs2" },
+    { 0, NULL }
+  };
+  for (int i = 0; names[i].name; i++)
+    if (names[i].magic == t)
+      return names[i].name;
+  return NULL;
+}
+
+static int
+stat_fs_directive (const struct stat_file *f, int c, char *val, size_t n)
+{
+  const struct statfs *fs = &f->fs;
+  switch (c)
+    {
+    case 'a': snprintf (val, n, "%" PRIuMAX, (uintmax_t) fs->f_bavail); break;
+    case 'b': snprintf (val, n, "%" PRIuMAX, (uintmax_t) fs->f_blocks); break;
+    case 'c': snprintf (val, n, "%" PRIuMAX, (uintmax_t) fs->f_files); break;
+    case 'd': snprintf (val, n, "%" PRIuMAX, (uintmax_t) fs->f_ffree); break;
+    case 'f': snprintf (val, n, "%" PRIuMAX, (uintmax_t) fs->f_bfree); break;
+    case 'i':
+      {
+        unsigned int w[2];
+        memcpy (w, &fs->f_fsid, sizeof w);
+        snprintf (val, n, "%" PRIxMAX, ((uintmax_t) w[0] << 32) | w[1]);
+      }
+      break;
+    case 'l': snprintf (val, n, "%lu", (unsigned long) fs->f_namelen); break;
+    case 'n': snprintf (val, n, "%s", f->name); break;
+    case 's': snprintf (val, n, "%lu", (unsigned long) fs->f_bsize); break;
+    case 'S': snprintf (val, n, "%lu", (unsigned long) (fs->f_frsize ? fs->f_frsize : fs->f_bsize)); break;
+    case 't': snprintf (val, n, "%lx", (unsigned long) fs->f_type); break;
+    case 'T':
+      {
+        const char *name = stat_fs_type_name ((unsigned long) fs->f_type);
+        if (name) snprintf (val, n, "%s", name);
+        else snprintf (val, n, "UNKNOWN (0x%lx)", (unsigned long) fs->f_type);
+      }
+      break;
+    case '%': snprintf (val, n, "%%"); break;
+    default: snprintf (val, n, "?"); break;
+    }
+  return 0;
+}
+
 static void
 stat_put_padded (const char *val, int left, int zero, int width, int precision, int numeric)
 {
@@ -300,9 +376,11 @@ stat_print (const struct stat_file *f, const char *fmt, int escapes)
               if (width > (INT_MAX - digit) / 10) { builtin_error ("format width out of range"); return -1; }
               width = width * 10 + digit;
             }
+          int precision_digits = 0;
           if (*p == '.')
             {
               precision = 0; p++;
+              precision_digits = ISDIGIT ((unsigned char) *p);
               while (ISDIGIT ((unsigned char) *p))
                 {
                   int digit = *p++ - '0';
@@ -312,13 +390,33 @@ stat_print (const struct stat_file *f, const char *fmt, int escapes)
             }
           if (*p == 'H' || *p == 'L') prefix = *p++;
           if (*p == 0) { fputs (start, stdout); break; }
-          if (stat_directive (f, prefix, *p, val, sizeof val) != 0)
+          if ((f->is_fs ? stat_fs_directive (f, *p, val, sizeof val)
+                        : stat_directive (f, prefix, *p, val, sizeof val)) != 0)
             failed = 1;
-          /* Epoch timestamps have separate fractional precision semantics,
-             which this integer/string formatting subset does not implement. */
-          if (strchr ("WXYZ", *p)) precision = -1;
+          /* Epoch timestamps: a precision is the number of fraction digits
+             (GNU stat; truncated, and "%.Y" alone means 9). */
+          if (!f->is_fs && strchr ("WXYZ", *p))
+            {
+              if (precision >= 0)
+                {
+                  long nsec = *p == 'X' ? f->st.st_atim.tv_nsec
+                            : *p == 'Y' ? f->st.st_mtim.tv_nsec
+                            : *p == 'Z' ? f->st.st_ctim.tv_nsec
+                            : (f->has_btime ? (long) f->bnsec : 0);
+                  int digits = precision_digits ? precision : 9;
+                  if (digits > 9) digits = 9;
+                  if (digits > 0)
+                    {
+                      char frac[16];
+                      snprintf (frac, sizeof frac, "%09ld", nsec);
+                      size_t l = strlen (val);
+                      snprintf (val + l, sizeof val - l, ".%.*s", digits, frac);
+                    }
+                }
+              precision = -1;
+            }
           stat_put_padded (val, left, zero, width, precision,
-                           strchr ("abBdhiorstuDfgTtWXYZ", *p) != NULL);
+                           strchr (f->is_fs ? "abcdflsS" : "abBdhiorstuDfgTtWXYZ", *p) != NULL);
           p++;
         }
       else if (*p == '\\' && escapes)
@@ -399,7 +497,7 @@ stat_load_array (const char *aname, const struct stat_file *f)
 int
 stat_builtin (WORD_LIST *list)
 {
-  WORD_LIST *l; const char *fmt = 0, *aname = 0; int escapes = 0, follow = 0, terse = 0;
+  WORD_LIST *l; const char *fmt = 0, *aname = 0; int escapes = 0, follow = 0, terse = 0, fsmode = 0;
   int status = EXECUTION_SUCCESS;
 
   for (l = list; l; l = l->next)
@@ -407,16 +505,19 @@ stat_builtin (WORD_LIST *list)
       char *w = l->word->word, *p; int consumed_next = 0;
       if (w[0] != '-' || w[1] == 0) break;
       if (strcmp (w, "--") == 0) { l = l->next; break; }
+      if (strcmp (w, "--help") == 0) { builtin_help (); return EXECUTION_SUCCESS; }
       if (strncmp (w, "--format=", 9) == 0) { fmt = w + 9; escapes = 0; continue; }
       if (strncmp (w, "--printf=", 9) == 0) { fmt = w + 9; escapes = 1; continue; }
       if (strcmp (w, "--dereference") == 0) { follow = 1; continue; }
       if (strcmp (w, "--terse") == 0) { terse = 1; continue; }
+      if (strcmp (w, "--file-system") == 0) { fsmode = 1; continue; }
       if (w[1] == '-') { builtin_error ("%s: invalid option", w); builtin_usage (); return EX_USAGE; }
       for (p = w + 1; *p && consumed_next == 0; p++)
         switch (*p)
           {
           case 'L': follow = 1; break;
           case 't': terse = 1; break;
+          case 'f': fsmode = 1; break;
           case 'c': case 'A':
             {
               char *arg;
@@ -440,6 +541,25 @@ stat_builtin (WORD_LIST *list)
       struct stat_file f; int r; const char *use;
       memset (&f, 0, sizeof f);
       f.name = l->word->word;
+      if (fsmode)
+        {
+          /* statfs follows symlinks, as coreutils does for -f. */
+          if (aname)
+            { builtin_error ("-A cannot be combined with -f"); return EX_USAGE; }
+          if (statfs (f.name, &f.fs) < 0)
+            {
+              fflush (stdout);
+              fprintf (stderr, "stat: cannot read file system information for '%s': %s\n",
+                       f.name, strerror (errno));
+              status = EXECUTION_FAILURE;
+              continue;
+            }
+          f.is_fs = 1;
+          use = fmt ? fmt : terse ? STAT_FMT_FS_TERSE : STAT_FMT_FS;
+          if (stat_print (&f, use, escapes) < 0) status = EXECUTION_FAILURE;
+          if (fmt && escapes == 0) putchar ('\n');
+          continue;
+        }
       r = follow ? stat (f.name, &f.st) : lstat (f.name, &f.st);
       if (r < 0)
         {
@@ -479,6 +599,8 @@ char *stat_doc[] = {
   "  --printf=FORMAT             like -c, but interpret \\n \\t \\\\ \\NNN \\xHH",
   "                              escapes and print no trailing newline",
   "  -L, --dereference           follow symbolic links",
+  "  -f, --file-system           display file system status instead of file",
+  "                              status (%a %b %c %d %f %i %l %n %s %S %t %T)",
   "  -t, --terse                 terse form: %n %s %b %f %u %g %D %i %h %t %T %X %Y %Z %W %o",
   "  -A NAME                     load the status into associative array NAME",
   "                              (keys: name device inode type mode perms nlink",
@@ -487,7 +609,7 @@ char *stat_doc[] = {
   "",
   "Directives take optional - (left-align), 0 (zero-pad), width and precision.",
   "String precision limits bytes; integer precision sets minimum digits.",
-  "Fractional epoch-timestamp precision is not implemented.",
+  "On %W %X %Y %Z the precision is the number of fraction digits (%.Y: 9).",
   "  %a octal perms   %A symbolic perms   %b blocks       %B block size (512)",
   "  %d device        %D device (hex)     %Hd/%Ld major/minor of device",
   "  %f raw mode hex  %F file type        %g gid          %G group name",
@@ -503,5 +625,5 @@ char *stat_doc[] = {
 
 struct builtin stat_struct = {
   "stat", stat_builtin, BUILTIN_ENABLED, stat_doc,
-  "stat [-L] [-t] [-c FORMAT | --printf=FORMAT] [-A NAME] FILE...", 0
+  "stat [-L] [-f] [-t] [-c FORMAT | --printf=FORMAT] [-A NAME] FILE...", 0
 };

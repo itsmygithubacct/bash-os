@@ -4,7 +4,8 @@
   "reference": "Independent shell assertions, a fixed Python-authored USTAR FIFO/member archive, and GNU tar decoding of pax output. No external GNU pax CLI parity is claimed.",
   "coverage": [
     "Shared engine writer hardlinks/FIFOs and repeated archive context reset.",
-    "Independent FIFO extraction with original modes and restored umask."
+    "Independent FIFO extraction with original modes and restored umask.",
+    "G28: POSIX grouped option letters (-wf, -rf, -rvf), attached option-arguments, -x ustar|pax, -b, and -r -p o owner restoration."
   ],
   "exclusions": [
     "Character/block devices, copy mode, unsafe paths and concurrency are not exercised.",
@@ -27,6 +28,51 @@
       "script": "printf '%s' 'cGlwZQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAwMDA2NDAAMDAwMDAwMAAwMDAwMDAwADAwMDAwMDAwMDAwADA3MDMzMjQxNjAwADAwNjY0NwAgNgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB1c3RhcgAwMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABhZnRlcgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDAwMDYwNAAwMDAwMDAwADAwMDAwMDAAMDAwMDAwMDAwMTUAMDcwMzMyNDE2MDAAMDA3MDEzACAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHVzdGFyADAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGZpZm8gc2libGluZwoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==' | /usr/bin/base64 -d > oracle.tar\n/usr/bin/mkdir restored\numask 077\n(cd restored; pax -r -f ../oracle.tar)\n[[ -p restored/pipe && $(<restored/after) == 'fifo sibling' ]]\n/usr/bin/stat -c %a restored/pipe restored/after\n: > after-mask\n/usr/bin/stat -c %a after-mask",
       "expected_status": 0,
       "stdout": "640\n604\n600\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "owner_overrides",
+      "kind": "contract",
+      "purpose": "-o uid:=, gid:=, uname:=, gname:= store the given owner in the ustar header (tar --owner/--group).",
+      "script": "field() { dd if=\"$1\" bs=1 skip=$(( $2 * 512 + $3 )) count=$4 2>/dev/null | tr -d '\\0'; echo; }\nprintf x > f\npax -w -o uid:=0 -o gid:=7 -o uname:=root -o gname:=lp -f a.tar f\nfield a.tar 0 108 7; field a.tar 0 116 7; field a.tar 0 265 32; field a.tar 0 297 32",
+      "expected_status": 0,
+      "stdout": "0000000\n0000007\nroot\nlp\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "exclude_sort_append",
+      "kind": "contract",
+      "purpose": "-o exclude:=PATTERN skips members anywhere in the tree, -o sort:=name orders directory entries, and -a appends before the end-of-archive blocks.",
+      "script": "mkdir -p s/d\nprintf a > s/b; printf o > s/a.o; printf f > s/d/f; printf c > s/c\npax -w -o sort:=name -o exclude:='*.o' -o exclude:=d -f x.tar s\npax -f x.tar\nprintf n > new\npax -w -a -f x.tar new\npax -f x.tar | tail -2\npax -w -a -f fresh.tar new && pax -f fresh.tar",
+      "expected_status": 0,
+      "stdout": "s\ns/b\ns/c\ns/c\nnew\nnew\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pax-grouped-wf-rf",
+      "kind": "contract",
+      "purpose": "G28: POSIX utility syntax groups option letters, so pax -wf ARCHIVE FILE writes and pax -rf ARCHIVE reads (GNU tar decodes the result); -fARCHIVE takes an attached argument.",
+      "script": "/usr/bin/mkdir s o\nprintf hi > s/f\npax -wf a.pax s </dev/null\n/usr/bin/tar -tf a.pax\n(cd o && pax -rf ../a.pax </dev/null)\n/usr/bin/cat o/s/f; echo\npax -fa.pax\npax -wdf d.pax s && pax -f d.pax\n",
+      "expected_status": 0,
+      "stdout": "s\ns/f\nhi\ns\ns/f\ns\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pax-x-format-ustar",
+      "kind": "contract",
+      "purpose": "G28: -x ustar (and -x pax, -xustar) names the write format instead of being read as file operands; an unsupported format is a usage error.",
+      "script": "/usr/bin/mkdir s\nprintf hi > s/f\npax -w -x ustar -f u.tar s\n/usr/bin/tar -tf u.tar\npax -w -xpax -b 10240 -f p.tar s && pax -f p.tar\npax -w -x cpio -f c.tar s 2>/tmp/err || echo rc=$?\n[[ -e c.tar ]] || echo no-archive\n/usr/bin/grep -c cpio /tmp/err\n",
+      "expected_status": 0,
+      "stdout": "s\ns/f\ns\ns/f\nrc=2\nno-archive\n1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pax-read-p-o-restores-owner",
+      "kind": "contract",
+      "purpose": "H2: pax -r -p o (and -p e) chowns members to the archived owner; for a foreign uid as non-root that reports the failure (file before its directory). Plain -r does not chown.",
+      "script": "/usr/bin/mkdir s a b\nprintf hi > s/f\n/usr/bin/tar --owner=12345 --group=12345 -cf o.tar s\n(cd a && pax -r -p o -f ../o.tar) 2>/tmp/err || echo rc=$?\n/usr/bin/sed 's/^.*pax: /pax: /' /tmp/err\n(cd b && pax -rf ../o.tar) && echo plain-ok\npax -r -p z -f o.tar 2>/dev/null || echo rc=$?\n",
+      "expected_status": 0,
+      "stdout": "rc=1\npax: s/f: Cannot change ownership to uid 12345, gid 12345: Invalid argument\npax: s: Cannot change ownership to uid 12345, gid 12345: Invalid argument\nplain-ok\nrc=2\n",
       "stderr": "empty"
     }
   ]

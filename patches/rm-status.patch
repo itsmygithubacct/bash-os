@@ -10,7 +10,7 @@
 -#include "../shell.h"
 +#include "builtins.h"
 +#include "shell.h"
-@@ -39 +43,17 @@
+@@ -39 +43,39 @@
 -static int force, recursive;
 +static int force, recursive, rm_prompt_each, rm_verbose;
 +
@@ -29,17 +29,54 @@
 +  fflush (stdout);
 +  free (quoted);
 +}
-@@ -85,2 +105,7 @@
++
++/* GNU rm -f ignores only operands that do not exist; any other failure,
++   such as EPERM in a sticky directory or EACCES in a read-only one, is
++   still "cannot remove 'NAME': ..." and status 1. */
++static int
++rm_missing_errno (int errnum)
++{
++  return errnum == ENOENT || errnum == ENOTDIR || errnum == EINVAL || errnum == EILSEQ;
++}
++
++static int
++rm_fail (const char *fname, int errnum)
++{
++  char *quoted;
++
++  if (force && rm_missing_errno (errnum))
++    return 0;
++  quoted = bos_quoteaf (fname);
++  builtin_error ("cannot remove %s: %s", quoted ? quoted : fname, strerror (errnum));
++  free (quoted);
++  return 1;
++}
+@@ -75 +117 @@
+-           if (rm_file (fname) && force == 0)
++           if (rm_file (fname))
+@@ -85,2 +127,9 @@
 -      if (err == 0 && rmdir (dirname) && force == 0)
 -        err = 1;
++      /* A child that could not be removed was reported already, and
++         keeps its directory, as in GNU rm. */
 +      if (err == 0)
 +        {
 +          if (rmdir (dirname) == 0)
 +            rm_report (1, dirname);
-+          else if (force == 0)
-+            err = 1;
++          else
++            err = rm_fail (dirname, errno);
 +        }
-@@ -96,0 +122,104 @@
+@@ -88,2 +137,2 @@
+-  else if (force == 0)
+-    err = 1;
++  else
++    err = rm_fail (dirname, errno);
+@@ -91,2 +140,2 @@
+-  if (err)
+-    builtin_error ("%s: %s", dirname, strerror (errno));
++  return err;
++}
+@@ -93,0 +143,101 @@
 +/* Explicit -i reads only its own answers, without stdio read-ahead or
 +   invoking an external rm. Memory use does not depend on answer length. */
 +static int
@@ -141,41 +178,58 @@
 +      return 1;
 +    }
 +  rm_report (1, fname);
-+  return err;
-+}
-+
-@@ -99,0 +229 @@
+@@ -99,0 +250 @@
 +  if (rm_prompt_each) return rm_interactive_file (fname);
-@@ -101 +231,4 @@
+@@ -101 +252,4 @@
 -    return 0;
 +    {
 +      rm_report (0, fname);
 +      return 0;
 +    }
-@@ -123 +256 @@
+@@ -102,0 +257 @@
++  int saved = errno;
+@@ -107 +262 @@
+-  if ((errno == EISDIR || errno == EPERM) && recursive && file_isdir (fname))
++  if ((saved == EISDIR || saved == EPERM) && recursive && file_isdir (fname))
+@@ -109,5 +264 @@
+-  else if (force)
+-    return 0;
+-
+-  builtin_error ("%s: %s", fname, strerror (errno));
+-  return 1;
++  return rm_fail (fname, saved);
+@@ -123 +274 @@
 -  recursive = force = 0;
 +  recursive = force = rm_prompt_each = rm_verbose = 0;
-@@ -127 +260 @@
+@@ -127 +278 @@
 -  while ((opt = internal_getopt (list, "Rrfi")) != -1)
 +  while ((opt = internal_getopt (list, "Rrfiv")) != -1)
-@@ -134,0 +268,3 @@
+@@ -134,0 +286,3 @@
 +	case 'v':
 +	  rm_verbose = 1;
 +	  break;
-@@ -136,0 +273 @@
+@@ -136,0 +291 @@
 +	  rm_prompt_each = 0;
-@@ -139 +276,3 @@
+@@ -139,2 +294,6 @@
 -	  return (EX_DISKFALLBACK);
+-	CASE_HELPOPT;
 +	  rm_prompt_each = 1;
 +	  force = 0;
 +	  break;
-@@ -143 +282 @@
++	case GETOPT_HELP:
++	  builtin_help ();
++	  return (EXECUTION_SUCCESS);
+@@ -143 +302 @@
 -	  return (EX_USAGE);
 +	  return (EXECUTION_FAILURE);
-@@ -171,0 +311,3 @@
+@@ -161 +320 @@
+-      if (rm_file(l->word->word) && force == 0)
++      if (rm_file(l->word->word))
+@@ -171,0 +331,4 @@
 +	"-i asks on standard input before removal; -f disables confirmation.",
 +	"The last -f or -i option takes precedence; -r descends into directories.",
 +	"-v prints each removed file or directory.",
-@@ -182 +324 @@
++	"-f ignores missing operands only; other failures are still reported.",
+@@ -182 +345 @@
 -	"rm [-rf] file ...",	/* usage synopsis; becomes short_doc */
 +	"rm [-rfiv] file ...",	/* usage synopsis; becomes short_doc */

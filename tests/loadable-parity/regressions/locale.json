@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "loadable": "locale",
+  "reference": "glibc locale(1) output for the locales bash-os ships (C, C.utf8, POSIX), recorded from Debian glibc 2.41 `env -i locale ...`. The reference host lists its own installed locales, so these are contracts with the recorded bytes, not live parity.",
+  "coverage": [
+    "glibc-shaped locale listing, -a, -m, keyword/-k/-c queries and unknown-name diagnostics for the shipped locales; the bash-os verbs."
+  ],
+  "exclusions": [
+    "Locales other than C, C.utf8 and POSIX: bash-os ships no locale data.",
+    "Keywords outside LC_CTYPE charmap and LC_NUMERIC."
+  ],
+  "cases": [
+    {
+      "id": "posix_listing",
+      "kind": "contract",
+      "purpose": "With no locale variables, `locale` prints LANG=, LANGUAGE=, each category as \"POSIX\" and LC_ALL= (glibc layout).",
+      "script": "unset LC_ALL LANG LANGUAGE LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION\nlocale",
+      "expected_status": 0,
+      "stdout": "LANG=\nLANGUAGE=\nLC_CTYPE=\"POSIX\"\nLC_NUMERIC=\"POSIX\"\nLC_TIME=\"POSIX\"\nLC_COLLATE=\"POSIX\"\nLC_MONETARY=\"POSIX\"\nLC_MESSAGES=\"POSIX\"\nLC_PAPER=\"POSIX\"\nLC_NAME=\"POSIX\"\nLC_ADDRESS=\"POSIX\"\nLC_TELEPHONE=\"POSIX\"\nLC_MEASUREMENT=\"POSIX\"\nLC_IDENTIFICATION=\"POSIX\"\nLC_ALL=\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "lang_and_override",
+      "kind": "contract",
+      "purpose": "LANG sets every category; an explicitly set category prints unquoted.",
+      "script": "unset LC_ALL LANG LANGUAGE LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION\nexport LANG=C.UTF-8 LC_TIME=POSIX\nlocale | sed -n '1p;3p;5p'",
+      "expected_status": 0,
+      "stdout": "LANG=C.UTF-8\nLC_CTYPE=\"C.UTF-8\"\nLC_TIME=POSIX\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "all_and_charmaps",
+      "kind": "contract",
+      "purpose": "-a lists the available locales and -m the charmaps (guest compatibility pass 1).",
+      "script": "unset LC_ALL LANG LANGUAGE LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION\nlocale -a\nlocale -m",
+      "expected_status": 0,
+      "stdout": "C\nC.utf8\nPOSIX\nANSI_X3.4-1968\nUTF-8\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "keywords",
+      "kind": "contract",
+      "purpose": "Keyword queries: charmap follows LC_ALL/LC_CTYPE/LANG; -k prints name=value; a category name prints its keywords.",
+      "script": "unset LC_ALL LANG LANGUAGE LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION\nlocale charmap\nLANG=C.UTF-8 locale charmap\nLC_ALL=C locale decimal_point thousands_sep grouping\nlocale -k decimal_point charmap\nlocale -ck grouping\nlocale LC_NUMERIC",
+      "expected_status": 0,
+      "stdout": "ANSI_X3.4-1968\nUTF-8\n.\n\n-1\ndecimal_point=\".\"\ncharmap=\"ANSI_X3.4-1968\"\nLC_NUMERIC\ngrouping=-1\n.\n\n-1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "unknown_name",
+      "kind": "contract",
+      "purpose": "An unknown keyword prints glibc's diagnostic and exits 1; known keywords still print.",
+      "script": "unset LC_ALL LANG LANGUAGE LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION\nlocale bogusname charmap 2>err || echo rc=$?\nsed 's/^[^:]*: //' err",
+      "expected_status": 0,
+      "stdout": "ANSI_X3.4-1968\nrc=1\nunknown name \"bogusname\"\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "verbs_still_work",
+      "kind": "contract",
+      "purpose": "The bash-os set/current/validate verbs are unchanged.",
+      "script": "unset LC_ALL LANG LANGUAGE LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION\nlocale validate C.UTF-8 && echo valid\nlocale set CTYPE C.utf8\nlocale current CTYPE",
+      "expected_status": 0,
+      "stdout": "valid\nLC_CTYPE=C.UTF-8\n",
+      "stderr": "empty"
+    }
+  ]
+}

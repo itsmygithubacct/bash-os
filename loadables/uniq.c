@@ -267,7 +267,7 @@ uniq_builtin (WORD_LIST *list)
         }
         if (!strcmp (w, "--")) { list = list->next; break; }
         if (!strcmp (w, "--help")) {
-            builtin_usage ();
+            builtin_help ();
             return EXECUTION_SUCCESS;
         }
         if (!strcmp (w, "--version")) {

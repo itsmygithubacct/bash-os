@@ -64,6 +64,7 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 #include <zlib.h>
 #include <lzma.h>
@@ -525,6 +526,176 @@ bz_codec_bzip2 (int in_fd, int out_fd, int encode, int level)
   return 0;
 }
 
+/* ---- xz --list (-l -f xz) ------------------------------------------- */
+struct bz_xz_totals { uint64_t files, streams, blocks, compressed, uncompressed; uint32_t checks; };
+
+static const char *
+bz_xz_nicestr (uint64_t v, char *buf, size_t n)
+{
+  static const char units[][4] = { "B", "KiB", "MiB", "GiB", "TiB" };
+  if (v < 10000)
+    snprintf (buf, n, "%llu B", (unsigned long long) v);
+  else
+    {
+      double d = (double) v;
+      int unit = 0;
+      do { d /= 1024.0; unit++; } while (d > 9999.9 && unit < 4);
+      snprintf (buf, n, "%.1f %s", d, units[unit]);
+    }
+  return buf;
+}
+
+static const char *
+bz_xz_ratio (uint64_t comp, uint64_t uncomp, char *buf, size_t n)
+{
+  double r = uncomp ? (double) comp / (double) uncomp : 0.0;
+  if (!uncomp || r > 9.999) return "---";
+  snprintf (buf, n, "%.3f", r);
+  return buf;
+}
+
+static const char *
+bz_xz_checks (uint32_t mask, char *buf, size_t n)
+{
+  static const char *names[16] = { "None", "CRC32", NULL, NULL, "CRC64", NULL, NULL, NULL,
+                                   NULL, NULL, "SHA-256", NULL, NULL, NULL, NULL, NULL };
+  size_t used = 0;
+  buf[0] = '\0';
+  for (int i = 0; i < 16; i++)
+    {
+      if (!(mask & (1u << i))) continue;
+      char one[16];
+      if (names[i]) snprintf (one, sizeof one, "%s", names[i]);
+      else snprintf (one, sizeof one, "Unknown-%d", i);
+      used += (size_t) snprintf (buf + used, used < n ? n - used : 0, "%s%s", used ? "," : "", one);
+    }
+  return buf;
+}
+
+static void
+bz_xz_row (uint64_t streams, uint64_t blocks, uint64_t comp, uint64_t uncomp,
+           uint32_t checks, const char *name)
+{
+  char a[32], b[32], c[32], d[32], e[32], f[96];
+  snprintf (a, sizeof a, "%llu", (unsigned long long) streams);
+  snprintf (b, sizeof b, "%llu", (unsigned long long) blocks);
+  printf ("%5s %7s  %11s  %11s  %5s  %-7s %s\n", a, b,
+          bz_xz_nicestr (comp, c, sizeof c), bz_xz_nicestr (uncomp, d, sizeof d),
+          bz_xz_ratio (comp, uncomp, e, sizeof e), bz_xz_checks (checks, f, sizeof f), name);
+}
+
+/* Read the stream index of every concatenated .xz stream, last to first,
+   as xz --list does. Returns 0, or 1 after a diagnostic. */
+static int
+bz_xz_list_file (const char *path, int *headings, struct bz_xz_totals *t)
+{
+  int fd = open (path, O_RDONLY | O_CLOEXEC);
+  if (fd < 0) { builtin_error ("%s: %s", path, strerror (errno)); return 1; }
+  struct stat st;
+  uint8_t buf[LZMA_STREAM_HEADER_SIZE];
+  static const uint8_t magic[6] = { 0xFD, '7', 'z', 'X', 'Z', 0 };
+  if (fstat (fd, &st) < 0 || !S_ISREG (st.st_mode) || st.st_size < 2 * LZMA_STREAM_HEADER_SIZE
+      || pread (fd, buf, sizeof buf, 0) != (ssize_t) sizeof buf || memcmp (buf, magic, 6))
+    {
+      builtin_error ("%s: File format not recognized", path);
+      close (fd);
+      return 1;
+    }
+  lzma_index *combined = NULL;
+  uint64_t pos = (uint64_t) st.st_size;
+  int bad = 0;
+  while (pos > 0 && !bad)
+    {
+      /* Stream Padding: multiples of four zero bytes after a stream. */
+      uint64_t padding = 0;
+      for (;;)
+        {
+          uint8_t w[4];
+          if (pos < 4 || pread (fd, w, 4, (off_t) (pos - 4)) != 4) { bad = 1; break; }
+          if (w[0] | w[1] | w[2] | w[3]) break;
+          pos -= 4; padding += 4;
+        }
+      lzma_stream_flags footer, header;
+      if (bad || pos < 2 * LZMA_STREAM_HEADER_SIZE
+          || pread (fd, buf, sizeof buf, (off_t) (pos - LZMA_STREAM_HEADER_SIZE)) != (ssize_t) sizeof buf
+          || lzma_stream_footer_decode (&footer, buf) != LZMA_OK
+          || footer.backward_size > pos - 2 * LZMA_STREAM_HEADER_SIZE)
+        { bad = 1; break; }
+      size_t isize = (size_t) footer.backward_size;
+      uint8_t *ibuf = malloc (isize);
+      lzma_index *idx = NULL;
+      uint64_t memlimit = UINT64_MAX;
+      size_t in_pos = 0;
+      if (!ibuf || pread (fd, ibuf, isize, (off_t) (pos - LZMA_STREAM_HEADER_SIZE - isize)) != (ssize_t) isize
+          || lzma_index_buffer_decode (&idx, &memlimit, NULL, ibuf, &in_pos, isize) != LZMA_OK)
+        { free (ibuf); bad = 1; break; }
+      free (ibuf);
+      uint64_t ssize = lzma_index_stream_size (idx);
+      if (ssize > pos
+          || pread (fd, buf, sizeof buf, (off_t) (pos - ssize)) != (ssize_t) sizeof buf
+          || lzma_stream_header_decode (&header, buf) != LZMA_OK
+          || lzma_stream_flags_compare (&header, &footer) != LZMA_OK
+          || lzma_index_stream_flags (idx, &footer) != LZMA_OK
+          || lzma_index_stream_padding (idx, padding) != LZMA_OK
+          || (combined && lzma_index_cat (idx, combined, NULL) != LZMA_OK))
+        { lzma_index_end (idx, NULL); bad = 1; break; }
+      combined = idx;
+      pos -= ssize;
+    }
+  close (fd);
+  if (bad || !combined)
+    {
+      if (combined) lzma_index_end (combined, NULL);
+      builtin_error ("%s: Compressed data is corrupt", path);
+      return 1;
+    }
+  if (!*headings)
+    {
+      puts ("Strms  Blocks   Compressed Uncompressed  Ratio  Check   Filename");
+      *headings = 1;
+    }
+  uint64_t streams = lzma_index_stream_count (combined), blocks = lzma_index_block_count (combined);
+  uint64_t comp = lzma_index_file_size (combined), uncomp = lzma_index_uncompressed_size (combined);
+  uint32_t checks = lzma_index_checks (combined);
+  bz_xz_row (streams, blocks, comp, uncomp, checks, path);
+  t->files++; t->streams += streams; t->blocks += blocks;
+  t->compressed += comp; t->uncompressed += uncomp; t->checks |= checks;
+  lzma_index_end (combined, NULL);
+  return 0;
+}
+
+static int
+bz_xz_list (WORD_LIST *list)
+{
+  int headings = 0, rc = 0;
+  struct bz_xz_totals t = { 0 };
+  if (!list)
+    {
+      builtin_error ("--list does not support reading from standard input");
+      return EXECUTION_FAILURE;
+    }
+  for (; list; list = list->next)
+    {
+      const char *path = list->word->word;
+      if (!strcmp (path, "-"))
+        {
+          builtin_error ("--list does not support reading from standard input");
+          rc = 1;
+          continue;
+        }
+      rc |= bz_xz_list_file (path, &headings, &t);
+    }
+  if (t.files > 1)
+    {
+      char files[48];
+      puts ("-------------------------------------------------------------------------------");
+      snprintf (files, sizeof files, "%llu files", (unsigned long long) t.files);
+      bz_xz_row (t.streams, t.blocks, t.compressed, t.uncompressed, t.checks, files);
+    }
+  fflush (stdout);
+  return rc ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+}
+
 /* ---- bash builtin entry --------------------------------------------- */
 int
 zlib_builtin (WORD_LIST *list)
@@ -537,13 +708,15 @@ zlib_builtin (WORD_LIST *list)
   const char *path = NULL;
   int in_fd = -1;
   int close_in = 0;
+  int list_mode = 0;
 
   reset_internal_getopt ();
   /* Single-char flags. -1..-9 also valid (level shortcuts). */
-  while ((opt = internal_getopt (list, "edzRf:0123456789")) != -1)
+  while ((opt = internal_getopt (list, "edlzRf:0123456789")) != -1)
     {
       switch (opt)
         {
+        case 'l': list_mode = 1; break;
         case 'e': encode = 1; break;
         case 'd': encode = 0; break;
         case 'z': fmt = BZ_ZLIB;    explicit_format = 1; break;
@@ -578,6 +751,16 @@ zlib_builtin (WORD_LIST *list)
         }
     }
   list = loptend;
+
+  if (list_mode)
+    {
+      if (fmt != BZ_XZ || encode)
+        {
+          builtin_error ("-l lists .xz files only (use -l -f xz FILE...)");
+          return (EX_USAGE);
+        }
+      return bz_xz_list (list);
+    }
 
   /* Optional FILE arg. "-" or absent → stdin. */
   if (list != 0)
@@ -653,6 +836,9 @@ char *zlib_doc[] = {
   "  Shortcuts: -z = -f zlib, -R = -f deflate.",
   "  Gzip decode handles concatenated (multi-member) .gz files.",
   "",
+  "List mode: -l -f xz FILE... prints xz --list's table (streams, blocks,",
+  "  sizes, ratio, check) for each .xz file, with totals for several files.",
+  "",
   "Compression levels: -1 (fastest) to -9 (max) for gzip/zlib/xz.",
   "  zstd accepts -1..-22 (use -f zstd -N).",
   "",
@@ -672,6 +858,6 @@ struct builtin zlib_struct = {
   zlib_builtin,
   BUILTIN_ENABLED,
   zlib_doc,
-  "zlib [-e|-d] [-f FORMAT|-z|-R] [-N] [FILE]",
+  "zlib [-e|-d] [-f FORMAT|-z|-R] [-N] [FILE] | zlib -l -f xz FILE...",
   0
 };

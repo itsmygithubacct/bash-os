@@ -9,12 +9,12 @@
     "A deterministic regular-file record exactly 65,536 bytes including LF, at the implementation's output-batch boundary.",
     "Empty stdin and empty files.",
     "Missing-file diagnostics and continuation to a later readable file.",
-    "Unknown-option status and end-of-options handling."
+    "Unknown-option status and end-of-options handling.",
+    "UTF-8 locale character reversal, multibyte characters kept whole (guest pass 3)."
   ],
   "exclusions": [
     "No interactive or live-producer latency/backpressure case; fixtures run with closed outer stdin and captured regular-file stdout.",
-    "No output-failure device case because fixtures may not use device paths.",
-    "No locale-dependent multibyte-character behavior; the harness fixes LC_ALL=C, and the byte contract case covers arbitrary bytes independently."
+    "No output-failure device case because fixtures may not use device paths."
   ],
   "cases": [
     {
@@ -144,6 +144,17 @@
       "requires": [
         "rev"
       ]
+    },
+    {
+      "id": "utf8_characters",
+      "kind": "parity",
+      "purpose": "rev reverses characters in a UTF-8 locale, keeping multibyte characters and combining marks' bytes whole (it used to reverse bytes, garbling \u00e9) (guest pass 3, G50).",
+      "requires": [
+        "rev"
+      ],
+      "script": "export LC_ALL=C.UTF-8\nprintf 'h\u00e9\\nabc\\n\u65e5\u672c\u8a9e ok\\n\u00e7\u00e0\\n\\n' | rev\nprintf 'e\\xcc\\x81x\\n' | rev | /usr/bin/python3 -c 'import sys; print(sys.stdin.buffer.read().hex())'",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

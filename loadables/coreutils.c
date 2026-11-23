@@ -11,10 +11,10 @@
  *   coreutils fmt    [-w WIDTH] [FILE...]       collapse paragraphs
  *   coreutils tsort  [FILE]                     topological sort
  *   coreutils nproc                             sched_getaffinity count; --all is configured
- *   coreutils numfmt [--to=iec|iec-i|si] [--from=iec|iec-i|si] N
+ *   coreutils numfmt [OPTION]... [NUMBER]...    GNU numfmt options
  *   coreutils shred  [-n N] [-u] [-z] FILE...   overwrite + unlink
  *   coreutils groups [USER]                     list user groups
- *   coreutils install [-m MODE] [-d|-D] SRC... DST
+ *   coreutils install [-m MODE] [-d|-D] [-T] SRC... DST | -t DIR SRC...
  *   coreutils mknod  PATH {b|c|p} [MAJ MIN]     create device/fifo
  *
  * Twelve verbs, one .c file, single struct builtin dispatched via
@@ -51,6 +51,9 @@
 #include <inttypes.h>
 #include <ctype.h>
 #include <fcntl.h>
+#include <float.h>
+#include <stdarg.h>
+#include <langinfo.h>
 #include <pwd.h>
 #include <grp.h>
 #include <sys/stat.h>
@@ -173,13 +176,13 @@ bcu_usage (const char *verb)
   else if (strcmp (verb, "nproc") == 0)
     builtin_error ("usage: coreutils nproc [--all] [--ignore=N]");
   else if (strcmp (verb, "numfmt") == 0)
-    builtin_error ("usage: coreutils numfmt [--to=iec|iec-i|si] [--from=iec|iec-i|si] N");
+    builtin_error ("usage: coreutils numfmt [OPTION]... [NUMBER]...");
   else if (strcmp (verb, "shred") == 0)
-    builtin_error ("usage: coreutils shred [-n N] [-z] [-u] [-x] [-s SIZE] FILE...");
+    builtin_error ("usage: coreutils shred [-fuvxz] [-n N] [-s SIZE] [--remove[=HOW]] FILE...");
   else if (strcmp (verb, "groups") == 0)
     builtin_error ("usage: coreutils groups [USER...]");
   else if (strcmp (verb, "install") == 0)
-    builtin_error ("usage: coreutils install [-m MODE] [-o OWNER] [-g GROUP] [-d|-D] SRC... DST");
+    builtin_error ("usage: coreutils install [-c] [-m MODE] [-o OWNER] [-g GROUP] [-d|-D] [-T] SRC... DST | -t DIR SRC...");
   else if (strcmp (verb, "mknod") == 0)
     builtin_error ("usage: coreutils mknod [-m MODE] PATH {b|c|p} [MAJ MIN]");
   else
@@ -1160,157 +1163,919 @@ bcu_nproc_cmd (WORD_LIST *list)
 }
 
 /* ===================================================================
- * numfmt — human-readable number conversion.
+ * numfmt — reformat numbers to and from human-readable scales.
  *
- * Supports --to=iec|iec-i|si and --from=iec|iec-i|si.
+ * The GNU numfmt(1) surface: --from/--to (none, auto, si, iec, iec-i),
+ * --from-unit/--to-unit, --round, --suffix, --padding, --grouping,
+ * --format, --field, -d/--delimiter, --header[=N], --invalid, -z and
+ * --debug (accepted; no extra warnings). Operands and stdin lines are
+ * split into fields; only the selected fields (default 1) are converted.
+ * Conversion errors exit 2, stopping at the first one unless --invalid
+ * selects fail/warn/ignore; option errors exit 1.
  * =================================================================== */
 
-typedef enum { BCU_SCALE_NONE, BCU_SCALE_IEC, BCU_SCALE_IEC_I, BCU_SCALE_SI } bcu_scale_t;
+extern char *this_command_name;
 
-static bcu_scale_t
-bcu_numfmt_scale (const char *s)
+typedef enum { BCU_SCALE_NONE, BCU_SCALE_AUTO, BCU_SCALE_SI, BCU_SCALE_IEC, BCU_SCALE_IEC_I } bcu_scale_t;
+typedef enum { BCU_ROUND_UP, BCU_ROUND_DOWN, BCU_ROUND_FROM_ZERO, BCU_ROUND_TO_ZERO, BCU_ROUND_NEAREST } bcu_round_t;
+typedef enum { BCU_INVAL_ABORT, BCU_INVAL_FAIL, BCU_INVAL_WARN, BCU_INVAL_IGNORE } bcu_inval_t;
+typedef enum { BCU_NF_OK, BCU_NF_OVERFLOW, BCU_NF_INVALID, BCU_NF_FORBIDDEN,
+               BCU_NF_BAD_SUFFIX, BCU_NF_MISSING_I, BCU_NF_TRAILING } bcu_nf_err;
+
+/* Digits a long double prints without loss (LDBL_DIG), and 999Q. */
+#define BCU_NF_UNSCALED_DIGITS 18
+#define BCU_NF_MAX_DIGITS      33
+
+typedef struct { uintmax_t lo, hi; } bcu_nf_range;
+
+typedef struct {
+  bcu_scale_t from, to;
+  bcu_round_t round;
+  bcu_inval_t inval;
+  const char *suffix;
+  uintmax_t from_unit, to_unit;
+  int grouping;
+  intmax_t padding;          /* >0 right-align, <0 left-align, 0 none */
+  int zero_width;            /* width of a %0Nf format */
+  long precision;            /* precision of a %.Nf format, or -1 */
+  char *fmt_prefix, *fmt_suffix;
+  int auto_padding;
+  int delimiter;             /* -1: blanks separate fields */
+  int line_delim;
+  bcu_nf_range *fields;      /* NULL: only field 1 */
+  size_t nfields;
+  const char *radix;
+  size_t radix_len;
+  int stop;                  /* an abort-mode conversion error was reported */
+} bcu_numfmt_t;
+
+static const char *const bcu_nf_from_names[] = { "none", "auto", "si", "iec", "iec-i", NULL };
+static const bcu_scale_t bcu_nf_from_types[] = { BCU_SCALE_NONE, BCU_SCALE_AUTO, BCU_SCALE_SI, BCU_SCALE_IEC, BCU_SCALE_IEC_I };
+static const char *const bcu_nf_to_names[] = { "none", "si", "iec", "iec-i", NULL };
+static const bcu_scale_t bcu_nf_to_types[] = { BCU_SCALE_NONE, BCU_SCALE_SI, BCU_SCALE_IEC, BCU_SCALE_IEC_I };
+static const char *const bcu_nf_round_names[] = { "up", "down", "from-zero", "towards-zero", "nearest", NULL };
+static const char *const bcu_nf_inval_names[] = { "abort", "fail", "warn", "ignore", NULL };
+
+static int
+bcu_nf_try (void)
 {
-  if (!s) return BCU_SCALE_NONE;
-  if (strcmp (s, "iec")   == 0) return BCU_SCALE_IEC;
-  if (strcmp (s, "iec-i") == 0) return BCU_SCALE_IEC_I;
-  if (strcmp (s, "si")    == 0) return BCU_SCALE_SI;
-  return BCU_SCALE_NONE;
+  fprintf (stderr, "Try 'numfmt --help' for more information.\n");
+  return EXECUTION_FAILURE;
 }
 
-static double
-bcu_numfmt_parse_human (const char *s, bcu_scale_t scale)
+/* An exact name or a unique abbreviation, as GNU argmatch accepts. */
+static int
+bcu_nf_argmatch (const char *opt, const char *arg, const char *const *names)
 {
-  char *end = NULL;
-  double v = strtod (s, &end);
-  if (!end || end == s) return 0.0;
-  /* Skip optional space + suffix. */
-  while (*end == ' ') end++;
-  if (!*end) return v;
-  double mult = 1.0;
-  double base = (scale == BCU_SCALE_SI) ? 1000.0 : 1024.0;
-  switch (toupper ((unsigned char) *end))
+  size_t len = strlen (arg);
+  int found = -1, ambiguous = 0;
+  for (int i = 0; names[i]; i++)
     {
-    case 'K': mult = base; break;
-    case 'M': mult = base * base; break;
-    case 'G': mult = base * base * base; break;
-    case 'T': mult = base * base * base * base; break;
-    case 'P': mult = base * base * base * base * base; break;
-    default: break;
+      if (strcmp (names[i], arg) == 0)
+        return i;
+      if (len && strncmp (names[i], arg, len) == 0)
+        {
+          if (found >= 0) ambiguous = 1;
+          else found = i;
+        }
     }
-  return v * mult;
-}
-
-/* Rounding helpers ported from GNU numfmt's simple_round() family
- * (research/refs/coreutils/src/numfmt.c). numfmt's DEFAULT round mode is
- * round_from_zero (round away from zero), NOT truncation, so e.g.
- * `numfmt --to=si 1234567` => "1.3M" (1.234567 rounds UP to 1.3). */
-static double
-bcu_round_ceiling (double val)
-{
-  long long intval = (long long) val;
-  if ((double) intval < val)
-    intval++;
-  return (double) intval;
-}
-
-static double
-bcu_round_floor (double val)
-{
-  return -bcu_round_ceiling (-val);
-}
-
-/* round away from zero (the GNU numfmt default). */
-static double
-bcu_round_from_zero (double val)
-{
-  return val < 0 ? bcu_round_floor (val) : bcu_round_ceiling (val);
+  if (found >= 0 && !ambiguous)
+    return found;
+  char *q = bos_quote (arg);
+  builtin_error ("%s argument %s for '%s'", ambiguous ? "ambiguous" : "invalid",
+                 q ? q : arg, opt);
+  free (q);
+  fprintf (stderr, "Valid arguments are:\n");
+  for (int i = 0; names[i]; i++)
+    {
+      q = bos_quote (names[i]);
+      fprintf (stderr, "  - %s\n", q ? q : names[i]);
+      free (q);
+    }
+  bcu_nf_try ();
+  return -1;
 }
 
 static void
-bcu_numfmt_format (double v, bcu_scale_t scale, char *out, size_t outsz)
+bcu_nf_error_quoted (const char *fmt, const char *arg)
 {
-  /* SI kilo is lowercase 'k'; everything else uppercase (GNU numfmt). */
-  const char *units    = (scale == BCU_SCALE_SI) ? "BkMGTPE" : "BKMGTPE";
-  double base = (scale == BCU_SCALE_SI) ? 1000.0 : 1024.0;
+  char *q = bos_quote (arg);
+  builtin_error (fmt, q ? q : arg);
+  free (q);
+}
 
-  /* Normalize val to scale (GNU expld): scale down while |val| >= base. */
-  int power = 0;
-  double a = v < 0 ? -v : v;
-  while (a >= base && units[power + 1])
-    { a /= base; power++; }
+static long double
+bcu_nf_abs (long double v)
+{
+  return v < 0 ? -v : v;
+}
 
-  /* Perform rounding the way GNU double_to_human() does: for scaled
-   * values below 10 we keep one decimal digit, so multiply by 10 before
-   * rounding (away from zero) and divide back. Integers (power 0) and
-   * values >= 10 round to whole units. */
-  int power_adjust = (power > 0 && a < 10.0) ? 1 : 0;
-  double scaled = a;
-  for (int i = 0; i < power_adjust; i++) scaled *= 10.0;
-  scaled = bcu_round_from_zero (scaled);
-  for (int i = 0; i < power_adjust; i++) scaled /= 10.0;
-  a = scaled;
+static long double
+bcu_nf_pow (long double base, long n)
+{
+  long double r = 1;
+  while (n-- > 0) r *= base;
+  return r;
+}
 
-  /* Special case after rounding: "9.9" can round to 10 at one decimal,
-   * and "999" can round up to a full unit — scale down again (GNU). */
-  if (a >= base && units[power + 1])
-    { a /= base; power++; }
+/* Round to an integer without libm. Magnitudes this large already have
+   no fractional bits worth keeping in a long double. */
+static long double
+bcu_nf_round (long double v, bcu_round_t mode)
+{
+  if (v >= 9.2e18L || v <= -9.2e18L)
+    return v;
+  intmax_t i = (intmax_t) v;              /* truncates towards zero */
+  switch (mode)
+    {
+    case BCU_ROUND_UP:        if ((long double) i < v) i++; break;
+    case BCU_ROUND_DOWN:      if ((long double) i > v) i--; break;
+    case BCU_ROUND_FROM_ZERO:
+      if (v < 0 && (long double) i > v) i--;
+      else if (v > 0 && (long double) i < v) i++;
+      break;
+    case BCU_ROUND_TO_ZERO:   break;
+    case BCU_ROUND_NEAREST:   i = (intmax_t) (v < 0 ? v - 0.5L : v + 0.5L); break;
+    }
+  return (long double) i;
+}
 
-  /* show one decimal only when scaled, non-zero and < 10 (GNU rule). */
-  int show_decimal = (a != 0.0) && (a < 10.0) && (power > 0);
-  const char *suffix_i = (scale == BCU_SCALE_IEC_I && power > 0) ? "i" : "";
-
-  if (power == 0)
-    snprintf (out, outsz, "%.0f", v);
-  else
-    snprintf (out, outsz, "%s%.*f%c%s", v < 0 ? "-" : "",
-              show_decimal ? 1 : 0, a, units[power], suffix_i);
+/* --from-unit/--to-unit: N, NK (K=1000) or NKi (Ki=1024), nonzero. */
+static int
+bcu_nf_unit_size (const char *s, uintmax_t *out)
+{
+  const char *units = "KMGTPEZYRQ";
+  char *end = NULL;
+  uintmax_t n = 0;
+  if (!isdigit ((unsigned char) *s)) goto bad;
+  errno = 0;
+  n = strtoumax (s, &end, 10);
+  if (errno) goto bad;
+  if (*end)
+    {
+      char unit = *end == 'k' ? 'K' : *end;
+      const char *pos = strchr (units, unit);
+      if (!pos) goto bad;
+      int power = (int) (pos - units) + 1;
+      uintmax_t base = 1000;
+      end++;
+      if (*end == 'i') { base = 1024; end++; }
+      if (*end) goto bad;
+      while (power--)
+        {
+          if (n > UINTMAX_MAX / base) goto bad;
+          n *= base;
+        }
+    }
+  if (n == 0) goto bad;
+  *out = n;
+  return 0;
+bad:
+  bcu_nf_error_quoted ("invalid unit size: %s", s);
+  return -1;
 }
 
 static int
-bcu_numfmt_cmd (WORD_LIST *list)
+bcu_nf_add_range (bcu_numfmt_t *nf, uintmax_t lo, uintmax_t hi)
 {
-  bcu_scale_t from = BCU_SCALE_NONE;
-  bcu_scale_t to   = BCU_SCALE_NONE;
+  bcu_nf_range *grown = realloc (nf->fields, (nf->nfields + 1) * sizeof *grown);
+  if (!grown) { builtin_error ("out of memory"); return -1; }
+  nf->fields = grown;
+  nf->fields[nf->nfields].lo = lo;
+  nf->fields[nf->nfields].hi = hi;
+  nf->nfields++;
+  return 0;
+}
+
+/* cut(1)-style field list: N, N-, N-M, -M and a lone '-', separated by
+   commas or blanks. */
+static int
+bcu_nf_parse_fields (bcu_numfmt_t *nf, const char *spec)
+{
+  const char *p = strcmp (spec, "-") == 0 ? "1-" : spec;
+  for (;;)
+    {
+      uintmax_t lo = 0, hi = 0;
+      int have_lo = 0, have_hi = 0, dash = 0;
+      while (isdigit ((unsigned char) *p))
+        {
+          if (lo > (UINTMAX_MAX - 1) / 10) goto too_large;
+          lo = lo * 10 + (uintmax_t) (*p++ - '0');
+          have_lo = 1;
+        }
+      if (*p == '-')
+        {
+          dash = 1;
+          p++;
+          if (have_lo && lo == 0) goto from_one;
+          while (isdigit ((unsigned char) *p))
+            {
+              if (hi > (UINTMAX_MAX - 1) / 10) goto too_large;
+              hi = hi * 10 + (uintmax_t) (*p++ - '0');
+              have_hi = 1;
+            }
+          if (*p == '-')
+            {
+              builtin_error ("invalid field range");
+              return bcu_nf_try ();
+            }
+        }
+      if (*p && *p != ',' && !isblank ((unsigned char) *p))
+        {
+          bcu_nf_error_quoted ("invalid field value %s", p);
+          return bcu_nf_try ();
+        }
+      if (dash)
+        {
+          uintmax_t first = have_lo ? lo : 1;
+          if (!have_hi)
+            hi = UINTMAX_MAX;
+          else if (hi < first)
+            {
+              builtin_error ("invalid decreasing range");
+              return bcu_nf_try ();
+            }
+          if (bcu_nf_add_range (nf, first, hi) < 0) return EXECUTION_FAILURE;
+        }
+      else
+        {
+          if (lo == 0) goto from_one;
+          if (bcu_nf_add_range (nf, lo, lo) < 0) return EXECUTION_FAILURE;
+        }
+      if (!*p) break;
+      p++;
+    }
+  return EXECUTION_SUCCESS;
+from_one:
+  builtin_error ("fields are numbered from 1");
+  return bcu_nf_try ();
+too_large:
+  builtin_error ("field number is too large");
+  return bcu_nf_try ();
+}
+
+/* --format: one %[0]['][-][N][.N]f directive, with literal text around
+   it. As in GNU numfmt, the prefix keeps the first bytes of the text,
+   one per character or %% pair, and both sides are printed verbatim. */
+static int
+bcu_nf_parse_format (bcu_numfmt_t *nf, const char *fmt)
+{
+  size_t i = 0, prefix_len = 0;
+  char *q;
+  while (!(fmt[i] == '%' && fmt[i + 1] != '%'))
+    {
+      if (!fmt[i])
+        {
+          q = bos_quote (fmt);
+          builtin_error ("format %s has no %% directive", q ? q : fmt);
+          free (q);
+          return EXECUTION_FAILURE;
+        }
+      prefix_len++;
+      i += (fmt[i] == '%') + 1;
+    }
+  i++;
+  int zero = 0;
+  for (;;)
+    {
+      size_t skip = strspn (fmt + i, " ");
+      i += skip;
+      if (fmt[i] == '\'') { nf->grouping = 1; i++; }
+      else if (fmt[i] == '0') { zero = 1; i++; }
+      else if (!skip) break;
+    }
+  char *end = NULL;
+  errno = 0;
+  intmax_t pad = strtoimax (fmt + i, &end, 10);
+  if (pad < 0)
+    nf->padding = pad;
+  else if (pad > 0)
+    {
+      if (zero) nf->zero_width = pad > INT_MAX ? INT_MAX : (int) pad;
+      else nf->padding = pad;
+    }
+  i = (size_t) (end - fmt);
+  if (!fmt[i])
+    {
+      q = bos_quote (fmt);
+      builtin_error ("format %s ends in %%", q ? q : fmt);
+      free (q);
+      return EXECUTION_FAILURE;
+    }
+  if (fmt[i] == '.')
+    {
+      i++;
+      errno = 0;
+      long prec = strtol (fmt + i, &end, 10);
+      if (errno == ERANGE || prec < 0 || isblank ((unsigned char) fmt[i]) || fmt[i] == '+')
+        {
+          q = bos_quote (fmt);
+          builtin_error ("invalid precision in format %s", q ? q : fmt);
+          free (q);
+          return EXECUTION_FAILURE;
+        }
+      nf->precision = prec;
+      i = (size_t) (end - fmt);
+    }
+  if (fmt[i] != 'f')
+    {
+      q = bos_quote (fmt);
+      builtin_error ("invalid format %s, directive must be %%[0]['][-][N][.][N]f", q ? q : fmt);
+      free (q);
+      return EXECUTION_FAILURE;
+    }
+  i++;
+  size_t suffix_pos = i;
+  for (; fmt[i]; i += (fmt[i] == '%') + 1)
+    if (fmt[i] == '%' && fmt[i + 1] != '%')
+      {
+        q = bos_quote (fmt);
+        builtin_error ("format %s has too many %% directives", q ? q : fmt);
+        free (q);
+        return EXECUTION_FAILURE;
+      }
+  if (prefix_len)
+    {
+      nf->fmt_prefix = bcu_calloc (1, prefix_len + 1);
+      memcpy (nf->fmt_prefix, fmt, prefix_len);
+    }
+  if (fmt[suffix_pos])
+    nf->fmt_suffix = bcu_strdup (fmt + suffix_pos);
+  return EXECUTION_SUCCESS;
+}
+
+/* Parse [-]DIGITS[.DIGITS][blanks][SUFFIX[i]]. PRECISION is the number of
+   fraction digits, or 0 once a scale suffix was applied. */
+static bcu_nf_err
+bcu_nf_parse_number (const bcu_numfmt_t *nf, const char *s, long double *out,
+                     size_t *precision, const char **rest)
+{
+  const char *p = s;
+  long double v = 0;
+  int negative = 0, digits = 0, any = 0;
+  *precision = 0;
+  *rest = s;
+  if (*p == '-') { negative = 1; p++; }
+  for (; isdigit ((unsigned char) *p); p++)
+    {
+      int d = *p - '0';
+      any = 1;
+      if (v != 0 || d) digits++;
+      if (digits > BCU_NF_MAX_DIGITS) return BCU_NF_OVERFLOW;
+      v = v * 10 + d;
+    }
+  int radix = strncmp (p, nf->radix, nf->radix_len) == 0;
+  if (!any && !radix) return BCU_NF_INVALID;
+  if (radix)
+    {
+      p += nf->radix_len;
+      const char *start = p;
+      long double frac = 0;
+      int fdigits = 0;
+      for (; isdigit ((unsigned char) *p); p++)
+        {
+          int d = *p - '0';
+          if (frac != 0 || d) fdigits++;
+          if (fdigits > BCU_NF_MAX_DIGITS) return BCU_NF_OVERFLOW;
+          frac = frac * 10 + d;
+        }
+      if (p == start) return BCU_NF_INVALID;
+      *precision = (size_t) (p - start);
+      v += frac / bcu_nf_pow (10, (long) *precision);
+    }
+  if (negative) v = -v;
+  if (*p)
+    {
+      while (isblank ((unsigned char) *p)) p++;
+      if (*p && !strchr ("KkMGTPEZYRQ", *p)) return BCU_NF_BAD_SUFFIX;
+      if (nf->from == BCU_SCALE_NONE) return BCU_NF_FORBIDDEN;
+      if (!*p)
+        {
+          /* Blanks after the number but no suffix letter. */
+          *rest = p;
+          return BCU_NF_TRAILING;
+        }
+      long power = (long) (strchr ("KMGTPEZYRQ", *p == 'k' ? 'K' : *p) - "KMGTPEZYRQ") + 1;
+      long double base = (nf->from == BCU_SCALE_IEC || nf->from == BCU_SCALE_IEC_I) ? 1024 : 1000;
+      p++;
+      if (nf->from == BCU_SCALE_AUTO && *p == 'i')
+        { base = 1024; p++; }
+      else if (nf->from == BCU_SCALE_IEC_I)
+        {
+          if (*p != 'i') return BCU_NF_MISSING_I;
+          p++;
+        }
+      *precision = 0;
+      v *= bcu_nf_pow (base, power);
+    }
+  *out = v;
+  *rest = p;
+  return *p ? BCU_NF_TRAILING : BCU_NF_OK;
+}
+
+static void
+bcu_nf_report (const bcu_numfmt_t *nf, bcu_nf_err e, const char *text, const char *rest)
+{
+  if (nf->inval == BCU_INVAL_IGNORE)
+    return;
+  switch (e)
+    {
+    case BCU_NF_OVERFLOW: bcu_nf_error_quoted ("value too large to be converted: %s", text); break;
+    case BCU_NF_INVALID: bcu_nf_error_quoted ("invalid number: %s", text); break;
+    case BCU_NF_FORBIDDEN: bcu_nf_error_quoted ("rejecting suffix in input: %s (consider using --from)", text); break;
+    case BCU_NF_BAD_SUFFIX: bcu_nf_error_quoted ("invalid suffix in input: %s", text); break;
+    case BCU_NF_MISSING_I: bcu_nf_error_quoted ("missing 'i' suffix in input: %s (e.g Ki/Mi/Gi)", text); break;
+    case BCU_NF_TRAILING:
+      {
+        char *a = bos_quote (text), *b = bos_quote (rest);
+        builtin_error ("invalid suffix in input %s: %s", a ? a : text, b ? b : rest);
+        free (a);
+        free (b);
+        break;
+      }
+    case BCU_NF_OK: break;
+    }
+}
+
+static char *
+bcu_nf_printf (const char *fmt, ...)
+{
+  va_list ap;
+  va_start (ap, fmt);
+  int n = vsnprintf (NULL, 0, fmt, ap);
+  va_end (ap);
+  if (n < 0) return NULL;
+  char *out = malloc ((size_t) n + 1);
+  if (!out) return NULL;
+  va_start (ap, fmt);
+  vsnprintf (out, (size_t) n + 1, fmt, ap);
+  va_end (ap);
+  return out;
+}
+
+/* Render VAL with the output scale, rounding and suffix. */
+static char *
+bcu_nf_render (const bcu_numfmt_t *nf, long double val, size_t precision)
+{
+  char fmt[64], *f = fmt;
+  const char *suffix = nf->suffix ? nf->suffix : "";
+  *f++ = '%';
+  if (nf->grouping) *f++ = '\'';
+  if (nf->zero_width) f += sprintf (f, "0%d", nf->zero_width);
+  if (nf->to == BCU_SCALE_NONE)
+    {
+      long double scale = bcu_nf_pow (10, (long) precision);
+      val = bcu_nf_round (val * scale, nf->round) / scale;
+      strcpy (f, ".*Lf%s");
+      return bcu_nf_printf (fmt, (int) precision, val, suffix);
+    }
+  long double base = nf->to == BCU_SCALE_SI ? 1000 : 1024;
+  int power = 0;
+  if (val >= -LDBL_MAX && val <= LDBL_MAX)
+    while (bcu_nf_abs (val) >= base) { val /= base; power++; }
+  long adjust = 0;
+  if (nf->precision != -1)
+    adjust = power * 3 < nf->precision ? power * 3 : nf->precision;
+  else if (bcu_nf_abs (val) < 10)
+    adjust = 1;           /* one decimal digit below 10 */
+  long double scale = bcu_nf_pow (10, adjust);
+  val = bcu_nf_round (val * scale, nf->round) / scale;
+  if (bcu_nf_abs (val) >= base) { val /= base; power++; }
+  int show_decimal = val != 0 && bcu_nf_abs (val) < 10 && power > 0;
+  int prec = nf->precision == -1 ? show_decimal : (int) nf->precision;
+  static const char *const units[] = { "", "K", "M", "G", "T", "P", "E", "Z", "Y", "R", "Q" };
+  const char *unit = power == 1 && nf->to == BCU_SCALE_SI ? "k" : power <= 10 ? units[power] : "(error)";
+  strcpy (f, ".*Lf%s%s%s");
+  return bcu_nf_printf (fmt, prec, val, unit,
+                        nf->to == BCU_SCALE_IEC_I && power > 0 ? "i" : "", suffix);
+}
+
+/* Display width of a rendered number: its character count. */
+static int
+bcu_nf_width (const char *s)
+{
+  size_t n = mbstowcs (NULL, s, 0);
+  return n == (size_t) -1 ? (int) strlen (s) : (int) n;
+}
+
+static int
+bcu_nf_included (const bcu_numfmt_t *nf, uintmax_t field)
+{
+  if (!nf->fields) return field == 1;
+  for (size_t i = 0; i < nf->nfields; i++)
+    if (nf->fields[i].lo <= field && field <= nf->fields[i].hi)
+      return 1;
+  return 0;
+}
+
+/* Convert one field in place. Returns 1 when it converted (or was not
+   selected), 0 when it was invalid. */
+static int
+bcu_nf_field (bcu_numfmt_t *nf, char *text, uintmax_t field)
+{
+  if (!bcu_nf_included (nf, field))
+    {
+      fputs (text, stdout);
+      return 1;
+    }
+  if (nf->suffix)
+    {
+      size_t tl = strlen (text), sl = strlen (nf->suffix);
+      if (tl > sl && strcmp (text + tl - sl, nf->suffix) == 0)
+        text[tl - sl] = '\0';
+    }
+  char *p = text;
+  while (*p && isblank ((unsigned char) *p)) p++;
+  intmax_t padding = nf->padding;
+  if (nf->auto_padding)
+    padding = (text < p || field > 1) ? (intmax_t) strlen (text) : 0;
+
+  long double val = 0;
+  size_t precision = 0;
+  const char *rest = p;
+  bcu_nf_err e = bcu_nf_parse_number (nf, p, &val, &precision, &rest);
+  if (e != BCU_NF_OK)
+    {
+      bcu_nf_report (nf, e, p, rest);
+      goto invalid;
+    }
+  if (nf->from_unit != 1 || nf->to_unit != 1)
+    val = val * nf->from_unit / nf->to_unit;
+
+  size_t used = nf->precision == -1 ? precision : (size_t) nf->precision;
+  int exponent = 0;
+  if (val >= -LDBL_MAX && val <= LDBL_MAX)
+    for (long double t = bcu_nf_abs (val); t >= 10; t /= 10) exponent++;
+  if (nf->to == BCU_SCALE_NONE && (size_t) exponent + used > BCU_NF_UNSCALED_DIGITS)
+    {
+      if (nf->inval != BCU_INVAL_IGNORE)
+        {
+          if (used)
+            builtin_error ("value/precision too large to be printed: '%Lg/%zu' (consider using --to)", val, used);
+          else
+            builtin_error ("value too large to be printed: '%Lg' (consider using --to)", val);
+        }
+      goto invalid;
+    }
+  if (exponent > BCU_NF_MAX_DIGITS - 1)
+    {
+      if (nf->inval != BCU_INVAL_IGNORE)
+        builtin_error ("value too large to be printed: '%Lg' (cannot handle values > 999Q)", val);
+      goto invalid;
+    }
+  char *out = bcu_nf_render (nf, val, used);
+  if (!out)
+    {
+      builtin_error ("failed to prepare value '%Lf' for printing", val);
+      nf->stop = 1;
+      return 0;
+    }
+  intmax_t pad = 0;
+  if (padding)
+    {
+      intmax_t width = bcu_nf_width (out);
+      if (padding < 0 && padding < -width) pad = padding + width;
+      else if (padding > 0 && width < padding) pad = padding - width;
+    }
+  if (nf->fmt_prefix) fputs (nf->fmt_prefix, stdout);
+  for (intmax_t i = pad; i > 0; i--) putchar (' ');
+  fputs (out, stdout);
+  for (intmax_t i = pad; i < 0; i++) putchar (' ');
+  if (nf->fmt_suffix) fputs (nf->fmt_suffix, stdout);
+  free (out);
+  return 1;
+
+invalid:
+  if (nf->inval == BCU_INVAL_ABORT)
+    nf->stop = 1;
+  else
+    fputs (text, stdout);
+  return 0;
+}
+
+/* Split LINE into fields (blank-separated, or on the -d character),
+   convert the selected ones and print the result. */
+static int
+bcu_nf_line (bcu_numfmt_t *nf, char *line, int newline)
+{
+  uintmax_t field = 0;
+  int valid = 1;
+  for (;;)
+    {
+      char *start = line, *end = line;
+      field++;
+      if (nf->delimiter >= 0)
+        {
+          if (*start != (char) nf->delimiter)
+            while (*end && *end != (char) nf->delimiter) end++;
+        }
+      else
+        {
+          while (*end && (isblank ((unsigned char) *end) || *end == '\n')) end++;
+          while (*end && !isblank ((unsigned char) *end) && *end != '\n') end++;
+        }
+      int last = *end == '\0';
+      *end = '\0';
+      if (!bcu_nf_field (nf, start, field)) valid = 0;
+      if (nf->stop) return 0;
+      if (last) break;
+      putchar (nf->delimiter >= 0 ? nf->delimiter : ' ');
+      line = end + 1;
+    }
+  if (newline) putchar (nf->line_delim);
+  return valid;
+}
+
+/* Long options; an unambiguous prefix selects one, as getopt_long does. */
+enum { BCU_NF_ARG_NONE, BCU_NF_ARG_REQUIRED, BCU_NF_ARG_OPTIONAL };
+static const struct { const char *name; int arg; } bcu_nf_longopts[] = {
+  { "from", BCU_NF_ARG_REQUIRED }, { "from-unit", BCU_NF_ARG_REQUIRED },
+  { "to", BCU_NF_ARG_REQUIRED }, { "to-unit", BCU_NF_ARG_REQUIRED },
+  { "round", BCU_NF_ARG_REQUIRED }, { "padding", BCU_NF_ARG_REQUIRED },
+  { "suffix", BCU_NF_ARG_REQUIRED }, { "grouping", BCU_NF_ARG_NONE },
+  { "delimiter", BCU_NF_ARG_REQUIRED }, { "field", BCU_NF_ARG_REQUIRED },
+  { "debug", BCU_NF_ARG_NONE }, { "header", BCU_NF_ARG_OPTIONAL },
+  { "format", BCU_NF_ARG_REQUIRED }, { "invalid", BCU_NF_ARG_REQUIRED },
+  { "zero-terminated", BCU_NF_ARG_NONE }, { "help", BCU_NF_ARG_NONE },
+  { "version", BCU_NF_ARG_NONE }, { NULL, 0 }
+};
+
+static int
+bcu_nf_option (bcu_numfmt_t *nf, const char *name, const char *arg,
+               const char **format, uintmax_t *header, int *field_seen)
+{
+  int k;
+  if (!strcmp (name, "from"))
+    {
+      if ((k = bcu_nf_argmatch ("--from", arg, bcu_nf_from_names)) < 0) return EXECUTION_FAILURE;
+      nf->from = bcu_nf_from_types[k];
+    }
+  else if (!strcmp (name, "to"))
+    {
+      if ((k = bcu_nf_argmatch ("--to", arg, bcu_nf_to_names)) < 0) return EXECUTION_FAILURE;
+      nf->to = bcu_nf_to_types[k];
+    }
+  else if (!strcmp (name, "from-unit"))
+    { if (bcu_nf_unit_size (arg, &nf->from_unit) < 0) return EXECUTION_FAILURE; }
+  else if (!strcmp (name, "to-unit"))
+    { if (bcu_nf_unit_size (arg, &nf->to_unit) < 0) return EXECUTION_FAILURE; }
+  else if (!strcmp (name, "round"))
+    {
+      if ((k = bcu_nf_argmatch ("--round", arg, bcu_nf_round_names)) < 0) return EXECUTION_FAILURE;
+      nf->round = (bcu_round_t) k;
+    }
+  else if (!strcmp (name, "invalid"))
+    {
+      if ((k = bcu_nf_argmatch ("--invalid", arg, bcu_nf_inval_names)) < 0) return EXECUTION_FAILURE;
+      nf->inval = (bcu_inval_t) k;
+    }
+  else if (!strcmp (name, "padding"))
+    {
+      char *end = NULL;
+      errno = 0;
+      intmax_t v = strtoimax (arg, &end, 10);
+      if (end == arg || *end || v == 0)
+        {
+          bcu_nf_error_quoted ("invalid padding value %s", arg);
+          return EXECUTION_FAILURE;
+        }
+      nf->padding = v;
+    }
+  else if (!strcmp (name, "suffix"))
+    nf->suffix = arg;
+  else if (!strcmp (name, "grouping"))
+    nf->grouping = 1;
+  else if (!strcmp (name, "delimiter"))
+    {
+      if (arg[0] && arg[1])
+        {
+          builtin_error ("the delimiter must be a single character");
+          return EXECUTION_FAILURE;
+        }
+      nf->delimiter = (unsigned char) arg[0];
+    }
+  else if (!strcmp (name, "field"))
+    {
+      if (*field_seen)
+        {
+          builtin_error ("multiple field specifications");
+          return EXECUTION_FAILURE;
+        }
+      *field_seen = 1;
+      return bcu_nf_parse_fields (nf, arg);
+    }
+  else if (!strcmp (name, "header"))
+    {
+      if (!arg)
+        *header = 1;
+      else
+        {
+          char *end = NULL;
+          errno = 0;
+          uintmax_t v = strtoumax (arg, &end, 10);
+          if (!isdigit ((unsigned char) *arg) || errno || *end || v == 0)
+            {
+              bcu_nf_error_quoted ("invalid header value %s", arg);
+              return EXECUTION_FAILURE;
+            }
+          *header = v;
+        }
+    }
+  else if (!strcmp (name, "format"))
+    *format = arg;
+  else if (!strcmp (name, "zero-terminated"))
+    nf->line_delim = '\0';
+  else if (!strcmp (name, "debug"))
+    ;
+  else if (!strcmp (name, "help") || !strcmp (name, "version"))
+    {
+      printf ("Usage: numfmt [OPTION]... [NUMBER]...\n");
+      return -1;
+    }
+  return EXECUTION_SUCCESS;
+}
+
+static int
+bcu_numfmt_run (WORD_LIST *list, bcu_numfmt_t *nf)
+{
   WORD_LIST *values __attribute__((cleanup(bcu_free_nodes))) = NULL;
   WORD_LIST *values_tail = NULL;
+  const char *format = NULL;
+  uintmax_t header = 0;
+  int field_seen = 0, rc, ended = 0;
 
   for (WORD_LIST *w = list; w; w = w->next)
     {
       const char *a = w->word->word;
-      if (strncmp (a, "--from=", 7) == 0) { from = bcu_numfmt_scale (a + 7); continue; }
-      if (strncmp (a, "--to=",   5) == 0) { to   = bcu_numfmt_scale (a + 5); continue; }
+      if (!ended && a[0] == '-' && a[1] == '-' && a[2] == '\0')
+        { ended = 1; continue; }
+      if (!ended && a[0] == '-' && a[1] == '-')
+        {
+          const char *name = a + 2, *eq = strchr (name, '=');
+          size_t len = eq ? (size_t) (eq - name) : strlen (name);
+          int found = -1, matches = 0;
+          for (int i = 0; bcu_nf_longopts[i].name; i++)
+            {
+              if (strncmp (bcu_nf_longopts[i].name, name, len)) continue;
+              if (strlen (bcu_nf_longopts[i].name) == len) { found = i; matches = 1; break; }
+              if (found < 0) found = i;
+              matches++;
+            }
+          if (matches > 1)
+            {
+              char list[512];
+              size_t at = 0;
+              list[0] = '\0';
+              for (int i = 0; bcu_nf_longopts[i].name && at < sizeof list - 40; i++)
+                if (!strncmp (bcu_nf_longopts[i].name, name, len))
+                  at += (size_t) snprintf (list + at, sizeof list - at, " '--%s'",
+                                           bcu_nf_longopts[i].name);
+              builtin_error ("option '%s' is ambiguous; possibilities:%s", a, list);
+              return bcu_nf_try ();
+            }
+          if (found < 0)
+            {
+              builtin_error ("unrecognized option '%s'", a);
+              return bcu_nf_try ();
+            }
+          const char *optname = bcu_nf_longopts[found].name, *arg = eq ? eq + 1 : NULL;
+          if (bcu_nf_longopts[found].arg == BCU_NF_ARG_NONE && eq)
+            {
+              builtin_error ("option '--%s' doesn't allow an argument", optname);
+              return bcu_nf_try ();
+            }
+          if (bcu_nf_longopts[found].arg == BCU_NF_ARG_REQUIRED && !eq)
+            {
+              if (!w->next)
+                {
+                  builtin_error ("option '--%s' requires an argument", optname);
+                  return bcu_nf_try ();
+                }
+              w = w->next;
+              arg = w->word->word;
+            }
+          rc = bcu_nf_option (nf, optname, arg, &format, &header, &field_seen);
+          if (rc < 0) return EXECUTION_SUCCESS;
+          if (rc != EXECUTION_SUCCESS) return rc;
+          continue;
+        }
+      if (!ended && a[0] == '-' && a[1])
+        {
+          for (const char *c = a + 1; *c; c++)
+            {
+              if (*c == 'z') { nf->line_delim = '\0'; continue; }
+              if (*c == 'd')
+                {
+                  const char *arg = c[1] ? c + 1 : NULL;
+                  if (!arg)
+                    {
+                      if (!w->next)
+                        {
+                          builtin_error ("option requires an argument -- 'd'");
+                          return bcu_nf_try ();
+                        }
+                      w = w->next;
+                      arg = w->word->word;
+                    }
+                  rc = bcu_nf_option (nf, "delimiter", arg, &format, &header, &field_seen);
+                  if (rc != EXECUTION_SUCCESS) return rc;
+                  break;
+                }
+              builtin_error ("invalid option -- '%c'", *c);
+              return bcu_nf_try ();
+            }
+          continue;
+        }
       WORD_LIST *nw = bcu_calloc (1, sizeof (*nw));
       nw->word = w->word;
       if (!values) values = nw; else values_tail->next = nw;
       values_tail = nw;
     }
 
-  int rc = EXECUTION_SUCCESS;
-  if (!values)
+  if (format && nf->grouping)
     {
-      char *line = NULL; size_t llen = 0; ssize_t r;
-      while ((r = getline (&line, &llen, stdin)) != -1)
-        {
-          if (r > 0 && line[r - 1] == '\n') line[r - 1] = '\0';
-          double v = bcu_numfmt_parse_human (line, from);
-          char outbuf[64];
-          if (to != BCU_SCALE_NONE) bcu_numfmt_format (v, to, outbuf, sizeof outbuf);
-          else snprintf (outbuf, sizeof outbuf, "%.0f", v);
-          puts (outbuf);
-        }
-      free (line);
+      builtin_error ("--grouping cannot be combined with --format");
+      return EXECUTION_FAILURE;
     }
-  else
-    for (WORD_LIST *w = values; w; w = w->next)
+  if (format && bcu_nf_parse_format (nf, format) != EXECUTION_SUCCESS)
+    return EXECUTION_FAILURE;
+  if (nf->grouping && nf->to != BCU_SCALE_NONE)
+    {
+      builtin_error ("grouping cannot be combined with --to");
+      return EXECUTION_FAILURE;
+    }
+  nf->auto_padding = nf->padding == 0 && nf->delimiter < 0;
+
+  int valid = 1;
+  if (values)
+    for (WORD_LIST *w = values; w && !nf->stop; w = w->next)
       {
-        double v = bcu_numfmt_parse_human (w->word->word, from);
-        char outbuf[64];
-        if (to != BCU_SCALE_NONE) bcu_numfmt_format (v, to, outbuf, sizeof outbuf);
-        else snprintf (outbuf, sizeof outbuf, "%.0f", v);
-        puts (outbuf);
+        char *copy = bcu_strdup (w->word->word);
+        valid &= bcu_nf_line (nf, copy, 1);
+        free (copy);
       }
+  else
+    {
+      int fd = dup (STDIN_FILENO);
+      FILE *in = fd < 0 ? NULL : fdopen (fd, "r");
+      if (!in)
+        {
+          if (fd >= 0) close (fd);
+          builtin_error ("stdin: %s", strerror (errno));
+          return EXECUTION_FAILURE;
+        }
+      char *line = NULL;
+      size_t cap = 0;
+      ssize_t len;
+      while (header && getdelim (&line, &cap, nf->line_delim, in) > 0)
+        {
+          fputs (line, stdout);
+          header--;
+        }
+      while (!nf->stop && (len = getdelim (&line, &cap, nf->line_delim, in)) > 0)
+        {
+          int newline = line[len - 1] == (char) nf->line_delim;
+          if (newline) line[len - 1] = '\0';
+          valid &= bcu_nf_line (nf, line, newline);
+        }
+      int read_error = ferror (in);
+      free (line);
+      fclose (in);
+      if (read_error)
+        {
+          builtin_error ("error reading input");
+          return EXECUTION_FAILURE;
+        }
+    }
+  if (nf->stop) return 2;
+  if (!valid && (nf->inval == BCU_INVAL_ABORT || nf->inval == BCU_INVAL_FAIL)) return 2;
+  return EXECUTION_SUCCESS;
+}
 
+/* Diagnostics carry the program name GNU numfmt prints. */
+static int
+bcu_numfmt_cmd (WORD_LIST *list)
+{
+  bcu_numfmt_t nf;
+  memset (&nf, 0, sizeof nf);
+  nf.from = nf.to = BCU_SCALE_NONE;
+  nf.round = BCU_ROUND_FROM_ZERO;
+  nf.inval = BCU_INVAL_ABORT;
+  nf.from_unit = nf.to_unit = 1;
+  nf.precision = -1;
+  nf.delimiter = -1;
+  nf.line_delim = '\n';
+  nf.radix = nl_langinfo (RADIXCHAR);
+  if (!nf.radix || !*nf.radix) nf.radix = ".";
+  nf.radix_len = strlen (nf.radix);
 
+  char *saved = this_command_name;
+  this_command_name = (char *) "numfmt";
+  int rc = bcu_numfmt_run (list, &nf);
+  this_command_name = saved;
+  free (nf.fields);
+  free (nf.fmt_prefix);
+  free (nf.fmt_suffix);
   return rc;
 }
 
@@ -1318,19 +2083,101 @@ bcu_numfmt_cmd (WORD_LIST *list)
  * shred — overwrite a file N times with random bytes, optionally
  *         unlink. Defaults: 3 passes, no zero-pass, no unlink.
  *
- * Flags:
- *   -n N    pass count (default 3)
- *   -z      add a final zero-fill pass
- *   -u      unlink after writing
- *   -x      exact size (also the default; no block-size rounding)
- *   -s SZ   treat file as SZ bytes long (rare; default = current size)
+ * Flags (GNU shred spellings):
+ *   -n N, --iterations=N   pass count (default 3)
+ *   -z, --zero             add a final zero-fill pass
+ *   -u                     remove after writing (as --remove=wipesync)
+ *   --remove[=HOW]         remove; HOW is unlink, wipe or wipesync
+ *                          (wipe renames the name to shorter all-'0'
+ *                          names before the unlink; wipesync also syncs
+ *                          the directory after each rename)
+ *   -v, --verbose          report each pass and removal step on stderr
+ *   -f, --force            make the file writable first if needed
+ *   -x, --exact            exact size (also the default)
+ *   -s SZ, --size=SZ       treat file as SZ bytes long
  * =================================================================== */
 
+enum { BCU_RM_NONE, BCU_RM_UNLINK, BCU_RM_WIPE, BCU_RM_WIPESYNC };
+
+/* GNU wipename: rename PATH through ever shorter names made of '0' (the
+   first free name of each length), then unlink it. */
 static int
-bcu_shred_one (const char *path, int passes, int zero_pass, int unlink_after, long long fixed_size)
+bcu_shred_remove (const char *path, int how, int verbose)
+{
+  if (verbose) fprintf (stderr, "shred: %s: removing\n", path);
+  char *old = savestring (path);
+  if (how != BCU_RM_UNLINK)
+    {
+      char *slash = strrchr (old, '/');
+      size_t dirlen = slash ? (size_t) (slash - old) + 1 : 0;
+      char *dir = slash ? savestring (old) : NULL;
+      int dfd = -1;
+      if (dir) dir[dirlen] = '\0';
+      if (how == BCU_RM_WIPESYNC)
+        dfd = open (dir ? dir : ".", O_RDONLY | O_DIRECTORY);
+      size_t len = strlen (old + dirlen);
+      char *nw = xmalloc (dirlen + len + 1);
+      memcpy (nw, old, dirlen);
+      static const char nameset[] =
+        "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_.";
+      for (; len; len--)
+        {
+          char *base = nw + dirlen;
+          memset (base, nameset[0], len);
+          base[len] = '\0';
+          int ok = 0;
+          for (;;)
+            {
+              struct stat st;
+              if (lstat (nw, &st) < 0 && errno == ENOENT)
+                { ok = rename (old, nw) == 0; break; }
+              /* Next name of this length (odometer over nameset). */
+              size_t i = len;
+              while (i--)
+                {
+                  const char *at = strchr (nameset, base[i]);
+                  if (at[1]) { base[i] = at[1]; break; }
+                  base[i] = nameset[0];
+                }
+              if (i == (size_t) -1) break;
+            }
+          if (ok)
+            {
+              if (dfd >= 0) fsync (dfd);
+              if (verbose) fprintf (stderr, "shred: %s: renamed to %s\n", old, nw);
+              strcpy (old + dirlen, base);
+            }
+        }
+      free (nw);
+      free (dir);
+      if (dfd >= 0) close (dfd);
+    }
+  int rc = EXECUTION_SUCCESS;
+  if (unlink (old) < 0)
+    {
+      builtin_error ("shred: %s: failed to remove: %s", path, strerror (errno));
+      rc = EXECUTION_FAILURE;
+    }
+  else if (verbose)
+    fprintf (stderr, "shred: %s: removed\n", path);
+  free (old);
+  return rc;
+}
+
+static int
+bcu_shred_one (const char *path, int passes, int zero_pass, int remove_how,
+               long long fixed_size, int verbose, int force)
 {
   int fd = open (path, O_WRONLY);
-  if (fd < 0) { builtin_error ("shred: %s: %s", path, strerror (errno)); return EXECUTION_FAILURE; }
+  if (fd < 0 && force && errno == EACCES)
+    {
+      struct stat st;
+      if (stat (path, &st) == 0 && chmod (path, st.st_mode | S_IWUSR) == 0)
+        fd = open (path, O_WRONLY);
+      else
+        errno = EACCES;
+    }
+  if (fd < 0) { builtin_error ("shred: %s: failed to open for writing: %s", path, strerror (errno)); return EXECUTION_FAILURE; }
   off_t sz;
   if (fixed_size >= 0) sz = (off_t) fixed_size;
   else
@@ -1343,12 +2190,16 @@ bcu_shred_one (const char *path, int passes, int zero_pass, int unlink_after, lo
   if (!buf) { close (fd); return EXECUTION_FAILURE; }
 
   int error = 0;
+  int total = passes + (zero_pass ? 1 : 0);
   FILE *rnd = passes ? fopen ("/dev/urandom", "rb") : NULL;
   if (passes && !rnd) error = errno;
-  for (int pass = 0; !error && pass < passes + (zero_pass ? 1 : 0); pass++)
+  for (int pass = 0; !error && pass < total; pass++)
     {
       if (lseek (fd, 0, SEEK_SET) < 0) { error = errno; break; }
       int is_zero_pass = (pass == passes);
+      if (verbose)
+        fprintf (stderr, "shred: %s: pass %d/%d (%s)...\n", path, pass + 1, total,
+                 is_zero_pass ? "000000" : "random");
       off_t remaining = sz;
       while (remaining > 0 && !error)
         {
@@ -1374,41 +2225,108 @@ bcu_shred_one (const char *path, int passes, int zero_pass, int unlink_after, lo
   /* Never unlink a file after an unsuccessful overwrite. */
   if (error)
     { builtin_error ("shred: %s: %s", path, strerror (error)); return EXECUTION_FAILURE; }
-  if (unlink_after && unlink (path) < 0)
-    { builtin_error ("shred: unlink %s: %s", path, strerror (errno)); return EXECUTION_FAILURE; }
+  if (remove_how != BCU_RM_NONE)
+    return bcu_shred_remove (path, remove_how, verbose);
   return EXECUTION_SUCCESS;
 }
 
 static int
 bcu_shred_cmd (WORD_LIST *list)
 {
-  int passes = 3, zero_pass = 0, unlink_after = 0;
+  int passes = 3, zero_pass = 0, remove_how = BCU_RM_NONE, verbose = 0, force = 0;
+  int options_done = 0;
   long long fixed_size = -1;
   WORD_LIST *files __attribute__((cleanup(bcu_free_nodes))) = NULL;
   WORD_LIST *files_tail = NULL;
   for (WORD_LIST *w = list; w; w = w->next)
     {
       const char *a = w->word->word;
-      if (strcmp (a, "-n") == 0 && w->next)
-        { w = w->next; long long v; if (!bcu_parse_ll (w->word->word, &v) || v < 0 || v >= INT_MAX) { builtin_error ("shred: bad -n"); bcu_usage ("shred"); return EX_USAGE; } passes = (int) v; continue; }
-      /* This implementation always writes the exact requested/current size. */
-      if (strcmp (a, "-x") == 0 || strcmp (a, "--exact") == 0) continue;
-      if (strcmp (a, "-z") == 0) { zero_pass = 1; continue; }
-      if (strcmp (a, "-u") == 0) { unlink_after = 1; continue; }
-      if (strcmp (a, "-s") == 0 && w->next)
-        { w = w->next; if (!bcu_parse_ll (w->word->word, &fixed_size) || fixed_size < 0) { builtin_error ("shred: bad -s"); bcu_usage ("shred"); return EX_USAGE; } continue; }
-      if (a[0] == '-' && a[1] != '\0') { builtin_error ("shred: unknown flag: %s", a); bcu_usage ("shred"); return EX_USAGE; }
-      WORD_LIST *nw = bcu_calloc (1, sizeof (*nw));
-      nw->word = w->word;
-      if (!files) files = nw; else files_tail->next = nw;
-      files_tail = nw;
+      const char *val = NULL;
+      if (!options_done && strcmp (a, "--") == 0) { options_done = 1; continue; }
+      if (options_done || a[0] != '-' || a[1] == '\0')
+        {
+          WORD_LIST *nw = bcu_calloc (1, sizeof (*nw));
+          nw->word = w->word;
+          if (!files) files = nw; else files_tail->next = nw;
+          files_tail = nw;
+          continue;
+        }
+      if (a[1] == '-')
+        {
+          const char *eq = strchr (a, '=');
+          size_t n = eq ? (size_t) (eq - a) : strlen (a);
+          if (!eq && strcmp (a, "--help") == 0)
+            {
+              puts ("Usage: shred [-fuvxz] [-n N] [-s SIZE] [--remove[=HOW]] FILE...");
+              puts ("Overwrite FILEs (3 random passes by default); -z adds a zero pass;");
+              puts ("-u or --remove[=unlink|wipe|wipesync] removes them; -v reports progress.");
+              return EXECUTION_SUCCESS;
+            }
+          if (!eq && strcmp (a, "--exact") == 0) continue;
+          if (!eq && strcmp (a, "--zero") == 0) { zero_pass = 1; continue; }
+          if (!eq && strcmp (a, "--verbose") == 0) { verbose = 1; continue; }
+          if (!eq && strcmp (a, "--force") == 0) { force = 1; continue; }
+          if (n == 8 && strncmp (a, "--remove", n) == 0)
+            {
+              const char *how = eq ? eq + 1 : "wipesync";
+              if (strcmp (how, "unlink") == 0) remove_how = BCU_RM_UNLINK;
+              else if (strcmp (how, "wipe") == 0) remove_how = BCU_RM_WIPE;
+              else if (strcmp (how, "wipesync") == 0) remove_how = BCU_RM_WIPESYNC;
+              else
+                {
+                  builtin_error ("shred: invalid argument '%s' for '--remove'", how);
+                  builtin_error ("shred: valid arguments are: 'unlink', 'wipe', 'wipesync'");
+                  return EX_USAGE;
+                }
+              continue;
+            }
+          char opt = 0;
+          if (n == 12 && strncmp (a, "--iterations", n) == 0) opt = 'n';
+          else if (n == 6 && strncmp (a, "--size", n) == 0) opt = 's';
+          if (!opt) { builtin_error ("shred: unknown flag: %s", a); bcu_usage ("shred"); return EX_USAGE; }
+          if (eq) val = eq + 1;
+          else if (w->next) { w = w->next; val = w->word->word; }
+          else { builtin_error ("shred: option '%s' requires an argument", a); bcu_usage ("shred"); return EX_USAGE; }
+          if (opt == 'n') goto iterations;
+          goto size;
+        }
+      /* Clustered short options: -vuz, -n3, -s 10. */
+      for (const char *p = a + 1; *p; p++)
+        {
+          switch (*p)
+            {
+            case 'x': continue;
+            case 'z': zero_pass = 1; continue;
+            case 'u': remove_how = BCU_RM_WIPESYNC; continue;
+            case 'v': verbose = 1; continue;
+            case 'f': force = 1; continue;
+            case 'n': case 's':
+              if (p[1]) val = p + 1;
+              else if (w->next) { w = w->next; val = w->word->word; }
+              else { builtin_error ("shred: option requires an argument -- '%c'", *p); bcu_usage ("shred"); return EX_USAGE; }
+              if (*p == 'n') goto iterations;
+              goto size;
+            default:
+              builtin_error ("shred: unknown flag: %s", a); bcu_usage ("shred"); return EX_USAGE;
+            }
+        }
+      continue;
+    iterations:
+      {
+        long long v;
+        if (!bcu_parse_ll (val, &v) || v < 0 || v >= INT_MAX) { builtin_error ("shred: bad -n"); bcu_usage ("shred"); return EX_USAGE; }
+        passes = (int) v;
+        continue;
+      }
+    size:
+      if (!bcu_parse_ll (val, &fixed_size) || fixed_size < 0) { builtin_error ("shred: bad -s"); bcu_usage ("shred"); return EX_USAGE; }
     }
 
   if (!files) { builtin_error ("shred: missing FILE"); bcu_usage ("shred"); return EX_USAGE; }
 
   int rc = EXECUTION_SUCCESS;
   for (WORD_LIST *w = files; w; w = w->next)
-    if (bcu_shred_one (w->word->word, passes, zero_pass, unlink_after, fixed_size) != EXECUTION_SUCCESS)
+    if (bcu_shred_one (w->word->word, passes, zero_pass, remove_how, fixed_size, verbose, force) != EXECUTION_SUCCESS)
       rc = EXECUTION_FAILURE;
 
   return rc;
@@ -1493,6 +2411,9 @@ bcu_groups_cmd (WORD_LIST *list)
  *   install -m MODE SRC... DST          copy files, set MODE on each
  *   install -d [-m MODE] DIR...         mkdir -p style
  *   install -D [-m MODE] SRC DST        make parent dirs of DST first
+ *   install [-D] -t DIR SRC...          copy every SRC into DIR (-D makes DIR)
+ *   install -T SRC DST                  DST is never treated as a directory
+ *   -c is accepted and ignored, as in GNU install.
  *
  * Owner/group flags (-o/-g) accept names or numeric IDs. Validate them
  * before modifying destinations, and report any ownership-change failure.
@@ -1748,7 +2669,8 @@ static int
 bcu_install_cmd (WORD_LIST *list)
 {
   mode_t mode = 0755;
-  int dir_only = 0, parents = 0;
+  int dir_only = 0, parents = 0, no_target = 0;
+  const char *target_dir = NULL;
   uid_t uid = (uid_t) -1;
   gid_t gid = (gid_t) -1;
   WORD_LIST *pos __attribute__((cleanup(bcu_free_nodes))) = NULL;
@@ -1769,6 +2691,23 @@ bcu_install_cmd (WORD_LIST *list)
         }
       if (strcmp (a, "-d") == 0) { dir_only = 1; continue; }
       if (strcmp (a, "-D") == 0) { parents = 1; continue; }
+      if (strcmp (a, "-c") == 0) continue;      /* GNU: ignored, for compatibility */
+      if (strcmp (a, "-T") == 0 || strcmp (a, "--no-target-directory") == 0)
+        { no_target = 1; continue; }
+      if (strcmp (a, "-t") == 0 || strcmp (a, "--target-directory") == 0)
+        {
+          if (!w->next)
+            {
+              builtin_error ("install: option requires an argument -- 't'");
+              bcu_usage ("install");
+              return EX_USAGE;
+            }
+          w = w->next;
+          target_dir = w->word->word;
+          continue;
+        }
+      if (strncmp (a, "--target-directory=", 19) == 0) { target_dir = a + 19; continue; }
+      if (strncmp (a, "-t", 2) == 0) { target_dir = a + 2; continue; }
       if ((strcmp (a, "-o") == 0 || strcmp (a, "-g") == 0) && w->next)
         {
           int group = a[1] == 'g';
@@ -1796,15 +2735,65 @@ bcu_install_cmd (WORD_LIST *list)
       goto cleanup;
     }
 
+  if (target_dir && no_target)
+    {
+      builtin_error ("install: cannot combine --target-directory (-t) and --no-target-directory (-T)");
+      return EXECUTION_FAILURE;
+    }
+  if (target_dir)
+    {
+      /* -t DIR: every operand is a source copied into DIR; -D creates DIR. */
+      struct stat td_st;
+      if (!pos) { builtin_error ("install: missing file operand"); bcu_usage ("install"); return EX_USAGE; }
+      if (parents && bcu_install_mkdir_p (target_dir, 0755, (uid_t) -1, (gid_t) -1, 0) != EXECUTION_SUCCESS)
+        return EXECUTION_FAILURE;
+      int e = stat (target_dir, &td_st) < 0 ? errno : S_ISDIR (td_st.st_mode) ? 0 : ENOTDIR;
+      if (e)
+        {
+          char *q = bos_quoteaf (target_dir);
+          builtin_error ("install: failed to access %s: %s", q ? q : target_dir, strerror (e));
+          free (q);
+          return EXECUTION_FAILURE;
+        }
+      for (WORD_LIST *w = pos; w; w = w->next)
+        {
+          const char *src = w->word->word;
+          const char *base = strrchr (src, '/');
+          char target[4096];
+          base = base ? base + 1 : src;
+          snprintf (target, sizeof target, "%s/%s", target_dir, base);
+          if (bcu_install_copyfile (src, target, mode, uid, gid) != EXECUTION_SUCCESS)
+            rc = EXECUTION_FAILURE;
+        }
+      goto cleanup;
+    }
+
   if (!pos || !pos->next) { builtin_error ("install: need SRC and DST"); bcu_usage ("install"); rc = EX_USAGE; goto cleanup; }
+  if (no_target && pos->next->next)
+    {
+      char *q = bos_quoteaf (pos->next->next->word->word);
+      builtin_error ("install: extra operand %s", q ? q : pos->next->next->word->word);
+      free (q);
+      bcu_usage ("install");
+      return EX_USAGE;
+    }
 
   /* Find tail = DST. Walk to last node. */
   WORD_LIST *dst_node = pos;
   while (dst_node->next) dst_node = dst_node->next;
   const char *dst = dst_node->word->word;
-  /* If DST is an existing directory, copy each SRC into it. */
+  /* If DST is an existing directory, copy each SRC into it (not with -T). */
   struct stat dst_st;
   int dst_isdir = (stat (dst, &dst_st) == 0 && S_ISDIR (dst_st.st_mode));
+  if (no_target && dst_isdir)
+    {
+      char *qd = bos_quoteaf (dst), *qs = bos_quoteaf (pos->word->word);
+      builtin_error ("install: cannot overwrite directory %s with non-directory %s",
+                     qd ? qd : dst, qs ? qs : pos->word->word);
+      free (qd);
+      free (qs);
+      return EXECUTION_FAILURE;
+    }
 
   if (parents)
     {
@@ -2069,10 +3058,16 @@ char *coreutils_doc[] = {
   "    coreutils fmt    [-w WIDTH] [FILE...]",
   "    coreutils tsort  [FILE]",
   "    coreutils nproc  [--all] [--ignore=N]",
-  "    coreutils numfmt [--to=iec|iec-i|si] [--from=iec|iec-i|si] N",
-  "    coreutils shred  [-n N] [-z] [-u] [-x] [-s SIZE] FILE...",
+  "    coreutils numfmt [--from=UNIT] [--to=UNIT] [--from-unit=N] [--to-unit=N]",
+  "                     [--round=METHOD] [--suffix=S] [--padding=N] [--grouping]",
+  "                     [--format=FMT] [--field=FIELDS] [-d X] [--header[=N]]",
+  "                     [--invalid=MODE] [-z] [NUMBER...]",
+  "        UNIT none|auto|si|iec|iec-i; METHOD up|down|from-zero|towards-zero|nearest;",
+  "        MODE abort|fail|warn|ignore. Conversion errors exit 2.",
+  "    coreutils shred  [-fuvxz] [-n N] [-s SIZE] [--remove[=HOW]] FILE...",
   "    coreutils groups [USER...]",
-  "    coreutils install [-m MODE] [-o OWNER] [-g GROUP] [-d|-D] SRC... DST",
+  "    coreutils install [-c] [-m MODE] [-o OWNER] [-g GROUP] [-d|-D] [-T] SRC... DST",
+  "    coreutils install [-m MODE] [-o OWNER] [-g GROUP] [-D] -t DIR SRC...",
   "    coreutils mknod  [-m MODE] PATH {b|c|p} [MAJ MIN]",
   "",
   "POSIX cmd-name wrappers in /bash-os/<verb>.sh exec the verb directly.",

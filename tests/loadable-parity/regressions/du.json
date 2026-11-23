@@ -159,6 +159,50 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "exclude_patterns",
+      "kind": "parity",
+      "purpose": "--exclude=PATTERN and -X/--exclude-from=FILE skip names whose path or a tail after '/' matches, including operands (guest pass 2, G33).",
+      "requires": [
+        "du",
+        "sort"
+      ],
+      "script": "mkdir -p t/x/y t/z; : > t/f; : > t/x/a.o; : > t/x/y/b\necho '== x'; du --exclude=x t\necho '== t'; du --exclude=t t\necho '== *.o'; du -a --exclude='*.o' t | sort -k2\necho '== t/x'; du --exclude t/x t\necho '== x/y'; du --exclude='x/y' t\nprintf 'x\\n*.o\\n' > X\necho '== -X'; du -a -X X t | sort -k2\necho '== from'; du -a --exclude-from=X t | sort -k2",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "inode_counts",
+      "kind": "parity",
+      "purpose": "--inodes counts inodes (hard links once unless -l) with -a, -s, -c and -h (guest pass 2, G33).",
+      "requires": [
+        "du",
+        "sort"
+      ],
+      "script": "mkdir -p t/x/y t/z; : > t/f; : > t/x/a.o; : > t/x/y/b; ln t/f t/hl\ndu --inodes t | sort -k2\ndu --inodes -s t\ndu --inodes -s -l t\ndu --inodes -sh t\ndu --inodes -s -c t",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "files0_from",
+      "kind": "parity",
+      "purpose": "--files0-from=FILE (and - for stdin) takes NUL-separated operands; operands alongside it, an empty name and an unreadable list fail with status 1 (guest pass 2, G33).",
+      "requires": [
+        "du"
+      ],
+      "script": "mkdir -p t/x/y t/z\nprintf 't/x\\0t/z\\0' > L\ndu --files0-from=L\nprintf 't/z\\0' | du --files0-from=-\ndu --files0-from=L t || echo rc=$?\nprintf 't/x\\0\\0' > L2\ndu --files0-from=L2 || echo rc=$?\ndu --files0-from=missing || echo rc=$?\ndu --exclude || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "help-stdout-status",
+      "kind": "contract",
+      "purpose": "GNU tools answer --help with help on stdout and status 0; du --help used to write usage to stderr or exit nonzero (guest pass 2, G38).",
+      "script": "du --help >o 2>e; echo rc=$?; [[ -s o && ! -s e ]] && echo stdout-only",
+      "expected_status": 0,
+      "stdout": "rc=0\nstdout-only\n",
+      "stderr": "empty"
     }
   ]
 }

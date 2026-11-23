@@ -22,7 +22,7 @@ with tempfile.TemporaryDirectory(prefix='sol-diff-alloc-') as tmp:
     for a, b in cases:
         (root / 'a').write_bytes(a)
         (root / 'b').write_bytes(b)
-        for mode in ('', '-u', '-q', '-i'):
+        for mode in ('', '-u', '-q', '-i', '-c', '-U0', '-up', '-uB -I zzz', '-N'):
             p = subprocess.run([binary, '-c', f'export BASHOS_DIFF_REPORT=1; diff {mode} a b'],
                                cwd=tmp, env=env, capture_output=True, timeout=30)
             assert p.returncode == (0 if a == b else 1), p

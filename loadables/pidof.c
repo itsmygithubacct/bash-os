@@ -341,11 +341,41 @@ pidof_readproc (int list_zombies, struct pidof_proc **out)
     return 0;
 }
 
+/* bash-os runs its commands as bash scripts: /bin/sleep is a link to
+   /bin/_bash_shim, so the process is "/bin/bash /bin/sleep" with comm
+   "sleep", and PID 1 is "/bin/bash /init". Such a process is that command,
+   as an ELF program would be elsewhere, so pidof matches it without -x.
+   The kernel must have named the process after the script (comm equals
+   the script's basename), and the script must be a bash-os system
+   command rather than a user's script, which still needs -x. */
+static int
+pidof_system_script (const struct pidof_proc *p)
+{
+    char real[PATH_MAX + 1];
+    const char *tail;
+
+    if (p->statname == NULL || p->argv1 == NULL || p->argv1base == NULL
+        || p->argv1[0] != '/'
+        || strncmp (p->statname, p->argv1base, PIDOF_STATNAME_LEN) != 0)
+        return 0;
+    if (strcmp (p->argv1, "/init") == 0 || strncmp (p->argv1, "/bash-os/", 9) == 0)
+        return 1;
+    if (realpath (p->argv1, real) == NULL)
+        return 0;
+    tail = strrchr (real, '/');
+    return tail != NULL && strcmp (tail, "/_bash_shim") == 0;
+}
+
 static int
 pidof_name_match (const struct pidof_proc *p, const char *prog,
                   const char *base, int scripts_too)
 {
     int ok = 0;
+
+    if (!scripts_too && pidof_system_script (p))
+        ok |= (strcmp (p->argv1, prog) == 0)
+            || (base != prog && strcmp (p->argv1, base) == 0)
+            || (strcmp (p->argv1base, prog) == 0);
 
     ok |= (p->argv0 && strcmp (p->argv0, prog) == 0)
         || (p->argv0 && base != prog && strcmp (p->argv0, base) == 0)
@@ -454,6 +484,8 @@ pidof_collect (struct pidof_proc *list, const char *prog, int scripts_too,
             if (p->pathname && strcmp (real_path, p->pathname) == 0)
                 hit = 1;
             else if (p->argv0 && strcmp (p->argv0, prog) == 0)
+                hit = 1;
+            else if (pidof_system_script (p) && strcmp (p->argv1, prog) == 0)
                 hit = 1;
             if (!hit)
                 continue;

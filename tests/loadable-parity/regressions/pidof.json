@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "loadable": "pidof",
+  "reference": "Contract cases build bash-os's command layout in the fixture: a script named _bash_shim, a command link to it, and a user script, each run by the candidate shell. The expected results follow sysvinit pidof for the user script (-x needed) and bash-os's rule that a shim-run command is that program.",
+  "coverage": [
+    "A command run through a link to _bash_shim is found by its name and by its path without -x (guest compatibility pass 1, G15).",
+    "A user's own script is still found only with -x, as in sysvinit pidof."
+  ],
+  "exclusions": [
+    "PID 1 (/init) is not reachable inside the runner's PID namespace; the recipe smoke check covers `pidof init` in the guest."
+  ],
+  "cases": [
+    {
+      "id": "shim_command_without_x",
+      "kind": "contract",
+      "purpose": "bash-os commands are bash scripts (/bin/sleep -> _bash_shim), so their process is /bin/bash /bin/sleep with comm sleep; pidof sleep must find it, while a user script needs -x.",
+      "script": "mkdir bin\nprintf '#!/runtime/bash-os\\nsleep 5\\n' > bin/_bash_shim\nprintf '#!/runtime/bash-os\\nsleep 5\\n' > bin/user.sh\nchmod 755 bin/_bash_shim bin/user.sh\nln -s _bash_shim bin/sleep\n\"$PWD/bin/sleep\" & a=$!\n\"$PWD/bin/user.sh\" & b=$!\nfor i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do [ \"$(cat /proc/$a/comm 2>/dev/null)\" = sleep ] && [ \"$(cat /proc/$b/comm 2>/dev/null)\" = user.sh ] && break; sleep 0.1; done\nr=$(pidof sleep) && [ \"$r\" = \"$a\" ] && echo shim-by-name\nr=$(pidof \"$PWD/bin/sleep\") && [ \"$r\" = \"$a\" ] && echo shim-by-path\npidof user.sh >/dev/null || echo user-script-needs-x\nr=$(pidof -x user.sh) && [ \"$r\" = \"$b\" ] && echo user-script-with-x\nkill $a $b",
+      "expected_status": 0,
+      "stdout": "shim-by-name\nshim-by-path\nuser-script-needs-x\nuser-script-with-x\n",
+      "stderr": "empty",
+      "timeout": 10
+    }
+  ]
+}

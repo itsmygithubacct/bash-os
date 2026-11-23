@@ -186,10 +186,10 @@
     {
       "id": "independent_description_contract",
       "kind": "contract",
-      "purpose": "The documented small classifier keeps its concise shebang, HTML and Netpbm descriptions for ordinary valid files. These intentional descriptions are not full libmagic output.",
+      "purpose": "The classifier gives file 5.46's shebang and HTML descriptions with the text encoding (checked against GNU in regressions/file.json) and keeps its concise Netpbm description, which is not full libmagic output.",
       "script": "printf '#!/bin/sh\\nprintf hello\\n' > sample.sh\nprintf '<!doctype html><html><body>hello</body></html>\\n' > page.html\nprintf 'P2\\n1 1\\n255\\n0\\n' > image.pgm\nfile -b sample.sh page.html image.pgm",
       "expected_status": 0,
-      "stdout": "POSIX shell script\nHTML document\nNetpbm image data\n",
+      "stdout": "POSIX shell script, ASCII text executable\nHTML document, ASCII text\nNetpbm image data\n",
       "stderr": "empty"
     },
     {

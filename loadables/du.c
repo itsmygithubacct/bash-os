@@ -2,7 +2,8 @@
  *
  * Phase T of bash-os POSIX gap-fillers.
  *
- *   bashdu [-0AabBcDhklmHLPSs] [-d N|--max-depth=N] [-x] [PATH...]
+ *   bashdu [-0AabBcDhklmHLPSs] [-d N|--max-depth=N] [-x] [-X FILE]
+ *          [--exclude=PATTERN] [--inodes] [--files0-from=FILE | PATH...]
  *
  *   -0   end each output line with NUL, not newline
  *   -A   apparent size in blocks
@@ -21,6 +22,11 @@
  *   -s   summary only (top-level totals)
  *   -d N --max-depth=N   only print depth ≤ N
  *   -x   don't cross filesystem boundaries
+ *   --exclude=PATTERN, -X FILE|--exclude-from=FILE
+ *        skip names matching a shell PATTERN (GNU: the whole path or any
+ *        tail of it after a '/')
+ *   --inodes  count inodes instead of sizes
+ *   --files0-from=FILE  take the NUL-separated operands from FILE (- = stdin)
  *
  * No PATH defaults to '.'. Hard-linked files are counted once
  * (we track (dev, ino) seen-set). Sizes use st_blocks * 512 to
@@ -42,23 +48,26 @@
 #include <inttypes.h>
 #include <limits.h>
 #include <dirent.h>
+#include <fnmatch.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
 #include "loadables.h"
 
 typedef struct {
-    int aflag, apparent, cflag, count_links, hflag, si, null_terminate, separate_dirs, sflag, xflag;
-    int dereference;
-    uint64_t block_size;
-    int max_depth;
-} bdu_opts;
-
-typedef struct {
     const char **v;
     int n;
     int cap;
 } bdu_words;
+
+typedef struct {
+    int aflag, apparent, cflag, count_links, hflag, si, null_terminate, separate_dirs, sflag, xflag;
+    int dereference;
+    int inodes;
+    uint64_t block_size;
+    int max_depth;
+    const bdu_words *excludes;
+} bdu_opts;
 
 static int
 bdu_words_add (bdu_words *w, const char *s)
@@ -191,10 +200,82 @@ bdu_human_si (uint64_t bytes, char *out, size_t outsz)
     else snprintf (out, outsz, "%.0f%c", v, unit[u]);
 }
 
+/* GNU du's --exclude match (gnulib exclude_fnmatch without
+   EXCLUDE_ANCHORED): PATTERN against the whole path, or against any tail
+   that starts after a '/'. */
+static int
+bdu_excluded (const char *path, const bdu_opts *o)
+{
+    if (!o->excludes)
+        return 0;
+    for (int i = 0; i < o->excludes->n; i++) {
+        const char *pat = o->excludes->v[i];
+        if (fnmatch (pat, path, 0) == 0)
+            return 1;
+        for (const char *p = path; *p; p++)
+            if (*p == '/' && p[1] != '/' && fnmatch (pat, p + 1, 0) == 0)
+                return 1;
+    }
+    return 0;
+}
+
+/* Read FILE ("-" = stdin) split on DELIM into WORDS; the strings are
+   allocated and kept in *KEEP for the caller to free.  Returns 0, or -1
+   after a GNU-style "cannot open" diagnostic. */
+static int
+bdu_read_list (const char *file, int delim, bdu_words *words, bdu_words *keep,
+               bdu_words *lines)
+{
+    FILE *fp;
+    if (!strcmp (file, "-")) {
+        int fd = dup (0);
+        fp = fd < 0 ? NULL : fdopen (fd, "r");
+        if (!fp && fd >= 0)
+            close (fd);
+    } else {
+        fp = fopen (file, "r");
+    }
+    if (!fp) {
+        builtin_error ("cannot open '%s' for reading: %s", file, strerror (errno));
+        return -1;
+    }
+    char *buf = NULL;
+    size_t cap = 0;
+    ssize_t len;
+    intptr_t lineno = 0;
+    while ((len = getdelim (&buf, &cap, delim, fp)) >= 0) {
+        lineno++;
+        if (len > 0 && buf[len - 1] == delim)
+            buf[--len] = '\0';
+        if (delim == '\n' && len == 0)
+            continue;
+        char *copy = strdup (buf);
+        if (!copy || bdu_words_add (keep, copy) < 0 || bdu_words_add (words, copy) < 0
+            || (lines && bdu_words_add (lines, (const char *) lineno) < 0)) {
+            free (buf);
+            fclose (fp);
+            builtin_error ("%s: cannot allocate memory", file);
+            return -1;
+        }
+    }
+    free (buf);
+    fclose (fp);
+    return 0;
+}
+
 static void
 bdu_print (uint64_t amount, const char *path, const bdu_opts *o)
 {
-    if (o->hflag || o->si) {
+    if (o->inodes) {
+        char h[32];
+        if (o->hflag)
+            bdu_human (amount, h, sizeof h);
+        else if (o->si)
+            bdu_human_si (amount, h, sizeof h);
+        else
+            snprintf (h, sizeof h, "%" PRIu64, amount);
+        printf ("%s\t%s%c", h, path, o->null_terminate ? '\0' : '\n');
+    } else if (o->hflag || o->si) {
         char h[32];
         if (o->si)
             bdu_human_si (o->apparent ? amount : amount * 512, h, sizeof h);
@@ -264,6 +345,8 @@ bdu_walk (const char *path, int depth, dev_t root_dev, const bdu_opts *o, int *e
     struct stat st;
     int follow = (o->dereference == 2 || (o->dereference == 1 && depth == 0));
     int followed_symlink = 0;
+    if (bdu_excluded (path, o))
+        return 0;
     if ((follow ? stat (path, &st) : lstat (path, &st)) < 0) {
         builtin_error ("%s: %s", path, strerror (errno));
         *err = 1;
@@ -301,7 +384,9 @@ bdu_walk (const char *path, int depth, dev_t root_dev, const bdu_opts *o, int *e
        comes purely from summing children. Non-apparent mode always uses the
        allocated block count. Matches coreutils du.c usable_st_size(). */
     uint64_t total;
-    if (o->apparent)
+    if (o->inodes)
+        total = 1;
+    else if (o->apparent)
         total = (S_ISREG (st.st_mode) || S_ISLNK (st.st_mode))
             ? (uint64_t) st.st_size : 0;
     else
@@ -358,16 +443,66 @@ du_builtin (WORD_LIST *list)
 {
     bdu_opts o = { .max_depth = -1 };
     bdu_words paths = {0};
+    bdu_words excludes = {0};
+    bdu_words owned = {0};          /* strings read from -X/--files0-from */
+    bdu_words f0_lines = {0};
+    const char *files0 = NULL;
+    int rc = EXECUTION_SUCCESS;
+    o.excludes = &excludes;
 
     for (WORD_LIST *p = list; p; p = p->next) {
         const char *w = p->word->word;
         if (strcmp (w, "--help") == 0) {
-            builtin_usage ();
-            return EXECUTION_SUCCESS;
+            builtin_help ();
+            goto out;
+        }
+        /* --exclude=PATTERN, -X/--exclude-from=FILE, --files0-from=FILE */
+        if (strcmp (w, "--exclude") == 0 || strcmp (w, "--exclude-from") == 0
+            || strcmp (w, "-X") == 0 || strcmp (w, "--files0-from") == 0) {
+            if (!p->next) {
+                builtin_error ("option '%s' requires an argument", w);
+                rc = EXECUTION_FAILURE;
+                goto out;
+            }
+            p = p->next;
+            if (w[2] == 'f') {
+                files0 = p->word->word;
+            } else if (w[1] == 'X' || w[9] == '-') {
+                if (bdu_read_list (p->word->word, '\n', &excludes, &owned, NULL) < 0) {
+                    rc = EXECUTION_FAILURE;
+                    goto out;
+                }
+            } else if (bdu_words_add (&excludes, p->word->word) < 0) {
+                rc = EXECUTION_FAILURE;
+                goto out;
+            }
+            continue;
+        }
+        if (strncmp (w, "--exclude=", 10) == 0) {
+            if (bdu_words_add (&excludes, w + 10) < 0) {
+                rc = EXECUTION_FAILURE;
+                goto out;
+            }
+            continue;
+        }
+        if (strncmp (w, "--exclude-from=", 15) == 0 || (strncmp (w, "-X", 2) == 0 && w[2])) {
+            if (bdu_read_list (w + (w[1] == 'X' ? 2 : 15), '\n', &excludes, &owned, NULL) < 0) {
+                rc = EXECUTION_FAILURE;
+                goto out;
+            }
+            continue;
+        }
+        if (strncmp (w, "--files0-from=", 14) == 0) {
+            files0 = w + 14;
+            continue;
+        }
+        if (strcmp (w, "--inodes") == 0) {
+            o.inodes = 1;
+            continue;
         }
         if (strcmp (w, "--version") == 0) {
             puts ("bashdu 1.0 (bash-loadable)");
-            return EXECUTION_SUCCESS;
+            goto out;
         }
         if (strcmp (w, "--all") == 0) {
             o.aflag = 1;
@@ -401,18 +536,21 @@ du_builtin (WORD_LIST *list)
         if (strcmp (w, "--block-size") == 0) {
             if (!p->next) {
                 builtin_error ("--block-size requires an argument");
-                return EX_USAGE;
+                rc = EX_USAGE;
+                goto out;
             }
             if (bdu_parse_block_size (p->next->word->word, &o.block_size) < 0) {
                 builtin_error ("invalid block size: %s", p->next->word->word);
-                return EX_USAGE;
+                rc = EX_USAGE;
+                goto out;
             }
             p = p->next; continue;
         }
         if (strncmp (w, "--block-size=", 13) == 0) {
             if (bdu_parse_block_size (w + 13, &o.block_size) < 0) {
                 builtin_error ("invalid block size: %s", w + 13);
-                return EX_USAGE;
+                rc = EX_USAGE;
+                goto out;
             }
             continue;
         }
@@ -447,8 +585,8 @@ du_builtin (WORD_LIST *list)
         if (strcmp (w, "--") == 0) {
             for (p = p->next; p; p = p->next) {
                 if (bdu_words_add (&paths, p->word->word) < 0) {
-                    free (paths.v);
-                    return EXECUTION_FAILURE;
+                    rc = EXECUTION_FAILURE;
+                    goto out;
                 }
             }
             break;
@@ -456,29 +594,34 @@ du_builtin (WORD_LIST *list)
         if (strcmp (w, "-d") == 0) {
             if (!p->next) {
                 builtin_error ("-d requires an argument");
-                return EX_USAGE;
+                rc = EX_USAGE;
+                goto out;
             }
             if (bdu_parse_depth (p->next->word->word, &o.max_depth) < 0) {
                 builtin_error ("invalid maximum depth: %s", p->next->word->word);
-                return EX_USAGE;
+                rc = EX_USAGE;
+                goto out;
             }
             p = p->next; continue;
         }
         if (strcmp (w, "--max-depth") == 0) {
             if (!p->next) {
                 builtin_error ("--max-depth requires an argument");
-                return EX_USAGE;
+                rc = EX_USAGE;
+                goto out;
             }
             if (bdu_parse_depth (p->next->word->word, &o.max_depth) < 0) {
                 builtin_error ("invalid maximum depth: %s", p->next->word->word);
-                return EX_USAGE;
+                rc = EX_USAGE;
+                goto out;
             }
             p = p->next; continue;
         }
         if (strncmp (w, "--max-depth=", 12) == 0) {
             if (bdu_parse_depth (w + 12, &o.max_depth) < 0) {
                 builtin_error ("invalid maximum depth: %s", w + 12);
-                return EX_USAGE;
+                rc = EX_USAGE;
+                goto out;
             }
             continue;
         }
@@ -493,14 +636,16 @@ du_builtin (WORD_LIST *list)
                     if (!*arg) {
                         if (!p->next) {
                             builtin_error ("-B requires an argument");
-                            return EX_USAGE;
+                            rc = EX_USAGE;
+                            goto out;
                         }
                         p = p->next;
                         arg = p->word->word;
                     }
                     if (bdu_parse_block_size (arg, &o.block_size) < 0) {
                         builtin_error ("invalid block size: %s", arg);
-                        return EX_USAGE;
+                        rc = EX_USAGE;
+                        goto out;
                     }
                     goto next_word;
                 }
@@ -522,42 +667,60 @@ du_builtin (WORD_LIST *list)
                     if (!*arg) {
                         if (!p->next) {
                             builtin_error ("-d requires an argument");
-                            return EX_USAGE;
+                            rc = EX_USAGE;
+                            goto out;
                         }
                         p = p->next;
                         arg = p->word->word;
                     }
                     if (bdu_parse_depth (arg, &o.max_depth) < 0) {
                         builtin_error ("invalid maximum depth: %s", arg);
-                        return EX_USAGE;
+                        rc = EX_USAGE;
+                        goto out;
                     }
                     goto next_word;
                 }
                 default:
                     builtin_error ("unknown flag: -%c", w[i]);
-                    return EX_USAGE;
+                    rc = EX_USAGE;
+                    goto out;
                 }
             }
         } else {
             if (bdu_words_add (&paths, w) < 0) {
-                free (paths.v);
-                return EXECUTION_FAILURE;
+                rc = EXECUTION_FAILURE;
+                goto out;
             }
         }
     next_word:
         ;
     }
-    if (paths.n == 0 && bdu_words_add (&paths, ".") < 0)
-        return EXECUTION_FAILURE;
+    if (files0) {
+        if (paths.n) {
+            builtin_error ("extra operand '%s'", paths.v[0]);
+            fprintf (stderr, "file operands cannot be combined with --files0-from\n");
+            rc = EXECUTION_FAILURE;
+            goto out;
+        }
+        if (bdu_read_list (files0, '\0', &paths, &owned, &f0_lines) < 0) {
+            rc = EXECUTION_FAILURE;
+            goto out;
+        }
+    } else if (paths.n == 0 && bdu_words_add (&paths, ".") < 0) {
+        rc = EXECUTION_FAILURE;
+        goto out;
+    }
+    if (o.inodes && o.apparent)
+        fprintf (stderr, "du: warning: options --apparent-size and -b are ineffective with --inodes\n");
     if (o.sflag && o.aflag) {
         builtin_error ("-a and -s are mutually exclusive");
-        free (paths.v);
-        return EX_USAGE;
+        rc = EX_USAGE;
+        goto out;
     }
     if (o.sflag && o.max_depth >= 0) {
         builtin_error ("-s and --max-depth are mutually exclusive");
-        free (paths.v);
-        return EX_USAGE;
+        rc = EX_USAGE;
+        goto out;
     }
 
     if (o.dereference != 0) {
@@ -575,6 +738,13 @@ du_builtin (WORD_LIST *list)
     uint64_t grand_total = 0;
     for (int i = 0; i < paths.n; i++) {
         struct stat st;
+        if (files0 && !*paths.v[i]) {
+            builtin_error ("%s:%ld: invalid zero-length file name",
+                           files0,
+                           (long) (intptr_t) f0_lines.v[i]);
+            err = 1;
+            continue;
+        }
         int follow = (o.dereference == 1 || o.dereference == 2);
         if ((follow ? stat (paths.v[i], &st) : lstat (paths.v[i], &st)) < 0) {
             builtin_error ("%s: %s", paths.v[i], strerror (errno));
@@ -594,14 +764,22 @@ du_builtin (WORD_LIST *list)
     free (bdu_alias);
     bdu_alias = NULL;
     bdu_alias_cap = bdu_alias_n = 0;
+    rc = err ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+out:
     free (paths.v);
-    return err ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+    free (excludes.v);
+    for (int i = 0; i < owned.n; i++)
+        free ((char *) owned.v[i]);
+    free (owned.v);
+    free (f0_lines.v);
+    return rc;
 }
 
 char *du_doc[] = {
     "Estimate disk usage of files and directories.",
     "",
-    "    bashdu [-0AabBcDhklmHLPSs] [-d N|--max-depth=N] [-x] [PATH...]",
+    "    bashdu [-0AabBcDhklmHLPSs] [-d N|--max-depth=N] [-x] [-X FILE] [--exclude=PATTERN]",
+    "           [--inodes] [--files0-from=FILE | PATH...]",
     "",
     "    -0   end each output line with NUL, not newline",
     "    -A   apparent size in blocks",
@@ -620,6 +798,11 @@ char *du_doc[] = {
     "    -s   summary: top-level totals only",
     "    -d N --max-depth=N   limit print depth",
     "    -x   stay on one filesystem",
+    "    --exclude=PATTERN    skip files whose path, or a tail of it after a /,",
+    "                         matches the shell PATTERN",
+    "    -X FILE, --exclude-from=FILE   skip the patterns listed in FILE",
+    "    --inodes             count inodes instead of sizes",
+    "    --files0-from=FILE   read NUL-separated operands from FILE (- is stdin)",
     "    --help     show usage and exit",
     "    --version  show version and exit",
     "    --all --bytes --apparent-size --block-size=SIZE",
@@ -636,6 +819,6 @@ struct builtin bashdu_struct = {
     du_builtin,
     BUILTIN_ENABLED,
     du_doc,
-    "bashdu [-0AabBcDhklmHLPSs] [-d N] [-x] [PATH...]",
+    "bashdu [-0AabBcDhklmHLPSs] [-d N] [-x] [-X FILE] [--exclude=PATTERN] [--inodes] [--files0-from=FILE | PATH...]",
     0
 };

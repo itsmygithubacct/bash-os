@@ -1,6 +1,6 @@
 /* bashdate.c — POSIX date(1) as a bash builtin.
  *
- *   bashdate [-u] [-d STRING|--date=STRING] [-I[FMT]|--iso-8601[=FMT]]
+ *   bashdate [-u] [-d STRING|-f FILE|-r FILE] [-I[FMT]|--iso-8601[=FMT]]
  *            [--rfc-3339=FMT] [+FORMAT]
  *   bashdate [-u] -s STRING|--set=STRING [+FORMAT]
  *   bashdate [-u] MMDDhhmm[[CC]YY][.ss]
@@ -12,30 +12,36 @@
  *   MMDDhhmm[[CC]YY][.ss]
  *                POSIX form of the same request; a two-digit year 00-68 is
  *                20YY and 69-99 is 19YY
- *   -d STRING    parse STRING (ISO 8601 + a few common shapes) instead
+ *   -d STRING    parse STRING (the GNU date-string items below) instead
  *   --date=STRING
  *                of the current time
+ *   -f FILE, --file=FILE
+ *                like -d once per line of FILE ("-" is standard input)
  *   -I[FMT], --iso-8601[=FMT]
- *                GNU ISO-8601 output forms: date, hours, minutes, seconds.
+ *                GNU ISO-8601 output forms: date, hours, minutes, seconds, ns.
  *   --rfc-3339=FMT
- *                GNU RFC 3339 output forms: date, seconds.
- *   +FORMAT      strftime(3) format plus GNU %N and %:z/%::z/%:::z forms.
+ *                GNU RFC 3339 output forms: date, seconds, ns.
+ *   +FORMAT      strftime(3) format plus GNU %N, %q and %:z/%::z/%:::z forms.
  *                Default: %a %b %e %T %Z %Y
  *
  * Closes the POSIX-2024 medium-impact gap (POSIX-CONFORMANCE-RESEARCH
  * §4.1: bashclock has time underpinnings but no date(1) shape).
  *
- * The -d parser is deliberately narrow — accepts:
- *   YYYY-MM-DDTHH[:MM[:SS]][+HH:MM|-HHMM]
- *   YYYY-MM-DDTHH:MM[:SS]Z
+ * The -d parser (common/date-parse.h, shared with touch -d) accepts:
+ *   YYYY-MM-DDTHH[:MM[:SS[.FRAC]]][Z|+HH:MM|-HHMM]
  *                              (ISO 8601 with optional zone)
- *   YYYY-MM-DD HH[:MM[:SS]]   (separator space variant)
+ *   YYYY-MM-DD HH[:MM[:SS[.FRAC]]]   (separator space variant)
  *   [DAY[,]] D Mon YYYY HH:MM:SS UTC|GMT|+HHMM|-HH:MM
- *                              (bounded RFC/email timestamp subset)
- *   YYYY-MM-DD                (date-only; time = 00:00:00)
- *   @SECONDS                  (epoch seconds — useful for scripts)
- *   now                       (alias for current time)
- * Unsupported formats return failure. For richer parsing use system+ date.
+ *                              (RFC/email timestamp)
+ *   Mon D[, YYYY], D Mon [YYYY], D-Mon-YYYY, MM/DD[/YY[YY]], YYYY/MM/DD,
+ *   YYYYMMDD                  (calendar dates; no year = this year)
+ *   H[H][:MM[:SS[.FRAC]]] [am|pm] [UTC|GMT|EST|...|+HHMM]
+ *                              (time of day, in any order with the date;
+ *                               no time = 00:00:00, no date = today)
+ *   @SECONDS[.FRAC]           (epoch seconds — useful for scripts)
+ *   now, today, yesterday, tomorrow, [+-]N UNIT [ago], next/last UNIT,
+ *   a day of the week         (GNU relative items, alone or after a date)
+ * Unsupported formats return failure.
  *
  * --- LICENSE --- MIT, same boilerplate as binhex.c.
  */
@@ -51,496 +57,12 @@
 #include <errno.h>
 #include <limits.h>
 #include <time.h>
+#include <sys/stat.h>
 
 #include "loadables.h"
 
-static int
-bd_parse_tz_offset (const char *s, long *offset)
-{
-    int sign, hh, mm;
+#include "date-parse.h"
 
-    if (s[0] != '+' && s[0] != '-')
-        return -1;
-    sign = s[0] == '+' ? 1 : -1;
-
-    if (s[1] < '0' || s[1] > '9' || s[2] < '0' || s[2] > '9')
-        return -1;
-
-    hh = (s[1] - '0') * 10 + (s[2] - '0');
-    if (s[3] == ':') {
-        if (s[4] < '0' || s[4] > '9' || s[5] < '0' || s[5] > '9' || s[6] != '\0')
-            return -1;
-        mm = (s[4] - '0') * 10 + (s[5] - '0');
-    } else {
-        if (s[3] < '0' || s[3] > '9' || s[4] < '0' || s[4] > '9' || s[5] != '\0')
-            return -1;
-        mm = (s[3] - '0') * 10 + (s[4] - '0');
-    }
-
-    if (hh > 23 || mm > 59)
-        return -1;
-    *offset = sign * (long) (hh * 3600 + mm * 60);
-    return 0;
-}
-
-static int
-bd_ci3_eq (const char *s, const char *lit)
-{
-    for (int i = 0; i < 3; i++) {
-        char a = s[i];
-        char b = lit[i];
-        if (a >= 'A' && a <= 'Z')
-            a = (char) (a + 32);
-        if (b >= 'A' && b <= 'Z')
-            b = (char) (b + 32);
-        if (a != b)
-            return 0;
-    }
-    return 1;
-}
-
-static const char *
-bd_skip_space (const char *p)
-{
-    while (*p == ' ' || *p == '\t')
-        p++;
-    return p;
-}
-
-static int
-bd_parse_uint_width (const char **pp, int min_digits, int max_digits, int *out)
-{
-    const char *p = *pp;
-    int n = 0;
-    int v = 0;
-    while (n < max_digits && *p >= '0' && *p <= '9') {
-        v = v * 10 + (*p - '0');
-        p++;
-        n++;
-    }
-    if (n < min_digits)
-        return -1;
-    *pp = p;
-    *out = v;
-    return 0;
-}
-
-static int
-bd_month_index (const char *p)
-{
-    static const char *months[] = {
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-    };
-    for (int i = 0; i < 12; i++)
-        if (bd_ci3_eq (p, months[i]))
-            return i;
-    return -1;
-}
-
-static int
-bd_weekday_index (const char *p)
-{
-    static const char *days[] = {
-        "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
-    };
-    for (int i = 0; i < 7; i++)
-        if (bd_ci3_eq (p, days[i]))
-            return i;
-    return -1;
-}
-
-static int
-bd_convert_tm (struct tm *t, int utc, time_t *out)
-{
-    int year = t->tm_year;
-    int mon = t->tm_mon;
-    int mday = t->tm_mday;
-    int hour = t->tm_hour;
-    int min = t->tm_min;
-    int sec = t->tm_sec;
-    errno = 0;
-    time_t tt = utc ? timegm (t) : mktime (t);
-    if (tt == (time_t) -1 && errno != 0)
-        return -1;
-    if (t->tm_year != year || t->tm_mon != mon ||
-        t->tm_mday != mday || t->tm_hour != hour ||
-        t->tm_min != min || t->tm_sec != sec)
-        return -1;
-    *out = tt;
-    return 0;
-}
-
-static int
-bd_parse_rfc_lenient (const char *s, time_t *out)
-{
-    const char *p = s;
-    struct tm t;
-    int day, month, year, hour, minute, second;
-    long offset = 0;
-
-    if (bd_weekday_index (p) >= 0) {
-        p += 3;
-        if (*p == ',')
-            p++;
-        if (*p != ' ' && *p != '\t')
-            return -1;
-        p = bd_skip_space (p);
-    }
-
-    if (bd_parse_uint_width (&p, 1, 2, &day) < 0)
-        return -1;
-    if (*p != ' ' && *p != '\t')
-        return -1;
-    p = bd_skip_space (p);
-
-    month = bd_month_index (p);
-    if (month < 0)
-        return -1;
-    p += 3;
-    if (*p != ' ' && *p != '\t')
-        return -1;
-    p = bd_skip_space (p);
-
-    if (bd_parse_uint_width (&p, 4, 4, &year) < 0)
-        return -1;
-    if (*p != ' ' && *p != '\t')
-        return -1;
-    p = bd_skip_space (p);
-
-    if (bd_parse_uint_width (&p, 2, 2, &hour) < 0 || *p++ != ':' ||
-        bd_parse_uint_width (&p, 2, 2, &minute) < 0 || *p++ != ':' ||
-        bd_parse_uint_width (&p, 2, 2, &second) < 0)
-        return -1;
-    if (*p != ' ' && *p != '\t')
-        return -1;
-    p = bd_skip_space (p);
-
-    if (!strcmp (p, "UTC") || !strcmp (p, "utc") ||
-        !strcmp (p, "GMT") || !strcmp (p, "gmt")) {
-        offset = 0;
-    } else if (bd_parse_tz_offset (p, &offset) == 0) {
-        ;
-    } else {
-        return -1;
-    }
-
-    memset (&t, 0, sizeof t);
-    t.tm_year = year - 1900;
-    t.tm_mon = month;
-    t.tm_mday = day;
-    t.tm_hour = hour;
-    t.tm_min = minute;
-    t.tm_sec = second;
-    t.tm_isdst = -1;
-    if (bd_convert_tm (&t, 1, out) < 0)
-        return -1;
-    *out -= (time_t) offset;
-    return 0;
-}
-
-static int bd_parse_d (const char *s, time_t *out, long *nsec, int utc);
-
-/* GNU relative items: "yesterday", "tomorrow", "today", "now",
-   "[+-]N UNIT[s] [ago]", "next|last|this UNIT", and a day of the week
-   with an optional next/last/this.  They apply, in GNU's order, to the
-   current time or to an absolute date written before them: day of week
-   first, then years, months and days on the calendar, then hours,
-   minutes and seconds as elapsed time.  A day of week without a date
-   resets the time of day to midnight, as GNU does.  Returns 0 and sets
-   *out/*nsec, or -1 when any word is not a relative item. */
-static int
-bd_parse_relative (const char *s, time_t base, long base_nsec, int utc,
-                   int dated, time_t *out, long *nsec)
-{
-    static const struct { const char *name; int field; long mult; } units[] = {
-        { "year", 0, 1 }, { "month", 1, 1 }, { "fortnight", 2, 14 },
-        { "week", 2, 7 }, { "day", 2, 1 }, { "hour", 3, 3600 },
-        { "minute", 3, 60 }, { "min", 3, 60 }, { "second", 3, 1 },
-        { "sec", 3, 1 }
-    };
-    static const char *days[] = {
-        "sunday", "monday", "tuesday", "wednesday", "thursday", "friday",
-        "saturday"
-    };
-    long long rel[4] = { 0, 0, 0, 0 };   /* years, months, days, seconds */
-    int day_number = -1, day_ordinal = 0, seen = 0;
-    int last_field = -1;
-    long long last_amount = 0;
-    const char *p = s;
-
-    for (;;) {
-        char word[16];
-        size_t n = 0;
-        long long amount = 1;
-        int have_amount = 0;
-
-        p = bd_skip_space (p);
-        if (!*p) break;
-        if (*p == '+' || *p == '-' || (*p >= '0' && *p <= '9')) {
-            int neg = *p == '-';
-            if (*p == '+' || *p == '-') p = bd_skip_space (p + 1);
-            if (*p < '0' || *p > '9') return -1;
-            amount = 0;
-            while (*p >= '0' && *p <= '9') {
-                if (amount > 100000000LL) return -1;
-                amount = amount * 10 + (*p++ - '0');
-            }
-            if (neg) amount = -amount;
-            have_amount = 1;
-            p = bd_skip_space (p);
-        }
-        while ((*p | 0x20) >= 'a' && (*p | 0x20) <= 'z') {
-            if (n + 1 >= sizeof word) return -1;
-            word[n++] = (char) (*p++ | 0x20);
-        }
-        word[n] = '\0';
-        if (!n) return -1;
-
-        if (!have_amount) {
-            if (!strcmp (word, "now") || !strcmp (word, "today")) { seen = 1; continue; }
-            if (!strcmp (word, "yesterday")) { rel[2] -= 1; seen = 1; continue; }
-            if (!strcmp (word, "tomorrow")) { rel[2] += 1; seen = 1; continue; }
-            if (!strcmp (word, "ago")) {
-                if (last_field < 0) return -1;
-                rel[last_field] -= 2 * last_amount;
-                last_field = -1;
-                continue;
-            }
-            if (!strcmp (word, "next") || !strcmp (word, "last") || !strcmp (word, "this")) {
-                amount = word[0] == 'n' ? 1 : word[0] == 'l' ? -1 : 0;
-                have_amount = 2;
-                p = bd_skip_space (p);
-                n = 0;
-                while ((*p | 0x20) >= 'a' && (*p | 0x20) <= 'z') {
-                    if (n + 1 >= sizeof word) return -1;
-                    word[n++] = (char) (*p++ | 0x20);
-                }
-                word[n] = '\0';
-                if (!n) return -1;
-            }
-        }
-
-        /* Day of the week: the full name, its first three letters, or
-           GNU's "tues", "wednes", "thur" and "thurs". */
-        int wd = -1;
-        for (int i = 0; i < 7 && wd < 0; i++)
-            if (!strcmp (word, days[i]) || (n == 3 && !strncmp (word, days[i], 3)))
-                wd = i;
-        if (!strcmp (word, "tues")) wd = 2;
-        if (!strcmp (word, "wednes")) wd = 3;
-        if (!strcmp (word, "thur") || !strcmp (word, "thurs")) wd = 4;
-        if (wd >= 0) {
-            if (have_amount == 1 || day_number >= 0) return -1;
-            day_number = wd;
-            day_ordinal = have_amount ? (int) amount : 0;
-            seen = 1;
-            if (*p == ',') p++;
-            continue;
-        }
-
-        int u = -1;
-        for (size_t i = 0; i < sizeof units / sizeof units[0]; i++) {
-            size_t len = strlen (units[i].name);
-            if (!strcmp (word, units[i].name) ||
-                (n == len + 1 && !strncmp (word, units[i].name, len) && word[len] == 's')) {
-                u = (int) i;
-                break;
-            }
-        }
-        if (u < 0) return -1;
-        long long add = amount * units[u].mult;
-        rel[units[u].field] += add;
-        last_field = units[u].field;
-        last_amount = add;
-        seen = 1;
-    }
-    if (!seen) return -1;
-
-    struct tm tm;
-    time_t t = base;
-    if (!(utc ? gmtime_r (&t, &tm) : localtime_r (&t, &tm))) return -1;
-    /* GNU ignores a day of the week when a calendar date is also given. */
-    if (day_number >= 0 && !dated) {
-        tm.tm_mday += (day_number - tm.tm_wday + 7) % 7
-            + 7 * (day_ordinal - (0 < day_ordinal && tm.tm_wday != day_number));
-        tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
-        base_nsec = 0;
-    }
-    if (rel[0] > INT_MAX / 2 || rel[0] < -(INT_MAX / 2) ||
-        rel[1] > INT_MAX / 2 || rel[1] < -(INT_MAX / 2) ||
-        rel[2] > INT_MAX / 2 || rel[2] < -(INT_MAX / 2))
-        return -1;
-    tm.tm_year += (int) rel[0];
-    tm.tm_mon += (int) rel[1];
-    tm.tm_mday += (int) rel[2];
-    tm.tm_isdst = -1;
-    errno = 0;
-    t = utc ? timegm (&tm) : mktime (&tm);
-    if (t == (time_t) -1 && errno != 0) return -1;
-    *out = t + (time_t) rel[3];
-    *nsec = base_nsec;
-    return 0;
-}
-
-/* An absolute date followed by relative items ("2024-01-31 +1 month").
-   Like GNU, the shortest absolute prefix wins, so "2024-01-01 3 hours ago"
-   is three hours before midnight; and a signed number right after a time
-   of day is its zone ("12:00 -2 days" is 12:00 at UTC-2, then +1 day). */
-static int
-bd_parse_with_relative (const char *s, time_t *out, long *nsec, int utc)
-{
-    struct timespec now;
-    if (clock_gettime (CLOCK_REALTIME, &now) < 0) return -1;
-    if (bd_parse_relative (s, now.tv_sec, now.tv_nsec, utc, 0, out, nsec) == 0)
-        return 0;
-    size_t len = strlen (s);
-    if (s[0] == '@') return -1;   /* GNU takes nothing after @SECONDS */
-    char *copy = malloc (len + 1);
-    if (!copy) return -1;
-    for (size_t cut = 1; cut < len; cut++) {
-        if (s[cut] != ' ' && s[cut] != '\t') continue;
-        if (s[cut - 1] == ' ' || s[cut - 1] == '\t') continue;
-        memcpy (copy, s, cut);
-        copy[cut] = '\0';
-        time_t base;
-        long base_nsec;
-        if (bd_parse_d (copy, &base, &base_nsec, utc) != 0) continue;
-        const char *rest = bd_skip_space (s + cut);
-        if (strchr (copy, ':') && (*rest == '+' || *rest == '-') &&
-            rest[1] >= '0' && rest[1] <= '9') {
-            /* Numeric zone: H, HH, HHMM or HH:MM after the sign. */
-            const char *z = rest + 1;
-            int digits = 0, value = 0, minutes = 0;
-            while (z[digits] >= '0' && z[digits] <= '9' && digits < 5)
-                value = value * 10 + (z[digits++] - '0');
-            const char *after = z + digits;
-            if (digits <= 2 && *after == ':' && after[1] >= '0' && after[1] <= '9' &&
-                after[2] >= '0' && after[2] <= '9') {
-                minutes = (after[1] - '0') * 10 + (after[2] - '0');
-                after += 3;
-            } else if (digits == 4) {
-                minutes = value % 100;
-                value /= 100;
-            } else if (digits > 2) {
-                continue;
-            }
-            if (*after && *after != ' ' && *after != '\t') continue;
-            long offset = (value * 3600L + minutes * 60L) * (*rest == '-' ? -1 : 1);
-            time_t wall;
-            long wall_nsec;
-            if (bd_parse_d (copy, &wall, &wall_nsec, 1) != 0) continue;
-            base = wall - (time_t) offset;
-            base_nsec = wall_nsec;
-            rest = after;
-            if (!*bd_skip_space (rest)) {
-                free (copy);
-                *out = base;
-                *nsec = base_nsec;
-                return 0;
-            }
-        }
-        if (bd_parse_relative (rest, base, base_nsec, utc, 1, out, nsec) == 0) {
-            free (copy);
-            return 0;
-        }
-    }
-    free (copy);
-    return -1;
-}
-
-static int
-bd_parse_d (const char *s, time_t *out, long *nsec, int utc)
-{
-    *nsec = 0;
-    if (!strcmp (s, "now")) {
-        struct timespec now;
-        if (clock_gettime (CLOCK_REALTIME, &now) < 0) return -1;
-        *out = now.tv_sec;
-        *nsec = now.tv_nsec;
-        return 0;
-    }
-    if (s[0] == '@') {
-        char *end;
-        errno = 0;
-        long long ll = strtoll (s + 1, &end, 10);
-        if (errno == ERANGE || end == s + 1) return -1;
-        /* Store a floor second plus nonnegative nanoseconds. Negative
-           fractions need a borrow, including -0 and sub-nanosecond input. */
-        if (*end == '.') {
-            const char *q = end + 1;
-            int digits = 0, remainder = 0;
-            if (*q < '0' || *q > '9') return -1;
-            while (*q >= '0' && *q <= '9') {
-                if (digits < 9) {
-                    *nsec = *nsec * 10 + (*q - '0');
-                    digits++;
-                } else if (*q != '0') remainder = 1;
-                q++;
-            }
-            if (*q != '\0') return -1;
-            while (digits++ < 9) *nsec *= 10;
-            const char *sign = s + 1;
-            while (*sign == ' ' || *sign == '\t') sign++;
-            if (*sign == '-' && (*nsec || remainder)) {
-                if (ll == LLONG_MIN) return -1;
-                ll--;
-                *nsec = 1000000000L - *nsec - remainder;
-            }
-        } else if (*end != '\0') {
-            return -1;
-        }
-        *out = (time_t) ll;
-        if ((long long) *out != ll) return -1;
-        return 0;
-    }
-    if (bd_parse_rfc_lenient (s, out) == 0)
-        return 0;
-    struct tm t;
-    memset (&t, 0, sizeof t);
-    t.tm_isdst = -1;
-    const char *fmts[] = {
-        "%a, %d %b %Y %H:%M:%S",
-        "%Y-%m-%dT%H:%M:%S",
-        "%Y-%m-%dT%H:%M",
-        "%Y-%m-%dT%H:%M:%SZ",
-        "%Y-%m-%dT%H:%MZ",
-        "%Y-%m-%d %H:%M:%S",
-        "%Y-%m-%d %H:%M",
-        "%Y-%m-%dT%H",
-        "%Y-%m-%d %H",
-        "%Y%m%d",
-        "%Y-%m-%d",
-        "%Y/%m/%d %H:%M:%S",
-        "%Y/%m/%d %H:%M",
-        "%Y/%m/%d",
-        NULL
-    };
-    const int fmt_zulu[] = { 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    const int fmt_terminal_ok[] = { 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1 };
-    for (int i = 0; fmts[i]; i++) {
-        char *e = strptime (s, fmts[i], &t);
-        if (e && fmt_terminal_ok[i] && (*e == '\0' || (*e == 'Z' && e[1] == '\0')
-            || strcmp (e, " UTC") == 0)) {
-            int zulu = (*e == 'Z') || strcmp (e, " UTC") == 0 || fmt_zulu[i];
-            return bd_convert_tm (&t, zulu || utc, out);
-        }
-        if (e && i < 9) {
-            while (*e == ' ' || *e == '\t') e++;
-        }
-        if (e && i < 9 && (*e == '+' || *e == '-')) {
-            long offset;
-            if (bd_parse_tz_offset (e, &offset) == 0) {
-                if (bd_convert_tm (&t, 1, out) < 0) return -1;
-                *out -= (time_t) offset;
-                return 0;
-            }
-        }
-        memset (&t, 0, sizeof t);
-        t.tm_isdst = -1;
-    }
-    return -1;
-}
 
 static long
 bd_tm_offset (const struct tm *tm, time_t t, int utc)
@@ -711,6 +233,29 @@ bd_expand_gnu_tz_formats (const char *fmt, const struct tm *tm, time_t t, long n
             continue;
         }
 
+        /* GNU %q: the quarter of the year, 1-4, a number padded with '0'
+           to an explicit width ('_' pads with spaces, '-' not at all). */
+        if (spec == 'q') {
+            char qbuf[32];
+            int q = tm->tm_mon / 3 + 1;
+            int w = (width_start < k && width > 0) ? (int) width : 1;
+            int space_flag = 0;
+            for (size_t f = i + 1; f < width_start; f++)
+                if (fmt[f] == '_') space_flag = 1;
+            if (minus_flag)
+                snprintf (qbuf, sizeof qbuf, "%d", q);
+            else if (space_flag && !zero_flag)
+                snprintf (qbuf, sizeof qbuf, "%*d", w, q);
+            else
+                snprintf (qbuf, sizeof qbuf, "%0*d", w, q);
+            if (bd_buf_append_literal (&out, &cap, &j, qbuf) < 0) {
+                free (out);
+                return NULL;
+            }
+            i = k;
+            continue;
+        }
+
         /* (a2) Epoch seconds %s: GNU date emits the actual time_t, NOT
            strftime's %s — glibc/musl derive %s from the broken-down tm via
            mktime(), which is wrong for a UTC-filled tm under -u (it adds the
@@ -824,28 +369,52 @@ bd_expand_gnu_tz_formats (const char *fmt, const struct tm *tm, time_t t, long n
     return out;
 }
 
+/* GNU argmatch: WORD is one of NAMES or an unambiguous prefix of one.
+   Returns the index or -1. */
+static int
+bd_argmatch (const char *word, const char *const *names)
+{
+    size_t n = strlen (word);
+    int found = -1;
+    if (!n)
+        return -1;
+    for (int i = 0; names[i]; i++) {
+        if (!strcmp (word, names[i]))
+            return i;
+        if (!strncmp (word, names[i], n)) {
+            if (found >= 0)
+                return -1;
+            found = i;
+        }
+    }
+    return found;
+}
+
 static const char *
 bd_iso8601_format (const char *level)
 {
-    if (level == NULL || *level == '\0' || !strcmp (level, "date"))
-        return "%Y-%m-%d";
-    if (!strcmp (level, "hours"))
-        return "%Y-%m-%dT%H%:z";
-    if (!strcmp (level, "minutes"))
-        return "%Y-%m-%dT%H:%M%:z";
-    if (!strcmp (level, "seconds"))
-        return "%Y-%m-%dT%H:%M:%S%:z";
-    return NULL;
+    static const char *const names[] = {
+        "date", "hours", "minutes", "seconds", "ns", NULL
+    };
+    static const char *const fmts[] = {
+        "%Y-%m-%d", "%Y-%m-%dT%H%:z", "%Y-%m-%dT%H:%M%:z",
+        "%Y-%m-%dT%H:%M:%S%:z", "%Y-%m-%dT%H:%M:%S,%N%:z"
+    };
+    if (level == NULL || *level == '\0')
+        return fmts[0];
+    int i = bd_argmatch (level, names);
+    return i < 0 ? NULL : fmts[i];
 }
 
 static const char *
 bd_rfc3339_format (const char *level)
 {
-    if (!strcmp (level, "date"))
-        return "%Y-%m-%d";
-    if (!strcmp (level, "seconds"))
-        return "%Y-%m-%d %H:%M:%S%:z";
-    return NULL;
+    static const char *const names[] = { "date", "seconds", "ns", NULL };
+    static const char *const fmts[] = {
+        "%Y-%m-%d", "%Y-%m-%d %H:%M:%S%:z", "%Y-%m-%d %H:%M:%S.%N%:z"
+    };
+    int i = bd_argmatch (level, names);
+    return i < 0 ? NULL : fmts[i];
 }
 
 /* The POSIX clock-setting operand MMDDhhmm[[CC]YY][.ss]. A missing year is
@@ -900,6 +469,81 @@ bd_parse_posix_set (const char *s, int utc, time_t *out)
     return 0;
 }
 
+/* Print T (+NSEC) in FMT on one line.  Returns -1 after a diagnostic. */
+static int
+bd_print (time_t t, long nsec, const char *fmt, int utc)
+{
+    struct tm tm;
+    if (!(utc ? gmtime_r (&t, &tm) : localtime_r (&t, &tm))) {
+        builtin_error ("date out of range");
+        return -1;
+    }
+
+    char buf[256];
+    char *expanded_fmt = bd_expand_gnu_tz_formats (fmt, &tm, t, nsec, utc);
+    if (!expanded_fmt) {
+        builtin_error ("out of memory");
+        return -1;
+    }
+    if (strftime (buf, sizeof buf, expanded_fmt, &tm) == 0) {
+        /* Empty result is allowed (e.g. `+`); but if buf overflowed,
+           strftime returned 0 with undefined contents — we conservatively
+           print empty in that case. */
+        buf[0] = '\0';
+    }
+    free (expanded_fmt);
+    puts (buf);
+    return 0;
+}
+
+/* GNU date -f FILE: parse each line as -d would and print it; a line that
+   does not parse is diagnosed, the rest still print, and the status is 1. */
+static int
+bd_batch (const char *path, const char *fmt, int utc)
+{
+    int is_stdin = !strcmp (path, "-");
+    FILE *fp;
+    if (is_stdin) {
+        int fd = dup (0);
+        fp = fd < 0 ? NULL : fdopen (fd, "r");
+        if (!fp && fd >= 0)
+            close (fd);
+    } else {
+        fp = fopen (path, "r");
+    }
+    if (!fp) {
+        fprintf (stderr, "date: %s: %s\n", path, strerror (errno));
+        return EXECUTION_FAILURE;
+    }
+    int rc = EXECUTION_SUCCESS;
+    char *line = NULL;
+    size_t cap = 0;
+    ssize_t len;
+    while ((len = getline (&line, &cap, fp)) >= 0) {
+        if (len > 0 && line[len - 1] == '\n')
+            line[--len] = '\0';
+        struct timespec now;
+        time_t t;
+        long nsec;
+        if (clock_gettime (CLOCK_REALTIME, &now) < 0 ||
+            bd_parse_date (line, &now, &t, &nsec, utc) < 0) {
+            fflush (stdout);
+            fprintf (stderr, "date: invalid date '%s'\n", line);
+            rc = EXECUTION_FAILURE;
+            continue;
+        }
+        if (bd_print (t, nsec, fmt, utc) < 0)
+            rc = EXECUTION_FAILURE;
+    }
+    if (ferror (fp)) {
+        fprintf (stderr, "date: %s: %s\n", path, strerror (errno));
+        rc = EXECUTION_FAILURE;
+    }
+    free (line);
+    fclose (fp);
+    return rc;
+}
+
 int
 date_builtin (WORD_LIST *list)
 {
@@ -908,6 +552,8 @@ date_builtin (WORD_LIST *list)
     const char *set_str = NULL;
     const char *posix_str = NULL;
     const char *date_str = NULL;
+    const char *ref_file = NULL;
+    const char *batch_file = NULL;
     const char *fmt = NULL;
     const char *iso_fmt = NULL;
 
@@ -915,7 +561,7 @@ date_builtin (WORD_LIST *list)
         const char *w = list->word->word;
         if (!strcmp (w, "--")) { list = list->next; break; }
         if (!strcmp (w, "--help")) {
-            builtin_usage ();
+            builtin_help ();
             return EXECUTION_SUCCESS;
         }
         if (!strcmp (w, "--version")) {
@@ -1000,6 +646,48 @@ date_builtin (WORD_LIST *list)
             list = list->next;
             continue;
         }
+        /* -r FILE: the modification time of FILE (GNU). */
+        if (!strcmp (w, "-r") || !strcmp (w, "--reference")) {
+            if (!list->next) {
+                fprintf (stderr, "date: option requires an argument -- 'r'\n");
+                return EXECUTION_FAILURE;
+            }
+            list = list->next;
+            ref_file = list->word->word;
+            list = list->next;
+            continue;
+        }
+        if (!strncmp (w, "--reference=", 12)) {
+            ref_file = w + 12;
+            list = list->next;
+            continue;
+        }
+        if (!strncmp (w, "-r", 2) && w[2]) {
+            ref_file = w + 2;
+            list = list->next;
+            continue;
+        }
+        /* -f FILE: like -d once per line of FILE ("-" is stdin). */
+        if (!strcmp (w, "-f") || !strcmp (w, "--file")) {
+            if (!list->next) {
+                fprintf (stderr, "date: option requires an argument -- 'f'\n");
+                return EXECUTION_FAILURE;
+            }
+            list = list->next;
+            batch_file = list->word->word;
+            list = list->next;
+            continue;
+        }
+        if (!strncmp (w, "--file=", 7)) {
+            batch_file = w + 7;
+            list = list->next;
+            continue;
+        }
+        if (!strncmp (w, "-f", 2) && w[2]) {
+            batch_file = w + 2;
+            list = list->next;
+            continue;
+        }
         if (!strcmp (w, "-s") || !strcmp (w, "--set")) {
             if (!list->next) {
                 builtin_error ("%s needs STRING", w);
@@ -1052,21 +740,34 @@ date_builtin (WORD_LIST *list)
             return EXECUTION_FAILURE;
         }
     }
-    if (set_str && date_str) {
+    if ((ref_file != NULL) + (date_str != NULL) + (batch_file != NULL) > 1) {
+        fprintf (stderr, "date: the options to specify dates for printing are mutually exclusive\n");
+        return EXECUTION_FAILURE;
+    }
+    if (set_str && (date_str || ref_file || batch_file)) {
         fprintf (stderr, "date: the options to print and set the time may not be used together\n");
         return EXECUTION_FAILURE;
     }
-    if (posix_str && (set_str || date_str)) {
+    if (posix_str && (set_str || date_str || ref_file || batch_file)) {
         fprintf (stderr, "date: the argument '%s' lacks a leading '+';\n"
                  "when using an option to specify date(s), any non-option\n"
                  "argument must be a format string beginning with '+'\n", posix_str);
         return EXECUTION_FAILURE;
     }
 
+    const char *use_fmt = fmt ? fmt : (iso_fmt ? iso_fmt : "%a %b %e %T %Z %Y");
+    struct timespec now;
+    if (clock_gettime (CLOCK_REALTIME, &now) < 0) {
+        builtin_error ("clock_gettime: %s", strerror (errno));
+        return EXECUTION_FAILURE;
+    }
+    if (batch_file)
+        return bd_batch (batch_file, use_fmt, utc);
+
     time_t t;
     long nsec;
     if (set_str) {
-        if (bd_parse_d (set_str, &t, &nsec, utc) < 0) {
+        if (bd_parse_date (set_str, &now, &t, &nsec, utc) < 0) {
             fprintf (stderr, "date: invalid date '%s'\n", set_str);
             return EXECUTION_FAILURE;
         }
@@ -1078,18 +779,20 @@ date_builtin (WORD_LIST *list)
         }
         nsec = 0;
         set_clock = 1;
+    } else if (ref_file) {
+        struct stat st;
+        if (stat (ref_file, &st) < 0) {
+            fprintf (stderr, "date: %s: %s\n", ref_file, strerror (errno));
+            return EXECUTION_FAILURE;
+        }
+        t = st.st_mtim.tv_sec;
+        nsec = st.st_mtim.tv_nsec;
     } else if (date_str) {
-        if (bd_parse_d (date_str, &t, &nsec, utc) < 0 &&
-            bd_parse_with_relative (date_str, &t, &nsec, utc) < 0) {
-            builtin_error ("date: cannot parse '%s' (try ISO 8601 or @SECONDS)", date_str);
+        if (bd_parse_date (date_str, &now, &t, &nsec, utc) < 0) {
+            fprintf (stderr, "date: invalid date '%s'\n", date_str);
             return EXECUTION_FAILURE;
         }
     } else {
-        struct timespec now;
-        if (clock_gettime (CLOCK_REALTIME, &now) < 0) {
-            builtin_error ("clock_gettime: %s", strerror (errno));
-            return EXECUTION_FAILURE;
-        }
         t = now.tv_sec;
         nsec = now.tv_nsec;
     }
@@ -1106,34 +809,15 @@ date_builtin (WORD_LIST *list)
         }
     }
 
-    struct tm tm;
-    if (!(utc ? gmtime_r (&t, &tm) : localtime_r (&t, &tm))) {
-        builtin_error ("date out of range");
+    if (bd_print (t, nsec, use_fmt, utc) < 0)
         return EXECUTION_FAILURE;
-    }
-
-    char buf[256];
-    const char *use_fmt = fmt ? fmt : (iso_fmt ? iso_fmt : "%a %b %e %T %Z %Y");
-    char *expanded_fmt = bd_expand_gnu_tz_formats (use_fmt, &tm, t, nsec, utc);
-    if (!expanded_fmt) {
-        builtin_error ("out of memory");
-        return EXECUTION_FAILURE;
-    }
-    if (strftime (buf, sizeof buf, expanded_fmt, &tm) == 0) {
-        /* Empty result is allowed (e.g. `+`); but if buf overflowed,
-           strftime returned 0 with undefined contents — we conservatively
-           print empty in that case. */
-        buf[0] = '\0';
-    }
-    free (expanded_fmt);
-    puts (buf);
     return set_failed ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
 }
 
 char *date_doc[] = {
     "Print the date or convert a timestamp (POSIX date).",
     "",
-    "    bashdate [-u] [-d STRING|--date=STRING] [-I[FMT]|--iso-8601[=FMT]] [--rfc-3339=FMT] [+FORMAT]",
+    "    bashdate [-u] [-d STRING|-f FILE|-r FILE] [-I[FMT]|--iso-8601[=FMT]] [--rfc-3339=FMT] [+FORMAT]",
     "    bashdate [-u] -s STRING|--set=STRING [+FORMAT]",
     "    bashdate [-u] MMDDhhmm[[CC]YY][.ss]",
     "    bashdate --help | --version",
@@ -1148,24 +832,27 @@ char *date_doc[] = {
     "                 69-99 is 19YY, no year is the current year",
     "    -R, --rfc-email",
     "                 RFC 5322 date (%a, %d %b %Y %H:%M:%S %z in C locale)",
+    "    -r FILE, --reference=FILE",
+    "                 print the last modification time of FILE",
     "    -d STRING, --date=STRING",
     "                 parse STRING; accepted shapes:",
-    "                   YYYY-MM-DDTHH[:MM[:SS]][+HH:MM|-HHMM]",
-    "                   YYYY-MM-DDTHH:MM[:SS]Z",
-    "                   YYYY-MM-DD HH[:MM[:SS]]",
+    "                   YYYY-MM-DD[THH[:MM[:SS[.FRAC]]]][Z|+HH:MM|-HHMM]",
+    "                   YYYY-MM-DD HH[:MM[:SS[.FRAC]]]",
     "                   [DAY[,]] D Mon YYYY HH:MM:SS UTC|GMT|+HHMM|-HH:MM",
-    "                   YYYY-MM-DD",
-    "                   @SECONDS                 (epoch)",
-    "                   now",
+    "                   Mon D[, YYYY]  D Mon [YYYY]  D-Mon-YYYY  MM/DD[/YYYY]",
+    "                   H[H][:MM[:SS[.FRAC]]] [am|pm] [ZONE], with or without a date",
+    "                   @SECONDS[.FRAC]          (epoch)",
+    "                   now, yesterday, [+-]N UNIT [ago], next/last DAY or UNIT,",
+    "                   alone or after a date (\"2024-03-05 +1 month\")",
+    "    -f FILE, --file=FILE",
+    "                 like -d for each line of FILE (- is standard input)",
     "    -I[FMT], --iso-8601[=FMT]",
-    "                 print GNU ISO-8601 form; FMT is date, hours, minutes, seconds",
+    "                 print GNU ISO-8601 form; FMT is date, hours, minutes, seconds, ns",
     "    --rfc-3339=FMT",
-    "                 print GNU RFC 3339 form; FMT is date, seconds",
-    "    +FORMAT      strftime(3) format plus GNU %N / %[1-9]N, %:z/%::z/%:::z,",
+    "                 print GNU RFC 3339 form; FMT is date, seconds, ns",
+    "    +FORMAT      strftime(3) format plus GNU %N / %[1-9]N, %q, %:z/%::z/%:::z,",
     "                 case-fold %^X/%#X, and zero-padded %0k/%0l forms",
     "                 Default: %a %b %e %T %Z %Y",
-    "",
-    "For richer date arithmetic / `last week` shorthand use system+ date.",
     (char *)NULL
 };
 
@@ -1174,6 +861,6 @@ struct builtin bashdate_struct = {
     date_builtin,
     BUILTIN_ENABLED,
     date_doc,
-    "bashdate [-u] [-d STRING|--date=STRING] [-I[FMT]|--iso-8601[=FMT]] [--rfc-3339=FMT] [+FORMAT]",
+    "bashdate [-u] [-d STRING|-f FILE|-r FILE] [-I[FMT]|--iso-8601[=FMT]] [--rfc-3339=FMT] [+FORMAT]",
     0
 };

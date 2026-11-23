@@ -10,7 +10,8 @@
     "CRC corruption, truncation, unknown suffix, hard-link, and symbolic-link handling",
     "Unforced named symlink errors have status 1 even with -q; quiet hard-link warnings retain status 2.",
     "Explicit force follows source symlinks, preserves referent data, and removes only the symlink name unless -k is used.",
-    "Stdout/test filters follow ordinary symlinks, and mixed warning/error operands continue with failure precedence."
+    "Stdout/test filters follow ordinary symlinks, and mixed warning/error operands continue with failure precedence.",
+    "G30: -l/--list (with -v, -N, -q, totals and errors), -v ratios, -r/--recursive, -N name/time restoration and GNU's default of keeping the compressed file's time."
   ],
   "exclusions": [
     "Compression byte identity is intentionally not asserted; the documented interface permits different valid compressed streams.",
@@ -219,6 +220,61 @@
       "script": "printf 'hard\\n' > hard; ln hard peer\nprintf 'target\\n' > target; ln -s target shortcut\nprintf 'last\\n' > plain\nrc=0; gzip hard shortcut plain || rc=$?\n[[ $rc == 1 && hard -ef peer && -L shortcut ]]\nprintf 'mixed-status=%s\\n' \"$rc\"\ngzip -d plain.gz",
       "expected_status": 0,
       "stderr": "nonempty"
+    },
+    {
+      "id": "list-sizes-and-totals",
+      "kind": "parity",
+      "requires": [
+        "gzip"
+      ],
+      "purpose": "G30: gzip -l prints compressed/uncompressed sizes, ratio and name from the header and trailer, a totals row for several operands, -v adds method/CRC/date, -q drops the heading, -N shows the stored name.",
+      "script": "printf 'ab\\n' > a; printf 'abcdef\\n' > b; /usr/bin/touch -d @86400 a b\n/usr/bin/gzip a b\ngzip -l a.gz b.gz\ngzip -lv a.gz\ngzip -lq b.gz\n/usr/bin/mv a.gz renamed.gz\ngzip -l renamed.gz; gzip -lN renamed.gz\n: | /usr/bin/gzip > empty.gz; gzip -l empty.gz\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "list-errors",
+      "kind": "parity",
+      "requires": [
+        "gzip"
+      ],
+      "purpose": "G30: gzip -l reports a missing NAME as NAME.gz and a non-gzip file as not in gzip format (exit 1); totals still cover the files that listed.",
+      "script": "printf 'ab\\n' > a; printf 'abcdef\\n' > b; /usr/bin/touch -d @86400 a b\n/usr/bin/gzip -k a\ngzip -l a.gz missing 2>/tmp/err || echo rc=$?\n/usr/bin/sed 's/^.*gzip: /gzip: /' /tmp/err\ngzip -l a.gz b 2>/tmp/err || echo rc=$?\n/usr/bin/sed 's/^.*gzip: /gzip: /' /tmp/err\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "verbose-ratios",
+      "kind": "parity",
+      "requires": [
+        "gzip"
+      ],
+      "purpose": "G30: -v reports each file's ratio and replacement on stderr when compressing, decompressing, testing, keeping (-k: created) and writing stdout (-c).",
+      "script": "printf 'ab\\n' > a; printf 'abcdef\\n' > b; /usr/bin/touch -d @86400 a b\ngzip -v a 2>&1 | /usr/bin/sed 's/^.*gzip: /gzip: /'\ngzip -dv a.gz 2>&1 | /usr/bin/sed 's/^.*gzip: /gzip: /'\ngzip -kv b 2>&1 | /usr/bin/sed 's/^.*gzip: /gzip: /'\ngzip -tv b.gz 2>&1 | /usr/bin/sed 's/^.*gzip: /gzip: /'\ngzip -cv a 2>&1 | /usr/bin/sed 's/^.*gzip: /gzip: /' | /usr/bin/od -An -c | /usr/bin/head -1 >/dev/null\ngzip -cv a 2>&1 >/dev/null\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "recursive-directories",
+      "kind": "parity",
+      "requires": [
+        "gzip"
+      ],
+      "purpose": "G30: -r compresses and decompresses every file below a directory; without -r a directory is skipped with exit 2; already-suffixed files are skipped quietly inside the tree.",
+      "script": "/usr/bin/mkdir -p d/e\nprintf 'q\\n' > d/q; printf 'x\\n' > d/e/x\ngzip d 2>&1 | /usr/bin/sed 's/^.*gzip: /gzip: /' || echo rc=$?\ngzip -r d && /usr/bin/find d -type f | /usr/bin/sort\nprintf 'z\\n' > d/z; gzip -r d && /usr/bin/find d -type f | /usr/bin/sort\ngzip -rd d && /usr/bin/find d -type f | /usr/bin/sort\ngzip -rv d 2>&1 | /usr/bin/sort\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "decompress-name-and-time",
+      "kind": "parity",
+      "requires": [
+        "gzip"
+      ],
+      "purpose": "G30: decompression keeps the compressed file's own time and strips the suffix (GNU's -n default); -N restores the stored name and time.",
+      "script": "printf 'ab\\n' > a; printf 'abcdef\\n' > b; /usr/bin/touch -d @86400 a b\n/usr/bin/gzip a\n/usr/bin/cp a.gz b.gz\n/usr/bin/touch -d @172800 a.gz b.gz\n/usr/bin/mv a.gz x.gz; /usr/bin/mv b.gz y.gz\ngzip -d x.gz\ngzip -dN y.gz\n/usr/bin/ls\n/usr/bin/stat -c '%n %Y' x a\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

@@ -88,6 +88,7 @@ typedef struct {
     long  rss_pages;    /* RSS in pages */
     long  vsize_bytes;
     long  nice;
+    long  prio;         /* proc(5) field 18 */
     unsigned long long starttime; /* identity across PID reuse */
     /* derived */
     long  cpu_total;    /* utime + stime, current snapshot */
@@ -182,7 +183,6 @@ btop_read_stat (int pid, btop_proc *p)
        (18) priority (19) nice ...
        (23) vsize (24) rss */
     char *rest = last + 2;
-    long prio;
     int got = sscanf (rest,
         "%c %d %*d %*d %*d %*d %*u "             /* state ppid pgrp sid tty tpgid flags */
         "%*u %*u %*u %*u "                       /* minflt cminflt majflt cmajflt */
@@ -192,7 +192,7 @@ btop_read_stat (int pid, btop_proc *p)
         "%ld %ld",                               /* vsize rss */
         &p->state, &p->ppid,
         &p->utime, &p->stime,
-        &prio, &p->nice, &p->starttime,
+        &p->prio, &p->nice, &p->starttime,
         &p->vsize_bytes, &p->rss_pages);
     if (got != 9) return -1;
 
@@ -519,6 +519,222 @@ static int btop_parse_sort (const char *s, btop_sort *out);
 /* termios/tty/winsize/cursor and the cooked-prompt path are now provided by
    the shared _bl_screen module (bls_init/bls_getnstr/...). */
 
+/* --- procps-style batch mode (-b / --batch) ------------------------------
+   `top -b` writes procps-ng's batch layout, which scripts parse (guest
+   compatibility pass 1: `top -bn1 | grep 'Cpu(s)'`). -n is the number of
+   frames, -d the delay between them. --once keeps the bash-os layout. */
+
+typedef struct { unsigned long long f[8]; } btop_cpu;
+
+static int
+btop_read_cpu_fields (btop_cpu *c, int *ncpu)
+{
+    memset (c, 0, sizeof *c);
+    *ncpu = 0;
+    FILE *fp = fopen ("/proc/stat", "re");
+    if (!fp) return -1;
+    char line[512];
+    while (fgets (line, sizeof line, fp)) {
+        if (!strncmp (line, "cpu ", 4))
+            sscanf (line + 4, "%llu %llu %llu %llu %llu %llu %llu %llu",
+                    &c->f[0], &c->f[1], &c->f[2], &c->f[3],
+                    &c->f[4], &c->f[5], &c->f[6], &c->f[7]);
+        else if (!strncmp (line, "cpu", 3) && isdigit ((unsigned char) line[3]))
+            (*ncpu)++;
+    }
+    fclose (fp);
+    if (*ncpu < 1) *ncpu = 1;
+    return 0;
+}
+
+static void
+btop_meminfo_extra (long *free_kb, long *cache_kb)
+{
+    *free_kb = *cache_kb = 0;
+    FILE *fp = fopen ("/proc/meminfo", "re");
+    if (!fp) return;
+    char line[256];
+    long v;
+    while (fgets (line, sizeof line, fp)) {
+        if (sscanf (line, "MemFree: %ld kB", &v) == 1) *free_kb = v;
+        else if (sscanf (line, "Buffers: %ld kB", &v) == 1) *cache_kb += v;
+        else if (sscanf (line, "Cached: %ld kB", &v) == 1) *cache_kb += v;
+        else if (sscanf (line, "SReclaimable: %ld kB", &v) == 1) *cache_kb += v;
+    }
+    fclose (fp);
+}
+
+static int
+btop_user_sessions (void)
+{
+    /* utmp records: ut_type (short) first, USER_PROCESS == 7, 384 bytes each. */
+    int fd = open ("/run/utmp", O_RDONLY | O_CLOEXEC);
+    if (fd < 0) fd = open ("/var/run/utmp", O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+    unsigned char rec[384];
+    int users = 0;
+    while (read (fd, rec, sizeof rec) == (ssize_t) sizeof rec) {
+        short type;
+        memcpy (&type, rec, sizeof type);
+        if (type == 7 && rec[44]) users++;
+    }
+    close (fd);
+    return users;
+}
+
+/* KiB amount in WIDTH columns, scaling to m/g/t like procps. */
+static void
+btop_scale_kib (char *out, size_t n, unsigned long long kib, int width)
+{
+    snprintf (out, n, "%llu", kib);
+    if ((int) strlen (out) <= width) return;
+    double v = (double) kib;
+    const char *units = "mgtpe";
+    for (int i = 0; units[i]; i++) {
+        v /= 1024.0;
+        snprintf (out, n, "%.1f%c", v, units[i]);
+        if ((int) strlen (out) <= width) return;
+        snprintf (out, n, "%.0f%c", v, units[i]);
+        if ((int) strlen (out) <= width) return;
+    }
+}
+
+static void
+btop_procps_header (const btop_sys *sys, const btop_proc *procs, int n,
+                    const btop_cpu *c0, const btop_cpu *c1)
+{
+    char clock[16] = "", up[64] = "";
+    time_t now = time (NULL);
+    struct tm tmv;
+    if (localtime_r (&now, &tmv)) strftime (clock, sizeof clock, "%H:%M:%S", &tmv);
+    double upsec = 0;
+    FILE *fp = fopen ("/proc/uptime", "re");
+    if (fp) { if (fscanf (fp, "%lf", &upsec) != 1) upsec = 0; fclose (fp); }
+    long u = (long) upsec, days = u / 86400, hrs = (u % 86400) / 3600, mins = (u % 3600) / 60;
+    int k = 0;
+    if (days) k = snprintf (up, sizeof up, "%ld day%s, ", days, days == 1 ? "" : "s");
+    if (hrs) snprintf (up + k, sizeof up - (size_t) k, "%2ld:%02ld", hrs, mins);
+    else snprintf (up + k, sizeof up - (size_t) k, "%ld min", mins);
+    double la[3] = {0, 0, 0};
+    sscanf (sys->loadavg, "%lf %lf %lf", &la[0], &la[1], &la[2]);
+    int users = btop_user_sessions ();
+    printf ("top - %s up %s, %2d user%s,  load average: %.2f, %.2f, %.2f\n",
+            clock, up, users, users == 1 ? "" : "s", la[0], la[1], la[2]);
+
+    int run = 0, sleep_ = 0, stop = 0, zomb = 0;
+    for (int i = 0; i < n; i++)
+        switch (procs[i].state) {
+        case 'R': run++; break;
+        case 'T': case 't': stop++; break;
+        case 'Z': zomb++; break;
+        default: sleep_++; break;
+        }
+    printf ("Tasks: %3d total, %3d running, %3d sleeping, %3d stopped, %3d zombie\n",
+            n, run, sleep_, stop, zomb);
+
+    /* us sy ni id wa hi si st, from proc(5) order user nice system idle
+       iowait irq softirq steal. */
+    static const int order[8] = { 0, 2, 1, 3, 4, 5, 6, 7 };
+    static const char *const label[8] = { "us", "sy", "ni", "id", "wa", "hi", "si", "st" };
+    double d[8], tot = 0;
+    for (int i = 0; i < 8; i++) {
+        unsigned long long a = c0->f[i], b = c1->f[i];
+        d[i] = b > a ? (double) (b - a) : 0;
+        tot += d[i];
+    }
+    printf ("%%Cpu(s):");
+    for (int i = 0; i < 8; i++)
+        printf ("%5.1f %s%s", tot > 0 ? d[order[i]] * 100.0 / tot : (order[i] == 3 ? 100.0 : 0.0),
+                label[i], i < 7 ? "," : " ");
+    putchar ('\n');
+
+    long free_kb, cache_kb;
+    btop_meminfo_extra (&free_kb, &cache_kb);
+    double mt = sys->mem_total_kb / 1024.0, mf = free_kb / 1024.0;
+    double mu = (sys->mem_total_kb - sys->mem_avail_kb) / 1024.0, mc = cache_kb / 1024.0;
+    printf ("MiB Mem : %8.1f total, %8.1f free, %8.1f used, %8.1f buff/cache     \n", mt, mf, mu, mc);
+    printf ("MiB Swap: %8.1f total, %8.1f free, %8.1f used. %8.1f avail Mem \n",
+            sys->swap_total_kb / 1024.0, sys->swap_free_kb / 1024.0,
+            (sys->swap_total_kb - sys->swap_free_kb) / 1024.0, sys->mem_avail_kb / 1024.0);
+    putchar ('\n');
+    printf ("    PID USER      PR  NI    VIRT    RES    SHR S  %%CPU  %%MEM     TIME+ COMMAND\n");
+}
+
+static void
+btop_procps_row (const btop_proc *p, long mem_total_kb, int ncpu, int width)
+{
+    long page_kb = btop_page_size () / 1024;
+    unsigned long long shr = 0;
+    char path[64], pr[8], virt[16], res[16], shrs[16], tim[24], line[1024];
+    snprintf (path, sizeof path, "/proc/%d/statm", p->pid);
+    FILE *fp = fopen (path, "re");
+    if (fp) { if (fscanf (fp, "%*u %*u %llu", &shr) != 1) shr = 0; fclose (fp); }
+    if (p->prio < -99) snprintf (pr, sizeof pr, "rt");
+    else snprintf (pr, sizeof pr, "%ld", p->prio);
+    btop_scale_kib (virt, sizeof virt, (unsigned long long) p->vsize_bytes / 1024, 7);
+    btop_scale_kib (res, sizeof res, (unsigned long long) p->rss_pages * (unsigned long long) page_kb, 6);
+    btop_scale_kib (shrs, sizeof shrs, shr * (unsigned long long) page_kb, 6);
+    long hz = sysconf (_SC_CLK_TCK);
+    if (hz <= 0) hz = 100;
+    unsigned long long cs = (unsigned long long) p->cpu_total * 100 / (unsigned long long) hz;
+    snprintf (tim, sizeof tim, "%llu:%02llu.%02llu", cs / 6000, cs / 100 % 60, cs % 100);
+    double pmem = mem_total_kb > 0 ? (double) p->rss_pages * page_kb * 100.0 / mem_total_kb : 0;
+    int k = snprintf (line, sizeof line, "%7d %-8.8s %3s %3ld %7s %6s %6s %c %5.1f %5.1f %9s %s",
+                      p->pid, btop_user (p->uid), pr, p->nice, virt, res, shrs, p->state,
+                      p->pcpu * ncpu, pmem, tim, p->comm);
+    if (k >= (int) sizeof line) k = (int) sizeof line - 1;
+    if (width > 1 && k > width - 1) { line[width - 2] = '+'; line[width - 1] = '\0'; }
+    puts (line);
+}
+
+static int
+btop_run_batch (btop_sort sort, int frames, int delay_ms, int row_cap, int width,
+                const int *pids, int npids, int uid_filter)
+{
+    btop_proc *procs = (btop_proc *) calloc (BTOP_MAX_PROCS, sizeof (btop_proc));
+    if (!procs) { builtin_error ("out of memory"); return EXECUTION_FAILURE; }
+    btop_sys sys; memset (&sys, 0, sizeof sys);
+    btop_cpu c0, c1;
+    int ncpu = 1, rc = EXECUTION_SUCCESS;
+
+    int n = btop_sample (procs, BTOP_MAX_PROCS, &sys);
+    if (n < 0) { free (procs); return EXECUTION_FAILURE; }
+    btop_read_cpu_fields (&c0, &ncpu);
+    btop_prev_store (procs, n, sys.cpu_jiffies_total);
+    for (int frame = 0; frames == 0 || frame < frames; frame++) {
+        int ms = frame == 0 ? 200 : delay_ms;
+        struct timespec ts = { ms / 1000, (long) (ms % 1000) * 1000000L };
+        nanosleep (&ts, NULL);
+        n = btop_sample (procs, BTOP_MAX_PROCS, &sys);
+        if (n < 0) { rc = EXECUTION_FAILURE; break; }
+        btop_read_cpu_fields (&c1, &ncpu);
+        btop_compute_pcpu (procs, n, sys.cpu_jiffies_total);
+        btop_sort_procs (procs, n, sort);
+        if (frame) putchar ('\n');
+        btop_procps_header (&sys, procs, n, &c0, &c1);
+        int shown = 0;
+        for (int i = 0; i < n && (row_cap == 0 || shown < row_cap); i++) {
+            if (npids) {
+                int hit = 0;
+                for (int j = 0; j < npids; j++) hit |= pids[j] == procs[i].pid;
+                if (!hit) continue;
+            }
+            if (uid_filter >= 0 && procs[i].uid != (uid_t) uid_filter) continue;
+            btop_procps_row (&procs[i], sys.mem_total_kb, ncpu, width);
+            shown++;
+        }
+        if (fflush (stdout) == EOF || ferror (stdout)) {
+            builtin_error ("write error: %s", strerror (errno));
+            rc = EXECUTION_FAILURE;
+            break;
+        }
+        c0 = c1;
+        btop_prev_store (procs, n, sys.cpu_jiffies_total);
+    }
+    free (procs);
+    return rc;
+}
+
 /* --- once mode --------------------------------------------------------- */
 static int
 btop_run_once (btop_sort sort, int row_cap)
@@ -796,6 +1012,10 @@ static int
 btop_parse_sort (const char *s, btop_sort *out)
 {
     if (!s || !*s) return -1;
+    /* procps field names: %CPU, %MEM, RES, PID, TIME+ */
+    if (!strcmp (s, "%CPU")) s = "cpu";
+    else if (!strcmp (s, "%MEM") || !strcmp (s, "RES")) s = "mem";
+    else if (!strcmp (s, "TIME+") || !strcmp (s, "TIME")) s = "time";
     if (!strcasecmp (s, "cpu"))  { *out = BTOP_SORT_CPU;  return 0; }
     if (!strcasecmp (s, "mem"))  { *out = BTOP_SORT_MEM;  return 0; }
     if (!strcasecmp (s, "pid"))  { *out = BTOP_SORT_PID;  return 0; }
@@ -803,74 +1023,152 @@ btop_parse_sort (const char *s, btop_sort *out)
     return -1;
 }
 
+static int
+btop_parse_delay (const char *s, int frac, int *ms)
+{
+    /* DIGITS[.DIGITS]; fractions only for batch (frac != 0). */
+    int whole = 0, i = 0;
+    if (!isdigit ((unsigned char) s[0])) return -1;
+    while (isdigit ((unsigned char) s[i])) {
+        if (whole > 3599) return -1;
+        whole = whole * 10 + (s[i++] - '0');
+    }
+    int milli = 0;
+    if (s[i] == '.' && frac && isdigit ((unsigned char) s[i + 1])) {
+        int scale = 100;
+        for (i++; isdigit ((unsigned char) s[i]); i++, scale /= 10)
+            milli += (s[i] - '0') * scale;
+    }
+    if (s[i] || whole > 3599 || (whole == 3599 && milli) || (!whole && !milli) || (!frac && !whole))
+        return -1;
+    *ms = whole * 1000 + milli;
+    return 0;
+}
+
 int
 top_builtin (WORD_LIST *list)
 {
-    int       once = 0;
+    int       once = 0, batch = 0;
     int       iters = 0;
-    int       delay = 2;
+    int       delay_ms = -1;
     btop_sort sort = BTOP_SORT_CPU;
-    int       row_cap = 0;
+    int       row_cap = 0, width = 0;
+    int       pids[64], npids = 0, uid_filter = -1;
+    const char *delay_arg = NULL;
 
     while (list) {
         const char *w = list->word->word;
         if (!w || !*w || w[0] != '-') break;
+        if (!w[1]) { builtin_error ("unknown option: %s", w); return EX_USAGE; }
 
         if (!strcmp (w, "--")) { list = list->next; break; }
-        if (!strcmp (w, "--once") || !strcmp (w, "-b") || !strcmp (w, "--batch")) {
-            once = 1; list = list->next; continue;
-        }
-        if (!strcmp (w, "--help") || !strcmp (w, "-h")) {
+        if (!strcmp (w, "--once")) { once = 1; list = list->next; continue; }
+        if (!strcmp (w, "--batch")) { batch = 1; list = list->next; continue; }
+        if (!strcmp (w, "--help")) {
             extern char *top_doc[];
             for (char **dp = top_doc; *dp; dp++) puts (*dp);
             return EX_USAGE;
         }
-        if (!strcmp (w, "-n")) {
-            list = list->next;
-            if (!list) { builtin_error ("-n requires COUNT"); return EX_USAGE; }
-            if (btop_parse_int (list->word->word, 0, INT_MAX, &iters) < 0) {
-                builtin_error ("invalid count: %s", list->word->word); return EX_USAGE;
-            }
-            list = list->next; continue;
-        }
-        if (!strcmp (w, "-d")) {
-            list = list->next;
-            if (!list) { builtin_error ("-d requires SEC"); return EX_USAGE; }
-            if (btop_parse_int (list->word->word, 1, 3599, &delay) < 0) {
-                builtin_error ("invalid delay (1..3599): %s", list->word->word); return EX_USAGE;
-            }
-            list = list->next; continue;
-        }
-        if (!strcmp (w, "-o")) {
-            list = list->next;
-            if (!list) { builtin_error ("-o requires COLUMN"); return EX_USAGE; }
-            if (btop_parse_sort (list->word->word, &sort) < 0) {
-                builtin_error ("unknown sort column: %s (cpu|mem|pid|time)",
-                               list->word->word);
+        if (w[1] == '-') { builtin_error ("unknown option: %s", w); return EX_USAGE; }
+        /* Short options cluster (-bn1, -b -n 1, -d0.5) as procps allows. */
+        for (int i = 1; w[i]; i++) {
+            char c = w[i];
+            if (c == 'b') { batch = 1; continue; }
+            if (c == 'c' || c == 'i' || c == 'S' || c == 'H') continue;
+            if (c == 'h') {
+                extern char *top_doc[];
+                for (char **dp = top_doc; *dp; dp++) puts (*dp);
                 return EX_USAGE;
             }
-            list = list->next; continue;
-        }
-        if (!strcmp (w, "-r")) {
-            list = list->next;
-            if (!list) { builtin_error ("-r requires N"); return EX_USAGE; }
-            if (btop_parse_int (list->word->word, 0, INT_MAX, &row_cap) < 0) {
-                builtin_error ("invalid row cap: %s", list->word->word); return EX_USAGE;
+            if (!strchr ("ndorwpuU", c)) { builtin_error ("unknown option: -%c", c); return EX_USAGE; }
+            const char *v = NULL;
+            if (w[i + 1]) v = w + i + 1;
+            else if (c == 'w') {
+                /* -w takes an optional number */
+                if (list->next && isdigit ((unsigned char) list->next->word->word[0])) {
+                    list = list->next; v = list->word->word;
+                }
+            } else if (list->next) { list = list->next; v = list->word->word; }
+            else {
+                static const char *const need[] = { "n", "COUNT", "d", "SEC", "o", "COLUMN",
+                    "r", "N", "p", "PID", "u", "USER", "U", "USER", NULL };
+                const char *what = "VALUE";
+                for (int k = 0; need[k]; k += 2) if (need[k][0] == c) what = need[k + 1];
+                builtin_error ("-%c requires %s", c, what);
+                return EX_USAGE;
             }
-            list = list->next; continue;
+            switch (c) {
+            case 'n':
+                if (btop_parse_int (v, 0, INT_MAX, &iters) < 0) { builtin_error ("invalid count: %s", v); return EX_USAGE; }
+                break;
+            case 'd':
+                delay_arg = v;   /* validated once -b is known */
+                if (btop_parse_delay (v, 1, &delay_ms) < 0) { builtin_error ("invalid delay (1..3599): %s", v); return EX_USAGE; }
+                break;
+            case 'o':
+                if (btop_parse_sort (v, &sort) < 0) {
+                    builtin_error ("unknown sort column: %s (cpu|mem|pid|time)", v);
+                    return EX_USAGE;
+                }
+                break;
+            case 'r':
+                if (btop_parse_int (v, 0, INT_MAX, &row_cap) < 0) { builtin_error ("invalid row cap: %s", v); return EX_USAGE; }
+                break;
+            case 'w':
+                if (!v) width = 512;
+                else if (btop_parse_int (v, 1, 512, &width) < 0) { builtin_error ("invalid width: %s", v); return EX_USAGE; }
+                break;
+            case 'p': {
+                const char *q = v;
+                while (*q) {
+                    char *end; long pid = strtol (q, &end, 10);
+                    if (end == q || pid <= 0 || pid > INT_MAX || (*end && *end != ',') || npids == 64) {
+                        builtin_error ("invalid PID list: %s", v); return EX_USAGE;
+                    }
+                    pids[npids++] = (int) pid;
+                    q = *end ? end + 1 : end;
+                }
+                break;
+            }
+            case 'u': case 'U': {
+                char *end; long u = strtol (v, &end, 10);
+                if (end != v && !*end && u >= 0) uid_filter = (int) u;
+                else {
+                    struct passwd *pw = getpwnam (v);
+                    if (!pw) { builtin_error ("invalid user: %s", v); return EX_USAGE; }
+                    uid_filter = (int) pw->pw_uid;
+                }
+                break;
+            }
+            }
+            break;   /* the value used the rest of this word */
         }
-        builtin_error ("unknown option: %s", w);
-        return EX_USAGE;
+        list = list->next;
     }
 
     if (list) { builtin_error ("unexpected operand: %s", list->word->word); return EX_USAGE; }
+    if (delay_arg && btop_parse_delay (delay_arg, batch && !once, &delay_ms) < 0) {
+        builtin_error ("invalid delay (1..3599): %s", delay_arg);
+        return EX_USAGE;
+    }
     /* Previous samples belong only to this invocation, including failure paths. */
     btop_prev_n = 0; btop_prev_total = 0;
-    /* In batch mode -n caps rows; honor the tighter explicit -r cap. */
-    if (once && iters > 0 && (row_cap == 0 || iters < row_cap))
-        row_cap = iters;
-    int rc = once ? btop_run_once (sort, row_cap)
-                  : btop_run_interactive (delay, sort, iters, row_cap);
+    int rc;
+    if (once) {
+        /* --once: the bash-os snapshot layout; -n caps rows there. */
+        if (iters > 0 && (row_cap == 0 || iters < row_cap))
+            row_cap = iters;
+        rc = btop_run_once (sort, row_cap);
+    } else if (batch) {
+        if (!width) {
+            const char *cols = getenv ("COLUMNS");
+            if (!cols || btop_parse_int (cols, 1, 512, &width) < 0) width = 80;
+        }
+        rc = btop_run_batch (sort, iters, delay_ms > 0 ? delay_ms : 3000, row_cap, width,
+                             pids, npids, uid_filter);
+    } else {
+        rc = btop_run_interactive (delay_ms > 0 ? delay_ms / 1000 : 2, sort, iters, row_cap);
+    }
     free (btop_prev_tbl); btop_prev_tbl = NULL;
     btop_prev_n = 0; btop_prev_total = 0;
     return rc;
@@ -879,13 +1177,23 @@ top_builtin (WORD_LIST *list)
 char *top_doc[] = {
     "Interactive process viewer over /proc (top(1) shape).",
     "",
-    "    top [--once|-b] [-n COUNT] [-d SEC] [-o COL] [-r N]",
+    "    top [--once|-b] [-n COUNT] [-d SEC] [-o COL] [-r N] [-w [N]] [-p PID,...] [-u USER]",
     "",
-    "    --once / -b   one snapshot, write to stdout, exit (batch).",
-    "    -n COUNT      interactive redraws or batch row cap (0: unlimited).",
-    "    -d SEC        refresh interval (integer 1..3599 seconds, default 2).",
-    "    -o COL        initial sort: cpu | mem | pid | time (default cpu).",
+    "    -b, --batch   procps-ng batch output: the top/Tasks/%Cpu(s)/MiB Mem/",
+    "                  MiB Swap summary and PID USER PR NI VIRT RES SHR S",
+    "                  %CPU %MEM TIME+ COMMAND rows, every -d seconds (default",
+    "                  3), -n frames (default: until killed). Options cluster:",
+    "                  top -bn1.",
+    "    --once        one bash-os snapshot (the layout below), then exit.",
+    "    -n COUNT      interactive redraws, batch frames, --once row cap.",
+    "    -d SEC        refresh interval, 1..3599 seconds; -b also takes",
+    "                  fractions such as 0.5. Default 2, or 3 with -b.",
+    "    -o COL        initial sort: cpu | mem | pid | time (also %CPU, %MEM,",
+    "                  RES, PID, TIME+). Default cpu.",
     "    -r N          cap process rows shown (0: available terminal rows).",
+    "    -w [N]        batch line width (default COLUMNS, else 80; -w alone 512).",
+    "    -p PID,...    batch: only these processes.   -u/-U USER  batch: one user.",
+    "    -c -i -S -H   accepted for procps compatibility; no effect.",
     "",
     "Interactive keys:",
     "    q / ESC       exit.",

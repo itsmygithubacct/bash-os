@@ -13,6 +13,10 @@
  *
  * Exit codes: 0 (same), 1 (differ), 2 (error). Matches POSIX exactly.
  *
+ * The first-difference line reads "FILE1 FILE2 differ: byte N, line M",
+ * the wording of GNU diffutils 3.4 and later. Like GNU cmp, the C/POSIX
+ * message locale keeps POSIX's "char" instead of "byte".
+ *
  * Either FILE may be "-" to read stdin (but only one — POSIX).
  *
  * --- LICENSE ---
@@ -28,6 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <locale.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <inttypes.h>
@@ -35,6 +40,26 @@
 #include <sys/stat.h>
 
 #include "loadables.h"
+
+/* GNU diffutils says "byte", except in the C/POSIX message locale, where
+   POSIX requires "char". */
+static const char *
+bcm_unit_word (void)
+{
+    const char *loc = setlocale (LC_MESSAGES, NULL);
+    if (loc && strcmp (loc, "C") && strcmp (loc, "POSIX"))
+        return "byte";
+    /* musl reports LC_MESSAGES as "C" for C.UTF-8, which has no message
+       catalog there; glibc (whose cmp this follows) treats C.UTF-8 as a
+       real locale and says "byte". Look at the name the shell asked for. */
+    const char *names[] = { "LC_ALL", "LC_MESSAGES", "LANG" };
+    for (size_t i = 0; i < sizeof names / sizeof names[0]; i++) {
+        const char *v = get_string_value (names[i]);
+        if (v && *v)
+            return !strncmp (v, "C.", 2) ? "byte" : "char";
+    }
+    return "char";
+}
 
 static int
 bcm_parse_skip (const char *s, uint64_t *out)
@@ -293,8 +318,9 @@ cmp_builtin (WORD_LIST *list)
                             (unsigned) a, (unsigned) b);
                 } else {
                     if (!sflag)
-                        printf ("%s %s differ: char %" PRIu64 ", line %" PRIu64 "\n",
-                                paths[0], paths[1], off + (uint64_t) i, line);
+                        printf ("%s %s differ: %s %" PRIu64 ", line %" PRIu64 "\n",
+                                paths[0], paths[1], bcm_unit_word (),
+                                off + (uint64_t) i, line);
                     rc = 1;
                     goto done;
                 }
@@ -322,8 +348,9 @@ char *cmp_doc[] = {
     "Byte-compare two files.",
     "",
     "    bashcmp [-l|-s] [-n LIMIT] FILE1 FILE2 [SKIP1 [SKIP2]]",
-    "        Default: print 'FILE1 FILE2 differ: char N, line M' on first",
-    "        diff. Exit 0 (same), 1 (differ), 2 (error).",
+    "        Default: print 'FILE1 FILE2 differ: byte N, line M' on first",
+    "        diff ('char' instead of 'byte' in the C/POSIX locale, as GNU).",
+    "        Exit 0 (same), 1 (differ), 2 (error).",
     "    -l   list every diff as 'offset oct1 oct2'",
     "    -s   silent: only exit code",
     "    -n LIMIT, --bytes=LIMIT   compare at most LIMIT bytes",

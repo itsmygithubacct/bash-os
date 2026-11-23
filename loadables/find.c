@@ -3,16 +3,19 @@
  * Phase A of bash-os shell-ergonomics. Recursive walker + predicate
  * expression tree + cycle detection (via dev/inode tuple set).
  *
- * Supported predicates: -name, -iname, -path, -type, -size, -mtime,
- * -mmin, -amin, -cmin, -atime, -ctime, -perm, -user, -group,
- * -uid, -gid, -nouser, -nogroup, -regex, -iregex, -maxdepth,
- * -mindepth, -depth, -xdev/-mount, -prune, -empty, -newer.
+ * Supported predicates: -name, -iname, -path/-wholename, -ipath/-iwholename,
+ * -type, -size, -mtime, -mmin, -amin, -cmin, -atime, -ctime, -daystart,
+ * -perm, -user, -group, -uid, -gid, -nouser, -nogroup, -regex, -iregex,
+ * -regextype, -maxdepth, -mindepth, -depth, -xdev/-mount, -prune, -empty,
+ * -newer, -anewer, -cnewer, -newerXY (X: a/m/c, Y: a/m/c/t), -samefile,
+ * -inum, -links, -executable, -readable, -writable, -true, -false.
  * Operators: `-a` (implicit AND between predicates), `-o`, `!`,
  *           `(` `)`.
- * Actions: -print (default), -print0, -printf FORMAT, -delete,
+ * Actions: -print (default), -print0, -printf FORMAT, -fprint FILE,
+ *          -fprint0 FILE, -fprintf FILE FORMAT, -delete,
  *          -exec ... \;, -exec ... {} +, -execdir.
  *
- * Out of scope: -links, -inum, -anewer.
+ * Out of scope: birth times (-newer with X or Y of B).
  *
  * No static globals — per-call options live on the stack. Walker uses
  * a small (dev,ino) set to avoid symlink-loop infinite recursion.
@@ -43,8 +46,16 @@
 #include <time.h>
 #include <ctype.h>
 #include <limits.h>
+#include <sys/sysmacros.h>
 
 #include "loadables.h"
+#include "date-parse.h"
+
+/* Set when the expression parser has already reported its error, so the
+   generic "parse error" line is not added (GNU prints one diagnostic and
+   exits 1). */
+static int bf_reported;
+#define builtin_error(...) (bf_reported = 1, builtin_error (__VA_ARGS__))
 #include "command-run.h"
 
 /* Predicate kinds. */
@@ -57,7 +68,9 @@ typedef enum {
     BF_MMIN, BF_AMIN, BF_CMIN, BF_ATIME, BF_CTIME,
     BF_REGEX, BF_IREGEX,
     BF_PERM, BF_USER, BF_GROUP, BF_UID, BF_GID, BF_NOUSER, BF_NOGROUP,
-    BF_TRUE, BF_FALSE
+    BF_SAMEFILE, BF_INUM, BF_LINKS,
+    BF_TRUE, BF_FALSE,
+    BF_IPATH, BF_ACCESS
 } bf_kind;
 
 typedef struct bf_expr {
@@ -81,6 +94,8 @@ typedef struct bf_expr {
     /* For BF_REGEX / BF_IREGEX: compiled regex. */
     regex_t        re;
     int            re_ok;
+    /* -fprint/-fprint0/-fprintf: the output file (NULL = stdout). */
+    FILE          *out;
 } bf_expr;
 
 /* Symlink-traversal mode. POSIX find takes the first non-option arg as
@@ -112,6 +127,8 @@ typedef struct {
     int      postorder;        /* set by -depth or -delete */
     int      exit_status;      /* 1 if any search operation failed */
     const char *start_path;    /* current command-line starting point (depth 0); for -printf %P */
+    int      regex_bre;        /* -regextype posix-basic & co.: BRE, not ERE */
+    int      daystart;         /* -daystart: ages count from the end of today */
 } bf_ctx;
 
 typedef struct {
@@ -157,7 +174,65 @@ bf_free (bf_expr *e)
         free (e->pending_paths);
     }
     if (e->re_ok) regfree (&e->re);
+    if (e->out) fclose (e->out);
     free (e);
+}
+
+/* The date operand of -newerXt. GNU accepts any date(1) -d string; this
+   takes the common absolute forms: @EPOCH, YYYY-MM-DD[ T]HH:MM[:SS] with an
+   optional Z or numeric zone, YYYY-MM-DD, YYYY/MM/DD, and HH:MM[:SS]
+   (today). Local time unless a zone is given. */
+static int
+bf_parse_when (const char *s, time_t *out)
+{
+    while (*s == ' ' || *s == '\t') s++;
+    if (*s == '@') {
+        char *end;
+        errno = 0;
+        long long v = strtoll (s + 1, &end, 10);
+        if (errno || end == s + 1 || *end) return -1;
+        *out = (time_t) v;
+        return 0;
+    }
+    static const char *const fmts[] = {
+        "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M",
+        "%Y/%m/%d %H:%M:%S", "%Y/%m/%d %H:%M", "%Y-%m-%d", "%Y/%m/%d", "%Y%m%d",
+        "%H:%M:%S", "%H:%M", NULL
+    };
+    for (int i = 0; fmts[i]; i++) {
+        struct tm tm;
+        memset (&tm, 0, sizeof tm);
+        int time_only = fmts[i][1] == 'H';
+        if (time_only) {
+            time_t now = time (NULL);
+            localtime_r (&now, &tm);
+        }
+        char *e = strptime (s, fmts[i], &tm);
+        if (!e) continue;
+        while (*e == ' ') e++;
+        long off = 0;
+        int zoned = 0;
+        if (*e == 'Z' && !e[1]) zoned = 1;
+        else if ((*e == '+' || *e == '-') && isdigit ((unsigned char) e[1])) {
+            int sign = *e == '-' ? -1 : 1, hh = 0, mm = 0, n = 0;
+            const char *z = e + 1;
+            while (isdigit ((unsigned char) z[n]) && n < 4) n++;
+            if (n == 4 && !z[4]) { hh = (z[0]-'0')*10 + (z[1]-'0'); mm = (z[2]-'0')*10 + (z[3]-'0'); }
+            else if (n == 2 && z[2] == ':' && isdigit ((unsigned char) z[3]) && isdigit ((unsigned char) z[4]) && !z[5])
+                { hh = (z[0]-'0')*10 + (z[1]-'0'); mm = (z[3]-'0')*10 + (z[4]-'0'); }
+            else if ((n == 1 || n == 2) && !z[n]) { hh = atoi (z); }
+            else continue;
+            off = sign * (hh * 3600L + mm * 60L);
+            zoned = 1;
+        }
+        else if (*e) continue;
+        tm.tm_isdst = -1;
+        time_t t = zoned ? timegm (&tm) - off : mktime (&tm);
+        if (t == (time_t) -1 && !zoned) continue;
+        *out = t;
+        return 0;
+    }
+    return -1;
 }
 
 /* Parse N / +N / -N for size and mtime style predicates.
@@ -246,20 +321,49 @@ bf_parse_perm_mode (const char *s, mode_t *out)
 
 static bf_expr *bf_parse_or (bf_parse *p, bf_ctx *ctx);
 
+/* GNU -printf: the directive letters, and the strftime-style letters
+   that may follow %A, %C and %T (plus GNU's @, +, S, T and X with
+   fractional seconds). */
+#define BF_PRINTF_DIRECTIVES "%aAbcCdDfFgGhHiklmMnpPsStTuUyY"
+#define BF_PRINTF_TIMECHARS "@+aAbBcCdDeFgGhHIjklmMnprRsStTuUVwWxXyYzZ"
+
+/* Check FMT as GNU find does when it parses -printf: a lone trailing '%'
+   is an error (returns -1); an unknown directive or escape is only
+   warned about, and printed literally later. */
 static int
 bf_printf_validate (const char *fmt, const char **bad)
 {
     for (const char *s = fmt; *s; s++)
     {
-        if (*s == '%')
+        if (*s == '\\')
         {
+            if (!s[1]) break;
             s++;
-            if (!*s || !strchr ("%pPfhys", *s))
-            {
-                if (bad) *bad = s;
-                return -1;
-            }
+            if (!strchr ("abcfnrtv\\", *s) && !(*s >= '0' && *s <= '7'))
+                builtin_warning ("unrecognized escape `\\%c'", *s);
+            continue;
         }
+        if (*s != '%') continue;
+        const char *d = s + 1;
+        while (*d && strchr ("-+ #0", *d)) d++;
+        while (isdigit ((unsigned char) *d)) d++;
+        if (*d == '.') { d++; while (isdigit ((unsigned char) *d)) d++; }
+        if (!*d)
+        {
+            if (bad) *bad = s;
+            return -1;
+        }
+        if (!strchr (BF_PRINTF_DIRECTIVES, *d))
+            builtin_warning ("unrecognized format directive `%%%c'", *d);
+        else if (*d == 'A' || *d == 'C' || *d == 'T')
+        {
+            if (!d[1])
+                builtin_warning ("format directive `%%%c' should be followed by another character", *d);
+            else if (!strchr (BF_PRINTF_TIMECHARS, d[1]))
+                builtin_warning ("unrecognized format directive `%%%c%c'", *d, d[1]);
+            if (d[1]) d++;
+        }
+        s = d;
     }
     return 0;
 }
@@ -294,7 +398,17 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
 
     if      (!strcmp (t, "-name"))     { k = BF_NAME;     needs_arg = 1; }
     else if (!strcmp (t, "-iname"))    { k = BF_INAME;    needs_arg = 1; }
-    else if (!strcmp (t, "-path"))     { k = BF_PATH;     needs_arg = 1; }
+    else if (!strcmp (t, "-path") || !strcmp (t, "-wholename"))
+                                       { k = BF_PATH;     needs_arg = 1; }
+    else if (!strcmp (t, "-ipath") || !strcmp (t, "-iwholename"))
+                                       { k = BF_IPATH;    needs_arg = 1; }
+    else if (!strcmp (t, "-executable")) { k = BF_ACCESS; }
+    else if (!strcmp (t, "-readable")) { k = BF_ACCESS; }
+    else if (!strcmp (t, "-writable")) { k = BF_ACCESS; }
+    else if (!strcmp (t, "-true"))     { k = BF_TRUE; }
+    else if (!strcmp (t, "-false"))    { k = BF_FALSE; }
+    else if (!strcmp (t, "-daystart")) { k = BF_TRUE;     ctx->daystart = 1; }
+    else if (!strcmp (t, "-regextype")) { k = BF_TRUE;    needs_arg = 1; }
     else if (!strcmp (t, "-type"))     { k = BF_TYPE;     needs_arg = 1; }
     else if (!strcmp (t, "-size"))     { k = BF_SIZE;     needs_arg = 1; }
     else if (!strcmp (t, "-mtime"))    { k = BF_MTIME;    needs_arg = 1; }
@@ -305,7 +419,12 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
     else if (!strcmp (t, "-quit"))     { k = BF_QUIT; }
     else if (!strcmp (t, "-prune"))    { k = BF_PRUNE; }
     else if (!strcmp (t, "-empty"))    { k = BF_EMPTY; }
-    else if (!strcmp (t, "-newer"))    { k = BF_NEWER;    needs_arg = 1; }
+    else if (!strcmp (t, "-newer") || !strcmp (t, "-anewer") || !strcmp (t, "-cnewer") ||
+             (!strncmp (t, "-newer", 6) && strlen (t) == 8))
+                                       { k = BF_NEWER;    needs_arg = 1; }
+    else if (!strcmp (t, "-samefile")) { k = BF_SAMEFILE; needs_arg = 1; }
+    else if (!strcmp (t, "-inum"))     { k = BF_INUM;     needs_arg = 1; }
+    else if (!strcmp (t, "-links"))    { k = BF_LINKS;    needs_arg = 1; }
     else if (!strcmp (t, "-mmin"))     { k = BF_MMIN;     needs_arg = 1; }
     else if (!strcmp (t, "-amin"))     { k = BF_AMIN;     needs_arg = 1; }
     else if (!strcmp (t, "-cmin"))     { k = BF_CMIN;     needs_arg = 1; }
@@ -324,6 +443,35 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
     else if (!strcmp (t, "-print"))    { k = BF_PRINT;    is_action = 1; ctx->had_action = 1; }
     else if (!strcmp (t, "-print0"))   { k = BF_PRINT0;   is_action = 1; ctx->had_action = 1; ctx->print0 = 1; }
     else if (!strcmp (t, "-printf"))   { k = BF_PRINTF;   needs_arg = 1; is_action = 1; ctx->had_action = 1; }
+    else if (!strcmp (t, "-fprint") || !strcmp (t, "-fprint0") || !strcmp (t, "-fprintf"))
+    {
+        /* -fprint FILE, -fprint0 FILE, -fprintf FILE FORMAT: like -print,
+           -print0 and -printf, into FILE (created, or truncated, even when
+           nothing matches). */
+        int fmt_arg = !strcmp (t, "-fprintf");
+        bf_advance (p);
+        const char *file = bf_peek (p);
+        const char *fmt = file ? (bf_advance (p), bf_peek (p)) : NULL;
+        if (!file || (fmt_arg && !fmt))
+            { builtin_error ("missing argument to `%s'", t); return NULL; }
+        if (fmt_arg) {
+            const char *bad = NULL;
+            if (bf_printf_validate (fmt, &bad) != 0)
+                { builtin_error ("error: %% at end of format string"); return NULL; }
+            bf_advance (p);
+        }
+        bf_expr *e = bf_alloc (fmt_arg ? BF_PRINTF : !strcmp (t, "-fprint0") ? BF_PRINT0 : BF_PRINT);
+        if (!e) return NULL;
+        if (fmt_arg && !(e->sval = strdup (fmt))) { bf_free (e); return NULL; }
+        e->out = fopen (file, "w");
+        if (!e->out) {
+            builtin_error ("%s: %s", file, strerror (errno));
+            bf_free (e);
+            return NULL;
+        }
+        ctx->had_action = 1;
+        return e;
+    }
     else if (!strcmp (t, "-exec") || !strcmp (t, "-execdir"))
     {
         /* Consume tokens until `\;` (per-file) or `+` (batched). */
@@ -374,13 +522,34 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
 
     bf_expr *e = bf_alloc (k);
     if (!e) return NULL;
+    if (k == BF_ACCESS)
+        e->nval = t[1] == 'e' ? X_OK : t[1] == 'r' ? R_OK : W_OK;
+    if (k == BF_MTIME || k == BF_MMIN || k == BF_AMIN || k == BF_CMIN ||
+        k == BF_ATIME || k == BF_CTIME)
+    {
+        /* Ages count from the start of the search, or under -daystart
+           from the end of today (GNU: "from the beginning of today rather
+           than from 24 hours ago"). */
+        time_t now = time (NULL);
+        e->tval = now;
+        if (ctx->daystart) {
+            struct tm tm;
+            if (localtime_r (&now, &tm)) {
+                tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
+                tm.tm_mday += 1;
+                tm.tm_isdst = -1;
+                time_t end = mktime (&tm);
+                if (end != (time_t) -1) e->tval = end;
+            }
+        }
+    }
 
     if (needs_arg)
     {
         const char *arg = bf_peek (p);
         if (!arg) { bf_free (e); builtin_error ("predicate %s needs an argument", t); return NULL; }
         bf_advance (p);
-        if (k == BF_SIZE || k == BF_MTIME ||
+        if (k == BF_SIZE || k == BF_MTIME || k == BF_INUM || k == BF_LINKS ||
             k == BF_MMIN || k == BF_AMIN || k == BF_CMIN ||
             k == BF_ATIME || k == BF_CTIME)
         {
@@ -390,7 +559,16 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
                Time predicates keep nval in user units here; evaluation
                applies the minute/day bucket once so +N/-N match find-style
                truncated age semantics. */
-            if (k == BF_SIZE)
+            if (k == BF_INUM || k == BF_LINKS)
+            {
+                char *end;
+                const char *digits = arg + (arg[0] == '+' || arg[0] == '-');
+                errno = 0;
+                (void) strtoull (digits, &end, 10);
+                if (!*digits || *end || errno)
+                    { bf_free (e); builtin_error ("invalid argument `%s' to `%s'", arg, t); return NULL; }
+            }
+            else if (k == BF_SIZE)
             {
                 size_t l = strlen (arg);
                 char suf = (l > 0) ? arg[l - 1] : 'b';
@@ -408,7 +586,9 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
         }
         else if (k == BF_REGEX || k == BF_IREGEX)
         {
-            int flags = REG_EXTENDED | REG_NOSUB;
+            /* No REG_NOSUB: GNU -regex must match the whole path, which
+               the evaluator checks from the match offsets. */
+            int flags = ctx->regex_bre ? 0 : REG_EXTENDED;
             if (k == BF_IREGEX) flags |= REG_ICASE;
             if (regcomp (&e->re, arg, flags) != 0)
                 { bf_free (e); builtin_error ("bad regex: %s", arg); return NULL; }
@@ -443,6 +623,23 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
         {
             e->nval = atoll (arg);
         }
+        else if (!strcmp (t, "-regextype"))
+        {
+            /* GNU's names. The BRE family compiles as POSIX basic, the
+               rest (and the default, here) as POSIX extended. */
+            static const char *const bre[] = {
+                "posix-basic", "posix-minimal-basic", "ed", "grep", "sed", NULL
+            };
+            static const char *const ere[] = {
+                "findutils-default", "emacs", "posix-extended", "posix-egrep",
+                "egrep", "posix-awk", "awk", "gnu-awk", NULL
+            };
+            int found = 0;
+            for (int i = 0; bre[i]; i++) if (!strcmp (arg, bre[i])) { ctx->regex_bre = 1; found = 1; }
+            for (int i = 0; ere[i]; i++) if (!strcmp (arg, ere[i])) { ctx->regex_bre = 0; found = 1; }
+            if (!found)
+                { bf_free (e); builtin_error ("Unknown regular expression type '%s'; valid types are 'findutils-default', 'ed', 'emacs', 'gnu-awk', 'grep', 'posix-awk', 'awk', 'posix-basic', 'posix-egrep', 'egrep', 'posix-extended', 'posix-minimal-basic', 'sed'.", arg); return NULL; }
+        }
         else if (k == BF_MAXDEPTH || k == BF_MINDEPTH)
         {
             int d = atoi (arg);
@@ -451,17 +648,58 @@ bf_parse_primary (bf_parse *p, bf_ctx *ctx)
         }
         else if (k == BF_NEWER)
         {
+            /* -newer = -newermm, -anewer = -neweram, -cnewer = -newercm.
+               ncmp holds X, the candidate's time; Y picks the reference. */
+            char x = 'm', y = 'm';
+            if (!strcmp (t, "-anewer")) x = 'a';
+            else if (!strcmp (t, "-cnewer")) x = 'c';
+            else if (t[6]) { x = t[6]; y = t[7]; }
+            if (x == 'B' || y == 'B')
+                { bf_free (e); builtin_error ("%s: birth times are not supported", t); return NULL; }
+            if (!strchr ("amc", x) || !strchr ("amct", y))
+                { bf_free (e); builtin_error ("invalid predicate `%s'", t); return NULL; }
+            e->ncmp = x;
+            if (y == 't')
+            {
+                e->tnsec = 0;
+                if (bf_parse_when (arg, &e->tval) != 0)
+                {
+                    /* Anything else date -d reads ("Mar 5 2024", "1 hour ago"). */
+                    struct timespec now;
+                    time_t t;
+                    long ns;
+                    clock_gettime (CLOCK_REALTIME, &now);
+                    if (bd_parse_date (arg, &now, &t, &ns, 0) != 0)
+                        { bf_free (e); builtin_error ("I cannot figure out how to interpret `%s' as a date or time", arg); return NULL; }
+                    e->tval = t;
+                    e->tnsec = ns;
+                }
+            }
+            else
+            {
+                struct stat st;
+                int r = ctx->follow == BF_FOLLOW_NONE ? lstat (arg, &st) : stat (arg, &st);
+                if (r != 0)
+                    { bf_free (e); builtin_error ("'%s': %s", arg, strerror (errno)); return NULL; }
+                struct timespec ts = y == 'a' ? st.st_atim : y == 'c' ? st.st_ctim : st.st_mtim;
+                e->tval = ts.tv_sec;
+                e->tnsec = ts.tv_nsec;
+            }
+        }
+        else if (k == BF_SAMEFILE)
+        {
             struct stat st;
-            if (stat (arg, &st) != 0)
-                { bf_free (e); builtin_error ("-newer %s: %s", arg, strerror (errno)); return NULL; }
-            e->tval = st.st_mtim.tv_sec;
-            e->tnsec = st.st_mtim.tv_nsec;
+            int r = ctx->follow == BF_FOLLOW_NONE ? lstat (arg, &st) : stat (arg, &st);
+            if (r != 0)
+                { bf_free (e); builtin_error ("'%s': %s", arg, strerror (errno)); return NULL; }
+            e->nval = (long long) st.st_ino;
+            e->tval = (time_t) st.st_dev;
         }
         else if (k == BF_PRINTF)
         {
             const char *bad = NULL;
             if (bf_printf_validate (arg, &bad) != 0)
-                { bf_free (e); builtin_error ("-printf: unsupported format escape near: %s", bad ? bad : arg); return NULL; }
+                { bf_free (e); builtin_error ("error: %% at end of format string"); return NULL; }
             e->sval = strdup (arg);
         }
         else
@@ -814,26 +1052,119 @@ bf_type_char (mode_t m)
     return '?';
 }
 
+/* ls -l style mode string, e.g. "-rw-r--r--" (GNU -printf %M). */
 static void
-bf_put_dirname (const char *path)
+bf_mode_string (mode_t m, char *b)
 {
-    const char *slash = strrchr (path, '/');
-    if (!slash)
+    b[0] = S_ISDIR (m) ? 'd' : S_ISLNK (m) ? 'l' : S_ISCHR (m) ? 'c'
+         : S_ISBLK (m) ? 'b' : S_ISFIFO (m) ? 'p' : S_ISSOCK (m) ? 's' : '-';
+    b[1] = (m & S_IRUSR) ? 'r' : '-';
+    b[2] = (m & S_IWUSR) ? 'w' : '-';
+    b[3] = (m & S_ISUID) ? ((m & S_IXUSR) ? 's' : 'S') : ((m & S_IXUSR) ? 'x' : '-');
+    b[4] = (m & S_IRGRP) ? 'r' : '-';
+    b[5] = (m & S_IWGRP) ? 'w' : '-';
+    b[6] = (m & S_ISGID) ? ((m & S_IXGRP) ? 's' : 'S') : ((m & S_IXGRP) ? 'x' : '-');
+    b[7] = (m & S_IROTH) ? 'r' : '-';
+    b[8] = (m & S_IWOTH) ? 'w' : '-';
+    b[9] = (m & S_ISVTX) ? ((m & S_IXOTH) ? 't' : 'T') : ((m & S_IXOTH) ? 'x' : '-');
+    b[10] = '\0';
+}
+
+/* A time for %a/%c/%t (KIND 0) or %Ak/%Ck/%Tk.  GNU adds the fraction,
+   ten digits, to @ (epoch), + (date+time), S, T and X, and to the
+   ctime-like %a/%c/%t form. */
+static void
+bf_time_string (char kind, const struct timespec *ts, char *buf, size_t sz)
+{
+    struct tm tm;
+    time_t t = ts->tv_sec;
+    char frac[16], tmp[128];
+    snprintf (frac, sizeof frac, "%09ld0", (long) ts->tv_nsec);
+    if (kind == '@')
     {
-        fputs (".", stdout);
+        snprintf (buf, sz, "%lld.%s", (long long) t, frac);
         return;
     }
-    if (slash == path)
+    if (!localtime_r (&t, &tm))
     {
-        fputs ("/", stdout);
+        snprintf (buf, sz, "%lld", (long long) t);
         return;
     }
-    fwrite (path, 1, (size_t) (slash - path), stdout);
+    const char *f = NULL;
+    switch (kind)
+    {
+        case 0:   f = "%a %b %e %H:%M:%S"; break;
+        case '+': f = "%Y-%m-%d+%H:%M:%S"; break;
+        case 'S': f = "%S"; break;
+        case 'T': f = "%H:%M:%S"; break;
+        case 'X': f = "%X"; break;
+    }
+    if (f)
+    {
+        if (strftime (tmp, sizeof tmp, f, &tm) == 0) tmp[0] = '\0';
+        if (kind == 0)
+        {
+            char year[16];
+            strftime (year, sizeof year, "%Y", &tm);
+            snprintf (buf, sz, "%s.%s %s", tmp, frac, year);
+        }
+        else
+            snprintf (buf, sz, "%s.%s", tmp, frac);
+        return;
+    }
+    char one[3] = { '%', kind, '\0' };
+    if (strftime (buf, sz, one, &tm) == 0) buf[0] = '\0';
+}
+
+/* The file system type of DEV (GNU %F), from /proc/self/mountinfo. */
+static void
+bf_fstype (dev_t dev, char *buf, size_t sz)
+{
+    snprintf (buf, sz, "unknown");
+    FILE *f = fopen ("/proc/self/mountinfo", "r");
+    if (!f) return;
+    char *line = NULL;
+    size_t cap = 0;
+    while (getline (&line, &cap, f) > 0)
+    {
+        unsigned ma, mi;
+        if (sscanf (line, "%*s %*s %u:%u", &ma, &mi) != 2) continue;
+        if (ma != major (dev) || mi != minor (dev)) continue;
+        char *sep = strstr (line, " - ");
+        if (!sep) continue;
+        char type[64];
+        if (sscanf (sep + 3, "%63s", type) == 1)
+            snprintf (buf, sz, "%s", type);
+        break;
+    }
+    free (line);
+    fclose (f);
+}
+
+/* Print VAL under the directive's flags, width and precision (SPEC, the
+   text between '%' and the letter), as GNU prints its string fields:
+   only '-', the width and the precision matter. */
+static void
+bf_put_field (FILE *out, const char *spec, size_t speclen, const char *val)
+{
+    char fmt[64];
+    size_t n = 0, i = 0;
+    int left = 0;
+    for (; i < speclen && strchr ("-+ #0", spec[i]); i++)
+        if (spec[i] == '-') left = 1;
+    fmt[n++] = '%';
+    if (left) fmt[n++] = '-';
+    for (; i < speclen && n < sizeof fmt - 2; i++)
+        fmt[n++] = spec[i];
+    fmt[n++] = 's';
+    fmt[n] = '\0';
+    fprintf (out, fmt, val);
 }
 
 static int
-bf_printf_emit (bf_pinfo *p, const char *fmt)
+bf_printf_emit (bf_pinfo *p, const char *fmt, FILE *out)
 {
+    char buf[PATH_MAX + 64];
     for (const char *s = fmt; *s; s++)
     {
         if (*s == '\\')
@@ -841,74 +1172,180 @@ bf_printf_emit (bf_pinfo *p, const char *fmt)
             s++;
             switch (*s)
             {
-                case '\0':
-                    putchar ('\\');
-                    return 1;
-                case 'n':
-                    putchar ('\n');
-                    break;
-                case '0':
-                    putchar ('\0');
-                    break;
-                case '\\':
-                    putchar ('\\');
-                    break;
+                case '\0': putc ('\\', out); return 1;
+                case 'a': putc ('\a', out); break;
+                case 'b': putc ('\b', out); break;
+                case 'c': fflush (out); return 1;   /* stop this format */
+                case 'f': putc ('\f', out); break;
+                case 'n': putc ('\n', out); break;
+                case 'r': putc ('\r', out); break;
+                case 't': putc ('\t', out); break;
+                case 'v': putc ('\v', out); break;
+                case '\\': putc ('\\', out); break;
                 default:
-                    putchar ('\\');
-                    putchar (*s);
-                    break;
-            }
-            continue;
-        }
-        if (*s == '%')
-        {
-            s++;
-            switch (*s)
-            {
-                case '%':
-                    putchar ('%');
-                    break;
-                case 'p':
-                    fputs (p->path, stdout);
-                    break;
-                case 'P':
-                    /* Path with the command-line starting point removed
-                       (GNU find %P). For root ".", "./a/b" -> "a/b"; the
-                       start itself -> "". */
+                    if (*s >= '0' && *s <= '7')
                     {
-                        const char *pp = p->path;
-                        const char *rt = p->root;
-                        if (rt && *rt)
-                        {
-                            size_t rl = strlen (rt);
-                            if (strncmp (pp, rt, rl) == 0)
-                            {
-                                pp += rl;
-                                if (*pp == '/') pp++;
-                            }
-                        }
-                        fputs (pp, stdout);
+                        int v = 0, n = 0;
+                        while (n < 3 && *s >= '0' && *s <= '7') { v = v * 8 + (*s - '0'); s++; n++; }
+                        s--;
+                        putc (v, out);
+                    }
+                    else
+                    {
+                        putc ('\\', out);
+                        putc (*s, out);
                     }
                     break;
-                case 'f':
-                    fputs (p->base, stdout);
-                    break;
-                case 'h':
-                    bf_put_dirname (p->path);
-                    break;
-                case 'y':
-                    putchar (bf_type_char (p->st.st_mode));
-                    break;
-                case 's':
-                    printf ("%lld", (long long) p->st.st_size);
-                    break;
-                default:
-                    builtin_error ("-printf: unsupported format escape near: %c", *s ? *s : '%');
-                    return 0;
             }
             continue;
         }
-        putchar (*s);
+        if (*s != '%')
+        {
+            putc (*s, out);
+            continue;
+        }
+
+        const char *spec = s + 1, *d = spec;
+        while (*d && strchr ("-+ #0", *d)) d++;
+        while (isdigit ((unsigned char) *d)) d++;
+        if (*d == '.') { d++; while (isdigit ((unsigned char) *d)) d++; }
+        size_t speclen = (size_t) (d - spec);
+        const char *val = buf;
+        buf[0] = '\0';
+        switch (*d)
+        {
+            case '\0':
+                return 1;
+            case '%':
+                putc ('%', out);
+                s = d;
+                continue;
+            case 'p': val = p->path; break;
+            case 'P':
+                /* Path with the command-line starting point removed (GNU
+                   find %P). For root ".", "./a/b" -> "a/b"; the start
+                   itself -> "". */
+                val = p->path;
+                if (p->root && *p->root)
+                {
+                    size_t rl = strlen (p->root);
+                    if (strncmp (val, p->root, rl) == 0)
+                    {
+                        val += rl;
+                        if (*val == '/') val++;
+                    }
+                }
+                break;
+            case 'f': val = p->base; break;
+            case 'h':
+            {
+                const char *slash = strrchr (p->path, '/');
+                if (!slash) val = ".";
+                else if (slash == p->path) val = "/";
+                else snprintf (buf, sizeof buf, "%.*s", (int) (slash - p->path), p->path);
+                break;
+            }
+            case 'H': val = p->root ? p->root : ""; break;
+            case 'y': buf[0] = bf_type_char (p->st.st_mode); buf[1] = '\0'; break;
+            case 'Y':
+            {
+                struct stat t;
+                if (!S_ISLNK (p->st.st_mode)) buf[0] = bf_type_char (p->st.st_mode);
+                else if (stat (p->path, &t) == 0) buf[0] = bf_type_char (t.st_mode);
+                else buf[0] = errno == ELOOP ? 'L' : errno == ENOENT ? 'N' : '?';
+                buf[1] = '\0';
+                break;
+            }
+            case 's': snprintf (buf, sizeof buf, "%lld", (long long) p->st.st_size); break;
+            case 'b': snprintf (buf, sizeof buf, "%lld", (long long) p->st.st_blocks); break;
+            case 'k': snprintf (buf, sizeof buf, "%lld", ((long long) p->st.st_blocks + 1) / 2); break;
+            case 'd': snprintf (buf, sizeof buf, "%d", p->depth); break;
+            case 'D': snprintf (buf, sizeof buf, "%llu", (unsigned long long) p->st.st_dev); break;
+            case 'i': snprintf (buf, sizeof buf, "%llu", (unsigned long long) p->st.st_ino); break;
+            case 'n': snprintf (buf, sizeof buf, "%llu", (unsigned long long) p->st.st_nlink); break;
+            case 'U': snprintf (buf, sizeof buf, "%lu", (unsigned long) p->st.st_uid); break;
+            case 'G': snprintf (buf, sizeof buf, "%lu", (unsigned long) p->st.st_gid); break;
+            case 'u':
+            {
+                struct passwd *pw = getpwuid (p->st.st_uid);
+                if (pw) snprintf (buf, sizeof buf, "%s", pw->pw_name);
+                else snprintf (buf, sizeof buf, "%lu", (unsigned long) p->st.st_uid);
+                break;
+            }
+            case 'g':
+            {
+                struct group *gr = getgrgid (p->st.st_gid);
+                if (gr) snprintf (buf, sizeof buf, "%s", gr->gr_name);
+                else snprintf (buf, sizeof buf, "%lu", (unsigned long) p->st.st_gid);
+                break;
+            }
+            case 'm':
+            {
+                /* Octal permission bits; the flags work as for printf %o. */
+                char ofmt[64];
+                size_t n = 0;
+                ofmt[n++] = '%';
+                for (size_t i = 0; i < speclen && n < sizeof ofmt - 2; i++)
+                    if (spec[i] != '+' && spec[i] != ' ') ofmt[n++] = spec[i];
+                ofmt[n++] = 'o';
+                ofmt[n] = '\0';
+                fprintf (out, ofmt, (unsigned) (p->st.st_mode & 07777));
+                s = d;
+                continue;
+            }
+            case 'M': bf_mode_string (p->st.st_mode, buf); break;
+            case 'l':
+            {
+                if (S_ISLNK (p->st.st_mode))
+                {
+                    ssize_t n = readlink (p->path, buf, sizeof buf - 1);
+                    buf[n < 0 ? 0 : n] = '\0';
+                }
+                break;
+            }
+            case 'S':
+            {
+                double v = p->st.st_size ? (512.0 * (double) p->st.st_blocks) / (double) p->st.st_size : 1.0;
+                snprintf (buf, sizeof buf, "%g", v);
+                break;
+            }
+            case 'F': bf_fstype (p->st.st_dev, buf, sizeof buf); break;
+            case 'a': bf_time_string (0, &p->st.st_atim, buf, sizeof buf); break;
+            case 'c': bf_time_string (0, &p->st.st_ctim, buf, sizeof buf); break;
+            case 't': bf_time_string (0, &p->st.st_mtim, buf, sizeof buf); break;
+            case 'A':
+            case 'C':
+            case 'T':
+            {
+                const struct timespec *ts = *d == 'A' ? &p->st.st_atim
+                                          : *d == 'C' ? &p->st.st_ctim : &p->st.st_mtim;
+                if (!d[1])
+                {
+                    fprintf (out, "%%%c", *d);
+                    return 1;
+                }
+                if (!strchr (BF_PRINTF_TIMECHARS, d[1]))
+                {
+                    /* GNU prints an unknown time letter as %<letter>. */
+                    fprintf (out, "%%%c", d[1]);
+                    s = d + 1;
+                    continue;
+                }
+                bf_time_string (d[1], ts, buf, sizeof buf);
+                d++;
+                break;
+            }
+            default:
+                /* Unknown directive: warned about at parse time; printed
+                   literally, as GNU does. */
+                fputc ('%', out);
+                fwrite (spec, 1, speclen, out);
+                fputc (*d, out);
+                s = d;
+                continue;
+        }
+        bf_put_field (out, spec, speclen, val);
+        s = d;
     }
     return 1;
 }
@@ -932,6 +1369,10 @@ bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
             return bf_match_glob (e->sval, p->base, 1);
         case BF_PATH:
             return fnmatch (e->sval, p->path, 0) == 0;
+        case BF_IPATH:
+            return fnmatch (e->sval, p->path, FNM_CASEFOLD) == 0;
+        case BF_ACCESS:
+            return access (p->path, (int) e->nval) == 0;
         case BF_TYPE:
         {
             char want = e->sval[0];
@@ -964,7 +1405,7 @@ bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
                comparison; case 1 (+N "older than N days") uses
                age >= (N+1)*bucket because truncation makes
                int(age/bucket) > N equivalent to age >= (N+1)*bucket. */
-            time_t age = time (NULL) - p->st.st_mtime;
+            time_t age = e->tval - p->st.st_mtime;
             long long threshold = (long long) e->nval * 86400;
             switch (e->ncmp)
             {
@@ -976,13 +1417,26 @@ bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
             return 0;
         }
         case BF_NEWER:
-            /* GNU find compares full-precision mtimes: a file is newer iff
-               its mtime is strictly greater than the reference's, tie-broken
+        {
+            /* GNU find compares full-precision times: a file is newer iff
+               its time is strictly greater than the reference's, tie-broken
                by nanoseconds. Second-granularity (st_mtime) wrongly treats
                sub-second-newer files as not newer. */
-            return p->st.st_mtim.tv_sec > e->tval
-                   || (p->st.st_mtim.tv_sec == e->tval
-                       && p->st.st_mtim.tv_nsec > e->tnsec);
+            struct timespec ts = e->ncmp == 'a' ? p->st.st_atim
+                               : e->ncmp == 'c' ? p->st.st_ctim : p->st.st_mtim;
+            return ts.tv_sec > e->tval
+                   || (ts.tv_sec == e->tval && ts.tv_nsec > e->tnsec);
+        }
+        case BF_SAMEFILE:
+            return (long long) p->st.st_ino == e->nval && p->st.st_dev == (dev_t) e->tval;
+        case BF_INUM:
+        case BF_LINKS:
+        {
+            unsigned long long v = e->kind == BF_INUM ? (unsigned long long) p->st.st_ino
+                                                      : (unsigned long long) p->st.st_nlink;
+            unsigned long long n = (unsigned long long) e->nval;
+            return e->ncmp > 0 ? v > n : e->ncmp < 0 ? v < n : v == n;
+        }
         case BF_MMIN:
         case BF_AMIN:
         case BF_CMIN:
@@ -991,7 +1445,7 @@ bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
         {
             /* GNU find: operand is in MINUTES for -*min and DAYS for
                -*time. Same truncation rule as BF_MTIME above. */
-            time_t now = time (NULL);
+            time_t now = e->tval;
             time_t when = (e->kind == BF_AMIN || e->kind == BF_ATIME)
                               ? p->st.st_atime
                           : (e->kind == BF_CMIN || e->kind == BF_CTIME)
@@ -1012,8 +1466,12 @@ bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
         }
         case BF_REGEX:
         case BF_IREGEX:
+        {
+            regmatch_t m;
             if (!e->re_ok) return 0;
-            return regexec (&e->re, p->path, 0, NULL, 0) == 0;
+            return regexec (&e->re, p->path, 1, &m, 0) == 0
+                   && m.rm_so == 0 && (size_t) m.rm_eo == strlen (p->path);
+        }
         case BF_PERM:
         {
             mode_t m = p->st.st_mode & 07777;
@@ -1099,13 +1557,15 @@ bf_eval (bf_expr *e, bf_pinfo *p, bf_ctx *ctx)
                 ctx->pruned = 1;
             return 1;       /* always true */
         case BF_PRINT:
-            fputs (p->path, stdout); putchar ('\n');
-            return 1;
         case BF_PRINT0:
-            fputs (p->path, stdout); putchar ('\0');
+        {
+            FILE *o = e->out ? e->out : stdout;
+            fputs (p->path, o);
+            putc (e->kind == BF_PRINT0 ? '\0' : '\n', o);
             return 1;
+        }
         case BF_PRINTF:
-            return bf_printf_emit (p, e->sval);
+            return bf_printf_emit (p, e->sval, e->out ? e->out : stdout);
         case BF_EXEC:
             if (e->exec_batch)
                 return bf_exec_batch_append (e, p->path, ctx);
@@ -1313,9 +1773,14 @@ bf_walk (const char *path, int depth, bf_ctx *ctx, bf_seen *seen)
 int
 find_builtin (WORD_LIST *list)
 {
+    bf_reported = 0;
     /* Convert WORD_LIST → argv. */
     int argc = 0;
     for (WORD_LIST *p = list; p; p = p->next) argc++;
+    if (list && !strcmp (list->word->word, "--help")) {
+        builtin_help ();
+        return EXECUTION_SUCCESS;
+    }
 	if (argc < 1)
 	{
 	    builtin_usage ();
@@ -1372,11 +1837,13 @@ find_builtin (WORD_LIST *list)
         if (!ctx.root || pp.pos != pp.argc)
 	        {
 	            bf_free (ctx.root);
-	            const char *unparsed = (pp.pos < pp.argc) ? pp.argv[pp.pos] : "(end of args)";
-	            builtin_error ("parse error in find expression at: %s", unparsed);
-	            builtin_usage ();
+	            if (!bf_reported) {
+	                const char *unparsed = (pp.pos < pp.argc) ? pp.argv[pp.pos] : "(end of args)";
+	                builtin_error ("parse error in find expression at: %s", unparsed);
+	                builtin_usage ();
+	            }
 	            free (argv);
-	            return EX_USAGE;
+	            return EXECUTION_FAILURE;
 	        }
     }
 
@@ -1410,20 +1877,25 @@ char *find_doc[] = {
     "Predicates:",
     "    -name PAT        glob match against basename",
     "    -iname PAT       case-insensitive -name",
-    "    -path PAT        glob match against full path",
+    "    -path PAT        glob match against full path (also -wholename)",
+    "    -ipath PAT       case-insensitive -path (also -iwholename)",
     "    -type X          X is one of f d l c b p s",
     "    -size N[ckM]     size compare; +N larger / -N smaller",
     "    -mtime N         modified N days ago; +N older / -N newer",
     "    -mmin N          modified N minutes ago; +N older / -N newer",
     "    -amin/-cmin N    access/change time in minutes",
     "    -atime/-ctime N  access/change time in days",
+    "    -daystart        later -*min/-*time ages count from the end of today",
     "    -perm MODE       exact mode; -MODE all bits; /MODE any bit",
     "                     MODE may be octal or symbolic (u+x,g-w,a=r)",
     "    -user/-group N   owner/group name",
     "    -uid/-gid N      numeric owner/group id",
     "    -nouser/-nogroup owner/group id has no passwd/group entry",
-    "    -regex PAT       POSIX ERE match against full path",
+    "    -regex PAT       regex that must match the whole path (ERE by default)",
     "    -iregex PAT      case-insensitive -regex",
+    "    -regextype TYPE  posix-basic, posix-minimal-basic, ed, grep, sed (BRE);",
+    "                     posix-extended, posix-egrep, egrep, awk, posix-awk,",
+    "                     gnu-awk, emacs, findutils-default (ERE)",
     "    -maxdepth N      limit recursion",
     "    -mindepth N      skip output until depth >= N",
     "    -depth           evaluate each directory after its contents (always true)",
@@ -1432,17 +1904,27 @@ char *find_doc[] = {
     "    -prune           skip subtree below this point unless -depth or -delete is used",
     "    -empty           zero-size files / empty directories",
     "    -newer FILE      modified after FILE's mtime",
+    "    -anewer/-cnewer FILE, -newerXY REF   X (a, m, c) of the file is newer",
+    "                     than Y (a, m, c of REF, or t: REF is a date)",
+    "    -samefile FILE   same inode as FILE;  -inum [+-]N;  -links [+-]N",
+    "    -executable, -readable, -writable   access(2) allows it",
+    "    -true, -false    always true / always false",
     "Operators: -a (implicit), -o, ! / -not, ( )",
     "Actions:",
     "    -print           one path per line (default)",
     "    -print0          NUL-separated paths (pipe to xargs -0)",
-    "    -printf FORMAT   bounded GNU formatter: %% \\n \\0 \\\\ %p %f %h %y %s",
+    "    -printf FORMAT   GNU directives %% %a %Ak %b %c %Ck %d %D %f %F %g %G %h",
+    "                     %H %i %k %l %m %M %n %p %P %s %S %t %Tk %u %U %y %Y with",
+    "                     [-][WIDTH][.PREC] (k: strftime letter or @ + S T X);",
+    "                     escapes \\a \\b \\c \\f \\n \\r \\t \\v \\\\ \\NNN",
+    "    -fprint FILE, -fprint0 FILE, -fprintf FILE FORMAT",
+    "                     -print, -print0, -printf into FILE",
     "    -delete          depth-first unlink/rmdir matched paths",
     "    -exec CMD {} \\;  per-file fork+exec (`{}` substituted)",
     "    -exec CMD {} +   batched: queue paths up to ARG_MAX, then exec",
     "    -execdir CMD ... like -exec but cwd is the file's parent dir",
     "",
-    "Out of scope: -links, -inum, -anewer, full GNU -printf formatting.",
+    "Out of scope: birth times (-newerB*), SELinux %Z, emacs regex syntax.",
     (char *)NULL
 };
 

@@ -64,6 +64,8 @@
 #include <time.h>
 #include <stdarg.h>
 #include <fnmatch.h>
+#include <wchar.h>
+#include <wctype.h>
 
 #include "loadables.h"
 
@@ -796,16 +798,59 @@ restyle:
 
             default:
             {
-                /* Unibyte C locale: a single byte; printable iff graphic
-                   ASCII (bl_qmark_byte is the complement).  */
-                int printable = !bl_qmark_byte (c);
-                c_and_shell_quote_compat = printable;
-                if (backslash_escapes && !printable)
+                /* Unibyte locale: a single byte, printable iff graphic
+                   ASCII (bl_qmark_byte is the complement).  Multibyte
+                   locale: one character, printable per iswprint, copied
+                   whole (gnulib quotearg), so a printable "é" is not
+                   escaped by -b.  */
+                size_t m = 1;
+                int printable;
+                if (MB_CUR_MAX == 1 || c < 0x80)
+                    printable = !bl_qmark_byte (c);
+                else
                 {
-                    BL_START_ESC ();
-                    bl_buf_ch (b, (char) ('0' + (c >> 6)));
-                    bl_buf_ch (b, (char) ('0' + ((c >> 3) & 7)));
-                    c = (unsigned char) ('0' + (c & 7));
+                    mbstate_t mbs;
+                    wchar_t w;
+                    size_t left = strlen (arg + i);
+                    memset (&mbs, 0, sizeof mbs);
+                    size_t bytes = mbrtowc (&w, arg + i, left, &mbs);
+                    if (bytes == 0 || bytes == (size_t) -1)
+                        printable = 0;
+                    else if (bytes == (size_t) -2)
+                    {
+                        m = left;
+                        printable = 0;
+                    }
+                    else
+                    {
+                        m = bytes;
+                        printable = iswprint ((wint_t) w) != 0;
+                    }
+                }
+                c_and_shell_quote_compat = printable;
+                if (m > 1 || (backslash_escapes && !printable))
+                {
+                    size_t ilim = i + m;
+                    for (;;)
+                    {
+                        if (backslash_escapes && !printable)
+                        {
+                            BL_START_ESC ();
+                            bl_buf_ch (b, (char) ('0' + (c >> 6)));
+                            bl_buf_ch (b, (char) ('0' + ((c >> 3) & 7)));
+                            c = (unsigned char) ('0' + (c & 7));
+                        }
+                        else if (is_right_quote)
+                        {
+                            bl_buf_ch (b, '\\');
+                            is_right_quote = 0;
+                        }
+                        if (ilim <= i + 1)
+                            break;
+                        BL_END_ESC ();
+                        bl_buf_ch (b, (char) c);
+                        c = (unsigned char) arg[++i];
+                    }
                     goto store_c;
                 }
                 break;
@@ -863,6 +908,72 @@ force_outer_quoting_style:
 
 /* ================ quote_name layer (ls.c shape) ================ */
 
+/* Display width of BUF[0..LEN) in a multibyte locale (gnulib mbsnwidth
+   with MBSW_ACCEPT_INVALID): wcwidth per character, an invalid byte 1,
+   a control character 0.  (GNU ls lays out names holding raw control
+   characters, i.e. without -q, with an overflowed width; that quirk is
+   not reproduced.)  */
+static size_t
+bl_mb_width (const char *buf, size_t len)
+{
+    size_t w = 0;
+    mbstate_t mbs;
+    memset (&mbs, 0, sizeof mbs);
+    for (size_t i = 0; i < len; )
+    {
+        wchar_t wc;
+        size_t bytes = mbrtowc (&wc, buf + i, len - i, &mbs);
+        if (bytes == (size_t) -1 || bytes == (size_t) -2)
+        {
+            memset (&mbs, 0, sizeof mbs);
+            w++;
+            i++;
+            continue;
+        }
+        if (bytes == 0) bytes = 1;
+        int cw = wcwidth (wc);
+        if (cw > 0) w += (size_t) cw;
+        else if (cw < 0 && !iswcntrl ((wint_t) wc)) w++;
+        i += bytes;
+    }
+    return w;
+}
+
+/* -q in a multibyte locale (coreutils quote_name_buf): each nonprintable
+   character, or invalid byte, becomes one '?'.  Rewrites B in place. */
+static void
+bl_mb_qmark (bl_buf *b)
+{
+    size_t r = 0, q = 0, len = b->len;
+    char *p = b->p;
+    while (r < len)
+    {
+        unsigned char ch = (unsigned char) p[r];
+        if (ch < 0x80)
+        {
+            p[q++] = bl_qmark_byte (ch) ? '?' : (char) ch;
+            r++;
+            continue;
+        }
+        mbstate_t mbs;
+        wchar_t wc;
+        memset (&mbs, 0, sizeof mbs);
+        size_t bytes = mbrtowc (&wc, p + r, len - r, &mbs);
+        if (bytes == (size_t) -1 || bytes == 0) { p[q++] = '?'; r++; continue; }
+        if (bytes == (size_t) -2) { p[q++] = '?'; r = len; continue; }
+        if (iswprint ((wint_t) wc))
+        {
+            memmove (p + q, p + r, bytes);
+            q += bytes;
+        }
+        else
+            p[q++] = '?';
+        r += bytes;
+    }
+    b->len = q;
+    p[q] = '\0';
+}
+
 /* Quote NAME into B per the filename quoting options.  Returns the
    byte length, sets *QUOTEDP, and (when WIDTHP) the display width.
    Mirrors coreutils quote_name_buf for the unibyte case.  */
@@ -896,15 +1007,23 @@ bl_quote_name_buf (ls_opts *o, bl_buf *b, const char *name,
 
     if (needs_further_quoting && b->p)
     {
-        for (size_t i = 0; i < len; i++)
-            if (bl_qmark_byte ((unsigned char) b->p[i]))
-                b->p[i] = '?';
+        if (MB_CUR_MAX > 1)
+        {
+            bl_mb_qmark (b);
+            len = b->len;
+        }
+        else
+            for (size_t i = 0; i < len; i++)
+                if (bl_qmark_byte ((unsigned char) b->p[i]))
+                    b->p[i] = '?';
     }
 
     if (widthp)
     {
         size_t w = 0;
-        if (needs_further_quoting)
+        if (MB_CUR_MAX > 1 && b->p)
+            w = bl_mb_width (b->p, len);
+        else if (needs_further_quoting)
             w = len;
         else if (b->p)
             for (size_t i = 0; i < len; i++)
@@ -3476,11 +3595,12 @@ bl_calculate_columns (ls_opts *o, int by_columns, size_t **col_arr_out)
         {
             ci[i].col_arr = bp;
             bp += i + 1;
+            /* coreutils init_column_info: every column starts at the
+               minimum width, the last one included.  */
             ci[i].valid_len = 1;
-            ci[i].line_len = i * BL_MIN_COLUMN_WIDTH + 1;
-            for (size_t j = 0; j < i; j++)
+            ci[i].line_len = (i + 1) * BL_MIN_COLUMN_WIDTH;
+            for (size_t j = 0; j <= i; j++)
                 ci[i].col_arr[j] = BL_MIN_COLUMN_WIDTH;
-            ci[i].col_arr[i] = 1;
         }
     }
 
@@ -3499,7 +3619,8 @@ bl_calculate_columns (ls_opts *o, int by_columns, size_t **col_arr_out)
                 {
                     ci[i].line_len += real_length - ci[i].col_arr[idx];
                     ci[i].col_arr[idx] = real_length;
-                    ci[i].valid_len = ci[i].line_len <= o->line_length;
+                    /* GNU: a layout must stay narrower than the line. */
+                    ci[i].valid_len = ci[i].line_len < o->line_length;
                 }
             }
         }
@@ -3610,10 +3731,10 @@ bl_print_with_separator (ls_opts *o, char sep)
         if (filesno != 0)
         {
             char separator;
-            size_t next_pos =
-                2 + (sep == ',' && filesno < o->n_used - 1) + pos + len;
+            /* coreutils print_with_separator: pos + len + 2 < width.  */
+            size_t next_pos = 2 + pos + len;
 
-            if (!o->line_length || next_pos <= o->line_length)
+            if (!o->line_length || next_pos < o->line_length)
             {
                 pos += 2;
                 separator = ' ';

@@ -11,7 +11,8 @@
     "stdin classification, brief output, path labels, --, and directories",
     "Missing-path status and diagnostic stream behavior",
     "Independent concise classifier format contract",
-    "Explicit -E, brief combinations, continuation, no-operand usage and ordinary ENOTDIR errors"
+    "Explicit -E, brief combinations, continuation, no-operand usage and ordinary ENOTDIR errors",
+    "Guest pass 3 G51: -L/-h, -i/--mime, --mime-type, --mime-encoding, symlink targets, libmagic text encodings and line-terminator notes, PNG/GIF/gzip/bzip2/xz headers, scripts, HTML and XML."
   ],
   "exclusions": [
     "The classifier's full curated signature catalog is not exhaustively enumerated; the suite samples broad fallback, document, and binary paths.",
@@ -185,10 +186,10 @@
     {
       "id": "independent_description_contract",
       "kind": "contract",
-      "purpose": "The documented small classifier keeps its concise shebang, HTML and Netpbm descriptions for ordinary valid files. These intentional descriptions are not full libmagic output.",
+      "purpose": "The classifier gives file 5.46's shebang and HTML descriptions with the text encoding (checked against GNU in regressions/file.json) and keeps its concise Netpbm description, which is not full libmagic output.",
       "script": "printf '#!/bin/sh\\nprintf hello\\n' > sample.sh\nprintf '<!doctype html><html><body>hello</body></html>\\n' > page.html\nprintf 'P2\\n1 1\\n255\\n0\\n' > image.pgm\nfile -b sample.sh page.html image.pgm",
       "expected_status": 0,
-      "stdout": "POSIX shell script\nHTML document\nNetpbm image data\n",
+      "stdout": "POSIX shell script, ASCII text executable\nHTML document, ASCII text\nNetpbm image data\n",
       "stderr": "empty"
     },
     {
@@ -254,6 +255,114 @@
       ],
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "symlink-targets",
+      "kind": "parity",
+      "purpose": "G51: a symbolic link is described with its target, a dangling one as broken; -h keeps that default.",
+      "script": "touch t\nln -s t l\nln -s nowhere broken\nfile l broken\nfile -h l",
+      "requires": [
+        "file",
+        "touch",
+        "ln"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "dereference",
+      "kind": "parity",
+      "purpose": "G51: -L and --dereference describe what a link points to; a dangling link then cannot be opened.",
+      "script": "touch t\nln -s t l\nln -s nowhere broken\nmkdir d\nln -s d ld\nfile -L l broken ld\nfile --dereference l\nfile -bL l",
+      "requires": [
+        "file",
+        "touch",
+        "ln",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "mime-options",
+      "kind": "parity",
+      "purpose": "G51: -i/--mime prints type and charset, --mime-type and --mime-encoding one of them, for text, empty, directory, link, PNG and data inputs.",
+      "script": "echo hi > f\nprintf 'h\\303\\251\\n' > u\nprintf 'h\\351\\n' > l1\n: > e\nmkdir d\nln -s f lk\nprintf '\\211PNG\\r\\n\\032\\n\\0\\0\\0\\rIHDR\\0\\0\\0\\1\\0\\0\\0\\1\\010\\002\\0\\0\\0' > img\nprintf '\\1\\2\\3' > bin\nprintf '#!/bin/sh\\necho\\n' > s\nfile -i f u l1 e d lk img bin s\nfile --mime f\nfile --mime-type f img s d\nfile --mime-encoding f u l1 img\nfile -bi f",
+      "requires": [
+        "file",
+        "mkdir",
+        "ln"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "line-terminators",
+      "kind": "parity",
+      "purpose": "G51: text notes CRLF, CR, mixed CRLF/LF and missing line terminators, very long lines, escape sequences and overstriking.",
+      "script": "printf 'a\\r\\n' > crlf\nprintf 'a\\rb\\r' > cr\nprintf 'a\\r\\nb\\n' > mixed\nprintf 'abc' > nonl\nprintf '%0301d\\n' 0 > long\nprintf '\\033[1m\\n' > esc\nprintf 'x\\010y\\n' > bs\nfile crlf cr mixed nonl long esc bs",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "text-encodings",
+      "kind": "parity",
+      "purpose": "G51: ASCII, UTF-8, UTF-8 with BOM, ISO-8859 and non-ISO extended-ASCII text are named as file 5.46 names them.",
+      "script": "printf 'hi\\n' > a\nprintf 'h\\303\\251\\n' > u\nprintf '\\357\\273\\277hi\\r\\n' > bom\nprintf 'h\\351\\n' > latin\nprintf '\\200\\201x\\n' > ext\nfile -b a u bom latin ext",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "png-gif-headers",
+      "kind": "parity",
+      "purpose": "G51: PNG and GIF descriptions carry the header's size, depth, colour type and interlace, or version.",
+      "script": "printf '\\211PNG\\r\\n\\032\\n\\0\\0\\0\\rIHDR\\0\\0\\0\\1\\0\\0\\0\\1\\010\\002\\0\\0\\0' > rgb\nprintf '\\211PNG\\r\\n\\032\\n\\0\\0\\0\\rIHDR\\0\\0\\1\\0\\0\\0\\0\\040\\010\\006\\0\\0\\1' > rgba\nprintf '\\211PNG\\r\\n\\032\\n\\0\\0\\0\\rIHDR\\0\\0\\0\\2\\0\\0\\0\\3\\020\\0\\0\\0\\0' > gray\nprintf '\\211PNG\\r\\n\\032\\n\\0\\0\\0\\rIHDR\\0\\0\\0\\2\\0\\0\\0\\3\\004\\003\\0\\0\\0' > map\nprintf 'GIF89a\\001\\0\\001\\0\\0\\0\\0' > gif\nfile rgb rgba gray map gif",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "scripts-and-markup",
+      "kind": "parity",
+      "purpose": "G51: #! scripts, HTML and XML get file 5.46's names with the text encoding and notes.",
+      "script": "printf '#!/bin/sh\\r\\necho\\r\\n' > s\nprintf '#!/usr/bin/env bash\\n' > b\nprintf '#!/usr/bin/env python3\\n' > p\nprintf '#!/usr/bin/perl -w\\n' > pl\nprintf '#!/usr/bin/foo\\n' > g\nprintf '#!/usr/bin/env sh\\n' > es\nprintf '<html>\\r\\n' > h\nprintf '<?xml version=\"1.0\"?>\\n<a>\\303\\251</a>\\n' > x\nfile -b s b p pl g es h x",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "compressed-headers",
+      "kind": "parity",
+      "purpose": "G51: gzip (name, time, flags, OS, size), bzip2 block size and xz checksum details.",
+      "script": "export LC_ALL=C TZ=UTC\nprintf '\\037\\213\\010\\010\\001\\0\\0\\0\\002\\003ab\\0xyz\\006\\0\\0\\0' > a.gz\nprintf '\\037\\213\\010\\0\\0\\0\\0\\0\\004\\0xxxx\\001\\0\\0\\0' > b.gz\nprintf 'BZh9' > c.bz2\nprintf '\\3757zXZ\\0\\0\\004' > d.xz\nfile -b a.gz b.gz c.bz2 d.xz",
+      "requires": [
+        "file"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "special-files",
+      "kind": "parity",
+      "purpose": "G51: FIFO naming and MIME types for directory, FIFO and empty files.",
+      "script": "mkfifo p\nmkdir d\n: > e\nfile p d e\nfile -i p d e",
+      "requires": [
+        "file",
+        "mkfifo",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

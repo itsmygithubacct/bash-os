@@ -38,13 +38,8 @@ class DiffSafety(unittest.TestCase):
         result = self.shell('diff "$@" a b', *mode)
         self.assertEqual(result.returncode, reference.returncode, result.stderr)
         self.assertEqual(result.stderr, reference.stderr)
-        actual, expected = result.stdout, reference.stdout
-        if any("u" in option[1:] for option in mode) and actual.startswith(b"--- "):
-            # The builtin's headers intentionally omit filesystem timestamps.
-            self.assertEqual(actual.split(b"\n")[:2], [b"--- a", b"+++ b"])
-            actual = b"\n".join(actual.split(b"\n")[2:])
-            expected = b"\n".join(expected.split(b"\n")[2:])
-        self.assertEqual(actual, expected)
+        # Unified headers carry each file's modification time, as GNU's do.
+        self.assertEqual(result.stdout, reference.stdout)
 
     def test_edit_addresses_after_earlier_insertions_and_deletions(self):
         records = [f"line {i}\n".encode() for i in range(6)]
@@ -140,7 +135,8 @@ class DiffSafety(unittest.TestCase):
                             'diff . a || exit 1; '
                             'diff a a || exit 1; done; printf alive')
         self.assertEqual((result.returncode, result.stdout, result.stderr), (0, b"alive", b""))
-        for args in ((), ("a",), ("a", "a", "a"), ("-Z", "a", "a")):
+        for args in ((), ("a",), ("a", "a", "a"), ("-j", "a", "a"), ("-U", "x", "a", "a"),
+                     ("-c", "-u", "a", "a")):
             result = self.shell('diff "$@"; r=$?; diff a a || exit 1; exit "$r"', *args)
             self.assertEqual(result.returncode, 2)
             self.assertTrue(result.stderr)
@@ -149,12 +145,15 @@ class DiffSafety(unittest.TestCase):
         left, right = "a" * 180, "b" * 180
         (self.root / left).write_bytes(b"old\n")
         (self.root / right).write_bytes(b"new\n")
-        result = self.shell('printf "before:"; diff -u "$1" "$2"; '
+        os.utime(self.root / left, ns=(0, 1234567890123456789))
+        os.utime(self.root / right, ns=(0, 0))
+        result = self.shell('printf "before:"; TZ=UTC diff -u "$1" "$2"; '
                             'printf "status=%s\\n" "$?"', left, right)
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stderr, b"")
-        self.assertEqual(result.stdout, b"before:--- " + left.encode() + b"\n+++ " +
-                         right.encode() + b"\n@@ -1 +1 @@\n-old\n+new\nstatus=1\n")
+        self.assertEqual(result.stdout, b"before:--- " + left.encode() +
+                         b"\t2009-02-13 23:31:30.123456789 +0000\n+++ " + right.encode() +
+                         b"\t1970-01-01 00:00:00.000000000 +0000\n@@ -1 +1 @@\n-old\n+new\nstatus=1\n")
 
     def test_edit_integrity_with_repeated_records(self):
         # Repeated records can admit several minimal scripts. Independently
@@ -209,8 +208,10 @@ class DiffSafety(unittest.TestCase):
     @unittest.skipIf(os.environ.get("BASHOS_TEST_SANITIZED"),
                      "ASan reserves a large virtual address range")
     def test_exhausted_memory_reports_error_and_shell_remains_usable(self):
-        (self.root / "a").write_bytes(b"left\n" * 3000)
-        (self.root / "b").write_bytes(b"right\n" * 3000)
+        # The comparison needs linear memory, so the inputs must be large
+        # enough that their line tables alone pass the 32 MiB limit.
+        (self.root / "a").write_bytes(b"l\n" * 2000000)
+        (self.root / "b").write_bytes(b"r\n" * 2000000)
         (self.root / "small").write_bytes(b"small\n")
         result = self.shell('ulimit -v 32768 || exit; diff a b; '
                             'printf "alive=%s\\n" "$?"; '

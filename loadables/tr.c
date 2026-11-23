@@ -367,6 +367,7 @@ tr_builtin (WORD_LIST *list)
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
         if (!strcmp (w, "--")) { list = list->next; break; }
+        if (!strcmp (w, "--help")) { builtin_help (); return EXECUTION_SUCCESS; }
         if (!strcmp (w, "--truncate-set1")) { tflag = 1; list = list->next; continue; }
         for (const char *p = w + 1; *p; p++) {
             switch (*p) {

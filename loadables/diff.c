@@ -2,22 +2,29 @@
  *
  * Phase T of bash-os POSIX gap-fillers.
  *
- *   bashdiff [-u|-y [-W NUM]] [-q] [-i] [-r] [--help|--version] FILE1 FILE2
+ *   bashdiff [OPTION]... FILE1 FILE2
  *
- *   -y   side-by-side, laid out as GNU diff (-W NUM width, default 130)
- *   -r   recursive directory comparison, with GNU's "Only in" lines
- *   -u   unified diff (with @@ hunks + 3 lines context)
- *   -q   quiet: only report whether files differ (no content)
- *   -i   ignore case
+ *   -u, -U N   unified diff, N lines of context (default 3)
+ *   -c, -C N   context diff, N lines of context (default 3)
+ *   -y         side-by-side, laid out as GNU diff (-W NUM width, default 130)
+ *   -q / -s    report only that files differ / also that they are identical
+ *   -r, -N     recursive directory comparison, with GNU's "Only in" lines;
+ *              -N compares an absent file as empty (diff -ruN a b)
+ *   -x / -X    exclude directory entries by pattern / patterns from a file
+ *   -i -b -w -Z -B -I RE   GNU's case, white space and blank-line options
+ *   -p, -F RE  show the enclosing function line in hunk headers
  *
  * Default output is POSIX ed-style: 1c2 / 1a1 / 2d3 with `< old`,
- * `---`, `> new` markers.
+ * `---`, `> new` markers. Unified and context output follow GNU diffutils
+ * 3.10 byte for byte: headers with the file modification time, GNU's hunk
+ * grouping and ranges, and GNU's shift_boundaries placement of changes.
  *
  * Exit codes: 0 (same), 1 (differ), 2 (error). Per POSIX.
  *
- * Algorithm: Myers' O(ND) line-level diff. V-trace memoization
- * for backtrack. Live frontier O(N+M), saved active diagonals O(D^2).
- * Worst-case time and trace memory remain quadratic for unrelated inputs.
+ * Algorithm: GNU diffutils' own — identical prefix and suffix skipped,
+ * equivalence classes, discard_confusing_lines, gnulib's linear-space
+ * compareseq (Myers O(ND) from both ends, with its TOO_EXPENSIVE cutoff)
+ * and shift_boundaries — so the edit script is the one GNU diff prints.
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c.
@@ -41,15 +48,26 @@
 #include <stdarg.h>
 #include <dirent.h>
 #include <time.h>
+#include <fnmatch.h>
+#include <regex.h>
+#include <locale.h>
 
 #include "loadables.h"
 #include "bl-output.h"
 
+enum { BD_NORMAL, BD_UNIFIED, BD_CONTEXT, BD_SBS };
 typedef struct {
-    int uflag, qflag, iflag, yflag, rflag, wflag;
+    int style;               /* BD_NORMAL, -u/-U, -c/-C, -y */
+    int qflag, iflag, rflag, wflag, bflag, zflag;
+    int nflag, sflag, blank, aflag, minimal;
+    long context;            /* -C/-U lines, -1 until set */
     const char *labels[2];
     long width;              /* -W: side-by-side output width */
     const char *switches;    /* option words as given, for -r headers */
+    regex_t *ignore_re;      /* -I RE */
+    regex_t *function_re;    /* -p, -F RE */
+    char **excludes;         /* -x PAT, -X FILE */
+    size_t nexcludes;
 } bd_opts;
 typedef struct { const unsigned char *data; size_t len; } bd_line;
 
@@ -197,9 +215,52 @@ fail:
     return NULL;
 }
 
+/* -b, -w and -Z also ignore a missing newline at the end of the file. */
+static int
+bd_ws_mode (const bd_opts *o)
+{
+    return o->wflag || o->bflag || o->zflag;
+}
+
+static int
+bd_space (int c)
+{
+    return c == ' ' || c == '\t' || c == '\v' || c == '\f' || c == '\r';
+}
+
 static int
 bd_lineq (const bd_line *a, const bd_line *b, const bd_opts *o)
 {
+    if (o->bflag && !o->wflag) {
+        /* -b: any run of white space equals any other; trailing white
+           space is ignored, as with -Z. */
+        size_t i = 0, j = 0;
+        for (;;) {
+            int sa = i < a->len && bd_space (a->data[i]);
+            int sb = j < b->len && bd_space (b->data[j]);
+            if (sa || sb) {
+                size_t i2 = i, j2 = j;
+                while (i2 < a->len && bd_space (a->data[i2])) i2++;
+                while (j2 < b->len && bd_space (b->data[j2])) j2++;
+                if (sa && sb) { i = i2; j = j2; continue; }
+                if ((sa && i2 == a->len && j == b->len) || (sb && j2 == b->len && i == a->len)) return 1;
+                return 0;
+            }
+            if (i == a->len || j == b->len) return i == a->len && j == b->len;
+            int x = a->data[i++], y = b->data[j++];
+            if ((o->iflag ? tolower (x) != tolower (y) : x != y)) return 0;
+        }
+    }
+    if (o->zflag && !o->wflag) {
+        size_t la = a->len, lb = b->len;
+        while (la && bd_space (a->data[la - 1])) la--;
+        while (lb && bd_space (b->data[lb - 1])) lb--;
+        if (la != lb) return 0;
+        if (!o->iflag) return memcmp (a->data, b->data, la) == 0;
+        for (size_t i = 0; i < la; i++)
+            if (tolower (a->data[i]) != tolower (b->data[i])) return 0;
+        return 1;
+    }
     if (o->wflag) {
         size_t i = 0, j = 0;
         for (;;) {
@@ -251,329 +312,708 @@ bd_print_line (bl_output *out, const char *prefix, const bd_line *line)
 typedef enum { BDOP_EQ, BDOP_DEL, BDOP_INS } bd_optype;
 typedef struct { bd_optype op; int la; int lb; } bd_op;
 
-/* Myers O(ND) — build edit-script ops. Returns op array (heap), sets *n_ops.
-   Only d+1 diagonals of parity d are reachable at depth d. Save those rather
-   than 2*(n+m)+1 cells per row. This reduces sparse-edit storage and copying;
-   it does not remove quadratic worst-case time or trace memory. */
+/* One change as GNU diff's build_script makes it: DEL lines of A from LINE0
+   replaced by INS lines of B from LINE1. IGNORE marks a change that -B or
+   -I would hide. */
+typedef struct { int line0, del, line1, ins, ignore; } bd_change;
+
+typedef struct {
+    bd_line *A, *B;
+    int n, m, nonl_a, nonl_b;
+    char *scratch;           /* NUL-terminated copy of a line for regexec */
+} bd_files;
+
+/* Does RE match line L? The copy gives regexec a terminated string, and
+   REG_STARTEND (where the C library has it; musl does not) keeps a NUL
+   inside the line from ending the match early. Without it, a line with a
+   NUL is matched piece by piece. */
 static int
-bd_trace_x (const int *row, int d, int k)
+bd_re_match (regex_t *re, const bd_files *f, const bd_line *l)
 {
-    return row[(k + d) / 2];
-}
-static bd_op *
-bd_myers (bd_line *A, int n, bd_line *B, int m, const bd_opts *o,
-          int no_newline_a, int no_newline_b, int *n_ops_out)
-{
-    *n_ops_out = -1;
-    /* Both the diagonal index arithmetic and allocation products must fit. */
-    if (n > (INT_MAX - 1) / 2 - m) {
-        builtin_error ("too many lines to compare");
-        return NULL;
+    memcpy (f->scratch, l->data, l->len);
+    f->scratch[l->len] = '\0';
+#ifdef REG_STARTEND
+    regmatch_t mt[1];
+    mt[0].rm_so = 0;
+    mt[0].rm_eo = (regoff_t) l->len;
+    return regexec (re, f->scratch, 1, mt, REG_STARTEND) == 0;
+#else
+    for (size_t off = 0; off <= l->len; ) {
+        if (regexec (re, f->scratch + off, 0, NULL, off ? REG_NOTBOL : 0) == 0)
+            return 1;
+        size_t piece = strlen (f->scratch + off);
+        if (off + piece >= l->len) break;
+        off += piece + 1;
     }
-    int max = n + m;
-    if (max == 0) { *n_ops_out = 0; return NULL; }
-    int v_size = 2 * max + 1;
-    if ((size_t) v_size > SIZE_MAX / sizeof (int) ||
-        (size_t) (max + 1) > SIZE_MAX / sizeof (int *) ||
-        (size_t) max > SIZE_MAX / sizeof (bd_op)) {
-        builtin_error ("too many lines to compare");
-        return NULL;
-    }
-    /* With an empty operand the only script is known; no search or saved
-       frontier is needed, regardless of the amount of output. */
-    if (n == 0 || m == 0) {
-        bd_op *only = malloc ((size_t) max * sizeof (*only));
-        if (!only) {
-            builtin_error ("out of memory comparing files");
-            return NULL;
-        }
-        for (int i = 0; i < max; i++)
-            only[i] = n ? (bd_op) { BDOP_DEL, i, -1 } :
-                          (bd_op) { BDOP_INS, -1, i };
-        *n_ops_out = max;
-        return only;
-    }
-    int *v = calloc ((size_t) v_size, sizeof (int));
-    int **trace = calloc ((size_t) (max + 1), sizeof (int *));
-    int d_done = -1;
-    int rows = 0;
-    bd_op *ops = NULL;
-    if (!v || !trace) goto nomem;
-
-    for (int d = 0; d <= max; d++) {
-        trace[d] = malloc ((size_t) (d + 1) * sizeof (int));
-        if (!trace[d]) goto nomem;
-        rows++;
-        for (int k = -d; k <= d; k += 2) {
-            int x;
-            if (k == -d || (k != d && v[k - 1 + max] < v[k + 1 + max]))
-                x = v[k + 1 + max];          /* insertion */
-            else
-                x = v[k - 1 + max] + 1;      /* deletion */
-            int y = x - k;
-            while (x < n && y < m && bd_lineq (&A[x], &B[y], o) &&
-                   (o->wflag || (x == n - 1 && no_newline_a) == (y == m - 1 && no_newline_b))) {
-                x++; y++;
-            }
-            v[k + max] = x;
-            if (x >= n && y >= m) { d_done = d; break; }
-        }
-        for (int k = -d; k <= d; k += 2)
-            trace[d][(k + d) / 2] = v[k + max];
-        if (d_done >= 0) break;
-    }
-    free (v);
-    v = NULL;
-
-    /* Backtrack: produce ops in reverse, then reverse. */
-    /* Every operation consumes at least one input line. */
-    ops = malloc ((size_t) max * sizeof (bd_op));
-    if (!ops) goto nomem;
-    int n_ops = 0;
-    int x = n, y = m;
-    for (int d = d_done; d > 0; d--) {
-        int *vd = trace[d - 1];
-        int k = x - y;
-        int prev_k;
-        if (k == -d || (k != d && bd_trace_x (vd, d - 1, k - 1) <
-                                             bd_trace_x (vd, d - 1, k + 1)))
-            prev_k = k + 1;
-        else
-            prev_k = k - 1;
-        int prev_x = bd_trace_x (vd, d - 1, prev_k);
-        int prev_y = prev_x - prev_k;
-        /* Snake before the move (matches). */
-        while (x > prev_x && y > prev_y) {
-            ops[n_ops++] = (bd_op){ BDOP_EQ, x - 1, y - 1 };
-            x--; y--;
-        }
-        if (x == prev_x) {
-            ops[n_ops++] = (bd_op){ BDOP_INS, -1, y - 1 };
-            y--;
-        } else {
-            ops[n_ops++] = (bd_op){ BDOP_DEL, x - 1, -1 };
-            x--;
-        }
-    }
-    while (x > 0 && y > 0) {
-        ops[n_ops++] = (bd_op){ BDOP_EQ, x - 1, y - 1 };
-        x--; y--;
-    }
-    /* Trim leftover (shouldn't happen but be safe). */
-    while (x > 0) { ops[n_ops++] = (bd_op){ BDOP_DEL, x - 1, -1 }; x--; }
-    while (y > 0) { ops[n_ops++] = (bd_op){ BDOP_INS, -1, y - 1 }; y--; }
-
-    /* Reverse ops to forward order. */
-    for (int i = 0, j = n_ops - 1; i < j; i++, j--) {
-        bd_op t = ops[i]; ops[i] = ops[j]; ops[j] = t;
-    }
-
-    /* Free trace. */
-    for (int d = 0; d <= d_done; d++) free (trace[d]);
-    free (trace);
-
-    *n_ops_out = n_ops;
-    return ops;
-nomem:
-    builtin_error ("out of memory comparing files");
-    free (v);
-    for (int d = 0; d < rows; d++) free (trace[d]);
-    free (trace);
-    free (ops);
-    return NULL;
+    return 0;
+#endif
 }
 
-/* Emit POSIX ed-style diff. Group consecutive ins/del into change-blocks. */
+/* Equality of two lines of the same file, as GNU's equivalence classes. */
+static int
+bd_same (const bd_line *L, int len, int nonl, int x, int y, const bd_opts *o)
+{
+    if (!bd_lineq (&L[x], &L[y], o)) return 0;
+    return bd_ws_mode (o) || (nonl && x == len - 1) == (nonl && y == len - 1);
+}
+
+/* GNU's shift_boundaries: slide each run of changed lines back to merge
+   with an earlier run, then forward as far as it goes, and finally back to
+   line up with a run in the other file. CHANGED and OTHER have a zero
+   sentinel at index -1 and at their end. */
 static void
-bd_emit_ed (bl_output *out, bd_line *A, int n, bd_line *B, int m, bd_op *ops, int n_ops,
-            int no_newline_a, int no_newline_b)
+bd_shift_boundaries (char *changed, const char *other, const bd_line *L,
+                     int i_end, int nonl, const bd_opts *o)
 {
-    (void) n; (void) m;
-    int i = 0;
-    while (i < n_ops) {
-        if (ops[i].op == BDOP_EQ) { i++; continue; }
-        /* Start of a change block. Find run of DEL/INS. */
-        int j = i;
-        int del0 = -1, del1 = -1, ins0 = -1, ins1 = -1;
-        while (j < n_ops && ops[j].op != BDOP_EQ) {
-            if (ops[j].op == BDOP_DEL) {
-                if (del0 < 0) del0 = ops[j].la;
-                del1 = ops[j].la;
-            } else { /* INS */
-                if (ins0 < 0) ins0 = ops[j].lb;
-                ins1 = ops[j].lb;
-            }
+    int i = 0, j = 0;
+    for (;;) {
+        int runlength, start, corresponding;
+        while (i < i_end && !changed[i]) {
+            while (other[j++])
+                continue;
+            i++;
+        }
+        if (i == i_end) break;
+        start = i;
+        while (changed[++i])
+            continue;
+        while (other[j])
             j++;
+        do {
+            runlength = i - start;
+            while (start && bd_same (L, i_end, nonl, start - 1, i - 1, o)) {
+                changed[--start] = 1;
+                changed[--i] = 0;
+                while (changed[start - 1])
+                    start--;
+                while (other[--j])
+                    continue;
+            }
+            corresponding = other[j - 1] ? i : i_end;
+            while (i != i_end && bd_same (L, i_end, nonl, start, i, o)) {
+                changed[start++] = 0;
+                changed[i++] = 1;
+                while (changed[i])
+                    i++;
+                while (other[++j])
+                    corresponding = i;
+            }
+        } while (runlength != i - start);
+        while (corresponding < i) {
+            changed[--start] = 1;
+            changed[--i] = 0;
+            while (other[--j])
+                continue;
         }
-        /* Format header: 1-indexed inclusive ranges. */
-        char header[64];
-        int nd = (del0 < 0) ? 0 : (del1 - del0 + 1);
-        int ni = (ins0 < 0) ? 0 : (ins1 - ins0 + 1);
-        if (nd > 0 && ni > 0) {
-            /* change */
-            if (nd == 1)
-                snprintf (header, sizeof header, "%dc", del0 + 1);
-            else
-                snprintf (header, sizeof header, "%d,%dc", del0 + 1, del1 + 1);
-            char tail[32];
-            if (ni == 1)
-                snprintf (tail, sizeof tail, "%d", ins0 + 1);
-            else
-                snprintf (tail, sizeof tail, "%d,%d", ins0 + 1, ins1 + 1);
-            bd_format (out, "%s%s\n", header, tail);
-            for (int k = del0; k <= del1; k++) bd_print_line (out, "< ", &A[k]);
-            if (no_newline_a && del1 == n - 1) bd_format (out, "\\ No newline at end of file\n");
-            bd_format (out, "---\n");
-            for (int k = ins0; k <= ins1; k++) bd_print_line (out, "> ", &B[k]);
-            if (no_newline_b && ins1 == m - 1) bd_format (out, "\\ No newline at end of file\n");
-        } else if (nd > 0) {
-            /* delete from A; ed addressing wants index AFTER which to delete */
-            int after = i > 0 ? ops[i - 1].lb + 1 : 0;
-            if (nd == 1)
-                bd_format (out, "%dd%d\n", del0 + 1, after);
-            else
-                bd_format (out, "%d,%dd%d\n", del0 + 1, del1 + 1, after);
-            for (int k = del0; k <= del1; k++) bd_print_line (out, "< ", &A[k]);
-            if (no_newline_a && del1 == n - 1) bd_format (out, "\\ No newline at end of file\n");
-        } else { /* INS only */
-            int after = i > 0 ? ops[i - 1].la + 1 : 0;
-            if (ni == 1)
-                bd_format (out, "%da%d\n", after, ins0 + 1);
-            else
-                bd_format (out, "%da%d,%d\n", after, ins0 + 1, ins1 + 1);
-            for (int k = ins0; k <= ins1; k++) bd_print_line (out, "> ", &B[k]);
-            if (no_newline_b && ins1 == m - 1) bd_format (out, "\\ No newline at end of file\n");
-        }
-        i = j;
     }
 }
 
-/* GNU unified headers C-quote an implicit filename when it contains
-   whitespace, a quote, a backslash or a byte outside printable ASCII. */
+/* Is a deleted or inserted line one that -B or -I lets diff ignore? */
+static int
+bd_trivial (const bd_files *f, const bd_line *l, const bd_opts *o)
+{
+    if (o->blank) {
+        size_t i = 0;
+        if (bd_ws_mode (o))
+            while (i < l->len && (bd_space (l->data[i]) || l->data[i] == '\n')) i++;
+        if (i == l->len) return 1;
+    }
+    return o->ignore_re && bd_re_match (o->ignore_re, f, l);
+}
+
+/* Cross-file line equality: the comparison options, and a missing final
+   newline unless -b, -w or -Z ignore it. */
+static int
+bd_eqline (const bd_files *f, int fx, int x, int fy, int y, const bd_opts *o)
+{
+    const bd_line *lx = fx ? &f->B[x] : &f->A[x], *ly = fy ? &f->B[y] : &f->A[y];
+    if (!bd_lineq (lx, ly, o)) return 0;
+    if (bd_ws_mode (o)) return 1;
+    int nx = fx ? f->nonl_b && x == f->m - 1 : f->nonl_a && x == f->n - 1;
+    int ny = fy ? f->nonl_b && y == f->m - 1 : f->nonl_a && y == f->n - 1;
+    return nx == ny;
+}
+
+static unsigned long
+bd_hash (const bd_line *l, const bd_opts *o)
+{
+    unsigned long h = 5381;
+    size_t len = l->len;
+    if (o->wflag) {
+        for (size_t i = 0; i < len; i++)
+            if (!isspace (l->data[i]))
+                h = h * 33 + (unsigned) (o->iflag ? tolower (l->data[i]) : l->data[i]);
+        return h;
+    }
+    if (o->bflag || o->zflag)
+        while (len && bd_space (l->data[len - 1])) len--;
+    for (size_t i = 0; i < len; i++) {
+        int c = l->data[i];
+        if (o->bflag && bd_space (c)) {
+            while (i + 1 < len && bd_space (l->data[i + 1])) i++;
+            c = ' ';
+        }
+        h = h * 33 + (unsigned) (o->iflag ? tolower (c) : c);
+    }
+    return h;
+}
+
+/* GNU's diffseq (gnulib): find the midpoint of the shortest edit script
+   by searching from both ends, giving up for a "good enough" split once
+   the cost passes TOO_EXPENSIVE. */
+typedef struct {
+    const long *xv, *yv;       /* equivalence classes of undiscarded lines */
+    long *fd, *bd;             /* forward and backward diagonals */
+    long too_expensive;
+    char *c0, *c1;             /* changed flags, by real line */
+    const long *ri0, *ri1;     /* undiscarded index -> real line */
+} bd_seq;
+
+typedef struct { long xmid, ymid; int lo_minimal, hi_minimal; } bd_part;
+
 static void
-bd_timestamped_name (bl_output *out, const char *name, const struct timespec *mtime)
+bd_diag (long xoff, long xlim, long yoff, long ylim, int find_minimal, bd_part *part, bd_seq *c)
+{
+    long *const fd = c->fd, *const bd = c->bd;
+    const long *xv = c->xv, *yv = c->yv;
+    const long dmin = xoff - ylim, dmax = xlim - yoff;
+    const long fmid = xoff - yoff, bmid = xlim - ylim;
+    long fmin = fmid, fmax = fmid, bmin = bmid, bmax = bmid;
+    int odd = (fmid - bmid) & 1;
+    fd[fmid] = xoff;
+    bd[bmid] = xlim;
+    for (long cost = 1;; ++cost) {
+        long d;
+        if (fmin > dmin) fd[--fmin - 1] = -1; else ++fmin;
+        if (fmax < dmax) fd[++fmax + 1] = -1; else --fmax;
+        for (d = fmax; d >= fmin; d -= 2) {
+            long x, y, tlo = fd[d - 1], thi = fd[d + 1];
+            long x0 = tlo < thi ? thi : tlo + 1;
+            for (x = x0, y = x0 - d; x < xlim && y < ylim && xv[x] == yv[y]; x++, y++)
+                continue;
+            fd[d] = x;
+            if (odd && bmin <= d && d <= bmax && bd[d] <= x) {
+                part->xmid = x; part->ymid = y;
+                part->lo_minimal = part->hi_minimal = 1;
+                return;
+            }
+        }
+        if (bmin > dmin) bd[--bmin - 1] = LONG_MAX; else ++bmin;
+        if (bmax < dmax) bd[++bmax + 1] = LONG_MAX; else --bmax;
+        for (d = bmax; d >= bmin; d -= 2) {
+            long x, y, tlo = bd[d - 1], thi = bd[d + 1];
+            long x0 = tlo < thi ? tlo : thi - 1;
+            for (x = x0, y = x0 - d; xoff < x && yoff < y && xv[x - 1] == yv[y - 1]; x--, y--)
+                continue;
+            bd[d] = x;
+            if (!odd && fmin <= d && d <= fmax && x <= fd[d]) {
+                part->xmid = x; part->ymid = y;
+                part->lo_minimal = part->hi_minimal = 1;
+                return;
+            }
+        }
+        if (find_minimal) continue;
+        if (cost >= c->too_expensive) {
+            long fxybest = -1, fxbest = 0, bxybest = LONG_MAX, bxbest = 0;
+            for (d = fmax; d >= fmin; d -= 2) {
+                long x = fd[d] < xlim ? fd[d] : xlim, y = x - d;
+                if (ylim < y) { x = ylim + d; y = ylim; }
+                if (fxybest < x + y) { fxybest = x + y; fxbest = x; }
+            }
+            for (d = bmax; d >= bmin; d -= 2) {
+                long x = xoff > bd[d] ? xoff : bd[d], y = x - d;
+                if (y < yoff) { x = yoff + d; y = yoff; }
+                if (x + y < bxybest) { bxybest = x + y; bxbest = x; }
+            }
+            if ((xlim + ylim) - bxybest < fxybest - (xoff + yoff)) {
+                part->xmid = fxbest; part->ymid = fxybest - fxbest;
+                part->lo_minimal = 1; part->hi_minimal = 0;
+            } else {
+                part->xmid = bxbest; part->ymid = bxybest - bxbest;
+                part->lo_minimal = 0; part->hi_minimal = 1;
+            }
+            return;
+        }
+    }
+}
+
+static void
+bd_compareseq (long xoff, long xlim, long yoff, long ylim, int find_minimal, bd_seq *c)
+{
+    const long *xv = c->xv, *yv = c->yv;
+    while (xoff < xlim && yoff < ylim && xv[xoff] == yv[yoff]) xoff++, yoff++;
+    while (xoff < xlim && yoff < ylim && xv[xlim - 1] == yv[ylim - 1]) xlim--, ylim--;
+    if (xoff == xlim)
+        while (yoff < ylim) c->c1[c->ri1[yoff++]] = 1;
+    else if (yoff == ylim)
+        while (xoff < xlim) c->c0[c->ri0[xoff++]] = 1;
+    else {
+        bd_part part;
+        bd_diag (xoff, xlim, yoff, ylim, find_minimal, &part, c);
+        bd_compareseq (xoff, part.xmid, yoff, part.ymid, part.lo_minimal, c);
+        bd_compareseq (part.xmid, xlim, part.ymid, ylim, part.hi_minimal, c);
+    }
+}
+
+/* GNU's discard_confusing_lines for one file: lines with no match in the
+   other file are certainly changed (1); lines with very many matches are
+   provisionally discardable (2) and stay only inside runs of the first. */
+static void
+bd_discards (char *discards, const long *eq, const long *other_count, long end)
+{
+    long many = 5, tem = end / 64;
+    while ((tem = tem >> 2) > 0) many *= 2;
+    for (long i = 0; i < end; i++) {
+        long nmatch = other_count[eq[i]];
+        if (nmatch == 0) discards[i] = 1;
+        else if (nmatch > many) discards[i] = 2;
+    }
+    for (long i = 0; i < end; i++) {
+        if (discards[i] == 2) discards[i] = 0;
+        else if (discards[i] != 0) {
+            long j, length, provisional = 0;
+            for (j = i; j < end; j++) {
+                if (discards[j] == 0) break;
+                if (discards[j] == 2) ++provisional;
+            }
+            while (j > i && discards[j - 1] == 2) discards[--j] = 0, --provisional;
+            length = j - i;
+            if (provisional * 4 > length) {
+                while (j > i)
+                    if (discards[--j] == 2) discards[j] = 0;
+            } else {
+                long consec, minimum = 1, t = length >> 2;
+                while (0 < (t >>= 2)) minimum <<= 1;
+                minimum++;
+                for (j = 0, consec = 0; j < length; j++)
+                    if (discards[i + j] != 2) consec = 0;
+                    else if (minimum == ++consec) j -= consec;
+                    else if (minimum < consec) discards[i + j] = 0;
+                for (j = 0, consec = 0; j < length; j++) {
+                    if (j >= 8 && discards[i + j] == 1) break;
+                    if (discards[i + j] == 2) consec = 0, discards[i + j] = 0;
+                    else if (discards[i + j] == 0) consec = 0;
+                    else consec++;
+                    if (consec == 3) break;
+                }
+                i += length - 1;
+                for (j = 0, consec = 0; j < length; j++) {
+                    if (j >= 8 && discards[i - j] == 1) break;
+                    if (discards[i - j] == 2) consec = 0, discards[i - j] = 0;
+                    else if (discards[i - j] == 0) consec = 0;
+                    else consec++;
+                    if (consec == 3) break;
+                }
+            }
+        }
+    }
+}
+
+/* Mark changed lines as GNU diff's diff_2_files does: skip the identical
+   prefix and suffix (keeping HORIZON lines of each, the context), put the
+   rest in equivalence classes, discard confusing lines, run compareseq. */
+static int
+bd_mark_changes (const bd_files *f, const bd_opts *o, char *c0, char *c1)
+{
+    long horizon = o->context > 0 ? o->context : 0;
+    long n = f->n, m = f->m, pre = 0, suf = 0;
+    while (pre < n && pre < m && f->A[pre].len == f->B[pre].len &&
+           !memcmp (f->A[pre].data, f->B[pre].data, f->A[pre].len) &&
+           (f->nonl_a && pre == n - 1) == (f->nonl_b && pre == m - 1))
+        pre++;
+    pre = pre > horizon ? pre - horizon : 0;
+    if (f->nonl_a == f->nonl_b) {
+        while (suf < n - pre && suf < m - pre &&
+               f->A[n - 1 - suf].len == f->B[m - 1 - suf].len &&
+               !memcmp (f->A[n - 1 - suf].data, f->B[m - 1 - suf].data, f->A[n - 1 - suf].len))
+            suf++;
+        suf = suf > horizon ? suf - horizon : 0;
+    }
+    long len0 = n - pre - suf, len1 = m - pre - suf;
+    int rc = -1;
+    long *eq0 = malloc (((size_t) (len0 + len1) + 1) * sizeof *eq0);
+    size_t tsize = 16;
+    while (tsize < (size_t) (len0 + len1) * 2) tsize *= 2;
+    long *table = malloc (tsize * sizeof *table);     /* -1 or file*2^.. index */
+    long *count = NULL, *und = NULL;
+    char *disc = NULL;
+    long *fdiag = NULL;
+    if (!eq0 || !table) goto out;
+    long *eq1 = eq0 + len0;
+    for (size_t k = 0; k < tsize; k++) table[k] = -1;
+    long classes = 0;
+    long *rep = malloc (((size_t) (len0 + len1) + 1) * sizeof *rep);  /* class -> line code */
+    if (!rep) goto out;
+    for (int fi = 0; fi < 2; fi++) {
+        long len = fi ? len1 : len0;
+        for (long i = 0; i < len; i++) {
+            const bd_line *l = fi ? &f->B[pre + i] : &f->A[pre + i];
+            size_t h = bd_hash (l, o) & (tsize - 1);
+            for (;;) {
+                if (table[h] < 0) {
+                    rep[classes] = fi ? -(pre + i) - 1 : pre + i;
+                    table[h] = classes++;
+                    break;
+                }
+                long r = rep[table[h]];
+                int rf = r < 0;
+                long ri = rf ? -r - 1 : r;
+                if (bd_eqline (f, rf, (int) ri, fi, (int) (pre + i), o)) break;
+                h = (h + 1) & (tsize - 1);
+            }
+            (fi ? eq1 : eq0)[i] = table[h];
+        }
+    }
+    free (rep);
+    count = calloc ((size_t) classes * 2 + 1, sizeof *count);
+    disc = calloc ((size_t) (len0 + len1) + 1, 1);
+    und = malloc (((size_t) (len0 + len1) + 1) * 2 * sizeof *und);
+    if (!count || !disc || !und) goto out;
+    long *count0 = count, *count1 = count + classes;
+    for (long i = 0; i < len0; i++) count0[eq0[i]]++;
+    for (long i = 0; i < len1; i++) count1[eq1[i]]++;
+    char *disc0 = disc, *disc1 = disc + len0;
+    bd_discards (disc0, eq0, count1, len0);
+    bd_discards (disc1, eq1, count0, len1);
+    long *u0 = und, *u1 = und + len0, *r0 = und + len0 + len1, *r1 = r0 + len0;
+    long nd0 = 0, nd1 = 0;
+    if (o->minimal) memset (disc, 0, (size_t) (len0 + len1));
+    for (long i = 0; i < len0; i++)
+        if (disc0[i]) c0[pre + i] = 1;
+        else { u0[nd0] = eq0[i]; r0[nd0++] = pre + i; }
+    for (long i = 0; i < len1; i++)
+        if (disc1[i]) c1[pre + i] = 1;
+        else { u1[nd1] = eq1[i]; r1[nd1++] = pre + i; }
+    long diags = nd0 + nd1 + 3;
+    fdiag = malloc ((size_t) diags * 2 * sizeof *fdiag);
+    if (!fdiag) goto out;
+    bd_seq sq;
+    sq.xv = u0; sq.yv = u1;
+    sq.fd = fdiag + nd1 + 1;
+    sq.bd = fdiag + diags + nd1 + 1;
+    long te = 1;
+    for (long dg = diags; dg != 0; dg >>= 2) te <<= 1;
+    sq.too_expensive = te > 4096 ? te : 4096;
+    sq.c0 = c0; sq.c1 = c1; sq.ri0 = r0; sq.ri1 = r1;
+    bd_compareseq (0, nd0, 0, nd1, o->minimal, &sq);
+    /* shift_boundaries works on the compared region only. */
+    {
+        bd_files sub = { f->A + pre, f->B + pre, (int) len0, (int) len1,
+                         f->nonl_a && suf == 0, f->nonl_b && suf == 0, NULL };
+        char save0 = c0[pre - 1], save1 = c1[pre - 1];
+        char end0 = c0[pre + len0], end1 = c1[pre + len1];
+        c0[pre - 1] = c1[pre - 1] = 0;
+        c0[pre + len0] = c1[pre + len1] = 0;
+        bd_shift_boundaries (c0 + pre, c1 + pre, sub.A, sub.n, sub.nonl_a, o);
+        bd_shift_boundaries (c1 + pre, c0 + pre, sub.B, sub.m, sub.nonl_b, o);
+        c0[pre - 1] = save0; c1[pre - 1] = save1;
+        c0[pre + len0] = end0; c1[pre + len1] = end1;
+    }
+    rc = 0;
+out:
+    if (rc < 0) builtin_error ("out of memory comparing files");
+    free (eq0);
+    free (table);
+    free (count);
+    free (disc);
+    free (und);
+    free (fdiag);
+    return rc;
+}
+
+/* Turn the changed flags into GNU's change list. OPS gets the edit
+   script in canonical order (deletions before insertions in each change)
+   for the side-by-side writer. Returns the count, or -1 on error. */
+static int
+bd_changes (const bd_files *f, const bd_opts *o, bd_change **out, bd_op **ops_out, int *n_ops)
+{
+    *out = NULL;
+    *ops_out = NULL;
+    *n_ops = 0;
+    char *f0 = calloc ((size_t) f->n + 2, 1), *f1 = calloc ((size_t) f->m + 2, 1);
+    bd_change *ch = malloc (((size_t) f->n + f->m + 1) * sizeof *ch);
+    bd_op *ops = malloc (((size_t) f->n + f->m + 1) * sizeof *ops);
+    if (!f0 || !f1 || !ch || !ops) {
+        free (f0); free (f1); free (ch); free (ops);
+        builtin_error ("out of memory comparing files");
+        return -1;
+    }
+    char *c0 = f0 + 1, *c1 = f1 + 1;
+    if (bd_mark_changes (f, o, c0, c1) < 0) {
+        free (f0); free (f1); free (ch); free (ops);
+        return -1;
+    }
+    int count = 0;
+    int i0 = 0, i1 = 0, k = 0;
+    while (i0 < f->n || i1 < f->m) {
+        if (c0[i0] || c1[i1]) {
+            int l0 = i0, l1 = i1;
+            while (c0[i0]) ops[k++] = (bd_op) { BDOP_DEL, i0++, -1 };
+            while (c1[i1]) ops[k++] = (bd_op) { BDOP_INS, -1, i1++ };
+            bd_change c = { l0, i0 - l0, l1, i1 - l1, 0 };
+            if (o->blank || o->ignore_re) {
+                c.ignore = 1;
+                for (int x = l0; c.ignore && x < i0; x++) c.ignore = bd_trivial (f, &f->A[x], o);
+                for (int y = l1; c.ignore && y < i1; y++) c.ignore = bd_trivial (f, &f->B[y], o);
+            }
+            ch[count++] = c;
+        }
+        if (i0 < f->n && i1 < f->m) ops[k++] = (bd_op) { BDOP_EQ, i0, i1 };
+        i0++, i1++;
+    }
+    free (f0);
+    free (f1);
+    *out = ch;
+    *ops_out = ops;
+    *n_ops = k;
+    return count;
+}
+
+static void
+bd_line_nl (bl_output *out, const char *prefix, const bd_line *line, int last_nonl)
+{
+    bd_print_line (out, prefix, line);
+    if (last_nonl) bd_text (out, "\\ No newline at end of file\n");
+}
+
+/* Normal output, one ed-style command per change (GNU print_normal_hunk). */
+static void
+bd_emit_ed (bl_output *out, const bd_files *f, const bd_change *ch, int nch)
+{
+    for (int c = 0; c < nch; c++) {
+        const bd_change *h = &ch[c];
+        if (h->ignore) continue;
+        int f0 = h->line0 + 1, l0 = h->line0 + h->del, f1 = h->line1 + 1, l1 = h->line1 + h->ins;
+        if (l0 > f0) bd_format (out, "%d,%d", f0, l0); else bd_format (out, "%d", l0);
+        bl_output_byte (out, h->del && h->ins ? 'c' : h->del ? 'd' : 'a');
+        if (l1 > f1) bd_format (out, "%d,%d\n", f1, l1); else bd_format (out, "%d\n", l1);
+        for (int k = h->line0; k < h->line0 + h->del; k++)
+            bd_line_nl (out, "< ", &f->A[k], f->nonl_a && k == f->n - 1);
+        if (h->del && h->ins) bd_text (out, "---\n");
+        for (int k = h->line1; k < h->line1 + h->ins; k++)
+            bd_line_nl (out, "> ", &f->B[k], f->nonl_b && k == f->m - 1);
+    }
+}
+
+/* GNU unified and context headers C-quote an implicit filename when it
+   contains whitespace, a quote, a backslash or a byte outside printable
+   ASCII, and follow it with the modification time. */
+static char *
+bd_cquote (const char *name)
 {
     int quote = 0;
     for (const unsigned char *p = (const unsigned char *) name; *p; p++)
         if (*p <= ' ' || *p >= 127 || *p == '"' || *p == '\\') quote = 1;
-    if (!quote) bd_text (out, name);
-    else {
-        bl_output_byte (out, '"');
-        for (const unsigned char *p = (const unsigned char *) name; *p; p++) {
-            const char *esc = strchr ("\a\b\t\n\v\f\r", *p);
-            if (esc) {
-                const char *controls = "abtnvfr";
-                bl_output_byte (out, '\\');
-                bl_output_byte (out, controls[*p - '\a']);
-            } else if (*p < ' ' || *p >= 127) bd_format (out, "\\%03o", (unsigned) *p);
-            else {
-                if (*p == '"' || *p == '\\') bl_output_byte (out, '\\');
-                bl_output_byte (out, *p);
-            }
+    char *d = malloc (strlen (name) * 4 + 3), *q = d;
+    if (!d) return NULL;
+    if (!quote) { strcpy (d, name); return d; }
+    *q++ = '"';
+    for (const unsigned char *p = (const unsigned char *) name; *p; p++) {
+        const char *esc = *p ? strchr ("\a\b\t\n\v\f\r", *p) : NULL;
+        if (esc) {
+            *q++ = '\\';
+            *q++ = "abtnvfr"[*p - '\a'];
+        } else if (*p < ' ' || *p >= 127) q += sprintf (q, "\\%03o", (unsigned) *p);
+        else {
+            if (*p == '"' || *p == '\\') *q++ = '\\';
+            *q++ = (char) *p;
         }
-        bl_output_byte (out, '"');
     }
-    char date[64], zone[32];
-    struct tm tm;
-    tzset ();
-    if (localtime_r (&mtime->tv_sec, &tm) &&
-        strftime (date, sizeof date, "%Y-%m-%d %H:%M:%S", &tm) &&
-        strftime (zone, sizeof zone, "%z", &tm))
-        bd_format (out, "\t%s.%09ld %s", date, mtime->tv_nsec, zone);
+    *q++ = '"';
+    *q = '\0';
+    return d;
 }
 
-/* Emit unified diff (-u). 3 lines context per hunk; fuse hunks within
-   6 lines of each other. */
-#define BD_CTX 3
+/* The same quoting, written straight to OUT without an allocation. */
 static void
-bd_emit_unified (bl_output *out, bd_line *A, int n, bd_line *B, int m, bd_op *ops, int n_ops,
-                 const char *fname1, const char *fname2, const struct timespec *mtime2,
-                 int no_newline_a, int no_newline_b)
+bd_header_name (bl_output *out, const char *name)
 {
-    (void) m;
-    if (n_ops == 0) return;
-    /* Print file headers. */
-    bd_text (out, "--- "); bd_text (out, fname1); bd_text (out, "\n");
-    bd_text (out, "+++ ");
-    if (mtime2) bd_timestamped_name (out, fname2, mtime2);
-    else bd_text (out, fname2);
-    bd_text (out, "\n");
+    int quote = 0;
+    for (const unsigned char *p = (const unsigned char *) name; *p; p++)
+        if (*p <= ' ' || *p >= 127 || *p == '"' || *p == '\\') quote = 1;
+    if (!quote) { bd_text (out, name); return; }
+    bl_output_byte (out, '"');
+    for (const unsigned char *p = (const unsigned char *) name; *p; p++) {
+        const char *esc = strchr ("\a\b\t\n\v\f\r", *p);
+        if (esc) {
+            bl_output_byte (out, '\\');
+            bl_output_byte (out, "abtnvfr"[*p - '\a']);
+        } else if (*p < ' ' || *p >= 127) bd_format (out, "\\%03o", (unsigned) *p);
+        else {
+            if (*p == '"' || *p == '\\') bl_output_byte (out, '\\');
+            bl_output_byte (out, *p);
+        }
+    }
+    bl_output_byte (out, '"');
+}
 
-    /* Walk ops, group into hunks bounded by ≥ 2*BD_CTX equals. */
-    int i = 0;
-    while (i < n_ops) {
-        /* Skip leading equals; remember last BD_CTX of them. */
-        while (i < n_ops && ops[i].op == BDOP_EQ) i++;
-        if (i >= n_ops) break;
-        /* Backtrack BD_CTX equals for context. */
-        int hunk_start = i;
-        int back = 0;
-        while (hunk_start > 0 && back < BD_CTX && ops[hunk_start - 1].op == BDOP_EQ) {
-            hunk_start--; back++;
+/* Context headers keep the traditional ctime layout in the C and POSIX
+   locales, as GNU does when LC_TIME is not a "hard" locale; unified
+   headers, and context headers elsewhere, use the ISO form. */
+static void
+bd_header (bl_output *out, const char *mark, const char *label, const char *name,
+           const struct timespec *mtime, int context)
+{
+    bd_text (out, mark);
+    if (label) bd_text (out, label);
+    else {
+        bd_header_name (out, name);
+        char date[64], zone[32];
+        struct tm tm;
+        const char *lc = setlocale (LC_TIME, NULL);
+        int traditional = context && (!lc || !strcmp (lc, "C") || !strcmp (lc, "POSIX"));
+        tzset ();
+        if (!localtime_r (&mtime->tv_sec, &tm)) ;
+        else if (traditional) {
+            if (strftime (date, sizeof date, "%a %b %e %H:%M:%S %Y", &tm))
+                bd_format (out, "\t%s", date);
+        } else if (strftime (date, sizeof date, "%Y-%m-%d %H:%M:%S", &tm) &&
+                   strftime (zone, sizeof zone, "%z", &tm))
+            bd_format (out, "\t%s.%09ld %s", date, mtime->tv_nsec, zone);
+    }
+    bl_output_byte (out, '\n');
+}
+
+/* GNU's find_function: the last line before LINE matching the -p/-F
+   expression, searching back no further than the previous search. */
+typedef struct { int last_search, last_match; } bd_fn;
+
+static const bd_line *
+bd_find_function (const bd_files *f, const bd_opts *o, bd_fn *st, int line)
+{
+    int last = st->last_search;
+    st->last_search = line;
+    for (int i = line - 1; i >= last; i--) {
+        if (bd_re_match (o->function_re, f, &f->A[i])) {
+            st->last_match = i;
+            return &f->A[i];
         }
-        /* Forward: extend hunk through changes + at most 2*BD_CTX equals
-           (which we then trim to BD_CTX). */
-        int j = i;
-        while (j < n_ops) {
-            if (ops[j].op != BDOP_EQ) { j++; continue; }
-            /* Count run of equals from j. */
-            int e0 = j;
-            while (j < n_ops && ops[j].op == BDOP_EQ) j++;
-            int run = j - e0;
-            if (j >= n_ops) {
-                /* Trailing equals — keep up to BD_CTX. */
-                if (run > BD_CTX) j = e0 + BD_CTX;
-                break;
-            }
-            if (run > 2 * BD_CTX) {
-                /* Big gap — split hunk here. Trim trailing context to BD_CTX. */
-                j = e0 + BD_CTX;
-                break;
-            }
-            /* Otherwise fuse: keep going. */
+    }
+    return st->last_match >= 0 ? &f->A[st->last_match] : NULL;
+}
+
+static void
+bd_function_text (bl_output *out, const bd_line *l)
+{
+    size_t i = 0, j;
+    bl_output_byte (out, ' ');
+    while (i < l->len && isspace (l->data[i])) i++;
+    for (j = i; j < i + 40 && j < l->len; j++)
+        continue;
+    while (j > i && isspace (l->data[j - 1])) j--;
+    bl_output_write (out, l->data + i, j - i);
+}
+
+/* GNU's translated ranges. FIRST and LAST are 0-based; LAST < FIRST is an
+   empty range after line FIRST. */
+static void
+bd_unified_range (bl_output *out, int first, int last)
+{
+    int a = first + 1, b = last + 1;
+    if (b < a) bd_format (out, "%d,0", b);
+    else if (b == a) bd_format (out, "%d", b);
+    else bd_format (out, "%d,%d", a, b - a + 1);
+}
+
+static void
+bd_context_range (bl_output *out, int first, int last)
+{
+    int a = first + 1, b = last + 1;
+    if (b <= a) bd_format (out, "%d", b);
+    else bd_format (out, "%d,%d", a, b);
+}
+
+/* Unified (-u, -U N) and context (-c, -C N) output. Changes closer than
+   2N+1 lines share a hunk (N for an ignorable change, as GNU's
+   find_hunk); a hunk made only of ignorable changes is not printed. */
+static void
+bd_emit_hunks (bl_output *out, const bd_files *f, const bd_change *ch, int nch,
+               const bd_opts *o, const char *name0, const char *name1,
+               const struct timespec *t0, const struct timespec *t1)
+{
+    long ctx = o->context < 0 ? 3 : o->context;
+    int printed = 0;
+    bd_fn fn = { 0, -1 };
+    int c = 0;
+    while (c < nch) {
+        int s = c, e = c;
+        while (e + 1 < nch) {
+            long top0 = ch[e].line0 + ch[e].del;
+            long thresh = ch[e + 1].ignore ? ctx : 2 * ctx + 1;
+            if (ch[e + 1].line0 - top0 < thresh) e++;
+            else break;
         }
-        int hunk_end = j;
-        /* Compute line ranges over [hunk_start, hunk_end). */
-        int a_start = -1, a_count = 0;
-        int b_start = -1, b_count = 0;
-        for (int k = hunk_start; k < hunk_end; k++) {
-            if (ops[k].op == BDOP_EQ || ops[k].op == BDOP_DEL) {
-                if (a_start < 0) a_start = ops[k].la;
-                a_count++;
+        c = e + 1;
+        int show = 0, old = 0, new = 0;
+        for (int k = s; k <= e; k++) {
+            if (!ch[k].ignore) show = 1;
+            if (ch[k].del) old = 1;
+            if (ch[k].ins) new = 1;
+        }
+        if (!show) continue;
+        if (!printed) {
+            int uni = o->style == BD_UNIFIED;
+            bd_header (out, uni ? "--- " : "*** ", o->labels[0], name0, t0, !uni);
+            bd_header (out, uni ? "+++ " : "--- ", o->labels[1], name1, t1, !uni);
+            printed = 1;
+        }
+        long first0 = ch[s].line0 - ctx, first1 = ch[s].line1 - ctx;
+        long last0 = ch[e].line0 + ch[e].del - 1, last1 = ch[e].line1 + ch[e].ins - 1;
+        if (first0 < 0) first0 = 0;
+        if (first1 < 0) first1 = 0;
+        last0 = last0 < f->n - ctx ? last0 + ctx : f->n - 1;
+        last1 = last1 < f->m - ctx ? last1 + ctx : f->m - 1;
+        const bd_line *func = o->function_re ? bd_find_function (f, o, &fn, (int) first0) : NULL;
+        if (o->style == BD_UNIFIED) {
+            bd_text (out, "@@ -");
+            bd_unified_range (out, (int) first0, (int) last0);
+            bd_text (out, " +");
+            bd_unified_range (out, (int) first1, (int) last1);
+            bd_text (out, " @@");
+            if (func) bd_function_text (out, func);
+            bl_output_byte (out, '\n');
+            long i = first0, j = first1;
+            int next = s;
+            while (i <= last0 || j <= last1) {
+                if (next > e || i < ch[next].line0) {
+                    if (i <= last0) bd_line_nl (out, " ", &f->A[i], f->nonl_a && i == f->n - 1);
+                    i++, j++;
+                } else {
+                    for (int k = 0; k < ch[next].del; k++, i++)
+                        bd_line_nl (out, "-", &f->A[i], f->nonl_a && i == f->n - 1);
+                    for (int k = 0; k < ch[next].ins; k++, j++)
+                        bd_line_nl (out, "+", &f->B[j], f->nonl_b && j == f->m - 1);
+                    next++;
+                }
             }
-            if (ops[k].op == BDOP_EQ || ops[k].op == BDOP_INS) {
-                if (b_start < 0) b_start = ops[k].lb;
-                b_count++;
+            continue;
+        }
+        bd_text (out, "***************");
+        if (func) bd_function_text (out, func);
+        bd_text (out, "\n*** ");
+        bd_context_range (out, (int) first0, (int) last0);
+        bd_text (out, " ****\n");
+        if (old) {
+            int next = s;
+            for (long i = first0; i <= last0; i++) {
+                while (next <= e && ch[next].line0 + ch[next].del <= i) next++;
+                const char *prefix = "  ";
+                if (next <= e && ch[next].line0 <= i) prefix = ch[next].ins ? "! " : "- ";
+                bd_line_nl (out, prefix, &f->A[i], f->nonl_a && i == f->n - 1);
             }
         }
-        if (a_start < 0) a_start = 0;
-        if (b_start < 0) b_start = 0;
-        bd_format (out, "@@ -%d", a_count ? a_start + 1 : a_start);
-        if (a_count != 1) bd_format (out, ",%d", a_count);
-        bd_format (out, " +%d", b_count ? b_start + 1 : b_start);
-        if (b_count != 1) bd_format (out, ",%d", b_count);
-        bd_format (out, " @@\n");
-        for (int k = hunk_start; k < hunk_end; k++) {
-            switch (ops[k].op) {
-            case BDOP_EQ:
-                bd_print_line (out, " ", &A[ops[k].la]);
-                if (no_newline_a && ops[k].la == n - 1)
-                    bd_format (out, "\\ No newline at end of file\n");
-                break;
-            case BDOP_DEL:
-                bd_print_line (out, "-", &A[ops[k].la]);
-                if (no_newline_a && ops[k].la == n - 1)
-                    bd_format (out, "\\ No newline at end of file\n");
-                break;
-            case BDOP_INS:
-                bd_print_line (out, "+", &B[ops[k].lb]);
-                if (no_newline_b && ops[k].lb == m - 1)
-                    bd_format (out, "\\ No newline at end of file\n");
-                break;
+        bd_text (out, "--- ");
+        bd_context_range (out, (int) first1, (int) last1);
+        bd_text (out, " ----\n");
+        if (new) {
+            int next = s;
+            for (long j = first1; j <= last1; j++) {
+                while (next <= e && ch[next].line1 + ch[next].ins <= j) next++;
+                const char *prefix = "  ";
+                if (next <= e && ch[next].line1 <= j) prefix = ch[next].del ? "! " : "+ ";
+                bd_line_nl (out, prefix, &f->B[j], f->nonl_b && j == f->m - 1);
             }
         }
-        (void) n;
-        i = hunk_end;
     }
 }
 
@@ -699,57 +1139,72 @@ bd_finish_output (int status)
 }
 
 /* Compare two non-directory operands. HEADER, when set, is the
-   "diff -r A B" line printed before a textual difference. */
+   "diff -r A B" line printed before a textual difference. MISSING has bit
+   0 or 1 set for an operand that does not exist and -N treats as empty. */
 static int
-bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *header)
+bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *header,
+                  int missing)
 {
     /* GNU diff treats these as the same input without reading it. In
        particular, do not consume a pipe or wait for EOF before returning. */
-    if (bd_is_stdin (p0) && bd_is_stdin (p1))
-        return EXECUTION_SUCCESS;
+    if (bd_is_stdin (p0) && bd_is_stdin (p1)) {
+        if (o->sflag) printf ("Files %s and %s are identical\n", p0, p1);
+        return bd_finish_output (EXECUTION_SUCCESS);
+    }
 
     /* Load distinct operands once each; a single "-" borrows stdin. */
     unsigned char *da = NULL, *db = NULL;
     size_t la = 0, lb = 0;
-    struct timespec stamp;
-    struct timespec *mtime2 = o->uflag && o->labels[0] && !o->labels[1] ? &stamp : NULL;
-    if (bd_load (p0, &da, &la, NULL) < 0)
+    struct timespec t0 = { 0, 0 }, t1 = { 0, 0 };
+    int stamps = o->style == BD_UNIFIED || o->style == BD_CONTEXT;
+    if (missing & 1) da = calloc (1, 1);
+    else if (bd_load (p0, &da, &la, stamps ? &t0 : NULL) < 0)
         return 2;
-    if (bd_load (p1, &db, &lb, mtime2) < 0) {
+    if (missing & 2) db = calloc (1, 1);
+    else if (bd_load (p1, &db, &lb, stamps ? &t1 : NULL) < 0) {
         free (da);
+        return 2;
+    }
+    if (!da || !db) {
+        builtin_error ("out of memory");
+        free (da);
+        free (db);
         return 2;
     }
 
     const char *name0 = o->labels[0] ? o->labels[0] : p0;
     const char *name1 = o->labels[1] ? o->labels[1] : p1;
+    int ignoring = o->iflag || bd_ws_mode (o) || o->blank || o->ignore_re;
     /* Equal bytes imply equal lines for every supported comparison mode.
        Avoid indexing lines and building an edit trace when
        the complete inputs already establish that there is no difference. */
-    if (!o->yflag && bd_files_equal (da, la, db, lb)) {
+    if (o->style != BD_SBS && bd_files_equal (da, la, db, lb)) {
         free (da);
         free (db);
-        return EXECUTION_SUCCESS;
+        if (o->sflag) printf ("Files %s and %s are identical\n", p0, p1);
+        return bd_finish_output (EXECUTION_SUCCESS);
     }
 
-    /* Byte inequality fully answers a case-sensitive quiet comparison. */
-    if (o->qflag && !o->iflag && !o->wflag) {
+    /* Byte inequality fully answers a quiet comparison without -i, -b,
+       -w, -Z, -B or -I. */
+    if (o->qflag && !ignoring) {
         printf ("Files %s and %s differ\n", name0, name1);
         free (da);
         free (db);
         return bd_finish_output (1);
     }
 
-    /* Binary detection: NUL in the first input block. Binary inputs are compared
-       bytewise: identical files exit 0 silently; differing files report the
-       standard binary-differ diagnostic and exit 1. */
-    int bin_a = bd_probe_binary (da, la);
-    int bin_b = bd_probe_binary (db, lb);
-    if (bin_a == 1 || bin_b == 1) {
+    /* Binary detection: NUL in the first input block, unless -a. Binary
+       inputs are compared bytewise: identical files exit 0 silently;
+       differing files report the standard binary-differ diagnostic and
+       exit 1. */
+    if (!o->aflag && (bd_probe_binary (da, la) || bd_probe_binary (db, lb))) {
         int same = bd_files_equal (da, la, db, lb);
         int rc;
-        if (same)
+        if (same) {
             rc = 0;
-        else {
+            if (o->sflag) printf ("Files %s and %s are identical\n", p0, p1);
+        } else {
             if (o->qflag)
                 printf ("Files %s and %s differ\n", name0, name1);
             else
@@ -761,67 +1216,79 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
         return bd_finish_output (rc);
     }
 
-    int n, m, no_newline_a = 0, no_newline_b = 0;
-    bd_line *A = bd_slurp (da, la, p0, &n, &no_newline_a);
-    if (!A) {
+    bd_files f = { NULL, NULL, 0, 0, 0, 0, NULL };
+    f.A = bd_slurp (da, la, p0, &f.n, &f.nonl_a);
+    if (!f.A) {
         free (da);
         free (db);
         return 2;
     }
-    bd_line *B = bd_slurp (db, lb, p1, &m, &no_newline_b);
-    if (!B) {
-        free (A);
+    f.B = bd_slurp (db, lb, p1, &f.m, &f.nonl_b);
+    if (!f.B) {
+        free (f.A);
         free (da);
         free (db);
         return 2;
     }
-    int n_ops;
+    int n_ops, nch = 0;
     bd_op *ops = NULL;
+    bd_change *ch = NULL;
     int rc = 2;
-    if (o->qflag) {
-        int equal = n == m && (o->wflag || no_newline_a == no_newline_b);
-        for (int i = 0; equal && i < n; i++)
-            equal = bd_lineq (&A[i], &B[i], o);
+    if (o->ignore_re || o->function_re) {
+        size_t longest = 0;
+        for (int i = 0; i < f.n; i++) if (f.A[i].len > longest) longest = f.A[i].len;
+        for (int i = 0; i < f.m; i++) if (f.B[i].len > longest) longest = f.B[i].len;
+        f.scratch = malloc (longest + 1);
+        if (!f.scratch) { builtin_error ("out of memory comparing files"); goto cleanup; }
+    }
+    if (o->qflag && !o->blank && !o->ignore_re) {
+        int equal = f.n == f.m && (bd_ws_mode (o) || f.nonl_a == f.nonl_b);
+        for (int i = 0; equal && i < f.n; i++)
+            equal = bd_lineq (&f.A[i], &f.B[i], o) &&
+                    (bd_ws_mode (o) || i < f.n - 1 || f.nonl_a == f.nonl_b);
         if (!equal) printf ("Files %s and %s differ\n", name0, name1);
+        else if (o->sflag) printf ("Files %s and %s are identical\n", p0, p1);
         rc = bd_finish_output (equal ? 0 : 1);
         goto cleanup;
     }
-    ops = bd_myers (A, n, B, m, o, no_newline_a, no_newline_b, &n_ops);
-    if (n_ops < 0) goto cleanup;
+    nch = bd_changes (&f, o, &ch, &ops, &n_ops);
+    if (nch < 0) goto cleanup;
 
-    /* Detect "differ at all" by scanning for non-EQ. */
+    /* Only changes that -B and -I do not hide count as a difference. */
     int differ = 0;
-    for (int i = 0; i < n_ops; i++) {
-        if (ops[i].op != BDOP_EQ) { differ = 1; break; }
-    }
-    if (!o->wflag && no_newline_a != no_newline_b)
-        differ = 1;
+    for (int i = 0; i < nch; i++)
+        if (!ch[i].ignore) { differ = 1; break; }
 
     rc = differ ? 1 : 0;
-    if ((differ || o->yflag) && !o->qflag) {
+    if (differ && o->qflag) {
+        printf ("Files %s and %s differ\n", name0, name1);
+    } else if (differ || o->style == BD_SBS) {
         bl_output out;
         bl_output_init (&out, stdout);
-        if (header && (differ || o->yflag)) { bd_text (&out, header); bl_output_byte (&out, '\n'); }
-        if (o->yflag) bd_emit_side_by_side (&out, A, n, B, m, ops, n_ops, o->width,
-                                           no_newline_a, no_newline_b);
-        else if (o->uflag) bd_emit_unified (&out, A, n, B, m, ops, n_ops, name0, name1, mtime2,
-                                     no_newline_a, no_newline_b);
-        else         bd_emit_ed (&out, A, n, B, m, ops, n_ops, no_newline_a, no_newline_b);
+        if (header) { bd_text (&out, header); bl_output_byte (&out, '\n'); }
+        if (o->style == BD_SBS)
+            bd_emit_side_by_side (&out, f.A, f.n, f.B, f.m, ops, n_ops, o->width,
+                                  f.nonl_a, f.nonl_b);
+        else if (o->style == BD_NORMAL)
+            bd_emit_ed (&out, &f, ch, nch);
+        else
+            bd_emit_hunks (&out, &f, ch, nch, o, p0, p1, &t0, &t1);
         bl_output_flush (&out);
         if (out.error) {
             builtin_error ("write error: %s", strerror (out.error));
             clearerr (stdout);
             rc = 2;
         }
-    } else if (differ && o->qflag) {
-        printf ("Files %s and %s differ\n", name0, name1);
     }
+    if (rc == 0 && o->sflag) printf ("Files %s and %s are identical\n", p0, p1);
 
     rc = bd_finish_output (rc);
 cleanup:
+    free (f.scratch);
+    free (ch);
     free (ops);
-    free (A);
-    free (B);
+    free (f.A);
+    free (f.B);
     free (da);
     free (db);
     return rc;
@@ -859,9 +1326,17 @@ bd_name_cmp (const void *a, const void *b)
     return strcmp (*(char *const *) a, *(char *const *) b);
 }
 
-/* Sorted entry names of DIR, without "." and "..". */
+static int
+bd_excluded (const bd_opts *o, const char *name)
+{
+    for (size_t i = 0; i < o->nexcludes; i++)
+        if (fnmatch (o->excludes[i], name, 0) == 0) return 1;
+    return 0;
+}
+
+/* Sorted entry names of DIR, without ".", ".." and -x/-X exclusions. */
 static char **
-bd_list_dir (const char *dir, size_t *count)
+bd_list_dir (const char *dir, size_t *count, const bd_opts *o)
 {
     DIR *d = opendir (dir);
     if (!d) { builtin_error ("%s: %s", dir, strerror (errno)); return NULL; }
@@ -870,12 +1345,15 @@ bd_list_dir (const char *dir, size_t *count)
     struct dirent *de;
     while (names && (errno = 0, de = readdir (d))) {
         if (!strcmp (de->d_name, ".") || !strcmp (de->d_name, "..")) continue;
+        if (bd_excluded (o, de->d_name)) continue;
         if (n == cap) {
             char **grown = realloc (names, (cap *= 2) * sizeof *names);
             if (!grown) { for (size_t i = 0; i < n; i++) free (names[i]); free (names); names = NULL; break; }
             names = grown;
         }
-        if (!(names[n] = strdup (de->d_name))) { for (size_t i = 0; i < n; i++) free (names[i]); free (names); names = NULL; break; }
+        size_t len = strlen (de->d_name) + 1;
+        if ((names[n] = malloc (len))) memcpy (names[n], de->d_name, len);
+        if (!names[n]) { for (size_t i = 0; i < n; i++) free (names[i]); free (names); names = NULL; break; }
         n++;
     }
     if (names && errno) {
@@ -893,31 +1371,35 @@ bd_list_dir (const char *dir, size_t *count)
 static int bd_compare_paths (const char *p0, const char *p1, const bd_opts *o, int top);
 
 /* Two directories, as GNU diff does: entries in name order, "Only in"
-   for one-sided names, recursion with -r, else "Common subdirectories". */
+   for one-sided names (compared with an empty file under -N), recursion
+   with -r, else "Common subdirectories". MISSING marks a side that does
+   not exist and -N treats as an empty directory. */
 static int
-bd_compare_dirs (const char *d0, const char *d1, const bd_opts *o)
+bd_compare_dirs (const char *d0, const char *d1, const bd_opts *o, int missing)
 {
     size_t n0 = 0, n1 = 0;
-    char **a = bd_list_dir (d0, &n0);
+    char **a = (missing & 1) ? calloc (1, sizeof *a) : bd_list_dir (d0, &n0, o);
     if (!a) return 2;
-    char **b = bd_list_dir (d1, &n1);
+    char **b = (missing & 2) ? calloc (1, sizeof *b) : bd_list_dir (d1, &n1, o);
     if (!b) { for (size_t i = 0; i < n0; i++) free (a[i]); free (a); return 2; }
     int rc = 0;
     size_t i = 0, j = 0;
     while (i < n0 || j < n1) {
         int c = i >= n0 ? 1 : j >= n1 ? -1 : strcmp (a[i], b[j]);
         int r;
-        if (c) {
+        if (c && !o->nflag) {
             const char *dir = c < 0 ? d0 : d1, *name = c < 0 ? a[i++] : b[j++];
             fflush (stdout);
             printf ("Only in %s: %s\n", dir, name);
             r = 1;
         } else {
-            char *q0 = bd_join (d0, a[i]), *q1 = q0 ? bd_join (d1, b[j]) : NULL;
+            const char *name = c <= 0 ? a[i] : b[j];
+            char *q0 = bd_join (d0, name), *q1 = q0 ? bd_join (d1, name) : NULL;
             r = q1 ? bd_compare_paths (q0, q1, o, 0) : 2;
             free (q0);
             free (q1);
-            i++, j++;
+            if (c <= 0) i++;
+            if (c >= 0) j++;
         }
         if (r > rc) rc = r;
     }
@@ -932,17 +1414,25 @@ static int
 bd_compare_paths (const char *p0, const char *p1, const bd_opts *o, int top)
 {
     struct stat s0, s1;
-    int d0 = 0, d1 = 0;
+    int d0 = 0, d1 = 0, missing = 0;
     if (!bd_is_stdin (p0)) {
-        if (stat (p0, &s0) < 0) { builtin_error ("%s: %s", p0, strerror (errno)); return 2; }
-        d0 = S_ISDIR (s0.st_mode);
+        if (stat (p0, &s0) < 0) {
+            if (errno != ENOENT || !o->nflag) { builtin_error ("%s: %s", p0, strerror (errno)); return 2; }
+            missing |= 1;
+        } else d0 = S_ISDIR (s0.st_mode);
     }
     if (!bd_is_stdin (p1)) {
-        if (stat (p1, &s1) < 0) { builtin_error ("%s: %s", p1, strerror (errno)); return 2; }
-        d1 = S_ISDIR (s1.st_mode);
+        if (stat (p1, &s1) < 0) {
+            if (errno != ENOENT || !o->nflag || missing) { builtin_error ("%s: %s", missing ? p0 : p1, strerror (ENOENT)); return 2; }
+            missing |= 2;
+        } else d1 = S_ISDIR (s1.st_mode);
     }
+    /* -N: a missing operand is an empty file, or an empty directory when
+       the other side is a directory. */
+    if (missing & 1) d0 = d1;
+    if (missing & 2) d1 = d0;
     if (d0 && d1) {
-        if (top == 1 || o->rflag) return bd_compare_dirs (p0, p1, o);
+        if (top == 1 || o->rflag) return bd_compare_dirs (p0, p1, o, missing);
         fflush (stdout);
         printf ("Common subdirectories: %s and %s\n", p0, p1);
         return bd_finish_output (0);
@@ -966,40 +1456,258 @@ bd_compare_paths (const char *p0, const char *p1, const bd_opts *o, int top)
         free (joined);
         return rc;
     }
-    if (top) return bd_compare_files (p0, p1, o, NULL);
-    size_t len = strlen (o->switches) + strlen (p0) + strlen (p1) + 8;
-    char *header = malloc (len);
-    if (!header) { builtin_error ("out of memory"); return 2; }
-    snprintf (header, len, "diff%s %s %s", o->switches, p0, p1);
+    if (top) return bd_compare_files (p0, p1, o, NULL, missing);
+    /* GNU C-quotes the names on the "diff OPTIONS A B" line. */
+    char *q0 = bd_cquote (p0), *q1 = q0 ? bd_cquote (p1) : NULL;
+    size_t len = strlen (o->switches) + (q1 ? strlen (q0) + strlen (q1) : 0) + 8;
+    char *header = q1 ? malloc (len) : NULL;
+    if (!header) { free (q0); free (q1); builtin_error ("out of memory"); return 2; }
+    snprintf (header, len, "diff%s %s %s", o->switches, q0, q1);
+    free (q0);
+    free (q1);
     fflush (stdout);
-    int rc = bd_compare_files (p0, p1, o, header);
+    int rc = bd_compare_files (p0, p1, o, header, missing);
     free (header);
     return rc;
 }
+
+/* Append WORD to the "diff OPTIONS" string quoted as GNU's quotearg shell
+   style: bare when safe, "..." for a word whose only special character is
+   a single quote, else '...' with each ' written as '\''. */
+static void
+bd_switch (char *switches, const char *word)
+{
+    char *q = switches + strlen (switches);
+    int special = !*word || *word == '#' || *word == '~', squote = 0, compat = 1;
+    for (const unsigned char *p = (const unsigned char *) word; *p; p++) {
+        if (*p == '\'') squote = 1;
+        else if (*p < ' ' || *p == 127 || strchr (" !\"$&()*;<=>?[\\^`|", *p)) {
+            special = 1;
+            if (*p != ' ') compat = 0;
+        } else if (*p == '#' && p != (const unsigned char *) word) compat = 0;
+    }
+    *q++ = ' ';
+    if (squote && compat) {
+        q += sprintf (q, "\"%s\"", word);
+        return;
+    }
+    if (!special && !squote) { strcpy (q, word); return; }
+    *q++ = '\'';
+    for (const char *p = word; *p; p++) {
+        if (*p == '\'') { memcpy (q, "'\\''", 4); q += 4; }
+        else *q++ = *p;
+    }
+    *q++ = '\'';
+    *q = '\0';
+}
+
+/* Parse a -C/-U/--context=/--unified= length as GNU does. */
+static int
+bd_context_arg (const char *arg, long *out)
+{
+    char *end;
+    errno = 0;
+    long v = strtol (arg, &end, 10);
+    if (end == arg || *end || v < 0) {
+        builtin_error ("invalid context length '%s'", arg);
+        return -1;
+    }
+    if (errno == ERANGE || v > INT_MAX / 4) v = INT_MAX / 4;
+    *out = v;
+    return 0;
+}
+
+typedef struct {
+    bd_opts *o;
+    int style_set;
+    char *ignore_pat, *function_pat;
+    size_t ecap;
+} bd_parse;
+
+static int
+bd_style (bd_parse *ps, int style)
+{
+    if (ps->style_set && ps->o->style != style) {
+        builtin_error ("conflicting output style options");
+        return -1;
+    }
+    ps->style_set = 1;
+    ps->o->style = style;
+    return 0;
+}
+
+static int
+bd_add_exclude (bd_parse *ps, const char *pat, size_t len)
+{
+    bd_opts *o = ps->o;
+    if (o->nexcludes == ps->ecap) {
+        size_t nc = ps->ecap ? ps->ecap * 2 : 8;
+        char **g = realloc (o->excludes, nc * sizeof *g);
+        if (!g) { builtin_error ("out of memory"); return -1; }
+        o->excludes = g;
+        ps->ecap = nc;
+    }
+    char *d = malloc (len + 1);
+    if (!d) { builtin_error ("out of memory"); return -1; }
+    memcpy (d, pat, len);
+    d[len] = '\0';
+    o->excludes[o->nexcludes++] = d;
+    return 0;
+}
+
+static int
+bd_exclude_from (bd_parse *ps, const char *file)
+{
+    unsigned char *data;
+    size_t len;
+    if (bd_load (file, &data, &len, NULL) < 0) return -1;
+    size_t at = 0;
+    while (at < len) {
+        unsigned char *nl = memchr (data + at, '\n', len - at);
+        size_t l = nl ? (size_t) (nl - data - at) : len - at;
+        if (bd_add_exclude (ps, (const char *) data + at, l) < 0) { free (data); return -1; }
+        at += l + 1;
+    }
+    free (data);
+    return 0;
+}
+
+/* -I RE more than once matches any of them, as GNU joins them. */
+static int
+bd_add_pattern (char **pat, const char *re)
+{
+    size_t old = *pat ? strlen (*pat) : 0, add = strlen (re);
+    char *g = realloc (*pat, old + add + 3);
+    if (!g) { builtin_error ("out of memory"); return -1; }
+    if (old) memcpy (g + old, "\\|", 2), old += 2;
+    memcpy (g + old, re, add + 1);
+    *pat = g;
+    return 0;
+}
+
+static regex_t *
+bd_compile (const char *pat)
+{
+    regex_t *re = malloc (sizeof *re);
+    if (!re) { builtin_error ("out of memory"); return NULL; }
+    int err = regcomp (re, pat, REG_NOSUB);
+    if (err) {
+        char msg[256];
+        regerror (err, re, msg, sizeof msg);
+        builtin_error ("%s", msg);
+        free (re);
+        return NULL;
+    }
+    return re;
+}
+
+/* Options that take an argument: the rest of the word or the next one. */
+#define BD_SHORT_ARG "CUxXLWIF"
+
+/* Apply one short option C with argument ARG (NULL when it takes none). */
+static int
+bd_short (bd_parse *ps, int c, const char *arg, int *nlabels)
+{
+    bd_opts *o = ps->o;
+    long v;
+    switch (c) {
+    case 'a': o->aflag = 1; break;
+    case 'b': o->bflag = 1; break;
+    case 'B': o->blank = 1; break;
+    case 'c':
+        if (bd_style (ps, BD_CONTEXT) < 0) return -1;
+        if (o->context < 3) o->context = 3;
+        break;
+    case 'u':
+        if (bd_style (ps, BD_UNIFIED) < 0) return -1;
+        if (o->context < 3) o->context = 3;
+        break;
+    case 'C': case 'U':
+        if (bd_context_arg (arg, &v) < 0) return -1;
+        if (bd_style (ps, c == 'U' ? BD_UNIFIED : BD_CONTEXT) < 0) return -1;
+        if (o->context < v) o->context = v;
+        break;
+    case 'd': o->minimal = 1; break;
+    case 'i': o->iflag = 1; break;
+    case 'I': return bd_add_pattern (&ps->ignore_pat, arg);
+    case 'F': return bd_add_pattern (&ps->function_pat, arg);
+    case 'p': return bd_add_pattern (&ps->function_pat, "^[[:alpha:]$_]");
+    case 'N': o->nflag = 1; break;
+    case 'q': o->qflag = 1; break;
+    case 'r': o->rflag = 1; break;
+    case 's': o->sflag = 1; break;
+    case 'w': o->wflag = 1; break;
+    case 'Z': o->zflag = 1; break;
+    case 'y': return bd_style (ps, BD_SBS);
+    case 'x': return bd_add_exclude (ps, arg, strlen (arg));
+    case 'X': return bd_exclude_from (ps, arg);
+    case 'L':
+        if (*nlabels == 2) { builtin_error ("too many file label options"); return -1; }
+        o->labels[(*nlabels)++] = arg;
+        break;
+    case 'W': {
+        char *end;
+        errno = 0;
+        v = strtol (arg, &end, 10);
+        if (errno || end == arg || *end || v <= 0) {
+            builtin_error ("invalid width '%s'", arg);
+            return -1;
+        }
+        o->width = v;
+        break;
+    }
+    default:
+        builtin_error ("invalid option -- '%c'", c);
+        return -1;
+    }
+    return 0;
+}
+
+/* GNU long options: NAME, the short option it stands for, and whether
+   its argument is required (1) or optional (2). */
+static const struct { const char *name; int c, arg; } bd_long[] = {
+    { "text", 'a', 0 }, { "ignore-space-change", 'b', 0 },
+    { "ignore-blank-lines", 'B', 0 }, { "context", 'C', 2 },
+    { "minimal", 'd', 0 }, { "ignore-case", 'i', 0 },
+    { "ignore-matching-lines", 'I', 1 }, { "show-function-line", 'F', 1 },
+    { "show-c-function", 'p', 0 }, { "new-file", 'N', 0 },
+    { "brief", 'q', 0 }, { "recursive", 'r', 0 },
+    { "report-identical-files", 's', 0 }, { "unified", 'U', 2 },
+    { "ignore-all-space", 'w', 0 }, { "ignore-trailing-space", 'Z', 0 },
+    { "side-by-side", 'y', 0 }, { "exclude", 'x', 1 },
+    { "exclude-from", 'X', 1 }, { "label", 'L', 1 }, { "width", 'W', 1 },
+    { "normal", 0, 0 }, { "speed-large-files", 1, 0 },
+    { "horizon-lines", 2, 1 },
+};
 
 int
 diff_builtin (WORD_LIST *list)
 {
     bd_opts o = {0};
+    bd_parse ps = { &o, 0, NULL, NULL, 0 };
     const char *paths[2] = { NULL, NULL };
     int npos = 0;
     size_t sw_len = 0;
     int nlabels = 0;
+    int rc = EX_USAGE;
     o.width = 130;
+    o.context = -1;
+    o.style = BD_NORMAL;
     /* Option words as given, for the "diff OPTIONS A B" lines of -r. */
     for (WORD_LIST *p = list; p; p = p->next)
-        sw_len += strlen (p->word->word) + 1;
+        sw_len += 4 * strlen (p->word->word) + 4;
     char *switches = malloc (sw_len + 1);
     if (!switches) { builtin_error ("out of memory"); return 2; }
     switches[0] = '\0';
-#define BD_USAGE_FAIL do { free (switches); builtin_usage (); return EX_USAGE; } while (0)
+#define BD_SW(word) bd_switch (switches, (word))
+#define BD_USAGE_FAIL do { builtin_usage (); rc = EX_USAGE; goto done; } while (0)
     for (WORD_LIST *p = list; p; p = p->next) {
         const char *w = p->word->word;
-        if (strcmp (w, "--help") == 0) { free (switches); builtin_usage (); return EXECUTION_SUCCESS; }
+        if (strcmp (w, "--help") == 0) { builtin_usage (); rc = EXECUTION_SUCCESS; goto done; }
         if (strcmp (w, "--version") == 0 || strcmp (w, "-v") == 0) {
-            free (switches);
             puts ("bashdiff 1.0 (bash-loadable)");
-            return EXECUTION_SUCCESS;
+            rc = EXECUTION_SUCCESS;
+            goto done;
         }
         if (strcmp (w, "--") == 0) {
             for (p = p->next; p; p = p->next) {
@@ -1012,93 +1720,60 @@ diff_builtin (WORD_LIST *list)
             break;
         }
         if (w[0] == '-' && w[1] == '-') {
-            const char *width = NULL;
-            if (!strcmp (w, "--side-by-side")) o.yflag = 1;
-            else if (!strcmp (w, "--recursive")) o.rflag = 1;
-            else if (!strcmp (w, "--unified")) o.uflag = 1;
-            else if (!strcmp (w, "--ignore-all-space")) o.wflag = 1;
-            else if (!strcmp (w, "--label") || !strncmp (w, "--label=", 8)) {
-                if (nlabels == 2) { builtin_error ("too many file label options"); BD_USAGE_FAIL; }
-                if (w[7]) o.labels[nlabels++] = w + 8;
-                else {
-                    if (!p->next) { builtin_error ("--label requires an argument"); BD_USAGE_FAIL; }
-                    p = p->next;
-                    o.labels[nlabels++] = p->word->word;
-                    strcat (switches, " ");
-                    strcat (switches, w);
-                    w = p->word->word;
-                }
+            const char *eq = strchr (w + 2, '=');
+            size_t nl = eq ? (size_t) (eq - w - 2) : strlen (w + 2);
+            int found = -1, matches = 0;
+            for (size_t k = 0; k < sizeof bd_long / sizeof bd_long[0]; k++) {
+                if (strncmp (bd_long[k].name, w + 2, nl)) continue;
+                if (!bd_long[k].name[nl]) { found = (int) k; matches = 1; break; }
+                found = (int) k;
+                matches++;
             }
-            else if (!strcmp (w, "--brief")) o.qflag = 1;
-            else if (!strcmp (w, "--ignore-case")) o.iflag = 1;
-            else if (!strncmp (w, "--width=", 8)) width = w + 8;
-            else {
-                builtin_error ("unknown option: %s", w);
+            if (matches != 1) {
+                builtin_error ("%s option '%s'", matches ? "ambiguous" : "unrecognized", w);
                 BD_USAGE_FAIL;
             }
-            strcat (switches, " ");
-            strcat (switches, w);
-            if (width) {
-                char *end;
-                errno = 0;
-                long v = strtol (width, &end, 10);
-                if (errno || end == width || *end || v <= 0) {
-                    builtin_error ("invalid width '%s'", width);
+            BD_SW (w);
+            const char *arg = eq ? eq + 1 : NULL;
+            if (bd_long[found].arg == 0 && arg) {
+                builtin_error ("option '--%s' doesn't allow an argument", bd_long[found].name);
+                BD_USAGE_FAIL;
+            }
+            if (bd_long[found].arg == 1 && !arg) {
+                if (!p->next) {
+                    builtin_error ("option '--%s' requires an argument", bd_long[found].name);
                     BD_USAGE_FAIL;
                 }
-                o.width = v;
+                p = p->next;
+                arg = p->word->word;
+                BD_SW (arg);
             }
+            int c = bd_long[found].c;
+            if (c == 0) { if (bd_style (&ps, BD_NORMAL) < 0) BD_USAGE_FAIL; continue; }
+            if (c == 1 || c == 2) continue;      /* accepted, no effect here */
+            if (bd_long[found].arg == 2 && !arg) arg = "3";
+            if (bd_short (&ps, c, arg, &nlabels) < 0) BD_USAGE_FAIL;
             continue;
         }
         if (w[0] == '-' && w[1] && strcmp (w, "-") != 0) {
-            strcat (switches, " ");
-            strcat (switches, w);
+            BD_SW (w);
             for (int i = 1; w[i]; i++) {
-                if (w[i] == 'W') {
-                    /* -W NUM: the rest of the word, or the next word. */
-                    const char *width = w[i + 1] ? &w[i + 1] : NULL;
-                    if (!width) {
+                const char *arg = NULL;
+                if (strchr (BD_SHORT_ARG, w[i])) {
+                    /* The rest of the word, or the next word. */
+                    arg = w[i + 1] ? &w[i + 1] : NULL;
+                    if (!arg) {
                         if (!p->next) {
-                            builtin_error ("option requires an argument -- 'W'");
+                            builtin_error ("option requires an argument -- '%c'", w[i]);
                             BD_USAGE_FAIL;
                         }
                         p = p->next;
-                        width = p->word->word;
-                        strcat (switches, " ");
-                        strcat (switches, width);
+                        arg = p->word->word;
+                        BD_SW (arg);
                     }
-                    char *end;
-                    errno = 0;
-                    long v = strtol (width, &end, 10);
-                    if (errno || end == width || *end || v <= 0) {
-                        builtin_error ("invalid width '%s'", width);
-                        BD_USAGE_FAIL;
-                    }
-                    o.width = v;
-                    break;
                 }
-                switch (w[i]) {
-                case 'w': o.wflag = 1; break;
-                case 'L':
-                    if (nlabels == 2) { builtin_error ("too many file label options"); BD_USAGE_FAIL; }
-                    if (w[i+1]) o.labels[nlabels++] = w+i+1;
-                    else {
-                        if (!p->next) { builtin_error ("-L requires an argument"); BD_USAGE_FAIL; }
-                        p = p->next;
-                        o.labels[nlabels++] = p->word->word;
-                        strcat (switches, " "); strcat (switches, p->word->word);
-                    }
-                    i = strlen (w) - 1;
-                    break;
-                case 'u': o.uflag = 1; break;
-                case 'q': o.qflag = 1; break;
-                case 'i': o.iflag = 1; break;
-                case 'y': o.yflag = 1; break;
-                case 'r': o.rflag = 1; break;
-                default:
-                    builtin_error ("unknown flag: -%c", w[i]);
-                    BD_USAGE_FAIL;
-                }
+                if (bd_short (&ps, w[i], arg, &nlabels) < 0) BD_USAGE_FAIL;
+                if (arg) break;
             }
         } else {
             if (npos < 2) paths[npos++] = w;
@@ -1108,37 +1783,58 @@ diff_builtin (WORD_LIST *list)
             }
         }
     }
-    if (npos != 2) BD_USAGE_FAIL;
-#undef BD_USAGE_FAIL
-    if (o.yflag && o.uflag) {
-        free (switches);
-        builtin_error ("conflicting output style options");
-        builtin_usage ();
-        return EX_USAGE;
+    if (npos != 2) {
+        if (npos) builtin_error ("missing operand after '%s'", paths[npos - 1]);
+        BD_USAGE_FAIL;
     }
+    if (ps.ignore_pat && !(o.ignore_re = bd_compile (ps.ignore_pat))) { rc = 2; goto done; }
+    if (ps.function_pat && !(o.function_re = bd_compile (ps.function_pat))) { rc = 2; goto done; }
+#undef BD_USAGE_FAIL
+#undef BD_SW
     o.switches = switches;
-    int rc = bd_compare_paths (paths[0], paths[1], &o, 1);
+    rc = bd_finish_output (bd_compare_paths (paths[0], paths[1], &o, 1));
+done:
     free (switches);
-    return bd_finish_output (rc);
+    free (ps.ignore_pat);
+    free (ps.function_pat);
+    if (o.ignore_re) { regfree (o.ignore_re); free (o.ignore_re); }
+    if (o.function_re) { regfree (o.function_re); free (o.function_re); }
+    for (size_t i = 0; i < o.nexcludes; i++) free (o.excludes[i]);
+    free (o.excludes);
+    return rc;
 }
 
 char *diff_doc[] = {
     "Compare two files line by line (Myers O(ND)).",
     "",
-    "    bashdiff [-u|-y [-W NUM]] [-q] [-i] [-r] [--help|--version] FILE1 FILE2",
+    "    diff [OPTION]... FILE1 FILE2",
     "",
-    "    -w, --ignore-all-space  ignore whitespace within each line",
-    "    -L LABEL, --label LABEL  set a file label (up to two)",
-    "    -u   unified diff (3 lines context per hunk)",
-    "    -y   side-by-side output; -W NUM sets the width (default 130)",
-    "    -r   compare directories recursively",
-    "    -q   only report whether files differ",
-    "    -i   ignore case",
+    "    -u, -U NUM, --unified[=NUM]  unified diff, NUM (default 3) lines of context",
+    "    -c, -C NUM, --context[=NUM]  context diff, NUM (default 3) lines of context",
+    "    --normal       normal (ed-style) diff, the default",
+    "    -y, --side-by-side  side-by-side output; -W NUM, --width=NUM (default 130)",
+    "    -q, --brief    only report whether files differ",
+    "    -s, --report-identical-files  report when two files are the same",
+    "    -r, --recursive  compare directories recursively",
+    "    -N, --new-file   treat absent files as empty",
+    "    -x PAT, --exclude=PAT       skip directory entries that match PAT",
+    "    -X FILE, --exclude-from=FILE  skip entries matching a pattern in FILE",
+    "    -i, --ignore-case            ignore case differences",
+    "    -b, --ignore-space-change    ignore changes in the amount of white space",
+    "    -w, --ignore-all-space       ignore all white space",
+    "    -Z, --ignore-trailing-space  ignore white space at line end",
+    "    -B, --ignore-blank-lines     ignore changes whose lines are all blank",
+    "    -I RE, --ignore-matching-lines=RE  ignore changes whose lines all match RE",
+    "    -p, --show-c-function        show which C function each change is in",
+    "    -F RE, --show-function-line=RE  show the last line before a hunk matching RE",
+    "    -a, --text     treat all files as text",
+    "    -L LABEL, --label LABEL  use LABEL instead of a file name and time (up to two)",
+    "    -d, --minimal  try hard to find a smaller set of changes",
     "    -v, --version  show version",
     "    --help         show this help",
     "",
-    "Exit 0 (same), 1 (differ), 2 (error). Default output is POSIX",
-    "ed-script style: 1c2 / 1a1 / 2d3 with < and > markers.",
+    "Exit 0 (same), 1 (differ), 2 (error). Unified and context headers carry",
+    "each file's modification time as GNU diff prints it.",
     (char *)NULL
 };
 
@@ -1147,6 +1843,6 @@ struct builtin bashdiff_struct = {
     diff_builtin,
     BUILTIN_ENABLED,
     diff_doc,
-    "bashdiff [-uqiyr] [-W NUM] [--help|--version] FILE1 FILE2",
+    "bashdiff [-abBcdiNpqrsuwyZ] [-C NUM|-U NUM] [-x PAT] [-X FILE] [-L LABEL] [-W NUM] FILE1 FILE2",
     0
 };

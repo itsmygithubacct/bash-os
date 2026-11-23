@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Check rev's byte-per-line contract, batching, and live-stream delivery."""
+"""Check rev's byte-per-line contract (C locale), character reversal in
+UTF-8 (util-linux), batching, and live-stream delivery."""
 import os
 from pathlib import Path
 import selectors
@@ -9,7 +10,7 @@ import sys
 import tempfile
 
 binary = str(Path(sys.argv[1] if len(sys.argv) > 1 else 'out/bash').resolve())
-env = dict(os.environ, PATH='', LC_ALL='C.UTF-8')
+env = dict(os.environ, PATH='', LC_ALL='C')
 checks = 0
 
 
@@ -17,11 +18,11 @@ def reverse(payload):
     return b'\n'.join(part[::-1] for part in payload.split(b'\n'))
 
 
-def run(script, *args, data=b'', expected=b''):
+def run(script, *args, data=b'', expected=b'', locale=None):
     global checks
     result = subprocess.run([binary, '--noprofile', '--norc', '-c', script, 'check',
                              *map(str, args)], input=data, capture_output=True,
-                            env=env, timeout=20)
+                            env=dict(env, LC_ALL=locale) if locale else env, timeout=20)
     assert result.returncode == 0, (script, result.returncode, result.stderr)
     assert b'AddressSanitizer' not in result.stderr and b'runtime error:' not in result.stderr, result.stderr
     assert result.stdout == expected, (script, args, result.stdout[:160], expected[:160])
@@ -64,6 +65,14 @@ with tempfile.TemporaryDirectory(prefix='rev-streams-') as directory:
         run('rev', data=payload, expected=expected)
         run('rev -', data=payload, expected=expected)
         run('rev < "$1"', 'input', expected=expected)
+
+    # UTF-8: whole characters are reversed (util-linux). An invalid byte is
+    # kept as one character; util-linux stops with an fgetwc() error there.
+    for payload, want in (('café\n界'.encode(), 'éfac\n界'.encode()),
+                          (b'a\xc3\xa9\xffb\n', b'b\xff\xc3\xa9a\n')):
+        Path('input').write_bytes(payload)
+        run('rev "$1"', 'input', expected=want, locale='C.UTF-8')
+        run('rev', data=payload, expected=want, locale='C.UTF-8')
 
     first = b'first\x00record\nunterminated'
     second = b'SECOND\xff\nlast\n'

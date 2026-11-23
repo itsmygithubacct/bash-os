@@ -14,7 +14,8 @@
     "Valid empty gzip members and concatenated members ending in an integrity error.",
     "CRC and length failures with retained output, stdin CRC failure, and a bounded output-buffer crossing.",
     "Reject a valid zlib wrapper under the gzip-only contract.",
-    "Small stored gzip members exercise both split and exact input-buffer boundaries."
+    "Small stored gzip members exercise both split and exact input-buffer boundaries.",
+    "G30: zcat -f/--force copies input that is not gzip through unchanged, alongside gzip members."
   ],
   "exclusions": [
     "GNU gzip option compatibility beyond the documented zcat [FILE...] interface is not asserted.",
@@ -330,6 +331,18 @@
       "stderr": "empty",
       "stdout": "builtin\n",
       "script": "help zcat > help.out\ntype -t zcat"
+    },
+    {
+      "id": "force-passes-plain-input",
+      "kind": "parity",
+      "requires": [
+        "zcat",
+        "gzip"
+      ],
+      "purpose": "G30: zcat -f writes plain (and empty) input unchanged and still decompresses gzip operands; without -f plain input is an error.",
+      "script": "printf 'plain\\n' > p; : > e; printf 'zipped\\n' | /usr/bin/gzip > z.gz\nzcat -f p z.gz e p\nzcat --force < p\nzcat p 2>/dev/null || echo rc=$?\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

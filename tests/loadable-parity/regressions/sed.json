@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "loadable": "sed",
+  "reference": "GNU sed from the runner's read-only /usr tree is the parity oracle; each parity case runs the same script under reference Bash with GNU sed on PATH and under bash-os with PATH empty. Cases that need multibyte behaviour export LC_ALL=C.UTF-8 themselves.",
+  "coverage": [
+    "UTF-8 y/// character pairing and \\U \\L \\u \\l case conversion of non-ASCII letters (guest pass 3)."
+  ],
+  "exclusions": [
+    "Unibyte-locale y/// and case conversion are covered by suites/sed.json."
+  ],
+  "cases": [
+    {
+      "id": "utf8_transliterate_and_case",
+      "kind": "parity",
+      "purpose": "In a UTF-8 locale y/// pairs characters, not bytes (y/éà/ea/ used to fail with 'SET1 and SET2 must be same length'), and \\U \\L \\u \\l convert non-ASCII letters (guest pass 3, G49).",
+      "requires": [
+        "sed"
+      ],
+      "script": "export LC_ALL=C.UTF-8\nprintf 'éàx\\n' | sed 'y/éà/ea/'\nprintf 'abc\\n' | sed 'y/abc/αβγ/'\nprintf 'αβγ abc\\n' | sed 'y/αβγ/abc/'\nprintf 'école ÉCOLE ça\\n' | sed 's/.*/\\U&/'\nprintf 'École ÉCOLE\\n' | sed 's/.*/\\L&/'\nprintf 'école\\n' | sed 's/.*/\\u&/'\nprintf 'École\\n' | sed 's/\\(.\\)\\(.*\\)/\\l\\1\\U\\2/'\nprintf 'x\\n' | sed 's/x/\\Uéà\\E-é/'\nprintf 'é\\n' | sed 'y/é/ab/' 2>/dev/null || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "empty"
+    }
+  ]
+}

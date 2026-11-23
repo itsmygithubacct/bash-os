@@ -1,0 +1,163 @@
+{
+  "version": 1,
+  "loadable": "diff",
+  "reference": "GNU diffutils 3.10 diff, compared byte for byte (stdout, status) in UTC and the C locale; header times come from files given a fixed mtime with touch.",
+  "coverage": [
+    "Guest pass 3 G46: -N/--new-file, -ruN patches, -c/-C/--context, -U/--unified=N, -s, -B, -i, -b, -Z, -w, -x/--exclude, -X/--exclude-from, -p, -I and option conflicts.",
+    "GNU edit-script placement (compareseq, discard_confusing_lines, shift_boundaries) among repeated lines."
+  ],
+  "exclusions": [
+    "Side-by-side output, -q and stdin are covered by suites/diff.json; ed-script (-e), RCS (-n), -D and --color are not implemented."
+  ],
+  "cases": [
+    {
+      "kind": "parity",
+      "id": "ruN-patch-tree",
+      "purpose": "G46: diff -ruN a b writes the whole patch GNU writes: changed, added, deleted and nested one-sided files against an Epoch-dated empty side, with timestamped headers and the 'diff -ruN' lines.",
+      "script": "export TZ=UTC\nmkdir -p a/sub b/onlyb/deep\nprintf '1\\n2\\n3\\n4\\n5\\n6\\n7\\n8\\n9\\n10\\n' > a/x\nprintf '1\\n2\\nthree\\n4\\n5\\n6\\n7\\n8\\nnine\\n10\\n11\\n' > b/x\necho n > b/new\necho o > a/sub/old\necho q > b/onlyb/deep/q\n/usr/bin/touch -h -d @1700000000.5 a/x b/x b/new a/sub/old b/onlyb/deep/q\ndiff -ruN a b || echo rc=$?",
+      "requires": [
+        "diff",
+        "touch"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "new-file-operand",
+      "purpose": "G46: -N treats an absent top-level operand as empty in normal and unified output; without -N it is an error.",
+      "script": "export TZ=UTC\nprintf 'a\\nb\\n' > f\n/usr/bin/touch -h -d @1700000000.5 f\ndiff -N absent f || echo rc=$?\ndiff -uN f absent || echo rc=$?\ndiff absent f 2>/dev/null || echo rc=$?",
+      "requires": [
+        "diff",
+        "touch"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "context-format",
+      "purpose": "G46: -c and -C N context output: traditional C-locale header dates, ! - + markers, separate hunks, an old section omitted when it only inserts.",
+      "script": "export TZ=UTC\nprintf '1\\n2\\n3\\n4\\n5\\n6\\n7\\n8\\n9\\n10\\n' > l\nprintf '1\\n2\\nthree\\n4\\n5\\n6\\n7\\n8\\nnine\\n10\\n11\\n' > r\nprintf 'x\\n' > e\nprintf 'x\\ny\\n' > g\n/usr/bin/touch -h -d @1700000000.5 l r e g\ndiff -c l r || echo rc=$?\ndiff -C 1 l r || echo rc=$?\ndiff --context=0 e g || echo rc=$?",
+      "requires": [
+        "diff",
+        "touch"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "unified-lengths",
+      "purpose": "G46: -U 0, -U1 and --unified=N set the context; ranges for empty sides (N,0) follow GNU.",
+      "script": "export TZ=UTC\nprintf 'a\\nb\\nc\\nd\\ne\\nf\\n' > l\nprintf 'a\\nB\\nc\\nd\\nnew\\ne\\nf\\n' > r\n/usr/bin/touch -h -d @1700000000.5 l r\ndiff -U 0 l r || echo rc=$?\ndiff -U1 l r || echo rc=$?\ndiff --unified=2 l r || echo rc=$?\ndiff -U1 -u l r | tail -n +3 || echo rc=$?",
+      "requires": [
+        "diff",
+        "touch"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "report-identical",
+      "purpose": "G46: -s reports identical files, also inside a recursive comparison, and keeps status 0.",
+      "script": "printf 'same\\n' > a1\ncp a1 a2\nmkdir d1 d2\nprintf 'z\\n' > d1/z\nprintf 'z\\n' > d2/z\ndiff -s a1 a2 || echo rc=$?\ndiff --report-identical-files -r d1 d2 || echo rc=$?",
+      "requires": [
+        "diff",
+        "cp"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "blank-and-case",
+      "purpose": "G46: -B hides changes made only of empty lines (with -i); a line of spaces is blank only together with -b, -w or -Z.",
+      "script": "printf 'A\\n\\n' > f\nprintf 'a\\n' > g\nprintf 'a\\n  \\nb\\n' > w1\nprintf 'a\\nb\\n' > w2\ndiff -B -i f g || echo rc=$?\ndiff -B w1 w2 || echo rc=$?\ndiff -B -b w1 w2 || echo rc=$?\ndiff --ignore-blank-lines -u --label L --label R f g || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "white-space-options",
+      "purpose": "G46: -b equates runs of white space and ignores trailing space, -Z only trailing space, -w all of it; a missing final newline is ignored by all three.",
+      "script": "printf 'a  b\\nx \\n' > h\nprintf 'a b\\nx\\n' > k\nprintf 'ab\\nx' > m\ndiff -b h k || echo rc=$?\ndiff -Z h k || echo rc=$?\ndiff -b h m || echo rc=$?\ndiff -w h m || echo rc=$?\ndiff --ignore-space-change --ignore-trailing-space k m || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "exclude-patterns",
+      "purpose": "G46: -x PAT, --exclude=PAT and -X FILE skip directory entries by name at every level; the switch words are shell-quoted on the 'diff' lines as GNU quotes them.",
+      "script": "mkdir -p a/sub b/sub\nprintf '1\\n' > a/x\nprintf '2\\n' > b/x\nprintf 'o\\n' > a/x.o\nprintf 'p\\n' > b/x.o\nprintf 'k\\n' > a/sub/keep\nprintf 'K\\n' > b/sub/keep\nprintf 'n\\n' > b/new\nprintf '*.o\\nsub\\n' > list\ndiff -r -x x a b || echo rc=$?\ndiff -r -x '*.o' a b || echo rc=$?\ndiff -r --exclude=sub a b || echo rc=$?\ndiff -r -X list a b || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "show-c-function",
+      "purpose": "G46: -p names the enclosing C function after each hunk header, in unified and context form.",
+      "script": "printf 'int f(void)\\n{\\n  int a;\\n  int b;\\n  int c;\\n  return 1;\\n}\\n\\nstatic int g(void)\\n{\\n  int x;\\n  int y;\\n  int z;\\n  return 2;\\n}\\n' > l\nsed 's/return 1/return 10/; s/return 2/return 20/' l > r\ndiff -up --label l --label r l r || echo rc=$?\ndiff -cp --label l --label r l r || echo rc=$?",
+      "requires": [
+        "diff",
+        "sed"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "ignore-matching",
+      "purpose": "G46: -I RE hides a change whose lines all match RE; a hunk with any other change still shows the matching lines.",
+      "script": "printf 'id: 1\\nbody\\n' > l\nprintf 'id: 2\\nbody\\n' > r\nprintf 'id: 2\\nBODY\\n' > s\ndiff -I '^id:' l r || echo rc=$?\ndiff -u -I '^id:' --label l --label s l s || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "change-placement",
+      "purpose": "G46: changes among repeated lines land where GNU's compareseq and shift_boundaries put them.",
+      "script": "printf '\\tfoo\\nc\\nx\\nx\\nB b\\n}\\na\\na b\\nfoo \\n}\\n' > l\nprintf '{\\nc\\n \\nb\\na b\\n \\n\\tfoo\\nfoo \\n\\na b\\nB b\\nint main()\\n' > r\nprintf 'y\\ny\\nz\\n' > h1\nprintf 'y\\ny\\ny\\nz\\n' > h2\ndiff -w l r || echo rc=$?\ndiff -u -w --label l --label r l r || echo rc=$?\ndiff h1 h2 || echo rc=$?\ndiff -U5 --label h1 --label h2 h1 h2 || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "style-conflict",
+      "purpose": "G46: -c with -u is a usage error, as is an invalid context length.",
+      "script": "printf 'a\\n' > l\nprintf 'b\\n' > r\ndiff -c -u l r",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "bad-context-length",
+      "purpose": "G46: -U with a non-numeric length is a usage error.",
+      "script": "printf 'a\\n' > l\nprintf 'b\\n' > r\ndiff -U x l r",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 2,
+      "stderr": "nonempty"
+    }
+  ]
+}

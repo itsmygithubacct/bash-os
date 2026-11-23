@@ -12,7 +12,8 @@
     "Truncation of an existing piece and umask-derived modes for a new piece",
     "An output-path directory obstruction",
     "Zero line count rejection",
-    "Bash builtin type and generated short-help metadata"
+    "Bash builtin type and generated short-help metadata",
+    "-d / --numeric-suffixes, -x / --hex-suffixes and --additional-suffix (guest pass 2 G35)"
   ],
   "exclusions": [
     "This is focused coverage, not the full GNU split option surface; numeric line/byte splitting and common suffix behavior are covered, while options such as --number, --filter, and --elide-empty-files are outside the documented builtin interface.",
@@ -145,8 +146,32 @@
       "purpose": "Bash short help reports the supported split command synopsis.",
       "script": "help -s split",
       "expected_status": 0,
-      "stdout": "split: split [-l N | -b SIZE] [-a SUFLEN] [INPUT [PREFIX]]\n",
+      "stdout": "split: split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [--additional-suffix=S] [INPUT [PREFIX]]\n",
       "stderr": "empty"
+    },
+    {
+      "id": "numeric-hex-and-additional-suffixes",
+      "kind": "parity",
+      "purpose": "-d and bare --numeric-suffixes give decimal names from 00, -x hexadecimal ones, --hex-suffixes=FROM starts in hex, and --additional-suffix is appended after the generated suffix (guest pass 2 G35).",
+      "requires": [
+        "split",
+        "ls"
+      ],
+      "script": "printf 0123 > f; printf a > g\nsplit -b 2 -d f p\nsplit -b 1 --numeric-suffixes f n\nsplit -b 1 -x f h\nsplit -b 1 --hex-suffixes=10 f r\nsplit -b 1 -d -a 1 --additional-suffix=.txt f t\nsplit --additional-suffix .x g q\nsplit -b 1 -d --numeric-suffixes=3 f m\nls",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "additional-suffix-rejects-slash",
+      "kind": "parity",
+      "purpose": "An --additional-suffix containing '/' is rejected with status 1 and creates nothing.",
+      "requires": [
+        "split",
+        "ls"
+      ],
+      "script": "printf a > g; rc=0; split --additional-suffix=a/b g p || rc=$?; echo rc=$rc; ls",
+      "expected_status": 0,
+      "stderr": "nonempty"
     }
   ]
 }

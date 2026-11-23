@@ -11,7 +11,8 @@
     "One stdin operand through a bounded shell pipeline",
     "Unequal lengths and EOF diagnostic behavior",
     "Missing input and invalid skip count errors",
-    "Bash builtin type and help metadata contract"
+    "Bash builtin type and help metadata contract",
+    "GNU diffutils >= 3.4 'differ: byte N, line M' wording (guest pass 2 G35)"
   ],
   "exclusions": [
     "No deferred cases: all selected operations use small private fixture files or bounded shell pipelines and require no privilege, hardware, network, terminal driver, or external mock.",
@@ -190,6 +191,17 @@
         "cmp"
       ],
       "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "differ-says-byte",
+      "kind": "parity",
+      "purpose": "The first-difference report says 'differ: byte N, line M' in a non-C message locale, as GNU diffutils 3.4 and later, and keeps POSIX's 'char' in the C/POSIX locale (guest pass 2 G35).",
+      "requires": [
+        "cmp"
+      ],
+      "script": "printf abc > a; printf axc > b; printf 'l1\\nl2x\\n' > c; printf 'l1\\nl2y\\n' > d\nfor l in C.UTF-8 C POSIX; do export LC_ALL=$l; rc=0; cmp a b || rc=$?; echo rc=$rc; rc=0; cmp c d || rc=$?; echo rc=$rc; done\nunset LC_ALL; LC_MESSAGES=C.UTF-8 cmp a b || echo rc=$?; LANG=C.UTF-8 cmp c d || echo rc=$?",
+      "expected_status": 0,
       "stderr": "empty"
     }
   ]

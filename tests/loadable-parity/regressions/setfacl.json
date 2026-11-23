@@ -13,7 +13,8 @@
   ],
   "exclusions": [
     "The fixture tree comparator does not include ACL xattr bytes or entries; runnable cases assert mode-visible behavior, while extended named-entry checks are deferred because both sides returned EINVAL in this environment.",
-    "Default ACLs, recursive operations, ACL text files, and resolution of real host users/groups are outside the documented builtin surface or the isolated fixture contract."
+    "Default ACLs, recursive operations, ACL text files, and resolution of real host users/groups are outside the documented builtin surface or the isolated fixture contract.",
+    "Named-entry ACL behaviour added in guest compatibility pass 1 (Default ACLs (-d, d: prefixes, inheritance), -R, -k, -b on directories and --restore) needs mapped IDs that this sandbox lacks (EINVAL for both arms); bashy-box's image smoke acl-42 checks it as root in the VM."
   ],
   "cases": [
     {

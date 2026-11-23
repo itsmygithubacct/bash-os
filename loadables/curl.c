@@ -21,7 +21,7 @@
  *     -D FILE | --dump-header FILE | -
  *                         dump response headers
  *     -w FORMAT | --write-out FORMAT
- *                         write-out; supports %{http_code}
+ *                         write-out; curl's common %{variables}, %header{NAME}
  *     -O                  output to basename of URL
  *     -u USER:PASS | --user USER:PASS
  *                         Basic auth (Authorization header)
@@ -34,6 +34,7 @@
  *     -k / --insecure     skip TLS cert verification
  *     --cacert PEM        use PEM as the TLS trust anchor for HTTPS
  *     -f / --fail         exit 22 on HTTP status >= 400
+ *     --fail-with-body    the same, after writing the error page
  *     -s / --silent       suppress progress + non-error chatter
  *     -S / --show-error   pair with -s to keep error diagnostics
  *     -L / --location     follow 3xx Location: redirects (max 20)
@@ -162,6 +163,7 @@ typedef struct {
   int         use_basename;    /* -O */
   int         follow;          /* -L */
   int         fail_on_error;   /* -f */
+  int         fail_with_body;  /* --fail-with-body */
   int         silent;          /* -s */
   int         show_error;      /* -S */
   int         insecure;        /* -k */
@@ -217,18 +219,53 @@ static int bc_errcode;
 #define bc_error(...) do { if (!bc_quiet) builtin_error (__VA_ARGS__); } while (0)
 
 /* curl(1)-shaped "curl: (N) message" diagnostic, shown unless silenced. */
+/* What -w/--write-out reports about this invocation. */
+static struct
+{
+  struct timespec start, connected, received;
+  int have_connected, have_received;
+  char remote_ip[INET6_ADDRSTRLEN], local_ip[INET6_ADDRSTRLEN];
+  int remote_port, local_port, connects;
+  const char *url;             /* as given */
+  const char *effective;       /* the last URL fetched */
+  int redirects;
+  long header_bytes;           /* all response heads, as size_header */
+  int exitcode;
+  char errormsg[256];
+} bc_wo;
+
+static double bc_wo_seconds (const struct timespec *t);
 static void bc_curl_error (int code, const char *fmt, ...)
   __attribute__ ((format (printf, 2, 3)));
 static void
 bc_curl_error (int code, const char *fmt, ...)
 {
-  if (bc_quiet) return;
   va_list ap;
   va_start (ap, fmt);
-  fprintf (stderr, "curl: (%d) ", code);
-  vfprintf (stderr, fmt, ap);
-  fputc ('\n', stderr);
+  vsnprintf (bc_wo.errormsg, sizeof bc_wo.errormsg, fmt, ap);
   va_end (ap);
+  bc_wo.exitcode = code;
+  if (bc_quiet) return;
+  fprintf (stderr, "curl: (%d) %s\n", code, bc_wo.errormsg);
+}
+
+static void
+bc_wo_address (const struct sockaddr_storage *ss, char *ip, size_t ipsz, int *port)
+{
+  ip[0] = '\0';
+  *port = 0;
+  if (ss->ss_family == AF_INET)
+    {
+      const struct sockaddr_in *a = (const struct sockaddr_in *) ss;
+      inet_ntop (AF_INET, &a->sin_addr, ip, (socklen_t) ipsz);
+      *port = ntohs (a->sin_port);
+    }
+  else if (ss->ss_family == AF_INET6)
+    {
+      const struct sockaddr_in6 *a = (const struct sockaddr_in6 *) ss;
+      inet_ntop (AF_INET6, &a->sin6_addr, ip, (socklen_t) ipsz);
+      *port = ntohs (a->sin6_port);
+    }
 }
 
 /* ---- url parser (mirrors http's, with bigger path buffer) ---- */
@@ -964,6 +1001,7 @@ bc_connect_tcp (const char *host, const char *port, int timeout_s)
   if (rc != 0)
     {
       bc_error ("getaddrinfo %s:%s: %s", host, port, gai_strerror (rc));
+      snprintf (bc_wo.errormsg, sizeof bc_wo.errormsg, "Could not resolve host: %s", host);
       bc_errcode = 6;                     /* CURLE_COULDNT_RESOLVE_HOST */
       return -1;
     }
@@ -993,9 +1031,28 @@ bc_connect_tcp (const char *host, const char *port, int timeout_s)
       break;
     }
   freeaddrinfo (ai);
+  if (fd >= 0)
+    {
+      struct sockaddr_storage ss;
+      socklen_t sl = sizeof ss;
+      if (getpeername (fd, (struct sockaddr *) &ss, &sl) == 0)
+        bc_wo_address (&ss, bc_wo.remote_ip, sizeof bc_wo.remote_ip, &bc_wo.remote_port);
+      sl = sizeof ss;
+      if (getsockname (fd, (struct sockaddr *) &ss, &sl) == 0)
+        bc_wo_address (&ss, bc_wo.local_ip, sizeof bc_wo.local_ip, &bc_wo.local_port);
+      clock_gettime (CLOCK_MONOTONIC, &bc_wo.connected);
+      bc_wo.have_connected = 1;
+      bc_wo.connects++;
+    }
   if (fd < 0)
     {
       bc_error ("cannot connect to %s:%s", host, port);
+      struct timespec now;
+      clock_gettime (CLOCK_MONOTONIC, &now);
+      if (!timed_out)
+        snprintf (bc_wo.errormsg, sizeof bc_wo.errormsg,
+                  "Failed to connect to %s port %s after %.0f ms: Could not connect to server",
+                  host, port, bc_wo_seconds (&now) * 1000.0);
       bc_errcode = timed_out ? 28 : 7;    /* CURLE_OPERATION_TIMEDOUT / CURLE_COULDNT_CONNECT */
     }
   return fd;
@@ -1641,18 +1698,165 @@ bc_emit_headers (const bc_opts *o, const bc_response *r)
   return (w == r->informational_len + r->hlen + 2) ? 0 : -1;
 }
 
+static int bc_resolve_redirect (const char *cur, const char *loc, char *out, size_t cap);
+static int bc_read_data_file (const char *arg, char **out, size_t *out_len);
+
+static double
+bc_wo_seconds (const struct timespec *t)
+{
+  return (double) (t->tv_sec - bc_wo.start.tv_sec)
+         + (double) (t->tv_nsec - bc_wo.start.tv_nsec) / 1e9;
+}
+
+/* The value of response header NAME (case-insensitive), or "". */
+static void
+bc_wo_header (const bc_response *r, const char *name, size_t nlen, char *out, size_t outsz)
+{
+  out[0] = '\0';
+  const char *h = r->headers;
+  if (!h) return;
+  const char *end = h + r->hlen;
+  const char *line = memchr (h, '\n', r->hlen);   /* skip the status line */
+  while (line && line < end)
+    {
+      line++;
+      const char *eol = memchr (line, '\n', (size_t) (end - line));
+      if (!eol) eol = end;
+      if ((size_t) (eol - line) > nlen && line[nlen] == ':' && !strncasecmp (line, name, nlen))
+        {
+          const char *v = line + nlen + 1, *ve = eol;
+          while (v < ve && (*v == ' ' || *v == '\t')) v++;
+          while (ve > v && (ve[-1] == '\r' || ve[-1] == ' ' || ve[-1] == '\t')) ve--;
+          snprintf (out, outsz, "%.*s", (int) (ve - v), v);
+          return;
+        }
+      line = eol;
+    }
+}
+
+/* Expand one %{NAME}. Returns 0, or -1 when NAME is not a variable. */
+static int
+bc_wo_var (const bc_opts *o, const bc_response *r, const char *name, size_t n, FILE *fp)
+{
+#define IS(x) (n == sizeof (x) - 1 && !memcmp (name, x, n))
+  struct timespec now;
+  clock_gettime (CLOCK_MONOTONIC, &now);
+  double total = bc_wo_seconds (&now);
+  double connect = bc_wo.have_connected ? bc_wo_seconds (&bc_wo.connected) : 0.0;
+  double first = bc_wo.have_received ? bc_wo_seconds (&bc_wo.received) : 0.0;
+  char buf[BCURL_URL_MAX];
+  if (IS ("http_code") || IS ("response_code")) fprintf (fp, "%03d", r->status);
+  else if (IS ("size_download")) fprintf (fp, "%zu", r->blen);
+  else if (IS ("size_header")) fprintf (fp, "%ld", bc_wo.header_bytes);
+  else if (IS ("size_upload")) fprintf (fp, "%zu", o->body_set ? o->body_len : (size_t) 0);
+  else if (IS ("content_type"))
+    { bc_wo_header (r, "Content-Type", 12, buf, sizeof buf); fputs (buf, fp); }
+  else if (IS ("url_effective")) fputs (bc_wo.effective ? bc_wo.effective : "", fp);
+  else if (IS ("url")) fputs (bc_wo.url ? bc_wo.url : "", fp);
+  else if (IS ("redirect_url"))
+    {
+      buf[0] = '\0';
+      if (r->status >= 300 && r->status < 400 && r->location[0] && bc_wo.effective)
+        bc_resolve_redirect (bc_wo.effective, r->location, buf, sizeof buf);
+      fputs (buf, fp);
+    }
+  else if (IS ("num_redirects")) fprintf (fp, "%d", bc_wo.redirects);
+  else if (IS ("num_connects")) fprintf (fp, "%d", bc_wo.connects);
+  else if (IS ("num_headers"))
+    {
+      /* Header lines after the status line. */
+      int count = 0;
+      const char *h = r->headers, *end = h ? h + r->hlen : NULL;
+      for (const char *line = h; line && line < end; )
+        {
+          const char *eol = memchr (line, '\n', (size_t) (end - line));
+          if (!eol) eol = end;
+          size_t len = (size_t) (eol - line);
+          if (len && line[len - 1] == '\r') len--;
+          if (len) count++;
+          line = eol + 1;
+        }
+      fprintf (fp, "%d", count > 0 ? count - 1 : 0);
+    }
+  else if (IS ("method")) fputs (o->method, fp);
+  else if (IS ("scheme"))
+    {
+      const char *u = bc_wo.effective ? bc_wo.effective : "", *c = strstr (u, "://");
+      for (const char *q = u; c && q < c; q++) fputc (tolower ((unsigned char) *q), fp);
+    }
+  else if (IS ("http_version"))
+    {
+      const char *v = r->headers && !strncmp (r->headers, "HTTP/", 5) ? r->headers + 5 : NULL;
+      if (!v) fputc ('0', fp);
+      else fprintf (fp, "%.*s", (int) strcspn (v, " \r\n"), v);
+    }
+  else if (IS ("exitcode")) fprintf (fp, "%d", bc_wo.exitcode);
+  else if (IS ("errormsg")) fputs (bc_wo.errormsg, fp);
+  else if (IS ("filename_effective")) fputs (o->outfile ? o->outfile : "", fp);
+  else if (IS ("remote_ip")) fputs (bc_wo.remote_ip, fp);
+  else if (IS ("remote_port")) fprintf (fp, "%d", bc_wo.remote_port);
+  else if (IS ("local_ip")) fputs (bc_wo.local_ip, fp);
+  else if (IS ("local_port")) fprintf (fp, "%d", bc_wo.local_port);
+  else if (IS ("time_total")) fprintf (fp, "%.6f", total);
+  else if (IS ("time_namelookup") || IS ("time_connect")) fprintf (fp, "%.6f", connect);
+  else if (IS ("time_appconnect") || IS ("time_redirect")) fprintf (fp, "%.6f", 0.0);
+  else if (IS ("time_pretransfer")) fprintf (fp, "%.6f", connect);
+  else if (IS ("time_starttransfer")) fprintf (fp, "%.6f", first);
+  else if (IS ("speed_download")) fprintf (fp, "%.0f", total > 0 ? (double) r->blen / total : 0.0);
+  else if (IS ("speed_upload"))
+    fprintf (fp, "%.0f", total > 0 && o->body_set ? (double) o->body_len / total : 0.0);
+  else return -1;
+  return 0;
+#undef IS
+}
+
+/* -w FORMAT: curl's %{variable}s, %header{NAME}, %{stdout}/%{stderr}
+   output switches, %{onerror} (the rest only after a failure), %% and the
+   \n \t \r \\ escapes. An unknown variable is reported and skipped. */
 static int
 bc_emit_write_out (const bc_opts *o, const bc_response *r)
 {
   if (!o->write_out) return 0;
   const char *fmt = o->write_out;
+  char *from_file = NULL;
+  if (*fmt == '@')
+    {
+      /* -w @FILE / @- reads the format from a file or stdin. */
+      size_t len = 0;
+      if (bc_read_data_file (fmt, &from_file, &len) != EXECUTION_SUCCESS) return -1;
+      /* curl joins the file's lines, dropping their line endings. */
+      char *w = from_file;
+      for (const char *q = from_file; *q; q++) if (*q != '\n' && *q != '\r') *w++ = *q;
+      *w = '\0';
+      fmt = from_file;
+    }
+  FILE *fp = stdout;
   while (*fmt)
     {
-      if (strncmp (fmt, "%{http_code}", 12) == 0)
+      if (fmt[0] == '%' && fmt[1] == '{')
         {
-          printf ("%03d", r->status);
-          fmt += 12;
+          const char *name = fmt + 2, *close = strchr (name, '}');
+          if (!close) { putc (*fmt++, fp); continue; }
+          size_t n = (size_t) (close - name);
+          fmt = close + 1;
+          if (n == 6 && !memcmp (name, "stdout", 6)) { fflush (fp); fp = stdout; continue; }
+          if (n == 6 && !memcmp (name, "stderr", 6)) { fflush (fp); fp = stderr; continue; }
+          if (n == 7 && !memcmp (name, "onerror", 7)) { if (bc_wo.exitcode == 0) break; continue; }
+          if (bc_wo_var (o, r, name, n, fp) < 0)
+            fprintf (stderr, "curl: unknown --write-out variable: '%.*s'\n", (int) n, name);
           continue;
+        }
+      if (!strncmp (fmt, "%header{", 8))
+        {
+          const char *name = fmt + 8, *close = strchr (name, '}');
+          if (close)
+            {
+              char value[1024];
+              bc_wo_header (r, name, (size_t) (close - name), value, sizeof value);
+              fputs (value, fp);
+              fmt = close + 1;
+              continue;
+            }
         }
       /* GNU curl -w interprets C-style backslash escapes in the format. */
       if (*fmt == '\\' && fmt[1])
@@ -1660,20 +1864,22 @@ bc_emit_write_out (const bc_opts *o, const bc_response *r)
           fmt++;
           switch (*fmt)
             {
-            case 'n': putchar ('\n'); break;
-            case 't': putchar ('\t'); break;
-            case 'r': putchar ('\r'); break;
-            case '\\': putchar ('\\'); break;
-            default:  putchar ('\\'); putchar (*fmt); break;
+            case 'n': putc ('\n', fp); break;
+            case 't': putc ('\t', fp); break;
+            case 'r': putc ('\r', fp); break;
+            case '\\': putc ('\\', fp); break;
+            default:  putc ('\\', fp); putc (*fmt, fp); break;
             }
           fmt++;
           continue;
         }
       if (fmt[0] == '%' && fmt[1] == '%')   /* %% -> literal % */
-        { putchar ('%'); fmt += 2; continue; }
-      putchar (*fmt++);
+        { putc ('%', fp); fmt += 2; continue; }
+      putc (*fmt++, fp);
     }
   fflush (stdout);
+  fflush (stderr);
+  free (from_file);
   return 0;
 }
 
@@ -1880,6 +2086,79 @@ bc_inflate_body (bc_response *r)
   return -1;
 }
 
+/* ---- file:// URLs (RFC 8089): read a local file, as curl does ----
+   Host must be empty or "localhost"; %XX escapes are decoded. curl's
+   errors: 37 for a file that cannot be read, 3 for another host. */
+static int
+bc_file_url (bc_opts *o, const char *url)
+{
+  const char *p = url + 7;              /* past "file://" */
+  if (*p != '/')
+    {
+      size_t hl = strcspn (p, "/");
+      if (!(hl == 9 && strncasecmp (p, "localhost", 9) == 0))
+        { bc_curl_error (3, "URL using bad/illegal format or missing URL"); return 3; }
+      p += hl;
+    }
+  char path[BCURL_URL_MAX];
+  size_t n = 0;
+  for (; *p && *p != '?' && *p != '#' && n + 1 < sizeof path; p++)
+    {
+      if (p[0] == '%' && isxdigit ((unsigned char) p[1]) && isxdigit ((unsigned char) p[2]))
+        {
+          char hx[3] = { p[1], p[2], 0 };
+          path[n++] = (char) strtol (hx, NULL, 16);
+          p += 2;
+        }
+      else
+        path[n++] = *p;
+    }
+  path[n] = '\0';
+  if (!n) strcpy (path, "/");
+  int fd = open (path, O_RDONLY | O_CLOEXEC);
+  struct stat st;
+  if (fd < 0 || fstat (fd, &st) < 0 || S_ISDIR (st.st_mode))
+    {
+      if (fd >= 0) close (fd);
+      bc_curl_error (37, "Couldn't open file %s", path);
+      return 37;
+    }
+  bc_response r;
+  memset (&r, 0, sizeof r);
+  size_t cap = 0;
+  for (;;)
+    {
+      if (r.blen == cap)
+        {
+          size_t nc = cap ? cap * 2 : 65536;
+          unsigned char *nb = realloc (r.body, nc);
+          if (!nb) { close (fd); free (r.body); bc_error ("out of memory"); return 27; }
+          r.body = nb; cap = nc;
+        }
+      ssize_t k = read (fd, r.body + r.blen, cap - r.blen);
+      if (k < 0 && errno == EINTR) continue;
+      if (k < 0) { close (fd); free (r.body); bc_curl_error (37, "Couldn't open file %s", path); return 37; }
+      if (k == 0) break;
+      r.blen += (size_t) k;
+    }
+  close (fd);
+  if (o->resume_set && o->resume_from > 0)
+    {
+      size_t skip = (size_t) o->resume_from < r.blen ? (size_t) o->resume_from : r.blen;
+      memmove (r.body, r.body + skip, r.blen - skip);
+      r.blen -= skip;
+    }
+  bc_url u;
+  memset (&u, 0, sizeof u);
+  snprintf (u.scheme, sizeof u.scheme, "file");
+  snprintf (u.path, sizeof u.path, "%s", path);
+  int rc = 0;
+  if (!o->head && bc_emit (o, &u, &r) < 0) rc = 23;
+  else if (bc_emit_write_out (o, &r) < 0) rc = EXECUTION_FAILURE;
+  bc_response_free (&r);
+  return rc;
+}
+
 /* ---- single request roundtrip (no redirect handling at this layer) ---- */
 static int
 bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_resp)
@@ -1941,8 +2220,12 @@ bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_res
   free (req);
   if (!raw) return -1;
 
+  clock_gettime (CLOCK_MONOTONIC, &bc_wo.received);
+  bc_wo.have_received = 1;
   int rc = bc_parse_response (raw, raw_len, strcmp (o->method, "HEAD") == 0, out_resp);
   free (raw);
+  if (rc == 0)
+    bc_wo.header_bytes += (long) (out_resp->informational_len + out_resp->hlen + 2);
   if (rc == 0 && o->verbose)
     {
       if (out_resp->informational_len)
@@ -2596,6 +2879,8 @@ curl_builtin (WORD_LIST *list)
   o.method = "GET";
   bc_quiet = 0;
   bc_errcode = 0;
+  memset (&bc_wo, 0, sizeof bc_wo);
+  clock_gettime (CLOCK_MONOTONIC, &bc_wo.start);
   /* Parse-time exits (errors, --help, --version) release what -d read. */
 #define BC_PARSE_FAIL(rc) do { free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc); return (rc); } while (0)
 
@@ -2642,6 +2927,7 @@ curl_builtin (WORD_LIST *list)
       else if ((v = bc_long_eq (w, "--cacert")))      { o.cacert = v; }
       else if (!strcmp (w, "-k") || !strcmp (w, "--insecure"))   o.insecure = 1;
       else if (!strcmp (w, "-f") || !strcmp (w, "--fail"))       o.fail_on_error = 1;
+      else if (!strcmp (w, "--fail-with-body"))                 o.fail_with_body = 1;
       else if (!strcmp (w, "-s") || !strcmp (w, "--silent"))     o.silent = 1;
       else if (!strcmp (w, "-S") || !strcmp (w, "--show-error")) o.show_error = 1;
       else if (!strcmp (w, "-L") || !strcmp (w, "--location"))   o.follow = 1;
@@ -2740,6 +3026,13 @@ curl_builtin (WORD_LIST *list)
       int frc = bc_build_form (&o);
       if (frc != EXECUTION_SUCCESS) { BC_PARSE_FAIL (frc); }
     }
+  if (o.fail_on_error && o.fail_with_body)
+    {
+      fprintf (stderr, "curl: You must select either --fail or --fail-with-body, not both.\n"
+               "curl: option --fail-with-body: is badly used here\n"
+               "curl: try 'curl --help' or 'curl --manual' for more information\n");
+      BC_PARSE_FAIL (2);
+    }
   if (o.head && !o.method_set) o.method = "HEAD";
   if (o.proxy)
     {
@@ -2798,6 +3091,15 @@ curl_builtin (WORD_LIST *list)
             }
         }
       o.resume_from = target && strcmp (target, "-") && stat (target, &st) == 0 ? (long long) st.st_size : 0;
+    }
+  bc_wo.url = o.url;
+  bc_wo.effective = cur_url;
+  if (strncasecmp (cur_url, "file://", 7) == 0)
+    {
+      int frc = bc_file_url (&o, cur_url);
+      free (o.cookie_alloc);
+      free (o.body_alloc); free (o.content_type_alloc);
+      return frc;
     }
   bc_url start_url, hop_url_dummy;
   int have_start_url = bc_parse_url (cur_url, &start_url) == 0;
@@ -2884,10 +3186,16 @@ curl_builtin (WORD_LIST *list)
         }
       if (rc < 0)
         {
-          /* bc_error already honoured -s; report curl's code when known. */
+          /* bc_error already honoured -s; report curl's code when known.
+             -w is still written, as curl does (http_code 000). */
+          int code = bc_errcode ? bc_errcode : EXECUTION_FAILURE;
+          bc_response none;
+          memset (&none, 0, sizeof none);
+          if (!bc_wo.exitcode) bc_wo.exitcode = code;
+          bc_emit_write_out (&o, &none);
           free (o.cookie_alloc);
           free (o.body_alloc); free (o.content_type_alloc);
-          return bc_errcode ? bc_errcode : EXECUTION_FAILURE;
+          return code;
         }
       if (o.follow && r.status >= 300 && r.status < 400
           && (r.location[0] || r.location_too_long || r.location_bad))
@@ -2909,6 +3217,7 @@ curl_builtin (WORD_LIST *list)
             { if (show_errs) builtin_error ("bad redirect target: %s", r.location);
               bc_response_free (&r); free (o.cookie_alloc); free (o.body_alloc); free (o.content_type_alloc); return EXECUTION_FAILURE; }
           snprintf (cur_url, sizeof cur_url, "%s", next);
+          bc_wo.redirects++;
           if (o.head)
             {
               if (bc_emit (&o, have_start_url ? &start_url : &hop_url_dummy, &r) < 0)
@@ -2932,13 +3241,19 @@ curl_builtin (WORD_LIST *list)
       break;
     }
 
-  if (o.fail_on_error && r.status >= 400)
+  if ((o.fail_on_error || o.fail_with_body) && r.status >= 400)
     {
+      /* --fail-with-body writes the error page before failing. */
+      int erc = 22;
+      if (o.fail_with_body && (bc_emit_headers (&o, &r) < 0
+                               || bc_emit (&o, have_start_url ? &start_url : &hop_url_dummy, &r) < 0))
+        erc = 23;
       bc_curl_error (22, "The requested URL returned error: %d", r.status);
+      bc_emit_write_out (&o, &r);
       bc_response_free (&r);
       free (o.cookie_alloc);
       free (o.body_alloc); free (o.content_type_alloc);
-      return 22; /* curl's CURLE_HTTP_RETURNED_ERROR */
+      return erc; /* curl's CURLE_HTTP_RETURNED_ERROR (or write error) */
     }
 
   if (o.resume_set && o.resume_from > 0 && !o.head)
@@ -3007,7 +3322,7 @@ curl_builtin (WORD_LIST *list)
 char *curl_doc[] = {
   "curl(1)-shaped HTTP client over http + crypto.",
   "  curl [-fsSLkO] [-X METHOD] [-H HDR]... [-d DATA]",
-  "           [--data-binary DATA] [-o FILE] [-D FILE] [-w FORMAT]",
+  "           [--data-binary DATA] [-o FILE] [-D FILE] [-w FORMAT] [--fail-with-body]",
   "           [-u USER:PASS] [-A AGENT] [-b COOKIE|FILE] [-c FILE]",
   "           [--cacert PEM] [--connect-timeout SEC] [-m|--max-time SEC] [--max-redirs N]",
   "           [-I] [-v] [-F PART] [-T FILE] [-G] [--data-urlencode DATA] [--json DATA]",
@@ -3017,7 +3332,12 @@ char *curl_doc[] = {
   "Attached short arguments such as -oFILE and bundles like -fsSLo FILE work.",
   "Plain http:// uses raw TCP; https:// pipes the framed request through",
   "`crypto tls connect HOST:PORT -s HOST [-c PEM] [-k]` in a bash subshell.",
-  "Subset: GET/POST/PUT/etc., common -f/-s/-S/-L/-k/-O bundles, -D, -w %{http_code},",
+  "Subset: GET/POST/PUT/etc., common -f/-s/-S/-L/-k/-O bundles, -D, --fail-with-body,",
+  "-w FORMAT|@FILE with %{http_code} %{response_code} %{size_download} %{size_header}",
+  "  %{size_upload} %{content_type} %{url} %{url_effective} %{redirect_url} %{num_redirects}",
+  "  %{num_connects} %{num_headers} %{method} %{scheme} %{http_version} %{exitcode} %{errormsg}",
+  "  %{filename_effective} %{remote_ip} %{remote_port} %{local_ip} %{local_port} %{time_*}",
+  "  %{speed_download} %{speed_upload} %header{NAME} %{stdout} %{stderr} %{onerror},",
   "--data-binary (@-/@FILE/literal), Basic auth, -b/--cookie literal or jar input, -c/--cookie-jar output, redirects (default max 20),",
   "chunked + Content-Length decoding, -F multipart, HTTP proxies (CONNECT for https),",
   "gzip/deflate with --compressed, ranges and resume. --http2 talks HTTP/1.1.",

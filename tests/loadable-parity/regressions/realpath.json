@@ -186,6 +186,48 @@
       "script": "ln -s b a; ln -s a b\nrealpath -m a/missing b/../file",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "relative_to_and_base",
+      "kind": "parity",
+      "purpose": "--relative-to=DIR and --relative-base=DIR (alone, together, with the separate-word argument form, at /, and with a base that excludes the target) print GNU's relative names (guest pass 3, G48).",
+      "requires": [
+        "realpath"
+      ],
+      "script": "mkdir -p a/x b; : > b/c\nrealpath --relative-to=a b/c\nrealpath --relative-to=a/x b/c a/x a\nrealpath --relative-to=. .\nrealpath --relative-to a b/c\nrealpath --relative-base=. b/c /\nrealpath --relative-base=\"$PWD/a\" --relative-to=\"$PWD/a/x\" a/x/../x b/c\nrealpath --relative-base=b --relative-to=a b/c\nrealpath --relative-to=/ /\nrealpath --relative-to=/ \"$PWD/b\" | { IFS= read -r r; [[ $r == \"${PWD#/}/b\" ]] && echo rel-root-ok; }\nrealpath --relative-base=/ /\nrealpath -m --relative-to=b/c/new a/x\nrealpath --relative-to=nod b/c",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "existing_required",
+      "kind": "parity",
+      "purpose": "-e (--canonicalize-existing) requires every component: a missing file or a file used as a directory fails with status 1 and no output, -q silences it, and a missing --relative-to fails under -e (guest pass 3, G48: -e used to behave like -m).",
+      "requires": [
+        "realpath"
+      ],
+      "script": "mkdir b; : > b/c\nrealpath -e nofile || echo rc=$?\nrealpath -e b/c/x || echo rc=$?\nrealpath -q -e nofile || echo rc=$?\nrealpath --canonicalize-existing b/c >/dev/null && echo exists\nrealpath -e --relative-to=nod b/c || echo rc=$?\n{ realpath -e b/c nofile b || echo rc=$?; } | while IFS= read -r l; do echo \"${l#\"$PWD\"/}\"; done",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "zero_and_logical",
+      "kind": "parity",
+      "purpose": "-z/--zero ends names with NUL; -L resolves '..' before symlinks, -P after (guest pass 3, G48).",
+      "requires": [
+        "realpath"
+      ],
+      "script": "mkdir -p b/in; ln -s b/in lb\nrealpath -z --relative-to=. b lb > out\nrealpath --zero b >> out\nwhile IFS= read -rd '' x; do printf '<%s>\\n' \"${x#\"$PWD\"}\"; done < out\nrealpath -L --relative-to=. lb/..\nrealpath -P --relative-to=. lb/..\nrealpath -LP --relative-to=. lb/..",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "help-stdout-status",
+      "kind": "contract",
+      "purpose": "realpath --help prints help on stdout with status 0 (as GNU realpath does; it used to exit 2).",
+      "script": "realpath --help >o 2>e; echo rc=$?; [[ -s o && ! -s e ]] && echo stdout-only",
+      "expected_status": 0,
+      "stdout": "rc=0\nstdout-only\n",
+      "stderr": "empty"
     }
   ]
 }

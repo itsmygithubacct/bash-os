@@ -152,6 +152,30 @@
       "script": "if ls --no-such-parity-option; then rc=0; else rc=$?; fi\nif [[ $rc -ne 2 ]]; then exit 99; fi\nexit \"$rc\"",
       "expected_status": 2,
       "stderr": "nonempty"
+    },
+    {
+      "id": "utf8_escape_printable",
+      "kind": "parity",
+      "purpose": "In a UTF-8 locale ls -b/--escape and the C quoting style escape only non-printable characters (iswprint), so \u00e9 stays as is; -q maps non-printables to '?', and -C/-x/-m layouts count display columns, not bytes (guest pass 3, G50).",
+      "requires": [
+        "ls",
+        "touch"
+      ],
+      "script": "export LC_ALL=C.UTF-8\ntouch \u00e9 'a b' $'x\\001y' '\u00e7a va' \u65e5\u672c\nls -b\nls --escape -1\nls --quoting-style=c\nls -q\nls -Q \u00e9\nrm $'x\\001y'\nls -C -w 15\nls -C -w 16\nls -x -w 14\nls -m -w 12",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "layout_width_boundary",
+      "kind": "parity",
+      "purpose": "-C, -x and -m keep each line strictly narrower than -w, as coreutils does (a layout of exactly the width used to be accepted; found while testing G50).",
+      "requires": [
+        "ls",
+        "touch"
+      ],
+      "script": "touch aaaaaaaa ccccc crnfx3 dx5 jwx1 sqex2 whx4 x6\nls -C -w 15 aaaaaaaa ccccc\nls -C -w 16 aaaaaaaa ccccc\nls -C -w 30 crnfx3 dx5 jwx1 sqex2 whx4\nls -C -w 31 crnfx3 dx5 jwx1 sqex2 whx4\nls -C -w 40 aaaaaaaa ccccc crnfx3 dx5 jwx1 sqex2 whx4 x6\nls -x -w 21 aaaaaaaa ccccc x6\nls -m -w 12 ccccc dx5 jwx1 x6\nls -m -w 11 ccccc dx5 jwx1 x6",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

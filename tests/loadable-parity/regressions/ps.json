@@ -8,7 +8,8 @@
     "Synthetic proc records for stat field parsing, UID fallback, STAT flags, comm containing a right parenthesis, and NUL-separated argv conversion.",
     "Full-format row layout, explicit PID-list order, and the documented [comm] fallback for empty cmdline.",
     "Procps-shaped lstart with a fixed boot time, local timezone, repeated -o options and empty headings.",
-    "Exact synthetic PID selection and empty headers for -p and --pid; invalid attached, combined and repeated column options, missing column list, invalid PID list and unknown option."
+    "Exact synthetic PID selection and empty headers for -p and --pid; invalid attached, combined and repeated column options, missing column list, invalid PID list and unknown option.",
+    "G31: --no-headers, --sort, -C, --ppid, -L and the etimes/etime/%mem/ni/lwp/nlwp columns over a synthetic BASHOS_PROC_ROOT; invalid --sort/-C/--ppid arguments against procps."
   ],
   "exclusions": [
     "Full process-table enumeration and aux percentages/START values are deferred because a stable VM process set and procps comparison are required.",
@@ -179,6 +180,64 @@
       "kind": "deferred",
       "purpose": "Validate default full-table enumeration and aux layout, percentages, and start times against a stable real procfs process set.",
       "reason": "Requires a disposable Linux VM with a private procfs mount, a controlled process tree, fixed locale/time settings, and GNU procps ps observing the same snapshot. The provided runner's live process table is intentionally nondeterministic, and GNU ps cannot consume the candidate's BASHOS_PROC_ROOT fixture."
+    },
+    {
+      "id": "synthetic-elapsed-nice-mem-columns",
+      "kind": "contract",
+      "requires": [
+        "getconf"
+      ],
+      "purpose": "G31: -o etimes (whole seconds since start, from uptime and the start tick), etime ([[DD-]hh:]mm:ss), ni (stat field 19) and %mem (VmRSS share of MemTotal, truncated to one decimal).",
+      "script": "export BASHOS_PROC_ROOT=procfix LC_ALL=C TZ=UTC\nhz=$(getconf CLK_TCK) || exit 1\nmkdir -p procfix/9201/task/9201 procfix/9201/task/9211 procfix/9202 procfix/9203\nprintf '100000.00 1.00\\n' > procfix/uptime\nprintf 'MemTotal:        1000000 kB\\n' > procfix/meminfo\nst() { printf '%s\\n' \"$1 ($2) $3 $4 92 92 0 -1 0 0 0 0 0 0 0 0 0 20 $5 $6 0 $(( (100000 - $7) * hz )) 8192 4\" > \"$8/stat\"\n       printf 'Name:\\t%s\\nUid:\\t70001\\t70001\\t70001\\t70001\\n%b' \"$2\" \"$9\" > \"$8/status\"; printf '%s\\0' \"$2\" > \"${8%%/task/*}/cmdline\"; }\nst 9201 alpha S 1 5 2 100 procfix/9201 'VmRSS:\\t   12345 kB\\n'\nst 9201 alpha S 1 5 2 100 procfix/9201/task/9201 'VmRSS:\\t   12345 kB\\n'\nst 9211 alpha S 1 5 2 100 procfix/9201/task/9211 ''\nst 9202 beta S 9201 -3 1 4000 procfix/9202 ''\nst 9203 alpha R 9201 0 1 90061 procfix/9203 ''\nps -p 9201,9202,9203 -o pid=,etimes=,etime=,ni=,%mem=\nps -p 9202 -o etimes,etime,ni,%mem,pmem,nice\n",
+      "expected_status": 0,
+      "stdout": "9201 100 01:40 5 1.2\n9202 4000 01:06:40 -3 0.0\n9203 90061 1-01:01:01 0 0.0\nELAPSED ELAPSED NI %MEM %MEM NI\n4000 01:06:40 -3 0.0 0.0 -3\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "synthetic-no-headers-and-sort",
+      "kind": "contract",
+      "requires": [
+        "getconf"
+      ],
+      "purpose": "G31: --no-headers (and --no-heading) drops the header row; --sort orders by -o column keys, - descending, several keys in turn; a /proc walk is listed in pid order.",
+      "script": "export BASHOS_PROC_ROOT=procfix LC_ALL=C TZ=UTC\nhz=$(getconf CLK_TCK) || exit 1\nmkdir -p procfix/9201/task/9201 procfix/9201/task/9211 procfix/9202 procfix/9203\nprintf '100000.00 1.00\\n' > procfix/uptime\nprintf 'MemTotal:        1000000 kB\\n' > procfix/meminfo\nst() { printf '%s\\n' \"$1 ($2) $3 $4 92 92 0 -1 0 0 0 0 0 0 0 0 0 20 $5 $6 0 $(( (100000 - $7) * hz )) 8192 4\" > \"$8/stat\"\n       printf 'Name:\\t%s\\nUid:\\t70001\\t70001\\t70001\\t70001\\n%b' \"$2\" \"$9\" > \"$8/status\"; printf '%s\\0' \"$2\" > \"${8%%/task/*}/cmdline\"; }\nst 9201 alpha S 1 5 2 100 procfix/9201 'VmRSS:\\t   12345 kB\\n'\nst 9201 alpha S 1 5 2 100 procfix/9201/task/9201 'VmRSS:\\t   12345 kB\\n'\nst 9211 alpha S 1 5 2 100 procfix/9201/task/9211 ''\nst 9202 beta S 9201 -3 1 4000 procfix/9202 ''\nst 9203 alpha R 9201 0 1 90061 procfix/9203 ''\nps -e --no-headers -o pid,comm\nps -e -o pid= --sort=-pid\nps -e --no-heading -o pid,ni --sort=ni\nps -e -o comm=,pid= --sort comm,-pid\n",
+      "expected_status": 0,
+      "stdout": "9201 alpha\n9202 beta\n9203 alpha\n9203\n9202\n9201\n9202 -3\n9203 0\n9201 5\nalpha 9203\nalpha 9201\nbeta 9202\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "synthetic-command-parent-thread-selection",
+      "kind": "contract",
+      "requires": [
+        "getconf"
+      ],
+      "purpose": "G31: -C selects by command name, --ppid by parent (both add to -p), -L lists one row per /proc/PID/task thread with lwp/nlwp; a selection matching nothing exits 1.",
+      "script": "export BASHOS_PROC_ROOT=procfix LC_ALL=C TZ=UTC\nhz=$(getconf CLK_TCK) || exit 1\nmkdir -p procfix/9201/task/9201 procfix/9201/task/9211 procfix/9202 procfix/9203\nprintf '100000.00 1.00\\n' > procfix/uptime\nprintf 'MemTotal:        1000000 kB\\n' > procfix/meminfo\nst() { printf '%s\\n' \"$1 ($2) $3 $4 92 92 0 -1 0 0 0 0 0 0 0 0 0 20 $5 $6 0 $(( (100000 - $7) * hz )) 8192 4\" > \"$8/stat\"\n       printf 'Name:\\t%s\\nUid:\\t70001\\t70001\\t70001\\t70001\\n%b' \"$2\" \"$9\" > \"$8/status\"; printf '%s\\0' \"$2\" > \"${8%%/task/*}/cmdline\"; }\nst 9201 alpha S 1 5 2 100 procfix/9201 'VmRSS:\\t   12345 kB\\n'\nst 9201 alpha S 1 5 2 100 procfix/9201/task/9201 'VmRSS:\\t   12345 kB\\n'\nst 9211 alpha S 1 5 2 100 procfix/9201/task/9211 ''\nst 9202 beta S 9201 -3 1 4000 procfix/9202 ''\nst 9203 alpha R 9201 0 1 90061 procfix/9203 ''\nps -C alpha -o pid=\nps --ppid 9201 -o pid=\nps --ppid=9201 -p 9201 -o pid=\nps -L -p 9201 -o pid=,lwp=,nlwp=\nps -L -p 9201 | /usr/bin/awk '{print $1, $2}'\nps -C nosuch -o pid= || echo rc=$?\n",
+      "expected_status": 0,
+      "stdout": "9201\n9203\n9202\n9203\n9201\n9202\n9203\n9201 9201 2\n9201 9211 2\nPID LWP\n9201 9201\n9201 9211\nrc=1\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "gnu-invalid-sort-key",
+      "kind": "parity",
+      "requires": [
+        "ps"
+      ],
+      "purpose": "G31: an unknown --sort key is rejected with status 1 and nothing on stdout, as procps does.",
+      "script": "ps --sort=definitely_not_a_key -o pid",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "gnu-missing-selection-lists",
+      "kind": "parity",
+      "requires": [
+        "ps"
+      ],
+      "purpose": "G31: -C and --ppid without a list, and a non-numeric --ppid, fail with status 1.",
+      "script": "for a in -C --ppid '--ppid=x'; do rc=0; ps $a >/dev/null 2>&1 || rc=$?; echo \"$a $rc\"; done",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

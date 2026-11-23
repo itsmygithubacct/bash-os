@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 /* getfacl.c — display POSIX.1e file access control lists, as a bash builtin.
  *
- *   getfacl [-a] [-d] [--omit-header] [-p] file...
+ *   getfacl [-adcpRnesE] [--omit-header] file...
  *
  *   -a            access ACL only (default shows access and default ACLs)
  *   -d            show the default ACL (directories)
@@ -28,6 +28,7 @@
 #include <sys/stat.h>
 #include <sys/xattr.h>
 #include <stdint.h>
+#include <dirent.h>
 
 #include "loadables.h"
 
@@ -51,6 +52,10 @@ perm_str (unsigned p, char out[4])
     out[3] = '\0';
 }
 
+/* -n numeric ids; -e/-E effective-rights comments always/never (0: only
+   when the mask removes a permission). */
+static int gf_numeric, gf_effective;
+
 static void
 print_entry (uint16_t tag, uint16_t perm, uint32_t id, int mask, int prefix)
 {
@@ -62,25 +67,28 @@ print_entry (uint16_t tag, uint16_t perm, uint32_t id, int mask, int prefix)
         case ACL_MASK:      printf ("mask::%s", ps); break;
         case ACL_OTHER:     printf ("other::%s", ps); break;
         case ACL_USER: {
-            struct passwd *pw = getpwuid ((uid_t) id);
+            struct passwd *pw = gf_numeric ? NULL : getpwuid ((uid_t) id);
             if (pw) printf ("user:%s:%s", pw->pw_name, ps);
             else    printf ("user:%u:%s", id, ps);
             break;
         }
         case ACL_GROUP: {
-            struct group *gr = getgrgid ((gid_t) id);
+            struct group *gr = gf_numeric ? NULL : getgrgid ((gid_t) id);
             if (gr) printf ("group:%s:%s", gr->gr_name, ps);
             else    printf ("group:%u:%s", id, ps);
             break;
         }
     }
-    if (mask >= 0 && (tag == ACL_USER || tag == ACL_GROUP || tag == ACL_GROUP_OBJ)
-        && (perm & mask) != perm) {
+    if (mask >= 0 && gf_effective >= 0
+        && (tag == ACL_USER || tag == ACL_GROUP || tag == ACL_GROUP_OBJ)
+        && (gf_effective > 0 || (perm & mask) != perm)) {
         perm_str (perm & mask, ps);
         printf ("\t#effective:%s", ps);
     }
     putchar ('\n');
 }
+
+static int gf_absolute, gf_warned, gf_skip_base;
 
 static int
 show_file (const char *path, int omit_header, int selection)
@@ -88,12 +96,34 @@ show_file (const char *path, int omit_header, int selection)
     struct stat st;
     if (stat (path, &st) < 0) { builtin_error ("%s: %s", path, strerror (errno)); return -1; }
 
+    /* -s: skip files whose ACL is only the three base entries. */
+    if (gf_skip_base) {
+        unsigned char probe[8192];
+        ssize_t an = getxattr (path, "system.posix_acl_access", probe, sizeof probe);
+        ssize_t dn = getxattr (path, "system.posix_acl_default", probe, sizeof probe);
+        if (an <= 4 + 3 * 8 && dn <= 4) return 0;
+    }
+
     if (!omit_header) {
-        struct passwd *pw = getpwuid (st.st_uid);
-        struct group  *gr = getgrgid (st.st_gid);
-        printf ("# file: %s\n", path);
+        struct passwd *pw = gf_numeric ? NULL : getpwuid (st.st_uid);
+        struct group  *gr = gf_numeric ? NULL : getgrgid (st.st_gid);
+        const char *shown = path;
+        /* GNU: absolute names lose their leading '/' unless -p. */
+        if (!gf_absolute && shown[0] == '/') {
+            while (shown[0] == '/') shown++;
+            if (!*shown) shown = "/";
+            if (!gf_warned) {
+                fflush (stdout);
+                fputs ("getfacl: Removing leading '/' from absolute path names\n", stderr);
+                gf_warned = 1;
+            }
+        }
+        printf ("# file: %s\n", shown);
         if (pw) printf ("# owner: %s\n", pw->pw_name); else printf ("# owner: %u\n", st.st_uid);
         if (gr) printf ("# group: %s\n", gr->gr_name); else printf ("# group: %u\n", st.st_gid);
+        if (st.st_mode & 07000)
+            printf ("# flags: %c%c%c\n", st.st_mode & S_ISUID ? 's' : '-',
+                    st.st_mode & S_ISGID ? 's' : '-', st.st_mode & S_ISVTX ? 't' : '-');
     }
 
     for (int want_default = 0; want_default <= 1; want_default++) {
@@ -122,10 +152,36 @@ show_file (const char *path, int omit_header, int selection)
     return 0;
 }
 
+/* -R: the operand, then everything below it; symbolic links below the
+   operand are skipped (GNU's default walk). */
+static int
+show_tree (const char *path, int omit_header, int selection, int recursive, int top)
+{
+    struct stat st;
+    if (!top && lstat (path, &st) == 0 && S_ISLNK (st.st_mode)) return 0;
+    int rc = show_file (path, omit_header, selection) < 0 ? -1 : 0;
+    if (!recursive || stat (path, &st) < 0 || !S_ISDIR (st.st_mode)) return rc;
+    DIR *d = opendir (path);
+    if (!d) { builtin_error ("%s: %s", path, strerror (errno)); return -1; }
+    struct dirent *de;
+    while ((de = readdir (d)) != NULL) {
+        if (!strcmp (de->d_name, ".") || !strcmp (de->d_name, "..")) continue;
+        size_t len = strlen (path) + strlen (de->d_name) + 2;
+        char *child = malloc (len);
+        if (!child) { closedir (d); builtin_error ("out of memory"); return -1; }
+        snprintf (child, len, "%s%s%s", path, path[strlen (path) - 1] == '/' ? "" : "/", de->d_name);
+        if (show_tree (child, omit_header, selection, recursive, 0) < 0) rc = -1;
+        free (child);
+    }
+    closedir (d);
+    return rc;
+}
+
 int
 getfacl_builtin (WORD_LIST *list)
 {
-    int omit_header = 0, selection = 0;
+    int omit_header = 0, selection = 0, recursive = 0;
+    gf_absolute = 0; gf_warned = 0; gf_numeric = 0; gf_effective = 0; gf_skip_base = 0;
 
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
@@ -136,7 +192,30 @@ getfacl_builtin (WORD_LIST *list)
         if (!strcmp (w, "-c") || !strcmp (w, "--omit-header")) { omit_header = 1; list = list->next; continue; }
         /* -p/--absolute-names controls leading-'/' stripping in the "# file:"
            name, NOT the header — it must NOT suppress the header (GNU getfacl). */
-        if (!strcmp (w, "-p") || !strcmp (w, "--absolute-names")) { list = list->next; continue; }
+        if (!strcmp (w, "-p") || !strcmp (w, "--absolute-names")) { gf_absolute = 1; list = list->next; continue; }
+        if (!strcmp (w, "-R") || !strcmp (w, "--recursive")) { recursive = 1; list = list->next; continue; }
+        if (!strcmp (w, "-P") || !strcmp (w, "--physical") || !strcmp (w, "-L") || !strcmp (w, "--logical")) { list = list->next; continue; }
+        if (!strcmp (w, "--numeric")) { gf_numeric = 1; list = list->next; continue; }
+        if (!strcmp (w, "--all-effective")) { gf_effective = 1; list = list->next; continue; }
+        if (!strcmp (w, "--no-effective")) { gf_effective = -1; list = list->next; continue; }
+        if (!strcmp (w, "--skip-base")) { gf_skip_base = 1; list = list->next; continue; }
+        /* Short options, alone or clustered: -nc, -cR, -Rp, -ac ... */
+        if (w[1] != '-' && strspn (w + 1, "adcpRPLneEs") == strlen (w + 1)) {
+            for (const char *c = w + 1; *c; c++)
+                switch (*c) {
+                case 'a': selection |= 1; break;
+                case 'd': selection |= 2; break;
+                case 'c': omit_header = 1; break;
+                case 'p': gf_absolute = 1; break;
+                case 'R': recursive = 1; break;
+                case 'n': gf_numeric = 1; break;
+                case 'e': gf_effective = 1; break;
+                case 'E': gf_effective = -1; break;
+                case 's': gf_skip_base = 1; break;
+                }
+            list = list->next;
+            continue;
+        }
         builtin_error ("unknown option: %s", w); builtin_usage (); return EX_USAGE;
     }
 
@@ -144,18 +223,24 @@ getfacl_builtin (WORD_LIST *list)
     if (!selection) selection = 3;
     int rc = EXECUTION_SUCCESS;
     for (WORD_LIST *p = list; p; p = p->next)
-        if (show_file (p->word->word, omit_header, selection) < 0) rc = EXECUTION_FAILURE;
+        if (show_tree (p->word->word, omit_header, selection, recursive, 1) < 0) rc = EXECUTION_FAILURE;
     return rc;
 }
 
 char *getfacl_doc[] = {
     "Display POSIX.1e file access control lists.",
     "",
-    "    getfacl [-a] [-d] [--omit-header] file...",
+    "    getfacl [-adcpRnesE] [--omit-header] file...",
     "",
     "    -a  access ACL only   -d  default ACL only (directories)",
     "    Without -a/-d, show both ACLs; default entries have default: prefixes.",
-    "    --omit-header  suppress the # file/owner/group header",
+    "    -c, --omit-header  suppress the # file/owner/group header",
+    "    -R, --recursive    list directories' contents too",
+    "    -p, --absolute-names  keep a leading '/' in the # file: name",
+    "    -n, --numeric      numeric user and group ids",
+    "    -e, --all-effective  #effective comment on every masked entry",
+    "    -E, --no-effective   no #effective comments",
+    "    -s, --skip-base    skip files that have only the base ACL entries",
     "",
     "Files with no extended ACL show base entries derived from the mode.",
     (char *) NULL
@@ -166,6 +251,6 @@ struct builtin getfacl_struct = {
     getfacl_builtin,
     BUILTIN_ENABLED,
     getfacl_doc,
-    "getfacl [-a] [-d] [--omit-header] file...",
+    "getfacl [-adcpRnesE] [--omit-header] file...",
     0
 };

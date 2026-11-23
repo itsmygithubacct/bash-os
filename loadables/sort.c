@@ -1845,7 +1845,7 @@ bs_sort (WORD_LIST *list, const char **files)
             continue;
         }
         if (!strcmp (w, "--help")) {
-            builtin_usage ();
+            builtin_help ();
             return EXECUTION_SUCCESS;
         }
         if (!strcmp (w, "--version")) {

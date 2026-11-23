@@ -1,7 +1,7 @@
 {
   "version": 1,
   "loadable": "mktemp",
-  "reference": "System Bash invoking the installed GNU coreutils mktemp executable with PATH=/usr/bin:/bin. The candidate runs the same fixture with an empty executable path, so mktemp resolves to the bash-os builtin. Contract cases use the documented Bash 5.3 loadable interface in stock-loadables/mktemp.c; the -u fix is in patches/mktemp-u.patch.",
+  "reference": "System Bash invoking the installed GNU coreutils mktemp executable with PATH=/usr/bin:/bin. The candidate runs the same fixture with an empty executable path, so mktemp resolves to the bash-os builtin. Contract cases use the documented Bash 5.3 loadable interface in loadables/mktemp.c (GNU mktemp replacement).",
   "coverage": [
     "Bash type/help availability metadata (counted as contract coverage, not operation coverage).",
     "Explicit-template regular-file creation, uniqueness, writing, and reading.",
@@ -27,8 +27,8 @@
     {
       "id": "default_template",
       "kind": "contract",
-      "purpose": "Check the documented Bash-loadable default shtmp.XXXXXX template and use of TMPDIR, with a relative private directory. The generated name is consumed by in-script assertions and is not used as the expected output.",
-      "script": "export TMPDIR=.\npath=$(mktemp)\n[[ $path == ./shtmp.?????? ]]\n[[ -f $path ]]\nprintf 'default template uses relative TMPDIR\\n'",
+      "purpose": "Check GNU's default tmp.XXXXXXXXXX template, created under a relative TMPDIR. The generated name is consumed by in-script assertions and is not used as the expected output.",
+      "script": "export TMPDIR=.\npath=$(mktemp)\n[[ $path == ./tmp.?????????? ]]\n[[ -f $path ]]\nprintf 'default template uses relative TMPDIR\\n'",
       "expected_status": 0,
       "stdout": "default template uses relative TMPDIR\n",
       "stderr": "empty"
@@ -133,10 +133,10 @@
     {
       "id": "multiple-templates",
       "kind": "contract",
-      "purpose": "The Bash-specific multiple-template interface creates both files and assigns the last generated name.",
-      "script": "mktemp -v result 'first.XXXXXX' 'second.XXXXXX' > names\nmapfile -t paths < names\n[[ ${#paths[@]} == 2 && ${paths[0]} == first.?????? && ${paths[1]} == second.?????? ]]\n[[ -f ${paths[0]} && -f ${paths[1]} && $result == \"${paths[1]}\" ]]\nprintf 'two files; last variable\\n'",
+      "purpose": "GNU mktemp takes one template: a second operand is 'too many templates' with status 1 and no file created. (The Bash example loadable accepted several; bash-os follows GNU since guest compatibility pass 1.)",
+      "script": "mktemp -v result 'first.XXXXXX' 'second.XXXXXX' > names 2>err || echo rc=$?\n[[ ! -s names && -z ${result+set} ]] && echo none-created\ncat err",
       "expected_status": 0,
-      "stdout": "two files; last variable\n",
+      "stdout": "rc=1\nnone-created\nmktemp: too many templates\nTry 'mktemp --help' for more information.\n",
       "stderr": "empty"
     }
   ]

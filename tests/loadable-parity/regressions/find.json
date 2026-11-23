@@ -14,7 +14,8 @@
     "Postorder -delete of relative entries inside the disposable fixture tree.",
     "GNU error status for a missing starting path and an -L symlink cycle.",
     "Bash type/help metadata contract; xdev mount-boundary behavior is deferred.",
-    "Additional bounded regular-file, hardlink, symlink and multi-operand error continuation regressions."
+    "Additional bounded regular-file, hardlink, symlink and multi-operand error continuation regressions.",
+    "-newermt/-newerXY/-anewer/-cnewer, -samefile, -inum and -links (guest compatibility pass 1)."
   ],
   "exclusions": [
     "No host or system paths, mount operations, network activity, devices, credentials, or process-control operations are used.",
@@ -38,7 +39,10 @@
       "id": "depth-postorder",
       "kind": "parity",
       "purpose": "Check that -depth takes no argument, is true for default printing, and visits descendants before each directory.",
-      "requires": ["find", "mkdir"],
+      "requires": [
+        "find",
+        "mkdir"
+      ],
       "expected_status": 0,
       "stderr": "empty",
       "script": "mkdir -p tree/sub\nprintf x > tree/sub/item\nfind tree -depth"
@@ -47,7 +51,10 @@
       "id": "depth-global",
       "kind": "parity",
       "purpose": "Check that -depth sets postorder for all roots even in a branch skipped by short-circuit evaluation, and that -prune is true without blocking descent.",
-      "requires": ["find", "mkdir"],
+      "requires": [
+        "find",
+        "mkdir"
+      ],
       "expected_status": 0,
       "stderr": "empty",
       "script": "mkdir -p first/sub second/sub\nprintf x > first/sub/item\nprintf y > second/sub/item\nfind first second \\( -prune -print \\) -o \\( ! -depth \\)"
@@ -329,6 +336,120 @@
       ],
       "script": ": > a\nfind a -exec false '{}' + -quit",
       "expected_status": 1,
+      "stderr": "empty"
+    },
+    {
+      "id": "newer_xy_and_date",
+      "kind": "parity",
+      "purpose": "-newermt DATE, -newerXY REF, -anewer and -newer compare the chosen timestamps like GNU (guest pass 1, G13).",
+      "requires": [
+        "find",
+        "touch",
+        "sort"
+      ],
+      "script": "touch -d @100 a; touch -d @200 b; touch -d @2000000000 c\nfind . -newermt 2000-01-01 ! -name . | sort\nfind . -newermt '1970-01-01 00:02:00Z' ! -name . | sort\nfind . -newermt @150 ! -name . | sort\nfind . -newermm a ! -name . | sort\nfind . -newer b ! -name . | sort\nfind . -neweram b ! -name . | sort\nfind . -anewer a ! -name . | sort\nfind . -newermt '2033-05-18 03:33:20' ! -name . | sort",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "samefile_inum_links",
+      "kind": "parity",
+      "purpose": "-samefile, -inum and -links select by inode and link count (guest pass 1, G13).",
+      "requires": [
+        "find",
+        "touch",
+        "ln",
+        "sort",
+        "stat"
+      ],
+      "script": "touch h1 x; ln h1 h2; mkdir d\nfind . -samefile h1 | sort\nfind . -samefile h1 ! -name h1\nfind . -inum $(stat -c %i h1) | sort\nfind . -type f -links 2 | sort\nfind . -type f -links -2\nfind . -type f -links +1 | sort",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "newer_bad_operands",
+      "kind": "parity",
+      "purpose": "An invalid -newerXY letter, an unparsable date and a missing -samefile reference fail with status 1.",
+      "requires": [
+        "find"
+      ],
+      "script": "find . -newerqt 2000-01-01 || echo rc=$?\nfind . -newermt 'not a date at all' || echo rc=$?\nfind . -samefile missing || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "printf_directives_and_widths",
+      "kind": "parity",
+      "purpose": "GNU -printf directives %m %#m %M %T@ %A+ %AT %t %Tk %u %U %g %G %b %k %n %d %y %Y %l %P %H %S, flags/width/precision, octal and \\\\c escapes (guest pass 2, G32).",
+      "requires": [
+        "find",
+        "touch",
+        "chmod",
+        "ln",
+        "mkfifo",
+        "sort"
+      ],
+      "script": "export TZ=UTC0 LC_ALL=C\nmkdir s; printf abc > s/f; chmod 644 s/f; touch -d @1709622489.25 s/f; ln -s f s/l; ln -s nope s/dang; ln -s loop s/loop; mkfifo s/p; chmod 755 s\nfind s/f -printf '[%05s|%-5s|%5m|%#m|%05m|%.2f|%-6f|%10T@]\\n'\nfind s/f -printf '%t\\n%T@\\n%T+\\n%TT\\n%TS\\n%Tk\\n%TY-%Tm-%Td %TH:%TM %Ta %Tb %Tp %TZ %Tz %Ts %Tj %TD %Tc\\n'\nfind s -printf '%y %Y %p %l %d %P %H|\\n' | sort\nfind s/f -printf '%b %k %n %S %M %m\\n'\nfind s/f -printf '%u:%g %U:%G\\n' | { IFS=' ' read -r names ids; [[ $names == \"$(id -un):$(id -gn)\" && $ids == \"$(id -u):$(id -g)\" ]] && echo owner-ok; }\nfind s -maxdepth 0 -printf '%M %m %#m %y\\n'; find s/l -printf '%M\\n'; find s/p -printf '%M %y\\n'\nfind s/f -printf 'a\\tb\\101\\cZZZ\\n'; echo",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "printf_bad_directives",
+      "kind": "parity",
+      "purpose": "A lone trailing % is an error (status 1); an unknown directive or escape is warned about and printed literally with status 0 (guest pass 2, G32).",
+      "requires": [
+        "find"
+      ],
+      "script": ": > f\nfind f -printf '%' || echo rc=$?\nfind f -printf '%Q|\\q|\\n'; echo rc=$?",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "missing_predicates",
+      "kind": "parity",
+      "purpose": "-daystart, -ipath/-iwholename/-wholename, -regextype with whole-path -regex, -executable/-readable/-writable, -true/-false, -fprint/-fprint0/-fprintf (guest pass 2, G32).",
+      "requires": [
+        "find",
+        "touch",
+        "chmod",
+        "sort",
+        "tr"
+      ],
+      "script": "mkdir s; : > s/f; : > s/ab; chmod 755 s/ab; chmod 644 s/f\nfind s -daystart -mtime 0 | sort\nfind s/f -daystart -mtime +0 || echo none\nfind s -ipath S/F; find s -iwholename 'S/A*'; find s -wholename s/f\nfind s -regex f; find s -regex 's/f'\nfind s -regextype posix-basic -regex 's/\\(a\\|f\\)b*' | sort\nfind s -regextype posix-extended -regex 's/(a|f)b*' | sort\nfind s -regextype bogus -regex x || echo rc=$?\nfind s -type f -executable; find s -type f -readable | sort; find s -type f -writable | sort\nfind s/f -true; find s/f -false; find s/f -not -false\nfind s -name f -fprint out; cat out\nfind s -fprint0 out0 -false; tr '\\0' '|' < out0 | tr -s '|' '\\n' | sort\nfind s -name ab -fprintf outf '%f %m\\n'; cat outf",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "newermt_date_strings",
+      "kind": "parity",
+      "purpose": "-newermt reads date -d's strings, including month names (guest pass 2, G32 via the shared date parser).",
+      "requires": [
+        "find",
+        "touch"
+      ],
+      "script": "export TZ=UTC0\ntouch -d @1709622489 f\nfind f -newermt 'Mar 5 2024 07:00'\nfind f -newermt 'Mar 5 2024 08:00'\nfind f -newermt '03/04/2024'\necho end",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "help-stdout-status",
+      "kind": "contract",
+      "purpose": "GNU tools answer --help with help on stdout and status 0; find --help used to write usage to stderr or exit nonzero (guest pass 2, G38).",
+      "script": "find --help >o 2>e; echo rc=$?; [[ -s o && ! -s e ]] && echo stdout-only",
+      "expected_status": 0,
+      "stdout": "rc=0\nstdout-only\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "newermt_relative_dates",
+      "kind": "parity",
+      "purpose": "-newermt takes relative date strings: '1 hour ago', 'yesterday', '-30 min' and a negated '-2 hours' (guest pass 3, G43; fixed by the shared date parser of pass 2).",
+      "requires": [
+        "find",
+        "touch"
+      ],
+      "script": "touch -d '3 hours ago' old; touch -d '20 min ago' mid; touch new\nfor t in '1 hour ago' yesterday '-30 min' '-2 hours'; do\n  printf '%s:' \"$t\"\n  for f in old mid new; do [[ -n $(find \"$f\" -newermt \"$t\") ]] && printf ' %s' \"$f\"; done\n  echo\ndone\nfind old ! -newermt '-2 hours'",
+      "expected_status": 0,
       "stderr": "empty"
     }
   ]

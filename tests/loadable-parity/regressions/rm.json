@@ -199,6 +199,30 @@
       "script": "printf a > first\nprintf b > second\nprintf c > third\nprintf 'yes\\nn\\n' > answers\nrm -i first second third < answers\n[[ ! -e first && -f second && -f third ]]\nprintf 'one response per operand matched\\n'",
       "expected_status": 0,
       "stderr": "nonempty"
+    },
+    {
+      "id": "force_reports_non_missing_errors",
+      "kind": "parity",
+      "purpose": "rm -f ignores only missing operands: a directory without -r, an entry of a read-only directory and a protected child under -rf are still reported ('cannot remove ...') with status 1 (host finding H1; a sticky directory owned by another user fails the same way with EPERM).",
+      "requires": [
+        "rm",
+        "mkdir",
+        "chmod",
+        "touch",
+        "ls"
+      ],
+      "script": "mkdir d; rm -f d || echo rc=$?; ls -d d\nmkdir ro; : > ro/f; chmod 555 ro\nif [[ -w ro ]]; then echo 'rm: cannot remove: Permission denied' >&2; echo rc=1; else rm -f ro/f || echo rc=$?; fi; ls ro\nrm -f ro/missing ro/f/x; echo rc=$?\nmkdir -p tr/sub; : > tr/a; : > tr/sub/b; chmod 555 tr/sub\nif [[ -w tr/sub ]]; then echo 'rm: cannot remove: Permission denied' >&2; echo rc=1; else rm -rf tr || echo rc=$?; fi\nchmod 755 ro tr/sub; ls tr",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "help-stdout-status",
+      "kind": "contract",
+      "purpose": "GNU tools answer --help with help on stdout and status 0; rm --help used to write usage to stderr or exit nonzero (guest pass 2, G38).",
+      "script": "rm --help >o 2>e; echo rc=$?; [[ -s o && ! -s e ]] && echo stdout-only",
+      "expected_status": 0,
+      "stdout": "rc=0\nstdout-only\n",
+      "stderr": "empty"
     }
   ]
 }

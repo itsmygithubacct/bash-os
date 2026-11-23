@@ -2,7 +2,9 @@
  *
  *   bashrev [OPTION] [FILE...]
  *
- * Reverse bytes within each line. Reads stdin if no FILE.
+ * Reverse the characters within each line (multibyte characters stay whole
+ * in a UTF-8 locale, as util-linux rev does; an invalid byte counts as one
+ * character). Reads stdin if no FILE.
  *
  * --- LICENSE --- MIT, same boilerplate as binhex.c.
  */
@@ -16,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <wchar.h>
 #include <sys/stat.h>
 
 #include "loadables.h"
@@ -23,8 +26,9 @@
 static int
 br_process (FILE *f)
 {
-    char *line = NULL;
-    size_t cap = 0;
+    char *line = NULL, *rev = NULL;
+    size_t cap = 0, rev_cap = 0;
+    int multibyte = MB_CUR_MAX > 1;
     ssize_t n;
     int out_failed = 0;
     unsigned char output[65536];
@@ -40,10 +44,36 @@ br_process (FILE *f)
         /* Reverse the existing line storage, then emit all of its bytes in
            one call. The newline and embedded NUL bytes retain their places
            in the record format without per-byte stdio locking. */
-        for (size_t i = 0; i < l / 2; i++) {
-            char c = line[i];
-            line[i] = line[l - i - 1];
-            line[l - i - 1] = c;
+        int ascii = 1;
+        if (multibyte)
+            for (size_t i = 0; i < l; i++)
+                if ((unsigned char) line[i] >= 0x80) { ascii = 0; break; }
+        if (ascii) {
+            for (size_t i = 0; i < l / 2; i++) {
+                char c = line[i];
+                line[i] = line[l - i - 1];
+                line[l - i - 1] = c;
+            }
+        } else {
+            /* Copy each character, whole, to its mirrored place. */
+            if (l > rev_cap) {
+                char *nr = realloc (rev, l);
+                if (!nr) { out_failed = 1; errno = ENOMEM; break; }
+                rev = nr;
+                rev_cap = l;
+            }
+            mbstate_t st;
+            memset (&st, 0, sizeof st);
+            for (size_t i = 0; i < l; ) {
+                size_t k = mbrlen (line + i, l - i, &st);
+                if (k == 0 || k == (size_t) -1 || k == (size_t) -2) {
+                    k = 1;
+                    memset (&st, 0, sizeof st);
+                }
+                memcpy (rev + (l - i - k), line + i, k);
+                i += k;
+            }
+            memcpy (line, rev, l);
         }
         /* Bash keeps stdout line buffered. Coalesce regular-file records
            without changing that persistent setting; live inputs keep their
@@ -73,6 +103,7 @@ br_process (FILE *f)
         }
     }
     free (line);
+    free (rev);
     if (!out_failed && used && fwrite (output, 1, used, stdout) != used)
         out_failed = 1;
     if (out_failed || ferror (stdout) || fflush (stdout) == EOF) {
@@ -86,7 +117,8 @@ static void
 br_help (void)
 {
     puts ("bashrev [OPTION] [FILE...]");
-    puts ("Reverse bytes within each line. Reads stdin if no FILE or FILE is -.");
+    puts ("Reverse the characters within each line (whole multibyte characters in");
+    puts ("a UTF-8 locale). Reads stdin if no FILE or FILE is -.");
     puts ("");
     puts ("  -h, --help     show this help");
     puts ("  -V, --version  show version");
@@ -147,7 +179,7 @@ rev_builtin (WORD_LIST *list)
 }
 
 char *rev_doc[] = {
-    "Reverse bytes within each line (POSIX rev).",
+    "Reverse the characters within each line (util-linux rev; multibyte-aware).",
     "",
     "    bashrev [OPTION] [FILE...]",
     "",
