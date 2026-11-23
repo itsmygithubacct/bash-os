@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "loadable": "sort",
+  "reference": "GNU coreutils sort invoked by system Bash is the independent oracle. Fixtures are generated with a Bash LCG; GNU tr/tail/cat only post-process them.",
+  "coverage": [
+    "-f and key f fold to upper case",
+    "-S/--buffer-size and -T/--temporary-directory option forms",
+    "External sort: spilled runs, multi-level merge, keys, -u, -s, -z, -o onto an input, standard input, failure to create a run",
+    "Exit status 2 for trouble and 1 for -c disorder"
+  ],
+  "exclusions": [
+    "Address-space limits (ulimit -v) are not set inside the runner; the default budget derived from RLIMIT_AS is checked in the guest qualification instead."
+  ],
+  "cases": [
+    {
+      "id": "fold_case_to_upper",
+      "kind": "parity",
+      "purpose": "-f folds lower case to upper case, so '[' and '_' (between 'Z' and 'a') sort after the letters.",
+      "script": "printf '[\\na\\nZ\\n_x\\nB\\n' | sort -f",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "fold_case_key",
+      "kind": "parity",
+      "purpose": "A key with its own f flag uses the same upper-case folding as -f.",
+      "script": "printf 'x _q\\ny Zq\\nz aq\\n' | sort -k2,2f",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "buffer_size_and_tmpdir_options",
+      "kind": "parity",
+      "purpose": "-S/--buffer-size and -T/--temporary-directory are accepted in their short, glued and long forms on small input.",
+      "script": "mkdir t\nfor o in '-S 1M' -S10% '--buffer-size=2048' '-T t' -Tt '--temporary-directory=t'; do printf '2\\n1\\n3\\n' | sort $o; done",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "invalid_buffer_size",
+      "kind": "parity",
+      "purpose": "An invalid SIZE is a usage error with a diagnostic.",
+      "script": "rc=0\nprintf '1\\n' | sort -S 12Q || rc=$?\nprintf 'status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "spill_default_text",
+      "kind": "parity",
+      "purpose": "A 4 KiB buffer splits the ~300 KB input into about 150 sorted runs in -T, more than the 32-run merge fan-in, so an intermediate merge level runs; output must equal an in-memory sort.",
+      "script": "mkdir t\ns=7; for ((i=0; i<12000; i++)); do s=$(( (s*1103515245+12345) % 2147483648 )); if ((i%3)); then w=Beta; else w=alpha; fi; printf '%08d k%d %s\\n' $((s % 100000000)) $((i%50)) \"$w\"; done > in\nsort -S 4K -T t in",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "spill_keys_numeric_reverse",
+      "kind": "parity",
+      "purpose": "Runs spilled under a 64 KiB buffer merge correctly for a keyed numeric reverse sort with a secondary key.",
+      "script": "mkdir t\ns=7; for ((i=0; i<12000; i++)); do s=$(( (s*1103515245+12345) % 2147483648 )); if ((i%3)); then w=Beta; else w=alpha; fi; printf '%08d k%d %s\\n' $((s % 100000000)) $((i%50)) \"$w\"; done > in\nsort -S 64K -T t -k2,2 -k1,1nr in",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "spill_unique_and_stable",
+      "kind": "parity",
+      "purpose": "-u keeps the first record of each equal-key group across runs, and -s keeps input order across runs.",
+      "script": "mkdir t\ns=7; for ((i=0; i<12000; i++)); do s=$(( (s*1103515245+12345) % 2147483648 )); if ((i%3)); then w=Beta; else w=alpha; fi; printf '%08d k%d %s\\n' $((s % 100000000)) $((i%50)) \"$w\"; done > in\nsort -S 64K -T t -k2,2 -u in\nsort -S 64K -T t -s -k3,3f in | tail -c 4000",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort",
+        "tail"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "spill_output_onto_input",
+      "kind": "parity",
+      "purpose": "-o may name the input: the output is opened only after all runs are written.",
+      "script": "mkdir t\ns=7; for ((i=0; i<6000; i++)); do s=$(( (s*1103515245+12345) % 2147483648 )); if ((i%3)); then w=Beta; else w=alpha; fi; printf '%08d k%d %s\\n' $((s % 100000000)) $((i%50)) \"$w\"; done > in\nsort -S 64K -T t -o in in\ncat in",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort",
+        "cat"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "spill_stdin_zero_terminated",
+      "kind": "parity",
+      "purpose": "Standard input (a pipe of unknown size) spills too, with NUL-terminated records and a final record lacking its terminator.",
+      "script": "mkdir t\ns=7; for ((i=0; i<8000; i++)); do s=$(( (s*1103515245+12345) % 2147483648 )); if ((i%3)); then w=Beta; else w=alpha; fi; printf '%08d k%d %s\\n' $((s % 100000000)) $((i%50)) \"$w\"; done > in\n{ tr '\\n' '\\0' < in; printf 'tail-no-nul'; } | sort -z -S 64K -T t | tr '\\0' '\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sort",
+        "tr"
+      ],
+      "timeout": 15
+    },
+    {
+      "id": "spill_missing_tmpdir",
+      "kind": "parity",
+      "purpose": "When a run must be written and -T names a missing directory, sort fails with a diagnostic. compare_tree is off because GNU leaves a partial or empty 'out' depending on when it fails; the status and diagnostic are the contract.",
+      "script": "rc=0\ns=7; for ((i=0; i<8000; i++)); do s=$(( (s*1103515245+12345) % 2147483648 )); if ((i%3)); then w=Beta; else w=alpha; fi; printf '%08d k%d %s\\n' $((s % 100000000)) $((i%50)) \"$w\"; done > in\nsort -S 64K -T missing-dir in > out || rc=$?\nprintf 'status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "requires": [
+        "sort"
+      ],
+      "compare_tree": false
+    },
+    {
+      "id": "missing_input_status",
+      "kind": "parity",
+      "purpose": "A missing input is fatal in GNU sort: it is reported, nothing is written and the status is 2 (1 is reserved for -c disorder).",
+      "script": "printf 'b\\na\\n' > present\nrc=0\nsort present missing || rc=$?\nprintf 'status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 2,
+      "stderr": "nonempty",
+      "requires": [
+        "sort"
+      ]
+    },
+    {
+      "id": "check_disorder_status",
+      "kind": "parity",
+      "purpose": "-c on unsorted input exits 1, not the trouble status 2.",
+      "script": "rc=0\nprintf 'b\\na\\n' | sort -c || rc=$?\nprintf 'status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "nonempty",
+      "requires": [
+        "sort"
+      ]
+    }
+  ]
+}

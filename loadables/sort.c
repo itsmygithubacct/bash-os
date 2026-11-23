@@ -52,6 +52,9 @@
 #include <signal.h>
 #include <locale.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
+#include <limits.h>
+#include <inttypes.h>
 
 #include "loadables.h"
 
@@ -116,6 +119,9 @@ typedef struct {
     size_t pos;
     const char *name;   /* source file name for diagnostics; "-" for stdin */
 } bs_run;
+
+/* GNU sort's exit status for trouble; 1 is reserved for -c disorder. */
+#define BS_TROUBLE 2
 
 static const bs_opts *bs_cmp_opts;
 
@@ -813,8 +819,10 @@ bs_cmp_bytes (const char *a, size_t la, const char *b, size_t lb, int icase, int
         int ca = (unsigned char) a[ia];
         int cb = (unsigned char) b[ib];
         if (icase) {
-            ca = tolower (ca);
-            cb = tolower (cb);
+            /* GNU -f folds lower case to upper case, so bytes between 'Z'
+               and 'a' ('[', '_', ...) sort after the letters. */
+            ca = toupper (ca);
+            cb = toupper (cb);
         }
         if (ca != cb)
             return ca - cb;
@@ -879,7 +887,7 @@ bs_prefix (const bs_keyval *kv, const bs_keydef *k)
             if (k->dictionary_order && !bs_dictionary_byte (c))
                 continue;
             if (k->ignore_case)
-                c = (unsigned char) tolower (c);
+                c = (unsigned char) toupper (c);
             p = (p << 8) | c;
             nb++;
         }
@@ -1246,12 +1254,558 @@ bs_emit_merged (bs_out *ob, bs_line *lines, bs_run *runs, size_t nruns, const bs
 }
 
 
+/* --- external sort: -S SIZE, -T DIR, and inputs larger than memory -------
+   GNU sort bounds its main buffer by -S or by the process limits and spills
+   sorted runs to temporary files, merging them at the end. Here, when the
+   estimated in-memory size of the input exceeds that budget, the input is
+   read in blocks; each block is sorted with the ordinary code and written as
+   a run to an unlinked temporary file; the runs are then merged as streams.
+   Inputs that fit keep the in-memory path. */
+
+typedef struct {
+    FILE **f;               /* sorted runs, oldest input first */
+    unsigned char *level;   /* how many merges each run has been through */
+    size_t n, cap;
+} bs_runs;
+
+typedef struct {
+    const char *tmpdir;     /* -T, else $TMPDIR, else /tmp */
+    size_t limit;           /* estimated bytes the in-memory phase may use */
+    int explicit_size;      /* -S was given */
+    int delim;              /* record delimiter */
+} bs_ext;
+
+/* Bytes of bookkeeping per record beyond its text. */
+static size_t
+bs_ext_record_overhead (const bs_opts *o)
+{
+    return sizeof (bs_line) + sizeof (bs_elem) + (size_t) o->nkeys * sizeof (bs_keyval);
+}
+
+/* GNU's SIZE: a number with an optional suffix b (bytes), K M G T P E
+   (powers of 1024; K is the default), or % of physical memory. */
+static int
+bs_parse_buffer_size (const char *s, size_t *out)
+{
+    char *end;
+    errno = 0;
+    if (!*s || !isdigit ((unsigned char) *s))
+        return -1;
+    uintmax_t v = strtoumax (s, &end, 10);
+    if (errno == ERANGE)
+        v = UINTMAX_MAX;
+    uintmax_t mult = 1024;
+    if (*end) {
+        static const char suffixes[] = "KMGTPEZY";
+        if (end[1])
+            return -1;
+        if (*end == 'b')
+            mult = 1;
+        else if (*end == '%') {
+            long pages = sysconf (_SC_PHYS_PAGES), psz = sysconf (_SC_PAGESIZE);
+            uintmax_t phys = (pages > 0 && psz > 0) ? (uintmax_t) pages * (uintmax_t) psz : 0;
+            if (v > 100)
+                return -1;
+            *out = (size_t) (phys / 100 * v);
+            return 0;
+        } else {
+            const char *p = strchr (suffixes, toupper ((unsigned char) *end));
+            if (!p)
+                return -1;
+            mult = 1;
+            for (const char *q = suffixes; q <= p; q++)
+                mult = mult > UINTMAX_MAX / 1024 ? UINTMAX_MAX : mult * 1024;
+        }
+    }
+    uintmax_t bytes = (v != 0 && mult > UINTMAX_MAX / v) ? UINTMAX_MAX : v * mult;
+    *out = bytes > SIZE_MAX ? SIZE_MAX : (size_t) bytes;
+    return 0;
+}
+
+/* Default budget: a third of the tightest address-space/data limit (the
+   shell itself and the sort's temporary arrays need the rest), and at most
+   half of physical memory. */
+static size_t
+bs_default_limit (void)
+{
+    uintmax_t lim = UINTMAX_MAX;
+    struct rlimit rl;
+    if (getrlimit (RLIMIT_AS, &rl) == 0 && rl.rlim_cur != RLIM_INFINITY)
+        lim = (uintmax_t) rl.rlim_cur / 3;
+    if (getrlimit (RLIMIT_DATA, &rl) == 0 && rl.rlim_cur != RLIM_INFINITY
+        && (uintmax_t) rl.rlim_cur / 3 < lim)
+        lim = (uintmax_t) rl.rlim_cur / 3;
+    long pages = sysconf (_SC_PHYS_PAGES), psz = sysconf (_SC_PAGESIZE);
+    if (pages > 0 && psz > 0 && (uintmax_t) pages * (uintmax_t) psz / 2 < lim)
+        lim = (uintmax_t) pages * (uintmax_t) psz / 2;
+    return lim > SIZE_MAX ? SIZE_MAX : (size_t) lim;
+}
+
+static FILE *
+bs_ext_tempfile (const bs_ext *x)
+{
+    size_t n = strlen (x->tmpdir) + sizeof "/sortXXXXXX";
+    char *path = malloc (n);
+    if (!path)
+        return NULL;
+    snprintf (path, n, "%s/sortXXXXXX", x->tmpdir);
+    int fd = mkstemp (path);
+    if (fd < 0) {
+        builtin_error ("cannot create temporary file in '%s': %s", x->tmpdir, strerror (errno));
+        free (path);
+        return NULL;
+    }
+    unlink (path);
+    free (path);
+    FILE *f = fdopen (fd, "w+");
+    if (!f) {
+        close (fd);
+        builtin_error ("cannot create temporary file in '%s': %s", x->tmpdir, strerror (errno));
+    }
+    return f;
+}
+
+static int bs_ext_merge (FILE **runs, size_t nruns, FILE *out, const bs_opts *o, int delim);
+
+/* A merge reads one record per run at once. Runs are merged in levels as
+   they are produced: when the newest BS_EXT_FANIN runs share a level they
+   become one run of the next level, so open descriptors stay near
+   BS_EXT_FANIN per level and merged groups are always contiguous in input
+   order (which -s and -u rely on). */
+#define BS_EXT_FANIN 16
+
+/* Merge runs [FROM, R->n) into one new run at LEVEL. */
+static int
+bs_ext_merge_tail (bs_runs *r, size_t from, unsigned char level, const bs_opts *o,
+                   int delim, const bs_ext *x)
+{
+    FILE *f = bs_ext_tempfile (x);
+    if (!f)
+        return -1;
+    int rc = bs_ext_merge (r->f + from, r->n - from, f, o, delim);
+    for (size_t j = from; j < r->n; j++)
+        fclose (r->f[j]);
+    r->n = from;
+    if (rc == 0 && (fflush (f) == EOF || ferror (f))) {
+        builtin_error ("write error on temporary file: %s", strerror (errno ? errno : EIO));
+        rc = -1;
+    }
+    if (rc < 0) {
+        fclose (f);
+        return -1;
+    }
+    rewind (f);
+    r->f[r->n] = f;
+    r->level[r->n++] = level;
+    return 0;
+}
+
+/* Sort the records gathered in IN and write them to a new run file. */
+static int
+bs_ext_spill (bs_input *in, const bs_opts *o, unsigned long workers, const bs_ext *x,
+              bs_runs *r)
+{
+    bs_keyval *blk = NULL;
+    bs_elem *elems = NULL;
+    FILE *f;
+    int rc = -1;
+
+    if (r->n >= r->cap) {
+        size_t ncap = r->cap ? r->cap * 2 : 2 * BS_EXT_FANIN;
+        FILE **nf = realloc (r->f, ncap * sizeof *nf);
+        if (nf)
+            r->f = nf;
+        unsigned char *nl = nf ? realloc (r->level, ncap) : NULL;
+        if (!nf || !nl) {
+            builtin_error ("memory exhausted");
+            bs_free_input (in);
+            return -1;
+        }
+        r->level = nl;
+        r->cap = ncap;
+    }
+    if (bs_prepare_keys (in->lines, in->n, o, &blk, &elems) < 0) {
+        builtin_error ("memory exhausted");
+        goto out;
+    }
+    if (in->n > 1)
+        bs_sort_elements (elems, in->n, workers);
+    f = bs_ext_tempfile (x);
+    if (!f)
+        goto out;
+    {
+        bs_out ob;
+        ob.f = f;
+        ob.n = 0;
+        bs_emit_lines (&ob, elems, in->n, o);
+        bs_out_flush (&ob);
+    }
+    if (fflush (f) == EOF || ferror (f)) {
+        builtin_error ("write error on temporary file: %s", strerror (errno ? errno : EIO));
+        fclose (f);
+        goto out;
+    }
+    rewind (f);
+    r->f[r->n] = f;
+    r->level[r->n++] = 0;
+    rc = 0;
+out:
+    free (blk);
+    free (elems);
+    bs_free_input (in);
+    /* Cascade: BS_EXT_FANIN newest runs of one level become one run. */
+    while (rc == 0 && r->n >= BS_EXT_FANIN) {
+        size_t from = r->n - BS_EXT_FANIN;
+        unsigned char lv = r->level[r->n - 1];
+        size_t j;
+        for (j = from; j < r->n && r->level[j] == lv; j++)
+            ;
+        if (j < r->n || lv == UCHAR_MAX)
+            break;
+        rc = bs_ext_merge_tail (r, from, (unsigned char) (lv + 1), o, x->delim, x);
+    }
+    return rc;
+}
+
+/* Read F in blocks into IN, spilling a run whenever the estimate passes the
+   budget: 0, 1 after a reported read error, -1 after a fatal error. */
+static int
+bs_ext_read (FILE *f, const char *name, int delim, bs_input *in, size_t *estp,
+             const bs_opts *o, unsigned long workers, const bs_ext *x, bs_runs *r)
+{
+    size_t block = x->limit / 4;
+    size_t per = bs_ext_record_overhead (o);
+    char *carry = NULL;
+    size_t carry_len = 0;
+    int rc = 0;
+
+    if (block < 1024)
+        block = 1024;
+    if (block > ((size_t) 64 << 20))
+        block = (size_t) 64 << 20;
+    for (;;) {
+        size_t cap = carry_len + block + 2;
+        char *buf = malloc (cap);
+        if (!buf) {
+            free (carry);
+            builtin_error ("memory exhausted");
+            return -1;
+        }
+        if (carry_len)
+            memcpy (buf, carry, carry_len);
+        free (carry);
+        carry = NULL;
+        size_t len = carry_len;
+        carry_len = 0;
+        size_t got = fread (buf + len, 1, block, f);
+        len += got;
+        int at_end = got < block;
+        if (at_end && ferror (f)) {
+            builtin_error ("%s: read error: %s", name, strerror (errno));
+            rc = 1;
+        }
+        size_t keep = len;
+        if (!at_end) {
+            char *last = NULL;
+            for (size_t i = len; i > 0; i--)
+                if ((unsigned char) buf[i - 1] == (unsigned char) delim) {
+                    last = buf + i - 1;
+                    break;
+                }
+            keep = last ? (size_t) (last + 1 - buf) : 0;
+            carry_len = len - keep;
+            if (carry_len) {
+                carry = malloc (carry_len);
+                if (!carry) {
+                    free (buf);
+                    builtin_error ("memory exhausted");
+                    return -1;
+                }
+                memcpy (carry, buf + keep, carry_len);
+            }
+        }
+        if (keep == 0 && !at_end) {
+            /* One record longer than the block: keep reading. */
+            free (buf);
+            block = block > SIZE_MAX / 2 ? block : block * 2;
+            continue;
+        }
+        size_t before = in->n;
+        if (bs_add_input (in, buf, keep, delim) < 0) {
+            free (carry);
+            builtin_error ("memory exhausted");
+            return -1;
+        }
+        *estp += keep + (in->n - before) * per;
+        if (*estp > x->limit && in->n > 0) {
+            if (bs_ext_spill (in, o, workers, x, r) < 0) {
+                free (carry);
+                return -1;
+            }
+            *estp = 0;
+        }
+        if (at_end)
+            break;
+    }
+    free (carry);
+    return rc;
+}
+
+typedef struct {
+    FILE *f;
+    char *buf;
+    size_t cap;
+    bs_line ln;
+    bs_keyval kv[8];
+    int live;
+} bs_ext_cursor;
+
+static int
+bs_ext_next (bs_ext_cursor *c, const bs_opts *o, int delim, size_t run)
+{
+    ssize_t got = getdelim (&c->buf, &c->cap, delim, c->f);
+    if (got <= 0) {
+        c->live = 0;
+        return ferror (c->f) ? -1 : 0;
+    }
+    c->ln.buf = c->buf;
+    c->ln.len = (size_t) got;
+    c->ln.index = run;      /* runs are in input order: earliest wins ties */
+    c->ln.random_rank = 0;
+    if (bs_plain_text (o))
+        c->ln.keys = NULL;
+    else {
+        size_t llen = c->ln.len - 1;
+        c->ln.keys = c->kv;
+        for (int s = 0; s < o->nkeys; s++) {
+            bs_key_span (c->ln.buf, llen, o, &o->keys[s], &c->kv[s].s, &c->kv[s].len);
+            c->kv[s].ip = c->kv[s].fp = c->kv[s].s;
+            c->kv[s].ilen = c->kv[s].flen = 0;
+            c->kv[s].sign = 0;
+            if (o->keys[s].numeric)
+                bs_numeric_parse (&c->kv[s]);
+        }
+    }
+    c->live = 1;
+    return 1;
+}
+
+/* Merge the sorted runs into OUT; -u keeps the first of each equal run. */
+static int
+bs_ext_merge (FILE **runs, size_t nruns, FILE *out, const bs_opts *o, int delim)
+{
+    bs_ext_cursor *cur = calloc (nruns, sizeof *cur);
+    char *last = NULL;
+    size_t lastcap = 0;
+    bs_line lastln;
+    bs_keyval lastkv[8];
+    int have_last = 0, rc = 0;
+    bs_out ob;
+
+    if (!cur) {
+        builtin_error ("memory exhausted");
+        return -1;
+    }
+    ob.f = out;
+    ob.n = 0;
+    for (size_t r = 0; r < nruns; r++) {
+        cur[r].f = runs[r];
+        if (bs_ext_next (&cur[r], o, delim, r) < 0)
+            rc = -1;
+    }
+    while (rc == 0) {
+        size_t best = (size_t) -1;
+        for (size_t r = 0; r < nruns; r++) {
+            if (!cur[r].live)
+                continue;
+            if (best == (size_t) -1 || bs_full_compare (&cur[r].ln, &cur[best].ln, o) < 0)
+                best = r;
+        }
+        if (best == (size_t) -1)
+            break;
+        bs_line *ln = &cur[best].ln;
+        if (!(o->uflag && have_last && bs_compare_keys (&lastln, ln, o) == 0)) {
+            bs_out_write (&ob, ln->buf, ln->len);
+            if (o->uflag) {
+                /* Keep a private copy: the cursor's buffer is reused. */
+                if (lastcap < ln->len) {
+                    char *nl = realloc (last, ln->len);
+                    if (!nl) {
+                        builtin_error ("memory exhausted");
+                        rc = -1;
+                        break;
+                    }
+                    last = nl;
+                    lastcap = ln->len;
+                }
+                memcpy (last, ln->buf, ln->len);
+                lastln = *ln;
+                lastln.buf = last;
+                if (ln->keys) {
+                    for (int s = 0; s < o->nkeys; s++) {
+                        lastkv[s] = ln->keys[s];
+                        lastkv[s].s = last + (ln->keys[s].s - ln->buf);
+                        lastkv[s].ip = last + (ln->keys[s].ip - ln->buf);
+                        lastkv[s].fp = last + (ln->keys[s].fp - ln->buf);
+                    }
+                    lastln.keys = lastkv;
+                }
+                have_last = 1;
+            }
+        }
+        if (bs_ext_next (&cur[best], o, delim, best) < 0) {
+            builtin_error ("read error on temporary file: %s", strerror (errno));
+            rc = -1;
+        }
+    }
+    bs_out_flush (&ob);
+    for (size_t r = 0; r < nruns; r++)
+        free (cur[r].buf);
+    free (cur);
+    free (last);
+    return rc;
+}
+
+/* Before the final merge, fold the remaining runs (at most BS_EXT_FANIN - 1
+   per level) into at most BS_EXT_FANIN, newest groups first. */
+static int
+bs_ext_reduce (bs_runs *r, const bs_opts *o, const bs_ext *x)
+{
+    while (r->n > BS_EXT_FANIN) {
+        size_t from = r->n - BS_EXT_FANIN;
+        if (bs_ext_merge_tail (r, from, r->level[r->n - 1], o, x->delim, x) < 0)
+            return -1;
+    }
+    return 0;
+}
+
+/* The whole external path: 0/1 as the builtin's status, after writing. */
+static int
+bs_ext_sort (const char **files, size_t n_files, const bs_opts *o, unsigned long workers,
+             const bs_ext *x, const char *output_file)
+{
+    int delim = o->zflag ? '\0' : '\n';
+    bs_input in = {0};
+    size_t est = 0;
+    bs_runs runs = {0};
+    int rc = EXECUTION_SUCCESS, fatal = 0;
+    size_t nin = n_files ? n_files : 1;
+
+    clearerr (stdin);
+    for (size_t i = 0; i < nin && !fatal; i++) {
+        const char *name = n_files ? files[i] : "-";
+        FILE *f = stdin;
+        if (strcmp (name, "-") != 0)
+            f = fopen (name, "r");
+        else
+            clearerr (stdin);
+        if (!f) {
+            /* GNU: an unreadable input ends the sort before any output. */
+            builtin_error ("%s: %s", name, strerror (errno));
+            fatal = 1;
+            break;
+        }
+        int r = bs_ext_read (f, name, delim, &in, &est, o, workers, x, &runs);
+        if (f != stdin)
+            fclose (f);
+        if (r < 0)
+            fatal = 1;
+        else if (r > 0)
+            rc = BS_TROUBLE;
+    }
+    /* Nothing spilled: the input fit after all, so sort it in memory. */
+    int in_memory = !fatal && runs.n == 0;
+    bs_keyval *blk = NULL;
+    bs_elem *elems = NULL;
+    if (in_memory) {
+        if (bs_prepare_keys (in.lines, in.n, o, &blk, &elems) < 0) {
+            builtin_error ("memory exhausted");
+            fatal = 1;
+        } else if (in.n > 1)
+            bs_sort_elements (elems, in.n, workers);
+    } else {
+        if (!fatal && in.n > 0 && bs_ext_spill (&in, o, workers, x, &runs) < 0)
+            fatal = 1;
+        bs_free_input (&in);
+        if (!fatal && bs_ext_reduce (&runs, o, x) < 0)
+            fatal = 1;
+    }
+
+    FILE *outf = stdout;
+    if (!fatal) {
+        /* Like GNU, the output is opened only after every input is read, so
+           -o may name an input file. */
+        if (output_file && strcmp (output_file, "-") != 0) {
+            outf = fopen (output_file, "w");
+            if (!outf) {
+                builtin_error ("%s: %s", output_file, strerror (errno));
+                fatal = 1;
+            }
+        } else
+            clearerr (stdout);
+    }
+    if (!fatal) {
+        if (in_memory) {
+            bs_out ob;
+            ob.f = outf;
+            ob.n = 0;
+            bs_emit_lines (&ob, elems, in.n, o);
+            bs_out_flush (&ob);
+        } else if (bs_ext_merge (runs.f, runs.n, outf, o, delim) < 0)
+            fatal = 1;
+        if (fflush (outf) == EOF || ferror (outf)) {
+            builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+            rc = BS_TROUBLE;
+        }
+        if (outf != stdout && fclose (outf) != 0) {
+            builtin_error ("%s: %s", output_file, strerror (errno));
+            rc = BS_TROUBLE;
+        }
+    }
+    for (size_t r = 0; r < runs.n; r++)
+        fclose (runs.f[r]);
+    free (runs.f);
+    free (runs.level);
+    free (blk);
+    free (elems);
+    bs_free_input (&in);
+    return fatal ? BS_TROUBLE : rc;
+}
+
+/* Whether the inputs need the external path under budget X. */
+static int
+bs_ext_needed (const char **files, size_t n_files, const bs_opts *o, const bs_ext *x)
+{
+    uintmax_t total = 0;
+    size_t nin = n_files ? n_files : 1;
+
+    if (x->limit == SIZE_MAX)
+        return 0;
+    for (size_t i = 0; i < nin; i++) {
+        const char *name = n_files ? files[i] : "-";
+        struct stat st;
+        int ok = strcmp (name, "-") == 0 ? fstat (fileno (stdin), &st) : stat (name, &st);
+        if (ok != 0)
+            continue;               /* the read reports it */
+        if (!S_ISREG (st.st_mode))
+            return 1;               /* unknown size: read in blocks */
+        total += (uintmax_t) st.st_size;
+    }
+    /* At least one record per 16 bytes is a conservative overhead guess;
+       the block reader measures the real count. */
+    uintmax_t est = total + total / 16 * bs_ext_record_overhead (o);
+    return est > x->limit;
+}
+
 static int
 bs_sort (WORD_LIST *list, const char **files)
 {
     bs_opts o = {0};
     const char *output_file = NULL;
     const char *random_source = NULL;
+    const char *tmpdir = NULL;
+    size_t buffer_size = 0;
+    int have_buffer_size = 0;
     /* Parse flags. */
     unsigned long workers = 1;
     size_t n_files = 0;
@@ -1342,6 +1896,29 @@ bs_sort (WORD_LIST *list, const char **files)
         }
         if (!strcmp (w, "--month-sort") || !strcmp (w, "--sort=month")) { o.mflag = 1; list = list->next; continue; }
         if (!strcmp (w, "--merge")) { o.mergeflag = 1; list = list->next; continue; }
+        if (!strcmp (w, "--buffer-size") || !strncmp (w, "--buffer-size=", 14)
+            || !strcmp (w, "--temporary-directory") || !strncmp (w, "--temporary-directory=", 22)) {
+            int is_size = w[2] == 'b';
+            const char *eq = strchr (w, '=');
+            const char *val;
+            if (eq)
+                val = eq + 1;
+            else {
+                if (!list->next) { builtin_error ("%s needs an argument", w); return EX_USAGE; }
+                list = list->next;
+                val = list->word->word;
+            }
+            if (is_size) {
+                if (bs_parse_buffer_size (val, &buffer_size) < 0) {
+                    builtin_error ("invalid --buffer-size argument '%s'", val);
+                    return EX_USAGE;
+                }
+                have_buffer_size = 1;
+            } else if (!tmpdir)
+                tmpdir = val;
+            list = list->next;
+            continue;
+        }
         if (!strcmp (w, "--ignore-leading-blanks")) { o.bflag = 1; list = list->next; continue; }
         if (!strcmp (w, "--dictionary-order")) { o.dflag = 1; list = list->next; continue; }
         if (!strcmp (w, "--reverse")) { o.rflag = 1; list = list->next; continue; }
@@ -1465,6 +2042,28 @@ bs_sort (WORD_LIST *list, const char **files)
                             return EX_USAGE;
                     }
                     break;
+                case 'S':
+                case 'T': {
+                    const char *val;
+                    char opt = *p;
+                    if (p[1]) {
+                        val = p + 1;
+                        p += strlen (p) - 1;
+                    } else {
+                        if (!list->next) { builtin_error ("-%c needs an argument", opt); return EX_USAGE; }
+                        list = list->next;
+                        val = list->word->word;
+                    }
+                    if (opt == 'S') {
+                        if (bs_parse_buffer_size (val, &buffer_size) < 0) {
+                            builtin_error ("invalid -S argument '%s'", val);
+                            return EX_USAGE;
+                        }
+                        have_buffer_size = 1;
+                    } else if (!tmpdir)
+                        tmpdir = val;
+                    break;
+                }
                 case 'o':
                     if (p[1]) {
                         output_file = p + 1;
@@ -1483,12 +2082,32 @@ bs_sort (WORD_LIST *list, const char **files)
 
     bs_resolve_keys (&o);
 
+    /* Larger than the budget (or -S): sort in runs through temporary files. */
+    if (!o.cflag && !o.mergeflag && !o.Rflag) {
+        bs_ext x;
+        x.tmpdir = tmpdir;
+        if (!x.tmpdir || !*x.tmpdir)
+            x.tmpdir = getenv ("TMPDIR");
+        if (!x.tmpdir || !*x.tmpdir)
+            x.tmpdir = "/tmp";
+        x.explicit_size = have_buffer_size;
+        x.delim = o.zflag ? '\0' : '\n';
+        x.limit = have_buffer_size ? buffer_size : bs_default_limit ();
+        if (x.limit < 4096)
+            x.limit = 4096;
+        if (have_buffer_size || bs_ext_needed (files, n_files, &o, &x)) {
+            bs_cmp_opts = &o;
+            bs_pre_reverse = o.keys[0].reverse;
+            return bs_ext_sort (files, n_files, &o, workers, &x, output_file);
+        }
+    }
+
     /* Read every input whole; a record is a span of that buffer. */
     bs_input in = {0};
     bs_run *runs = calloc ((size_t) (n_files > 0 ? n_files : 1), sizeof *runs);
     size_t nruns = 0;
     if (!runs)
-        return EXECUTION_FAILURE;
+        return BS_TROUBLE;
     int bs_rc = EXECUTION_SUCCESS;
     int record_delim = o.zflag ? '\0' : '\n';
 
@@ -1500,10 +2119,10 @@ bs_sort (WORD_LIST *list, const char **files)
         if (r < 0) {
             free (runs);
             bs_free_input (&in);
-            return EXECUTION_FAILURE;
+            return BS_TROUBLE;
         }
         if (r > 0)
-            bs_rc = EXECUTION_FAILURE;
+            bs_rc = BS_TROUBLE;
         runs[nruns++] = (bs_run) { start, in.n, start, "-" };
     } else {
         for (size_t i = 0; i < n_files; i++) {
@@ -1515,9 +2134,11 @@ bs_sort (WORD_LIST *list, const char **files)
             else
                 clearerr (stdin);
             if (!f) {
+                /* GNU: an unreadable input ends the sort before any output. */
                 builtin_error ("%s: %s", files[i], strerror (errno));
-                bs_rc = EXECUTION_FAILURE;
-                continue;
+                free (runs);
+                bs_free_input (&in);
+                return BS_TROUBLE;
             }
             r = bs_read_input (&in, f, files[i], record_delim);
             if (f != stdin)
@@ -1525,10 +2146,10 @@ bs_sort (WORD_LIST *list, const char **files)
             if (r < 0) {
                 free (runs);
                 bs_free_input (&in);
-                return EXECUTION_FAILURE;
+                return BS_TROUBLE;
             }
             if (r > 0)
-                bs_rc = EXECUTION_FAILURE;
+                bs_rc = BS_TROUBLE;
             runs[nruns++] = (bs_run) { start, in.n, start, files[i] };
         }
     }
@@ -1542,7 +2163,7 @@ bs_sort (WORD_LIST *list, const char **files)
     bs_elem *elems = NULL;
     if (bs_prepare_keys (lines, n, &o, &keyblk, &elems) < 0) {
         builtin_error ("memory exhausted");
-        rc = EXECUTION_FAILURE;
+        rc = BS_TROUBLE;
         goto out;
     }
     bs_cmp_opts = &o;
@@ -1550,7 +2171,7 @@ bs_sort (WORD_LIST *list, const char **files)
 
     if (o.Rflag) {
         if (bs_random_seed (random_source) < 0) {
-            rc = EXECUTION_FAILURE;
+            rc = BS_TROUBLE;
             goto out;
         }
         for (size_t i = 0; i < n; i++) {
@@ -1620,7 +2241,7 @@ bs_sort (WORD_LIST *list, const char **files)
         outf = fopen (output_file, "w");
         if (!outf) {
             builtin_error ("%s: %s", output_file, strerror (errno));
-            rc = EXECUTION_FAILURE;
+            rc = BS_TROUBLE;
             goto out;
         }
     } else {
@@ -1638,12 +2259,12 @@ bs_sort (WORD_LIST *list, const char **files)
         bs_out_flush (&ob);
         if (fflush (outf) == EOF || ferror (outf)) {
             builtin_error ("write error: %s", strerror (errno ? errno : EIO));
-            rc = EXECUTION_FAILURE;
+            rc = BS_TROUBLE;
         }
     }
     if (outf != stdout && fclose (outf) != 0) {
         builtin_error ("%s: %s", output_file, strerror (errno));
-        rc = EXECUTION_FAILURE;
+        rc = BS_TROUBLE;
     }
 
 out:
@@ -1669,7 +2290,7 @@ sort_builtin (WORD_LIST *list)
 char *sort_doc[] = {
     "Sort lines in FILEs (or stdin).",
     "",
-    "    sort [-zRVbdghnmrufcisM] [-t SEP] [-k KEYDEF] [-o FILE] [FILE...]",
+    "    sort [-zRVbdghnmrufcisM] [-t SEP] [-k KEYDEF] [-o FILE] [-S SIZE] [-T DIR] [FILE...]",
     "",
     "    -n   numeric compare, GNU sort's rules: leading blanks, an optional -,",
     "         digits and one decimal point; anything else compares as zero",
@@ -1680,6 +2301,10 @@ char *sort_doc[] = {
     "         --random-source=FILE  seed random ordering from FILE bytes",
     "    -M   month compare (Jan..Dec; unknown names sort before Jan)",
     "    --parallel=N  use up to N concurrent sorting workers",
+    "    -S, --buffer-size=SIZE  main memory buffer (b, K, M, G, T... or %;",
+    "         K is the default); larger input is sorted in runs on disk",
+    "    -T, --temporary-directory=DIR  directory for those runs",
+    "         (default $TMPDIR, else /tmp)",
     "    -m, --merge  merge already-sorted inputs",
     "    -b   ignore leading blanks in comparison keys",
     "    -d   dictionary order: compare only blanks and alphanumeric bytes",
@@ -1703,6 +2328,6 @@ struct builtin sort_struct = {
     sort_builtin,
     BUILTIN_ENABLED,
     sort_doc,
-    "sort [-RVbdghnmrufcisM] [-t SEP] [-k KEYDEF] [-o FILE] [FILE...]",
+    "sort [-RVbdghnmrufcisM] [-t SEP] [-k KEYDEF] [-o FILE] [-S SIZE] [-T DIR] [FILE...]",
     0
 };
