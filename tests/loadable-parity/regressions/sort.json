@@ -7,7 +7,8 @@
     "-S/--buffer-size and -T/--temporary-directory option forms",
     "External sort: spilled runs, multi-level merge, keys, -u, -s, -z, -o onto an input, standard input, failure to create a run",
     "Exit status 2 for trouble and 1 for -c disorder",
-    "G68: --debug annotations and key warnings (C locale)."
+    "G68: --debug annotations and key warnings (C locale).",
+    "Guest pass 6: G93 sort -R in O(n log n) with grouping, last-resort ties and a reproducible --random-source; G90 GNU 9.7 file diagnostics (cannot read, open failed, read failed, quoting)."
   ],
   "exclusions": [
     "Address-space limits (ulimit -v) are not set inside the runner; the default budget derived from RLIMIT_AS is checked in the guest qualification instead."
@@ -197,6 +198,50 @@
       "requires": [
         "sort"
       ]
+    },
+    {
+      "id": "pass6-random-sort-200k-lines",
+      "kind": "parity",
+      "purpose": "G93: sort -R is O(n log n): 200000 lines (every value twice) sort in well under 10 seconds, with equal lines adjacent and no line lost; -R -k1,1 too.",
+      "script": "for i in 1 2; do seq 100000; done > in\nSECONDS=0\nsort -R in > out\nsort -R -k1,1 in > out2\n(( SECONDS < 10 )) && echo fast\nwc -l < out\nuniq out | wc -l\nuniq out2 | wc -l\nsort -n in > s1\nsort -n out | cmp -s - s1 && echo same-lines\nrm -f in out out2 s1",
+      "requires": [
+        "sort",
+        "seq",
+        "wc",
+        "uniq",
+        "cmp"
+      ],
+      "timeout": 15,
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass6-random-sort-groups-and-source",
+      "kind": "parity",
+      "purpose": "G93: --random-source gives the same order every run; under -f the case-folded equal keys stay together and, inside a group, GNU's last resort orders the lines bytewise.",
+      "script": "seq 20000 > rs\nseq 3000 > in\nsort -R --random-source=rs in > a\nsort -R --random-source=rs in > b\ncmp -s a b && echo reproducible\ncmp -s a in || echo shuffled\nout=$(printf 'A\\na\\nb\\nB\\nA\\nb\\n' | sort -R -f --random-source=rs | tr '\\n' ' ')\ncase $out in 'A A a B b b '|'B b b A A a ') echo grouped ;; *) echo \"bad [$out]\" ;; esac\nrm -f rs in a b",
+      "requires": [
+        "sort",
+        "seq",
+        "cmp",
+        "tr",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass6-file-diagnostics",
+      "kind": "parity",
+      "purpose": "G90: GNU sort 9.7's file diagnostics: 'cannot read:' for an input it cannot open (also -m), 'open failed:' under -c and for -o and --random-source, 'read failed:' for a directory, the name quoted only when needed, '%s: end of file' and 'read error' for a random source with the name always quoted; status 2 and nothing on stdout.",
+      "script": "m() { local e; e=$(\"$@\" 2>&1 >/dev/null) || true; printf \"%s\\n\" \"sort: ${e#*sort: }\"; }\nmkdir d\nprintf 'b\\na\\n' > f\nm sort nosuch; m sort 'no such'; m sort \"a'b\"; m sort -m nosuch; m sort -c nosuch; m sort d; m sort f d; m sort -o nosuchdir/x f; m sort -R --random-source=nosuch f; m sort -R --random-source=/dev/null f; m sort -R --random-source=d f\nsort f nosuch 2>/dev/null || echo rc=$?\nsort -c nosuch 2>/dev/null || echo rc=$?",
+      "requires": [
+        "sort",
+        "mkdir",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

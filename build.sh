@@ -210,7 +210,7 @@ while read -r stock_name stock_patch; do
 done <<< "$PATCHES_TEXT"
 STAMP=$( { echo "$BASH_SRC_SHA256 ${BASH_PATCHES[*]} $BASH_PATCHLEVEL static=$STATIC strip=$STRIP cc=$CC target=$TARGET cflags=$CFLAGS cppflags=$CPPFLAGS ldflags=$LDFLAGS local_libs=$LOCAL_LIBS extra=${CONFIGURE_EXTRA:-}";
            printf '%s\n' "$SELECTION" "$GNU_REFERENCE"; "$CC" --version;
-           cat VERSION config/versions.sh config/helpers.json config/profiles.json config/loadables.py config/bash-loadables-optional.list config/stage-helpers.py config/build-cache.py config/relocate-build.py config/publish-binary.py config/stock-patches.json build.sh patches/*.patch;
+           cat VERSION config/versions.sh config/helpers.json config/profiles.json config/loadables.py config/bash-loadables-optional.list config/stage-helpers.py config/build-cache.py config/relocate-build.py config/publish-binary.py config/stock-patches.json config/standalone-commands.list build.sh patches/*.patch;
            printf '%s\n' "$PERL_CONFIG";
            printf '%s\n' "$PYTHON_CONFIG";
            [[ -z $COMMAND_DEPS ]] || find "$COMMAND_DEPS/include" "$COMMAND_DEPS/lib" -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum;
@@ -280,7 +280,10 @@ patch -p0 -s < "$HERE/patches/builtin-sole-child.patch" >>"$LOG" 2>&1 \
 # shell variable BASHOS_SHIM_COMMAND=BUILTIN=NAME is set (never exported),
 # diagnostics start "NAME: " with no script name or line number, so the
 # shim needs no stderr capture; and the test builtin run as /bin/test or
-# /bin/[ follows coreutils test (any-length integers, -l, [ --help).
+# /bin/[ follows coreutils test (any-length integers, -l, [ --help). A builtin
+# that stands in for an external command (config/standalone-commands.list)
+# reports "NAME: message" everywhere, as the program would, while bash's own
+# builtins keep "SCRIPT: line N: NAME: message".
 patch -p0 -s < "$HERE/patches/shim-command-name.patch" >>"$LOG" 2>&1 \
   || die "shim-command-name.patch did not apply (see $LOG)"
 # A background command's child releases the async exec handshake before a
@@ -382,10 +385,28 @@ make -C builtins builtins.c >>"$LOG" 2>&1 || { tail -30 "$LOG"; die "mkbuiltins 
   echo "/* bash-os loadables injected */"
   for n in "${NAMES[@]}"; do echo "extern int ${n}_builtin (WORD_LIST *);"; echo "extern char * const ${n}_doc[];"; done
 } >> builtins/builtext.h
-python3 - <<'PYTABLE'
-import json, os
+BASHOS_HERE="$HERE" python3 - <<'PYTABLE'
+import json, os, re
 from pathlib import Path
 entries = json.loads(os.environ['SELECTION'])['entries']
+# The loadables that stand in for an external command and report errors as
+# it does ("rm: ...", see config/standalone-commands.list and
+# patches/shim-command-name.patch). Every listed name is a catalog loadable.
+here = Path(os.environ['BASHOS_HERE'])
+def list_names(path):
+    found = []
+    for number, line in enumerate(path.read_text().split('\n'), 1):
+        line = line.strip()
+        if line and not line.startswith('#'):
+            name = line.partition('|')[0].strip()
+            assert re.fullmatch(r'[a-z_][a-z0-9_]*', name), f'{path}:{number}: invalid name {name!r}'
+            found.append(name)
+    return found
+catalog = set(list_names(here/'config/bash-loadables.list')) | set(list_names(here/'config/bash-loadables-optional.list'))
+standalone = list_names(here/'config/standalone-commands.list')
+unknown = sorted(set(standalone) - catalog)
+assert not unknown, 'config/standalone-commands.list names non-catalog loadables: ' + ' '.join(unknown)
+assert len(set(standalone)) == len(standalone), 'config/standalone-commands.list has duplicates'
 p = Path('builtins/builtins.c'); text = p.read_text()
 anchor = '  { (char *)0x0,'
 assert text.count(anchor) == 1, 'builtin table anchor not found'
@@ -395,7 +416,11 @@ names = ''.join('  '+json.dumps(n)+',\n' for n in entries)
 # pkg load may replace these with a package build, never Bash's own builtins.
 p.write_text(text.replace(anchor, rows+anchor)
              + '\n/* bash-os loadables compiled into this shell */\n'
-             + 'const char *const bashos_injected_builtins[] = {\n' + names + '  (const char *)0\n};\n')
+             + 'const char *const bashos_injected_builtins[] = {\n' + names + '  (const char *)0\n};\n'
+             + '\n/* the ones that stand in for an external command (config/standalone-commands.list) */\n'
+             + 'const char *const bashos_standalone_builtins[] = {\n'
+             + ''.join('  '+json.dumps(n)+',\n' for n in sorted(set(standalone) & set(entries)))
+             + '  (const char *)0\n};\n')
 PYTABLE
 
 # --- 8. build --------------------------------------------------------------

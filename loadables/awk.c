@@ -29,6 +29,9 @@
  *     helper-exec hardening replacing the prior popen()/pclose() pair;
  *     /bin/sh -c quoting/command semantics preserved verbatim)
  *   - flags: -F:, -v var=val, -f script-file, -e SCRIPT (multi-OK)
+ *   - NUL bytes as data everywhere (gawk): records, program strings and
+ *     escapes ("\0", "\000", "\x00"), -v/-F/operand values, regex literals,
+ *     and RS/FS/OFS/ORS/SUBSEP; `print (a, b)` / `printf (fmt, ...)` lists
  *
  * Also supported (added since v1, code-vs-doc audit 2026-05-07):
  *   - user-defined functions: `function name(args, locals) { body }`
@@ -114,6 +117,15 @@ static char *bawk_strndup (const char *s, size_t limit)
     return p;
 }
 static char *bawk_strdup (const char *s) { return bawk_strndup (s, strlen (s)); }
+/* A NUL-terminated copy of the LEN bytes at S, which may themselves hold NUL. */
+static char *bawk_strndup_mem (const char *s, size_t len)
+{
+    if (len == SIZE_MAX) { fatal_error ("awk: string too large"); abort (); }
+    char *p = xmalloc (len + 1);
+    if (len) memcpy (p, s, len);
+    p[len] = 0;
+    return p;
+}
 
 /* Regular expressions see the whole counted string: REG_STARTEND bounds the
    search, so a NUL is data and \< or ^ know the byte before OFF. Patterns are
@@ -175,6 +187,7 @@ typedef enum {
 typedef struct {
     bawk_tok  kind;
     char     *sval;       /* for IDENT, STRING, REGEX, BUILTIN */
+    size_t    slen;       /* STRING: byte length (NUL bytes are data) */
     double    nval;       /* for NUMBER */
     int       builtin_id; /* for BUILTIN */
 } bawk_token;
@@ -292,10 +305,11 @@ bawk_decode_escape (const char **pp)
     }
 }
 
-/* Escape processing for -v and VAR=VALUE values, "as if the value appeared
-   in a STRING token" (POSIX). Returns a malloc'd string. */
+/* Escape processing for -v and VAR=VALUE values and -F, "as if the value
+   appeared in a STRING token" (POSIX). Returns a malloc'd string of *LENP
+   bytes; "\0" and the like decode to NUL bytes, which are data (gawk). */
 static char *
-bawk_unescape (const char *s)
+bawk_unescape (const char *s, size_t *lenp)
 {
     size_t l = strlen (s);
     char *out = xmalloc (l + 1), *o = out;
@@ -305,6 +319,37 @@ bawk_unescape (const char *s)
         else *o++ = *p++;
     }
     *o = '\0';
+    if (lenp) *lenp = (size_t) (o - out);
+    return out;
+}
+
+/* A regex literal's awk escapes, decoded the way gawk reads /.../: \n \t \r
+   \a \b \f \v, octal \NNN (so \0 is a NUL byte), hex \xHH, \/ and \" become
+   the bytes they name, and the decoded byte keeps its regex meaning. Any
+   other backslash pair (\. \\ \( ...) is left for the regex compiler. The
+   result is malloc'd, *LENP bytes, and may hold NUL bytes. */
+static char *
+bawk_regex_unescape (const char *s, size_t *lenp)
+{
+    size_t l = strlen (s);
+    char *out = xmalloc (l + 1), *o = out;
+    if (!out) return NULL;
+    for (const char *p = s; *p; ) {
+        if (*p == '\\' && p[1]) {
+            char e = p[1];
+            if (strchr ("ntrabfv/\"x", e) || (e >= '0' && e <= '7')) {
+                p++;
+                *o++ = bawk_decode_escape (&p);
+                continue;
+            }
+            *o++ = *p++;
+            *o++ = *p++;
+            continue;
+        }
+        *o++ = *p++;
+    }
+    *o = '\0';
+    *lenp = (size_t) (o - out);
     return out;
 }
 
@@ -367,7 +412,7 @@ bawk_lex_string (bawk_lex *L, const char *src)
             p++;
             if (!buf) buf = bawk_strdup ("");
             else buf[blen] = '\0';
-            t.kind = T_STRING; t.sval = buf;
+            t.kind = T_STRING; t.sval = buf; t.slen = blen;
             if (bawk_addtok (L, t) < 0) { free(buf); return -1; }
             prev_can_regex = 0;
             continue;
@@ -591,6 +636,7 @@ typedef enum {
 typedef struct bawk_node {
     bawk_nkind kind;
     char *sval, *array_name;
+    size_t slen;          /* N_STRING: byte length of sval (may hold NUL) */
     double nval;
     int op;
     int builtin_id;
@@ -749,7 +795,12 @@ bawk_parse_print_arg (bawk_parser *P)
 static int
 bawk_compile_regex (bawk_node *n)
 {
-    if (bawk_regcomp (&n->re, n->sval, strlen (n->sval)) != 0) return -1;
+    size_t len;
+    char *pat = bawk_regex_unescape (n->sval, &len);
+    if (!pat) return -1;
+    int rc = bawk_regcomp (&n->re, pat, len);
+    free (pat);
+    if (rc != 0) return -1;
     n->re_ok = 1;
     return 0;
 }
@@ -818,7 +869,8 @@ bawk_parse_field_operand (bawk_parser *P)
     if (t->kind == T_STRING) {
         bawk_advance(P);
         bawk_node *n = bawk_new (P, N_STRING);
-        n->sval = bawk_strdup (t->sval);
+        n->sval = bawk_strndup_mem (t->sval, t->slen);
+        n->slen = t->slen;
         return n;
     }
     if (t->kind == T_REGEX) {
@@ -898,7 +950,8 @@ bawk_parse_primary (bawk_parser *P)
     if (t->kind == T_STRING) {
         bawk_advance(P);
         bawk_node *n = bawk_new (P, N_STRING);
-        n->sval = bawk_strdup (t->sval);
+        n->sval = bawk_strndup_mem (t->sval, t->slen);
+        n->slen = t->slen;
         return n;
     }
     if (t->kind == T_REGEX) {
@@ -1304,7 +1357,36 @@ bawk_parse_stmt (bawk_parser *P)
         bawk_node *n = bawk_new (P, k);
         bawk_node *head = NULL, *tail = NULL;
         bawk_token *nt = bawk_peek (P);
-        if (nt->kind != T_RBRACE && nt->kind != T_NEWLINE && nt->kind != T_SEMI && nt->kind != T_EOF
+        /* print (e1, e2, ...) and printf (fmt, args...): a parenthesized list
+           of two or more expressions that ends the statement (or precedes a
+           redirection) is the argument list. Anything else, such as
+           `print (a, b) in arr` or `print (a) b`, is parsed again as an
+           ordinary expression list. */
+        if (nt->kind == T_LPAREN) {
+            int save_pos = P->L->pos;
+            bawk_advance (P);
+            int count = 0, ok = 1;
+            for (;;) {
+                bawk_node *a = bawk_parse_expr_allow_gt (P);
+                if (!a) { ok = 0; break; }
+                bawk_node *cell = bawk_new (P, N_LIST);
+                cell->A = a;
+                if (!head) head = cell;
+                if (tail) tail->next = cell;
+                tail = cell;
+                count++;
+                if (!bawk_accept (P, T_COMMA)) break;
+            }
+            bawk_tok after = ok && bawk_accept (P, T_RPAREN) ? bawk_peek (P)->kind : T_LPAREN;
+            if (count < 2 || (after != T_RBRACE && after != T_NEWLINE && after != T_SEMI
+                              && after != T_EOF && after != T_GT && after != T_APPEND
+                              && after != T_PIPE)) {
+                P->L->pos = save_pos;
+                head = tail = NULL;
+            }
+            nt = bawk_peek (P);
+        }
+        if (!head && nt->kind != T_RBRACE && nt->kind != T_NEWLINE && nt->kind != T_SEMI && nt->kind != T_EOF
             && nt->kind != T_GT && nt->kind != T_APPEND && nt->kind != T_PIPE) {
             for (;;) {
                 bawk_node *a = bawk_parse_print_arg (P); if (!a) return NULL;
@@ -2000,6 +2082,9 @@ typedef struct {
     char     *OFS;
     char     *ORS;
     char     *SUBSEP;       /* multi-dim array key separator (default \034) */
+    /* Byte lengths of FS, OFS, ORS and SUBSEP: a separator may be or hold a
+       NUL byte (FS = "\0", -F '\0', ORS = sprintf("%c", 0)), as in gawk. */
+    size_t    FSlen, OFSlen, ORSlen, SUBSEPlen;
     char     *CONVFMT;      /* number->string format for non-output contexts */
     char     *OFMT;         /* number->string format for print */
     char     *FILENAME;
@@ -2164,7 +2249,8 @@ bawk_split_record (bawk_ctx *c, const char *line, size_t len)
     if (!len) return;
 
     const char *p = line, *end = line + len;
-    if (!c->FS || strlen (c->FS) == 0 || !strcmp (c->FS, " ")) {
+    size_t fslen = c->FS ? c->FSlen : 0;
+    if (!fslen || (fslen == 1 && c->FS[0] == ' ')) {
         /* default: split on runs of blanks and newlines, trimming (POSIX) */
         while (p < end && (*p == ' ' || *p == '\t' || *p == '\n')) p++;
         while (p < end) {
@@ -2175,8 +2261,9 @@ bawk_split_record (bawk_ctx *c, const char *line, size_t len)
             bawk_fld_set (c, n, s, (size_t) (p - s));
             while (p < end && (*p == ' ' || *p == '\t' || *p == '\n')) p++;
         }
-    } else if (strlen (c->FS) == 1) {
-        /* In paragraph mode newline separates fields whatever FS is. */
+    } else if (fslen == 1) {
+        /* In paragraph mode newline separates fields whatever FS is. A NUL
+           FS splits at NUL bytes. */
         char delim = c->FS[0], delim2 = c->rs_para ? '\n' : delim;
         for (;;) {
             const char *s = p;
@@ -2191,13 +2278,17 @@ bawk_split_record (bawk_ctx *c, const char *line, size_t len)
         /* regex FS — compile & loop */
         regex_t re;
         char *fsre = NULL;
+        const char *fs = c->FS;
+        size_t fsrelen = fslen;
         if (c->rs_para) {
-            size_t fl = strlen (c->FS);
-            fsre = xmalloc (fl + 6);
-            snprintf (fsre, fl + 6, "(%s)|\n", c->FS);
+            fsre = xmalloc (fslen + 6);
+            fsre[0] = '(';
+            memcpy (fsre + 1, c->FS, fslen);
+            memcpy (fsre + 1 + fslen, ")|\n", 4);
+            fsrelen = fslen + 4;
+            fs = fsre;
         }
-        const char *fs = fsre ? fsre : c->FS;
-        int rc = bawk_regcomp (&re, fs, strlen (fs));
+        int rc = bawk_regcomp (&re, fs, fsrelen);
         free (fsre);
         if (rc != 0) {
             /* compile failed: surface and fall back to single-field */
@@ -2260,22 +2351,25 @@ static ssize_t
 bawk_read_record (bawk_ctx *c, FILE *fp, char **line, size_t *cap)
 {
     const char *rs = "\n";
+    size_t rslen = 1;
     char rb[64];
     /* gawk flushes terminal output before it waits on terminal input, so a
        prompt printed without a newline is visible. */
     if (c->out_tty && isatty (fileno (fp))) fflush (stdout);
     for (bawk_var *v = c->head; v; v = v->next)
         if (!strcmp (v->name, "RS")) {
-            if (v->val.s || v->val.have_n) rs = bawk_val_to_str (&v->val, rb, sizeof rb);
+            if (v->val.s || v->val.have_n) rs = bawk_val_to_strl (&v->val, rb, sizeof rb, &rslen);
             break;
         }
-    c->rs_para = (*rs == '\0');
-    if (rs[0] && !rs[1]) {
+    /* RS of one byte, NUL included (RS = "\0" reads find -print0 output),
+       ends records at that byte; RS = "" is paragraph mode. */
+    c->rs_para = (rslen == 0);
+    if (rslen == 1) {
         ssize_t rd = getdelim (line, cap, (unsigned char) rs[0], fp);
         if (rd > 0 && (*line)[rd - 1] == rs[0]) (*line)[--rd] = '\0';
         return rd;
     }
-    if (!*rs) {
+    if (!rslen) {
         char *l = NULL; size_t lc = 0, len = 0; ssize_t rd; int got = 0;
         while ((rd = getline (&l, &lc, fp)) != -1) {
             if (rd > 0 && l[rd - 1] == '\n') l[--rd] = '\0';
@@ -2311,7 +2405,7 @@ bawk_read_record (bawk_ctx *c, FILE *fp, char **line, size_t *cap)
     }
     if (b->off >= b->len) return -1;
     regex_t re;
-    if (bawk_regcomp (&re, rs, strlen (rs)) != 0) {
+    if (bawk_regcomp (&re, rs, rslen) != 0) {
         builtin_error ("awk: bad RS regex: %s", rs);
         return -1;
     }
@@ -2355,7 +2449,7 @@ static int
 bawk_rebuild_record (bawk_ctx *c)
 {
     const char *ofs = c->OFS ? c->OFS : " ";
-    size_t olen = strlen (ofs), total = 0;
+    size_t olen = c->OFS ? c->OFSlen : 1, total = 0;
 
     for (int i = 1; i <= c->nf; i++) {
         if (i > 1) total += olen;
@@ -2657,12 +2751,14 @@ bawk_apply_assignment (bawk_ctx *c, const char *w)
 {
     const char *eq = strchr (w, '=');
     char *name = bawk_strndup (w, (size_t) (eq - w));
-    char *uv = bawk_unescape (eq + 1);
+    size_t uvl = 0;
+    char *uv = bawk_unescape (eq + 1, &uvl);
     bawk_node lhs = {0};
     bawk_val v = {0};
     lhs.kind = N_IDENT;
     lhs.sval = name;
-    bawk_val_set_input (&v, uv ? uv : eq + 1);
+    if (uv) bawk_val_set_input_mem (&v, uv, uvl);
+    else bawk_val_set_input (&v, eq + 1);
     bawk_assign_lhs (c, &lhs, v);
     free (uv);
     free (name);
@@ -2740,6 +2836,7 @@ typedef struct {
     bawk_val *slot;
     int field;
     char **special;
+    size_t *special_len;    /* FS, OFS, ORS, SUBSEP: byte length of *special */
 } bawk_lref;
 
 static bawk_lref
@@ -2751,21 +2848,25 @@ bawk_lref_resolve (bawk_ctx *c, bawk_node *lhs)
         if (!strcmp (lhs->sval, "FS")) {
             ref.kind = BAWK_LREF_SLOT;
             ref.special = &c->FS;
+            ref.special_len = &c->FSlen;
             return ref;
         }
         if (!strcmp (lhs->sval, "OFS")) {
             ref.kind = BAWK_LREF_SLOT;
             ref.special = &c->OFS;
+            ref.special_len = &c->OFSlen;
             return ref;
         }
         if (!strcmp (lhs->sval, "ORS")) {
             ref.kind = BAWK_LREF_SLOT;
             ref.special = &c->ORS;
+            ref.special_len = &c->ORSlen;
             return ref;
         }
         if (!strcmp (lhs->sval, "SUBSEP")) {
             ref.kind = BAWK_LREF_SLOT;
             ref.special = &c->SUBSEP;
+            ref.special_len = &c->SUBSEPlen;
             return ref;
         }
         if (!strcmp (lhs->sval, "CONVFMT")) {
@@ -2832,7 +2933,8 @@ bawk_lref_get (bawk_ctx *c, bawk_lref *ref)
         if (!ref->special && (ref->slot == &c->NR || ref->slot == &c->FNR))
             return bawk_counter_read (ref->slot);
         if (ref->special) {
-            bawk_val_set_str (&r, *ref->special ? *ref->special : "");
+            if (ref->special_len) bawk_val_set_mem (&r, *ref->special, *ref->special ? *ref->special_len : 0);
+            else bawk_val_set_str (&r, *ref->special ? *ref->special : "");
             return r;
         }
         bawk_val_read (&r, ref->slot);
@@ -2855,10 +2957,15 @@ bawk_lref_set (bawk_ctx *c, bawk_lref *ref, bawk_val rhs)
     }
     if (ref->kind == BAWK_LREF_SLOT) {
         if (ref->special) {
-            char buf[64];
-            const char *s = bawk_val_to_str (&rhs, buf, sizeof buf);
+            char buf[64]; size_t sl;
+            const char *s = bawk_val_to_strl (&rhs, buf, sizeof buf, &sl);
             free (*ref->special);
-            *ref->special = bawk_strdup (s);
+            if (ref->special_len) {
+                *ref->special = bawk_strndup_mem (s, sl);
+                *ref->special_len = sl;
+            } else {
+                *ref->special = bawk_strdup (s);
+            }
             /* Keep the active CONVFMT/OFMT format pointers in sync. The format
                is handed straight to snprintf() in bawk_num_to_str(), so a
                script setting e.g. CONVFMT="%n" would be a format-string sink;
@@ -2935,12 +3042,12 @@ bawk_eval_ident (bawk_ctx *c, bawk_node *n)
         case BAWK_SPECIAL_NR: return bawk_counter_read (&c->NR);
         case BAWK_SPECIAL_FNR: return bawk_counter_read (&c->FNR);
         case BAWK_SPECIAL_NF: bawk_val_set_num (&r, (double) c->nf); return r;
-        case BAWK_SPECIAL_FS: bawk_val_set_str (&r, c->FS ? c->FS : " "); return r;
-        case BAWK_SPECIAL_OFS: bawk_val_set_str (&r, c->OFS ? c->OFS : " "); return r;
-        case BAWK_SPECIAL_SUBSEP: bawk_val_set_str (&r, c->SUBSEP ? c->SUBSEP : "\034"); return r;
+        case BAWK_SPECIAL_FS: bawk_val_set_mem (&r, c->FS ? c->FS : " ", c->FS ? c->FSlen : 1); return r;
+        case BAWK_SPECIAL_OFS: bawk_val_set_mem (&r, c->OFS ? c->OFS : " ", c->OFS ? c->OFSlen : 1); return r;
+        case BAWK_SPECIAL_SUBSEP: bawk_val_set_mem (&r, c->SUBSEP ? c->SUBSEP : "\034", c->SUBSEP ? c->SUBSEPlen : 1); return r;
         case BAWK_SPECIAL_CONVFMT: bawk_val_set_str (&r, c->CONVFMT ? c->CONVFMT : "%.6g"); return r;
         case BAWK_SPECIAL_OFMT: bawk_val_set_str (&r, c->OFMT ? c->OFMT : "%.6g"); return r;
-        case BAWK_SPECIAL_ORS: bawk_val_set_str (&r, c->ORS ? c->ORS : "\n"); return r;
+        case BAWK_SPECIAL_ORS: bawk_val_set_mem (&r, c->ORS ? c->ORS : "\n", c->ORS ? c->ORSlen : 1); return r;
         case BAWK_SPECIAL_FILENAME: bawk_val_set_str (&r, c->FILENAME ? c->FILENAME : ""); return r;
         case BAWK_SPECIAL_RSTART: bawk_val_set_num (&r, (double) c->RSTART); return r;
         case BAWK_SPECIAL_RLENGTH: bawk_val_set_num (&r, (double) c->RLENGTH); return r;
@@ -2949,12 +3056,12 @@ bawk_eval_ident (bawk_ctx *c, bawk_node *n)
     if      (!strcmp (n->sval, "NR")) return bawk_counter_read (&c->NR);
     else if (!strcmp (n->sval, "FNR")) return bawk_counter_read (&c->FNR);
     else if (!strcmp (n->sval, "NF")) bawk_val_set_num (&r, (double) c->nf);
-    else if (!strcmp (n->sval, "FS")) bawk_val_set_str (&r, c->FS ? c->FS : " ");
-    else if (!strcmp (n->sval, "OFS")) bawk_val_set_str (&r, c->OFS ? c->OFS : " ");
-    else if (!strcmp (n->sval, "SUBSEP")) bawk_val_set_str (&r, c->SUBSEP ? c->SUBSEP : "\034");
+    else if (!strcmp (n->sval, "FS")) bawk_val_set_mem (&r, c->FS ? c->FS : " ", c->FS ? c->FSlen : 1);
+    else if (!strcmp (n->sval, "OFS")) bawk_val_set_mem (&r, c->OFS ? c->OFS : " ", c->OFS ? c->OFSlen : 1);
+    else if (!strcmp (n->sval, "SUBSEP")) bawk_val_set_mem (&r, c->SUBSEP ? c->SUBSEP : "\034", c->SUBSEP ? c->SUBSEPlen : 1);
     else if (!strcmp (n->sval, "CONVFMT")) bawk_val_set_str (&r, c->CONVFMT ? c->CONVFMT : "%.6g");
     else if (!strcmp (n->sval, "OFMT")) bawk_val_set_str (&r, c->OFMT ? c->OFMT : "%.6g");
-    else if (!strcmp (n->sval, "ORS")) bawk_val_set_str (&r, c->ORS ? c->ORS : "\n");
+    else if (!strcmp (n->sval, "ORS")) bawk_val_set_mem (&r, c->ORS ? c->ORS : "\n", c->ORS ? c->ORSlen : 1);
     else if (!strcmp (n->sval, "FILENAME")) bawk_val_set_str (&r, c->FILENAME ? c->FILENAME : "");
     else if (!strcmp (n->sval, "RSTART")) bawk_val_set_num (&r, (double) c->RSTART);
     else if (!strcmp (n->sval, "RLENGTH")) bawk_val_set_num (&r, (double) c->RLENGTH);
@@ -3099,6 +3206,7 @@ bawk_eval_print (bawk_ctx *c, bawk_node *n)
     bawk_val r = {0};
     const char *ofs = c->OFS ? c->OFS : " ";
     const char *ors = c->ORS ? c->ORS : "\n";
+    size_t ofslen = c->OFS ? c->OFSlen : 1, orslen = c->ORS ? c->ORSlen : 1;
     FILE *out = c->out;
     if (n->nval && n->B) {
         bawk_val tv = bawk_eval (c, n->B);
@@ -3112,7 +3220,7 @@ bawk_eval_print (bawk_ctx *c, bawk_node *n)
     } else {
         int first = 1;
         for (bawk_node *p = n->A; p; p = p->next) {
-            if (!first) fputs (ofs, out);
+            if (!first) fwrite (ofs, 1, ofslen, out);
             bawk_val v = bawk_eval (c, p->A);
             char b[64]; size_t sl = 0;
             const char *s = (!v.s && v.have_n)
@@ -3124,7 +3232,7 @@ bawk_eval_print (bawk_ctx *c, bawk_node *n)
             first = 0;
         }
     }
-    fputs (ors, out);
+    fwrite (ors, 1, orslen, out);
     return r;
 }
 
@@ -3243,7 +3351,7 @@ static char *
 bawk_eval_subscript_key (bawk_ctx *c, bawk_node *head, size_t *lenp)
 {
     const char *subsep = c->SUBSEP ? c->SUBSEP : "\034";
-    size_t sslen = strlen (subsep);
+    size_t sslen = c->SUBSEP ? c->SUBSEPlen : 1;
     size_t cap = 64, len = 0;
     char *skey = xmalloc (cap);
     if (!skey) return NULL;
@@ -3329,7 +3437,7 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
             bawk_val_set_num (&r, n->nval);
             return r;
         case N_STRING:
-            bawk_val_set_str (&r, n->sval);
+            bawk_val_set_mem (&r, n->sval, n->slen);
             return r;
         case N_IDENT:
             return bawk_eval_ident (c, n);
@@ -3804,7 +3912,7 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                         re_p = &sep_node->re;
                     } else {
                         if (n_args >= 3) delim = bawk_val_to_strl (&args[2], db, sizeof db, &dl);
-                        else { delim = c->FS ? c->FS : " "; dl = strlen (delim); }
+                        else { delim = c->FS ? c->FS : " "; dl = c->FS ? c->FSlen : 1; }
                     }
                     if (re_p) {
                         ;
@@ -4162,6 +4270,7 @@ bawk_main (WORD_LIST *list)
     int n_files = 0, files_cap = 8;
     const char **files = xmalloc ((size_t) files_cap * sizeof *files);
     char *fs_override = NULL;
+    size_t fs_override_len = 0;
 
     bawk_ctx ctx = {0};
     bawk_val_set_num (&ctx.NR, 0); bawk_val_set_num (&ctx.FNR, 0);
@@ -4170,6 +4279,7 @@ bawk_main (WORD_LIST *list)
     ctx.max_stack = BAWK_DEFAULT_MAX_STACK;
     ctx.FS = bawk_strdup (" "); ctx.OFS = bawk_strdup (" "); ctx.ORS = bawk_strdup ("\n");
     ctx.SUBSEP = bawk_strdup ("\034");
+    ctx.FSlen = ctx.OFSlen = ctx.ORSlen = ctx.SUBSEPlen = 1;
     ctx.CONVFMT = bawk_strdup ("%.6g"); ctx.OFMT = bawk_strdup ("%.6g");
     /* Reset the active number-format pointers for this run (they are
        repointed at ctx.CONVFMT/ctx.OFMT storage on assignment). */
@@ -4247,7 +4357,7 @@ bawk_main (WORD_LIST *list)
                         if (cc[1]) { val = cc + 1; cc += strlen (cc) - 1; }
                         else if (p->next) { p = p->next; val = p->word->word; }
                         else { builtin_error ("-F needs SEP"); goto err; }
-                        free (fs_override); fs_override = bawk_strdup (val);
+                        free (fs_override); fs_override = bawk_unescape (val, &fs_override_len);
                         goto next_word;
                     }
                     case 'v': {
@@ -4326,7 +4436,9 @@ bawk_main (WORD_LIST *list)
 
     if (!script_seen) { builtin_usage (); goto err_usage; }
 
-    if (fs_override) { free (ctx.FS); ctx.FS = fs_override; fs_override = NULL; }
+    if (fs_override) {
+        free (ctx.FS); ctx.FS = fs_override; ctx.FSlen = fs_override_len; fs_override = NULL;
+    }
 
     /* POSIX-visible argument vector for BEGIN/program use. This prepopulates
        ARGC/ARGV; mutating ARGV to control the input walk is a larger awk
@@ -4361,8 +4473,10 @@ bawk_main (WORD_LIST *list)
         bawk_val pv = {0};
         lhs.kind = N_IDENT;
         lhs.sval = pre_vars[i].name;
-        char *uv = bawk_unescape (pre_vars[i].val);
-        bawk_val_set_input (&pv, uv ? uv : pre_vars[i].val);
+        size_t uvl = 0;
+        char *uv = bawk_unescape (pre_vars[i].val, &uvl);
+        if (uv) bawk_val_set_input_mem (&pv, uv, uvl);
+        else bawk_val_set_input (&pv, pre_vars[i].val);
         free (uv);
         bawk_assign_lhs (&ctx, &lhs, pv);
     }
@@ -4513,6 +4627,8 @@ char *awk_doc[] = {
     "log/exp/tolower/toupper/systime/strftime/mktime, user-defined",
     "functions, getline (var or from file), ENVIRON, RSTART/RLENGTH,",
     "system (gated by BASHAWK_ALLOW_SYSTEM=1).",
+    "NUL bytes are data (gawk): in input, in strings and escapes (\"\\0\"),",
+    "in -v/-F values, in regex literals (/\\0/), and as RS, FS, OFS or ORS.",
     "Output that is not a terminal is fully buffered (gawk/mawk): it is",
     "flushed before system(), a command pipe, close(), on fflush() and at",
     "exit. \"/dev/stdout\" and \"/dev/stderr\" are the standard streams.",

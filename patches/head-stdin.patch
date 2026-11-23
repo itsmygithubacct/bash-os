@@ -6,12 +6,32 @@
 +#include <stdint.h>
  #include "chartypes.h"
  
-@@ -46,121 +47,459 @@
+@@ -41,4 +42,6 @@
+ #include "bashgetopt.h"
+ #include "common.h"
++#include "gnu-longopt.h"
++#include "shim-prog-name.h"
+ 
+ #if !defined (errno)
+@@ -46,121 +49,456 @@
  #endif
  
--static void
--munge_list (WORD_LIST *list)
 +#define HEAD_BUFSIZE 65536
++
++/* Set when standard output fails, so the read diagnostic is not printed for
++   it and the remaining files are not read (GNU head stops there too). */
++static int head_write_failed, head_write_errno;
++
++/* GNU's wording: "cannot open 'F' for reading" and "error reading 'F'",
++   the name always quoted ('standard input' for -). */
+ static void
+-munge_list (WORD_LIST *list)
++head_file_error (const char *what, const char *name, int standard, int error)
++{
++  char *q = bos_quoteaf (standard ? "standard input" : name);
++  builtin_error (what, q ? q : name, strerror (error));
++  free (q);
++}
 +
 +struct head_options {
 +  uintmax_t count;
@@ -22,14 +42,10 @@
 +   useful (copy everything, or exclude everything). Never wrap a multiplier. */
 +static uintmax_t
 +head_multiply (uintmax_t n, unsigned int factor)
- {
--  WORD_LIST *l, *nl;
--  WORD_DESC *wd;
--  char *arg;
++{
 +  return n > UINTMAX_MAX / factor ? UINTMAX_MAX : n * factor;
 +}
- 
--  for (l = list; l; l = l->next)
++
 +static int
 +head_count (const char *s, struct head_options *o)
 +{
@@ -49,17 +65,7 @@
 +        ? UINTMAX_MAX : n * 10 + (*p - '0');
 +suffix:
 +  if (*p)
-     {
--      arg = l->word->word;
--      if (arg[0] != '-' || arg[1] == '-' || (DIGIT(arg[1]) == 0))
--        return;
--      /* We have -[0-9]* */
--      wd = make_bare_word (arg+1);
--      nl = make_word_list (wd, l->next);
--      l->word->word[1] = 'n';
--      l->word->word[2] = '\0';
--      l->next = nl;
--      l = nl;	/* skip over new argument */
++    {
 +      if (*p == 'b' && p[1] == 0)
 +        n = head_multiply (n, 512);
 +      else
@@ -79,41 +85,63 @@
 +          if (*p) goto invalid;
 +          while (power--) n = head_multiply (n, base);
 +        }
-     }
++    }
 +  o->count = n;
 +  return 0;
 +invalid:
-+  builtin_error ("invalid %s count: %s", o->bytes ? "byte" : "line", s);
++  {
++    char *q = bos_quote (s + (*s == '-'));
++    builtin_error ("invalid number of %s: %s", o->bytes ? "bytes" : "lines", q ? q : s);
++    free (q);
++  }
 +  return -1;
- }
- 
- static int
--file_head (FILE *fp, int cnt)
-+head_write (const void *data, size_t length)
- {
-+  return fwrite (data, 1, length, stdout) == length ? 0 : -1;
 +}
 +
++static int
++head_write (const void *data, size_t length)
+ {
+-  WORD_LIST *l, *nl;
+-  WORD_DESC *wd;
+-  char *arg;
++  if (fwrite (data, 1, length, stdout) == length)
++    return 0;
++  head_write_failed = 1;
++  head_write_errno = errno;
++  return -1;
++}
+ 
+-  for (l = list; l; l = l->next)
 +static int
 +head_bytes (FILE *fp, uintmax_t count)
 +{
 +  unsigned char buffer[HEAD_BUFSIZE];
 +  size_t n, want;
 +  while (count)
-+    {
+     {
+-      arg = l->word->word;
+-      if (arg[0] != '-' || arg[1] == '-' || (DIGIT(arg[1]) == 0))
+-        return;
+-      /* We have -[0-9]* */
+-      wd = make_bare_word (arg+1);
+-      nl = make_word_list (wd, l->next);
+-      l->word->word[1] = 'n';
+-      l->word->word[2] = '\0';
+-      l->next = nl;
+-      l = nl;	/* skip over new argument */
 +      QUIT;
 +      want = count < sizeof buffer ? (size_t)count : sizeof buffer;
 +      n = fread (buffer, 1, want, fp);
 +      if (n && head_write (buffer, n) < 0) return -1;
 +      count -= n;
 +      if (n < want) break;
-+    }
+     }
 +  return ferror (fp) ? -1 : 0;
-+}
-+
-+static int
+ }
+ 
+ static int
+-file_head (FILE *fp, int cnt)
 +head_lines (FILE *fp, const struct head_options *o, int seekable)
-+{
+ {
 +  unsigned char buffer[HEAD_BUFSIZE], *p, *match;
 +  uintmax_t count;
 +  size_t n, used;
@@ -122,7 +150,19 @@
 -  while (cnt--)
 +  count = o->count;
 +  if (seekable)
-+    {
+     {
+-      while ((ch = getc (fp)) != EOF)
+-	{
+-	  QUIT;
+-	  if (putchar (ch) == EOF)
+-	    {
+-	      builtin_error ("write error: %s", strerror (errno));
+-	      return EXECUTION_FAILURE;
+-	    }
+-	  QUIT;
+-	  if (ch == '\n')
+-	    break;
+-	}
 +      while (count)
 +        {
 +          QUIT;
@@ -142,21 +182,10 @@
 +          if (n && head_write (buffer, n) < 0) return -1;
 +          if (n < sizeof buffer) break;
 +        }
-+    }
+     }
+-  return (EXECUTION_SUCCESS);
 +  else
-     {
--      while ((ch = getc (fp)) != EOF)
--	{
--	  QUIT;
--	  if (putchar (ch) == EOF)
--	    {
--	      builtin_error ("write error: %s", strerror (errno));
--	      return EXECUTION_FAILURE;
--	    }
--	  QUIT;
--	  if (ch == '\n')
--	    break;
--	}
++    {
 +      /* No read-ahead on a shared pipe, including when its writer is still
 +         open. Accumulate output only; each input syscall consumes one byte. */
 +      used = 0;
@@ -172,8 +201,7 @@
 +            }
 +        }
 +      if (used && head_write (buffer, used) < 0) return -1;
-     }
--  return (EXECUTION_SUCCESS);
++    }
 +  return ferror (fp) ? -1 : 0;
  }
  
@@ -381,7 +409,7 @@
 +  if (header)
 +    {
 +      if (printf ("%s==> %s <==\n", *printed ? "\n" : "", standard ? "standard input" : name) < 0)
-+        result = -1;
++        result = -1, head_write_failed = 1, head_write_errno = errno;
 +      *printed = 1;
 +    }
 +  if (result == 0)
@@ -397,136 +425,111 @@
 +      else
 +        result = head_lines (fp, o, seekable);
 +    }
-+  if (result < 0)
-+    builtin_error ("%s: %s", standard ? "standard input" : name, strerror (errno));
++  if (result < 0 && !head_write_failed)
++    head_file_error ("error reading %s: %s", name, standard, errno);
 +  /* Return all stdio read-ahead to the shared seekable descriptor. */
 +  if (seekable && fseeko (fp, 0, SEEK_CUR) != 0)
-+    { builtin_error ("%s: %s", standard ? "standard input" : name, strerror (errno)); result = -1; }
++    { head_file_error ("error reading %s: %s", name, standard, errno); result = -1; }
 +  if (fclose (fp) != 0) result = -1;
 +  return result;
 +open_error:
-+  builtin_error ("%s: %s", standard ? "standard input" : name, strerror (errno));
++  head_file_error (standard ? "error reading %s: %s" : "cannot open %s for reading: %s",
++                   name, standard, errno);
 +  return -1;
 +}
 +
 +/* The shell's option-parser state and caller's WORD_LIST remain untouched.
-+   Collect operands while accepting GNU-style interspersed options. */
++   Options follow GNU getopt_long (interspersed with operands, unique long
++   prefixes, glibc's diagnostics and coreutils' Try line). */
++static const struct bos_longopt head_longopts[] = {
++  { "bytes", BOS_REQ_ARG, 'c' },
++  { "lines", BOS_REQ_ARG, 'n' },
++  { "quiet", BOS_NO_ARG, 'q' },
++  { "silent", BOS_NO_ARG, 'q' },
++  { "verbose", BOS_NO_ARG, 'v' },
++  { "zero-terminated", BOS_NO_ARG, 'z' },
++  { "help", BOS_NO_ARG, BOS_OPT_HELP },
++  { "version", BOS_NO_ARG, BOS_OPT_VERSION },
++  { 0, 0, 0 }
++};
++
 +int
 +head_builtin (WORD_LIST *list)
 +{
-+  static const char *long_names[] = {
-+    "bytes", "lines", "quiet", "silent", "verbose", "zero-terminated", "help", "version"
-+  };
-+  static const char long_options[] = "cnqqvzHV";
 +  struct head_options o;
-+  WORD_LIST *l;
-+  char **files, *arg, *p, *value, *equal;
++  bos_getopt g;
++  const char *prog;
++  char *arg, *p, *value;
 +  size_t len;
-+  int nfiles, total, end_options, i, j, found, opt, result, printed;
++  int i, opt, result, printed;
 +  unsigned int legacy_scale;
 +
 +  o.count = 10; o.bytes = o.exclude = 0; o.delimiter = '\n'; o.headers = -1;
-+  for (total = 0, l = list; l; l = l->next) total++;
-+  files = malloc ((total + 1) * sizeof *files);
-+  if (files == 0) { builtin_error ("out of memory"); return EXECUTION_FAILURE; }
-+  nfiles = end_options = 0;
++  head_write_failed = head_write_errno = 0;
++  prog = bos_shim_prog_name ("head");
 +  result = EXECUTION_FAILURE;
-+  for (l = list; l; l = l->next)
++  bos_getopt_init (&g, prog, "c:n:qvz", head_longopts, list);
++  if (list && (arg = list->word->word)[0] == '-' && arg[1] >= '0' && arg[1] <= '9')
 +    {
-+      arg = l->word->word;
-+      if (end_options || arg[0] != '-' || arg[1] == 0)
-+        { files[nfiles++] = arg; continue; }
-+      if (strcmp (arg, "--") == 0) { end_options = 1; continue; }
-+      if (l == list && arg[1] >= '0' && arg[1] <= '9')
-+        {
-+          for (p = arg + 1; *p >= '0' && *p <= '9'; p++);
-+          /* Historical -NUM[bkm][clqvz] form, only as the first argument. */
-+          len = p - (arg + 1);
-+          value = malloc (len + 1);
-+          if (value == 0) goto done;
-+          memcpy (value, arg + 1, len); value[len] = 0;
-+          i = head_count (value, &o); free (value);
-+          if (i < 0) goto done;
-+          legacy_scale = 1;
-+          for (; *p; p++)
-+            switch (*p)
-+              {
-+              case 'b': o.bytes = 1; legacy_scale = 512; break;
-+              case 'k': o.bytes = 1; legacy_scale = 1024; break;
-+              case 'm': o.bytes = 1; legacy_scale = 1048576; break;
-+              case 'c': o.bytes = 1; legacy_scale = 1; break;
-+              case 'l': o.bytes = 0; legacy_scale = 1; break;
-+              case 'q': o.headers = 0; break;
-+              case 'v': o.headers = 1; break;
-+              case 'z': o.delimiter = 0; break;
-+              default: builtin_error ("invalid trailing option: %c", *p); goto done;
-+              }
-+          o.count = head_multiply (o.count, legacy_scale);
-+          continue;
-+        }
-+      p = arg + 1;
-+      do
-+        {
-+          value = 0;
-+          if (*p == '-')
-+            {
-+              p++;
-+              equal = strchr (p, '=');
-+              len = equal ? (size_t)(equal - p) : strlen (p);
-+              found = -1;
-+              for (j = 0; j < 8; j++)
-+                if (len && strncmp (p, long_names[j], len) == 0)
-+                  {
-+                    if (strlen (long_names[j]) == len) { found = j; break; }
-+                    if (found != -1) { found = -2; break; }
-+                    found = j;
-+                  }
-+              if (found < 0) { builtin_error ("invalid or ambiguous option: %s", arg); goto done; }
-+              opt = long_options[found];
-+              if (equal) value = equal + 1;
-+              p += strlen (p);
-+              if (value && opt != 'c' && opt != 'n')
-+                { builtin_error ("option does not take an argument: %s", arg); goto done; }
-+            }
-+          else
-+            {
-+              opt = *p++;
-+              if (opt == 'H' || opt == 'V')
-+                { builtin_error ("invalid option: %s", arg); goto done; }
-+            }
-+          switch (opt)
-+            {
-+            case 'c': case 'n':
-+              o.bytes = opt == 'c';
-+              if (value == 0 && *p) { value = p; p += strlen (p); }
-+              if (value == 0 && l->next) { l = l->next; value = l->word->word; }
-+              if (value == 0) { builtin_error ("option requires a count: %s", arg); goto done; }
-+              if (head_count (value, &o) < 0) goto done;
-+              break;
-+            case 'q': o.headers = 0; break;
-+            case 'v': o.headers = 1; break;
-+            case 'z': o.delimiter = 0; break;
-+            case 'H': builtin_help (); result = EXECUTION_SUCCESS; goto done;
-+            case 'V': printf ("head (Bash loadable)\n"); result = EXECUTION_SUCCESS; goto done;
-+            default: builtin_error ("invalid option: %s", arg); goto done;
-+            }
-+        }
-+      while (*p);
++      /* Historical -NUM[bkm][clqvz] form, only as the first argument. */
++      for (p = arg + 1; *p >= '0' && *p <= '9'; p++);
++      len = p - (arg + 1);
++      value = malloc (len + 1);
++      if (value == 0) { builtin_error ("out of memory"); goto done; }
++      memcpy (value, arg + 1, len); value[len] = 0;
++      i = head_count (value, &o); free (value);
++      if (i < 0) goto done;
++      legacy_scale = 1;
++      for (; *p; p++)
++        switch (*p)
++          {
++          case 'b': o.bytes = 1; legacy_scale = 512; break;
++          case 'k': o.bytes = 1; legacy_scale = 1024; break;
++          case 'm': o.bytes = 1; legacy_scale = 1048576; break;
++          case 'c': o.bytes = 1; legacy_scale = 1; break;
++          case 'l': o.bytes = 0; legacy_scale = 1; break;
++          case 'q': o.headers = 0; break;
++          case 'v': o.headers = 1; break;
++          case 'z': o.delimiter = 0; break;
++          default:
++            builtin_error ("invalid trailing option -- %c", *p);
++            bos_try_help (prog);
++            goto done;
++          }
++      o.count = head_multiply (o.count, legacy_scale);
++      g.next = list->next;
++    }
++  while ((opt = bos_getopt_next (&g)) != -1)
++    switch (opt)
++      {
++      case 'c': case 'n':
++        o.bytes = opt == 'c';
++        if (head_count (g.optarg, &o) < 0) goto done;
++        break;
++      case 'q': o.headers = 0; break;
++      case 'v': o.headers = 1; break;
++      case 'z': o.delimiter = 0; break;
++      case BOS_OPT_HELP: builtin_help (); result = EXECUTION_SUCCESS; goto done;
++      case BOS_OPT_VERSION: printf ("head (Bash loadable)\n"); result = EXECUTION_SUCCESS; goto done;
++      default: goto done;
++      }
++  result = EXECUTION_SUCCESS;
++  printed = 0;
++  if (g.noperands == 0)
++    { if (head_input (0, &o, o.headers == 1, &printed) < 0) result = EXECUTION_FAILURE; }
++  else
++    for (i = 0; i < g.noperands && !head_write_failed; i++)
++      if (head_input (g.operands[i], &o, o.headers == 1 || (o.headers < 0 && g.noperands > 1), &printed) < 0)
++        result = EXECUTION_FAILURE;
++done:
++  bos_getopt_free (&g);
++  if (fflush (stdout) == EOF || ferror (stdout) || head_write_failed)
++    {
++      builtin_error ("write error: %s", strerror (head_write_failed ? head_write_errno : errno));
++      result = EXECUTION_FAILURE;
      }
 -   
 -  return (rval);
-+  result = EXECUTION_SUCCESS;
-+  printed = 0;
-+  if (nfiles == 0)
-+    { if (head_input (0, &o, o.headers == 1, &printed) < 0) result = EXECUTION_FAILURE; }
-+  else
-+    for (i = 0; i < nfiles; i++)
-+      if (head_input (files[i], &o, o.headers == 1 || (o.headers < 0 && nfiles > 1), &printed) < 0)
-+        result = EXECUTION_FAILURE;
-+done:
-+  free (files);
-+  if (fflush (stdout) == EOF || ferror (stdout))
-+    { builtin_error ("write error: %s", strerror (errno)); result = EXECUTION_FAILURE; }
 +  clearerr (stdout);
 +  return result;
  }

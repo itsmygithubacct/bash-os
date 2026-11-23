@@ -8,7 +8,8 @@
     "GNU rejection of extra non-option operands compared with the loadable contract",
     "GNU unsupported-option, --help, and --version behavior",
     "Candidate Bash builtin availability and help metadata",
-    "Regression checks expand aliases, end-of-options, option ordering and invalid/extra-operand statuses; banners use content/identity invariants."
+    "Regression checks expand aliases, end-of-options, option ordering and invalid/extra-operand statuses; banners use content/identity invariants.",
+    "Guest compatibility pass 6 (G90): pass6-operand-diagnostics."
   ],
   "exclusions": [
     "A non-default successful login identity requires a controlled disposable PTY/session and matching login record (or an independently reviewed libc mock); the runner exposes only its fixed synthetic runner account.",
@@ -247,6 +248,19 @@
       ],
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "pass6-operand-diagnostics",
+      "kind": "parity",
+      "purpose": "G90: GNU logname's extra-operand and unrecognized-option lines with the Try line.",
+      "script": "{ logname x || echo rc=$?; } 2>err\n{ logname --bogus || echo rc=$?; } 2>>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "logname",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

@@ -93,10 +93,14 @@ bashclear_version (void)
   return sh_chkwrite (EXECUTION_SUCCESS);
 }
 
+/* ENV_ONLY: read TERM only when it is exported, as a separate clear process
+   would see it (bash gives a script an unexported TERM=dumb of its own when
+   the environment has none). */
 static int
-bashclear_run (WORD_LIST *list)
+bashclear_run_env (WORD_LIST *list, int env_only)
 {
-  const char *term = get_string_value ("TERM");
+  SHELL_VAR *tv = find_variable ("TERM");
+  const char *term = tv && (!env_only || exported_p (tv)) ? get_string_value ("TERM") : NULL;
   int opt, keep_scrollback = 0, i;
 
   if (list && !list->next && !strcmp (list->word->word, "--version"))
@@ -124,9 +128,12 @@ bashclear_run (WORD_LIST *list)
       return EXECUTION_FAILURE;
     }
 
+  /* ncurses clear's own wording, without a command-name prefix. */
   if (!term)
     {
-      builtin_error ("TERM is not set (use -T TERM)");
+      fflush (stdout);
+      fputs ("TERM environment variable not set.\n", stderr);
+      fflush (stderr);
       return EXECUTION_FAILURE;
     }
   if (!strcmp (term, "dumb"))
@@ -143,8 +150,16 @@ bashclear_run (WORD_LIST *list)
            next builtin using Bash's existing output-error handling. */
         return sh_chkwrite (EXECUTION_SUCCESS);
       }
-  builtin_error ("unsupported terminal type: %s", term);
+  fflush (stdout);
+  fprintf (stderr, "'%s': unknown terminal type.\n", term);
+  fflush (stderr);
   return EXECUTION_FAILURE;
+}
+
+static int
+bashclear_run (WORD_LIST *list)
+{
+  return bashclear_run_env (list, 0);
 }
 
 #define BASHCLEAR_BUILTIN(fn) \

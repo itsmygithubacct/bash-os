@@ -10,7 +10,8 @@
     "invalid-option and operand usage statuses compared with ncurses clear",
     "Bash builtin registration, help synopsis, and version aliases",
     "Missing -T argument status",
-    "All 22 documented terminal capabilities, ignored private sidecars, shell-local TERM override and dumb status"
+    "All 22 documented terminal capabilities, ignored private sidecars, shell-local TERM override and dumb status",
+    "G91: ncurses wording for unset, empty and unknown TERM."
   ],
   "exclusions": [
     "Private PTY attachment and before/after terminal-attribute checks are deferred; the provided runner captures stdout through a pipe.",
@@ -148,6 +149,17 @@
       "kind": "deferred",
       "purpose": "Verify output to an attached terminal leaves terminal modes and attributes unchanged while producing the selected clear sequence.",
       "reason": "The provided fixture runner always captures stdout through a file and has no PTY attachment or termios observation fields. A future isolated PTY fixture should capture bashclear and ncurses clear output, snapshot the PTY attributes before and after each invocation, and compare the captured bytes without connecting to a host terminal."
+    },
+    {
+      "id": "g91-term-diagnostics",
+      "kind": "parity",
+      "requires": [
+        "clear"
+      ],
+      "purpose": "G91: clear's diagnostics for an unset, empty or unknown TERM use ncurses' wording without a command-name prefix, with status 1; dumb fails silently.",
+      "script": "(unset TERM; clear || echo rc=$?) 2>&1\n(TERM= clear || echo rc=$?) 2>&1\n(TERM=nosuchterm clear || echo rc=$?) 2>&1\n(clear -T nosuchterm || echo rc=$?) 2>&1\n(TERM=dumb clear || echo rc=$?) 2>&1\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

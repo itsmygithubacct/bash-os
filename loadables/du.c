@@ -53,6 +53,17 @@
 #include <sys/types.h>
 
 #include "loadables.h"
+#include "gnu-quote.h"
+
+/* GNU du's operand diagnostics: "cannot access 'NAME'" for a failed stat,
+   "cannot read directory 'NAME'" for a failed open. */
+static void
+bdu_error (const char *what, const char *path, int error)
+{
+    char *q = bos_quoteaf (path);
+    builtin_error ("%s %s: %s", what, q ? q : path, strerror (error));
+    free (q);
+}
 
 typedef struct {
     const char **v;
@@ -348,7 +359,7 @@ bdu_walk (const char *path, int depth, dev_t root_dev, const bdu_opts *o, int *e
     if (bdu_excluded (path, o))
         return 0;
     if ((follow ? stat (path, &st) : lstat (path, &st)) < 0) {
-        builtin_error ("%s: %s", path, strerror (errno));
+        bdu_error ("cannot access", path, errno);
         *err = 1;
         return 0;
     }
@@ -395,7 +406,7 @@ bdu_walk (const char *path, int depth, dev_t root_dev, const bdu_opts *o, int *e
     if (S_ISDIR (st.st_mode)) {
         DIR *d = opendir (path);
         if (!d) {
-            builtin_error ("opendir %s: %s", path, strerror (errno));
+            bdu_error ("cannot read directory", path, errno);
             *err = 1;
         } else {
             struct dirent *de;
@@ -747,7 +758,7 @@ du_builtin (WORD_LIST *list)
         }
         int follow = (o.dereference == 1 || o.dereference == 2);
         if ((follow ? stat (paths.v[i], &st) : lstat (paths.v[i], &st)) < 0) {
-            builtin_error ("%s: %s", paths.v[i], strerror (errno));
+            bdu_error ("cannot access", paths.v[i], errno);
             err = 1;
             continue;
         }

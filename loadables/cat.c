@@ -24,13 +24,14 @@ struct cat_state {
     } \
 } while (0)
 
-static int cat_copy(int fd, struct cat_state *s, int *write_errno)
+static int cat_copy(int fd, const char *name, struct cat_state *s, int *write_errno)
 {
     unsigned char buf[16384];
     for (;;) {
         ssize_t n = read(fd, buf, sizeof buf);
         if (n < 0 && errno == EINTR) continue;
-        if (n < 0) { builtin_error("read: %s", strerror(errno)); return 1; }
+        /* GNU names the operand ("-" for standard input): cat: DIR: Is a directory. */
+        if (n < 0) { builtin_error("%s: %s", name, strerror(errno)); return 1; }
         if (!n) return 0;
         if (!(s->number || s->nonblank || s->squeeze || s->ends || s->tabs || s->visible)) {
             if (fwrite(buf, 1, (size_t)n, stdout) != (size_t)n || ferror(stdout)) {
@@ -117,7 +118,7 @@ int cat_builtin(WORD_LIST *list)
             if (fd) close(fd);
             rc = 1; continue;
         }
-        rc |= cat_copy(fd, &s, &write_errno);
+        rc |= cat_copy(fd, files[i], &s, &write_errno);
         if (fd != 0 && close(fd) < 0) rc = 1;
         if (write_errno) break;
     }

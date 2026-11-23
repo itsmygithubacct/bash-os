@@ -333,6 +333,17 @@
         "ls",
         "sed"
       ]
+    },
+    {
+      "id": "diagnostics-name-the-command",
+      "kind": "parity",
+      "purpose": "G88: run from a script (bash -c here), rmdir's diagnostics start 'rmdir: ' as GNU coreutils prints them, with no script name, line number or shell name before it; stderr is compared byte for byte.",
+      "requires": [
+        "rmdir"
+      ],
+      "script": "rmdir nosuch || echo rc=$?; mkdir -p d/e; rmdir d || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

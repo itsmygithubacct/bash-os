@@ -485,6 +485,69 @@ class PagerTests(BuiltinTest):
                 self.assertGreater((self.root / "out").stat().st_size, 0)
 
 
+class StandaloneCommandTests(BuiltinTest):
+    """G88: a builtin that stands in for an external command (the names in
+    config/standalone-commands.list) reports errors as that program does,
+    "NAME: message", in a script, bash -c, sh -c and an interactive shell.
+    Bash's own builtins, the bash-os shell extensions and the shell's own
+    errors (a failed redirection) keep "SCRIPT: line N: "."""
+
+    MESSAGES = {
+        "rm nosuch": "rm: cannot remove 'nosuch': No such file or directory\n",
+        "cat nosuch": "cat: nosuch: No such file or directory\n",
+        "ls nosuch": "ls: cannot access 'nosuch': No such file or directory\n",
+        "mkdir nosuch/a": "mkdir: cannot create directory 'nosuch/a': No such file or directory\n",
+        "rmdir nosuch": "rmdir: failed to remove 'nosuch': No such file or directory\n",
+    }
+
+    def test_script_file_and_dash_c(self):
+        for command, message in self.MESSAGES.items():
+            with self.subTest(command=command):
+                (self.root / "s.sh").write_text("\n" + command + "\n")
+                result = subprocess.run(
+                    [BINARY, "--noprofile", "--norc", "s.sh"], cwd=self.root,
+                    env={**os.environ, "PATH": "", "LC_ALL": "C"},
+                    capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.stderr, message)
+                self.assertEqual(self.shell(command).stderr, message)
+                # Called through `builtin', `command' or a function of the name.
+                self.assertEqual(self.shell("builtin " + command).stderr, message)
+                self.assertEqual(self.shell("command " + command).stderr, message)
+                name = command.split()[0]
+                result = self.shell(f'{name}() {{ builtin {name} "$@"; }}; {command}')
+                self.assertEqual(result.stderr, message)
+
+    def test_posix_mode_and_interactive(self):
+        result = self.shell('set -o posix; rm nosuch')
+        self.assertEqual(result.stderr, self.MESSAGES["rm nosuch"])
+        result = subprocess.run(
+            [BINARY, "--noprofile", "--norc", "-i"], input="rm nosuch\ncd nosuch\n",
+            cwd=self.root, env={**os.environ, "PATH": "", "LC_ALL": "C", "PS1": ""},
+            capture_output=True, text=True, timeout=10)
+        lines = [line for line in result.stderr.splitlines() if "No such" in line]
+        self.assertEqual(lines, ["rm: cannot remove 'nosuch': No such file or directory",
+                                 os.path.basename(BINARY) + ": cd: nosuch: No such file or directory"])
+
+    def test_others_keep_bash_messages(self):
+        # Bash's own builtins.
+        result = self.shell('cd nosuch')
+        self.assertEqual(result.stderr,
+                         "regression: line 1: cd: nosuch: No such file or directory\n")
+        result = self.shell('kill -s NOSUCH 1')
+        self.assertTrue(result.stderr.startswith("regression: line 1: kill: "), result.stderr)
+        # A bash-os shell extension that is not an external command.
+        result = self.shell('fdflags -s +x 99')
+        self.assertTrue(result.stderr.startswith("regression: line 1: fdflags: "), result.stderr)
+        # The shell's own error while it sets up a standalone builtin.
+        result = self.shell('cat < nosuch')
+        self.assertEqual(result.stderr,
+                         "regression: line 1: nosuch: No such file or directory\n")
+        # A builtin a standalone one runs names itself, in its own form.
+        result = self.shell('env rm nosuch; xargs cd <<< nosuch')
+        self.assertEqual(result.stderr.splitlines()[0],
+                         "rm: cannot remove 'nosuch': No such file or directory")
+
+
 class ShimCommandTests(BuiltinTest):
     """G73/G85: the bashy-box /bin shim sets BASHOS_SHIM_COMMAND=BUILTIN=NAME
     (unexported) and runs `builtin BUILTIN'. The shell then words diagnostics
@@ -501,12 +564,16 @@ class ShimCommandTests(BuiltinTest):
         # error_prolog: shell-level messages drop the script name and line.
         result = self.shell('BASHOS_SHIM_COMMAND=cat=kat; cat < nosuch')
         self.assertEqual(result.stderr, "kat: nosuch: No such file or directory\n")
+        # coreutils' Try line names the command as invoked (G90).
         result = self.shell('BASHOS_SHIM_COMMAND=cut=kut; cut')
-        self.assertEqual(result.stderr.splitlines()[-1].split(" ", 2)[:2],
-                         ["kut:", "usage:"])
+        self.assertEqual(result.stderr,
+                         "kut: you must specify a list of bytes, characters, or fields\n"
+                         "Try 'kut --help' for more information.\n")
 
     def test_ordinary_scripts_keep_bash_messages(self):
-        expected = "regression: line 1: cat: nosuch: No such file or directory\n"
+        # cat stands in for /usr/bin/cat, so it says "cat:" (G88); the shim
+        # name kat is never used without the unexported variable.
+        expected = "cat: nosuch: No such file or directory\n"
         self.assertEqual(self.shell('cat nosuch').stderr, expected)
         # An exported value (from the environment) is ignored.
         result = subprocess.run(
@@ -517,6 +584,10 @@ class ShimCommandTests(BuiltinTest):
         self.assertEqual(result.stderr, expected)
         result = self.shell('export BASHOS_SHIM_COMMAND=cat=kat; cat nosuch')
         self.assertEqual(result.stderr, expected)
+        # Bash's own builtins keep the script name and line number.
+        result = self.shell('export BASHOS_SHIM_COMMAND=cd=kd; cd nosuch')
+        self.assertEqual(result.stderr,
+                         "regression: line 1: cd: nosuch: No such file or directory\n")
         # The builtin test keeps bash's rules.
         result = self.shell('test 99999999999999999999 -gt 1')
         self.assertEqual(result.returncode, 2)

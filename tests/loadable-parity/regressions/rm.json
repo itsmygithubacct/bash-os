@@ -391,6 +391,17 @@
         "ls",
         "sed"
       ]
+    },
+    {
+      "id": "diagnostics-name-the-command",
+      "kind": "parity",
+      "purpose": "G88: run from a script (bash -c here), rm's diagnostics start 'rm: ' as GNU coreutils prints them, with no script name, line number or shell name before it; stderr is compared byte for byte.",
+      "requires": [
+        "rm"
+      ],
+      "script": "rm nosuch || echo rc=$?; mkdir d; : > d/f; rm d || echo rc=$?; rm -f nosuch; echo done",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

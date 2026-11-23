@@ -3,7 +3,8 @@
   "loadable": "sed",
   "reference": "GNU sed from the runner's read-only /usr tree is the parity oracle; each parity case runs the same script under reference Bash with GNU sed on PATH and under bash-os with PATH empty. Cases that need multibyte behaviour export LC_ALL=C.UTF-8 themselves.",
   "coverage": [
-    "UTF-8 y/// character pairing and \\U \\L \\u \\l case conversion of non-ASCII letters (guest pass 3)."
+    "UTF-8 y/// character pairing and \\U \\L \\u \\l case conversion of non-ASCII letters (guest pass 3).",
+    "a/i/c text to the end of the line in every form (one-liner, a\\ plus newline, -e continuation, -f files), and sed -i through search-only directories (guest pass 6)."
   ],
   "exclusions": [
     "Unibyte-locale y/// and case conversion are covered by suites/sed.json."
@@ -17,6 +18,62 @@
         "sed"
       ],
       "script": "export LC_ALL=C.UTF-8\nprintf 'éàx\\n' | sed 'y/éà/ea/'\nprintf 'abc\\n' | sed 'y/abc/αβγ/'\nprintf 'αβγ abc\\n' | sed 'y/αβγ/abc/'\nprintf 'école ÉCOLE ça\\n' | sed 's/.*/\\U&/'\nprintf 'École ÉCOLE\\n' | sed 's/.*/\\L&/'\nprintf 'école\\n' | sed 's/.*/\\u&/'\nprintf 'École\\n' | sed 's/\\(.\\)\\(.*\\)/\\l\\1\\U\\2/'\nprintf 'x\\n' | sed 's/x/\\Uéà\\E-é/'\nprintf 'é\\n' | sed 'y/é/ab/' 2>/dev/null || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "aic_text_runs_to_end_of_line",
+      "kind": "parity",
+      "purpose": "a, i and c text runs to the end of the line: ';', '}' and '#' are text, not command separators (sed '1a x; p' used to print line 1 twice and append only 'x'; sed '1i x; y' failed with 'missing delimiter') (guest pass 6, G101).",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 'a\\nb\\n' | sed '1a x; p'\nprintf 'a\\n' | sed '1i x; y'\nprintf 'a\\nb\\nc\\n' | sed '1,2c X;Y'\nprintf 'a\\nb\\n' | sed '1!c X;Y'\nprintf 'a\\n' | sed 's/a/b/;a x; y'\nprintf 'a\\n' | sed '1{a x; }\n}'\nprintf 'a\\n' | sed '1a h # c'\nprintf 'a\\n' | sed -n '1a x; p'\nprintf 'a\\nb\\n' | sed 'N;a x;y'\nprintf 'a\\nb\\n' | sed '1a x; p\n2i y; z'\nprintf 'a\\n' | sed -e '1a x; y' -e p\nprintf 'a\\n' | sed '1a    lead;  trail  '\nprintf 'a\\0b\\0' | sed -z '1a x;y\n1i i;j\n2c c;d'\nprintf 'a\\n' > f\nsed -i '1a x; y' f\ncat f",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "aic_backslash_forms_and_escapes",
+      "kind": "parity",
+      "purpose": "a\\ followed by a newline keeps the text's leading blanks; a\\TEXT drops only the backslash; -e 'i\\' -e TEXT and a trailing backslash at the end of an -e chunk continue into the next chunk; escapes (\\t \\n \\xHH \\oNNN \\dNNN \\cX \\\\) are decoded and any other \\X is X; a bare a\\ at the end of the script outputs nothing (guest pass 6, G101).",
+      "requires": [
+        "sed",
+        "od"
+      ],
+      "script": "printf 'a\\n' | sed '1a\\\nx; p'\nprintf 'a\\n' | sed '1a\\\n   indented; x\\\n  second'\nprintf 'a\\n' | sed '1a\\  x; p'\nprintf 'a\\n' | sed '1a\\text; more'\nprintf 'a\\n' | sed -e '1i\\' -e 'x; y'\nprintf 'a\\n' | sed -e '1a x\\' -e 'y' -e p\nprintf 'a\\n' | sed '1a x\\\n    y'\nprintf 'a\\n' | sed '1a x\\ty\\nz\\x41\\o102\\d067\\cA|\\w|\\;|\\\\' | od -An -c\nprintf 'a\\n' | sed '1a \\  lead'\nprintf 'a\\n' | sed '1a x\\\\\np'\nprintf 'a\\n' | sed '1a x\\'\nprintf 'a\\n' | sed '1a\\'\nprintf 'a\\n' | sed '1i\\'\nprintf 'a\\nb\\n' | sed '1c\\'\nprintf 'a\\n' | sed '1a\\\n'\nprintf 'a\\n' | sed -e '1a\\' -e ''",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "aic_script_files",
+      "kind": "parity",
+      "purpose": "-f script files read a/i/c text the same way: ';' is text, a\\ continues onto the next line, and a file that ends in a\\ continues into a following -e chunk (guest pass 6, G101).",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf '1a x; y\\n2i\\\\\\nfoo; bar\\\\\\nbaz\\n$c\\\\\\nend;\\n' > s.sed\nprintf 'a\\nb\\nc\\n' | sed -f s.sed\nprintf '1a\\\\' > t.sed\nprintf 'a\\n' | sed -f t.sed -e 'zz; p'\nprintf '1a x\\\\' > u.sed\nprintf 'a\\n' | sed -f u.sed\nprintf '1a x\\\\\\n' > v.sed\nprintf 'a\\n' | sed -f v.sed -e p",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "aic_missing_text_is_an_error",
+      "kind": "parity",
+      "purpose": "a, i or c with no text (end of script, or only blanks) is a usage error with status 1 and no output (guest pass 6, G101).",
+      "requires": [
+        "sed"
+      ],
+      "script": "printf 'a\\n' | sed a || echo rc=$?\nprintf 'a\\n' | sed '1i   ' || echo rc=$?\nprintf 'a\\n' | sed 'p;c' || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "inplace_search_only_ancestors",
+      "kind": "parity",
+      "purpose": "sed -i needs only search permission on the directories above the file and search plus write permission on its own directory, like a 0711 home directory seen by another user; it used to open every path component for reading and fail with 'Permission denied' (guest pass 6, G102). The [ -r ] lines prove read permission is really withheld.",
+      "requires": [
+        "sed"
+      ],
+      "script": "mkdir -p x/w y/v\necho a > x/w/f\necho a > y/v/f\nchmod 0311 x y/v\n[ -r x ] || echo x-unreadable\n[ -r y/v ] || echo v-unreadable\nsed -i s/a/b/ \"$PWD/x/w/f\"\nsed -i s/b/c/ x/w/f\nsed -i.bak s/c/d/ x/w/f\nsed -i s/a/b/ y/v/f\n(cd y/v && sed -i.orig s/b/c/ f)\ncat x/w/f x/w/f.bak y/v/f\nchmod 0755 x y/v\nls x/w y/v",
       "expected_status": 0,
       "stderr": "empty"
     }

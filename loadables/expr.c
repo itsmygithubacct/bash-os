@@ -1742,6 +1742,86 @@ el_predict (const char *pat, const char *subj, struct el_pred *pr)
 }
 #endif /* __GLIBC__ */
 
+/* --- Characters. ----------------------------------------------------
+   length, substr, index and the `:` match length count characters of the
+   locale, as GNU expr does: a UTF-8 sequence is one character, and a byte
+   that starts no valid sequence is a character of its own. In a
+   single-byte locale (C, POSIX) every byte is a character. */
+
+/* Byte length (at least 1) of the character at S, LEFT bytes remaining. */
+static size_t
+bex_char_len (const char *s, size_t left, mbstate_t *st)
+{
+    if (left == 0)
+        return 0;
+    if (MB_CUR_MAX == 1 || (unsigned char) *s < 0x80)
+        return 1;
+    wchar_t wc;
+    size_t r = mbrtowc (&wc, s, left, st);
+    if (r == 0 || r == (size_t) -1 || r == (size_t) -2) {
+        memset (st, 0, sizeof *st);
+        return 1;
+    }
+    return r;
+}
+
+/* Characters in the first N bytes of S. */
+static long long
+bex_char_count (const char *s, size_t n)
+{
+    mbstate_t st;
+    long long count = 0;
+    size_t i = 0;
+
+    memset (&st, 0, sizeof st);
+    while (i < n) {
+        i += bex_char_len (s + i, n - i, &st);
+        count++;
+    }
+    return count;
+}
+
+/* Byte offset of the character after the first K characters of S
+   (N bytes); N when S has K characters or fewer. */
+static size_t
+bex_char_offset (const char *s, size_t n, long long k)
+{
+    mbstate_t st;
+    size_t i = 0;
+
+    memset (&st, 0, sizeof st);
+    while (i < n && k-- > 0)
+        i += bex_char_len (s + i, n - i, &st);
+    return i;
+}
+
+/* GNU index: the position of the first character of S that is also a
+   character of SET (compared as whole byte sequences), else 0. */
+static long long
+bex_char_index (const char *s, const char *set)
+{
+    size_t n = strlen (s), m = strlen (set), i = 0;
+    long long pos = 0;
+    mbstate_t st;
+
+    memset (&st, 0, sizeof st);
+    while (i < n) {
+        size_t len = bex_char_len (s + i, n - i, &st), j = 0;
+        mbstate_t st2;
+
+        pos++;
+        memset (&st2, 0, sizeof st2);
+        while (j < m) {
+            size_t len2 = bex_char_len (set + j, m - j, &st2);
+            if (len2 == len && memcmp (s + i, set + j, len) == 0)
+                return pos;
+            j += len2;
+        }
+        i += len;
+    }
+    return 0;
+}
+
 static bex_val
 bex_regex_result (regex_t *r, const char *s, const char *pat, int *err)
 {
@@ -1791,7 +1871,7 @@ bex_regex_result (regex_t *r, const char *s, const char *pat, int *err)
 
     if (rc != 0 || m[0].rm_so != 0)
         return bex_from_ll (0);
-    return bex_from_ll (m[0].rm_eo);
+    return bex_from_ll (bex_char_count (s, (size_t) m[0].rm_eo));
 }
 
 /* --- Recursive-descent parser. Token stream is the WORD_LIST. ----- */
@@ -1905,32 +1985,31 @@ bex_parse_primary (bex_parser *p, int evaluate)
     }
     bex_val v;
     if (!strcmp (w, "length")) {
-        v = bex_from_ll ((long long) strlen (a[0].s));
+        v = bex_from_ll (bex_char_count (a[0].s, strlen (a[0].s)));
     } else if (!strcmp (w, "substr")) {
         long long pos = bex_count (&a[1]), len = bex_count (&a[2]);
-        long long slen = (long long) strlen (a[0].s);
+        size_t blen = strlen (a[0].s);
+        long long slen = bex_char_count (a[0].s, blen);
         if (pos < 1 || pos > slen || len < 1)
             v = bex_make ("");
         else {
-            long long avail = slen - (pos - 1);
-            if (len > avail) len = avail;
-            char *out = malloc ((size_t) len + 1);
+            /* POS and LEN count characters; copy the bytes they span. */
+            size_t from = bex_char_offset (a[0].s, blen, pos - 1);
+            size_t to = from + bex_char_offset (a[0].s + from, blen - from, len);
+            char *out = malloc (to - from + 1);
             if (!out) {
                 builtin_error ("out of memory");
                 p->err = 3;
                 v = bex_make ("");
             } else {
-                memcpy (out, a[0].s + (pos - 1), (size_t) len);
-                out[len] = '\0';
+                memcpy (out, a[0].s + from, to - from);
+                out[to - from] = '\0';
                 v = bex_make (out);
                 free (out);
             }
         }
     } else if (!strcmp (w, "index")) {
-        long long at = 0;
-        for (long long i = 0; a[0].s[i]; i++)
-            if (strchr (a[1].s, a[0].s[i])) { at = i + 1; break; }
-        v = bex_from_ll (at);
+        v = bex_from_ll (bex_char_index (a[0].s, a[1].s));
     } else if (!evaluate) {
         v = bex_make ("");   /* short-circuited match: tokens consumed, value unused */
     } else {
@@ -2157,11 +2236,15 @@ char *expr_doc[] = {
     "are exact (/ truncates toward zero, % takes the dividend's sign).",
     "",
     "String functions (each operand is itself a primary):",
-    "    length STR           — byte count",
+    "    length STR           — character count",
     "    substr STR POS LEN   — POS is 1-based",
-    "    index STR CHARS      — first byte of STR matching any of CHARS",
+    "    index STR CHARS      — first character of STR matching any of CHARS",
     "    match STR RE         — same as STR : RE",
     "    + TOKEN              — TOKEN as a string, even a keyword or operator",
+    "",
+    "length, substr, index and the length a match returns count characters",
+    "of the locale (LC_CTYPE): in UTF-8 a multibyte sequence is one, and a",
+    "byte that starts no valid sequence is one; in C every byte is one.",
     "",
     "On glibc, a pattern that would make regexec loop is an error (exit 2).",
     "That is a + or {n,} (n at least 1) on a group that can match empty,",

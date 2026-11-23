@@ -330,6 +330,74 @@ bm_findmnt_table (const char *path)
     return rows && !failed ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
+/* ---------------- util-linux diagnostics -------------------------------- */
+
+/* A failed mount(2)/umount2(2) returns 32, mount(8)'s "mount failure"
+ * status. A non-root caller gets util-linux's own lines, which name the
+ * command (never the shell or this builtin) and the target canonicalized
+ * when it exists: mount(8) refuses with "must be superuser to use mount.",
+ * umount(8) with "must be superuser to unmount." for a mount point and
+ * "not mounted." (status 1) otherwise. Wording and statuses are observed
+ * util-linux 2.41 behaviour. Root keeps the detailed syscall diagnostic. */
+#define BM_EX_FAIL 32
+
+static int bm_mountpoint_find (const char *canon, char *dev_out, size_t dev_outsz);
+
+static char *
+bm_canon (const char *path)
+{
+    char *c = realpath (path, NULL);
+    return c ? c : strdup (path);
+}
+
+static void
+bm_mount_error (const char *src, const char *dst, const char *type,
+                unsigned long flags, const char *data, int error)
+{
+    if (geteuid () != 0 && dst) {
+        char *target = bm_canon (dst);
+        fflush (stdout);
+        fprintf (stderr, "mount: %s: must be superuser to use mount.\n"
+                 "       dmesg(1) may have more information after failed mount system call.\n",
+                 target ? target : dst);
+        free (target);
+        return;
+    }
+    builtin_error ("mount(%s, %s, %s, 0x%lx, %s): %s",
+                   src ? src : "(null)",
+                   dst ? dst : "(null)",
+                   type ? type : "(null)",
+                   flags, data ? data : "(null)",
+                   strerror (error));
+}
+
+static int
+bm_umount_error (const char *dst, int u_flags, int error)
+{
+    struct stat st;
+    char dev[64];
+
+    if (geteuid () == 0) {
+        builtin_error ("umount2(%s, 0x%x): %s", dst, u_flags, strerror (error));
+        return BM_EX_FAIL;
+    }
+    fflush (stdout);
+    if (stat (dst, &st) < 0) {
+        fprintf (stderr, "umount: %s: %s\n", dst, strerror (errno));
+        return EXECUTION_FAILURE;
+    }
+    char *target = bm_canon (dst);
+    const char *shown = target ? target : dst;
+    int rc = BM_EX_FAIL;
+    if (bm_mountpoint_find (shown, dev, sizeof dev) == 0) {
+        fprintf (stderr, "umount: %s: not mounted.\n", shown);
+        rc = EXECUTION_FAILURE;
+    } else
+        fprintf (stderr, "umount: %s: must be superuser to unmount.\n", shown);
+    free (target);
+    return rc;
+}
+
 /* ---------------- mount/umount wrappers --------------------------------- */
 
 /* Probe the filesystems the kernel knows, the way mount(8) does when given no
@@ -376,14 +444,8 @@ bm_do_mount (const char *src, const char *dst, const char *type,
                      ))
         && bm_probe_types (src, dst, flags, data))
         return EXECUTION_SUCCESS;
-    errno = saved;
-    builtin_error ("mount(%s, %s, %s, 0x%lx, %s): %s",
-                   src ? src : "(null)",
-                   dst ? dst : "(null)",
-                   type ? type : "(null)",
-                   flags, data ? data : "(null)",
-                   strerror (errno));
-    return EXECUTION_FAILURE;
+    bm_mount_error (src, dst, type, flags, data, saved);
+    return BM_EX_FAIL;
 }
 
 static int
@@ -391,8 +453,7 @@ bm_do_umount (const char *dst, int u_flags)
 {
     if (umount2 (dst, u_flags) == 0)
         return EXECUTION_SUCCESS;
-    builtin_error ("umount2(%s, 0x%x): %s", dst, u_flags, strerror (errno));
-    return EXECUTION_FAILURE;
+    return bm_umount_error (dst, u_flags, errno);
 }
 
 /* ---------------- mountpoint helper -------------------------------------- */
@@ -682,6 +743,10 @@ bashmount_builtin (WORD_LIST *list)
         return bm_do_mount (NULL, pos[0], NULL, fl, data);
     }
 
+    /* `-o remount[,OPTS] DST` is mount(8)'s spelling of --remount. */
+    if (n_pos == 1 && (o.flags & MS_REMOUNT))
+        return bm_do_mount (NULL, pos[0], NULL, o.flags, data);
+
     /* Plain mount: SRC DST. TYPE optional (kernel rejects if needed). */
     if (n_pos != 2) {
         builtin_error ("usage: bashmount [-t TYPE] [-o OPTS] SRC DST");
@@ -708,6 +773,8 @@ char *bashmount_doc[] = {
     "    relatime / strictatime / sync / dirsync / mand / bind / remount /",
     "    shared / private / slave / unbindable / rec",
     "Unknown tokens are passed as fs-specific data (e.g. tmpfs size=64m).",
+    "A failed mount or unmount returns 32; a non-root caller gets util-linux's",
+    "\"must be superuser\" (or umount's \"not mounted.\", status 1) line.",
     (char *)NULL
 };
 

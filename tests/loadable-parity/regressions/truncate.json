@@ -10,7 +10,8 @@
     "GNU decimal/binary suffixes and I/O block sizing",
     "Reference-file sizing, no-create behavior, overflow preservation, invalid-size status, and multi-operand error continuation",
     "Signed unit-multiplication boundaries: reject overflow before touching files and accept an exact minimum signed product.",
-    "Implicit unit counts, decimal and binary units, rounding/reference modes, and rejection of signs without digits."
+    "Implicit unit counts, decimal and binary units, rounding/reference modes, and rejection of signs without digits.",
+    "Guest compatibility pass 6 (G90): GNU diagnostic wording for operand and usage errors."
   ],
   "exclusions": [
     "Block-special-file behavior is deferred because it requires a disposable VM with a safely created loop-backed device; no host device path is used.",
@@ -217,6 +218,20 @@
       "script": "printf keep > file\ntruncate -s +K file",
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "pass6-diagnostics",
+      "kind": "parity",
+      "purpose": "G90: GNU truncate wording: cannot open 'F' for writing (quoted), Invalid number: 'X' (with the overflow reason for too-large sizes), cannot stat 'R', overflow extending size of file 'F', and getopt diagnostics with the Try line; attached -sN and option prefixes are accepted.",
+      "script": "mkdir d\nprintf x > f\n{ truncate -s1 nosuchdir/x || echo rc=$?; } 2>err\n{ truncate -s 5 d || echo rc=$?; } 2>>err\n{ truncate -s 1x f || echo rc=$?; } 2>>err\n{ truncate -s 1Z f || echo rc=$?; } 2>>err\n{ truncate -s 8E f || echo rc=$?; } 2>>err\n{ truncate f || echo rc=$?; } 2>>err\n{ truncate -s 1 || echo rc=$?; } 2>>err\n{ truncate -r nosuch f || echo rc=$?; } 2>>err\n{ truncate -r f -s 5 f || echo rc=$?; } 2>>err\n{ truncate -s +9223372036854775807 f || echo rc=$?; } 2>>err\n{ truncate -x f || echo rc=$?; } 2>>err\n{ truncate --bogus f || echo rc=$?; } 2>>err\n{ truncate -s || echo rc=$?; } 2>>err\n{ truncate --si=3 -s2 f || echo rc=$?; } 2>>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "truncate",
+        "mkdir",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

@@ -1,0 +1,204 @@
+# config/standalone-commands.list — the loadables that stand in for an
+# external command (coreutils, util-linux, procps-ng, findutils, grep, sed,
+# gawk, diffutils, tar, gzip, iproute2, ...). One NAME per line; '#' comments
+# and blank lines are ignored; every NAME must be in config/bash-loadables.list
+# or config/bash-loadables-optional.list (build.sh checks).
+#
+# build.sh writes the selected ones into builtins/builtins.c as
+# bashos_standalone_builtins[], and patches/shim-command-name.patch makes
+# such a builtin report errors as the program does: "rm: cannot remove ...",
+# not "SCRIPT: line N: rm: ..." or "bash: rm: ...", in scripts, bash -c,
+# sh -c and interactive shells. Bash's own builtins (cd, read, kill, printf,
+# test, ...) and the loadables not listed here keep bash's form, with the
+# script name and line number a script author needs.
+#
+# The rule (2026-11-23): a loadable is listed when Debian 13 ships an
+# executable of that name (as found on the reference host in /usr/bin,
+# /usr/sbin, /bin or /sbin) or a standard Debian package does (netstat, pax,
+# uuencode, uudecode, at, batch, cal, write, sv, doas, dialog, wg, keyctl),
+# and the loadable takes that command's arguments. Loadables named after a
+# command but driven by bash-os verbs of their own (ssh connect, sshd, cron
+# run, git plumbing, script record, login, passwd) are not listed.
+
+apropos
+ar
+at
+awk
+base64
+basename
+batch
+bc
+blkid
+blockdev
+cal
+cat
+chattr
+chgrp
+chmod
+chown
+chrt
+cksum
+clear
+cmp
+col
+colrm
+column
+comm
+cp
+crontab
+csplit
+curl
+cut
+date
+dd
+df
+dialog
+diff
+dirname
+dmesg
+dmsetup
+doas
+du
+ed
+env
+expand
+expr
+fdisk
+file
+fincore
+find
+flock
+fold
+free
+fsck
+fsfreeze
+fstrim
+genl
+getconf
+getfacl
+grep
+gzip
+halt
+head
+hexdump
+hostid
+hostname
+hwclock
+iconv
+id
+ionice
+ip
+ipcmk
+join
+jq
+keyctl
+killall
+killall5
+less
+link
+ln
+locale
+logname
+losetup
+ls
+lsattr
+lsblk
+lsof
+man
+md5sum
+mkdir
+mkfifo
+mkfs
+mkswap
+mktemp
+more
+mv
+nano
+nc
+ncdu
+netstat
+nice
+nl
+nohup
+od
+paste
+patch
+pathchk
+pax
+pgrep
+pidof
+ping
+pkill
+poweroff
+pr
+printenv
+prlimit
+ps
+readlink
+realpath
+reboot
+renice
+rev
+rm
+rmdir
+rsync
+scp
+sed
+seq
+setfacl
+setsid
+sftp
+sha256sum
+slabtop
+sleep
+sort
+split
+ss
+stat
+strace
+strings
+su
+sudo
+sv
+swapoff
+swapon
+sync
+sysctl
+tac
+tail
+tar
+taskset
+tee
+timeout
+top
+touch
+tput
+tr
+truncate
+tty
+uclampset
+uname
+unexpand
+uniq
+unlink
+uptime
+uudecode
+uuencode
+uuidgen
+vi
+vmstat
+w
+wall
+watch
+wc
+wg
+whatis
+whiptail
+who
+whoami
+wipefs
+write
+xargs
+zcat
+zstd
+zstdcat

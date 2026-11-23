@@ -39,6 +39,25 @@
 
 #include "loadables.h"
 #include "date-parse.h"
+#include "gnu-longopt.h"
+#include "shim-prog-name.h"
+
+/* GNU touch's diagnostics: WHAT 'FILE': REASON, and the date error. */
+static void
+bt_file_error (const char *what, const char *path, int error)
+{
+    char *q = bos_quoteaf (path);
+    builtin_error ("%s %s: %s", what, q ? q : path, strerror (error));
+    free (q);
+}
+
+static void
+bt_bad_date (const char *text)
+{
+    char *q = bos_quote (text);
+    builtin_error ("invalid date format %s", q ? q : text);
+    free (q);
+}
 
 /* Parse a -t/-d argument into a time_t. Supports the same length-keyed
    sbase format set: 8/10/11/12/13/15 (-t) and 19/20 (-d ISO). Returns 0
@@ -182,19 +201,6 @@ bt_resolve_date (const char *s, const struct timespec *base, struct timespec *ou
     return 0;
 }
 
-/* Map a --time=WORD value to atime/mtime selection (GNU touch): access /
-   atime / use → atime; modify / mtime → mtime. Returns 0 on success and
-   sets *a or *m; -1 on an unrecognized word. */
-static int
-bt_time_word (const char *w, int *a, int *m)
-{
-    if (!strcmp (w, "access") || !strcmp (w, "atime") || !strcmp (w, "use"))
-        { *a = 1; return 0; }
-    if (!strcmp (w, "modify") || !strcmp (w, "mtime"))
-        { *m = 1; return 0; }
-    return -1;
-}
-
 /* Apply `times` to `path`. Creates the file when missing and !cflag. When
    hflag is set (-h/--no-dereference) operate on a symlink itself rather than
    its target, and never create missing operands. Returns 0 on success,
@@ -205,24 +211,30 @@ bt_touch (const char *path, struct timespec times[2], int cflag, int hflag)
     if (utimensat (AT_FDCWD, path, times,
                    hflag ? AT_SYMLINK_NOFOLLOW : 0) == 0)
         return 0;
-    /* -h refuses missing operands; -c may suppress the ENOENT diagnostic. */
-    if (errno != ENOENT || (hflag && !cflag)) {
-        builtin_error ("'%s': %s", path, strerror (errno));
+    int set_errno = errno;
+    /* -c and -h never create: -c suppresses only a missing operand. */
+    if (cflag || hflag) {
+        if (set_errno == ENOENT && cflag)
+            return 0;
+        bt_file_error ("setting times of", path, set_errno);
         return -1;
     }
-    if (cflag)
-        return 0;
-    int fd = open (path, O_WRONLY | O_CREAT | O_NOCTTY, 0666);
+    /* As GNU touch: the open (creating a missing file) decides the
+       "cannot touch" diagnostic; a directory keeps the time-setting error.
+       O_NONBLOCK: a FIFO without a reader must not block the shell. */
+    int fd = open (path, O_WRONLY | O_CREAT | O_NOCTTY | O_NONBLOCK, 0666);
     if (fd < 0) {
-        builtin_error ("create '%s': %s", path, strerror (errno));
+        if (errno == EISDIR)
+            bt_file_error ("setting times of", path, set_errno);
+        else
+            bt_file_error ("cannot touch", path, errno);
         return -1;
     }
     int rc = futimens (fd, times);
     int saved = errno;
     close (fd);
     if (rc < 0) {
-        errno = saved;
-        builtin_error ("'%s': %s", path, strerror (errno));
+        bt_file_error ("setting times of", path, saved);
         return -1;
     }
     return 0;
@@ -237,163 +249,75 @@ touch_builtin (WORD_LIST *list)
     struct timespec fixed = {0};
     int have_fixed = 0;
 
-    /* Hand-roll arg parsing to support both `-r REF` and `-rREF`,
-       same idiom as bashtail.c. */
-    while (list && list->word->word[0] == '-' && list->word->word[1]) {
-        const char *w = list->word->word;
-        if (!strcmp (w, "--")) { list = list->next; break; }
-        if (!strcmp (w, "--help")) {
-            builtin_help ();
-            return EXECUTION_SUCCESS;
-        }
-        if (!strcmp (w, "--version")) {
-            puts ("bashtouch 1.0 (bash-loadable)");
-            return EXECUTION_SUCCESS;
-        }
-
-        /* GNU long-option aliases. */
-        if (!strcmp (w, "--no-create")) { cflag = 1; list = list->next; continue; }
-        if (!strcmp (w, "--no-dereference")) { hflag = 1; list = list->next; continue; }
-        if (!strcmp (w, "--reference")) {
-            if (!list->next) {
-                builtin_error ("--reference needs FILE");
-                builtin_usage ();
-                return EXECUTION_FAILURE;
-            }
-            list = list->next;
-            ref = list->word->word;
-            list = list->next;
-            continue;
-        }
-        if (!strncmp (w, "--reference=", 12)) {
-            ref = w + 12;
-            list = list->next;
-            continue;
-        }
-        if (!strcmp (w, "--date") || !strncmp (w, "--date=", 7)) {
-            const char *arg;
-            if (w[6] == '=') {
-                arg = w + 7;
-            } else {
-                if (!list->next) {
-                    builtin_error ("--date needs argument");
-                    builtin_usage ();
+    /* GNU getopt_long scanning: clusters, -rREF / -r REF, --name=VALUE,
+       unambiguous prefixes and options after operands. */
+    static const struct bos_longopt longopts[] = {
+        { "no-create", BOS_NO_ARG, 'c' },
+        { "date", BOS_REQ_ARG, 'd' },
+        { "no-dereference", BOS_NO_ARG, 'h' },
+        { "reference", BOS_REQ_ARG, 'r' },
+        { "time", BOS_REQ_ARG, BOS_OPT_FIRST },
+        { "help", BOS_NO_ARG, BOS_OPT_HELP },
+        { "version", BOS_NO_ARG, BOS_OPT_VERSION },
+        { NULL, 0, 0 }
+    };
+    static const char *const time_names[] = {
+        "atime", "access", "use", "mtime", "modify", NULL
+    };
+    static const int time_vals[] = { 'a', 'a', 'a', 'm', 'm' };
+    bos_getopt g;
+    int c;
+    bos_getopt_init (&g, "touch", "acd:fhmr:t:", longopts, list);
+    while ((c = bos_getopt_next (&g)) != -1) {
+        switch (c) {
+            case 'a': aflag = 1; break;
+            case 'm': mflag = 1; break;
+            case 'c': cflag = 1; break;
+            case 'h': hflag = 1; break;   /* --no-dereference */
+            case 'f': break;              /* GNU compat: ignored */
+            case 'r': ref = g.optarg; break;
+            case 'd': date_arg = g.optarg; have_fixed = 0; break;
+            case 't':
+                fixed.tv_nsec = 0;
+                if (bt_parsetime (g.optarg, &fixed.tv_sec) < 0) {
+                    bt_bad_date (g.optarg);
+                    bos_getopt_free (&g);
                     return EXECUTION_FAILURE;
                 }
-                list = list->next;
-                arg = list->word->word;
-            }
-            date_arg = arg;
-            have_fixed = 0;
-            list = list->next;
-            continue;
-        }
-        if (!strcmp (w, "--time") || !strncmp (w, "--time=", 7)) {
-            const char *arg;
-            if (w[6] == '=') {
-                arg = w + 7;
-            } else {
-                if (!list->next) {
-                    builtin_error ("--time needs WORD");
-                    builtin_usage ();
-                    return EXECUTION_FAILURE;
-                }
-                list = list->next;
-                arg = list->word->word;
-            }
-            if (bt_time_word (arg, &aflag, &mflag) < 0) {
-                builtin_error ("invalid argument '%s' for --time", arg);
-                builtin_usage ();
-                return EXECUTION_FAILURE;
-            }
-            list = list->next;
-            continue;
-        }
-
-        /* -r REF / -rREF */
-        if (!strcmp (w, "-r")) {
-            if (!list->next) {
-                builtin_error ("-r needs REF");
-                builtin_usage ();
-                return EXECUTION_FAILURE;
-            }
-            list = list->next;
-            ref = list->word->word;
-            list = list->next;
-            continue;
-        }
-        if (!strncmp (w, "-r", 2) && w[2]) {
-            ref = w + 2;
-            list = list->next;
-            continue;
-        }
-
-        /* -t TIME / -tTIME, -d DATE / -dDATE */
-        if (!strcmp (w, "-t") || !strcmp (w, "-d")) {
-            if (!list->next) {
-                builtin_error ("%s needs argument", w);
-                builtin_usage ();
-                return EXECUTION_FAILURE;
-            }
-            list = list->next;
-            if (w[1] == 'd') {
-                date_arg = list->word->word;
-                have_fixed = 0;
-            } else if ((fixed.tv_nsec = 0, bt_parsetime (list->word->word, &fixed.tv_sec)) < 0) {
-                builtin_error ("invalid time/date: %s", list->word->word);
-                builtin_usage ();
-                return EXECUTION_FAILURE;
-            } else {
                 have_fixed = 1;
                 date_arg = NULL;
+                break;
+            case BOS_OPT_FIRST: {
+                int v = bos_argmatch ("touch", "--time", g.optarg, time_names, time_vals);
+                if (v < 0) { bos_getopt_free (&g); return EXECUTION_FAILURE; }
+                if (v == 'a') aflag = 1; else mflag = 1;
+                break;
             }
-            list = list->next;
-            continue;
-        }
-        if ((!strncmp (w, "-t", 2) || !strncmp (w, "-d", 2)) && w[2]) {
-            if (w[1] == 'd') {
-                date_arg = w + 2;
-                have_fixed = 0;
-            } else if ((fixed.tv_nsec = 0, bt_parsetime (w + 2, &fixed.tv_sec)) < 0) {
-                builtin_error ("invalid time/date: %s", w + 2);
-                builtin_usage ();
+            case BOS_OPT_HELP:
+                bos_getopt_free (&g);
+                builtin_help ();
+                return EXECUTION_SUCCESS;
+            case BOS_OPT_VERSION:
+                bos_getopt_free (&g);
+                puts ("bashtouch 1.0 (bash-loadable)");
+                return EXECUTION_SUCCESS;
+            default:
+                bos_getopt_free (&g);
                 return EXECUTION_FAILURE;
-            } else {
-                have_fixed = 1;
-                date_arg = NULL;
-            }
-            list = list->next;
-            continue;
         }
-
-        if (!strncmp (w, "--", 2)) {
-            builtin_error ("unknown flag: %s", w);
-            builtin_usage ();
-            return EXECUTION_FAILURE;
-        }
-
-        /* Bundled short flags: -acm / -am / -c etc. */
-        for (const char *p = w + 1; *p; p++) {
-            switch (*p) {
-                case 'a': aflag = 1; break;
-                case 'm': mflag = 1; break;
-                case 'c': cflag = 1; break;
-                case 'h': hflag = 1; break;   /* --no-dereference */
-                case 'f': break;              /* GNU compat: ignored */
-                default:
-                    builtin_error ("unknown flag: -%c", *p);
-                    builtin_usage ();
-                    return EXECUTION_FAILURE;
-            }
-        }
-        list = list->next;
     }
+    /* The operands array (words still owned by the caller) is ours now. */
+    char **operands = g.operands;
+    int noperands = g.noperands;
+    g.operands = NULL;
+    bos_getopt_free (&g);
 
     /* -d is read once the options are known: with -r its relative items
        apply to each of REF's times, as in GNU touch. */
     struct stat ref_st;
     if (ref && stat (ref, &ref_st) < 0) {
-        builtin_error ("stat '%s': %s", ref, strerror (errno));
+        bt_file_error ("failed to get attributes of", ref, errno);
+        free (operands);
         return EXECUTION_FAILURE;
     }
     struct timespec dated[2];
@@ -402,15 +326,16 @@ touch_builtin (WORD_LIST *list)
         clock_gettime (CLOCK_REALTIME, &now);
         if (bt_resolve_date (date_arg, ref ? &ref_st.st_atim : &now, &dated[0]) < 0 ||
             bt_resolve_date (date_arg, ref ? &ref_st.st_mtim : &now, &dated[1]) < 0) {
-            builtin_error ("invalid time/date: %s", date_arg);
-            builtin_usage ();
+            bt_bad_date (date_arg);
+            free (operands);
             return EXECUTION_FAILURE;
         }
     }
 
-    if (!list) {
+    if (!noperands) {
+        free (operands);
         builtin_error ("missing file operand");
-        builtin_usage ();
+        bos_shim_try_help ("touch");
         return EXECUTION_FAILURE;
     }
 
@@ -436,10 +361,11 @@ touch_builtin (WORD_LIST *list)
     if (!mflag) times[1].tv_nsec = UTIME_OMIT;
 
     int rc = EXECUTION_SUCCESS;
-    for (WORD_LIST *p = list; p; p = p->next) {
-        if (bt_touch (p->word->word, times, cflag, hflag) < 0)
+    for (int i = 0; i < noperands; i++) {
+        if (bt_touch (operands[i], times, cflag, hflag) < 0)
             rc = EXECUTION_FAILURE;
     }
+    free (operands);
     return rc;
 }
 

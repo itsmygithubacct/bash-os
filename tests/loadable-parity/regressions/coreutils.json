@@ -15,7 +15,8 @@
     "numfmt GNU options: --suffix, --padding, --field, --format, --round, --header, --from/--to-unit, --invalid modes, -d and option/conversion diagnostics (guest pass 2 G27)",
     "install -t DIR / --target-directory, -D -t, -T and -c (guest pass 2 G35)",
     "install (guest pass 5 G74/G78): GNU long options and prefixes, -v/-b/-S output, symbolic -m modes, clustered options and diagnostics.",
-    "install (clean-room rewrite): GNU check order, -d mode semantics and failures, -v removal/backup reporting and VERSION_CONTROL, per-file copy failures, -D/-t creation, -s/--strip-program and -p, numeric -o/-g, -C with modes, quoting and symbolic-link destinations."
+    "install (clean-room rewrite): GNU check order, -d mode semantics and failures, -v removal/backup reporting and VERSION_CONTROL, per-file copy failures, -D/-t creation, -s/--strip-program and -p, numeric -o/-g, -C with modes, quoting and symbolic-link destinations.",
+    "factor (guest pass 6 G82): integers of any size, GNU operand syntax and quoting, standard-input words, -h and option diagnostics."
   ],
   "exclusions": [
     "Shuf permutation distribution and seeded output are not GNU byte-parity claims because the documented implementation uses a different random-source algorithm.",
@@ -596,6 +597,51 @@
         "tsort",
         "seq"
       ]
+    },
+    {
+      "id": "pass6-factor-any-size",
+      "kind": "parity",
+      "purpose": "G82: factor takes integers of any size, as GNU factor 9.7 does: 2^64 and 2^64+1, 2^128-1, a 39-digit prime, 10^30, a 30-digit number with a 24-digit prime factor, a 50-digit number with two 12- and 14-digit factors, and a product of two 10-digit primes.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ncu factor 18446744073709551616 18446744073709551617 340282366920938463463374607431768211455 170141183460469231731687303715884105727 1000000000000000000000000000000 999999999999989999999999999899 12345678901234567890123456789012345678901234567890 1000000016000000063 || echo rc=$?\ncu factor -h 340282366920938463463374607431768211456 1000000000000000000000000000000",
+      "requires": [
+        "factor"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "pass6-factor-operand-syntax",
+      "kind": "parity",
+      "purpose": "G82: GNU factor's operand syntax: leading spaces and one '+' are accepted, leading zeros are dropped; a tab, a trailing space, '-0', '++3', '0x10', an empty word and a non-ASCII byte are reported in quote() style and the rest are still factored, status 1.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ncu factor -- ' 12' +12 007 000000000000000000000000000018446744073709551617 0 1 $'\\t12' '12 ' -0 ++3 0x10 '' $'\\303\\251' 9 || echo rc=$?",
+      "requires": [
+        "factor"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass6-factor-stdin-tokens",
+      "kind": "parity",
+      "purpose": "G82: with no operands factor reads words split at spaces, tabs and newlines (\\v, \\f and \\r stay inside a word), with -h, including a number above 2^64 and an invalid word.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nprintf '6\\v7 +8\\t\\n\\n  18446744073709551617 x -1 4096\\n9' | cu factor -h || echo rc=$?\nprintf '' | cu factor || echo rc=$?",
+      "requires": [
+        "factor",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass6-factor-options",
+      "kind": "parity",
+      "purpose": "G82: options anywhere (8 -h), long-option prefixes, -- ending options, and GNU's diagnostics for an unknown short or long option and for --exponents=ARG.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ncu factor 8 -h; cu factor --exp 12; cu factor -- -h 2>/dev/null || echo rc=$?\ncu factor -x 8 || echo rc=$?\ncu factor --bogus || echo rc=$?\ncu factor --exponents=1 4 || echo rc=$?",
+      "requires": [
+        "factor"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

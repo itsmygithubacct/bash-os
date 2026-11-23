@@ -78,6 +78,7 @@
 #include <stdarg.h>
 
 #include "loadables.h"
+#include "clear-impl.h"
 
 /* --- termios state -------------------------------------------------------
  * Static save: a single saved-termios slot. Sufficient for the
@@ -686,10 +687,30 @@ btr_bracketed_paste (int on) { return btr_write_seq (on ? "\033[?2004h" : "\033[
    E3 capability (CSI 3 J) is needed for the scrollback wipe; without
    it `clear` only blanks the visible viewport. Most modern terminals
    (xterm, gnome-terminal, kitty, alacritty, foot, st) honor it. */
+/* Non-zero when the /bin shim runs `bashtermraw clear' as the standalone
+   clear command (an unexported BASHOS_SHIM_COMMAND=bashtermraw=NAME). */
+static int
+btr_shim_clear (void)
+{
+  SHELL_VAR *v = find_variable ("BASHOS_SHIM_COMMAND");
+  const char *val;
+
+  if (v == 0 || exported_p (v) || array_p (v) || assoc_p (v))
+    return 0;
+  val = value_cell (v);
+  return val && strncmp (val, "bashtermraw=", 12) == 0 && val[12];
+}
+
 static int
 btr_clear (WORD_LIST *args)
 {
   int scrollback = 1;
+
+  /* As the clear command, behave as ncurses clear(1): the sequence for
+     the environment's TERM (or -T TERM) goes to stdout, terminal or not,
+     and -x keeps the scrollback. */
+  if (btr_shim_clear ())
+    return bashclear_run_env (args, 1);
   for (WORD_LIST *p = args; p; p = p->next)
     {
       const char *w = p->word->word;
@@ -1763,6 +1784,8 @@ char *bashtermraw_doc[] = {
   "    clear [-x|--no-scrollback]",
   "                       erase-scrollback + cursor-home + erase-display",
   "                       (CSI 3J + CSI H + CSI 2J; --no-scrollback omits 3J)",
+  "                       Run by the /bin shim as clear, it is ncurses clear:",
+  "                       [-x] [-T TERM], the TERM sequence on stdout.",
   "    reset [-q]         RIS/recovery sequences + restore sane canonical termios.",
   "                       Stronger than clear; recovers from corruption.",
   "    show [on|off]      show/hide cursor (CSI ?25 h/l), default on",

@@ -39,6 +39,15 @@
 #include <fcntl.h>
 #include "loadables.h"
 
+#include "shim-prog-name.h"
+
+/* coreutils' usage (EXIT_FAILURE) line, in place of bash's usage line. */
+static void
+cut_try_help (void)
+{
+  bos_shim_try_help ("cut");
+}
+
 #define CUT_BLOCK 65536
 
 /* A selected range, 1-based and inclusive. hi == UINTMAX_MAX means "to the
@@ -641,7 +650,7 @@ cut_builtin (WORD_LIST *list)
               break;
             default:
               builtin_error ("invalid option -- '%c'", *p);
-              builtin_usage ();
+              cut_try_help ();
               rc = EXECUTION_FAILURE;
               goto done;
             }
@@ -738,7 +747,7 @@ cut_builtin (WORD_LIST *list)
   goto done;
 
 usage:
-  builtin_usage ();
+  cut_try_help ();
   rc = EXECUTION_FAILURE;
   goto done;
 done_ok:

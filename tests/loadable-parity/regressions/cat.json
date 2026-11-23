@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "loadable": "cat",
+  "reference": "GNU coreutils 9.7 cat, invoked by system Bash on the reference side; stderr is compared byte for byte after the shell's script-line prefix is removed.",
+  "coverage": [
+    "Guest compatibility pass 6 (G90): GNU diagnostic wording for operand and usage errors."
+  ],
+  "exclusions": [
+    "Only diagnostics are covered here; the reviewed suite in suites/ covers ordinary operation."
+  ],
+  "cases": [
+    {
+      "id": "pass6-operand-diagnostics",
+      "kind": "parity",
+      "purpose": "G90: a read error names the operand as GNU does ('cat: d: Is a directory', '-' for standard input), and an open error keeps the bare name. The shell's script-line prefix is stripped so the case holds before and after the builtin-prefix change.",
+      "script": "mkdir d\nprintf 'kept\\n' > f\n{ cat d || echo rc=$?; } 2>err\n{ cat < d || echo rc=$?; } 2>>err\n{ cat nosuch f || echo rc=$?; } 2>>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "cat",
+        "mkdir",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
+    }
+  ]
+}

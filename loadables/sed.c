@@ -15,7 +15,8 @@
  *   [ADDR] h / H             copy/append pattern to hold buffer
  *   [ADDR] g / G             copy/append hold to pattern
  *   [ADDR] x                 swap pattern and hold
- *   [ADDR] a TEXT            append TEXT after current line
+ *   [ADDR] a TEXT            append TEXT after current line (TEXT runs to the
+ *                            end of the line: ';' and '}' are text)
  *   [ADDR] i TEXT            insert TEXT before current line
  *   [ADDR] c TEXT            replace addressed range with TEXT
  *   [ADDR] y/SET1/SET2/      transliterate characters (multibyte in UTF-8; same count)
@@ -2108,15 +2109,24 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                 }
                 break;
             case 'a': case 'i': case 'c':
-                /* a/i/c TEXT: text starts after optional `\` continuation
-                   or whitespace.  bash-os accepts the single-line form
-                   `aTEXT` and `a TEXT`.  Per spec §1.19 edit 3 in
-                   `COREUTILS-IMPLEMENTATION-STEPS.md:886-913`, the
-                   parser honors backslash-newline continuation: a
-                   trailing `\` immediately before a literal `\n` in the
-                   script folds into a literal newline in the output
-                   text, and scanning continues on the next line.
-                   Un-continued `\n` or `;` terminates the TEXT. */
+                /* a/i/c TEXT, as GNU sed reads it. The text always runs to
+                   the first unescaped newline (or the end of the script), so
+                   ';', '}' and '#' are ordinary text. After the command
+                   letter, blanks are skipped; then
+                     a\<newline>TEXT   classic form: TEXT keeps its leading
+                                       blanks;
+                     a\TEXT            the backslash is dropped and TEXT,
+                                       blanks included, starts right after it;
+                     a TEXT            one-liner: TEXT starts at the first
+                                       non-blank.
+                   In TEXT, backslash-newline continues the text with a
+                   newline (the next line keeps its blanks), \a \f \n \r \t
+                   \v \cX \dNNN \oNNN \xHH are decoded, any other \X is X, and
+                   a backslash at the end of the script is dropped. -e chunks
+                   and -f files are joined with newlines, so `-e 'a\' -e TEXT`
+                   and a script file behave the same way. A bare `a\` at the
+                   end of the script has no text and outputs nothing; `a`
+                   followed only by blanks is an error. */
                 c->kind = (op == 'a') ? BS_A : (op == 'i') ? BS_I : BS_C;
                 {
                     if (bs_posix) {
@@ -2146,50 +2156,35 @@ bs_parse_script (const char *script, bs_cmd **out_cmds, int *out_n, int extended
                         if (bs_text_push (&c->text, &bytes, &cap, '\0') < 0) goto err;
                         break;
                     }
-                    /* Skip optional leading whitespace and `\` continuation. */
+                    while (*p == ' ' || *p == '\t') p++;
+                    if (!*p) {
+                        builtin_error ("expected \\ after `a', `c' or `i'");
+                        goto err;
+                    }
                     if (*p == '\\') {
                         p++;
-                        /* POSIX/GNU `a\<newline>text` form: a backslash
-                           immediately followed by a newline means the text
-                           begins on the next line — consume that newline. */
+                        if (!*p) break;            /* `a\` at the end: no text */
                         if (*p == '\n') p++;
                     }
-                    while (*p == ' ' || *p == '\t') p++;
-                    /* First pass: scan to the end of the (possibly
-                       continued) TEXT.  A `\n` is the terminator unless
-                       the immediately-preceding source byte is `\\`,
-                       in which case the pair `\\\n` is a continuation
-                       and we keep scanning. */
-                    const char *s = p;
-                    while (*p) {
-                        if (*p == ';') break;
-                        if (*p == '\n') {
-                            if (p > s && p[-1] == '\\') {
-                                p++;          /* swallow the LF; keep scanning */
-                                continue;
-                            }
-                            break;
+                    size_t cap = 0;
+                    c->edit_len = 0;
+                    while (*p && *p != '\n') {
+                        char ch = *p++;
+                        if (ch == '\\') {
+                            if (!*p) break;        /* trailing backslash is dropped */
+                            unsigned char value;
+                            static const char escapes[] = "afnrtv";
+                            const char *esc = strchr (escapes, *p);
+                            if (bs_numeric_escape (&p, &value)) ch = (char) value;
+                            else if (esc) { ch = "\a\f\n\r\t\v"[esc - escapes]; ++p; }
+                            else ch = *p++;        /* includes backslash-newline */
                         }
-                        p++;
+                        if (bs_text_push (&c->text, &c->edit_len, &cap, ch) < 0) goto err;
                     }
-                    /* Second pass: copy [s..p), replacing every two-
-                       byte sequence `\\\n` with a single `\n`.  Output
-                       length is bounded above by the input length so
-                       one malloc is enough. */
-                    size_t total = (size_t) (p - s);
-                    c->text = malloc (total + 1);
-                    if (!c->text) goto err;
-                    size_t out_i = 0;
-                    for (size_t i = 0; i < total; i++) {
-                        if (i + 1 < total && s[i] == '\\' && s[i + 1] == '\n') {
-                            c->text[out_i++] = '\n';
-                            i++;              /* skip the consumed LF */
-                        } else {
-                            c->text[out_i++] = s[i];
-                        }
+                    {
+                        size_t bytes = c->edit_len;
+                        if (bs_text_push (&c->text, &bytes, &cap, '\0') < 0) goto err;
                     }
-                    c->text[out_i] = '\0';
-                    c->edit_len = out_i;
                 }
                 break;
             default:
@@ -2552,7 +2547,7 @@ bs_debug_command (const bs_cmd *c, const char *prefix, int *depth)
         case 'w': case 'W': fputs (c->text, stdout); break;
         case 'r': case 'R': printf (" %s", c->text); break;
         case 'a': case 'i': case 'c':
-            putchar ('\\'); fwrite (c->text, 1, c->edit_len, stdout); putchar ('\n'); break;
+            putchar ('\\'); if (c->text) fwrite (c->text, 1, c->edit_len, stdout); putchar ('\n'); break;
         case 'e':
             putchar (' ');
             if (c->text) {
@@ -3410,13 +3405,16 @@ bs_readlink_dup (int dirfd, const char *name)
    with readlinkat against the directory that holds them: an absolute target
    restarts at /, a relative target (including "..") continues from that
    directory. The final component is followed only when follow_final is set.
-   depth counts symlink hops. */
+   depth counts symlink hops. Directories are held as O_PATH descriptors, so
+   like GNU sed -i the walk needs only search permission on each ancestor and
+   on the parent (a 0711 or 0311 directory works); the parent still needs
+   write permission for the temp file and the rename. */
 static int
 bs_walk (int dirfd, const char *path, int follow_final, int depth, bs_anchor *out)
 {
     if (path[0] == '/') {
         close (dirfd);
-        dirfd = openat (AT_FDCWD, "/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+        dirfd = openat (AT_FDCWD, "/", O_PATH | O_DIRECTORY | O_CLOEXEC);
         if (dirfd < 0) return -1;
         while (*path == '/') path++;
     }
@@ -3466,7 +3464,7 @@ bs_walk (int dirfd, const char *path, int follow_final, int depth, bs_anchor *ou
             return rc;
         }
         if (!is_last) {
-            int next = openat (dirfd, comp, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+            int next = openat (dirfd, comp, O_PATH | O_DIRECTORY | O_CLOEXEC);
             if (next < 0) { int err = errno; close (dirfd); errno = err; return -1; }
             close (dirfd);
             dirfd = next;
@@ -3509,7 +3507,7 @@ bs_inplace (bs_cmd *cmds, int n_cmds, const char *path, const char *suffix, int 
         display = logical;
     }
     bs_anchor anc = { .dirfd = -1 };
-    int root = openat (AT_FDCWD, path[0] == '/' ? "/" : ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    int root = openat (AT_FDCWD, path[0] == '/' ? "/" : ".", O_PATH | O_DIRECTORY | O_CLOEXEC);
     if (root < 0) {
         builtin_error ("%s: %s", path, strerror (errno));
         bs_io_error = 4; free (logical); return -1;
@@ -3907,7 +3905,7 @@ char *sed_doc[] = {
     "    bashsed [-bnsiEuz] [-l WIDTH] [-e SCRIPT] [-f FILE] [SCRIPT] [INPUT ...]",
     "",
     "Commands: s/// (capture groups), d p q Q =, h H g G x z,",
-    "          a/i/c TEXT, y/SET1/SET2/, n N D P l [WIDTH],",
+    "          a/i/c TEXT (to end of line), y/SET1/SET2/, n N D P l [WIDTH],",
     "          r/R FILE, w/W FILE, F, e [COMMAND] (gated), v,",
     "          :LABEL, b LABEL, t/T LABEL, { ... }, ! prefix.",
     "Addresses: $, N, FIRST~STEP, /REGEX/, \\cREGEXc, ADDR1,ADDR2, ADDR1,+N, ADDR1,~N.",

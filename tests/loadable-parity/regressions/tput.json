@@ -9,7 +9,8 @@
     "Twelve common boolean capabilities, true/false status and empty output, across all curated entries",
     "Leading -T, attached -TTERM, repeated overrides, -- and environment dimension behavior",
     "Usage/missing TERM, unknown capability/terminal and known unavailable capability statuses",
-    "Custom sidecar escape decoding, parameter expansion, listing, info, -T selection and -V variable binding"
+    "Custom sidecar escape decoding, parameter expansion, listing, info, -T selection and -V variable binding",
+    "G91: LINES/COLUMNS parsing and -T TYPE size values off a terminal."
   ],
   "exclusions": [
     "Metadata is excluded from operation coverage. Version/implementation identity is a custom contract, not an ncurses byte-equality requirement.",
@@ -161,6 +162,17 @@
       "kind": "deferred",
       "purpose": "Hardware and init/reset terminal-driver qualification requires a controlled terminal mock or disposable hardware environment. These mode-setting operations are not exercised in the byte fixtures.",
       "reason": "Hardware and init/reset terminal-driver qualification requires a controlled terminal mock or disposable hardware environment. These mode-setting operations are not exercised in the byte fixtures."
+    },
+    {
+      "id": "g91-size-environment",
+      "kind": "parity",
+      "requires": [
+        "tput"
+      ],
+      "purpose": "G91: without -T, COLUMNS and LINES override the size when they are whole positive C integers (077 is octal, 0x10 hex), capped at 512; other values fall back to 80x24. With -T TYPE (attached or separate) they are ignored and the entry's own value is printed, -1 when it has none (linux; dumb has no lines).",
+      "script": "export TERM=xterm\nfor v in 77 ' 77' +77 077 0x10 77x 0 -5 abc '' 512 513 99999; do\n  printf '[%s] ' \"$v\"; COLUMNS=$v tput cols; LINES=$v tput lines\ndone\nCOLUMNS=77 LINES=33 tput -Txterm cols\nCOLUMNS=77 LINES=33 tput -T xterm lines\nfor t in linux dumb vt100 xterm-256color; do tput -T$t cols; tput -T$t lines; TERM=$t tput cols; TERM=$t tput lines; done\ntput -Txterm colors\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

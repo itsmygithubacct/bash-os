@@ -361,15 +361,14 @@ static void proc_maps_header (const char *pid)
   if (fp) fclose (fp);
   putchar ('\n');
 }
-static int proc_maps (const char *pid, int extended, int libraries)
+/* pldd: the mapped shared objects, each once, under "PID:". */
+static int proc_maps (const char *pid)
 {
   FILE *fp = proc_open (pid, "maps", 0);
   if (!fp) return 1;
-  char *line = NULL; size_t cap = 0; long double total = 0;
+  char *line = NULL; size_t cap = 0;
   char **seen = NULL; size_t count = 0;
-  if (libraries) printf ("%s:\n", pid);
-  else proc_maps_header (pid);
-  if (extended) puts ("Address Kbytes Mode Offset Mapping");
+  printf ("%s:\n", pid);
   int result = 0;
   while (getline (&line, &cap, fp) >= 0) {
     uint64_t start, end, offset, inode; unsigned major, minor; char mode[5]; int position = 0;
@@ -379,40 +378,336 @@ static int proc_maps (const char *pid, int extended, int libraries)
     }
     char *name = line + position;
     name[strcspn (name, "\n")] = 0;
-    if (libraries) {
-      if (*name != '/' || !strstr (name, ".so")) continue;
-      size_t i; for (i = 0; i < count; i++) if (!strcmp (seen[i], name)) break;
-      if (i < count) continue;
-      seen = xreallocarray (seen, count + 1, sizeof *seen);
-      size_t len = strlen (name) + 1; seen[count] = xmalloc (len); memcpy (seen[count++], name, len);
-      puts (name);
-    } else if (extended) {
-      long double kib = (end - start)/1024.0L; total += kib;
-      printf ("%016"PRIx64" %.0Lf %s %016"PRIx64" %s\n", start, kib, mode, offset, *name ? name : "[anon]");
-    } else {
-      /* procps: the file's base name, else [ stack ] or [ anon ]; the mode
-         is rwx, then s for a shared mapping, then - (no MAP_NORESERVE). */
-      long double kib = (end - start)/1024.0L; total += kib;
-      char perms[6] = { mode[0], mode[1], mode[2], mode[3] == 's' ? 's' : '-', '-', 0 };
-      const char *slash = strrchr (name, '/');
-      const char *shown = slash ? (slash[1] ? slash + 1 : slash)
-                        : !strcmp (name, "[stack]") ? "  [ stack ]" : "  [ anon ]";
-      printf ("%016"PRIx64" %6.0LfK %s %s\n", start, kib, perms, shown);
-    }
+    if (*name != '/' || !strstr (name, ".so")) continue;
+    size_t i; for (i = 0; i < count; i++) if (!strcmp (seen[i], name)) break;
+    if (i < count) continue;
+    seen = xreallocarray (seen, count + 1, sizeof *seen);
+    size_t len = strlen (name) + 1; seen[count] = xmalloc (len); memcpy (seen[count++], name, len);
+    puts (name);
   }
   for (size_t i = 0; i < count; i++) free (seen[i]); free (seen);
-  if (extended) printf ("total %.0LfK\n", total);
-  else if (!libraries) printf (" total %16.0LfK\n", total);
   free (line); return proc_end (fp) || result;
+}
+/* pmap in procps-ng 4.0.4's report shapes, from its manual, --help and
+   observed output: the default (size and mode), -x (RSS and Dirty from
+   smaps), -d (offset and device), -X and -XX (smaps columns), -q without
+   the column header and footer, -p with full paths and -A LOW[,HIGH]
+   keeping the mappings that overlap the range. A missing PID is skipped
+   (status 42), an unreadable one leaves only its header line (status 1);
+   both together give 43. Diagnostics name pmap, as procps does. */
+enum { PMAP_PLAIN, PMAP_X, PMAP_D, PMAP_XX };
+struct pmap_opts { int mode, level, quiet, path; uint64_t lo, hi; };
+struct pmap_map {
+  uint64_t start, end, offset, inode; unsigned major, minor;
+  char perms[5], dev[16]; char *name, *flags; uint64_t *v;
+};
+
+static void pmap_usage (FILE *fp)
+{
+  fputs ("\nUsage:\n pmap [options] PID [PID ...]\n\nOptions:\n"
+         " -x, --extended              show details\n"
+         " -X                          show even more details\n"
+         "            WARNING: format changes according to /proc/PID/smaps\n"
+         " -XX                         show everything the kernel provides\n"
+         " -d, --device                show the device format\n"
+         " -q, --quiet                 do not display header and footer\n"
+         " -p, --show-path             show path in the mapping\n"
+         " -A, --range=<low>[,<high>]  limit results to the given range\n\n"
+         " -h, --help     display this help and exit\n"
+         " -V, --version  output version information and exit\n\n"
+         "For more details see pmap(1).\n", fp);
+}
+static int pmap_hex (const char *s, size_t n, uint64_t *out)
+{
+  if (n > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) s += 2, n -= 2;
+  if (!n || n > 16) return -1;
+  uint64_t v = 0;
+  for (size_t i = 0; i < n; i++) {
+    int c = (unsigned char) s[i], d = isdigit (c) ? c - '0' : isxdigit (c) ? tolower (c) - 'a' + 10 : -1;
+    if (d < 0) return -1;
+    v = v << 4 | (unsigned) d;
+  }
+  *out = v; return 0;
+}
+static int pmap_range (const char *arg, struct pmap_opts *o)
+{
+  const char *comma = strchr (arg, ',');
+  size_t n = comma ? (size_t) (comma - arg) : strlen (arg);
+  o->lo = 0; o->hi = UINT64_MAX;
+  if ((n && pmap_hex (arg, n, &o->lo)) || (comma && (strchr (comma + 1, ',')
+      || (comma[1] && pmap_hex (comma + 1, strlen (comma + 1), &o->hi))))) {
+    fprintf (stderr, "pmap: failed to parse argument: '%s'\n", arg);
+    return -1;
+  }
+  /* A lone LOW names one address. */
+  if (!comma) o->hi = o->lo;
+  return 0;
+}
+/* The mapping column: the base name (-p: the path), else [ stack ] or
+   [ anon ] for the classic reports, the bracketed name or nothing for -X. */
+static const char *pmap_name (const char *name, int path, int smaps)
+{
+  const char *slash = strrchr (name, '/');
+  if (slash) return path ? name : slash[1] ? slash + 1 : slash;
+  if (smaps) return name;
+  return !strcmp (name, "[stack]") ? "  [ stack ]" : "  [ anon ]";
+}
+static int pmap_digits (uint64_t v) { int n = 1; while (v >= 10) v /= 10, n++; return n; }
+static int pmap_one (const char *pid, const struct pmap_opts *o)
+{
+  int smaps = o->mode == PMAP_X || o->mode == PMAP_XX;
+  FILE *fp = proc_open (pid, smaps ? "smaps" : "maps", 1);
+  proc_maps_header (pid);
+  if (!fp) return 1;
+  char *line = NULL; size_t cap = 0; int result = 0;
+  struct pmap_map *maps = NULL; size_t count = 0;
+  char **keys = NULL; size_t nkeys = 0; int has_flags = 0;
+  while (getline (&line, &cap, fp) >= 0) {
+    struct pmap_map m = { 0 }; int position = 0;
+    char dev[16];
+    if (sscanf (line, "%"SCNx64"-%"SCNx64" %4s %"SCNx64" %15s %"SCNu64" %n",
+                &m.start, &m.end, m.perms, &m.offset, dev, &m.inode, &position) == 6 && position
+        && sscanf (dev, "%x:%x", &m.major, &m.minor) == 2 && m.end >= m.start) {
+      char *name = line + position;
+      name[strcspn (name, "\n")] = 0;
+      snprintf (m.dev, sizeof m.dev, "%s", dev);
+      size_t len = strlen (name) + 1;
+      m.name = xmalloc (len); memcpy (m.name, name, len);
+      maps = xreallocarray (maps, count + 1, sizeof *maps);
+      maps[count++] = m;
+      continue;
+    }
+    char *colon = strchr (line, ':');
+    if (!smaps || !count || !colon || colon == line) {
+      fprintf (stderr, "pmap: %s: malformed mapping\n", pid); result = 1; break;
+    }
+    struct pmap_map *cur = &maps[count - 1];
+    *colon = 0;
+    char *value = colon + 1;
+    value[strcspn (value, "\n")] = 0;
+    while (*value == ' ' || *value == '\t') value++;
+    if (!strcmp (line, "VmFlags")) {
+      size_t len = strlen (value);
+      while (len && value[len - 1] == ' ') value[--len] = 0;
+      free (cur->flags); cur->flags = xmalloc (len + 1); memcpy (cur->flags, value, len + 1);
+      has_flags = 1;
+      continue;
+    }
+    size_t k;
+    for (k = 0; k < nkeys && strcmp (keys[k], line); k++)
+      ;
+    if (k == nkeys) {
+      keys = xreallocarray (keys, nkeys + 1, sizeof *keys);
+      size_t len = strlen (line) + 1;
+      keys[nkeys] = xmalloc (len); memcpy (keys[nkeys++], line, len);
+      for (size_t i = 0; i < count; i++)
+        if (!maps[i].v) { maps[i].v = xmalloc (nkeys * sizeof *maps[i].v); memset (maps[i].v, 0, nkeys * sizeof *maps[i].v); }
+        else { maps[i].v = xreallocarray (maps[i].v, nkeys, sizeof *maps[i].v); maps[i].v[k] = 0; }
+    }
+    if (!cur->v) { cur->v = xmalloc (nkeys * sizeof *cur->v); memset (cur->v, 0, nkeys * sizeof *cur->v); }
+    cur->v[k] = strtoull (value, NULL, 10);
+  }
+  free (line);
+  if (ferror (fp) || result) { fclose (fp); result = 1; goto done; }
+  fclose (fp);
+  /* Every mapping has a value for every key, in key order. */
+  for (size_t i = 0; i < count; i++)
+    if (smaps && !maps[i].v) { maps[i].v = xmalloc ((nkeys ? nkeys : 1) * sizeof *maps[i].v); memset (maps[i].v, 0, (nkeys ? nkeys : 1) * sizeof *maps[i].v); }
+  size_t rss = nkeys, sd = nkeys, pd = nkeys;
+  for (size_t k = 0; k < nkeys; k++) {
+    if (!strcmp (keys[k], "Rss")) rss = k;
+    if (!strcmp (keys[k], "Shared_Dirty")) sd = k;
+    if (!strcmp (keys[k], "Private_Dirty")) pd = k;
+  }
+  uint64_t total = 0, total_rss = 0, total_dirty = 0, writable = 0, shared = 0;
+  char *keep = xmalloc (count + 1);
+  /* -A keeps the mappings that overlap LOW..HIGH; -X and -XX ignore it,
+     and -x's RSS and Dirty totals count every mapping below HIGH, as
+     procps 4.0.4 does. */
+  for (size_t i = 0; i < count; i++)
+    keep[i] = o->mode == PMAP_XX || (maps[i].end > o->lo && maps[i].start <= o->hi);
+  if (o->mode == PMAP_XX) {
+    /* -X leaves out the page sizes, the clean/dirty split and THP;
+       -XX shows every smaps field and VmFlags. */
+    static const char *const brief[] = { "KernelPageSize", "MMUPageSize", "Shared_Clean",
+      "Shared_Dirty", "Private_Clean", "Private_Dirty", "AnonHugePages", NULL };
+    char *show = xmalloc (nkeys + 1);
+    for (size_t k = 0; k < nkeys; k++) {
+      show[k] = 1;
+      for (int b = 0; o->level < 2 && brief[b]; b++) if (!strcmp (keys[k], brief[b])) show[k] = 0;
+    }
+    uint64_t *sum = xmalloc ((nkeys + 1) * sizeof *sum); memset (sum, 0, (nkeys + 1) * sizeof *sum);
+    int *wk = xmalloc ((nkeys + 1) * sizeof *wk);
+    int wa = o->quiet ? 0 : 7, wo = o->quiet ? 0 : 6, wd = o->quiet ? 0 : 6, wi = o->quiet ? 0 : 5;
+    int wf = o->quiet ? 0 : 7;
+    char buf[32];
+    for (size_t i = 0; i < count; i++) {
+      if (!keep[i]) continue;
+      int n = snprintf (buf, sizeof buf, "%08"PRIx64, maps[i].start); if (n > wa) wa = n;
+      n = snprintf (buf, sizeof buf, "%08"PRIx64, maps[i].offset); if (n > wo) wo = n;
+      n = (int) strlen (maps[i].dev); if (n > wd) wd = n;
+      n = pmap_digits (maps[i].inode); if (n > wi) wi = n;
+      n = maps[i].flags ? (int) strlen (maps[i].flags) : 0; if (n > wf) wf = n;
+      for (size_t k = 0; k < nkeys; k++) sum[k] += maps[i].v[k];
+    }
+    for (size_t k = 0; k < nkeys; k++) {
+      wk[k] = o->quiet ? 0 : (int) strlen (keys[k]);
+      if (!o->quiet && pmap_digits (sum[k]) > wk[k]) wk[k] = pmap_digits (sum[k]);
+      for (size_t i = 0; i < count; i++)
+        if (keep[i] && pmap_digits (maps[i].v[k]) > wk[k]) wk[k] = pmap_digits (maps[i].v[k]);
+    }
+    int flags_col = o->level >= 2 && has_flags;
+    if (!o->quiet) {
+      printf ("%*s %4s %*s %*s %*s", wa, "Address", "Perm", wo, "Offset", wd, "Device", wi, "Inode");
+      for (size_t k = 0; k < nkeys; k++) if (show[k]) printf (" %*s", wk[k], keys[k]);
+      if (flags_col) printf (" %*s", wf, "VmFlags");
+      puts (" Mapping");
+    }
+    for (size_t i = 0; i < count; i++) {
+      if (!keep[i]) continue;
+      snprintf (buf, sizeof buf, "%08"PRIx64, maps[i].start);
+      printf ("%*s %4s", wa, buf, maps[i].perms);
+      snprintf (buf, sizeof buf, "%08"PRIx64, maps[i].offset);
+      printf (" %*s %*s %*"PRIu64, wo, buf, wd, maps[i].dev, wi, maps[i].inode);
+      for (size_t k = 0; k < nkeys; k++) if (show[k]) printf (" %*"PRIu64, wk[k], maps[i].v[k]);
+      if (flags_col) printf (" %*s", wf, maps[i].flags ? maps[i].flags : "");
+      printf (" %s\n", pmap_name (maps[i].name, o->path, 1));
+    }
+    if (!o->quiet) {
+      int lead = wa + 4 + wo + wd + wi + 5;
+      printf ("%*s", lead, "");
+      for (size_t k = 0; k < nkeys; k++) if (show[k]) {
+        for (int c = 0; c < wk[k]; c++) putchar ('=');
+        putchar (' ');
+      }
+      printf ("\n%*s", lead, "");
+      for (size_t k = 0; k < nkeys; k++) if (show[k]) printf ("%*"PRIu64" ", wk[k], sum[k]);
+      puts ("KB ");
+    }
+    free (show); free (sum); free (wk);
+  } else {
+    if (!o->quiet && o->mode == PMAP_X) puts ("Address           Kbytes     RSS   Dirty Mode  Mapping");
+    if (!o->quiet && o->mode == PMAP_D) puts ("Address           Kbytes Mode  Offset           Device    Mapping");
+    for (size_t i = 0; i < count; i++) {
+      struct pmap_map *m = &maps[i];
+      if (o->mode == PMAP_X && !keep[i] && m->start <= o->hi) {
+        total_rss += rss < nkeys ? m->v[rss] : 0;
+        total_dirty += (sd < nkeys ? m->v[sd] : 0) + (pd < nkeys ? m->v[pd] : 0);
+      }
+      if (!keep[i]) continue;
+      uint64_t kib = (m->end - m->start) / 1024;
+      /* rwx, s for a shared mapping, then - (no MAP_NORESERVE). */
+      char mode[6] = { m->perms[0], m->perms[1], m->perms[2], m->perms[3] == 's' ? 's' : '-', '-', 0 };
+      const char *shown = pmap_name (m->name, o->path, 0);
+      total += kib;
+      if (m->perms[3] == 's') shared += kib;
+      else if (m->perms[1] == 'w') writable += kib;
+      if (o->mode == PMAP_X) {
+        uint64_t r = rss < nkeys ? m->v[rss] : 0;
+        uint64_t d = (sd < nkeys ? m->v[sd] : 0) + (pd < nkeys ? m->v[pd] : 0);
+        total_rss += r; total_dirty += d;
+        printf ("%016"PRIx64" %7"PRIu64" %7"PRIu64" %7"PRIu64" %s %s\n", m->start, kib, r, d, mode, shown);
+      } else if (o->mode == PMAP_D)
+        printf ("%016"PRIx64" %7"PRIu64" %s %016"PRIx64" %03x:%05x %s\n", m->start, kib, mode, m->offset, m->major, m->minor, shown);
+      else
+        printf ("%016"PRIx64" %6"PRIu64"K %s %s\n", m->start, kib, mode, shown);
+    }
+    if (!o->quiet) {
+      if (o->mode == PMAP_X)
+        printf ("---------------- ------- ------- ------- \ntotal kB %15"PRIu64" %7"PRIu64" %7"PRIu64"\n", total, total_rss, total_dirty);
+      else if (o->mode == PMAP_D)
+        printf ("mapped: %"PRIu64"K    writeable/private: %"PRIu64"K    shared: %"PRIu64"K\n", total, writable, shared);
+      else
+        printf (" total %16"PRIu64"K\n", total);
+    }
+  }
+  free (keep);
+done:
+  for (size_t i = 0; i < count; i++) { free (maps[i].name); free (maps[i].flags); free (maps[i].v); }
+  free (maps);
+  for (size_t k = 0; k < nkeys; k++) free (keys[k]);
+  free (keys);
+  return result;
+}
+static int pmap_main (WORD_LIST *args)
+{
+  struct pmap_opts o = { PMAP_PLAIN, 0, 0, 0, 0, UINT64_MAX };
+  int any = args != NULL, modes = 0;
+  WORD_LIST *p = args;
+  for (; p; p = p->next) {
+    const char *w = p->word->word, *arg = NULL;
+    if (w[0] != '-' || !w[1]) break;
+    if (!strcmp (w, "--")) { p = p->next; break; }
+    if (w[1] == '-') {
+      const char *eq = strchr (w, '=');
+      size_t n = eq ? (size_t) (eq - w) : strlen (w);
+      static const char *const longs[] = { "--extended", "--device", "--quiet", "--show-path", "--range", "--help", "--version", NULL };
+      static const char shorts[] = "xdqpAhV";
+      int which = -1;
+      for (int i = 0; longs[i]; i++) if (strlen (longs[i]) == n && !strncmp (w, longs[i], n)) which = i;
+      if (which < 0) { fprintf (stderr, "pmap: unrecognized option '%s'\n", w); pmap_usage (stderr); return 1; }
+      if (shorts[which] == 'A') {
+        arg = eq ? eq + 1 : p->next ? (p = p->next)->word->word : NULL;
+        if (!arg) { fprintf (stderr, "pmap: option '--range' requires an argument\n"); pmap_usage (stderr); return 1; }
+      } else if (eq) { fprintf (stderr, "pmap: option '%.*s' doesn't allow an argument\n", (int) n, w); pmap_usage (stderr); return 1; }
+      w = shorts[which] == 'x' ? "-x" : shorts[which] == 'd' ? "-d" : shorts[which] == 'q' ? "-q"
+        : shorts[which] == 'p' ? "-p" : shorts[which] == 'h' ? "-h" : shorts[which] == 'V' ? "-V" : NULL;
+      if (!w) { if (pmap_range (arg, &o)) return 1; continue; }
+    }
+    for (const char *q = w + 1; *q; q++) {
+      switch (*q) {
+      case 'x': if (o.mode != PMAP_X) modes++; o.mode = PMAP_X; break;
+      case 'd': if (o.mode != PMAP_D) modes++; o.mode = PMAP_D; break;
+      case 'X': if (o.mode != PMAP_XX) modes++; o.mode = PMAP_XX; o.level++; break;
+      case 'q': o.quiet = 1; break;
+      case 'p': o.path = 1; break;
+      case 'h': pmap_usage (stdout); return 0;
+      case 'V': puts ("pmap (bash-os procstat), procps-ng 4.0.4 report shapes"); return 0;
+      case 'A':
+        arg = q[1] ? q + 1 : p->next ? (p = p->next)->word->word : NULL;
+        if (!arg) { fprintf (stderr, "pmap: option requires an argument -- 'A'\n"); pmap_usage (stderr); return 1; }
+        if (pmap_range (arg, &o)) return 1;
+        q = " ";   /* the rest of the word was the argument */
+        break;
+      case 'c': case 'C': case 'n': case 'N':
+        fprintf (stderr, "pmap: option -%c (pmap rc files) is not supported\n", *q); return 1;
+      default:
+        fprintf (stderr, "pmap: invalid option -- '%c'\n", *q); pmap_usage (stderr); return 1;
+      }
+      if (*q == ' ') break;
+    }
+    if (modes > 1) { fprintf (stderr, "pmap: options -c, -C, -d, -n, -N, -x, -X are mutually exclusive\n"); return 1; }
+  }
+  if (!p) {
+    if (!any) pmap_usage (stderr);
+    else fputs ("pmap: argument missing\n", stderr);
+    return 1;
+  }
+  for (WORD_LIST *q = p; q; q = q->next) {
+    const char *pid = q->word->word;
+    if (!strncmp (pid, "/proc/", 6)) pid += 6;
+    if (!proc_pid (pid)) { pmap_usage (stderr); return 1; }
+  }
+  int missing = 0, failed = 0;
+  for (; p; p = p->next) {
+    const char *pid = p->word->word;
+    if (!strncmp (pid, "/proc/", 6)) pid += 6;
+    char path[PATH_MAX]; struct stat st;
+    snprintf (path, sizeof path, "%s/%s", proc_root (), pid);
+    if (stat (path, &st) != 0) { missing = 1; continue; }
+    failed |= pmap_one (pid, &o);
+  }
+  return (missing ? 42 : 0) + failed;
 }
 static void proc_help (void)
 {
   puts ("procstat iostat [-cdx] | mpstat [-P ALL] | sar [-u] | pidstat [-p PID]\n"
-        "procstat prtstat [-r] PID... | pmap [-x] PID... | pldd PID\n"
+        "procstat prtstat [-r] PID... | pldd PID\n"
+        "procstat pmap [-x|-X|-XX|-d] [-qp] [-A LOW[,HIGH]] PID...\n"
         "Linux snapshots. CPU/disk averages are since boot; process CPU averages\n"
         "are since process start. iostat prints sysstat's avg-cpu (-c), device\n"
-        "(-d) and extended device (-x) reports. pmap prints procps's report;\n"
-        "pmap -x adds file offsets; pldd lists mapped shared-object paths.\n"
+        "(-d) and extended device (-x) reports. pmap prints procps's reports\n"
+        "(-x RSS/Dirty, -X/-XX smaps, -d devices); pldd lists mapped .so paths.\n"
         "BASHOS_PROC_ROOT selects an alternate proc tree.");
 }
 int procstat_builtin (WORD_LIST *list)
@@ -420,6 +715,11 @@ int procstat_builtin (WORD_LIST *list)
   clearerr (stdout);
   if (!list) { proc_help (); return EX_USAGE; }
   const char *verb = list->word->word; WORD_LIST *args = list->next;
+  if (!strcmp (verb, "pmap")) {
+    int status = pmap_main (args);
+    if (fflush (stdout) == EOF || ferror (stdout)) status = status ? status : 1;
+    return status;
+  }
   if (!strcmp (verb, "--help") || (args && (!strcmp (args->word->word, "--help") || !strcmp (args->word->word, "-h")))) {
     proc_help (); return 0;
   }
@@ -433,16 +733,15 @@ int procstat_builtin (WORD_LIST *list)
   } else if (!strcmp (verb, "pidstat")) {
     if (!args) result = proc_pidstat (NULL);
     else if (!strcmp (args->word->word, "-p") && args->next && !args->next->next && proc_pid (args->next->word->word)) result = proc_pidstat (args->next->word->word);
-  } else if (!strcmp (verb, "prtstat") || !strcmp (verb, "pmap") || !strcmp (verb, "pldd")) {
-    int raw = 0, extended = 0, libraries = !strcmp (verb, "pldd");
+  } else if (!strcmp (verb, "prtstat") || !strcmp (verb, "pldd")) {
+    int raw = 0, libraries = !strcmp (verb, "pldd");
     if (args && !strcmp (verb, "prtstat") && !strcmp (args->word->word, "-r")) { raw = 1; args = args->next; }
-    if (args && !strcmp (verb, "pmap") && !strcmp (args->word->word, "-x")) { extended = 1; args = args->next; }
     int valid = args != NULL && (!libraries || !args->next);
     for (WORD_LIST *p = args; p; p = p->next) if (!proc_pid (p->word->word)) valid = 0;
     if (valid) {
       result = 0;
       for (WORD_LIST *p = args; p; p = p->next)
-        result |= !strcmp (verb, "prtstat") ? proc_task (p->word->word, raw, 0, 0, 0) : proc_maps (p->word->word, extended, libraries);
+        result |= !strcmp (verb, "prtstat") ? proc_task (p->word->word, raw, 0, 0, 0) : proc_maps (p->word->word);
     }
   }
   if (result == EX_USAGE) builtin_usage ();
@@ -453,7 +752,7 @@ char *procstat_doc[] = {
   "Linux CPU, disk, process, and mapping snapshots (procstat --help for options).",
   "CPU/disk counters are averaged since boot; process CPU usage since start.",
   "iostat -c/-d/-x print sysstat's reports; pmap prints procps's report.",
-  "prtstat -r emits raw stat; pmap -x adds offsets; pldd lists mapped .so paths.",
+  "prtstat -r emits raw stat; pmap -x/-X/-XX/-d/-q/-p/-A as procps; pldd: .so paths.",
   "BASHOS_PROC_ROOT selects the proc tree. No interval or history collection.",
   (char *) NULL
 };

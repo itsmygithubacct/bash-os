@@ -13,7 +13,8 @@
     "A decreasing range's expected failure status and diagnostic presence",
     "Unambiguous long-option prefixes after a file operand",
     "The documented -a ARRAY output-line mapping",
-    "Bash type/help metadata for the cut builtin"
+    "Bash type/help metadata for the cut builtin",
+    "Guest compatibility pass 6 (G90): GNU diagnostic wording for operand and usage errors."
   ],
   "exclusions": [
     "No exhaustive option parser or range grammar fuzzing; the cases target representative selection, boundary, and error behavior.",
@@ -156,6 +157,19 @@
       "expected_status": 0,
       "stdout": "<b>\n<d>\n",
       "stderr": "empty"
+    },
+    {
+      "id": "pass6-try-help",
+      "kind": "parity",
+      "purpose": "G90: usage errors end with coreutils' \"Try 'cut --help' for more information.\" line; a missing file keeps GNU's bare-name diagnostic.",
+      "script": "printf 'a:b\\n' > f\n{ cut f || echo rc=$?; } 2>err\n{ cut -f || echo rc=$?; } 2>>err\n{ cut -b 1 -f 1 f || echo rc=$?; } 2>>err\n{ cut --bogus || echo rc=$?; } 2>>err\n{ cut -d ab -f1 f || echo rc=$?; } 2>>err\n{ cut -s -b 1 f || echo rc=$?; } 2>>err\n{ cut -b 0 f || echo rc=$?; } 2>>err\n{ cut -f 1 nosuch f || echo rc=$?; } 2>>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "cut",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

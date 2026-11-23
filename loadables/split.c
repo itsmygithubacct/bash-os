@@ -763,7 +763,13 @@ invalid_start:
     }
     if (list) { input = list->word->word; list = list->next; }
     if (list) { prefix = list->word->word; list = list->next; }
-    if (list) { builtin_error ("split: extra argument: %s", list->word->word); builtin_usage (); return EXECUTION_FAILURE; }
+    if (list) {
+        char *q = bos_quote (list->word->word);
+        builtin_error ("extra operand %s", q ? q : list->word->word);
+        free (q);
+        lon_try_help ();
+        return EXECUTION_FAILURE;
+    }
 
     if (numeric) {
         long capacity = 1;
@@ -777,7 +783,13 @@ invalid_start:
     int from_stdin = !input || !strcmp (input, "-");
     FILE *fin = from_stdin ? bs_open_stdin () : fopen (input, "r");
     if (!fin) {
-        if (!from_stdin) builtin_error ("%s: %s", input, strerror (errno));
+        if (!from_stdin) {
+            /* GNU: split: cannot open 'NAME' for reading: REASON */
+            int error = errno;
+            char *q = bos_quoteaf (input);
+            builtin_error ("cannot open %s for reading: %s", q ? q : input, strerror (error));
+            free (q);
+        }
         return EXECUTION_FAILURE;
     }
 
@@ -943,7 +955,15 @@ invalid_start:
     }
 
     if (ferror (fin)) {
-        builtin_error ("read %s: %s", input ? input : "stdin", strerror (errno ? errno : EIO));
+        /* GNU names the input ("-" for standard input): split: DIR: Is a directory */
+        int error = errno ? errno : EIO;
+        const char *name = from_stdin ? "-" : input;
+        int plain = name[0] && strspn (name, "abcdefghijklmnopqrstuvwxyz"
+                                        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_./+-,@%^")
+                                == strlen (name);
+        char *q = plain ? NULL : bos_quoteaf (name);
+        builtin_error ("%s: %s", q ? q : name, strerror (error));
+        free (q);
         rc = EXECUTION_FAILURE;
     }
     if (fclose (fin) == EOF) {

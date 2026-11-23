@@ -11,7 +11,8 @@
     "A failed output open is reported while healthy outputs still receive input",
     "Invalid option and closed-stdin error statuses",
     "Bash builtin availability and documented help metadata",
-    "Guest compatibility pass 5 (G74/G83): pass5-long-append, pass5-p-survives-closed-stdout, pass5-output-error-modes."
+    "Guest compatibility pass 5 (G74/G83): pass5-long-append, pass5-p-survives-closed-stdout, pass5-output-error-modes.",
+    "Guest compatibility pass 6 (G90): pass6-open-read-diagnostics, pass6-quote-when-needed."
   ],
   "exclusions": [
     "SIGINT behavior for -i is deferred because this runner has no controlled per-process signal scheduler.",
@@ -171,6 +172,34 @@
         "tee",
         "sed"
       ]
+    },
+    {
+      "id": "pass6-open-read-diagnostics",
+      "kind": "parity",
+      "purpose": "G90: GNU tee names an unopenable file first (quoted only when needed) and reports a read error as 'tee: read error: REASON'.",
+      "script": "mkdir d\n{ tee nosuchdir/x < /dev/null || echo rc=$?; } 2>err\n{ tee 'a b/c' < /dev/null || echo rc=$?; } 2>>err\n{ tee d < /dev/null || echo rc=$?; } 2>>err\n{ tee < d || echo rc=$?; } 2>>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "tee",
+        "mkdir",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass6-quote-when-needed",
+      "kind": "parity",
+      "purpose": "G90: GNU tee leaves a file name bare unless a character needs shell quoting (space, $, ', :, =, a leading # or ~, a control byte); a name with an apostrophe and nothing else goes in double quotes.",
+      "script": "{ tee -- -a/x 'a]b/x' '%+@,}/x' '#a/x' 'a#~/x' '~a/x' 'a=b/x' 'a:b/x' \"a'b/x\" 'a\"b/x' \"$(printf 'a\\tb')/x\" < /dev/null || echo rc=$?; } 2>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "tee",
+        "printf",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

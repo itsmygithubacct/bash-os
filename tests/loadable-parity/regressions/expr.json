@@ -3,7 +3,8 @@
   "loadable": "expr",
   "reference": "GNU coreutils expr (Debian, built with GMP).",
   "coverage": [
-    "Guest compatibility pass 5 regressions (G74/G83), pass5-keyword-operands, pass5-syntax-and-regex-diagnostics, pass5-bignum-division-and-truth."
+    "Guest compatibility pass 5 regressions (G74/G83), pass5-keyword-operands, pass5-syntax-and-regex-diagnostics, pass5-bignum-division-and-truth.",
+    "Guest pass 6 G97: length, substr, index and ':' count characters in a UTF-8 locale and bytes in C."
   ],
   "exclusions": [],
   "cases": [
@@ -85,6 +86,18 @@
       "requires": [
         "expr"
       ]
+    },
+    {
+      "id": "pass6-multibyte-string-functions",
+      "kind": "parity",
+      "purpose": "G97: in a UTF-8 locale length, substr, index and the ':' match length count characters (a byte that starts no valid sequence is one character, and index matches it only to the same byte); in the C locale they count bytes.",
+      "script": "x=$(printf 'a\\377b\\303')\nrun() { for e in 'length éa' 'length é€😀' 'substr éab 2 1' 'substr é€😀z 2 2' 'index aé€b €x' 'index éab a' 'é : .' 'é€😀z : .*' 'é€😀z : \\(..\\)' 'aéb : a.' 'match ééé é*' 'substr éé 2 5' \"length $x\" \"substr $x 2 1\" \"$x : .*\" \"index a$(printf '\\377')b $(printf '\\377')\" \"index a$(printf '\\303')b $(printf '\\303\\251')\" \"index é $(printf '\\303')\" 'substr abc 0 1'; do set -f; r=$(expr $e) && rc=0 || rc=$?; printf '[%s] rc=%s\\n' \"$r\" $rc; set +f; done; }\nexport LC_ALL=C.UTF-8; echo utf8; run\nexport LC_ALL=C; echo C; run",
+      "requires": [
+        "expr",
+        "printf"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

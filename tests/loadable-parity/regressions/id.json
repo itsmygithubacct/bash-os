@@ -8,7 +8,8 @@
     "Current all-groups and default identity formatting match GNU id.",
     "Named-user scalar selectors, complete identity output and all-groups behavior are checked.",
     "An unknown account produces GNU-compatible failure status and a diagnostic.",
-    "Regression checks expand aliases, end-of-options, option ordering and invalid/extra-operand statuses; banners use content/identity invariants."
+    "Regression checks expand aliases, end-of-options, option ordering and invalid/extra-operand statuses; banners use content/identity invariants.",
+    "Guest compatibility pass 6 (G90): pass6-unknown-user-quoting, pass6-unknown-user-utf8-quotes."
   ],
   "exclusions": [
     "Distinct real/effective UID or GID values are not available in the provided fixture runner.",
@@ -474,6 +475,32 @@
       ],
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "pass6-unknown-user-quoting",
+      "kind": "parity",
+      "purpose": "G90: GNU id quotes an unknown user name with the locale's quotes ('nosuch', 'a\\'b') and uses getopt's invalid-option line with the Try line.",
+      "script": "{ id nosuch || echo rc=$?; } 2>err\n{ id \"a'b\" || echo rc=$?; } 2>>err\n{ id -x || echo rc=$?; } 2>>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "id",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass6-unknown-user-utf8-quotes",
+      "kind": "parity",
+      "purpose": "G90: under a UTF-8 locale GNU id quotes an unknown user name with U+2018/U+2019, leaving an apostrophe inside as is.",
+      "script": "{ LC_ALL=C.UTF-8 id nosuch || echo rc=$?; } 2>err\n{ LC_ALL=C.UTF-8 id \"a'b\" || echo rc=$?; } 2>>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "id",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

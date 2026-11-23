@@ -1,12 +1,17 @@
 --- builtins/tee.c
 +++ builtins/tee.c
-@@ -42,4 +42,5 @@
+@@ -41,6 +41,9 @@
+ #include "../shell.h"
  #include "bashgetopt.h"
  #include "common.h"
 +#include "../unwind_prot.h"
++#include "gnu-quote.h"
++#include "shim-prog-name.h"
  
  #if !defined (errno)
-@@ -58,41 +59,184 @@
+ extern int errno;
+@@ -57,49 +60,224 @@
+ #define TEE_BUFSIZE	8192
  
  extern int interrupt_immediately;
 +extern char *this_command_name;
@@ -34,7 +39,39 @@
 +static void
 +tee_try_help (void)
 +{
-+  fprintf (stderr, "Try '%s --help' for more information.\n", this_command_name);
++  bos_shim_try_help ("tee");
++}
++
++/* A file name as GNU tee prints it: bare unless it holds a character the
++   shell would act on (space, $, ', :, =, ...), a leading # or ~, or a byte
++   that is not a printable character; then quoted like bos_quoteaf. */
++static char *
++tee_quotef (const char *name)
++{
++  size_t length = strlen (name), i, n;
++  mbstate_t state;
++  int printable;
++
++  memset (&state, 0, sizeof state);
++  if (length == 0 || name[0] == '#' || name[0] == '~')
++    return bos_quoteaf (name);
++  for (i = 0; i < length; i += n)
++    {
++      unsigned char c = (unsigned char) name[i];
++      n = bos_quote_next (name + i, length - i, &state, &printable);
++      if (!printable || (c < 0x80 && strchr (" !\"$&'()*:;<=>?[\\^`|", c)))
++        return bos_quoteaf (name);
++    }
++  return savestring (name);
++}
++
++/* "tee: NAME: REASON", NAME as tee_quotef gives it. */
++static void
++tee_file_error (const char *name, int error)
++{
++  char *q = tee_quotef (name);
++  builtin_error ("%s: %s", q ? q : name, strerror (error));
++  free (q);
 +}
 +
 +/* Index of NAME[0..LEN) in the NULL-terminated TABLE: exact or unique
@@ -207,7 +244,25 @@
 +
    buf = xmalloc (TEE_BUFSIZE);
  
-@@ -124,24 +268,64 @@
+   /* Initialize output file list. */
+   fl = tee_flist = (FLIST *)xmalloc (sizeof(FLIST));
+   tee_flist->fd = 1;
+-  tee_flist->fname = "stdout";
++  tee_flist->fname = "standard output";
+   tee_flist->next = (FLIST *)NULL;
+ 
+   /* Add file arguments to list of output files. */
+@@ -109,7 +287,7 @@
+       fd = open (list->word->word, fflags, 0666);
+       if (fd < 0)
+         {
+-          builtin_error ("%s: cannot open: %s", list->word->word, strerror (errno));
++          tee_file_error (list->word->word, errno);
+           rval = EXECUTION_FAILURE;
+         }
+       else
+@@ -123,42 +301,81 @@
+       QUIT;
      }
  
 -  while ((nr = read(0, buf, TEE_BUFSIZE)) > 0)
@@ -259,11 +314,8 @@
 +		  int werr = errno;
 +		  int fail = mode == TEE_SIGPIPE || werr != EPIPE
 +			     || mode == TEE_WARN || mode == TEE_EXIT;
-+		  if (mode == TEE_SIGPIPE)
-+		    builtin_error ("%s: write error: %s", fl->fname, strerror (werr));
-+		  else if (fail)
-+		    builtin_error ("%s: %s", fl->fd == 1 ? "standard output" : fl->fname,
-+				   strerror (werr));
++		  if (fail)
++		    tee_file_error (fl->fname, werr);
 +		  if (fail)
 +		    rval = EXECUTION_FAILURE;
 +		  if (fl->fd != 1)
@@ -291,14 +343,19 @@
 +    }
  
    /* Deallocate resources -- this is a builtin command. */
-@@ -150,5 +334,5 @@
+   tee_flist = tee_flist->next;		/* skip bogus close of stdout */
+   while (tee_flist)
      {
        fl = tee_flist;
 -      if (close (fl->fd) < 0)
 +      if (fl->fd >= 0 && close (fl->fd) < 0)
  	{
- 	  builtin_error ("%s: close_error: %s", fl->fname, strerror (errno));
-@@ -159,5 +343,7 @@
+-	  builtin_error ("%s: close_error: %s", fl->fname, strerror (errno));
++	  tee_file_error (fl->fname, errno);
+ 	  rval = EXECUTION_FAILURE;
+ 	}
+       tee_flist = tee_flist->next;
+       free (fl);
      }
  
 -  QUIT;  
@@ -307,7 +364,9 @@
 +  QUIT;
    return (rval);
  }
-@@ -170,4 +356,11 @@
+ 
+@@ -169,6 +386,13 @@
+ 	"filename argument.  If the `-a' option is given, the specified",
  	"files are appended to, otherwise they are overwritten.  If the",
  	"`-i' option is supplied, tee ignores interrupts.",
 +	"",
@@ -319,7 +378,9 @@
 +	"Long options take any unambiguous prefix.",
  	(char *)NULL
  };
-@@ -178,5 +371,5 @@
+ 
+@@ -177,6 +401,6 @@
+ 	tee_builtin,		/* function implementing the builtin */
  	BUILTIN_ENABLED,	/* initial flags for builtin */
  	tee_doc,		/* array of long documentation strings. */
 -	"tee [-ai] [file ...]",	/* usage synopsis; becomes short_doc */

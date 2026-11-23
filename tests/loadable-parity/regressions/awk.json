@@ -21,7 +21,8 @@
     "RS paragraph, single-character and regex modes (G22).",
     "VAR=VALUE operands, -v escapes and array parameters by reference (G23).",
     "G64: block-buffered stdout and redirected files when not a tty, flushed before system(), command pipes, getline from a command, fflush(), close() and at exit.",
-    "G75: NUL bytes in records, fields, strings, regex matching, printf, gsub/sub, split, array subscripts and regex RS (gawk keeps them)."
+    "G75: NUL bytes in records, fields, strings, regex matching, printf, gsub/sub, split, array subscripts and regex RS (gawk keeps them).",
+    "G87: NUL bytes in program strings and escapes, -v/-F/operand values, RS, FS, split(), gsub(), regex literals and OFS/ORS/SUBSEP; parenthesized print/printf argument lists."
   ],
   "exclusions": [
     "RT is outside the implementation's documented scope.",
@@ -364,6 +365,72 @@
         "gawk"
       ],
       "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nawk_cmd 'BEGIN { s = sprintf(\"%2000s\", \"x\"); print length(s); t = sprintf(\"%s\", s s); print length(t) }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-program-string-literals",
+      "kind": "parity",
+      "purpose": "G87: \"\\0\", \"\\000\" and \"\\x00\" in the program are one NUL byte: length(\"\\0\") is 1 and \"a\\0b\" keeps all three bytes through print, printf formats, concatenation, comparison, substr, toupper, truth tests, array subscripts and sub() replacements (they used to end the string).",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nawk_cmd 'BEGIN { print length(\"\\0\"), length(\"a\\0b\"), length(\"\\000\"), length(\"a\\x00b\"), length(\"\\0001\") }'\nawk_cmd 'BEGIN { print \"a\\0b\"; printf \"x\\0y\\n\"; printf \"%s|%5s|\\n\", \"a\\0b\", \"c\\0d\" }'\nawk_cmd 'BEGIN { s = \"a\\0\" \"b\"; print length(s), s; print (\"a\\0b\" == \"a\"), (\"a\\0b\" > \"a\"), (\"\\0\" == \"\") }'\nawk_cmd 'BEGIN { print substr(\"a\\0bc\", 2, 2); print toupper(\"a\\0b\"), tolower(\"A\\0B\"); if (\"\\0\") print \"true\" }'\nawk_cmd 'BEGIN { a[\"x\\0y\"] = 1; a[\"x\"] = 2; n = 0; for (k in a) n++; print n, (\"x\\0y\" in a), (\"x\\0z\" in a) }'\nawk_cmd 'BEGIN { print index(\"a\\0b\", \"b\"), index(\"abc\", \"\\0\"), length(sprintf(\"%s%c%s\", \"a\", 0, \"b\")) }'\nprintf 'ab\\n' | awk_cmd '{ sub(/a/, \"\\0\"); print }'\nawk_cmd -v s='a\\0b' 'BEGIN { print length(s) }'\necho | awk_cmd '{ print length(s) }' s='a\\0b'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-record-separator",
+      "kind": "parity",
+      "purpose": "G87: RS can be a NUL byte, written as -v RS='\\0', RS = \"\\0\" or RS = sprintf(\"%c\", 0), so `find -print0 | awk -v RS='\\0'` sees one record per name; a two-byte RS of NULs is a regex (gawk). It used to read the whole input as one record.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf 'a\\0b\\0' | awk_cmd -v RS='\\0' 'END { print NR }'\nprintf './a\\0./b c\\0' | awk_cmd -v RS='\\0' '{ print NR \": \" $0 }'\nprintf 'a\\0b\\0' | awk_cmd 'BEGIN { RS = sprintf(\"%c\", 0) } { print NR \":\" $0 }'\nprintf 'a\\0b\\0c' | awk_cmd 'BEGIN { RS = \"\\0\" } { print NR \":\" $0 }'\nprintf 'a\\0\\0b' | awk_cmd 'BEGIN { RS = \"\\0\\0\" } { print NR \":\" $0 }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-field-separator-and-split",
+      "kind": "parity",
+      "purpose": "G87: FS, -F and split() separators can be a NUL byte (-F '\\0', FS = \"\\0\", FS = sprintf(\"%c\", 0), -F '[\\0]', split(s, a, \"\\0\") and split(s, a, /\\0/)); -F decodes escapes such as '\\t' as gawk does. Assigning a field rebuilds $0 with OFS.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf 'a\\0b\\n' | awk_cmd -F '\\0' '{ print $2, NF }'\nprintf 'a\\0b\\0c\\n' | awk_cmd 'BEGIN { FS = sprintf(\"%c\", 0) } { print $2, NF }'\nprintf 'a\\0b\\0c\\n' | awk_cmd 'BEGIN { FS = \"\\0\" } { print $3, NF; $2 = \"X\"; print }'\nprintf 'p\\0q\\n' | awk_cmd -F '\\0' -v OFS=: '{ $1 = $1 } 1'\nprintf 'x\\0y\\n' | awk_cmd -F '[\\0]' '{ print $2 }'\nprintf 'a\\tb\\n' | awk_cmd -F '\\t' '{ print $2 }'\nprintf 'a\\0b\\n' | awk_cmd '{ print split($0, x, \"\\0\"), x[2]; print split($0, y, /\\0/), y[2] }'\nawk_cmd 'BEGIN { print split(\"a\\0b\\0c\", x, \"\"); FS = \"\\0\"; print split(\"u\\0v\", y), y[2] }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-regex-escapes-and-gsub",
+      "kind": "parity",
+      "purpose": "G87: regex literals decode awk escapes as gawk does (/\\0/ and /a\\0b/ match a NUL byte, /a\\tb/ a tab, /a\\x58b/ an X), and gsub(), match() and ~ accept a NUL pattern written as \"\\0\" or /\\0/.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf 'a\\0b\\n' | awk_cmd '{ gsub(/\\0/, \"-\"); print }'\nprintf 'a\\0b\\n' | awk_cmd '{ gsub(\"\\0\", \"-\"); print }'\nprintf 'xa\\0b\\n' | awk_cmd '{ print match($0, /\\0/), RSTART, RLENGTH }'\nprintf 'a\\0b\\n' | awk_cmd '$0 ~ \"\\0\" { print \"string\" } /a\\0b/ { print \"literal\" }'\nprintf 'a\\tb\\naXb\\n' | awk_cmd '/a\\tb/ { print \"tab\" } /a\\x58b/ { print \"hex\" }'\nawk_cmd 'BEGIN { s = \"a\\0b\"; n = gsub(/[^a-z]/, \"_\", s); print n, s }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-output-separators",
+      "kind": "parity",
+      "purpose": "G87: OFS, ORS and SUBSEP can hold NUL bytes, assigned in the program or with -v, and print writes them in full.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nawk_cmd 'BEGIN { OFS = \"\\0\"; print \"a\", \"b\" }'\nawk_cmd 'BEGIN { ORS = \"\\0\"; print \"a\"; print \"b\" }'\nprintf 'a b\\n' | awk_cmd -v OFS='\\0' '{ $1 = $1; print }'\nprintf 'a\\n' | awk_cmd -v ORS='\\0' '{ print }'\nawk_cmd 'BEGIN { SUBSEP = \"\\0\"; a[1, 2] = 1; for (k in a) print length(k); if ((1, 2) in a) print \"in\" }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "print-printf-parenthesized-lists",
+      "kind": "parity",
+      "purpose": "Found alongside G87: printf (FMT, ARGS...) and print (A, B) with the argument list in parentheses used to fail with \"(subscript list) is only valid before 'in'\"; (A, B) in ARRAY and a parenthesized first operand such as print (1)+2 keep their meaning.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nawk_cmd 'BEGIN { printf(\"%5s|\\n\", \"ab\"); printf (\"%s-%s\\n\", \"a\", \"b\"); print(\"a\", \"b\") }'\nprintf 'a b\\n' | awk_cmd '{ printf(\"%s:%s\\n\", $2, $1) }'\nawk_cmd 'BEGIN { printf(\"%s %s\\n\", \"x\", \"y\") > \"o\"; close(\"o\"); getline l < \"o\"; print l }'\nawk_cmd 'BEGIN { a[1, 2] = 3; print (1, 2) in a; print (1)+2, 3; print (\"a\")(\"b\"); x = 2; print (x > 1 ? \"big\" : \"small\"), \"z\" }'",
       "expected_status": 0,
       "stderr": "empty"
     }

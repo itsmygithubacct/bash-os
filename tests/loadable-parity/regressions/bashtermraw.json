@@ -7,7 +7,8 @@
     "Bash help exposes the documented subcommand descriptions and terminal I/O contract.",
     "Bash short help exposes the complete advertised subcommand synopsis.",
     "Deferred PTY behavior covers termios transitions, state serialization, key decoding, terminal output, and reset recovery.",
-    "bashtermraw stty error paths that need no terminal: not-a-tty, invalid and missing arguments, asymmetric speeds, output-style conflicts."
+    "bashtermraw stty error paths that need no terminal: not-a-tty, invalid and missing arguments, asymmetric speeds, output-style conflicts.",
+    "G91: bashtermraw clear as the shim's clear command matches ncurses clear."
   ],
   "exclusions": [
     "No matching GNU bashtermraw executable exists, so no fake GNU parity cases are included; only the stty subcommand, which implements GNU stty, is compared with GNU stty.",
@@ -137,6 +138,18 @@
       "script": "if ! type -P stty >/dev/null; then stty() { bashtermraw stty \"$@\"; }; fi\nstty -cs8 </dev/null",
       "expected_status": 1,
       "stderr": "exact"
+    },
+    {
+      "id": "g91-shim-clear-is-ncurses-clear",
+      "kind": "parity",
+      "requires": [
+        "clear",
+        "od"
+      ],
+      "purpose": "G91: run by the /bin shim as clear (an unexported BASHOS_SHIM_COMMAND=bashtermraw=clear), bashtermraw clear behaves as ncurses clear: the sequence for the environment's TERM or -T TERM goes to stdout without a terminal, -x keeps scrollback, an unexported TERM counts as unset, and unknown terminals fail with ncurses' message. The reference arm runs ncurses clear.",
+      "script": "c() {\n  if [[ $(type -t bashtermraw) == builtin ]]; then\n    local BASHOS_SHIM_COMMAND=bashtermraw=clear\n    bashtermraw clear \"$@\"\n  else\n    clear \"$@\"\n  fi\n}\nfor t in xterm xterm-256color linux vt100 screen-256color; do\n  TERM=$t; export TERM\n  c > o1; c -x > o2\n  od -An -c o1 o2\ndone\nexport TERM=xterm\nc -T linux | od -An -c\nc -xTscreen-256color | od -An -c\n(TERM=nosuchterm; export TERM; c 2>&1 || echo rc=$?)\n(unset TERM; c 2>&1 || echo rc=$?)\n(export -n TERM; c 2>&1 || echo rc=$?)\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

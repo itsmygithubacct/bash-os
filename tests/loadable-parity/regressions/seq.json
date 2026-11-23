@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "loadable": "seq",
+  "reference": "GNU coreutils 9.7 seq, invoked by system Bash on the reference side; stderr is compared byte for byte after the shell's script-line prefix is removed.",
+  "coverage": [
+    "Guest compatibility pass 6 (G90): GNU diagnostic wording for operand and usage errors."
+  ],
+  "exclusions": [
+    "Only diagnostics are covered here; the reviewed suite in suites/ covers ordinary operation."
+  ],
+  "cases": [
+    {
+      "id": "pass6-try-help",
+      "kind": "parity",
+      "purpose": "G90: usage errors end with coreutils' \"Try 'seq --help' for more information.\" line, not bash's usage synopsis.",
+      "script": "{ seq || echo rc=$?; } 2>err\n{ seq a || echo rc=$?; } 2>>err\n{ seq 1 2 3 4 || echo rc=$?; } 2>>err\n{ seq --bogus || echo rc=$?; } 2>>err\n{ seq 1 0 2 || echo rc=$?; } 2>>err\n{ seq -s || echo rc=$?; } 2>>err\n{ seq -w -f %g 1 || echo rc=$?; } 2>>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "seq",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
+    }
+  ]
+}

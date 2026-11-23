@@ -14,7 +14,8 @@
     "GNU argument-error statuses for missing values, invalid values and unknown options.",
     "Calendar timestamps at epoch second -1, in UTC and a fixed local timezone.",
     "-h rejects missing operands without creation, -ch ignores them, and later operands still update.",
-    "Guest pass 4 G57: touch -d shares date's parser, with TZ=\"ZONE\" prefixes and zone-plus-offset items."
+    "Guest pass 4 G57: touch -d shares date's parser, with TZ=\"ZONE\" prefixes and zone-plus-offset items.",
+    "Guest compatibility pass 6 (G90): GNU diagnostic wording for operand and usage errors."
   ],
   "exclusions": [
     "This suite does not exhaustively cover GNU natural-language date parsing, every long-option spelling, fractional precision beyond nanoseconds, inaccessible filesystems, or all error diagnostics.",
@@ -373,6 +374,19 @@
       "script": "export TZ=UTC0\ntouch -d 'TZ=\"UTC+5\" 2024-01-01 00:00' a\ntouch -d '2024-01-01 00:00 UTC+3' b\ntouch -d '2024-01-01 00:00 UTC-0500' c\nstat -c '%n %Y' a b c",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass6-diagnostics",
+      "kind": "parity",
+      "purpose": "G90: GNU touch wording: invalid date format 'X' (no usage line), cannot touch 'F' for an uncreatable file, failed to get attributes of a missing -r file, setting times of a missing -h operand, getopt diagnostics with the Try line and --time's argument list. Nothing is created.",
+      "script": "{ touch -d xx f || echo rc=$?; } 2>err\n{ touch -t 1 f || echo rc=$?; } 2>>err\n{ touch -d 'a b' f || echo rc=$?; } 2>>err\n{ touch nosuchdir/f || echo rc=$?; } 2>>err\n{ touch -r nosuch f || echo rc=$?; } 2>>err\n{ touch -h nosuch || echo rc=$?; } 2>>err\n{ touch || echo rc=$?; } 2>>err\n{ touch -x f || echo rc=$?; } 2>>err\n{ touch --bogus f || echo rc=$?; } 2>>err\n{ touch -t || echo rc=$?; } 2>>err\n{ touch --time=x f || echo rc=$?; } 2>>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "touch",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

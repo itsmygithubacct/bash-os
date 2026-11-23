@@ -37,6 +37,15 @@
 #include <math.h>
 #include "loadables.h"
 
+#include "shim-prog-name.h"
+
+/* coreutils' usage (EXIT_FAILURE) line, in place of bash's usage line. */
+static void
+seq_try_help (void)
+{
+  bos_shim_try_help ("seq");
+}
+
 #define SEQ_BLOCK 65536         /* output is written in blocks of this size */
 #define SEQ_PREC_MAX (1 << 20)  /* decimals asked for by an exponent, capped */
 #define SEQ_INT_MAX (1LL << 62) /* the 64-bit counter stays exact below this */
@@ -437,7 +446,7 @@ seq_builtin (WORD_LIST *list)
           const char *val = 0;
           if (n && strncmp ("equal-width", name, n) == 0)
             {
-              if (eq) { builtin_error ("option '--equal-width' doesn't allow an argument"); builtin_usage (); return EXECUTION_FAILURE; }
+              if (eq) { builtin_error ("option '--equal-width' doesn't allow an argument"); seq_try_help (); return EXECUTION_FAILURE; }
               wflag = 1; continue;
             }
           if (n && strncmp ("help", name, n) == 0) { builtin_help (); return EXECUTION_SUCCESS; }
@@ -445,11 +454,11 @@ seq_builtin (WORD_LIST *list)
             {
               if (eq) val = eq + 1;
               else if (l->next) { l = l->next; val = l->word->word; }
-              else { builtin_error ("option '%s' requires an argument", w); builtin_usage (); return EXECUTION_FAILURE; }
+              else { builtin_error ("option '%s' requires an argument", w); seq_try_help (); return EXECUTION_FAILURE; }
               if (name[0] == 'f') fmt = val; else sep = val;
               continue;
             }
-          builtin_error ("unrecognized option '%s'", w); builtin_usage (); return EXECUTION_FAILURE;
+          builtin_error ("unrecognized option '%s'", w); seq_try_help (); return EXECUTION_FAILURE;
         }
       for (p = w + 1; *p; p++)
         {
@@ -459,23 +468,23 @@ seq_builtin (WORD_LIST *list)
               const char *val;
               if (p[1]) val = p + 1;
               else if (l->next) { l = l->next; val = l->word->word; }
-              else { builtin_error ("option requires an argument -- '%c'", *p); builtin_usage (); return EXECUTION_FAILURE; }
+              else { builtin_error ("option requires an argument -- '%c'", *p); seq_try_help (); return EXECUTION_FAILURE; }
               if (*p == 'f') fmt = val; else sep = val;
               break;
             }
-          builtin_error ("invalid option -- '%c'", *p); builtin_usage (); return EXECUTION_FAILURE;
+          builtin_error ("invalid option -- '%c'", *p); seq_try_help (); return EXECUTION_FAILURE;
         }
     }
   for (; l; l = l->next)
     {
-      if (nargs == 3) { builtin_error ("extra operand '%s'", l->word->word); builtin_usage (); return EXECUTION_FAILURE; }
+      if (nargs == 3) { builtin_error ("extra operand '%s'", l->word->word); seq_try_help (); return EXECUTION_FAILURE; }
       args[nargs++] = l->word->word;
     }
-  if (nargs == 0) { builtin_error ("missing operand"); builtin_usage (); return EXECUTION_FAILURE; }
+  if (nargs == 0) { builtin_error ("missing operand"); seq_try_help (); return EXECUTION_FAILURE; }
   if (fmt && wflag)
     {
       builtin_error ("format string may not be specified when printing equal width strings");
-      builtin_usage (); return EXECUTION_FAILURE;
+      seq_try_help (); return EXECUTION_FAILURE;
     }
   if (fmt && (lfmt = seq_format (fmt, &pre, &suf)) == 0) return EXECUTION_FAILURE;
 
@@ -546,7 +555,7 @@ seq_builtin (WORD_LIST *list)
 
 usage:
   free (lfmt);
-  builtin_usage ();
+  seq_try_help ();
   return EXECUTION_FAILURE;
 }
 

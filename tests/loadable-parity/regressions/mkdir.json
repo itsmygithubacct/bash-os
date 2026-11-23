@@ -216,6 +216,17 @@
         "ln",
         "sed"
       ]
+    },
+    {
+      "id": "diagnostics-name-the-command",
+      "kind": "parity",
+      "purpose": "G88: run from a script (bash -c here), mkdir's diagnostics start 'mkdir: ' as GNU coreutils prints them, with no script name, line number or shell name before it; stderr is compared byte for byte.",
+      "requires": [
+        "mkdir"
+      ],
+      "script": "mkdir a/b || echo rc=$?; mkdir c; mkdir c || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

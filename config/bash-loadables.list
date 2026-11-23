@@ -151,7 +151,7 @@ csplit|Context-split a file (POSIX csplit)
 join|Relational join on two sorted files (POSIX join)
 pr|Format text for printing (POSIX pr)
 tac|Concatenate and print files in reverse (last record first)
-column|column [-x] [-c WIDTH] [-t [-s SEPSTR] [-o OUTSTR] [-N NAMES]] [-J -N NAMES [-n NAME]] [FILE...]
+column|column [-xL] [-c WIDTH] [-t [-s SEPSTR] [-o OUTSTR] [-N NAMES] [-dLe] [-l NUM] [-R|-H|-O|-T|-W|-E COLS] [-r COL -i COL -p COL]] [-J -N NAMES [-n NAME]] [FILE...]
 col|Filter CTL-H overstrike sequences (util-linux col)
 colrm|colrm [START [END]]
 expr|Evaluate POSIX expr(1) expressions

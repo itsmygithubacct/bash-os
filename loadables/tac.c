@@ -46,6 +46,44 @@
 
 #include "loadables.h"
 #include "bl-output.h"
+#include "gnu-quote.h"
+#include "shim-prog-name.h"
+
+/* coreutils' usage (EXIT_FAILURE) line after an option diagnostic. */
+static void
+tac_try_help (void)
+{
+    bos_shim_try_help ("tac");
+}
+
+/* GNU's quotef: a name stays bare unless a shell would need it quoted. */
+static char *
+tac_quotef (const char *name)
+{
+    size_t length = strlen (name);
+    if (length && strspn (name, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                               "0123456789_./+-,@%^") == length)
+        return strdup (name);
+    return bos_quoteaf (name);
+}
+
+/* Diagnostics in GNU tac's wording: an open failure quotes the operand,
+   a read failure names it first ("standard input" for "-"). */
+static void
+tac_open_error (const char *name, int error)
+{
+    char *q = bos_quoteaf (name);
+    builtin_error ("failed to open %s for reading: %s", q ? q : name, strerror (error));
+    free (q);
+}
+
+static void
+tac_read_error (const char *name, int error)
+{
+    char *q = tac_quotef (strcmp (name, "-") ? name : "standard input");
+    builtin_error ("%s: read error: %s", q ? q : name, strerror (error));
+    free (q);
+}
 
 /* Input and record sizes never determine the literal scanner's allocation.
    Keep record offsets and reread their bytes in forward order when emitting. */
@@ -1887,7 +1925,7 @@ tac_builtin (WORD_LIST *list)
                 }
             if (match < 0) {
                 builtin_error ("unrecognized option '%s'", w);
-                builtin_usage (); free (files); return EXECUTION_FAILURE;
+                tac_try_help (); free (files); return EXECUTION_FAILURE;
             }
             id = tac_longopts[match].id;
             if (tac_longopts[match].arg) {
@@ -1895,11 +1933,11 @@ tac_builtin (WORD_LIST *list)
                 else if (p->next) { p = p->next; value = p->word->word; }
                 else {
                     builtin_error ("option '--%s' requires an argument", tac_longopts[match].name);
-                    builtin_usage (); free (files); return EXECUTION_FAILURE;
+                    tac_try_help (); free (files); return EXECUTION_FAILURE;
                 }
             } else if (eq) {
                 builtin_error ("option '--%s' doesn't allow an argument", tac_longopts[match].name);
-                builtin_usage (); free (files); return EXECUTION_FAILURE;
+                tac_try_help (); free (files); return EXECUTION_FAILURE;
             }
         }
         /* Short options cluster (-br); -s takes the rest of the word or the
@@ -1911,7 +1949,7 @@ tac_builtin (WORD_LIST *list)
                 else if (p->next) { p = p->next; value = p->word->word; }
                 else {
                     builtin_error ("option requires an argument -- 's'");
-                    builtin_usage (); free (files); return EXECUTION_FAILURE;
+                    tac_try_help (); free (files); return EXECUTION_FAILURE;
                 }
             }
             switch (option) {
@@ -1924,7 +1962,7 @@ tac_builtin (WORD_LIST *list)
                 free (files); return EXECUTION_SUCCESS;
             default:
                 builtin_error ("invalid option -- '%c'", option);
-                builtin_usage (); free (files); return EXECUTION_FAILURE;
+                tac_try_help (); free (files); return EXECUTION_FAILURE;
             }
             if (id || option == 's') break;
         }
@@ -1947,7 +1985,7 @@ tac_builtin (WORD_LIST *list)
             const char *name = n_files ? files[i] : "-";
             int owned = strcmp (name, "-") != 0;
             int fd = owned ? open (name, O_RDONLY | O_CLOEXEC) : STDIN_FILENO;
-            if (fd < 0) { builtin_error ("%s: %s", name, strerror (errno)); rc = EXECUTION_FAILURE; continue; }
+            if (fd < 0) { tac_open_error (name, errno); rc = EXECUTION_FAILURE; continue; }
             int result = tac_file (fd, &job, &out);
             if (result == -2 || result == -3) {
                 /* GNU tac exits here without reading later operands. */
@@ -1958,7 +1996,7 @@ tac_builtin (WORD_LIST *list)
                 break;
             }
             if (result < 0) {
-                if (!out.error) builtin_error ("%s: %s", name, strerror (errno));
+                if (!out.error) tac_read_error (name, errno);
                 rc = EXECUTION_FAILURE;
             }
             if (owned && close (fd) < 0) {

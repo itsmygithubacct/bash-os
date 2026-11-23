@@ -33,7 +33,14 @@
  *      -l N / --table-columns-limit=N makes the N-th field the rest of the
  *      line. -R / --table-right, -H / --table-hide and -O / --table-order
  *      take util-linux column lists (names, numbers, ranges, 0, -1, and
- *      '-' for -H) to right-align, hide and reorder columns.
+ *      '-' for -H) to right-align, hide and reorder columns. -T, -W and -E
+ *      name the columns that give way when the table is wider than the
+ *      output (-c, the terminal, COLUMNS, 80): truncated, wrapped, or
+ *      shrunk with the longer cells ending their line. The split of the
+ *      excess between several such columns models util-linux 2.41 as
+ *      observed (exact for single-row tables, close otherwise). -d hides
+ *      the -N header, -e repeats it every LINES rows, -L keeps blank lines,
+ *      and -r/-i/-p draw a tree from child and parent ID columns.
  *
  *   col [-b] [FILE...]
  *      Preserve CTL-H (backspace) overstrike sequences by default. With
@@ -70,6 +77,8 @@
 #include <ctype.h>
 #include <limits.h>
 #include <wchar.h>
+#include <langinfo.h>
+#include <sys/ioctl.h>
 
 #include "loadables.h"
 
@@ -402,11 +411,50 @@ bcol_columns (const char *spec, const bcol_row *names, int n_cols,
   return 0;
 }
 
+/* One JSON array level: the objects from START along NEXT, at INDENT,
+   each followed by a "children" array when FIRST names a child. */
+static void
+bcol_json_level (bcol_row *rows, int start, int indent, const bcol_row *names,
+                 const int *vis, int n_vis, int last, const int *first,
+                 const int *next)
+{
+  for (int r = start, k = 0; r >= 0; r = next[r], k++)
+    {
+      printf ("%*s%s\n", indent, "", k ? "},{" : "{");
+      if (last < 0)
+        putchar ('\n');
+      int kids = first && first[r] >= 0;
+      for (int i = 0; i <= last; i++)
+        {
+          int c = vis[i];
+          if (c >= names->n)
+            continue;
+          printf ("%*s", indent + 3, "");
+          bcol_json_string (names->fields[c], 1);
+          fputs (": ", stdout);
+          if (c < rows[r].n && rows[r].fields[c][0])
+            bcol_json_string (rows[r].fields[c], 0);
+          else
+            fputs ("null", stdout);
+          fputs (i < last || kids ? ",\n" : "\n", stdout);
+        }
+      if (kids)
+        {
+          printf ("%*s\"children\": [\n", indent + 3, "");
+          bcol_json_level (rows, first[r], indent + 6, names, vis, n_vis, last, first, next);
+          printf ("%*s]\n", indent + 3, "");
+        }
+    }
+  printf ("%*s}\n", indent, "");
+}
+
+/* util-linux JSON: the rows from ROOT along NEXT, and with --tree each
+   row's children (FIRST) nested in a "children" array. */
 static void
 bcol_json (bcol_row *rows, int n_rows, const bcol_row *names, const char *tname,
-           const int *vis, int n_vis)
+           const int *vis, int n_vis, int root, const int *first, const int *next)
 {
-  if (n_rows == 0)
+  if (n_rows == 0 || root < 0)
     return;
   int last = -1;
   for (int i = 0; i < n_vis; i++)
@@ -415,27 +463,223 @@ bcol_json (bcol_row *rows, int n_rows, const bcol_row *names, const char *tname,
   fputs ("{\n   ", stdout);
   bcol_json_string (tname, 1);
   fputs (": [\n", stdout);
-  for (int r = 0; r < n_rows; r++)
+  bcol_json_level (rows, root, 6, names, vis, n_vis, last, first, next);
+  fputs ("   ]\n}\n", stdout);
+}
+
+/* Terminal size the util-linux way: the width of a terminal on stdout,
+   else COLUMNS, else 80; the height from LINES, else from a terminal on
+   stdout, stderr or stdin, else 24. */
+static long
+bcol_term_size (int lines)
+{
+  struct winsize ws;
+  if (!lines && isatty (STDOUT_FILENO)
+      && ioctl (STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0)
+    return ws.ws_col;
+  const char *env = getenv (lines ? "LINES" : "COLUMNS");
+  if (env && *env)
     {
-      fputs (r ? "      },{\n" : "      {\n", stdout);
-      if (last < 0)
-        putchar ('\n');
-      for (int i = 0; i <= last; i++)
+      char *end;
+      errno = 0;
+      long v = strtol (env, &end, 10);
+      if (!errno && !*end && v > 0 && v <= INT_MAX)
+        return v;
+    }
+  if (lines)
+    {
+      static const int fds[] = { STDOUT_FILENO, STDERR_FILENO, STDIN_FILENO };
+      for (int i = 0; i < 3; i++)
+        if (isatty (fds[i]) && ioctl (fds[i], TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0)
+          return ws.ws_row;
+      return 24;
+    }
+  return 80;
+}
+
+/* Bytes of S (LEN) that fit in MAXW display columns; *WIDTH gets their
+   width. At least one character is taken when ATLEAST is set, so that a
+   wrapped cell always advances. */
+static size_t
+bcol_cut (const char *s, size_t len, size_t maxw, size_t *width, int atleast)
+{
+  size_t i = 0, used = 0;
+  while (i < len)
+    {
+      size_t n = 1, cw = 1;
+      if (MB_CUR_MAX > 1)
+        {
+          wchar_t wc;
+          int valid;
+          n = bcol_character (s + i, len - i, &wc, &valid);
+          int x = valid ? wcwidth (wc) : 1;
+          cw = x > 0 ? (size_t) x : 0;
+        }
+      if (used + cw > maxw && !(atleast && i == 0))
+        break;
+      used += cw;
+      i += n;
+    }
+  *width = used;
+  return i;
+}
+
+/* -r/-i/-p name one column: a -N name, a number from 1, or -1 for the
+   last visible column. Returns its index, or -1 after util-linux's
+   message. */
+static int
+bcol_column1 (const char *spec, const bcol_row *names, int n_cols, const char *hidden)
+{
+  for (int k = 0; k < names->n; k++)
+    if (!strcmp (names->fields[k], spec))
+      return k;
+  if (!strcmp (spec, "-1"))
+    for (int k = n_cols - 1; k >= 0; k--)
+      if (!hidden[k])
+        return k;
+  size_t digits = strspn (spec, "0123456789");
+  if (digits && !spec[digits])
+    {
+      long v = strtol (spec, NULL, 10);
+      if (v >= 1 && v <= n_cols)
+        return (int) v - 1;
+    }
+  builtin_error ("undefined column name '%s'", spec);
+  return -1;
+}
+
+/* Rows sorted by their parent field, for --tree. */
+static const bcol_row *bcol_sort_rows;
+static int bcol_sort_col;
+
+static const char *
+bcol_field (const bcol_row *r, int c)
+{
+  return c < r->n ? r->fields[c] : "";
+}
+
+static int
+bcol_by_parent (const void *a, const void *b)
+{
+  int x = *(const int *) a, y = *(const int *) b;
+  int d = strcmp (bcol_field (&bcol_sort_rows[x], bcol_sort_col),
+                  bcol_field (&bcol_sort_rows[y], bcol_sort_col));
+  return d ? d : (x > y) - (x < y);
+}
+
+/* Shrink the visible columns (widths W, minimums MINW, N of them) until
+   the table fits in WIDTH. This is an empirical model of util-linux 2.41
+   observed on single-row tables: each round takes up to three columns from
+   the widest column (ties: the later one) when it may be truncated,
+   wrapped or have extremes ignored (checking the fit after each one only
+   when it ignores extremes or is the last column), then one from each
+   other such column, last first, checking after each. RED marks the
+   columns that may shrink and NOEXT those that ignore extremes. */
+static void
+bcol_fit (size_t *w, const size_t *minw, const size_t *natural, int n, size_t seplen,
+          size_t width, const char *red, const char *noext)
+{
+  if (n == 0)
+    return;
+  size_t total = seplen * (size_t) (n - 1);
+  int prim = 0;
+  for (int i = 0; i < n; i++)
+    {
+      total += w[i];
+      if (natural[i] >= natural[prim])
+        prim = i;
+    }
+  while (total > width)
+    {
+      int progressed = 0;
+      if (red[prim])
+        {
+          int checked = noext[prim] || prim == n - 1;
+          for (int k = 0; k < 3; k++)
+            if (w[prim] > minw[prim])
+              {
+                w[prim]--, total--, progressed = 1;
+                if (checked && total <= width)
+                  break;
+              }
+          if (total <= width)
+            break;
+        }
+      for (int i = n - 1; i >= 0; i--)
+        if (i != prim && red[i] && w[i] > minw[i])
+          {
+            w[i]--, total--, progressed = 1;
+            if (total <= width)
+              break;
+          }
+      if (!progressed)
+        break;
+    }
+}
+
+/* Print one table row: trunc cells (-T) are cut to the column width, wrap
+   cells (-W) continue on following lines, and any other cell wider than
+   its column ends the line, the rest of the row continuing below at its
+   own column (util-linux). */
+static void
+bcol_print_row (const bcol_row *row, const int *vis, int n_vis, const size_t *w,
+                const char *right, const char *trunc, const char *wrap,
+                const char *outsep)
+{
+  size_t seplen = strlen (outsep);
+  size_t off[n_vis ? n_vis : 1];
+  for (int i = 0; i < n_vis; i++)
+    off[i] = 0;
+  for (int line = 0, more = 1; more; line++)
+    {
+      more = 0;
+      size_t pos = 0;
+      for (int i = 0; i < n_vis; i++)
         {
           int k = vis[i];
-          if (k >= names->n)
-            continue;
-          fputs ("         ", stdout);
-          bcol_json_string (names->fields[k], 1);
-          fputs (": ", stdout);
-          if (k < rows[r].n && rows[r].fields[k][0])
-            bcol_json_string (rows[r].fields[k], 0);
-          else
-            fputs ("null", stdout);
-          fputs (i < last ? ",\n" : "\n", stdout);
+          const char *field = bcol_field (row, k);
+          size_t len = strlen (field), cellw = bcol_width (field);
+          int last = i + 1 == n_vis;
+          const char *seg = "";
+          size_t seglen = 0, segw = 0;
+          if (wrap[k] && cellw > w[i])
+            {
+              if (off[i] < len)
+                {
+                  seg = field + off[i];
+                  seglen = bcol_cut (seg, len - off[i], w[i], &segw, 1);
+                  off[i] += seglen;
+                  if (off[i] < len)
+                    more = 1;
+                }
+            }
+          else if (line == 0)
+            {
+              seg = field;
+              if (trunc[k] && cellw > w[i])
+                seglen = bcol_cut (field, len, w[i], &segw, 0);
+              else
+                seglen = len, segw = cellw;
+            }
+          size_t pad = segw < w[i] ? w[i] - segw : 0;
+          if (right[k] && (seglen || !last))
+            for (size_t p = 0; p < pad; p++) putchar (' ');
+          fwrite (seg, 1, seglen, stdout);
+          pos += w[i] + seplen;
+          if (last)
+            break;
+          if (segw > w[i])
+            {
+              putchar ('\n');
+              for (size_t p = 0; p < pos; p++) putchar (' ');
+              continue;
+            }
+          if (!right[k])
+            for (size_t p = 0; p < pad; p++) putchar (' ');
+          fputs (outsep, stdout);
         }
+      putchar ('\n');
     }
-  fputs ("      }\n   ]\n}\n", stdout);
 }
 
 /* -l NUMBER: util-linux's strtou32 check and messages. */
@@ -472,8 +716,20 @@ bcol_limit (const char *arg, long *limit)
 /* The table options that take a column list or a number, long and short. */
 static const struct { const char *name; char c; } bcol_table_opts[] = {
   { "table-right", 'R' }, { "table-hide", 'H' }, { "table-order", 'O' },
-  { "table-columns-limit", 'l' },
+  { "table-columns-limit", 'l' }, { "table-truncate", 'T' },
+  { "table-noextreme", 'E' }, { "table-wrap", 'W' }, { "tree", 'r' },
+  { "tree-id", 'i' }, { "tree-parent", 'p' },
 };
+#define BCOL_N_TABLE_OPTS ((int) (sizeof bcol_table_opts / sizeof bcol_table_opts[0]))
+enum { BCOL_R, BCOL_H, BCOL_O, BCOL_L, BCOL_T, BCOL_E, BCOL_W, BCOL_TREE,
+       BCOL_TREE_ID, BCOL_TREE_PARENT };
+
+/* util-linux's getopt diagnostics end with the --help hint. */
+static void
+bcol_try_help (void)
+{
+  fputs ("Try 'column --help' for more information.\n", stderr);
+}
 
 int
 column_builtin (WORD_LIST *list)
@@ -490,8 +746,12 @@ column_builtin (WORD_LIST *list)
   int jflag = 0;
   const char *colnames = NULL;      /* -N NAMES */
   const char *tname = NULL;         /* -n NAME */
-  const char *table_spec[3] = { NULL, NULL, NULL };   /* -R, -H, -O */
+  const char *table_spec[BCOL_N_TABLE_OPTS] = { NULL };  /* by BCOL_* */
   long limit = 0;                   /* -l NUMBER */
+  int width_given = 0;              /* -c WIDTH */
+  int noheadings = 0;               /* -d */
+  int header_repeat = 0;            /* -e */
+  int keep_empty = 0;               /* -L */
 
   for (WORD_LIST *p = list; p; p = p->next)
     {
@@ -513,6 +773,13 @@ column_builtin (WORD_LIST *list)
         { xflag = 1; continue; }
       if (strcmp (w, "--json") == 0)
         { jflag = 1; continue; }
+      if (strcmp (w, "--table-noheadings") == 0)
+        { noheadings = 1; continue; }
+      if (strcmp (w, "--table-header-repeat") == 0)
+        { header_repeat = 1; continue; }
+      if (strcmp (w, "--keep-empty-lines") == 0
+          || strcmp (w, "--table-empty-lines") == 0)
+        { keep_empty = 1; continue; }
       if (strncmp (w, "--table-columns=", 16) == 0)
         { colnames = w + 16; continue; }
       if (strncmp (w, "--table-name=", 13) == 0)
@@ -554,6 +821,7 @@ column_builtin (WORD_LIST *list)
                 if (!p->next)
                   {
                     builtin_error ("option '%s' requires an argument", w);
+                    bcol_try_help ();
                     return EXECUTION_FAILURE;
                   }
                 p = p->next;
@@ -579,7 +847,11 @@ column_builtin (WORD_LIST *list)
               return EX_USAGE;
             }
           errno = 0;
-          output_width = strtol (p->next->word->word, &endp, 10);
+          width_given = 1;
+          if (strcmp (p->next->word->word, "unlimited") == 0)
+            output_width = 0, endp = (char *) "";
+          else
+            output_width = strtol (p->next->word->word, &endp, 10);
           if (errno || endp == p->next->word->word || !endp || *endp || output_width < 0)
             {
               builtin_error ("column: bad output width: %s", p->next->word->word);
@@ -593,7 +865,11 @@ column_builtin (WORD_LIST *list)
         {
           char *endp = NULL;
           errno = 0;
-          output_width = strtol (w + 15, &endp, 10);
+          width_given = 1;
+          if (strcmp (w + 15, "unlimited") == 0)
+            output_width = 0, endp = (char *) "";
+          else
+            output_width = strtol (w + 15, &endp, 10);
           if (errno || endp == w + 15 || !endp || *endp || output_width < 0)
             {
               builtin_error ("column: bad output width: %s", w + 15);
@@ -675,6 +951,12 @@ column_builtin (WORD_LIST *list)
                 { xflag = 1; continue; }
               if (*q == 'J')
                 { jflag = 1; continue; }
+              if (*q == 'd')
+                { noheadings = 1; continue; }
+              if (*q == 'e')
+                { header_repeat = 1; continue; }
+              if (*q == 'L')
+                { keep_empty = 1; continue; }
               if (*q == 'c')
                 {
                   char *endp = NULL;
@@ -691,7 +973,11 @@ column_builtin (WORD_LIST *list)
                       p = p->next;
                     }
                   errno = 0;
-                  output_width = strtol (arg, &endp, 10);
+                  width_given = 1;
+                  if (strcmp (arg, "unlimited") == 0)
+                    output_width = 0, endp = (char *) "";
+                  else
+                    output_width = strtol (arg, &endp, 10);
                   if (errno || endp == arg || !endp || *endp || output_width < 0)
                     {
                       builtin_error ("column: bad output width: %s", arg);
@@ -724,7 +1010,7 @@ column_builtin (WORD_LIST *list)
                     }
                   break;
                 }
-              if (*q == 'R' || *q == 'H' || *q == 'O' || *q == 'l')
+              if (strchr ("RHOlTEWrip", *q))
                 {
                   const char *arg = q[1] ? q + 1 : NULL;
                   if (!arg)
@@ -732,6 +1018,7 @@ column_builtin (WORD_LIST *list)
                       if (!p->next)
                         {
                           builtin_error ("option requires an argument -- '%c'", *q);
+                          bcol_try_help ();
                           return EXECUTION_FAILURE;
                         }
                       arg = p->next->word->word;
@@ -743,7 +1030,9 @@ column_builtin (WORD_LIST *list)
                         return EXECUTION_FAILURE;
                     }
                   else
-                    table_spec[*q == 'R' ? 0 : *q == 'H' ? 1 : 2] = arg;
+                    for (int k = 0; k < BCOL_N_TABLE_OPTS; k++)
+                      if (bcol_table_opts[k].c == *q)
+                        table_spec[k] = arg;
                   break;
                 }
               if (*q == 's' || *q == 'o' || *q == 'N' || *q == 'n')
@@ -782,12 +1071,27 @@ column_builtin (WORD_LIST *list)
 
   /* util-linux: the --table-* options need table or JSON output, and JSON
      needs the column names. */
-  if ((colnames || tname || table_spec[0] || table_spec[1] || table_spec[2])
+  /* -r (--tree) implies table output and needs -i and -p. */
+  if (table_spec[BCOL_TREE])
+    {
+      if (!table_spec[BCOL_TREE_ID] || !table_spec[BCOL_TREE_PARENT])
+        {
+          builtin_error ("options --tree-id and --tree-parent are required for tree formatting");
+          return EXECUTION_FAILURE;
+        }
+      tflag = 1;
+    }
+  if ((colnames || tname || table_spec[BCOL_R] || table_spec[BCOL_H] || table_spec[BCOL_O]
+       || table_spec[BCOL_T] || table_spec[BCOL_E] || table_spec[BCOL_W])
       && !tflag && !jflag)
     {
       builtin_error ("option --table required for all --table-*");
       return EXECUTION_FAILURE;
     }
+  /* Without -c: the terminal's width when stdout is one, else COLUMNS,
+     else 80 (util-linux). */
+  if (!width_given)
+    output_width = bcol_term_size (0);
   if (jflag && !colnames)
     {
       builtin_error ("option --table-columns or --table-column required for --json");
@@ -818,7 +1122,12 @@ column_builtin (WORD_LIST *list)
               if (line[got - 1] == '\n')
                 got--;
               if (bcol_blank (line, (size_t) got))
-                continue;
+                {
+                  /* -L keeps it, as an empty item. */
+                  if (!keep_empty)
+                    continue;
+                  got = 0;
+                }
               if (n_items >= cap_items)
                 {
                   int nc = cap_items ? cap_items * 2 : 16;
@@ -897,13 +1206,16 @@ columnar_cleanup:
 
   bcol_row *rows = NULL;
   int n_rows = 0, cap_rows = 0;
-  size_t *colw = NULL;
-  int n_cols = 0, cap_cols = 0;
+  int n_cols = 0;
   int rc = EXECUTION_SUCCESS;
   bcol_row names = { 0 };
   long lineno = 0;
-  char *hidden = NULL, *right = NULL, *seen = NULL;
+  char *hidden = NULL, *right = NULL, *seen = NULL, *trunc = NULL, *wrap = NULL;
+  char *noext = NULL, *red = NULL;
   int *vis = NULL, n_vis = 0;
+  int *first = NULL, *next = NULL, *up = NULL, *tail = NULL, *byparent = NULL;
+  size_t *colw = NULL, *w = NULL, *minw = NULL, *natural = NULL;
+  char *prefix = NULL;
   int n_streams = n_files ? n_files : 1;
   FILE *in_stdin = NULL;
 
@@ -911,8 +1223,10 @@ columnar_cleanup:
     { rc = EXECUTION_FAILURE; goto cleanup; }
   /* -N in table output: the names form a header row, measured like data
      and padded through every column; there is one even when NAMES is
-     empty, but none without a data row (util-linux). */
-  int header = colnames && !jflag;
+     empty, but none without a data row (util-linux). -d keeps the names
+     for addressing columns but prints no header. */
+  int header = colnames && !jflag && !noheadings;
+  int hdr = header;     /* rows[0] is the header */
 
   for (int fi = 0; fi < n_streams; fi++)
     {
@@ -924,19 +1238,22 @@ columnar_cleanup:
       ssize_t got = 0;
       while (header || (got = bcol_getline (fp, &line, &cap)) > 0)
         {
+          int blank = 0;
           if (!header)
             {
               lineno++;
               if (line[got - 1] == '\n')
                 got--;
-              if (bcol_blank (line, (size_t) got))
+              /* -L keeps a whitespace-only line as a row without cells. */
+              blank = bcol_blank (line, (size_t) got);
+              if (blank && !keep_empty)
                 continue;
             }
           if (n_rows >= cap_rows)
             {
               int nc = cap_rows ? cap_rows * 2 : 16;
               bcol_row *nr = realloc (rows, (size_t) nc * sizeof (*nr));
-              if (!nr) { rc = EXECUTION_FAILURE; goto cleanup; }
+              if (!nr) { rc = EXECUTION_FAILURE; free (line); goto cleanup; }
               rows = nr;
               cap_rows = nc;
             }
@@ -948,10 +1265,11 @@ columnar_cleanup:
               header = 0;
               for (int k = 0; k < names.n; k++)
                 if (bcol_row_push (&rows[n_rows], names.fields[k], strlen (names.fields[k])) != 0)
-                  { n_rows++; rc = EXECUTION_FAILURE; goto cleanup; }
+                  { n_rows++; rc = EXECUTION_FAILURE; free (line); goto cleanup; }
             }
-          else if (bcol_split (line, (size_t) got, seps, sflag, limit, &rows[n_rows]) != 0)
-            { n_rows++; rc = EXECUTION_FAILURE; goto cleanup; }
+          else if (!blank
+                   && bcol_split (line, (size_t) got, seps, sflag, limit, &rows[n_rows]) != 0)
+            { n_rows++; rc = EXECUTION_FAILURE; free (line); goto cleanup; }
           /* util-linux numbers the line one past the input line. */
           if (jflag && rows[n_rows].n > names.n)
             {
@@ -964,26 +1282,7 @@ columnar_cleanup:
               goto cleanup;
             }
           if (rows[n_rows].n > n_cols)
-            {
-              int newn = rows[n_rows].n;
-              if (newn > cap_cols)
-                {
-                  int nc = cap_cols ? cap_cols * 2 : 8;
-                  while (nc < newn) nc *= 2;
-                  size_t *nw = realloc (colw, (size_t) nc * sizeof (*nw));
-                  if (!nw) { rc = EXECUTION_FAILURE; goto cleanup; }
-                  for (int k = cap_cols; k < nc; k++) nw[k] = 0;
-                  colw = nw;
-                  cap_cols = nc;
-                }
-              n_cols = newn;
-            }
-          for (int k = 0; k < rows[n_rows].n; k++)
-            {
-              size_t w = bcol_width (rows[n_rows].fields[k]);
-              if (w > colw[k])
-                colw[k] = w;
-            }
+            n_cols = rows[n_rows].n;
           n_rows++;
         }
       if (got < 0)
@@ -997,26 +1296,37 @@ columnar_cleanup:
      input order, and -R's are padded on the left. As util-linux, an empty
      last cell is not padded even when right-aligned. */
   /* Without a data row util-linux prints no header either. */
-  if (colnames && !jflag && n_rows == 1)
+  if (hdr && n_rows == 1)
     {
       bcol_row_free (&rows[0]);
       n_rows = 0;
     }
+  int n_data = n_rows - hdr;
   int total = n_cols > names.n ? n_cols : names.n;
-  hidden = calloc ((size_t) total + 1, 1);
-  right = calloc ((size_t) total + 1, 1);
-  seen = calloc ((size_t) total + 1, 1);
-  vis = malloc (((size_t) total + 1) * sizeof (*vis));
-  if (!hidden || !right || !seen || !vis)
+  size_t slots = (size_t) total + 1;
+  hidden = calloc (slots, 1);
+  right = calloc (slots, 1);
+  seen = calloc (slots, 1);
+  trunc = calloc (slots, 1);
+  wrap = calloc (slots, 1);
+  noext = calloc (slots, 1);
+  red = calloc (slots, 1);
+  vis = malloc (slots * sizeof (*vis));
+  first = malloc (((size_t) n_rows + 1) * sizeof (*first));
+  next = malloc (((size_t) n_rows + 1) * sizeof (*next));
+  if (!hidden || !right || !seen || !trunc || !wrap || !noext || !red || !vis || !first || !next)
     {
       builtin_error ("out of memory");
       rc = EXECUTION_FAILURE;
       goto cleanup;
     }
   if (n_rows > 0
-      && ((table_spec[1] && bcol_columns (table_spec[1], &names, total, NULL, hidden, NULL, NULL) < 0)
-          || (table_spec[2] && bcol_columns (table_spec[2], &names, total, hidden, seen, vis, &n_vis) < 0)
-          || (table_spec[0] && bcol_columns (table_spec[0], &names, total, hidden, right, NULL, NULL) < 0)))
+      && ((table_spec[BCOL_H] && bcol_columns (table_spec[BCOL_H], &names, total, NULL, hidden, NULL, NULL) < 0)
+          || (table_spec[BCOL_O] && bcol_columns (table_spec[BCOL_O], &names, total, hidden, seen, vis, &n_vis) < 0)
+          || (table_spec[BCOL_R] && bcol_columns (table_spec[BCOL_R], &names, total, hidden, right, NULL, NULL) < 0)
+          || (table_spec[BCOL_T] && bcol_columns (table_spec[BCOL_T], &names, total, hidden, trunc, NULL, NULL) < 0)
+          || (table_spec[BCOL_W] && bcol_columns (table_spec[BCOL_W], &names, total, hidden, wrap, NULL, NULL) < 0)
+          || (table_spec[BCOL_E] && bcol_columns (table_spec[BCOL_E], &names, total, hidden, noext, NULL, NULL) < 0)))
     {
       rc = EXECUTION_FAILURE;
       goto cleanup;
@@ -1032,38 +1342,249 @@ columnar_cleanup:
     n_vis = kept;
   }
 
+  /* Data rows as a list (NEXT) or, with -r, as a forest: the row whose -i
+     cell matches another row's -p cell adopts it, in input order, unless
+     that would make a cycle; a later row with the same ID takes the child
+     over. Children print below their parent, the -r column prefixed by the
+     tree lines. */
+  int root = n_data > 0 ? 0 : -1;
+  for (int r = 0; r < n_data; r++)
+    first[r] = -1, next[r] = r + 1 < n_data ? r + 1 : -1;
+  if (table_spec[BCOL_TREE] && n_data > 0)
+    {
+      bcol_row *data = rows + hdr;
+      int tc = bcol_column1 (table_spec[BCOL_TREE], &names, total, hidden);
+      int ic = tc < 0 ? -1 : bcol_column1 (table_spec[BCOL_TREE_ID], &names, total, hidden);
+      int pc = ic < 0 ? -1 : bcol_column1 (table_spec[BCOL_TREE_PARENT], &names, total, hidden);
+      up = malloc ((size_t) n_data * sizeof (*up));
+      tail = malloc ((size_t) n_data * sizeof (*tail));
+      byparent = malloc ((size_t) n_data * sizeof (*byparent));
+      if (pc < 0 || !up || !tail || !byparent)
+        {
+          if (pc >= 0)
+            builtin_error ("out of memory");
+          rc = EXECUTION_FAILURE;
+          goto cleanup;
+        }
+      for (int r = 0; r < n_data; r++)
+        first[r] = next[r] = up[r] = tail[r] = -1, byparent[r] = r;
+      bcol_sort_rows = data;
+      bcol_sort_col = pc;
+      qsort (byparent, (size_t) n_data, sizeof (*byparent), bcol_by_parent);
+      for (int r = 0; r < n_data; r++)
+        {
+          const char *id = bcol_field (&data[r], ic);
+          if (!*id)
+            continue;
+          int lo = 0, hi = n_data;
+          while (lo < hi)
+            {
+              int mid = (lo + hi) / 2;
+              if (strcmp (bcol_field (&data[byparent[mid]], pc), id) < 0)
+                lo = mid + 1;
+              else
+                hi = mid;
+            }
+          for (; lo < n_data && !strcmp (bcol_field (&data[byparent[lo]], pc), id); lo++)
+            {
+              int c = byparent[lo], a;
+              for (a = r; a >= 0 && a != c; a = up[a])
+                ;
+              if (a == c)
+                continue;
+              if (up[c] >= 0)
+                {
+                  int *link = &first[up[c]], prev = -1;
+                  while (*link != c)
+                    prev = *link, link = &next[*link];
+                  *link = next[c];
+                  if (tail[up[c]] == c)
+                    tail[up[c]] = prev;
+                }
+              next[c] = -1;
+              if (tail[r] >= 0)
+                next[tail[r]] = c;
+              else
+                first[r] = c;
+              tail[r] = c;
+              up[c] = r;
+            }
+        }
+      /* Roots stay in input order. */
+      root = -1;
+      for (int r = n_data - 1; r >= 0; r--)
+        if (up[r] < 0)
+          next[r] = root, root = r;
+      if (!jflag)
+        {
+          /* Pre-order walk: give each row its tree lines, then reorder. */
+          int utf8 = !strcmp (nl_langinfo (CODESET), "UTF-8");
+          const char *vert = utf8 ? "\xe2\x94\x82 " : "| ";
+          const char *branch = utf8 ? "\xe2\x94\x9c\xe2\x94\x80" : "|-";
+          const char *lastbr = utf8 ? "\xe2\x94\x94\xe2\x94\x80" : "`-";
+          bcol_row *sorted = malloc (((size_t) n_rows) * sizeof (*sorted));
+          int *stack = malloc ((size_t) n_data * sizeof (*stack));
+          if (!sorted || !stack)
+            {
+              free (sorted);
+              free (stack);
+              builtin_error ("out of memory");
+              rc = EXECUTION_FAILURE;
+              goto cleanup;
+            }
+          if (hdr)
+            sorted[0] = rows[0];
+          int out = hdr, sp = 0;
+          for (int r = root; r >= 0; r = next[r])
+            {
+              stack[sp++] = r;
+              while (sp)
+                {
+                  int x = stack[--sp];
+                  size_t plen = 0, depth = 0;
+                  for (int a = x; up[a] >= 0; a = up[a])
+                    depth++;
+                  if (depth)
+                    {
+                      free (prefix);
+                      prefix = malloc (depth * 6 + 1);
+                      if (!prefix)
+                        {
+                          free (sorted);
+                          free (stack);
+                          builtin_error ("out of memory");
+                          rc = EXECUTION_FAILURE;
+                          goto cleanup;
+                        }
+                      /* Right to left: this row's branch, then one
+                         segment per ancestor below the root. */
+                      size_t at = depth * 6;
+                      prefix[at] = 0;
+                      int a = x;
+                      for (size_t d = 0; d < depth; d++, a = up[a])
+                        {
+                          const char *piece = d == 0 ? (next[a] >= 0 ? branch : lastbr)
+                                                     : (next[a] >= 0 ? vert : "  ");
+                          size_t n = strlen (piece);
+                          at -= n;
+                          memcpy (prefix + at, piece, n);
+                        }
+                      plen = depth * 6 - at;
+                      memmove (prefix, prefix + at, plen + 1);
+                      while (data[x].n <= tc)
+                        if (bcol_row_push (&data[x], "", 0) != 0)
+                          break;
+                      if (data[x].n > tc)
+                        {
+                          size_t olen = strlen (data[x].fields[tc]);
+                          char *cell = malloc (plen + olen + 1);
+                          if (cell)
+                            {
+                              memcpy (cell, prefix, plen);
+                              memcpy (cell + plen, data[x].fields[tc], olen + 1);
+                              free (data[x].fields[tc]);
+                              data[x].fields[tc] = cell;
+                            }
+                        }
+                    }
+                  sorted[out++] = data[x];
+                  /* Children in order: push them last first. */
+                  int nk = 0;
+                  for (int c = first[x]; c >= 0; c = next[c])
+                    nk++;
+                  sp += nk;
+                  int at = sp;
+                  for (int c = first[x]; c >= 0; c = next[c])
+                    stack[--at] = c;
+                }
+            }
+          free (stack);
+          free (rows);
+          rows = sorted;
+          cap_rows = n_rows;
+        }
+    }
+
   if (jflag)
     {
       if (rc == EXECUTION_SUCCESS)
-        bcol_json (rows, n_rows, &names, tname ? tname : "table", vis, n_vis);
-      n_vis = 0;
+        bcol_json (rows, n_rows, &names, tname ? tname : "table", vis, n_vis,
+                   root, table_spec[BCOL_TREE] ? first : NULL, next);
+      goto cleanup;
     }
-  for (int r = 0; r < n_rows && !jflag; r++)
+  /* -L rows without a single cell: util-linux prints nothing and fails. */
+  if (total == 0)
     {
-      for (int i = 0; i < n_vis; i++)
-        {
-          int k = vis[i];
-          const char *field = k < rows[r].n ? rows[r].fields[k] : "";
-          int last = i + 1 == n_vis;
-          size_t pad = colw[k] - bcol_width (field);
-          if (right[k] && (*field || !last))
-            for (size_t p = 0; p < pad; p++) putchar (' ');
-          fputs (field, stdout);
-          if (!last)
-            {
-              if (!right[k])
-                for (size_t p = 0; p < pad; p++) putchar (' ');
-              fputs (outsep, stdout);
-            }
-        }
-      putchar ('\n');
+      if (n_rows > 0)
+        rc = EXECUTION_FAILURE;
+      goto cleanup;
+    }
+
+  /* Widths: the widest cell of each visible column, header included. When
+     the table is wider than the output, the -T, -W and -E columns (and,
+     without -E, the last column, whose cells are never padded) give way,
+     but never below the header or one column. */
+  colw = calloc (slots, sizeof (*colw));
+  w = calloc (slots, sizeof (*w));
+  minw = calloc (slots, sizeof (*minw));
+  natural = calloc (slots, sizeof (*natural));
+  if (!colw || !w || !minw || !natural)
+    {
+      builtin_error ("out of memory");
+      rc = EXECUTION_FAILURE;
+      goto cleanup;
+    }
+  for (int r = 0; r < n_rows; r++)
+    for (int k = 0; k < rows[r].n; k++)
+      {
+        size_t cw = bcol_width (rows[r].fields[k]);
+        if (cw > colw[k])
+          colw[k] = cw;
+      }
+  int any_noext = 0;
+  for (int i = 0; i < n_vis; i++)
+    any_noext |= noext[vis[i]];
+  char *noext_vis = seen;   /* reused: per visible position */
+  for (int i = 0; i < n_vis; i++)
+    {
+      int k = vis[i];
+      natural[i] = w[i] = colw[k];
+      minw[i] = hdr ? bcol_width (bcol_field (&rows[0], k)) : 0;
+      if (minw[i] < 1)
+        minw[i] = 1;
+      noext_vis[i] = any_noext ? noext[k] : i + 1 == n_vis;
+      red[i] = trunc[k] || wrap[k] || noext_vis[i];
+    }
+  if (output_width > 0)
+    bcol_fit (w, minw, natural, n_vis, strlen (outsep), (size_t) output_width, red, noext_vis);
+
+  long page = header_repeat && hdr ? bcol_term_size (1) : 0;
+  for (int r = 0; r < n_rows; r++)
+    {
+      int d = r - hdr;
+      if (page && d > 0 && d % page == 0)
+        bcol_print_row (&rows[0], vis, n_vis, w, right, trunc, wrap, outsep);
+      bcol_print_row (&rows[r], vis, n_vis, w, right, trunc, wrap, outsep);
     }
 
 cleanup:
   free (hidden);
   free (right);
   free (seen);
+  free (trunc);
+  free (wrap);
+  free (noext);
+  free (red);
   free (vis);
+  free (first);
+  free (next);
+  free (up);
+  free (tail);
+  free (byparent);
+  free (w);
+  free (minw);
+  free (natural);
+  free (prefix);
   if (in_stdin)
     fclose (in_stdin);
   bcol_row_free (&names);
@@ -1336,15 +1857,17 @@ colrm_builtin (WORD_LIST *list)
 char *column_doc[] = {
   "Aligned-column formatter (util-linux column subset).",
   "",
-  "    column [-x] [-c WIDTH] [FILE...]",
-  "    column -t [-s SEPSTR] [-o OUTSTR] [-N NAMES] [-l NUM] [-R COLS] [-H COLS]",
-  "              [-O COLS] [FILE...]",
+  "    column [-x] [-L] [-c WIDTH] [FILE...]",
+  "    column -t [-s SEPSTR] [-o OUTSTR] [-N NAMES] [-dLe] [-l NUM] [-R COLS]",
+  "              [-H COLS] [-O COLS] [-T COLS] [-W COLS] [-E COLS]",
+  "              [-r COL -i COL -p COL] [-c WIDTH] [FILE...]",
   "    column -J -N NAMES [-n NAME] [-s SEPSTR] [FILE...]",
   "    column --help | --version",
   "",
   "  -t          table mode",
   "  -x          fill rows before columns in non-table mode",
-  "  -c WIDTH    output width for non-table mode (default 80)",
+  "  -c WIDTH    output width (default: the terminal's, else COLUMNS, else",
+  "              80); 0 or 'unlimited' never shrinks a table",
   "  -S NUM      use NUM spaces between non-table columns, no tabs",
   "  -s SEPSTR   each byte in SEPSTR splits input fields (preserves",
   "              empty fields between consecutive separators)",
@@ -1353,6 +1876,10 @@ char *column_doc[] = {
   "  -N NAMES, --table-columns=NAMES",
   "              comma-separated column names: a header row with -t,",
   "              the keys (in lower case) with -J",
+  "  -d, --table-noheadings        keep -N names but print no header",
+  "  -e, --table-header-repeat     repeat the header every LINES rows",
+  "              (LINES, else the terminal height, else 24)",
+  "  -L, --keep-empty-lines        keep whitespace-only lines (empty rows)",
   "  -J, --json  print the table as JSON; empty cells are null",
   "  -n NAME, --table-name=NAME",
   "              JSON table name (default table)",
@@ -1361,9 +1888,17 @@ char *column_doc[] = {
   "  -R COLS, --table-right=COLS   right-align these columns",
   "  -H COLS, --table-hide=COLS    do not print these columns ('-': unnamed ones)",
   "  -O COLS, --table-order=COLS   print these columns first, in this order",
+  "  -T COLS, --table-truncate=COLS   truncate these columns when the table",
+  "              is wider than the output",
+  "  -W COLS, --table-wrap=COLS    wrap these columns onto more lines instead",
+  "  -E COLS, --table-noextreme=COLS  these columns may give up width; a",
+  "              longer cell then ends its line (default: the last column)",
   "              COLS is a comma-separated list of -N names, numbers from 1,",
   "              ranges such as 1-3 (not -O), 0 for all (not -O) and -1 for",
   "              the last visible column",
+  "  -r COL, --tree=COL            draw COL as a tree of the rows: each row",
+  "  -i COL, --tree-id=COL         whose -i cell is another row's -p cell is",
+  "  -p COL, --tree-parent=COL     that row's parent (needs -i and -p)",
   "  --help      show usage",
   "  --version   show version",
   "",
@@ -1378,7 +1913,7 @@ struct builtin column_struct = {
   column_builtin,
   BUILTIN_ENABLED,
   column_doc,
-  "column [-x] [-c WIDTH] [-t [-s SEPSTR] [-o OUTSTR] [-N NAMES] [-l NUM] [-R|-H|-O COLS]] [-J -N NAMES [-n NAME]] [FILE...]",
+  "column [-xL] [-c WIDTH] [-t [-s SEPSTR] [-o OUTSTR] [-N NAMES] [-dLe] [-l NUM] [-R|-H|-O|-T|-W|-E COLS] [-r COL -i COL -p COL]] [-J -N NAMES [-n NAME]] [FILE...]",
   0
 };
 

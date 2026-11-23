@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "loadable": "tac",
+  "reference": "GNU coreutils 9.7 tac, invoked by system Bash on the reference side; stderr is compared byte for byte after the shell's script-line prefix is removed.",
+  "coverage": [
+    "Guest compatibility pass 6 (G90): GNU diagnostic wording for operand and usage errors."
+  ],
+  "exclusions": [
+    "Only diagnostics are covered here; the reviewed suite in suites/ covers ordinary operation."
+  ],
+  "cases": [
+    {
+      "id": "pass6-operand-diagnostics",
+      "kind": "parity",
+      "purpose": "G90: GNU tac's 'failed to open ... for reading' with the operand quoted, later operands still printed, and the coreutils Try line after an option error.",
+      "script": "printf 'a\\nb\\n' > f\n{ tac nosuch f || echo rc=$?; } 2>err\n{ tac 'a b' || echo rc=$?; } 2>>err\n{ tac --bogus || echo rc=$?; } 2>>err\n{ tac -s || echo rc=$?; } 2>>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "tac",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
+    }
+  ]
+}

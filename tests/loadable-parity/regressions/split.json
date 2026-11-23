@@ -15,7 +15,8 @@
     "Bash builtin type and generated short-help metadata",
     "-d / --numeric-suffixes, -x / --hex-suffixes and --additional-suffix (guest pass 2 G35)",
     "G68: --filter=COMMAND, with FILE exported, early-closing filters, and filter exit/signal statuses.",
-    "Guest compatibility pass 5 (G74/G83): pass5-long-lines-bytes, pass5-number-elide-hex, pass5-line-bytes-and-separator, pass5-long-diagnostics."
+    "Guest compatibility pass 5 (G74/G83): pass5-long-lines-bytes, pass5-number-elide-hex, pass5-line-bytes-and-separator, pass5-long-diagnostics.",
+    "Guest compatibility pass 6 (G90): GNU diagnostic wording for operand and usage errors."
   ],
   "exclusions": [
     "This is focused coverage, not the full GNU split option surface; numeric line/byte splitting and common suffix behavior are covered, while options such as --elide-empty-files are outside the documented builtin interface.",
@@ -242,6 +243,20 @@
         "split",
         "sed"
       ]
+    },
+    {
+      "id": "pass6-input-diagnostics",
+      "kind": "parity",
+      "purpose": "G90: GNU split's \"cannot open 'NAME' for reading\", a read error naming the input ('-' for standard input) and the extra-operand diagnostic with its Try line; no output piece is created.",
+      "script": "mkdir d\nprintf 'x\\n' > f\n{ split nosuch || echo rc=$?; } 2>err\n{ split 'a b' || echo rc=$?; } 2>>err\n{ split d || echo rc=$?; } 2>>err\n{ split < d || echo rc=$?; } 2>>err\n{ split f p extra || echo rc=$?; } 2>>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "split",
+        "mkdir",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

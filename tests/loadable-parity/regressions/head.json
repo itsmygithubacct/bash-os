@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "loadable": "head",
+  "reference": "GNU coreutils head from the runner's read-only /usr tree is the independent oracle, run by system Bash with the same bounded fixture script under LC_ALL=C; bash-os runs it with PATH empty. The runner compares status, stdout, stderr where a case asks for it, and the private fixture tree.",
+  "coverage": [
+    "Guest compatibility pass 6 (G90): pass6-operand-diagnostics, pass6-quoting-and-options."
+  ],
+  "exclusions": [],
+  "cases": [
+    {
+      "id": "pass6-operand-diagnostics",
+      "kind": "parity",
+      "purpose": "G90: GNU head's \"cannot open 'F' for reading\" and \"error reading 'F'\" ('standard input' for -) with getopt's unrecognized-option line and Try line.",
+      "script": "mkdir d\nprintf 'a\\n' > f\n{ head nosuch f || echo rc=$?; } 2>err\n{ head d || echo rc=$?; } 2>>err\n{ head < d || echo rc=$?; } 2>>err\n{ head --bogus || echo rc=$?; } 2>>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "head",
+        "mkdir",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "pass6-quoting-and-options",
+      "kind": "parity",
+      "purpose": "G90: GNU head always quotes the file name (a'b, a b), keeps going after a failed operand with the ==> headers, and uses getopt's lines for an unknown short option and a missing -n argument.",
+      "script": "mkdir d\nprintf 'a\\n' > f\n{ head \"a'b\" 'a b' || echo rc=$?; } 2>err\n{ head d f || echo rc=$?; } 2>>err\n{ head -x || echo rc=$?; } 2>>err\n{ head -n || echo rc=$?; } 2>>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "head",
+        "mkdir",
+        "printf",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
+    }
+  ]
+}

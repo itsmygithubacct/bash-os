@@ -9,7 +9,8 @@
     "Fixed independently authored gzip, concatenated-gzip, RFC 1950 and raw-DEFLATE decoder vectors with binary payloads.",
     "Fixed Python standard-library XZ/bzip2 decoder vectors and an independently authored binary Zstandard raw-block frame.",
     "Identical fixed gzip truncation/CRC inputs, streamed error output and same-shell write-error recovery.",
-    "G30: zlib -l -f xz (the image's xz -l) prints xz --list's table: streams, blocks, sizes, ratio, check, and totals."
+    "G30: zlib -l -f xz (the image's xz -l) prints xz --list's table: streams, blocks, sizes, ratio, check, and totals.",
+    "G92: -v, -v -v and -M (xz -lv, -lvv, --robot -l) list output, diagnostics and statuses."
   ],
   "exclusions": [
     "Compressed stream bytes are not asserted identical; codec headers and compressor choices may vary. Round trips and decoded bytes are compared, and temporary compressed artifacts are removed before tree comparison.",
@@ -275,6 +276,56 @@
       "script": "st() { if \"$@\"; then echo rc=0; else echo rc=$?; fi; }\nprintf '%b' '\\x42\\x5a\\x68\\x39\\x31\\x41\\x59\\x26\\x53\\x59\\x88\\x12\\x88\\x13\\x00\\x00\\x03\\xc1\\x80\\xc0\\x10\\x0a\\x00\\x95\\x00\\x00\\x00\\xa0\\x00\\x31\\x06\\x4c\\x41\\x01\\x91\\xea\\x31\\x80\\x07\\x8b\\xb9\\x22\\x9c\\x28\\x48\\x44\\x09\\x44\\x09\\x80' > v.bz2\n{ cat v.bz2 v.bz2; printf 'junk'; } > g.bz2\nr=0; zlib -g -d -f bz2 < g.bz2 > out || r=$?; echo rc=$r; od -An -c out\nprintf '%b' '\\x1f\\x8b\\x08\\x00\\x00\\x00\\x00\\x00\\x02\\xff\\x4b\\xe4\\x02\\x00\\x07\\xa1\\xea\\xdd\\x02\\x00\\x00\\x00' > a.gz\n{ cat a.gz; printf 'junk'; } > g.gz; st zlib -g -d < g.gz\n{ cat a.gz; printf '\\0\\0\\0'; } > z.gz; st zlib -g -d < z.gz\nst zlib -d < g.gz 2>/dev/null\n",
       "expected_status": 0,
       "stdout": "rc=2\n   v   e   c   t   o   r  \\0 377  \\n   v   e   c   t   o   r  \\0\n 377  \\n\na\nrc=2\na\nrc=0\na\nrc=2\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "xz-list-verbose",
+      "kind": "parity",
+      "requires": [
+        "xz",
+        "seq"
+      ],
+      "purpose": "G92: zlib -l -v -f xz (the image's xz -lv) prints xz 5.8's per-file report: totals, the Streams and Blocks tables with offsets, padding and checks, and a Totals section for several files.",
+      "script": "xzl() {\n  if [[ $(type -t zlib) == builtin ]]; then\n    local a z=()\n    for a in \"$@\"; do case $a in --robot) z+=(-M) ;; -?*) z+=(\"$a\") ;; *) break ;; esac; shift; done\n    local BASHOS_SHIM_COMMAND=zlib=xz\n    zlib \"${z[@]}\" -f xz \"$@\"\n  else\n    xz \"$@\"\n  fi\n}\n/usr/bin/seq 1 3000 > s\n/usr/bin/xz -k s\n/usr/bin/seq 1 60000 | /usr/bin/xz --block-size=100000 -C crc32 > mb.xz\n{ /usr/bin/seq 10 | /usr/bin/xz -C sha256; /usr/bin/seq 20 | /usr/bin/xz -C none; } > ms.xz\n{ /usr/bin/seq 10 | /usr/bin/xz; printf '\\0\\0\\0\\0\\0\\0\\0\\0'; } > pad.xz\n/usr/bin/seq 1 3000 | /usr/bin/xz --delta=dist=4 --lzma2=dict=3MiB > delta.xz\n/usr/bin/seq 1 3000 | /usr/bin/xz --arm64 --lzma2=preset=1 > arm64.xz\n: | /usr/bin/xz > e.xz\nxzl -l -v s.xz\nxzl -l -v mb.xz ms.xz pad.xz e.xz\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "xz-list-very-verbose",
+      "kind": "parity",
+      "requires": [
+        "xz",
+        "seq"
+      ],
+      "purpose": "G92: zlib -l -v -v (xz -lvv) adds block check values (CRC32/CRC64 as integers, SHA-256 bytewise), header size, size flags, compressed size, memory, filter chain, and per-file and total memory/sizes/minimum-version lines (5.4.0 for ARM64).",
+      "script": "xzl() {\n  if [[ $(type -t zlib) == builtin ]]; then\n    local a z=()\n    for a in \"$@\"; do case $a in --robot) z+=(-M) ;; -?*) z+=(\"$a\") ;; *) break ;; esac; shift; done\n    local BASHOS_SHIM_COMMAND=zlib=xz\n    zlib \"${z[@]}\" -f xz \"$@\"\n  else\n    xz \"$@\"\n  fi\n}\n/usr/bin/seq 1 3000 > s\n/usr/bin/xz -k s\n/usr/bin/seq 1 60000 | /usr/bin/xz --block-size=100000 -C crc32 > mb.xz\n{ /usr/bin/seq 10 | /usr/bin/xz -C sha256; /usr/bin/seq 20 | /usr/bin/xz -C none; } > ms.xz\n{ /usr/bin/seq 10 | /usr/bin/xz; printf '\\0\\0\\0\\0\\0\\0\\0\\0'; } > pad.xz\n/usr/bin/seq 1 3000 | /usr/bin/xz --delta=dist=4 --lzma2=dict=3MiB > delta.xz\n/usr/bin/seq 1 3000 | /usr/bin/xz --arm64 --lzma2=preset=1 > arm64.xz\n: | /usr/bin/xz > e.xz\nxzl -l -v -v s.xz\nxzl -l -v -v mb.xz ms.xz pad.xz delta.xz arm64.xz e.xz\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "xz-list-robot",
+      "kind": "parity",
+      "requires": [
+        "xz",
+        "seq"
+      ],
+      "purpose": "G92: zlib -M -l (xz --robot -l) at each verbosity prints the tab-separated name/file/stream/block/summary/totals lines, with totals for a single file too.",
+      "script": "xzl() {\n  if [[ $(type -t zlib) == builtin ]]; then\n    local a z=()\n    for a in \"$@\"; do case $a in --robot) z+=(-M) ;; -?*) z+=(\"$a\") ;; *) break ;; esac; shift; done\n    local BASHOS_SHIM_COMMAND=zlib=xz\n    zlib \"${z[@]}\" -f xz \"$@\"\n  else\n    xz \"$@\"\n  fi\n}\n/usr/bin/seq 1 3000 > s\n/usr/bin/xz -k s\n/usr/bin/seq 1 60000 | /usr/bin/xz --block-size=100000 -C crc32 > mb.xz\n{ /usr/bin/seq 10 | /usr/bin/xz -C sha256; /usr/bin/seq 20 | /usr/bin/xz -C none; } > ms.xz\n{ /usr/bin/seq 10 | /usr/bin/xz; printf '\\0\\0\\0\\0\\0\\0\\0\\0'; } > pad.xz\n/usr/bin/seq 1 3000 | /usr/bin/xz --delta=dist=4 --lzma2=dict=3MiB > delta.xz\n/usr/bin/seq 1 3000 | /usr/bin/xz --arm64 --lzma2=preset=1 > arm64.xz\n: | /usr/bin/xz > e.xz\nxzl --robot -l s.xz\nxzl --robot -l -v mb.xz ms.xz\nxzl --robot -l -v -v s.xz ms.xz pad.xz delta.xz arm64.xz e.xz\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "xz-list-verbose-errors",
+      "kind": "parity",
+      "requires": [
+        "xz",
+        "seq",
+        "cat",
+        "head"
+      ],
+      "purpose": "G92: in -v and robot list modes a missing, too-small, non-xz or corrupt file prints xz's diagnostic and makes the status 1, a directory is skipped with status 2, -q drops the skip warning, and standard input is refused. (stderr is captured to a file per call, so stdio buffering cannot reorder it.)",
+      "script": "xzl() {\n  if [[ $(type -t zlib) == builtin ]]; then\n    local a z=()\n    for a in \"$@\"; do case $a in --robot) z+=(-M) ;; -?*) z+=(\"$a\") ;; *) break ;; esac; shift; done\n    local BASHOS_SHIM_COMMAND=zlib=xz\n    zlib \"${z[@]}\" -f xz \"$@\"\n  else\n    xz \"$@\"\n  fi\n}\n/usr/bin/seq 1 30 > s\n/usr/bin/xz -k s\necho notxz > p.xz\n/usr/bin/seq 1 40 > big.xz\n/usr/bin/head -c 100 s.xz > t.xz\nmkdir d.xz\nxzl -l -v s.xz nope.xz p.xz big.xz t.xz d.xz 2>err || echo rc=$?\n/usr/bin/cat err\nxzl --robot -l -v -v s.xz nope.xz 2>err || echo rc=$?\n/usr/bin/cat err\nxzl -l -v d.xz 2>err || echo rc=$?\n/usr/bin/cat err\nxzl -l -q d.xz 2>err || echo rc=$?\n/usr/bin/cat err\nxzl -l -v s.xz - 2>err || echo rc=$?\n/usr/bin/cat err\nxzl --robot -l - 2>err || echo rc=$?\n/usr/bin/cat err\n",
+      "expected_status": 0,
       "stderr": "empty"
     }
   ]

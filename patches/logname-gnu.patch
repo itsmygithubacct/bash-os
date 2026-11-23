@@ -1,71 +1,151 @@
 --- a/logname.c
 +++ b/logname.c
-@@ -25,6 +25,7 @@
+@@ -25,32 +25,146 @@
  #endif
  
  #include <stdio.h>
++#include <stdlib.h>
 +#include <string.h>
  #include <errno.h>
++#include <fcntl.h>
++#include <pwd.h>
++#include <utmp.h>
  
  #include "../builtins.h"
-@@ -35,13 +36,54 @@
+ #include "../shell.h"
+ #include "common.h"
++#include "gnu-longopt.h"
++#include "shim-prog-name.h"
+ 
+ #if !defined (errno)
  extern int errno;
  #endif
  
-+/* Accept GNU's unique long-option prefixes, without borrowing its banners. */
++/* The login name, as GNU logname reports it: the user of the audit login
++   UID (/proc/self/loginuid, set by the login session and inherited from
++   there), else the user of the utmp login record for the terminal on
++   standard input. Never LOGNAME or USER, which a C library's getlogin()
++   may consult (musl does). Returns NULL when there is no login name. */
++static const char *
++logname_lookup (void)
++{
++  static char user[UT_NAMESIZE + 1];
++  /* bash-os login writes /var/run/utmp; some systems keep /run/utmp apart. */
++  static const char *const utmp_files[] = { "/var/run/utmp", "/run/utmp", 0 };
++  struct passwd *pw;
++  struct utmp u;
++  char buffer[32], *end, *line;
++  const char *const *f;
++  unsigned long long uid;
++  ssize_t n;
++  size_t used;
++  int fd;
++
++  fd = open ("/proc/self/loginuid", O_RDONLY | O_CLOEXEC);
++  if (fd >= 0)
++    {
++      n = read (fd, buffer, sizeof buffer - 1);
++      close (fd);
++      if (n > 0)
++        {
++          buffer[n] = 0;
++          errno = 0;
++          uid = strtoull (buffer, &end, 10);
++          /* (uid_t)-1 means the process was never part of a login. */
++          if (errno == 0 && end != buffer && (*end == 0 || *end == '\n') &&
++              uid == (unsigned long long)(uid_t)uid && (uid_t)uid != (uid_t)-1 &&
++              (pw = getpwuid ((uid_t)uid)) && pw->pw_name && *pw->pw_name)
++            return pw->pw_name;
++        }
++    }
++
++  line = ttyname (STDIN_FILENO);
++  if (line == 0)
++    return 0;
++  if (strncmp (line, "/dev/", 5) == 0)
++    line += 5;
++  for (f = utmp_files; *f; f++)
++    {
++      fd = open (*f, O_RDONLY | O_CLOEXEC);
++      if (fd < 0)
++        continue;
++      for (;;)
++        {
++          for (used = 0; used < sizeof u; used += n)
++            {
++              n = read (fd, (char *)&u + used, sizeof u - used);
++              if (n < 0 && errno == EINTR) { n = 0; continue; }
++              if (n <= 0) break;
++            }
++          if (used < sizeof u)
++            break;
++          if (u.ut_type == USER_PROCESS && u.ut_user[0] &&
++              strncmp (u.ut_line, line, sizeof u.ut_line) == 0)
++            {
++              close (fd);
++              memcpy (user, u.ut_user, UT_NAMESIZE);
++              user[UT_NAMESIZE] = 0;
++              return user;
++            }
++        }
++      close (fd);
++    }
++  return 0;
++}
++
++static const struct bos_longopt logname_longopts[] = {
++  { "help", BOS_NO_ARG, BOS_OPT_HELP },
++  { "version", BOS_NO_ARG, BOS_OPT_VERSION },
++  { 0, 0, 0 }
++};
++
++/* Options as GNU getopt_long scans them; an operand is "extra". */
  int
  logname_builtin (WORD_LIST *list)
  {
-+  char *arg, *operand;
-+  size_t len;
-+  int end_options, posix_options;
-   char *np;
- 
+-  char *np;
+-
 -  if (no_options (list))
 -    return (EX_USAGE);
-+  operand = 0;
-+  end_options = 0;
-+  posix_options = getenv ("POSIXLY_CORRECT") != 0;
-+  for (; list; list = list->next)
++  bos_getopt g;
++  const char *prog, *np;
++  char *q;
++  int opt;
++
++  prog = bos_shim_prog_name ("logname");
++  bos_getopt_init (&g, prog, "", logname_longopts, list);
++  while ((opt = bos_getopt_next (&g)) != -1)
++    switch (opt)
++      {
++      case BOS_OPT_HELP:
++        bos_getopt_free (&g);
++        builtin_help ();
++        return (sh_chkwrite (EXECUTION_SUCCESS));
++      case BOS_OPT_VERSION:
++        bos_getopt_free (&g);
++        printf ("logname (bash-os builtin, Bash %s)\n", dist_version);
++        return (sh_chkwrite (EXECUTION_SUCCESS));
++      default:
++        bos_getopt_free (&g);
++        return (EXECUTION_FAILURE);
++      }
++  if (g.noperands)
 +    {
-+      arg = list->word->word;
-+      if (end_options == 0 && strcmp (arg, "--") == 0)
-+        {
-+          end_options = 1;
-+          continue;
-+        }
-+      if (end_options == 0 && arg[0] == '-' && arg[1])
-+        {
-+          len = strlen (arg + 2);
-+          if (arg[1] == '-' && len && len <= 4 &&
-+              strncmp ("help", arg + 2, len) == 0)
-+            {
-+              builtin_help ();
-+              return (sh_chkwrite (EXECUTION_SUCCESS));
-+            }
-+          if (arg[1] == '-' && len && len <= 7 &&
-+              strncmp ("version", arg + 2, len) == 0)
-+            {
-+              printf ("logname (bash-os builtin, Bash %s)\n", dist_version);
-+              return (sh_chkwrite (EXECUTION_SUCCESS));
-+            }
-+          builtin_error ("%s: invalid option", arg);
-+          return (EXECUTION_FAILURE);
-+        }
-+      if (operand == 0)
-+        operand = arg;
-+      if (posix_options)
-+        end_options = 1;
-+    }
-+  if (operand)
-+    {
-+      builtin_error ("extra operand: %s", operand);
++      q = bos_quote (g.operands[0]);
++      builtin_error ("extra operand %s", q ? q : g.operands[0]);
++      free (q);
++      bos_getopt_free (&g);
++      bos_try_help (prog);
 +      return (EXECUTION_FAILURE);
 +    }
++  bos_getopt_free (&g);
  
-   np = getlogin ();
+-  np = getlogin ();
++  np = logname_lookup ();
    if (np == 0)
-@@ -50,7 +92,7 @@
+     {
+-      builtin_error ("cannot find username: %s", strerror (errno));
++      builtin_error ("no login name");
        return (EXECUTION_FAILURE);
      }
    printf ("%s\n", np);
@@ -74,17 +154,19 @@
  }
  
  char *logname_doc[] = {
-@@ -58,7 +100,8 @@
+@@ -58,7 +172,10 @@
  	"",
  	"Write the current user's login name to the standard output",
  	"and exit.  logname ignores the LOGNAME and USER variables.",
 -	"logname ignores any non-option arguments.",
++	"The name is that of the session's login user ID, or of the utmp",
++	"login record for the terminal on standard input.",
 +	"logname rejects operands.",
 +	"--help displays help; --version displays the Bash builtin version.",
  	(char *)NULL
  };
  	
-@@ -67,7 +110,7 @@
+@@ -67,7 +184,7 @@
  	logname_builtin,
  	BUILTIN_ENABLED,
  	logname_doc,

@@ -622,14 +622,54 @@ bz_codec_bzip2 (int in_fd, int out_fd, int encode, int level)
 }
 
 /* ---- xz --list (-l -f xz) ------------------------------------------- */
-struct bz_xz_totals { uint64_t files, streams, blocks, compressed, uncompressed; uint32_t checks; };
+/* Layout and wording follow xz 5.8's --list as documented in xz(1) (List
+   mode, Robot mode) and as its output reads: a table by default, a per-file
+   report with -v (streams and blocks tables) and -v -v (block headers,
+   check values, filter chains, memory needed), and xz's tab-separated
+   robot lines with -M. Numbers use the locale's digit grouping, as xz's
+   human-readable output does; robot output never groups. */
 
+/* Encoded XZ Utils versions, as robot mode prints them (stable = 2). */
+#define BZ_XZ_VER_500 50000002u
+#define BZ_XZ_VER_540 50040002u
+#define BZ_XZ_VER_560 50060002u
+
+struct bz_xz_totals
+{
+  uint64_t files, streams, blocks, compressed, uncompressed, padding, memusage;
+  uint32_t checks, min_version;
+  int all_sizes;
+};
+
+/* One block's header facts, for -v -v. */
+struct bz_xz_block
+{
+  uint32_t header_size;
+  char flags[3];
+  uint64_t compressed;          /* compressed data, without header/check */
+  uint64_t memusage;
+  char *filters;
+  char check[2 * LZMA_CHECK_SIZE_MAX + 1];
+};
+
+static const char *
+bz_xz_group (uint64_t v, char *buf, size_t n)
+{
+  snprintf (buf, n, "%'llu", (unsigned long long) v);
+  return buf;
+}
+
+/* The table's size column: bytes below 10000, else one decimal of the
+   largest binary unit that keeps the value under 10000. */
 static const char *
 bz_xz_nicestr (uint64_t v, char *buf, size_t n)
 {
   static const char units[][4] = { "B", "KiB", "MiB", "GiB", "TiB" };
   if (v < 10000)
-    snprintf (buf, n, "%llu B", (unsigned long long) v);
+    {
+      char g[32];
+      snprintf (buf, n, "%s B", bz_xz_group (v, g, sizeof g));
+    }
   else
     {
       double d = (double) v;
@@ -637,6 +677,20 @@ bz_xz_nicestr (uint64_t v, char *buf, size_t n)
       do { d /= 1024.0; unit++; } while (d > 9999.9 && unit < 4);
       snprintf (buf, n, "%.1f %s", d, units[unit]);
     }
+  return buf;
+}
+
+/* -v's size lines: the table form, plus the exact byte count when the
+   table form is rounded ("21.7 KiB (22,256 B)"). */
+static const char *
+bz_xz_verbose_size (uint64_t v, char *buf, size_t n)
+{
+  char nice[48], g[32];
+  bz_xz_nicestr (v, nice, sizeof nice);
+  if (v < 10000)
+    snprintf (buf, n, "%s", nice);
+  else
+    snprintf (buf, n, "%s (%s B)", nice, bz_xz_group (v, g, sizeof g));
   return buf;
 }
 
@@ -650,20 +704,46 @@ bz_xz_ratio (uint64_t comp, uint64_t uncomp, char *buf, size_t n)
 }
 
 static const char *
-bz_xz_checks (uint32_t mask, char *buf, size_t n)
+bz_xz_check_name (int id, char *buf, size_t n)
 {
   static const char *names[16] = { "None", "CRC32", NULL, NULL, "CRC64", NULL, NULL, NULL,
                                    NULL, NULL, "SHA-256", NULL, NULL, NULL, NULL, NULL };
+  if (id >= 0 && id < 16 && names[id]) snprintf (buf, n, "%s", names[id]);
+  else snprintf (buf, n, "Unknown-%d", id);
+  return buf;
+}
+
+/* The checks in MASK by id, joined with SEP; "None" for an empty mask (as
+   robot totals print when no file was listed). */
+static const char *
+bz_xz_checks (uint32_t mask, const char *sep, char *buf, size_t n)
+{
   size_t used = 0;
   buf[0] = '\0';
+  if (!mask)
+    mask = 1u << LZMA_CHECK_NONE;
   for (int i = 0; i < 16; i++)
     {
       if (!(mask & (1u << i))) continue;
       char one[16];
-      if (names[i]) snprintf (one, sizeof one, "%s", names[i]);
-      else snprintf (one, sizeof one, "Unknown-%d", i);
-      used += (size_t) snprintf (buf + used, used < n ? n - used : 0, "%s%s", used ? "," : "", one);
+      bz_xz_check_name (i, one, sizeof one);
+      used += (size_t) snprintf (buf + used, used < n ? n - used : 0, "%s%s", used ? sep : "", one);
     }
+  return buf;
+}
+
+static void
+bz_xz_version_str (uint32_t v, char *buf, size_t n)
+{
+  snprintf (buf, n, "%u.%u.%u", v / 10000000u, v / 10000u % 1000u, v / 10u % 1000u);
+}
+
+/* Memory sizes in -v -v human output: whole MiB, rounded up. */
+static const char *
+bz_xz_mib (uint64_t v, char *buf, size_t n)
+{
+  char g[32];
+  snprintf (buf, n, "%s MiB", bz_xz_group ((v + 1048575) / 1048576, g, sizeof g));
   return buf;
 }
 
@@ -671,31 +751,94 @@ static void
 bz_xz_row (uint64_t streams, uint64_t blocks, uint64_t comp, uint64_t uncomp,
            uint32_t checks, const char *name)
 {
-  char a[32], b[32], c[32], d[32], e[32], f[96];
-  snprintf (a, sizeof a, "%llu", (unsigned long long) streams);
-  snprintf (b, sizeof b, "%llu", (unsigned long long) blocks);
+  char a[32], b[32], c[48], d[48], e[32], f[96];
+  bz_xz_group (streams, a, sizeof a);
+  bz_xz_group (blocks, b, sizeof b);
   printf ("%5s %7s  %11s  %11s  %5s  %-7s %s\n", a, b,
           bz_xz_nicestr (comp, c, sizeof c), bz_xz_nicestr (uncomp, d, sizeof d),
-          bz_xz_ratio (comp, uncomp, e, sizeof e), bz_xz_checks (checks, f, sizeof f), name);
+          bz_xz_ratio (comp, uncomp, e, sizeof e), bz_xz_checks (checks, ",", f, sizeof f), name);
 }
 
-/* Read the stream index of every concatenated .xz stream, last to first,
-   as xz --list does. Returns 0, or 1 after a diagnostic. */
+/* Read a block's header and check value (-v -v). Returns 0, or -1 when the
+   header cannot be read or decoded. */
 static int
-bz_xz_list_file (const char *path, int *headings, struct bz_xz_totals *t)
+bz_xz_block_info (int fd, const lzma_index_iter *it, struct bz_xz_block *bi)
 {
-  int fd = open (path, O_RDONLY | O_CLOEXEC);
-  if (fd < 0) { builtin_error ("%s: %s", path, strerror (errno)); return 1; }
+  uint8_t hdr[LZMA_BLOCK_HEADER_SIZE_MAX];
+  lzma_filter filters[LZMA_FILTERS_MAX + 1];
+  lzma_block block;
+  lzma_check check = it->stream.flags->check;
+  uint32_t csize = lzma_check_size (check);
+  off_t at = (off_t) it->block.compressed_file_offset;
+
+  memset (bi, 0, sizeof *bi);
+  if (pread (fd, hdr, 1, at) != 1 || hdr[0] == 0)
+    return -1;
+  memset (&block, 0, sizeof block);
+  block.version = 1;
+  block.check = check;
+  block.header_size = lzma_block_header_size_decode (hdr[0]);
+  block.filters = filters;
+  if (pread (fd, hdr, block.header_size, at) != (ssize_t) block.header_size
+      || lzma_block_header_decode (&block, NULL, hdr) != LZMA_OK)
+    return -1;
+  bi->header_size = block.header_size;
+  bi->flags[0] = block.compressed_size != LZMA_VLI_UNKNOWN ? 'c' : '-';
+  bi->flags[1] = block.uncompressed_size != LZMA_VLI_UNKNOWN ? 'u' : '-';
+  bi->flags[2] = '\0';
+  bi->compressed = it->block.unpadded_size - block.header_size - csize;
+  bi->memusage = lzma_raw_decoder_memusage (filters);
+  if (lzma_str_from_filters (&bi->filters, filters, LZMA_STR_DECODER | LZMA_STR_GETOPT_LONG, NULL) != LZMA_OK)
+    bi->filters = NULL;
+  for (int i = 0; filters[i].id != LZMA_VLI_UNKNOWN; i++)
+    free (filters[i].options);
+  if (check == LZMA_CHECK_NONE || csize == 0)
+    snprintf (bi->check, sizeof bi->check, "---");
+  else
+    {
+      uint8_t cv[LZMA_CHECK_SIZE_MAX];
+      if (pread (fd, cv, csize, (off_t) (it->block.compressed_file_offset + it->block.total_size - csize))
+          != (ssize_t) csize)
+        { free (bi->filters); bi->filters = NULL; return -1; }
+      /* xz shows CRC32 and CRC64 as the integers they store little-endian,
+         and other checks (SHA-256) byte by byte. */
+      int rev = check == LZMA_CHECK_CRC32 || check == LZMA_CHECK_CRC64;
+      for (uint32_t i = 0; i < csize; i++)
+        snprintf (bi->check + 2 * i, 3, "%02x", cv[rev ? csize - 1 - i : i]);
+    }
+  return 0;
+}
+
+/* The oldest XZ Utils release that decodes a block's filter chain. */
+static uint32_t
+bz_xz_block_version (const char *filters)
+{
+  if (!filters) return BZ_XZ_VER_500;
+  if (strstr (filters, "--riscv")) return BZ_XZ_VER_560;
+  if (strstr (filters, "--arm64")) return BZ_XZ_VER_540;
+  return BZ_XZ_VER_500;
+}
+
+/* Parse the stream indexes of every concatenated .xz stream, last to first,
+   as xz --list does. Returns the combined index, or NULL after setting *MSG
+   (and *WARN for a file that is skipped rather than failed). */
+static lzma_index *
+bz_xz_read_index (int fd, const char **msg, int *warn)
+{
   struct stat st;
   uint8_t buf[LZMA_STREAM_HEADER_SIZE];
   static const uint8_t magic[6] = { 0xFD, '7', 'z', 'X', 'Z', 0 };
-  if (fstat (fd, &st) < 0 || !S_ISREG (st.st_mode) || st.st_size < 2 * LZMA_STREAM_HEADER_SIZE
-      || pread (fd, buf, sizeof buf, 0) != (ssize_t) sizeof buf || memcmp (buf, magic, 6))
-    {
-      builtin_error ("%s: File format not recognized", path);
-      close (fd);
-      return 1;
-    }
+
+  if (fstat (fd, &st) < 0)
+    { *msg = strerror (errno); return NULL; }
+  if (S_ISDIR (st.st_mode))
+    { *msg = "Is a directory, skipping"; *warn = 1; return NULL; }
+  if (!S_ISREG (st.st_mode))
+    { *msg = "Not a regular file, skipping"; *warn = 1; return NULL; }
+  if (st.st_size < 2 * LZMA_STREAM_HEADER_SIZE)
+    { *msg = "Too small to be a valid .xz file"; return NULL; }
+  if (pread (fd, buf, sizeof buf, 0) != (ssize_t) sizeof buf || memcmp (buf, magic, 6))
+    { *msg = "File format not recognized"; return NULL; }
   lzma_index *combined = NULL;
   uint64_t pos = (uint64_t) st.st_size;
   int bad = 0;
@@ -737,58 +880,313 @@ bz_xz_list_file (const char *path, int *headings, struct bz_xz_totals *t)
       combined = idx;
       pos -= ssize;
     }
-  close (fd);
   if (bad || !combined)
     {
       if (combined) lzma_index_end (combined, NULL);
-      builtin_error ("%s: Compressed data is corrupt", path);
+      *msg = "Compressed data is corrupt";
+      return NULL;
+    }
+  return combined;
+}
+
+/* List one file. NTH/COUNT number it among the operands (-v headings).
+   Returns 0, 1 for an error or 2 for a skipped file, after a diagnostic. */
+static int
+bz_xz_list_file (const char *path, int nth, int count, int verbose, int robot,
+                 int quiet, int *headings, struct bz_xz_totals *t)
+{
+  const char *msg = NULL;
+  int warn = 0, fd;
+  lzma_index *idx = NULL;
+  struct bz_xz_block *binfo = NULL;
+  lzma_index_iter it;
+  char a[64], b[64], c[64], d[64], e[64], f[96], g[64];
+
+  if (verbose && !robot)
+    {
+      if (nth > 1)
+        putchar ('\n');
+      printf ("%s (%d/%d)\n", strcmp (path, "-") ? path : "(stdin)", nth, count);
+    }
+  if (!strcmp (path, "-"))
+    {
+      fflush (stdout);
+      if (quiet < 2)
+        builtin_error ("--list does not support reading from standard input");
       return 1;
     }
-  if (!*headings)
+  fd = open (path, O_RDONLY | O_CLOEXEC);
+  if (fd < 0)
+    msg = strerror (errno);
+  else
+    idx = bz_xz_read_index (fd, &msg, &warn);
+
+  uint64_t nblocks = idx ? lzma_index_block_count (idx) : 0;
+  uint64_t memusage = 0;
+  uint32_t version = BZ_XZ_VER_500;
+  int all_sizes = 1, checkw = 8;
+  if (idx && verbose >= 2 && nblocks)
     {
-      puts ("Strms  Blocks   Compressed Uncompressed  Ratio  Check   Filename");
-      *headings = 1;
+      binfo = calloc ((size_t) nblocks, sizeof *binfo);
+      if (!binfo)
+        msg = strerror (ENOMEM);
+      else
+        {
+          size_t k = 0;
+          lzma_index_iter_init (&it, idx);
+          while (!lzma_index_iter_next (&it, LZMA_INDEX_ITER_BLOCK) && k < nblocks)
+            {
+              if (bz_xz_block_info (fd, &it, &binfo[k]) < 0)
+                { msg = "Compressed data is corrupt"; break; }
+              if (binfo[k].memusage > memusage) memusage = binfo[k].memusage;
+              if (strcmp (binfo[k].flags, "cu")) all_sizes = 0;
+              uint32_t v = bz_xz_block_version (binfo[k].filters);
+              if (v > version) version = v;
+              k++;
+            }
+        }
     }
-  uint64_t streams = lzma_index_stream_count (combined), blocks = lzma_index_block_count (combined);
-  uint64_t comp = lzma_index_file_size (combined), uncomp = lzma_index_uncompressed_size (combined);
-  uint32_t checks = lzma_index_checks (combined);
-  bz_xz_row (streams, blocks, comp, uncomp, checks, path);
-  t->files++; t->streams += streams; t->blocks += blocks;
+  if (fd >= 0)
+    close (fd);
+  if (msg)
+    {
+      if (binfo)
+        {
+          for (uint64_t k = 0; k < nblocks; k++) free (binfo[k].filters);
+          free (binfo);
+        }
+      if (idx) lzma_index_end (idx, NULL);
+      fflush (stdout);
+      /* -q silences warnings (skipped files), -q -q errors as well. */
+      if (quiet < (warn ? 1 : 2))
+        builtin_error ("%s: %s", path, msg);
+      return warn ? 2 : 1;
+    }
+
+  uint64_t streams = lzma_index_stream_count (idx);
+  uint64_t comp = lzma_index_file_size (idx), uncomp = lzma_index_uncompressed_size (idx);
+  uint32_t checks = lzma_index_checks (idx);
+  uint64_t padding = 0;
+  lzma_index_iter_init (&it, idx);
+  while (!lzma_index_iter_next (&it, LZMA_INDEX_ITER_STREAM))
+    {
+      int w = 2 * (int) lzma_check_size (it.stream.flags->check);
+      padding += it.stream.padding;
+      if (w > checkw) checkw = w;
+    }
+
+  if (robot)
+    {
+      printf ("name\t%s\n", path);
+      printf ("file\t%llu\t%llu\t%llu\t%llu\t%s\t%s\t%llu\n",
+              (unsigned long long) streams, (unsigned long long) nblocks,
+              (unsigned long long) comp, (unsigned long long) uncomp,
+              bz_xz_ratio (comp, uncomp, e, sizeof e), bz_xz_checks (checks, ",", f, sizeof f),
+              (unsigned long long) padding);
+      if (verbose)
+        {
+          lzma_index_iter_init (&it, idx);
+          while (!lzma_index_iter_next (&it, LZMA_INDEX_ITER_STREAM))
+            printf ("stream\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%s\t%s\t%llu\n",
+                    (unsigned long long) it.stream.number, (unsigned long long) it.stream.block_count,
+                    (unsigned long long) it.stream.compressed_offset,
+                    (unsigned long long) it.stream.uncompressed_offset,
+                    (unsigned long long) it.stream.compressed_size,
+                    (unsigned long long) it.stream.uncompressed_size,
+                    bz_xz_ratio (it.stream.compressed_size, it.stream.uncompressed_size, e, sizeof e),
+                    bz_xz_check_name (it.stream.flags->check, g, sizeof g),
+                    (unsigned long long) it.stream.padding);
+          size_t k = 0;
+          lzma_index_iter_init (&it, idx);
+          while (!lzma_index_iter_next (&it, LZMA_INDEX_ITER_BLOCK))
+            {
+              printf ("block\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%s\t%s",
+                      (unsigned long long) it.stream.number,
+                      (unsigned long long) it.block.number_in_stream,
+                      (unsigned long long) it.block.number_in_file,
+                      (unsigned long long) it.block.compressed_file_offset,
+                      (unsigned long long) it.block.uncompressed_file_offset,
+                      (unsigned long long) it.block.total_size,
+                      (unsigned long long) it.block.uncompressed_size,
+                      bz_xz_ratio (it.block.total_size, it.block.uncompressed_size, e, sizeof e),
+                      bz_xz_check_name (it.stream.flags->check, g, sizeof g));
+              if (binfo)
+                {
+                  struct bz_xz_block *bi = &binfo[k++];
+                  printf ("\t%s\t%u\t%s\t%llu\t%llu\t%s", bi->check, bi->header_size, bi->flags,
+                          (unsigned long long) bi->compressed, (unsigned long long) bi->memusage,
+                          bi->filters ? bi->filters : "");
+                }
+              putchar ('\n');
+            }
+          if (verbose >= 2)
+            printf ("summary\t%llu\t%s\t%u\n", (unsigned long long) memusage,
+                    all_sizes ? "yes" : "no", version);
+        }
+    }
+  else if (!verbose)
+    {
+      if (!*headings)
+        {
+          puts ("Strms  Blocks   Compressed Uncompressed  Ratio  Check   Filename");
+          *headings = 1;
+        }
+      bz_xz_row (streams, nblocks, comp, uncomp, checks, path);
+    }
+  else
+    {
+      printf ("  %-19s%s\n", "Streams:", bz_xz_group (streams, a, sizeof a));
+      printf ("  %-19s%s\n", "Blocks:", bz_xz_group (nblocks, a, sizeof a));
+      printf ("  %-19s%s\n", "Compressed size:", bz_xz_verbose_size (comp, a, sizeof a));
+      printf ("  %-19s%s\n", "Uncompressed size:", bz_xz_verbose_size (uncomp, a, sizeof a));
+      printf ("  %-19s%s\n", "Ratio:", bz_xz_ratio (comp, uncomp, e, sizeof e));
+      printf ("  %-19s%s\n", "Check:", bz_xz_checks (checks, ", ", f, sizeof f));
+      printf ("  %-19s%s\n", "Stream Padding:", bz_xz_verbose_size (padding, a, sizeof a));
+      puts ("  Streams:");
+      printf ("    %6s %9s %15s %15s %15s %15s  %5s  %-10s %7s\n", "Stream", "Blocks",
+              "CompOffset", "UncompOffset", "CompSize", "UncompSize", "Ratio", "Check", "Padding");
+      lzma_index_iter_init (&it, idx);
+      while (!lzma_index_iter_next (&it, LZMA_INDEX_ITER_STREAM))
+        {
+          char p[64];
+          printf ("    %6s %9s %15s %15s %15s %15s  %5s  %-10s %7s\n",
+                  bz_xz_group (it.stream.number, a, sizeof a),
+                  bz_xz_group (it.stream.block_count, b, sizeof b),
+                  bz_xz_group (it.stream.compressed_offset, c, sizeof c),
+                  bz_xz_group (it.stream.uncompressed_offset, d, sizeof d),
+                  bz_xz_group (it.stream.compressed_size, g, sizeof g),
+                  bz_xz_group (it.stream.uncompressed_size, f, sizeof f),
+                  bz_xz_ratio (it.stream.compressed_size, it.stream.uncompressed_size, e, sizeof e),
+                  bz_xz_check_name (it.stream.flags->check, p, sizeof p),
+                  bz_xz_group (it.stream.padding, p + 32, 32));
+        }
+      if (nblocks)
+        {
+          puts ("  Blocks:");
+          if (binfo)
+            printf ("    %6s %9s %15s %15s %15s %15s  %5s  %-10s %-*s  %6s  %-5s %15s  %10s  %s\n",
+                    "Stream", "Block", "CompOffset", "UncompOffset", "TotalSize", "UncompSize",
+                    "Ratio", "Check", checkw, "CheckVal", "Header", "Flags", "CompSize",
+                    "MemUsage", "Filters");
+          else
+            printf ("    %6s %9s %15s %15s %15s %15s  %5s  %s\n", "Stream", "Block",
+                    "CompOffset", "UncompOffset", "TotalSize", "UncompSize", "Ratio", "Check");
+          size_t k = 0;
+          lzma_index_iter_init (&it, idx);
+          while (!lzma_index_iter_next (&it, LZMA_INDEX_ITER_BLOCK))
+            {
+              char p[32];
+              printf ("    %6s %9s %15s %15s %15s %15s  %5s  ",
+                      bz_xz_group (it.stream.number, a, sizeof a),
+                      bz_xz_group (it.block.number_in_stream, b, sizeof b),
+                      bz_xz_group (it.block.compressed_file_offset, c, sizeof c),
+                      bz_xz_group (it.block.uncompressed_file_offset, d, sizeof d),
+                      bz_xz_group (it.block.total_size, g, sizeof g),
+                      bz_xz_group (it.block.uncompressed_size, f, sizeof f),
+                      bz_xz_ratio (it.block.total_size, it.block.uncompressed_size, e, sizeof e));
+              bz_xz_check_name (it.stream.flags->check, p, sizeof p);
+              if (!binfo)
+                {
+                  printf ("%s\n", p);
+                  continue;
+                }
+              struct bz_xz_block *bi = &binfo[k++];
+              printf ("%-10s %-*s  %6u  %-5s %15s  %10s  %s\n", p, checkw, bi->check,
+                      bi->header_size, bi->flags, bz_xz_group (bi->compressed, a, sizeof a),
+                      bz_xz_mib (bi->memusage, b, sizeof b), bi->filters ? bi->filters : "");
+            }
+        }
+      if (verbose >= 2)
+        {
+          bz_xz_version_str (version, g, sizeof g);
+          printf ("  %-19s%s\n", "Memory needed:", bz_xz_mib (memusage, a, sizeof a));
+          printf ("  %-19s%s\n", "Sizes in headers:", all_sizes ? "Yes" : "No");
+          printf ("  Minimum XZ Utils version: %s\n", g);
+        }
+    }
+
+  t->files++; t->streams += streams; t->blocks += nblocks; t->padding += padding;
   t->compressed += comp; t->uncompressed += uncomp; t->checks |= checks;
-  lzma_index_end (combined, NULL);
+  if (memusage > t->memusage) t->memusage = memusage;
+  if (version > t->min_version) t->min_version = version;
+  if (!all_sizes) t->all_sizes = 0;
+  if (binfo)
+    {
+      for (uint64_t k = 0; k < nblocks; k++) free (binfo[k].filters);
+      free (binfo);
+    }
+  lzma_index_end (idx, NULL);
   return 0;
 }
 
 static int
-bz_xz_list (WORD_LIST *list)
+bz_xz_list (WORD_LIST *list, int verbose, int robot, int quiet)
 {
-  int headings = 0, rc = 0;
+  int headings = 0, rc = 0, count = 0, nth = 0;
   struct bz_xz_totals t = { 0 };
-  if (!list)
+  char a[64], e[32], f[96], g[32];
+
+  t.all_sizes = 1;
+  t.min_version = BZ_XZ_VER_500;
+  for (WORD_LIST *p = list; p; p = p->next)
+    count++;
+  /* Standard input alone is refused before anything is listed; among other
+     operands it fails in its turn. */
+  if (!list || (count == 1 && !strcmp (list->word->word, "-")))
     {
-      builtin_error ("--list does not support reading from standard input");
-      return EXECUTION_FAILURE;
+      if (quiet < 2)
+        builtin_error ("--list does not support reading from standard input");
+      rc = 1;
+      list = NULL;
     }
   for (; list; list = list->next)
     {
-      const char *path = list->word->word;
-      if (!strcmp (path, "-"))
-        {
-          builtin_error ("--list does not support reading from standard input");
-          rc = 1;
-          continue;
-        }
-      rc |= bz_xz_list_file (path, &headings, &t);
+      int r = bz_xz_list_file (list->word->word, ++nth, count, verbose, robot, quiet,
+                                &headings, &t);
+      if (r == 1 || (r == 2 && rc == 0))
+        rc = r;
     }
-  if (t.files > 1)
+  if (robot)
+    {
+      printf ("totals\t%llu\t%llu\t%llu\t%llu\t%s\t%s\t%llu\t%llu",
+              (unsigned long long) t.streams, (unsigned long long) t.blocks,
+              (unsigned long long) t.compressed, (unsigned long long) t.uncompressed,
+              bz_xz_ratio (t.compressed, t.uncompressed, e, sizeof e),
+              bz_xz_checks (t.checks, ",", f, sizeof f), (unsigned long long) t.padding,
+              (unsigned long long) t.files);
+      if (verbose >= 2)
+        printf ("\t%llu\t%s\t%u", (unsigned long long) t.memusage,
+                t.all_sizes ? "yes" : "no", t.min_version);
+      putchar ('\n');
+    }
+  else if (t.files > 1 && !verbose)
     {
       char files[48];
       puts ("-------------------------------------------------------------------------------");
-      snprintf (files, sizeof files, "%llu files", (unsigned long long) t.files);
+      snprintf (files, sizeof files, "%s files", bz_xz_group (t.files, g, sizeof g));
       bz_xz_row (t.streams, t.blocks, t.compressed, t.uncompressed, t.checks, files);
     }
+  else if (t.files > 1)
+    {
+      printf ("\nTotals:\n");
+      printf ("  %-19s%s\n", "Number of files:", bz_xz_group (t.files, a, sizeof a));
+      printf ("  %-19s%s\n", "Streams:", bz_xz_group (t.streams, a, sizeof a));
+      printf ("  %-19s%s\n", "Blocks:", bz_xz_group (t.blocks, a, sizeof a));
+      printf ("  %-19s%s\n", "Compressed size:", bz_xz_verbose_size (t.compressed, a, sizeof a));
+      printf ("  %-19s%s\n", "Uncompressed size:", bz_xz_verbose_size (t.uncompressed, a, sizeof a));
+      printf ("  %-19s%s\n", "Ratio:", bz_xz_ratio (t.compressed, t.uncompressed, e, sizeof e));
+      printf ("  %-19s%s\n", "Check:", bz_xz_checks (t.checks, ", ", f, sizeof f));
+      printf ("  %-19s%s\n", "Stream Padding:", bz_xz_verbose_size (t.padding, a, sizeof a));
+      if (verbose >= 2)
+        {
+          bz_xz_version_str (t.min_version, g, sizeof g);
+          printf ("  %-19s%s\n", "Memory needed:", bz_xz_mib (t.memusage, a, sizeof a));
+          printf ("  %-19s%s\n", "Sizes in headers:", t.all_sizes ? "Yes" : "No");
+          printf ("  Minimum XZ Utils version: %s\n", g);
+        }
+    }
   fflush (stdout);
-  return rc ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+  return rc;
 }
 
 /* ---- bash builtin entry --------------------------------------------- */
@@ -803,16 +1201,19 @@ zlib_builtin (WORD_LIST *list)
   const char *path = NULL;
   int in_fd = -1;
   int close_in = 0;
-  int list_mode = 0;
+  int list_mode = 0, list_verbose = 0, list_robot = 0, list_quiet = 0;
   int garbage_status = 0;  /* -g: trailing garbage is exit status 2 */
 
   reset_internal_getopt ();
   /* Single-char flags. -1..-9 also valid (level shortcuts). */
-  while ((opt = internal_getopt (list, "edglzRf:0123456789")) != -1)
+  while ((opt = internal_getopt (list, "edglvqMzRf:0123456789")) != -1)
     {
       switch (opt)
         {
         case 'l': list_mode = 1; break;
+        case 'v': list_verbose++; break;
+        case 'M': list_robot = 1; break;
+        case 'q': list_quiet++; break;
         case 'g': garbage_status = 1; break;
         case 'e': encode = 1; break;
         case 'd': encode = 0; break;
@@ -856,7 +1257,7 @@ zlib_builtin (WORD_LIST *list)
           builtin_error ("-l lists .xz files only (use -l -f xz FILE...)");
           return (EX_USAGE);
         }
-      return bz_xz_list (list);
+      return bz_xz_list (list, list_verbose, list_robot, list_quiet);
     }
 
   /* Optional FILE arg. "-" or absent → stdin. */
@@ -953,6 +1354,12 @@ char *zlib_doc[] = {
   "",
   "List mode: -l -f xz FILE... prints xz --list's table (streams, blocks,",
   "  sizes, ratio, check) for each .xz file, with totals for several files.",
+  "  -v adds xz -lv's per-file report with stream and block tables; -v -v",
+  "  (xz -lvv) also reads each block header: check value, header size, size",
+  "  flags, filter chain, memory needed and minimum XZ Utils version. -M",
+  "  prints xz --robot --list's tab-separated name/file/stream/block/summary/",
+  "  totals lines. A directory or non-regular file is skipped (status 2).",
+  "  -q drops the skip warnings, -q -q every diagnostic (statuses stay).",
   "",
   "Compression levels: -1 (fastest) to -9 (max) for gzip/zlib/xz.",
   "  zstd accepts -1..-22 (use -f zstd -N).",
@@ -973,6 +1380,6 @@ struct builtin zlib_struct = {
   zlib_builtin,
   BUILTIN_ENABLED,
   zlib_doc,
-  "zlib [-e|-d] [-g] [-f FORMAT|-z|-R] [-N] [FILE] | zlib -l -f xz FILE...",
+  "zlib [-e|-d] [-g] [-f FORMAT|-z|-R] [-N] [FILE] | zlib -l [-v [-v]] [-M] [-q [-q]] -f xz FILE...",
   0
 };

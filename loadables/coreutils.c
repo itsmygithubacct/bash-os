@@ -6,7 +6,7 @@
  *
  *   coreutils tac    [FILE...]                  reverse lines
  *   coreutils shuf   [-erz] [-i LO-HI] [-n COUNT] [-o FILE] [FILE|ARG...]
- *   coreutils factor N [N...]                   prime factorize
+ *   coreutils factor [-h] [NUMBER...]           prime factorize (any size)
  *   coreutils yes    [STRING...]                infinite repeat
  *   coreutils fmt    [-cstu] [-w N] [-p S] [FILE...]  GNU fmt
  *   coreutils tsort  [FILE]                     topological sort
@@ -29,14 +29,14 @@
  * /usr/bin/<verb>) get a real PATH entry. The wrappers all `exec
  * coreutils <verb> "$@"` so the loadable runs in-process.
  *
- * shuf, fmt, tsort, printf and install are clean-room: written from the
- * coreutils manual, POSIX and observed coreutils 9.7 behaviour, not from
- * GNU source.
+ * shuf, fmt, tsort, printf, install and factor are clean-room: written
+ * from the coreutils manual, POSIX, published algorithms and observed
+ * coreutils 9.7 behaviour, not from GNU source.
  *
  * Source counterparts named for the other verbs:
- *   research/refs/coreutils/src/{tac,factor,yes,nproc,numfmt,shred,
+ *   research/refs/coreutils/src/{tac,yes,nproc,numfmt,shred,
  *     groups,mknod}.c (GNU canonical)
- *   research/refs/sbase/{tac,factor,yes,nproc,shred}.c (minimal)
+ *   research/refs/sbase/{tac,yes,nproc,shred}.c (minimal)
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c.
@@ -171,7 +171,7 @@ bcu_usage (const char *verb)
   else if (strcmp (verb, "shuf") == 0)
     builtin_error ("usage: coreutils shuf [-erz] [-i LO-HI] [-n COUNT] [-o FILE] [--random-source=FILE] [FILE | ARG...]");
   else if (strcmp (verb, "factor") == 0)
-    builtin_error ("usage: coreutils factor N [N...]");
+    builtin_error ("usage: coreutils factor [-h|--exponents] [NUMBER...]");
   else if (strcmp (verb, "yes") == 0)
     builtin_error ("usage: coreutils yes [STRING...]");
   else if (strcmp (verb, "fmt") == 0)
@@ -1218,71 +1218,1198 @@ out:
 }
 
 /* ===================================================================
- * factor — prime factorize one or more decimal numbers.
+ * factor — prime factorization of integers of any size, as GNU factor.
  *
- * Trial division up to sqrt(N); good enough for the POSIX-shell use
- * case. 64-bit unsigned input range.
+ *   coreutils factor [-h|--exponents] [NUMBER]...
+ *
+ * Written from published algorithms, not from any factor source:
+ *   - trial division by the primes below BCU_FACTOR_TRIAL;
+ *   - Miller-Rabin (Miller 1976, Rabin 1980), deterministic below 2^64
+ *     with the first twelve prime bases (Sorenson and Webster 2015);
+ *   - above 2^64, Baillie-PSW: Miller-Rabin to base 2 and the strong
+ *     Lucas test with Selfridge's parameters (Baillie and Wagstaff 1980);
+ *   - Pollard's rho method with Brent's cycle finding and batched gcds
+ *     (Pollard 1975, Brent 1980);
+ *   - Montgomery multiplication (Montgomery 1985) for big moduli and for
+ *     rho below 2^64;
+ *   - a perfect square is split by its square root (digit-by-digit).
+ * Big numbers are little-endian arrays of 64-bit limbs (32-bit without
+ * 128-bit integers), every one of a token's values the same length (the
+ * input's limbs plus one). Above 2^64 a prime is a Baillie-PSW probable
+ * prime (no composite is known to pass); GNU proves primality instead,
+ * which can take it far longer on large primes. Rho needs about sqrt(p)
+ * steps for the second-largest prime factor p: a factor near 10^17 takes
+ * minutes, as it does with GNU's.
  * =================================================================== */
 
-static void
-bcu_factor_print (uint64_t n)
+#define BCU_FACTOR_TRIAL 4096u
+#define BCU_FACTOR_BATCH 128
+
+/* Limbs are 64 bits wide where the compiler has 128-bit integers for the
+   double-width products, 32 bits otherwise. */
+#if defined (__SIZEOF_INT128__)
+typedef uint64_t bf_limb;
+typedef unsigned __int128 bf_dlimb;
+#  define BF_BITS 64
+#else
+typedef uint32_t bf_limb;
+typedef uint64_t bf_dlimb;
+#  define BF_BITS 32
+#endif
+
+static int bcu_factor_stop;   /* an interrupt arrived: unwind and QUIT */
+
+static int
+bf_interrupted (void)
 {
-  printf ("%" PRIu64 ":", n);
-  if (n <= 1)
-    { putchar ('\n'); return; }
-  while ((n & 1ULL) == 0)
-    { printf (" 2"); n >>= 1; }
-  for (uint64_t d = 3; d * d <= n; d += 2)
-    while (n % d == 0)
-      { printf (" %" PRIu64, d); n /= d; }
-  if (n > 1)
-    printf (" %" PRIu64, n);
-  putchar ('\n');
+  if (interrupt_state || terminating_signal)
+    bcu_factor_stop = 1;
+  return bcu_factor_stop;
+}
+
+/* --- fixed-length limb arithmetic (L limbs each) ------------------- */
+
+static int
+bf_is_zero (const bf_limb *a, size_t L)
+{
+  for (size_t i = 0; i < L; i++)
+    if (a[i]) return 0;
+  return 1;
+}
+
+static int
+bf_is_one (const bf_limb *a, size_t L)
+{
+  if (a[0] != 1) return 0;
+  for (size_t i = 1; i < L; i++)
+    if (a[i]) return 0;
+  return 1;
+}
+
+static int
+bf_cmp (const bf_limb *a, const bf_limb *b, size_t L)
+{
+  for (size_t i = L; i-- > 0;)
+    if (a[i] != b[i]) return a[i] < b[i] ? -1 : 1;
+  return 0;
+}
+
+static void
+bf_set_u64 (bf_limb *a, size_t L, uint64_t v)
+{
+  memset (a, 0, L * sizeof *a);
+  a[0] = (bf_limb) v;
+#if BF_BITS == 32
+  if (L > 1) a[1] = (bf_limb) (v >> 32);
+#endif
+}
+
+/* Significant limbs (0 for zero). */
+static size_t
+bf_len (const bf_limb *a, size_t L)
+{
+  while (L && a[L - 1] == 0) L--;
+  return L;
+}
+
+static int
+bf_fits_u64 (const bf_limb *a, size_t L)
+{
+  return bf_len (a, L) <= 64 / BF_BITS;
+}
+
+static uint64_t
+bf_get_u64 (const bf_limb *a, size_t L)
+{
+#if BF_BITS == 32
+  return (uint64_t) a[0] | (L > 1 ? (uint64_t) a[1] << 32 : 0);
+#else
+  (void) L;
+  return a[0];
+#endif
+}
+
+static size_t
+bf_bits (const bf_limb *a, size_t L)
+{
+  size_t n = bf_len (a, L);
+  if (!n) return 0;
+  size_t bits = (n - 1) * BF_BITS;
+  for (bf_limb top = a[n - 1]; top; top >>= 1) bits++;
+  return bits;
+}
+
+static int
+bf_bit (const bf_limb *a, size_t i)
+{
+  return (a[i / BF_BITS] >> (i % BF_BITS)) & 1;
+}
+
+static bf_limb
+bf_add (bf_limb *r, const bf_limb *a, const bf_limb *b, size_t L)
+{
+  bf_dlimb c = 0;
+  for (size_t i = 0; i < L; i++)
+    {
+      c += (bf_dlimb) a[i] + b[i];
+      r[i] = (bf_limb) c;
+      c >>= BF_BITS;
+    }
+  return (bf_limb) c;
+}
+
+static bf_limb
+bf_sub (bf_limb *r, const bf_limb *a, const bf_limb *b, size_t L)
+{
+  bf_dlimb borrow = 0;
+  for (size_t i = 0; i < L; i++)
+    {
+      bf_dlimb d = (bf_dlimb) a[i] - b[i] - borrow;
+      r[i] = (bf_limb) d;
+      borrow = (d >> BF_BITS) & 1;
+    }
+  return (bf_limb) borrow;
+}
+
+static void
+bf_shr1 (bf_limb *a, size_t L, bf_limb top)
+{
+  for (size_t i = 0; i < L; i++)
+    a[i] = (a[i] >> 1) | ((i + 1 < L ? a[i + 1] : top) << (BF_BITS - 1));
+}
+
+static void
+bf_shr (bf_limb *a, size_t L, size_t k)
+{
+  size_t w = k / BF_BITS, b = k % BF_BITS;
+  for (size_t i = 0; i < L; i++)
+    {
+      bf_limb lo = i + w < L ? a[i + w] : 0;
+      bf_limb hi = i + w + 1 < L ? a[i + w + 1] : 0;
+      a[i] = b ? (lo >> b) | (hi << (BF_BITS - b)) : lo;
+    }
+}
+
+static bf_limb
+bf_shl1 (bf_limb *a, size_t L)
+{
+  bf_limb carry = 0;
+  for (size_t i = 0; i < L; i++)
+    {
+      bf_limb next = a[i] >> (BF_BITS - 1);
+      a[i] = (a[i] << 1) | carry;
+      carry = next;
+    }
+  return carry;
+}
+
+static size_t
+bf_ctz (const bf_limb *a, size_t L)
+{
+  size_t k = 0;
+  for (size_t i = 0; i < L; i++)
+    {
+      if (a[i])
+        {
+          bf_limb v = a[i];
+          while (!(v & 1)) { v >>= 1; k++; }
+          return k;
+        }
+      k += BF_BITS;
+    }
+  return k;
+}
+
+/* A /= d; returns A mod d. */
+static bf_limb
+bf_divmod_1 (bf_limb *a, size_t L, bf_limb d)
+{
+  bf_dlimb r = 0;
+  for (size_t i = L; i-- > 0;)
+    {
+      bf_dlimb cur = (r << BF_BITS) | a[i];
+      a[i] = (bf_limb) (cur / d);
+      r = cur % d;
+    }
+  return (bf_limb) r;
+}
+
+static bf_limb
+bf_mod_1 (const bf_limb *a, size_t L, bf_limb d)
+{
+  bf_dlimb r = 0;
+  for (size_t i = L; i-- > 0;)
+    r = ((r << BF_BITS) | a[i]) % d;
+  return (bf_limb) r;
+}
+
+/* A = A * m + add; returns the carry out. */
+static bf_limb
+bf_mul_1_add (bf_limb *a, size_t L, bf_limb m, bf_limb add)
+{
+  bf_dlimb c = add;
+  for (size_t i = 0; i < L; i++)
+    {
+      c += (bf_dlimb) a[i] * m;
+      a[i] = (bf_limb) c;
+      c >>= BF_BITS;
+    }
+  return (bf_limb) c;
+}
+
+/* Q = A / B, exactly or not (shift-subtract long division). T is L
+   limbs of scratch. B is nonzero. */
+static void
+bf_div (bf_limb *q, const bf_limb *a, const bf_limb *b, bf_limb *t, size_t L)
+{
+  memset (q, 0, L * sizeof *q);
+  memset (t, 0, L * sizeof *t);
+  for (size_t i = bf_bits (a, L); i-- > 0;)
+    {
+      bf_limb out = bf_shl1 (t, L);
+      t[0] |= (bf_limb) bf_bit (a, i);
+      if (out || bf_cmp (t, b, L) >= 0)
+        {
+          bf_sub (t, t, b, L);
+          q[i / BF_BITS] |= (bf_limb) 1 << (i % BF_BITS);
+        }
+    }
+}
+
+/* G = gcd (A, B) by the binary method; A and B are consumed. */
+static void
+bf_gcd (bf_limb *g, bf_limb *a, bf_limb *b, size_t L)
+{
+  if (bf_is_zero (a, L)) { memcpy (g, b, L * sizeof *g); return; }
+  if (bf_is_zero (b, L)) { memcpy (g, a, L * sizeof *g); return; }
+  size_t za = bf_ctz (a, L), zb = bf_ctz (b, L), k = za < zb ? za : zb;
+  bf_shr (a, L, za);
+  bf_shr (b, L, zb);
+  for (;;)
+    {
+      int c = bf_cmp (a, b, L);
+      if (c == 0) break;
+      if (c < 0) { bf_limb *t = a; a = b; b = t; }
+      bf_sub (a, a, b, L);
+      bf_shr (a, L, bf_ctz (a, L));
+    }
+  memcpy (g, a, L * sizeof *g);
+  /* gcd * 2^k; k is 0 here, since every caller passes an odd number. */
+  for (size_t i = 0; i < k; i++) bf_shl1 (g, L);
+}
+
+/* Digit-by-digit square root: is A a perfect square? Its root goes to
+   ROOT when ROOT is not NULL. */
+static int
+bf_square_root (const bf_limb *a, size_t L, bf_limb *root)
+{
+  size_t sz = L * sizeof (bf_limb);
+  bf_limb *num = xmalloc (sz), *res = xmalloc (sz), *bit = xmalloc (sz), *t = xmalloc (sz);
+  memcpy (num, a, sz);
+  memset (res, 0, sz);
+  memset (bit, 0, sz);
+  size_t top = bf_bits (a, L);
+  top = top ? (top - 1) & ~(size_t) 1 : 0;
+  bit[top / BF_BITS] = (bf_limb) 1 << (top % BF_BITS);
+  while (!bf_is_zero (bit, L))
+    {
+      bf_add (t, res, bit, L);
+      if (bf_cmp (num, t, L) >= 0)
+        {
+          bf_sub (num, num, t, L);
+          bf_shr1 (res, L, 0);
+          bf_add (res, res, bit, L);
+        }
+      else
+        bf_shr1 (res, L, 0);
+      bf_shr (bit, L, 2);
+    }
+  int sq = bf_is_zero (num, L);
+  if (root)
+    memcpy (root, res, sz);
+  free (num); free (res); free (bit); free (t);
+  return sq;
+}
+
+static int
+bf_is_square (const bf_limb *a, size_t L)
+{
+  return bf_square_root (a, L, NULL);
+}
+
+/* --- Montgomery arithmetic modulo an odd N of k limbs ---------------- */
+
+typedef struct {
+  size_t k;          /* limbs of n */
+  bf_limb *n;        /* the modulus, k limbs */
+  bf_limb ninv;      /* -n^-1 mod 2^BF_BITS */
+  bf_limb *one;      /* R mod n (Montgomery 1) */
+  bf_limb *r2;       /* R^2 mod n */
+  bf_limb *t;        /* k + 2 limbs of scratch */
+} bf_mont;
+
+/* R = A * B / 2^(BF_BITS k) mod N; A, B < N; R may alias A or B. */
+static void
+bf_mont_mul (bf_limb *r, const bf_limb *a, const bf_limb *b, const bf_mont *m)
+{
+  size_t k = m->k;
+  bf_limb *t = m->t;
+  memset (t, 0, (k + 2) * sizeof *t);
+  for (size_t i = 0; i < k; i++)
+    {
+      bf_dlimb c = 0, bi = b[i];
+      for (size_t j = 0; j < k; j++)
+        {
+          c += (bf_dlimb) t[j] + a[j] * bi;
+          t[j] = (bf_limb) c;
+          c >>= BF_BITS;
+        }
+      c += t[k];
+      t[k] = (bf_limb) c;
+      t[k + 1] = (bf_limb) (c >> BF_BITS);
+      bf_dlimb q = (bf_limb) (t[0] * m->ninv);
+      c = ((bf_dlimb) t[0] + q * m->n[0]) >> BF_BITS;
+      for (size_t j = 1; j < k; j++)
+        {
+          c += (bf_dlimb) t[j] + q * m->n[j];
+          t[j - 1] = (bf_limb) c;
+          c >>= BF_BITS;
+        }
+      c += t[k];
+      t[k - 1] = (bf_limb) c;
+      t[k] = t[k + 1] + (bf_limb) (c >> BF_BITS);
+    }
+  if (t[k] || bf_cmp (t, m->n, k) >= 0)
+    bf_sub (t, t, m->n, k);
+  memcpy (r, t, k * sizeof *r);
+}
+
+static void
+bf_mont_add (bf_limb *r, const bf_limb *a, const bf_limb *b, const bf_mont *m)
+{
+  bf_limb c = bf_add (r, a, b, m->k);
+  if (c || bf_cmp (r, m->n, m->k) >= 0)
+    bf_sub (r, r, m->n, m->k);
+}
+
+static void
+bf_mont_sub (bf_limb *r, const bf_limb *a, const bf_limb *b, const bf_mont *m)
+{
+  if (bf_sub (r, a, b, m->k))
+    bf_add (r, r, m->n, m->k);
+}
+
+/* R = A / 2 mod N. */
+static void
+bf_mont_half (bf_limb *r, const bf_limb *a, const bf_mont *m)
+{
+  bf_limb top = 0;
+  if (r != a) memcpy (r, a, m->k * sizeof *r);
+  if (r[0] & 1)
+    top = bf_add (r, r, m->n, m->k);
+  bf_shr1 (r, m->k, top);
+}
+
+/* N (L limbs, odd, more than one) into a Montgomery context of its own
+   significant length. */
+static void
+bf_mont_init (bf_mont *m, const bf_limb *n, size_t L)
+{
+  size_t k = bf_len (n, L);
+  m->k = k;
+  m->n = xmalloc (k * sizeof *m->n);
+  m->one = xmalloc (k * sizeof *m->one);
+  m->r2 = xmalloc (k * sizeof *m->r2);
+  m->t = xmalloc ((k + 2) * sizeof *m->t);
+  memcpy (m->n, n, k * sizeof *m->n);
+  bf_limb inv = m->n[0];            /* Newton: correct to 3, 6, 12, 24, 48, 96 bits */
+  for (int i = 0; i < 5; i++)
+    inv *= 2 - m->n[0] * inv;
+  m->ninv = (bf_limb) (0 - inv);
+  /* R^2 mod n by doubling 1 a total of 64k times. */
+  memset (m->r2, 0, k * sizeof *m->r2);
+  m->r2[0] = 1;
+  for (size_t i = 0; i < 2 * BF_BITS * k; i++)
+    {
+      bf_limb out = bf_shl1 (m->r2, k);
+      if (out || bf_cmp (m->r2, m->n, k) >= 0)
+        bf_sub (m->r2, m->r2, m->n, k);
+    }
+  memset (m->one, 0, k * sizeof *m->one);
+  m->one[0] = 1;
+  bf_mont_mul (m->one, m->one, m->r2, m);
+}
+
+static void
+bf_mont_free (bf_mont *m)
+{
+  free (m->n); free (m->one); free (m->r2); free (m->t);
+}
+
+/* Montgomery form of the small value V (V < n). */
+static void
+bf_mont_small (bf_limb *r, uint64_t v, const bf_mont *m)
+{
+  bf_set_u64 (r, m->k, v);
+  if (m->k == 1)
+    r[0] = (bf_limb) (v % m->n[0]);
+  bf_mont_mul (r, r, m->r2, m);
+}
+
+/* R = B^E mod n, all in Montgomery form; E is a plain L-limb number. */
+static void
+bf_mont_pow (bf_limb *r, const bf_limb *b, const bf_limb *e, size_t L, const bf_mont *m)
+{
+  bf_limb *acc = xmalloc (m->k * sizeof *acc);
+  memcpy (acc, m->one, m->k * sizeof *acc);
+  for (size_t i = bf_bits (e, L); i-- > 0;)
+    {
+      bf_mont_mul (acc, acc, acc, m);
+      if (bf_bit (e, i))
+        bf_mont_mul (acc, acc, b, m);
+    }
+  memcpy (r, acc, m->k * sizeof *r);
+  free (acc);
+}
+
+/* --- primality above 2^64: Baillie-PSW -------------------------------- */
+
+/* Jacobi symbol (a / n) for a small and n odd. */
+static int
+bf_jacobi_small (uint64_t a, uint64_t n)
+{
+  int s = 1;
+  a %= n;
+  while (a)
+    {
+      while (!(a & 1))
+        {
+          a >>= 1;
+          if ((n & 7) == 3 || (n & 7) == 5) s = -s;
+        }
+      uint64_t t = a; a = n; n = t;
+      if ((a & 3) == 3 && (n & 3) == 3) s = -s;
+      a %= n;
+    }
+  return n == 1 ? s : 0;
+}
+
+/* (D / n) for a small odd |D| and a big odd n. */
+static int
+bf_jacobi (long d, const bf_limb *n, size_t L)
+{
+  uint64_t ad = d < 0 ? (uint64_t) -d : (uint64_t) d;
+  int s = 1;
+  if (d < 0 && (n[0] & 3) == 3) s = -s;           /* (-1 / n) */
+  /* Reciprocity for odd ad: (ad / n) = (n / ad) * (-1)^((ad-1)/2 (n-1)/2). */
+  if ((ad & 3) == 3 && (n[0] & 3) == 3) s = -s;
+  return s * bf_jacobi_small (bf_mod_1 (n, L, (bf_limb) ad), ad);
+}
+
+static int
+bf_miller_rabin (const bf_limb *n, size_t L, const bf_mont *m, uint64_t base)
+{
+  size_t k = m->k, sz = L * sizeof (bf_limb);
+  bf_limb *d = xmalloc (sz), *x = xmalloc (k * sizeof *x), *b = xmalloc (k * sizeof *b),
+          *nm1 = xmalloc (k * sizeof *nm1);
+  int prime = 0;
+  memcpy (d, n, sz);
+  d[0] &= ~(bf_limb) 1;                             /* n - 1, n odd */
+  size_t s = bf_ctz (d, L);
+  bf_shr (d, L, s);
+  bf_mont_small (b, base, m);
+  bf_mont_pow (x, b, d, L, m);
+  bf_mont_sub (nm1, m->n, m->one, m);               /* -1 = n - R mod n */
+  if (bf_cmp (x, m->one, k) == 0 || bf_cmp (x, nm1, k) == 0)
+    prime = 1;
+  for (size_t r = 1; r < s && !prime; r++)
+    {
+      bf_mont_mul (x, x, x, m);
+      if (bf_cmp (x, nm1, k) == 0) prime = 1;
+      else if (bf_cmp (x, m->one, k) == 0) break;
+    }
+  free (d); free (x); free (b); free (nm1);
+  return prime;
+}
+
+/* Strong Lucas probable prime with Selfridge's method A: the first D of
+   5, -7, 9, -11, ... with (D / n) = -1, P = 1, Q = (1 - D) / 4. */
+static int
+bf_strong_lucas (const bf_limb *n, size_t L, const bf_mont *m)
+{
+  long d = 5;
+  for (int tries = 0;; tries++, d = d > 0 ? -(d + 2) : -d + 2)
+    {
+      int j = bf_jacobi (d, n, L);
+      if (j == -1) break;
+      if (j == 0) return 0;              /* |D| < n shares a factor with n */
+      if (tries == 20 && bf_is_square (n, L)) return 0;
+    }
+  long q = (1 - d) / 4;
+  size_t k = m->k, sz = L * sizeof (bf_limb), ks = k * sizeof (bf_limb);
+  bf_limb *e = xmalloc (sz), *U = xmalloc (ks), *V = xmalloc (ks), *Qk = xmalloc (ks),
+          *Qm = xmalloc (ks), *Dm = xmalloc (ks), *t = xmalloc (ks), *u = xmalloc (ks),
+          *z = xmalloc (ks);
+  int prime = 0;
+
+  /* n + 1 = e * 2^s with e odd; n has at most L - 1 limbs. */
+  memcpy (e, n, sz);
+  {
+    bf_dlimb c = 1;
+    for (size_t i = 0; i < L && c; i++) { c += e[i]; e[i] = (bf_limb) c; c >>= BF_BITS; }
+  }
+  size_t s = bf_ctz (e, L);
+  bf_shr (e, L, s);
+
+  /* Small signed constants in Montgomery form. */
+  memset (z, 0, ks);
+  bf_mont_small (Qm, (uint64_t) (q < 0 ? -q : q), m);
+  if (q < 0)
+    bf_mont_sub (Qm, z, Qm, m);
+  bf_mont_small (Dm, (uint64_t) (d < 0 ? -d : d), m);
+  if (d < 0)
+    bf_mont_sub (Dm, z, Dm, m);
+
+  memcpy (U, m->one, ks);               /* U_1 = 1 */
+  memcpy (V, m->one, ks);               /* V_1 = P = 1 */
+  memcpy (Qk, Qm, ks);                  /* Q^1 */
+  for (size_t i = bf_bits (e, L) - 1; i-- > 0;)
+    {
+      bf_mont_mul (U, U, V, m);                          /* U_2k = U_k V_k */
+      bf_mont_mul (V, V, V, m);
+      bf_mont_add (t, Qk, Qk, m);
+      bf_mont_sub (V, V, t, m);                          /* V_2k = V_k^2 - 2Q^k */
+      bf_mont_mul (Qk, Qk, Qk, m);
+      if (bf_bit (e, i))
+        {
+          bf_mont_add (t, U, V, m);                      /* (P U + V) / 2 */
+          bf_mont_mul (u, Dm, U, m);
+          bf_mont_add (u, u, V, m);                      /* (D U + P V) / 2 */
+          bf_mont_half (U, t, m);
+          bf_mont_half (V, u, m);
+          bf_mont_mul (Qk, Qk, Qm, m);
+        }
+    }
+  if (bf_is_zero (U, k) || bf_is_zero (V, k))
+    prime = 1;
+  for (size_t r = 1; r < s && !prime; r++)
+    {
+      bf_mont_mul (V, V, V, m);
+      bf_mont_add (t, Qk, Qk, m);
+      bf_mont_sub (V, V, t, m);
+      bf_mont_mul (Qk, Qk, Qk, m);
+      if (bf_is_zero (V, k)) prime = 1;
+    }
+  free (e); free (U); free (V); free (Qk); free (Qm); free (Dm); free (t); free (u); free (z);
+  return prime;
+}
+
+/* N above 2^64 with no factor below BCU_FACTOR_TRIAL. */
+static int
+bf_is_prime (const bf_limb *n, size_t L)
+{
+  bf_mont m;
+  bf_mont_init (&m, n, L);
+  int prime = bf_miller_rabin (n, L, &m, 2) && bf_strong_lucas (n, L, &m);
+  bf_mont_free (&m);
+  return prime;
+}
+
+/* Pollard-Brent rho: a nontrivial factor of the odd composite N into F;
+   0 on success, -1 when interrupted. */
+static int
+bf_rho (bf_limb *f, const bf_limb *n, size_t L)
+{
+  bf_mont m;
+  bf_mont_init (&m, n, L);
+  size_t k = m.k, ks = k * sizeof (bf_limb), sz = L * sizeof (bf_limb);
+  bf_limb *x = xmalloc (ks), *y = xmalloc (ks), *ys = xmalloc (ks), *q = xmalloc (ks),
+          *c = xmalloc (ks), *diff = xmalloc (ks);
+  bf_limb *ga = xmalloc (sz), *gb = xmalloc (sz), *g = xmalloc (sz);
+  int rc = -1;
+
+  for (uint64_t cv = 1;; cv++)
+    {
+      int found = 0;
+      bf_mont_small (c, cv, &m);
+      bf_mont_small (y, 2, &m);
+      memcpy (q, m.one, ks);
+      for (size_t r = 1; !found; r *= 2)
+        {
+          memcpy (x, y, ks);
+          for (size_t i = 0; i < r; i++)
+            {
+              bf_mont_mul (y, y, y, &m);
+              bf_mont_add (y, y, c, &m);
+            }
+          for (size_t done = 0; done < r && !found; done += BCU_FACTOR_BATCH)
+            {
+              if (bf_interrupted ()) goto out;
+              memcpy (ys, y, ks);
+              size_t lim = r - done < BCU_FACTOR_BATCH ? r - done : BCU_FACTOR_BATCH;
+              for (size_t i = 0; i < lim; i++)
+                {
+                  bf_mont_mul (y, y, y, &m);
+                  bf_mont_add (y, y, c, &m);
+                  bf_mont_sub (diff, x, y, &m);
+                  bf_mont_mul (q, q, diff, &m);
+                }
+              memset (ga, 0, sz); memcpy (ga, q, ks);
+              memset (gb, 0, sz); memcpy (gb, n, ks);
+              bf_gcd (g, ga, gb, L);
+              if (!bf_is_one (g, L))
+                found = 1;
+            }
+        }
+      if (bf_cmp (g, n, L) == 0)
+        {
+          /* The batch overshot: step again from its start, one gcd each. */
+          do
+            {
+              if (bf_interrupted ()) goto out;
+              bf_mont_mul (ys, ys, ys, &m);
+              bf_mont_add (ys, ys, c, &m);
+              bf_mont_sub (diff, x, ys, &m);
+              memset (ga, 0, sz); memcpy (ga, diff, ks);
+              memset (gb, 0, sz); memcpy (gb, n, ks);
+              bf_gcd (g, ga, gb, L);
+            }
+          while (bf_is_one (g, L));
+        }
+      if (bf_cmp (g, n, L) != 0)
+        {
+          memcpy (f, g, sz);
+          rc = 0;
+          break;
+        }
+    }
+out:
+  free (x); free (y); free (ys); free (q); free (c); free (diff);
+  free (ga); free (gb); free (g);
+  bf_mont_free (&m);
+  return rc;
+}
+
+/* --- 64-bit arithmetic ------------------------------------------------ */
+
+static uint64_t
+bf_mulmod64 (uint64_t a, uint64_t b, uint64_t n)
+{
+#if defined (__SIZEOF_INT128__)
+  return (uint64_t) (((unsigned __int128) a * b) % n);
+#else
+  uint64_t r = 0;
+  a %= n;
+  while (b)
+    {
+      if (b & 1) r = r >= n - a ? r - (n - a) : r + a;
+      a = a >= n - a ? a - (n - a) : a + a;
+      b >>= 1;
+    }
+  return r;
+#endif
+}
+
+static uint64_t
+bf_powmod64 (uint64_t b, uint64_t e, uint64_t n)
+{
+  uint64_t r = 1 % n;
+  b %= n;
+  while (e)
+    {
+      if (e & 1) r = bf_mulmod64 (r, b, n);
+      b = bf_mulmod64 (b, b, n);
+      e >>= 1;
+    }
+  return r;
+}
+
+/* N odd, above BCU_FACTOR_TRIAL^2 or known to have no small factor. */
+static int
+bf_is_prime64 (uint64_t n)
+{
+  static const uint64_t bases[] = { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37 };
+  uint64_t d = n - 1;
+  int s = 0;
+  while (!(d & 1)) { d >>= 1; s++; }
+  for (size_t i = 0; i < sizeof bases / sizeof *bases; i++)
+    {
+      uint64_t a = bases[i] % n;
+      if (a == 0) continue;
+      uint64_t x = bf_powmod64 (a, d, n);
+      if (x == 1 || x == n - 1) continue;
+      int r;
+      for (r = 1; r < s; r++)
+        {
+          x = bf_mulmod64 (x, x, n);
+          if (x == n - 1) break;
+        }
+      if (r == s) return 0;
+    }
+  return 1;
+}
+
+static uint64_t
+bf_gcd64 (uint64_t a, uint64_t b)
+{
+  while (b) { uint64_t t = a % b; a = b; b = t; }
+  return a;
+}
+
+/* The rho iteration's product mod n. With 128-bit integers it is a
+   Montgomery product (a b / 2^64 mod n): the map y -> y^2 / 2^64 + c is
+   conjugate to y -> y^2 + c' modulo every prime factor, which is all rho
+   needs, and gcd (q, n) is unchanged by the 2^64 factors. */
+typedef struct {
+  uint64_t n, ninv;
+} bf_rho64_mod;
+
+static uint64_t
+bf_rho64_mul (uint64_t a, uint64_t b, const bf_rho64_mod *m)
+{
+#if defined (__SIZEOF_INT128__)
+  unsigned __int128 t = (unsigned __int128) a * b;
+  uint64_t lo = (uint64_t) t, hi = (uint64_t) (t >> 64);
+  uint64_t q = lo * m->ninv;
+  unsigned __int128 qn = (unsigned __int128) q * m->n;
+  /* lo + low (qn) is 0 mod 2^64; it carries unless lo is 0. */
+  uint64_t qhi = (uint64_t) (qn >> 64), carry = lo != 0;
+  uint64_t r = hi + qhi;
+  int over = r < hi;
+  r += carry;
+  over |= r < carry;
+  if (over || r >= m->n)
+    r -= m->n;
+  return r;
+#else
+  return bf_mulmod64 (a, b, m->n);
+#endif
+}
+
+/* y^2 + c mod n, for c < n. */
+static uint64_t
+bf_rho64_step (uint64_t y, uint64_t c, const bf_rho64_mod *m)
+{
+  uint64_t t = bf_rho64_mul (y, y, m);
+  return t >= m->n - c ? t - (m->n - c) : t + c;
+}
+
+/* A nontrivial factor of the odd composite N, or 0 when interrupted. */
+static uint64_t
+bf_rho64 (uint64_t n)
+{
+  bf_rho64_mod m;
+  uint64_t inv = n;                 /* Newton: 3, 6, 12, 24, 48, 96 bits */
+  for (int i = 0; i < 5; i++)
+    inv *= 2 - n * inv;
+  m.n = n;
+  m.ninv = 0 - inv;
+  for (uint64_t c = 1;; c++)
+    {
+      uint64_t y = 2, x = 2, ys = 2, q = 1, g = 1;
+      for (uint64_t r = 1; g == 1; r *= 2)
+        {
+          x = y;
+          for (uint64_t i = 0; i < r; i++)
+            y = bf_rho64_step (y, c, &m);
+          for (uint64_t done = 0; done < r && g == 1; done += BCU_FACTOR_BATCH)
+            {
+              if (bf_interrupted ()) return 0;
+              ys = y;
+              uint64_t lim = r - done < BCU_FACTOR_BATCH ? r - done : BCU_FACTOR_BATCH;
+              for (uint64_t i = 0; i < lim; i++)
+                {
+                  y = bf_rho64_step (y, c, &m);
+                  q = bf_rho64_mul (q, x > y ? x - y : y - x, &m);
+                }
+              g = bf_gcd64 (q, n);
+            }
+        }
+      if (g == n)
+        do
+          {
+            ys = bf_rho64_step (ys, c, &m);
+            g = bf_gcd64 (x > ys ? x - ys : ys - x, n);
+          }
+        while (g == 1);
+      if (g != n)
+        return g;
+    }
+}
+
+/* --- the factor list -------------------------------------------------- */
+
+typedef struct {
+  size_t L;
+  bf_limb **p;       /* each L limbs */
+  size_t n, cap;
+} bf_list;
+
+static void
+bf_list_add (bf_list *fl, const bf_limb *v)
+{
+  if (fl->n == fl->cap)
+    {
+      fl->cap = fl->cap ? fl->cap * 2 : 16;
+      fl->p = xrealloc (fl->p, fl->cap * sizeof *fl->p);
+    }
+  fl->p[fl->n] = xmalloc (fl->L * sizeof (bf_limb));
+  memcpy (fl->p[fl->n++], v, fl->L * sizeof (bf_limb));
+}
+
+static void
+bf_list_add_u64 (bf_list *fl, uint64_t v)
+{
+  bf_limb *t = xmalloc (fl->L * sizeof *t);
+  bf_set_u64 (t, fl->L, v);
+  bf_list_add (fl, t);
+  free (t);
+}
+
+static int
+bf_factor64 (uint64_t n, bf_list *fl)
+{
+  if (n < 2) return 0;
+  if (n < (uint64_t) BCU_FACTOR_TRIAL * BCU_FACTOR_TRIAL || bf_is_prime64 (n))
+    {
+      bf_list_add_u64 (fl, n);
+      return 0;
+    }
+  uint64_t d = bf_rho64 (n);
+  if (!d) return -1;
+  return bf_factor64 (d, fl) < 0 ? -1 : bf_factor64 (n / d, fl);
+}
+
+/* N (L limbs, odd, no factor below BCU_FACTOR_TRIAL). */
+static int
+bf_factor_big (const bf_limb *n, bf_list *fl)
+{
+  size_t L = fl->L;
+  if (bf_fits_u64 (n, L))
+    return bf_factor64 (bf_get_u64 (n, L), fl);
+  if (bf_is_prime (n, L))
+    {
+      bf_list_add (fl, n);
+      return 0;
+    }
+  size_t sz = L * sizeof (bf_limb);
+  bf_limb *d = xmalloc (sz), *co = xmalloc (sz), *t = xmalloc (sz);
+  int rc;
+  /* Rho needs about sqrt(p) steps for p^2 too; a square root is cheap. */
+  if (bf_square_root (n, L, d))
+    {
+      rc = bf_factor_big (d, fl);
+      if (rc == 0)
+        rc = bf_factor_big (d, fl);
+      free (d); free (co); free (t);
+      return rc;
+    }
+  rc = bf_rho (d, n, L);
+  if (rc == 0)
+    {
+      bf_div (co, n, d, t, L);
+      rc = bf_factor_big (d, fl);
+      if (rc == 0)
+        rc = bf_factor_big (co, fl);
+    }
+  free (d); free (co); free (t);
+  return rc;
+}
+
+/* The primes below BCU_FACTOR_TRIAL, sieved once. */
+static uint16_t bf_primes[600];
+static size_t bf_nprimes;
+
+static void
+bf_init_primes (void)
+{
+  static unsigned char sieve[BCU_FACTOR_TRIAL];
+  if (bf_nprimes) return;
+  for (unsigned i = 2; i < BCU_FACTOR_TRIAL; i++)
+    {
+      if (sieve[i]) continue;
+      bf_primes[bf_nprimes++] = (uint16_t) i;
+      for (unsigned j = i * i; j < BCU_FACTOR_TRIAL; j += i)
+        sieve[j] = 1;
+    }
+}
+
+/* Every prime factor of N (consumed) into FL, smallest first. */
+static int
+bf_factor (bf_limb *n, bf_list *fl)
+{
+  size_t L = fl->L;
+  int rc = 0;
+  bf_init_primes ();
+  if (bf_fits_u64 (n, L))
+    {
+      uint64_t v = bf_get_u64 (n, L);
+      if (v < 2)
+        return 0;
+      for (size_t i = 0; i < bf_nprimes; i++)
+        {
+          uint64_t p = bf_primes[i];
+          if (p * p > v) break;
+          while (v % p == 0)
+            {
+              v /= p;
+              bf_list_add_u64 (fl, p);
+            }
+        }
+      if (v > 1)
+        rc = bf_factor64 (v, fl);
+    }
+  else
+    {
+      for (size_t i = 0; i < bf_nprimes; i++)
+        {
+          bf_limb p = bf_primes[i];
+          while (bf_mod_1 (n, L, p) == 0)
+            {
+              bf_divmod_1 (n, L, p);
+              bf_list_add_u64 (fl, p);
+            }
+        }
+      if (!bf_is_one (n, L))
+        rc = bf_factor_big (n, fl);
+    }
+  /* Insertion sort: the lists are short. */
+  for (size_t i = 1; i < fl->n; i++)
+    for (size_t j = i; j > 0 && bf_cmp (fl->p[j - 1], fl->p[j], L) > 0; j--)
+      {
+        bf_limb *t = fl->p[j]; fl->p[j] = fl->p[j - 1]; fl->p[j - 1] = t;
+      }
+  return rc;
+}
+
+/* Decimal digits of A (consumed) into a new string. */
+static char *
+bf_to_dec (bf_limb *a, size_t L)
+{
+  size_t cap = L * (BF_BITS == 64 ? 20 : 10) + 2, at = cap;
+  char *buf = xmalloc (cap);
+  buf[--at] = '\0';
+  do
+    {
+      bf_limb r = bf_divmod_1 (a, L, 1000000000u);
+      int last = bf_is_zero (a, L);
+      for (int i = 0; i < 9 && (!last || r); i++)
+        {
+          buf[--at] = (char) ('0' + r % 10);
+          r /= 10;
+        }
+    }
+  while (!bf_is_zero (a, L));
+  if (buf[at] == '\0')
+    buf[--at] = '0';
+  memmove (buf, buf + at, cap - at);
+  return buf;
+}
+
+static char *
+bf_dec (const bf_limb *a, size_t L)
+{
+  bf_limb *t = xmalloc (L * sizeof *t);
+  memcpy (t, a, L * sizeof *t);
+  char *s = bf_to_dec (t, L);
+  free (t);
+  return s;
+}
+
+static void
+bcu_factor_bad (const char *tok)
+{
+  char *q = bos_quote (tok);
+  fflush (stdout);
+  fprintf (stderr, "factor: %s is not a valid positive integer\n", q ? q : tok);
+  free (q);
+}
+
+/* Factor and print one token; 0, 1 for an invalid token, -1 when an
+   interrupt stopped the work. GNU's syntax: leading spaces, an optional
+   '+', then decimal digits and nothing else. */
+static int
+bcu_factor_one (const char *tok, int exponents)
+{
+  const char *p = tok;
+  while (*p == ' ') p++;
+  if (*p == '+') p++;
+  const char *digits = p;
+  while (*p >= '0' && *p <= '9') p++;
+  if (p == digits || *p)
+    {
+      bcu_factor_bad (tok);
+      return 1;
+    }
+  while (*digits == '0' && digits + 1 < p) digits++;
+  size_t nd = (size_t) (p - digits);
+  size_t L = nd / (BF_BITS == 64 ? 19 : 9) + 2;
+  bf_limb *n = xmalloc (L * sizeof *n);
+  memset (n, 0, L * sizeof *n);
+  for (const char *c = digits; c < p; c++)
+    bf_mul_1_add (n, L, 10, (bf_limb) (*c - '0'));
+
+  char *ns = bf_dec (n, L);
+  bf_list fl = { L, NULL, 0, 0 };
+  int rc = bf_factor (n, &fl);
+  if (rc == 0)
+    {
+      printf ("%s:", ns);
+      for (size_t i = 0; i < fl.n;)
+        {
+          size_t j = i + 1;
+          if (exponents)
+            while (j < fl.n && bf_cmp (fl.p[i], fl.p[j], L) == 0) j++;
+          char *f = bf_dec (fl.p[i], L);
+          if (j - i > 1)
+            printf (" %s^%zu", f, j - i);
+          else
+            printf (" %s", f);
+          free (f);
+          i = j;
+        }
+      putchar ('\n');
+    }
+  for (size_t i = 0; i < fl.n; i++) free (fl.p[i]);
+  free (fl.p);
+  free (ns);
+  free (n);
+  return rc;
+}
+
+static void
+bcu_factor_try (void)
+{
+  fprintf (stderr, "Try 'factor --help' for more information.\n");
 }
 
 static int
 bcu_factor_cmd (WORD_LIST *list)
 {
-  if (list)
+  int exponents = 0, status = EXECUTION_SUCCESS, nops = 0, ended = 0;
+  WORD_LIST *w;
+
+  /* Options anywhere, as getopt_long permutes them; "--" ends them. */
+  for (w = list; w; w = w->next)
     {
-      int rc = EXECUTION_SUCCESS;
-      for (WORD_LIST *w = list; w; w = w->next)
+      const char *a = w->word->word;
+      if (ended || a[0] != '-' || a[1] == '\0')
+        { nops++; continue; }
+      if (strcmp (a, "--") == 0)
+        { ended = 1; continue; }
+      if (a[1] == '-')
         {
-          errno = 0;
-          char *end = NULL;
-          unsigned long long n = strtoull (w->word->word, &end, 10);
-          if (errno || !end || *end != '\0')
+          const char *eq = strchr (a, '=');
+          size_t len = eq ? (size_t) (eq - a) : strlen (a);
+          static const char *const longs[] = { "--exponents", "--help", "--version" };
+          int hit = -1;
+          for (int i = 0; i < 3; i++)
+            if (strncmp (longs[i], a, len) == 0)
+              hit = i;          /* the three share no prefix past "--" */
+          if (hit < 0)
             {
-              builtin_error ("factor: not a number: %s", w->word->word);
-              rc = EXECUTION_FAILURE;
-              continue;
+              fprintf (stderr, "factor: unrecognized option '%s'\n", a);
+              bcu_factor_try ();
+              return EXECUTION_FAILURE;
             }
-          bcu_factor_print ((uint64_t) n);
+          if (eq)
+            {
+              fprintf (stderr, "factor: option '%s' doesn't allow an argument\n", longs[hit]);
+              bcu_factor_try ();
+              return EXECUTION_FAILURE;
+            }
+          if (hit == 0)
+            exponents = 1;
+          else if (hit == 1)
+            {
+              printf ("Usage: factor [OPTION] [NUMBER]...\n"
+                      "Print the prime factors of each specified integer NUMBER.  If none\n"
+                      "are specified on the command line, read them from standard input.\n"
+                      "\n"
+                      "  -h, --exponents   print repeated factors in form p^e unless e is 1\n"
+                      "      --help        display this help and exit\n"
+                      "      --version     output version information and exit\n");
+              return fflush (stdout) ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+            }
+          else
+            {
+              printf ("factor (bash-os) %s\n", dist_version);
+              return fflush (stdout) ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
+            }
+          continue;
         }
-      return rc;
+      for (const char *c = a + 1; *c; c++)
+        {
+          if (*c != 'h')
+            {
+              fprintf (stderr, "factor: invalid option -- '%c'\n", *c);
+              bcu_factor_try ();
+              return EXECUTION_FAILURE;
+            }
+          exponents = 1;
+        }
     }
 
-  /* No args: read whitespace-separated numbers from stdin. */
-  char *line = NULL; size_t llen = 0; ssize_t r;
-  int rc = EXECUTION_SUCCESS;
-  while ((r = getline (&line, &llen, stdin)) != -1)
+  bcu_factor_stop = 0;
+  if (nops)
     {
-      char *p = line;
-      while (*p)
+      ended = 0;
+      for (w = list; w; w = w->next)
         {
-          while (*p && isspace ((unsigned char) *p)) p++;
-          if (!*p) break;
-          char *end = NULL;
-          errno = 0;
-          unsigned long long n = strtoull (p, &end, 10);
-          if (errno || end == p)
-            { rc = EXECUTION_FAILURE; while (*p && !isspace ((unsigned char) *p)) p++; continue; }
-          bcu_factor_print ((uint64_t) n);
-          p = end;
+          const char *a = w->word->word;
+          if (!ended && strcmp (a, "--") == 0) { ended = 1; continue; }
+          if (!ended && a[0] == '-' && a[1]) continue;
+          int r = bcu_factor_one (a, exponents);
+          if (r < 0) break;
+          if (r) status = EXECUTION_FAILURE;
         }
     }
-  free (line);
-  return rc;
+  else
+    {
+      /* Tokens of standard input, split at spaces, tabs and newlines. */
+      char *tok = NULL;
+      size_t len = 0, cap = 0;
+      int ch;
+      for (;;)
+        {
+          ch = getchar ();
+          if (ch == EOF || ch == ' ' || ch == '\t' || ch == '\n')
+            {
+              if (len)
+                {
+                  tok[len] = '\0';
+                  len = 0;
+                  int r = bcu_factor_one (tok, exponents);
+                  if (r < 0) break;
+                  if (r) status = EXECUTION_FAILURE;
+                }
+              if (ch == EOF) break;
+              continue;
+            }
+          if (len + 2 > cap)
+            {
+              cap = cap ? cap * 2 : 64;
+              tok = xrealloc (tok, cap);
+            }
+          tok[len++] = (char) ch;
+        }
+      free (tok);
+      if (ferror (stdin))
+        {
+          fflush (stdout);
+          fprintf (stderr, "factor: read error: %s\n", strerror (errno));
+          status = EXECUTION_FAILURE;
+        }
+    }
+  if (fflush (stdout) == EOF)
+    status = EXECUTION_FAILURE;
+  if (bcu_factor_stop)
+    {
+      bcu_factor_stop = 0;
+      QUIT;
+      return 130;
+    }
+  return status;
 }
 
 /* ===================================================================
@@ -5536,7 +6663,10 @@ char *coreutils_doc[] = {
   "                     [FILE | ARG...]",
   "        GNU shuf: -e/--echo, -i/--input-range, -n/--head-count, -o/--output,",
   "        -r/--repeat, -z/--zero-terminated; long-option prefixes.",
-  "    coreutils factor N [N...]",
+  "    coreutils factor [-h|--exponents] [NUMBER]...",
+  "        GNU factor: integers of any size (trial division, Pollard-Brent rho,",
+  "        Miller-Rabin and Baillie-PSW); numbers from standard input when none",
+  "        are given; -h prints p^e.",
   "    coreutils yes    [STRING...]",
   "    coreutils fmt    [-WIDTH] [-cstu] [-w WIDTH] [-g GOAL] [-p PREFIX] [FILE...]",
   "        GNU fmt: -c crown margin, -s split only, -t tagged paragraph,",

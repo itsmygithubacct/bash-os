@@ -9,7 +9,8 @@
     "NUL-terminated output and paths containing spaces",
     "Block-size ceiling, grand totals, binary human-readable units, and decimal SI units",
     "Default hard-link de-duplication and --count-links behavior",
-    "Default symlink handling, command-line dereferencing, and recursive dereferencing"
+    "Default symlink handling, command-line dereferencing, and recursive dereferencing",
+    "Guest compatibility pass 6 (G90): GNU diagnostic wording for operand and usage errors."
   ],
   "exclusions": [
     "The cross-filesystem effect of -x is deferred because it requires a separate disposable filesystem mount.",
@@ -203,6 +204,19 @@
       "expected_status": 0,
       "stdout": "rc=0\nstdout-only\n",
       "stderr": "empty"
+    },
+    {
+      "id": "pass6-cannot-access",
+      "kind": "parity",
+      "purpose": "G90: GNU du's \"cannot access 'NAME'\" for missing operands, quoted, with the remaining operand still counted.",
+      "script": "printf 'x\\n' > f\n{ du nosuch 'a b' f > /dev/null || echo rc=$?; } 2>err\nsed 's/^fixture: line [0-9]*: //' err >&2\nrm err",
+      "requires": [
+        "du",
+        "sed",
+        "rm"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

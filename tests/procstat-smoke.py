@@ -45,9 +45,22 @@ with tempfile.TemporaryDirectory() as tmp:
                               '4000-6000 rw-p 00000000 00:00 0 [heap]\n')
     # procps 4.0: " total" then the size right-aligned in 16 columns.
     assert run('pmap','42').endswith(' total               16K\n')
-    assert '0000000000001000 /lib/fixture.so.1' in run('pmap','-x','42')
+    # procps 4.0: -d carries the offset and device; -x the RSS and Dirty
+    # columns from smaps.
+    assert '0000000000001000       4 r-x-- 0000000000000000 008:00001 fixture.so.1\n' in run('pmap','-d','42')
+    (root/'42/smaps').write_text('1000-2000 r-xp 00000000 08:01 1 /lib/fixture.so.1\n'
+                                 'Size:                  4 kB\nRss:                   4 kB\n'
+                                 'Private_Dirty:         0 kB\nShared_Dirty:          0 kB\n'
+                                 '4000-6000 rw-p 00000000 00:00 0 [heap]\n'
+                                 'Size:                  8 kB\nRss:                   8 kB\n'
+                                 'Private_Dirty:         8 kB\nShared_Dirty:          0 kB\n')
+    x=run('pmap','-x','42')
+    assert '0000000000001000       4       4       0 r-x-- fixture.so.1\n' in x,x
+    assert x.endswith('total kB              12      12       8\n'),x
     assert run('pldd','42')=='42:\n/lib/fixture.so.1\n'
-    for args in [('prtstat','../42'),('pidstat','-p','0'),('pmap','-x'),('mpstat','2'),('unknown',)]:run(*args,rc=2)
+    for args in [('prtstat','../42'),('pidstat','-p','0'),('mpstat','2'),('unknown',)]:run(*args,rc=2)
+    # procps 4.0: 'pmap: argument missing', status 1.
+    run('pmap','-x',rc=1)
     run('prtstat','43',rc=1)
     (root/'42/stat').write_text('42 (bad) S 1\n');run('prtstat','42',rc=1)
     (root/'42/maps').write_text('broken\n');run('pmap','42',rc=1)

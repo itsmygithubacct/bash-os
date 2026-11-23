@@ -176,6 +176,17 @@
       "script": "touch aaaaaaaa ccccc crnfx3 dx5 jwx1 sqex2 whx4 x6\nls -C -w 15 aaaaaaaa ccccc\nls -C -w 16 aaaaaaaa ccccc\nls -C -w 30 crnfx3 dx5 jwx1 sqex2 whx4\nls -C -w 31 crnfx3 dx5 jwx1 sqex2 whx4\nls -C -w 40 aaaaaaaa ccccc crnfx3 dx5 jwx1 sqex2 whx4 x6\nls -x -w 21 aaaaaaaa ccccc x6\nls -m -w 12 ccccc dx5 jwx1 x6\nls -m -w 11 ccccc dx5 jwx1 x6",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "diagnostics-name-the-command",
+      "kind": "parity",
+      "purpose": "G88: run from a script (bash -c here), ls's diagnostics start 'ls: ' as GNU coreutils prints them, with no script name, line number or shell name before it; stderr is compared byte for byte.",
+      "requires": [
+        "ls"
+      ],
+      "script": "ls nosuch || echo rc=$?; ls -d . nosuch2 || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

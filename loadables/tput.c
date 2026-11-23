@@ -1381,8 +1381,21 @@ emit_cap (const char *cap, WORD_LIST *args, const char *var, const char *term, i
       const char *value = explicit_term ? NULL : getenv (columns ? "COLUMNS" : "LINES");
       struct winsize ws;
 
+      /* ncurses reads LINES and COLUMNS as C integers in any base (077,
+         0x10), ignores a value that is not a whole positive number, and
+         caps it at 512. */
       if (value)
-        return bind_or_print (var, value, 1);
+        {
+          char *end;
+          long v;
+          errno = 0;
+          v = strtol (value, &end, 0);
+          if (end != value && *end == '\0' && errno == 0 && v > 0)
+            {
+              snprintf (buf, sizeof buf, "%ld", v > 512 ? 512L : v);
+              return bind_or_print (var, buf, 1);
+            }
+        }
       /* As ncurses tput: LINES and COLUMNS override the window unless -T
          is given (use_env(FALSE), use_tioctl(TRUE)); either way the window
          size of the terminal comes next, and the database only off a
@@ -1393,6 +1406,20 @@ emit_cap (const char *cap, WORD_LIST *args, const char *var, const char *term, i
           (columns ? ws.ws_col : ws.ws_row))
         {
           snprintf (buf, sizeof buf, "%u", (unsigned int) (columns ? ws.ws_col : ws.ws_row));
+          return bind_or_print (var, buf, 1);
+        }
+      /* Off a terminal, ncurses tput -T TYPE prints the entry's own value,
+         -1 when it has none (linux has neither, dumb no lines); without -T
+         it falls back to 80x24. */
+      if (explicit_term)
+        {
+          int32_t num = 0;
+          if (bt_compiled_lookup (term, columns ? "cols" : "lines", NULL, &num, NULL, NULL) == 1)
+            snprintf (buf, sizeof buf, "%d", (int) num);
+          else if (!strcmp (term, "linux") || (!columns && !strcmp (term, "dumb")))
+            snprintf (buf, sizeof buf, "-1");
+          else
+            snprintf (buf, sizeof buf, "%s", columns ? "80" : "24");
           return bind_or_print (var, buf, 1);
         }
       return bind_or_print (var, columns ? "80" : "24", 1);

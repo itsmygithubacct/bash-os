@@ -62,6 +62,7 @@
 #include <inttypes.h>
 
 #include "loadables.h"
+#include "gnu-quote.h"
 
 typedef struct {
     int field;            /* 1-based start field; 0 = the whole line */
@@ -130,6 +131,59 @@ typedef struct {
 
 static const bs_opts *bs_cmp_opts;
 
+/* GNU sort's file diagnostics: "WHAT: NAME: ERROR", the name quoted only
+   when a shell (or a "NAME: message" reader) needs it. */
+static char *
+bs_quotef (const char *name)
+{
+    size_t len = strlen (name), i;
+    int need = len == 0;
+    mbstate_t st;
+
+    memset (&st, 0, sizeof st);
+    for (i = 0; i < len && !need;) {
+        unsigned char c = (unsigned char) name[i];
+
+        if (c < 0x80) {
+            if (c < 0x20 || c == 0x7f || strchr (" !\"$&'()*;<=>?[\\^`|:", c))
+                need = 1;
+            else if ((c == '#' || c == '~') && i == 0)
+                need = 1;
+            else if ((c == '{' || c == '}') && len == 1)
+                need = 1;
+            i++;
+        } else {
+            wchar_t w;
+            size_t n = mbrtowc (&w, name + i, len - i, &st);
+
+            if (n == 0 || n == (size_t) -1 || n == (size_t) -2 || !iswprint ((wint_t) w))
+                need = 1;
+            else
+                i += n;
+        }
+    }
+    return need ? bos_quoteaf (name) : strdup (name);
+}
+
+static void
+bs_file_error (const char *what, const char *name, int err)
+{
+    char *q = bs_quotef (name);
+
+    builtin_error ("%s: %s: %s", what, q ? q : name, strerror (err));
+    free (q);
+}
+
+/* --random-source names its file always quoted, as GNU does. */
+static void
+bs_source_error (const char *name, const char *msg)
+{
+    char *q = bos_quoteaf (name);
+
+    builtin_error ("%s: %s", q ? q : name, msg);
+    free (q);
+}
+
 static uint64_t bs_random_state;
 
 static uint64_t
@@ -155,7 +209,7 @@ bs_random_seed (const char *random_source)
         size_t nread = 0;
 
         if (!f) {
-            builtin_error ("%s: %s", random_source, strerror (errno));
+            bs_file_error ("open failed", random_source, errno);
             return -1;
         }
         while ((ch = fgetc (f)) != EOF) {
@@ -164,16 +218,18 @@ bs_random_seed (const char *random_source)
             nread++;
         }
         if (ferror (f)) {
-            builtin_error ("%s: %s", random_source, strerror (errno));
+            char msg[256];
+            snprintf (msg, sizeof msg, "read error: %s", strerror (errno));
+            bs_source_error (random_source, msg);
             fclose (f);
             return -1;
         }
         if (fclose (f) != 0) {
-            builtin_error ("%s: %s", random_source, strerror (errno));
+            bs_file_error ("close failed", random_source, errno);
             return -1;
         }
         if (nread == 0) {
-            builtin_error ("%s: end of file", random_source);
+            bs_source_error (random_source, "end of file");
             return -1;
         }
         bs_random_state = seed ? seed : 0x9e3779b97f4a7c15ULL;
@@ -609,7 +665,7 @@ bs_read_input (bs_input *in, FILE *f, const char *name, int delim)
         return -1;
     }
     if (r > 0)
-        builtin_error ("%s: read error: %s", name, strerror (errno));
+        bs_file_error ("read failed", name, errno);
     if (bs_add_input (in, buf, len, delim) < 0) {
         builtin_error ("memory exhausted");
         return -1;
@@ -1059,6 +1115,60 @@ bs_compare_keys (const bs_line *la, const bs_line *lb, const bs_opts *o)
     return 0;
 }
 
+/* -R: one random rank per class of equal keys, drawn in the order the
+   classes first occur in the input (so --random-source gives the same
+   permutation every run). The classes come from sorting the line indices
+   by key, ties in input order: O(n log n) comparisons rather than one
+   comparison against every earlier line. */
+static const bs_line *bs_rank_lines;
+static const bs_opts *bs_rank_opts;
+
+static int
+bs_rank_cmp (const void *va, const void *vb)
+{
+    size_t a = *(const size_t *) va, b = *(const size_t *) vb;
+    int cmp = bs_compare_keys (&bs_rank_lines[a], &bs_rank_lines[b], bs_rank_opts);
+
+    if (cmp)
+        return cmp;
+    return (a > b) - (a < b);
+}
+
+static int
+bs_random_ranks (bs_line *lines, size_t n, const bs_opts *o)
+{
+    size_t *order, *leader;
+
+    if (n == 0)
+        return 0;
+    if (n > ((size_t) -1) / sizeof *order)
+        return -1;
+    order = malloc (n * sizeof *order);
+    leader = malloc (n * sizeof *leader);
+    if (!order || !leader) {
+        free (order);
+        free (leader);
+        return -1;
+    }
+    for (size_t i = 0; i < n; i++)
+        order[i] = i;
+    bs_rank_lines = lines;
+    bs_rank_opts = o;
+    qsort (order, n, sizeof *order, bs_rank_cmp);
+    /* Each run of equal keys starts with its earliest line. */
+    for (size_t i = 0, first = 0; i < n; i++) {
+        if (i > 0 && bs_compare_keys (&lines[order[i - 1]], &lines[order[i]], o) != 0)
+            first = i;
+        leader[order[i]] = order[first];
+    }
+    for (size_t i = 0; i < n; i++)
+        lines[i].random_rank = leader[i] == i ? bs_random_next ()
+                                              : lines[leader[i]].random_rank;
+    free (order);
+    free (leader);
+    return 0;
+}
+
 static int
 bs_index_order (const bs_line *la, const bs_line *lb)
 {
@@ -1122,11 +1232,13 @@ bs_compare (const void *va, const void *vb)
         return 0;
     }
     if (o->Rflag) {
-        /* Equal ranks: the same key text, by construction. */
+        /* Equal ranks: the same key text, by construction. Within the
+           group, GNU's last resort (or input order under -s and -u). */
         cmp = bs_compare_keys (ea->ln, eb->ln, o);
         if (cmp)
             return o->rflag ? -cmp : cmp;
-        return (o->sflag || o->uflag) ? bs_index_order (ea->ln, eb->ln) : 0;
+        return (o->sflag || o->uflag) ? bs_index_order (ea->ln, eb->ln)
+                                      : bs_last_resort (ea->ln, eb->ln, o);
     }
     return bs_full_compare (ea->ln, eb->ln, o);
 }
@@ -1765,7 +1877,7 @@ bs_ext_read (FILE *f, const char *name, int delim, bs_input *in, size_t *estp,
         len += got;
         int at_end = got < block;
         if (at_end && ferror (f)) {
-            builtin_error ("%s: read error: %s", name, strerror (errno));
+            bs_file_error ("read failed", name, errno);
             rc = 1;
         }
         size_t keep = len;
@@ -1965,7 +2077,7 @@ bs_ext_sort (const char **files, size_t n_files, const bs_opts *o, unsigned long
             clearerr (stdin);
         if (!f) {
             /* GNU: an unreadable input ends the sort before any output. */
-            builtin_error ("%s: %s", name, strerror (errno));
+            bs_file_error ("cannot read", name, errno);
             fatal = 1;
             break;
         }
@@ -2002,7 +2114,7 @@ bs_ext_sort (const char **files, size_t n_files, const bs_opts *o, unsigned long
         if (output_file && strcmp (output_file, "-") != 0) {
             outf = fopen (output_file, "w");
             if (!outf) {
-                builtin_error ("%s: %s", output_file, strerror (errno));
+                bs_file_error ("open failed", output_file, errno);
                 fatal = 1;
             }
         } else
@@ -2415,8 +2527,9 @@ bs_sort (WORD_LIST *list, const char **files)
             else
                 clearerr (stdin);
             if (!f) {
-                /* GNU: an unreadable input ends the sort before any output. */
-                builtin_error ("%s: %s", files[i], strerror (errno));
+                /* GNU: an unreadable input ends the sort before any output;
+                   -c reports the open itself. */
+                bs_file_error (o.cflag ? "open failed" : "cannot read", files[i], errno);
                 free (runs);
                 bs_free_input (&in);
                 return BS_TROUBLE;
@@ -2455,17 +2568,10 @@ bs_sort (WORD_LIST *list, const char **files)
             rc = BS_TROUBLE;
             goto out;
         }
-        for (size_t i = 0; i < n; i++) {
-            int found = 0;
-            for (size_t j = 0; j < i; j++) {
-                if (bs_compare_keys (&lines[i], &lines[j], &o) == 0) {
-                    lines[i].random_rank = lines[j].random_rank;
-                    found = 1;
-                    break;
-                }
-            }
-            if (!found)
-                lines[i].random_rank = bs_random_next ();
+        if (bs_random_ranks (lines, n, &o) < 0) {
+            builtin_error ("memory exhausted");
+            rc = BS_TROUBLE;
+            goto out;
         }
         /* Under -R the rank is the first-order key. */
         for (size_t i = 0; i < n; i++)
@@ -2521,7 +2627,7 @@ bs_sort (WORD_LIST *list, const char **files)
     if (output_file && strcmp (output_file, "-") != 0) {
         outf = fopen (output_file, "w");
         if (!outf) {
-            builtin_error ("%s: %s", output_file, strerror (errno));
+            bs_file_error ("open failed", output_file, errno);
             rc = BS_TROUBLE;
             goto out;
         }

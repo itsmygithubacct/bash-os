@@ -9,13 +9,15 @@
     "Named relative file operands, an unterminated final input record, repeated redirected stdin in one shell, and invalid output-width handling.",
     "Nonempty zero-width list and table modes, ragged explicitly separated tails, repeated dash operands, and a custom identity banner.",
     "G66: display-width -t padding under UTF-8, -N/--table-columns, -n/--table-name and -J/--json.",
-    "Guest pass 5 G81: -R/--table-right, -l/--table-columns-limit, -H/--table-hide and -O/--table-order with util-linux 2.41 column lists (names, numbers, ranges, 0, -1, '-'), and no header without data."
+    "Guest pass 5 G81: -R/--table-right, -l/--table-columns-limit, -H/--table-hide and -O/--table-order with util-linux 2.41 column lists (names, numbers, ranges, 0, -1, '-'), and no header without data.",
+    "Guest pass 6 G96: -d/--table-noheadings, -L/--keep-empty-lines, -e/--table-header-repeat (LINES page height), -r/--tree with -i/-p (ASCII, UTF-8 and JSON), and -T/-W/-E against an explicit -c width on single-row tables."
   ],
   "exclusions": [
     "Only the column command is covered; the sibling col and colrm builtins are outside this suite.",
     "Terminal-derived default width, wide-character display alignment, and util-linux options outside the implemented column subset are not covered.",
     "No privileged, host-system, hardware, or network operation is part of column's selected behavior, so no operation case is deferred.",
-    "A column named twice in -O is placed once; util-linux 2.41 then also drops another column, which is not reproduced."
+    "A column named twice in -O is placed once; util-linux 2.41 then also drops another column, which is not reproduced.",
+    "How util-linux 2.41 splits a too-narrow -c width among several -T/-W/-E columns over multi-row tables is reproduced only approximately (libsmartcols' distribution is not documented), so only single-row width cases are compared."
   ],
   "cases": [
     {
@@ -302,6 +304,87 @@
       "id": "header-needs-data",
       "purpose": "util-linux prints no -N header when there is no data row, and then does not check -R names either.",
       "script": "printf '' | column -t -N A,B || echo rc=$?\nprintf '\\n\\n' | column -t -N A,B || echo rc=$?\nprintf '' | column -t -N A,B -R 5 || echo rc=$?\nprintf '' | column -t -R 5 || echo rc=$?",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "table-noheadings",
+      "purpose": "G96: -d/--table-noheadings prints the table without the -N header, while -N still names the columns for -R and -J.",
+      "script": "printf 'a b c\\nd e f\\n' > T\ncolumn -t -N A,B,C -d T\ncolumn -t -N A,B,C --table-noheadings -R C T\ncolumn -t -d T",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "keep-empty-lines",
+      "purpose": "G96: -L/--keep-empty-lines keeps blank and whitespace-only input lines as empty table rows and as empty fill-mode items; a table whose only lines are blank prints nothing and fails.",
+      "script": "printf 'a b\\n\\nc d\\n  \\ne f\\n' | column -t -L\nprintf 'a b\\n\\nc d\\n' | column -L -c 30\nprintf 'a b\\n\\nc d\\n' | column -L -x -c 30\nprintf 'a,b\\n  \\n\\nc,d\\n' | column -t -s, -L\nprintf 'a b\\n\\nc d\\n' | column -t -N X,Y --table-empty-lines -R 2\nprintf 'a b\\n\\nc d\\n' | column -J -N x,y --keep-empty-lines\nprintf '\\n\\n' | column -t -L || echo rc=$?\nprintf '\\n\\n' | column -L || echo rc=$?",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "header-repeat",
+      "purpose": "G96: -e/--table-header-repeat prints the header again at the top of every terminal page, the page height coming from LINES when output is not a terminal; -d turns the header (and the repeat) off.",
+      "script": "seq 1 30 | sed 's/.*/& x/' > T\nLINES=10 column -t -N A,B -e T\nLINES=1 column -t -N A,B --table-header-repeat T | head -6\nLINES=10 column -t -N A,B -e -d T | head -3\nLINES=10 column -t -e T | head -3",
+      "requires": [
+        "column",
+        "seq",
+        "sed",
+        "head"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "tree-ascii",
+      "purpose": "G96: -r/--tree with -i/--tree-id and -p/--tree-parent nests each row under the row whose ID matches its parent, in input order, with ASCII branch prefixes in the C locale; rows with an unknown parent stay at the top level and a later duplicate ID takes the children over.",
+      "script": "export LC_ALL=C\nprintf '1 0 root\\n2 1 kid\\n3 1 kid2\\n4 2 grand\\n7 4 gg\\n8 4 gg2\\n9 3 k2c\\n5 0 other\\n6 5 x\\n10 99 orphan\\n' > T\ncolumn -t -r 3 -i 1 -p 2 T\nprintf '1 0 root\\n2 1 kid\\n3 1 kid2\\n4 2 grand\\n' | column -t -N ID,P,NAME --tree NAME --tree-id ID --tree-parent P -H ID,P\nprintf '4 1 late\\n1 0 root\\n' | column -t -r 3 -i 1 -p 2\nprintf '1 0 root\\n1 0 dup\\n2 1 kid\\n' | column -t -r 3 -i 1 -p 2\nprintf '1 2 a\\n2 1 b\\n3 3 c\\n4 0 d\\n' | column -t -r 3 -i 1 -p 2\nprintf '1 0 root\\n2 1 kid\\n3 1 kid2\\n4 2 grand\\n' | column -r 3 -i 1 -p 2",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "tree-utf8-and-json",
+      "purpose": "G96: in a UTF-8 locale the tree uses box-drawing prefixes; with -J the tree is nested as \"children\" arrays instead of prefixes.",
+      "script": "export LC_ALL=C.UTF-8\nprintf '1 0 root\\n2 1 kid\\n3 1 kid2\\n4 2 grand\\n5 0 r2\\n' > T\ncolumn -t -N ID,P,NAME -r NAME -i ID -p P T\ncolumn -J -N id,p,name -r name -i id -p p T",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "tree-option-errors",
+      "purpose": "G96: -r needs both -i and -p, the tree columns must exist, and every --table-* or tree option needs -t; each failure exits 1 with no output.",
+      "script": "printf '1 0 root\\n2 1 kid\\n' > T\nfor a in '-t -N ID,P,NAME -r NAME -i ID' '-t -N ID,P,NAME -r NAME -p P' '-t -N ID,P,NAME -r NOPE -i ID -p P' '-t -r 7 -i 1 -p 2' '-T 1' '-E 1' '-W 1' '-d' '-e' '-i 1' '-p 1' '-t -T' '-t -T NOPE'; do rc=0; column $a T > out || rc=$?; echo \"$a rc=$rc $(wc -c < out)\"; done",
+      "requires": [
+        "column",
+        "wc"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "truncate-wrap-noextreme-width",
+      "purpose": "G96: with an explicit -c/--output-width, -T/--table-truncate cuts, -W/--table-wrap wraps and -E/--table-noextreme lets the named columns overflow, the other columns keeping their width; 0 or 'unlimited' disables the limit. Single-row tables, whose space split util-linux distributes deterministically.",
+      "script": "L=$(printf '%040d' 0)\nprintf \"$L $L 1\\n\" > T\ncolumn -t -T 1,2 -c 30 -N LONGHEADERNAME,BB,C T\ncolumn -t -T 1,2 -c 10 -N LONGHEADERNAME,BB,C T\ncolumn -t -T 1,2 -c 0 T\ncolumn -t -T 1,2 --output-width=unlimited T\nprintf 'aaa bbb ccc ddd,x\\n' | column -t -s, -W 1 -c 12\nprintf 'aaa bbb ccc ddd,x\\n' | column -t -s, --table-truncate 1 -c 12\nM=$(printf '%060d' 0)\nprintf \"a $M 1\\n\" | column -t -T 1,2 -R 2 -c 40\nprintf \"a $M 1\\n\" | column -t --table-wrap 2 -c 40\nprintf \"a $M 1\\n\" | column -t --table-noextreme 2 -c 40\nprintf \"a $M 1\\n\" | column -t -T 2 -J -N a,b,c -c 40",
       "requires": [
         "column"
       ],
