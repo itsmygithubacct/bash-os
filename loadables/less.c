@@ -6,9 +6,12 @@
  * fits bash-os' compiled-loadable model:
  *
  *   less [-F] [-N] [-S] [-n LINES] [FILE...]
+ *   less [-eEFiIMmNsSRrX] [-p PATTERN] [-x N] [-z N] [+CMD] [FILE...]
  *
- * Non-interactive mode drains input unchanged, matching the existing
- * more convention. Interactive mode reads files/stdin into a line
+ * Options come from LESS first, then the arguments, in clusters (-FRX)
+ * or long form, as less(1) reads them; unknown ones are reported and
+ * ignored, as less does. When standard output is not a terminal, input
+ * is copied unchanged whatever the options (less acts like cat there). Interactive mode reads files/stdin into a line
  * vector, renders one screen at a time, and supports the less muscle
  * memory most scripts/users expect first: space/f/^F, b/^B, j/down,
  * k/up, g, G, /PATTERN, n, N, q.
@@ -230,24 +233,75 @@ bl_write (int fd, const char *s)
     }
 }
 
+/* Options, from LESS and then the command line, as less(1) reads them. */
+typedef struct {
+    int rows, chop, numbers, quit_if_one;
+    int eof_quit;          /* 1 for -e (second end of file), 2 for -E (first) */
+    int icase;             /* 1 for -i (unless the pattern has capitals), 2 for -I */
+    int squeeze;           /* -s */
+    int tabs;              /* -x N; 0 leaves tabs to the terminal */
+    int prompt;            /* 0, 'm' or 'M' */
+    int start_end;         /* +G */
+    long start_line;       /* +N, +Ng: 1-based, 0 for none */
+    char *pattern;         /* -p PAT, +/PAT */
+} bl_less_opts;
+
 static void
-bl_render_line (const char *line, size_t linelen, int chop, int numbers, size_t lineno, int cols)
+bl_render_line (const char *line, size_t linelen, const bl_less_opts *o, size_t lineno, int cols)
 {
     int prefix = 0;
-    if (numbers)
+    if (o->numbers)
         prefix = printf ("%7zu ", lineno + 1);
     int room = cols > prefix ? cols - prefix : cols;
     size_t len = linelen;
     if (len && line[len - 1] == '\n') len--;
-    if (chop && room > 0 && len > (size_t) room)
+    if (o->tabs > 0 && memchr (line, '\t', len))
+    {
+        /* -x N: tab stops every N columns. */
+        int col = 0;
+        for (size_t i = 0; i < len; i++)
+        {
+            if (o->chop && room > 0 && col >= room) break;
+            if (line[i] == '\t')
+            {
+                do { putchar (' '); col++; } while (col % o->tabs && !(o->chop && room > 0 && col >= room));
+                continue;
+            }
+            putchar ((unsigned char) line[i]);
+            col++;
+        }
+    }
+    else if (o->chop && room > 0 && len > (size_t) room)
         fwrite (line, 1, (size_t) room, stdout);
     else
         fwrite (line, 1, len, stdout);
     putchar ('\n');
 }
 
+/* Search with -i/-I: -i ignores case only for a pattern in lower case. */
+static const char *
+bl_search_line (const char *line, const char *pat, int icase)
+{
+    int fold = icase == 2;
+    if (icase == 1)
+    {
+        fold = 1;
+        for (const char *p = pat; *p; p++)
+            if (isupper ((unsigned char) *p)) { fold = 0; break; }
+    }
+    if (!fold) return strstr (line, pat);
+    size_t n = strlen (pat);
+    for (const char *s = line; *s; s++)
+    {
+        size_t i = 0;
+        while (i < n && s[i] && tolower ((unsigned char) s[i]) == tolower ((unsigned char) pat[i])) i++;
+        if (i == n) return s;
+    }
+    return NULL;
+}
+
 static int
-bl_find (const bl_lines *ls, const char *pat, size_t from, int reverse, size_t *hit)
+bl_find (const bl_lines *ls, const char *pat, size_t from, int reverse, size_t *hit, int icase)
 {
     if (!pat || !*pat || ls->n == 0) return 0;
     if (reverse)
@@ -255,14 +309,14 @@ bl_find (const bl_lines *ls, const char *pat, size_t from, int reverse, size_t *
         size_t i = from >= ls->n ? ls->n - 1 : from;
         for (;;)
         {
-            if (strstr (ls->v[i], pat)) { *hit = i; return 1; }
+            if (bl_search_line (ls->v[i], pat, icase)) { *hit = i; return 1; }
             if (i == 0) break;
             i--;
         }
         return 0;
     }
     for (size_t i = from; i < ls->n; i++)
-        if (strstr (ls->v[i], pat)) { *hit = i; return 1; }
+        if (bl_search_line (ls->v[i], pat, icase)) { *hit = i; return 1; }
     return 0;
 }
 
@@ -292,33 +346,59 @@ bl_prompt_line (int tty, const char *label, char *buf, size_t bufsz)
     return 0;
 }
 
-static int
-bl_interactive (const bl_lines *ls, int rows, int chop, int numbers, int quit_if_one,
-                const char *name)
+/* The prompt: ":" (the file name first), -m adds the percentage, -M the
+   line range and line count too, and "(END)" at the end of the input. */
+static void
+bl_show_prompt (const bl_lines *ls, size_t top, int rows, const bl_less_opts *o,
+                const char *name, int first_prompt)
 {
-    if (ls->n == 0) return EXECUTION_SUCCESS;
-    if (!isatty (STDOUT_FILENO))
+    size_t last = top + (size_t) rows < ls->n ? top + (size_t) rows : ls->n;
+    int at_end = ls->n - top <= (size_t) rows;
+    char buf[512];
+    if (!o->prompt)
     {
-        int cols = 80;
-        const char *env_cols = getenv ("COLUMNS");
-        if (env_cols && atoi (env_cols) > 0) cols = atoi (env_cols);
+        bl_write (STDERR_FILENO, at_end ? "(END)" : first_prompt && name ? name : ":");
+        return;
+    }
+    const char *shown = name ? name : "";
+    unsigned pct = ls->n ? (unsigned) (last * 100 / ls->n) : 100;
+    if (o->prompt == 'M')
+        snprintf (buf, sizeof buf, "%s%slines %zu-%zu/%zu %s", shown, *shown ? " " : "",
+                  top + 1, last, ls->n, at_end ? "(END)" : "");
+    else
+        snprintf (buf, sizeof buf, "%s%s", shown, *shown ? " " : "");
+    bl_write (STDERR_FILENO, buf);
+    if (!at_end || o->prompt == 'm')
+    {
+        if (at_end) bl_write (STDERR_FILENO, "(END)");
+        else { snprintf (buf, sizeof buf, "%u%%", pct); bl_write (STDERR_FILENO, buf); }
+    }
+}
+
+static int
+bl_interactive (bl_lines *ls, bl_less_opts *o, const char *name)
+{
+    int rows = o->rows;
+    if (ls->n == 0) return EXECUTION_SUCCESS;
+    if (o->squeeze)
+    {
+        /* -s: runs of blank lines show as one. */
+        size_t w = 0;
         for (size_t i = 0; i < ls->n; i++)
         {
-            if (numbers || chop)
-                bl_render_line (ls->v[i], ls->len[i], chop, numbers, i, cols);
-            else
-                /* Byte-counted write so embedded NULs (and the bytes after
-                   them) survive — fputs/strlen would truncate at the first
-                   NUL, dropping the rest of the line and matching more's
-                   binary-safe drain. */
-                fwrite (ls->v[i], 1, ls->len[i], stdout);
+            int blank = ls->len[i] == 0 || (ls->len[i] == 1 && ls->v[i][0] == '\n');
+            int prev_blank = w && (ls->len[w - 1] == 0 || (ls->len[w - 1] == 1 && ls->v[w - 1][0] == '\n'));
+            if (blank && prev_blank) { free (ls->v[i]); continue; }
+            ls->v[w] = ls->v[i];
+            ls->len[w] = ls->len[i];
+            w++;
         }
-        return EXECUTION_SUCCESS;
+        ls->n = w;
     }
-    if (quit_if_one && ls->n <= (size_t) rows)
+    if (o->quit_if_one && ls->n <= (size_t) rows)
     {
         for (size_t i = 0; i < ls->n; i++)
-            bl_render_line (ls->v[i], ls->len[i], chop, numbers, i, 80);
+            bl_render_line (ls->v[i], ls->len[i], o, i, 80);
         return EXECUTION_SUCCESS;
     }
 
@@ -344,11 +424,25 @@ bl_interactive (const bl_lines *ls, int rows, int chop, int numbers, int quit_if
     size_t top = 0;
     char last_pat[128] = "";
     int last_reverse = 0;
+    /* The starting position: +G, +N, then -p/+/ PATTERN. */
+    if (o->start_end)
+        top = ls->n > (size_t) rows ? ls->n - (size_t) rows : 0;
+    else if (o->start_line > 0)
+        top = (size_t) o->start_line <= ls->n ? (size_t) o->start_line - 1 : ls->n - 1;
+    if (o->pattern && o->pattern[0])
+    {
+        strncpy (last_pat, o->pattern, sizeof last_pat - 1);
+        last_pat[sizeof last_pat - 1] = '\0';
+        size_t hit;
+        if (bl_find (ls, last_pat, top, 0, &hit, o->icase))
+            top = hit;
+    }
     int cols = 80;
     struct winsize ws;
     struct sigaction old_winch;
     int have_winch = 0;
     int first_prompt = 1;
+    int ends_seen = 0;
     if (ioctl (STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0)
         cols = (int) ws.ws_col;
 
@@ -371,12 +465,15 @@ bl_interactive (const bl_lines *ls, int rows, int chop, int numbers, int quit_if
         bl_write (STDOUT_FILENO, "\033[H\033[J");
         for (int r = 0; r < rows && top + (size_t) r < ls->n; r++)
             bl_render_line (ls->v[top + (size_t) r], ls->len[top + (size_t) r],
-                            chop, numbers, top + (size_t) r, cols);
+                            o, top + (size_t) r, cols);
         /* The prompt sits below the page: on the terminal's last row for a
            full-screen page, even when fewer lines remain, and directly under
            a shorter page set with -n. Flush the stdio content before writing
            control sequences through write(2). */
         fflush (stdout);
+        int at_end = ls->n - top <= (size_t) rows;
+        /* -E leaves at the first end of the input, -e at the second. */
+        if (at_end && o->eof_quit == 2) break;
         int prompt_row = 24;
         if (ioctl (STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0)
             prompt_row = (int) ws.ws_row;
@@ -385,10 +482,7 @@ bl_interactive (const bl_lines *ls, int rows, int chop, int numbers, int quit_if
         char position[32];
         snprintf (position, sizeof position, "\033[%d;1H\033[K\033[7m", prompt_row);
         bl_write (STDERR_FILENO, position);
-        if (ls->n - top <= (size_t) rows)
-            bl_write (STDERR_FILENO, "(END)");
-        else
-            bl_write (STDERR_FILENO, first_prompt && name ? name : ":");
+        bl_show_prompt (ls, top, rows, o, name, first_prompt);
         bl_write (STDERR_FILENO, "\033[m");
         first_prompt = 0;
 
@@ -436,6 +530,8 @@ bl_interactive (const bl_lines *ls, int rows, int chop, int numbers, int quit_if
         }
 
         if (c == 'q' || c == 'Q') break;
+        int forward = c == ' ' || c == 'f' || c == 0x06 || c == 'j' || c == '\n' || c == '\r';
+        if (forward && at_end && o->eof_quit == 1 && ++ends_seen >= 1) break;
         if (c == ' ' || c == 'f' || c == 0x06)
         {
             top = top + (size_t) rows < ls->n ? top + (size_t) rows : ls->n - 1;
@@ -471,7 +567,7 @@ bl_interactive (const bl_lines *ls, int rows, int chop, int numbers, int quit_if
                 last_reverse = (c == '?');
                 size_t hit = top;
                 size_t start = last_reverse ? (top ? top - 1 : 0) : top + 1;
-                if (bl_find (ls, last_pat, start, last_reverse, &hit))
+                if (bl_find (ls, last_pat, start, last_reverse, &hit, o->icase))
                     top = hit;
             }
             if (have_termios) tcsetattr (tty, TCSANOW, &raw);
@@ -481,7 +577,7 @@ bl_interactive (const bl_lines *ls, int rows, int chop, int numbers, int quit_if
             int rev = (c == 'N') ? !last_reverse : last_reverse;
             size_t hit = top;
             size_t start = rev ? (top ? top - 1 : 0) : top + 1;
-            if (bl_find (ls, last_pat, start, rev, &hit))
+            if (bl_find (ls, last_pat, start, rev, &hit, o->icase))
                 top = hit;
         }
         else if (c == 'h' || c == 'H')
@@ -502,86 +598,353 @@ bl_interactive (const bl_lines *ls, int rows, int chop, int numbers, int quit_if
     return EXECUTION_SUCCESS;
 }
 
+/* less(1)'s options: the letter, its long name, and whether it takes a
+   number ('n') or a string ('s'). Options that only change how a real
+   terminal is driven (-R, -X, -c, -q, ...) are accepted and need nothing
+   here: bash-os less writes the input's bytes as they are. */
+static const struct { char letter; const char *name; char arg; } bl_less_options[] = {
+    { 'a', "search-skip-screen", 0 }, { 'A', "SEARCH-SKIP-SCREEN", 0 },
+    { 'b', "buffers", 'n' }, { 'B', "auto-buffers", 0 },
+    { 'c', "clear-screen", 0 }, { 'C', "CLEAR-SCREEN", 0 },
+    { 'd', "dumb", 0 }, { 'D', "color", 's' },
+    { 'e', "quit-at-eof", 0 }, { 'E', "QUIT-AT-EOF", 0 },
+    { 'f', "force", 0 }, { 'F', "quit-if-one-screen", 0 },
+    { 'g', "hilite-search", 0 }, { 'G', "HILITE-SEARCH", 0 },
+    { 'h', "max-back-scroll", 'n' }, { 'i', "ignore-case", 0 },
+    { 'I', "IGNORE-CASE", 0 }, { 'j', "jump-target", 'n' },
+    { 'J', "status-column", 0 }, { 'k', "lesskey-file", 's' },
+    { 'K', "quit-on-intr", 0 }, { 'L', "no-lessopen", 0 },
+    { 'm', "long-prompt", 0 }, { 'M', "LONG-PROMPT", 0 },
+    { 'n', "line-numbers", 0 }, { 'N', "LINE-NUMBERS", 0 },
+    { 'o', "log-file", 's' }, { 'O', "LOG-FILE", 's' },
+    { 'p', "pattern", 's' }, { 'P', "prompt", 's' },
+    { 'q', "quiet", 0 }, { 'q', "silent", 0 }, { 'Q', "QUIET", 0 }, { 'Q', "SILENT", 0 },
+    { 'r', "raw-control-chars", 0 }, { 'R', "RAW-CONTROL-CHARS", 0 },
+    { 's', "squeeze-blank-lines", 0 }, { 'S', "chop-long-lines", 0 },
+    { 't', "tag", 's' }, { 'T', "tag-file", 's' },
+    { 'u', "underline-special", 0 }, { 'U', "UNDERLINE-SPECIAL", 0 },
+    { 'V', "version", 0 }, { 'w', "hilite-unread", 0 }, { 'W', "HILITE-UNREAD", 0 },
+    { 'x', "tabs", 'n' }, { 'X', "no-init", 0 },
+    { 'y', "max-forw-scroll", 'n' }, { 'z', "window", 'n' },
+    { '"', "quotes", 's' }, { '~', "tilde", 0 }, { '#', "shift", 'n' },
+    { '?', "help", 0 },
+    /* Long-only options; letter 1 means "accepted, no effect", 2 takes a value. */
+    { 1, "no-keypad", 0 }, { 1, "mouse", 0 }, { 1, "use-color", 0 },
+    { 1, "incsearch", 0 }, { 1, "redraw-on-quit", 0 }, { 1, "save-marks", 0 },
+    { 1, "no-histdups", 0 }, { 1, "no-vbell", 0 }, { 1, "follow-name", 0 },
+    { 1, "file-size", 0 }, { 1, "exit-follow-on-close", 0 }, { 1, "wordwrap", 0 },
+    { 1, "no-number-headers", 0 }, { 1, "no-search-headers", 0 },
+    { 1, "show-preproc-errors", 0 }, { 1, "use-backslash", 0 },
+    { 2, "rscroll", 's' }, { 2, "wheel-lines", 'n' }, { 2, "line-num-width", 'n' },
+    { 2, "status-col-width", 'n' }, { 2, "header", 's' }, { 2, "intr", 's' },
+    { 2, "modelines", 'n' }, { 2, "search-options", 's' },
+};
+#define BL_LESS_NOPTS (sizeof bl_less_options / sizeof bl_less_options[0])
+
+static const char *
+bl_less_long_name (char letter)
+{
+    for (size_t i = 0; i < BL_LESS_NOPTS; i++)
+        if (bl_less_options[i].letter == letter) return bl_less_options[i].name;
+    return "";
+}
+
+/* Apply option LETTER with VALUE (NULL for a flag). Returns 1 for --help,
+   2 for --version, else 0. */
+static int
+bl_less_apply (bl_less_opts *o, char letter, const char *value)
+{
+    switch (letter)
+    {
+    case 'e': o->eof_quit = o->eof_quit == 2 ? 2 : 1; break;
+    case 'E': o->eof_quit = 2; break;
+    case 'F': o->quit_if_one = 1; break;
+    case 'i': o->icase = o->icase == 2 ? 2 : 1; break;
+    case 'I': o->icase = 2; break;
+    case 'm': if (o->prompt != 'M') o->prompt = 'm'; break;
+    case 'M': o->prompt = 'M'; break;
+    case 'n': o->numbers = 0; break;
+    case 'N': o->numbers = 1; break;
+    case 's': o->squeeze = 1; break;
+    case 'S': o->chop = 1; break;
+    case 'x': o->tabs = atoi (value) > 0 ? atoi (value) : 8; break;
+    case 'z':
+        if (atoi (value) > 0) o->rows = atoi (value);
+        else if (atoi (value) < 0 && bl_term_rows () + atoi (value) > 1) o->rows = bl_term_rows () + atoi (value);
+        break;
+    case 'p':
+        free (o->pattern);
+        o->pattern = strdup (value);
+        break;
+    case '?': return 1;
+    case 'V': return 2;
+    default: break;
+    }
+    return 0;
+}
+
+/* Is VALUE a less number (an optional sign and digits; -x takes a list
+   such as "4,8", of which the first stop is used)? */
+static int
+bl_less_number (const char *value)
+{
+    const char *p = value;
+    if (*p == '-' || *p == '+') p++;
+    if (!isdigit ((unsigned char) *p)) return 0;
+    while (isdigit ((unsigned char) *p)) p++;
+    return !*p || *p == ',' || *p == '.';
+}
+
+/* Parse WORDS[0..N) as less does (LESS uses IN_ENV: the leading dash is
+   optional and a string value ends at '$'). Options end at the first file
+   name, which with the rest goes to FILES when it is set. Unknown options
+   and missing values are reported as less reports them, and parsing goes
+   on; a bad number in the option's own word ends less quietly, as it does
+   there. Returns 1 for --help, 2 for --version, 3 to quit, -1 for a
+   bash-os usage error (-n LINES), else 0. */
+static int
+bl_less_parse (bl_less_opts *o, char **words, int n, int in_env, char **files, int *nfiles)
+{
+    int end_options = 0;
+    for (int i = 0; i < n; i++)
+    {
+        char *w = words[i];
+        if (!end_options && !strcmp (w, "--") && !in_env) { end_options = 1; continue; }
+        if (!end_options && w[0] == '+')
+        {
+            /* +CMD: +G the end, +N or +Ng line N, +/PAT the first match;
+               ++CMD applies to every file, as one file is shown here. */
+            const char *cmd = w + 1 + (w[1] == '+');
+            if (!strcmp (cmd, "G") || !strcmp (cmd, ">")) o->start_end = 1;
+            else if (isdigit ((unsigned char) cmd[0]))
+            {
+                char *end;
+                long v = strtol (cmd, &end, 10);
+                if (!*end || !strcmp (end, "g")) { o->start_line = v; o->start_end = 0; }
+                else if (!strcmp (end, "G")) { o->start_line = v; o->start_end = 0; }
+            }
+            else if (cmd[0] == '/' && cmd[1])
+            {
+                free (o->pattern);
+                o->pattern = strdup (cmd + 1);
+            }
+            else if (!strcmp (cmd, "g") || !strcmp (cmd, "<")) { o->start_end = 0; o->start_line = 0; }
+            continue;
+        }
+        if (!end_options && w[0] == '-' && w[1] == '-' && w[2])
+        {
+            const char *name = w + 2, *eq = strchr (name, '=');
+            size_t nl = eq ? (size_t) (eq - name) : strlen (name);
+            int found = -1, matches = 0;
+            for (size_t k = 0; k < BL_LESS_NOPTS; k++)
+            {
+                if (strncmp (bl_less_options[k].name, name, nl)) continue;
+                if (!bl_less_options[k].name[nl]) { found = (int) k; matches = 1; break; }
+                if (found < 0 || bl_less_options[k].letter <= 2
+                    || bl_less_options[found].letter != bl_less_options[k].letter) matches++;
+                found = (int) k;
+            }
+            if (matches != 1)
+            {
+                fprintf (stderr, "There is no %.*s option (\"less --help\" for help)\n", (int) nl, name);
+                continue;
+            }
+            char letter = bl_less_options[found].letter, arg = bl_less_options[found].arg;
+            const char *value = eq ? eq + 1 : NULL;
+            char shown[64];
+            if (letter > 2)
+                snprintf (shown, sizeof shown, "-%c (--%s)", letter, bl_less_options[found].name);
+            else
+                snprintf (shown, sizeof shown, "--%s", bl_less_options[found].name);
+            if (arg && !value)
+            {
+                if (i + 1 < n) value = words[++i];
+                else
+                {
+                    fprintf (stderr, "%s is required after %s\n", arg == 'n' ? "Number" : "Value", shown);
+                    continue;
+                }
+            }
+            if (arg == 'n' && !bl_less_number (value))
+            {
+                /* less: "--window=x" names the word; "--tabs=x" is silent. */
+                if (!eq)
+                    fprintf (stderr, "Number is required after %s\n", shown);
+                else if (letter != 'x')
+                    fprintf (stderr, "Number is required after %s\n", name);
+                if (eq) return 3;
+                continue;
+            }
+            if (letter > 2)
+            {
+                int r = bl_less_apply (o, letter, arg ? value : NULL);
+                if (r) return r;
+            }
+            continue;
+        }
+        int cluster = !end_options && ((w[0] == '-' && w[1]) || (in_env && w[0]));
+        if (!cluster)
+        {
+            if (files) files[(*nfiles)++] = w;
+            end_options = 1;
+            continue;
+        }
+        const char *p = w[0] == '-' ? w + 1 : w;
+        /* bash-os: a word "-n LINES" or "-nLINES" sets the page size. */
+        if (!in_env && !strcmp (w, "-n"))
+        {
+            if (i + 1 >= n) { builtin_error ("-n needs LINES"); return -1; }
+            if (!bl_str_is_num (words[i + 1])) { builtin_error ("-n: invalid number: %s", words[i + 1]); return -1; }
+            o->rows = atoi (words[++i]);
+            if (o->rows < 2) o->rows = bl_term_rows ();
+            continue;
+        }
+        if (!in_env && w[0] == '-' && w[1] == 'n' && w[2])
+        {
+            if (!bl_str_is_num (w + 2)) { builtin_error ("-n: invalid number: %s", w + 2); return -1; }
+            o->rows = atoi (w + 2);
+            if (o->rows < 2) o->rows = bl_term_rows ();
+            continue;
+        }
+        if (!in_env && !strcmp (w, "-h")) return 1;
+        for (; *p; p++)
+        {
+            char letter = *p;
+            if (letter == '-' || letter == '+')
+                continue;   /* "-+X" resets X in less; here a sign is skipped */
+            int k = -1;
+            for (size_t j = 0; j < BL_LESS_NOPTS; j++)
+                if (bl_less_options[j].letter == letter) { k = (int) j; break; }
+            if (k < 0)
+            {
+                fprintf (stderr, "There is no -%c option (\"less --help\" for help)\n", letter);
+                continue;
+            }
+            char arg = bl_less_options[k].arg;
+            if (!arg)
+            {
+                int r = bl_less_apply (o, letter, NULL);
+                if (r) return r;
+                continue;
+            }
+            /* The value is the rest of the word, else the next word. */
+            char *value = p[1] ? (char *) p + 1 : NULL;
+            char *owned = NULL;
+            int attached = value != NULL;
+            if (!value && i + 1 < n) value = words[++i];
+            if (value && in_env && arg == 's' && strchr (value, '$'))
+            {
+                owned = strndup (value, (size_t) (strchr (value, '$') - value));
+                value = owned;
+            }
+            if (!value)
+                fprintf (stderr, "%s is required after -%c (--%s)\n", arg == 'n' ? "Number" : "Value",
+                         letter, bl_less_long_name (letter));
+            else if (arg == 'n' && !bl_less_number (value))
+            {
+                if (!attached)
+                    fprintf (stderr, "Number is required after -%c (--%s)\n", letter, bl_less_long_name (letter));
+                else
+                {
+                    if (letter != 'x') fprintf (stderr, "Number is required after -%c\n", letter);
+                    return 3;
+                }
+            }
+            else
+            {
+                int r = bl_less_apply (o, letter, value);
+                if (r) { free (owned); return r; }
+            }
+            free (owned);
+            break;
+        }
+    }
+    return 0;
+}
+
+static void
+bl_less_usage (void)
+{
+    puts ("less [-F] [-N] [-S] [-n LINES] [FILE...]");
+    puts ("less [-eEFiIMmNsSRrX] [-p PATTERN] [-x N] [-z N] [+CMD] [FILE...]");
+}
+
 int
 less_builtin (WORD_LIST *list)
 {
-    int rows = bl_term_rows ();
-    int chop = 0;
-    int numbers = 0;
-    int quit_if_one = 0;
+    bl_less_opts o;
+    memset (&o, 0, sizeof o);
+    o.rows = bl_term_rows ();
     bl_lines ls = { 0 };
     int rc = EXECUTION_SUCCESS;
 
-    while (list && list->word && list->word->word[0] == '-' && list->word->word[1])
+    /* LESS first (git runs its pager with LESS=FRX), then the arguments;
+       options may follow file names, as in less. */
+    int nwords = 0;
+    for (WORD_LIST *p = list; p; p = p->next) nwords++;
+    char **words = malloc ((size_t) (nwords + 1) * sizeof *words);
+    char **files = malloc ((size_t) (nwords + 1) * sizeof *files);
+    char *env = getenv ("LESS") ? strdup (getenv ("LESS")) : NULL;
+    if (!words || !files || (getenv ("LESS") && !env))
     {
-        const char *w = list->word->word;
-        if (!strcmp (w, "--")) { list = list->next; break; }
-        if (!strcmp (w, "-F")) { quit_if_one = 1; list = list->next; continue; }
-        if (!strcmp (w, "-N")) { numbers = 1; list = list->next; continue; }
-        if (!strcmp (w, "-S")) { chop = 1; list = list->next; continue; }
-        if (!strcmp (w, "-n"))
-        {
-            if (!list->next) { builtin_error ("-n needs LINES"); return EX_USAGE; }
-            list = list->next;
-            if (!bl_str_is_num (list->word->word)) {
-                builtin_error ("-n: invalid number: %s", list->word->word);
-                return EX_USAGE;
-            }
-            rows = atoi (list->word->word);
-            if (rows < 2) rows = bl_term_rows ();
-            list = list->next;
-            continue;
-        }
-        if (!strncmp (w, "-n", 2) && w[2])
-        {
-            if (!bl_str_is_num (w + 2)) {
-                builtin_error ("-n: invalid number: %s", w + 2);
-                return EX_USAGE;
-            }
-            rows = atoi (w + 2);
-            if (rows < 2) rows = bl_term_rows ();
-            list = list->next;
-            continue;
-        }
-        if (!strcmp (w, "-h") || !strcmp (w, "--help"))
-        {
-            puts ("less [-F] [-N] [-S] [-n LINES] [FILE...]");
-            return EXECUTION_SUCCESS;
-        }
-        if (!strcmp (w, "-V") || !strcmp (w, "--version"))
-        {
-            puts ("less 0.1 (bash-os less-shaped pager)");
-            return EXECUTION_SUCCESS;
-        }
-        builtin_error ("unknown flag: %s", w);
-        builtin_usage ();
-        return EX_USAGE;
+        free (words); free (files); free (env);
+        builtin_error ("out of memory");
+        return EXECUTION_FAILURE;
+    }
+    int nfiles = 0, r = 0;
+    if (env)
+    {
+        char *ewords[64];
+        int ne = 0;
+        for (char *t = strtok (env, " \t"); t && ne < 64; t = strtok (NULL, " \t"))
+            ewords[ne++] = t;
+        r = bl_less_parse (&o, ewords, ne, 1, NULL, NULL);
+    }
+    if (!r)
+    {
+        nwords = 0;
+        for (WORD_LIST *p = list; p; p = p->next) words[nwords++] = p->word->word;
+        r = bl_less_parse (&o, words, nwords, 0, files, &nfiles);
+    }
+    free (env);
+    if (r)
+    {
+        if (r == 1) bl_less_usage ();
+        else if (r == 2) puts ("less 0.1 (bash-os less-shaped pager)");
+        free (words); free (files); free (o.pattern);
+        return r < 0 ? EX_USAGE : EXECUTION_SUCCESS;   /* 3: less quits quietly */
     }
 
-    int drain = !numbers && !chop && !isatty (STDOUT_FILENO);
-    if (!list)
+    /* Output that is not a terminal is copied as cat would, whatever the
+       options say, as less does. */
+    int drain = !isatty (STDOUT_FILENO);
+    if (!nfiles && isatty (STDIN_FILENO))
+    {
+        /* less(1) does not page a terminal: it names the problem, on the
+           output when that is not a terminal, and succeeds. */
+        fputs ("Missing filename (\"less --help\" for help)\n", drain ? stdout : stderr);
+        fflush (drain ? stdout : stderr);
+    }
+    else if (!nfiles)
     {
         if ((drain ? bl_copy_stream (stdin) : bl_read_stream (stdin, &ls)) < 0)
             rc = EXECUTION_FAILURE;
     }
     else
     {
-        int n_files = 0;
-        for (WORD_LIST *p = list; p; p = p->next) n_files++;
-        for (WORD_LIST *p = list; p; p = p->next)
+        for (int i = 0; i < nfiles; i++)
         {
             /* Like less(1), redirected plain output concatenates payloads
                without the interactive file-separator display. */
-            if (n_files > 1 && !drain)
+            if (nfiles > 1 && !drain)
             {
                 char hdr[512];
-                snprintf (hdr, sizeof hdr, "::::::::::::::\n%s\n::::::::::::::\n",
-                          p->word->word);
+                snprintf (hdr, sizeof hdr, "::::::::::::::\n%s\n::::::::::::::\n", files[i]);
                 size_t len = strlen (hdr);
                 if (bl_lines_push (&ls, hdr, len) < 0)
                     rc = EXECUTION_FAILURE;
             }
-            if (bl_read_file_operand (p->word->word, drain ? NULL : &ls) < 0)
+            if (bl_read_file_operand (files[i], drain ? NULL : &ls) < 0)
                 rc = EXECUTION_FAILURE;
         }
     }
@@ -592,10 +955,11 @@ less_builtin (WORD_LIST *list)
             rc = EXECUTION_FAILURE;
         }
     } else if (rc == EXECUTION_SUCCESS)
-        rc = bl_interactive (&ls, rows, chop, numbers, quit_if_one,
-                             list && !list->next && strcmp (list->word->word, "-")
-                             ? list->word->word : NULL);
+        rc = bl_interactive (&ls, &o, nfiles == 1 && strcmp (files[0], "-") ? files[0] : NULL);
     bl_lines_free (&ls);
+    free (words);
+    free (files);
+    free (o.pattern);
     return rc;
 }
 
@@ -603,18 +967,31 @@ char *less_doc[] = {
     "Page through input with a small less-shaped interface.",
     "",
     "    less [-F] [-N] [-S] [-n LINES] [FILE...]",
+    "    less [-eEFiIMmNsSRrX] [-p PATTERN] [-x N] [-z N] [+CMD] [FILE...]",
     "",
     "    -F          quit if content fits on one screen",
     "    -N          show line numbers",
     "    -S          chop long lines to screen width",
     "    -n LINES    override screen-page size",
+    "    -e, -E      quit at the second or the first end of the input",
+    "    -i, -I      searches ignore case (-i only for lower-case patterns)",
+    "    -m, -M      longer prompts: percentage, then line range",
+    "    -s          show runs of blank lines as one",
+    "    -x N        tab stops every N columns; -z N  N lines per page",
+    "    -p PATTERN  start at the first line matching PATTERN",
+    "    +G, +N, +/PATTERN  start at the end, at line N, at PATTERN",
+    "    -R -r -X and the other less(1) options are accepted; options may be",
+    "    clustered (-FRX), and LESS is read first, as git sets LESS=FRX.",
     "",
     "Interactive keys: space/f next page, b previous page, j/k line",
     "movement, g/G top/bottom, / and ? search, n/N repeat search, q quit.",
     "When /dev/tty is unavailable, drains input without pausing.",
-    "With redirected plain output, file-open errors are printed to standard",
-    "output and remaining operands are read; file-open errors alone do not",
-    "set a failure status, matching less(1).",
+    "When standard output is not a terminal, input is copied as cat does",
+    "whatever the options. Unknown options are reported and ignored, as",
+    "less(1) does. With redirected plain output, file-open errors are",
+    "printed to standard output and remaining operands are read; file-open",
+    "errors alone do not set a failure status, matching less(1). With no",
+    "FILE and a terminal as input, less reports \"Missing filename\".",
     (char *)NULL
 };
 

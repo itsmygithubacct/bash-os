@@ -12,7 +12,7 @@
  *     cal MM YYYY               # specific month
  *     cal -j ...                # Julian day-of-year mode
  *     cal -m ...                # Monday-first week
- *     cal -w MM YYYY            # ncal-style month with week numbers
+ *     cal -w ...                # util-linux week numbers (see below)
  *     cal -3 | -A N | -B N ...  # month spans
  *     cal -h | --help           # usage
  *
@@ -25,6 +25,22 @@
  *     29-char-wide month grid; 3-char day-of-year cells with single
  *     space separators; 2-letter padded " Su  Mo ..." header. Day-of-year
  *     accounts for leap-February.
+ *
+ * Week numbers (-w, --week[=N]):
+ *     util-linux cal's horizontal layout: each week row starts with its
+ *     two-digit number and a space, months are 23 columns (30 with -j,
+ *     whose headings are "Sun Mon ...") with six week rows, month titles
+ *     are "Month YYYY" (a year view prints the year once, centered, and
+ *     uses three-space gutters), and nothing is right-trimmed. Sunday-
+ *     first weeks use US numbering (week 1 holds January 1); -m uses ISO
+ *     8601 numbering (week 1 holds the first Thursday). Week numbers in
+ *     the 1752 reform year count the eleven omitted days out, as
+ *     util-linux does.
+ *
+ * Errors:
+ *     A month outside 1..12 or a year outside 1..9999 prints util-linux's
+ *     "illegal month value: use 1-12" / "illegal year value: use 1-9999"
+ *     and exits 1; option errors keep Bash's usage status (2).
  *
  * Year mode:
  *     Non-Julian year output follows util-linux's horizontal
@@ -75,6 +91,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <time.h>
 
 #include "loadables.h"
@@ -180,54 +197,6 @@ bc_doy_of_first (int m, int y)
 }
 
 static int
-bc_gregorian_doy (int d, int m, int y)
-{
-    return bc_doy_of_first (m, y) + d - 1;
-}
-
-static int
-bc_week_sunday (int d, int m, int y)
-{
-    int yday = bc_gregorian_doy (d, m, y) - 1;
-    int dow = bc_gregorian_dow (d, m, y);
-    int week = (yday + 7 - dow) / 7;
-
-    if (week == 0) {
-        return bc_week_sunday (31, 12, y - 1) + 1;
-    }
-    return week;
-}
-
-static long
-bc_iso_week1_monday (int y)
-{
-    long jan4 = bc_gregorian_jdn (4, 1, y);
-    int dow = bc_gregorian_dow (4, 1, y);       /* 0=Sun..6=Sat */
-    int monday_dow = (dow + 6) % 7;             /* 0=Mon..6=Sun */
-
-    return jan4 - monday_dow;
-}
-
-static int
-bc_iso_weeks_in_year (int y)
-{
-    return (int) ((bc_iso_week1_monday (y + 1) - bc_iso_week1_monday (y)) / 7);
-}
-
-static int
-bc_week_monday_iso (int d, int m, int y)
-{
-    long day = bc_gregorian_jdn (d, m, y);
-    long week1 = bc_iso_week1_monday (y);
-
-    if (day < week1)
-        return bc_iso_weeks_in_year (y - 1);
-    if (day >= bc_iso_week1_monday (y + 1))
-        return 1;
-    return (int) ((day - week1) / 7) + 1;
-}
-
-static int
 bc_display_doy (int d, int m, int y)
 {
     int doy = bc_doy_of_first (m, y) + d - 1;
@@ -235,81 +204,6 @@ bc_display_doy (int d, int m, int y)
     if (y == 1752 && (m > 9 || (m == 9 && d >= 14)))
         doy -= 11;
     return doy;
-}
-
-static void
-bc_print_ncal_week_month (int m, int y, int monday)
-{
-    int slots[7][6];
-    int weeks[6];
-    int used[6];
-    int ncols = 0;
-    char title[64];
-
-    memset (slots, 0, sizeof slots);
-    memset (weeks, 0, sizeof weeks);
-    memset (used, 0, sizeof used);
-
-    int days = bc_days_this_month (m, y);
-    int col = 0;
-    int first_display = 1;
-    if (bc_reform_month (m, y))
-        first_display = 1;
-    for (int d = 1; d <= days; d++) {
-        int display_day = d;
-        if (bc_reform_month (m, y) && d == 3)
-            d = display_day = 14;
-
-        int dow = bc_display_dow (display_day, m, y);
-        int row = monday ? (dow + 6) % 7 : dow;
-        if (display_day != first_display &&
-            (dow == 1 || (bc_reform_month (m, y) && display_day == 14)))
-            col++;
-        int display_col = (!monday && dow == 0 && display_day != first_display) ? col + 1 : col;
-        if (display_col >= 6)
-            display_col = 5;
-        slots[row][display_col] = display_day;
-        used[col < 6 ? col : 5] = 1;
-    }
-
-    for (int i = 0; i < 6; i++)
-        if (used[i])
-            ncols = i + 1;
-    if (ncols == 0)
-        ncols = 1;
-
-    for (int col = 0; col < ncols; col++) {
-        int first_day = 0;
-        for (int row = 0; row < 7; row++)
-            if (slots[row][col] && (first_day == 0 || slots[row][col] < first_day))
-                first_day = slots[row][col];
-        weeks[col] = monday ? bc_week_monday_iso (first_day, m, y)
-                            : bc_week_sunday (first_day, m, y);
-    }
-
-    snprintf (title, sizeof title, "%s %d", bc_month_names[m], y);
-    printf ("    %-18s\n", title);
-
-    static const char *sun_names[7] = {"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"};
-    static const char *mon_names[7] = {"Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"};
-    for (int row = 0; row < 7; row++) {
-        fputs (monday ? mon_names[row] : sun_names[row], stdout);
-        for (int col = 0; col < ncols; col++) {
-            if (slots[row][col])
-                printf ("%3d", slots[row][col]);
-            else
-                fputs ("   ", stdout);
-        }
-        for (int col = ncols; col < 5; col++)
-            fputs ("   ", stdout);
-        fputs ("   \n", stdout);
-    }
-    fputs ("  ", stdout);
-    for (int col = 0; col < ncols; col++)
-        printf ("%3d", weeks[col]);
-    for (int col = ncols; col < 5; col++)
-        fputs ("   ", stdout);
-    fputs ("   \n", stdout);
 }
 
 static int
@@ -329,6 +223,36 @@ bc_parse_num (const char *s, long min, long max, const char *what, int *out)
     v = strtol (s, &end, 10);
     if (end == s || *end != '\0' || v < min || v > max) {
         builtin_error ("bad %s: %s", what, s);
+        return -1;
+    }
+    *out = (int) v;
+    return 0;
+}
+
+/* Month and year operands: util-linux's diagnostics and exit status 1. */
+static int
+bc_parse_operand (const char *s, int is_month, int *out)
+{
+    char *end = NULL;
+    long v = strtol (s, &end, 10);
+
+    /* util-linux reads a non-numeric month as a name; bash-os knows none. */
+    if (is_month && !isdigit ((unsigned char) *s) && *s != '-' && *s != '+') {
+        builtin_error ("unknown month name: %s", s);
+        return -1;
+    }
+    if (end == s || *end != '\0') {
+        if (is_month)
+            builtin_error ("illegal month value: use 1-12: '%s'", s);
+        else
+            builtin_error ("illegal year value: '%s'", s);
+        return -1;
+    }
+    if (v < 1 || v > (is_month ? 12 : 9999)) {
+        /* util-linux has no upper year bound; bash-os stops at 9999. */
+        builtin_error (is_month ? "illegal month value: use 1-12"
+                       : v < 1 ? "illegal year value: use positive integer"
+                       : "illegal year value: use 1-9999");
         return -1;
     }
     *out = (int) v;
@@ -555,6 +479,158 @@ bc_print_year (int y, int julian, int monday)
     }
 }
 
+/* ---- util-linux week-number layout (-w) ----------------------------- */
+
+#define BC_REFORM_YDAY 258      /* day of year of 14 September 1752 */
+
+/* util-linux leap rule: Julian through the reform year. */
+static int
+bc_ul_leap (int y)
+{
+    return y <= 1752 ? y % 4 == 0 : bc_is_leap (y);
+}
+
+static int
+bc_ul_doy (int d, int m, int y)
+{
+    for (int i = 1; i < m; i++)
+        d += (i == 2 && bc_ul_leap (y)) ? 29 : bc_days_in_month[i];
+    return d;
+}
+
+/* Week of the year holding day D (which may be the -1 blank, or a Julian
+   day number) of M/Y. US weeks (Sunday first): week 1 holds January 1. ISO
+   weeks (Monday first): week 1 holds the first Thursday, and the last days
+   of December can be week 1 of the next year. */
+static int
+bc_week_number (int d, int m, int y, int iso)
+{
+    int wday = bc_display_dow (1, 1, y);
+    int fday = iso ? wday + (wday >= 5 ? -2 : 5) : wday + 6;
+
+    if (d > 31)
+        m = 1;
+    int yday = bc_ul_doy (d, m, y);
+    if (y == 1752 && yday >= BC_REFORM_YDAY)
+        fday -= 11;
+    if (yday + fday < 7)
+        return bc_week_number (31, 12, y - 1, iso);
+    if (iso && yday >= 363) {
+        int dw = bc_display_dow (d, m, y), last = bc_display_dow (31, 12, y);
+        if (dw >= 1 && dw <= 3 && last >= 1 && last <= 3)
+            return bc_week_number (1, 1, y + 1, iso);
+    }
+    return (yday + fday) / 7;
+}
+
+/* Fill the 6x7 day grid (-1 blank) and the six row numbers (-1 blank). */
+static void
+bc_week_grid (int m, int y, int julian, int monday, int days[42], int weeks[6])
+{
+    int first = bc_display_dow (1, m, y);
+    if (monday) first = (first + 6) % 7;
+    int j = julian ? bc_ul_doy (1, m, y) : 1;
+    int end = j + ((m == 2 && bc_ul_leap (y)) ? 29 : bc_days_in_month[m]);
+    int trailing = 0;
+
+    for (int i = 0; i < 42; i++) {
+        if (first > 0) { days[i] = -1; first--; continue; }
+        if (j < end) {
+            if (y == 1752 && m == 9 && (j == 3 || j == 247))
+                j += 11;
+            days[i] = j++;
+            continue;
+        }
+        days[i] = -1;
+        trailing++;
+    }
+    int lines = 6 - trailing / 7;
+    int week = bc_week_number (1, m, y, monday);
+    for (int i = 0; i < 6; i++) {
+        if (i < lines) {
+            if (week > 52)
+                week = bc_week_number (days[i * 7], m, y, monday);
+            weeks[i] = week++;
+        } else
+            weeks[i] = -1;
+    }
+}
+
+/* util-linux center: the odd space goes on the left. */
+static void
+bc_center (const char *text, int width)
+{
+    int len = (int) strlen (text), spaces = width > len ? width - len : 0;
+    bc_pad (spaces / 2 + spaces % 2);
+    fputs (text, stdout);
+    bc_pad (spaces / 2);
+}
+
+/* COUNT months from START_M/START_Y, three to a row. A year view prints
+   the year over the rows and month names without the year. */
+static void
+bc_print_weeks (int start_m, int start_y, int count, int julian, int monday,
+                int year_view)
+{
+    static const char *sun2 = "Su Mo Tu We Th Fr Sa", *mon2 = "Mo Tu We Th Fr Sa Su";
+    static const char *sun3 = "Sun Mon Tue Wed Thu Fri Sat",
+                      *mon3 = "Mon Tue Wed Thu Fri Sat Sun";
+    int day_width = julian ? 4 : 3;
+    int width = day_width * 7 + 2;
+    int per_row = count > 1 ? 3 : 1;
+    int gutter = year_view ? 3 : 2;
+    int idx = bc_month_index (start_m, start_y);
+
+    if (year_view) {
+        char yt[16];
+        snprintf (yt, sizeof yt, "%04d", start_y);
+        bc_center (yt, per_row * width + (per_row - 1) * gutter);
+        fputs ("\n\n", stdout);
+    }
+    for (int done = 0; done < count; done += per_row) {
+        int n = count - done < per_row ? count - done : per_row;
+        int months[3], years[3], days[3][42], weeks[3][6];
+
+        for (int k = 0; k < n; k++) {
+            bc_month_from_index (idx + done + k, &months[k], &years[k]);
+            bc_week_grid (months[k], years[k], julian, monday, days[k], weeks[k]);
+        }
+        for (int k = 0; k < n; k++) {
+            char title[64];
+            if (year_view)
+                snprintf (title, sizeof title, "%s", bc_month_names[months[k]]);
+            else
+                snprintf (title, sizeof title, "%s %04d", bc_month_names[months[k]], years[k]);
+            bc_center (title, width);
+            if (k + 1 < n) bc_pad (gutter);
+        }
+        putchar ('\n');
+        for (int k = 0; k < n; k++) {
+            bc_pad (3);
+            fputs (julian ? (monday ? mon3 : sun3) : (monday ? mon2 : sun2), stdout);
+            if (k + 1 < n) bc_pad (gutter);
+        }
+        putchar ('\n');
+        for (int row = 0; row < 6; row++) {
+            for (int k = 0; k < n; k++) {
+                if (weeks[k][row] > 0)
+                    printf ("%2d", weeks[k][row]);
+                else
+                    bc_pad (2);
+                for (int c = 0; c < 7; c++) {
+                    int v = days[k][row * 7 + c];
+                    if (v > 0)
+                        printf ("%*d", day_width, v);
+                    else
+                        bc_pad (day_width);
+                }
+                if (k + 1 < n) bc_pad (gutter);
+            }
+            putchar ('\n');
+        }
+    }
+}
+
 int
 cal_builtin (WORD_LIST *list)
 {
@@ -575,6 +651,25 @@ cal_builtin (WORD_LIST *list)
             puts ("cal 1.0 (bash-loadable)");
             return EXECUTION_SUCCESS;
         }
+        /* Bundled argument-less short options: -wm, -jw3, ... */
+        if (w[1] != '-' && w[2] && strspn (w + 1, "jmMSsw31") == strlen (w + 1)) {
+            for (const char *o = w + 1; *o; o++) {
+                switch (*o) {
+                    case 'j': julian = 1; break;
+                    case 'm': case 'M': monday = 1; break;
+                    case 'S': case 's': monday = 0; break;
+                    case 'w': week_numbers = 1; break;
+                    case '3':
+                        before = 1; after = 1; span_requested = 1; three_requested = 1;
+                        break;
+                    default:
+                        before = 0; after = 0; span_requested = 0; three_requested = 0;
+                        break;
+                }
+            }
+            list = list->next;
+            continue;
+        }
         if (!strcmp (w, "-j") || !strcmp (w, "--julian")) {
             julian = 1; list = list->next; continue;
         }
@@ -587,7 +682,13 @@ cal_builtin (WORD_LIST *list)
         if (!strcmp (w, "-S") || !strcmp (w, "-s") || !strcmp (w, "--sunday")) {
             monday = 0; list = list->next; continue;
         }
-        if (!strcmp (w, "-w") || !strcmp (w, "--week")) {
+        if (!strcmp (w, "-w") || !strcmp (w, "--week") ||
+            !strncmp (w, "--week=", 7)) {
+            /* --week=N only selects a week to highlight in color. */
+            int highlight;
+            if (w[2] == 'e' && w[6] == '=' &&
+                bc_parse_num (w + 7, 1, 54, "week", &highlight) < 0)
+                return EXECUTION_FAILURE;
             week_numbers = 1; list = list->next; continue;
         }
         if (!strcmp (w, "-3") || !strcmp (w, "--three")) {
@@ -631,8 +732,8 @@ cal_builtin (WORD_LIST *list)
                 builtin_usage ();
                 return EX_USAGE;
             }
-            if (bc_parse_num (list->next->word->word, 1, 9999, "year", &year) < 0)
-                return EX_USAGE;
+            if (bc_parse_operand (list->next->word->word, 0, &year) < 0)
+                return EXECUTION_FAILURE;
             explicit_year = 1;
             list = list->next->next;
             continue;
@@ -644,7 +745,7 @@ cal_builtin (WORD_LIST *list)
             puts ("  -j   Julian day-of-year mode (3-digit cells)");
             puts ("  -m   Monday-first week");
             puts ("  -S   Sunday-first week (default)");
-            puts ("  -w   ncal-style week numbers for MM YYYY");
+            puts ("  -w   week numbers (US; ISO 8601 with -m), util-linux layout");
             puts ("  -1   display single month (default)");
             puts ("  -3   display previous, current, and next month");
             puts ("  -A N display N months after the target month");
@@ -667,7 +768,10 @@ cal_builtin (WORD_LIST *list)
             builtin_error ("too many arguments");
             return EX_USAGE;
         }
-        bc_print_year (year, julian, monday);
+        if (week_numbers)
+            bc_print_weeks (1, year, 12, julian, monday, 1);
+        else
+            bc_print_year (year, julian, monday);
         return EXECUTION_SUCCESS;
     }
 
@@ -681,10 +785,6 @@ cal_builtin (WORD_LIST *list)
         int m = lt->tm_mon + 1;
         int y = lt->tm_year + 1900;
         if (span_requested) {
-            if (week_numbers) {
-                builtin_error ("-w is only supported for MM YYYY");
-                return EX_USAGE;
-            }
             int start_idx = bc_month_index (m, y) - before;
             int count = before + 1 + after;
             if (bc_check_span_range (start_idx, count) < 0) {
@@ -692,16 +792,22 @@ cal_builtin (WORD_LIST *list)
                 return EX_USAGE;
             }
             bc_month_from_index (start_idx, &m, &y);
-            bc_print_month_span (m, y, count, julian, monday);
+            if (week_numbers)
+                bc_print_weeks (m, y, count, julian, monday, 0);
+            else
+                bc_print_month_span (m, y, count, julian, monday);
             return EXECUTION_SUCCESS;
         }
-        bc_print_month (m, y, julian, monday);
+        if (week_numbers)
+            bc_print_weeks (m, y, 1, julian, monday, 0);
+        else
+            bc_print_month (m, y, julian, monday);
         return EXECUTION_SUCCESS;
     }
 
     if (npos == 1) {
-        if (bc_parse_num (list->word->word, 1, 9999, "year", &year) < 0)
-            return EX_USAGE;
+        if (bc_parse_operand (list->word->word, 0, &year) < 0)
+            return EXECUTION_FAILURE;
         if (span_requested) {
             int start_idx;
             int count;
@@ -719,29 +825,27 @@ cal_builtin (WORD_LIST *list)
             {
                 int start_m, start_y;
                 bc_month_from_index (start_idx, &start_m, &start_y);
-                bc_print_month_span (start_m, start_y, count, julian, monday);
+                if (week_numbers)
+                    bc_print_weeks (start_m, start_y, count, julian, monday, 0);
+                else
+                    bc_print_month_span (start_m, start_y, count, julian, monday);
             }
             return EXECUTION_SUCCESS;
         }
-        if (week_numbers) {
-            builtin_error ("-w is only supported for MM YYYY");
-            return EX_USAGE;
-        }
-        bc_print_year (year, julian, monday);
+        if (week_numbers)
+            bc_print_weeks (1, year, 12, julian, monday, 1);
+        else
+            bc_print_year (year, julian, monday);
         return EXECUTION_SUCCESS;
     }
 
     if (npos == 2) {
         int month;
-        if (bc_parse_num (list->word->word, 1, 12, "month", &month) < 0)
-            return EX_USAGE;
-        if (bc_parse_num (list->next->word->word, 1, 9999, "year", &year) < 0)
-            return EX_USAGE;
+        if (bc_parse_operand (list->word->word, 1, &month) < 0)
+            return EXECUTION_FAILURE;
+        if (bc_parse_operand (list->next->word->word, 0, &year) < 0)
+            return EXECUTION_FAILURE;
         if (span_requested) {
-            if (week_numbers) {
-                builtin_error ("-w is only supported for MM YYYY");
-                return EX_USAGE;
-            }
             int start_idx = bc_month_index (month, year) - before;
             int count = before + 1 + after;
             if (bc_check_span_range (start_idx, count) < 0) {
@@ -749,15 +853,14 @@ cal_builtin (WORD_LIST *list)
                 return EX_USAGE;
             }
             bc_month_from_index (start_idx, &month, &year);
-            bc_print_month_span (month, year, count, julian, monday);
+            if (week_numbers)
+                bc_print_weeks (month, year, count, julian, monday, 0);
+            else
+                bc_print_month_span (month, year, count, julian, monday);
             return EXECUTION_SUCCESS;
         }
         if (week_numbers) {
-            if (julian) {
-                builtin_error ("-w is not supported together with -j");
-                return EX_USAGE;
-            }
-            bc_print_ncal_week_month (month, year, monday);
+            bc_print_weeks (month, year, 1, julian, monday, 0);
             return EXECUTION_SUCCESS;
         }
         bc_print_month (month, year, julian, monday);
@@ -776,11 +879,14 @@ char *cal_doc[] = {
     "    cal MM YYYY           # specific month",
     "    cal -j ...            # Julian day-of-year mode (3-digit cells)",
     "    cal -m ...            # Monday-first week",
+    "    cal -w ...            # week numbers: US, or ISO 8601 with -m",
     "    cal -3 | -A N | -B N  # month spans",
     "    cal --help | --version",
     "",
     "Gregorian calendar with British 1752 reformation correction.",
     "Day-of-week derived from Gregorian/Julian arithmetic. Year range: 1..9999.",
+    "With -w the util-linux layout is used: each week row starts with its",
+    "number. A bad month or year exits 1 (util-linux).",
     "",
     "Source counterparts:",
     "    research/refs/util-linux/misc-utils/cal.c",
@@ -793,6 +899,6 @@ struct builtin cal_struct = {
     cal_builtin,
     BUILTIN_ENABLED,
     cal_doc,
-    "cal [-jm] [-3] [-A N] [-B N] [[MM] YYYY] | cal [-jm] -y YEAR",
+    "cal [-jmw] [-3] [-A N] [-B N] [[MM] YYYY] | cal [-jmw] -y YEAR",
     0
 };

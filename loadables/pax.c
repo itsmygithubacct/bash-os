@@ -68,13 +68,20 @@ static int pax_numeric_ext(const struct stat *st, int regular){
 /* Skip N bytes of the archive. fseek only works on a seekable file; on a
    pipe (cat x.tar | pax -r, ssh host cat x.tar | pax) it fails and leaves
    the stream where it was, so every later header read is misaligned. */
+/* tar mode (GNU tar's words): a truncated archive is "Unexpected EOF in
+   archive", reported once; the reader then ends with GNU's fatal line. */
+static int pax_tar_words, pax_unexpected_eof;
+static void pax_truncated(const char *pax_words){
+    if(!pax_tar_words){ builtin_error("%s", pax_words); return; }
+    if(!pax_unexpected_eof++) builtin_error("Unexpected EOF in archive");
+}
 static int skip_bytes(FILE *f, unsigned long n){
     if(n == 0) return 0;
     unsigned char sink[4096];
     while(n){
         size_t want = n > sizeof sink ? sizeof sink : (size_t)n;
         size_t got = fread(sink, 1, want, f);
-        if(got == 0){ builtin_error("archive truncated in member body"); return -1; }
+        if(got == 0){ pax_truncated("archive truncated in member body"); return -1; }
         n -= got;
     }
     return 0;
@@ -84,6 +91,8 @@ static void name_from_hdr(char *out, unsigned char *h){
     char name[101], pref[156];
     memcpy(name,h,100); name[100]=0;
     memcpy(pref,h+345,155); pref[155]=0;
+    /* GNU and v7 headers have no prefix field (old GNU keeps times there). */
+    if(!memcmp(h+257, "ustar  ", 8) || memcmp(h+257, "ustar", 5)) pref[0] = 0;
     if(pref[0]) snprintf(out,257,"%s/%s",pref,name); else snprintf(out,257,"%s",name);
 }
 static int unsafe_path(const char *name){
@@ -107,6 +116,16 @@ static int hdr_checksum_ok(const unsigned char *h){
     unsigned long sum = 0;
     for(int i=0;i<512;i++) sum += (i>=148 && i<156) ? (unsigned char)' ' : h[i];
     return sum == stored;
+}
+
+/* A v7 header (no magic): what GNU tar --format=v7 and old tars write. Its
+   magic field is empty and its checksum is right. */
+static int hdr_v7(const unsigned char *h){
+    for(int i = 257; i < 265; i++) if(h[i]) return 0;
+    return h[0] && hdr_checksum_ok(h);
+}
+static int hdr_known(const unsigned char *h){
+    return (!memcmp(h+257, "ustar", 5) && hdr_checksum_ok(h)) || hdr_v7(h);
 }
 
 /* ---- tar --transform ---------------------------------------------------- */
@@ -978,6 +997,94 @@ static void pax_set_acls(const char *name, const char *access, const char *dflt)
         builtin_error("%s: Warning: Cannot set default POSIX ACLs: %s", name, strerror(errno));
 }
 
+/* tar -d: compare one member (its header already read; F at its body) with
+   the file system, in GNU tar's words: "NAME: Mode differs" and the like
+   on stdout, one per difference, and "NAME: Warning: Cannot stat: ..." on
+   stderr for a missing file. Each counts in *options->differences. Leaves
+   F after the member. Returns 0, or -1 when the archive is truncated. */
+static int pax_compare_member(FILE *f, const struct bashos_pax_read_options *options, const char *name,
+                              const unsigned char *h, const struct pax_meta *eff, int typeflag,
+                              unsigned mode, time_t mtime, unsigned long sz, unsigned long long realsize,
+                              const char *ln, long body_padded, int sparse){
+    char shown[4096];
+    snprintf(shown, sizeof shown, "%s", name);
+    size_t sl = strlen(shown);
+    while(sl > 1 && shown[sl-1] == '/') shown[--sl] = 0;
+    const char *what = NULL;     /* the one difference that ends the checks */
+    int differs = 0, body_left = 1;
+#define PAX_DIFF(msg) do { printf("%s: %s\n", shown, (msg)); differs++; } while(0)
+    struct stat st;
+    int got = (options->dereference ? stat : lstat)(shown, &st);
+    int saved = errno;
+    switch(typeflag){
+    case '2': {
+        char target[4096];
+        ssize_t n = readlink(shown, target, sizeof target - 1);
+        if(n < 0){ builtin_error("%s: Warning: Cannot readlink: %s", shown, strerror(errno)); differs++; break; }
+        target[n] = 0;
+        if(strcmp(target, ln)) what = "Symlink differs";
+        break;
+    }
+    case '1': {
+        struct stat target;
+        if(got < 0){ builtin_error("%s: Warning: Cannot stat: %s", shown, strerror(saved)); differs++; break; }
+        if(stat(ln, &target) < 0){ builtin_error("%s: Warning: Cannot stat: %s", ln, strerror(errno)); differs++; break; }
+        if(st.st_dev != target.st_dev || st.st_ino != target.st_ino){
+            char msg[4200]; snprintf(msg, sizeof msg, "Not linked to %s", ln); PAX_DIFF(msg);
+        }
+        break;
+    }
+    case '5': case '3': case '4': case '6': {
+        if(got < 0){ builtin_error("%s: Warning: Cannot stat: %s", shown, strerror(saved)); differs++; break; }
+        mode_t want = typeflag == '5' ? S_IFDIR : typeflag == '3' ? S_IFCHR : typeflag == '4' ? S_IFBLK : S_IFIFO;
+        if((st.st_mode & S_IFMT) != want){ what = "File type differs"; break; }
+        if(typeflag == '3' || typeflag == '4'){
+            unsigned long maj = 0, mnr = 0;
+            pax_device_number(h+329, 8, &maj); pax_device_number(h+337, 8, &mnr);
+            if(major(st.st_rdev) != maj || minor(st.st_rdev) != mnr) PAX_DIFF("Device number differs");
+        }
+        if((st.st_mode & 07777) != (mode & 07777)) PAX_DIFF("Mode differs");
+        break;
+    }
+    case '0': case '\0': case '7': {
+        if(got < 0){ builtin_error("%s: Warning: Cannot stat: %s", shown, strerror(saved)); differs++; break; }
+        if(!S_ISREG(st.st_mode)){ what = "File type differs"; break; }
+        if((st.st_mode & 07777) != (mode & 07777)) PAX_DIFF("Mode differs");
+        uid_t uid; gid_t gid;
+        pax_member_owner(h, eff, options->numeric_owner, &uid, &gid);
+        if(st.st_uid != uid) PAX_DIFF("Uid differs");
+        if(st.st_gid != gid) PAX_DIFF("Gid differs");
+        if(st.st_mtime != mtime) PAX_DIFF("Mod time differs");
+        if((unsigned long long)st.st_size != realsize){ what = "Size differs"; break; }
+        if(sparse) break;        /* holes: sizes and times only */
+        FILE *in = fopen(shown, "rb");
+        if(!in){ builtin_error("%s: Warning: Cannot open: %s", shown, strerror(errno)); differs++; break; }
+        unsigned char a[16384], b[16384];
+        unsigned long left = sz;
+        int same = 1;
+        while(left){
+            size_t want = left > sizeof a ? sizeof a : (size_t)left;
+            if(fread(a, 1, want, f) != want){ fclose(in); builtin_error("Unexpected EOF in archive"); return -1; }
+            left -= want;
+            if(same && (fread(b, 1, want, in) != want || memcmp(a, b, want))) same = 0;
+        }
+        if(same && fgetc(in) != EOF) same = 0;
+        fclose(in);
+        if(!same) PAX_DIFF("Contents differ");
+        body_left = 0;
+        if(skip_bytes(f, (512 - sz % 512) % 512) < 0) return -1;
+        break;
+    }
+    default:
+        break;
+    }
+    if(what) PAX_DIFF(what);
+#undef PAX_DIFF
+    if(differs && options->differences) *options->differences += differs;
+    if(body_left && skip_bytes(f, body_padded) < 0) return -1;
+    return 0;
+}
+
 int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
     int ugswidth = 19;
     int extract = options->extract, verbose = options->verbose;
@@ -987,23 +1094,46 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
     unsigned char h[512]; int rc=EXECUTION_SUCCESS; int zero_seen=0;
     struct pax_meta global = {0}, local = {0};
     struct pax_delayed_list dirs = {0};
-    int warned_slash = 0;
+    int warned_slash = 0, headers = 0;
+    pax_tar_words = options->tar_mode; pax_unexpected_eof = 0;
     while(1){
+        if(pax_unexpected_eof) break;          /* tar: nothing after a truncation */
         size_t got = fread(h,1,512,f);
+        if(options->tar_mode && !headers && got < 512){
+            /* GNU tar: an empty or short input is no archive at all. */
+            builtin_error("This does not look like a tar archive");
+            if(options->member_errors) ++*options->member_errors;
+            rc = EXECUTION_FAILURE; break;
+        }
         if(got == 0){
-            if(!zero_seen){ builtin_error("archive truncated: no end-of-archive marker"); rc = EXECUTION_FAILURE; }
+            /* GNU tar accepts an archive that ends without its zero blocks. */
+            if(!zero_seen && !options->tar_mode){ builtin_error("archive truncated: no end-of-archive marker"); rc = EXECUTION_FAILURE; }
             break;
         }
-        if(got != 512){ builtin_error("archive truncated: short header read (%zu of 512)", got); rc = EXECUTION_FAILURE; break; }
+        if(got != 512){
+            if(options->tar_mode) pax_truncated(NULL);
+            else builtin_error("archive truncated: short header read (%zu of 512)", got);
+            rc = EXECUTION_FAILURE; break;
+        }
         if(zero_block(h)){ zero_seen = 1; break; }
-        if(memcmp(h+257,"ustar",5)){ builtin_error("bad ustar magic"); rc=EXECUTION_FAILURE; break; }
-        if(!hdr_checksum_ok(h)){ builtin_error("bad ustar header checksum"); rc=EXECUTION_FAILURE; break; }
+        int v7 = memcmp(h+257,"ustar",5) && hdr_v7(h);
+        if(!v7 && (memcmp(h+257,"ustar",5) || !hdr_checksum_ok(h)) && options->tar_mode && !headers){
+            /* GNU tar's words for input that is not an archive at all. */
+            builtin_error("This does not look like a tar archive");
+            if(options->member_errors) ++*options->member_errors;
+            rc=EXECUTION_FAILURE; break;
+        }
+        if(!v7 && memcmp(h+257,"ustar",5)){ builtin_error("bad ustar magic"); rc=EXECUTION_FAILURE; break; }
+        if(!v7 && !hdr_checksum_ok(h)){ builtin_error("bad ustar header checksum"); rc=EXECUTION_FAILURE; break; }
+        headers++;
 
         char hdrname[257]; name_from_hdr(hdrname, h);
         unsigned long sz = octal((char*)h+124,12);
         unsigned mode = octal((char*)h+100,8);
         time_t mtime = (time_t)octal((char*)h+136, 12);
         int typeflag = h[156] ? h[156] : '0';
+        /* v7 marks directories only by the trailing '/'. */
+        if(v7 && typeflag == '0' && hdrname[0] && hdrname[strlen(hdrname)-1] == '/') typeflag = '5';
         char linkname[101]; memcpy(linkname, h+157, 100); linkname[100]=0;
         long body_padded = ((long)sz+511L)/512L*512L;
         int has_body = (typeflag=='0' || typeflag=='\0' || typeflag=='7');
@@ -1094,6 +1224,19 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
         if(!selected){
             if(skip_bytes(f, body_padded) < 0) rc = 1;
             free(smap.v); pax_meta_free(&eff); continue;
+        }
+        if(options->compare){
+            if(options->tar_mode && !options->absolute_names && name[0] == '/'){
+                if(!warned_slash++) builtin_error("Removing leading `/' from member names");
+                while(*name == '/') name++;
+                if(!*name) name = ".";
+            }
+            if(verbose) printf("%s%s\n", name, typeflag == '5' && name[strlen(name)-1] != '/' ? "/" : "");
+            int r = pax_compare_member(f, options, name, h, &eff, typeflag, mode, mtime,
+                                       sz, realsize, ln, body_padded, sparse);
+            free(smap.v); pax_meta_free(&eff);
+            if(r < 0){ rc = 1; break; }
+            continue;
         }
         if(!extract){
             if(verbose && options->tar_mode)
@@ -1292,7 +1435,20 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
                 left -= n;
             }
             if(fclose(o)){ builtin_error("%s: close error", name); rc = 1; }
-            if(short_body){ builtin_error("%s: archive truncated in member body", name); rc = EXECUTION_FAILURE; break; }
+            unsigned long pad = (512 - (sz % 512)) % 512;
+            /* tar: the member's last block must be whole (GNU tar reads blocks). */
+            if(options->tar_mode && !short_body && pad && skip_bytes(f, pad) < 0) short_body = 1;
+            if(options->tar_mode) pad = 0;
+            if(short_body){
+                /* GNU tar says it twice here (for the member and the archive)
+                   and keeps only the member's whole 512-byte blocks. */
+                if(options->tar_mode){
+                    pax_truncated(NULL); builtin_error("Unexpected EOF in archive");
+                    if(!sparse && truncate(name, (off_t)((sz - left) / 512 * 512)) < 0) rc = EXECUTION_FAILURE;
+                }
+                else builtin_error("%s: archive truncated in member body", name);
+                rc = EXECUTION_FAILURE; break;
+            }
             /* chown first: it clears set-id bits, which only an owner-
                preserving extraction keeps. */
             int owned = options->same_owner && pax_restore_owner(name, h, &eff, options, 0) == 0;
@@ -1303,7 +1459,6 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
             chmod(name, mode & keep);
             if(options->acls) pax_set_acls(name, eff.acl_access, NULL);
             set_mtime(name, mtime, 0);
-            unsigned long pad = (512 - (sz % 512)) % 512;
             if(pad && skip_bytes(f, pad) < 0){ builtin_error("archive truncated in padding"); rc = 1; }
             break;
         }
@@ -1328,6 +1483,8 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
         rc = 1;
     }
     free(found);
+    if(pax_unexpected_eof){ builtin_error("Error is not recoverable: exiting now"); rc = 1; }
+    pax_tar_words = pax_unexpected_eof = 0;
     if(ferror(f) || ferror(stdout)) rc = 1;
     return rc;
 }
@@ -1336,12 +1493,18 @@ int bashos_pax_read(FILE *f, const struct bashos_pax_read_options *options){
    files only) are written by the caller. */
 /* Owner names for the header being written (tar --owner/--group). */
 static const char *hdr_uname, *hdr_gname;
+/* The format of the header being written (BASHOS_PAX_FMT_*). */
+static int hdr_format;
 
 static int write_header(FILE *out, const char *path, const struct stat *st, char typeflag, const char *linktarget){
     unsigned char h[512]; memset(h, 0, sizeof h);
     const char *base = path;
     size_t plen = strlen(path);
-    if(plen > 100){
+    if(plen > 100 && hdr_format != BASHOS_PAX_FMT_DEFAULT){
+        /* GNU: the name's first 100 bytes, after a ././@LongLink record;
+           v7 names were checked by the caller. */
+        plen = 100;
+    } else if(plen > 100){
         const char *slash = strrchr(path, '/');
         if(slash && strlen(slash+1) <= 100){
             size_t pl = slash - path;
@@ -1354,17 +1517,19 @@ static int write_header(FILE *out, const char *path, const struct stat *st, char
     }
     size_t blen = strlen(base);
     memcpy(h, base, blen > 100 ? 100 : blen);
+    int v7 = hdr_format == BASHOS_PAX_FMT_V7, gnu = hdr_format == BASHOS_PAX_FMT_GNU || hdr_format == BASHOS_PAX_FMT_OLDGNU;
 
-    unsigned long body_size = (typeflag=='0' || typeflag=='x' || typeflag=='g') ? (unsigned long)st->st_size : 0UL;
+    unsigned long body_size = (typeflag=='0' || typeflag=='x' || typeflag=='g' || typeflag=='L' || typeflag=='K') ? (unsigned long)st->st_size : 0UL;
     put_octal((char*)h+100, 8, (unsigned long)(st->st_mode & 07777));
     put_octal((char*)h+108, 8, (unsigned long)st->st_uid);
     put_octal((char*)h+116, 8, (unsigned long)st->st_gid);
     put_octal((char*)h+124, 12, body_size);
     put_octal((char*)h+136, 12, (unsigned long)st->st_mtime);
     memset(h+148, ' ', 8);
-    h[156] = typeflag;
+    h[156] = v7 && typeflag == '0' ? '\0' : typeflag;   /* v7: regular files have no type */
     if(linktarget && (typeflag=='2' || typeflag=='1')){
         size_t llen = strlen(linktarget);
+        if(llen > 100 && gnu) llen = 100;     /* after a ././@LongLink 'K' record */
         if(llen > 100){ builtin_error("%s: link target too long for ustar (>100)", path); return -1; }
         memcpy(h+157, linktarget, llen);
     }
@@ -1375,8 +1540,9 @@ static int write_header(FILE *out, const char *path, const struct stat *st, char
         }
         put_octal((char *)h+329, 8, maj); put_octal((char *)h+337, 8, min);
     }
-    memcpy(h+257, "ustar", 6); memcpy(h+263, "00", 2);
-    if(typeflag != 'x' && typeflag != 'g'){
+    if(gnu) memcpy(h+257, "ustar  ", 8);        /* GNU magic and version */
+    else if(!v7){ memcpy(h+257, "ustar", 6); memcpy(h+263, "00", 2); }
+    if(typeflag != 'x' && typeflag != 'g' && !v7){
         if(hdr_uname) memcpy(h+265, hdr_uname, strnlen(hdr_uname, 31));
         if(hdr_gname) memcpy(h+297, hdr_gname, strnlen(hdr_gname, 31));
     }
@@ -1458,6 +1624,22 @@ static int write_pax_ext(FILE *out, const char *name, int want_path, const char 
     long pad = (512 - ((long)len % 512)) % 512;
     for(long i = 0; i < pad; i++) fputc(0, out);
     free(body);
+    return 0;
+}
+
+/* GNU format: a ././@LongLink record (type L for a name, K for a link
+   target) holding the whole NUL-terminated value, before the header that
+   holds its first 100 bytes. */
+static int write_gnu_long(FILE *out, char type, const char *value){
+    struct stat lst = {0};
+    size_t len = strlen(value) + 1;
+    lst.st_mode = 0644; lst.st_size = (off_t)len;
+    const char *saved_u = hdr_uname, *saved_g = hdr_gname;
+    hdr_uname = hdr_gname = "root";
+    int bad = write_header(out, "././@LongLink", &lst, type, NULL) < 0;
+    hdr_uname = saved_u; hdr_gname = saved_g;
+    if(bad || fwrite(value, 1, len, out) != len) return -1;
+    for(size_t i = len; i % 512; i++) fputc(0, out);
     return 0;
 }
 
@@ -1593,15 +1775,38 @@ static int copy_range(FILE *in, FILE *out, const char *path, off_t off, unsigned
 static int write_member_named(FILE *out, const char *path, const char *arc, struct stat *st,
                               struct bashos_pax_write_context *ctx);
 
-static int write_member(FILE *out, const char *path, struct bashos_pax_write_context *ctx){
+/* The records before a member's header for what the header cannot hold.
+   Default format: one pax 'x' header. GNU: ././@LongLink records for a long
+   link target (K) and name (L), or, when numbers or extra records need an
+   'x' header anyway, everything in that header. v7: none (the caller has
+   rejected what v7 cannot hold). */
+static int emit_ext(FILE *out, int fmt, const char *name, int long_name, const char *link, int long_link,
+                    const struct stat *st, int numext, const char *extra){
+    int has_extra = extra && *extra;
+    if(fmt == BASHOS_PAX_FMT_V7) return 0;
+    if(fmt != BASHOS_PAX_FMT_DEFAULT && !numext && !has_extra){
+        if(long_link && write_gnu_long(out, 'K', link) < 0) return -1;
+        if(long_name && write_gnu_long(out, 'L', name) < 0) return -1;
+        return 0;
+    }
+    if(!long_name && !long_link && !numext && !has_extra) return 0;
+    return write_pax_ext(out, name, long_name, long_link ? link : NULL, st, numext, extra);
+}
+
+/* FOLLOW: archive what a symlink points to (pax -L / -H, tar -h). */
+static int write_member_follow(FILE *out, const char *path, struct bashos_pax_write_context *ctx, int follow){
     struct stat st;
     if(member_excluded(ctx, path)) return 0;
-    if(lstat(path, &st) < 0){ builtin_error("%s: %s", path, strerror(errno)); return 1; }
+    if((follow ? stat : lstat)(path, &st) < 0){ builtin_error("%s: %s", path, strerror(errno)); return 1; }
     char *arc = archive_name(ctx, path, XF_REG);
     if(!arc){ builtin_error("out of memory"); return 1; }
     int rc = write_member_named(out, path, arc, &st, ctx);
     free(arc);
     return rc;
+}
+
+static int write_member(FILE *out, const char *path, struct bashos_pax_write_context *ctx){
+    return write_member_follow(out, path, ctx, ctx->dereference);
 }
 
 static int write_member_named(FILE *out, const char *path, const char *arc, struct stat *stp,
@@ -1615,19 +1820,44 @@ static int write_member_named(FILE *out, const char *path, const char *arc, stru
     hdr_uname = ctx->set_uname ? ctx->uname : owner_name(st.st_uid);
     hdr_gname = ctx->set_gname ? ctx->gname : group_name(st.st_gid);
     int skip_header = !*arc || (ctx->update && archived_current(ctx, arc, st.st_mtime));
+    int fmt = ctx->format;
+    hdr_format = fmt;
+    /* GNU and v7 store a directory's name with a trailing '/', as GNU tar. */
+    char named_buf[4096];
+    const char *named = arc;
+    if(fmt != BASHOS_PAX_FMT_DEFAULT && S_ISDIR(st.st_mode) && *arc && arc[strlen(arc)-1] != '/' &&
+       strlen(arc) + 2 <= sizeof named_buf){
+        snprintf(named_buf, sizeof named_buf, "%s/", arc);
+        named = named_buf;
+    }
     const char *stored_path = ustar_name_ok(arc) ? arc : pax_fallback_name(arc);
     int need_path_ext = !ustar_name_ok(arc);
+    if(fmt != BASHOS_PAX_FMT_DEFAULT){
+        stored_path = named;
+        need_path_ext = strlen(named) > (fmt == BASHOS_PAX_FMT_OLDGNU ? 99U : 100U);
+    }
+    if(fmt == BASHOS_PAX_FMT_V7 && !skip_header && strlen(named) > 99){
+        builtin_error("%s: file name is too long (max 99); not dumped", named); return 1;
+    }
+    if(fmt == BASHOS_PAX_FMT_V7 && !skip_header &&
+       (S_ISFIFO(st.st_mode) || S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode) || S_ISSOCK(st.st_mode))){
+        builtin_error("%s: Unknown file type; file ignored", path); return 1;
+    }
     char *extra = NULL;
-    if(ctx->acls && !skip_header && (S_ISREG(st.st_mode) || S_ISDIR(st.st_mode))){
+    if(ctx->acls && fmt != BASHOS_PAX_FMT_V7 && !skip_header && (S_ISREG(st.st_mode) || S_ISDIR(st.st_mode))){
         if(!(extra = acl_records(path, S_ISDIR(st.st_mode)))){ builtin_error("out of memory"); return 1; }
     }
     int has_extra = extra && *extra;
 
     int numext = pax_numeric_ext(&st, S_ISREG(st.st_mode));
+    if(numext && fmt == BASHOS_PAX_FMT_V7 && !skip_header){
+        builtin_error("%s: value out of range for the v7 format; not dumped", path); free(extra); return 1;
+    }
 
     if(S_ISDIR(st.st_mode)){
         if(!skip_header){
-            if((need_path_ext || numext || has_extra) && write_pax_ext(out, arc, need_path_ext, NULL, &st, numext, extra) < 0){ free(extra); return 1; }
+            if(emit_ext(out, fmt, named, need_path_ext, NULL, 0, &st, numext, extra) < 0){ free(extra); return 1; }
+            hdr_format = fmt;
             if(write_header(out, stored_path, &st, '5', NULL) < 0){ free(extra); return 1; }
         }
         free(extra);
@@ -1665,14 +1895,19 @@ static int write_member_named(FILE *out, const char *path, const char *arc, stru
         tgt[r] = 0;
         char *t = ctx->xforms ? xform_apply(ctx->xforms, tgt, XF_SYM) : strdup(tgt);
         if(!t){ builtin_error("out of memory"); return 1; }
-        int need_link_ext = strlen(t) > 100;
-        int rc = ((need_path_ext || need_link_ext || numext) && write_pax_ext(out, arc, need_path_ext, need_link_ext ? t : NULL, &st, numext, NULL) < 0) ||
-                 write_header(out, stored_path, &st, '2', need_link_ext ? "" : t) < 0;
+        int need_link_ext = strlen(t) > (fmt == BASHOS_PAX_FMT_OLDGNU || fmt == BASHOS_PAX_FMT_V7 ? 99U : 100U);
+        /* GNU tar 1.35 says "not dumped" but stores the target cut to 100 bytes. */
+        int v7_cut = need_link_ext && fmt == BASHOS_PAX_FMT_V7;
+        if(v7_cut){ builtin_error("%s: link name is too long; not dumped", t); t[100] = '\0'; need_link_ext = 0; }
+        int rc = emit_ext(out, fmt, named, need_path_ext, t, need_link_ext, &st, numext, NULL) < 0 ||
+                 (hdr_format = fmt, write_header(out, stored_path, &st, '2', need_link_ext && !fmt ? "" : t) < 0);
+        rc |= v7_cut;
         free(t);
         return rc;
     }
     if(S_ISFIFO(st.st_mode) || S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode)){
-        if((need_path_ext || numext) && write_pax_ext(out, arc, need_path_ext, NULL, &st, numext, NULL) < 0) return 1;
+        if(emit_ext(out, fmt, named, need_path_ext, NULL, 0, &st, numext, NULL) < 0) return 1;
+        hdr_format = fmt;
         return write_header(out, stored_path, &st, S_ISFIFO(st.st_mode) ? '6' :
                             S_ISCHR(st.st_mode) ? '3' : '4', NULL) < 0 ? 1 : 0;
     }
@@ -1682,11 +1917,18 @@ static int write_member_named(FILE *out, const char *path, const char *arc, stru
 
     for(struct bashos_pax_hardlink *entry = ctx->links; entry; entry = entry->next){
         if(entry->device != st.st_dev || entry->inode != st.st_ino) continue;
-        int need_link_ext = strlen(entry->path) > 100;
+        int need_link_ext = strlen(entry->path) > (fmt == BASHOS_PAX_FMT_OLDGNU || fmt == BASHOS_PAX_FMT_V7 ? 99U : 100U);
+        char cut[101];
+        const char *target = entry->path;
+        int v7_cut = need_link_ext && fmt == BASHOS_PAX_FMT_V7;
+        if(v7_cut){
+            builtin_error("%s: link name is too long; not dumped", target);
+            memcpy(cut, target, 100); cut[100] = '\0'; target = cut; need_link_ext = 0;
+        }
         numext = pax_numeric_ext(&st, 0); /* Hardlinks have no body/size record. */
-        int rc = ((need_path_ext || need_link_ext || numext) &&
-                  write_pax_ext(out, arc, need_path_ext, need_link_ext ? entry->path : NULL, &st, numext, NULL) < 0) ||
-                 write_header(out, stored_path, &st, '1', need_link_ext ? "" : entry->path) < 0;
+        int rc = emit_ext(out, fmt, named, need_path_ext, target, need_link_ext, &st, numext, NULL) < 0 ||
+                 (hdr_format = fmt, write_header(out, stored_path, &st, '1', need_link_ext && !fmt ? "" : target) < 0);
+        rc |= v7_cut;
         free(extra);
         return rc;
     }
@@ -1697,7 +1939,7 @@ static int write_member_named(FILE *out, const char *path, const char *arc, stru
        real name and size in GNU.sparse.* records, a map, then only the data. */
     struct sparse_map map = {0};
     int sparse = 0;
-    if(ctx->sparse && (unsigned long long)st.st_blocks * 512ULL < (unsigned long long)st.st_size)
+    if(ctx->sparse && fmt != BASHOS_PAX_FMT_V7 && (unsigned long long)st.st_blocks * 512ULL < (unsigned long long)st.st_size)
         sparse = sparse_scan(fileno(in), st.st_size, &map);
     if(sparse < 0){ builtin_error("out of memory"); fclose(in); free(extra); free(map.v); return 1; }
     int failed = 0;
@@ -1740,8 +1982,8 @@ static int write_member_named(FILE *out, const char *path, const char *arc, stru
         }
         free(mapbuf); free(recs);
     } else {
-        if(((need_path_ext || numext || has_extra) && write_pax_ext(out, arc, need_path_ext, NULL, &st, numext, extra) < 0) ||
-           write_header(out, stored_path, &st, '0', NULL) < 0) failed = 1;
+        if(emit_ext(out, fmt, named, need_path_ext, NULL, 0, &st, numext, extra) < 0 ||
+           (hdr_format = fmt, write_header(out, stored_path, &st, '0', NULL) < 0)) failed = 1;
         if(!failed){
             unsigned char buf[4096]; size_t r;
             off_t remaining = st.st_size;
@@ -1770,7 +2012,9 @@ static int write_member_named(FILE *out, const char *path, const char *arc, stru
 }
 
 int bashos_pax_write_member_context(FILE *out, const char *path, struct bashos_pax_write_context *ctx){
-    return write_member(out, path, ctx) || ferror(out);
+    int rc = write_member_follow(out, path, ctx, ctx->dereference || ctx->dereference_operands) || ferror(out);
+    hdr_format = BASHOS_PAX_FMT_DEFAULT;
+    return rc;
 }
 
 int bashos_pax_write_member(FILE *out, const char *path, int no_recurse){
@@ -1849,7 +2093,7 @@ int bashos_pax_delete(FILE *in, FILE *out, const struct bashos_pax_read_options 
     for(;;){
         size_t got = fread(h, 1, sizeof h, in);
         if(got == 0 || zero_block(h)) break;
-        if(got != sizeof h || memcmp(h+257, "ustar", 5) || !hdr_checksum_ok(h)){
+        if(got != sizeof h || !hdr_known(h)){
             builtin_error("This does not look like a tar archive"); rc = 2; break;
         }
         unsigned long sz = octal((char *)h+124, 12);
@@ -2016,6 +2260,15 @@ static int pax_copy(WORD_LIST *files){
     return rc ? EXECUTION_FAILURE : EXECUTION_SUCCESS;
 }
 
+/* A format name (tar --format, pax -x): BASHOS_PAX_FMT_*, or -1. */
+int bashos_pax_format(const char *name){
+    if(!strcmp(name, "ustar") || !strcmp(name, "pax") || !strcmp(name, "posix")) return BASHOS_PAX_FMT_DEFAULT;
+    if(!strcmp(name, "gnu")) return BASHOS_PAX_FMT_GNU;
+    if(!strcmp(name, "oldgnu")) return BASHOS_PAX_FMT_OLDGNU;
+    if(!strcmp(name, "v7")) return BASHOS_PAX_FMT_V7;
+    return -1;
+}
+
 static int pax_number(const char *s, unsigned long *out){
     char *end;
     if(*s < '0' || *s > '9') return -1;
@@ -2077,6 +2330,9 @@ int pax_builtin(WORD_LIST *list){
             case 'd': writer.no_recurse=1; break;
             case 'a': append=1; break;
             case 'u': writer.update=1; break;
+            case 'L': writer.dereference=1; break;
+            case 'H': writer.dereference_operands=1; break;
+            case 'P': writer.dereference=writer.dereference_operands=0; break;
             case 'f': case 'o': case 'x': case 'b': case 'p': {
                 char letter = *c;
                 if(!(v = pax_optarg(&list, &c))){
@@ -2086,12 +2342,15 @@ int pax_builtin(WORD_LIST *list){
                 if(letter == 'f') archive = v;
                 else if(letter == 'o'){ if(pax_set_option(v, &writer, excl, &nexcl) < 0) return EX_USAGE; }
                 else if(letter == 'x'){
-                    /* Archives are written as ustar, with pax extended
-                       headers only for values ustar cannot hold. */
-                    if(strcmp(v, "ustar") && strcmp(v, "pax")){
-                        builtin_error("%s: unsupported archive format (ustar and pax only)", v);
+                    /* ustar and pax: ustar, with pax extended headers only
+                       for values ustar cannot hold; gnu, oldgnu and v7 as
+                       GNU tar writes them. */
+                    int f = bashos_pax_format(v);
+                    if(f < 0){
+                        builtin_error("%s: unsupported archive format (ustar, pax, gnu, oldgnu or v7)", v);
                         return EX_USAGE;
                     }
+                    writer.format = f;
                 }
                 else if(letter == 'b'){
                     unsigned long blocksize;
@@ -2146,9 +2405,13 @@ char *pax_doc[] = {
     "Members are stored with their owner's user and group names.",
     "Option letters group as POSIX allows (pax -wf ARCHIVE FILE..., pax -rvf ARCHIVE).",
     "-x ustar|pax names the write format (ustar, with pax headers only when needed);",
+    "-x gnu|oldgnu|v7 writes GNU tar's formats (GNU magic and ././@LongLink names;",
+    "v7: no magic, owner names or special files, names up to 99 bytes); v7 archives",
+    "are read too. -L archives what symbolic links point to, -H only for the named",
+    "operands, -P (the default) the links themselves.",
     "-b BLOCKSIZE is accepted; -r -p o (or -p e) restores the archived owner and group.",
     "    bashpax [-v] [-f ARCHIVE] | bashpax -w [-x ustar] -f ARCHIVE FILE... | bashpax -r [-p o] -f ARCHIVE | bashpax -rw FILE... DIR",
     (char*)NULL
 };
-struct builtin bashpax_struct = {"bashpax",pax_builtin,BUILTIN_ENABLED,pax_doc,"bashpax [-r|-w] [-aduv] [-f ARCHIVE] [-o OPTION] [-p STRING] [-x FORMAT] [FILE...]",0};
-struct builtin pax_struct    = {"pax",   pax_builtin,BUILTIN_ENABLED,pax_doc,"pax [-r|-w] [-aduv] [-f ARCHIVE] [-o OPTION] [-p STRING] [-x FORMAT] [FILE...]",0};
+struct builtin bashpax_struct = {"bashpax",pax_builtin,BUILTIN_ENABLED,pax_doc,"bashpax [-r|-w] [-aduvHLP] [-f ARCHIVE] [-o OPTION] [-p STRING] [-x FORMAT] [FILE...]",0};
+struct builtin pax_struct    = {"pax",   pax_builtin,BUILTIN_ENABLED,pax_doc,"pax [-r|-w] [-aduvHLP] [-f ARCHIVE] [-o OPTION] [-p STRING] [-x FORMAT] [FILE...]",0};

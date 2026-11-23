@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: MIT */
-/* GNU-style date strings for date -d/-s/-f and touch -d: ISO 8601,
-   @SECONDS, RFC 5322, calendar dates with month names or MM/DD/YYYY,
-   times of day with fractional seconds, am/pm and zones, and the GNU
-   relative items, applied to a base time (now, or touch -r's REF). */
+/* GNU-style date strings for date -d/-s/-f, touch -d and find -newermt:
+   ISO 8601, @SECONDS, RFC 5322, calendar dates with month names or
+   MM/DD/YYYY, times of day with fractional seconds, am/pm and zones (with
+   an offset: "UTC+3", "UTC-0500", "EST+1"), the GNU relative items and a
+   leading TZ="ZONE", applied to a base time (now, or touch -r's REF). */
 #ifndef BASHOS_DATE_PARSE_H
 #define BASHOS_DATE_PARSE_H
 
@@ -365,7 +366,12 @@ bd_parse_with_relative (const char *s, const struct timespec *now,
         long base_nsec;
         if (bd_parse_d (copy, now, &base, &base_nsec, utc) != 0) continue;
         const char *rest = bd_skip_space (s + cut);
-        if (strchr (copy, ':') && (*rest == '+' || *rest == '-') &&
+        /* The prefix must end in the time of day itself ("12:00"), not in
+           a zone ("12:00 UTC +1 day" is a day later at 12:00 UTC). */
+        const char *last = strrchr (copy, ' ');
+        last = last ? last + 1 : copy;
+        int ends_in_time = strchr (last, ':') && strspn (last, "0123456789:.,-Tt") == strlen (last);
+        if (ends_in_time && (*rest == '+' || *rest == '-') &&
             rest[1] >= '0' && rest[1] <= '9') {
             /* Numeric zone: H, HH, HHMM or HH:MM after the sign. */
             const char *z = rest + 1;
@@ -601,6 +607,38 @@ bd_parse_items (const char *s, const struct timespec *now,
                 if (zones++)
                     return -1;
                 zone = z;
+                /* GNU's "zone: tZONE tSNUMBER o_colon_minutes": UTC+3,
+                   UTC -0500, UTC+05:30, EST+1 (the offset is added to the
+                   zone). One or two digits are hours, more are HHMM; a
+                   signed number followed by a word is a relative item. */
+                const char *q = bd_skip_space (p);
+                if ((*q == '+' || *q == '-') && q[1] >= '0' && q[1] <= '9') {
+                    int sign = *q == '-' ? -1 : 1;
+                    const char *r = q + 1;
+                    long long hv, mv = -1;
+                    int hd, md;
+                    if (bd_read_num (&r, &hv, &hd) < 0)
+                        return -1;
+                    if (*r == ':' && r[1] >= '0' && r[1] <= '9') {
+                        r++;
+                        if (bd_read_num (&r, &mv, &md) < 0 || md > 2)
+                            return -1;
+                    }
+                    if (!bd_is_alpha (*bd_skip_space (r))) {
+                        long minutes;
+                        if (mv >= 0)
+                            minutes = (long) hv * 60 + (long) mv;
+                        else {
+                            if (hd <= 2)
+                                hv *= 100;
+                            minutes = (long) (hv / 100) * 60 + (long) (hv % 100);
+                        }
+                        if (hd > 4 || minutes > 24 * 60)
+                            return -1;
+                        zone += sign * minutes * 60L;
+                        p = r;
+                    }
+                }
                 continue;
             }
             return -1;
@@ -904,15 +942,107 @@ bd_parse_d (const char *s, const struct timespec *now,
     return bd_parse_items (s, now, out, nsec, utc);
 }
 
-/* The whole -d grammar: an absolute date, relative items alone, or an
-   absolute date followed by relative items, all against base time NOW. */
 static int
-bd_parse_date (const char *s, const struct timespec *now,
-               time_t *out, long *nsec, int utc)
+bd_parse_date_rest (const char *s, const struct timespec *now,
+                    time_t *out, long *nsec, int utc)
 {
     if (bd_parse_d (s, now, out, nsec, utc) == 0)
         return 0;
     return bd_parse_with_relative (s, now, out, nsec, utc);
+}
+
+/* Parse REST in time zone ZONE. The TZ variable the shell would use
+   (global, local or a TZ=... assignment in front of this command) gets
+   ZONE as its value and is exported, so the C library's tzset sees it as
+   it sees an assignment to TZ; afterwards its value and attributes are put
+   back. Without a TZ variable one is made for the parse and removed. */
+static int
+bd_parse_date_in_zone (const char *zone, const char *rest, const struct timespec *now,
+                       time_t *out, long *nsec)
+{
+    SHELL_VAR *v = find_variable ("TZ");
+    if (v && (readonly_p (v) || array_p (v) || assoc_p (v) || function_p (v)))
+        return -1;
+    char *value = strdup (zone);
+    if (!value)
+        return -1;
+    char *saved = NULL;
+    int attributes = 0, made = !v;
+    if (made) {
+        v = bind_variable ("TZ", zone, 0);
+        free (value);
+        if (!v)
+            return -1;
+    } else {
+        saved = value_cell (v);
+        attributes = v->attributes;
+        var_setvalue (v, value);
+        VUNSETATTR (v, att_invisible);
+        INVALIDATE_EXPORTSTR (v);   /* the cached "TZ=..." of the old value */
+    }
+    VSETATTR (v, att_exported);
+    array_needs_making = 1;
+    sv_tz ("TZ");
+    int rc = bd_parse_date_rest (rest, now, out, nsec, 0);
+    if (made)
+        unbind_variable ("TZ");
+    else {
+        free (value_cell (v));
+        var_setvalue (v, saved);
+        v->attributes = attributes;
+        INVALIDATE_EXPORTSTR (v);
+    }
+    array_needs_making = 1;
+    sv_tz ("TZ");
+    return rc;
+}
+
+/* The whole -d grammar: an optional TZ="ZONE" (GNU's rule for the time
+   zone of the rest of the string; \\ and \" are escapes in ZONE), then an
+   absolute date, relative items alone, or an absolute date followed by
+   relative items, all against base time NOW. */
+static int
+bd_parse_date (const char *s, const struct timespec *now,
+               time_t *out, long *nsec, int utc)
+{
+    const char *p = s;
+    while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\v' || *p == '\f' || *p == '\r')
+        p++;
+    if (!strncmp (p, "TZ=\"", 4)) {
+        const char *q = p + 4;
+        size_t n = 0;
+        int closed = 0;
+        for (; *q; q++) {
+            if (*q == '\\') {
+                if (q[1] != '\\' && q[1] != '"')
+                    break;
+                q++;
+            } else if (*q == '"') {
+                closed = 1;
+                break;
+            }
+            n++;
+        }
+        if (closed) {
+            char *zone = malloc (n + 1);
+            if (!zone)
+                return -1;
+            size_t k = 0;
+            for (const char *z = p + 4; z < q; z++) {
+                if (*z == '\\')
+                    z++;
+                zone[k++] = *z;
+            }
+            zone[k] = '\0';
+            const char *rest = q + 1;
+            while (*rest == ' ' || *rest == '\t' || *rest == '\n' || *rest == '\v' || *rest == '\f' || *rest == '\r')
+                rest++;
+            int rc = bd_parse_date_in_zone (zone, rest, now, out, nsec);
+            free (zone);
+            return rc;
+        }
+    }
+    return bd_parse_date_rest (s, now, out, nsec, utc);
 }
 
 #endif

@@ -30,6 +30,8 @@
  *            no global ordering option; one without takes them all)
  *   -o FILE  write result to FILE
  *   -z, --zero-terminated  use NUL as the record delimiter
+ *   --debug  annotate each output line with its keys and print GNU sort's
+ *            usage warnings (incompatible with -c/-C and -o, as in GNU)
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c.
@@ -51,6 +53,9 @@
 #include <pthread.h>
 #include <signal.h>
 #include <locale.h>
+#include <stdarg.h>
+#include <wchar.h>
+#include <wctype.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
 #include <limits.h>
@@ -1218,6 +1223,265 @@ bs_out_write (bs_out *ob, const char *p, size_t len)
     ob->n += len;
 }
 
+/* --- --debug: GNU sort's annotations ------------------------------------
+   Each output line is written with tabs shown as '>' and its delimiter as a
+   newline, then one underline per key and one for the last-resort whole
+   line (none under -s or -u), from GNU's debug_key rules: a numeric or
+   month key is narrowed to the number or month name it parses, after
+   leading blanks; an empty one is "^ no match for key". Widths count
+   display columns, plus one per tab. Comparisons here are always bytewise,
+   so the first warning is "simple byte comparison" except under C.UTF-8,
+   whose code point order is the same. */
+static int bs_debug;
+static int bs_debug_nokeys;     /* GNU keylist empty: no -k, no global option */
+
+static size_t
+bs_debug_width (const char *s, const char *lim)
+{
+    size_t width = 0;
+    for (const char *t = s; t < lim; t++)
+        width += *t == '\t';
+    if (MB_CUR_MAX == 1) {
+        for (; s < lim; s++) {
+            unsigned char c = (unsigned char) *s;
+            if (isprint (c) || !iscntrl (c))
+                width++;
+        }
+        return width;
+    }
+    mbstate_t st;
+    memset (&st, 0, sizeof st);
+    while (s < lim) {
+        wchar_t wc;
+        size_t n = mbrtowc (&wc, s, (size_t) (lim - s), &st);
+        if (n == (size_t) -2) { width++; break; }
+        if (n == (size_t) -1) { memset (&st, 0, sizeof st); width++; s++; continue; }
+        if (n == 0) n = 1;
+        int w = wcwidth (wc);
+        if (w >= 0) width += (size_t) w;
+        else if (!iswcntrl (wc)) width++;
+        s += n;
+    }
+    return width;
+}
+
+static void
+bs_debug_mark (bs_out *ob, size_t offset, size_t width)
+{
+    while (offset--)
+        bs_out_write (ob, " ", 1);
+    if (!width) {
+        bs_out_write (ob, "^ no match for key\n", 19);
+        return;
+    }
+    while (width--)
+        bs_out_write (ob, "_", 1);
+    bs_out_write (ob, "\n", 1);
+}
+
+/* GNU: -kN.1 and -kN with N = 1 start at the line, not a field. */
+static int
+bs_debug_sword_none (const bs_keydef *k)
+{
+    return k->field <= 0 || (k->field == 1 && k->start_char <= 1);
+}
+
+static void
+bs_debug_key (bs_out *ob, const bs_line *ln, const bs_opts *o, const bs_keydef *k)
+{
+    const char *text = ln->buf;
+    const char *end = ln->buf + (ln->len ? ln->len - 1 : 0);
+    const char *beg = text, *lim = end;
+
+    if (k) {
+        if (k->field > 0)
+            beg = bs_begfield (text, end, o, k);
+        if (k->end_field > 0) {
+            lim = bs_limfield (text, end, o, k);
+            if (lim < beg)
+                lim = beg;
+        }
+        int numeric = k->numeric || k->general_numeric || k->human_numeric;
+        if ((k->skip_start_blanks && bs_debug_sword_none (k)) || k->month || numeric) {
+            while (beg < lim && BS_BLANK (*beg))
+                beg++;
+            const char *tight = beg;
+            if (k->month) {
+                if (lim - beg >= 3) {
+                    char name[4] = { beg[0], beg[1], beg[2], 0 };
+                    if (bs_month_value (name))
+                        tight = beg + 3;
+                }
+            } else if (k->general_numeric) {
+                size_t n = (size_t) (lim - beg);
+                char *copy = malloc (n + 1), *stop = NULL;
+                if (copy) {
+                    memcpy (copy, beg, n);
+                    copy[n] = '\0';
+                    (void) strtold (copy, &stop);
+                    tight = beg + (stop - copy);
+                    free (copy);
+                }
+            } else if (numeric) {
+                const char *q = beg + (beg < lim && *beg == '-');
+                int digits = 0;
+                while (q < lim && BS_ISDIGIT (*q)) { q++; digits = 1; }
+                if (q < lim && (unsigned char) *q == bs_decimal_point) {
+                    q++;
+                    while (q < lim && BS_ISDIGIT (*q)) { q++; digits = 1; }
+                }
+                if (digits)
+                    tight = q + (k->human_numeric && q < lim && strchr ("KMGTPEZYRQk", *q)
+                                 && *q);
+            } else
+                tight = lim;
+            lim = tight;
+        }
+    }
+    bs_debug_mark (ob, bs_debug_width (text, beg), bs_debug_width (beg, lim));
+}
+
+/* Write one output record; under --debug, annotated. */
+static void
+bs_write_line (bs_out *ob, const bs_line *ln, const bs_opts *o)
+{
+    if (!bs_debug) {
+        bs_out_write (ob, ln->buf, ln->len);
+        return;
+    }
+    for (size_t i = 0; i < ln->len; i++) {
+        char c = ln->buf[i];
+        if (c == '\t') c = '>';
+        else if (i + 1 == ln->len) c = '\n';
+        bs_out_write (ob, &c, 1);
+    }
+    if (bs_debug_nokeys) {
+        bs_debug_key (ob, ln, o, NULL);
+        return;
+    }
+    for (int i = 0; i < o->nkeys; i++)
+        bs_debug_key (ob, ln, o, &o->keys[i]);
+    if (!(o->uflag || o->sflag))
+        bs_debug_key (ob, ln, o, NULL);
+}
+
+static void
+bs_debug_say (const char *fmt, ...)
+{
+    va_list ap;
+    va_start (ap, fmt);
+    fputs ("sort: ", stderr);
+    vfprintf (stderr, fmt, ap);
+    fputc ('\n', stderr);
+    va_end (ap);
+}
+
+/* GNU's key_warnings, for the keys bash-os supports (no +POS keys, no
+   thousands separator, as in the C locale). USER_KEYS is the -k count. */
+static void
+bs_debug_warnings (const bs_opts *o, int user_keys)
+{
+    const char *lq = MB_CUR_MAX > 1 ? "\xe2\x80\x98" : "'";
+    const char *rq = MB_CUR_MAX > 1 ? "\xe2\x80\x99" : "'";
+    int gkey_only = user_keys == 0 && !bs_debug_nokeys;
+    int g_ignore = o->dflag ? 'd' : o->iflag ? 'i' : 0;
+    int u_ignore = g_ignore, u_translate = o->fflag;
+    int u_sblanks = o->bflag, u_eblanks = o->bflag, u_month = o->mflag;
+    int u_numeric = o->nflag, u_general = o->gflag, u_human = o->hflag;
+    int u_random = o->Rflag, u_version = o->vflag, u_reverse = o->rflag;
+    int basic = 0, general = 0, basic_span = 0, general_span = 0;
+
+    /* GNU names any collating locale but C/POSIX. bash-os always compares
+       bytes, which is C.UTF-8's code point order; elsewhere it says so. */
+    const char *coll = setlocale (LC_COLLATE, NULL);
+    if (coll && (!strcmp (coll, "C.UTF-8") || !strcmp (coll, "C.utf8")))
+        bs_debug_say ("text ordering performed using %s%s%s sorting rules", lq, coll, rq);
+    else
+        bs_debug_say ("text ordering performed using simple byte comparison");
+    for (int i = 0; !bs_debug_nokeys && i < o->nkeys; i++) {
+        const bs_keydef *k = &o->keys[i];
+        int numeric = k->numeric || k->general_numeric || k->human_numeric;
+        long sword = bs_debug_sword_none (k) ? -1 : k->field - 1;
+        long schar = k->start_char > 0 ? k->start_char - 1 : 0;
+        long eword = k->end_field > 0 ? k->end_field - 1 : -1;
+        int keynum = i + 1;
+
+        if (numeric) {
+            if (k->general_numeric) general = 1;
+            else basic = 1;
+        }
+        int zero_width = sword >= 0 && eword >= 0 && eword < sword;
+        if (zero_width)
+            bs_debug_say ("key %d has zero width and will be ignored", keynum);
+        int implicit_skip = numeric || k->month;
+        int line_offset = eword == 0 && k->end_char != 0;
+        if (!zero_width && !gkey_only && !o->has_tsep && !line_offset
+            && ((!k->skip_start_blanks && !implicit_skip)
+                || (!k->skip_start_blanks && schar)
+                || (!k->skip_end_blanks && k->end_char)))
+            bs_debug_say ("leading blanks are significant in key %d; "
+                          "consider also specifying 'b'", keynum);
+        if (!gkey_only && numeric) {
+            long s1 = sword + 1, e1 = eword + 1;
+            if (!s1) s1++;
+            if (!e1 || s1 < e1) {
+                bs_debug_say ("key %d is numeric and spans multiple fields", keynum);
+                if (k->general_numeric) general_span = 1;
+                else basic_span = 1;
+            }
+        }
+        int k_ignore = k->dictionary_order ? 'd' : k->ignore_nonprinting ? 'i' : 0;
+        if (u_ignore && u_ignore == k_ignore) u_ignore = 0;
+        if (u_translate && k->ignore_case) u_translate = 0;
+        u_sblanks &= !k->skip_start_blanks;
+        u_eblanks &= !k->skip_end_blanks;
+        u_month &= !k->month;
+        u_numeric &= !k->numeric;
+        u_general &= !k->general_numeric;
+        u_human &= !k->human_numeric;
+        u_random &= !(o->Rflag && !k->has_ordering);
+        u_version &= !k->version;
+        u_reverse &= !k->reverse;
+    }
+    int number_warned = 0;
+    if (basic_span || general_span) {
+        if (o->has_tsep && (unsigned char) o->tsep == bs_decimal_point) {
+            bs_debug_say ("field separator %s%c%s is treated as a decimal point in numbers",
+                          lq, o->tsep, rq);
+            number_warned = 1;
+        } else if (o->has_tsep && o->tsep == '-')
+            bs_debug_say ("field separator %s-%s is treated as a minus sign in numbers", lq, rq);
+        else if (general_span && o->has_tsep && o->tsep == '+')
+            bs_debug_say ("field separator %s+%s is treated as a plus sign in numbers", lq, rq);
+    }
+    if ((basic || general) && !number_warned)
+        bs_debug_say ("numbers use %s%c%s as a decimal point in this locale",
+                      lq, bs_decimal_point, rq);
+    int keys_listed = !bs_debug_nokeys;
+    int u_default = !(u_ignore || u_translate || u_sblanks || u_eblanks || u_numeric
+                      || u_general || u_human || u_month || u_version || u_random);
+    int unique_or_stable = o->uflag || o->sflag;
+    if (!u_default || (u_reverse && unique_or_stable && keys_listed)) {
+        char opts[16], *q = opts;
+        if (u_sblanks || u_eblanks) *q++ = 'b';
+        if (u_ignore == 'd') *q++ = 'd';
+        if (u_translate) *q++ = 'f';
+        if (u_general) *q++ = 'g';
+        if (u_human) *q++ = 'h';
+        if (u_ignore == 'i') *q++ = 'i';
+        if (u_month) *q++ = 'M';
+        if (u_numeric) *q++ = 'n';
+        if (u_random) *q++ = 'R';
+        if (u_reverse && unique_or_stable) *q++ = 'r';
+        if (u_version) *q++ = 'V';
+        *q = '\0';
+        bs_debug_say (q - opts > 1 ? "options '-%s' are ignored" : "option '-%s' is ignored",
+                      opts);
+    }
+    if (u_reverse && !unique_or_stable && keys_listed)
+        bs_debug_say ("option '-r' only applies to last-resort comparison");
+}
+
 static void
 bs_emit_lines (bs_out *ob, const bs_elem *elems, size_t n, const bs_opts *o)
 {
@@ -1225,7 +1489,7 @@ bs_emit_lines (bs_out *ob, const bs_elem *elems, size_t n, const bs_opts *o)
         const bs_line *ln = elems[i].ln;
         if (o->uflag && i > 0 && bs_compare_keys (elems[i - 1].ln, ln, o) == 0)
             continue;
-        bs_out_write (ob, ln->buf, ln->len);
+        bs_write_line (ob, ln, o);
     }
 }
 
@@ -1248,7 +1512,7 @@ bs_emit_merged (bs_out *ob, bs_line *lines, bs_run *runs, size_t nruns, const bs
         bs_line *cur = &lines[runs[best].pos++];
         if (o->uflag && last && bs_compare_keys (last, cur, o) == 0)
             continue;
-        bs_out_write (ob, cur->buf, cur->len);
+        bs_write_line (ob, cur, o);
         last = cur;
     }
 }
@@ -1811,6 +2075,7 @@ bs_sort (WORD_LIST *list, const char **files)
     size_t n_files = 0;
     int operands_only = 0;
     int posix = getenv ("POSIXLY_CORRECT") != NULL;
+    bs_debug = 0;
     while (list) {
         const char *w = list->word->word;
         if (operands_only || w[0] != '-' || !w[1]) {
@@ -1926,6 +2191,7 @@ bs_sort (WORD_LIST *list, const char **files)
         if (!strcmp (w, "--ignore-case")) { o.fflag = 1; list = list->next; continue; }
         if (!strcmp (w, "--ignore-nonprinting")) { o.iflag = 1; list = list->next; continue; }
         if (!strcmp (w, "--stable")) { o.sflag = 1; list = list->next; continue; }
+        if (!strcmp (w, "--debug")) { bs_debug = 1; list = list->next; continue; }
         if (!strcmp (w, "--zero-terminated")) { o.zflag = 1; list = list->next; continue; }
         if (!strcmp (w, "--check") || !strncmp (w, "--check=", 8)) {
             o.cflag = 1;
@@ -2080,10 +2346,25 @@ bs_sort (WORD_LIST *list, const char **files)
         list = list->next;
     }
 
+    int user_keys = o.nkeys;
     bs_resolve_keys (&o);
 
-    /* Larger than the budget (or -S): sort in runs through temporary files. */
-    if (!o.cflag && !o.mergeflag && !o.Rflag) {
+    if (bs_debug) {
+        /* GNU: annotations go to standard output only. */
+        if (o.cflag || output_file) {
+            builtin_error ("options '-%c --debug' are incompatible",
+                           o.cflag ? (o.Cflag ? 'C' : 'c') : 'o');
+            bs_debug = 0;
+            return BS_TROUBLE;
+        }
+        bs_debug_nokeys = user_keys == 0 && !(o.bflag || o.dflag || o.fflag || o.iflag
+                          || o.nflag || o.gflag || o.hflag || o.mflag || o.vflag || o.Rflag);
+        bs_debug_warnings (&o, user_keys);
+    }
+
+    /* Larger than the budget (or -S): sort in runs through temporary files.
+       --debug output is annotated in memory. */
+    if (!o.cflag && !o.mergeflag && !o.Rflag && !bs_debug) {
         bs_ext x;
         x.tmpdir = tmpdir;
         if (!x.tmpdir || !*x.tmpdir)
@@ -2283,6 +2564,7 @@ sort_builtin (WORD_LIST *list)
     const char **files = calloc (count ? count : 1, sizeof *files);
     if (!files) return EXECUTION_FAILURE;
     int rc = bs_sort (list, files);
+    bs_debug = 0;
     free (files);
     return rc;
 }
@@ -2320,6 +2602,8 @@ char *sort_doc[] = {
     "    -k KEYDEF  FIELD[.CHAR][OPTS][,FIELD[.CHAR][OPTS]], 1-based, as GNU sort's:",
     "         a key with letters of its own takes no global ordering option",
     "    -o FILE   write result to FILE",
+    "    --debug   underline the part of each line used to sort, and warn",
+    "              about questionable usage on standard error (GNU sort)",
     (char *)NULL
 };
 
@@ -2328,6 +2612,6 @@ struct builtin sort_struct = {
     sort_builtin,
     BUILTIN_ENABLED,
     sort_doc,
-    "sort [-RVbdghnmrufcisM] [-t SEP] [-k KEYDEF] [-o FILE] [-S SIZE] [-T DIR] [FILE...]",
+    "sort [-RVbdghnmrufcisM] [-t SEP] [-k KEYDEF] [-o FILE] [-S SIZE] [-T DIR] [--debug] [FILE...]",
     0
 };

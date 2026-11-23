@@ -8,7 +8,8 @@
     "Hard-link count, multiple operands, -- operand termination, and partial failure status when one operand is missing.",
     "--printf backslash escapes and its lack of an implicit trailing newline.",
     "Bash type/help metadata and the documented associative-array -A extension.",
-    "GNU -f/--file-system with stable statfs fields and the missing-operand error."
+    "GNU -f/--file-system with stable statfs fields and the missing-operand error.",
+    "G59: --printf FORMAT and --format FORMAT as separate words."
   ],
   "exclusions": [
     "Raw default and -t output are not byte-compared because their inode and creation-time fields vary between the harness's independently constructed reference and candidate fixture trees; stable format directives are compared directly.",
@@ -254,6 +255,17 @@
         "stat",
         "touch"
       ]
+    },
+    {
+      "id": "printf-and-format-separate-argument",
+      "kind": "parity",
+      "purpose": "G59: --printf FORMAT and --format FORMAT take the next word as FORMAT, like --printf=FORMAT and --format=FORMAT.",
+      "requires": [
+        "stat"
+      ],
+      "script": "printf abc > f\nstat --printf '%n:%s\\n' f\nstat --printf='%s\\t%n\\n' f\nstat --format '%n %s' f\nstat --printf '%n' f f; echo",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

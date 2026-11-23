@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "loadable": "nc",
+  "reference": "netcat-openbsd's documented -U semantics (nc(1): unix-domain stream sockets; with -u datagram; -l listens on the socket file) as an independent contract. netcat-openbsd is not part of the reference host's GNU toolset, so the expected outputs are written out here.",
+  "coverage": [
+    "Guest pass 4 G61: unix-domain stream client and listener (nc connect/listen PATH -U), the datagram form (-U -u), the -zU style scan, and the operand and connection errors."
+  ],
+  "exclusions": [
+    "Abstract-namespace sockets (netcat-openbsd has no syntax for them) and peer credentials are not covered."
+  ],
+  "cases": [
+    {
+      "id": "unix-stream-roundtrip",
+      "kind": "contract",
+      "purpose": "A listener on a socket file receives what a -U client sends, the client gets the reply, and the socket file stays behind after the session.",
+      "script": "rm -f s\n( printf 'reply\\n' | nc listen s -U > got ) &\nfor i in 1 2 3 4 5 6 7 8 9 10; do [[ -S s ]] && break; read -rt 0.1 <> <(:) || :; done\nprintf 'hello\\n' | nc connect s -U\nwait\ncat got\n[[ -S s ]] && echo socket-left\nrm -f s",
+      "stdout": "reply\nhello\nsocket-left\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 10
+    },
+    {
+      "id": "unix-stale-socket-replaced",
+      "kind": "contract",
+      "purpose": "A stale socket file from an earlier listener is replaced; a regular file at PATH is never removed and the bind fails with status 1.",
+      "script": "rm -f s\n( nc listen s -U > /dev/null < /dev/null ) &\nfor i in 1 2 3 4 5 6 7 8 9 10; do [[ -S s ]] && break; read -rt 0.1 <> <(:) || :; done\nnc connect s -U < /dev/null\nwait\n( printf 'again\\n' | nc listen s -U > /dev/null ) &\nfor i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do nc connect s -U < /dev/null > reply 2>/dev/null && break; read -rt 0.1 <> <(:) || :; done\nwait\ncat reply\nrm -f s\nprintf 'data\\n' > plain\nif nc listen plain -U < /dev/null 2>/dev/null; then echo rc=0; else echo rc=$?; fi\ncat plain",
+      "stdout": "again\nrc=1\ndata\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 10
+    },
+    {
+      "id": "unix-datagram",
+      "kind": "contract",
+      "purpose": "-U -u sends a datagram to a listening datagram socket.",
+      "script": "rm -f d\n( nc listen d -U -u -w 1 < /dev/null > got ) &\nfor i in 1 2 3 4 5 6 7 8 9 10; do [[ -S d ]] && break; read -rt 0.1 <> <(:) || :; done\nprintf 'dgram\\n' | nc connect d -U -u -w 1\nwait\ncat got\nrm -f d",
+      "stdout": "dgram\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "timeout": 10
+    },
+    {
+      "id": "unix-errors",
+      "kind": "contract",
+      "purpose": "A missing or refused socket fails with status 1; a port operand with -U and a missing PATH are usage errors (status 2); scan reports a refused socket with status 1.",
+      "script": "s() { local rc=0; \"$@\" < /dev/null || rc=$?; echo \"rc=$rc\"; }\ns nc connect missing -U\nprintf 'x' > plain; s nc connect plain -U\ns nc connect sock 80 -U\ns nc connect -U\ns nc scan missing -U",
+      "stdout": "rc=1\nrc=1\nrc=2\nrc=2\nrc=1\n",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    }
+  ]
+}

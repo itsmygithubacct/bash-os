@@ -22,6 +22,17 @@
  *       Exits 0 iff at least one port was open. -w sets the per-port
  *       timeout (default 1s).
  *
+ *   nc connect PATH -U [-u] [-w SECS]
+ *   nc listen  PATH -U [-u] [-w SECS]
+ *   nc scan    PATH -U
+ *       Unix-domain sockets, as netcat-openbsd's -U: PATH is a socket
+ *       file instead of HOST PORT. The listener replaces a stale socket
+ *       file at PATH (any other kind of file is left alone and the bind
+ *       fails) and leaves the socket file behind when it exits. With -u
+ *       the socket is SOCK_DGRAM; the client autobinds an abstract
+ *       address so the listener can reply. scan only tests that PATH
+ *       accepts a stream connection and prints nothing.
+ *
  * Multiplexing: epoll(7). poll's listen FDVAR machinery binds an fd
  * into the caller's shell so bash arithmetic redirections can drive
  * it; we don't need that here because the whole transfer happens
@@ -41,6 +52,7 @@
 #  include <unistd.h>
 #endif
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,14 +63,16 @@
 #include <netdb.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/un.h>
 #include <time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
 #include "loadables.h"
 
-#define BASHNC_VERSION "0.1 (TCP/UDP + -z scan; multiplex via epoll)"
+#define BASHNC_VERSION "0.2 (TCP/UDP/unix + -z scan; multiplex via epoll)"
 
 #define BNC_IO_BUF 4096
 
@@ -145,6 +159,47 @@ bnc_set_nonblock (int fd, int on)
   if (on) flags |= O_NONBLOCK;
   else    flags &= ~O_NONBLOCK;
   return fcntl (fd, F_SETFL, flags);
+}
+
+/* Fill a sockaddr_un for the socket file PATH (-U). */
+static int
+bnc_unix_addr (const char *path, struct sockaddr_un *sun, socklen_t *len)
+{
+  size_t n = strlen (path);
+  memset (sun, 0, sizeof *sun);
+  sun->sun_family = AF_UNIX;
+  if (n == 0 || n >= sizeof sun->sun_path)
+    {
+      builtin_error ("%s: %s", path, strerror (n ? ENAMETOOLONG : ENOENT));
+      return -1;
+    }
+  memcpy (sun->sun_path, path, n);
+  *len = (socklen_t) (offsetof (struct sockaddr_un, sun_path) + n + 1);
+  return 0;
+}
+
+/* A connected (stream) or autobound (datagram) socket for PATH, or -1. */
+static int
+bnc_unix_client (const char *path, int udp, struct sockaddr_un *sun, socklen_t *len)
+{
+  if (bnc_unix_addr (path, sun, len) < 0) return -1;
+  int fd = socket (AF_UNIX, (udp ? SOCK_DGRAM : SOCK_STREAM) | SOCK_CLOEXEC, 0);
+  if (fd < 0) { builtin_error ("socket: %s", strerror (errno)); return -1; }
+  if (udp)
+    {
+      /* Binding only the family autobinds an abstract name (Linux), so the
+       * listener sees a source address it can reply to. */
+      sa_family_t fam = AF_UNIX;
+      if (bind (fd, (struct sockaddr *) &fam, sizeof fam) < 0)
+        { builtin_error ("bind: %s", strerror (errno)); close (fd); return -1; }
+      return fd;
+    }
+  int rc;
+  do rc = connect (fd, (struct sockaddr *) sun, *len);
+  while (rc < 0 && errno == EINTR);
+  if (rc < 0)
+    { builtin_error ("%s: %s", path, strerror (errno)); close (fd); return -1; }
+  return fd;
 }
 
 /* Write a buffer to fd until done or a fatal error. Loops over EINTR
@@ -413,18 +468,40 @@ bnc_connect (WORD_LIST *args)
 {
   const char *host = NULL;
   const char *port = NULL;
-  int udp = 0;
+  int udp = 0, unix_socket = 0;
   int wait_secs = 0;          /* 0 = no TCP timeout; default UDP drain window */
   for (WORD_LIST *p = args; p; p = p->next)
     {
       const char *w = p->word->word;
       if (strcmp (w, "-u") == 0) udp = 1;
+      else if (strcmp (w, "-U") == 0) unix_socket = 1;
       else if (strcmp (w, "-w") == 0)
         { if (!p->next) { builtin_error ("-w needs SECS"); return EX_USAGE; }
           p = p->next; if (bnc_wait_arg (p->word->word, &wait_secs) < 0) return EX_USAGE; }
       else if (!host) host = w;
       else if (!port) port = w;
       else { builtin_error ("connect: extra arg %s", w); return EX_USAGE; }
+    }
+  if (unix_socket)
+    {
+      if (!host) { builtin_error ("connect needs PATH -U [-u] [-w SECS]"); return EX_USAGE; }
+      if (port) { builtin_error ("cannot use port with -U"); return EX_USAGE; }
+      struct sockaddr_un sun;
+      socklen_t sunlen;
+      int fd = bnc_unix_client (host, udp, &sun, &sunlen);
+      if (fd < 0) return EXECUTION_FAILURE;
+      if (wait_secs > 0)
+        {
+          struct timeval tv = { .tv_sec = wait_secs, .tv_usec = 0 };
+          if (setsockopt (fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv) < 0)
+            builtin_warning ("setsockopt SO_SNDTIMEO: %s", strerror (errno));
+        }
+      struct sockaddr_storage peer;
+      memset (&peer, 0, sizeof peer);
+      memcpy (&peer, &sun, sunlen);
+      int rc = udp ? bnc_udp_pump (fd, &peer, sunlen, wait_secs) : bnc_tcp_pump (fd, wait_secs);
+      close (fd);
+      return rc;
     }
   if (!host || !port) { builtin_error ("connect needs HOST PORT [-u] [-w SECS]"); return EX_USAGE; }
   int port_number;
@@ -476,12 +553,13 @@ bnc_listen (WORD_LIST *args)
 {
   const char *port = NULL;
   const char *addr = NULL;
-  int udp = 0;
+  int udp = 0, unix_socket = 0;
   int wait_secs = 0;
   for (WORD_LIST *p = args; p; p = p->next)
     {
       const char *w = p->word->word;
       if (strcmp (w, "-u") == 0) udp = 1;
+      else if (strcmp (w, "-U") == 0) unix_socket = 1;
       else if (strcmp (w, "-s") == 0 || strcmp (w, "-a") == 0)
         { if (!p->next || p->next->word->word[0] == '-')
             { builtin_error ("%s needs ADDR", w); return EX_USAGE; }
@@ -492,23 +570,42 @@ bnc_listen (WORD_LIST *args)
       else if (!port) port = w;
       else { builtin_error ("listen: extra arg %s", w); return EX_USAGE; }
     }
-  if (!port) { builtin_error ("listen needs PORT -s ADDR [-u] [-w SECS]"); return EX_USAGE; }
-  if (!addr) { builtin_error ("listen needs explicit -s ADDR"); return EX_USAGE; }
-  int port_number;
-  if (bnc_number (port, 1, 65535, &port_number) < 0)
-    { builtin_error ("listen: invalid port %s", port); return EX_USAGE; }
-
+  int sktype = udp ? SOCK_DGRAM : SOCK_STREAM;
   struct sockaddr_storage ss;
   socklen_t sl;
   int fam;
-  int sktype = udp ? SOCK_DGRAM : SOCK_STREAM;
-  if (bnc_resolve (addr, port, sktype, /*passive*/ 1, &ss, &sl, &fam) < 0)
-    return EXECUTION_FAILURE;
+  if (unix_socket)
+    {
+      /* nc listen PATH -U: the operand is the socket file. */
+      if (!port) { builtin_error ("listen needs PATH -U [-u] [-w SECS]"); return EX_USAGE; }
+      if (addr) { builtin_error ("cannot use -s with -U"); return EX_USAGE; }
+      struct sockaddr_un sun;
+      if (bnc_unix_addr (port, &sun, &sl) < 0) return EXECUTION_FAILURE;
+      /* Replace a stale socket file as netcat-openbsd does; never remove
+       * a regular file or anything else that is not a socket. */
+      struct stat st;
+      if (lstat (port, &st) == 0 && S_ISSOCK (st.st_mode) && unlink (port) < 0)
+        { builtin_error ("%s: %s", port, strerror (errno)); return EXECUTION_FAILURE; }
+      memset (&ss, 0, sizeof ss);
+      memcpy (&ss, &sun, sl);
+      fam = AF_UNIX;
+      addr = port;
+    }
+  else
+    {
+      if (!port) { builtin_error ("listen needs PORT -s ADDR [-u] [-w SECS]"); return EX_USAGE; }
+      if (!addr) { builtin_error ("listen needs explicit -s ADDR"); return EX_USAGE; }
+      int port_number;
+      if (bnc_number (port, 1, 65535, &port_number) < 0)
+        { builtin_error ("listen: invalid port %s", port); return EX_USAGE; }
+      if (bnc_resolve (addr, port, sktype, /*passive*/ 1, &ss, &sl, &fam) < 0)
+        return EXECUTION_FAILURE;
+    }
 
   int fd = socket (fam, sktype | SOCK_CLOEXEC, 0);
   if (fd < 0) { builtin_error ("socket: %s", strerror (errno)); return EXECUTION_FAILURE; }
   int yes = 1;
-  if (setsockopt (fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) < 0)
+  if (!unix_socket && setsockopt (fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) < 0)
     builtin_warning ("setsockopt SO_REUSEADDR: %s", strerror (errno));
 
   if (wait_secs > 0)
@@ -521,7 +618,8 @@ bnc_listen (WORD_LIST *args)
     }
 
   if (bind (fd, (struct sockaddr *) &ss, sl) < 0)
-    { builtin_error ("bind %s:%s: %s", addr, port, strerror (errno));
+    { if (unix_socket) builtin_error ("%s: %s", port, strerror (errno));
+      else builtin_error ("bind %s:%s: %s", addr, port, strerror (errno));
       close (fd); return EXECUTION_FAILURE; }
 
   if (!udp)
@@ -592,18 +690,32 @@ bnc_scan (WORD_LIST *args)
   const char *host = NULL;
   int first = -1, last = -1;
   int wait_secs = 1;
+  int unix_socket = 0;
   for (WORD_LIST *p = args; p; p = p->next)
     {
       const char *w = p->word->word;
       if (strcmp (w, "-w") == 0)
         { if (!p->next) { builtin_error ("-w needs SECS"); return EX_USAGE; }
           p = p->next; if (bnc_wait_arg (p->word->word, &wait_secs) < 0) return EX_USAGE; }
+      else if (strcmp (w, "-U") == 0) unix_socket = 1;
+      else if (unix_socket && host) { builtin_error ("cannot use port with -U"); return EX_USAGE; }
       else if (!host) host = w;
       else if (first < 0)
         { if (bnc_number (w, 1, 65535, &first) < 0) { builtin_error ("scan: invalid port %s", w); return EX_USAGE; } }
       else if (last < 0)
         { if (bnc_number (w, 1, 65535, &last) < 0) { builtin_error ("scan: invalid port %s", w); return EX_USAGE; } }
       else { builtin_error ("scan: extra arg %s", w); return EX_USAGE; }
+    }
+  if (unix_socket)
+    {
+      /* nc -zU PATH: succeed iff PATH accepts a stream connection. */
+      if (!host || first >= 0) { builtin_error ("scan needs PATH -U"); return EX_USAGE; }
+      struct sockaddr_un sun;
+      socklen_t sunlen;
+      int fd = bnc_unix_client (host, 0, &sun, &sunlen);
+      if (fd < 0) return EXECUTION_FAILURE;
+      close (fd);
+      return EXECUTION_SUCCESS;
     }
   if (!host || first < 0)
     { builtin_error ("scan needs HOST FIRST [LAST] [-w SECS]"); return EX_USAGE; }
@@ -651,6 +763,9 @@ char *nc_doc[] = {
   "    nc connect HOST PORT [-u] [-w SECS]   TCP/UDP client",
   "    nc listen  PORT -s ADDR [-u] [-w SECS]   bind + accept-one (TCP) / recv (UDP)",
   "    nc scan    HOST FIRST [LAST] [-w SECS]   -z TCP port scan",
+  "    nc connect PATH -U [-u] [-w SECS]     unix-domain stream/datagram client",
+  "    nc listen  PATH -U [-u] [-w SECS]     unix-domain listener on socket file PATH",
+  "    nc scan    PATH -U                    test that PATH accepts a connection",
   "    nc --version",
   "-w bounds TCP connect/accept, writes and idle reads (timeout returns 1);",
   "for UDP it sets the reply drain window after stdin EOF. Zero uses defaults.",
@@ -659,6 +774,8 @@ char *nc_doc[] = {
   "explicit `-s ADDR`; use `-s 127.0.0.1` for loopback or `-s 0.0.0.0`",
   "to expose externally. v1 always exits after the first connection (no -k);",
   "SOCKS proxy, TLS, broker mode, and named-pipe wiring are deferred.",
+  "-U (netcat-openbsd): the listener replaces a stale socket file at PATH,",
+  "never another kind of file, and leaves its socket file behind.",
   (char *) NULL
 };
 

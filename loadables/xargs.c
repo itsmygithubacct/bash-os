@@ -3,8 +3,9 @@
  * Phase A.4 of bash-os shell-ergonomics. Reads arguments from stdin
  * and runs CMD with them in batches.
  *
- *   bashxargs [-0] [-r] [-t] [-p] [-n MAX] [-L MAX] [-P MAX]
- *             [-s SIZE] [-I REPL] CMD [ARG...]
+ *   bashxargs [-0] [-r] [-t] [-p] [-o] [-a FILE] [-E EOF] [-n MAX]
+ *             [-L MAX] [-P MAX] [-s SIZE] [-I REPL]
+ *             [--process-slot-var=NAME] CMD [ARG...]
  *
  *   -0       NUL-separated input (pairs with `bashfind ... -print0`)
  *   -r       no-run-if-empty
@@ -19,6 +20,14 @@
  *            Overrides the internal min(ARG_MAX/2, 65536) heuristic.
  *   -I REPL  substitute REPL with each input arg, run CMD once per
  *            input (implies -n 1)
+ *   -a FILE, --arg-file=FILE  read the items from FILE; the commands
+ *            then keep the shell's standard input instead of /dev/null
+ *   -E EOF   logical end of input: an item (with -I, a line) equal to EOF
+ *            ends the input. -e[EOF] / --eof[=EOF] is the older spelling;
+ *            without EOF it disables the string. Ignored with -0 / -d.
+ *   -o, --open-tty  give each command /dev/tty as its standard input
+ *   --process-slot-var=NAME  export NAME to each command, set to its
+ *            parallel slot number (0 .. -P MAX minus one), as GNU xargs
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c.
@@ -30,6 +39,7 @@
 #endif
 
 #include <stdio.h>
+#include <stdio_ext.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -105,6 +115,11 @@ extern FILE _IO_2_1_stdin_ __attribute__ ((weak));
 #define BX_NOEXEC     126
 #define BX_NOTFOUND   127
 #define BX_BAD        1
+
+/* Standard input given to each command. */
+#define BX_STDIN_NULL 0         /* GNU default: /dev/null */
+#define BX_STDIN_KEEP 1         /* -a FILE: the shell's own standard input */
+#define BX_STDIN_TTY  2         /* -o: /dev/tty */
 
 /* Promote `cur` to `add` if `add` is "worse." The ordering reflects
    POSIX-ish severity (not numeric): notfound/noexec/signaled/fatal_255
@@ -406,6 +421,10 @@ typedef struct {
     int stdin_ready;            /* 1: descriptors below are open; -1: unavailable */
     int stdin_copy;             /* the shell's standard input, or -1 when closed */
     int null_fd;                /* /dev/null, given to each command */
+    int stdin_mode;             /* BX_STDIN_NULL, _KEEP (-a) or _TTY (-o) */
+    const char *slot_name;      /* --process-slot-var NAME, or NULL */
+    int slot_value;             /* slot of the command being launched */
+    int *slots;                 /* -P pool: slot of each running command */
 #if defined (_POSIX_SPAWN) && _POSIX_SPAWN >= 0
     posix_spawnattr_t attr;
 #endif
@@ -1005,11 +1024,13 @@ unavailable:
 static int
 bx_stdin_detach (bx_spawn_state *state)
 {
+    if (state->stdin_mode == BX_STDIN_KEEP) return 0;
     if (!state->stdin_ready) {
         state->stdin_ready = -1;
         int copy = fcntl (STDIN_FILENO, F_DUPFD_CLOEXEC, 10);
         if (copy >= 0 || errno == EBADF) {
-            int opened = open ("/dev/null", O_RDONLY | O_CLOEXEC);
+            int opened = open (state->stdin_mode == BX_STDIN_TTY ? "/dev/tty" : "/dev/null",
+                               O_RDONLY | O_CLOEXEC);
             int null_fd = opened < 0 ? -1 : fcntl (opened, F_DUPFD_CLOEXEC, 10);
             if (opened >= 0) close (opened);
             if (null_fd >= 0) {
@@ -1021,6 +1042,37 @@ bx_stdin_detach (bx_spawn_state *state)
         }
     }
     return state->stdin_ready > 0 && dup2 (state->null_fd, STDIN_FILENO) == STDIN_FILENO;
+}
+
+/* --process-slot-var: Bash's export environment with NAME=SLOT in place of
+   any inherited NAME. The vector borrows Bash's strings; only the vector
+   and the NAME=SLOT entry belong to the caller. */
+static char **
+bx_slot_env (const bx_spawn_state *state)
+{
+    size_t name_len = strlen (state->slot_name), n = 0;
+    while (export_env && export_env[n]) n++;
+    char **env = malloc ((n + 2) * sizeof *env);
+    char *entry = malloc (name_len + 24);
+    if (!env || !entry) { free (env); free (entry); return NULL; }
+    snprintf (entry, name_len + 24, "%s=%d", state->slot_name, state->slot_value);
+    size_t used = 0;
+    for (size_t i = 0; i < n; i++)
+        if (strncmp (export_env[i], entry, name_len + 1) != 0)
+            env[used++] = export_env[i];
+    env[used++] = entry;
+    env[used] = NULL;
+    return env;
+}
+
+static void
+bx_slot_env_free (char **env)
+{
+    if (!env) return;
+    size_t n = 0;
+    while (env[n]) n++;
+    free (env[n - 1]);
+    free (env);
 }
 
 static void
@@ -1044,6 +1096,16 @@ bx_launch (char **argv, const sigset_t *mask, bx_spawn_state *state)
         return -1;
 #endif
     maybe_make_export_env ();
+    /* --process-slot-var: every launch path reads export_env while it
+       starts the child, so lend it the slot environment for that window. */
+    char **slot_env = NULL, **shell_env = export_env;
+    char slot_text[24];
+    if (state->slot_name) {
+        slot_env = bx_slot_env (state);
+        if (!slot_env) { errno = ENOMEM; return -1; }
+        snprintf (slot_text, sizeof slot_text, "%d", state->slot_value);
+        export_env = slot_env;
+    }
     /* Only the ordinary active interval excludes every parent output or
        callback between launches. Retry both streams after any failed flush
        and after every invalidation; the first launch always flushes. */
@@ -1062,17 +1124,28 @@ bx_launch (char **argv, const sigset_t *mask, bx_spawn_state *state)
     int launched = bx_try_spawn_external (&pid, argv, mask, state);
     if (launched != 0) {
         bx_stdin_attach (state, detached);
+        export_env = shell_env;
+        bx_slot_env_free (slot_env);
         return launched > 0 ? pid : -1;
     }
     /* fork may run application-registered parent atfork callbacks. */
     if (bx_end_mask_interval (state) < 0) {
         bx_stdin_attach (state, detached);
+        export_env = shell_env;
+        bx_slot_env_free (slot_env);
         return -1;
     }
     pid = fork ();
     if (pid == 0) {
         bos_prepare_child ();
         sigprocmask (SIG_SETMASK, mask, NULL);
+        if (state->slot_name) {
+            /* A builtin reads the shell variable; a program the environment. */
+            extern char **environ;
+            SHELL_VAR *slot = bind_variable (state->slot_name, slot_text, 0);
+            if (slot) VSETATTR (slot, att_exported);
+            environ = slot_env;
+        }
         bos_run_builtin (argv[0], argv, NULL);
         execvp (argv[0], argv);
         int code = (errno == ENOENT || errno == ENOTDIR) ? 127 : 126;
@@ -1080,6 +1153,8 @@ bx_launch (char **argv, const sigset_t *mask, bx_spawn_state *state)
         _exit (code);
     }
     bx_stdin_attach (state, detached);
+    export_env = shell_env;
+    bx_slot_env_free (slot_env);
     return pid;
 }
 
@@ -1175,6 +1250,7 @@ bx_record_spawn (pid_t pid, const char *cmd, pid_t *pids, char **cmds,
                  int *count, const bx_spawn_state *state)
 {
     pids[*count] = pid;
+    if (state->slots) state->slots[*count] = state->slot_value;
     cmds[(*count)++] = state->mask_error ? NULL : strdup (cmd);
 }
 
@@ -1226,6 +1302,7 @@ bx_wait_one (pid_t *pids, char **cmds, int *n_pids, int *fatal,
             free (cmds[i]);
             pids[i] = pids[*n_pids - 1];
             cmds[i] = cmds[*n_pids - 1];
+            if (state->slots) state->slots[i] = state->slots[*n_pids - 1];
             (*n_pids)--;
             if (bx_is_fatal (rc)) *fatal = 1;
             return rc;
@@ -1237,6 +1314,35 @@ bx_wait_one (pid_t *pids, char **cmds, int *n_pids, int *fatal,
     return BX_OK;
 }
 
+/* The lowest slot no running command holds (GNU reuses freed slots). */
+static void
+bx_pick_slot (bx_spawn_state *state, int running)
+{
+    if (!state->slots) return;
+    for (int slot = 0; ; slot++) {
+        int used = 0;
+        for (int i = 0; i < running && !used; i++) used = state->slots[i] == slot;
+        if (!used) { state->slot_value = slot; return; }
+    }
+}
+
+/* Set when an -E end string stopped the reading. */
+static int bx_eof_seen;
+
+static void
+bx_close_input (void *fp)
+{
+    FILE **in = fp;
+    if (*in && *in != stdin) fclose (*in);
+    /* Input after an -E end string is never read by GNU xargs, so it must
+       not reach the next builtin reader from stdin's buffer. An exit-255
+       stop keeps the unread input: the next reader of the same file sees it,
+       as it would see the rest of the file after a separate xargs process. */
+    else if (*in == stdin && bx_eof_seen) __fpurge (stdin);
+    *in = NULL;
+    bx_eof_seen = 0;
+}
+
 int
 xargs_builtin (WORD_LIST *list)
 {
@@ -1245,8 +1351,14 @@ xargs_builtin (WORD_LIST *list)
     /* Reading stdin in the shell process leaves the EOF flag set for the next
        invocation, which would then build no command lines and exit 0. */
     clearerr (stdin);
+    bx_eof_seen = 0;
     long s_flag = 0;          /* -s SIZE: 0 = unset (use default cap). */
     char *Iflag = NULL;
+    const char *arg_file = NULL;  /* -a FILE */
+    const char *eof_str = NULL;   /* -E EOF */
+    const char *slot_var = NULL;  /* --process-slot-var NAME */
+    int open_tty = 0;             /* -o */
+    FILE *in = stdin;
 
     /* Parse flags. */
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
@@ -1274,6 +1386,54 @@ xargs_builtin (WORD_LIST *list)
             }
             delimiter = bx_delimiter (arg);
             if (delimiter < 0) { builtin_error ("invalid input delimiter: %s", arg); return EXECUTION_FAILURE; }
+            list = list->next; continue;
+        }
+        if (w[1] == 'a' || !strcmp (w, "--arg-file") || !strncmp (w, "--arg-file=", 11)) {
+            if (w[1] == 'a' && w[2]) arg_file = w + 2;
+            else if (w[1] == '-' && w[10] == '=') arg_file = w + 11;
+            else {
+                if (!list->next) { builtin_error ("option requires an argument -- 'a'"); return EXECUTION_FAILURE; }
+                list = list->next;
+                arg_file = list->word->word;
+            }
+            list = list->next; continue;
+        }
+        if (w[1] == 'E') {
+            const char *arg = w + 2;
+            if (!*arg) {
+                if (!list->next) { builtin_error ("option requires an argument -- 'E'"); return EXECUTION_FAILURE; }
+                list = list->next;
+                arg = list->word->word;
+            }
+            eof_str = *arg ? arg : NULL;
+            list = list->next; continue;
+        }
+        /* -e[EOF] and --eof[=EOF] take an optional attached string only. */
+        if (w[1] == 'e' || !strcmp (w, "--eof") || !strncmp (w, "--eof=", 6)) {
+            const char *arg = w[1] == 'e' ? w + 2 : (w[5] == '=' ? w + 6 : "");
+            eof_str = *arg ? arg : NULL;
+            list = list->next; continue;
+        }
+        if (!strcmp (w, "-o") || !strcmp (w, "--open-tty")) {
+            open_tty = 1; list = list->next; continue;
+        }
+        if (!strcmp (w, "--process-slot-var") || !strncmp (w, "--process-slot-var=", 19)) {
+            if (w[18] == '=') slot_var = w + 19;
+            else {
+                if (!list->next) { builtin_error ("option '--process-slot-var' requires an argument"); return EXECUTION_FAILURE; }
+                list = list->next;
+                slot_var = list->word->word;
+            }
+            /* GNU's two diagnostics; it reports an empty NAME only when
+               unsetenv fails before the first command. */
+            if (strchr (slot_var, '=')) {
+                builtin_error ("option --process-slot-var may not be set to a value which includes `='");
+                return EXECUTION_FAILURE;
+            }
+            if (!*slot_var) {
+                builtin_error ("failed to unset environment variable : %s", strerror (EINVAL));
+                return EXECUTION_FAILURE;
+            }
             list = list->next; continue;
         }
         if (!strcmp (w, "-r")) { rflag = 1; list = list->next; continue; }
@@ -1406,6 +1566,12 @@ xargs_builtin (WORD_LIST *list)
         return EX_USAGE;
     }
 
+    if (eof_str && delimiter >= 0) {
+        /* GNU's message carries its own newline, so a blank line follows. */
+        builtin_error ("warning: the -E option has no effect if -0 or -d is used.\n");
+        eof_str = NULL;
+    }
+
     /* Build template argv. Default if no CMD: /bin/echo. */
     int tmpl_n = 0;
     for (WORD_LIST *p = list; p; p = p->next) tmpl_n++;
@@ -1427,10 +1593,16 @@ xargs_builtin (WORD_LIST *list)
     }
 
     bx_spawn_state spawn_state = { 0 };
+    /* GNU: with -a the commands keep xargs' own standard input. */
+    spawn_state.stdin_mode = open_tty ? BX_STDIN_TTY
+                           : arg_file ? BX_STDIN_KEEP : BX_STDIN_NULL;
+    spawn_state.slot_name = slot_var;
 #if defined (BX_PRIVATE_SPAWN)
     /* Formatted trace/prompt output and continuing parallel diagnostics
        can invoke application-registered printf conversion callbacks. */
     if (tflag || pflag || max_p > 1) spawn_state.clone_default_scan = -1;
+    /* Per-launch slot environments must not reuse a cached snapshot. */
+    if (slot_var) spawn_state.clone_default_scan = -1;
 #endif
     bx_batch_buffers buffers = { 0 };
     int rc = BX_OK;
@@ -1445,8 +1617,9 @@ xargs_builtin (WORD_LIST *list)
     if (parallel) {
         pool_pids = calloc ((size_t) max_p, sizeof *pool_pids);
         pool_cmds = calloc ((size_t) max_p, sizeof *pool_cmds);
-        if (!pool_pids || !pool_cmds) {
-            free (pool_pids); free (pool_cmds); free (tmpl);
+        if (slot_var) spawn_state.slots = calloc ((size_t) max_p, sizeof *spawn_state.slots);
+        if (!pool_pids || !pool_cmds || (slot_var && !spawn_state.slots)) {
+            free (pool_pids); free (pool_cmds); free (spawn_state.slots); free (tmpl);
             return BX_BAD;
         }
     }
@@ -1463,6 +1636,26 @@ xargs_builtin (WORD_LIST *list)
     add_unwind_protect (bx_spawn_state_cleanup, &spawn_state);
     add_unwind_protect (bx_batch_buffers_cleanup, &buffers);
     add_unwind_protect (bx_mask_interval_cleanup, &spawn_state);
+    add_unwind_protect (bx_close_input, &in);
+    if (arg_file && strcmp (arg_file, "-") != 0) {
+        in = fopen (arg_file, "re");
+        if (!in) {
+            builtin_error ("Cannot open input file '%s': %s", arg_file, strerror (errno));
+            rc = BX_BAD;
+            goto cleanup;
+        }
+    }
+    /* -o: GNU opens /dev/tty for each command; failing to open it here
+       reports the same error before any command runs. */
+    if (open_tty) {
+        int tty = open ("/dev/tty", O_RDONLY | O_CLOEXEC);
+        if (tty < 0) {
+            builtin_error ("'/dev/tty': %s", strerror (errno));
+            rc = BX_BAD;
+            goto cleanup;
+        }
+        close (tty);
+    }
     sigemptyset (&block_chld);
     sigaddset (&block_chld, SIGCHLD);
     if (sigprocmask (SIG_BLOCK, &block_chld, NULL) < 0) {
@@ -1483,7 +1676,9 @@ xargs_builtin (WORD_LIST *list)
         /* -I REPL: run CMD once per input, with REPL replaced by the input. */
         char *arg;
         int read_error = 0;
-        while ((arg = bx_read_arg (stdin, delimiter, 1, &read_error)) != NULL) {
+        while ((arg = bx_read_arg (in, delimiter, 1, &read_error)) != NULL) {
+            /* -E: with -I a whole input line is compared. */
+            if (eof_str && !strcmp (arg, eof_str)) { free (arg); bx_eof_seen = 1; break; }
             got_any = 1;
             char **argv = malloc ((size_t) (tmpl_n + 1) * sizeof *argv);
             if (!argv) { free (arg); break; }
@@ -1555,6 +1750,7 @@ xargs_builtin (WORD_LIST *list)
                         if (pool_fatal) break;
                     }
                     if (!pool_fatal) {
+                        bx_pick_slot (&spawn_state, pool_n);
                         pid_t pid = bx_spawn (argv, tmpl_n, tflag && !pflag, &spawn_state);
                         if (pid < 0) { r = BX_BAD; rc = bx_fold (rc, r); }
                         else bx_record_spawn (pid, argv[0], pool_pids, pool_cmds,
@@ -1622,10 +1818,12 @@ xargs_builtin (WORD_LIST *list)
            whether the preceding batch must run, including fatal stops.
            Swapping its storage with each slot reuses argument capacities
            without copying bytes or overwriting the batch being launched. */
-        while ((arg = bx_read_arg_into (stdin, delimiter, 0, &read_error,
+        while ((arg = bx_read_arg_into (in, delimiter, 0, &read_error,
                                        &buffers.lookahead,
                                        bx_plain_span_allowed (&spawn_state),
                                        &input, &arg_line)) != NULL) {
+            /* -E: GNU compares each unquoted item and stops reading there. */
+            if (eof_str && !strcmp (arg, eof_str)) { bx_eof_seen = 1; break; }
             got_any = 1;
             size_t alen = strlen (arg) + 1;
             int flush = 0;
@@ -1660,6 +1858,7 @@ xargs_builtin (WORD_LIST *list)
                             if (pool_fatal) break;
                         }
                         if (!pool_fatal) {
+                            bx_pick_slot (&spawn_state, pool_n);
                             pid_t pid = bx_spawn (argv, total, tflag && !pflag, &spawn_state);
                             if (pid < 0) { r = BX_BAD; rc = bx_fold (rc, r); }
                             else bx_record_spawn (pid, argv[0], pool_pids, pool_cmds,
@@ -1727,6 +1926,7 @@ xargs_builtin (WORD_LIST *list)
                         if (pool_fatal) break;
                     }
                     if (!pool_fatal) {
+                        bx_pick_slot (&spawn_state, pool_n);
                         pid_t pid = bx_spawn (argv, total, tflag && !pflag, &spawn_state);
                         if (pid < 0) { r = BX_BAD; rc = bx_fold (rc, r); }
                         else bx_record_spawn (pid, argv[0], pool_pids, pool_cmds,
@@ -1783,6 +1983,8 @@ cleanup:
     if (parallel) {
         free (pool_pids);
         free (pool_cmds);
+        free (spawn_state.slots);
+        spawn_state.slots = NULL;
     }
 
     /* GNU exits 1 at once; here the commands already started were waited for. */
@@ -1798,8 +2000,9 @@ char *xargs_doc[] = {
     "Run an enabled builtin or external command for each argument batch.",
     "Build and run command lines from stdin.",
     "",
-    "    bashxargs [-0rtp] [-d DELIM] [-n MAX] [-L MAX] [-P MAX] [-s SIZE]",
-    "              [-I REPL] [CMD [ARG...]]",
+    "    bashxargs [-0rtpo] [-a FILE] [-E EOF] [-d DELIM] [-n MAX] [-L MAX]",
+    "              [-P MAX] [-s SIZE] [-I REPL] [--process-slot-var=NAME]",
+    "              [CMD [ARG...]]",
     "    bashxargs --help | --version",
     "",
     "    -d DELIM, --delimiter=DELIM  split literal items at the given byte",
@@ -1812,6 +2015,12 @@ char *xargs_doc[] = {
     "    -P MAX    run up to MAX invocations in parallel",
     "    -s SIZE   max command-line bytes per invocation (POSIX/GNU)",
     "    -I REPL   substitute REPL with input arg; run once per input",
+    "    -a FILE, --arg-file=FILE  read items from FILE, not standard input;",
+    "              the commands keep the standard input (else /dev/null)",
+    "    -E EOF    stop at an input item (with -I, a line) equal to EOF;",
+    "              -e[EOF], --eof[=EOF] is the old form (no EOF: none)",
+    "    -o, --open-tty  reopen /dev/tty as each command's standard input",
+    "    --process-slot-var=NAME  set NAME to the command's -P slot number",
     (char *)NULL
 };
 
@@ -1820,6 +2029,6 @@ struct builtin bashxargs_struct = {
     xargs_builtin,
     BUILTIN_ENABLED,
     xargs_doc,
-    "bashxargs [-0rtp] [-d DELIM] [-n MAX] [-L MAX] [-P MAX] [-s SIZE] [-I REPL] [CMD [ARG...]]",
+    "bashxargs [-0rtpo] [-a FILE] [-E EOF] [-d DELIM] [-n MAX] [-L MAX] [-P MAX] [-s SIZE] [-I REPL] [--process-slot-var=NAME] [CMD [ARG...]]",
     0
 };

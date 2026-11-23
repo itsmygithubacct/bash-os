@@ -8,7 +8,8 @@
     "Multiple relative file operands in redirected-output mode, compared with GNU less, including any headers in the actual command output.",
     "Bash builtin type metadata and the loadable's registered help synopsis/options and interactive-key documentation.",
     "Empty named files, binary bytes spanning operand boundaries, and explicit stdin operands in redirected plain-output mode.",
-    "Missing operands in redirected plain-output mode: exact stdout diagnostics, zero status, continuation through later private files and same-shell recovery."
+    "Missing operands in redirected plain-output mode: exact stdout diagnostics, zero status, continuation through later private files and same-shell recovery.",
+    "Guest pass 4 G60: less(1)'s options (-R -r -X -E -e -i -M -m -x N -p PAT -s -N -S, clusters such as -FRX, long names and unique prefixes, +G, +/PAT, +N, options after file names) and the LESS variable leave non-terminal output a plain copy; unknown options and missing values are reported as less reports them, with status 0."
   ],
   "exclusions": [
     "Interactive paging, search, resize, terminal restoration, and option behavior tied to terminal geometry are deferred because this runner supplies no PTY driver.",
@@ -126,6 +127,61 @@
       "requires": [
         "less"
       ]
+    },
+    {
+      "id": "options-copy-when-not-a-terminal",
+      "kind": "parity",
+      "purpose": "G60: with output that is not a terminal less copies its input whatever the options: each common option, cluster and +command gives the file's bytes unchanged (colour escapes, tabs and blank lines kept, no line numbers). (A lone -n is bash-os's documented -n LINES page size, so the cluster -Fn stands for less's -n here.)",
+      "requires": [
+        "less"
+      ],
+      "script": "printf 'a\\n\\033[31mred\\033[0m\\n\\tTab\\n\\n\\n\\nend\\n' > c\nfor o in -R -r -X -E -e -i -I -M -m -x4 '-x 4' '-p red' +G '+/red' +3 ++G -FR -FN -FRX -FRSX -N -S -s -c -Q -Fn '-z 5' '-z5' -K -L -w -a -g -G -J -u; do\n  printf '%s: ' \"$o\"\n  less $o c | od -An -c | tr -s ' ' | tr -d '\\n'\n  echo\ndone",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "long-options-and-prefixes",
+      "kind": "parity",
+      "purpose": "G60: long options, values with = or as the next word, unique prefixes; options end at the first file name (later words are files, as in less), and -- comes before a dash-named file.",
+      "requires": [
+        "less"
+      ],
+      "script": "printf 'x\\ty\\n' > f\nprintf 'dash\\n' > ./-f\nless --RAW-CONTROL-CHARS --raw-control-chars --no-init --quit-if-one-screen --quit-at-eof --QUIT-AT-EOF --ignore-case --IGNORE-CASE --chop-long-lines --LINE-NUMBERS --squeeze-blank-lines --pattern=x --tabs 4 --LONG-PROMPT f\nless --pat=x --wind=3 f\nless f -N -S\nless -- -f f",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "less-environment-variable",
+      "kind": "parity",
+      "purpose": "G60: LESS is read before the arguments, as git sets LESS=FRX; with or without dashes, several words, and a $-terminated value.",
+      "requires": [
+        "less"
+      ],
+      "script": "printf 'one\\ntwo\\n' > f\nLESS=FRX less f\nLESS='-R -N' less f\nLESS='-FRSX --no-init' less f\nLESS='-p two$ -i' less f\ncat f | LESS=FRX less",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "unknown-option-reported",
+      "kind": "parity",
+      "purpose": "G60: an unknown option, short (alone or in a cluster) or long, is reported as less words it on standard error and ignored: the file is still copied and the status is 0.",
+      "requires": [
+        "less"
+      ],
+      "script": "printf 'k\\n' > f\nless -Y f\nless -FYX f\nless --foo f\nLESS=-Y less f",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "missing-option-values",
+      "kind": "parity",
+      "purpose": "G60: -p without a value and -z with a non-numeric value are reported as less reports them (the non-number word is consumed); a bad number inside the option's own word (--window=x, -bx, -x4x) ends less quietly with no output, as less does.",
+      "requires": [
+        "less"
+      ],
+      "script": "printf 'k\\n' > f\nless -p < /dev/null\nless -z f\nless -b x f\nless --window=x f\nless -bx f\nless -x4x f\nless --tabs=x f\nless --window x f\nless --pattern < /dev/null\nless -b5 f",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

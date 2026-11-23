@@ -23,6 +23,13 @@
  *      options, so `-ts :`, `-s:`, and `-o::` are accepted.
  *      Non-table mode supports `-S N` / `--use-spaces=N` as the
  *      util-linux no-tabs layout knob.
+ *      Cells are padded by display width: wcwidth(3) under a multibyte
+ *      locale (an invalid byte counts one column), bytes under C.
+ *      -N NAMES / --table-columns=NAMES (comma-separated) prints a header
+ *      row. -J / --json prints the table as util-linux JSON instead: keys
+ *      are the -N names in ASCII lower case, the array is -n NAME /
+ *      --table-name=NAME (default "table"), empty or missing cells are
+ *      null, and a row with more fields than names is an error.
  *
  *   col [-b] [FILE...]
  *      Preserve CTL-H (backspace) overstrike sequences by default. With
@@ -234,6 +241,114 @@ bcol_split (const char *line, size_t len, const char *seps, int sflag,
   return 0;
 }
 
+static size_t bcol_character (const char *s, size_t len, wchar_t *wc, int *valid);
+
+/* Display width of a cell: wcwidth under a multibyte locale, where an
+   invalid byte occupies one column and nonprinting characters none; byte
+   count under a single-byte locale such as C. */
+static size_t
+bcol_width (const char *s)
+{
+  size_t len = strlen (s), width = 0;
+  if (MB_CUR_MAX == 1)
+    return len;
+  for (size_t i = 0; i < len;)
+    {
+      wchar_t wc;
+      int valid;
+      i += bcol_character (s + i, len - i, &wc, &valid);
+      int w = valid ? wcwidth (wc) : 1;
+      if (w > 0)
+        width += (size_t) w;
+    }
+  return width;
+}
+
+/* util-linux JSON string: quote and backslash escaped, C0 controls as \b
+   \f \n \r \t or \u00XX, DEL dropped, and a byte that is not a valid
+   character in the locale written as the text \\xNN. Names (LOWER) are
+   folded to ASCII lower case. */
+static void
+bcol_json_string (const char *s, int lower)
+{
+  size_t len = strlen (s);
+  putchar ('"');
+  for (size_t i = 0; i < len;)
+    {
+      unsigned char c = (unsigned char) s[i];
+      if (c < 0x80 || lower)
+        {
+          if (c == '"' || c == '\\')
+            { putchar ('\\'); putchar (c); }
+          else if (c < 0x20)
+            {
+              const char *named = strchr ("\bb\ff\nn\rr\tt", c);
+              if (named)
+                printf ("\\%c", named[1]);
+              else
+                printf ("\\u%04x", c);
+            }
+          else if (c != 0x7f)
+            putchar (lower && c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c);
+          i++;
+          continue;
+        }
+      wchar_t wc;
+      int valid = 0;
+      size_t n = MB_CUR_MAX > 1 ? bcol_character (s + i, len - i, &wc, &valid) : 1;
+      if (valid)
+        fwrite (s + i, 1, n, stdout);
+      else
+        printf ("\\\\x%02x", c);
+      i += n;
+    }
+  putchar ('"');
+}
+
+/* Split -N NAMES at commas; empty names are skipped (util-linux). */
+static int
+bcol_names (const char *spec, bcol_row *names)
+{
+  const char *p = spec;
+  while (*p)
+    {
+      const char *end = strchr (p, ',');
+      size_t len = end ? (size_t) (end - p) : strlen (p);
+      if (len && bcol_row_push (names, p, len) != 0)
+        return -1;
+      p += len;
+      if (*p == ',')
+        p++;
+    }
+  return 0;
+}
+
+static void
+bcol_json (bcol_row *rows, int n_rows, const bcol_row *names, const char *tname)
+{
+  if (n_rows == 0)
+    return;
+  fputs ("{\n   ", stdout);
+  bcol_json_string (tname, 1);
+  fputs (": [\n", stdout);
+  for (int r = 0; r < n_rows; r++)
+    {
+      fputs (r ? "      },{\n" : "      {\n", stdout);
+      for (int k = 0; k < names->n; k++)
+        {
+          fputs ("         ", stdout);
+          bcol_json_string (names->fields[k], 1);
+          fputs (": ", stdout);
+          if (k < rows[r].n && rows[r].fields[k][0])
+            bcol_json_string (rows[r].fields[k], 0);
+          else
+            fputs ("null", stdout);
+          fputs (k + 1 < names->n ? ",\n" : "\n", stdout);
+        }
+    }
+  fputs ("      }\n   ]\n}\n", stdout);
+}
+
 int
 column_builtin (WORD_LIST *list)
 {
@@ -246,6 +361,9 @@ column_builtin (WORD_LIST *list)
   long use_spaces = -1;
   const char *files[BCOL_MAX_FILES];
   int n_files = 0;
+  int jflag = 0;
+  const char *colnames = NULL;      /* -N NAMES */
+  const char *tname = NULL;         /* -n NAME */
 
   for (WORD_LIST *p = list; p; p = p->next)
     {
@@ -265,6 +383,27 @@ column_builtin (WORD_LIST *list)
         { tflag = 1; continue; }
       if (strcmp (w, "--fillrows") == 0)
         { xflag = 1; continue; }
+      if (strcmp (w, "--json") == 0)
+        { jflag = 1; continue; }
+      if (strncmp (w, "--table-columns=", 16) == 0)
+        { colnames = w + 16; continue; }
+      if (strncmp (w, "--table-name=", 13) == 0)
+        { tname = w + 13; continue; }
+      if (strcmp (w, "--table-columns") == 0 || strcmp (w, "--table-name") == 0)
+        {
+          if (!p->next)
+            {
+              builtin_error ("option '%s' requires an argument", w);
+              builtin_usage ();
+              return EX_USAGE;
+            }
+          if (w[8] == 'c')
+            colnames = p->next->word->word;
+          else
+            tname = p->next->word->word;
+          p = p->next;
+          continue;
+        }
       if (strcmp (w, "--output-width") == 0)
         {
           char *endp = NULL;
@@ -369,6 +508,8 @@ column_builtin (WORD_LIST *list)
                 { tflag = 1; continue; }
               if (*q == 'x')
                 { xflag = 1; continue; }
+              if (*q == 'J')
+                { jflag = 1; continue; }
               if (*q == 'c')
                 {
                   char *endp = NULL;
@@ -418,7 +559,7 @@ column_builtin (WORD_LIST *list)
                     }
                   break;
                 }
-              if (*q == 's' || *q == 'o')
+              if (*q == 's' || *q == 'o' || *q == 'N' || *q == 'n')
                 {
                   const char *arg = q[1] ? q + 1 : NULL;
                   if (!arg)
@@ -434,6 +575,10 @@ column_builtin (WORD_LIST *list)
                     }
                   if (*q == 's')
                     { seps = arg; sflag = 1; }
+                  else if (*q == 'N')
+                    colnames = arg;
+                  else if (*q == 'n')
+                    tname = arg;
                   else
                     outsep = arg;
                   break;
@@ -447,6 +592,21 @@ column_builtin (WORD_LIST *list)
       if (n_files < BCOL_MAX_FILES)
         files[n_files++] = w;
     }
+
+  /* util-linux: the --table-* options need table or JSON output, and JSON
+     needs the column names. */
+  if ((colnames || tname) && !tflag && !jflag)
+    {
+      builtin_error ("option --table required for all --table-*");
+      return EXECUTION_FAILURE;
+    }
+  if (jflag && !colnames)
+    {
+      builtin_error ("option --table-columns or --table-column required for --json");
+      return EXECUTION_FAILURE;
+    }
+  if (jflag)
+    tflag = 1;
 
   if (!tflag)
     {
@@ -552,9 +712,18 @@ columnar_cleanup:
   size_t *colw = NULL;
   int n_cols = 0, cap_cols = 0;
   int rc = EXECUTION_SUCCESS;
-
+  bcol_row names = { 0 };
+  long lineno = 0;
   int n_streams = n_files ? n_files : 1;
   FILE *in_stdin = NULL;
+
+  if (colnames && bcol_names (colnames, &names) != 0)
+    { rc = EXECUTION_FAILURE; goto cleanup; }
+  /* -N in table output: the names form a header row, measured like data
+     and padded through every column; there is one even when NAMES is
+     empty (util-linux). */
+  int header = colnames && !jflag;
+
   for (int fi = 0; fi < n_streams; fi++)
     {
       FILE *fp = bcol_open (n_files ? files[fi] : NULL, &in_stdin);
@@ -562,13 +731,17 @@ columnar_cleanup:
         { rc = EXECUTION_FAILURE; continue; }
       char *line = NULL;
       size_t cap = 0;
-      ssize_t got;
-      while ((got = bcol_getline (fp, &line, &cap)) > 0)
+      ssize_t got = 0;
+      while (header || (got = bcol_getline (fp, &line, &cap)) > 0)
         {
-          if (line[got - 1] == '\n')
-            got--;
-          if (bcol_blank (line, (size_t) got))
-            continue;
+          if (!header)
+            {
+              lineno++;
+              if (line[got - 1] == '\n')
+                got--;
+              if (bcol_blank (line, (size_t) got))
+                continue;
+            }
           if (n_rows >= cap_rows)
             {
               int nc = cap_rows ? cap_rows * 2 : 16;
@@ -580,8 +753,26 @@ columnar_cleanup:
           rows[n_rows].fields = NULL;
           rows[n_rows].n = 0;
           rows[n_rows].cap = 0;
-          if (bcol_split (line, (size_t) got, seps, sflag, &rows[n_rows]) != 0)
-            { rc = EXECUTION_FAILURE; goto cleanup; }
+          if (header)
+            {
+              header = 0;
+              for (int k = 0; k < names.n; k++)
+                if (bcol_row_push (&rows[n_rows], names.fields[k], strlen (names.fields[k])) != 0)
+                  { n_rows++; rc = EXECUTION_FAILURE; goto cleanup; }
+            }
+          else if (bcol_split (line, (size_t) got, seps, sflag, &rows[n_rows]) != 0)
+            { n_rows++; rc = EXECUTION_FAILURE; goto cleanup; }
+          /* util-linux numbers the line one past the input line. */
+          if (jflag && rows[n_rows].n > names.n)
+            {
+              builtin_error ("line %ld: for JSON the name of the column %d is required",
+                             lineno + 1, names.n + 1);
+              n_rows++;
+              rc = EXECUTION_FAILURE;
+              free (line);
+              if (fp != in_stdin) fclose (fp);
+              goto cleanup;
+            }
           if (rows[n_rows].n > n_cols)
             {
               int newn = rows[n_rows].n;
@@ -599,7 +790,7 @@ columnar_cleanup:
             }
           for (int k = 0; k < rows[n_rows].n; k++)
             {
-              size_t w = strlen (rows[n_rows].fields[k]);
+              size_t w = bcol_width (rows[n_rows].fields[k]);
               if (w > colw[k])
                 colw[k] = w;
             }
@@ -611,7 +802,13 @@ columnar_cleanup:
       if (fp != in_stdin) fclose (fp);
     }
 
-  for (int r = 0; r < n_rows; r++)
+  if (jflag)
+    {
+      if (rc == EXECUTION_SUCCESS)
+        bcol_json (rows, n_rows, &names, tname ? tname : "table");
+      n_cols = 0;
+    }
+  for (int r = 0; r < n_rows && !jflag; r++)
     {
       for (int k = 0; k < n_cols; k++)
         {
@@ -619,7 +816,7 @@ columnar_cleanup:
           fputs (field, stdout);
           if (k + 1 < n_cols)
             {
-              size_t pad = colw[k] - strlen (field);
+              size_t pad = colw[k] - bcol_width (field);
               for (size_t p = 0; p < pad; p++) putchar (' ');
               fputs (outsep, stdout);
             }
@@ -630,6 +827,7 @@ columnar_cleanup:
 cleanup:
   if (in_stdin)
     fclose (in_stdin);
+  bcol_row_free (&names);
   for (int r = 0; r < n_rows; r++)
     bcol_row_free (&rows[r]);
   free (rows);
@@ -900,7 +1098,8 @@ char *column_doc[] = {
   "Aligned-column formatter (util-linux column subset).",
   "",
   "    column [-x] [-c WIDTH] [FILE...]",
-  "    column -t [-s SEPSTR] [-o OUTSTR] [FILE...]",
+  "    column -t [-s SEPSTR] [-o OUTSTR] [-N NAMES] [FILE...]",
+  "    column -J -N NAMES [-n NAME] [-s SEPSTR] [FILE...]",
   "    column --help | --version",
   "",
   "  -t          table mode",
@@ -911,11 +1110,18 @@ char *column_doc[] = {
   "              empty fields between consecutive separators)",
   "  -o OUTSTR   column join string (default '  ')",
   "              getopt-style -ts:, -s:, and -o:: forms are accepted",
+  "  -N NAMES, --table-columns=NAMES",
+  "              comma-separated column names: a header row with -t,",
+  "              the keys (in lower case) with -J",
+  "  -J, --json  print the table as JSON; empty cells are null",
+  "  -n NAME, --table-name=NAME",
+  "              JSON table name (default table)",
   "  --help      show usage",
   "  --version   show version",
   "",
   "Non-table mode formats each input line as one item.",
   "In table mode without -s, runs of whitespace collapse into one separator.",
+  "Cells are padded by display width (wcwidth) in a UTF-8 locale, bytes in C.",
   (char *) NULL
 };
 
@@ -924,7 +1130,7 @@ struct builtin column_struct = {
   column_builtin,
   BUILTIN_ENABLED,
   column_doc,
-  "column [-x] [-c WIDTH] [-t [-s SEPSTR] [-o OUTSTR]] [FILE...]",
+  "column [-x] [-c WIDTH] [-t [-s SEPSTR] [-o OUTSTR] [-N NAMES]] [-J -N NAMES [-n NAME]] [FILE...]",
   0
 };
 

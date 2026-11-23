@@ -36,6 +36,13 @@ struct bashos_pax_read_options {
     /* to_command (tar --to-command): pipe each regular member to this
        /bin/sh command with GNU's TAR_* variables; archive is TAR_ARCHIVE. */
     const char *to_command, *archive;
+    /* compare (tar -d/--diff): compare each member with the file system
+       instead of extracting it, printing GNU tar's "NAME: Mode differs"
+       lines on stdout and counting them in *differences (a missing file
+       counts too, after its warning). dereference (tar -h) compares what
+       a symlink points to. */
+    int compare, dereference;
+    int *differences;
 };
 int bashos_pax_read(FILE *, const struct bashos_pax_read_options *);
 /* tar --delete: copy IN to OUT without the members named in OPTIONS
@@ -44,6 +51,12 @@ int bashos_pax_read(FILE *, const struct bashos_pax_read_options *);
 int bashos_pax_delete(FILE *in, FILE *out, const struct bashos_pax_read_options *);
 struct bashos_pax_archived;
 struct bashos_pax_hardlink;
+/* Archive formats a writer can produce (tar --format, pax -x). DEFAULT is
+   ustar with pax extended headers only for what ustar cannot hold (also
+   tar --format=ustar|posix|pax); GNU and OLDGNU use GNU tar's magic and
+   ././@LongLink records for long names; V7 has no magic, owner names or
+   special files, and names of at most 99 bytes. */
+enum { BASHOS_PAX_FMT_DEFAULT = 0, BASHOS_PAX_FMT_GNU, BASHOS_PAX_FMT_OLDGNU, BASHOS_PAX_FMT_V7 };
 /* Zero-initialize once per output archive and clear on every exit path. */
 struct bashos_pax_write_context {
     struct bashos_pax_hardlink *links;
@@ -67,12 +80,19 @@ struct bashos_pax_write_context {
     int acls;
     /* update (pax -u, tar -u): skip files no newer than their archived copy */
     int update;
+    /* dereference (pax -L, tar -h): archive what symlinks point to;
+       dereference_operands (pax -H): only for the named operands */
+    int dereference, dereference_operands;
+    /* format: BASHOS_PAX_FMT_* */
+    int format;
     struct bashos_pax_archived *archived;
 };
 /* Position OUT (opened r+) at the end-of-archive marker for appending; with
    ctx->update also remember each member's name and time. Returns 0 or -1. */
 int bashos_pax_seek_end(FILE *out, const char *archive, struct bashos_pax_write_context *ctx);
 int bashos_pax_set_mtime(struct bashos_pax_write_context *, const char *seconds);
+/* tar --format / pax -x NAME: BASHOS_PAX_FMT_*, or -1 for an unknown name. */
+int bashos_pax_format(const char *name);
 void bashos_pax_write_clear(struct bashos_pax_write_context *);
 int bashos_pax_write_member_context(FILE *, const char *, struct bashos_pax_write_context *);
 int bashos_pax_write_member(FILE *, const char *, int no_recurse);

@@ -6,7 +6,8 @@
     "-f and key f fold to upper case",
     "-S/--buffer-size and -T/--temporary-directory option forms",
     "External sort: spilled runs, multi-level merge, keys, -u, -s, -z, -o onto an input, standard input, failure to create a run",
-    "Exit status 2 for trouble and 1 for -c disorder"
+    "Exit status 2 for trouble and 1 for -c disorder",
+    "G68: --debug annotations and key warnings (C locale)."
   ],
   "exclusions": [
     "Address-space limits (ulimit -v) are not set inside the runner; the default budget derived from RLIMIT_AS is checked in the guest qualification instead."
@@ -152,6 +153,39 @@
       "requires": [
         "sort"
       ]
+    },
+    {
+      "id": "debug-annotations",
+      "kind": "parity",
+      "purpose": "G68: --debug writes GNU's warnings to stderr and underlines each key and the last-resort line, for whole-line, field, character, blank-skipping, numeric, general, human, month, version, reversed, unique and stable sorts.",
+      "requires": [
+        "sort"
+      ],
+      "script": "printf 'b 2\\ta\\n  a 10\\tx\\nc -3.5\\ty\\nfoo\\n\\nJan 5K\\n Feb 1.5M\\n' > in\nfor o in '' -n -r -u -s -b -k2 -k2n -k2,2n -k2,2 -k1,1 -k1.2,1.3 -k2,2g -k1,1M -M -nr '-k2,2n -r' '-k2,2n -k1,1' '-u -k2,2n' '-s -k1,1 -r' -k3,2 -f '-d -k1,1' -k2b,2 -k1.2b,1.3b -g -h -V -k2,2V '-t. -k1n' '-n -t- -k1,2' '-t: -k2'; do\n  printf '== %s\\n' \"$o\"\n  sort --debug $o in 2>&1\ndone",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "debug-tab-separator-and-nul",
+      "kind": "parity",
+      "purpose": "G68: --debug with a tab separator shows tabs as '>' and counts each as one column; with -z the record ends with a newline in the annotated output.",
+      "requires": [
+        "sort"
+      ],
+      "script": "printf 'b 2\\ta\\n  a 10\\tx\\nc -3.5\\ty\\nfoo\\n\\nJan 5K\\n Feb 1.5M\\n' > in\nt=$(printf '\\t')\nsort --debug -t \"$t\" -k2,2 in 2>&1\nsort --debug -t \"$t\" -k2n in 2>&1\nprintf 'a 2\\0b 1\\0' | sort --debug -z -k2,2n 2>&1",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "debug-incompatible-options",
+      "kind": "parity",
+      "purpose": "G68: --debug with -c, -C or -o fails with status 2.",
+      "requires": [
+        "sort"
+      ],
+      "script": "printf 'a\\n' > in\nfor o in -c -C '-o out'; do rc=0; sort --debug $o in || rc=$?; echo \"$o rc=$rc\"; done\n[ ! -e out ] && echo no-out",
+      "expected_status": 0,
+      "stderr": "nonempty"
     }
   ]
 }

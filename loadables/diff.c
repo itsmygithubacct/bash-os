@@ -13,6 +13,10 @@
  *   -x / -X    exclude directory entries by pattern / patterns from a file
  *   -i -b -w -Z -B -I RE   GNU's case, white space and blank-line options
  *   -p, -F RE  show the enclosing function line in hunk headers
+ *   -e         an ed script, last change first ("." lines escaped as GNU does)
+ *   -t, --tabsize N  expand tabs in output; --suppress-common-lines (-y);
+ *   --strip-trailing-cr; --color[=WHEN] and --palette with GNU's default
+ *              colours (rs=0:hd=1:ad=32:de=31:ln=36)
  *
  * Default output is POSIX ed-style: 1c2 / 1a1 / 2d3 with `< old`,
  * `---`, `> new` markers. Unified and context output follow GNU diffutils
@@ -55,11 +59,13 @@
 #include "loadables.h"
 #include "bl-output.h"
 
-enum { BD_NORMAL, BD_UNIFIED, BD_CONTEXT, BD_SBS };
+enum { BD_NORMAL, BD_UNIFIED, BD_CONTEXT, BD_SBS, BD_ED };
 typedef struct {
-    int style;               /* BD_NORMAL, -u/-U, -c/-C, -y */
+    int style;               /* BD_NORMAL, -u/-U, -c/-C, -y, -e */
     int qflag, iflag, rflag, wflag, bflag, zflag;
     int nflag, sflag, blank, aflag, minimal;
+    int suppress_common;     /* --suppress-common-lines */
+    int strip_cr;            /* --strip-trailing-cr */
     long context;            /* -C/-U lines, -1 until set */
     const char *labels[2];
     long width;              /* -W: side-by-side output width */
@@ -70,6 +76,19 @@ typedef struct {
     size_t nexcludes;
 } bd_opts;
 typedef struct { const unsigned char *data; size_t len; } bd_line;
+
+/* Output settings of the running diff: -t, --tabsize and --color. The
+   colour strings are SGR parameters, GNU's DIFF_COLORS defaults until
+   --palette changes them. */
+enum { BD_C_RS, BD_C_HD, BD_C_AD, BD_C_DE, BD_C_LN, BD_C_N };
+static struct {
+    int expand_tabs;
+    long tabsize;
+    int color;
+    char *palette[BD_C_N];
+} bd_out;
+static const char *const bd_color_names[BD_C_N] = { "rs", "hd", "ad", "de", "ln" };
+static const char *const bd_color_defaults[BD_C_N] = { "0", "1", "32", "31", "36" };
 
 static int
 bd_is_stdin (const char *path)
@@ -166,7 +185,7 @@ bd_files_equal (const unsigned char *a, size_t la, const unsigned char *b, size_
    Returns NULL on error. *n_out gets line count. */
 static bd_line *
 bd_slurp (const unsigned char *data, size_t len, const char *path,
-          int *n_out, int *no_newline)
+          int *n_out, int *no_newline, int strip_cr)
 {
     size_t cap = 256;
     bd_line *lines = malloc (cap * sizeof (*lines));
@@ -188,6 +207,8 @@ bd_slurp (const unsigned char *data, size_t len, const char *path,
         i = end ? (size_t) (end - data) : len;
         int had_nl = (i < len && data[i] == '\n');
         size_t llen = i - start;
+        /* --strip-trailing-cr drops one CR before a newline. */
+        if (strip_cr && had_nl && llen && data[i - 1] == '\r') llen--;
         if ((size_t) n >= cap) {
             if (cap > SIZE_MAX / 2 / sizeof (*lines)) {
                 builtin_error ("%s: too many lines", path);
@@ -301,11 +322,66 @@ bd_format (bl_output *out, const char *format, ...)
     bl_output_write (out, buffer, (size_t) n);
 }
 
+/* A line's text; with -t, tabs become spaces as GNU's output_1_line
+   expands them, counting columns from the start of the text. After a
+   carriage return inside the line GNU writes the line's flag again: FLAG
+   is the "< ", "> " or "! " of normal and context output, NULL for the
+   one-character flags of unified output and for ed scripts. */
+static void
+bd_write_text (bl_output *out, const bd_line *line, const char *flag)
+{
+    if (!bd_out.expand_tabs) {
+        bl_output_write (out, line->data, line->len);
+        return;
+    }
+    long column = 0;
+    for (size_t i = 0; i < line->len; i++) {
+        unsigned char c = line->data[i];
+        if (c == '\t') {
+            long spaces = bd_out.tabsize - column % bd_out.tabsize;
+            column += spaces;
+            while (spaces--) bl_output_byte (out, ' ');
+            continue;
+        }
+        if (c == '\r') {
+            bl_output_byte (out, c);
+            if (flag && i + 1 < line->len) bd_text (out, flag);
+            column = 0;
+            continue;
+        }
+        if (c == '\b') {
+            if (!column) continue;
+            column--;
+        } else column += isprint (c) != 0;
+        bl_output_byte (out, c);
+    }
+}
+
+static void
+bd_color (bl_output *out, int which)
+{
+    if (!bd_out.color) return;
+    bd_text (out, "\033[");
+    bd_text (out, bd_out.palette[which]);
+    bl_output_byte (out, 'm');
+}
+
 static void
 bd_print_line (bl_output *out, const char *prefix, const bd_line *line)
 {
     bd_text (out, prefix);
-    bl_output_write (out, line->data, line->len);
+    bd_write_text (out, line, strlen (prefix) == 2 ? prefix : NULL);
+    bl_output_byte (out, '\n');
+}
+
+/* A line in colour WHICH (-1 for none); GNU resets before the newline. */
+static void
+bd_print_line_c (bl_output *out, const char *prefix, const bd_line *line, int which)
+{
+    if (which >= 0) bd_color (out, which);
+    bd_text (out, prefix);
+    bd_write_text (out, line, strlen (prefix) == 2 ? prefix : NULL);
+    if (which >= 0) bd_color (out, BD_C_RS);
     bl_output_byte (out, '\n');
 }
 
@@ -776,6 +852,13 @@ bd_line_nl (bl_output *out, const char *prefix, const bd_line *line, int last_no
     if (last_nonl) bd_text (out, "\\ No newline at end of file\n");
 }
 
+static void
+bd_line_nl_c (bl_output *out, const char *prefix, const bd_line *line, int last_nonl, int which)
+{
+    bd_print_line_c (out, prefix, line, which);
+    if (last_nonl) bd_text (out, "\\ No newline at end of file\n");
+}
+
 /* Normal output, one ed-style command per change (GNU print_normal_hunk). */
 static void
 bd_emit_ed (bl_output *out, const bd_files *f, const bd_change *ch, int nch)
@@ -784,14 +867,46 @@ bd_emit_ed (bl_output *out, const bd_files *f, const bd_change *ch, int nch)
         const bd_change *h = &ch[c];
         if (h->ignore) continue;
         int f0 = h->line0 + 1, l0 = h->line0 + h->del, f1 = h->line1 + 1, l1 = h->line1 + h->ins;
+        bd_color (out, BD_C_LN);
         if (l0 > f0) bd_format (out, "%d,%d", f0, l0); else bd_format (out, "%d", l0);
         bl_output_byte (out, h->del && h->ins ? 'c' : h->del ? 'd' : 'a');
-        if (l1 > f1) bd_format (out, "%d,%d\n", f1, l1); else bd_format (out, "%d\n", l1);
+        if (l1 > f1) bd_format (out, "%d,%d", f1, l1); else bd_format (out, "%d", l1);
+        bd_color (out, BD_C_RS);
+        bl_output_byte (out, '\n');
         for (int k = h->line0; k < h->line0 + h->del; k++)
-            bd_line_nl (out, "< ", &f->A[k], f->nonl_a && k == f->n - 1);
+            bd_line_nl_c (out, "< ", &f->A[k], f->nonl_a && k == f->n - 1, BD_C_DE);
         if (h->del && h->ins) bd_text (out, "---\n");
         for (int k = h->line1; k < h->line1 + h->ins; k++)
-            bd_line_nl (out, "> ", &f->B[k], f->nonl_b && k == f->m - 1);
+            bd_line_nl_c (out, "> ", &f->B[k], f->nonl_b && k == f->m - 1, BD_C_AD);
+    }
+}
+
+/* -e: an ed script (GNU print_ed_hunk), each change on its own and the
+   last change first so that earlier line numbers stay valid. A line that
+   is just "." would end the insertion, so it is written as "..", the
+   insertion is ended and "s/.//" removes the extra dot. */
+static void
+bd_emit_ed_script (bl_output *out, const bd_files *f, const bd_change *ch, int nch)
+{
+    for (int c = nch - 1; c >= 0; c--) {
+        const bd_change *h = &ch[c];
+        if (h->ignore) continue;
+        int f0 = h->line0 + 1, l0 = h->line0 + h->del;
+        if (l0 > f0) bd_format (out, "%d,%d", f0, l0); else bd_format (out, "%d", l0);
+        bl_output_byte (out, h->del && h->ins ? 'c' : h->del ? 'd' : 'a');
+        bl_output_byte (out, '\n');
+        if (!h->ins) continue;
+        int insert_mode = 1;
+        for (int k = h->line1; k < h->line1 + h->ins; k++) {
+            const bd_line *l = &f->B[k];
+            if (!insert_mode) { bd_text (out, "a\n"); insert_mode = 1; }
+            if (l->len == 1 && l->data[0] == '.') {
+                bd_text (out, "..\n.\ns/.//\n");
+                insert_mode = 0;
+            } else
+                bd_print_line (out, "", l);
+        }
+        if (insert_mode) bd_text (out, ".\n");
     }
 }
 
@@ -854,6 +969,7 @@ static void
 bd_header (bl_output *out, const char *mark, const char *label, const char *name,
            const struct timespec *mtime, int context)
 {
+    bd_color (out, BD_C_HD);
     bd_text (out, mark);
     if (label) bd_text (out, label);
     else {
@@ -871,6 +987,7 @@ bd_header (bl_output *out, const char *mark, const char *label, const char *name
                    strftime (zone, sizeof zone, "%z", &tm))
             bd_format (out, "\t%s.%09ld %s", date, mtime->tv_nsec, zone);
     }
+    bd_color (out, BD_C_RS);
     bl_output_byte (out, '\n');
 }
 
@@ -965,11 +1082,13 @@ bd_emit_hunks (bl_output *out, const bd_files *f, const bd_change *ch, int nch,
         last1 = last1 < f->m - ctx ? last1 + ctx : f->m - 1;
         const bd_line *func = o->function_re ? bd_find_function (f, o, &fn, (int) first0) : NULL;
         if (o->style == BD_UNIFIED) {
+            bd_color (out, BD_C_LN);
             bd_text (out, "@@ -");
             bd_unified_range (out, (int) first0, (int) last0);
             bd_text (out, " +");
             bd_unified_range (out, (int) first1, (int) last1);
             bd_text (out, " @@");
+            bd_color (out, BD_C_RS);
             if (func) bd_function_text (out, func);
             bl_output_byte (out, '\n');
             long i = first0, j = first1;
@@ -980,9 +1099,9 @@ bd_emit_hunks (bl_output *out, const bd_files *f, const bd_change *ch, int nch,
                     i++, j++;
                 } else {
                     for (int k = 0; k < ch[next].del; k++, i++)
-                        bd_line_nl (out, "-", &f->A[i], f->nonl_a && i == f->n - 1);
+                        bd_line_nl_c (out, "-", &f->A[i], f->nonl_a && i == f->n - 1, BD_C_DE);
                     for (int k = 0; k < ch[next].ins; k++, j++)
-                        bd_line_nl (out, "+", &f->B[j], f->nonl_b && j == f->m - 1);
+                        bd_line_nl_c (out, "+", &f->B[j], f->nonl_b && j == f->m - 1, BD_C_AD);
                     next++;
                 }
             }
@@ -990,28 +1109,35 @@ bd_emit_hunks (bl_output *out, const bd_files *f, const bd_change *ch, int nch,
         }
         bd_text (out, "***************");
         if (func) bd_function_text (out, func);
-        bd_text (out, "\n*** ");
+        bl_output_byte (out, '\n');
+        bd_color (out, BD_C_LN);
+        bd_text (out, "*** ");
         bd_context_range (out, (int) first0, (int) last0);
-        bd_text (out, " ****\n");
+        bd_text (out, " ****");
+        bd_color (out, BD_C_RS);
+        bl_output_byte (out, '\n');
         if (old) {
             int next = s;
             for (long i = first0; i <= last0; i++) {
                 while (next <= e && ch[next].line0 + ch[next].del <= i) next++;
                 const char *prefix = "  ";
                 if (next <= e && ch[next].line0 <= i) prefix = ch[next].ins ? "! " : "- ";
-                bd_line_nl (out, prefix, &f->A[i], f->nonl_a && i == f->n - 1);
+                bd_line_nl_c (out, prefix, &f->A[i], f->nonl_a && i == f->n - 1, BD_C_DE);
             }
         }
+        bd_color (out, BD_C_LN);
         bd_text (out, "--- ");
         bd_context_range (out, (int) first1, (int) last1);
-        bd_text (out, " ----\n");
+        bd_text (out, " ----");
+        bd_color (out, BD_C_RS);
+        bl_output_byte (out, '\n');
         if (new) {
             int next = s;
             for (long j = first1; j <= last1; j++) {
                 while (next <= e && ch[next].line1 + ch[next].ins <= j) next++;
                 const char *prefix = "  ";
                 if (next <= e && ch[next].line1 <= j) prefix = ch[next].del ? "! " : "+ ";
-                bd_line_nl (out, prefix, &f->B[j], f->nonl_b && j == f->m - 1);
+                bd_line_nl_c (out, prefix, &f->B[j], f->nonl_b && j == f->m - 1, BD_C_AD);
             }
         }
     }
@@ -1026,11 +1152,12 @@ typedef struct { long half, col2; } bd_sbs;
 static long
 bd_tab_to (bl_output *out, long from, long to)
 {
-    long col = from;
-    for (long i = col - col % 8 + 8; i <= to; i += 8) {
-        bl_output_byte (out, '\t');
-        col = i;
-    }
+    long col = from, ts = bd_out.tabsize;
+    if (!bd_out.expand_tabs)
+        for (long i = col - col % ts + ts; i <= to; i += ts) {
+            bl_output_byte (out, '\t');
+            col = i;
+        }
     for (; col < to; col++) bl_output_byte (out, ' ');
     return col;
 }
@@ -1042,8 +1169,11 @@ bd_half_line (bl_output *out, const bd_line *line, long indent, long bound)
     for (size_t i = 0; i < line->len; i++) {
         unsigned char c = line->data[i];
         if (c == '\t') {
-            long spaces = 8 - ((in + indent) % 8);
-            if (in == outpos && outpos + spaces < bound) {
+            long spaces = bd_out.tabsize - ((in + indent) % bd_out.tabsize);
+            if (in == outpos && bd_out.expand_tabs) {
+                long stop = outpos + spaces < bound ? outpos + spaces : bound;
+                for (; outpos < stop; outpos++) bl_output_byte (out, ' ');
+            } else if (in == outpos && outpos + spaces < bound) {
                 outpos += spaces;
                 bl_output_byte (out, c);
             }
@@ -1093,10 +1223,12 @@ bd_sbs_line (bl_output *out, const bd_sbs *g, const bd_line *left, int left_nl,
 static void
 bd_emit_side_by_side (bl_output *out, bd_line *A, int n, bd_line *B, int m,
                       bd_op *ops, int n_ops, long width,
-                      int no_newline_a, int no_newline_b)
+                      int no_newline_a, int no_newline_b, int suppress_common)
 {
     bd_sbs g;
-    long off = (width + 8 + 3) / 16 * 8;
+    /* GNU's column layout: tab stops of 1 with -t, else the tab size. */
+    long t = bd_out.expand_tabs ? 1 : bd_out.tabsize;
+    long off = (width + t + 3) / (2 * t) * t;
     g.half = off - 3 < width - off ? off - 3 : width - off;
     if (g.half < 0) g.half = 0;
     g.col2 = g.half ? off : width;
@@ -1104,8 +1236,9 @@ bd_emit_side_by_side (bl_output *out, bd_line *A, int n, bd_line *B, int m,
     while (i < n_ops) {
         if (ops[i].op == BDOP_EQ) {
             int la = ops[i].la, lb = ops[i].lb;
-            bd_sbs_line (out, &g, &A[la], !(no_newline_a && la == n - 1), ' ',
-                         &B[lb], !(no_newline_b && lb == m - 1));
+            if (!suppress_common)
+                bd_sbs_line (out, &g, &A[la], !(no_newline_a && la == n - 1), ' ',
+                             &B[lb], !(no_newline_b && lb == m - 1));
             i++;
             continue;
         }
@@ -1116,12 +1249,16 @@ bd_emit_side_by_side (bl_output *out, bd_line *A, int n, bd_line *B, int m,
             else { if (ins[0] < 0) ins[0] = ops[j].lb; ins[1] = ops[j].lb; ni++; }
             j++;
         }
+        /* GNU colours each "<" or ">" line from its start to after its
+           newline. */
         for (int k = 0; k < nd || k < ni; k++) {
             const bd_line *l = k < nd ? &A[dels[0] + k] : NULL;
             const bd_line *r = k < ni ? &B[ins[0] + k] : NULL;
             int lnl = l && !(no_newline_a && dels[0] + k == n - 1);
             int rnl = r && !(no_newline_b && ins[0] + k == m - 1);
+            if (!(l && r)) bd_color (out, l ? BD_C_DE : BD_C_AD);
             bd_sbs_line (out, &g, l, lnl, l && r ? '|' : l ? '<' : '>', r, rnl);
+            if (!(l && r)) bd_color (out, BD_C_RS);
         }
         i = j;
     }
@@ -1174,7 +1311,7 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
 
     const char *name0 = o->labels[0] ? o->labels[0] : p0;
     const char *name1 = o->labels[1] ? o->labels[1] : p1;
-    int ignoring = o->iflag || bd_ws_mode (o) || o->blank || o->ignore_re;
+    int ignoring = o->iflag || bd_ws_mode (o) || o->blank || o->ignore_re || o->strip_cr;
     /* Equal bytes imply equal lines for every supported comparison mode.
        Avoid indexing lines and building an edit trace when
        the complete inputs already establish that there is no difference. */
@@ -1217,13 +1354,13 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
     }
 
     bd_files f = { NULL, NULL, 0, 0, 0, 0, NULL };
-    f.A = bd_slurp (da, la, p0, &f.n, &f.nonl_a);
+    f.A = bd_slurp (da, la, p0, &f.n, &f.nonl_a, o->strip_cr);
     if (!f.A) {
         free (da);
         free (db);
         return 2;
     }
-    f.B = bd_slurp (db, lb, p1, &f.m, &f.nonl_b);
+    f.B = bd_slurp (db, lb, p1, &f.m, &f.nonl_b, o->strip_cr);
     if (!f.B) {
         free (f.A);
         free (da);
@@ -1234,6 +1371,14 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
     bd_op *ops = NULL;
     bd_change *ch = NULL;
     int rc = 2;
+    /* An ed script cannot express a missing newline: GNU compares such a
+       last line as complete, says so for each file and exits 2. */
+    int incomplete = 0;
+    if (o->style == BD_ED) {
+        if (f.nonl_a) { builtin_error ("%s: No newline at end of file\n", p0); incomplete = 1; }
+        if (f.nonl_b) { builtin_error ("%s: No newline at end of file\n", p1); incomplete = 1; }
+        f.nonl_a = f.nonl_b = 0;
+    }
     if (o->ignore_re || o->function_re) {
         size_t longest = 0;
         for (int i = 0; i < f.n; i++) if (f.A[i].len > longest) longest = f.A[i].len;
@@ -1268,9 +1413,11 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
         if (header) { bd_text (&out, header); bl_output_byte (&out, '\n'); }
         if (o->style == BD_SBS)
             bd_emit_side_by_side (&out, f.A, f.n, f.B, f.m, ops, n_ops, o->width,
-                                  f.nonl_a, f.nonl_b);
+                                  f.nonl_a, f.nonl_b, o->suppress_common);
         else if (o->style == BD_NORMAL)
             bd_emit_ed (&out, &f, ch, nch);
+        else if (o->style == BD_ED)
+            bd_emit_ed_script (&out, &f, ch, nch);
         else
             bd_emit_hunks (&out, &f, ch, nch, o, p0, p1, &t0, &t1);
         bl_output_flush (&out);
@@ -1281,6 +1428,7 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
         }
     }
     if (rc == 0 && o->sflag) printf ("Files %s and %s are identical\n", p0, p1);
+    if (incomplete) rc = 2;
 
     rc = bd_finish_output (rc);
 cleanup:
@@ -1628,6 +1776,8 @@ bd_short (bd_parse *ps, int c, const char *arg, int *nlabels)
         if (o->context < v) o->context = v;
         break;
     case 'd': o->minimal = 1; break;
+    case 'e': return bd_style (ps, BD_ED);
+    case 't': bd_out.expand_tabs = 1; break;
     case 'i': o->iflag = 1; break;
     case 'I': return bd_add_pattern (&ps->ignore_pat, arg);
     case 'F': return bd_add_pattern (&ps->function_pat, arg);
@@ -1677,8 +1827,59 @@ static const struct { const char *name; int c, arg; } bd_long[] = {
     { "side-by-side", 'y', 0 }, { "exclude", 'x', 1 },
     { "exclude-from", 'X', 1 }, { "label", 'L', 1 }, { "width", 'W', 1 },
     { "normal", 0, 0 }, { "speed-large-files", 1, 0 },
-    { "horizon-lines", 2, 1 },
+    { "horizon-lines", 2, 1 }, { "ed", 'e', 0 }, { "expand-tabs", 't', 0 },
+    { "suppress-common-lines", 3, 0 }, { "strip-trailing-cr", 4, 0 },
+    { "color", 5, 2 }, { "palette", 6, 1 }, { "tabsize", 7, 1 },
 };
+
+/* --palette: GNU's DIFF_COLORS syntax, KEY=SGR pairs split by ':' for
+   rs, hd, ad, de and ln. A bad palette is reported and turns colour off. */
+static void
+bd_palette (const char *spec)
+{
+    const char *p = spec;
+    int bad = 0;
+    while (*p && !bad) {
+        const char *end = strchr (p, ':');
+        size_t len = end ? (size_t) (end - p) : strlen (p);
+        const char *eq = memchr (p, '=', len);
+        if (len) {
+            int k = -1;
+            if (eq)
+                for (int i = 0; i < BD_C_N; i++)
+                    if ((size_t) (eq - p) == strlen (bd_color_names[i]) && !strncmp (p, bd_color_names[i], (size_t) (eq - p)))
+                        k = i;
+            if (!eq) bad = 1;
+            else if (k < 0) {
+                builtin_error ("unrecognized prefix: %.*s", (int) (eq - p), p);
+                bad = 1;
+            } else {
+                size_t vl = len - (size_t) (eq + 1 - p);
+                char *v = malloc (vl + 1);
+                if (!v) { bad = 1; break; }
+                memcpy (v, eq + 1, vl);
+                v[vl] = '\0';
+                if (bd_out.palette[k] != bd_color_defaults[k]) free (bd_out.palette[k]);
+                bd_out.palette[k] = v;
+            }
+        }
+        if (!end) break;
+        p = end + 1;
+    }
+    if (bad) {
+        builtin_error ("unparsable value for --palette");
+        bd_out.color = 0;
+    }
+}
+
+static void
+bd_palette_free (void)
+{
+    for (int i = 0; i < BD_C_N; i++) {
+        if (bd_out.palette[i] != bd_color_defaults[i]) free (bd_out.palette[i]);
+        bd_out.palette[i] = (char *) bd_color_defaults[i];
+    }
+}
 
 int
 diff_builtin (WORD_LIST *list)
@@ -1693,6 +1894,11 @@ diff_builtin (WORD_LIST *list)
     o.width = 130;
     o.context = -1;
     o.style = BD_NORMAL;
+    const char *palette = NULL;
+    bd_out.expand_tabs = 0;
+    bd_out.tabsize = 8;
+    bd_out.color = 0;
+    for (int i = 0; i < BD_C_N; i++) bd_out.palette[i] = (char *) bd_color_defaults[i];
     /* Option words as given, for the "diff OPTIONS A B" lines of -r. */
     for (WORD_LIST *p = list; p; p = p->next)
         sw_len += 4 * strlen (p->word->word) + 4;
@@ -1751,6 +1957,27 @@ diff_builtin (WORD_LIST *list)
             int c = bd_long[found].c;
             if (c == 0) { if (bd_style (&ps, BD_NORMAL) < 0) BD_USAGE_FAIL; continue; }
             if (c == 1 || c == 2) continue;      /* accepted, no effect here */
+            if (c == 3) { o.suppress_common = 1; continue; }
+            if (c == 4) { o.strip_cr = 1; continue; }
+            if (c == 5) {
+                /* --color alone is auto: a terminal that is not "dumb". */
+                const char *term = getenv ("TERM");
+                if (!arg || !strcmp (arg, "auto"))
+                    bd_out.color = isatty (STDOUT_FILENO) && term && strcmp (term, "dumb");
+                else if (!strcmp (arg, "always")) bd_out.color = 1;
+                else if (!strcmp (arg, "never")) bd_out.color = 0;
+                else { builtin_error ("invalid color '%s'", arg); BD_USAGE_FAIL; }
+                continue;
+            }
+            if (c == 6) { palette = arg; continue; }
+            if (c == 7) {
+                char *end;
+                errno = 0;
+                long v = strtol (arg, &end, 10);
+                if (errno || end == arg || *end || v <= 0) { builtin_error ("invalid tabsize '%s'", arg); BD_USAGE_FAIL; }
+                bd_out.tabsize = v;
+                continue;
+            }
             if (bd_long[found].arg == 2 && !arg) arg = "3";
             if (bd_short (&ps, c, arg, &nlabels) < 0) BD_USAGE_FAIL;
             continue;
@@ -1791,6 +2018,7 @@ diff_builtin (WORD_LIST *list)
     if (ps.function_pat && !(o.function_re = bd_compile (ps.function_pat))) { rc = 2; goto done; }
 #undef BD_USAGE_FAIL
 #undef BD_SW
+    if (palette && bd_out.color) bd_palette (palette);
     o.switches = switches;
     rc = bd_finish_output (bd_compare_paths (paths[0], paths[1], &o, 1));
 done:
@@ -1801,6 +2029,8 @@ done:
     if (o.function_re) { regfree (o.function_re); free (o.function_re); }
     for (size_t i = 0; i < o.nexcludes; i++) free (o.excludes[i]);
     free (o.excludes);
+    bd_palette_free ();
+    bd_out.color = 0;
     return rc;
 }
 
@@ -1826,6 +2056,13 @@ char *diff_doc[] = {
     "    -B, --ignore-blank-lines     ignore changes whose lines are all blank",
     "    -I RE, --ignore-matching-lines=RE  ignore changes whose lines all match RE",
     "    -p, --show-c-function        show which C function each change is in",
+    "    -e, --ed       output an ed script",
+    "    -t, --expand-tabs  expand tabs to spaces in output; --tabsize=NUM (default 8)",
+    "    --suppress-common-lines  do not output common lines (with -y)",
+    "    --strip-trailing-cr      strip trailing carriage return on input",
+    "    --color[=WHEN]  colour the output; WHEN is never, always or auto (the",
+    "                    default for --color); --palette=PALETTE as DIFF_COLORS",
+    "                    (default rs=0:hd=1:ad=32:de=31:ln=36)",
     "    -F RE, --show-function-line=RE  show the last line before a hunk matching RE",
     "    -a, --text     treat all files as text",
     "    -L LABEL, --label LABEL  use LABEL instead of a file name and time (up to two)",
@@ -1843,6 +2080,6 @@ struct builtin bashdiff_struct = {
     diff_builtin,
     BUILTIN_ENABLED,
     diff_doc,
-    "bashdiff [-abBcdiNpqrsuwyZ] [-C NUM|-U NUM] [-x PAT] [-X FILE] [-L LABEL] [-W NUM] FILE1 FILE2",
+    "bashdiff [-abBcdeiNpqrstuwyZ] [-C NUM|-U NUM] [-x PAT] [-X FILE] [-L LABEL] [-W NUM] FILE1 FILE2",
     0
 };

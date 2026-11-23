@@ -245,6 +245,37 @@
       "script": "xzl() { if [[ $(type -t zlib) == builtin ]]; then zlib -l -f xz \"$@\"; else xz -l \"$@\"; fi; }\n/usr/bin/seq 1 30 > s\n/usr/bin/xz -k s\nxzl s.xz nope s 2>/dev/null || echo rc=$?\n",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "bzip2-concatenated-streams",
+      "kind": "parity",
+      "requires": [
+        "bzip2"
+      ],
+      "purpose": "G54: -f bz2 decodes every stream of a concatenated .bz2 (bzip2 >> file, pbzip2/lbzip2 output) in order, as bzip2 1.0.8 does, including a stream longer than one 64 KiB read and a NUL byte.",
+      "script": "printf 'a\\n' | /usr/bin/bzip2 > x.bz2; printf 'b\\0c\\n' | /usr/bin/bzip2 >> x.bz2\n/usr/bin/seq 1 30000 | /usr/bin/bzip2 >> x.bz2; printf 'z\\n' | /usr/bin/bzip2 >> x.bz2\nbz() { if [[ $(type -t zlib) == builtin ]]; then zlib -d -f bz2; else /usr/bin/bzip2 -dc; fi; }\nbz < x.bz2 > out\n/usr/bin/od -An -c -N 8 out\n/usr/bin/md5sum < out\n/usr/bin/tail -2 out\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "bzip2-trailing-garbage",
+      "kind": "parity",
+      "requires": [
+        "bzip2"
+      ],
+      "purpose": "G54: bytes after the last complete stream that do not start another stream are ignored with a warning and exit 0 (bzip2's 'trailing garbage after EOF ignored'), also for zero padding; a partial magic or a corrupt next stream still fails.",
+      "script": "printf 'a\\n' | /usr/bin/bzip2 > x.bz2; printf 'b\\n' | /usr/bin/bzip2 >> x.bz2\nbz() { if [[ $(type -t zlib) == builtin ]]; then zlib -d -f bz2; else /usr/bin/bzip2 -dc; fi; }\nst() { if \"$@\"; then echo rc=0; else echo rc=$?; fi; }\n{ /usr/bin/cat x.bz2; echo junk; } > g.bz2; st bz < g.bz2\n{ /usr/bin/cat x.bz2; printf '\\0\\0\\0\\0'; } > z.bz2; st bz < z.bz2 2>/dev/null\n{ /usr/bin/cat x.bz2; printf 'B'; } > p.bz2; bz < p.bz2 >/dev/null 2>&1 || echo failed\n{ /usr/bin/cat x.bz2; printf 'BZh9junkjunk'; } > c.bz2; bz < c.bz2 >/dev/null 2>&1 || echo failed\n",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "garbage-status-flag",
+      "kind": "contract",
+      "purpose": "G54/G67: with -g, trailing garbage after a complete bzip2 stream or gzip member is reported only by exit status 2 (no diagnostic), so the bzip2/gzip wrappers can name the file; gzip zero padding alone is not garbage. Without -g a gzip member followed by garbage warns and returns 2.",
+      "script": "st() { if \"$@\"; then echo rc=0; else echo rc=$?; fi; }\nprintf '%b' '\\x42\\x5a\\x68\\x39\\x31\\x41\\x59\\x26\\x53\\x59\\x88\\x12\\x88\\x13\\x00\\x00\\x03\\xc1\\x80\\xc0\\x10\\x0a\\x00\\x95\\x00\\x00\\x00\\xa0\\x00\\x31\\x06\\x4c\\x41\\x01\\x91\\xea\\x31\\x80\\x07\\x8b\\xb9\\x22\\x9c\\x28\\x48\\x44\\x09\\x44\\x09\\x80' > v.bz2\n{ cat v.bz2 v.bz2; printf 'junk'; } > g.bz2\nr=0; zlib -g -d -f bz2 < g.bz2 > out || r=$?; echo rc=$r; od -An -c out\nprintf '%b' '\\x1f\\x8b\\x08\\x00\\x00\\x00\\x00\\x00\\x02\\xff\\x4b\\xe4\\x02\\x00\\x07\\xa1\\xea\\xdd\\x02\\x00\\x00\\x00' > a.gz\n{ cat a.gz; printf 'junk'; } > g.gz; st zlib -g -d < g.gz\n{ cat a.gz; printf '\\0\\0\\0'; } > z.gz; st zlib -g -d < z.gz\nst zlib -d < g.gz 2>/dev/null\n",
+      "expected_status": 0,
+      "stdout": "rc=2\n   v   e   c   t   o   r  \\0 377  \\n   v   e   c   t   o   r  \\0\n 377  \\n\na\nrc=2\na\nrc=0\na\nrc=2\n",
+      "stderr": "empty"
     }
   ]
 }

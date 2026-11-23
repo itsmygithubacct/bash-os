@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 /* file.c — file(1)-style magic-byte file-type detection.
  *
- *   file [-bEhiL] [--mime-type] [--mime-encoding] [--help|--version] FILE...
+ *   file [-bEhiLs] [-f NAMEFILE] [--mime-type] [--mime-encoding]
+ *        [--help|--version] [FILE...]
  *
  * Reads up to 7 MiB of each FILE (libmagic's bytes_max). Text is classified
  * with libmagic's character classes and line scan (encoding, line
@@ -10,7 +11,11 @@
  * file 5.46 prints; the first 512 bytes are matched against a curated table
  * of magic-byte signatures. -i/--mime, --mime-type and --mime-encoding
  * print MIME types; -L follows symbolic links, which are otherwise shown
- * as "symbolic link to TARGET". Output mirrors file(1):
+ * as "symbolic link to TARGET". -f NAMEFILE / --files-from=NAMEFILE reads
+ * names one per line ("-" for stdin) when the option is reached, with the
+ * options before it; options may follow operands, as getopt permutes; -s /
+ * --special-files reads block and character devices like regular files.
+ * Output mirrors file(1):
  *   FILE: TYPE-DESCRIPTION
  *
  * Coverage: ELF (32/64, exec/dyn), MS-DOS executable, gzip, zlib, Unix compress,
@@ -1412,18 +1417,175 @@ bf_inode (bf_result *r, const char *desc, const char *mime)
     r->charset = "binary";
 }
 
+/* Describe one name. -s (SPECIAL) reads block and character devices like
+   regular files. Returns 1 when -E makes a filesystem error a failure. */
+static int
+bf_file (const char *path, unsigned char *buf, int brief, size_t width, int out,
+         int error_mode, int deref, int special)
+{
+    bf_result res;
+
+    /* "-" reads standard input; file(1) labels it "/dev/stdin". */
+    if (strcmp (path, "-") == 0) {
+        ssize_t n = bf_read (STDIN_FILENO, buf, BF_BYTES_MAX);
+        if (n < 0) n = 0;
+        bf_describe (buf, (size_t) n, n >= 4 ? buf + n - 4 : NULL, -1, &res);
+        bf_emit ("/dev/stdin", brief, width, out, &res);
+        return 0;
+    }
+
+    struct stat st;
+    if ((deref ? stat (path, &st) : lstat (path, &st)) < 0) {
+        bf_error (path, brief, width, error_mode,
+                  error_mode ? "cannot stat" : "cannot open", errno);
+        return error_mode;
+    }
+    if (S_ISLNK (st.st_mode)) {
+        char target[4096];
+        ssize_t tl = readlink (path, target, sizeof target - 1);
+        target[tl < 0 ? 0 : tl] = '\0';
+        struct stat ts;
+        int broken = stat (path, &ts) < 0;
+        snprintf (res.desc, sizeof res.desc, "%ssymbolic link to %s", broken ? "broken " : "", target);
+        res.mime = "inode/symlink";
+        /* file 5.46 gives a broken link no charset ("ERROR: (null)"
+           for --mime-encoding); mirror it. */
+        res.charset = broken ? NULL : "binary";
+        bf_emit (path, brief, width, out, &res);
+        return 0;
+    }
+    char kind[64];
+    if (S_ISDIR (st.st_mode)) bf_inode (&res, "directory", "inode/directory");
+    else if (S_ISFIFO (st.st_mode)) bf_inode (&res, "fifo (named pipe)", "inode/fifo");
+    else if (S_ISSOCK (st.st_mode)) bf_inode (&res, "socket", "inode/socket");
+    else if ((S_ISBLK (st.st_mode) || S_ISCHR (st.st_mode)) && !special) {
+        snprintf (kind, sizeof kind, "%s special (%u/%u)",
+                  S_ISBLK (st.st_mode) ? "block" : "character",
+                  major (st.st_rdev), minor (st.st_rdev));
+        bf_inode (&res, kind, S_ISBLK (st.st_mode) ? "inode/blockdevice" : "inode/chardevice");
+    } else if (!S_ISREG (st.st_mode) && !S_ISBLK (st.st_mode) && !S_ISCHR (st.st_mode))
+        bf_inode (&res, "special file", "application/octet-stream");
+    else {
+        int fd = open (path, O_RDONLY | O_CLOEXEC);
+        if (fd < 0) {
+            bf_error (path, brief, width, error_mode, "cannot open", errno);
+            return error_mode;
+        }
+        ssize_t n = bf_read (fd, buf, BF_BYTES_MAX);
+        if (n < 0) {
+            int saved_errno = errno;
+            close (fd);
+            bf_error (path, brief, width, error_mode, "read error", saved_errno);
+            return error_mode;
+        }
+        unsigned char tail[4];
+        const unsigned char *tp = NULL;
+        if (st.st_size >= 4 && (off_t) n == st.st_size) tp = buf + n - 4;
+        else if (st.st_size >= 4 && pread (fd, tail, 4, st.st_size - 4) == 4) tp = tail;
+        bf_describe (buf, (size_t) n, tp, fd, &res);
+        close (fd);
+    }
+    bf_emit (path, brief, width, out, &res);
+    return 0;
+}
+
+/* -f NAMEFILE: the names in NAMEFILE, one per line ("-" is standard input),
+   aligned among themselves as file(1) does. Returns -1 when NAMEFILE cannot
+   be opened, else the -E failure count. */
+static int
+bf_namefile (const char *namefile, unsigned char *buf, int brief, int out,
+             int error_mode, int deref, int special)
+{
+    int from_stdin = strcmp (namefile, "-") == 0;
+    FILE *f = from_stdin ? fdopen (dup (STDIN_FILENO), "r") : fopen (namefile, "r");
+    if (!f) {
+        builtin_error ("Cannot open `%s' (%s)", namefile, strerror (errno));
+        return -1;
+    }
+    char **names = NULL, *line = NULL;
+    size_t n = 0, cap = 0, lcap = 0, width = 0;
+    ssize_t len;
+    while ((len = getline (&line, &lcap, f)) != -1) {
+        if (len > 0 && line[len - 1] == '\n') line[--len] = '\0';
+        if (n == cap) {
+            size_t ncap = cap ? cap * 2 : 16;
+            char **grown = realloc (names, ncap * sizeof *grown);
+            if (!grown) break;
+            names = grown;
+            cap = ncap;
+        }
+        names[n] = strdup (line);
+        if (!names[n]) break;
+        if ((size_t) len > width) width = (size_t) len;
+        n++;
+    }
+    free (line);
+    fclose (f);
+    int failed = 0;
+    for (size_t i = 0; i < n; i++) {
+        failed += bf_file (names[i], buf, brief, width, out, error_mode, deref, special);
+        free (names[i]);
+    }
+    free (names);
+    return failed;
+}
+
+/* Run one -f NAMEFILE now, with the flags parsed so far, as file(1)'s
+   getopt loop does. Returns 0, or 1 for -E failures, or -1 to stop. */
+#define BF_NAMEFILE(v) \
+    do { \
+        int failed_ = bf_namefile ((v), buf, brief, out, error_mode, deref, special); \
+        if (failed_ < 0) { free (buf); free (operands); return EXECUTION_FAILURE; } \
+        if (failed_) rc = EXECUTION_FAILURE; \
+    } while (0)
+
+#define BF_FAIL_USAGE(...) \
+    do { \
+        builtin_error (__VA_ARGS__); \
+        builtin_usage (); \
+        free (buf); \
+        free (operands); \
+        return EXECUTION_FAILURE; \
+    } while (0)
+
 int
 file_builtin (WORD_LIST *list)
 {
-    int brief = 0, error_mode = 0, deref = 0, out = BF_OUT_DESC;
+    int brief = 0, error_mode = 0, deref = 0, out = BF_OUT_DESC, special = 0;
+    int did_namefile = 0, rc = EXECUTION_SUCCESS;
+    int posix = getenv ("POSIXLY_CORRECT") != NULL;
+    size_t n_operands = 0;
+    const char **operands = malloc ((size_t) (list_length ((GENERIC_LIST *) list) + 1) * sizeof *operands);
+    unsigned char *buf = malloc (BF_BYTES_MAX);
 
-    /* Leading options (file(1) subset). */
-    while (list && list->word->word[0] == '-' && list->word->word[1]) {
+    if (!buf || !operands) {
+        free (buf);
+        free (operands);
+        builtin_error ("out of memory");
+        return EXECUTION_FAILURE;
+    }
+
+    /* Options anywhere, as getopt permutes them (not under
+       POSIXLY_CORRECT); "--" ends them. */
+    for (; list; list = list->next) {
         const char *w = list->word->word;
+        if (w[0] != '-' || !w[1]) {
+            if (posix)
+                break;
+            operands[n_operands++] = w;
+            continue;
+        }
         if (strcmp (w, "--") == 0) { list = list->next; break; }
-        if (strcmp (w, "--help") == 0) { builtin_usage (); return EXECUTION_SUCCESS; }
+        if (strcmp (w, "--help") == 0) {
+            builtin_usage ();
+            free (buf);
+            free (operands);
+            return EXECUTION_SUCCESS;
+        }
         if (strcmp (w, "--version") == 0 || strcmp (w, "-v") == 0) {
             puts ("file 1.0 (bash-loadable)");
+            free (buf);
+            free (operands);
             return EXECUTION_SUCCESS;
         }
         if (w[1] == '-') {
@@ -1433,122 +1595,73 @@ file_builtin (WORD_LIST *list)
             else if (!strcmp (w, "--mime-encoding")) out = out == BF_OUT_TYPE ? BF_OUT_MIME : BF_OUT_ENC;
             else if (!strcmp (w, "--dereference")) deref = 1;
             else if (!strcmp (w, "--no-dereference")) deref = 0;
-            else {
-                builtin_error ("unknown flag: %s", w);
-                builtin_usage ();
-                return EXECUTION_FAILURE;
+            else if (!strcmp (w, "--special-files")) special = 1;
+            else if (!strcmp (w, "--files-from") || !strncmp (w, "--files-from=", 13)) {
+                const char *v = w[12] == '=' ? w + 13
+                    : (list->next ? (list = list->next)->word->word : NULL);
+                if (!v)
+                    BF_FAIL_USAGE ("option '--files-from' requires an argument");
+                BF_NAMEFILE (v);
+                did_namefile = 1;
             }
-            list = list->next;
+            else
+                BF_FAIL_USAGE ("unknown flag: %s", w);
             continue;
         }
         const char *option;
-        for (option = w + 1; *option && strchr ("bEiLh", *option); option++)
-            continue;
-        if (*option) {
-            builtin_error ("unknown flag: %s", w);
-            builtin_usage ();
-            return EXECUTION_FAILURE;
-        }
+        for (option = w + 1; *option && strchr ("bEiLhsf", *option); option++)
+            if (*option == 'f')
+                break;              /* the rest of the word is NAMEFILE */
+        if (*option && *option != 'f')
+            BF_FAIL_USAGE ("unknown flag: %s", w);
         for (option = w + 1; *option; option++) {
             if (*option == 'b') brief = 1;
             else if (*option == 'E') error_mode = 1;
             else if (*option == 'i') out = BF_OUT_MIME;
             else if (*option == 'L') deref = 1;
+            else if (*option == 's') special = 1;
+            else if (*option == 'f') {
+                const char *v = option[1] ? option + 1
+                    : (list->next ? (list = list->next)->word->word : NULL);
+                if (!v)
+                    BF_FAIL_USAGE ("option requires an argument -- 'f'");
+                BF_NAMEFILE (v);
+                did_namefile = 1;
+                break;
+            }
             else deref = 0;
         }
-        list = list->next;
     }
+    for (; list; list = list->next)
+        operands[n_operands++] = list->word->word;
 
-    if (!list) {
-        builtin_error ("usage: file [-bEhiL] [--mime-type] [--mime-encoding] FILE [FILE...]");
+    if (!n_operands && !did_namefile) {
+        builtin_error ("usage: file [-bEhiLs] [-f NAMEFILE] [--mime-type] [--mime-encoding] FILE [FILE...]");
+        free (buf);
+        free (operands);
         return EXECUTION_FAILURE;
     }
 
     size_t width = 0;
-    for (WORD_LIST *p = list; p; p = p->next) {
-        size_t len = strlen (p->word->word);
+    for (size_t i = 0; i < n_operands; i++) {
+        size_t len = strlen (operands[i]);
         if (len > width) width = len;
     }
-
-    unsigned char *buf = malloc (BF_BYTES_MAX);
-    if (!buf) { builtin_error ("out of memory"); return EXECUTION_FAILURE; }
-    bf_result res;
-    int rc = EXECUTION_SUCCESS;
-    for (WORD_LIST *p = list; p; p = p->next) {
-        const char *path = p->word->word;
-
-        /* "-" reads standard input; file(1) labels it "/dev/stdin". */
-        if (strcmp (path, "-") == 0) {
-            ssize_t n = bf_read (STDIN_FILENO, buf, BF_BYTES_MAX);
-            if (n < 0) n = 0;
-            bf_describe (buf, (size_t) n, n >= 4 ? buf + n - 4 : NULL, -1, &res);
-            bf_emit ("/dev/stdin", brief, width, out, &res);
-            continue;
-        }
-
-        struct stat st;
-        if ((deref ? stat (path, &st) : lstat (path, &st)) < 0) {
-            bf_error (path, brief, width, error_mode,
-                      error_mode ? "cannot stat" : "cannot open", errno);
-            if (error_mode) rc = EXECUTION_FAILURE;
-            continue;
-        }
-        if (S_ISLNK (st.st_mode)) {
-            char target[4096];
-            ssize_t tl = readlink (path, target, sizeof target - 1);
-            target[tl < 0 ? 0 : tl] = '\0';
-            struct stat ts;
-            int broken = stat (path, &ts) < 0;
-            snprintf (res.desc, sizeof res.desc, "%ssymbolic link to %s", broken ? "broken " : "", target);
-            res.mime = "inode/symlink";
-            /* file 5.46 gives a broken link no charset ("ERROR: (null)"
-               for --mime-encoding); mirror it. */
-            res.charset = broken ? NULL : "binary";
-            bf_emit (path, brief, width, out, &res);
-            continue;
-        }
-        char special[64];
-        if (S_ISDIR (st.st_mode)) bf_inode (&res, "directory", "inode/directory");
-        else if (S_ISFIFO (st.st_mode)) bf_inode (&res, "fifo (named pipe)", "inode/fifo");
-        else if (S_ISSOCK (st.st_mode)) bf_inode (&res, "socket", "inode/socket");
-        else if (S_ISBLK (st.st_mode) || S_ISCHR (st.st_mode)) {
-            snprintf (special, sizeof special, "%s special (%u/%u)",
-                      S_ISBLK (st.st_mode) ? "block" : "character",
-                      major (st.st_rdev), minor (st.st_rdev));
-            bf_inode (&res, special, S_ISBLK (st.st_mode) ? "inode/blockdevice" : "inode/chardevice");
-        } else if (!S_ISREG (st.st_mode)) bf_inode (&res, "special file", "application/octet-stream");
-        else {
-            int fd = open (path, O_RDONLY | O_CLOEXEC);
-            if (fd < 0) {
-                bf_error (path, brief, width, error_mode, "cannot open", errno);
-                if (error_mode) rc = EXECUTION_FAILURE;
-                continue;
-            }
-            ssize_t n = bf_read (fd, buf, BF_BYTES_MAX);
-            if (n < 0) {
-                int saved_errno = errno;
-                close (fd);
-                bf_error (path, brief, width, error_mode, "read error", saved_errno);
-                if (error_mode) rc = EXECUTION_FAILURE;
-                continue;
-            }
-            unsigned char tail[4];
-            const unsigned char *tp = NULL;
-            if (st.st_size >= 4 && (off_t) n == st.st_size) tp = buf + n - 4;
-            else if (st.st_size >= 4 && pread (fd, tail, 4, st.st_size - 4) == 4) tp = tail;
-            bf_describe (buf, (size_t) n, tp, fd, &res);
-            close (fd);
-        }
-        bf_emit (path, brief, width, out, &res);
-    }
+    for (size_t i = 0; i < n_operands; i++)
+        if (bf_file (operands[i], buf, brief, width, out, error_mode, deref, special))
+            rc = EXECUTION_FAILURE;
     free (buf);
+    free (operands);
     return rc;
 }
+
+#undef BF_NAMEFILE
+#undef BF_FAIL_USAGE
 
 char *file_doc[] = {
     "Identify file types via magic-byte signatures.",
     "",
-    "    file [-bEhiL] [--mime-type] [--mime-encoding] [--help|--version] FILE [FILE...]",
+    "    file [-bEhiLs] [-f NAMEFILE] [--mime-type] [--mime-encoding] [--help|--version] [FILE...]",
     "",
     "    -b, --brief    do not prepend `FILE: ' (print the type only)",
     "    -E             report filesystem errors with failure status",
@@ -1557,6 +1670,9 @@ char *file_doc[] = {
     "    --mime-encoding  print only the charset",
     "    -L, --dereference  follow symbolic links",
     "    -h, --no-dereference  describe a symbolic link itself (the default)",
+    "    -f NAMEFILE, --files-from=NAMEFILE  also describe each name listed,",
+    "                   one per line, in NAMEFILE (`-' = standard input)",
+    "    -s, --special-files  read block and character devices as files",
     "    --help         show this help",
     "    -v, --version  show version",
     "",
@@ -1583,6 +1699,6 @@ struct builtin file_struct = {
     file_builtin,
     BUILTIN_ENABLED,
     file_doc,
-    "file [-bEhiL] [--mime-type] [--mime-encoding] [--help|--version] FILE [FILE...]",
+    "file [-bEhiLs] [-f NAMEFILE] [--mime-type] [--mime-encoding] [--help|--version] [FILE...]",
     0
 };

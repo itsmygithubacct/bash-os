@@ -74,6 +74,24 @@
       "expected_status": 0,
       "stdout": "rc=1\npax: s/f: Cannot change ownership to uid 12345, gid 12345: Invalid argument\npax: s: Cannot change ownership to uid 12345, gid 12345: Invalid argument\nplain-ok\nrc=2\n",
       "stderr": "empty"
+    },
+    {
+      "id": "pax-follow-links",
+      "kind": "contract",
+      "purpose": "G62: pax -w -L archives what every symbolic link points to, -H only the named operands, -P (the default) the links themselves.",
+      "script": "/usr/bin/mkdir -p s/in; echo a > s/a; /usr/bin/ln -s ../a s/in/l; /usr/bin/ln -s s top\nfor o in -P -H -L; do pax -w $o -f /tmp/x.tar top; echo \"$o\"; /usr/bin/tar -tvf /tmp/x.tar | /usr/bin/cut -c1 | /usr/bin/sort | /usr/bin/tr -d '\\n'; echo; done\n",
+      "expected_status": 0,
+      "stdout": "-P\nl\n-H\n-ddl\n-L\n--dd\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pax-gnu-v7-formats",
+      "kind": "contract",
+      "purpose": "G62: pax -x gnu writes GNU magic and a ././@LongLink record for a long name; -x v7 writes no magic and a typeless regular file, and v7 archives read back.",
+      "script": "/usr/bin/mkdir -p s/d; echo a > s/a; n=$(printf \"n%0120d\" 0); : > s/$n\npax -w -x gnu -f /tmp/g.tar s/a s/$n\n/usr/bin/od -An -c -j257 -N8 /tmp/g.tar | /usr/bin/tr -s ' '\n/usr/bin/grep -c -a '[.]/[.]/@LongLink' /tmp/g.tar\n/usr/bin/tar -tf /tmp/g.tar | /usr/bin/wc -l\npax -w -x v7 -f /tmp/v.tar s/a s/d\n/usr/bin/od -An -tx1 -j156 -N1 /tmp/v.tar; /usr/bin/od -An -tx1 -j257 -N6 /tmp/v.tar\n/usr/bin/mkdir o; cd o; pax -r -f /tmp/v.tar; /usr/bin/cat s/a; test -d s/d && echo dir\npax -f /tmp/v.tar\nr=0; pax -w -x bogus -f /tmp/b.tar ../s/a 2>/dev/null || r=$?; echo \"bogus rc=$r\"\n",
+      "expected_status": 0,
+      "stdout": " u s t a r \\0\n1\n2\n 00\n 00 00 00 00 00 00\na\ndir\ns/a\ns/d/\nbogus rc=2\n",
+      "stderr": "empty"
     }
   ]
 }

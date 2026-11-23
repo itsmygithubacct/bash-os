@@ -2,13 +2,20 @@
 /* split.c — POSIX split(1) as a bash builtin.
  *
  *   split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d | -x]
- *         [--additional-suffix=SUFFIX] [INPUT [PREFIX]]
+ *         [--additional-suffix=SUFFIX] [--filter=COMMAND] [INPUT [PREFIX]]
  *
  * Splits INPUT (or stdin) into pieces named PREFIX{aa,ab,ac,...}.
  * Default: -l 1000 lines per piece, -a 2 (suffix length), PREFIX=x.
  * -d / --numeric-suffixes[=FROM] and -x / --hex-suffixes[=FROM] use
  * decimal or hexadecimal suffixes; --additional-suffix appends a fixed
  * string (no '/') after the generated suffix, as GNU split does.
+ *
+ * --filter=COMMAND writes each piece to the standard input of
+ * "$SHELL -c COMMAND" (/bin/sh without SHELL) with FILE set to the piece's
+ * name, instead of creating the file. As in GNU split, a filter that stops
+ * reading is not an error (SIGPIPE is blocked and EPIPE ignored), and one
+ * that fails ends split at once with its exit status, or 128+N for signal
+ * N other than SIGPIPE: "with FILE=xaa, exit 1 from command: false".
  *
  * SIZE accepts GNU byte units: b (512), K..Q (powers of 1024),
  * KB..QB (powers of 1000), and KiB..QiB (powers of 1024).
@@ -30,8 +37,11 @@
 #include <limits.h>
 #include <inttypes.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
+#include <signal.h>
 
 #include "loadables.h"
+#include "command-run.h"
 
 static long long
 bs_parse_count (const char *s)
@@ -124,11 +134,180 @@ bs_open_stdin (void)
     return in;
 }
 
+/* --filter=COMMAND state for the current invocation. Every running filter
+   keeps its pipe stream and child here until bs_close_output reaps it. */
+static const char *bs_filter;
+static int bs_filter_status;            /* first failing filter's status */
+static struct bs_child { FILE *fp; pid_t pid; } *bs_children;
+static size_t bs_n_children, bs_cap_children;
+static int bs_masked, bs_pipe_was_pending;
+static sigset_t bs_oldmask;
+
+/* GNU: a filter that exits early must not end split, so EPIPE is ignored. */
+static int
+bs_ignorable (void)
+{
+    return bs_filter && errno == EPIPE;
+}
+
+static FILE *
+bs_filter_open (const char *name)
+{
+    if (!bs_masked) {
+        /* Block SIGCHLD so Bash's reaper cannot take a filter's status, and
+           SIGPIPE so a closed filter yields EPIPE instead of a signal. */
+        sigset_t block, pending;
+        sigemptyset (&block);
+        sigaddset (&block, SIGCHLD);
+        sigaddset (&block, SIGPIPE);
+        sigpending (&pending);
+        bs_pipe_was_pending = sigismember (&pending, SIGPIPE);
+        if (sigprocmask (SIG_BLOCK, &block, &bs_oldmask) < 0) {
+            builtin_error ("sigprocmask: %s", strerror (errno));
+            return NULL;
+        }
+        bs_masked = 1;
+    }
+    if (bs_n_children == bs_cap_children) {
+        size_t cap = bs_cap_children ? bs_cap_children * 2 : 4;
+        struct bs_child *grown = realloc (bs_children, cap * sizeof *grown);
+        if (!grown) { builtin_error ("out of memory"); return NULL; }
+        bs_children = grown;
+        bs_cap_children = cap;
+    }
+    const char *shell = getenv ("SHELL");
+    if (!shell || !*shell) shell = "/bin/sh";
+    int pfd[2];
+    if (pipe2 (pfd, O_CLOEXEC) < 0) {
+        builtin_error ("failed to create pipe: %s", strerror (errno));
+        return NULL;
+    }
+    maybe_make_export_env ();
+    fflush (stdout);
+    fflush (stderr);
+    pid_t pid = fork ();
+    if (pid < 0) {
+        builtin_error ("fork system call failed: %s", strerror (errno));
+        close (pfd[0]); close (pfd[1]);
+        return NULL;
+    }
+    if (pid == 0) {
+        /* Bash's own setenv binds a shell variable, so the filter's
+           environment is built here: the exports, then FILE=NAME. */
+        size_t n_env = 0, k = 0;
+        bos_prepare_child ();
+        if (dup2 (pfd[0], STDIN_FILENO) < 0) _exit (127);
+        while (export_env && export_env[n_env]) n_env++;
+        char **env = malloc ((n_env + 2) * sizeof *env);
+        char *file_entry = malloc (strlen (name) + 6);
+        if (!env || !file_entry) _exit (127);
+        for (size_t i = 0; i < n_env; i++)
+            if (strncmp (export_env[i], "FILE=", 5))
+                env[k++] = export_env[i];
+        sprintf (file_entry, "FILE=%s", name);
+        env[k++] = file_entry;
+        env[k] = NULL;
+        sigprocmask (SIG_SETMASK, &bs_oldmask, NULL);
+        char *argv[] = { (char *) shell, (char *) "-c", (char *) bs_filter, NULL };
+        execve (shell, argv, env);
+        fprintf (stderr, "split: failed to run command: \"%s -c %s\": %s\n",
+                 shell, bs_filter, strerror (errno));
+        _exit (127);
+    }
+    close (pfd[0]);
+    FILE *out = fdopen (pfd[1], "w");
+    if (!out) {
+        builtin_error ("open pipe: %s", strerror (errno));
+        close (pfd[1]);
+        int status;
+        while (waitpid (pid, &status, 0) < 0 && errno == EINTR) { }
+        return NULL;
+    }
+    bs_children[bs_n_children].fp = out;
+    bs_children[bs_n_children].pid = pid;
+    bs_n_children++;
+    return out;
+}
+
+/* Close a filter's pipe and wait for it; report a failure as GNU does. */
+static int
+bs_filter_close (FILE *out, const char *name)
+{
+    pid_t pid = -1;
+    for (size_t i = 0; i < bs_n_children; i++)
+        if (bs_children[i].fp == out) {
+            pid = bs_children[i].pid;
+            bs_children[i] = bs_children[--bs_n_children];
+            break;
+        }
+    int rc = 0;
+    if (fclose (out) == EOF && !bs_ignorable ()) {
+        builtin_error ("write %s: %s", name, strerror (errno ? errno : EIO));
+        rc = -1;
+    }
+    int status;
+    if (pid < 0) return rc;
+    while (waitpid (pid, &status, 0) < 0)
+        if (errno != EINTR) {
+            builtin_error ("waiting for child process: %s", strerror (errno));
+            return -1;
+        }
+    int failed = 0;
+    if (WIFSIGNALED (status) && WTERMSIG (status) != SIGPIPE) {
+        const char *sig = signal_name (WTERMSIG (status));
+        if (sig && !strncmp (sig, "SIG", 3)) sig += 3;
+        builtin_error ("with FILE=%s, signal %s from command: %s", name,
+                       sig ? sig : "?", bs_filter);
+        failed = 128 + WTERMSIG (status);
+    } else if (WIFEXITED (status) && WEXITSTATUS (status) != 0) {
+        builtin_error ("with FILE=%s, exit %d from command: %s", name,
+                       WEXITSTATUS (status), bs_filter);
+        failed = WEXITSTATUS (status);
+    }
+    if (failed) {
+        if (!bs_filter_status) bs_filter_status = failed;
+        rc = -1;
+    }
+    return rc;
+}
+
+/* End of the invocation, including an interrupt: reap every filter still
+   running, drop a SIGPIPE this call caused, and restore the signal mask. */
+static void
+bs_filter_cleanup (void *unused)
+{
+    (void) unused;
+    while (bs_n_children > 0) {
+        struct bs_child c = bs_children[--bs_n_children];
+        int status;
+        fclose (c.fp);
+        while (waitpid (c.pid, &status, 0) < 0 && errno == EINTR) { }
+    }
+    free (bs_children);
+    bs_children = NULL;
+    bs_cap_children = 0;
+    if (bs_masked) {
+        sigset_t pending, pipe_only;
+        sigemptyset (&pipe_only);
+        sigaddset (&pipe_only, SIGPIPE);
+        struct timespec zero = { 0, 0 };
+        if (!bs_pipe_was_pending && sigpending (&pending) == 0 &&
+            sigismember (&pending, SIGPIPE))
+            sigtimedwait (&pipe_only, NULL, &zero);
+        sigprocmask (SIG_SETMASK, &bs_oldmask, NULL);
+        bs_masked = 0;
+    }
+    bs_filter = NULL;
+}
+
 /* Open without truncation until we know this is not the input, including
-   a hard link or a symlink to it. fdopen("w") does not truncate the fd. */
+   a hard link or a symlink to it. fdopen("w") does not truncate the fd.
+   With --filter the piece goes to a new filter process instead. */
 static FILE *
 bs_open_output (const char *name, const struct stat *input)
 {
+    if (bs_filter)
+        return bs_filter_open (name);
     int fd = open (name, O_WRONLY | O_CREAT, 0666);
     if (fd < 0) {
         builtin_error ("create %s: %s", name, strerror (errno));
@@ -161,6 +340,8 @@ bs_open_output (const char *name, const struct stat *input)
 static int
 bs_close_output (FILE *out, const char *name)
 {
+    if (bs_filter)
+        return bs_filter_close (out, name);
     if (fclose (out) == EOF) {
         builtin_error ("write %s: %s", name, strerror (errno ? errno : EIO));
         return -1;
@@ -215,7 +396,7 @@ bs_put_piece (const unsigned char *data, size_t n, int to_stdout,
         *open_out = bs_open_output (namebuf, input_stat);
         if (!*open_out) return -1;
     }
-    if (n && fwrite (data, 1, n, *open_out) != n) {
+    if (n && fwrite (data, 1, n, *open_out) != n && !bs_ignorable ()) {
         builtin_error ("write %s: %s", namebuf, strerror (errno ? errno : EIO));
         return -1;
     }
@@ -309,7 +490,8 @@ bs_split_chunks (FILE *fin, int mode, uintmax_t k, uintmax_t n, char *namebuf,
             size_t stop = nl ? (size_t) (nl - data) + 1 : size;
             uintmax_t c = line++ % n;
             FILE *dst = k ? (c + 1 == k ? stdout : NULL) : outs[c];
-            if (dst && fwrite (data + pos, 1, stop - pos, dst) != stop - pos) {
+            if (dst && fwrite (data + pos, 1, stop - pos, dst) != stop - pos &&
+                !bs_ignorable ()) {
                 builtin_error ("write %s: %s", k ? "error" : names[c], strerror (errno ? errno : EIO));
                 rc = -1;
             }
@@ -356,8 +538,25 @@ bs_parse_chunks (const char *v, int *mode, uintmax_t *k, uintmax_t *n)
     return 0;
 }
 
+static int bs_split (WORD_LIST *list);
+
 int
 split_builtin (WORD_LIST *list)
+{
+    bs_filter = NULL;
+    bs_filter_status = 0;
+    begin_unwind_frame ("bashsplit-filter");
+    add_unwind_protect (bs_filter_cleanup, NULL);
+    int rc = bs_split (list);
+    run_unwind_frame ("bashsplit-filter");
+    /* GNU split exits with a failing filter's own status. */
+    if (rc != EXECUTION_SUCCESS && bs_filter_status)
+        rc = bs_filter_status;
+    return rc;
+}
+
+static int
+bs_split (WORD_LIST *list)
 {
     long line_chunk = 1000;     /* -l N default */
     uintmax_t byte_chunk = 0;   /* -b SIZE; 0 = use lines */
@@ -417,6 +616,18 @@ invalid_start:
                 return EXECUTION_FAILURE;
             }
             bs_extra_suffix = v;
+            list = list->next;
+            continue;
+        }
+        if (!strcmp (w, "--filter") || !strncmp (w, "--filter=", 9)) {
+            const char *v = w[8] == '=' ? w + 9
+                : (list = list->next, list ? list->word->word : NULL);
+            if (!v) {
+                builtin_error ("option '--filter' requires an argument");
+                builtin_usage ();
+                return EXECUTION_FAILURE;
+            }
+            bs_filter = v;
             list = list->next;
             continue;
         }
@@ -505,6 +716,10 @@ invalid_start:
         if (bad == -2) {
             builtin_error ("invalid chunk number: '%ju'", k);
             rc = EXECUTION_FAILURE;
+        } else if (bad == 0 && k && bs_filter) {
+            builtin_error ("--filter does not process a chunk extracted to stdout");
+            builtin_usage ();
+            rc = EXECUTION_FAILURE;
         } else if (bad < 0) {
             const char *num = chunks;
             if ((num[0] == 'l' || num[0] == 'r') && num[1] == '/') num += 2;
@@ -542,7 +757,7 @@ invalid_start:
                 }
                 left_in_chunk = byte_chunk;
             }
-            if (fwrite (buf, 1, r, fout) != r) {
+            if (fwrite (buf, 1, r, fout) != r && !bs_ignorable ()) {
                 builtin_error ("write %s: %s", namebuf, strerror (errno));
                 rc = EXECUTION_FAILURE;
                 break;
@@ -576,7 +791,7 @@ invalid_start:
                     break;
                 }
             }
-            if (fwrite (line, 1, (size_t) n, fout) != (size_t) n) {
+            if (fwrite (line, 1, (size_t) n, fout) != (size_t) n && !bs_ignorable ()) {
                 builtin_error ("write %s: %s", namebuf, strerror (errno ? errno : EIO));
                 rc = EXECUTION_FAILURE;
                 break;
@@ -621,6 +836,8 @@ char *split_doc[] = {
     "    -d, --numeric-suffixes[=FROM]  decimal suffixes (from FROM, default 0)",
     "    -x, --hex-suffixes[=FROM]      hexadecimal suffixes (FROM in hex)",
     "    --additional-suffix=SUFFIX     append SUFFIX (no '/') to every name",
+    "    --filter=COMMAND  write each piece to \"$SHELL -c COMMAND\" (default",
+    "                /bin/sh) with FILE set to its name; no file is created",
     "",
     "INPUT defaults to stdin (or `-`). Output files are named",
     "PREFIXaa, PREFIXab, ... where PREFIX defaults to `x`.",
@@ -632,6 +849,6 @@ struct builtin split_struct = {
     split_builtin,
     BUILTIN_ENABLED,
     split_doc,
-    "split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [--additional-suffix=S] [INPUT [PREFIX]]",
+    "split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [--additional-suffix=S] [--filter=COMMAND] [INPUT [PREFIX]]",
     0
 };

@@ -418,6 +418,62 @@
       "script": "echo q > q; mkdir dd\n/usr/bin/setfacl -m u:$UID:rw q 2>/dev/null || exit 0\n/usr/bin/setfacl -d -m u:$UID:rx dd\ntar --acls -cf /tmp/q.tar q dd\nmkdir o; tar --acls -xf /tmp/q.tar -C o\n/usr/bin/getfacl -c -n o/q o/dd 2>/dev/null\nmkdir n; tar -xf /tmp/q.tar -C n\n/usr/bin/getfacl -c -n n/q 2>/dev/null\n",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "diff-compare",
+      "kind": "parity",
+      "requires": [
+        "tar"
+      ],
+      "purpose": "G62: -d/--diff/--compare reports what differs on disk with GNU's words (Mod time, Size, Contents, Mode, Symlink, File type, Not linked to, Cannot stat/readlink) and exits 1 when anything differs, 2 for a member that is not in the archive.",
+      "script": "run() { r=0; \"$@\" >/tmp/o 2>/tmp/e || r=$?; /usr/bin/cat /tmp/o; /usr/bin/sed 's/^[^ ]*: line [0-9]*: //' /tmp/e; echo \"rc=$r\"; }\n/usr/bin/mkdir -p s/d; echo a > s/a; echo bb > s/b; /usr/bin/ln -s a s/l; /usr/bin/ln s/a s/h\n/usr/bin/touch -h -d @86400 s/a s/b s/l s/d s\ntar -cf /tmp/x.tar s\nrun tar -df /tmp/x.tar\nrun tar -dvf /tmp/x.tar\necho b > s/a; /usr/bin/touch -d @86400 s/a; run tar --diff -f /tmp/x.tar\necho zzzz > s/a; run tar --compare -f /tmp/x.tar\necho a > s/a; /usr/bin/touch -d @86400 s/a; /usr/bin/chmod 600 s/b; run tar -df /tmp/x.tar; /usr/bin/chmod 644 s/b\n/usr/bin/rm s/l; /usr/bin/ln -s b s/l; run tar -df /tmp/x.tar\n/usr/bin/rm s/l; run tar -df /tmp/x.tar; /usr/bin/ln -s a s/l\n/usr/bin/rm s/b; /usr/bin/mkdir s/b; run tar -df /tmp/x.tar; /usr/bin/rmdir s/b\nrun tar -df /tmp/x.tar s/a\nrun tar -df /tmp/x.tar s/zz\nrun tar -d < /tmp/x.tar\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "diff-compressed",
+      "kind": "parity",
+      "requires": [
+        "tar",
+        "gzip"
+      ],
+      "purpose": "G62: -d reads a gzip archive (-z) and compares through -C.",
+      "script": "run() { r=0; \"$@\" >/tmp/o 2>/tmp/e || r=$?; /usr/bin/cat /tmp/o; /usr/bin/sed 's/^[^ ]*: line [0-9]*: //' /tmp/e; echo \"rc=$r\"; }\n/usr/bin/mkdir s o; echo a > s/a; /usr/bin/touch -d @86400 s/a s\ntar -czf /tmp/x.tgz s\nrun tar -dzf /tmp/x.tgz\ncd o; run tar -dzf /tmp/x.tgz -C ..; cd ..\necho c > s/a; run tar -dzf /tmp/x.tgz\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "dereference",
+      "kind": "parity",
+      "requires": [
+        "tar"
+      ],
+      "purpose": "G62: -h/--dereference archives what symbolic links point to (a file, a directory's contents); a dangling link fails with exit 2.",
+      "script": "run() { r=0; \"$@\" >/tmp/o 2>/tmp/e || r=$?; /usr/bin/cat /tmp/o; /usr/bin/sed 's/^[^ ]*: line [0-9]*: //' /tmp/e; echo \"rc=$r\"; }\n/usr/bin/mkdir s; echo a > s/a; /usr/bin/ln -s s/a la; /usr/bin/ln -s s sl; /usr/bin/ln -s nowhere dang\ntar -chf /tmp/h.tar la; tar -tvf /tmp/h.tar | /usr/bin/cut -c1-10\ntar --dereference -cf /tmp/h2.tar la sl; tar -tf /tmp/h2.tar\ntar -cf /tmp/p.tar la; tar -tvf /tmp/p.tar | /usr/bin/cut -c1-10\nr=0; tar -chf /tmp/d.tar dang 2>/dev/null || r=$?; echo \"dangling rc=$r\"\n/usr/bin/mkdir o; tar -xf /tmp/h.tar -C o; /usr/bin/cat o/la; test -L o/la || echo regular\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "format-option",
+      "kind": "parity",
+      "requires": [
+        "tar"
+      ],
+      "purpose": "G62: --format=FORMAT and -H FORMAT write gnu, oldgnu and v7 headers as GNU tar does (magic, directory slash, ././@LongLink names, v7 limits and refusals); an unknown name is \"Invalid archive format\", exit 2.",
+      "script": "run() { r=0; \"$@\" >/tmp/o 2>/tmp/e || r=$?; /usr/bin/cat /tmp/o; /usr/bin/sed 's/^[^ ]*: line [0-9]*: //' /tmp/e; echo \"rc=$r\"; }\n/usr/bin/mkdir -p s/d; echo a > s/a; /usr/bin/ln -s a s/l; /usr/bin/touch -h -d @86400 s/a s/l s/d s\nfor f in gnu oldgnu v7 ustar; do\n  tar --format=$f -cf /tmp/f.tar s/a s/d s/l; echo \"$f\"\n  tar -tvf /tmp/f.tar | /usr/bin/cut -c1-10,32-\n  /usr/bin/od -An -c -j257 -N8 /tmp/f.tar; /usr/bin/od -An -c -j512 -N100 /tmp/f.tar | /usr/bin/tr -s ' \\\\0' ' '\ndone\ntar -H gnu -cf /tmp/h.tar s/a; /usr/bin/od -An -c -j257 -N8 /tmp/h.tar\ntar --format posix -cf /tmp/p.tar s/a; tar -tf /tmp/p.tar\nn=$(printf \"n%0120d\" 0); : > s/$n; /usr/bin/touch -d @86400 s/$n\ntar --format=gnu -cf /tmp/L.tar s/$n; tar -tf /tmp/L.tar | /usr/bin/wc -c; /usr/bin/od -An -c -N16 /tmp/L.tar | /usr/bin/head -1\nrun tar --format=v7 -cf /tmp/v.tar s/$n\n/usr/bin/mkfifo s/f; run tar --format=v7 -cf /tmp/v.tar s/f\nrun tar --format=bogus -cf /tmp/b.tar s/a\nrun tar -H bogus -cf /tmp/b.tar s/a\n/usr/bin/mkdir x; tar --format=v7 -cf /tmp/v7.tar s/a s/d; tar -xf /tmp/v7.tar -C x; test -d x/s/d && echo v7-dir-extracted\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "fatal-exit-2",
+      "kind": "parity",
+      "requires": [
+        "tar"
+      ],
+      "purpose": "G62: fatal errors end with GNU tar's words and exit 2: not a tar archive, an archive that cannot be opened, a missing -C directory, and an archive cut short (Unexpected EOF in archive).",
+      "script": "run() { r=0; \"$@\" >/tmp/o 2>/tmp/e || r=$?; /usr/bin/cat /tmp/o; /usr/bin/sed 's/^[^ ]*: line [0-9]*: //' /tmp/e; echo \"rc=$r\"; }\necho junk > j.tar; run tar -tf j.tar\n: > e.tar; run tar -tf e.tar\nrun tar -tf nope.tar\necho a > a; tar -cf /tmp/a.tar a\n/usr/bin/head -c 700 /tmp/a.tar > t.tar; run tar -tf t.tar\n/usr/bin/mkdir o; run tar -xf t.tar -C o\n/usr/bin/head -c 1024 /tmp/a.tar > n.tar; run tar -tf n.tar\nrun tar -xf /tmp/a.tar -C /nonexistent\nr=0; tar -tzf j.tar 2>/dev/null || r=$?; echo \"tzf junk rc=$r\"\n/usr/bin/rm -f t.tar n.tar\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

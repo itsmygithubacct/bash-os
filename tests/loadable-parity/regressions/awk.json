@@ -19,7 +19,8 @@
     "Counter changes with fallback AST dispatch and main-input getline.",
     "POSIX numeric-string comparisons (guest pass 2, G21).",
     "RS paragraph, single-character and regex modes (G22).",
-    "VAR=VALUE operands, -v escapes and array parameters by reference (G23)."
+    "VAR=VALUE operands, -v escapes and array parameters by reference (G23).",
+    "G64: block-buffered stdout and redirected files when not a tty, flushed before system(), command pipes, getline from a command, fflush(), close() and at exit."
   ],
   "exclusions": [
     "RT is outside the implementation's documented scope.",
@@ -254,6 +255,37 @@
         "gawk"
       ],
       "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\necho a > f\necho b > g\nawk_cmd '{ print v, $0 }' v=1 f v=2 g\necho in | awk_cmd '{ print v \"-\" $0 }' v=only\nawk_cmd -v 'x=a\\tb\\\\n' 'BEGIN { print x }'\nawk_cmd '{ print y }' 'y=c\\td' f\nawk_cmd 'function fill(a, n) { a[\"k\"] = n } function fwd(b) { fill(b, 2) } BEGIN { fill(t, 1); print t[\"k\"]; fwd(u); print u[\"k\"]; arr[\"x\"] = 5; fill(arr, 3); print arr[\"x\"], arr[\"k\"] }'\nawk_cmd 'function g(v,  loc) { loc[1] = v; return loc[1] + length(loc) } BEGIN { print g(4), length(loc); s = 1 }'\nawk_cmd 'function sc(p) { p = 9; return p } BEGIN { print sc(q), \"[\" q \"]\" }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "buffered-stdout-ordering",
+      "kind": "parity",
+      "purpose": "G64: stdout to a file is block-buffered, yet system(), a command pipe, close(), fflush() and /dev/stdout keep gawk's ordering; /dev/stderr output, unbuffered, lands before still-buffered stdout as in gawk.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nexport BASHAWK_ALLOW_SYSTEM=1\nawk_cmd 'BEGIN { print \"a\"; system(\"printf \\\"sys\\\\n\\\"\"); print \"b\" }' > o1\nawk_cmd 'BEGIN { print \"a\"; print \"b\" | \"/bin/cat\"; print \"c\"; close(\"/bin/cat\"); print \"d\" }' > o2\nawk_cmd 'BEGIN { print \"x\" | \"/bin/cat\"; print \"a\"; close(\"/bin/cat\"); print \"c\" }' > o3\nawk_cmd 'BEGIN { print \"a\"; print \"e\" | \"/bin/cat 1>&2\"; print \"b\" }' > o4 2>&1\nawk_cmd 'BEGIN { print \"a\"; print \"f\" > \"/dev/stderr\"; print \"b\" }' > o5 2>&1\nawk_cmd 'BEGIN { print \"a\"; print \"f\" > \"/dev/stdout\"; print \"b\" }' > o6\nawk_cmd 'BEGIN { printf \"a\"; system(\"\"); printf \"b\" > \"/dev/stderr\"; print \"c\" }' > o7 2>&1\nawk_cmd 'BEGIN { print \"a\"; fflush(); print \"f\" > \"/dev/stderr\"; print \"b\" }' > o8 2>&1\nawk_cmd 'BEGIN { print \"a\" > \"/dev/stdout\"; close(\"/dev/stdout\"); print \"f\" > \"/dev/stderr\"; print \"b\" }' > o9 2>&1\nawk_cmd 'BEGIN { print \"a\"; print \"b\" > \"t\"; close(\"t\"); while ((getline l < \"t\") > 0) print \"r\" l }' > o10\nrm -f t\nfor f in o1 o2 o3 o4 o5 o6 o7 o8 o9 o10; do printf '%s: %s\\n' \"$f\" \"$(< \"$f\")\"; done",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "buffered-stdout-many-records",
+      "kind": "parity",
+      "purpose": "G64: block-buffered output of many records to a file and to a pipe is complete and in order.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nawk_cmd 'BEGIN { for (i = 1; i <= 3000; i++) print i }' > big\nawk_cmd '{ s += $1; n++ } END { print n, s }' big\nawk_cmd '{ print }' big | awk_cmd 'NR != $1 { bad = 1 } END { print NR, bad + 0 }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "getline-command-flushes-stdout",
+      "kind": "contract",
+      "purpose": "G64: before a command is read with getline, buffered stdout is flushed (as mawk does; gawk 5.3 does not), so the command's own output follows it.",
+      "script": "export BASHAWK_ALLOW_SYSTEM=1\nawk 'BEGIN { print \"a\"; \"printf \\\"g\\\\n\\\" >&2\" | getline v; print \"b\" }' > o 2>&1\nprintf '%s\\n' \"$(< o)\"",
+      "stdout": "a\ng\nb\n",
       "expected_status": 0,
       "stderr": "empty"
     }

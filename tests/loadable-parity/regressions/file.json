@@ -12,7 +12,8 @@
     "Missing-path status and diagnostic stream behavior",
     "Independent concise classifier format contract",
     "Explicit -E, brief combinations, continuation, no-operand usage and ordinary ENOTDIR errors",
-    "Guest pass 3 G51: -L/-h, -i/--mime, --mime-type, --mime-encoding, symlink targets, libmagic text encodings and line-terminator notes, PNG/GIF/gzip/bzip2/xz headers, scripts, HTML and XML."
+    "Guest pass 3 G51: -L/-h, -i/--mime, --mime-type, --mime-encoding, symlink targets, libmagic text encodings and line-terminator notes, PNG/GIF/gzip/bzip2/xz headers, scripts, HTML and XML.",
+    "G71: -f NAMEFILE/--files-from and -s/--special-files."
   ],
   "exclusions": [
     "The classifier's full curated signature catalog is not exhaustively enumerated; the suite samples broad fallback, document, and binary paths.",
@@ -361,6 +362,39 @@
         "mkfifo",
         "mkdir"
       ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "files-from-namefile",
+      "kind": "parity",
+      "purpose": "G71: -f NAMEFILE / -fNAMEFILE / --files-from[=]NAMEFILE describe each listed name, aligned among themselves, when the option is reached and with the options before it; '-' reads names from stdin; options may follow operands.",
+      "requires": [
+        "file"
+      ],
+      "script": "printf 'x\\n' > a\nprintf '#!/bin/sh\\n' > longname.sh\nprintf 'a\\nlongname.sh\\n' > L\nprintf 'a' > L3\nfile -f L\nfile -f L a\nfile a -f L\nfile -f L -b a\nfile -bf L\nfile -fL3\nfile --files-from L\nfile --files-from=L3\nprintf 'a\\n' | file -f -\nfile -f L -f L3",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "files-from-missing-names-and-errors",
+      "kind": "parity",
+      "purpose": "G71: listed names that are empty or missing are reported on stdout (status 0, 1 with -E); an unopenable NAMEFILE fails with status 1 before the operands.",
+      "requires": [
+        "file"
+      ],
+      "script": "printf 'x\\n' > a\nprintf 'a\\n\\nnope\\n' > L2\nfile -f L2\nrc=0; file -E -f L2 || rc=$?; echo E-rc=$rc\nrc=0; file -f missing a || rc=$?; echo missing-rc=$rc",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "special-files-flag",
+      "kind": "parity",
+      "purpose": "G71: -s / --special-files reads character devices as ordinary files (empty, data) instead of naming the device type; regular files are unchanged.",
+      "requires": [
+        "file"
+      ],
+      "script": "printf 'x\\n' > a\nfile /dev/null\nfile -s /dev/null\nfile --special-files /dev/null a\nfile -s -b /dev/zero\nfile -sL /dev/null",
       "expected_status": 0,
       "stderr": "empty"
     }

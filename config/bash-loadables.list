@@ -104,7 +104,7 @@ nohup|nohup CMD
 link|link TARGET NAME
 blkid|blkid [-p] [-o FORMAT] [-s TAG] [DEV...]
 lsblk|lsblk
-diff|diff [-abBcdiNpqrsuwyZ] [-C N|-U N] [-x PAT] [-X FILE] FILE1 FILE2
+diff|diff [-abBcdeiNpqrstuwyZ] [-C N|-U N] [-x PAT] [-X FILE] FILE1 FILE2
 ss|ss [-tuln]
 netstat|netstat -tuln (via ss backend)
 ping|ping [-c N] HOST
@@ -146,12 +146,12 @@ uclampset|Show and change task or system utilization clamps
 # text and formatting tools (imported 2026-09-06 from the upstream collection)
 expand|Convert tabs to spaces (POSIX expand)
 unexpand|Convert spaces to tabs (POSIX unexpand)
-split|split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [--additional-suffix=S] [INPUT [PREFIX]]
+split|split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [--additional-suffix=S] [--filter=COMMAND] [INPUT [PREFIX]]
 csplit|Context-split a file (POSIX csplit)
 join|Relational join on two sorted files (POSIX join)
 pr|Format text for printing (POSIX pr)
 tac|Concatenate and print files in reverse (last record first)
-column|column [-x] [-c WIDTH] [-t [-s SEPSTR] [-o OUTSTR]] [FILE...]
+column|column [-x] [-c WIDTH] [-t [-s SEPSTR] [-o OUTSTR] [-N NAMES]] [-J -N NAMES [-n NAME]] [FILE...]
 col|Filter CTL-H overstrike sequences (util-linux col)
 colrm|colrm [START [END]]
 expr|Evaluate POSIX expr(1) expressions
@@ -220,7 +220,7 @@ cal|cal
 man|man
 apropos|apropos
 whatis|whatis NAME [NAME ...]
-file|file [-bEhiL] [--mime-type] [--mime-encoding] [--help|--version] FILE [FILE...]
+file|file [-bEhiLs] [-f NAMEFILE] [--mime-type] [--mime-encoding] [--help|--version] [FILE...]
 
 # Additional upstream loadables
 pty|pty

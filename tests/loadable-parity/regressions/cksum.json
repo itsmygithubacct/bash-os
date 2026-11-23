@@ -229,6 +229,28 @@
       "script": "printf 'abc' > f; cksum -a blake2b f; cksum -a blake2b --untagged f; printf '' | cksum -a blake2b",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "blake2b-length",
+      "kind": "parity",
+      "purpose": "Guest pass 4 G68: cksum -a blake2b -l/--length BITS computes the shorter BLAKE2b digest (not a truncation), tags it BLAKE2b-BITS, treats 0 and values over 512 as 512, and verifies the tagged and untagged lines it writes.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "printf 'abc' > f; cksum -a blake2b -l 256 f; cksum -a blake2b --length=16 --untagged f; cksum -a blake2b -l8 f; cksum -a blake2b -l 0 f; cksum -a blake2b -l 1024 --untagged f\ncksum -a blake2b -l 256 f > c; cksum -c c; cksum -a blake2b -l 256 --untagged f > u; cksum -a blake2b -c u",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "blake2b-length-errors",
+      "kind": "parity",
+      "purpose": "-l needs blake2b and a decimal multiple of 8; other values fail with status 1.",
+      "requires": [
+        "cksum"
+      ],
+      "script": "s() { local rc=0; \"$@\" || rc=$?; echo \"rc=$rc\"; }\nprintf 'abc' > f; s cksum -l 16 f; s cksum -a sha256 -l 16 f; s cksum -a blake2b -l 7 f; s cksum -a blake2b -l abc f; s cksum -a blake2b -l -8 f",
+      "expected_status": 0,
+      "stderr": "nonempty"
     }
   ]
 }

@@ -63,6 +63,11 @@
  *     -r / --range RANGE  byte range
  *     -C / --continue-at OFFSET|-
  *                         resume into the output file
+ *     --unix-socket PATH  connect to the unix-domain stream socket PATH
+ *                         instead of HOST:PORT (TLS runs over it for
+ *                         https://); proxies are not used with it
+ *     --abstract-unix-socket NAME
+ *                         the same over Linux's abstract namespace
  *
  * Parser compatibility:
  *     Supported long options accept --name=value where Debian curl does.
@@ -95,6 +100,7 @@
 #  include <unistd.h>
 #endif
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -111,6 +117,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/select.h>
 #include <sys/wait.h>
 #include <sys/time.h>
@@ -192,6 +199,8 @@ typedef struct {
   const char *upload;          /* -T/--upload-file FILE */
   const char *range;           /* -r/--range RANGE */
   const char *proxy;           /* -x/--proxy [scheme://][user:pass@]host[:port] */
+  const char *unix_socket;     /* --unix-socket / --abstract-unix-socket PATH */
+  int         abstract_unix;   /* unix_socket names an abstract socket */
   const char *forms[BCURL_HEADER_SLOTS]; /* -F/--form specs */
   int         nforms;
   char        proxy_auth[512]; /* base64 user:pass from the proxy URL */
@@ -224,7 +233,8 @@ static struct
 {
   struct timespec start, connected, received;
   int have_connected, have_received;
-  char remote_ip[INET6_ADDRSTRLEN], local_ip[INET6_ADDRSTRLEN];
+  /* remote_ip holds a socket path under --unix-socket, as curl reports. */
+  char remote_ip[sizeof ((struct sockaddr_un *) 0)->sun_path + 1], local_ip[INET6_ADDRSTRLEN];
   int remote_port, local_port, connects;
   const char *url;             /* as given */
   const char *effective;       /* the last URL fetched */
@@ -1055,6 +1065,52 @@ bc_connect_tcp (const char *host, const char *port, int timeout_s)
                   host, port, bc_wo_seconds (&now) * 1000.0);
       bc_errcode = timed_out ? 28 : 7;    /* CURLE_OPERATION_TIMEDOUT / CURLE_COULDNT_CONNECT */
     }
+  return fd;
+}
+
+/* ---- network: --unix-socket / --abstract-unix-socket ---- */
+static int
+bc_connect_unix (const char *path, int abstract, const char *host, const char *port)
+{
+  struct sockaddr_un sun;
+  size_t n = strlen (path), off = abstract ? 1 : 0;
+  memset (&sun, 0, sizeof sun);
+  sun.sun_family = AF_UNIX;
+  int fd = -1, err = ENAMETOOLONG;
+  if (n + off < sizeof sun.sun_path)
+    {
+      memcpy (sun.sun_path + off, path, n);
+      /* An abstract name is the bytes after the leading NUL, unterminated. */
+      socklen_t sl = (socklen_t) (offsetof (struct sockaddr_un, sun_path) + off + n + !abstract);
+      fd = socket (AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+      if (fd >= 0)
+        {
+          int rc;
+          do rc = connect (fd, (struct sockaddr *) &sun, sl);
+          while (rc < 0 && errno == EINTR);
+          if (rc < 0) { err = errno; close (fd); fd = -1; }
+        }
+      else
+        err = errno;
+    }
+  if (fd < 0)
+    {
+      bc_error ("cannot connect to %s%s: %s", abstract ? "@" : "", path, strerror (err));
+      struct timespec now;
+      clock_gettime (CLOCK_MONOTONIC, &now);
+      snprintf (bc_wo.errormsg, sizeof bc_wo.errormsg,
+                "Failed to connect to %s port %s after %.0f ms: Could not connect to server",
+                host, port, bc_wo_seconds (&now) * 1000.0);
+      bc_errcode = 7;                     /* CURLE_COULDNT_CONNECT */
+      return -1;
+    }
+  snprintf (bc_wo.remote_ip, sizeof bc_wo.remote_ip, "%s", path);
+  bc_wo.remote_port = 0;
+  bc_wo.local_ip[0] = '\0';
+  bc_wo.local_port = 0;
+  clock_gettime (CLOCK_MONOTONIC, &bc_wo.connected);
+  bc_wo.have_connected = 1;
+  bc_wo.connects++;
   return fd;
 }
 
@@ -2192,7 +2248,13 @@ bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_res
   if (is_https)
     {
       int tunnel = -1;
-      if (o->proxy && (tunnel = bc_proxy_tunnel (o, &u, connect_timeout, timeout)) < 0)
+      if (o->unix_socket)
+        {
+          /* TLS runs over the unix-domain socket as it would over a tunnel. */
+          if ((tunnel = bc_connect_unix (o->unix_socket, o->abstract_unix, u.host, u.port)) < 0)
+            { free (req); return -1; }
+        }
+      else if (o->proxy && (tunnel = bc_proxy_tunnel (o, &u, connect_timeout, timeout)) < 0)
         { free (req); return -1; }
       raw = bc_https_exchange (&u, req, reqlen, o->insecure, o->cacert,
                                timeout, strcmp (o->method, "HEAD") == 0, tunnel, &raw_len);
@@ -2208,7 +2270,9 @@ bc_one_request (const bc_opts *o, const char *url_override, bc_response *out_res
           chost = phost;
           cport = pport;
         }
-      int fd = bc_connect_tcp (chost, cport, connect_timeout);
+      int fd = o->unix_socket
+               ? bc_connect_unix (o->unix_socket, o->abstract_unix, u.host, u.port)
+               : bc_connect_tcp (chost, cport, connect_timeout);
       if (fd < 0) { free (req); return -1; }
       if (bc_write_all (fd, req, reqlen) < 0)
         { bc_error ("write: %s", strerror (errno)); close (fd); free (req); return -1; }
@@ -2351,6 +2415,7 @@ bc_usage (void)
   builtin_error ("                [--max-redirs N] [-I] [-v] [-F PART] [-T FILE] [-G]");
   builtin_error ("                [--data-urlencode DATA] [--json DATA] [--retry N]");
   builtin_error ("                [-x PROXY] [--compressed] [--http2] [-r RANGE] [-C OFFSET|-]");
+  builtin_error ("                [--unix-socket PATH] [--abstract-unix-socket NAME]");
   builtin_error ("                [--features] [-V|--version] URL");
   builtin_error ("                supported long aliases accept --name=value");
 }
@@ -2359,7 +2424,7 @@ static void
 bc_print_caps (void)
 {
   puts ("Protocols: http https");
-  puts ("Features: basic-auth cacert compressed connect-timeout continue-at cookie cookie-jar cookie-policy data-binary data-urlencode fail form get head json location max-redirs output-file output-remote-name proxy range retry show-error silent timeout upload-file verbose write-out");
+  puts ("Features: basic-auth cacert compressed connect-timeout continue-at cookie cookie-jar cookie-policy data-binary data-urlencode fail form get head json location max-redirs output-file output-remote-name proxy range retry show-error silent timeout unix-socket upload-file verbose write-out");
 }
 
 static void
@@ -2955,6 +3020,20 @@ curl_builtin (WORD_LIST *list)
         { if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.upload = v; }
       else if (!strcmp (w, "--range") || (v = bc_long_eq (w, "--range")))
         { if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.range = v; }
+      else if (!strcmp (w, "--unix-socket") || (v = bc_long_eq (w, "--unix-socket"))
+               || !strcmp (w, "--abstract-unix-socket") || (v = bc_long_eq (w, "--abstract-unix-socket")))
+        {
+          const char *opt = strncmp (w, "--abstract", 10) ? "--unix-socket" : "--abstract-unix-socket";
+          if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE);
+          if (!*v)
+            {
+              fprintf (stderr, "curl: option %s: blank argument where content is expected\n"
+                       "curl: try 'curl --help' or 'curl --manual' for more information\n", opt);
+              BC_PARSE_FAIL (2);
+            }
+          o.unix_socket = v;
+          o.abstract_unix = opt[2] == 'a';
+        }
       else if (!strcmp (w, "--proxy") || (v = bc_long_eq (w, "--proxy")))
         { if (!v && bc_next_arg (&p, w, &v) != EXECUTION_SUCCESS) BC_PARSE_FAIL (EX_USAGE); o.proxy = *v ? v : NULL; }
       else if (!strcmp (w, "--continue-at") || (v = bc_long_eq (w, "--continue-at")))
@@ -3034,6 +3113,7 @@ curl_builtin (WORD_LIST *list)
       BC_PARSE_FAIL (2);
     }
   if (o.head && !o.method_set) o.method = "HEAD";
+  if (o.unix_socket) o.proxy = NULL;     /* curl does not mix a proxy with a unix socket */
   if (o.proxy)
     {
       char ph[256], pp[16];
@@ -3327,11 +3407,13 @@ char *curl_doc[] = {
   "           [--cacert PEM] [--connect-timeout SEC] [-m|--max-time SEC] [--max-redirs N]",
   "           [-I] [-v] [-F PART] [-T FILE] [-G] [--data-urlencode DATA] [--json DATA]",
   "           [--retry N] [-x PROXY] [--compressed] [--http2] [-r RANGE] [-C OFFSET|-]",
-  "           [--features] [-V|--version] URL",
+  "           [--unix-socket PATH] [--abstract-unix-socket NAME] [--features] [-V|--version] URL",
   "Long aliases and --name=value forms are normalized for supported options.",
   "Attached short arguments such as -oFILE and bundles like -fsSLo FILE work.",
   "Plain http:// uses raw TCP; https:// pipes the framed request through",
   "`crypto tls connect HOST:PORT -s HOST [-c PEM] [-k]` in a bash subshell.",
+  "--unix-socket PATH / --abstract-unix-socket NAME connect to a unix-domain",
+  "stream socket instead of HOST:PORT (TLS runs over it); no proxy is used.",
   "Subset: GET/POST/PUT/etc., common -f/-s/-S/-L/-k/-O bundles, -D, --fail-with-body,",
   "-w FORMAT|@FILE with %{http_code} %{response_code} %{size_download} %{size_header}",
   "  %{size_upload} %{content_type} %{url} %{url_effective} %{redirect_url} %{num_redirects}",

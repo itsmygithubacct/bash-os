@@ -10,7 +10,9 @@
  *   cksum -a md5|sha1|sha224|sha256|sha384|sha512 [FILE...]
  *       Match GNU cksum digest modes for common algorithms, defaulting
  *       to tagged output: "SHA256 (FILE) = HEX". --untagged emits
- *       "HEX  FILE". With stdin, FILE is "-". blake2b is also accepted.
+ *       "HEX  FILE". With stdin, FILE is "-". blake2b is also accepted,
+ *       with -l/--length BITS (a multiple of 8, at most 512) selecting a
+ *       shorter BLAKE2b digest tagged "BLAKE2b-BITS".
  *   cksum [-a ALG] -c|--check [--quiet] [--status] [--strict] [-w]
  *         [--ignore-missing] [FILE...]
  *       Verify GNU checksum lists: tagged "ALG (FILE) = HEX" lines of
@@ -138,6 +140,10 @@ bck_alg_tag (enum bck_alg alg)
     }
 }
 
+/* BLAKE2b digest bytes: -l/--length BITS / 8 (GNU's default is 64). The
+   check mode sets it from each line's tag or digest. */
+static size_t bck_b2_len = 64;
+
 static size_t
 bck_alg_digest_len (enum bck_alg alg)
 {
@@ -148,7 +154,7 @@ bck_alg_digest_len (enum bck_alg alg)
     case BCK_ALG_SHA256: return 32;
     case BCK_ALG_SHA384: return 48;
     case BCK_ALG_SHA512: return 64;
-    case BCK_ALG_BLAKE2B: return 64;
+    case BCK_ALG_BLAKE2B: return bck_b2_len;
     case BCK_ALG_CRC:
     default: return 0;
     }
@@ -221,7 +227,7 @@ bck_compute_digest_fd (int fd, enum bck_alg alg, unsigned char digest[64])
     }
     case BCK_ALG_BLAKE2B: {
         crypto_blake2b_ctx ctx;
-        crypto_blake2b_init (&ctx, 64);
+        crypto_blake2b_init (&ctx, bck_b2_len);
         while ((n = read (fd, buf, sizeof buf)) > 0)
             crypto_blake2b_update (&ctx, buf, (size_t) n);
         if (n < 0) return -1;
@@ -323,12 +329,26 @@ bck_verify (const char *file, const struct bck_check *o)
         int escape = *p == '\\';
         if (escape) p++;
         enum bck_alg alg = (enum bck_alg) -1;
+        bck_b2_len = 64;
         for (size_t i = 0; i < sizeof tagged / sizeof tagged[0]; i++) {
             const char *tag = bck_alg_tag (tagged[i]);
             size_t tl = strlen (tag);
             if (!strncmp (p, tag, tl) && !strncmp (p + tl, " (", 2)) {
                 alg = tagged[i];
                 name = p + tl + 2;
+                break;
+            }
+            /* "BLAKE2b-BITS (": a shorter digest, as GNU's -l writes. */
+            if (tagged[i] == BCK_ALG_BLAKE2B && !strncmp (p, tag, tl) && p[tl] == '-') {
+                char *end;
+                errno = 0;
+                unsigned long long bits = isdigit ((unsigned char) p[tl + 1])
+                    ? strtoull (p + tl + 1, &end, 0) : 0;
+                if (errno || !bits || bits > 512 || bits % 8 || strncmp (end, " (", 2))
+                    goto malformed;
+                bck_b2_len = (size_t) bits / 8;
+                alg = tagged[i];
+                name = end + 2;
                 break;
             }
         }
@@ -339,6 +359,13 @@ bck_verify (const char *file, const struct bck_check *o)
             *end = 0;
             digest = end + 4;
         } else {
+            if (o->alg == BCK_ALG_BLAKE2B) {
+                /* GNU infers an untagged BLAKE2b digest's length. */
+                size_t hx = 0;
+                while (isxdigit ((unsigned char) p[hx])) hx++;
+                if (hx < 2 || hx % 2 || hx > 128) goto malformed;
+                bck_b2_len = hx / 2;
+            }
             size_t hl = 2 * bck_alg_digest_len (o->alg);
             if (!o->alg_given || strlen (p) < hl + 3 || p[hl] != ' '
                 || (p[hl + 1] != ' ' && p[hl + 1] != '*'))
@@ -406,6 +433,8 @@ bck_print_digest (enum bck_alg alg, const char *name,
     bck_hex (digest, dlen, hex);
     if (untagged)
         printf ("%s  %s%c", hex, name, delim);
+    else if (alg == BCK_ALG_BLAKE2B && bck_b2_len < 64)
+        printf ("%s-%zu (%s) = %s%c", bck_alg_tag (alg), bck_b2_len * 8, name, hex, delim);
     else
         printf ("%s (%s) = %s%c", bck_alg_tag (alg), name, hex, delim);
 }
@@ -418,6 +447,8 @@ cksum_builtin (WORD_LIST *list)
     enum bck_alg selected_alg = BCK_ALG_CRC;
     int untagged = 0, check = 0, tag_given = 0;
     struct bck_check co = { 0, 0, 0, 0, 0, 0, BCK_ALG_CRC };
+    const char *length_arg = NULL;
+    bck_b2_len = 64;
 
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
@@ -449,6 +480,20 @@ cksum_builtin (WORD_LIST *list)
             list = list->next;
             continue;
         }
+        /* -l BITS / -lBITS / --length BITS / --length=BITS (blake2b). */
+        if (!strcmp (w, "-l") || !strcmp (w, "--length")) {
+            if (!list->next) {
+                if (w[1] == 'l') builtin_error ("option requires an argument -- 'l'");
+                else builtin_error ("option '--length' requires an argument");
+                return bck_try ();
+            }
+            list = list->next;
+            length_arg = list->word->word;
+            list = list->next;
+            continue;
+        }
+        if (!strncmp (w, "-l", 2) && w[2]) { length_arg = w + 2; list = list->next; continue; }
+        if (!strncmp (w, "--length=", 9)) { length_arg = w + 9; list = list->next; continue; }
         /* -a ALG / -aALG / --algorithm ALG / --algorithm=ALG. */
         const char *alg_name = NULL;
         if (!strcmp (w, "-a") || !strcmp (w, "--algorithm")) {
@@ -480,6 +525,33 @@ cksum_builtin (WORD_LIST *list)
         builtin_error ("unknown flag: %s", w);
         builtin_usage ();
         return EXECUTION_FAILURE;
+    }
+    if (length_arg) {
+        /* GNU xnumtoumax: decimal, optional blanks and '+', clamped to 512. */
+        const char *d = length_arg;
+        while (isspace ((unsigned char) *d)) d++;
+        if (*d == '+') d++;
+        unsigned long long bits = 0;
+        int ok = isdigit ((unsigned char) *d);
+        for (; ok && *d; d++) {
+            if (!isdigit ((unsigned char) *d)) { ok = 0; break; }
+            if (bits <= 512) bits = bits * 10 + (unsigned) (*d - '0');
+        }
+        if (!ok) {
+            builtin_error ("invalid length: '%s'", length_arg);
+            return EXECUTION_FAILURE;
+        }
+        if (selected_alg != BCK_ALG_BLAKE2B) {
+            builtin_error ("--length is only supported with --algorithm=blake2b");
+            return EXECUTION_FAILURE;
+        }
+        if (bits > 512) bits = 512;
+        if (bits % 8) {
+            builtin_error ("invalid length: '%s'", length_arg);
+            builtin_error ("length is not a multiple of 8");
+            return EXECUTION_FAILURE;
+        }
+        bck_b2_len = bits ? (size_t) bits / 8 : 64;
     }
     if (check) {
         if (co.alg_given && selected_alg == BCK_ALG_CRC) {
@@ -572,7 +644,7 @@ cksum_builtin (WORD_LIST *list)
 char *cksum_doc[] = {
     "POSIX CRC-32 + byte-count, plus common GNU cksum digest modes.",
     "",
-    "    cksum [-a crc|md5|sha1|sha224|sha256|sha384|sha512|blake2b] [-z] [--tag|--untagged] [FILE...]",
+    "    cksum [-a crc|md5|sha1|sha224|sha256|sha384|sha512|blake2b] [-l BITS] [-z] [--tag|--untagged] [FILE...]",
     "    cksum [-a ALG] -c|--check [--quiet|--status] [--strict] [-w] [--ignore-missing] [FILE...]",
     "    cksum --help | --version",
     "        CRC mode prints '<crc> <bytes> <FILE>'. Digest modes",
@@ -582,6 +654,8 @@ char *cksum_doc[] = {
     "        Use -- before dash-leading filenames.",
     "",
     "    -a, --algorithm=ALG   crc, md5, sha1, sha224, sha256, sha384, sha512, or blake2b",
+    "    -l, --length=BITS     blake2b digest length: a multiple of 8, at most 512",
+    "                          (larger values mean 512); tagged 'BLAKE2b-BITS'",
     "    -c, --check           verify tagged lines (any digest) or, with -a,",
     "                          untagged 'HEX  FILE' lines; --quiet, --status,",
     "                          --strict, -w/--warn and --ignore-missing as GNU",
@@ -590,7 +664,7 @@ char *cksum_doc[] = {
     "",
     "Algorithm is POSIX-mandated CRC-32 (polynomial 0x04C11DB7,",
     "non-reflected, with length-byte injection + final XOR).",
-    "Unsupported: --raw, --base64, --length, sysv, bsd, crc32b, sm3.",
+    "Unsupported: --raw, --base64, sysv, bsd, crc32b, sm3.",
     (char *)NULL
 };
 

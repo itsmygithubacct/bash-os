@@ -7,7 +7,8 @@
     "util-linux table output with default whitespace separators, ragged rows, explicit field separators, empty fields, and a custom output separator.",
     "util-linux non-table layout with explicit output width, column-first versus row-first filling, and explicit space padding.",
     "Named relative file operands, an unterminated final input record, repeated redirected stdin in one shell, and invalid output-width handling.",
-    "Nonempty zero-width list and table modes, ragged explicitly separated tails, repeated dash operands, and a custom identity banner."
+    "Nonempty zero-width list and table modes, ragged explicitly separated tails, repeated dash operands, and a custom identity banner.",
+    "G66: display-width -t padding under UTF-8, -N/--table-columns, -n/--table-name and -J/--json."
   ],
   "exclusions": [
     "Only the column command is covered; the sibling col and colrm builtins are outside this suite.",
@@ -191,6 +192,50 @@
         "column"
       ],
       "script": ": > empty\nfor form in split attached long-split long-equals; do\n rc=0\n case $form in\n  split) column -c -1 empty || rc=$? ;;\n  attached) column -c-1 empty || rc=$? ;;\n  long-split) column --output-width -1 empty || rc=$? ;;\n  long-equals) column --output-width=-1 empty || rc=$? ;;\n esac\n printf 'negative-status=%s\\n' \"$rc\"\n [[ $rc == 1 ]]\ndone\nprintf 'one\\n' > data\ncolumn -c 0 data",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "table-utf8-display-width",
+      "kind": "parity",
+      "purpose": "G66: under a UTF-8 locale -t pads by display width (wcwidth), so accented and double-width text aligns.",
+      "requires": [
+        "column"
+      ],
+      "script": "export LC_ALL=C.UTF-8\nprintf 'é x\\n日本 y\\nz w\\n' > u\ncolumn -t u\ncolumn -t -o '|' u\nprintf 'a\\tb\\n日本語\\tc\\n' | column -t -s \"$(printf '\\t')\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "table-columns-header",
+      "kind": "parity",
+      "purpose": "G66: -N/--table-columns prints a header row in -t mode, with fewer or more names than fields.",
+      "requires": [
+        "column"
+      ],
+      "script": "printf 'a 1\\nbb 22\\nccc\\n' > t\ncolumn -t -N NAME,VAL t\ncolumn -t -N X,Y,Z t\ncolumn --table --table-columns=K t\ncolumn -t -N 'Long Name',V -o ' | ' t",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "json-output",
+      "kind": "parity",
+      "purpose": "G66: -J/--json with -N prints util-linux's JSON (lower-cased keys, null for missing cells, escaped strings, -n table name).",
+      "requires": [
+        "column"
+      ],
+      "script": "printf 'a 1\\nbb\\n' > t\nprintf 'q\"x b\\\\y\\n' > e\ncolumn -J -N Name,Val t\ncolumn --json --table-columns Name,Val --table-name Things t\ncolumn -J -N k,v e\ncolumn -J -s , -N a,b t\n: > empty; column -J -N a empty; echo end",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "json-and-table-option-errors",
+      "kind": "parity",
+      "purpose": "G66: -J without -N, -N or -n without -t/-J, and a row wider than the names under -J fail with status 1.",
+      "requires": [
+        "column"
+      ],
+      "script": "printf 'a b c\\n' > t\nfor args in '-J' '-N a,b' '-n x' '-J -N a,b'; do rc=0; column $args t || rc=$?; echo \"$args rc=$rc\"; done",
       "expected_status": 0,
       "stderr": "nonempty"
     }

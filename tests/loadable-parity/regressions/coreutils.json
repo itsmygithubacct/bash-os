@@ -280,6 +280,63 @@
       "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nprintf 'data\\n' > f; cu shred -v -x -n 2 -z f 2>&1\nprintf 'x\\n' > abc; cu shred -v --remove=wipe -n 1 abc 2>&1; [[ -e abc ]] || echo gone\nprintf 'x\\n' > g; : > 0; cu shred -vu -n1 g 2>&1; [[ -e 1 ]] || echo no-1\nprintf 'x\\n' > h; cu shred --remove=unlink -v --iterations=1 h 2>&1\nprintf 'x\\n' > k; cu shred --zero -n 0 --remove k; [[ -e k ]] || echo k-gone\ncu shred -u -n 1 nofile 2>/dev/null || echo rc=$?\ncu shred --remove=bad k 2>/dev/null || echo bad-rejected",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "fmt-uniform-spacing",
+      "kind": "parity",
+      "purpose": "Guest pass 4 G68: fmt -u/--uniform-spacing puts one space between words and two after a sentence end; without -u, fmt keeps the input's inter-word spacing (GNU), where bash-os used to collapse it.",
+      "requires": [
+        "fmt"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nprintf 'a   b.    c\\n' | cu fmt -u\nprintf 'a   b.    c\\n' | cu fmt\nprintf 'One.  Two three.\\nFour   five\\n' | cu fmt --uniform-spacing -w 12\nprintf 'x  y\\n' | cu fmt -su",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "fmt-prefix",
+      "kind": "parity",
+      "purpose": "Guest pass 4 G68: fmt -p/--prefix STRING refills only lines that start with STRING (after optional indentation), reattaches the prefix, and copies every other line unchanged.",
+      "requires": [
+        "fmt"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nprintf '# a\\n# b\\n' | cu fmt -p '#'\nprintf '  // one two\\n  // three\\ncode();\\n// four\\n' | cu fmt -w 12 --prefix=//\nprintf '> q1\\n>q2\\nplain  text\\n' | cu fmt -p '> '",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "fmt-gnu-paragraphs",
+      "kind": "parity",
+      "purpose": "fmt joins only lines of equal indentation, re-introduces tabs, honours -c/-t/-g, never lets a line reach the -w width, and handles old -WIDTH syntax, options after operands and its option errors as GNU fmt does.",
+      "requires": [
+        "fmt"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ns() { local rc=0; \"$@\" || rc=$?; echo \"rc=$rc\"; }\nprintf 'a\\n  b\\n' | cu fmt\nprintf 'aaaa bbbb\\n' | cu fmt -w 9\nprintf '\\tx y\\n\\tz\\n' | cu fmt\nprintf '  first line here\\nsecond line text\\nthird\\n' | cu fmt -c -w 12\nprintf 'tag line\\n    body one\\n    body two\\n' | cu fmt -t -w 15\nprintf 'a b c d e f\\n' | cu fmt -g 4\nprintf 'p q r s\\n' > in; cu fmt -5 in; cu fmt in -w 3\ns cu fmt -w abc in 2>/dev/null; s cu fmt -q in 2>/dev/null; s cu fmt -w 3000 in 2>/dev/null; s cu fmt missing in 2>/dev/null",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "tsort-odd-tokens",
+      "kind": "parity",
+      "purpose": "Guest pass 4 G68: an odd number of tokens prints nothing and fails with status 1 (GNU: 'input contains an odd number of tokens'), also when the pairs before the lone token are valid.",
+      "requires": [
+        "tsort"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ns() { local rc=0; \"$@\" || rc=$?; echo \"rc=$rc\"; }\nprintf 'a' | s cu tsort\nprintf 'a b\\nb c\\nc\\n' | s cu tsort\nprintf 'a b c' > odd; s cu tsort odd\nprintf 'a\\nb\\n' | s cu tsort",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "install-compare",
+      "kind": "parity",
+      "purpose": "Guest pass 4 G68: install -C/--compare leaves a destination with the same content, mode and owner untouched (its inode keeps a second hard link) and replaces it when the content or mode differs.",
+      "requires": [
+        "install",
+        "stat",
+        "ln"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\numask 022\nprintf 'x\\n' > s; cu install -C s t; ln t keep\ncu install -C s t; stat -c '%h %a' t\ncu install --compare -m 644 s t; stat -c '%h %a' t; ln -f t keep\nprintf 'y\\n' > s; cu install -C -m 644 s t; stat -c '%h %a' t; cat t\nln -f t keep; cu install s t; stat -c '%h' t",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

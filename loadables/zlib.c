@@ -77,6 +77,10 @@
 
 enum bz_format { BZ_GZIP = 0, BZ_XZ, BZ_LZMA, BZ_ZSTD, BZ_ZLIB, BZ_DEFLATE, BZ_BZIP2 };
 
+/* A codec's result when trailing garbage followed a complete gzip member
+   or bzip2 stream (decoding itself succeeded). */
+#define BZ_GARBAGE 2
+
 /* ---- gzip / zlib / deflate (libz) ----------------------------------- */
 static int
 bz_codec_zlib (int in_fd, int out_fd, int encode, int level, enum bz_format fmt)
@@ -189,22 +193,68 @@ bz_codec_zlib (int in_fd, int out_fd, int encode, int level, enum bz_format fmt)
           if (!encode && fmt == BZ_GZIP)
             {
               inflateReset (&s);
-              if (s.avail_in > 0)
-                continue;             /* next member already buffered */
-              /* Exact buffer boundary — try to read the next member. */
-              do
-                n = read (in_fd, inbuf, sizeof inbuf);
-              while (n < 0 && errno == EINTR);
-              if (n < 0)
+              /* What follows a member, by gzip's rules: EOF, another
+                 member (magic 1f 8b), zero padding (ignored silently),
+                 or trailing garbage (ignored with a warning). One stray
+                 byte before EOF is an unexpected end of file. */
+              while (s.avail_in < 2)
                 {
-                  builtin_error ("read: %s", strerror (errno));
+                  if (s.avail_in)
+                    memmove (inbuf, s.next_in, s.avail_in);
+                  s.next_in = inbuf;
+                  do
+                    n = read (in_fd, inbuf + s.avail_in, sizeof inbuf - s.avail_in);
+                  while (n < 0 && errno == EINTR);
+                  if (n < 0)
+                    {
+                      builtin_error ("read: %s", strerror (errno));
+                      inflateEnd (&s);
+                      return 1;
+                    }
+                  if (n == 0)
+                    break;
+                  s.avail_in += (uInt) n;
+                }
+              if (s.avail_in == 0)
+                break;                /* EOF — all members processed */
+              if (s.next_in[0] == 0)
+                {
+                  /* Zero padding (tape blocks) is ignored when nothing
+                     else follows it. */
+                  for (;;)
+                    {
+                      while (s.avail_in && s.next_in[0] == 0)
+                        { s.next_in++; s.avail_in--; }
+                      if (s.avail_in)
+                        break;
+                      do
+                        n = read (in_fd, inbuf, sizeof inbuf);
+                      while (n < 0 && errno == EINTR);
+                      if (n <= 0)
+                        break;
+                      s.next_in = inbuf;
+                      s.avail_in = (uInt) n;
+                    }
+                  inflateEnd (&s);
+                  if (n < 0)
+                    {
+                      builtin_error ("read: %s", strerror (errno));
+                      return 1;
+                    }
+                  return s.avail_in ? BZ_GARBAGE : 0;
+                }
+              if (s.avail_in < 2)
+                {
+                  builtin_error ("unexpected end of file");
                   inflateEnd (&s);
                   return 1;
                 }
-              if (n == 0)
-                break;                /* EOF — all members processed */
-              s.next_in = inbuf;
-              s.avail_in = (uInt) n;
+              if (s.next_in[0] != 0x1f || s.next_in[1] != 0x8b)
+                {
+                  inflateEnd (&s);
+                  return BZ_GARBAGE;
+                }
+              n = 1;                  /* more input may follow */
               continue;
             }
           /* Non-gzip or encode: single member is terminal. */
@@ -425,6 +475,11 @@ bz_codec_zstd (int in_fd, int out_fd, int encode, int level)
 }
 
 /* ---- bzip2 (libbz2) ------------------------------------------------- */
+/* Decoding follows bzip2 1.0.8: concatenated streams (pbzip2/lbzip2 output,
+   or `bzip2 >> file`) decode one after another.  Bytes after a complete
+   stream that do not start another one ("BZh" plus a block-size digit) are
+   trailing garbage: bzip2 ignores them with a warning.  Returns 0, 1 after a
+   diagnostic, or BZ_GARBAGE when garbage followed a complete stream. */
 static int
 bz_codec_bzip2 (int in_fd, int out_fd, int encode, int level)
 {
@@ -432,6 +487,8 @@ bz_codec_bzip2 (int in_fd, int out_fd, int encode, int level)
   unsigned char inbuf[BZ_BUFSZ], outbuf[BZ_BUFSZ];
   int ret;
   ssize_t n = 0;
+  int streams = 0;   /* complete streams decoded so far */
+  int started = 0;   /* the current stream has consumed input */
 
   memset (&s, 0, sizeof s);   /* bzalloc/bzfree/opaque NULL → libc malloc */
 
@@ -464,14 +521,23 @@ bz_codec_bzip2 (int in_fd, int out_fd, int encode, int level)
             }
           s.next_in = (char *) inbuf;
           s.avail_in = (unsigned int) n;
+          /* EOF between streams: every stream was complete. */
+          if (!encode && n == 0 && streams > 0 && !started)
+            {
+              BZ2_bzDecompressEnd (&s);
+              return 0;
+            }
         }
       int action = (n == 0) ? BZ_FINISH : BZ_RUN;   /* encode side only */
 
       do
         {
+          unsigned int before = s.avail_in;
           s.next_out = (char *) outbuf;
           s.avail_out = sizeof outbuf;
           ret = encode ? BZ2_bzCompress (&s, action) : BZ2_bzDecompress (&s);
+          if (!encode && s.avail_in != before)
+            started = 1;
 
           if (encode)
             {
@@ -484,9 +550,19 @@ bz_codec_bzip2 (int in_fd, int out_fd, int encode, int level)
             }
           else
             {
+              if (ret == BZ_DATA_ERROR_MAGIC && streams > 0)
+                {
+                  /* Not another stream: bzip2's "trailing garbage after
+                     EOF ignored", which is not an error. */
+                  BZ2_bzDecompressEnd (&s);
+                  return BZ_GARBAGE;
+                }
               if (ret != BZ_OK && ret != BZ_STREAM_END)
                 {
-                  builtin_error ("bzip2 decompress: error %d", ret);
+                  builtin_error ("bzip2 decompress: %s",
+                                 ret == BZ_DATA_ERROR_MAGIC ? "not a bzip2 file (bad magic number)"
+                                 : ret == BZ_DATA_ERROR ? "data integrity error (CRC or stream corrupt)"
+                                 : ret == BZ_MEM_ERROR ? "out of memory" : "decompression failed");
                   BZ2_bzDecompressEnd (&s);
                   return 1;
                 }
@@ -516,13 +592,32 @@ bz_codec_bzip2 (int in_fd, int out_fd, int encode, int level)
       while (s.avail_out == 0 && ret != BZ_STREAM_END);
 
       if (ret == BZ_STREAM_END)
-        break;             /* single bzip2 stream is terminal */
+        {
+          if (encode)
+            break;             /* the one encoded stream is complete */
+          /* Another stream may follow: keep the unread bytes and restart
+             the decoder on them (BZ2_bzDecompressEnd leaves next_in). */
+          char *next = s.next_in;
+          unsigned int left = s.avail_in;
+          streams++;
+          started = 0;
+          BZ2_bzDecompressEnd (&s);
+          memset (&s, 0, sizeof s);
+          ret = BZ2_bzDecompressInit (&s, 0, 0);
+          if (ret != BZ_OK)
+            { builtin_error ("bzip2 decompressInit: error %d", ret); return 1; }
+          s.next_in = next;
+          s.avail_in = left;
+          if (n == 0 && left == 0)
+            { BZ2_bzDecompressEnd (&s); return 0; }
+          continue;
+        }
       if (n == 0)
         break;
     }
 
   (encode ? BZ2_bzCompressEnd : BZ2_bzDecompressEnd) (&s);
-  if (ret != BZ_STREAM_END) { builtin_error ("bzip2: truncated stream"); return 1; }
+  if (ret != BZ_STREAM_END) { builtin_error ("bzip2: truncated stream (compressed file ends unexpectedly)"); return 1; }
   return 0;
 }
 
@@ -709,14 +804,16 @@ zlib_builtin (WORD_LIST *list)
   int in_fd = -1;
   int close_in = 0;
   int list_mode = 0;
+  int garbage_status = 0;  /* -g: trailing garbage is exit status 2 */
 
   reset_internal_getopt ();
   /* Single-char flags. -1..-9 also valid (level shortcuts). */
-  while ((opt = internal_getopt (list, "edlzRf:0123456789")) != -1)
+  while ((opt = internal_getopt (list, "edglzRf:0123456789")) != -1)
     {
       switch (opt)
         {
         case 'l': list_mode = 1; break;
+        case 'g': garbage_status = 1; break;
         case 'e': encode = 1; break;
         case 'd': encode = 0; break;
         case 'z': fmt = BZ_ZLIB;    explicit_format = 1; break;
@@ -812,6 +909,17 @@ zlib_builtin (WORD_LIST *list)
 
   if (close_in) close (in_fd);
   fflush (stdout);
+  if (rc == BZ_GARBAGE)
+    {
+      /* Everything before the garbage decoded. -g leaves the diagnostic
+         to the caller (gzip/bzip2 name the file); otherwise warn here.
+         gzip treats it as a warning (status 2), bzip2 as success. */
+      if (garbage_status)
+        return 2;
+      builtin_error (fmt == BZ_BZIP2 ? "trailing garbage after EOF ignored"
+                                     : "decompression OK, trailing garbage ignored");
+      return fmt == BZ_BZIP2 ? EXECUTION_SUCCESS : 2;
+    }
   return rc == 0 ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
 }
 
@@ -830,11 +938,18 @@ char *zlib_doc[] = {
   "    xz        .xz container; auto-decodes .xz and legacy .lzma",
   "    lzma      legacy .lzma-alone stream",
   "    zstd      RFC 8478",
-  "    bzip2     .bz2 (alias bz2); single-stream",
+  "    bzip2     .bz2 (alias bz2); concatenated streams decode in turn",
   "    zlib      RFC 1950 (raw zlib wrap, NOT gzip)",
   "    deflate   RFC 1951 (raw bit stream, no wrap)",
   "  Shortcuts: -z = -f zlib, -R = -f deflate.",
   "  Gzip decode handles concatenated (multi-member) .gz files.",
+  "",
+  "Trailing data after a complete gzip member or bzip2 stream that does not",
+  "start another one is ignored, as gzip and bzip2 do: gzip warns",
+  "\"decompression OK, trailing garbage ignored\" and returns 2 (zero padding",
+  "alone is ignored silently); bzip2 warns \"trailing garbage after EOF",
+  "ignored\" and returns 0. With -g no warning is printed and both return 2,",
+  "so a wrapper can name the file in its own diagnostic.",
   "",
   "List mode: -l -f xz FILE... prints xz --list's table (streams, blocks,",
   "  sizes, ratio, check) for each .xz file, with totals for several files.",
@@ -858,6 +973,6 @@ struct builtin zlib_struct = {
   zlib_builtin,
   BUILTIN_ENABLED,
   zlib_doc,
-  "zlib [-e|-d] [-f FORMAT|-z|-R] [-N] [FILE] | zlib -l -f xz FILE...",
+  "zlib [-e|-d] [-g] [-f FORMAT|-z|-R] [-N] [FILE] | zlib -l -f xz FILE...",
   0
 };

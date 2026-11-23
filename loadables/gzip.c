@@ -15,7 +15,7 @@
 
 /* name: -1 default (save name/time when compressing, use the file's own
    name and time when decompressing), 0 for -n, 1 for -N. */
-struct gzip_options { int decode, stdout_mode, keep, force, test, name, level, quiet, verbose, list, recursive;
+struct gzip_options { int decode, stdout_mode, keep, force, test, name, level, quiet, verbose, list, recursive, rsyncable;
                       const char *suffix; };
 
 /* -l totals across operands. */
@@ -143,7 +143,7 @@ static int gzip_one(const char *file, const struct gzip_options *o, struct gzip_
     long long header_len = 0;
     unsigned long stored_mtime = 0;
     char stored_name[1024] = "";
-    int bad_header = 0;
+    int bad_header = 0, warned = 0;
     if (o->decode && S_ISREG(st.st_mode) &&
         (bad_header = gzip_header(in, &header_len, &stored_mtime, stored_name, sizeof stored_name)) < 0)
         header_len = 0;
@@ -217,9 +217,25 @@ static int gzip_one(const char *file, const struct gzip_options *o, struct gzip_
     }
     /* GNU names the file before working on it, once the header checks out. */
     if (o->verbose && !from_stdin && (!o->decode || header_len)) { fprintf(stderr, "%s:\t", file); fflush(stderr); }
-    rc = o->decode ? bgz_decode(src, dst, &mtime) :
-        bgz_encode(src, dst, o->level, save_name ? base : NULL,
-                   save_name ? (unsigned long)st.st_mtime : 0);
+    rc = o->decode ? bgz_decode_named(src, dst, &mtime, from_stdin ? "stdin" : file) :
+        bgz_encode_flags(src, dst, o->level, save_name ? base : NULL,
+                         save_name ? (unsigned long)st.st_mtime : 0, o->rsyncable);
+    /* GNU gzip: data after the last member that is not another member is
+       ignored with a warning (exit status 2) once everything before it
+       decoded; zero padding is ignored silently unless -v. */
+    if (rc == BGZ_TRAILING_GARBAGE || rc == BGZ_TRAILING_ZEROS) {
+        int garbage = rc == BGZ_TRAILING_GARBAGE;
+        rc = 0;
+        if (garbage || o->verbose) {
+            warned = 1;
+            if (!o->quiet) {
+                fflush(stdout);
+                fputc('\n', stderr);
+                builtin_error("%s: decompression OK, trailing %s ignored",
+                              from_stdin ? "stdin" : file, garbage ? "garbage" : "zero bytes");
+            }
+        }
+    }
     if (o->verbose && !rc && !o->test) bytes_out = gzip_fd_size(dst);
     if (spool_out && !rc && gzip_copy_out(dst, out)) rc = 1;
     if (o->verbose && !rc) {
@@ -266,7 +282,7 @@ done:
     if (!from_stdin && close(in)) rc = 1;
     if (temp) { unlink(temp); free(temp); }
     free(dest);
-    return rc;
+    return rc ? rc : warned ? 2 : 0;
 }
 
 /* -r: every entry below DIR, in directory order, symlinks not followed. */
@@ -388,7 +404,7 @@ int gzip_builtin(WORD_LIST *list)
         const char *w = list->word->word, *opts = NULL;
         if (!end_options && !strcmp(w, "--")) { end_options = 1; continue; }
         if (!end_options && !strcmp(w, "--help")) {
-            puts("Usage: gzip [-cdfklnNqrtv1-9] [-S SUFFIX] [FILE...]\nCompress files to .gz, or filter stdin. -d decompresses, -c writes stdout,\n-k keeps input, -f overwrites, -t checks integrity, -n omits name/time,\n-N restores the stored name/time, -l lists sizes, -r recurses, -v reports ratios."); goto done;
+            puts("Usage: gzip [-cdfklnNqrtv1-9] [-S SUFFIX] [--rsyncable] [FILE...]\nCompress files to .gz, or filter stdin. -d decompresses, -c writes stdout,\n-k keeps input, -f overwrites, -t checks integrity, -n omits name/time,\n-N restores the stored name/time, -l lists sizes, -r recurses, -v reports ratios.\n--rsyncable makes rsync-friendly output."); goto done;
         }
         if (!end_options && !strcmp(w, "--version")) { puts("gzip (bash-os) 0.1.1"); goto done; }
         if (!end_options && !strcmp(w, "--decompress")) opts = "d";
@@ -406,6 +422,7 @@ int gzip_builtin(WORD_LIST *list)
         else if (!end_options && !strcmp(w, "--fast")) opts = "1";
         else if (!end_options && !strcmp(w, "--best")) opts = "9";
         else if (!end_options && !strncmp(w, "--suffix=", 9)) { o.suffix = w + 9; continue; }
+        else if (!end_options && !strcmp(w, "--rsyncable")) { o.rsyncable = 1; continue; }
         else if (!end_options && !strcmp(w, "--suffix")) opts = "S";
         else if (!end_options && w[0] == '-' && w[1]) opts = w + 1;
         if (opts) {
@@ -458,8 +475,11 @@ char *gzip_doc[] = {
     "suffix is removed and the compressed file's time is kept, as GNU gzip),",
     "-l list compressed/uncompressed sizes and ratio (-lv adds method, CRC, date),",
     "-r recurse into directories, -v report each file's ratio on stderr,",
-    "-1..-9 compression level, -S suffix, -q quiet. Checks CRC and truncation.", NULL
+    "-1..-9 compression level, -S suffix, -q quiet. Checks CRC and truncation.",
+    "--rsyncable resets the compressor at content-defined points (rsync-friendly).",
+    "Trailing garbage after the last member is ignored with GNU's warning",
+    "\"decompression OK, trailing garbage ignored\" and exit status 2.", NULL
 };
 struct builtin gzip_struct = {
-    "gzip", gzip_builtin, BUILTIN_ENABLED, gzip_doc, "gzip [-cdfklnNqrtv1-9] [-S SUFFIX] [FILE...]", 0
+    "gzip", gzip_builtin, BUILTIN_ENABLED, gzip_doc, "gzip [-cdfklnNqrtv1-9] [-S SUFFIX] [--rsyncable] [FILE...]", 0
 };

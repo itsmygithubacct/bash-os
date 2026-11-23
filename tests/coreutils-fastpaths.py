@@ -82,16 +82,17 @@ with tempfile.TemporaryDirectory(prefix='coreutils-fastpaths-') as tmp:
     # one word per output line without duplicating the optimal-cost algorithm.
     fmt(b'', b'')
     fmt(b'alpha beta gamma', b'alpha\nbeta\ngamma\n')
-    fmt(b' \talpha beta\n', b' \talpha\n \tbeta\n')
+    # GNU fmt re-emits the indentation column with tabs: ' \t' is column 8.
+    fmt(b' \talpha beta\n', b'\talpha\n\tbeta\n')
     for count in [1, 63, 64, 65, 127, 128, 129]:
         fmt(b'abcdef ' * count + b'\n', b'abcdef\n' * count,
             file_input=bool(count % 2))
     fmt(b'x' * 65536 + b' beta\n', b'x' * 65536 + b'\nbeta\n', file_input=True)
 
     # Paragraphs grow, reuse, shrink and grow the same arrays. Prefix state
-    # resets at each blank separator; an empty separator run stays collapsed.
+    # resets at each blank separator; blank lines are kept, as GNU fmt does.
     data = b'  ' + b'abcdef ' * 129 + b'\n\n\n' + b'zulu\n\n' + b'\t' + b'ghijkl ' * 65
-    expected = b'  abcdef\n' * 129 + b'\n' + b'zulu\n\n' + b'\tghijkl\n' * 65
+    expected = b'  abcdef\n' * 129 + b'\n\n' + b'zulu\n\n' + b'\tghijkl\n' * 65
     fmt(data, expected)
     fmt(data, expected, file_input=True)
     src.write_bytes(b'alpha beta\n')

@@ -71,6 +71,19 @@
       "script": "cat > srv.py <<'PY2'\nimport socket\n# Loopback peer for the -w cases: /200, /302 (to /200), /500; one request per connection.\ns = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\ns.bind(('127.0.0.1', 18090)); s.listen(8)\nprint('ready', flush=True)\nwhile True:\n    c, _ = s.accept(); c.settimeout(4)\n    data = b''\n    while b'\\r\\n\\r\\n' not in data:\n        part = c.recv(4096)\n        if not part: break\n        data += part\n    path = data.split(b' ')[1].decode() if data.count(b' ') else '/'\n    if path == '/quit': c.close(); break\n    code = {'/302': '302 Found', '/500': '500 Oops'}.get(path, '200 OK')\n    extra = 'Location: /200\\r\\n' if path == '/302' else ''\n    c.sendall(('HTTP/1.1 %s\\r\\nContent-Type: text/plain\\r\\n%sContent-Length: 4\\r\\nConnection: close\\r\\n\\r\\nbody' % (code, extra)).encode())\n    c.close()\ns.close()\nPY2\ncoproc SRV { /usr/bin/python3 srv.py; }\nread -r -t 5 ready <&\"${SRV[0]}\"\nU=http://127.0.0.1:18090\ncurl -s --fail-with-body -w '[%{http_code}]' $U/500 || echo \" rc=$?\"\ncurl -s --fail-with-body $U/200 && echo \" rc=0\"\ncurl -s --fail-with-body -o page $U/500 || echo \"rc=$? $(<page)\"\ncurl -f --fail-with-body -s $U/200 2>/dev/null || echo rc=$?\ncurl -s $U/quit >/dev/null 2>&1 || true\nwait \"$SRV_PID\" || true\nrm -f srv.py\n",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "unix-socket",
+      "kind": "parity",
+      "requires": [
+        "curl",
+        "python3"
+      ],
+      "timeout": 15,
+      "purpose": "Guest pass 4 G61: --unix-socket PATH sends the HTTP request over a unix-domain socket (Host and request target still from the URL) and %{remote_ip} names the socket; a missing socket is exit 7 and an empty PATH a usage error (exit 2).",
+      "script": "trap 'rm -f srv.py sock' EXIT\ncat > srv.py <<'PY2'\nimport socket, sys\n# Unix-domain HTTP peer: echo the request line and Host header in the body.\ns = socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.listen(4)\nprint('ready', flush=True)\nfor _ in range(int(sys.argv[2])):\n    c, _ = s.accept(); c.settimeout(4)\n    data = b''\n    while b'\\r\\n\\r\\n' not in data:\n        part = c.recv(4096)\n        if not part: break\n        data += part\n    lines = data.split(b'\\r\\n')\n    host = [l for l in lines if l.lower().startswith(b'host:')]\n    body = lines[0] + b'|' + (host[0] if host else b'') + b'\\n'\n    c.sendall(b'HTTP/1.1 200 OK\\r\\nContent-Length: %d\\r\\nConnection: close\\r\\n\\r\\n' % len(body) + body)\n    c.close()\nPY2\ncoproc SRV { /usr/bin/python3 srv.py sock 2; }\nread -r -t 5 ready <&\"${SRV[0]}\"\ncurl -s --unix-socket sock 'http://example.test/p?q=1' -w '[%{http_code} %{remote_ip} %{remote_port}]\\n'\ncurl -s --unix-socket sock http://h:8080/x\nwait \"$SRV_PID\" || true\ncurl -s --unix-socket missing http://x/ || echo \"rc=$?\"\ncurl -s --unix-socket '' http://x/ 2>/dev/null || echo \"rc=$?\"\nrm -f srv.py sock",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

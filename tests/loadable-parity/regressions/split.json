@@ -13,10 +13,11 @@
     "An output-path directory obstruction",
     "Zero line count rejection",
     "Bash builtin type and generated short-help metadata",
-    "-d / --numeric-suffixes, -x / --hex-suffixes and --additional-suffix (guest pass 2 G35)"
+    "-d / --numeric-suffixes, -x / --hex-suffixes and --additional-suffix (guest pass 2 G35)",
+    "G68: --filter=COMMAND, with FILE exported, early-closing filters, and filter exit/signal statuses."
   ],
   "exclusions": [
-    "This is focused coverage, not the full GNU split option surface; numeric line/byte splitting and common suffix behavior are covered, while options such as --number, --filter, and --elide-empty-files are outside the documented builtin interface.",
+    "This is focused coverage, not the full GNU split option surface; numeric line/byte splitting and common suffix behavior are covered, while options such as --elide-empty-files are outside the documented builtin interface.",
     "No host/device paths, write-failure devices, or input aliasing cases are used."
   ],
   "cases": [
@@ -146,7 +147,7 @@
       "purpose": "Bash short help reports the supported split command synopsis.",
       "script": "help -s split",
       "expected_status": 0,
-      "stdout": "split: split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [--additional-suffix=S] [INPUT [PREFIX]]\n",
+      "stdout": "split: split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [--additional-suffix=S] [--filter=COMMAND] [INPUT [PREFIX]]\n",
       "stderr": "empty"
     },
     {
@@ -170,6 +171,29 @@
         "ls"
       ],
       "script": "printf a > g; rc=0; split --additional-suffix=a/b g p || rc=$?; echo rc=$rc; ls",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "filter-command",
+      "kind": "parity",
+      "purpose": "G68: --filter=COMMAND and --filter COMMAND pipe each piece to $SHELL -c COMMAND (here /bin/sh) with FILE set to the piece name; no piece file is created by split itself.",
+      "requires": [
+        "split",
+        "ls"
+      ],
+      "script": "printf '%s\\n' 1 2 3 4 5 6 7 > in\nsplit -l 3 --filter='while IFS= read -r l; do printf \"%s:%s\\n\" \"$FILE\" \"$l\"; done' in\nsplit -b 5 --filter 'n=0; while IFS= read -r l; do n=$((n+1)); done; printf \"%s %s\\n\" \"$FILE\" $n' in\nsplit -n l/2 -d --additional-suffix=.txt --filter='read -r first; printf \"%s<%s>\\n\" \"$FILE\" \"$first\" > \"$FILE.out\"' in p_\nls",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "filter-early-close-and-failures",
+      "kind": "parity",
+      "purpose": "G68: a filter that stops reading early is not an error; a failing filter's exit or signal becomes split's status with GNU's message; --filter rejects -n K/N and a missing COMMAND.",
+      "requires": [
+        "split"
+      ],
+      "script": "i=0; while [ $i -lt 20000 ]; do i=$((i+1)); echo \"line $i\"; done > big\nsplit -l 5000 --filter='read -r l; printf \"%s %s\\n\" \"$FILE\" \"$l\"' big\nrc=0; split -l 2 --filter='exit 3' big || rc=$?; echo exit-rc=$rc\nrc=0; split -l 2 --filter='kill -TERM $$' big || rc=$?; echo signal-rc=$rc\nrc=0; split -n 1/3 --filter=true big || rc=$?; echo chunk-rc=$rc\nrc=0; split --filter || rc=$?; echo missing-rc=$rc",
       "expected_status": 0,
       "stderr": "nonempty"
     }

@@ -508,6 +508,15 @@ stat_builtin (WORD_LIST *list)
       if (strcmp (w, "--help") == 0) { builtin_help (); return EXECUTION_SUCCESS; }
       if (strncmp (w, "--format=", 9) == 0) { fmt = w + 9; escapes = 0; continue; }
       if (strncmp (w, "--printf=", 9) == 0) { fmt = w + 9; escapes = 1; continue; }
+      /* GNU getopt_long also takes the FORMAT as the next word. */
+      if (strcmp (w, "--format") == 0 || strcmp (w, "--printf") == 0)
+        {
+          if (l->next == 0)
+            { builtin_error ("option '%s' requires an argument", w); builtin_usage (); return EX_USAGE; }
+          escapes = w[2] == 'p';
+          l = l->next; fmt = l->word->word;
+          continue;
+        }
       if (strcmp (w, "--dereference") == 0) { follow = 1; continue; }
       if (strcmp (w, "--terse") == 0) { terse = 1; continue; }
       if (strcmp (w, "--file-system") == 0) { fsmode = 1; continue; }
@@ -596,7 +605,8 @@ char *stat_doc[] = {
   "-t prints the terse one-line form.",
   "",
   "  -c FORMAT, --format=FORMAT  print FORMAT, then a newline, for each FILE",
-  "  --printf=FORMAT             like -c, but interpret \\n \\t \\\\ \\NNN \\xHH",
+  "  --printf=FORMAT, --printf FORMAT",
+  "                              like -c, but interpret \\n \\t \\\\ \\NNN \\xHH",
   "                              escapes and print no trailing newline",
   "  -L, --dereference           follow symbolic links",
   "  -f, --file-system           display file system status instead of file",

@@ -4,10 +4,11 @@
   "reference": "GNU diffutils 3.10 diff, compared byte for byte (stdout, status) in UTC and the C locale; header times come from files given a fixed mtime with touch.",
   "coverage": [
     "Guest pass 3 G46: -N/--new-file, -ruN patches, -c/-C/--context, -U/--unified=N, -s, -B, -i, -b, -Z, -w, -x/--exclude, -X/--exclude-from, -p, -I and option conflicts.",
-    "GNU edit-script placement (compareseq, discard_confusing_lines, shift_boundaries) among repeated lines."
+    "GNU edit-script placement (compareseq, discard_confusing_lines, shift_boundaries) among repeated lines.",
+    "Guest pass 4 G63: -e/--ed (reverse order, lone '.' lines, incomplete lines), -t/--expand-tabs and --tabsize in every format, -y --suppress-common-lines, --strip-trailing-cr, --color=never|always|auto and --palette with GNU's default palette, and their option errors."
   ],
   "exclusions": [
-    "Side-by-side output, -q and stdin are covered by suites/diff.json; ed-script (-e), RCS (-n), -D and --color are not implemented."
+    "Side-by-side output, -q and stdin are covered by suites/diff.json; RCS (-n), -D, -T and --left-column are not implemented."
   ],
   "cases": [
     {
@@ -153,6 +154,143 @@
       "id": "bad-context-length",
       "purpose": "G46: -U with a non-numeric length is a usage error.",
       "script": "printf 'a\\n' > l\nprintf 'b\\n' > r\ndiff -U x l r",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "ed-script",
+      "purpose": "G63: diff -e prints an ed script, last change first; a line that is just '.' is written '..', the insertion ended and s/.// added; pure deletions and appends; identical files print nothing.",
+      "script": "printf 'a\\nb\\nc\\nd\\ne\\n' > e1\nprintf 'a\\nX\\nc\\n.\\ne\\nf\\n' > e2\ndiff -e e1 e2 || echo rc=$?\ndiff --ed e2 e1 || echo rc=$?\nprintf '.\\n.\\nz\\n' > e3\ndiff -e e1 e3 || echo rc=$?\ndiff -e e1 /dev/null || echo rc=$?\ndiff -e /dev/null e2 || echo rc=$?\ndiff -e e1 e1 && echo same\nmkdir d1 d2\ncp e1 d1/x\ncp e2 d2/x\ndiff -r -e d1 d2 || echo rc=$?",
+      "requires": [
+        "diff",
+        "cp",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "ed-incomplete-line",
+      "purpose": "G63: with -e a missing final newline is reported for each such file and diff exits 2, the ed script itself comparing the last lines as complete.",
+      "script": "printf 'a\\nb\\nc' > m1\nprintf 'A\\nb\\nc' > m2\nprintf 'a\\nb\\nc\\n' > m3\ndiff -e m1 m2 || echo rc=$?\ndiff -e m1 m3 || echo rc=$?\ndiff -e m3 m1 || echo rc=$?\ndiff -e m2 m2 && echo same",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "expand-tabs",
+      "purpose": "G63: -t expands tabs from the start of each line's text in normal, unified, context and ed output, with --tabsize; backspaces and carriage returns move the column as GNU's output_1_line does.",
+      "script": "printf '\\tx\\ty\\n' > t1\nprintf '2\\n' > t2\nprintf 'ab\\tc\\bd\\te\\rf\\tg\\n' > t3\ndiff -t t1 t2 || echo rc=$?\ndiff --expand-tabs --tabsize=4 t1 t2 || echo rc=$?\ndiff -tu --label a --label b t1 t3 || echo rc=$?\ndiff -t -c --label a --label b t3 t2 || echo rc=$?\ndiff -te t2 t1 || echo rc=$?\ndiff -t t3 t2 || echo rc=$?\ndiff -t -y -W 60 t3 t2 || echo rc=$?\ndiff t1 t2 || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "expand-tabs-side-by-side",
+      "purpose": "G63: -y -t lays the columns out with unit tab stops and pads with spaces, at the default width and with -W, and --tabsize changes the tab columns without -t.",
+      "script": "printf '\\tx\\ty\\nsame\\n' > t1\nprintf '2\\nsame\\n' > t2\ndiff -y -t t1 t2 || echo rc=$?\ndiff -y -t -W 40 t1 t2 || echo rc=$?\ndiff -y --tabsize=4 -W 50 t1 t2 || echo rc=$?\ndiff -y -W 50 t1 t2 || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "suppress-common-lines",
+      "purpose": "G63: -y --suppress-common-lines leaves out the common lines but keeps |, < and > lines; without -y it changes nothing.",
+      "script": "printf '1\\n2\\n3\\n4\\n5\\n' > a\nprintf '1\\nX\\n3\\n5\\n6\\n7\\n' > b\ndiff -y --suppress-common-lines a b || echo rc=$?\ndiff -y --suppress-common-lines -W 30 b a || echo rc=$?\ndiff --suppress-common-lines a b || echo rc=$?\ndiff -y --suppress-common-lines a a && echo same",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "strip-trailing-cr",
+      "purpose": "G63: --strip-trailing-cr drops one CR before each newline, so CRLF and LF files compare equal; a CR without a newline after it, and a second CR, still count.",
+      "script": "printf '1\\r\\n2\\r\\n' > cr\nprintf '1\\n2\\n' > lf\ndiff --strip-trailing-cr cr lf && echo same\ndiff cr lf || echo rc=$?\nprintf 'a\\r' > c1\nprintf 'a' > c2\ndiff --strip-trailing-cr c1 c2 || echo rc=$?\nprintf 'x\\r\\r\\n' > c3\nprintf 'y\\r\\n' > c4\ndiff --strip-trailing-cr c3 c4 || echo rc=$?\nprintf '1\\r\\nB\\r\\n' > cr2\ndiff --strip-trailing-cr -u --label a --label b cr2 lf || echo rc=$?\ndiff --strip-trailing-cr -q cr lf && echo quiet-same",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "color-always",
+      "purpose": "G63: --color=always uses GNU's default palette: bold headers, cyan line numbers and hunk ranges, red deleted and green added lines (all of a context hunk's old and new sections), reset before the newline; side-by-side < and > runs are coloured from the line start to after the newline; ed scripts and 'Only in' lines stay plain.",
+      "script": "export TZ=UTC\nprintf 'int main()\\n{\\n1\\n2\\n3\\n4\\n5\\nq' > f1\nprintf 'int main()\\n{\\n1\\n2\\n3\\n4\\nX\\nr' > f2\ntouch -d '2020-01-02 03:04:05' f1 f2\ndiff --color=always f1 f2 || echo rc=$?\ndiff --color=always -u -p f1 f2 || echo rc=$?\ndiff --color=always -c -p f1 f2 || echo rc=$?\ndiff --color=always -y -W 40 f1 f2 || echo rc=$?\ndiff --color=always -y -W 40 f2 /dev/null || echo rc=$?\ndiff --color=always -y -W 40 /dev/null f1 || echo rc=$?\nprintf '1\\n2\\n' > g\ndiff --color=always -e g /dev/null || echo rc=$?\nmkdir d1 d2\ncp -p f1 d1/x\ncp -p f2 d2/x\necho o > d1/only\ndiff -r --color=always -u d1 d2 || echo rc=$?",
+      "requires": [
+        "diff",
+        "touch",
+        "cp",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "color-never-auto-palette",
+      "purpose": "G63: --color=never and --color (auto) on a pipe print plain output; --palette replaces colours, an empty entry is allowed.",
+      "script": "printf '1\\n2\\n' > a\nprintf '1\\n3\\n' > b\ndiff --color=never a b || echo rc=$?\n{ diff --color a b || echo rc=$?; } | cat\ndiff --color=auto a b || echo rc=$?\ndiff --palette='ad=1;32:de=1;31:ln=35:' --color=always a b || echo rc=$?\ndiff --palette='rs=5:hd=4' --color=always -u --label x --label y a b || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "color-bad-palette",
+      "purpose": "G63: an unparsable --palette is reported and colour is turned off; the diff still runs.",
+      "script": "printf '1\\n' > a\nprintf '2\\n' > b\ndiff --palette=zz=1 --color=always a b || echo rc=$?\ndiff --palette=ad --color=always a b || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "color-bad-when",
+      "purpose": "G63: --color=WHEN accepts only never, always and auto; others are a usage error (exit 2).",
+      "script": "printf '1\\n' > a\nprintf '2\\n' > b\ndiff --color=yes a b",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "bad-tabsize",
+      "purpose": "G63: --tabsize=0 is invalid (exit 2).",
+      "script": "printf '1\\n' > a\nprintf '2\\n' > b\ndiff --tabsize=0 a b",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "ed-style-conflict",
+      "purpose": "G63: -e with -u is a conflicting output style (exit 2).",
+      "script": "printf '1\\n' > a\nprintf '2\\n' > b\ndiff -e -u a b",
       "requires": [
         "diff"
       ],

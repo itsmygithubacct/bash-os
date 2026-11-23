@@ -10,7 +10,8 @@
     "Documented compact, slash-separated, and RFC-style date input shapes",
     "Invalid calendar input statuses and invalid ISO timespec status",
     "Bash type/help metadata for the registered date builtin",
-    "-r/--reference=FILE modification times and their conflicts with -d (guest compatibility pass 1)."
+    "-r/--reference=FILE modification times and their conflicts with -d (guest compatibility pass 1).",
+    "Guest pass 4 G57: a TZ=\"ZONE\" prefix in -d strings (escapes, spacing, with relative items and @SECONDS), zone-plus-offset items (UTC+3, UTC-0500, UTC+05:30, EST+1, out of range), and 'extra operand' for a second operand."
   ],
   "exclusions": [
     "Current-time output and the documented now input alias are omitted because they depend on wall-clock timing.",
@@ -185,6 +186,83 @@
       "expected_status": 0,
       "stdout": "rc=0\nstdout-only\n",
       "stderr": "empty"
+    },
+    {
+      "id": "tz-prefix",
+      "kind": "parity",
+      "purpose": "G57: TZ=\"ZONE\" before a date string reads the rest in ZONE (POSIX TZ rules), output staying in the process zone; leading blanks, no blank after the quote, \\\" escapes, relative items, @SECONDS and an empty rest (midnight in ZONE) work as in GNU; lower-case tz= is not the prefix.",
+      "requires": [
+        "date"
+      ],
+      "script": "export TZ=UTC0\nfor s in 'TZ=\"UTC+5\" 2024-01-01 00:00' 'TZ=\"UTC-5:30\" 2024-01-01' 'TZ=\"\" 2024-01-01' '  TZ=\"UTC+5\" 2024-01-01 00:00' 'TZ=\"UTC+5\"2024-01-01 00:00' 'TZ=\"a\\\"b\" 2024-01-01' 'TZ=\"UTC+5\" 2024-01-01 12:00 +1 day' 'TZ=\"EST5\" @0' 'TZ=\"EST5EDT,M3.2.0,M11.1.0\" 2024-07-01 12:00'; do\n  date -d \"$s\" '+%F %T %z' || echo rc=$?\ndone\ndate -u -d 'TZ=\"UTC-3\" 2024-01-01 03:00' '+%F %T %Z'\nTZ=UTC-9 date -d 'TZ=\"UTC+5\" 2024-01-01' '+%F %T %z'\nd=$(date -d 'TZ=\"UTC+5\"' +%s)\n[ \"$d\" = \"$(date -d 'TZ=\"UTC+5\" 00:00' +%s)\" ] && echo midnight",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "tz-prefix-invalid",
+      "kind": "parity",
+      "purpose": "G57: tz=\"...\" in lower case and an unterminated TZ=\" are invalid dates (exit 1).",
+      "requires": [
+        "date"
+      ],
+      "script": "date -d 'tz=\"UTC+5\" 2024-01-01' || echo rc=$?\ndate -d 'TZ=\"UTC+5 2024-01-01' || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "tz-prefix-leaves-tz",
+      "kind": "parity",
+      "purpose": "G57: reading a TZ=\"ZONE\" date string does not change the TZ variable or the environment, whether TZ is unset, a shell variable, exported, or an assignment in front of date.",
+      "requires": [
+        "date"
+      ],
+      "script": "unset TZ\ndate -d 'TZ=\"UTC+5\" 2024-01-01' +%s\ndeclare -p TZ 2>/dev/null || echo unset\nTZ=UTC-9\ndate -d 'TZ=\"UTC+5\" 2024-01-01' +%s\ndeclare -p TZ\nexport TZ=UTC-2\ndate -d 'TZ=\"UTC+5\" 2024-01-01' +%s\ndeclare -p TZ\ndate -d @0 +%H\nTZ=UTC-3 date -d 'TZ=\"UTC+5\" 2024-01-01 00:00' '+%s %H'\ndeclare -p TZ\ndate -d @0 +%H\nf() { local TZ=UTC-4; date -d 'TZ=\"UTC+5\" 2024-01-01' +%s; declare -p TZ; date -d @0 +%H; }\nf\ndeclare -p TZ",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zone-offset-items",
+      "kind": "parity",
+      "purpose": "G57: a zone followed by an offset (parse-datetime's 'zone: tZONE tSNUMBER o_colon_minutes'): one or two digits are hours, three or four HHMM, H:MM with a colon; the offset adds to the zone (EST+1 is UTC-4); a signed number followed by a unit is a relative item instead; more than 24 hours is invalid.",
+      "requires": [
+        "date"
+      ],
+      "script": "export TZ=UTC0\nfor s in '2024-01-01 00:00 UTC+3' '2024-01-01 00:00 UTC-0500' '2024-01-01 00:00 UTC+05:30' '2024-01-01 00:00 UTC +3' '2024-01-01 00:00 EST+1' '2024-01-01 00:00 UTC+3 +1 day' '2024-01-01 00:00 UTC +1 day' '2024-01-01 UTC+3' '2024-01-01 00:00 UTC+530' '2024-01-01 00:00 GMT-1' '2024-01-01 00:00 Z+1' '2024-01-01T00:00 UTC+3' '2024-01-01 00:00 UTC+3:30' '12:00 UTC+3' '2024-01-01 00:00 UTC+24' '2024-01-01 12:00 -2 days'; do\n  date -d \"$s\" '+%F %T %z' || echo rc=$?\ndone",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "zone-offset-out-of-range",
+      "kind": "parity",
+      "purpose": "G57: UTC+25 is not a valid zone offset (exit 1).",
+      "requires": [
+        "date"
+      ],
+      "script": "export TZ=UTC0\ndate -d '2024-01-01 00:00 UTC+25' +%s",
+      "expected_status": 1,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "extra-operand-format",
+      "kind": "parity",
+      "purpose": "G57: two +FORMAT operands are an error, exactly as GNU words it, with exit 1.",
+      "requires": [
+        "date"
+      ],
+      "script": "date +%F +%T",
+      "expected_status": 1,
+      "stderr": "exact"
+    },
+    {
+      "id": "extra-operand-mixed",
+      "kind": "parity",
+      "purpose": "G57: a +FORMAT after the POSIX set form, and one after -d, are extra operands too (exit 1).",
+      "requires": [
+        "date"
+      ],
+      "script": "date -d @0 +%F +%T || echo rc=$?\ndate -u 0101 +%F || echo rc=$?\ndate -u +%F -- +%T || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "nonempty"
     }
   ]
 }

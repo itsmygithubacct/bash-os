@@ -24,7 +24,9 @@
 
 #include "loadables.h"
 
-enum bz_result { BZ_OK, BZ_INPUT_ERROR, BZ_FATAL_ERROR };
+/* BZ_WARNING: every member decoded, then trailing garbage was ignored
+ * (gzip -cd exits 2 for it). */
+enum bz_result { BZ_OK, BZ_INPUT_ERROR, BZ_FATAL_ERROR, BZ_WARNING };
 
 static int
 bz_write_all (const unsigned char *buf, size_t len)
@@ -79,7 +81,7 @@ write_error:
 }
 
 static enum bz_result
-bz_pump (int fd, const char *name, int force)
+bz_pump (int fd, const char *name, int force, int quiet)
 {
     z_stream s;
     unsigned char inbuf[8192], outbuf[8192];
@@ -106,8 +108,27 @@ bz_pump (int fd, const char *name, int force)
                 result = bz_passthrough (fd, name, s.next_in, s.avail_in);
                 break;
             }
+            if (seen_member && force &&
+                (s.avail_in < 2 || s.next_in[0] != 0x1f || s.next_in[1] != 0x8b)) {
+                /* gzip -cdf copies data after the last member through. */
+                result = bz_passthrough (fd, name, s.next_in, s.avail_in);
+                break;
+            }
+            if (seen_member && s.avail_in && s.next_in[0] == 0) {
+                /* Zero padding after the last member is ignored silently;
+                 * anything after the zeros is trailing garbage. */
+                for (;;) {
+                    while (s.avail_in && s.next_in[0] == 0) { s.next_in++; s.avail_in--; }
+                    if (s.avail_in || eof) break;
+                    ssize_t n = bz_read_more (fd, &s, inbuf, sizeof inbuf);
+                    if (n < 0) goto read_error;
+                    if (n == 0) eof = 1;
+                }
+                if (!s.avail_in) { result = BZ_OK; break; }
+                goto trailing_garbage;
+            }
             if (s.avail_in < 2) {
-                if (seen_member) result = BZ_OK;
+                if (seen_member && s.avail_in == 0) result = BZ_OK;
                 else builtin_error ("%s: unexpected end of file", name);
                 break;
             }
@@ -117,15 +138,19 @@ bz_pump (int fd, const char *name, int force)
                     result = BZ_INPUT_ERROR;
                     break;
                 }
-                /* Preserve gzread's treatment of trailing non-member data.
-                 * Consume it so another '-' starts at the same stdin EOF. */
+            trailing_garbage:
+                /* GNU gzip -cd: "decompression OK, trailing garbage
+                 * ignored", exit status 2. Consume the rest so another
+                 * '-' starts at the same stdin EOF. */
+                if (!quiet)
+                    builtin_error ("%s: decompression OK, trailing garbage ignored", name);
                 while (!eof) {
                     s.avail_in = 0;
                     ssize_t n = bz_read_more (fd, &s, inbuf, sizeof inbuf);
                     if (n < 0) goto read_error;
                     if (n == 0) eof = 1;
                 }
-                result = BZ_OK;
+                result = BZ_WARNING;
                 break;
             }
             if (seen_member) {
@@ -184,29 +209,32 @@ read_error:
 int
 zcat_builtin (WORD_LIST *list)
 {
-    int force = 0;
-    /* gzip -cd options: -f passes non-gzip input through; -c, -d, -n, -N
-       and -q change nothing for zcat. */
+    int force = 0, quiet = 0;
+    /* gzip -cd options: -f passes non-gzip input through, -q silences the
+       trailing-garbage warning; -c, -d, -n and -N change nothing for zcat. */
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
         if (!strcmp (w, "--")) { list = list->next; break; }
         if (!strcmp (w, "--force")) force = 1;
+        else if (!strcmp (w, "--quiet")) quiet = 1;
         else if (strcmp (w, "--stdout") && strcmp (w, "--to-stdout") && strcmp (w, "--decompress") &&
-                 strcmp (w, "--quiet") && strcmp (w, "--no-name") && strcmp (w, "--name")) {
+                 strcmp (w, "--no-name") && strcmp (w, "--name")) {
             if (w[1] == '-' || w[strspn (w + 1, "fcdnNq") + 1]) {
                 builtin_error ("%s: unsupported option", w);
                 builtin_usage ();
                 return EX_USAGE;
             }
             if (strchr (w, 'f')) force = 1;
+            if (strchr (w, 'q')) quiet = 1;
         }
         list = list->next;
     }
-    if (!list)
-        return bz_pump (STDIN_FILENO, "stdin", force) == BZ_OK
-               ? EXECUTION_SUCCESS : EXECUTION_FAILURE;
+    if (!list) {
+        enum bz_result result = bz_pump (STDIN_FILENO, "stdin", force, quiet);
+        return result == BZ_OK ? EXECUTION_SUCCESS : result == BZ_WARNING ? 2 : EXECUTION_FAILURE;
+    }
 
-    int rc = EXECUTION_SUCCESS;
+    int rc = EXECUTION_SUCCESS, warned = 0;
     for (WORD_LIST *p = list; p; p = p->next) {
         const char *path = p->word->word;
         int is_stdin = !strcmp (path, "-");
@@ -216,8 +244,9 @@ zcat_builtin (WORD_LIST *list)
             rc = EXECUTION_FAILURE;
             continue;
         }
-        enum bz_result result = bz_pump (fd, is_stdin ? "stdin" : path, force);
+        enum bz_result result = bz_pump (fd, is_stdin ? "stdin" : path, force, quiet);
         if (!is_stdin) close (fd);
+        if (result == BZ_WARNING) { warned = 1; continue; }
         if (result != BZ_OK) {
             rc = EXECUTION_FAILURE;
             /* Missing/non-gzip named inputs are recoverable. Integrity and
@@ -225,7 +254,7 @@ zcat_builtin (WORD_LIST *list)
             if (result == BZ_FATAL_ERROR || is_stdin) break;
         }
     }
-    return rc;
+    return rc == EXECUTION_SUCCESS && warned ? 2 : rc;
 }
 
 char *zcat_doc[] = {
@@ -236,7 +265,9 @@ char *zcat_doc[] = {
     "Reads each FILE (or stdin if none given, or `-` in the list) as",
     "gzip-format and writes the decompressed bytes to stdout. With -f",
     "(--force), input that is not gzip is copied unchanged, as gzip -cdf",
-    "does; -c, -d, -n, -N and -q are accepted. For xz,",
+    "does; -c, -d, -n, -N and -q are accepted. Trailing garbage after the last",
+    "member is ignored with gzip's warning (none with -q) and exit status 2;",
+    "zero padding is ignored silently, and -f copies trailing data through. For xz,",
     "zstd, or zlib formats use `zlib -d -f FORMAT` directly.",
     (char *)NULL
 };

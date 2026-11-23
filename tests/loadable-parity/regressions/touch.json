@@ -13,7 +13,8 @@
     "Bash builtin type/help metadata contract.",
     "GNU argument-error statuses for missing values, invalid values and unknown options.",
     "Calendar timestamps at epoch second -1, in UTC and a fixed local timezone.",
-    "-h rejects missing operands without creation, -ch ignores them, and later operands still update."
+    "-h rejects missing operands without creation, -ch ignores them, and later operands still update.",
+    "Guest pass 4 G57: touch -d shares date's parser, with TZ=\"ZONE\" prefixes and zone-plus-offset items."
   ],
   "exclusions": [
     "This suite does not exhaustively cover GNU natural-language date parsing, every long-option spelling, fractional precision beyond nanoseconds, inaccessible filesystems, or all error diagnostics.",
@@ -359,6 +360,18 @@
       "script": "touch --help >o 2>e; echo rc=$?; [[ -s o && ! -s e ]] && echo stdout-only",
       "expected_status": 0,
       "stdout": "rc=0\nstdout-only\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "date-tz-prefix-and-offset",
+      "kind": "parity",
+      "purpose": "G57: touch -d accepts a TZ=\"ZONE\" prefix and zone-plus-offset items; stat prints the resulting mtimes.",
+      "requires": [
+        "touch",
+        "stat"
+      ],
+      "script": "export TZ=UTC0\ntouch -d 'TZ=\"UTC+5\" 2024-01-01 00:00' a\ntouch -d '2024-01-01 00:00 UTC+3' b\ntouch -d '2024-01-01 00:00 UTC-0500' c\nstat -c '%n %Y' a b c",
+      "expected_status": 0,
       "stderr": "empty"
     }
   ]

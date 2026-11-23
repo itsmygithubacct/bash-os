@@ -40,11 +40,11 @@
     {
       "id": "metadata-help",
       "kind": "contract",
-      "purpose": "Check help output against the documented nc_doc contract, including the verb synopsis, explicit listen address, timeout semantics and v1 limitations.",
+      "purpose": "Check help output against the documented nc_doc contract, including the verb synopsis, explicit listen address, timeout semantics and v1 limitations, and the -U unix-domain verbs added in guest pass 4 (G61).",
       "script": "help nc",
       "expected_status": 0,
       "stderr": "empty",
-      "stdout": "nc: nc\n    Netcat-style TCP/UDP scratch tool (subset).\n    \n        nc connect HOST PORT [-u] [-w SECS]   TCP/UDP client\n        nc listen  PORT -s ADDR [-u] [-w SECS]   bind + accept-one (TCP) / recv (UDP)\n        nc scan    HOST FIRST [LAST] [-w SECS]   -z TCP port scan\n        nc --version\n    -w bounds TCP connect/accept, writes and idle reads (timeout returns 1);\n    for UDP it sets the reply drain window after stdin EOF. Zero uses defaults.\n    \n    Multiplexes stdin and the socket via epoll(7). Listen mode requires\n    explicit `-s ADDR`; use `-s 127.0.0.1` for loopback or `-s 0.0.0.0`\n    to expose externally. v1 always exits after the first connection (no -k);\n    SOCKS proxy, TLS, broker mode, and named-pipe wiring are deferred.\n"
+      "stdout": "nc: nc\n    Netcat-style TCP/UDP scratch tool (subset).\n    \n        nc connect HOST PORT [-u] [-w SECS]   TCP/UDP client\n        nc listen  PORT -s ADDR [-u] [-w SECS]   bind + accept-one (TCP) / recv (UDP)\n        nc scan    HOST FIRST [LAST] [-w SECS]   -z TCP port scan\n        nc connect PATH -U [-u] [-w SECS]     unix-domain stream/datagram client\n        nc listen  PATH -U [-u] [-w SECS]     unix-domain listener on socket file PATH\n        nc scan    PATH -U                    test that PATH accepts a connection\n        nc --version\n    -w bounds TCP connect/accept, writes and idle reads (timeout returns 1);\n    for UDP it sets the reply drain window after stdin EOF. Zero uses defaults.\n    \n    Multiplexes stdin and the socket via epoll(7). Listen mode requires\n    explicit `-s ADDR`; use `-s 127.0.0.1` for loopback or `-s 0.0.0.0`\n    to expose externally. v1 always exits after the first connection (no -k);\n    SOCKS proxy, TLS, broker mode, and named-pipe wiring are deferred.\n    -U (netcat-openbsd): the listener replaces a stale socket file at PATH,\n    never another kind of file, and leaves its socket file behind.\n"
     },
     {
       "id": "deferred-tcp-connect-stream",

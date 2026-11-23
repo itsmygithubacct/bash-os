@@ -9,13 +9,13 @@
     "Three-column full-year layout with all month groups",
     "Three-month and explicit before/after spans crossing a year boundary",
     "British September 1752 calendar reform",
-    "Invalid month range and Bash usage status",
+    "Invalid month range and util-linux status 1",
     "Bash builtin type and help metadata"
   ],
   "exclusions": [
     "No runnable GNU or util-linux cal oracle is installed in the validation environment, so calendar cases are contracts rather than claimed GNU parity.",
     "Current-month output depends on the wall clock and is omitted from deterministic checks.",
-    "Exact -w week-number layout and options outside the documented subset remain uncovered."
+    "The -w week-number layout is covered by regressions/cal.json; options outside the documented subset remain uncovered."
   ],
   "cases": [
     {
@@ -84,9 +84,9 @@
     {
       "id": "invalid_month",
       "kind": "contract",
-      "purpose": "Check rejection of a month outside the documented 1 through 12 range; Bash loadable usage errors return EX_USAGE (2).",
+      "purpose": "Check rejection of a month outside the documented 1 through 12 range; like util-linux cal, it exits 1 (was EX_USAGE 2 before G69).",
       "script": "cal 13 2024",
-      "expected_status": 2,
+      "expected_status": 1,
       "stderr": "nonempty",
       "stdout": ""
     },

@@ -38,6 +38,8 @@
  *   H[H][:MM[:SS[.FRAC]]] [am|pm] [UTC|GMT|EST|...|+HHMM]
  *                              (time of day, in any order with the date;
  *                               no time = 00:00:00, no date = today)
+ *   ZONE[+-]HH[[:]MM]         (a zone plus an offset: UTC+3, UTC-0500)
+ *   TZ="ZONE" STRING          (STRING read in time zone ZONE)
  *   @SECONDS[.FRAC]           (epoch seconds — useful for scripts)
  *   now, today, yesterday, tomorrow, [+-]N UNIT [ago], next/last UNIT,
  *   a day of the week         (GNU relative items, alone or after a date)
@@ -709,17 +711,17 @@ date_builtin (WORD_LIST *list)
             list = list->next;
             continue;
         }
+        /* One operand at most, as GNU: +FORMAT or the POSIX set form. */
+        if (w[0] != '-' && (fmt || posix_str)) {
+            fprintf (stderr, "date: extra operand '%s'\nTry 'date --help' for more information.\n", w);
+            return EXECUTION_FAILURE;
+        }
         if (w[0] == '+') {
             fmt = w + 1;
             list = list->next;
             continue;
         }
         if (w[0] != '-') {
-            /* The one operand that is not a format is the POSIX set form. */
-            if (posix_str) {
-                fprintf (stderr, "date: extra operand '%s'\n", w);
-                return EXECUTION_FAILURE;
-            }
             posix_str = w;
             list = list->next;
             continue;
@@ -731,14 +733,14 @@ date_builtin (WORD_LIST *list)
     /* Words after "--" are operands: a format or the POSIX set form. */
     for (; list; list = list->next) {
         const char *w = list->word->word;
-        if (w[0] == '+' && !fmt)
-            fmt = w + 1;
-        else if (!posix_str && w[0] != '+')
-            posix_str = w;
-        else {
-            fprintf (stderr, "date: extra operand '%s'\n", w);
+        if (fmt || posix_str) {
+            fprintf (stderr, "date: extra operand '%s'\nTry 'date --help' for more information.\n", w);
             return EXECUTION_FAILURE;
         }
+        if (w[0] == '+')
+            fmt = w + 1;
+        else
+            posix_str = w;
     }
     if ((ref_file != NULL) + (date_str != NULL) + (batch_file != NULL) > 1) {
         fprintf (stderr, "date: the options to specify dates for printing are mutually exclusive\n");
@@ -844,6 +846,8 @@ char *date_doc[] = {
     "                   @SECONDS[.FRAC]          (epoch)",
     "                   now, yesterday, [+-]N UNIT [ago], next/last DAY or UNIT,",
     "                   alone or after a date (\"2024-03-05 +1 month\")",
+    "                   a zone with an offset: UTC+3, UTC-0500, UTC+05:30",
+    "                   TZ=\"ZONE\" first: the rest is read in time zone ZONE",
     "    -f FILE, --file=FILE",
     "                 like -d for each line of FILE (- is standard input)",
     "    -I[FMT], --iso-8601[=FMT]",

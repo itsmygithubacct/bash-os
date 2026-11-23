@@ -15,7 +15,8 @@
     "GNU error status for a missing starting path and an -L symlink cycle.",
     "Bash type/help metadata contract; xdev mount-boundary behavior is deferred.",
     "Additional bounded regular-file, hardlink, symlink and multi-operand error continuation regressions.",
-    "-newermt/-newerXY/-anewer/-cnewer, -samefile, -inum and -links (guest compatibility pass 1)."
+    "-newermt/-newerXY/-anewer/-cnewer, -samefile, -inum and -links (guest compatibility pass 1).",
+    "Guest pass 4 G57: find -newermt shares date's parser, with TZ=\"ZONE\" prefixes and zone-plus-offset items."
   ],
   "exclusions": [
     "No host or system paths, mount operations, network activity, devices, credentials, or process-control operations are used.",
@@ -449,6 +450,20 @@
         "touch"
       ],
       "script": "touch -d '3 hours ago' old; touch -d '20 min ago' mid; touch new\nfor t in '1 hour ago' yesterday '-30 min' '-2 hours'; do\n  printf '%s:' \"$t\"\n  for f in old mid new; do [[ -n $(find \"$f\" -newermt \"$t\") ]] && printf ' %s' \"$f\"; done\n  echo\ndone\nfind old ! -newermt '-2 hours'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "newermt-tz-prefix-and-offset",
+      "kind": "parity",
+      "purpose": "G57: -newermt reads TZ=\"ZONE\" prefixes and zone-plus-offset items as date -d does.",
+      "requires": [
+        "find",
+        "touch",
+        "sort",
+        "mkdir"
+      ],
+      "script": "export TZ=UTC0\nmkdir t\ntouch -d '2024-01-01 04:00' t/four\ntouch -d '2024-01-01 06:00' t/six\nfind t -type f -newermt 'TZ=\"UTC+5\" 2024-01-01 00:00' | sort\nfind t -type f -newermt '2024-01-01 08:00 UTC+3' | sort\nfind t -type f ! -newermt '2024-01-01 00:00 UTC-0500' | sort",
       "expected_status": 0,
       "stderr": "empty"
     }

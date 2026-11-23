@@ -41,6 +41,16 @@
  *     `print | "cmd"`
  *   - SUBSEP-shaped multi-dim arrays via `a[i,j]` → `a["i" SUBSEP "j"]`
  *
+ * Output buffering (gawk/mawk parity): standard output is fully buffered
+ * while it is not a terminal, instead of Bash's line buffering (one write
+ * per record). All output is flushed before system(), before a command
+ * pipe (`print | "cmd"`, `"cmd" | getline`) starts, before close(), on
+ * fflush() and at exit; stdout is flushed at the opening of any other
+ * redirection. "/dev/stdout" and "/dev/stderr" name the standard streams
+ * themselves. A terminal stdout keeps line buffering, and partial output
+ * is flushed before each record read from a terminal. The shell's own
+ * line buffering is restored on every exit, including an interrupt.
+ *
  * Genuinely out of scope:
  *   - RT (record terminator) variable
  * For those use system+ awk.
@@ -60,6 +70,7 @@
 #endif
 
 #include <stdio.h>
+#include <stdio_ext.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -1891,6 +1902,7 @@ typedef struct {
     struct bawk_func *funcs;
     /* Output: usually stdout. */
     FILE     *out;
+    int       out_tty;            /* stdout is a terminal: flush before tty reads */
     /* Stage B: open output streams for `print > FILE`, `print >> FILE`,
        `print | "cmd"` and input streams for `"cmd" | getline`.
        Linear lookup; closed in bawk_free_all. For pipe-style streams
@@ -1901,7 +1913,9 @@ typedef struct {
         char *key;        /* filename or command string */
         int   op;         /* 1=trunc, 2=append, 3=pipe-out, 4=pipe-in */
         FILE *fp;
-        pid_t pid;        /* child pid for op 3/4; -1 otherwise */
+        pid_t pid;        /* child pid for op 3/4; -1 otherwise; -2 for a
+                             shared standard stream (/dev/stdout, /dev/stderr)
+                             that close() flushes but never fcloses */
     } *streams;
     size_t n_streams, cap_streams;
 } bawk_ctx;
@@ -2104,6 +2118,9 @@ bawk_read_record (bawk_ctx *c, FILE *fp, char **line, size_t *cap)
 {
     const char *rs = "\n";
     char rb[64];
+    /* gawk flushes terminal output before it waits on terminal input, so a
+       prompt printed without a newline is visible. */
+    if (c->out_tty && isatty (fileno (fp))) fflush (stdout);
     for (bawk_var *v = c->head; v; v = v->next)
         if (!strcmp (v->name, "RS")) {
             if (v->val.s || v->val.have_n) rs = bawk_val_to_str (&v->val, rb, sizeof rb);
@@ -2376,6 +2393,14 @@ bawk_get_stream (bawk_ctx *c, const char *key, int op)
         if (c->streams[i].op == op && strcmp (c->streams[i].key, key) == 0)
             return c->streams[i].fp;
     }
+    /* gawk and mawk write "/dev/stdout" and "/dev/stderr" through the
+       standard streams themselves, so buffered output keeps its order and
+       a regular-file stdout is not truncated by a second open. */
+    FILE *shared = NULL;
+    if (op == 1 || op == 2) {
+        if (!strcmp (key, "/dev/stdout")) shared = stdout;
+        else if (!strcmp (key, "/dev/stderr")) shared = stderr;
+    }
     if (c->n_streams + 1 > c->cap_streams) {
         size_t nc = c->cap_streams ? c->cap_streams * 2 : 8;
         struct bawk_stream *ns = xrealloc (c->streams, nc * sizeof *ns);
@@ -2385,7 +2410,12 @@ bawk_get_stream (bawk_ctx *c, const char *key, int op)
     }
     FILE *fp = NULL;
     pid_t pid = -1;
-    if      (op == 1) fp = fopen (key, "w");
+    /* Buffered output written so far precedes anything the new stream
+       produces; a command additionally sees every redirection flushed. */
+    if (op == 3 || op == 4) fflush (NULL);
+    else if (!shared) fflush (stdout);
+    if (shared) { fp = shared; pid = -2; }
+    else if (op == 1) fp = fopen (key, "w");
     else if (op == 2) fp = fopen (key, "a");
     else if (op == 3) fp = bawk_popen_guarded (key, 0, &pid);
     else if (op == 4) fp = bawk_popen_guarded (key, 1, &pid);
@@ -2405,7 +2435,9 @@ bawk_close_one_stream (struct bawk_stream *s)
     int rc;
     if (!s->fp) return 0;
     bawk_rs_forget (s->fp);
-    if (s->op == 3 || s->op == 4)
+    if (s->pid == -2)
+        rc = fflush (s->fp);
+    else if (s->op == 3 || s->op == 4)
         rc = bawk_pclose_guarded (s->fp, s->pid);
     else
         rc = fclose (s->fp);
@@ -3362,6 +3394,8 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                     if (n_args < 1) { bawk_val_set_num (&r, -1); break; }
                     char b[256];
                     const char *key = bawk_val_to_str (&args[0], b, sizeof b);
+                    /* gawk synchronizes regular output before closing. */
+                    fflush (stdout);
                     bawk_val_set_num (&r, (double) bawk_close_stream_key (c, key));
                     break;
                 }
@@ -3372,7 +3406,10 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                     } else {
                         char b[256];
                         const char *key = bawk_val_to_str (&args[0], b, sizeof b);
-                        rc = (*key == '\0') ? fflush (NULL) : bawk_fflush_stream_key (c, key);
+                        if (*key == '\0') rc = fflush (NULL);
+                        else if (!strcmp (key, "/dev/stdout")) rc = fflush (stdout);
+                        else if (!strcmp (key, "/dev/stderr")) rc = fflush (stderr);
+                        else rc = bawk_fflush_stream_key (c, key);
                     }
                     bawk_val_set_num (&r, rc == 0 ? 0 : -1);
                     break;
@@ -3440,6 +3477,7 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                         bawk_val_set_num (&r, 1);
                     } else {
                         char b[64]; const char *cmd = bawk_val_to_str (&args[0], b, sizeof b);
+                        fflush (NULL);      /* gawk/mawk: output precedes the command's */
                         bawk_val_set_num (&r, (double) system (cmd));
                     }
                     break;
@@ -3980,8 +4018,42 @@ bawk_run_line (bawk_ctx *c, bawk_node *prog, const char *line)
     }
 }
 
+static int bawk_main (WORD_LIST *list);
+
+/* Bash line-buffers stdout, which costs one write(2) per record. While
+   stdout is not a terminal, buffer it fully for the run, as gawk and mawk
+   do, and give the shell back its line buffering afterwards. The unwind
+   frame also restores it when an interrupt unwinds the builtin. */
+static int bawk_stdout_full;
+
+static void
+bawk_stdout_restore (void *unused)
+{
+    (void) unused;
+    fflush (stdout);
+    if (bawk_stdout_full) {
+        setvbuf (stdout, NULL, _IOLBF, 0);
+        bawk_stdout_full = 0;
+    }
+}
+
 int
 awk_builtin (WORD_LIST *list)
+{
+    int rc;
+    fflush (stdout);
+    begin_unwind_frame ("bashawk-stdout");
+    add_unwind_protect (bawk_stdout_restore, NULL);
+    if (!bawk_stdout_full && !isatty (fileno (stdout)) && __flbf (stdout)
+        && setvbuf (stdout, NULL, _IOFBF, 0) == 0)
+        bawk_stdout_full = 1;
+    rc = bawk_main (list);
+    run_unwind_frame ("bashawk-stdout");
+    return rc;
+}
+
+static int
+bawk_main (WORD_LIST *list)
 {
     /* Bash applies builtin redirections by swapping the underlying file
        descriptor for stdio's fd.  The libc FILE object can still carry EOF
@@ -4000,6 +4072,7 @@ awk_builtin (WORD_LIST *list)
     bawk_ctx ctx = {0};
     bawk_val_set_num (&ctx.NR, 0); bawk_val_set_num (&ctx.FNR, 0);
     ctx.out = stdout;
+    ctx.out_tty = isatty (fileno (stdout));
     ctx.max_stack = BAWK_DEFAULT_MAX_STACK;
     ctx.FS = bawk_strdup (" "); ctx.OFS = bawk_strdup (" "); ctx.ORS = bawk_strdup ("\n");
     ctx.SUBSEP = bawk_strdup ("\034");
@@ -4345,6 +4418,9 @@ char *awk_doc[] = {
     "log/exp/tolower/toupper/systime/strftime/mktime, user-defined",
     "functions, getline (var or from file), ENVIRON, RSTART/RLENGTH,",
     "system (gated by BASHAWK_ALLOW_SYSTEM=1).",
+    "Output that is not a terminal is fully buffered (gawk/mawk): it is",
+    "flushed before system(), a command pipe, close(), on fflush() and at",
+    "exit. \"/dev/stdout\" and \"/dev/stderr\" are the standard streams.",
     "Pipe redirections `print|\"cmd\"` and `\"cmd\"|getline` run /bin/sh -c",
     "via explicit fork+execv (V42-11 helper-exec hardening: SIGCHLD",
     "disposition reset + O_CLOEXEC pipe FDs + EINTR-safe wait).",

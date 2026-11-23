@@ -15,7 +15,8 @@
     "successful -P launches with order-independent child output",
     "Logical line boundaries, trailing-blank continuations, quoting and NUL interactions",
     "Grouping option precedence and bounded command-size failures",
-    "Ordinary child error folding and parallel fatal-child cleanup"
+    "Ordinary child error folding and parallel fatal-child cleanup",
+    "G65: -a/--arg-file, -E/-e/--eof, -o/--open-tty and --process-slot-var."
   ],
   "exclusions": [
     "Interactive -p prompting is deferred because the runner does not provide a controlling PTY.",
@@ -695,6 +696,73 @@
       "script": "xargs -d '\\400' echo </dev/null",
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "arg-file-keeps-stdin",
+      "kind": "parity",
+      "purpose": "G65: -a FILE / -aFILE / --arg-file[=]FILE read the arguments from FILE and leave standard input to the command; an unreadable FILE fails with status 1.",
+      "requires": [
+        "xargs",
+        "printf"
+      ],
+      "script": "printf 'a b\\nc\\n' > list\nprintf 'from-stdin\\n' | xargs -a list /bin/sh -c 'printf \"<%s>\" \"$@\"; IFS= read -r l; printf \"\\nstdin=%s\\n\" \"$l\"' _\nxargs --arg-file=list /usr/bin/printf '[%s]' </dev/null; echo\nxargs --arg-file list /usr/bin/printf '{%s}' </dev/null; echo\nxargs -alist -n1 /usr/bin/printf '(%s)' </dev/null; echo\nrc=0; xargs -a missing /usr/bin/printf x </dev/null || rc=$?; echo rc=$rc",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "eof-string",
+      "kind": "parity",
+      "purpose": "G65: -E STR, -ESTR, -eSTR and --eof=STR stop at an unquoted argument equal to STR (a quoted one too, as GNU does); in -I mode at a whole line; bare -e and empty -E mean no end string.",
+      "requires": [
+        "xargs",
+        "printf"
+      ],
+      "script": "printf 'a b\\nc STOP d\\ne\\n' > in\nxargs -E STOP /usr/bin/printf '<%s>' < in; echo\nxargs -ESTOP -n1 /usr/bin/printf '<%s>' < in; echo\nxargs -eSTOP /usr/bin/printf '<%s>' < in; echo\nxargs --eof=STOP /usr/bin/printf '<%s>' < in; echo\nxargs -e /usr/bin/printf '<%s>' < in; echo\nxargs --eof /usr/bin/printf '<%s>' < in; echo\nxargs -E '' /usr/bin/printf '<%s>' < in; echo\nxargs -E STOP -I{} /usr/bin/printf '[{}]' < in; echo\nxargs -E 'c STOP d' -L1 /usr/bin/printf '<%s>' < in; echo\nprintf '\"STOP\" x\\nSTOP\\ny\\n' | xargs -E STOP /usr/bin/printf '<%s>'; echo",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "eof-string-ignored-with-delimiters",
+      "kind": "parity",
+      "purpose": "G65: with -0 or -d, -E has no effect and GNU's warning is printed.",
+      "requires": [
+        "xargs",
+        "printf"
+      ],
+      "script": "printf 'a\\0STOP\\0b\\0' | xargs -0 -E STOP /usr/bin/printf '<%s>'; echo\nprintf 'a,STOP,b' | xargs -d, -E STOP /usr/bin/printf '<%s>'; echo",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "process-slot-var",
+      "kind": "parity",
+      "purpose": "G65: --process-slot-var[=]NAME gives each child NAME set to its slot, the lowest free one below -P, without setting it in the calling shell.",
+      "requires": [
+        "xargs",
+        "printf",
+        "sort"
+      ],
+      "script": "printf '1\\n2\\n3\\n' | xargs -n1 --process-slot-var=SLOT /bin/sh -c 'printf \"%s:%s\\n\" \"$1\" \"$SLOT\"' _\nprintf '1\\n2\\n3\\n4\\n5\\n6\\n' | xargs -n1 -P2 --process-slot-var SLOT /bin/sh -c 'case $SLOT in 0|1) echo ok;; *) echo \"bad:$SLOT\";; esac' _ | sort -u\nprintf 'SLOT=%s\\n' \"${SLOT-unset}\"",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "process-slot-var-invalid",
+      "kind": "parity",
+      "purpose": "G65: a --process-slot-var NAME containing '=' or empty, or a missing NAME, fails with status 1 before any command runs.",
+      "requires": [
+        "xargs",
+        "printf"
+      ],
+      "script": "for a in --process-slot-var=a=b --process-slot-var= --process-slot-var; do rc=0; echo x | xargs \"$a\" /usr/bin/printf 'ran\\n' || rc=$?; echo \"$a rc=$rc\"; done",
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "id": "open-tty-no-terminal",
+      "kind": "deferred",
+      "purpose": "G65: -o/--open-tty reopens standard input as /dev/tty for each command.",
+      "reason": "The runner has no controlling terminal; without one GNU xargs 4.10 aborts with status 125 while bash-os reports '/dev/tty' and exits 1. Checked by hand under script(1) on the reference host."
     }
   ]
 }

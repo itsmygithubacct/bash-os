@@ -343,6 +343,18 @@
       "script": "printf 'plain\\n' > p; : > e; printf 'zipped\\n' | /usr/bin/gzip > z.gz\nzcat -f p z.gz e p\nzcat --force < p\nzcat p 2>/dev/null || echo rc=$?\n",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "trailing-garbage",
+      "kind": "parity",
+      "requires": [
+        "zcat",
+        "gzip"
+      ],
+      "purpose": "G67: zcat (gzip -cd) ignores trailing garbage after the last member with exit 2 and still decodes the later operands; zero padding is silent; one stray byte is an unexpected end of file (exit 1); -f copies the trailing data through.",
+      "script": "printf 'a\\n' | /usr/bin/gzip > x.gz\nst() { if \"$@\"; then echo rc=0; else echo rc=$?; fi; }\n{ /usr/bin/cat x.gz; echo junk; } > g.gz; { /usr/bin/cat x.gz; printf '\\0\\0\\0'; } > z.gz; { /usr/bin/cat x.gz; printf 'j'; } > v.gz\nst zcat g.gz x.gz 2>/dev/null\nst zcat -q g.gz 2>/tmp/err; /usr/bin/wc -c < /tmp/err\nst zcat < g.gz 2>/dev/null\nst zcat z.gz\nst zcat v.gz 2>/dev/null\nst zcat -f g.gz\n",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

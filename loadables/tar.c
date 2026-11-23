@@ -14,6 +14,19 @@
 
 struct tar_arg { const char *text; int directory; };
 
+/* --format=FORMAT / -H FORMAT, with GNU tar's diagnostic for a bad name. */
+static int tar_set_format(struct bashos_pax_write_context *writer, const char *name)
+{
+    int format = bashos_pax_format(name);
+    if (format < 0) {
+        builtin_error("%s: Invalid archive format", name);
+        fputs("Try 'tar --help' or 'tar --usage' for more information.\n", stderr);
+        return -1;
+    }
+    writer->format = format;
+    return 0;
+}
+
 int tar_builtin(WORD_LIST *list)
 {
     size_t count = 0;
@@ -27,7 +40,7 @@ int tar_builtin(WORD_LIST *list)
     struct bashos_pax_xform *xforms = NULL;
     size_t used = 0, member_count = 0;
     int mode = 0, zip = 0, verbose = 0, end_options = 0, first = 1, no_recurse = 0;
-    int saved = -1, rc = 0;
+    int saved = -1, rc = 0, zip_warning = 0;
     const char *archive = "-";
     FILE *stream = NULL, *temporary = NULL;
     struct bashos_pax_write_context writer = {0};
@@ -41,13 +54,23 @@ int tar_builtin(WORD_LIST *list)
         first = 0;
         if (!end_options && !strcmp(w, "--")) { end_options = 1; continue; }
         if (!end_options && !strcmp(w, "--help")) {
-            puts("Usage: tar -c|-t|-x|--delete [-zvPS] [-f ARCHIVE] [-C DIR] [FILE...]\nCreate, list, or extract ustar/PAX archives. '-' means stdin/stdout.\n-O extracts to stdout; --strip-components=N removes leading path components.\n-p preserves permissions; --no-recursion archives only directory entries.\n--same-owner/--no-same-owner restore the archived owner (default for root);\n--numeric-owner uses archived ids rather than names.\n--exclude=PATTERN skips members; --wildcards makes member operands patterns.\n--transform=s/RE/REPL/FLAGS rewrites member names; -P keeps a leading '/'.\n-S stores files with holes as sparse members; --acls stores and restores ACLs.\n--delete removes the named members from ARCHIVE; --to-command=CMD pipes each\nregular member to CMD with GNU's TAR_* variables."); goto done;
+            puts("Usage: tar -c|-t|-x|-d|--delete [-zvhPS] [-H FORMAT] [-f ARCHIVE] [-C DIR] [FILE...]\nCreate, list, extract or compare (-d, --diff) ustar/PAX archives. '-' means stdin/stdout.\n-h follows symbolic links; --format=FORMAT (-H) writes gnu, oldgnu, v7, ustar, posix.\n-O extracts to stdout; --strip-components=N removes leading path components.\n-p preserves permissions; --no-recursion archives only directory entries.\n--same-owner/--no-same-owner restore the archived owner (default for root);\n--numeric-owner uses archived ids rather than names.\n--exclude=PATTERN skips members; --wildcards makes member operands patterns.\n--transform=s/RE/REPL/FLAGS rewrites member names; -P keeps a leading '/'.\n-S stores files with holes as sparse members; --acls stores and restores ACLs.\n--delete removes the named members from ARCHIVE; --to-command=CMD pipes each\nregular member to CMD with GNU's TAR_* variables."); goto done;
         }
         if (!end_options && !strcmp(w, "--version")) { puts("tar (bash-os) 0.1.1"); goto done; }
         if (!end_options && !strcmp(w, "--create")) opts = "c";
         else if (!end_options && !strcmp(w, "--extract")) opts = "x";
         else if (!end_options && !strcmp(w, "--get")) opts = "x";
         else if (!end_options && !strcmp(w, "--list")) opts = "t";
+        else if (!end_options && (!strcmp(w, "--diff") || !strcmp(w, "--compare"))) opts = "d";
+        else if (!end_options && !strcmp(w, "--dereference")) opts = "h";
+        else if (!end_options && !strcmp(w, "--posix")) { writer.format = BASHOS_PAX_FMT_DEFAULT; continue; }
+        else if (!end_options && (!strcmp(w, "--old-archive") || !strcmp(w, "--portability"))) { writer.format = BASHOS_PAX_FMT_V7; continue; }
+        else if (!end_options && (!strcmp(w, "--format") || !strncmp(w, "--format=", 9))) {
+            if (w[8] == '=') value = w + 9;
+            else { if (!(list = list->next)) goto invalid; value = list->word->word; }
+            if (tar_set_format(&writer, value) < 0) { rc = 2; goto done; }
+            continue;
+        }
         else if (!end_options && (!strcmp(w, "--gzip") || !strcmp(w, "--gunzip"))) opts = "z";
         else if (!end_options && !strcmp(w, "--verbose")) opts = "v";
         else if (!end_options && !strcmp(w, "--to-stdout")) opts = "O";
@@ -108,7 +131,7 @@ int tar_builtin(WORD_LIST *list)
         else if (!end_options && old_style) opts = w;
         if (opts) {
             for (; *opts; opts++) {
-                if (*opts == 'c' || *opts == 't' || *opts == 'x') {
+                if (*opts == 'c' || *opts == 't' || *opts == 'x' || *opts == 'd') {
                     if (mode && mode != *opts) goto invalid;
                     mode = *opts;
                 } else if (*opts == 'z') zip = 1;
@@ -117,11 +140,13 @@ int tar_builtin(WORD_LIST *list)
                 else if (*opts == 'p') same_permissions = 1;
                 else if (*opts == 'P') absolute_names = 1;
                 else if (*opts == 'S') writer.sparse = 1;
-                else if (*opts == 'f' || *opts == 'C') {
+                else if (*opts == 'h') writer.dereference = read_options.dereference = 1;
+                else if (*opts == 'f' || *opts == 'C' || *opts == 'H') {
                     char option = *opts;
                     if (!old_style && opts[1]) { value = opts + 1; opts += strlen(opts) - 1; }
                     else { if (!(list = list->next)) goto invalid; value = list->word->word; }
                     if (option == 'f') archive = value;
+                    else if (option == 'H') { if (tar_set_format(&writer, value) < 0) { rc = 2; goto done; } }
                     else args[used++] = (struct tar_arg){value, 1};
                 } else goto invalid;
             }
@@ -131,6 +156,7 @@ int tar_builtin(WORD_LIST *list)
     }
     if (!mode || (mode == 'c' && !member_count) || (writer.override_mtime && mode != 'c')) goto invalid;
     if (mode == 'D' && (zip || read_options.to_stdout || read_options.strip)) goto invalid;
+    if (mode == 'd' && (read_options.to_stdout || read_options.to_command)) goto invalid;
     if (read_options.to_command && (mode != 'x' || read_options.to_stdout)) goto invalid;
     read_options.archive = archive;
     read_options.excludes = excludes; read_options.nexcludes = exclude_count;
@@ -150,14 +176,22 @@ int tar_builtin(WORD_LIST *list)
         stream = fd < 0 ? NULL : fdopen(fd, mode == 'c' ? "wb" : "rb");
         if (!stream && fd >= 0) close(fd);
     } else stream = fopen(archive, mode == 'c' ? "wb" : mode == 'D' ? "r+b" : "rb");
-    if (!stream) { builtin_error("%s: %s", archive, strerror(errno)); rc = 2; goto done; }
+    if (!stream) {
+        builtin_error("%s: Cannot open: %s", archive, strerror(errno));
+        builtin_error("Error is not recoverable: exiting now"); rc = 2; goto done;
+    }
     FILE *payload = stream;
     if (zip) {
         temporary = tmpfile();
         if (!temporary) { builtin_error("temporary archive: %s", strerror(errno)); rc = 2; goto done; }
         payload = temporary;
         if (mode != 'c') {
-            if (bgz_decode(fileno(stream), fileno(temporary), NULL) || fseek(temporary, 0, SEEK_SET)) { rc = 2; goto done; }
+            int z = bgz_decode(fileno(stream), fileno(temporary), NULL);
+            /* As GNU tar does when gzip warns: the archive is still read,
+               then tar fails. */
+            if (z == BGZ_TRAILING_GARBAGE) { builtin_error("decompression OK, trailing garbage ignored"); zip_warning = 1; }
+            else if (z && z != BGZ_TRAILING_ZEROS) { builtin_error("Error is not recoverable: exiting now"); rc = 2; goto done; }
+            if (fseek(temporary, 0, SEEK_SET)) { rc = 2; goto done; }
         }
     }
     if (mode == 'D') {
@@ -184,17 +218,21 @@ int tar_builtin(WORD_LIST *list)
     }
     if (mode == 'c') {
         writer.no_recurse = no_recurse;
-        int warned = 0;
+        int warned = 0, member_failed = 0;
         for (size_t i = 0; i < used; i++) {
             if (args[i].directory) {
-                if (chdir(args[i].text)) { builtin_error("%s: %s", args[i].text, strerror(errno)); rc = 2; break; }
+                if (chdir(args[i].text)) {
+                    builtin_error("%s: Cannot open: %s", args[i].text, strerror(errno));
+                    builtin_error("Error is not recoverable: exiting now"); rc = 2; break;
+                }
             } else {
                 if (args[i].text[0] == '/' && !absolute_names && !xforms && !warned++)
                     builtin_error("Removing leading `/' from member names");
                 if (verbose) fprintf(!strcmp(archive, "-") ? stderr : stdout, "%s\n", args[i].text);
-                if (bashos_pax_write_member_context(payload, args[i].text, &writer)) rc = 2;
+                if (bashos_pax_write_member_context(payload, args[i].text, &writer)) rc = member_failed = 2;
             }
         }
+        if (member_failed) builtin_error("Exiting with failure status due to previous errors");
         unsigned char zero[1024] = {0};
         if (fwrite(zero, 1, sizeof zero, payload) != sizeof zero || fflush(payload)) rc = 2;
         if (!rc && zip) {
@@ -202,14 +240,19 @@ int tar_builtin(WORD_LIST *list)
         }
     } else {
         for (size_t i = 0; i < used; i++) if (args[i].directory && chdir(args[i].text)) {
-            builtin_error("%s: %s", args[i].text, strerror(errno)); rc = 2; goto done;
+            builtin_error("%s: Cannot open: %s", args[i].text, strerror(errno));
+            builtin_error("Error is not recoverable: exiting now"); rc = 2; goto done;
         }
         read_options.extract = mode == 'x'; read_options.verbose = verbose;
         read_options.members = members; read_options.count = member_count;
-        int member_errors = 0;
+        int member_errors = 0, differences = 0;
         read_options.member_errors = &member_errors;
+        /* -d: GNU tar exits 1 when files differ, 2 on trouble. */
+        read_options.compare = mode == 'd';
+        read_options.differences = &differences;
         if (bashos_pax_read(payload, &read_options)) rc = 2;
         if (member_errors) builtin_error("Exiting with failure status due to previous errors");
+        else if (!rc && differences) rc = 1;
     }
     goto done;
 invalid:
@@ -226,11 +269,17 @@ done:
     }
     free(args); free(members);
     if (fflush(stdout) || ferror(stdout)) { clearerr(stdout); rc = 2; }
+    if (zip_warning && !rc) { builtin_error("Child returned status 2"); rc = 2; }
     return rc;
 }
 
 char *tar_doc[] = {
-    "Create (-c), list (-t), or extract (-x) ustar/PAX archives; -f selects the archive.",
+    "Create (-c), list (-t), extract (-x) or compare (-d, --diff, --compare) ustar/PAX",
+    "archives; -f selects the archive. -d reports what differs on disk as GNU tar does",
+    "(\"NAME: Mod time differs\", ...; exit 1 when anything differs, 2 on errors).",
+    "-h/--dereference archives (and compares) what symbolic links point to.",
+    "--format=FORMAT or -H FORMAT: gnu, oldgnu, v7 as GNU tar writes them; ustar, posix",
+    "and pax write ustar with pax headers only when needed. v7 archives are read too.",
     "Supports -C directory, -z gzip, -v, -O stdout, -p permissions, --strip-components.",
     "Extraction restores the archived owner and modes when run as root, as GNU tar does;",
     "--same-owner/--no-same-owner, -p/--no-same-permissions and --numeric-owner override.",
@@ -244,5 +293,5 @@ char *tar_doc[] = {
     "No append/update or automatic compression detection (the tar command adds those).", NULL
 };
 struct builtin tar_struct = {
-    "tar", tar_builtin, BUILTIN_ENABLED, tar_doc, "tar -c|-t|-x|--delete [-zvPS] [-f ARCHIVE] [-C DIR] [FILE...]", 0
+    "tar", tar_builtin, BUILTIN_ENABLED, tar_doc, "tar -c|-t|-x|-d|--delete [-zvhPS] [-H FORMAT] [-f ARCHIVE] [-C DIR] [FILE...]", 0
 };

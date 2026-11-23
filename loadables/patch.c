@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT */
-/* patch.c — apply unified and normal diffs, as GNU patch 2.8 does.
+/* patch.c — apply unified, context and normal diffs, as GNU patch 2.8 does.
  *
  *   patch [-bEfNRst] [-p N] [-F N] [-i PATCHFILE] [-o OUT] [-r REJ] [-d DIR]
  *         [-z SUFFIX] [--dry-run] [ORIGFILE [PATCHFILE]]
@@ -19,7 +19,11 @@
  * file that cannot be found, a creation over an existing file) are answered
  * with their defaults, as GNU answers them without a terminal; -N skips
  * reversed patches and -t applies them reversed. -p absent means the base
- * name. Context diffs (diff -c) are not supported. Fuzz never exceeds a
+ * name. The kind of diff is found from its text, as GNU does: unified
+ * ("@@ -1,2 +1,2 @@"), context (diff -c, "***************" hunks whose
+ * omitted side is rebuilt from the other side's context lines) or normal
+ * ("2c2"); rejects of a context or normal diff are written in GNU's
+ * context form. Fuzz never exceeds a
  * hunk's context, so deleted lines always match exactly. A header time at
  * the Epoch (diff -N) marks a file absent: created, or removed once empty.
  *
@@ -43,6 +47,7 @@
 #include <limits.h>
 #include <stdarg.h>
 #include <sys/stat.h>
+#include <time.h>
 
 #include "loadables.h"
 
@@ -60,7 +65,7 @@ typedef struct {
 typedef struct {
     char *old_name, *new_name;     /* as written, NULL for /dev/null */
     char *old_time, *new_time;     /* from the tab on, or NULL */
-    int old_null, new_null, git_new, git_delete, normal;
+    int old_null, new_null, git_new, git_delete, normal, context;
     bp_hunk *hunks;
     size_t nh;
     size_t lead_start, lead_end;   /* the text leading up to the first hunk */
@@ -215,6 +220,193 @@ bp_normal_cmd (const char *line, size_t len, long *l1, long *l2, char *cmd, long
     return *l2 >= *l1 && *r2 >= *r1;
 }
 
+/* "*** A,B ****" (MARK '*') or "--- A,B ----" (MARK '-'): one side of a
+   context hunk. A single number is that line, or the line before an empty
+   side. The trailing marks may be missing, as in GNU's own rejects of a
+   normal diff. */
+static int
+bp_context_range (const char *line, size_t len, char mark, long *first, long *last, int *pair)
+{
+    char buf[128];
+    while (len && line[len - 1] == '\r') len--;
+    if (len < 5 || len >= sizeof buf || line[0] != mark || line[1] != mark || line[2] != mark || line[3] != ' ')
+        return -1;
+    memcpy (buf, line, len);
+    buf[len] = '\0';
+    const char *p = buf + 4;
+    char *end;
+    errno = 0;
+    *first = strtol (p, &end, 10);
+    if (end == p || errno || *first < 0) return -1;
+    *last = *first;
+    *pair = 0;
+    if (*end == ',') {
+        p = end + 1;
+        *last = strtol (p, &end, 10);
+        if (end == p || errno || *last < *first) return -1;
+        *pair = 1;
+    }
+    if (!*end) return 0;
+    if (*end++ != ' ') return -1;
+    int marks = 0;
+    while (*end == mark) end++, marks++;
+    return marks >= 4 && !*end ? 0 : -1;
+}
+
+/* A listed line of a context hunk: "  ", "- ", "+ " or "! " and the text.
+   An empty line is an empty context line (diff --suppress-blank-empty). */
+static int
+bp_context_kind (const char *line, size_t len, const char *kinds)
+{
+    if (!len) return ' ';
+    if (len >= 2 && line[1] == ' ' && strchr (kinds, line[0])) return line[0];
+    if (len == 1 && line[0] == ' ') return ' ';
+    return 0;
+}
+
+typedef struct { bp_line *l; size_t n, cap; } bp_side;
+
+static int
+bp_side_add (bp_side *s, char kind, const char *text, size_t len)
+{
+    if (s->n == s->cap) {
+        size_t nc = s->cap ? s->cap * 2 : 16;
+        bp_line *g = realloc (s->l, nc * sizeof *g);
+        if (!g) return -1;
+        s->l = g;
+        s->cap = nc;
+    }
+    s->l[s->n].text = (char *) text;   /* borrowed from the patch text */
+    s->l[s->n].len = len;
+    s->l[s->n].kind = kind;
+    s->l[s->n].nonl = 0;
+    s->n++;
+    return 0;
+}
+
+/* Read one side of a context hunk: WANT listed lines, each followed by an
+   optional "\ No newline at end of file". */
+static int
+bp_context_side (bp_reader *r, bp_side *s, long want, const char *kinds, const char **bad)
+{
+    const char *line;
+    size_t len;
+    for (long i = 0; i < want; i++) {
+        if (!bp_next (r, &line, &len, NULL)) { *bad = "unexpected end of hunk"; return 2; }
+        int k = bp_context_kind (line, len, kinds);
+        if (!k) { *bad = NULL; return 2; }
+        if (bp_side_add (s, (char) k, len > 2 ? line + 2 : line + len, len > 2 ? len - 2 : 0) < 0) return -1;
+        if (bp_peek (r, 0, &line, &len) && len && line[0] == '\\') {
+            bp_next (r, &line, &len, NULL);
+            s->l[s->n - 1].nonl = 1;
+        }
+    }
+    return 0;
+}
+
+/* Parse the hunk after a "***************" line (already read, its text
+   after the stars in FUNCTION) into H's unified-style lines. The side diff
+   leaves out because it only has context is rebuilt from the other side.
+   Returns 0, 2 after a message, or -1 when out of memory. */
+static int
+bp_context_hunk (bp_reader *r, bp_hunk *h, size_t *lcap)
+{
+    const char *line, *bad = NULL;
+    size_t len;
+    long o1, o2, n1, n2;
+    int opair, npair, rc = 0;
+    bp_side old = { NULL, 0, 0 }, new = { NULL, 0, 0 };
+    if (!bp_next (r, &line, &len, NULL) || bp_context_range (line, len, '*', &o1, &o2, &opair) < 0) {
+        bad = "bad context hunk header";
+        rc = 2;
+        goto out;
+    }
+    h->input_line = r->number;
+    long owant = opair ? o2 - o1 + 1 : o1 > 0;
+    int old_listed = 0;
+    if (bp_peek (r, 0, &line, &len) && bp_context_range (line, len, '-', &n1, &n2, &npair) < 0) {
+        old_listed = 1;
+        if ((rc = bp_context_side (r, &old, owant, " -!", &bad))) goto out;
+    }
+    if (!bp_next (r, &line, &len, NULL) || bp_context_range (line, len, '-', &n1, &n2, &npair) < 0) {
+        bad = "expected a --- line";
+        rc = 2;
+        goto out;
+    }
+    long nwant = npair ? n2 - n1 + 1 : n1 > 0;
+    int new_listed = 0;
+    if (nwant && bp_peek (r, 0, &line, &len) && len && bp_context_kind (line, len, " +!")) {
+        new_listed = 1;
+        if ((rc = bp_context_side (r, &new, nwant, " +!", &bad))) goto out;
+    }
+    /* Merge the sides: context lines pair up, a "!" run on the old side is
+       followed by the "!" run at the same place on the new side. */
+    size_t i = 0, j = 0;
+    long octx = 0, nctx = 0;
+    for (size_t k = 0; k < old.n; k++) octx += old.l[k].kind == ' ';
+    for (size_t k = 0; k < new.n; k++) nctx += new.l[k].kind == ' ';
+    if (old_listed && new_listed && octx != nctx) { bad = "context lines differ in number"; rc = 2; goto out; }
+    if (!old_listed && !new_listed && (owant || nwant)) {
+        bad = "hunk has no lines";
+        rc = 2;
+        goto out;
+    }
+    for (;;) {
+        const bp_line *a = i < old.n ? &old.l[i] : NULL, *b = j < new.n ? &new.l[j] : NULL;
+        if (!a && !b) break;
+        const bp_line *add = NULL;
+        char kind;
+        int nonl;
+        if (a && a->kind == '-') { add = a; kind = '-'; i++; nonl = a->nonl; }
+        else if (b && b->kind == '+') { add = b; kind = '+'; j++; nonl = b->nonl; }
+        else if (a && a->kind == '!') {
+            for (; i < old.n && old.l[i].kind == '!'; i++) {
+                if (bp_add_line (h, lcap, '-', old.l[i].text, old.l[i].len) < 0) { rc = -1; goto out; }
+                h->lines[h->n - 1].nonl = old.l[i].nonl;
+            }
+            for (; j < new.n && new.l[j].kind == '!'; j++) {
+                if (bp_add_line (h, lcap, '+', new.l[j].text, new.l[j].len) < 0) { rc = -1; goto out; }
+                h->lines[h->n - 1].nonl = new.l[j].nonl;
+            }
+            continue;
+        } else if (b && b->kind == '!') { add = b; kind = '+'; j++; nonl = b->nonl; }
+        else if (a && (b || !new_listed)) {
+            /* A context line: the last line of both files when it has no
+               newline, so either side may carry the mark. */
+            add = a; kind = ' '; i++; nonl = a->nonl;
+            if (b) { j++; nonl |= b->nonl; }
+        } else if (b && !old_listed) { add = b; kind = ' '; j++; nonl = b->nonl; }
+        else { bad = "context lines differ"; rc = 2; goto out; }
+        if (bp_add_line (h, lcap, kind, add->text, add->len) < 0) { rc = -1; goto out; }
+        h->lines[h->n - 1].nonl = nonl;
+    }
+    h->old_count = h->new_count = 0;
+    for (size_t k = 0; k < h->n; k++) {
+        if (h->lines[k].kind != '+') h->old_count++;
+        if (h->lines[k].kind != '-') h->new_count++;
+    }
+    if ((opair && h->old_count != owant) || (npair && h->new_count != nwant)
+        || (!opair && h->old_count > 1) || (!npair && h->new_count > 1)) {
+        bad = "hunk lines do not match its ranges";
+        rc = 2;
+        goto out;
+    }
+    h->old_start = o1;
+    h->new_start = n1;
+out:
+    if (rc == 2) {
+        if (!bad) {
+            char *shown = bp_dup (line, len);
+            builtin_error ("**** malformed patch at line %ld: %s", r->number, shown ? shown : "");
+            free (shown);
+        } else
+            builtin_error ("**** malformed patch at line %ld: %s", r->number, bad);
+    }
+    free (old.l);
+    free (new.l);
+    return rc;
+}
+
 /* Parse the patch into files and hunks. Returns 0, or 2 after a message. */
 static int
 bp_parse (const bp_opts *o, bp_file **out, size_t *n_out)
@@ -230,19 +422,16 @@ bp_parse (const bp_opts *o, bp_file **out, size_t *n_out)
         if (len >= 11 && !strncmp (line, "diff --git ", 11)) { git_new = git_delete = 0; continue; }
         if (len >= 13 && !strncmp (line, "new file mode", 13)) { git_new = 1; continue; }
         if (len >= 17 && !strncmp (line, "deleted file mode", 17)) { git_delete = 1; continue; }
-        if (len >= 4 && !strncmp (line, "*** ", 4) && bp_peek (&r, 0, &next, &next_len)
-            && next_len >= 15 && !strncmp (next, "***************", 15)) {
-            builtin_error ("**** context diffs are not supported; use a unified diff (diff -u)");
-            bp_free_files (files, n);
-            return 2;
-        }
         long l1, l2, r1, r2;
         char cmd;
-        int unified = len >= 4 && !strncmp (line, "--- ", 4)
+        int context = len >= 4 && !strncmp (line, "*** ", 4)
+            && bp_peek (&r, 0, &next, &next_len) && next_len >= 4 && !strncmp (next, "--- ", 4)
+            && bp_peek (&r, 1, &next2, &next2_len) && next2_len >= 15 && !strncmp (next2, "***************", 15);
+        int unified = !context && len >= 4 && !strncmp (line, "--- ", 4)
             && bp_peek (&r, 0, &next, &next_len) && next_len >= 4 && !strncmp (next, "+++ ", 4)
             && bp_peek (&r, 1, &next2, &next2_len) && next2_len >= 4 && !strncmp (next2, "@@ -", 4);
-        int normal = !unified && bp_normal_cmd (line, len, &l1, &l2, &cmd, &r1, &r2);
-        if (!unified && !normal) continue;
+        int normal = !unified && !context && bp_normal_cmd (line, len, &l1, &l2, &cmd, &r1, &r2);
+        if (!unified && !normal && !context) continue;
 
         if (n == cap) {
             size_t nc = cap ? cap * 2 : 4;
@@ -257,7 +446,8 @@ bp_parse (const bp_opts *o, bp_file **out, size_t *n_out)
         f->git_delete = git_delete;
         git_new = git_delete = 0;
         f->lead_start = lead;
-        if (unified) {
+        f->context = context;
+        if (unified || context) {
             if (bp_header_name (line, len, &f->old_name, &f->old_time, &f->old_null) < 0) goto oom;
             bp_next (&r, &line, &len, NULL);
             if (bp_header_name (line, len, &f->new_name, &f->new_time, &f->new_null) < 0) goto oom;
@@ -271,9 +461,10 @@ bp_parse (const bp_opts *o, bp_file **out, size_t *n_out)
         size_t hcap = 0;
         for (;;) {
             if (!bp_peek (&r, 0, &line, &len)) break;
-            int is_unified = f->normal ? 0 : len >= 4 && !strncmp (line, "@@ -", 4);
+            int is_unified = f->normal || f->context ? 0 : len >= 4 && !strncmp (line, "@@ -", 4);
+            int is_context = f->context && len >= 15 && !strncmp (line, "***************", 15);
             int is_normal = f->normal && bp_normal_cmd (line, len, &l1, &l2, &cmd, &r1, &r2);
-            if (!is_unified && !is_normal) break;
+            if (!is_unified && !is_normal && !is_context) break;
             bp_next (&r, &line, &len, NULL);
             if (f->nh == hcap) {
                 size_t nc = hcap ? hcap * 2 : 4;
@@ -286,7 +477,13 @@ bp_parse (const bp_opts *o, bp_file **out, size_t *n_out)
             memset (h, 0, sizeof *h);
             h->input_line = r.number;
             size_t lcap = 0;
-            if (is_unified) {
+            if (is_context) {
+                h->function = bp_dup (line + 15, len - 15);
+                if (!h->function) goto oom;
+                int crc = bp_context_hunk (&r, h, &lcap);
+                if (crc < 0) goto oom;
+                if (crc) { bp_free_files (files, n); return 2; }
+            } else if (is_unified) {
                 char *hdr = bp_dup (line, len);
                 if (!hdr) goto oom;
                 const char *p = hdr + 4;
@@ -681,6 +878,54 @@ bp_reject_hunk (FILE *fp, const bp_hunk *h, long out_offset)
     }
 }
 
+/* A rejected hunk of a context or normal diff, as GNU's abort_hunk_context
+   writes it: each side in full, a change shown with "!" on both sides (a
+   normal diff keeps "-" and "+"), an empty side as line 0, and for a normal
+   diff no stars after the old range and five dashes after the new one. */
+static void
+bp_reject_context_side (FILE *fp, const bp_hunk *h, int new_side, int normal)
+{
+    size_t i = 0;
+    while (i < h->n) {
+        if (h->lines[i].kind == ' ') {
+            fputc (' ', fp);
+            bp_reject_line (fp, ' ', &h->lines[i]);
+            i++;
+            continue;
+        }
+        size_t j = i;
+        int dels = 0, adds = 0;
+        for (; j < h->n && h->lines[j].kind != ' '; j++) {
+            if (h->lines[j].kind == '-') dels = 1; else adds = 1;
+        }
+        char want = new_side ? '+' : '-';
+        char mark = dels && adds && !normal ? '!' : want;
+        for (size_t k = i; k < j; k++)
+            if (h->lines[k].kind == want) {
+                fputc (mark, fp);
+                bp_reject_line (fp, ' ', &h->lines[k]);
+            }
+        i = j;
+    }
+}
+
+static void
+bp_reject_hunk_context (FILE *fp, const bp_hunk *h, long out_offset, int normal)
+{
+    long oldfirst = h->first + out_offset, newfirst = h->newfirst + out_offset;
+    long oldlast = oldfirst + h->old_count - 1, newlast = newfirst + h->new_count - 1;
+    const char *stars = normal ? "" : " ****", *minuses = normal ? " -----" : " ----";
+    fprintf (fp, "***************%s\n", h->function ? h->function : "");
+    if (oldlast < oldfirst) fprintf (fp, "*** 0%s\n", stars);
+    else if (oldlast == oldfirst) fprintf (fp, "*** %ld%s\n", oldfirst, stars);
+    else fprintf (fp, "*** %ld,%ld%s\n", oldfirst, oldlast, stars);
+    bp_reject_context_side (fp, h, 0, normal);
+    if (newlast < newfirst) fprintf (fp, "--- 0%s\n", minuses);
+    else if (newlast == newfirst) fprintf (fp, "--- %ld%s\n", newfirst, minuses);
+    else fprintf (fp, "--- %ld,%ld%s\n", newfirst, newlast, minuses);
+    bp_reject_context_side (fp, h, 1, normal);
+}
+
 static int
 bp_mkdirs (const char *path)
 {
@@ -731,6 +976,13 @@ bp_backup (const bp_opts *o, const char *name)
     if (!bak) return -1;
     snprintf (bak, n, "%s%s", name, suffix);
     unlink (bak);
+    if (!bp_exists (name)) {
+        /* GNU backs up a file that was not there as an empty one. */
+        if (bp_mkdirs (bak) < 0) { free (bak); return -1; }
+        int fd = open (bak, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0666);
+        free (bak);
+        return fd < 0 ? -1 : close (fd);
+    }
     int rc = link (name, bak);
     if (rc < 0) {
         /* No hard links here: copy instead. */
@@ -778,6 +1030,27 @@ bp_is_epoch (const char *t)
     if (!t) return 0;
     while (*t == '\t' || *t == ' ') t++;
     int y, mo, d, h, mi, sec, n = 0;
+    char wday[4], mon[4];
+    /* diff -c in the C locale writes ctime's "Thu Jan  1 00:00:00 1970",
+       in local time. */
+    if (sscanf (t, "%3s %3s %d %d:%d:%d %d%n", wday, mon, &d, &h, &mi, &sec, &y, &n) == 7) {
+        static const char months[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
+        const char *m = strstr (months, mon);
+        if (!m || (m - months) % 3 || strlen (mon) != 3) return 0;
+        while (t[n] == ' ' || t[n] == '\r') n++;
+        if (t[n]) return 0;
+        struct tm tm;
+        memset (&tm, 0, sizeof tm);
+        tm.tm_year = y - 1900;
+        tm.tm_mon = (int) ((m - months) / 3);
+        tm.tm_mday = d;
+        tm.tm_hour = h;
+        tm.tm_min = mi;
+        tm.tm_sec = sec;
+        tm.tm_isdst = -1;
+        tzset ();
+        return mktime (&tm) == 0;
+    }
     if (sscanf (t, "%4d-%2d-%2d %2d:%2d:%2d%n", &y, &mo, &d, &h, &mi, &sec, &n) != 6) return 0;
     t += n;
     if (*t == '.') { t++; while (*t == '0') t++; if (isdigit ((unsigned char) *t)) return 0; }
@@ -810,13 +1083,35 @@ bp_patch_file (const bp_opts *o, bp_file *f)
     if (o->origfile) name = o->origfile;
     else if (f->old_null || f->git_new) { name = new ? new : old; creating = 1; }
     else if (f->new_null || f->git_delete) name = old ? old : new;
-    else if (bp_is_epoch (f->old_time) && !bp_exists (new) && !bp_exists (old)) { name = new ? new : old; creating = 1; }
+    else if (bp_is_epoch (f->old_time) && all_empty_old) { name = new ? new : old; creating = 1; }
     else {
         int oe = bp_exists (old), ne = bp_exists (new);
         if (oe && ne) name = bp_better (old, new) ? old : new;
         else if (oe) name = old;
         else if (ne) name = new;
         else if (all_empty_old) { name = new ? new : old; creating = 1; }
+    }
+    /* A deletion (/dev/null or an Epoch-dated new side, as diff -N writes)
+       of a file that is not there: GNU's question and its default answer. */
+    int all_empty_new = 1;
+    for (size_t i = 0; i < f->nh; i++) if (f->hunks[i].new_count) all_empty_new = 0;
+    int deleting = !creating && !o->origfile
+        && (f->new_null || f->git_delete || (bp_is_epoch (f->new_time) && all_empty_new));
+    if (deleting && !bp_exists (name ? name : (name = old ? old : new))) {
+        bp_say (o, "The next patch%s would delete the file %s,\nwhich does not exist!  ",
+                o->reverse ? ", when reversed," : "", name ? name : "");
+        if (o->force) bp_say (o, "Applying it anyway.\n");
+        else if (o->batch) {
+            bp_say (o, "%s -R.\n", o->reverse ? "Ignoring" : "Assuming");
+            for (size_t i = 0; i < f->nh; i++) { bp_reverse_hunk (&f->hunks[i]); bp_set_first (&f->hunks[i]); }
+        } else {
+            if (o->forward) bp_say (o, "Skipping patch.\n");
+            else bp_say (o, "%s -R? [n] \nApply anyway? [n] \nSkipping patch.\n", o->reverse ? "Ignore" : "Assume");
+            printf ("%zu out of %zu %s ignored\n", f->nh, f->nh, bp_hunks_word (f->nh));
+            free (old); free (new);
+            return 1;
+        }
+        creating = 1;
     }
     if (!name || !*name || (!creating && !bp_exists (name))) {
         long at = f->nh ? f->hunks[0].input_line : 0;
@@ -844,13 +1139,22 @@ bp_patch_file (const bp_opts *o, bp_file *f)
         return 2;
     }
     const char *dest = o->output ? o->output : name;
-    if (creating && existed && t.nin && !o->force && !o->batch) {
-        bp_say (o, "The next patch would create the file %s,\nwhich already exists!  ", name);
-        if (o->forward) bp_say (o, "Skipping patch.\n");
-        else bp_say (o, "Assume -R? [n] \nApply anyway? [n] \nSkipping patch.\n");
-        printf ("%zu out of %zu %s ignored\n", f->nh, f->nh, bp_hunks_word (f->nh));
-        rc = 1;
-        goto out_noreject;
+    if (creating && existed && t.nin) {
+        bp_say (o, "The next patch%s would create the file %s,\nwhich already exists!  ",
+                o->reverse ? ", when reversed," : "", name);
+        if (o->force) bp_say (o, "Applying it anyway.\n");
+        else if (o->batch) {
+            bp_say (o, "%s -R.\n", o->reverse ? "Ignoring" : "Assuming");
+            for (size_t i = 0; i < f->nh; i++) { bp_reverse_hunk (&f->hunks[i]); bp_set_first (&f->hunks[i]); }
+            f->new_null = 1;   /* the reversed creation removes the file */
+            creating = 0;
+        } else {
+            if (o->forward) bp_say (o, "Skipping patch.\n");
+            else bp_say (o, "%s -R? [n] \nApply anyway? [n] \nSkipping patch.\n", o->reverse ? "Ignore" : "Assume");
+            printf ("%zu out of %zu %s ignored\n", f->nh, f->nh, bp_hunks_word (f->nh));
+            rc = 1;
+            goto out_noreject;
+        }
     }
     if (o->output && strcmp (o->output, name))
         bp_say (o, "%s file %s (read from %s)\n", o->dry_run ? "checking" : "patching", dest, name);
@@ -907,6 +1211,7 @@ bp_patch_file (const bp_opts *o, bp_file *f)
                     bp_set_first (h);
                 }
             } while (!where && ++fuzz <= mymaxfuzz);
+            if (where == 1 && creating && existed && t.nin && !h->old_count) where = 0;
         }
         if (!where || skip) {
             failed++;
@@ -922,12 +1227,14 @@ bp_patch_file (const bp_opts *o, bp_file *f)
                 rej = rejname ? fopen (rejname, "w") : NULL;
                 if (rej) {
                     char *ro = bp_strip (f->old_name, o->strip), *rn = bp_strip (f->new_name, o->strip);
-                    fprintf (rej, "--- %s%s\n", f->old_null ? "/dev/null" : ro ? ro : "", f->old_time ? f->old_time : "");
-                    fprintf (rej, "+++ %s%s\n", f->new_null ? "/dev/null" : rn ? rn : "", f->new_time ? f->new_time : "");
+                    int ctx = f->context || f->normal;
+                    fprintf (rej, "%s %s%s\n", ctx ? "***" : "---", f->old_null || !ro ? "/dev/null" : ro, f->old_time ? f->old_time : "");
+                    fprintf (rej, "%s %s%s\n", ctx ? "---" : "+++", f->new_null || !rn ? "/dev/null" : rn, f->new_time ? f->new_time : "");
                     free (ro); free (rn);
                 }
             }
-            if (rej) bp_reject_hunk (rej, h, out_offset);
+            if (rej && (f->context || f->normal)) bp_reject_hunk_context (rej, h, out_offset, f->normal);
+            else if (rej) bp_reject_hunk (rej, h, out_offset);
             continue;
         }
         if (fuzz || t.in_offset) mismatch = 1;
@@ -949,7 +1256,7 @@ bp_patch_file (const bp_opts *o, bp_file *f)
     if (!skip && !o->dry_run) {
         if (bp_copy_to (&out, &t, (long) t.nin) < 0) { builtin_error ("out of memory"); rc = 2; goto out; }
         int remove = !out.n && (o->remove_empty || f->new_null || f->git_delete || bp_is_epoch (f->new_time)) && !o->output;
-        if (existed && (o->backup || (mismatch && o->backup_mismatch)) && !o->output) {
+        if ((o->backup || (mismatch && o->backup_mismatch)) && !o->output) {
             if (bp_backup (o, name) < 0) { builtin_error ("**** Can't back up %s : %s", name, strerror (errno)); rc = 2; goto out; }
         }
         if (remove) {
@@ -1050,7 +1357,7 @@ patch_builtin (WORD_LIST *list)
             else if (BP_IS ("--backup-if-mismatch")) o.backup_mismatch = 1;
             else if (BP_IS ("--no-backup-if-mismatch")) o.backup_mismatch = 0;
             else if (BP_IS ("--dry-run")) o.dry_run = 1;
-            else if (BP_IS ("--unified") || BP_IS ("--normal") || BP_IS ("--binary") || BP_IS ("--verbose")) ;
+            else if (BP_IS ("--unified") || BP_IS ("--context") || BP_IS ("--normal") || BP_IS ("--binary") || BP_IS ("--verbose")) ;
             else if (BP_IS ("--help")) { builtin_usage (); return EXECUTION_SUCCESS; }
             else if (BP_IS ("--version")) { puts ("patch (bash-os) 0.1.5"); return EXECUTION_SUCCESS; }
             else { builtin_error ("unrecognized option '%s'", w); builtin_error ("Try 'patch --help' for more information."); return 2; }
@@ -1084,7 +1391,7 @@ patch_builtin (WORD_LIST *list)
                 case 's': o.silent = 1; break;
                 case 'E': o.remove_empty = 1; break;
                 case 'b': o.backup = 1; break;
-                case 'u': case 'n': case 'l': break;
+                case 'u': case 'c': case 'n': case 'l': break;
                 default:
                     builtin_error ("invalid option -- '%c'", c);
                     builtin_error ("Try 'patch --help' for more information.");
@@ -1150,7 +1457,7 @@ done:
 }
 
 char *patch_doc[] = {
-    "Apply a unified or normal diff to files.",
+    "Apply a unified, context or normal diff to files.",
     "",
     "    patch [-bEfNRst] [-p N] [-F N] [-i PATCHFILE] [-o OUT] [-r REJ]",
     "          [-d DIR] [-z SUFFIX] [--dry-run] [ORIGFILE [PATCHFILE]]",
@@ -1162,8 +1469,9 @@ char *patch_doc[] = {
     "strips N leading path parts; without -p the base name is used. -R",
     "reverses, -N skips reversed patches, -t applies them reversed, -f",
     "does not check, -E removes files left empty, -s is quiet. Questions",
-    "GNU patch asks on a terminal get their default answers. Context diffs",
-    "are not supported.",
+    "GNU patch asks on a terminal get their default answers. The kind of",
+    "diff (unified, context or normal) is found from the patch text; -u,",
+    "-c and -n are accepted.",
     (char *)NULL
 };
 
