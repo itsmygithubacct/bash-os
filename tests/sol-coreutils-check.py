@@ -138,14 +138,16 @@ class Checks(unittest.TestCase):
                 self.assertNotEqual(p.returncode,0); self.assertTrue(p.stderr)
                 self.assertEqual(p.stdout,b'recovered')
         for args in [[], ['unknown'], ['factor','x'], ['fmt','-w','x'],
-                     ['shuf','-i','2-1'], ['shred','-n','-1',text],
+                     ['shuf','-i','3-1'], ['shred','-n','-1',text],
                      ['install',self.root/'missing',self.root/'dest'],
                      ['mknod',self.root/'invalid','unknown']]:
             with self.subTest(args=args):
                 p = run(['coreutils',*args]); self.assertNotEqual(p.returncode,0); self.assertTrue(p.stderr)
 
     def test_random_invariants(self):
-        seed = self.root/'seed'; seed.write_bytes(bytes(range(1, 9)))
+        # GNU shuf fails with "end of file" when the source runs out, as
+        # 8 bytes do for -i 1-100; give it plenty.
+        seed = self.root/'seed'; seed.write_bytes(bytes(range(1, 256)) * 64)
         source = '--random-source='+str(seed)
         for args, population, count in [(['-i','1-100'], [str(i).encode() for i in range(1,101)], 100),
                                          (['-n','7','-i','1-100'], [str(i).encode() for i in range(1,101)], 7),
@@ -158,16 +160,20 @@ class Checks(unittest.TestCase):
                 self.assertFalse(collections.Counter(lines) - collections.Counter(population))
                 outputs.append(p.stdout)
             self.assertEqual(len(set(outputs)),1)
-        self.good(run(['coreutils','shuf',source,'-i','1-10']), b'10\n8\n2\n5\n9\n6\n4\n7\n3\n1\n')
+        # The order for a given source is fixed, but it is not GNU's order.
+        p = run(['coreutils','shuf',source,'-i','1-10']); self.good(p)
+        self.assertEqual(sorted(p.stdout.split()), sorted(str(i).encode() for i in range(1,11)))
+        self.assertEqual(run(['coreutils','shuf',source,'-i','1-10']).stdout, p.stdout)
         for _ in range(3):
             p = run(['coreutils','shuf'], data=b'a\nb\na\nlast')
             self.good(p)
             self.assertEqual(collections.Counter(p.stdout.splitlines()), collections.Counter([b'a',b'b',b'a',b'last']))
+        # A source too short for the shuffle is an error, as in GNU shuf:
+        # "shuf: 'FILE': end of file", status 1.
         for payload in [b'\0'*8, b'\x01', b'']:
             seed.write_bytes(payload)
-            p = run(['coreutils','shuf',source,'-i','1-30'], script='for i in {1..3}; do "$@" || exit; done')
-            self.good(p); lines=p.stdout.splitlines()
-            self.assertEqual(lines[:30],lines[30:60]); self.assertEqual(lines[:30],lines[60:])
+            p = run(['coreutils','shuf',source,'-i','1-30'])
+            self.assertEqual(p.returncode, 1); self.assertIn(b'end of file', p.stderr)
         p = run(['coreutils','shuf','--random-source='+str(self.root/'missing'),'-i','1-10'])
         self.assertNotEqual(p.returncode,0); self.assertTrue(p.stderr)
         target = self.root/'shred'

@@ -151,6 +151,8 @@ check 'dmesg split fixture' python3 tests/dmesg-fixture.py out/bash
 for name in pattern-fastpaths join-reuse pcre-streams sed-streams rev-streams core-fastpaths coreutils-fastpaths pack-cache index-cache xargs-spawn pager-interrupts install-truncate; do
   check "$name" python3 "tests/$name.py" out/bash
 done
+check 'less control-character display' python3 tests/less-control-display.py out/bash
+check 'background FIFO redirection releases the exec handshake' bash tests/async-fifo-redirect.sh out/bash
 check 'git object store' python3 tests/git-odb.py out/bash
 check 'git untrusted objects and paths' python3 tests/git-integrity.py out/bash
 check 'git apply path preflight' python3 tests/git-apply-paths.py out/bash

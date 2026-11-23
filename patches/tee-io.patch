@@ -1,10 +1,17 @@
 --- builtins/tee.c
 +++ builtins/tee.c
-@@ -43,2 +43,3 @@
+@@ -42,4 +42,5 @@
+ #include "bashgetopt.h"
  #include "common.h"
 +#include "../unwind_prot.h"
  
-@@ -62,2 +63,8 @@
+ #if !defined (errno)
+@@ -58,41 +59,184 @@
+ 
+ extern int interrupt_immediately;
++extern char *this_command_name;
+ 
+ extern char *strerror (int);
  
 +static void
 +tee_restore_sigint (void *saved)
@@ -12,21 +19,157 @@
 +  sigaction (SIGINT, (struct sigaction *)saved, (struct sigaction *)0);
 +}
 +
++static void
++tee_restore_sigpipe (void *saved)
++{
++  sigaction (SIGPIPE, (struct sigaction *)saved, (struct sigaction *)0);
++}
++
++/* GNU tee --output-error modes; TEE_SIGPIPE is the default without one. */
++enum { TEE_SIGPIPE, TEE_WARN, TEE_WARN_NOPIPE, TEE_EXIT, TEE_EXIT_NOPIPE };
++
++static const char *const tee_longopts[] = { "append", "ignore-interrupts", "output-error", "help", 0 };
++static const char *const tee_modes[] = { "warn", "warn-nopipe", "exit", "exit-nopipe", 0 };
++
++static void
++tee_try_help (void)
++{
++  fprintf (stderr, "Try '%s --help' for more information.\n", this_command_name);
++}
++
++/* Index of NAME[0..LEN) in the NULL-terminated TABLE: exact or unique
++   prefix; -1 none, -2 ambiguous. */
++static int
++tee_match (const char *const *table, const char *name, size_t len)
++{
++  int found = -1, count = 0;
++  for (int i = 0; table[i]; i++)
++    if (!strncmp (table[i], name, len))
++      {
++	if (strlen (table[i]) == len)
++	  return i;
++	found = i;
++	count++;
++      }
++  return count > 1 ? -2 : found;
++}
++
  int
-@@ -70,3 +77,3 @@
+ tee_builtin (WORD_LIST *list)
+ {
+-  int opt, append, nointr, rval, fd, fflags;
++  int append, nointr, rval, fd, fflags, mode;
+   int n, nr, nw;
+   FLIST *fl;
+   char *buf, *bp;
++  WORD_LIST *files = NULL, **files_tail = &files, *w;
  
 -  char *t;
-+  struct sigaction saved_int, ignore_int;
++  struct sigaction saved_int, ignore_int, saved_pipe, ignore_pipe;
  
-@@ -88,3 +95,3 @@
- 	  builtin_usage ();
+-  reset_internal_getopt ();
+   append = nointr = 0;
++  mode = TEE_SIGPIPE;
+   tee_flist = (FLIST *)NULL;
+-  while ((opt = internal_getopt (list, "ai")) != -1)
++  /* GNU getopt_long order: options anywhere before "--", long options by
++     any unambiguous prefix. FILE operands are collected in order. */
++  for (w = list; w; w = w->next)
+     {
+-      switch (opt)
++      char *a = w->word->word;
++      if (a[0] != '-' || a[1] == '\0')
+ 	{
+-	case 'a':
+-	  append = 1;
+-	  break;
+-	case 'i':
+-	  nointr = 1;
++	  *files_tail = make_word_list (make_word (a), (WORD_LIST *)NULL);
++	  files_tail = &(*files_tail)->next;
++	  continue;
++	}
++      if (a[1] == '-' && a[2] == '\0')
++	{
++	  for (w = w->next; w; w = w->next)
++	    {
++	      *files_tail = make_word_list (make_word (w->word->word), (WORD_LIST *)NULL);
++	      files_tail = &(*files_tail)->next;
++	    }
+ 	  break;
+-	CASE_HELPOPT;
+-	default:
+-	  builtin_usage ();
 -	  return (EX_USAGE);
-+	  return (EXECUTION_FAILURE);
++	}
++      if (a[1] == '-')
++	{
++	  char *name = a + 2, *eq = strchr (name, '=');
++	  size_t len = eq ? (size_t)(eq - name) : strlen (name);
++	  int i = tee_match (tee_longopts, name, len);
++	  if (i == -2)
++	    builtin_error ("option '%s' is ambiguous; possibilities: '--append' '--ignore-interrupts' '--output-error' '--help'", a);
++	  else if (i < 0)
++	    builtin_error ("unrecognized option '%s'", a);
++	  else if (eq && i != 2)
++	    builtin_error ("option '--%s' doesn't allow an argument", tee_longopts[i]);
++	  if (i < 0 || (eq && i != 2))
++	    {
++	      tee_try_help ();
++	      dispose_words (files);
++	      return (EXECUTION_FAILURE);
++	    }
++	  if (i == 0)
++	    append = 1;
++	  else if (i == 1)
++	    nointr = 1;
++	  else if (i == 3)
++	    {
++	      dispose_words (files);
++	      builtin_help ();
++	      return (EXECUTION_SUCCESS);
++	    }
++	  else if (!eq)
++	    mode = TEE_WARN_NOPIPE;
++	  else
++	    {
++	      int m = eq[1] ? tee_match (tee_modes, eq + 1, strlen (eq + 1)) : -1;
++	      if (m < 0)
++		{
++		  builtin_error ("%s argument '%s' for '--output-error'",
++				 m == -2 ? "ambiguous" : "invalid", eq + 1);
++		  fprintf (stderr, "Valid arguments are:\n  - 'warn'\n  - 'warn-nopipe'\n  - 'exit'\n  - 'exit-nopipe'\n");
++		  tee_try_help ();
++		  dispose_words (files);
++		  return (EXECUTION_FAILURE);
++		}
++	      mode = TEE_WARN + m;
++	    }
++	  continue;
++	}
++      for (char *c = a + 1; *c; c++)
++	{
++	  if (*c == 'a')
++	    append = 1;
++	  else if (*c == 'i')
++	    nointr = 1;
++	  else if (*c == 'p')
++	    mode = TEE_WARN_NOPIPE;
++	  else
++	    {
++	      builtin_error ("invalid option -- '%c'", *c);
++	      tee_try_help ();
++	      dispose_words (files);
++	      return (EXECUTION_FAILURE);
++	    }
  	}
-@@ -93,3 +100,23 @@
+     }
+-  list = loptend;
++  list = files;
  
 -  if (nointr == 0)
 +  begin_unwind_frame ("tee signals");
++  add_unwind_protect ((sh_uwfunc_t *)dispose_words, files);
 +  unwind_protect_var (interrupt_immediately);
 +  if (nointr)
 +    {
@@ -48,7 +191,24 @@
 +    }
 +  else
      interrupt_immediately++;
-@@ -125,22 +152,52 @@
+ 
++  /* Any --output-error mode reports EPIPE as a write error instead of
++     dying from SIGPIPE, as GNU tee does. */
++  if (mode != TEE_SIGPIPE)
++    {
++      if (sigaction (SIGPIPE, (struct sigaction *)0, &saved_pipe) == 0)
++	{
++	  add_unwind_protect (tee_restore_sigpipe, &saved_pipe);
++	  ignore_pipe = saved_pipe;
++	  ignore_pipe.sa_handler = SIG_IGN;
++	  sigaction (SIGPIPE, &ignore_pipe, (struct sigaction *)0);
++	}
++    }
++
+   buf = xmalloc (TEE_BUFSIZE);
+ 
+@@ -124,24 +268,64 @@
+     }
  
 -  while ((nr = read(0, buf, TEE_BUFSIZE)) > 0)
 -    for (fl = tee_flist; fl; fl = fl->next)
@@ -79,8 +239,8 @@
 +      if (nr <= 0)
 +        break;
 +
-+      int live = 0;
-+      for (fl = tee_flist; fl; fl = fl->next)
++      int live = 0, stop = 0;
++      for (fl = tee_flist; fl && !stop; fl = fl->next)
 +	{
 +	  if (fl->fd < 0)
 +	    continue;
@@ -96,11 +256,21 @@
 +		}
 +	      if (nw < 0)
 +		{
-+		  builtin_error ("%s: write error: %s", fl->fname, strerror (errno));
-+		  rval = EXECUTION_FAILURE;
++		  int werr = errno;
++		  int fail = mode == TEE_SIGPIPE || werr != EPIPE
++			     || mode == TEE_WARN || mode == TEE_EXIT;
++		  if (mode == TEE_SIGPIPE)
++		    builtin_error ("%s: write error: %s", fl->fname, strerror (werr));
++		  else if (fail)
++		    builtin_error ("%s: %s", fl->fd == 1 ? "standard output" : fl->fname,
++				   strerror (werr));
++		  if (fail)
++		    rval = EXECUTION_FAILURE;
 +		  if (fl->fd != 1)
 +		    close (fl->fd);
 +		  fl->fd = -1;
++		  if (fail && (mode == TEE_EXIT || mode == TEE_EXIT_NOPIPE))
++		    stop = 1;
 +		  break;
 +		}
 +	      bp += nw;
@@ -110,7 +280,7 @@
 +	  if (fl->fd >= 0)
 +	    live++;
 +	}
-+      if (live == 0)
++      if (live == 0 || stop)
 +	break;
 +    }
    if (nr < 0)
@@ -120,15 +290,39 @@
 +      rval = EXECUTION_FAILURE;
 +    }
  
-@@ -151,3 +208,3 @@
+   /* Deallocate resources -- this is a builtin command. */
+@@ -150,5 +334,5 @@
+     {
        fl = tee_flist;
 -      if (close (fl->fd) < 0)
 +      if (fl->fd >= 0 && close (fl->fd) < 0)
  	{
-@@ -160,3 +217,5 @@
+ 	  builtin_error ("%s: close_error: %s", fl->fname, strerror (errno));
+@@ -159,5 +343,7 @@
+     }
  
 -  QUIT;  
 +  free (buf);
 +  run_unwind_frame ("tee signals");
 +  QUIT;
    return (rval);
+ }
+@@ -170,4 +356,11 @@
+ 	"files are appended to, otherwise they are overwritten.  If the",
+ 	"`-i' option is supplied, tee ignores interrupts.",
++	"",
++	"GNU options: -a/--append, -i/--ignore-interrupts, -p (same as",
++	"--output-error=warn-nopipe) and --output-error[=MODE], where MODE is",
++	"warn, warn-nopipe (the default for the bare option), exit or",
++	"exit-nopipe: write errors are reported and, for the -nopipe modes, a",
++	"closed pipe is dropped silently while the other outputs continue.",
++	"Long options take any unambiguous prefix.",
+ 	(char *)NULL
+ };
+@@ -178,5 +371,5 @@
+ 	BUILTIN_ENABLED,	/* initial flags for builtin */
+ 	tee_doc,		/* array of long documentation strings. */
+-	"tee [-ai] [file ...]",	/* usage synopsis; becomes short_doc */
++	"tee [-aip] [--output-error[=MODE]] [file ...]",	/* usage synopsis; becomes short_doc */
+ 	0			/* reserved for internal use */
+ };

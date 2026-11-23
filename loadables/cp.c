@@ -1,37 +1,22 @@
-/* bashcp.c — POSIX cp(1) as a bash builtin.
+/* SPDX-License-Identifier: MIT */
+/* cp: copy files and directories, as a bash builtin.
  *
- * Phase S of bash-os POSIX gap-fillers.
+ * Written for bash-os from the GNU coreutils manual, POSIX.1-2024 and the
+ * observed behaviour of GNU coreutils 9.7 cp: its options, diagnostics,
+ * prompts, -v and --debug reports and exit status.
  *
- *   bashcp [-abdfilnprRsTuvx] [-HLP] [-S SUFFIX] {SOURCE... DEST | -t DIR SOURCE...}
+ *   cp [OPTION]... [-T] SOURCE DEST
+ *   cp [OPTION]... SOURCE... DIRECTORY
+ *   cp [OPTION]... -t DIRECTORY SOURCE...
  *
- *   -a      archive: same as -dpR (preserve symlinks-as-symlinks, preserve
- *           metadata, recursive). Matches GNU coreutils cp -a semantics.
- *   -f      force: remove dest only if opening it for write fails
- *   -i      interactive: prompt before overwrite (refused unless tty)
- *   -p      preserve mode/owner/group/timestamps
- *   -R, -r  recursive
- *   -v      verbose: print each completed copy
- *   -H      follow symlinks given on the command line; preserve nested
- *   -L      always follow symlinks
- *   -P      don't follow symlinks
- *           (default: follow unless recursive; -l always follows)
- *   -b, -S, --backup[=CONTROL], --suffix   back up replaced files
- *   -d      same as --no-dereference --preserve=links
- *   -l, -s  hard / symbolic links instead of copies
- *   -T      treat DEST as a normal file;  -u, --update[=WHEN]
- *   -x      stay on the source file system
- *   GNU long forms: --archive --preserve[=LIST] --no-preserve=LIST
- *   --recursive --verbose --dereference --no-dereference --link
- *   --symbolic-link --one-file-system --no-target-directory
- *   --remove-destination --attributes-only --sparse=WHEN --reflink[=WHEN]
- *
- * Multiple SOURCE → DEST must be a directory. Single SOURCE → DEST
- * is either a target file or, if it's a directory, the file is
- * copied into it as basename(SOURCE).
- *
- * --- LICENSE ---
- * MIT License — same boilerplate as binhex.c.
+ * A recursive copy recreates FIFOs, sockets and device nodes instead of
+ * reading them, unless --copy-contents is given; without -R every source
+ * that is not a directory is read as data (so "cp /dev/null x" works).
  */
+
+#ifndef _GNU_SOURCE
+#  define _GNU_SOURCE 1
+#endif
 
 #include <config.h>
 #if defined (HAVE_UNISTD_H)
@@ -41,157 +26,554 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <sys/stat.h>
-#include <sys/xattr.h>
 #include <sys/types.h>
 #include <sys/time.h>
-#include <utime.h>
+#include <sys/xattr.h>
 #include <sys/ioctl.h>
+#include <sys/syscall.h>
 
 #include "loadables.h"
+#include "gnu-longopt.h"
+#include "gnu-quote.h"
 
-typedef struct bcp_link {
-    dev_t source_dev, destination_dev;
-    ino_t source_ino, destination_ino;
-    char *path;
+#ifndef FICLONE
+#  define FICLONE _IOW (0x94, 9, int)
+#endif
+
+enum { CP_DEREF_UNSET, CP_DEREF_NEVER, CP_DEREF_ARGS, CP_DEREF_ALWAYS };
+enum { CP_ASK_UNSET, CP_ASK_USER, CP_ASK_NO };
+enum { CP_UPDATE_ALL, CP_UPDATE_NONE, CP_UPDATE_NONE_FAIL, CP_UPDATE_OLDER };
+enum { CP_SPARSE_NEVER, CP_SPARSE_AUTO, CP_SPARSE_ALWAYS };
+enum { CP_REFLINK_AUTO, CP_REFLINK_ALWAYS, CP_REFLINK_NEVER };
+enum { CP_P_MODE, CP_P_TIME, CP_P_OWNER, CP_P_LINKS, CP_P_CONTEXT, CP_P_XATTR, CP_P_ALL };
+
+/* What becomes of a non-directory source. */
+enum { CP_AS_DATA, CP_AS_SYMLINK, CP_AS_SPECIAL, CP_AS_HARDLINK, CP_AS_SYMBOLIC };
+
+/* A source file already copied: later sources with the same identity are
+   linked to its copy when hard links are preserved. */
+typedef struct cp_seen {
+    dev_t sdev, ddev;
+    ino_t sino, dino;
     int follow;
-    struct bcp_link *next;
-} bcp_link;
+    char *dst;
+    struct cp_seen *next;
+} cp_seen;
 
-typedef struct bcp_dir {
-    dev_t source_dev, destination_dev;
-    ino_t source_ino, destination_ino;
-    struct bcp_dir *parent;
-} bcp_dir;
+/* A file identity, optionally with a name (top-level destinations written
+   by this command; top-level source names already handled). */
+typedef struct cp_mark {
+    dev_t dev;
+    ino_t ino;
+    char *name;
+    struct cp_mark *next;
+} cp_mark;
 
-enum { BCP_UPDATE_ALL, BCP_UPDATE_OLDER, BCP_UPDATE_NONE };
-enum { BCP_BACKUP_NONE, BCP_BACKUP_SIMPLE, BCP_BACKUP_NUMBERED, BCP_BACKUP_EXISTING };
-enum { BCP_SPARSE_AUTO, BCP_SPARSE_ALWAYS, BCP_SPARSE_NEVER };
-enum { BCP_REFLINK_NEVER, BCP_REFLINK_AUTO, BCP_REFLINK_ALWAYS };
-
-typedef struct {
-    int fflag, iflag, nflag, pflag, rflag, vflag;
-    int Hflag, Lflag, Pflag, aflag, parents;
-    /* What -p/-a/--preserve keep; pflag is "any of mode, owner, times". */
-    int pmode, powner, ptime, plinks;
-    int nomode;             /* --no-preserve=mode: create 0666/0777 & ~umask */
-    int update;             /* -u/--update[=WHEN] */
-    int link_mode;          /* 'l' (-l) or 's' (-s), else 0 */
-    int backup;             /* -b/--backup[=CONTROL] */
-    const char *suffix;     /* -S/--suffix, else $SIMPLE_BACKUP_SUFFIX or ~ */
-    int sparse, reflink;
-    int remove_dest, attr_only, xflag, Tflag;
-    dev_t top_dev;          /* -x: the file system of the current operand */
-    bcp_link *links;
-    bcp_dir *directories;
-} bcp_opts;
+/* The source directories being copied, innermost first. */
+typedef struct cp_chain {
+    dev_t dev;
+    ino_t ino;
+    const struct cp_chain *up;
+} cp_chain;
 
 typedef struct {
-    const char **v;
+    int recursive, deref, ask, update, force, remove_dest, verbose, debug;
+    int hard_link, sym_link, xdev, notarget, parents, copy_contents, keep_dir_symlink;
+    int attr_only, sparse, reflink;
+    int backup_wanted, backup;
+    const char *backup_control, *suffix;
+    int p_mode, p_owner, p_time, p_links, p_xattr, p_context, need_context;
+    int quiet_attrs, no_mode, context_seen;
+    int posixly;
+    mode_t umask;
+    /* State of one invocation. */
+    cp_seen *seen;
+    cp_mark *made, *names;
+    const cp_chain *chain;
+    dev_t root_dev;
+    int abort_arg, top_in_dir;
+    cp_mark *dirs;              /* directories this command created */
+    const char *top_src, *top_dst;
+    char *backup_note;
+} cp_ctx;
+
+/* ---- diagnostics -------------------------------------------------------- */
+
+static char *cp_quotes[4];
+static unsigned cp_quote_next;
+
+/* NAME quoted as GNU quotes file names; valid for the next three calls. */
+static const char *
+cp_q (const char *name)
+{
+    unsigned slot = cp_quote_next++ % 4;
+    free (cp_quotes[slot]);
+    cp_quotes[slot] = bos_quoteaf (name);
+    return cp_quotes[slot] ? cp_quotes[slot] : name;
+}
+
+static void
+cp_quotes_free (void)
+{
+    for (int i = 0; i < 4; i++) {
+        free (cp_quotes[i]);
+        cp_quotes[i] = NULL;
+    }
+}
+
+/* Standard output. When it is not a terminal GNU cp's reports sit in a
+   4 KiB stdio buffer until it fills, a diagnostic is printed, or cp exits,
+   so prompts and diagnostics on a shared stderr come out ahead of them.
+   bash keeps stdout line-buffered, so the builtin holds them itself. */
+static char cp_obuf[4096];
+static size_t cp_olen;
+static int cp_ohold;
+
+static void
+cp_oflush (void)
+{
+    if (cp_olen) {
+        fwrite (cp_obuf, 1, cp_olen, stdout);
+        cp_olen = 0;
+    }
+    fflush (stdout);
+}
+
+static void
+cp_out (const char *fmt, ...)
+{
+    char small[1024], *text = small;
+    va_list ap;
     int n;
-    int cap;
-} bcp_words;
+
+    va_start (ap, fmt);
+    n = vsnprintf (small, sizeof small, fmt, ap);
+    va_end (ap);
+    if (n < 0)
+        return;
+    if (n >= (int) sizeof small) {
+        if (!(text = malloc ((size_t) n + 1)))
+            return;
+        va_start (ap, fmt);
+        vsnprintf (text, (size_t) n + 1, fmt, ap);
+        va_end (ap);
+    }
+    if (!cp_ohold)
+        fputs (text, stdout);
+    else {
+        size_t len = (size_t) n, off = 0;
+        while (len - off > 0) {
+            size_t room = sizeof cp_obuf - cp_olen, take = len - off < room ? len - off : room;
+            memcpy (cp_obuf + cp_olen, text + off, take);
+            cp_olen += take;
+            off += take;
+            if (cp_olen == sizeof cp_obuf)
+                cp_oflush ();
+        }
+    }
+    if (text != small)
+        free (text);
+}
+
+/* A diagnostic with the builtin's prefix; ERRNUM adds ": strerror". */
+static void
+cp_err (int errnum, const char *fmt, ...)
+{
+    char small[512], *text = small;
+    va_list ap;
+    int n;
+
+    cp_oflush ();
+    va_start (ap, fmt);
+    n = vsnprintf (small, sizeof small, fmt, ap);
+    va_end (ap);
+    if (n >= (int) sizeof small && (text = malloc ((size_t) n + 1)) != NULL) {
+        va_start (ap, fmt);
+        vsnprintf (text, (size_t) n + 1, fmt, ap);
+        va_end (ap);
+    } else if (n >= (int) sizeof small)
+        text = small;
+    if (errnum)
+        builtin_error ("%s: %s", text, strerror (errnum));
+    else
+        builtin_error ("%s", text);
+    if (text != small)
+        free (text);
+}
+
+static void
+cp_mode_text (mode_t mode, char out[10])
+{
+    static const char letters[] = "rwxrwxrwx";
+    for (int i = 0; i < 9; i++)
+        out[i] = (mode & (0400 >> i)) ? letters[i] : '-';
+    if (mode & S_ISUID)
+        out[2] = (mode & S_IXUSR) ? 's' : 'S';
+    if (mode & S_ISGID)
+        out[5] = (mode & S_IXGRP) ? 's' : 'S';
+    if (mode & S_ISVTX)
+        out[8] = (mode & S_IXOTH) ? 't' : 'T';
+    out[9] = '\0';
+}
+
+/* One line from standard input; affirmative when it starts with y or Y. */
+static int
+cp_yes (void)
+{
+    int first = -1;
+    for (;;) {
+        char ch;
+        ssize_t n = read (0, &ch, 1);
+        if (n < 0 && errno == EINTR) {
+            QUIT;
+            continue;
+        }
+        if (n <= 0)
+            break;
+        if (first < 0)
+            first = (unsigned char) ch;
+        if (ch == '\n')
+            break;
+    }
+    return first == 'y' || first == 'Y';
+}
+
+/* -i: ask before replacing DST (whose lstat is DL). */
+static int
+cp_confirm (const cp_ctx *c, const char *dst, const struct stat *dl)
+{
+    char modes[10];
+
+    if (!cp_ohold)
+        fflush (stdout);
+    if (!S_ISLNK (dl->st_mode) && faccessat (AT_FDCWD, dst, W_OK, AT_EACCESS) != 0
+        && errno == EACCES) {
+        cp_mode_text (dl->st_mode, modes);
+        if (c->force || c->remove_dest)
+            fprintf (stderr, "cp: replace %s, overriding mode %04lo (%s)? ", cp_q (dst),
+                     (unsigned long) (dl->st_mode & 07777), modes);
+        else
+            fprintf (stderr, "cp: unwritable %s (mode %04lo, %s); try anyway? ", cp_q (dst),
+                     (unsigned long) (dl->st_mode & 07777), modes);
+    } else
+        fprintf (stderr, "cp: overwrite %s? ", cp_q (dst));
+    fflush (stderr);
+    return cp_yes ();
+}
+
+/* "'SRC' -> 'DST'", with the backup made for it. */
+static void
+cp_verbose (cp_ctx *c, const char *src, const char *dst)
+{
+    if (c->verbose) {
+        if (c->backup_note)
+            cp_out ("%s -> %s (backup: %s)\n", cp_q (src), cp_q (dst), cp_q (c->backup_note));
+        else
+            cp_out ("%s -> %s\n", cp_q (src), cp_q (dst));
+    }
+    free (c->backup_note);
+    c->backup_note = NULL;
+}
 
 static int
-bcp_words_add (bcp_words *words, const char *word)
+cp_remove (cp_ctx *c, const char *dst)
 {
-    if (words->n == words->cap) {
-        int new_cap = words->cap ? words->cap * 2 : 16;
-        const char **nv = realloc (words->v, (size_t) new_cap * sizeof (*words->v));
-        if (!nv) {
-            builtin_error ("realloc: %s", strerror (errno));
-            return -1;
-        }
-        words->v = nv;
-        words->cap = new_cap;
+    if (unlink (dst) < 0) {
+        cp_err (errno, "cannot remove %s", cp_q (dst));
+        return -1;
     }
-    words->v[words->n++] = word;
+    if (c->verbose)
+        cp_out ("removed %s\n", cp_q (dst));
     return 0;
 }
 
-/* Forward decls. */
-static int bcp_one (const char *src, const char *dst,
-                    bcp_opts *o, int top_level_source);
-
-static bcp_link *
-bcp_find_link (const bcp_opts *o, const struct stat *src)
+static int
+cp_make_backup (cp_ctx *c, const char *dst)
 {
-    for (bcp_link *entry = o->links; entry; entry = entry->next) {
+    char *name = bos_backup_name (dst, c->backup, c->suffix);
+    if (!name || rename (dst, name) < 0) {
+        cp_err (errno, "cannot backup %s", cp_q (dst));
+        free (name);
+        return -1;
+    }
+    free (c->backup_note);
+    c->backup_note = name;
+    return 0;
+}
+
+/* ---- names -------------------------------------------------------------- */
+
+static int
+cp_same (const struct stat *a, const struct stat *b)
+{
+    return a->st_dev == b->st_dev && a->st_ino == b->st_ino;
+}
+
+/* DIR/NAME, with DIR's trailing slashes folded into the one separator. */
+static char *
+cp_join (const char *dir, const char *name)
+{
+    size_t dl = strlen (dir), nl = strlen (name);
+    while (dl > 1 && dir[dl - 1] == '/')
+        dl--;
+    int sep = !(dl == 1 && dir[0] == '/') && dl > 0;
+    char *path = malloc (dl + sep + nl + 1);
+    if (!path) {
+        cp_err (0, "memory exhausted");
+        return NULL;
+    }
+    memcpy (path, dir, dl);
+    if (sep)
+        path[dl++] = '/';
+    memcpy (path + dl, name, nl + 1);
+    return path;
+}
+
+/* The last component of NAME, ignoring trailing slashes. */
+static char *
+cp_last (const char *name)
+{
+    size_t end = strlen (name), start;
+    while (end > 1 && name[end - 1] == '/')
+        end--;
+    start = end;
+    while (start > 0 && name[start - 1] != '/')
+        start--;
+    char *base = strndup (name + start, end - start);
+    if (!base)
+        cp_err (0, "memory exhausted");
+    return base;
+}
+
+/* The directory holding NAME, as a new string. */
+static char *
+cp_parent (const char *name)
+{
+    size_t end = strlen (name);
+    while (end > 1 && name[end - 1] == '/')
+        end--;
+    while (end > 0 && name[end - 1] != '/')
+        end--;
+    if (end == 0)
+        return strdup (".");
+    while (end > 1 && name[end - 1] == '/')
+        end--;
+    return strndup (name, end);
+}
+
+static cp_mark *
+cp_mark_find (cp_mark *list, dev_t dev, ino_t ino, const char *name)
+{
+    for (; list; list = list->next)
+        if (list->dev == dev && list->ino == ino && (!name || !strcmp (list->name, name)))
+            return list;
+    return NULL;
+}
+
+static void
+cp_mark_add (cp_mark **list, dev_t dev, ino_t ino, const char *name)
+{
+    cp_mark *m = malloc (sizeof *m);
+    if (!m)
+        return;
+    m->dev = dev;
+    m->ino = ino;
+    m->name = name ? strdup (name) : NULL;
+    m->next = *list;
+    *list = m;
+}
+
+static void
+cp_marks_free (cp_mark **list)
+{
+    while (*list) {
+        cp_mark *next = (*list)->next;
+        free ((*list)->name);
+        free (*list);
+        *list = next;
+    }
+}
+
+/* ---- hard links between sources ---------------------------------------- */
+
+static cp_seen *
+cp_seen_find (cp_ctx *c, const struct stat *src)
+{
+    for (cp_seen *e = c->seen; e; e = e->next) {
         struct stat st;
-        if (entry->source_dev == src->st_dev && entry->source_ino == src->st_ino &&
-            (entry->follow ? stat (entry->path, &st) : lstat (entry->path, &st)) == 0 &&
-            st.st_dev == entry->destination_dev && st.st_ino == entry->destination_ino)
-            return entry;
+        if (e->sdev == src->st_dev && e->sino == src->st_ino
+            && (e->follow ? stat (e->dst, &st) : lstat (e->dst, &st)) == 0
+            && st.st_dev == e->ddev && st.st_ino == e->dino)
+            return e;
     }
     return NULL;
 }
 
-static int
-bcp_remember_link (bcp_opts *o, const struct stat *src, const char *dst)
+static void
+cp_seen_add (cp_ctx *c, const struct stat *src, const char *dst)
 {
     struct stat st;
     int follow = S_ISREG (src->st_mode);
-    if ((follow ? stat (dst, &st) : lstat (dst, &st)) < 0) {
-        builtin_error ("stat %s: %s", dst, strerror (errno));
-        return -1;
+    if ((follow ? stat (dst, &st) : lstat (dst, &st)) < 0)
+        return;
+    cp_seen *e = malloc (sizeof *e);
+    if (!e || !(e->dst = strdup (dst))) {
+        free (e);
+        return;
     }
-    bcp_link *entry = malloc (sizeof *entry);
-    if (!entry) { builtin_error ("out of memory"); return -1; }
-    entry->path = strdup (dst);
-    if (!entry->path) { free (entry); builtin_error ("out of memory"); return -1; }
-    entry->source_dev = src->st_dev;
-    entry->source_ino = src->st_ino;
-    entry->destination_dev = st.st_dev;
-    entry->destination_ino = st.st_ino;
-    entry->follow = follow;
-    entry->next = o->links;
-    o->links = entry;
-    return 0;
+    e->sdev = src->st_dev;
+    e->sino = src->st_ino;
+    e->ddev = st.st_dev;
+    e->dino = st.st_ino;
+    e->follow = follow;
+    e->next = c->seen;
+    c->seen = e;
 }
 
-static int
-bcp_copy_link (const char *src, const char *dst, const struct stat *sst,
-               const bcp_link *entry, const bcp_opts *o)
+/* A later operand that writes to a path copied earlier in this command
+   must not reuse the stale entry. */
+static void
+cp_seen_forget (cp_ctx *c, const char *dst, const struct stat *src)
 {
-    struct stat st;
-    if (lstat (dst, &st) == 0) {
-        if (o->nflag) return 1;
-        if (st.st_dev == sst->st_dev && st.st_ino == sst->st_ino) {
-            builtin_error ("'%s' and '%s' are the same file", src, dst);
+    for (cp_seen **slot = &c->seen; *slot;) {
+        cp_seen *e = *slot;
+        if (!strcmp (e->dst, dst) && (e->sdev != src->st_dev || e->sino != src->st_ino)) {
+            *slot = e->next;
+            free (e->dst);
+            free (e);
+        } else
+            slot = &e->next;
+    }
+}
+
+/* ---- attributes --------------------------------------------------------- */
+
+static int
+cp_copy_acl (const char *src, const char *dst, const char *xname)
+{
+    unsigned char buf[8192];
+    ssize_t n = getxattr (src, xname, buf, sizeof buf);
+    if (n < 0) {
+        if (errno != ENODATA && errno != EOPNOTSUPP && errno != ENOTSUP) {
+            cp_err (errno, "preserving permissions for %s", cp_q (dst));
             return -1;
         }
-        if (st.st_dev == entry->destination_dev && st.st_ino == entry->destination_ino)
-            return 0;
-        if (o->iflag) {
-            fprintf (stderr, "bashcp: overwrite '%s'? ", dst);
-            fflush (stderr);
-            int c = getchar (), answer = c;
-            while (c != EOF && c != '\n') c = getchar ();
-            if (answer != 'y' && answer != 'Y') return -1;
-        }
-        if (unlink (dst) < 0) {
-            builtin_error ("unlink %s: %s", dst, strerror (errno));
+        /* No ACL on the source: drop one the destination inherited. */
+        if (removexattr (dst, xname) < 0 && errno != ENODATA && errno != EOPNOTSUPP
+            && errno != ENOTSUP) {
+            cp_err (errno, "preserving permissions for %s", cp_q (dst));
             return -1;
         }
-    } else if (errno != ENOENT) {
-        builtin_error ("stat %s: %s", dst, strerror (errno));
+        return 0;
+    }
+    if (setxattr (dst, xname, buf, (size_t) n, 0) < 0) {
+        cp_err (errno, "preserving permissions for %s", cp_q (dst));
         return -1;
     }
-    if (linkat (AT_FDCWD, entry->path, AT_FDCWD, dst,
-                entry->follow ? AT_SYMLINK_FOLLOW : 0) < 0) {
-        if (o->nflag && errno == EEXIST) return 1;
-        builtin_error ("link %s -> %s: %s", entry->path, dst, strerror (errno));
-        return -1;
-    }
-    if (o->vflag) printf ("'%s' -> '%s'\n", src, dst);
     return 0;
 }
 
+/* Extended attributes other than ACLs, best effort under -a and
+   --preserve=all. */
 static int
-bcp_all_zero (const char *p, size_t n)
+cp_copy_xattrs (const cp_ctx *c, const char *src, const char *dst, int nofollow)
+{
+    char names[8192], value[16384];
+    ssize_t len = nofollow ? llistxattr (src, names, sizeof names)
+                           : listxattr (src, names, sizeof names);
+    int rc = 0;
+    if (len <= 0)
+        return 0;
+    for (char *name = names; name < names + len; name += strlen (name) + 1) {
+        if (!strncmp (name, "system.posix_acl_", 17) || !strncmp (name, "security.", 9))
+            continue;
+        ssize_t n = nofollow ? lgetxattr (src, name, value, sizeof value)
+                             : getxattr (src, name, value, sizeof value);
+        if (n < 0)
+            continue;
+        if ((nofollow ? lsetxattr (dst, name, value, (size_t) n, 0)
+                      : setxattr (dst, name, value, (size_t) n, 0)) < 0
+            && !c->quiet_attrs && errno != ENOTSUP && errno != EOPNOTSUPP) {
+            cp_err (errno, "setting attribute %s for %s", cp_q (name), cp_q (dst));
+            rc = -1;
+        }
+    }
+    return rc;
+}
+
+static int
+cp_set_times (const char *dst, const struct stat *st, int nofollow)
+{
+    struct timespec ts[2] = { st->st_atim, st->st_mtim };
+    if (utimensat (AT_FDCWD, dst, ts, nofollow ? AT_SYMLINK_NOFOLLOW : 0) == 0)
+        return 0;
+    if (errno == ENOSYS && !nofollow) {
+        /* Kernels without utimensat. */
+        struct timeval tv[2];
+        tv[0].tv_sec = ts[0].tv_sec;
+        tv[0].tv_usec = ts[0].tv_nsec / 1000;
+        tv[1].tv_sec = ts[1].tv_sec;
+        tv[1].tv_usec = ts[1].tv_nsec / 1000;
+        if (utimes (dst, tv) == 0)
+            return 0;
+    }
+    cp_err (errno, "preserving times for %s", cp_q (dst));
+    return -1;
+}
+
+/* -p and --preserve for DST, a copy of SRC (whose attributes are ST). SRC
+   may be NULL (--parents directories): then ACLs and xattrs are skipped.
+   NOFOLLOW is set for symbolic links. */
+static int
+cp_attributes (const cp_ctx *c, const char *src, const char *dst, const struct stat *st,
+               int nofollow)
+{
+    int rc = 0;
+    if (c->p_time && cp_set_times (dst, st, nofollow) < 0)
+        rc = -1;
+    /* chown can clear set-ID bits, so the mode comes afterwards. */
+    if (c->p_owner) {
+        int r = nofollow ? lchown (dst, st->st_uid, st->st_gid) : chown (dst, st->st_uid, st->st_gid);
+        if (r < 0 && errno == EPERM)
+            r = nofollow ? lchown (dst, (uid_t) -1, st->st_gid) : chown (dst, (uid_t) -1, st->st_gid);
+        if (r < 0 && errno != EPERM && errno != EINVAL) {
+            cp_err (errno, "failed to preserve ownership for %s", cp_q (dst));
+            rc = -1;
+        }
+    }
+    if (nofollow)
+        return rc;
+    if (c->p_xattr && src && cp_copy_xattrs (c, src, dst, 0) < 0)
+        rc = -1;
+    if (c->p_mode) {
+        if (chmod (dst, st->st_mode & 07777) < 0) {
+            cp_err (errno, "preserving permissions for %s", cp_q (dst));
+            rc = -1;
+        } else if (src) {
+            if (cp_copy_acl (src, dst, "system.posix_acl_access") < 0)
+                rc = -1;
+            if (S_ISDIR (st->st_mode) && cp_copy_acl (src, dst, "system.posix_acl_default") < 0)
+                rc = -1;
+        }
+    }
+    return rc;
+}
+
+/* ---- data --------------------------------------------------------------- */
+
+typedef struct {
+    const char *offload, *reflink, *sparse;
+} cp_report;
+
+static char cp_buffer[128 * 1024];
+
+static int
+cp_all_zero (const char *p, size_t n)
 {
     for (size_t i = 0; i < n; i++)
         if (p[i])
@@ -199,1172 +581,1536 @@ bcp_all_zero (const char *p, size_t n)
     return 1;
 }
 
-/* Fast path: read+write loop. No sendfile dependency — keep portable.
-   With HOLES, blocks of zeros become holes (GNU --sparse); the final size
-   is set with ftruncate so a trailing hole is kept. */
+/* Write LEN bytes, or skip whole zero blocks when HOLES (the file size is
+   fixed up afterwards). */
 static int
-bcp_copy_data (int sfd, int dfd, const char *src, const char *dst, int holes)
+cp_put (int fd, const char *buf, size_t len, int holes, const char *dst)
 {
-    enum { BLK = 4096 };
-    char buf[64 * 1024];
-    ssize_t n;
-    off_t total = 0;
-    int ended_in_hole = 0;
-    while ((n = read (sfd, buf, sizeof buf)) > 0) {
-        ssize_t off = 0;
-        total += n;
+    enum { BLOCK = 4096 };
+    size_t off = 0;
+    while (off < len) {
+        size_t n = len - off;
         if (holes) {
-            while (off < n) {
-                size_t len = (size_t) (n - off) < BLK ? (size_t) (n - off) : BLK;
-                if (len == BLK && bcp_all_zero (buf + off, len)) {
-                    if (lseek (dfd, (off_t) len, SEEK_CUR) < 0) {
-                        fprintf (stderr, "cp: cannot lseek '%s': %s\n", dst, strerror (errno));
-                        return -1;
-                    }
-                    ended_in_hole = 1;
-                    off += (ssize_t) len;
-                    continue;
-                }
-                ssize_t w = write (dfd, buf + off, len);
-                if (w < 0) {
-                    if (errno == EINTR) continue;
-                    fprintf (stderr, "cp: error writing '%s': %s\n", dst, strerror (errno));
+            if (n > BLOCK)
+                n = BLOCK;
+            if (n == BLOCK && cp_all_zero (buf + off, n)) {
+                if (lseek (fd, (off_t) n, SEEK_CUR) < 0) {
+                    cp_err (errno, "cannot lseek %s", cp_q (dst));
                     return -1;
                 }
-                ended_in_hole = 0;
-                off += w;
+                off += n;
+                continue;
             }
+        }
+        ssize_t w = write (fd, buf + off, n);
+        if (w < 0) {
+            if (errno == EINTR) {
+                QUIT;
+                continue;
+            }
+            cp_err (errno, "error writing %s", cp_q (dst));
+            return -1;
+        }
+        off += (size_t) w;
+    }
+    return 0;
+}
+
+/* Copy up to LEN bytes (LEN < 0: to end of file) from the current offsets.
+   *OFFLOAD is 1 while copy_file_range may be tried, 0 once it must not
+   be. Returns the bytes copied, or -1. */
+static off_t
+cp_range (int sfd, int dfd, off_t len, int *offload, int holes, cp_report *r,
+          const char *src, const char *dst)
+{
+    off_t done = 0;
+#if defined (SYS_copy_file_range)
+    while (*offload && (len < 0 || done < len)) {
+        size_t want = len < 0 ? (size_t) 1 << 30 : (size_t) (len - done);
+        ssize_t n = syscall (SYS_copy_file_range, sfd, NULL, dfd, NULL, want, 0);
+        if (n > 0) {
+            done += n;
+            r->offload = "yes";
+            QUIT;
             continue;
         }
-        while (off < n) {
-            ssize_t w = write (dfd, buf + off, (size_t) (n - off));
-            if (w < 0) {
-                if (errno == EINTR) continue;
-                /* GNU's line, without the shell's source prefix. */
-                fprintf (stderr, "cp: error writing '%s': %s\n", dst, strerror (errno));
-                return -1;
+        if (n == 0) {
+            if (done == 0 && strcmp (r->offload, "yes") != 0) {
+                /* Nothing came back: the source may not support it (or is
+                   empty); read it to be sure. */
+                r->offload = "unknown";
+                *offload = 0;
+                break;
             }
-            off += w;
+            return done;
         }
-    }
-    if (n < 0) {
-        fprintf (stderr, "cp: error reading '%s': %s\n", src, strerror (errno));
+        if (errno == EINTR) {
+            QUIT;
+            continue;
+        }
+        if (errno == ENOSYS || errno == EXDEV || errno == EINVAL || errno == EOPNOTSUPP
+            || errno == ENOTSUP || errno == EBADF || errno == EPERM || errno == ETXTBSY) {
+            if (strcmp (r->offload, "yes") != 0)
+                r->offload = "unsupported";
+            *offload = 0;
+            break;
+        }
+        cp_err (errno, "error copying %s to %s", cp_q (src), cp_q (dst));
         return -1;
     }
-    if (holes && ended_in_hole && ftruncate (dfd, total) < 0) {
-        fprintf (stderr, "cp: cannot extend '%s': %s\n", dst, strerror (errno));
-        return -1;
-    }
-    return 0;
-}
-
-static int
-bcp_copy_acl (const char *src, const char *dst, const char *xname)
-{
-    unsigned char buf[8192];
-    ssize_t n = getxattr (src, xname, buf, sizeof buf);
-    if (n < 0) {
-        if (errno != ENODATA && errno != EOPNOTSUPP && errno != ENOTSUP) {
-            builtin_error ("preserving permissions for '%s': %s", dst, strerror (errno));
-            return -1;
-        }
-        /* No ACL on the source: drop one the destination inherited. */
-        if (removexattr (dst, xname) < 0 && errno != ENODATA && errno != EOPNOTSUPP && errno != ENOTSUP) {
-            builtin_error ("preserving permissions for '%s': %s", dst, strerror (errno));
-            return -1;
-        }
-        return 0;
-    }
-    if (setxattr (dst, xname, buf, (size_t) n, 0) < 0) {
-        builtin_error ("preserving permissions for '%s': %s", dst, strerror (errno));
-        return -1;
-    }
-    return 0;
-}
-
-/* SRC may be NULL (--parents directories): then ACLs are not copied. */
-static int
-bcp_apply_metadata (const char *src, const char *dst, const struct stat *st, const bcp_opts *o)
-{
-    int rc = 0;
-    /* chown can clear set-ID bits, so apply the final mode afterwards. */
-    if (o->powner && chown (dst, st->st_uid, st->st_gid) < 0) {
-        if (errno != EPERM) {
-            builtin_error ("chown %s: %s", dst, strerror (errno));
-            rc = -1;
-        }
-    }
-    if (o->pmode && chmod (dst, st->st_mode & 07777) < 0) {
-        builtin_error ("chmod %s: %s", dst, strerror (errno));
-        rc = -1;
-    }
-    /* GNU: preserving mode preserves the access ACL, and a directory's
-       default ACL. */
-    if (o->pmode && src) {
-        if (bcp_copy_acl (src, dst, "system.posix_acl_access") < 0) rc = -1;
-        if (S_ISDIR (st->st_mode) && bcp_copy_acl (src, dst, "system.posix_acl_default") < 0) rc = -1;
-    }
-    if (!o->ptime)
-        return rc;
-    struct timespec ts[2];
-    ts[0].tv_sec  = st->st_atim.tv_sec;
-    ts[0].tv_nsec = st->st_atim.tv_nsec;
-    ts[1].tv_sec  = st->st_mtim.tv_sec;
-    ts[1].tv_nsec = st->st_mtim.tv_nsec;
-    /* Regular-file copies follow destination symlinks, just like chown and
-       chmod above. Symlink copies use their own metadata path. */
-    if (utimensat (AT_FDCWD, dst, ts, 0) < 0) {
-        if (errno == ENOSYS) {
-            /* Fall back only when the kernel lacks utimensat, not on I/O
-               errors from a supported operation. */
-            struct timeval tv[2];
-            tv[0].tv_sec = ts[0].tv_sec; tv[0].tv_usec = ts[0].tv_nsec / 1000;
-            tv[1].tv_sec = ts[1].tv_sec; tv[1].tv_usec = ts[1].tv_nsec / 1000;
-            if (utimes (dst, tv) == 0) return rc;
-        }
-        builtin_error ("preserve times %s: %s", dst, strerror (errno));
-        rc = -1;
-    }
-    return rc;
-}
-
-#ifndef FICLONE
-#  define FICLONE _IOW (0x94, 9, int)
+#else
+    *offload = 0;
+    r->offload = "unsupported";
 #endif
-
-/* The backup made for the copy being reported; GNU -v appends it. */
-static char bcp_backup_note[4096 + 48];
-
-static void
-bcp_verbose (const char *src, const char *dst)
-{
-    if (bcp_backup_note[0])
-        printf ("'%s' -> '%s' (backup: '%s')\n", src, dst, bcp_backup_note);
-    else
-        printf ("'%s' -> '%s'\n", src, dst);
-    bcp_backup_note[0] = '\0';
-}
-
-/* GNU backup names: simple "DST~" (or the -S suffix), numbered
-   "DST.~N~", or "existing": numbered when numbered backups already exist. */
-static int
-bcp_make_backup (const char *dst, const bcp_opts *o)
-{
-    const char *slash = strrchr (dst, '/');
-    const char *base = slash ? slash + 1 : dst;
-    size_t dirlen = slash ? (size_t) (slash - dst) : 0;
-    int highest = 0;
-    int kind = o->backup;
-
-    if (kind == BCP_BACKUP_NUMBERED || kind == BCP_BACKUP_EXISTING) {
-        char *dir = dirlen ? strndup (dst, dirlen) : strdup (slash ? "/" : ".");
-        DIR *d = dir ? opendir (dir) : NULL;
-        size_t bl = strlen (base);
-        struct dirent *de;
-        while (d && (de = readdir (d)) != NULL) {
-            const char *n = de->d_name;
-            if (strncmp (n, base, bl) != 0 || strncmp (n + bl, ".~", 2) != 0)
+    while (len < 0 || done < len) {
+        size_t want = sizeof cp_buffer;
+        if (len >= 0 && (off_t) want > len - done)
+            want = (size_t) (len - done);
+        ssize_t n = read (sfd, cp_buffer, want);
+        if (n < 0) {
+            if (errno == EINTR) {
+                QUIT;
                 continue;
-            char *end;
-            long v = strtol (n + bl + 2, &end, 10);
-            if (end != n + bl + 2 && end[0] == '~' && end[1] == '\0' && v > highest && v < 1000000000)
-                highest = (int) v;
+            }
+            cp_err (errno, "error reading %s", cp_q (src));
+            return -1;
         }
-        if (d)
-            closedir (d);
-        free (dir);
-        if (kind == BCP_BACKUP_EXISTING)
-            kind = highest ? BCP_BACKUP_NUMBERED : BCP_BACKUP_SIMPLE;
+        if (n == 0)
+            break;
+        if (cp_put (dfd, cp_buffer, (size_t) n, holes, dst) < 0)
+            return -1;
+        done += n;
+        QUIT;
     }
-    const char *suffix = o->suffix;
-    if (!suffix || !*suffix || strchr (suffix, '/'))
-        suffix = "~";
-    size_t len = strlen (dst) + 32 + strlen (suffix);
-    char *name = malloc (len);
-    if (!name) {
-        builtin_error ("out of memory");
-        return -1;
-    }
-    if (kind == BCP_BACKUP_NUMBERED)
-        snprintf (name, len, "%s.~%d~", dst, highest + 1);
-    else
-        snprintf (name, len, "%s%s", dst, suffix);
-    int rc = rename (dst, name);
-    if (rc < 0)
-        builtin_error ("cannot backup '%s': %s", dst, strerror (errno));
-    else
-        snprintf (bcp_backup_note, sizeof bcp_backup_note, "%s", name);
-    free (name);
-    return rc;
+    return done;
 }
 
-/* Make way for a new DST: -b renames it, --remove-destination unlinks it. */
 static int
-bcp_clear_destination (const char *dst, const bcp_opts *o, int *exists)
+cp_zero_fill (int dfd, off_t len, const char *dst)
 {
-    if (!*exists)
-        return 0;
-    if (o->backup != BCP_BACKUP_NONE) {
-        if (bcp_make_backup (dst, o) < 0)
+    memset (cp_buffer, 0, sizeof cp_buffer);
+    while (len > 0) {
+        size_t n = len > (off_t) sizeof cp_buffer ? sizeof cp_buffer : (size_t) len;
+        if (cp_put (dfd, cp_buffer, n, 0, dst) < 0)
             return -1;
-        *exists = 0;
-    } else if (o->remove_dest) {
-        if (unlink (dst) < 0 && errno != ENOENT) {
-            builtin_error ("cannot remove '%s': %s", dst, strerror (errno));
-            return -1;
-        }
-        *exists = 0;
+        len -= (off_t) n;
     }
     return 0;
 }
 
-/* Copy a regular file. dst is a full path — no path-joining here. */
+/* The bytes of SFD into DFD: a clone, extent by extent for sparse sources,
+   or a plain copy, with holes per --sparse. Returns 0, -1, or -2 when
+   --reflink=always could not clone. */
 static int
-bcp_copy_regular (const char *src, const char *dst,
-                  const struct stat *sst, const bcp_opts *o)
+cp_data (const cp_ctx *c, int sfd, int dfd, const char *src, const char *dst,
+         const struct stat *ss, const struct stat *ds, cp_report *r)
 {
-    /* Detect dst exists; honor -f / -i. */
-    struct stat dst_st;
-    int dst_exists = (lstat (dst, &dst_st) == 0);
-    if (dst_exists) {
-        if (o->nflag) return 1;
-        /* Refuse identical-inode (cp file file). */
-        if (dst_st.st_dev == sst->st_dev && dst_st.st_ino == sst->st_ino) {
-            builtin_error ("'%s' and '%s' are the same file", src, dst);
-            return -1;
+    int dst_regular = S_ISREG (ds->st_mode);
+    int looks_sparse = S_ISREG (ss->st_mode) && (off_t) ss->st_blocks * 512 < ss->st_size;
+    int zeros = c->sparse == CP_SPARSE_ALWAYS && dst_regular;
+    int never_holes = c->sparse == CP_SPARSE_NEVER || !dst_regular;
+    int try_clone = dst_regular && c->reflink != CP_REFLINK_NEVER && c->sparse != CP_SPARSE_NEVER;
+    int offload = !(c->sparse != CP_SPARSE_AUTO || c->reflink == CP_REFLINK_NEVER);
+
+    r->offload = "unknown";
+    r->reflink = try_clone || !dst_regular ? "unsupported" : "no";
+    r->sparse = "no";
+    if (try_clone) {
+        if (ioctl (dfd, FICLONE, sfd) == 0) {
+            r->reflink = "yes";
+            r->sparse = "unknown";
+            return 0;
         }
-        if (o->iflag) {
-            fprintf (stderr, "bashcp: overwrite '%s'? ", dst);
-            fflush (stderr);
-            int c = getchar (), answer = c;
-            while (c != EOF && c != '\n') c = getchar ();
-            if (answer != 'y' && answer != 'Y') return -1;
+        if (c->reflink == CP_REFLINK_ALWAYS) {
+            cp_err (errno, "failed to clone %s from %s", cp_q (dst), cp_q (src));
+            r->sparse = "unknown";
+            return -2;
         }
-        if (S_ISLNK (dst_st.st_mode)) {
-            struct stat target_st;
-            if (stat (dst, &target_st) < 0) {
-                builtin_error ("stat destination %s: %s", dst, strerror (errno));
-                return -1;
+    }
+    if (!offload)
+        r->offload = "avoided";
+
+    off_t written = 0, end = ss->st_size;
+    int extents = 0;
+    if (looks_sparse) {
+        off_t first = lseek (sfd, 0, SEEK_DATA);
+        if (first >= 0 || errno == ENXIO) {
+            extents = 1;
+            r->sparse = zeros ? "SEEK_HOLE + zeros" : "SEEK_HOLE";
+            off_t pos = 0;
+            for (;;) {
+                off_t data = pos == 0 ? first : lseek (sfd, pos, SEEK_DATA);
+                if (data < 0) {
+                    if (errno == ENXIO)
+                        break;
+                    cp_err (errno, "cannot lseek %s", cp_q (src));
+                    return -1;
+                }
+                off_t hole = lseek (sfd, data, SEEK_HOLE);
+                if (hole < 0 || lseek (sfd, data, SEEK_SET) < 0) {
+                    cp_err (errno, "cannot lseek %s", cp_q (src));
+                    return -1;
+                }
+                if (data > written) {
+                    if (never_holes) {
+                        if (cp_zero_fill (dfd, data - written, dst) < 0)
+                            return -1;
+                    } else if (lseek (dfd, data, SEEK_SET) < 0) {
+                        cp_err (errno, "cannot lseek %s", cp_q (dst));
+                        return -1;
+                    }
+                }
+                off_t n = cp_range (sfd, dfd, hole - data, &offload, zeros, r, src, dst);
+                if (n < 0)
+                    return -1;
+                written = data + n;
+                pos = hole;
+                if (n < hole - data || hole >= end)
+                    break;
+                QUIT;
             }
-            if (target_st.st_dev == sst->st_dev && target_st.st_ino == sst->st_ino) {
-                builtin_error ("'%s' and '%s' are the same file", src, dst);
-                return -1;
-            }
-            if (S_ISDIR (target_st.st_mode)) {
-                builtin_error ("%s: existing destination symlink target is a directory", dst);
-                return -1;
-            }
-        } else if (S_ISDIR (dst_st.st_mode)) {
-            builtin_error ("%s: existing destination is a directory", dst);
+        } else if (lseek (sfd, 0, SEEK_SET) < 0) {
+            cp_err (errno, "cannot lseek %s", cp_q (src));
             return -1;
         }
     }
-    /* Open the source before replacing dest. -f must not unlink an
-       existing destination when the source cannot be read. */
-    int sfd = open (src, O_RDONLY);
+    if (!extents) {
+        if (zeros)
+            r->sparse = "zeros";
+        off_t n = cp_range (sfd, dfd, -1, &offload, zeros, r, src, dst);
+        if (n < 0)
+            return -1;
+        written = n;
+        end = n;
+    }
+    /* The file ends in a hole (or a skipped zero block): set its size. */
+    if (dst_regular && !c->attr_only) {
+        off_t at = lseek (dfd, 0, SEEK_CUR);
+        if (extents && written < end && never_holes) {
+            if (cp_zero_fill (dfd, end - written, dst) < 0)
+                return -1;
+        } else if ((extents && written < end) || (at >= 0 && at > written) || (zeros && at > written)) {
+            if (ftruncate (dfd, extents ? end : at) < 0) {
+                cp_err (errno, "cannot extend %s", cp_q (dst));
+                return -1;
+            }
+        } else if (!extents && at > written) {
+            if (ftruncate (dfd, at) < 0) {
+                cp_err (errno, "cannot extend %s", cp_q (dst));
+                return -1;
+            }
+        }
+    }
+    return 0;
+}
+
+/* ---- one file ----------------------------------------------------------- */
+
+static int cp_copy (cp_ctx *c, const char *src, const char *dst, int top);
+
+/* Copy a source as data into DST (regular files, and special files read
+   as data). DL is DST's lstat when EXISTS. */
+static int
+cp_regular (cp_ctx *c, const char *src, const char *dst, const struct stat *ss,
+            int exists, const struct stat *dl)
+{
+    struct stat sfst, dfst;
+    int rc = 0, created = 0;
+
+    if (exists && c->p_links && S_ISREG (dl->st_mode) && dl->st_nlink > 1 && !c->attr_only) {
+        /* Keep the other names of the old destination as they are. */
+        if (unlink (dst) < 0 && errno != ENOENT) {
+            cp_err (errno, "cannot remove %s", cp_q (dst));
+            return -1;
+        }
+        exists = 0;
+    }
+    cp_verbose (c, src, dst);
+
+    int sfd = open (src, O_RDONLY | O_NOCTTY);
     if (sfd < 0) {
-        builtin_error ("open %s: %s", src, strerror (errno));
+        cp_err (errno, "cannot open %s for reading", cp_q (src));
         return -1;
     }
-    if (dst_exists && !S_ISDIR (dst_st.st_mode) && !o->attr_only &&
-        bcp_clear_destination (dst, o, &dst_exists) < 0) {
+    if (fstat (sfd, &sfst) < 0) {
+        cp_err (errno, "cannot fstat %s", cp_q (src));
         close (sfd);
         return -1;
     }
-    if (dst_exists &&
-        o->plinks && S_ISREG (dst_st.st_mode) && dst_st.st_nlink > 1) {
-        if (unlink (dst) < 0 && errno != ENOENT) {
-            builtin_error ("unlink %s: %s", dst, strerror (errno));
+
+    mode_t create_mode = c->no_mode ? 0666
+                         : c->p_mode ? (ss->st_mode & S_IRWXU)
+                         : (ss->st_mode & 0777);
+    int dfd = -1;
+    if (exists) {
+        /* No O_TRUNC yet: DST may lead back to SRC. */
+        dfd = open (dst, O_WRONLY | O_NOCTTY);
+        if (dfd < 0 && errno == ENOENT && c->posixly && S_ISLNK (dl->st_mode))
+            /* POSIXLY_CORRECT: create the target of a dangling symlink. */
+            dfd = open (dst, O_WRONLY | O_CREAT | O_NOCTTY, create_mode);
+        if (dfd < 0 && c->force) {
+            if (cp_remove (c, dst) < 0) {
+                close (sfd);
+                return -1;
+            }
+            exists = 0;
+        } else if (dfd < 0) {
+            int e = errno;
+            if (e == EISDIR)
+                cp_err (0, "cannot overwrite directory %s with non-directory %s", cp_q (dst), cp_q (src));
+            else
+                cp_err (e, "cannot create regular file %s", cp_q (dst));
             close (sfd);
             return -1;
         }
     }
-    /* Open without truncating: dst may be a symlink back to src, and the
-       lstat check above compares the link's inode rather than its target. */
-    mode_t create_mode = o->nomode ? 0666 : sst->st_mode & 0777;
-    int dfd = open (dst, O_WRONLY | O_CREAT | (o->nflag ? O_EXCL : 0), create_mode);
-    /* -f is a retry after a failed write-open, not unconditional removal.
-       Keep openable symlinks, hardlinks and destination modes intact. The
-       source is already open and same-file checks precede any unlink. */
-    if (dfd < 0 && o->fflag && !o->nflag && dst_exists) {
-        if (unlink (dst) < 0) {
-            builtin_error ("unlink %s: %s", dst, strerror (errno));
+    if (!exists) {
+        dfd = open (dst, O_WRONLY | O_CREAT | O_EXCL | O_NOCTTY, create_mode);
+        if (dfd < 0) {
+            int e = errno;
+            size_t len = strlen (dst);
+            if (len && dst[len - 1] == '/' && (e == EISDIR || e == ENOENT))
+                e = ENOTDIR;
+            cp_err (e, "cannot create regular file %s", cp_q (dst));
             close (sfd);
-            return -1;
-        }
-        dfd = open (dst, O_WRONLY | O_CREAT | O_EXCL, create_mode);
-    }
-    if (dfd < 0) {
-        if (o->nflag && errno == EEXIST) { close (sfd); return 1; }
-        builtin_error ("open %s for write: %s", dst, strerror (errno));
-        close (sfd);
-        return -1;
-    }
-    struct stat opened_src, opened_dst;
-    if (fstat (sfd, &opened_src) < 0 || fstat (dfd, &opened_dst) < 0) {
-        builtin_error ("stat open file: %s", strerror (errno));
-        close (sfd);
-        close (dfd);
-        return -1;
-    }
-    if (opened_src.st_dev == opened_dst.st_dev &&
-        opened_src.st_ino == opened_dst.st_ino) {
-        builtin_error ("'%s' and '%s' are the same file", src, dst);
-        close (sfd);
-        close (dfd);
-        return -1;
-    }
-    /* Truncate a regular file; a device, fifo or socket is simply written into. */
-    int dst_regular = S_ISREG (opened_dst.st_mode);
-    if (!o->attr_only && dst_regular && ftruncate (dfd, 0) < 0) {
-        builtin_error ("truncate %s: %s", dst, strerror (errno));
-        close (sfd);
-        close (dfd);
-        return -1;
-    }
-    int rc = 0, copied = o->attr_only;
-    if (!copied && dst_regular && o->reflink != BCP_REFLINK_NEVER) {
-        if (ioctl (dfd, FICLONE, sfd) == 0)
-            copied = 1;
-        else if (o->reflink == BCP_REFLINK_ALWAYS) {
-            builtin_error ("failed to clone '%s' from '%s': %s", dst, src, strerror (errno));
-            rc = -1;
-            copied = 1;
-        }
-    }
-    /* --sparse=auto makes holes only where the source has them. */
-    int holes = dst_regular && (o->sparse == BCP_SPARSE_ALWAYS ||
-        (o->sparse == BCP_SPARSE_AUTO && (off_t) opened_src.st_blocks * 512 < opened_src.st_size));
-    if (!copied)
-        rc = bcp_copy_data (sfd, dfd, src, dst, holes);
-    if (close (sfd) < 0) {
-        builtin_error ("close %s: %s", src, strerror (errno));
-        rc = -1;
-    }
-    if (close (dfd) < 0) {
-        builtin_error ("close %s: %s", dst, strerror (errno));
-        rc = -1;
-    }
-    if (rc < 0) return -1;
-    if (o->pflag && dst_regular && bcp_apply_metadata (src, dst, sst, o) < 0) return -1;
-    if (o->vflag)
-        bcp_verbose (src, dst);  /* GNU cp -v writes to stdout */
-    return 0;
-}
-
-static int
-bcp_copy_symlink (const char *src, const char *dst, const struct stat *sst,
-                  const bcp_opts *o)
-{
-    char target[4096];
-    ssize_t n = readlink (src, target, sizeof target - 1);
-    if (n < 0) {
-        builtin_error ("readlink %s: %s", src, strerror (errno));
-        return -1;
-    }
-    target[n] = '\0';
-    /* Replace existing entries. Use symlink-to-temp + rename so the
-       replacement is atomic (no window where dst doesn't exist). */
-    struct stat ds;
-    int dst_exists = (lstat (dst, &ds) == 0);
-    if (dst_exists && o->nflag) return 1;
-    if (dst_exists && ds.st_dev == sst->st_dev && ds.st_ino == sst->st_ino) {
-        builtin_error ("'%s' and '%s' are the same file", src, dst);
-        return -1;
-    }
-    if (dst_exists && o->iflag) {
-        fprintf (stderr, "bashcp: overwrite '%s'? ", dst);
-        fflush (stderr);
-        int c = getchar (), answer = c;
-        while (c != EOF && c != '\n') c = getchar ();
-        if (answer != 'y' && answer != 'Y') return -1;
-    }
-    if (dst_exists && !S_ISDIR (ds.st_mode) && bcp_clear_destination (dst, o, &dst_exists) < 0)
-        return -1;
-    if (dst_exists) {
-        char tmp_path[4096 + 32];
-        int wlen = snprintf (tmp_path, sizeof tmp_path,
-                             "%s.bcptmp.XXXXXX", dst);
-        if (wlen < 0 || (size_t) wlen + sizeof "/link" > sizeof tmp_path) {
-            builtin_error ("symlink %s: dst path too long for atomic replace", dst);
-            return -1;
-        }
-        /* Reserve a private directory atomically. A predictable temporary
-           name must never unlink an unrelated entry beside the destination. */
-        if (!mkdtemp (tmp_path)) {
-            builtin_error ("temporary directory for %s: %s", dst, strerror (errno));
-            return -1;
-        }
-        size_t dirlen = strlen (tmp_path);
-        memcpy (tmp_path + dirlen, "/link", sizeof "/link");
-        int failed = 0;
-        if (symlink (target, tmp_path) < 0) {
-            builtin_error ("symlink %s -> %s: %s", tmp_path, target, strerror (errno));
-            failed = 1;
-        } else if (rename (tmp_path, dst) < 0) {
-            builtin_error ("rename %s -> %s: %s", tmp_path, dst, strerror (errno));
-            unlink (tmp_path);
-            failed = 1;
-        }
-        tmp_path[dirlen] = '\0';
-        if (rmdir (tmp_path) < 0) {
-            builtin_error ("rmdir %s: %s", tmp_path, strerror (errno));
-            failed = 1;
-        }
-        if (failed) return -1;
-    } else if (symlink (target, dst) < 0) {
-        if (o->nflag && errno == EEXIST) return 1;
-        builtin_error ("symlink %s -> %s: %s", dst, target, strerror (errno));
-        return -1;
-    }
-    if (o->pflag) {
-        /* lchown for symlink owner. */
-        if (o->powner && lchown (dst, sst->st_uid, sst->st_gid) < 0 && errno != EPERM) {
-            builtin_error ("lchown %s: %s", dst, strerror (errno));
-            return -1;
-        }
-        struct timespec ts[2] = { sst->st_atim, sst->st_mtim };
-        if (o->ptime && utimensat (AT_FDCWD, dst, ts, AT_SYMLINK_NOFOLLOW) < 0) {
-            builtin_error ("utimensat %s: %s", dst, strerror (errno));
-            return -1;
-        }
-    }
-    if (o->vflag)
-        bcp_verbose (src, dst);  /* GNU cp -v writes to stdout */
-    return 0;
-}
-
-static int
-bcp_copy_dir (const char *src, const char *dst, const struct stat *sst,
-              bcp_opts *o)
-{
-    if (!o->rflag) {
-        builtin_error ("-r not specified; omitting directory '%s'", src);
-        return -1;
-    }
-    for (const bcp_dir *parent = o->directories; parent; parent = parent->parent) {
-        if (sst->st_dev == parent->source_dev && sst->st_ino == parent->source_ino) {
-            builtin_error ("%s: cyclic directory traversal", src);
-            return -1;
-        }
-        if (sst->st_dev == parent->destination_dev && sst->st_ino == parent->destination_ino) {
-            builtin_error ("cannot copy a directory into itself: %s", src);
-            return -1;
-        }
-    }
-    /* mkdir if not present. */
-    struct stat ds;
-    int created = 0;
-    mode_t final_mode = 0;
-    int rc = 0;
-    if (lstat (dst, &ds) < 0) {
-        if (errno != ENOENT) {
-            builtin_error ("stat %s: %s", dst, strerror (errno));
-            return -1;
-        }
-        mode_t mask = umask (0);
-        umask (mask);
-        final_mode = (o->nomode ? 0777 : sst->st_mode & 0777) & ~mask;
-        if (mkdir (dst, final_mode | S_IRWXU) < 0) {
-            builtin_error ("mkdir %s: %s", dst, strerror (errno));
             return -1;
         }
         created = 1;
-        /* Populate read-only trees before applying their final mode. chmod
-           also restores owner access when the caller's umask removed it. */
-        if (chmod (dst, final_mode | S_IRWXU) < 0) {
-            builtin_error ("chmod %s: %s", dst, strerror (errno));
-            rc = -1;
-            goto restore_mode;
-        }
-        if (o->vflag)
-            bcp_verbose (src, dst);  /* GNU cp -v writes to stdout */
-    } else if (!S_ISDIR (ds.st_mode)) {
-        builtin_error ("'%s' exists and is not a directory", dst);
-        return -1;
-    } else if (ds.st_dev == sst->st_dev && ds.st_ino == sst->st_ino) {
-        builtin_error ("'%s' and '%s' are the same file", src, dst);
+    }
+    if (fstat (dfd, &dfst) < 0) {
+        cp_err (errno, "cannot fstat %s", cp_q (dst));
+        close (sfd);
+        close (dfd);
         return -1;
     }
-    if (created && lstat (dst, &ds) < 0) {
-        builtin_error ("stat %s: %s", dst, strerror (errno));
-        rc = -1;
-        goto restore_mode;
+    if (cp_same (&sfst, &dfst)) {
+        cp_err (0, "%s and %s are the same file", cp_q (src), cp_q (dst));
+        close (sfd);
+        close (dfd);
+        return -1;
     }
-    /* -x: a directory on another file system is created but not entered. */
-    if (o->xflag && sst->st_dev != o->top_dev)
-        goto restore_mode;
-    DIR *dir = opendir (src);
-    if (!dir) {
-        builtin_error ("opendir %s: %s", src, strerror (errno));
-        rc = -1;
-        goto restore_mode;
+    if (!created && !c->attr_only && S_ISREG (dfst.st_mode) && ftruncate (dfd, 0) < 0) {
+        cp_err (errno, "cannot truncate %s", cp_q (dst));
+        close (sfd);
+        close (dfd);
+        return -1;
     }
-    bcp_dir current = { sst->st_dev, ds.st_dev, sst->st_ino, ds.st_ino,
-                        o->directories };
-    o->directories = &current;
-    struct dirent *de;
-    for (;;) {
-        errno = 0;
-        de = readdir (dir);
-        if (!de) {
-            if (errno) {
-                builtin_error ("readdir %s: %s", src, strerror (errno));
-                rc = -1;
-            }
-            break;
-        }
-        if (strcmp (de->d_name, ".") == 0 || strcmp (de->d_name, "..") == 0)
-            continue;
-        size_t src_len = strlen (src), dst_len = strlen (dst);
-        while (src_len && src[src_len - 1] == '/') src_len--;
-        while (dst_len && dst[dst_len - 1] == '/') dst_len--;
-        size_t sn = src_len + strlen (de->d_name) + 2;
-        size_t dn = dst_len + strlen (de->d_name) + 2;
-        if (sn > 4096 || dn > 4096) {
-            builtin_error ("path too long while copying %s", de->d_name);
-            rc = -1;
-            continue;
-        }
-        /* Keep long paths off each recursive stack frame. */
-        char *src_child = malloc (sn), *dst_child = malloc (dn);
-        if (!src_child || !dst_child) {
-            builtin_error ("out of memory");
-            free (src_child);
-            free (dst_child);
-            rc = -1;
-            break;
-        }
-        snprintf (src_child, sn, "%.*s/%s", (int) src_len, src, de->d_name);
-        snprintf (dst_child, dn, "%.*s/%s", (int) dst_len, dst, de->d_name);
-        if (bcp_one (src_child, dst_child, o, 0) < 0) rc = -1;
-        free (src_child);
-        free (dst_child);
-    }
-    o->directories = current.parent;
-    if (closedir (dir) < 0) {
-        builtin_error ("closedir %s: %s", src, strerror (errno));
-        rc = -1;
-    }
-restore_mode:
-    if (created && chmod (dst, final_mode) < 0) {
-        builtin_error ("chmod %s: %s", dst, strerror (errno));
-        rc = -1;
-    }
-    if (o->pflag && bcp_apply_metadata (src, dst, sst, o) < 0) rc = -1;
-    return rc;
-}
 
-/* -l / -s: make a hard or symbolic link instead of copying data. */
-static int
-bcp_make_link (const char *src, const char *dst, const bcp_opts *o, int follow)
-{
-    struct stat cur;
-    int exists = lstat (dst, &cur) == 0;
-    const char *what = o->link_mode == 's' ? "symbolic link" : "hard link";
-
-    if (o->link_mode == 's' && src[0] != '/' && strchr (dst, '/')) {
-        /* GNU: a relative target only resolves beside the current directory. */
-        const char *d = dst;
-        while (d[0] == '.' && d[1] == '/')
-            d += 2;
-        if (strchr (d, '/')) {
-            builtin_error ("%s: can make relative symbolic links only in current directory", dst);
-            return -1;
-        }
+    cp_report report = { 0, 0, 0 };
+    if (!c->attr_only) {
+        rc = cp_data (c, sfd, dfd, src, dst, &sfst, &dfst, &report);
+        if (c->debug && (rc == 0 || rc == -2))
+            cp_out ("copy offload: %s, reflink: %s, sparse detection: %s\n",
+                    report.offload, report.reflink, report.sparse);
+        /* A file made only to be cloned into goes again. */
+        if (rc == -2 && created)
+            unlink (dst);
     }
-    if (exists) {
-        if (o->nflag)
-            return 0;
-        if (S_ISDIR (cur.st_mode)) {
-            builtin_error ("cannot overwrite directory '%s' with non-directory", dst);
-            return -1;
-        }
-        if (o->link_mode == 'l') {
-            struct stat sst;
-            if ((follow ? stat (src, &sst) : lstat (src, &sst)) == 0 &&
-                sst.st_dev == cur.st_dev && sst.st_ino == cur.st_ino)
-                return 0;   /* already that link */
-        }
-        if (o->backup != BCP_BACKUP_NONE) {
-            if (bcp_make_backup (dst, o) < 0)
-                return -1;
-        } else if (o->fflag || o->remove_dest) {
-            if (unlink (dst) < 0) {
-                builtin_error ("cannot remove '%s': %s", dst, strerror (errno));
-                return -1;
-            }
-        }
+    if (close (sfd) < 0) {
+        cp_err (errno, "failed to close %s", cp_q (src));
+        rc = -1;
     }
-    int rc = o->link_mode == 's'
-        ? symlink (src, dst)
-        : linkat (AT_FDCWD, src, AT_FDCWD, dst, follow ? AT_SYMLINK_FOLLOW : 0);
-    if (rc < 0) {
-        builtin_error ("cannot create %s '%s' to '%s': %s", what, dst, src, strerror (errno));
+    if (close (dfd) < 0) {
+        cp_err (errno, "failed to close %s", cp_q (dst));
+        rc = -1;
+    }
+    if (rc < 0)
         return -1;
-    }
-    if (o->vflag)
-        bcp_verbose (src, dst);
+    if ((c->p_mode || c->p_owner || c->p_time || c->p_xattr) && S_ISREG (dfst.st_mode)
+        && cp_attributes (c, src, dst, ss, 0) < 0)
+        return -1;
     return 0;
 }
 
-/* Top-level dispatcher per source. dst must be a complete target path
-   (file or directory entry name); caller resolves dir-into. */
 static int
-bcp_one (const char *src, const char *dst, bcp_opts *o, int top_level_source)
+cp_symlink_copy (cp_ctx *c, const char *src, const char *dst, const struct stat *ss,
+                 int exists)
 {
-    struct stat sst;
-    /* GNU: with no -H/-L/-P, follow unless recursive; -l always follows. */
-    int follow = o->Lflag || (top_level_source && o->Hflag)
-                 || (!o->Pflag && !o->Hflag && (!o->rflag || o->link_mode == 'l'));
-    int rc;
-    if (follow) rc = stat (src, &sst);
-    else        rc = lstat (src, &sst);
-    if (rc < 0) {
-        builtin_error ("stat %s: %s", src, strerror (errno));
+    size_t size = ss->st_size > 0 ? (size_t) ss->st_size + 1 : 256;
+    char *target = NULL;
+    ssize_t n;
+
+    for (;;) {
+        char *grown = realloc (target, size);
+        if (!grown) {
+            free (target);
+            cp_err (0, "memory exhausted");
+            return -1;
+        }
+        target = grown;
+        n = readlink (src, target, size);
+        if (n < 0) {
+            cp_err (errno, "cannot read symbolic link %s", cp_q (src));
+            free (target);
+            return -1;
+        }
+        if ((size_t) n < size)
+            break;
+        size *= 2;
+    }
+    target[n] = '\0';
+    if (exists && cp_remove (c, dst) < 0) {
+        free (target);
         return -1;
     }
-    if (top_level_source)
-        o->top_dev = sst.st_dev;
-    bcp_backup_note[0] = '\0';
-    if (S_ISDIR (sst.st_mode))    return bcp_copy_dir     (src, dst, &sst, o);
-    /* -u/--update: keep a destination that is not older than the source. */
-    if (o->update != BCP_UPDATE_ALL) {
-        struct stat cur;
-        if (lstat (dst, &cur) == 0 && !S_ISDIR (cur.st_mode)) {
-            if (o->update == BCP_UPDATE_NONE)
-                return 0;
-            if (cur.st_mtim.tv_sec > sst.st_mtim.tv_sec ||
-                (cur.st_mtim.tv_sec == sst.st_mtim.tv_sec && cur.st_mtim.tv_nsec >= sst.st_mtim.tv_nsec))
-                return 0;
-        }
+    cp_verbose (c, src, dst);
+    if (symlink (target, dst) < 0) {
+        cp_err (errno, "cannot create symbolic link %s", cp_q (dst));
+        free (target);
+        return -1;
     }
-    if (o->link_mode)
-        return bcp_make_link (src, dst, o, follow);
-    if (S_ISREG (sst.st_mode) || S_ISLNK (sst.st_mode)) {
-        /* -n skips existing entries before same-file checks or link tracking.
-           GNU still diagnoses a dangling destination when copying regular
-           data through it. Directories continue to merge. */
-        struct stat dst_st;
-        if (o->nflag && lstat (dst, &dst_st) == 0) {
-            struct stat target;
-            if (S_ISREG (sst.st_mode) && S_ISLNK (dst_st.st_mode) && stat (dst, &target) < 0) {
-                builtin_error ("not writing through dangling symlink '%s'", dst);
-                return -1;
-            }
-            return 0;
-        }
-        /* A later operand must not overwrite a result from this invocation:
-           it may already be the backing file for preserved hard links. */
-        for (bcp_link **slot = &o->links; *slot;) {
-            bcp_link *written = *slot;
-            if (!strcmp (written->path, dst) &&
-                (written->source_dev != sst.st_dev || written->source_ino != sst.st_ino)) {
-                if (top_level_source) {
-                    builtin_error ("will not overwrite just-copied '%s' with '%s'", dst, src);
-                    return -1;
-                }
-                /* Directory operands may merge. This path will no longer
-                   represent the cached source after its contents change. */
-                *slot = written->next;
-                free (written->path);
-                free (written);
-            } else {
-                slot = &written->next;
-            }
-        }
-        /* Scope link tracking to this invocation, including multiple source
-           operands. Dereferencing may expose aliases whose link count is 1. */
-        int preserve_link = o->plinks && (sst.st_nlink > 1 || o->Hflag || o->Lflag);
-        bcp_link *entry = preserve_link ? bcp_find_link (o, &sst) : NULL;
-        if (entry) rc = bcp_copy_link (src, dst, &sst, entry, o);
-        else rc = S_ISLNK (sst.st_mode) ? bcp_copy_symlink (src, dst, &sst, o)
-                                  : bcp_copy_regular (src, dst, &sst, o);
-        if (rc == 0 && (preserve_link || top_level_source))
-            rc = bcp_remember_link (o, &sst, dst);
-        return rc;
-    }
-    /* Other (fifo, sock, dev) — refuse for now. */
-    builtin_error ("%s: unsupported file type", src);
-    return -1;
+    free (target);
+    if ((c->p_owner || c->p_time) && cp_attributes (c, src, dst, ss, 1) < 0)
+        return -1;
+    return 0;
 }
 
-/* --parents retains the source spelling below DEST (without leading /).
-   Create only missing parent directories and restore their source-derived
-   modes after copying, deepest first, so read-only parents can be populated. */
-typedef struct bcp_parent {
+static int
+cp_special (cp_ctx *c, const char *src, const char *dst, const struct stat *ss, int exists)
+{
+    mode_t perm = c->no_mode ? ((ss->st_mode & 07000) | 0666) : c->p_mode ? (ss->st_mode & S_IRWXU) : (ss->st_mode & 07777);
+    int fifo = S_ISFIFO (ss->st_mode);
+
+    if (exists && cp_remove (c, dst) < 0)
+        return -1;
+    cp_verbose (c, src, dst);
+    if (mknod (dst, (ss->st_mode & S_IFMT) | perm, ss->st_rdev) < 0) {
+        int e = errno;
+        if (fifo && e == EPERM && mkfifo (dst, perm) == 0)
+            goto made;
+        cp_err (e, fifo ? "cannot create fifo %s" : "cannot create special file %s", cp_q (dst));
+        return -1;
+    }
+made:
+    if ((c->p_mode || c->p_owner || c->p_time || c->p_xattr) && cp_attributes (c, src, dst, ss, 0) < 0)
+        return -1;
+    return 0;
+}
+
+/* -l and -s, and hard links that mirror links between sources. */
+static int
+cp_link (cp_ctx *c, const char *src, const char *dst, int symbolic, int follow, int exists,
+         const char *target)
+{
+    const char *what = symbolic ? "symbolic link" : "hard link";
+    int replace = exists && (c->force || c->remove_dest || target);
+
+    if (exists && c->remove_dest && cp_remove (c, dst) < 0)
+        return -1;
+    if (replace && !c->remove_dest) {
+        /* Make the new link beside DST and rename it over, so DST never
+           disappears. */
+        char *dir = cp_parent (dst), *tmp = NULL;
+        int rc = -1;
+        if (dir && (tmp = malloc (strlen (dir) + 32))) {
+            for (int attempt = 0; attempt < 100 && rc < 0; attempt++) {
+                snprintf (tmp, strlen (dir) + 32, "%s/.cp-link-%ld-%d", dir, (long) getpid (), attempt);
+                rc = symbolic ? symlink (target ? target : src, tmp)
+                              : linkat (AT_FDCWD, target ? target : src, AT_FDCWD, tmp,
+                                        follow ? AT_SYMLINK_FOLLOW : 0);
+                if (rc < 0 && errno != EEXIST)
+                    break;
+            }
+            if (rc == 0 && rename (tmp, dst) < 0) {
+                int e = errno;
+                unlink (tmp);
+                errno = e;
+                rc = -1;
+            }
+        }
+        int e = errno;
+        free (dir);
+        free (tmp);
+        if (rc < 0) {
+            if (symbolic)
+                cp_err (e, "cannot create symbolic link %s to %s", cp_q (dst), cp_q (src));
+            else
+                cp_err (e, "cannot create hard link %s to %s", cp_q (dst), cp_q (target ? target : src));
+            return -1;
+        }
+    } else {
+        int rc = symbolic ? symlink (src, dst)
+                          : linkat (AT_FDCWD, target ? target : src, AT_FDCWD, dst,
+                                    follow ? AT_SYMLINK_FOLLOW : 0);
+        if (rc < 0) {
+            int e = errno;
+            if (symbolic)
+                cp_err (e, "cannot create %s %s to %s", what, cp_q (dst), cp_q (src));
+            else
+                cp_err (e, "cannot create %s %s to %s", what, cp_q (dst), cp_q (target ? target : src));
+            return -1;
+        }
+    }
+    cp_verbose (c, src, dst);
+    return 0;
+}
+
+/* Do A and B name the same directory entry (same last component in the
+   same directory)? */
+static int
+cp_same_name (const char *a, const char *b)
+{
+    if (!strcmp (a, b))
+        return 1;
+    char *ba = cp_last (a), *bb = cp_last (b), *pa = cp_parent (a), *pb = cp_parent (b);
+    struct stat sa, sb;
+    int same = ba && bb && pa && pb && !strcmp (ba, bb) && stat (pa, &sa) == 0
+               && stat (pb, &sb) == 0 && cp_same (&sa, &sb);
+    free (ba);
+    free (bb);
+    free (pa);
+    free (pb);
+    return same;
+}
+
+/* Would replacing DST (lstat DL, stat DS when DS_OK) lose SRC's data? A
+   backup keeps it unless moving DST aside also takes SRC's name away. */
+static int
+cp_conflict (const cp_ctx *c, int as, const char *src, const char *dst, const struct stat *ss,
+             const struct stat *dl, const struct stat *ds, int ds_ok)
+{
+    struct stat sl, sf;
+    int have_sl = lstat (src, &sl) == 0;
+
+    if (as == CP_AS_DATA) {
+        if (!ds_ok || !cp_same (ds, ss))
+            return 0;
+        if (c->backup != BOS_BACKUP_NONE)
+            return cp_same_name (src, dst) || !have_sl || S_ISLNK (sl.st_mode);
+        if (c->remove_dest && (S_ISLNK (dl->st_mode) || dl->st_nlink > 1))
+            return 0;
+        return 1;
+    }
+    /* The same entry, or one of the two leads to the other. */
+    int same = (have_sl && cp_same (dl, &sl))
+               || (!S_ISLNK (dl->st_mode) && stat (src, &sf) == 0 && cp_same (dl, &sf))
+               || (have_sl && !S_ISLNK (sl.st_mode) && ds_ok && cp_same (ds, &sl));
+    if (!same)
+        return 0;
+    return c->backup == BOS_BACKUP_NONE || cp_same_name (src, dst);
+}
+
+static int
+cp_dir (cp_ctx *c, const char *src, const char *dst, const struct stat *ss, int top);
+
+/* Copy SRC to DST. Returns 0, 1 when an existing DST was kept (-n, -u),
+   or -1 after a diagnostic. */
+static int
+cp_copy (cp_ctx *c, const char *src, const char *dst, int top)
+{
+    struct stat ss, dl, ds;
+    int follow = c->deref == CP_DEREF_ALWAYS || (c->deref == CP_DEREF_ARGS && top);
+
+    if ((follow ? stat (src, &ss) : lstat (src, &ss)) < 0) {
+        cp_err (errno, "cannot stat %s", cp_q (src));
+        return -1;
+    }
+    if (top)
+        c->root_dev = ss.st_dev;
+    free (c->backup_note);
+    c->backup_note = NULL;
+    if (S_ISDIR (ss.st_mode))
+        return cp_dir (c, src, dst, &ss, top);
+
+    int as = c->hard_link ? CP_AS_HARDLINK
+             : c->sym_link ? CP_AS_SYMBOLIC
+             : S_ISLNK (ss.st_mode) ? CP_AS_SYMLINK
+             : (c->recursive && !c->copy_contents && !S_ISREG (ss.st_mode)) ? CP_AS_SPECIAL
+             : CP_AS_DATA;
+
+    if (as == CP_AS_SYMBOLIC && src[0] != '/') {
+        /* A relative target is only right beside the current directory. */
+        char *dir = cp_parent (dst);
+        struct stat here, there;
+        int bad = dir && stat (dir, &there) == 0 && stat (".", &here) == 0 && !cp_same (&here, &there);
+        free (dir);
+        if (bad) {
+            cp_err (0, "%s: can make relative symbolic links only in current directory", dst);
+            return -1;
+        }
+    }
+
+    int exists = lstat (dst, &dl) == 0;
+    if (!exists && errno != ENOENT) {
+        cp_err (errno, "cannot stat %s", cp_q (dst));
+        return -1;
+    }
+    int ds_ok = 0;
+    if (exists) {
+        if (S_ISLNK (dl.st_mode))
+            ds_ok = stat (dst, &ds) == 0;
+        else {
+            ds = dl;
+            ds_ok = 1;
+        }
+    }
+
+    /* Links between sources (-d, -a, --preserve=links). */
+    int track = c->p_links && !c->hard_link && !c->sym_link
+                && (ss.st_nlink > 1 || c->deref == CP_DEREF_ALWAYS || c->deref == CP_DEREF_ARGS);
+    cp_seen *earlier = track ? cp_seen_find (c, &ss) : NULL;
+
+    if (exists) {
+        if (as == CP_AS_DATA && !earlier && S_ISLNK (dl.st_mode) && !ds_ok && !c->remove_dest
+            && c->backup == BOS_BACKUP_NONE && !c->posixly) {
+            cp_err (0, "not writing through dangling symlink %s", cp_q (dst));
+            return -1;
+        }
+        if (c->ask == CP_ASK_NO || c->update == CP_UPDATE_NONE) {
+            if (c->debug)
+                cp_out ("skipped %s\n", cp_q (dst));
+            return 1;
+        }
+        if (c->update == CP_UPDATE_NONE_FAIL) {
+            cp_err (0, "not replacing %s", cp_q (dst));
+            return -1;
+        }
+        if (c->update == CP_UPDATE_OLDER) {
+            const struct stat *cur = (as == CP_AS_DATA && ds_ok) ? &ds : &dl;
+            if (cur->st_mtim.tv_sec > ss.st_mtim.tv_sec
+                || (cur->st_mtim.tv_sec == ss.st_mtim.tv_sec
+                    && cur->st_mtim.tv_nsec >= ss.st_mtim.tv_nsec)) {
+                if (c->debug)
+                    cp_out ("skipped %s\n", cp_q (dst));
+                return 1;
+            }
+        }
+        if (S_ISDIR (dl.st_mode)
+            || (as == CP_AS_DATA && S_ISLNK (dl.st_mode) && ds_ok && S_ISDIR (ds.st_mode))) {
+            cp_err (0, "cannot overwrite directory %s with non-directory %s", cp_q (dst), cp_q (src));
+            return -1;
+        }
+        if (c->force && c->backup != BOS_BACKUP_NONE && as != CP_AS_SPECIAL && !earlier
+            && !strcmp (src, dst)) {
+            /* cp -fb FILE FILE: the copy becomes FILE's backup. */
+            char *name = bos_backup_name (dst, c->backup, c->suffix);
+            if (!name) {
+                cp_err (errno, "cannot backup %s", cp_q (dst));
+                return -1;
+            }
+            int kind = c->backup;
+            c->backup = BOS_BACKUP_NONE;
+            int rc = cp_copy (c, src, name, top);
+            c->backup = kind;
+            free (name);
+            return rc < 0 ? -1 : 0;
+        }
+        if (as == CP_AS_HARDLINK) {
+            if (cp_same (&dl, &ss))
+                return 0;       /* already that link */
+        } else if (earlier) {
+            if (cp_same (&dl, &ss) && !S_ISLNK (dl.st_mode)) {
+                cp_err (0, "%s and %s are the same file", cp_q (src), cp_q (dst));
+                return -1;
+            }
+            struct stat now;
+            if ((earlier->follow ? stat (dst, &now) : lstat (dst, &now)) == 0
+                && now.st_dev == earlier->ddev && now.st_ino == earlier->dino)
+                return 0;       /* already linked */
+        } else if (cp_conflict (c, as, src, dst, &ss, &dl, &ds, ds_ok)) {
+            cp_err (0, "%s and %s are the same file", cp_q (src), cp_q (dst));
+            return -1;
+        }
+        if (c->ask == CP_ASK_USER && !cp_confirm (c, dst, &dl)) {
+            if (c->debug)
+                cp_out ("skipped %s\n", cp_q (dst));
+            return -1;
+        }
+        if (top && cp_mark_find (c->made, dl.st_dev, dl.st_ino, NULL)) {
+            cp_err (0, "will not overwrite just-created %s with %s", cp_q (dst), cp_q (src));
+            return -1;
+        }
+        if (c->backup != BOS_BACKUP_NONE && !c->attr_only) {
+            if (cp_make_backup (c, dst) < 0)
+                return -1;
+            exists = 0;
+        } else if (c->remove_dest && as != CP_AS_HARDLINK && as != CP_AS_SYMBOLIC) {
+            if (cp_remove (c, dst) < 0)
+                return -1;
+            exists = 0;
+        }
+    }
+    if (!top)
+        cp_seen_forget (c, dst, &ss);
+
+    int rc;
+    if (earlier) {
+        if (exists && !c->remove_dest && cp_remove (c, dst) < 0)
+            return -1;
+        rc = cp_link (c, src, dst, 0, earlier->follow, 0, earlier->dst);
+    } else switch (as) {
+    case CP_AS_HARDLINK:
+        rc = cp_link (c, src, dst, 0, follow, exists, NULL);
+        break;
+    case CP_AS_SYMBOLIC:
+        rc = cp_link (c, src, dst, 1, 0, exists, NULL);
+        break;
+    case CP_AS_SYMLINK:
+        rc = cp_symlink_copy (c, src, dst, &ss, exists);
+        break;
+    case CP_AS_SPECIAL:
+        rc = cp_special (c, src, dst, &ss, exists);
+        break;
+    default:
+        rc = cp_regular (c, src, dst, &ss, exists, &dl);
+        break;
+    }
+    if (rc == 0 && track && !earlier)
+        cp_seen_add (c, &ss, dst);
+    return rc;
+}
+
+static int
+cp_entry_order (const void *a, const void *b)
+{
+    const struct { ino_t ino; char *name; } *x = a, *y = b;
+    return x->ino < y->ino ? -1 : x->ino > y->ino;
+}
+
+/* Is DST spelled as a place inside SRC: is one of the directories named
+   on DST's way down SRC itself? Links are not followed, except to the
+   target directory DST was put in (IN_DIR). */
+static int
+cp_inside (const char *src, const char *dst, int in_dir)
+{
+    struct stat ss, st;
+    size_t len = strlen (src);
+    while (len > 1 && src[len - 1] == '/')
+        len--;
+    char *name = strndup (src, len), *path = strdup (dst);
+    int inside = 0;
+    if (name && path && lstat (name, &ss) == 0) {
+        for (;;) {
+            char *up = cp_parent (path);
+            if (!up)
+                break;
+            if ((in_dir ? stat (up, &st) : lstat (up, &st)) == 0 && cp_same (&st, &ss))
+                inside = 1;
+            in_dir = 0;
+            int last = !strcmp (up, ".") || !strcmp (up, "/");
+            free (path);
+            path = up;
+            if (inside || last)
+                break;
+        }
+    }
+    free (name);
+    free (path);
+    return inside;
+}
+
+static int
+cp_dir (cp_ctx *c, const char *src, const char *dst, const struct stat *ss, int top)
+{
+    struct stat dl;
+    int rc = 0, created = 0;
+    mode_t made_mode = 0;
+
+    if (!c->recursive) {
+        cp_err (0, "-r not specified; omitting directory %s", cp_q (src));
+        return -1;
+    }
+    for (const cp_chain *up = c->chain; up; up = up->up)
+        if (up->dev == ss->st_dev && up->ino == ss->st_ino) {
+            cp_err (0, "cannot copy cyclic symbolic link %s", cp_q (src));
+            return -1;
+        }
+    cp_mark *made = cp_mark_find (c->dirs, ss->st_dev, ss->st_ino, NULL);
+    if (made) {
+        /* A directory this command made is now a source: the copy is
+           inside what it copies. */
+        if (cp_inside (c->top_src, c->top_dst, c->top_in_dir))
+            cp_err (0, "cannot copy a directory, %s, into itself, %s", cp_q (c->top_src),
+                    cp_q (c->top_dst));
+        else
+            cp_err (0, "will not create hard link %s to directory %s", cp_q (dst), cp_q (made->name));
+        c->abort_arg = 1;
+        return -1;
+    }
+
+    int have = lstat (dst, &dl) == 0, lstat_errno = errno;
+    if (have) {
+        if (S_ISLNK (dl.st_mode) && c->copy_contents && c->keep_dir_symlink) {
+            struct stat target;
+            if (stat (dst, &target) == 0 && S_ISDIR (target.st_mode)) {
+                dl = target;
+            }
+        }
+    }
+    if (have && !S_ISDIR (dl.st_mode)) {
+        if (c->backup == BOS_BACKUP_NONE) {
+            cp_err (0, "cannot overwrite non-directory %s with directory %s", cp_q (dst), cp_q (src));
+            return -1;
+        }
+        /* -b moves the file aside; the -v line does not mention it. */
+        if (cp_make_backup (c, dst) < 0)
+            return -1;
+        free (c->backup_note);
+        c->backup_note = NULL;
+        have = 0;
+        lstat_errno = ENOENT;
+    }
+    if (have) {
+        if (cp_same (&dl, ss)) {
+            cp_err (0, "%s and %s are the same file", cp_q (src), cp_q (dst));
+            return -1;
+        }
+    } else if (lstat_errno != ENOENT) {
+        cp_err (lstat_errno, "cannot stat %s", cp_q (dst));
+        return -1;
+    } else {
+        mode_t mode = c->no_mode ? ((ss->st_mode & 07000) | 0777) : c->p_mode ? (ss->st_mode & (07000 | S_IRWXU))
+                      : (ss->st_mode & 07777);
+        if (mkdir (dst, mode) < 0) {
+            cp_err (errno, "cannot create directory %s", cp_q (dst));
+            return -1;
+        }
+        created = 1;
+        if (lstat (dst, &dl) < 0) {
+            cp_err (errno, "cannot stat %s", cp_q (dst));
+            return -1;
+        }
+        made_mode = dl.st_mode & 07777;
+        /* Fill the copy before giving it a mode without owner access. */
+        if ((made_mode & S_IRWXU) != S_IRWXU && chmod (dst, made_mode | S_IRWXU) < 0) {
+            cp_err (errno, "setting permissions for %s", cp_q (dst));
+            rc = -1;
+        }
+        cp_verbose (c, src, dst);
+    }
+    (void) top;
+    if (created)
+        cp_mark_add (&c->dirs, dl.st_dev, dl.st_ino, dst);
+
+    if (rc == 0 && !(c->xdev && ss->st_dev != c->root_dev)) {
+        DIR *dir = opendir (src);
+        if (!dir) {
+            cp_err (errno, "cannot access %s", cp_q (src));
+            rc = -1;
+        } else {
+            struct cp_entry { ino_t ino; char *name; } *list = NULL;
+            size_t count = 0, cap = 0;
+            struct dirent *de;
+            for (;;) {
+                errno = 0;
+                de = readdir (dir);
+                if (!de) {
+                    if (errno) {
+                        cp_err (errno, "cannot access %s", cp_q (src));
+                        rc = -1;
+                    }
+                    break;
+                }
+                if (!strcmp (de->d_name, ".") || !strcmp (de->d_name, ".."))
+                    continue;
+                if (count == cap) {
+                    size_t ncap = cap ? cap * 2 : 32;
+                    struct cp_entry *grown = realloc (list, ncap * sizeof *list);
+                    if (!grown) {
+                        cp_err (0, "memory exhausted");
+                        rc = -1;
+                        break;
+                    }
+                    list = grown;
+                    cap = ncap;
+                }
+                if (!(list[count].name = strdup (de->d_name))) {
+                    cp_err (0, "memory exhausted");
+                    rc = -1;
+                    break;
+                }
+                list[count++].ino = de->d_ino;
+            }
+            if (closedir (dir) < 0) {
+                cp_err (errno, "cannot access %s", cp_q (src));
+                rc = -1;
+            }
+            /* GNU walks a directory in inode order. */
+            qsort (list, count, sizeof *list, cp_entry_order);
+            cp_chain here = { ss->st_dev, ss->st_ino, c->chain };
+            c->chain = &here;
+            for (size_t i = 0; i < count; i++) {
+                QUIT;
+                if (!c->abort_arg) {
+                    char *s = cp_join (src, list[i].name), *d = s ? cp_join (dst, list[i].name) : NULL;
+                    if (!s || !d || cp_copy (c, s, d, 0) < 0)
+                        rc = -1;
+                    free (s);
+                    free (d);
+                }
+                free (list[i].name);
+            }
+            c->chain = here.up;
+            free (list);
+        }
+    }
+
+    if (c->p_mode || c->p_owner || c->p_time || c->p_xattr) {
+        if (cp_attributes (c, src, dst, ss, 0) < 0)
+            rc = -1;
+    } else if (created && (made_mode & S_IRWXU) != S_IRWXU && chmod (dst, made_mode) < 0) {
+        cp_err (errno, "setting permissions for %s", cp_q (dst));
+        rc = -1;
+    }
+    if (c->p_mode == 0 && (c->p_owner || c->p_time || c->p_xattr) && created
+        && (made_mode & S_IRWXU) != S_IRWXU && chmod (dst, made_mode) < 0) {
+        cp_err (errno, "setting permissions for %s", cp_q (dst));
+        rc = -1;
+    }
+    return rc;
+}
+
+/* ---- operands ----------------------------------------------------------- */
+
+/* One command-line source. INTO_DIR: DST was formed inside a target
+   directory, so a repeated source name is only a warning. */
+static int
+cp_top (cp_ctx *c, const char *src, const char *dst, int into_dir)
+{
+    struct stat ss;
+    int follow = c->deref == CP_DEREF_ALWAYS || c->deref == CP_DEREF_ARGS;
+    int src_ok = (follow ? stat (src, &ss) : lstat (src, &ss)) == 0;
+
+    if (into_dir && src_ok) {
+        char *parent = cp_parent (src), *base = cp_last (src);
+        struct stat ps;
+        /* The directory itself, not where a symbolic link to it leads. */
+        if (parent && base && lstat (parent, &ps) == 0) {
+            if (cp_mark_find (c->names, ps.st_dev, ps.st_ino, base)) {
+                cp_err (0, "warning: source %s %s specified more than once",
+                        S_ISDIR (ss.st_mode) ? "directory" : "file", cp_q (src));
+                free (parent);
+                free (base);
+                return 0;
+            }
+            cp_mark_add (&c->names, ps.st_dev, ps.st_ino, base);
+        }
+        free (parent);
+        free (base);
+    }
+    c->top_src = src;
+    c->top_dst = dst;
+    c->top_in_dir = into_dir;
+    c->abort_arg = 0;
+    int rc = cp_copy (c, src, dst, 1);
+    if (rc == 0 && src_ok && !S_ISDIR (ss.st_mode)) {
+        struct stat dl;
+        if (lstat (dst, &dl) == 0)
+            cp_mark_add (&c->made, dl.st_dev, dl.st_ino, NULL);
+    }
+    return rc < 0 ? -1 : 0;
+}
+
+/* --parents: DEST/SRC, creating the missing directories of SRC's name with
+   its directories' modes, which are applied deepest first afterwards so
+   read-only parents can still be filled. */
+typedef struct cp_parent_dir {
     char *path;
     struct stat source;
     mode_t mode;
-    struct bcp_parent *next;
-} bcp_parent;
+    struct cp_parent_dir *next;
+} cp_parent_dir;
 
 static int
-bcp_copy_parents (const char *src, const char *dest, bcp_opts *o)
+cp_with_parents (cp_ctx *c, const char *src, const char *dest)
 {
     size_t start = 0, end = strlen (src), dn = strlen (dest);
-    while (src[start] == '/') start++;
-    while (end > start && src[end - 1] == '/') end--;
-    while (dn > 1 && dest[dn - 1] == '/') dn--;
+    while (src[start] == '/')
+        start++;
+    while (end > start && src[end - 1] == '/')
+        end--;
+    while (dn > 1 && dest[dn - 1] == '/')
+        dn--;
     size_t base = dn + (dn == 0 || dest[dn - 1] != '/');
     size_t tail = end - start;
-    if (base + tail + 1 > 4096) {
-        builtin_error ("destination path too long: %s", dest);
-        return -1;
-    }
     char *dst = malloc (base + tail + 1), *prefix = strdup (src);
     if (!dst || !prefix) {
-        builtin_error ("out of memory");
+        cp_err (0, "memory exhausted");
         free (dst);
         free (prefix);
         return -1;
     }
     memcpy (dst, dest, dn);
-    if (base > dn) dst[dn] = '/';
+    if (base > dn)
+        dst[dn] = '/';
     memcpy (dst + base, src + start, tail);
     dst[base + tail] = '\0';
-    bcp_parent *parents = NULL;
+
+    cp_parent_dir *made = NULL;
     int rc = 0;
-    mode_t mask = umask (0);
-    umask (mask);
     for (size_t i = start; i < end; i++) {
-        if (src[i] != '/' || i == start || src[i - 1] == '/') continue;
+        if (src[i] != '/' || i == start || src[i - 1] == '/')
+            continue;
         size_t cut = base + i - start;
         dst[cut] = '\0';
         prefix[i] = '\0';
         struct stat st;
-        if (stat (dst, &st) == 0) {
-            if (!S_ISDIR (st.st_mode)) {
-                builtin_error ("'%s' is not a directory", dst);
-                rc = -1;
-            }
-        } else if (errno != ENOENT) {
-            builtin_error ("stat %s: %s", dst, strerror (errno));
-            rc = -1;
-        } else if (stat (prefix, &st) < 0) {
-            builtin_error ("stat %s: %s", prefix, strerror (errno));
+        if (stat (prefix, &st) < 0) {
+            cp_err (errno, "failed to get attributes of %s", cp_q (prefix));
             rc = -1;
         } else if (!S_ISDIR (st.st_mode)) {
-            builtin_error ("'%s' is not a directory", prefix);
+            cp_err (ENOTDIR, "failed to get attributes of %s", cp_q (prefix));
             rc = -1;
         } else {
-            bcp_parent *parent = malloc (sizeof *parent);
-            if (!parent || !(parent->path = strdup (dst))) {
-                free (parent);
-                builtin_error ("out of memory");
+            struct stat dst_st;
+            if (stat (dst, &dst_st) == 0) {
+                if (!S_ISDIR (dst_st.st_mode)) {
+                    cp_err (0, "%s exists but is not a directory", cp_q (dst));
+                    rc = -1;
+                }
+            } else if (errno != ENOENT) {
+                cp_err (errno, "cannot stat %s", cp_q (dst));
                 rc = -1;
             } else {
-                parent->source = st;
-                parent->mode = (st.st_mode & (0777 | S_ISVTX)) & ~mask;
-                if (mkdir (dst, parent->mode | S_IRWXU) < 0) {
-                    builtin_error ("mkdir %s: %s", dst, strerror (errno));
-                    free (parent->path);
-                    free (parent);
+                cp_parent_dir *p = malloc (sizeof *p);
+                if (!p || !(p->path = strdup (dst))) {
+                    free (p);
+                    cp_err (0, "memory exhausted");
                     rc = -1;
                 } else {
-                    parent->next = parents;
-                    parents = parent;
-                    /* Keep setgid inherited from the destination directory,
-                       but do not copy source set-ID bits without -p. */
-                    struct stat created;
-                    if (stat (dst, &created) < 0) {
-                        builtin_error ("stat %s: %s", dst, strerror (errno));
+                    p->source = st;
+                    p->mode = (st.st_mode & (0777 | S_ISVTX)) & ~c->umask;
+                    if (mkdir (dst, p->mode | S_IRWXU) < 0) {
+                        cp_err (errno, "cannot make directory %s", cp_q (dst));
+                        free (p->path);
+                        free (p);
                         rc = -1;
                     } else {
-                        parent->mode |= created.st_mode & S_ISGID;
-                        if (chmod (dst, parent->mode | S_IRWXU) < 0) {
-                            builtin_error ("chmod %s: %s", dst, strerror (errno));
+                        p->next = made;
+                        made = p;
+                        /* Keep set-group-ID inherited from the destination's
+                           directory, but copy no source set-ID bits. */
+                        struct stat now;
+                        if (stat (dst, &now) < 0) {
+                            cp_err (errno, "cannot stat %s", cp_q (dst));
                             rc = -1;
+                        } else {
+                            p->mode |= now.st_mode & S_ISGID;
+                            if (chmod (dst, p->mode | S_IRWXU) < 0) {
+                                cp_err (errno, "setting permissions for %s", cp_q (dst));
+                                rc = -1;
+                            }
                         }
+                        if (c->verbose)
+                            cp_out ("%s -> %s\n", prefix, dst);
                     }
-                    if (o->vflag) printf ("%s -> %s\n", prefix, dst);
                 }
             }
         }
         prefix[i] = '/';
         dst[cut] = '/';
-        if (rc < 0) break;
+        if (rc < 0)
+            break;
     }
-    if (rc == 0) rc = bcp_one (src, dst, o, 1);
-    while (parents) {
-        bcp_parent *parent = parents;
-        parents = parent->next;
-        if (o->pflag) {
-            if (bcp_apply_metadata (NULL, parent->path, &parent->source, o) < 0) rc = -1;
-        } else if (chmod (parent->path, parent->mode) < 0) {
-            builtin_error ("chmod %s: %s", parent->path, strerror (errno));
+    if (rc == 0)
+        rc = cp_top (c, src, dst, 0);
+    while (made) {
+        cp_parent_dir *p = made;
+        made = p->next;
+        if (c->p_mode || c->p_owner || c->p_time) {
+            if (cp_attributes (c, NULL, p->path, &p->source, 0) < 0)
+                rc = -1;
+        } else if (chmod (p->path, p->mode) < 0) {
+            cp_err (errno, "setting permissions for %s", cp_q (p->path));
             rc = -1;
         }
-        free (parent->path);
-        free (parent);
+        free (p->path);
+        free (p);
     }
     free (prefix);
     free (dst);
     return rc;
 }
 
-/* --preserve=LIST and --no-preserve=LIST. */
+/* ---- options ------------------------------------------------------------ */
+
+enum {
+    CP_OPT_ATTR_ONLY = BOS_OPT_FIRST, CP_OPT_BACKUP, CP_OPT_COPY_CONTENTS, CP_OPT_CONTEXT,
+    CP_OPT_DEBUG, CP_OPT_NO_PRESERVE, CP_OPT_PARENTS, CP_OPT_PRESERVE, CP_OPT_REFLINK,
+    CP_OPT_REMOVE_DEST, CP_OPT_SPARSE, CP_OPT_STRIP, CP_OPT_UPDATE, CP_OPT_KEEP_DIR_SYMLINK
+};
+
+/* In GNU's order, which its ambiguity diagnostics list. */
+static const struct bos_longopt cp_longopts[] = {
+    { "archive", BOS_NO_ARG, 'a' },
+    { "attributes-only", BOS_NO_ARG, CP_OPT_ATTR_ONLY },
+    { "backup", BOS_OPT_ARG, CP_OPT_BACKUP },
+    { "copy-contents", BOS_NO_ARG, CP_OPT_COPY_CONTENTS },
+    { "context", BOS_OPT_ARG, CP_OPT_CONTEXT },
+    { "debug", BOS_NO_ARG, CP_OPT_DEBUG },
+    { "dereference", BOS_NO_ARG, 'L' },
+    { "force", BOS_NO_ARG, 'f' },
+    { "interactive", BOS_NO_ARG, 'i' },
+    { "link", BOS_NO_ARG, 'l' },
+    { "no-clobber", BOS_NO_ARG, 'n' },
+    { "no-dereference", BOS_NO_ARG, 'P' },
+    { "no-preserve", BOS_REQ_ARG, CP_OPT_NO_PRESERVE },
+    { "no-target-directory", BOS_NO_ARG, 'T' },
+    { "one-file-system", BOS_NO_ARG, 'x' },
+    { "parents", BOS_NO_ARG, CP_OPT_PARENTS },
+    { "preserve", BOS_OPT_ARG, CP_OPT_PRESERVE },
+    { "recursive", BOS_NO_ARG, 'R' },
+    { "remove-destination", BOS_NO_ARG, CP_OPT_REMOVE_DEST },
+    { "reflink", BOS_OPT_ARG, CP_OPT_REFLINK },
+    { "sparse", BOS_REQ_ARG, CP_OPT_SPARSE },
+    { "strip-trailing-slashes", BOS_NO_ARG, CP_OPT_STRIP },
+    { "suffix", BOS_REQ_ARG, 'S' },
+    { "symbolic-link", BOS_NO_ARG, 's' },
+    { "target-directory", BOS_REQ_ARG, 't' },
+    { "update", BOS_OPT_ARG, CP_OPT_UPDATE },
+    { "verbose", BOS_NO_ARG, 'v' },
+    { "keep-directory-symlink", BOS_NO_ARG, CP_OPT_KEEP_DIR_SYMLINK },
+    { "help", BOS_NO_ARG, BOS_OPT_HELP },
+    { "version", BOS_NO_ARG, BOS_OPT_VERSION },
+    { NULL, 0, 0 }
+};
+
+static const char *const cp_update_names[] = { "all", "none", "none-fail", "older", NULL };
+static const int cp_update_vals[] = { CP_UPDATE_ALL, CP_UPDATE_NONE, CP_UPDATE_NONE_FAIL, CP_UPDATE_OLDER };
+static const char *const cp_sparse_names[] = { "never", "auto", "always", NULL };
+static const int cp_sparse_vals[] = { CP_SPARSE_NEVER, CP_SPARSE_AUTO, CP_SPARSE_ALWAYS };
+static const char *const cp_reflink_names[] = { "auto", "always", "never", NULL };
+static const int cp_reflink_vals[] = { CP_REFLINK_AUTO, CP_REFLINK_ALWAYS, CP_REFLINK_NEVER };
+static const char *const cp_attr_names[] = {
+    "mode", "timestamps", "ownership", "links", "context", "xattr", "all", NULL
+};
+static const int cp_attr_vals[] = {
+    CP_P_MODE, CP_P_TIME, CP_P_OWNER, CP_P_LINKS, CP_P_CONTEXT, CP_P_XATTR, CP_P_ALL
+};
+/* --preserve=LIST (ON) or --no-preserve=LIST. */
 static int
-bcp_preserve_list (bcp_opts *o, const char *list, int on)
+cp_attr_list (cp_ctx *c, const char *option, const char *list, int on)
 {
-    char *copy = strdup (list), *save = NULL;
-    int rc = 0;
+    char *copy = strdup (list);
     if (!copy) {
-        builtin_error ("out of memory");
+        cp_err (0, "memory exhausted");
         return -1;
     }
-    for (char *t = strtok_r (copy, ",", &save); t; t = strtok_r (NULL, ",", &save)) {
-        if (!strcmp (t, "mode")) { o->pmode = on; o->nomode = !on; }
-        else if (!strcmp (t, "ownership")) o->powner = on;
-        else if (!strcmp (t, "timestamps")) o->ptime = on;
-        else if (!strcmp (t, "links")) o->plinks = on;
-        else if (!strcmp (t, "all")) { o->pmode = o->powner = o->ptime = o->plinks = on; o->nomode = !on; }
-        else if (!strcmp (t, "context") || !strcmp (t, "xattr")) ;  /* none kept here */
-        else {
-            builtin_error ("invalid argument '%s' for '--%spreserve'", t, on ? "" : "no-");
-            rc = -1;
+    char *item = copy;
+    for (;;) {
+        char *comma = strchr (item, ',');
+        if (comma)
+            *comma = '\0';
+        int which = bos_argmatch ("cp", option, item, cp_attr_names, cp_attr_vals);
+        if (which < 0) {
+            free (copy);
+            return -1;
+        }
+        switch (which) {
+        case CP_P_MODE:
+            c->p_mode = on;
+            c->no_mode = !on;
+            break;
+        case CP_P_TIME:
+            c->p_time = on;
+            break;
+        case CP_P_OWNER:
+            c->p_owner = on;
+            break;
+        case CP_P_LINKS:
+            c->p_links = on;
+            break;
+        case CP_P_CONTEXT:
+            c->p_context = on;
+            c->need_context = on;
+            break;
+        case CP_P_XATTR:
+            c->p_xattr = on;
+            break;
+        default:
+            /* "all" asks for a security context only where there is one. */
+            c->p_mode = c->p_time = c->p_owner = c->p_links = c->p_xattr = c->p_context = on;
+            c->no_mode = !on;
             break;
         }
+        if (!comma)
+            break;
+        item = comma + 1;
     }
     free (copy);
-    return rc;
+    return 0;
 }
 
-static int
-bcp_backup_kind (const char *v, int *kind)
+static void
+cp_cleanup (cp_ctx *c)
 {
-    if (!v || !*v) v = getenv ("VERSION_CONTROL");
-    if (!v || !*v || !strcmp (v, "existing") || !strcmp (v, "nil")) *kind = BCP_BACKUP_EXISTING;
-    else if (!strcmp (v, "simple") || !strcmp (v, "never")) *kind = BCP_BACKUP_SIMPLE;
-    else if (!strcmp (v, "numbered") || !strcmp (v, "t")) *kind = BCP_BACKUP_NUMBERED;
-    else if (!strcmp (v, "none") || !strcmp (v, "off")) *kind = BCP_BACKUP_NONE;
-    else {
-        builtin_error ("invalid argument '%s' for 'backup type'", v);
-        return -1;
+    while (c->seen) {
+        cp_seen *next = c->seen->next;
+        free (c->seen->dst);
+        free (c->seen);
+        c->seen = next;
     }
-    return 0;
-}
-
-/* One GNU long option (without its "--"). 0 handled, 1 not a long option
-   this function owns, -1 error. VALUE is the text after '=', or NULL. */
-static int
-bcp_long_option (bcp_opts *o, const char *name, const char *value, WORD_LIST **pp)
-{
-#define BCP_IS(n) (!strcmp (name, n))
-    if (BCP_IS ("archive")) {
-        o->pmode = o->powner = o->ptime = o->plinks = 1;
-        o->aflag = o->rflag = 1;
-        o->Hflag = o->Lflag = 0;
-        o->Pflag = 1;
-    } else if (BCP_IS ("preserve")) {
-        if (value) return bcp_preserve_list (o, value, 1);
-        o->pmode = o->powner = o->ptime = 1;
-    } else if (BCP_IS ("no-preserve")) {
-        if (!value) { builtin_error ("option '--no-preserve' requires an argument"); return -1; }
-        return bcp_preserve_list (o, value, 0);
-    } else if (BCP_IS ("recursive")) o->rflag = 1;
-    else if (BCP_IS ("verbose")) o->vflag = 1;
-    else if (BCP_IS ("dereference")) { o->Lflag = 1; o->Hflag = o->Pflag = 0; }
-    else if (BCP_IS ("no-dereference")) { o->Pflag = 1; o->Hflag = o->Lflag = 0; }
-    else if (BCP_IS ("link")) o->link_mode = 'l';
-    else if (BCP_IS ("symbolic-link")) o->link_mode = 's';
-    else if (BCP_IS ("one-file-system")) o->xflag = 1;
-    else if (BCP_IS ("no-target-directory")) o->Tflag = 1;
-    else if (BCP_IS ("remove-destination")) o->remove_dest = 1;
-    else if (BCP_IS ("attributes-only")) o->attr_only = 1;
-    else if (BCP_IS ("strip-trailing-slashes") || BCP_IS ("copy-contents") || BCP_IS ("debug")
-             || BCP_IS ("context")) ;
-    else if (BCP_IS ("update")) {
-        if (!value || !strcmp (value, "older")) o->update = BCP_UPDATE_OLDER;
-        else if (!strcmp (value, "all")) o->update = BCP_UPDATE_ALL;
-        else if (!strcmp (value, "none") || !strcmp (value, "none-fail")) o->update = BCP_UPDATE_NONE;
-        else { builtin_error ("invalid argument '%s' for '--update'", value); return -1; }
-    } else if (BCP_IS ("backup")) {
-        return bcp_backup_kind (value, &o->backup);
-    } else if (BCP_IS ("suffix")) {
-        if (!value) {
-            if (!*pp || !(*pp)->next) { builtin_error ("option '--suffix' requires an argument"); return -1; }
-            *pp = (*pp)->next;
-            value = (*pp)->word->word;
-        }
-        o->suffix = value;
-        if (o->backup == BCP_BACKUP_NONE && bcp_backup_kind (NULL, &o->backup) < 0) return -1;
-    } else if (BCP_IS ("sparse")) {
-        if (value && !strcmp (value, "auto")) o->sparse = BCP_SPARSE_AUTO;
-        else if (value && !strcmp (value, "always")) o->sparse = BCP_SPARSE_ALWAYS;
-        else if (value && !strcmp (value, "never")) o->sparse = BCP_SPARSE_NEVER;
-        else { builtin_error ("invalid argument '%s' for '--sparse'", value ? value : ""); return -1; }
-    } else if (BCP_IS ("reflink")) {
-        if (!value || !strcmp (value, "always")) o->reflink = BCP_REFLINK_ALWAYS;
-        else if (!strcmp (value, "auto")) o->reflink = BCP_REFLINK_AUTO;
-        else if (!strcmp (value, "never")) o->reflink = BCP_REFLINK_NEVER;
-        else { builtin_error ("invalid argument '%s' for '--reflink'", value); return -1; }
-    } else
-        return 1;
-#undef BCP_IS
-    return 0;
+    cp_marks_free (&c->made);
+    cp_marks_free (&c->dirs);
+    cp_marks_free (&c->names);
+    free (c->backup_note);
+    c->backup_note = NULL;
+    cp_quotes_free ();
+    cp_oflush ();
+    cp_ohold = 0;
 }
 
 int
 cp_builtin (WORD_LIST *list)
 {
-    bcp_opts o = {0};
-    /* Parse flags + collect SOURCE list + DEST. */
-    bcp_words positional = {0};
+    cp_ctx c;
+    bos_getopt g;
     const char *target_dir = NULL;
-    for (WORD_LIST *p = list; p; p = p->next) {
-        const char *w = p->word->word;
-        if (strcmp (w, "--help") == 0) {
-            builtin_help ();
-            free (positional.v);
-            return EXECUTION_SUCCESS;
-        }
-        if (strcmp (w, "--version") == 0) {
-            puts ("bashcp 1.0 (bash-loadable)");
-            free (positional.v);
-            return EXECUTION_SUCCESS;
-        }
-        if (!strncmp (w, "--target-directory=", 19)) {
-            if (target_dir) goto duplicate_target;
-            target_dir = w + 19;
-            continue;
-        }
-        if (!strcmp (w, "--target-directory")) w = "-t";
-        if (!strcmp (w, "--parents")) { o.parents = 1; continue; }
-        if (!strcmp (w, "--no-clobber")) w = "-n";
-        if (!strcmp (w, "--interactive")) { o.iflag = 1; o.nflag = 0; continue; }
-        if (!strcmp (w, "--force")) { o.fflag = 1; continue; }
-        if (w[0] == '-' && w[1] == '-' && w[2]) {
-            char name[64];
-            const char *eq = strchr (w + 2, '=');
-            size_t nl = eq ? (size_t) (eq - (w + 2)) : strlen (w + 2);
-            if (nl < sizeof name) {
-                memcpy (name, w + 2, nl);
-                name[nl] = '\0';
-                int r = bcp_long_option (&o, name, eq ? eq + 1 : NULL, &p);
-                if (r < 0) {
-                    free (positional.v);
-                    return EXECUTION_FAILURE;
-                }
-                if (r == 0)
-                    continue;
-            }
-            builtin_error ("unrecognized option '%s'", w);
-            builtin_usage ();
-            free (positional.v);
-            return EXECUTION_FAILURE;
-        }
-        if (strcmp (w, "--") == 0) {
-            for (p = p->next; p; p = p->next) {
-                if (bcp_words_add (&positional, p->word->word) < 0) {
-                    free (positional.v);
-                    return EXECUTION_FAILURE;
-                }
-            }
+    int opt, rc = EXECUTION_SUCCESS;
+
+    memset (&c, 0, sizeof c);
+    c.sparse = CP_SPARSE_AUTO;
+    c.reflink = CP_REFLINK_AUTO;
+    c.backup = BOS_BACKUP_NONE;
+    c.posixly = getenv ("POSIXLY_CORRECT") != NULL;
+    cp_olen = 0;
+    cp_ohold = !isatty (1);
+
+    bos_getopt_init (&g, "cp", "abdfHilLnpPrRsS:t:TuvxZ", cp_longopts, list);
+    while ((opt = bos_getopt_next (&g)) != -1) {
+        switch (opt) {
+        case 'a':
+            c.deref = CP_DEREF_NEVER;
+            c.p_mode = c.p_owner = c.p_time = c.p_links = c.p_xattr = 1;
+            if (!c.context_seen)
+                c.p_context = 1;
+            c.no_mode = 0;
+            c.quiet_attrs = 1;
+            c.recursive = 1;
             break;
-        }
-        if (w[0] == '-' && w[1] && strcmp (w, "-") != 0) {
-            for (int i = 1; w[i]; i++) {
-                switch (w[i]) {
-                case 'a':
-                    /* Archive: -dpR. Reset earlier dereference flags;
-                       later -H/-L/-P may select a different symlink mode. */
-                    o.pmode = o.powner = o.ptime = o.plinks = 1;
-                    o.aflag = 1;
-                    o.rflag = 1;
-                    o.Hflag = 0;
-                    o.Lflag = 0;
-                    o.Pflag = 1;
-                    break;
-                case 'f': o.fflag = 1; break;
-                case 'i': o.iflag = 1; o.nflag = 0; break;
-                case 'n':
-#ifdef BASHOS_CP_WARN_NO_CLOBBER
-                    builtin_warning ("behavior of -n is non-portable and may change in future; use --update=none instead");
-#endif
-                    o.nflag = 1; o.iflag = 0; break;
-                case 'p': o.pmode = o.powner = o.ptime = 1; break;
-                case 'd': o.Pflag = 1; o.Hflag = o.Lflag = 0; o.plinks = 1; break;
-                case 'l': o.link_mode = 'l'; break;
-                case 's': o.link_mode = 's'; break;
-                case 'u': o.update = BCP_UPDATE_OLDER; break;
-                case 'x': o.xflag = 1; break;
-                case 'T': o.Tflag = 1; break;
-                case 'Z': break;    /* SELinux context: nothing to set */
-                case 'b':
-                    if (o.backup == BCP_BACKUP_NONE && bcp_backup_kind (NULL, &o.backup) < 0) {
-                        free (positional.v);
-                        return EXECUTION_FAILURE;
-                    }
-                    break;
-                case 'S': {
-                    const char *v;
-                    if (w[i + 1]) v = w + i + 1;
-                    else if (p->next) { p = p->next; v = p->word->word; }
-                    else {
-                        builtin_error ("option requires an argument -- 'S'");
-                        free (positional.v);
-                        return EXECUTION_FAILURE;
-                    }
-                    o.suffix = v;
-                    if (o.backup == BCP_BACKUP_NONE && bcp_backup_kind (NULL, &o.backup) < 0) {
-                        free (positional.v);
-                        return EXECUTION_FAILURE;
-                    }
-                    i += strlen (w + i + 1);
-                    break;
-                }
-                case 'R': case 'r': o.rflag = 1; break;
-                case 'H': o.Hflag = 1; o.Lflag = 0; o.Pflag = 0; break;
-                case 'L': o.Lflag = 1; o.Hflag = 0; o.Pflag = 0; break;
-                case 'P': o.Hflag = 0; o.Lflag = 0; o.Pflag = 1; break;
-                case 't':
-                    if (target_dir) goto duplicate_target;
-                    if (w[i + 1]) {
-                        target_dir = w + i + 1;
-                    } else if (p->next) {
-                        p = p->next;
-                        target_dir = p->word->word;
-                    } else {
-                        builtin_error ("option -t requires a directory");
-                        free (positional.v);
-                        return EXECUTION_FAILURE;
-                    }
-                    i += strlen (w + i + 1); /* -t consumes the rest of this word */
-                    break;
-                case 'v': o.vflag = 1; break;
-                default:
-                    builtin_error ("unknown flag: -%c", w[i]);
-                    builtin_usage ();
-                    free (positional.v);
-                    return EX_USAGE;
-                }
-            }
-        } else {
-            if (bcp_words_add (&positional, w) < 0) {
-                free (positional.v);
+        case 'b':
+            c.backup_wanted = 1;
+            c.backup_control = NULL;
+            break;
+        case 'd':
+            c.deref = CP_DEREF_NEVER;
+            c.p_links = 1;
+            break;
+        case 'f':
+            c.force = 1;
+            break;
+        case 'H':
+            c.deref = CP_DEREF_ARGS;
+            break;
+        case 'i':
+            c.ask = CP_ASK_USER;
+            break;
+        case 'l':
+            c.hard_link = 1;
+            break;
+        case 'L':
+            c.deref = CP_DEREF_ALWAYS;
+            break;
+        case 'n':
+            c.ask = CP_ASK_NO;
+            break;
+        case 'p':
+            c.p_mode = c.p_owner = c.p_time = 1;
+            c.no_mode = 0;
+            break;
+        case 'P':
+            c.deref = CP_DEREF_NEVER;
+            break;
+        case 'r':
+        case 'R':
+            c.recursive = 1;
+            break;
+        case 's':
+            c.sym_link = 1;
+            break;
+        case 'S':
+            c.backup_wanted = 1;
+            c.suffix = g.optarg;
+            break;
+        case 't':
+            if (target_dir) {
+                cp_err (0, "multiple target directories specified");
+                bos_getopt_free (&g);
                 return EXECUTION_FAILURE;
             }
+            target_dir = g.optarg;
+            break;
+        case 'T':
+            c.notarget = 1;
+            break;
+        case 'u':
+            c.update = CP_UPDATE_OLDER;
+            break;
+        case 'v':
+            c.verbose = 1;
+            break;
+        case 'x':
+            c.xdev = 1;
+            break;
+        case 'Z':
+        case CP_OPT_CONTEXT:
+            if (opt == CP_OPT_CONTEXT && g.optarg)
+                cp_err (0, "warning: ignoring --context; it requires an SELinux-enabled kernel");
+            c.context_seen = 1;
+            c.p_context = 0;
+            break;
+        case CP_OPT_ATTR_ONLY:
+            c.attr_only = 1;
+            break;
+        case CP_OPT_BACKUP:
+            c.backup_wanted = 1;
+            c.backup_control = g.optarg;
+            break;
+        case CP_OPT_COPY_CONTENTS:
+            c.copy_contents = 1;
+            break;
+        case CP_OPT_DEBUG:
+            c.debug = c.verbose = 1;
+            break;
+        case CP_OPT_NO_PRESERVE:
+            if (cp_attr_list (&c, "--no-preserve", g.optarg, 0) < 0) {
+                bos_getopt_free (&g);
+                return EXECUTION_FAILURE;
+            }
+            break;
+        case CP_OPT_PARENTS:
+            c.parents = 1;
+            break;
+        case CP_OPT_PRESERVE:
+            if (!g.optarg) {
+                c.p_mode = c.p_owner = c.p_time = 1;
+                c.no_mode = 0;
+            } else if (cp_attr_list (&c, "--preserve", g.optarg, 1) < 0) {
+                bos_getopt_free (&g);
+                return EXECUTION_FAILURE;
+            }
+            break;
+        case CP_OPT_REFLINK:
+            if (!g.optarg)
+                c.reflink = CP_REFLINK_ALWAYS;
+            else if ((c.reflink = bos_argmatch ("cp", "--reflink", g.optarg, cp_reflink_names,
+                                                cp_reflink_vals)) < 0) {
+                bos_getopt_free (&g);
+                return EXECUTION_FAILURE;
+            }
+            break;
+        case CP_OPT_REMOVE_DEST:
+            c.remove_dest = 1;
+            break;
+        case CP_OPT_SPARSE:
+            if ((c.sparse = bos_argmatch ("cp", "--sparse", g.optarg, cp_sparse_names,
+                                          cp_sparse_vals)) < 0) {
+                bos_getopt_free (&g);
+                return EXECUTION_FAILURE;
+            }
+            break;
+        case CP_OPT_STRIP:
+            /* Accepted; GNU 9.7 names files as given either way. */
+            break;
+        case CP_OPT_UPDATE:
+            if (!g.optarg)
+                c.update = CP_UPDATE_OLDER;
+            else if ((c.update = bos_argmatch ("cp", "--update", g.optarg, cp_update_names,
+                                               cp_update_vals)) < 0) {
+                bos_getopt_free (&g);
+                return EXECUTION_FAILURE;
+            }
+            break;
+        case CP_OPT_KEEP_DIR_SYMLINK:
+            c.keep_dir_symlink = 1;
+            break;
+        case BOS_OPT_HELP:
+            builtin_help ();
+            bos_getopt_free (&g);
+            return EXECUTION_SUCCESS;
+        case BOS_OPT_VERSION:
+            printf ("cp (bash-os builtin) 9.7\n");
+            bos_getopt_free (&g);
+            return sh_chkwrite (EXECUTION_SUCCESS);
+        default:
+            bos_getopt_free (&g);
+            return EXECUTION_FAILURE;
         }
     }
-    o.pflag = o.pmode || o.powner || o.ptime;
-    if (!o.suffix) o.suffix = getenv ("SIMPLE_BACKUP_SUFFIX");
-    if (o.Tflag && target_dir) {
-        builtin_error ("cannot combine --target-directory (-t) and --no-target-directory (-T)");
-        free (positional.v);
+
+    if (c.hard_link && c.sym_link) {
+        cp_err (0, "cannot make both hard and symbolic links");
+        bos_try_help ("cp");
+        bos_getopt_free (&g);
         return EXECUTION_FAILURE;
     }
-    if (o.Tflag && positional.n > 2) {
-        builtin_error ("extra operand '%s'", positional.v[2]);
-        free (positional.v);
+    if (c.backup_wanted
+        && (c.ask == CP_ASK_NO || c.update == CP_UPDATE_NONE || c.update == CP_UPDATE_NONE_FAIL)) {
+        cp_err (0, "--backup is mutually exclusive with -n or --update=none-fail");
+        bos_try_help ("cp");
+        bos_getopt_free (&g);
         return EXECUTION_FAILURE;
     }
-    if (positional.n < (target_dir ? 1 : 2)) {
-        builtin_error ("missing file operand");
-        builtin_usage ();
-        free (positional.v);
-        return target_dir ? EXECUTION_FAILURE : EX_USAGE;
-    }
-    const char *dest = target_dir ? target_dir : positional.v[positional.n - 1];
-    int nsrc = target_dir ? positional.n : positional.n - 1;
-
-    /* Is DEST a directory? */
-    struct stat dst_st;
-    int dst_is_dir = !o.Tflag && (stat (dest, &dst_st) == 0 && S_ISDIR (dst_st.st_mode));
-
-    if ((target_dir || nsrc > 1 || o.parents) && !dst_is_dir) {
-        builtin_error ("target '%s' is not a directory", dest);
-        free (positional.v);
+    if (c.reflink == CP_REFLINK_ALWAYS && c.sparse != CP_SPARSE_AUTO) {
+        cp_err (0, "--reflink can be used only with --sparse=auto");
+        bos_try_help ("cp");
+        bos_getopt_free (&g);
         return EXECUTION_FAILURE;
     }
-
-    int rc = EXECUTION_SUCCESS;
-    for (int i = 0; i < nsrc; i++) {
-        const char *src = positional.v[i];
-        if (o.parents) {
-            if (bcp_copy_parents (src, dest, &o) < 0) rc = EXECUTION_FAILURE;
-            continue;
+    if (c.backup_wanted) {
+        c.backup = bos_backup_kind ("cp", c.backup_control);
+        if (c.backup < 0) {
+            bos_getopt_free (&g);
+            return EXECUTION_FAILURE;
         }
-        char dst_buf[4096];
-        const char *dst;
-        if (dst_is_dir) {
-            /* A trailing slash affects source symlink resolution, but is
-               not an empty basename. Keep src intact for stat/open. */
-            size_t end = strlen (src);
-            while (end > 1 && src[end - 1] == '/') end--;
-            size_t start = end;
-            while (start > 0 && src[start - 1] != '/') start--;
-            int len = snprintf (dst_buf, sizeof dst_buf, "%s/%.*s", dest,
-                                (int) (end - start), src + start);
-            if (len < 0 || (size_t) len >= sizeof dst_buf) {
-                builtin_error ("destination path too long: %s", dest);
-                rc = EXECUTION_FAILURE;
+        c.suffix = bos_backup_suffix (c.suffix);
+    }
+    if (c.need_context) {
+        cp_err (0, "cannot preserve security context without an SELinux-enabled kernel");
+        bos_getopt_free (&g);
+        return EXECUTION_FAILURE;
+    }
+    if (c.deref == CP_DEREF_UNSET)
+        c.deref = c.recursive && !c.hard_link ? CP_DEREF_NEVER : CP_DEREF_ALWAYS;
+    c.umask = umask (0);
+    umask (c.umask);
+
+    int n = g.noperands;
+    char **ops = g.operands;
+    if (n <= (target_dir ? 0 : 1)) {
+        if (n == 0)
+            cp_err (0, "missing file operand");
+        else
+            cp_err (0, "missing destination file operand after %s", cp_q (ops[0]));
+        bos_try_help ("cp");
+        bos_getopt_free (&g);
+        cp_cleanup (&c);
+        return EXECUTION_FAILURE;
+    }
+
+    const char *dir = NULL;
+    int nsrc = n;
+    if (c.notarget) {
+        if (target_dir) {
+            cp_err (0, "cannot combine --target-directory (-t) and --no-target-directory (-T)");
+            bos_getopt_free (&g);
+            cp_cleanup (&c);
+            return EXECUTION_FAILURE;
+        }
+        if (n > 2) {
+            cp_err (0, "extra operand %s", cp_q (ops[2]));
+            bos_try_help ("cp");
+            bos_getopt_free (&g);
+            cp_cleanup (&c);
+            return EXECUTION_FAILURE;
+        }
+    } else if (target_dir) {
+        struct stat st;
+        int sr = stat (target_dir, &st);
+        if (sr < 0 || !S_ISDIR (st.st_mode)) {
+            cp_err (sr < 0 ? errno : ENOTDIR, "target directory %s", cp_q (target_dir));
+            bos_getopt_free (&g);
+            cp_cleanup (&c);
+            return EXECUTION_FAILURE;
+        }
+        dir = target_dir;
+    } else {
+        struct stat st;
+        const char *last = ops[n - 1];
+        int sr = stat (last, &st), se = errno;
+        nsrc = n - 1;
+        if (sr == 0 && S_ISDIR (st.st_mode))
+            dir = last;
+        else if (n > 2) {
+            cp_err (sr == 0 ? ENOTDIR : se, "target %s", cp_q (last));
+            bos_getopt_free (&g);
+            cp_cleanup (&c);
+            return EXECUTION_FAILURE;
+        } else if (c.parents) {
+            cp_err (0, "with --parents, the destination must be a directory");
+            bos_try_help ("cp");
+            bos_getopt_free (&g);
+            cp_cleanup (&c);
+            return EXECUTION_FAILURE;
+        }
+    }
+
+    if (!dir) {
+        if (cp_top (&c, ops[0], ops[1], 0) < 0)
+            rc = EXECUTION_FAILURE;
+    } else {
+        for (int i = 0; i < nsrc; i++) {
+            const char *src = ops[i];
+            QUIT;
+            if (c.parents) {
+                if (cp_with_parents (&c, src, dir) < 0)
+                    rc = EXECUTION_FAILURE;
                 continue;
             }
-            dst = dst_buf;
-        } else {
-            dst = dest;
+            char *base = cp_last (src), *dst = base ? cp_join (dir, base) : NULL;
+            if (!dst || cp_top (&c, src, dst, 1) < 0)
+                rc = EXECUTION_FAILURE;
+            free (base);
+            free (dst);
         }
-        if (bcp_one (src, dst, &o, 1) < 0) rc = EXECUTION_FAILURE;
     }
-    free (positional.v);
-    while (o.links) {
-        bcp_link *next = o.links->next;
-        free (o.links->path);
-        free (o.links);
-        o.links = next;
-    }
-    return rc;
-
-duplicate_target:
-    builtin_error ("multiple target directories specified");
-    free (positional.v);
-    return EXECUTION_FAILURE;
+    bos_getopt_free (&g);
+    cp_cleanup (&c);
+    return sh_chkwrite (rc);
 }
 
 char *cp_doc[] = {
     "Copy files and directories.",
     "",
-    "    bashcp [-abdfilnprRsTuvx] [-HLP] [-S SUFFIX] SOURCE... DEST",
-    "    bashcp [-abdfilnprRsTuvx] [-HLP] [-S SUFFIX] -t DIR SOURCE...",
+    "    cp [OPTION]... [-T] SOURCE DEST",
+    "    cp [OPTION]... SOURCE... DIRECTORY",
+    "    cp [OPTION]... -t DIRECTORY SOURCE...",
     "",
-    "    -a   archive: same as -dpR (clone symlinks as symlinks,",
-    "         preserve hard links and metadata, recursive)",
-    "    -f   force: remove dest only if opening it for write fails",
-    "    -i   interactive: prompt before overwrite",
-    "    -n, --no-clobber   skip existing destinations; last -i/-n wins",
-    "    -p   preserve mode/owner/group/timestamps",
-    "    --parents   retain source paths under an existing destination directory",
-    "    -R, -r   recursive",
-    "    -t DIR, --target-directory=DIR   copy all sources into DIR",
-    "    -v   verbose: print each completed copy",
-    "    -b, --backup[=CONTROL]   back up each replaced file (none, simple,",
-    "         numbered, existing; default $VERSION_CONTROL or existing)",
-    "    -S SUFFIX, --suffix=SUFFIX   simple backup suffix (default ~)",
-    "    -d   same as --no-dereference --preserve=links",
-    "    -l, --link   hard-link files instead of copying (follows symlinks)",
-    "    -s, --symbolic-link   make symbolic links instead of copying",
-    "    -T, --no-target-directory   treat DEST as a normal file",
-    "    -u, --update[=all|none|older]   replace only older destinations",
-    "    -x, --one-file-system   stay on the source file systems",
-    "    --archive, --recursive, --verbose, --dereference, --no-dereference",
-    "    --preserve[=mode,ownership,timestamps,links,all], --no-preserve=LIST",
-    "    --remove-destination   remove each existing destination first",
-    "    --attributes-only   copy metadata only, not file data",
-    "    --sparse=auto|always|never   create holes for runs of zeros",
-    "    --reflink[=auto|always|never]   clone data when the file system can",
-    "    -H   follow symlinks named on the command line",
-    "    -L   always follow symlinks",
-    "    -P   don't follow symlinks",
-    "         (default: follow unless recursive)",
+    "Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.",
+    "",
+    "    -a, --archive          same as -dR --preserve=all",
+    "        --attributes-only  don't copy the file data, just the attributes",
+    "        --backup[=CONTROL] make a backup of each existing destination file",
+    "    -b                     like --backup but does not accept an argument",
+    "        --copy-contents    copy contents of special files when recursive",
+    "    -d                     same as --no-dereference --preserve=links",
+    "        --debug            explain how a file is copied.  Implies -v",
+    "    -f, --force            if an existing destination file cannot be",
+    "                           opened, remove it and try again (ignored with -n)",
+    "    -i, --interactive      prompt before overwrite (overrides a previous -n)",
+    "    -H                     follow command-line symbolic links in SOURCE",
+    "    -l, --link             hard link files instead of copying",
+    "    -L, --dereference      always follow symbolic links in SOURCE",
+    "    -n, --no-clobber       (deprecated) silently skip existing files",
+    "    -P, --no-dereference   never follow symbolic links in SOURCE",
+    "    -p                     same as --preserve=mode,ownership,timestamps",
+    "        --preserve[=ATTR_LIST]  preserve the specified attributes",
+    "        --no-preserve=ATTR_LIST  don't preserve the specified attributes",
+    "        --parents          use full source file name under DIRECTORY",
+    "    -R, -r, --recursive    copy directories recursively",
+    "        --reflink[=WHEN]   control clone/CoW copies (auto, always, never)",
+    "        --remove-destination  remove each existing destination file before",
+    "                           attempting to open it (contrast with --force)",
+    "        --sparse=WHEN      control creation of sparse files (auto, always,",
+    "                           never)",
+    "        --strip-trailing-slashes  remove any trailing slashes from each",
+    "                           SOURCE argument",
+    "    -s, --symbolic-link    make symbolic links instead of copying",
+    "    -S, --suffix=SUFFIX    override the usual backup suffix",
+    "    -t, --target-directory=DIRECTORY  copy all SOURCE arguments into",
+    "                           DIRECTORY",
+    "    -T, --no-target-directory  treat DEST as a normal file",
+    "        --update[=UPDATE]  control which existing files are updated;",
+    "                           UPDATE={all,none,none-fail,older(default)}",
+    "    -u                     equivalent to --update[=older]",
+    "    -v, --verbose          explain what is being done",
+    "        --keep-directory-symlink  follow existing symlinks to directories",
+    "    -x, --one-file-system  stay on this file system",
+    "    -Z, --context[=CTX]    SELinux context (ignored without SELinux)",
+    "",
+    "ATTR_LIST is a comma-separated list of: mode, ownership, timestamps,",
+    "links, context, xattr, all.  Recursive copies recreate FIFOs, sockets",
+    "and device nodes unless --copy-contents is given.  The backup suffix is",
+    "'~' unless set with --suffix or SIMPLE_BACKUP_SUFFIX; VERSION_CONTROL or",
+    "--backup selects none/off, numbered/t, existing/nil or simple/never.",
     (char *)NULL
 };
 
-struct builtin bashcp_struct = {
-    "bashcp",
+struct builtin cp_struct = {
+    "cp",
     cp_builtin,
     BUILTIN_ENABLED,
     cp_doc,
-    "bashcp [-abdfilnprRsTuvx] [-HLP] [-S SUFFIX] {SOURCE... DEST | -t DIR SOURCE...}",
+    "cp [-abdfHilLnpPrRsTuvxZ] [-S SUFFIX] [-t DIR] SOURCE... DEST",
     0
 };

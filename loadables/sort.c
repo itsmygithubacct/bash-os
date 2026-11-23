@@ -2478,7 +2478,7 @@ bs_sort (WORD_LIST *list, const char **files)
          * sort would use; under -u, two lines with equal keys are disorder
          * too, as GNU sort has it.
          * -C (Cflag) is silent; -c emits a GNU-style disorder diagnostic
-         *   "bashsort: <file>:<line>: disorder: <line-content>"
+         *   "sort: <file>:<line>: disorder: <line-content>"
          * where <file> is the source file name ("-" for stdin), <line> is
          * the 1-based line number within that file, and <line-content> is
          * the offending record with its trailing record delimiter stripped. */
@@ -2503,7 +2503,7 @@ bs_sort (WORD_LIST *list, const char **files)
                     size_t clen = lines[i].len;
                     if (clen > 0 && lines[i].buf[clen - 1] == record_delim)
                         clen--;
-                    fprintf (stderr, "bashsort: %s:%zu: disorder: ", fname, rel_line);
+                    fprintf (stderr, "sort: %s:%zu: disorder: ", fname, rel_line);
                     fwrite (lines[i].buf, 1, clen, stderr);
                     fputc ('\n', stderr);
                 }

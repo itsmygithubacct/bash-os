@@ -14,7 +14,9 @@
     "Reject a symlink to a directory without removing either link or target.",
     "Compare the no-operand error status and verify builtin/help registration.",
     "Additional bounded edge cases and file effects are specified by the added parity cases.",
-    "GNU --ignore-fail-on-non-empty with -p, continued operands, real errors and the option terminator."
+    "GNU --ignore-fail-on-non-empty with -p, continued operands, real errors and the option terminator.",
+    "Guest pass 5 (G74/G78): GNU long options, abbreviations and diagnostics, and the -c/-v/-d/-I/--reference behaviours of coreutils 9.7.",
+    "Clean-room rewrite (MIT): -p ancestor diagnostics, symlink operands with trailing slashes and --ignore-fail-on-non-empty over permission errors."
   ],
   "exclusions": [
     "Permission-denied and read-only-filesystem cases are omitted because this fixture does not set up independent privilege or mount conditions.",
@@ -258,6 +260,79 @@
       "script": "mkdir -- --ignore-fail-on-non-empty\nrmdir -- --ignore-fail-on-non-empty",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "g74-long-options",
+      "kind": "parity",
+      "purpose": "rmdir --parents, --verbose, abbreviations, --ignore-fail-on-non-empty and GNU's verbose and failure lines (G74).",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\nmkdir -p x/y/z a/b q/r; : > q/r/f\nn rmdir --parents --verbose x/y/z\nn rmdir --pa -v a/b\nn rmdir --verbose q/r | s\nn rmdir --ign q/r\nn rmdir -p --ignore q/r\nn rmdir --bogus q | s\nls",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rmdir",
+        "mkdir",
+        "ls",
+        "sed"
+      ]
+    },
+    {
+      "id": "g74-parents-stop",
+      "kind": "parity",
+      "purpose": "rmdir -pv stops at the first ancestor that cannot be removed and reports it.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\nmkdir -p x/y/z x/keep\nn rmdir -pv x/y/z | s\nls x",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rmdir",
+        "mkdir",
+        "ls",
+        "sed"
+      ]
+    },
+    {
+      "id": "g74-parents-ancestor-messages",
+      "kind": "parity",
+      "purpose": "rmdir -p reports a failing ancestor as 'failed to remove directory', except a symlink ancestor (Not a directory), and stops at '.' and '..' prefixes.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/[^ ]*: line [0-9]*: //g'; }\nmkdir -p x/y/z x/keep a/b c/d tgt/in; ln -s tgt sl; ln -s c cl\nn rmdir -pv x/y/z | s; n rmdir -pv ./a/b | s; n rmdir -p sl/in | s; n rmdir -p cl/d/../d | s; n rmdir -p c//d/../d | s\nmkdir -p m/n; cd m; n rmdir -pv ../m/n | s; cd ..; ls",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rmdir",
+        "mkdir",
+        "ln",
+        "ls",
+        "sed"
+      ]
+    },
+    {
+      "id": "g74-symlink-trailing-slash",
+      "kind": "parity",
+      "purpose": "A symlink operand: 'Not a directory' without a trailing slash, 'Symbolic link not followed' with one (also when dangling); a file with a slash stays 'Not a directory'.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/[^ ]*: line [0-9]*: //g'; }\nmkdir tgt; ln -s tgt sl; ln -s nowhere dang; : > f\nn rmdir sl | s; n rmdir sl/ | s; n rmdir -v sl// | s; n rmdir dang/ | s; n rmdir dang | s; n rmdir f/ | s; n rmdir -p sl/ | s\nn rmdir --ignore-fail-on-non-empty sl/ | s; ls",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rmdir",
+        "mkdir",
+        "ln",
+        "ls",
+        "sed"
+      ]
+    },
+    {
+      "id": "g74-ignore-nonempty-permission",
+      "kind": "parity",
+      "purpose": "--ignore-fail-on-non-empty also hides a refusal (Permission denied, Device or resource busy) of a directory that is not empty, but not of an empty one, nor '.' (Invalid argument).",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/[^ ]*: line [0-9]*: //g'; }\nif [[ $EUID == 0 ]]; then echo 'skipped: running as root'; exit 0; fi\nmkdir -p r/full r/empty; : > r/full/f; chmod 555 r\nn rmdir --ignore-fail-on-non-empty r/full | s; n rmdir --ignore-fail-on-non-empty -pv r/full | s; n rmdir --ignore-fail-on-non-empty r/empty | s; n rmdir r/full | s\nn rmdir --ignore-fail-on-non-empty . | s; n rmdir --ignore-fail-on-non-empty .. | s\nchmod 755 r; ls -R r",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rmdir",
+        "mkdir",
+        "chmod",
+        "ls",
+        "sed"
+      ]
     }
   ]
 }

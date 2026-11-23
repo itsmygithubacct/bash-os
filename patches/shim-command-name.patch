@@ -1,0 +1,916 @@
+--- error.h
++++ error.h
+@@ -29,6 +29,14 @@
+ /* Report an error having to do with FILENAME. */
+ extern void file_error (const char *);
+ 
++/* bash-os: the standalone command the /bin shim runs a builtin as (the
++   NAME of BASHOS_SHIM_COMMAND=BUILTIN=NAME), or NULL when unset. */
++extern const char *bashos_shim_display (void);
++/* bash-os: CMD, or that NAME when CMD is the BUILTIN the shim runs. */
++extern const char *bashos_shim_name (const char *);
++/* bash-os: non-zero when CMD is the BUILTIN the shim runs. */
++extern int bashos_shim_runs (const char *);
++
+ /* Report a programmer's error, and abort.  Pass REASON, and ARG1 ... ARG5. */
+ extern void programming_error (const char *, ...) __attribute__((__format__ (printf, 1, 2)));
+ 
+--- error.c
++++ error.c
+@@ -70,12 +70,73 @@
+ 
+ int gnu_error_format = 0;
+ 
++/* bash-os: the /bin/<cmd> shim runs a builtin as a standalone command.
++   Just before `builtin BUILTIN ARGS' it sets the shell variable
++   BASHOS_SHIM_COMMAND to BUILTIN=NAME, where NAME is the command name the
++   program was started as. While it is set, diagnostics read as the
++   standalone tool's would: they start with "NAME: " instead of the script
++   name and line number, and the builtin BUILTIN calls itself NAME (other
++   builtins it runs keep their own names). An exported or non-scalar value
++   is ignored, so the setting never reaches a child shell through the
++   environment, and ordinary scripts keep bash's messages. */
++static const char *
++bashos_shim_value (size_t *targetlen)
++{
++  SHELL_VAR *v;
++  char *value, *eq;
++
++  if (shell_variables == 0)
++    return ((char *)NULL);
++  v = find_variable_noref ("BASHOS_SHIM_COMMAND");
++  if (v == 0 || exported_p (v) || invisible_p (v) || array_p (v) || assoc_p (v) || nameref_p (v))
++    return ((char *)NULL);
++  value = value_cell (v);
++  if (value == 0 || (eq = strchr (value, '=')) == 0 || eq == value || eq[1] == '\0')
++    return ((char *)NULL);
++  *targetlen = eq - value;
++  return (value);
++}
++
++const char *
++bashos_shim_display (void)
++{
++  const char *value;
++  size_t len;
++
++  value = bashos_shim_value (&len);
++  return (value ? value + len + 1 : (char *)NULL);
++}
++
++int
++bashos_shim_runs (const char *cmd)
++{
++  const char *value;
++  size_t len;
++
++  value = bashos_shim_value (&len);
++  return (value && cmd && strncmp (value, cmd, len) == 0 && cmd[len] == '\0');
++}
++
++const char *
++bashos_shim_name (const char *cmd)
++{
++  return (bashos_shim_runs (cmd) ? bashos_shim_display () : cmd);
++}
++
+ static void
+ error_prolog (int print_lineno)
+ {
+   char *ename;
++  const char *shim;
+   int line;
+ 
++  shim = bashos_shim_display ();
++  if (shim)
++    {
++      fprintf (stderr, "%s: ", shim);
++      return;
++    }
++
+   ename = get_name_for_error ();
+   line = (print_lineno && interactive_shell == 0) ? executing_line_number () : -1;
+ 
+--- builtins/common.c
++++ builtins/common.c
+@@ -83,6 +83,16 @@
+ builtin_error_prolog (void)
+ {
+   char *name;
++  const char *shim;
++
++  /* bash-os: run by the /bin shim as a standalone command (see error.c) */
++  shim = bashos_shim_display ();
++  if (shim)
++    {
++      fprintf (stderr, "%s: ", (this_command_name && *this_command_name)
++				? bashos_shim_name (this_command_name) : shim);
++      return;
++    }
+ 
+   name = get_name_for_error ();
+   fprintf (stderr, "%s: ", name);
+@@ -128,7 +138,7 @@
+ builtin_usage (void)
+ {
+   if (this_command_name && *this_command_name)
+-    fprintf (stderr, _("%s: usage: "), this_command_name);
++    fprintf (stderr, _("%s: usage: "), bashos_shim_name (this_command_name));
+   fprintf (stderr, "%s\n", _(current_builtin->short_doc));
+   fflush (stderr);
+ }
+--- builtins/test.def
++++ builtins/test.def
+@@ -139,7 +139,9 @@
+   /* We let Matthew Bradburn and Kevin Braunsdorf's code do the
+      actual test command.  So turn the list of args into an array
+      of strings, since that is what their code wants. */
+-  if (list == 0)
++  /* bash-os: run as /bin/[ by the shim, `[' alone is coreutils' syntax
++     error, which test_command reports. */
++  if (list == 0 && bashos_shim_runs (this_command_name) == 0)
+     {
+       if (this_command_name[0] == '[' && !this_command_name[1])
+ 	{
+--- test.c
++++ test.c
+@@ -29,6 +29,7 @@
+ #endif
+ 
+ #include <stdio.h>
++#include <stdarg.h>
+ 
+ #include "bashtypes.h"
+ 
+@@ -880,6 +881,760 @@
+   return (value);
+ }
+ 
++/* bash-os: coreutils test(1) semantics for /bin/test and /bin/[.
++
++   When the /bin shim runs `test' or `[' as a standalone command
++   (BASHOS_SHIM_COMMAND, see error.c), test_command evaluates the
++   expression the way GNU coreutils 9.7 test does, so programs that exec
++   /bin/test get the external tool's behaviour: integers of any length,
++   compared as strings, with optional leading `+' or `-' and surrounding
++   white space; `-l STRING' as an integer operand; `[ --help' and
++   `[ --version' (while `test --help' stays a one-string test); no bash
++   extensions (-a FILE, -o OPTION, -v VAR, -R VAR); and coreutils'
++   diagnostics. The test builtin in scripts is unchanged.
++
++   This follows the parser in coreutils src/test.c (Copyright (C)
++   1987-2025 Free Software Foundation, Inc., GPLv3 or later). */
++
++#include "builtins/gnu-quote.h"
++
++#define CU_TEST_TRUE	0
++#define CU_TEST_FALSE	1
++#define CU_TEST_FAILURE	2
++
++static int cu_term (void);
++static int cu_expr (void);
++static int cu_posixtest (int);
++static int cu_two_arguments (void);
++static int cu_three_arguments (void);
++
++static void cu_syntax_error (const char *, ...) __attribute__((__noreturn__, __format__ (printf, 1, 2)));
++
++static void
++cu_syntax_error (const char *format, ...)
++{
++  va_list args;
++  char msg[4096];
++
++  va_start (args, format);
++  vsnprintf (msg, sizeof (msg), format, args);
++  va_end (args);
++  builtin_error ("%s", msg);
++  test_exit (CU_TEST_FAILURE);
++}
++
++/* The locale's quotation of S, in one of two rotating buffers, so one
++   message can quote two words and nothing needs freeing on the longjmp. */
++static const char *
++cu_quote (const char *s)
++{
++  static char *buf[2];
++  static int which;
++  char *q;
++
++  q = bos_quote (s);
++  if (q == 0)
++    return (s);
++  which ^= 1;
++  free (buf[which]);
++  buf[which] = q;
++  return (q);
++}
++
++static void cu_beyond (void) __attribute__((__noreturn__));
++
++static void
++cu_beyond (void)
++{
++  cu_syntax_error (_("missing argument after %s"), cu_quote (argv[argc - 1]));
++}
++
++static void
++cu_advance (int f)
++{
++  ++pos;
++  if (f && pos >= argc)
++    cu_beyond ();
++}
++
++static void
++cu_unary_advance (void)
++{
++  cu_advance (1);
++  ++pos;
++}
++
++#define CU_ISSPACE(c)	((c) == ' ' || ((c) >= '\t' && (c) <= '\r'))
++#define CU_ISDIGIT(c)	((c) >= '0' && (c) <= '9')
++
++/* The start of the integer in STRING: blanks and a leading `+' skipped,
++   a `-' kept. Anything but an optional sign, digits and white space
++   around them is a syntax error. */
++static const char *
++cu_find_int (const char *string)
++{
++  const char *p, *number_start;
++
++  for (p = string; CU_ISSPACE ((unsigned char)*p); p++)
++    continue;
++
++  if (*p == '+')
++    {
++      p++;
++      number_start = p;
++    }
++  else
++    {
++      number_start = p;
++      p += (*p == '-');
++    }
++
++  if (CU_ISDIGIT (*p))
++    {
++      p++;
++      while (CU_ISDIGIT (*p))
++	p++;
++      while (CU_ISSPACE ((unsigned char)*p))
++	p++;
++      if (*p == '\0')
++	return (number_start);
++    }
++
++  cu_syntax_error (_("invalid integer %s"), cu_quote (string));
++}
++
++/* Compare two integers found by cu_find_int, of any length: <0, 0, >0. */
++static int
++cu_intcmp (const char *a, const char *b)
++{
++  int na, nb, c;
++  size_t la, lb;
++
++  na = (*a == '-');
++  a += na;
++  nb = (*b == '-');
++  b += nb;
++  while (*a == '0')
++    a++;
++  while (*b == '0')
++    b++;
++  for (la = 0; CU_ISDIGIT (a[la]); la++)
++    ;
++  for (lb = 0; CU_ISDIGIT (b[lb]); lb++)
++    ;
++  if (la == 0)
++    na = 0;			/* -0 is 0 */
++  if (lb == 0)
++    nb = 0;
++  if (na != nb)
++    return (na ? -1 : 1);
++  if (la != lb)
++    c = (la < lb) ? -1 : 1;
++  else
++    {
++      c = strncmp (a, b, la);
++      c = (c > 0) - (c < 0);
++    }
++  return (na ? -c : c);
++}
++
++static int
++cu_binop (const char *s)
++{
++  return (STREQ (s, "=") || STREQ (s, "!=") || STREQ (s, "==") ||
++	  STREQ (s, "-nt") || STREQ (s, ">") || STREQ (s, "<") ||
++	  STREQ (s, "-ot") || STREQ (s, "-ef") || STREQ (s, "-eq") ||
++	  STREQ (s, "-ne") || STREQ (s, "-lt") || STREQ (s, "-le") ||
++	  STREQ (s, "-gt") || STREQ (s, "-ge"));
++}
++
++static int
++cu_mtime (const char *filename, struct timespec *mtime)
++{
++  struct stat finfo;
++
++  if (stat (filename, &finfo) != 0)
++    return (0);
++  *mtime = get_stat_mtime (&finfo);
++  return (1);
++}
++
++static int
++cu_binary_operator (int l_is_l)
++{
++  int op, r_is_l;
++  struct stat stat_buf, stat_spare;
++
++  if (l_is_l)
++    cu_advance (0);
++  op = pos + 1;
++
++  /* Is the right integer expression of the form `-l string'? */
++  if ((op < argc - 2) && STREQ (argv[op + 1], "-l"))
++    {
++      r_is_l = 1;
++      cu_advance (0);
++    }
++  else
++    r_is_l = 0;
++
++  if (argv[op][0] == '-')
++    {
++      if ((((argv[op][1] == 'l' || argv[op][1] == 'g')
++	    && (argv[op][2] == 'e' || argv[op][2] == 't'))
++	   || (argv[op][1] == 'e' && argv[op][2] == 'q')
++	   || (argv[op][1] == 'n' && argv[op][2] == 'e'))
++	  && !argv[op][3])
++	{
++	  char lbuf[32];
++	  char rbuf[32];
++	  const char *l, *r;
++	  int cmp, xe_operator;
++
++	  if (l_is_l)
++	    {
++	      snprintf (lbuf, sizeof (lbuf), "%ju", (uintmax_t)strlen (argv[op - 1]));
++	      l = lbuf;
++	    }
++	  else
++	    l = cu_find_int (argv[op - 1]);
++	  if (r_is_l)
++	    {
++	      snprintf (rbuf, sizeof (rbuf), "%ju", (uintmax_t)strlen (argv[op + 2]));
++	      r = rbuf;
++	    }
++	  else
++	    r = cu_find_int (argv[op + 1]);
++	  cmp = cu_intcmp (l, r);
++	  xe_operator = (argv[op][2] == 'e');
++	  pos += 3;
++	  return (argv[op][1] == 'l' ? cmp < xe_operator
++		  : argv[op][1] == 'g' ? cmp > - xe_operator
++		  : (cmp != 0) == xe_operator);
++	}
++
++      switch (argv[op][1])
++	{
++	default:
++	  break;
++
++	case 'n':
++	  if (argv[op][2] == 't' && !argv[op][3])
++	    {
++	      /* nt - newer than */
++	      struct timespec lt, rt;
++	      int le, re;
++
++	      pos += 3;
++	      if (l_is_l || r_is_l)
++		cu_syntax_error (_("-nt does not accept -l"));
++	      le = cu_mtime (argv[op - 1], &lt);
++	      re = cu_mtime (argv[op + 1], &rt);
++	      return (le && (!re || timespec_cmp (lt, rt) > 0));
++	    }
++	  break;
++
++	case 'e':
++	  if (argv[op][2] == 'f' && !argv[op][3])
++	    {
++	      /* ef - hard link? */
++	      pos += 3;
++	      if (l_is_l || r_is_l)
++		cu_syntax_error (_("-ef does not accept -l"));
++	      return (stat (argv[op - 1], &stat_buf) == 0
++		      && stat (argv[op + 1], &stat_spare) == 0
++		      && stat_buf.st_dev == stat_spare.st_dev
++		      && stat_buf.st_ino == stat_spare.st_ino);
++	    }
++	  break;
++
++	case 'o':
++	  if (argv[op][2] == 't' && !argv[op][3])
++	    {
++	      /* ot - older than */
++	      struct timespec lt, rt;
++	      int le, re;
++
++	      pos += 3;
++	      if (l_is_l || r_is_l)
++		cu_syntax_error (_("-ot does not accept -l"));
++	      le = cu_mtime (argv[op - 1], &lt);
++	      re = cu_mtime (argv[op + 1], &rt);
++	      return (re && (!le || timespec_cmp (lt, rt) < 0));
++	    }
++	  break;
++	}
++
++      cu_syntax_error (_("%s: unknown binary operator"), cu_quote (argv[op]));
++    }
++
++  if (argv[op][0] == '='
++      && (!argv[op][1] || ((argv[op][1] == '=') && !argv[op][2])))
++    {
++      int value = STREQ (argv[pos], argv[pos + 2]);
++      pos += 3;
++      return (value);
++    }
++
++  if (STREQ (argv[op], "!="))
++    {
++      int value = !STREQ (argv[pos], argv[pos + 2]);
++      pos += 3;
++      return (value);
++    }
++
++  if (STREQ (argv[op], ">"))
++    {
++      int value = strcoll (argv[pos], argv[pos + 2]) > 0;
++      pos += 3;
++      return (value);
++    }
++
++  /* "<" */
++  {
++    int value = strcoll (argv[pos], argv[pos + 2]) < 0;
++    pos += 3;
++    return (value);
++  }
++}
++
++static int
++cu_unary_operator (void)
++{
++  struct stat stat_buf;
++
++  switch (argv[pos][1])
++    {
++    default:
++      cu_syntax_error (_("%s: unary operator expected"), cu_quote (argv[pos]));
++
++    case 'e':			/* file exists in the file system? */
++      cu_unary_advance ();
++      return (stat (argv[pos - 1], &stat_buf) == 0);
++
++    case 'r':			/* file is readable? */
++      cu_unary_advance ();
++      return (sh_eaccess (argv[pos - 1], R_OK) == 0);
++
++    case 'w':			/* File is writable? */
++      cu_unary_advance ();
++      return (sh_eaccess (argv[pos - 1], W_OK) == 0);
++
++    case 'x':			/* File is executable? */
++      cu_unary_advance ();
++      return (sh_eaccess (argv[pos - 1], X_OK) == 0);
++
++    case 'N':  /* File exists and has been modified since it was last read? */
++      {
++	struct timespec atime, mtime;
++
++	cu_unary_advance ();
++	if (stat (argv[pos - 1], &stat_buf) != 0)
++	  return (FALSE);
++	atime = get_stat_atime (&stat_buf);
++	mtime = get_stat_mtime (&stat_buf);
++	return (timespec_cmp (mtime, atime) > 0);
++      }
++
++    case 'O':			/* File is owned by you? */
++      cu_unary_advance ();
++      return (stat (argv[pos - 1], &stat_buf) == 0
++	      && geteuid () == stat_buf.st_uid);
++
++    case 'G':			/* File is owned by your group? */
++      cu_unary_advance ();
++      return (stat (argv[pos - 1], &stat_buf) == 0
++	      && getegid () == stat_buf.st_gid);
++
++    case 'f':			/* File is a file? */
++      cu_unary_advance ();
++      return (stat (argv[pos - 1], &stat_buf) == 0
++	      && S_ISREG (stat_buf.st_mode));
++
++    case 'd':			/* File is a directory? */
++      cu_unary_advance ();
++      return (stat (argv[pos - 1], &stat_buf) == 0
++	      && S_ISDIR (stat_buf.st_mode));
++
++    case 's':			/* File has something in it? */
++      cu_unary_advance ();
++      return (stat (argv[pos - 1], &stat_buf) == 0
++	      && 0 < stat_buf.st_size);
++
++    case 'S':			/* File is a socket? */
++      cu_unary_advance ();
++      return (stat (argv[pos - 1], &stat_buf) == 0
++	      && S_ISSOCK (stat_buf.st_mode));
++
++    case 'c':			/* File is character special? */
++      cu_unary_advance ();
++      return (stat (argv[pos - 1], &stat_buf) == 0
++	      && S_ISCHR (stat_buf.st_mode));
++
++    case 'b':			/* File is block special? */
++      cu_unary_advance ();
++      return (stat (argv[pos - 1], &stat_buf) == 0
++	      && S_ISBLK (stat_buf.st_mode));
++
++    case 'p':			/* File is a named pipe? */
++      cu_unary_advance ();
++      return (stat (argv[pos - 1], &stat_buf) == 0
++	      && S_ISFIFO (stat_buf.st_mode));
++
++    case 'L':			/* Same as -h  */
++      /*FALLTHROUGH*/
++
++    case 'h':			/* File is a symbolic link? */
++      cu_unary_advance ();
++      return (lstat (argv[pos - 1], &stat_buf) == 0
++	      && S_ISLNK (stat_buf.st_mode));
++
++    case 'u':			/* File is setuid? */
++      cu_unary_advance ();
++      return (stat (argv[pos - 1], &stat_buf) == 0
++	      && (stat_buf.st_mode & S_ISUID));
++
++    case 'g':			/* File is setgid? */
++      cu_unary_advance ();
++      return (stat (argv[pos - 1], &stat_buf) == 0
++	      && (stat_buf.st_mode & S_ISGID));
++
++    case 'k':			/* File has sticky bit set? */
++      cu_unary_advance ();
++      return (stat (argv[pos - 1], &stat_buf) == 0
++	      && (stat_buf.st_mode & S_ISVTX));
++
++    case 't':			/* File (fd) is a terminal? */
++      {
++	long int fd;
++	const char *arg;
++
++	cu_unary_advance ();
++	arg = cu_find_int (argv[pos - 1]);
++	errno = 0;
++	fd = strtol (arg, (char **)NULL, 10);
++	return (errno != ERANGE && 0 <= fd && fd <= INT_MAX && isatty (fd));
++      }
++
++    case 'n':			/* True if arg has some length. */
++      cu_unary_advance ();
++      return (argv[pos - 1][0] != 0);
++
++    case 'z':			/* True if arg has no length. */
++      cu_unary_advance ();
++      return (argv[pos - 1][0] == '\0');
++    }
++}
++
++static int
++cu_and (void)
++{
++  int value = TRUE;
++
++  while (1)
++    {
++      value &= cu_term ();
++      if (! (pos < argc && STREQ (argv[pos], "-a")))
++	return (value);
++      cu_advance (0);
++    }
++}
++
++static int
++cu_or (void)
++{
++  int value = FALSE;
++
++  while (1)
++    {
++      value |= cu_and ();
++      if (! (pos < argc && STREQ (argv[pos], "-o")))
++	return (value);
++      cu_advance (0);
++    }
++}
++
++static int
++cu_expr (void)
++{
++  if (pos >= argc)
++    cu_beyond ();
++
++  return (cu_or ());
++}
++
++static int
++cu_term (void)
++{
++  int value, negated = FALSE;
++
++  /* Deal with leading `not's. */
++  while (pos < argc && argv[pos][0] == '!' && argv[pos][1] == '\0')
++    {
++      cu_advance (1);
++      negated = !negated;
++    }
++
++  if (pos >= argc)
++    cu_beyond ();
++
++  /* A paren-bracketed argument. */
++  if (argv[pos][0] == '(' && argv[pos][1] == '\0')
++    {
++      int nargs;
++
++      cu_advance (1);
++
++      for (nargs = 1;
++	   pos + nargs < argc && ! STREQ (argv[pos + nargs], ")");
++	   nargs++)
++	if (nargs == 4)
++	  {
++	    nargs = argc - pos;
++	    break;
++	  }
++
++      value = cu_posixtest (nargs);
++      if (argv[pos] == 0)
++	cu_syntax_error (_("%s expected"), cu_quote (")"));
++      else if (argv[pos][0] != ')' || argv[pos][1])
++	{
++	  char *close;
++
++	  close = bos_quote (")");
++	  cu_syntax_error (_("%s expected, found %s"), close ? close : ")",
++			   cu_quote (argv[pos]));
++	}
++      cu_advance (0);
++    }
++
++  /* Are there enough arguments left that this could be dyadic? */
++  else if (4 <= argc - pos && STREQ (argv[pos], "-l") && cu_binop (argv[pos + 2]))
++    value = cu_binary_operator (TRUE);
++  else if (3 <= argc - pos && cu_binop (argv[pos + 1]))
++    value = cu_binary_operator (FALSE);
++
++  /* It might be a switch type argument. */
++  else if (argv[pos][0] == '-' && argv[pos][1] && argv[pos][2] == '\0')
++    value = cu_unary_operator ();
++  else
++    {
++      value = (argv[pos][0] != '\0');
++      cu_advance (0);
++    }
++
++  return (negated ^ value);
++}
++
++static int
++cu_one_argument (void)
++{
++  return (argv[pos++][0] != '\0');
++}
++
++static int
++cu_two_arguments (void)
++{
++  int value;
++
++  if (STREQ (argv[pos], "!"))
++    {
++      cu_advance (0);
++      value = ! cu_one_argument ();
++    }
++  else if (argv[pos][0] == '-' && argv[pos][1] != '\0' && argv[pos][2] == '\0')
++    value = cu_unary_operator ();
++  else
++    cu_beyond ();
++  return (value);
++}
++
++static int
++cu_three_arguments (void)
++{
++  int value;
++
++  if (cu_binop (argv[pos + 1]))
++    value = cu_binary_operator (FALSE);
++  else if (STREQ (argv[pos], "!"))
++    {
++      cu_advance (1);
++      value = !cu_two_arguments ();
++    }
++  else if (STREQ (argv[pos], "(") && STREQ (argv[pos + 2], ")"))
++    {
++      cu_advance (0);
++      value = cu_one_argument ();
++      cu_advance (0);
++    }
++  else if (STREQ (argv[pos + 1], "-a") || STREQ (argv[pos + 1], "-o")
++	   || STREQ (argv[pos + 1], ">") || STREQ (argv[pos + 1], "<"))
++    value = cu_expr ();
++  else
++    cu_syntax_error (_("%s: binary operator expected"), cu_quote (argv[pos + 1]));
++  return (value);
++}
++
++static int
++cu_posixtest (int nargs)
++{
++  int value;
++
++  switch (nargs)
++    {
++      case 1:
++	value = cu_one_argument ();
++	break;
++
++      case 2:
++	value = cu_two_arguments ();
++	break;
++
++      case 3:
++	value = cu_three_arguments ();
++	break;
++
++      case 4:
++	if (STREQ (argv[pos], "!"))
++	  {
++	    cu_advance (1);
++	    value = !cu_three_arguments ();
++	    break;
++	  }
++	if (STREQ (argv[pos], "(") && STREQ (argv[pos + 3], ")"))
++	  {
++	    cu_advance (0);
++	    value = cu_two_arguments ();
++	    cu_advance (0);
++	    break;
++	  }
++	/* FALLTHROUGH */
++      default:
++	value = cu_expr ();
++    }
++
++  return (value);
++}
++
++static void
++cu_usage (void)
++{
++  fputs (_("\
++Usage: test EXPRESSION\n\
++  or:  test\n\
++  or:  [ EXPRESSION ]\n\
++  or:  [ ]\n\
++  or:  [ OPTION\n\
++Exit with the status determined by EXPRESSION.\n\
++\n\
++      --help        display this help and exit\n\
++      --version     output version information and exit\n\
++\n\
++An omitted EXPRESSION defaults to false.  Otherwise,\n\
++EXPRESSION is true or false and sets exit status.  It is one of:\n\
++\n\
++  ( EXPRESSION )               EXPRESSION is true\n\
++  ! EXPRESSION                 EXPRESSION is false\n\
++  EXPRESSION1 -a EXPRESSION2   both EXPRESSION1 and EXPRESSION2 are true\n\
++  EXPRESSION1 -o EXPRESSION2   either EXPRESSION1 or EXPRESSION2 is true\n\
++\n\
++  -n STRING            the length of STRING is nonzero\n\
++  STRING               equivalent to -n STRING\n\
++  -z STRING            the length of STRING is zero\n\
++  STRING1 = STRING2    the strings are equal\n\
++  STRING1 != STRING2   the strings are not equal\n\
++  STRING1 > STRING2    STRING1 is greater than STRING2 in the current locale\n\
++  STRING1 < STRING2    STRING1 is less than STRING2 in the current locale\n\
++\n\
++  INTEGER1 -eq INTEGER2   INTEGER1 is equal to INTEGER2\n\
++  INTEGER1 -ge INTEGER2   INTEGER1 is greater than or equal to INTEGER2\n\
++  INTEGER1 -gt INTEGER2   INTEGER1 is greater than INTEGER2\n\
++  INTEGER1 -le INTEGER2   INTEGER1 is less than or equal to INTEGER2\n\
++  INTEGER1 -lt INTEGER2   INTEGER1 is less than INTEGER2\n\
++  INTEGER1 -ne INTEGER2   INTEGER1 is not equal to INTEGER2\n\
++\n\
++  FILE1 -ef FILE2   FILE1 and FILE2 have the same device and inode numbers\n\
++  FILE1 -nt FILE2   FILE1 is newer (modification date) than FILE2\n\
++  FILE1 -ot FILE2   FILE1 is older than FILE2\n\
++\n\
++  -b FILE     FILE exists and is block special\n\
++  -c FILE     FILE exists and is character special\n\
++  -d FILE     FILE exists and is a directory\n\
++  -e FILE     FILE exists\n\
++  -f FILE     FILE exists and is a regular file\n\
++  -g FILE     FILE exists and is set-group-ID\n\
++  -G FILE     FILE exists and is owned by the effective group ID\n\
++  -h FILE     FILE exists and is a symbolic link (same as -L)\n\
++  -k FILE     FILE exists and has its sticky bit set\n\
++  -L FILE     FILE exists and is a symbolic link (same as -h)\n\
++  -N FILE     FILE exists and has been modified since it was last read\n\
++  -O FILE     FILE exists and is owned by the effective user ID\n\
++  -p FILE     FILE exists and is a named pipe\n\
++  -r FILE     FILE exists and the user has read access\n\
++  -s FILE     FILE exists and has a size greater than zero\n\
++  -S FILE     FILE exists and is a socket\n\
++  -t FD       file descriptor FD is opened on a terminal\n\
++  -u FILE     FILE exists and its set-user-ID bit is set\n\
++  -w FILE     FILE exists and the user has write access\n\
++  -x FILE     FILE exists and the user has execute (or search) access\n\
++\n\
++Except for -h and -L, all FILE-related tests dereference symbolic links.\n\
++Beware that parentheses need to be escaped (e.g., by backslashes) for shells.\n\
++INTEGER may also be -l STRING, which evaluates to the length of STRING.\n\
++\n\
++Binary -a and -o are ambiguous.  Use 'test EXPR1 && test EXPR2'\n\
++or 'test EXPR1 || test EXPR2' instead.\n\
++\n\
++'[' honors --help and --version, but 'test' treats them as STRINGs.\n\
++\n\
++Inside bash, the test and [ builtins keep bash's own rules; see help test.\n\
++"), stdout);
++}
++
++/* test(1) as coreutils runs it, for MARGV[0] "test" or "[". */
++static int
++cu_test_command (int margc, char **margv)
++{
++  int value;
++
++  argv = margv;
++
++  if (margv[0][0] == '[' && margv[0][1] == '\0')
++    {
++      /* `[ --help' and `[ --version', only as the sole argument. */
++      if (margc == 2)
++	{
++	  if (STREQ (margv[1], "--help"))
++	    {
++	      cu_usage ();
++	      return (sh_chkwrite (EXECUTION_SUCCESS));
++	    }
++	  if (STREQ (margv[1], "--version"))
++	    {
++	      printf ("[ (bash-os) %s\n", dist_version);
++	      return (sh_chkwrite (EXECUTION_SUCCESS));
++	    }
++	}
++      if (margc < 2 || !STREQ (margv[margc - 1], "]"))
++	cu_syntax_error (_("missing %s"), cu_quote ("]"));
++
++      --margc;
++    }
++
++  argc = margc;
++  pos = 1;
++
++  if (pos >= argc)
++    return (CU_TEST_FALSE);
++
++  value = cu_posixtest (argc - 1);
++
++  if (pos != argc)
++    cu_syntax_error (_("extra argument %s"), cu_quote (argv[pos]));
++
++  return (value ? CU_TEST_TRUE : CU_TEST_FALSE);
++}
++
+ #if defined (COND_COMMAND)
+ int
+ cond_test (char *op, char *arg1, char *arg2, int flags)
+@@ -916,6 +1671,10 @@
+   if (code)
+     return (test_error_return);
+ 
++  /* bash-os: /bin/test and /bin/[ follow coreutils (see cu_test_command). */
++  if (margv[0] && bashos_shim_runs (margv[0]))
++    test_exit (cu_test_command (margc, margv));
++
+   argv = margv;
+ 
+   if (margv[0] && margv[0][0] == '[' && margv[0][1] == '\0')

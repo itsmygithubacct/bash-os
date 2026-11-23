@@ -4,11 +4,12 @@
   "reference": "GNU diffutils 3.10 diff, compared byte for byte (stdout, status) in UTC and the C locale; header times come from files given a fixed mtime with touch.",
   "coverage": [
     "Guest pass 3 G46: -N/--new-file, -ruN patches, -c/-C/--context, -U/--unified=N, -s, -B, -i, -b, -Z, -w, -x/--exclude, -X/--exclude-from, -p, -I and option conflicts.",
-    "GNU edit-script placement (compareseq, discard_confusing_lines, shift_boundaries) among repeated lines.",
-    "Guest pass 4 G63: -e/--ed (reverse order, lone '.' lines, incomplete lines), -t/--expand-tabs and --tabsize in every format, -y --suppress-common-lines, --strip-trailing-cr, --color=never|always|auto and --palette with GNU's default palette, and their option errors."
+    "Edit-script choice and change placement among repeated lines, without and with -d, --horizon-lines and the -c/-u context, compared with GNU diff (clean-room matcher, 0.1.5 pass 5).",
+    "Guest pass 4 G63: -e/--ed (reverse order, lone '.' lines, incomplete lines), -t/--expand-tabs and --tabsize in every format, -y --suppress-common-lines, --strip-trailing-cr, --color=never|always|auto and --palette with GNU's default palette, and their option errors.",
+    "Guest pass 5 G80: -T/--initial-tab, -D/--ifdef, the --*-line-format and --*-group-format options with GNU's % directives and defaults, -n/--rcs, --from-file/--to-file, --no-dereference, --left-column, and -t -y tabs in the right column."
   ],
   "exclusions": [
-    "Side-by-side output, -q and stdin are covered by suites/diff.json; RCS (-n), -D, -T and --left-column are not implemented."
+    "Side-by-side output, -q and stdin are covered by suites/diff.json; the -l/--paginate, --suppress-blank-empty, -E, --ignore-tab-expansion and --ignore-file-name-case options are not implemented."
   ],
   "cases": [
     {
@@ -130,7 +131,7 @@
     {
       "kind": "parity",
       "id": "change-placement",
-      "purpose": "G46: changes among repeated lines land where GNU's compareseq and shift_boundaries put them.",
+      "purpose": "G46: changes among repeated lines (and under -w) land where GNU diff puts them.",
       "script": "printf '\\tfoo\\nc\\nx\\nx\\nB b\\n}\\na\\na b\\nfoo \\n}\\n' > l\nprintf '{\\nc\\n \\nb\\na b\\n \\n\\tfoo\\nfoo \\n\\na b\\nB b\\nint main()\\n' > r\nprintf 'y\\ny\\nz\\n' > h1\nprintf 'y\\ny\\ny\\nz\\n' > h2\ndiff -w l r || echo rc=$?\ndiff -u -w --label l --label r l r || echo rc=$?\ndiff h1 h2 || echo rc=$?\ndiff -U5 --label h1 --label h2 h1 h2 || echo rc=$?",
       "requires": [
         "diff"
@@ -296,6 +297,294 @@
       ],
       "expected_status": 2,
       "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "initial-tab",
+      "purpose": "G80: -T/--initial-tab puts a tab after the flag in normal, context and unified output (a lone unified ' ' flag becomes the tab), before -t expansion and before an incomplete-line note; ed and RCS scripts are unchanged.",
+      "script": "export TZ=UTC\nprintf 'a\\n\\tb\\nc\\n\\nd\\n' > A\nprintf 'a\\n\\tB\\nc\\n\\ne\\nf\\n' > B\nprintf 'x\\n' > N1\nprintf 'y' > N2\nprintf 'a\\rb\\n' > R1\nprintf 'c\\n' > R2\n/usr/bin/touch -h -d @1700000000.5 A B\ndiff -T A B || echo rc=$?\ndiff -Tu A B || echo rc=$?\ndiff --initial-tab -c A B || echo rc=$?\ndiff -Tt A B || echo rc=$?\ndiff -T N1 N2 || echo rc=$?\ndiff -Tu -L l -L r N1 N2 || echo rc=$?\ndiff -T R1 R2 || echo rc=$?\ndiff -Tt R1 R2 || echo rc=$?\ndiff -Te A B || echo rc=$?\ndiff -Tn A B || echo rc=$?",
+      "requires": [
+        "diff",
+        "touch"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "ifdef-output",
+      "purpose": "G80: -D NAME/--ifdef=NAME writes the merged file with #ifndef/#ifdef/#else/#endif groups; equal files are written whole, incomplete lines get a newline, -t expands tabs, a change -B hides keeps the old lines, and -s still reports identical files.",
+      "script": "printf 'a\\n\\tb\\nc\\n\\nd\\n' > A\nprintf 'a\\n\\tB\\nc\\n\\ne\\nf\\n' > B\nprintf '1\\n2\\n3\\n' > P\nprintf '1\\n3\\n4\\n' > Q\nprintf 'x\\n' > N1\nprintf 'y' > N2\nprintf 'a\\n\\nb\\n' > E1\nprintf 'a\\nb\\n' > E2\ndiff -DX A B || echo rc=$?\ndiff -D X A A || echo rc=$?\ndiff --ifdef=X N1 N2 || echo rc=$?\ndiff -D 'a b' P Q || echo rc=$?\ndiff -D '' P Q || echo rc=$?\ndiff -t -DX A B || echo rc=$?\ndiff -B -DX E1 E2 || echo rc=$?\ndiff -s -DX P P || echo rc=$?\ndiff -q -DX P Q || echo rc=$?\ndiff -DX -DX P Q || echo rc=$?\ndiff -DX - Q < P || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "line-formats",
+      "purpose": "G80: --old-line-format, --new-line-format, --unchanged-line-format and --line-format with %l, %L, %%, %c'C' (character or octal escape), printf-style %dn/%xn/%on/%Xn with flags, width and precision, and GNU's literal output of anything else after '%'.",
+      "script": "printf 'a\\n\\tb\\nc\\n\\nd\\n' > A\nprintf 'a\\n\\tB\\nc\\n\\ne\\nf\\n' > B\nprintf '1\\n2\\n3\\n' > P\nprintf '1\\n3\\n4\\n' > Q\nprintf 'x\\n' > N1\nprintf 'y' > N2\ndiff --old-line-format=O%L --new-line-format=N%L A B || echo rc=$?\ndiff --unchanged-line-format= '--old-line-format=<%dn %l|' '--new-line-format=>%3dn %L' A B || echo rc=$?\ndiff '--line-format=%5xn:%-4on:%04dn:%Xn:%l|' A B || echo rc=$?\ndiff \"--line-format=%c'['%l%c']'%c'\\012'\" P Q || echo rc=$?\ndiff \"--line-format=%-'08.3dn|%#xn|%+dn|% dn|%.2Xn|%ld|%dN|%.dn|%5.dn\" P Q || echo rc=$?\ndiff \"--old-line-format=%(n=2?two:%dn)%c':'%l\n\" '--new-line-format=%L' P Q || echo rc=$?\ndiff --unchanged-line-format=%dn%%% P Q || echo rc=$?\ndiff --line-format=% P Q || echo rc=$?\ndiff --line-format=%L% P Q || echo rc=$?\ndiff --line-format=%l N1 N2 || echo rc=$?\ndiff --line-format=%L N1 N2 || echo rc=$?\ndiff -i --old-line-format=O%L P Q || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "group-formats",
+      "purpose": "G80: --old/new/unchanged/changed-group-format with %< %> %=, the group letters e f l m n and E F L M N, %(A=B?T:E) (nested, without an else part, with numbers), %c'C', and GNU's defaults: the changed format (or %< / %>) for one-sided groups, old then new for a change.",
+      "script": "printf 'a\\n\\tb\\nc\\n\\nd\\n' > A\nprintf 'a\\n\\tB\\nc\\n\\ne\\nf\\n' > B\nprintf '1\\n2\\n3\\n' > P\nprintf '1\\n3\\n4\\n' > Q\ndiff '--old-group-format=OG(%df,%dl,%de,%dm,%dn|%dF,%dL,%dE,%dM,%dN)%<' '--new-group-format=NG(%df,%dl,%de,%dm,%dn|%dF,%dL,%dE,%dM,%dN)%>' '--changed-group-format=CG(%df,%dl,%de,%dm,%dn|%dF,%dL,%dE,%dM,%dN)%<--%>' '--unchanged-group-format=UG(%df,%dl,%dn|%dF,%dL,%dN)%=' A B || echo rc=$?\ndiff \"--changed-group-format=%(n=1?a%(N=1?b:c)d:e)|%(f=f?yes:no)|%(1=01?y:n)|%(n=1?x)|%(n=1)|%(q=1?a:b)|%(n=1?a:b|\" P Q || echo rc=$?\ndiff '--changed-group-format=%(n=0?:z)%(n=1?:z)' P Q || echo rc=$?\ndiff \"--changed-group-format=%c'x'%c'\\101'%c'\\''%c'ab'%c''|%c'\\1234'|%5c'y'%dz%d%-3.2dF|%'5dn\" P Q || echo rc=$?\ndiff '--changed-group-format=a%(9223372036854775807=9223372036854775807?b:c)a%(9223372036854775808=1?b:c)' P Q || echo rc=$?\ndiff '--changed-group-format=[%<|%>]' P Q || echo rc=$?\ndiff '--old-group-format=[%<]' P Q || echo rc=$?\ndiff '--old-group-format=[%<]' --changed-group-format=C P Q || echo rc=$?\ndiff '--changed-group-format=%<%<' '--old-line-format=(%l)' P Q || echo rc=$?\ndiff --unchanged-group-format= P Q || echo rc=$?\ndiff --unchanged-group-format= P P || echo rc=$?\ndiff --unchanged-line-format= P P || echo rc=$?\ndiff --old-line-format= P P || echo rc=$?\ndiff '--changed-group-format=a%(' P Q || echo rc=$?\ndiff '--changed-group-format=a%(n=1?b:' P Q || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "format-conflicts",
+      "purpose": "G80: an option repeated with another value, -D NAME after a group format, a format option with another output style, -n with -e, and --from-file with --to-file are errors (exit 2).",
+      "script": "printf '1\\n2\\n3\\n' > P\nprintf '1\\n3\\n4\\n' > Q\nfor args in '-DX -DY' '-DX --old-group-format=Q' '--old-group-format=Q -DX' '--line-format=%L --unchanged-line-format=x' '-u --old-line-format=x' '-n -e' '-DX -y' '--from-file=P --from-file=Q' '--from-file=P --to-file=Q'; do rc=0; diff $args P Q > out || rc=$?; echo \"$args rc=$rc $(wc -c < out)\"; done",
+      "requires": [
+        "diff",
+        "wc"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "ifdef-directories",
+      "purpose": "G80: -D on two directories is GNU's fatal error '-D option not supported with directories' (exit 2).",
+      "script": "mkdir r1 r2\nprintf '1\\n' > r1/f\nprintf '2\\n' > r2/f\ndiff -r -DX r1 r2",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "rcs-output",
+      "purpose": "G80: -n/--rcs writes RCS 'dL N' and 'aL N' commands first change first, with added lines as they are (an incomplete last line stays incomplete, without a note); equal files and changes -B hides print nothing.",
+      "script": "printf 'a\\n\\tb\\nc\\n\\nd\\n' > A\nprintf 'a\\n\\tB\\nc\\n\\ne\\nf\\n' > B\nprintf '1\\n2\\n3\\n' > P\nprintf '1\\n3\\n4\\n' > Q\nprintf 'x\\n' > N1\nprintf 'y' > N2\n: > Z\nprintf 'a\\n\\nb\\n' > E1\nprintf 'a\\nb\\n' > E2\nmkdir r1 r2\ncp P r1/f\ncp Q r2/f\ndiff -n N1 N2 || echo rc=$?\ndiff -n N2 N1 || echo rc=$?\ndiff -n P Q || echo rc=$?\ndiff --rcs A B || echo rc=$?\ndiff -n Z P || echo rc=$?\ndiff -n P Z || echo rc=$?\ndiff -n -B E1 E2 || echo rc=$?\ndiff -s -n P P || echo rc=$?\ndiff -r -n r1 r2 || echo rc=$?",
+      "requires": [
+        "diff",
+        "cp"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "from-to-file",
+      "purpose": "G80: --from-file=FILE compares FILE with each operand and --to-file=FILE each operand with FILE, in order, the worst status winning; no operand is no comparison; FILE may be a directory (DIR/basename) or -; a missing operand is reported and the rest still compared.",
+      "script": "printf 'a\\n\\tb\\nc\\n\\nd\\n' > A\nprintf 'a\\n\\tB\\nc\\n\\ne\\nf\\n' > B\nprintf '1\\n2\\n3\\n' > P\nprintf '1\\n3\\n4\\n' > Q\nmkdir r1\ncp P r1/Q\ndiff --from-file=P Q P A || echo rc=$?\ndiff --from-file P Q || echo rc=$?\ndiff --from-file=P || echo rc=$?\ndiff --to-file=Q P A || echo rc=$?\ndiff --from-file=P --from-file=P A || echo rc=$?\ndiff --from-file=r1 Q || echo rc=$?\ndiff --to-file=r1/Q P Q || echo rc=$?\ndiff --from-file=P nope Q 2>/dev/null || echo rc=$?\ndiff --from-file=- P < Q || echo rc=$?\ndiff -q --from-file=P Q P || echo rc=$?\ndiff --from-file=P -- -x 2>/dev/null || echo rc=$?",
+      "requires": [
+        "diff",
+        "cp"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "no-dereference",
+      "purpose": "G80: --no-dereference compares symbolic links by their targets ('Symbolic links A and B differ'), reports a link against another kind of file as 'File A is a symbolic link while file B is a regular file', and with -s reports identical links; -r does the same inside directories.",
+      "script": "mkdir x y\nln -s p x/l\nln -s q y/l\nln -s p x/s\nln -s p y/s\nln -s p x/m\nprintf 'f\\n' > y/m\nprintf 'P\\n' > P\nln -s P x/t\nln -s P y/t\ndiff -r --no-dereference x y || echo rc=$?\ndiff -rs --no-dereference x y || echo rc=$?\ndiff --no-dereference x/l y/l || echo rc=$?\ndiff --no-dereference x/s y/s || echo rc=$?\ndiff -s --no-dereference x/s y/s || echo rc=$?\ndiff --no-dereference x/m y/m || echo rc=$?\ndiff --no-dereference x/t P || echo rc=$?\ndiff --no-dereference x/t y/t || echo rc=$?\ndiff x/t y/t 2>/dev/null || echo rc=$?",
+      "requires": [
+        "diff",
+        "ln"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "left-column",
+      "purpose": "G80: --left-column with -y prints each common line once, in the left column, marked '('; --suppress-common-lines still drops them, and without -y the option changes nothing.",
+      "script": "printf 'a\\n\\tb\\nc\\n\\nd\\n' > A\nprintf 'a\\n\\tB\\nc\\n\\ne\\nf\\n' > B\nprintf '1\\n2\\n3\\n' > P\nprintf '1\\n3\\n4\\n' > Q\nprintf 'x\\n' > N1\nprintf 'y' > N2\ndiff -y --left-column A B || echo rc=$?\ndiff -y --left-column P P || echo rc=$?\ndiff --left-column P Q || echo rc=$?\ndiff -y --left-column --suppress-common-lines A B || echo rc=$?\ndiff -W 20 -y --left-column P Q || echo rc=$?\ndiff -y --left-column N1 N1 || echo rc=$?\ndiff -t -y --left-column A B || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "side-by-side-expand-tabs-right",
+      "purpose": "-t -y expands a tab in the right column from the start of that column, as GNU does (the right column then need not start on a tab stop).",
+      "script": "printf 'x\\n' > L1\nprintf 'ab\\tB\\n' > L2\nprintf '\\tB\\n' > L3\nfor w in 130 30 31 17; do diff -t -y -W $w L1 L2; diff -t -y -W $w L1 L3; diff -t -y -W $w L3 L3; diff -T -t -y -W $w L3 L1; done || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "format-hidden-changes",
+      "purpose": "G80: a change -B or -I hides joins the unchanged group around it, whose %= writes the old file's lines (an inserted blank line is not written); line formats see those lines as unchanged; -n leaves the hidden change out.",
+      "script": "printf 'a\\n\\nb\\n' > E1\nprintf 'a\\nb\\n' > E2\nprintf 'a\\nb\\n\\n' > E3\nprintf 'a\\n\\nb\\nc\\n' > E4\nprintf 'a\\nb\\nC\\n' > E5\ndiff -B --old-line-format='O%l\n' --new-line-format='N%l\n' --unchanged-line-format='U%dn:%l\n' E1 E2 || echo rc=$?\ndiff -B --old-group-format='OG%<' --new-group-format='NG%>' '--unchanged-group-format=UG(%df-%dl,%dF-%dL)%=' --changed-group-format='CG%<%>' E1 E2 || echo rc=$?\ndiff -B '--unchanged-group-format=UG(%df-%dl,%dF-%dL)%=' --new-group-format='NG%>' E2 E3 || echo rc=$?\ndiff -B -DX E4 E5 || echo rc=$?\ndiff -n -B E4 E5 || echo rc=$?\ndiff -n -I a E4 E5 || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "format-group-numbers",
+      "purpose": "G80: the e f l m n and E F L M N numbers of one-sided groups (an empty side starts after the line before it), the default changed group (old group then new group) and empty or identical files.",
+      "script": "printf '1\\n2\\n3\\n' > P\nprintf '1\\n3\\n4\\n' > Q\nprintf '1\\nX\\n3\\n4\\n' > R\n: > Z\n: > Z2\ndiff '--old-group-format=O(%de,%df,%dl,%dm,%dn|%dE,%dF,%dL,%dM,%dN)\n' '--new-group-format=N(%de,%df,%dl,%dm,%dn|%dE,%dF,%dL,%dM,%dN)\n' --unchanged-group-format= P Q || echo rc=$?\ndiff '--old-group-format=O%<' '--new-group-format=N%>' P R || echo rc=$?\ndiff '--old-group-format=O%<' P R || echo rc=$?\ndiff --unchanged-group-format=U%= Z Z2 || echo rc=$?\ndiff --unchanged-group-format=U%= Z P || echo rc=$?\ndiff --unchanged-group-format=U%= P Z || echo rc=$?\ndiff -DX Z P || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "format-directive-edges",
+      "purpose": "G80: which directives each kind of format has (%< %> %= in every group format, %l and %L only in line formats, no conditionals in line formats), %c'\\OOO' up to three octal digits taken modulo 256 (NUL included), flags and widths before c, and the operands a conditional accepts.",
+      "script": "printf '1\\n2\\n3\\n' > P\nprintf '1\\n3\\n4\\n' > Q\ndiff '--changed-group-format=[%=|%l|%L|%dn]' P Q || echo rc=$?\ndiff '--unchanged-group-format=[%<|%>|%=]' P Q || echo rc=$?\ndiff '--line-format=%in|%un|%cn|%en|%dl|%<|%=|%(n=1?a:b)|' P Q || echo rc=$?\ndiff \"--line-format=%5l|%5%|%-c'y'|%'c'y'|%5L|%.c'z'|%00dn|%''dn|\" P Q || echo rc=$?\ndiff \"--changed-group-format=%c'\\\\0'|%c'\\\\'|%c'\\\\08'|%c'\\\\377'|%c'''|%c'\\\\400'|%c'\\\\7'|%5<|%-=|%c'%'|%c'\\\\n'|\" P Q | od -An -c || echo rc=$?\ndiff '--changed-group-format=%(n=1?a%(n=x?b:c)' P Q || echo rc=$?\ndiff '--changed-group-format=%(=1?a:b)%(n?a:b)%(n=?a:b)%(N=-1?a:b)%(n=+1?a:b)%( n=1?a:b)%(n= 1?a:b)' P Q || echo rc=$?\ndiff -D 'a%cb' P Q || echo rc=$?",
+      "requires": [
+        "diff",
+        "od"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "format-tabs-and-other-styles",
+      "purpose": "G80: -t expands tabs in %l and %L from the start of the line; -T changes neither -D nor line-format output; -t expands tabs in RCS added lines.",
+      "script": "printf 'a\\tb\\n2\\n3\\n' > T1\nprintf 'a\\tb\\n3\\nx\\ty\\n' > T2\ndiff -t '--line-format=[%l|%L]' T1 T2 || echo rc=$?\ndiff -T -DX T1 T2 || echo rc=$?\ndiff -T '--old-line-format=<%L' T1 T2 || echo rc=$?\ndiff -t -n T1 T2 || echo rc=$?\ndiff -tT -n T1 T2 || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "format-directories",
+      "purpose": "G80: a line or group format option with two directories is the same fatal error as -D (exit 2), even when the directories are empty; -n compares them.",
+      "script": "mkdir r1 r2\ndiff -n r1 r2 && echo same\ndiff --old-line-format=x r1 r2",
+      "requires": [
+        "diff",
+        "mkdir"
+      ],
+      "expected_status": 2,
+      "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "no-dereference-edges",
+      "purpose": "G80: with --no-dereference a top-level link against a directory still compares DIR/NAME, -q reports differing links the same way, and links inside a directory against a directory are a type mismatch.",
+      "script": "printf 'P\\n' > P\nprintf 'Q\\n' > Q\nmkdir -p d1/sub d2\nln -s P d1/k\nln -s Q d2/k\nln -s P d2/sub\nln -s P lk\ndiff -q --no-dereference d1/k d2/k || echo rc=$?\ndiff -q --no-dereference P Q || echo rc=$?\ndiff --no-dereference lk d1 2>/dev/null || echo rc=$?\ndiff -r --no-dereference d1 d2 || echo rc=$?\ndiff -r --no-dereference d2 d1 || echo rc=$?",
+      "requires": [
+        "diff",
+        "ln",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "to-file-edges",
+      "purpose": "G80: --to-file or --from-file alone compares nothing and exits 0; --to-file=DIR compares each operand with DIR/basename; -s reports each identical pair.",
+      "script": "printf '1\\n2\\n' > P\nprintf '1\\n3\\n' > Q\nmkdir r\ncp P r/P\ncp P r/Q\ndiff --to-file=P && echo none\ndiff --from-file=P && echo none\ndiff --to-file=r P Q || echo rc=$?\ndiff -s --from-file=P P r/P Q || echo rc=$?",
+      "requires": [
+        "diff",
+        "cp",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "left-column-tabs",
+      "purpose": "G80: --left-column with narrow -W, with and without -t, keeps the '(' and '<' gutter marks in GNU's column.",
+      "script": "printf 'a\\tb\\n2\\n3\\n' > T1\nprintf 'a\\tb\\n3\\nx\\ty\\n' > T2\ndiff --left-column -y -W 30 T1 T2 || echo rc=$?\ndiff -y --left-column -t -W 30 T1 T2 || echo rc=$?\ndiff -y --left-column -W 17 T2 T1 || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "edit-script-ties",
+      "purpose": "Clean-room matcher: among equally short edit scripts, the one GNU prints (normal, -u and -d), including repeated lines.",
+      "script": "printf 'c\\na\\nc\\nb\\nc\\n' > a1\nprintf 'c\\nb\\nb\\nc\\nb\\n' > b1\nprintf 'a\\nb\\nd\\nd\\nb\\nc\\nb\\nb\\nd\\nc\\na\\nd\\n' > a2\nprintf 'a\\nb\\nc\\na\\nc\\nd\\n' > b2\nprintf 'a\\na\\na\\nb\\na\\na\\nb\\na\\nb\\na\\na\\nb\\na\\nb\\na\\nb\\nb\\nb\\n' > a3\nprintf 'a\\nb\\nb\\nb\\na\\na\\na\\nb\\n' > b3\nprintf 'e\\nb\\nc\\ne\\na\\n' > a4\nprintf 'd\\ne\\nd\\nd\\nc\\ne\\ne\\na\\nd\\nb\\nc\\na\\nd\\nb\\n' > b4\nfor p in '1' '2' '3' '4'; do diff a$p b$p || echo rc=$?; diff -d a$p b$p || echo rc=$?; diff -U1 --label a --label b a$p b$p || echo rc=$?; done",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "run-sliding",
+      "purpose": "Clean-room line matcher: runs of changed lines that can slide over identical lines are joined with neighbouring runs, then face changes in the other file, else go towards the end, as GNU places them.",
+      "script": "printf 'd\\nd\\na\\nd\\nd\\nd\\nc\\nd\\nd\\nc\\na\\nd\\na\\na\\nd\\n' > a1\nprintf 'b\\nd\\nd\\nd\\nd\\na\\nb\\nc\\nb\\na\\nb\\nb\\nd\\na\\nb\\na\\n' > b1\nprintf 'b\\nb\\nc\\nb\\na\\na\\na\\n' > a2\nprintf 'c\\nb\\na\\nc\\nc\\nb\\nb\\nc\\nc\\nb\\nb\\nc\\nc\\nc\\nc\\nb\\na\\nb\\na\\na\\n' > b2\nprintf 'a\\nb\\na\\nb\\n' > a3\nprintf 'b\\nb\\nb\\nb\\na\\nb\\na\\na\\n' > b3\nprintf 'b\\na\\nb\\nc\\na\\nb\\nc\\nb\\nc\\nc\\nb\\nc\\na\\na\\nc\\na\\na\\na\\n' > a4\nprintf 'a\\na\\nc\\na\\n' > b4\nprintf 'd\\na\\nc\\nc\\nb\\nb\\n' > a5\nprintf 'b\\na\\nb\\nc\\nb\\nb\\nd\\n' > b5\nfor p in 1 2 3 4 5; do diff a$p b$p || echo rc=$?; diff b$p a$p || echo rc=$?; diff -e a$p b$p || echo rc=$?; done",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "minimal-and-one-sided-lines",
+      "purpose": "Clean-room line matcher: without -d, lines found in only one file are left out of the matching, which changes which equal lines pair up; -d keeps them (GNU does both).",
+      "script": "printf 'c\\n' > a1\nprintf 'a\\nc\\na\\nc\\nc\\na\\n' > b1\nprintf 'c\\na\\nc\\nb\\n' > a2\nprintf 'd\\na\\nc\\na\\nc\\nd\\nc\\na\\na\\nc\\nb\\n' > b2\nprintf 'a\\na\\nb\\nb\\nc\\na\\n' > a3\nprintf 'b\\n' > b3\nfor p in 1 2 3; do diff a$p b$p || echo rc=$?; diff --minimal a$p b$p || echo rc=$?; diff -y -W 20 a$p b$p || echo rc=$?; done",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "horizon-lines",
+      "purpose": "Clean-room line matcher: --horizon-lines=N, and the context of -c/-u, keep that many lines of the common ends in the comparison, which shows in the edit script.",
+      "script": "printf 'c\\na\\nc\\nb\\n' > a\nprintf 'd\\na\\nc\\na\\nc\\nd\\nc\\na\\na\\nc\\nb\\n' > b\nprintf 'b\\na\\na\\nc\\n' > c\nprintf 'b\\na\\nc\\na\\nb\\nc\\na\\na\\nc\\na\\nc\\nb\\nc\\nb\\nc\\nb\\nc\\n' > d\nfor o in --horizon-lines=0 --horizon-lines=1 --horizon-lines=3 '--horizon-lines=99999999999999999999'; do diff $o a b || echo rc=$?; diff $o c d || echo rc=$?; done\ndiff -U0 --label a --label b a b || echo rc=$?\ndiff -u --label c --label d c d || echo rc=$?\ndiff -U1 --horizon-lines=4 --label c --label d c d || echo rc=$?\ndiff -C 1 --label a --label b a b || echo rc=$?",
+      "requires": [
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "horizon-lines-errors",
+      "purpose": "Clean-room line matcher: an invalid --horizon-lines value is an error (exit 2), as in GNU.",
+      "script": "printf 'a\\n' > a\nprintf 'b\\n' > b\nfor v in x -1 3x ''; do diff --horizon-lines=\"$v\" a b > out || echo \"$v rc=$? $(wc -c < out)\"; done\ndiff --horizon-lines=' 2' a b || echo rc=$?",
+      "requires": [
+        "diff",
+        "wc"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "larger-edit-scripts",
+      "purpose": "Clean-room line matcher: edit scripts for 1500-line inputs with many repeated lines and for a 1200-line permutation, in normal, unified, ed and -d form, byte for byte.",
+      "script": "for ((i = 0; i < 1500; i++)); do echo \"v$(( (i * 7919 + i / 7) % 97 ))\"; done > a\nfor ((i = 0; i < 1500; i++)); do\n  if (( i % 53 == 5 )); then continue; fi\n  if (( i % 71 == 3 )); then echo \"new $i\"; fi\n  if (( i % 89 == 7 )); then echo \"v$(( (i * 31) % 97 ))\"; continue; fi\n  echo \"v$(( (i * 7919 + i / 7) % 97 ))\"\ndone > b\nfor ((i = 0; i < 1200; i++)); do echo \"w$(( (i * 2654435761) % 1200 ))\"; done > c\nfor ((i = 0; i < 1200; i++)); do echo \"w$(( (i * 40503 + 17) % 1200 ))\"; done > d\nfor o in '' -d -e '-u --label x --label y' '-c --label x --label y'; do rc=0; diff $o a b > out || rc=$?; echo \"[$o] rc=$rc $(cksum < out)\"; rc=0; diff $o c d > out || rc=$?; echo \"[$o] rc=$rc $(cksum < out)\"; done",
+      "requires": [
+        "diff",
+        "cksum"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

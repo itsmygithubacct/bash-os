@@ -1,138 +1,54 @@
 /* SPDX-License-Identifier: MIT */
-/* chown.c — change file owner/group via chown(2)/lchown(2). bash-os loadable
- * (MIT). Replaces busybox chown; mirrors the stock chmod loadable (plan D22).
- *
- *   chown [-fhR] [-H|-L|-P] OWNER[:GROUP] FILE...     chown [-fhR] [-H|-L|-P] :GROUP FILE...
- * OWNER/GROUP may be names or numeric ids. -h acts on symlinks (lchown).
- */
+/* chown: change the owner and group of files. A bash-os loadable written
+   from the coreutils manual, POSIX chown and the observed behaviour of GNU
+   coreutils 9.7; the work is shared with chgrp in chown-operand.h. */
 #include <config.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <sys/types.h>
-#include <pwd.h>
-#include <grp.h>
 #include "loadables.h"
-#include "bashgetopt.h"
 #include "chown-operand.h"
-
-/* GNU names the whole OWNER[:GROUP] operand, in the locale's quotes. */
-static int
-invalid_spec (const char *what, const char *spec)
-{
-  char *quoted = bos_quote (spec);
-
-  builtin_error ("invalid %s: %s", what, quoted ? quoted : spec);
-  free (quoted);
-  return -1;
-}
-
-/* Resolve a "owner[:group]" or ":group" spec to uid/gid; -1 means "unchanged". */
-static int
-parse_owner (char *spec, uid_t *uid, gid_t *gid)
-{
-  char *colon, *o, *g;
-  struct passwd *pw;
-  struct group *gr;
-  char *end;
-  char separator = '\0';
-
-  *uid = (uid_t) -1;
-  *gid = (gid_t) -1;
-  colon = strchr (spec, ':');
-  if (colon == 0)
-    {
-      colon = strchr (spec, '.');		/* legacy owner.group */
-      if (colon)
-        builtin_warning ("use ':' instead of '.' in owner/group specification: %s", spec);
-    }
-  if (colon)
-    { separator = *colon; *colon = '\0'; o = spec; g = colon + 1; }
-  else
-    { o = spec; g = 0; }
-
-  if (o && *o)
-    {
-      pw = getpwnam (o);
-      if (pw)
-	*uid = pw->pw_uid;
-      else
-	{
-	  errno = 0;
-	  long v = strtol (o, &end, 10);
-	  if (errno || end == o || *end || v < 0 ||
-              (uintmax_t) (uid_t) v != (uintmax_t) v || (uid_t) v == (uid_t) -1)
-	    {
-	      if (colon)
-		*colon = separator;
-	      return invalid_spec ("user", spec);
-	    }
-	  *uid = (uid_t) v;
-	}
-    }
-  if (g && *g)
-    {
-      gr = getgrnam (g);
-      if (gr)
-	*gid = gr->gr_gid;
-      else
-	{
-	  errno = 0;
-	  long v = strtol (g, &end, 10);
-	  if (errno || end == g || *end || v < 0 ||
-              (uintmax_t) (gid_t) v != (uintmax_t) v || (gid_t) v == (gid_t) -1)
-	    {
-	      *colon = separator;
-	      return invalid_spec ("group", spec);
-	    }
-	  *gid = (gid_t) v;
-	}
-    }
-  return 0;
-}
 
 int
 chown_builtin (WORD_LIST *list)
 {
-  int opt, deref = 1, recurse = 0, traverse = BOS_TRAVERSE_P, rc = EXECUTION_SUCCESS;
-  uid_t uid; gid_t gid;
-  WORD_LIST *l;
-
-  bos_chown_quiet = 0;
-  reset_internal_getopt ();
-  while ((opt = internal_getopt (list, "hRHLPf")) != -1)
-    {
-      if (opt == 'h') deref = 0;	/* operate on the link itself */
-      else if (opt == 'R') recurse = 1;
-      else if (opt == 'H') traverse = BOS_TRAVERSE_H;
-      else if (opt == 'L') traverse = BOS_TRAVERSE_L;
-      else if (opt == 'P') traverse = BOS_TRAVERSE_P;
-      else if (opt == 'f') bos_chown_quiet = 1;
-      else { builtin_usage (); return (EXECUTION_FAILURE); }
-    }
-  list = loptend;
-  if (list == 0 || list->next == 0)
-    { builtin_usage (); return (EXECUTION_FAILURE); }
-
-  if (parse_owner (list->word->word, &uid, &gid) < 0)
-    return (EXECUTION_FAILURE);
-
-  for (l = list->next; l; l = l->next)
-    if ((recurse ? bos_chown_tree (l->word->word, uid, gid, deref, traverse, 1, NULL)
-                 : bos_chown_operand (l->word->word, uid, gid, deref)) < 0)
-      rc = EXECUTION_FAILURE;
-  return (rc);
+  return bos_chown_main (list, 0);
 }
 
 char *chown_doc[] = {
   "Change file owner and group.",
   "",
-  "chown [-fhR] [-H|-L|-P] OWNER[:GROUP] FILE...   OWNER/GROUP are names or numeric ids;",
-  "-h changes a symlink itself rather than its target.",
+  "chown [OPTION]... [OWNER][:[GROUP]] FILE...",
+  "chown [OPTION]... --reference=RFILE FILE...",
+  "",
+  "Change the owner and/or group of each FILE to OWNER and/or GROUP.",
+  "With --reference, change the owner and group of each FILE to those of RFILE.",
+  "",
+  "  -c, --changes          like verbose but report only when a change is made",
+  "  -f, --silent, --quiet  suppress most error messages",
+  "  -v, --verbose          output a diagnostic for every file processed",
+  "      --dereference      affect the referent of each symbolic link (this is",
+  "                         the default), rather than the symbolic link itself",
+  "  -h, --no-dereference   affect symbolic links instead of any referenced file",
+  "      --from=CURRENT_OWNER:CURRENT_GROUP",
+  "                         change the ownership of each file only if",
+  "                         its current owner and/or group match those specified",
+  "                         here. Either may be omitted, in which case a match",
+  "                         is not required for the omitted attribute",
+  "      --no-preserve-root  do not treat '/' specially (the default)",
+  "      --preserve-root    fail to operate recursively on '/'",
+  "      --reference=RFILE  use RFILE's ownership rather than specifying values.",
+  "                         RFILE is always dereferenced if a symbolic link.",
+  "  -R, --recursive        operate on files and directories recursively",
+  "",
+  "With -R: -H traverses a command-line symbolic link to a directory, -L",
+  "traverses every symbolic link to a directory, -P (the default) none.",
+  "",
+  "Owner is unchanged if missing.  Group is unchanged if missing, but changed",
+  "to login group if implied by a ':' following a symbolic OWNER.",
+  "OWNER and GROUP may be numeric as well as symbolic; a leading '+' forces",
+  "a numeric ID.",
   (char *) NULL
 };
 
 struct builtin chown_struct = {
-  "chown", chown_builtin, BUILTIN_ENABLED, chown_doc, "chown [-fhR] [-H|-L|-P] OWNER[:GROUP] FILE...", 0
+  "chown", chown_builtin, BUILTIN_ENABLED, chown_doc,
+  "chown OWNER[:GROUP] FILE...", 0
 };

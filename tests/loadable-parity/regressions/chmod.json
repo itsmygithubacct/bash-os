@@ -15,7 +15,8 @@
     "Multiple symbolic actions, permission copies and a four-umask regression matrix",
     "Directory set-ID preservation and explicitly requested clearing",
     "Recursive command-line and descendant symlinks, dangling links and error continuation",
-    "Verbose retained/changed/error output and missing mode/negative mode parsing"
+    "Verbose retained/changed/error output and missing mode/negative mode parsing",
+    "Guest pass 5 (G74/G78): GNU long options, abbreviations and diagnostics, and the -c/-v/-d/-I/--reference behaviours of coreutils 9.7."
   ],
   "exclusions": [
     "Set-ID clearing and permission-denied outcomes for files owned by another UID or an unrelated group are deferred because the fixture namespace supplies one identity and account/ownership changes are outside scope.",
@@ -236,6 +237,104 @@
       "kind": "deferred",
       "purpose": "Check chmod permission denial and set-ID clearing when operating on files not owned by the caller or belonging to an unrelated group.",
       "reason": "Requires a future disposable VM provisioned with at least two unprivileged UIDs and controlled group membership (or a separately reviewed ownership syscall mock). The current fixture namespace exposes one identity, and this suite must not create/change host accounts or ownership. No operation was run and this is not a pass."
+    },
+    {
+      "id": "g78-changes-and-verbose",
+      "kind": "parity",
+      "purpose": "chmod -c reports only changes and -v every file, in GNU's text; -c no longer fails with status 127 when no external chmod exists (G78).",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\numask 022\n: > f; : > g; chmod 644 f g\nn chmod -c 600 f\nn chmod -c 600 f\nn chmod -v 600 f g\nn chmod --changes u+s f\nn chmod --verbose 4600 f\nstat -c '%a %n' f g",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "stat"
+      ]
+    },
+    {
+      "id": "g78-reference",
+      "kind": "parity",
+      "purpose": "chmod --reference=RFILE copies every mode bit, refuses a MODE with it, and reports a missing reference file (G78).",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\n: > a; : > b; mkdir d\nchmod 2751 a\nn chmod --reference=a b d\nn chmod --ref a b\nn chmod --reference=a 644 b | s\nn chmod --reference=nosuch b | s\nstat -c '%a %n' a b d",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "stat",
+        "mkdir",
+        "sed"
+      ]
+    },
+    {
+      "id": "g74-recursive-and-links",
+      "kind": "parity",
+      "purpose": "chmod --recursive --verbose walks parents before children, skips symbolic links found inside, follows command-line links unless -h, and reports dangling links.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\nmkdir -p d/e; : > d/e/f; ln -s ../e/f d/e/l; ln -s d/e/f top; ln -s nosuch dangle\nn chmod --recursive --verbose 750 d\nn chmod -v 600 top\nn chmod -hv 644 top\nn chmod -v 644 dangle | s\nn chmod -Rv --dereference 700 d | s\nstat -c '%a %n' d d/e d/e/f",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "stat",
+        "mkdir",
+        "ln",
+        "sed"
+      ]
+    },
+    {
+      "id": "g74-unreadable-directory",
+      "kind": "parity",
+      "purpose": "chmod -R 000 changes the directory first and then cannot read it, as GNU's preorder walk does.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\nmkdir -p d/e; : > d/f\ntrap 'chmod 755 d; chmod 755 d/e; chmod 644 d/f; true' EXIT\nn chmod -Rv 000 d | s\nchmod 755 d\nn chmod -R 300 d | s\nchmod 755 d\nstat -c '%a %n' d d/e d/f",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "stat",
+        "mkdir",
+        "sed"
+      ]
+    },
+    {
+      "id": "g74-mode-options",
+      "kind": "parity",
+      "purpose": "Mode words given as options (-w, -x,+r) combine with other options in any order; a clustered -Rw is an invalid mode; abbreviations and missing operands.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\numask 022\n: > f; chmod 755 f\nn chmod -w -v f\nn chmod -v -x,+r f\nn chmod f -w\nn chmod -Rw f | s\nn chmod --verb 644 f\nn chmod -w | s\nn chmod 644 | s\nn chmod | s\nn chmod xyz f | s\nstat -c '%a %n' f",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "stat",
+        "sed"
+      ]
+    },
+    {
+      "id": "cleanroom-surprise-and-links",
+      "kind": "parity",
+      "purpose": "An option-like MODE warns only when the umask kept a bit that the all-classes MODE would clear (-w warns, -+w and -=w do not), with GNU's file-name quoting; -h on a dangling link is not an error; -L does not re-enter a directory reached through a loop; -P without -R reports the link's own mode; the -R --dereference -P conflict and --preserve-root.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\numask 022\n: > f; : > 'a b'; : > 'c:d'; ln -s nowhere dl; mkdir -p t/u; ln -s .. t/u/up; ln -s t tl\nchmod 644 f; n chmod -+w f | s; n chmod -=w f | s; stat -c '%a %n' f\nchmod 777 'a b' 'c:d'; n chmod -w 'a b' 'c:d' | s\nn chmod -hv 600 dl; n chmod -v 600 dl | s; n chmod -hRv 600 dl\nn chmod -RLv 750 t | s\nn chmod -Pv u-w tl; stat -c '%a %n' t\nn chmod -R --dereference -P 700 t | s\nn chmod --preserve-root -R 755 / | s\nchmod 755 t t/u; chmod 644 f 'a b' 'c:d'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "stat",
+        "mkdir",
+        "ln",
+        "sed"
+      ]
+    },
+    {
+      "id": "cleanroom-recursive-reports",
+      "kind": "parity",
+      "purpose": "-R reports in preorder with trailing slashes trimmed as GNU shows them, -c stays silent for links and unchanged files, and --dereference changes link referents found inside the tree without entering them.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\numask 022\nmkdir -p d/e o; : > d/f; : > o/x; ln -s ../o d/lo\nn chmod -Rv 750 d// | s\nn chmod -Rc 750 d\nn chmod -Rcv --dereference 700 d | s\nstat -c '%a %n' d d/e d/f o o/x\nchmod 755 o d",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "stat",
+        "mkdir",
+        "ln",
+        "sed"
+      ]
     }
   ]
 }

@@ -1,20 +1,16 @@
 {
   "version": 1,
   "loadable": "ed",
-  "reference": "No GNU ed executable is available in the runner reference PATH (/usr/bin/ed and /bin/ed are absent; the pinned loadables status also records external ed as missing). Runnable contract expectations follow POSIX ed command behavior for append/print, BRE substitution, search and marks, read/write, undo, copy, and join. Bash type/help cases check the documented builtin metadata. These are contracts, not GNU parity comparisons.",
+  "reference": "GNU ed 1.21.1 (Debian package ed 1.21.1-1, /usr/bin/ed in the runner reference PATH), run black-box and compared for stdout, stderr where marked exact, exit status and the resulting files. The bash type/help cases are contracts on the builtin's own metadata.",
   "coverage": [
     "Bash type and help metadata for the static ed builtin and its synopsis/documented command set.",
-    "Append, numbered range printing, and line-number output under -s.",
-    "Global basic-regular-expression substitution with the matched-text replacement character.",
-    "Forward and backward search address wraparound plus a named line mark.",
-    "Reading and writing relative fixture files, with their line contents verified by Bash builtins.",
-    "Undo of a substitution after a saved clean buffer.",
-    "Copying a range to the end, joining lines, printing the changed buffer, and writing the result."
+    "Bash type and help metadata for the ed builtin and its GNU synopsis.",
+    "Every existing POSIX case is now compared with GNU ed (parity) instead of a hand-written expectation.",
+    "Guest pass 5 G72: addressed a/i/c, g and v, s with \\1..\\9 and &, the diff -e | ed flow, ?/h/H and exit statuses, -p and -s, l wrapping, missing final newline, unreadable FILE.",
+    "GNU ed 1.21.1 script files: standard input that is a regular file stops at the first error."
   ],
   "exclusions": [
-    "No GNU ed binary is available, so no case is represented as parity; no substitute implementation is used as an oracle.",
-    "Modified-buffer quit prompts and other terminal interaction require a future disposable PTY driver.",
-    "Binary/NUL-containing input, unusual filenames, malformed commands, and the full GNU ed option surface are outside this focused contract suite."
+    "Terminal sessions (prompt echo, interrupts, the modified-buffer warning at a tty) are covered by the parity-vm terminal suites."
   ],
   "cases": [
     {
@@ -29,73 +25,87 @@
     {
       "id": "metadata_help",
       "kind": "contract",
-      "purpose": "The Bash help entry must expose the documented synopsis, command summary, and undo-history note.",
-      "script": "doc=$(help ed)\n[[ $doc == *'ed [-s] [FILE]'* ]]\n[[ $doc == *'Small ed-style editor'* ]]\n[[ $doc == *'Undo history is capped at 1024 entries by default'* ]]\nprintf 'help metadata ok\\n'\n",
+      "purpose": "The Bash help entry shows the GNU ed synopsis and documents the script-file and exit-status rules.",
+      "script": "doc=$(help ed)\n[[ $doc == *'ed [-EGlqrsv] [-p PROMPT] [--strip-trailing-cr] [FILE | !COMMAND]'* ]]\n[[ $doc == *'Edit text with the standard line editor.'* ]]\n[[ $doc == *'When standard'*'input is a file, the first error ends ed.'* ]]\nprintf 'help metadata ok\\n'\n",
       "expected_status": 0,
       "stdout": "help metadata ok\n",
       "stderr": "empty"
     },
     {
+      "kind": "parity",
       "id": "append_number_print",
-      "kind": "contract",
       "purpose": "POSIX ed append plus n and = commands print line numbers and text in their specified forms.",
       "script": "ed -s <<'ED'\na\nalpha\nbeta\n.\n1,2n\n2=\nw sink.txt\nq\nED\n",
+      "requires": [
+        "ed"
+      ],
       "expected_status": 0,
-      "stdout": "1\talpha\n2\tbeta\n2\n",
       "stderr": "empty"
     },
     {
+      "kind": "parity",
       "id": "bre_global_substitution",
-      "kind": "contract",
       "purpose": "POSIX BRE substitution with g and replacement '&' must replace each match with the matched text surrounded by angle brackets.",
       "script": "ed -s <<'ED'\na\nid=7 id=42\n.\n1s/[0-9][0-9]*/<&>/g\n1p\nw sink.txt\nq\nED\n",
+      "requires": [
+        "ed"
+      ],
       "expected_status": 0,
-      "stdout": "id=<7> id=<42>\n",
       "stderr": "empty"
     },
     {
+      "kind": "parity",
       "id": "search_and_marks",
-      "kind": "contract",
       "purpose": "Forward and backward regular-expression addresses wrap through the buffer, and a marked line remains addressable.",
       "script": "ed -s <<'ED'\na\nred\nblue\nred\n.\n1ka\n/blue/\n?red?\n'a\nw sink.txt\nq\nED\n",
+      "requires": [
+        "ed"
+      ],
       "expected_status": 0,
-      "stdout": "blue\nred\nred\n",
       "stderr": "empty"
     },
     {
+      "kind": "parity",
       "id": "read_relative_file",
-      "kind": "contract",
       "purpose": "The r command inserts a relative file after the current line; verify the resulting buffer text.",
       "script": "printf 'alpha\\nbeta\\n' > payload.txt\ned -s <<'ED'\na\nhead\n.\nr payload.txt\n1,$p\nw sink.txt\nq\nED\n",
+      "requires": [
+        "ed"
+      ],
       "expected_status": 0,
-      "stdout": "head\nalpha\nbeta\n",
       "stderr": "empty"
     },
     {
+      "kind": "parity",
       "id": "write_relative_file",
-      "kind": "contract",
       "purpose": "The w command creates a relative fixture file from the buffer; read it back with Bash builtins to verify bytes as lines.",
       "script": "ed -s <<'ED'\na\nnorth\nsouth\n.\nw saved.txt\nq\nED\nwhile IFS= read -r line; do printf '%s\\n' \"$line\"; done < saved.txt\n",
+      "requires": [
+        "ed"
+      ],
       "expected_status": 0,
-      "stdout": "north\nsouth\n",
       "stderr": "empty"
     },
     {
+      "kind": "parity",
       "id": "undo_substitution",
-      "kind": "contract",
       "purpose": "Undo restores the line before the most recent substitution; the saved clean state also permits a normal quit.",
       "script": "ed -s <<'ED'\na\nbefore\n.\nw saved.txt\ns/before/after/\nu\n1p\nq\nED\n",
+      "requires": [
+        "ed"
+      ],
       "expected_status": 0,
-      "stdout": "before\n",
       "stderr": "empty"
     },
     {
+      "kind": "parity",
       "id": "copy_join_and_write",
-      "kind": "contract",
       "purpose": "The t command copies an addressed range after the destination, j joins addressed lines without a separator, and w persists the final buffer.",
       "script": "ed -s <<'ED'\na\nred\nblue\ngreen\n.\n1,2t$\n1,$p\n4,5j\n1,$p\nw final.txt\nq\nED\nwhile IFS= read -r line; do printf 'file:%s\\n' \"$line\"; done < final.txt\n",
+      "requires": [
+        "ed"
+      ],
       "expected_status": 0,
-      "stdout": "red\nblue\ngreen\nred\nblue\nred\nblue\ngreen\nredblue\nfile:red\nfile:blue\nfile:green\nfile:redblue\n",
       "stderr": "empty"
     },
     {
@@ -105,22 +115,139 @@
       "reason": "Requires a future disposable VM with a bounded PTY driver that can send ed commands and capture the prompt/response sequence. The current runner provides no terminal fixture; any future fixture must use only relative files inside its private workspace."
     },
     {
+      "kind": "parity",
       "id": "global-match-offsets",
-      "kind": "contract",
       "purpose": "POSIX BRE replacement offsets and beginning-of-line anchors remain relative to the original line.",
       "script": "ed -s <<'ED'\na\nxx1 y22 z333\n.\n1s/[0-9][0-9]*/<&>/g\n1p\nw output.txt\nq\nED\n[[ $(<output.txt) == \"xx<1> y<22> z<333>\" ]]\n",
+      "requires": [
+        "ed"
+      ],
       "expected_status": 0,
-      "stdout": "xx<1> y<22> z<333>\n",
       "stderr": "empty"
     },
     {
+      "kind": "parity",
       "id": "global-beginning-anchor",
-      "kind": "contract",
       "purpose": "POSIX BRE replacement offsets and beginning-of-line anchors remain relative to the original line.",
       "script": "ed -s <<'ED'\na\nabc\n.\n1s/^/X/g\n1p\nw output.txt\nq\nED\n[[ $(<output.txt) == \"Xabc\" ]]\n",
+      "requires": [
+        "ed"
+      ],
       "expected_status": 0,
-      "stdout": "Xabc\n",
       "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "g72-addressed-append-insert-change",
+      "purpose": "G72: addressed a, i and c (2a, 0a, $a, 2i, 2c) work in a script read from a pipe, and w writes the result.",
+      "script": "printf 'one\\ntwo\\nthree\\nfour\\nfive\\n' > f\nprintf '2a\\nA\\n.\\n0a\\nZ\\n.\\n$a\\nE\\n.\\n2i\\nI\\n.\\n4c\\nC\\n.\\n,n\\nw\\nq\\n' | ed -s f\nprintf '%s\\n' \"$(<f)\"\n",
+      "requires": [
+        "ed"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "g72-global-and-inverse",
+      "purpose": "G72: g/RE/cmd and v/RE/cmd run on matching and non-matching lines; a g list continued with backslashes.",
+      "script": "printf 'one\\ntwo\\nthree\\nfour\\nfive\\n' > f\nprintf 'g/o/s/o/0/\\nv/0/s/$/!/\\ng/^/s/^/>/\\\\\\ns/$/</\\n,p\\nQ\\n' | ed -s f\n",
+      "requires": [
+        "ed"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "g72-backrefs-and-ampersand",
+      "purpose": "G72: \\1..\\9 and & in s replacements, a count and g, and \\N beyond the groups is the digit.",
+      "script": "printf 'abc def\\nxyz\\n' > f\nprintf '1s/\\\\(a\\\\)\\\\(b\\\\)\\\\(c\\\\)/\\\\3\\\\2\\\\1[&]/\\n1p\\n2s/\\\\(y\\\\)/<\\\\1\\\\5>/\\n2p\\n1s/[a-z]/X/2\\n1p\\n1s/[a-z]/Y/g\\n1p\\nQ\\n' | ed -s f\n",
+      "requires": [
+        "ed"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "g72-diff-e-pipe-to-ed",
+      "purpose": "G72: the diff -e a b | ed flow applies change, delete and append hunks, including lines that are a lone dot.",
+      "script": "printf '1\\n2\\n3\\n4\\n5\\n6\\n7\\n' > a\nprintf '1\\n.\\n3\\n..\\nnew\\n6\\n7\\n8\\n' > b\ndiff -e a b > s || true\n(cat s; echo w) | ed -s a\n[[ $(<a) == \"$(<b)\" ]]\nprintf 'applied\\n'\n",
+      "requires": [
+        "ed",
+        "diff",
+        "cat"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "g72-errors-status-and-help",
+      "purpose": "G72: errors print ?, H explains each, h the last; a failed command makes the status 1 and a modified buffer at end of input 2.",
+      "script": "printf 'one\\ntwo\\nthree\\nfour\\nfive\\n' > f\nprintf '9p\\nh\\nH\\nzz\\n1,2j\\nq\\n' | ed -s f || echo rc=$?\nprintf '2d\\n' | ed -s f || echo rc=$?\nprintf '2d\\n' | ed -ls f || echo rc=$?\n",
+      "requires": [
+        "ed"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "g72-script-file-stops-at-first-error",
+      "purpose": "GNU ed 1.21.1: with standard input a regular file the first error ends ed (status 1) and H names the script line; earlier writes stay.",
+      "script": "printf 'one\\ntwo\\nthree\\nfour\\nfive\\n' > f\nprintf '2d\\nw\\nH\\n1p\\n99p\\n2p\\n' > sc\ned -s f < sc || echo rc=$?\nprintf '%s\\n' \"$(<f)\"\n",
+      "requires": [
+        "ed"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "g72-prompt-and-silent",
+      "purpose": "-p sets the prompt shown before each command; without -s the byte counts are printed.",
+      "script": "printf 'one\\ntwo\\nthree\\nfour\\nfive\\n' > f\nprintf '1\\nP\\n2\\n$=\\nw g\\nq\\n' | ed -p '* ' f\n",
+      "requires": [
+        "ed"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "g72-list-wraps-at-76",
+      "purpose": "l escapes control and non-ASCII bytes and wraps at 76 columns as GNU ed 1.21.1 does.",
+      "script": "{ printf 'x%.0s' {1..170}; printf '\\n\\t\\001\\177\\303\\251\\\\end\\n'; } > f\nprintf ',l\\n,n\\nQ\\n' | ed -s f\n",
+      "requires": [
+        "ed"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "g72-missing-newline",
+      "purpose": "A file without a final newline: Newline appended is printed unless -s, and w writes the newline.",
+      "script": "printf 'a\\nb' > f\nprintf 'w g\\nq\\n' | ed f\nprintf 'q\\n' | ed -s f\n",
+      "requires": [
+        "ed"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "g72-unreadable-file-operand",
+      "purpose": "GNU ed 1.21.1: a directory operand is reported on standard error (no ?), status 1; a missing one is a new file.",
+      "script": "mkdir d\nprintf 'q\\n' | ed d || echo rc=$?\nprintf 'a\\nx\\n.\\nw\\nq\\n' | ed -s new\nprintf '%s\\n' \"$(<new)\"\n",
+      "requires": [
+        "ed",
+        "mkdir"
+      ],
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

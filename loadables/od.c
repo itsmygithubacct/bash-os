@@ -1,23 +1,25 @@
-/* bashod.c — POSIX od(1) as a bash builtin.
+/* bashod.c — POSIX / GNU od(1) as a bash builtin.
  *
- *   bashod [-A {x,o,d,n}] [-j BYTES] [-N BYTES] [-t TYPE] [-w[WIDTH]] [-v]
- *          [-c] [-x] [-o] [-d] [-b] [-s [N]] [FILE...]
+ *   od [OPTION]... [FILE]...
+ *   od [-abcdfhilosxBDeFHILOX]... [FILE] [[+]OFFSET[b]]
+ *   od --traditional [OPTION]... [FILE] [[+]OFFSET[b] [[+]LABEL[b]]]
  *
- *   -A x|o|d|n      address radix (hex / octal / decimal / none); default o
- *   -c              char (printable + \-escapes for whitespace, octal otherwise)
- *   -b              1-byte octal (legacy, == -t o1)
- *   -x              16-bit hex
- *   -o              16-bit octal (default if no -[cxodb])
- *   -d              16-bit decimal
- *   -t TYPE         a, c, [doux]{1,2,4,8}, f; a trailing z adds the
- *                   printable bytes of each line as ">...<" (GNU)
- *   -w[WIDTH]       bytes per output line (default 16)
- *   -v              do not collapse runs of identical lines into "*"
- *   -s [N]          strings: print runs of >= N (default 3) printable chars
+ *   -A, --address-radix=x|o|d|n   address radix; default o
+ *   -j, --skip-bytes=BYTES        skip BYTES first
+ *   -N, --read-bytes=BYTES        dump at most BYTES
+ *   -S BYTES, --strings[=BYTES]   GNU NUL-terminated strings (default 3)
+ *   -t, --format=TYPE             a, c, [doux]{1,2,4,8,C,S,I,L}, f{4,8,F,D};
+ *                                 a trailing z adds ">printable<"
+ *   -v, --output-duplicates       do not collapse repeated lines into "*"
+ *   -w[N], --width[=N]            bytes per line (16; bare -w => 32)
+ *   --endian=big|little           byte order of multi-byte elements
+ *   --traditional                 accept OFFSET and LABEL operands
+ *   -s [N]                        bash-os strings: runs of >= N printable
+ *                                 chars (not GNU's -s, which is -t d2)
  *
- * Reads stdin when no FILE given. Multiple display modes can be combined
- * (e.g. `-c -x` prints chars and hex on stacked lines per address). Each
- * type's column is padded to its own element width and aligned GNU-style.
+ * Long options take GNU's unambiguous-prefix abbreviations. Reads stdin
+ * when no FILE is given. Multiple display modes stack under one address,
+ * each type's column padded and aligned GNU-style.
  *
  * --- LICENSE --- MIT, same boilerplate as binhex.c.
  */
@@ -36,6 +38,7 @@
 #include <sys/types.h>
 
 #include "loadables.h"
+#include "longopt-normalize.h"
 
 #define OD_DEFAULT_WIDTH 16   /* default bytes per output line */
 #define OD_MAX_SPECS     16   /* max stacked -t / legacy selectors */
@@ -58,10 +61,15 @@ typedef struct {
     int  width;            /* bytes per output line */
     int  no_dedup;         /* -v: disable '*' run collapsing */
     int  strings_min;      /* 0 = -s mode off; otherwise minimum run length */
-    int  gnu_strings_min;  /* 0 = -S mode off; >0 = GNU NUL-terminated mode */
+    int  gnu_strings_min;  /* -1 = -S mode off; >=0 = GNU NUL-terminated mode */
     long long skip_bytes;  /* -j: bytes to skip before dumping */
     long long max_bytes;   /* -1 = unlimited; >=0 = stop after N bytes (-N) */
+    int  has_label;        /* --traditional LABEL operand given */
+    long long label;       /* pseudo-address of the first byte dumped */
 } od_opts;
+
+/* --endian=big: multi-byte elements are read most significant byte first. */
+static int od_big_endian;
 
 /* Named ASCII control chars for -t a (bytes 0x00..0x1f, 0x20=sp, 0x7f=del). */
 static const char *od_ascii_names[] = {
@@ -125,6 +133,35 @@ od_print_addr (long long off, char rad)
     }
 }
 
+/* The address column of a line. A --traditional LABEL adds the
+   pseudo-address in parentheses; with -A n only the parenthesized
+   column remains, and it shows the octal offset (as GNU od does). */
+static void
+od_print_prefix (const od_opts *o, long long off)
+{
+    if (!o->has_label) {
+        od_print_addr (off, o->addr_radix);
+        return;
+    }
+    if (o->addr_radix == 'n') {
+        printf ("(%07llo)", off);
+        return;
+    }
+    od_print_addr (off, o->addr_radix);
+    fputs (" (", stdout);
+    od_print_addr (o->label + (off - o->skip_bytes), o->addr_radix);
+    putchar (')');
+}
+
+/* Width of the blank prefix on the second and later type rows. */
+static int
+od_prefix_width (const od_opts *o)
+{
+    if (o->addr_radix == 'n')
+        return o->has_label ? 7 : 0;
+    return o->addr_radix == 'x' ? 6 : 7;
+}
+
 /* Render a single byte under the char-escape format ('-c'). */
 static void
 od_emit_c (unsigned char c)
@@ -157,15 +194,19 @@ od_emit_a (unsigned char c)
     else                     printf ("   %c", c);
 }
 
-/* Read a little-endian element of `bytes` width starting at buf[i]; bytes
-   past `n` are treated as zero (GNU pads short trailing groups with NUL). */
+/* Read an element of `bytes` width starting at buf[i], little-endian or
+   (--endian=big) big-endian; bytes past `n` are treated as zero (GNU pads
+   short trailing groups with NUL). */
 static unsigned long long
 od_read_le (const unsigned char *buf, size_t i, size_t n, int bytes)
 {
     unsigned long long v = 0;
     for (int k = 0; k < bytes; k++) {
         unsigned long long b = (i + (size_t) k < n) ? buf[i + (size_t) k] : 0ull;
-        v |= b << (8 * k);
+        if (od_big_endian)
+            v = (v << 8) | b;
+        else
+            v |= b << (8 * k);
     }
     return v;
 }
@@ -333,8 +374,11 @@ od_next_input (od_input *in)
             in->file = in->input;
         } else {
             in->file = fopen (in->name, "rb");
-            if (!in->file)
-                builtin_error ("%s: %s", in->name, strerror (errno));
+            if (!in->file) {
+                int e = errno;
+                fflush (stdout);   /* keep GNU's order on a shared stream */
+                builtin_error ("%s: %s", in->name, strerror (e));
+            }
         }
         if (in->file) return 1;
         in->status = EXECUTION_FAILURE;
@@ -416,9 +460,9 @@ od_dump (od_input *in, od_opts *o, int *seen_block, unsigned char *prev,
         *dedup_active = 0;
 
         for (int k = 0; k < o->nspecs; k++) {
-            if (k == 0) od_print_addr (off, o->addr_radix);
-            else if (o->addr_radix != 'n') {
-                int aw = (o->addr_radix == 'x') ? 6 : 7;
+            if (k == 0) od_print_prefix (o, off);
+            else {
+                int aw = od_prefix_width (o);
                 for (int p = 0; p < aw; p++) putchar (' ');
             }
             od_emit_spec_line (&o->specs[k], buf, n, width, groupbytes, gwidth);
@@ -433,8 +477,8 @@ od_dump (od_input *in, od_opts *o, int *seen_block, unsigned char *prev,
 
     free (buf);
     /* Trailing address. */
-    if (o->addr_radix != 'n') {
-        od_print_addr (off, o->addr_radix);
+    if (o->addr_radix != 'n' || o->has_label) {
+        od_print_prefix (o, off);
         putchar ('\n');
     }
     return EXECUTION_SUCCESS;
@@ -479,7 +523,7 @@ od_strings (FILE *f, int min)
    and a run NOT terminated by NUL is discarded). The offset of the run's
    first byte is printed in the address radix (suppressed when 'n'). */
 static int
-od_strings_gnu (od_input *in, int min, char rad, long long start)
+od_strings_gnu (od_input *in, const od_opts *o, int min, long long start)
 {
     unsigned char buf[8192];
     size_t n;
@@ -495,10 +539,12 @@ od_strings_gnu (od_input *in, int min, char rad, long long start)
                 if (run < (int) sizeof run_buf - 1) run_buf[run++] = (char) c;
             } else {
                 if (c == '\0' && run >= min) {       /* only NUL closes a string */
+                    if (run == 0) run_start = off + (long long) i;
                     run_buf[run] = '\0';
-                    if (rad == 'n') printf ("%s\n", run_buf);
+                    if (o->addr_radix == 'n' && !o->has_label)
+                        printf ("%s\n", run_buf);
                     else {
-                        od_print_addr (run_start, rad);
+                        od_print_prefix (o, run_start);
                         printf (" %s\n", run_buf);
                     }
                 }
@@ -612,11 +658,12 @@ od_size_letter (char c)
     }
 }
 
-/* Parse a -t TYPE token. Accepts: c, a, {d,o,u,x} with optional width
-   1/2/4/8 or named-size letter C/S/I/L (default 4), and f with width
-   4/8 or named-size F(4)/D(8) (default 8). Multiple specs may be packed
-   into one token (e.g. "x1c"); each may end in 'z' for the ">...<"
-   printable column (e.g. "x1z"). Returns 0 on success. */
+/* Parse a -t TYPE token. Accepts: c, a, {d,o,u,x} with an optional
+   decimal size 1/2/4/8 or named-size letter C/S/I/L (default 4), and f
+   with size 4/8 or named-size F(4)/D(8) (default 8). Multiple specs may be
+   packed into one token (e.g. "x1c"); each may end in 'z' for the ">...<"
+   printable column (e.g. "x1z"). Diagnostics are GNU od's. Returns 0 on
+   success. */
 static int
 od_parse_type (const char *type, od_opts *o)
 {
@@ -627,25 +674,33 @@ od_parse_type (const char *type, od_opts *o)
         od_spec *added;
         if (base == 'c' || base == 'a') {
             added = od_add_spec (o, base, 0, 1);
-        } else if (base == 'f') {
-            /* float: width 4/8 or named-size F(4)/D(8), default 8 (double). */
-            if (*p == '4')      { bytes = 4; p++; }
-            else if (*p == '8') { bytes = 8; p++; }
-            else if (*p == 'F') { bytes = 4; p++; }
-            else if (*p == 'D') { bytes = 8; p++; }
-            else                  bytes = 8;   /* GNU default for f */
-            added = od_add_spec (o, 'f', 0, bytes);
-        } else if (base == 'x' || base == 'o' || base == 'd' || base == 'u') {
-            int sl;
-            if (*p == '1')               { bytes = 1; p++; }
-            else if (*p == '2')          { bytes = 2; p++; }
-            else if (*p == '4')          { bytes = 4; p++; }
-            else if (*p == '8')          { bytes = 8; p++; }
-            else if ((sl = od_size_letter (*p))) { bytes = sl; p++; }
-            else                           bytes = 4;   /* GNU default width for int types */
-            added = od_add_spec (o, 'i', base, bytes);
+        } else if (base == 'f' || base == 'x' || base == 'o' || base == 'd'
+                   || base == 'u') {
+            int is_float = base == 'f';
+            if (isdigit ((unsigned char) *p)) {
+                long n = 0;
+                for (; isdigit ((unsigned char) *p); p++)
+                    if (n < 100000) n = n * 10 + (*p - '0');
+                bytes = (int) n;
+                if (is_float ? (bytes != 4 && bytes != 8)
+                             : (bytes != 1 && bytes != 2 && bytes != 4 && bytes != 8)) {
+                    builtin_error ("invalid type string '%s';", type);
+                    fprintf (stderr, "this system doesn't provide a %ld-byte %s type\n",
+                             n, is_float ? "floating point" : "integral");
+                    return -1;
+                }
+            } else if (is_float && (*p == 'F' || *p == 'D')) {
+                bytes = (*p == 'F') ? 4 : 8;
+                p++;
+            } else if (!is_float && od_size_letter (*p)) {
+                bytes = od_size_letter (*p);
+                p++;
+            } else
+                bytes = is_float ? 8 : 4;    /* GNU defaults: double, int */
+            added = is_float ? od_add_spec (o, 'f', 0, bytes)
+                             : od_add_spec (o, 'i', base, bytes);
         } else {
-            builtin_error ("-t: unsupported TYPE '%s'", type);
+            builtin_error ("invalid character '%c' in type string '%s'", base, type);
             return -1;
         }
         if (*p == 'z') {
@@ -658,26 +713,125 @@ od_parse_type (const char *type, od_opts *o)
 
 extern char *od_doc[];
 
+/* A -j, -N or -S BYTES argument: decimal, 0x hex or leading-0 octal, with
+   an optional multiplier suffix: b (512), K/k M/m G T P E Z Y R Q (powers
+   of 1024), the same letter + B (powers of 1000) or + iB (1024). */
 static int
-od_parse_nonnegative_ll (const char *s, const char *what, long long *out)
+od_parse_size (const char *s, const char *what, long long *out)
 {
-    char *end = NULL;
-    long long n;
+    static const char powers[] = "KMGTPEZYRQ";
+    const char *p = s;
+    unsigned long long v = 0, mult = 1;
+    int digits = 0, over = 0;
 
-    if (s == NULL || *s == '\0') {
-        builtin_error ("%s needs N", what);
-        builtin_usage ();
+    while (isspace ((unsigned char) *p)) p++;
+    if (*p == '-') goto invalid;
+    if (*p == '+') p++;
+    if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X') && isxdigit ((unsigned char) p[2])) {
+        for (p += 2; isxdigit ((unsigned char) *p); p++, digits++) {
+            unsigned d = isdigit ((unsigned char) *p) ? (unsigned) (*p - '0')
+                         : (unsigned) (tolower ((unsigned char) *p) - 'a' + 10);
+            if (v > (ULLONG_MAX - d) / 16) over = 1; else v = v * 16 + d;
+        }
+    } else {
+        unsigned radix = (*p == '0') ? 8 : 10;
+        for (; *p >= '0' && *p <= (radix == 8 ? '7' : '9'); p++, digits++) {
+            unsigned d = (unsigned) (*p - '0');
+            if (v > (ULLONG_MAX - d) / radix) over = 1; else v = v * radix + d;
+        }
+    }
+    if (!digits) goto invalid;
+    if (*p) {
+        if (p[0] == 'b' && !p[1])
+            mult = 512;
+        else {
+            const char *q = (*p == 'k' || *p == 'm') ? strchr (powers, toupper ((unsigned char) *p))
+                            : (*p ? strchr (powers, *p) : NULL);
+            unsigned base = 1024;
+            if (!q) goto badsuffix;
+            if (!p[1]) ;
+            else if (p[1] == 'B' && !p[2]) base = 1000;
+            else if (p[1] == 'i' && p[2] == 'B' && !p[3]) ;
+            else goto badsuffix;
+            for (long e = (long) (q - powers) + 1; e > 0; e--) {
+                if (mult > ULLONG_MAX / base) over = 1; else mult *= base;
+            }
+        }
+    }
+    if (over || (v && mult > (unsigned long long) LLONG_MAX / v)
+        || v * mult > (unsigned long long) LLONG_MAX) {
+        builtin_error ("%s argument '%s' too large", what, s);
         return -1;
     }
-    errno = 0;
-    n = strtoll (s, &end, 0);
-    if (errno || end == s || *end || n < 0) {
-        builtin_error ("%s: N must be a non-negative integer (got '%s')", what, s);
-        builtin_usage ();
-        return -1;
-    }
-    *out = n;
+    *out = (long long) (v * mult);
     return 0;
+invalid:
+    builtin_error ("invalid %s argument '%s'", what, s);
+    return -1;
+badsuffix:
+    builtin_error ("invalid suffix in %s argument '%s'", what, s);
+    return -1;
+}
+
+/* -w BYTES: a plain decimal count. */
+static int
+od_parse_width (const char *s, const char *what, int *out)
+{
+    const char *p = s;
+    long long v = 0;
+    int digits = 0;
+    while (isspace ((unsigned char) *p)) p++;
+    if (*p == '+') p++;
+    for (; isdigit ((unsigned char) *p); p++, digits++)
+        if (v < INT_MAX) v = v * 10 + (*p - '0');
+    if (!digits || (!*p && v == 0)) {
+        builtin_error ("invalid %s argument '%s'", what, s);
+        return -1;
+    }
+    if (*p) {
+        builtin_error ("invalid suffix in %s argument '%s'", what, s);
+        return -1;
+    }
+    if (v >= INT_MAX) {
+        builtin_error ("%s argument '%s' too large", what, s);
+        return -1;
+    }
+    *out = (int) v;
+    return 0;
+}
+
+/* A traditional OFFSET or LABEL operand: [+]OCTAL or [+]0xHEX, then an
+   optional b or B (times 512). Returns 1 and sets *OUT when S is one. */
+static int
+od_parse_offset (const char *s, long long *out)
+{
+    const char *p = s;
+    unsigned long long v = 0;
+    int digits = 0;
+    if (*p == '+') p++;
+    if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
+        for (p += 2; isxdigit ((unsigned char) *p); p++, digits++) {
+            unsigned d = isdigit ((unsigned char) *p) ? (unsigned) (*p - '0')
+                         : (unsigned) (tolower ((unsigned char) *p) - 'a' + 10);
+            if (v > ((unsigned long long) LLONG_MAX - d) / 16) return 0;
+            v = v * 16 + d;
+        }
+    } else {
+        for (; *p >= '0' && *p <= '7'; p++, digits++) {
+            unsigned d = (unsigned) (*p - '0');
+            if (v > ((unsigned long long) LLONG_MAX - d) / 8) return 0;
+            v = v * 8 + d;
+        }
+    }
+    if (!digits) return 0;
+    if (*p == 'b' || *p == 'B') {
+        if (v > (unsigned long long) LLONG_MAX / 512) return 0;
+        v *= 512;
+        p++;
+    }
+    if (*p) return 0;
+    *out = (long long) v;
+    return 1;
 }
 
 /* Own stdin's stdio state for this invocation. Bash's persistent stdin FILE
@@ -696,201 +850,279 @@ od_open_stdin (void)
     return in;
 }
 
+/* GNU od's long options; abbreviations and --opt=VALUE / --opt VALUE are
+   resolved by lon_normalize before the parser below sees the words. */
+static const struct lon_option od_longopts[] = {
+    { "address-radix",     LON_REQUIRED, "-A" },
+    { "endian",            LON_REQUIRED, NULL },
+    { "format",            LON_REQUIRED, "-t" },
+    { "help",              LON_NONE,     NULL },
+    { "output-duplicates", LON_NONE,     "-v" },
+    { "read-bytes",        LON_REQUIRED, NULL },
+    { "skip-bytes",        LON_REQUIRED, NULL },
+    { "strings",           LON_OPTIONAL, NULL },
+    { "traditional",       LON_NONE,     NULL },
+    { "version",           LON_NONE,     NULL },
+    { "width",             LON_OPTIONAL, NULL },
+    { NULL, 0, NULL }
+};
+
+/* --endian=WORD: an exact word or an unambiguous prefix of one. */
+static int
+od_parse_endian (const char *v)
+{
+    static const char *const names[] = { "little", "big" };
+    size_t len = strlen (v);
+    int match = -1, count = 0;
+    for (int i = 0; i < 2; i++) {
+        if (!strcmp (v, names[i])) { match = i; count = 1; break; }
+        if (!strncmp (v, names[i], len)) { match = i; count++; }
+    }
+    if (count == 1) {
+        od_big_endian = (match == 1);
+        return 0;
+    }
+    builtin_error ("%s argument '%s' for '--endian'",
+                   count > 1 ? "ambiguous" : "invalid", v);
+    fputs ("Valid arguments are:\n  - 'little'\n  - 'big'\n", stderr);
+    lon_try_help ();
+    return -1;
+}
+
+/* GNU's compatibility-mode operand error. */
+static int
+od_extra_operand (const char *w)
+{
+    builtin_error ("extra operand '%s'", w);
+    builtin_error ("compatibility mode supports at most one file");
+    lon_try_help ();
+    return EXECUTION_FAILURE;
+}
+
 int
 od_builtin (WORD_LIST *list)
 {
     od_opts o = { .addr_radix = 'o', .nspecs = 0, .width = OD_DEFAULT_WIDTH,
-                  .no_dedup = 0, .strings_min = 0, .gnu_strings_min = 0,
-                  .skip_bytes = 0, .max_bytes = -1 };
-    while (list && list->word->word[0] == '-' && list->word->word[1]) {
-        const char *w = list->word->word;
-        if (!strcmp (w, "--")) { list = list->next; break; }
-        if (!strcmp (w, "--help") || !strcmp (w, "-h")) {
-            for (char **dp = od_doc; *dp; dp++) puts (*dp);
-            return EXECUTION_SUCCESS;
-        }
-        if (!strcmp (w, "-v") || !strcmp (w, "--output-duplicates")) {
-            o.no_dedup = 1;
-            list = list->next;
-            continue;
-        }
-        /* -w[WIDTH] / --width[=WIDTH]: bytes per output line (default 16). */
-        if (!strcmp (w, "-w") || (!strncmp (w, "-w", 2) && w[2] != '\0')
-            || !strncmp (w, "--width", 7)) {
-            const char *nv = NULL;
-            if (!strncmp (w, "--width", 7)) {
-                nv = (w[7] == '=') ? w + 8 : NULL;   /* bare --width => default 32 */
-                if (nv == NULL) { o.width = 32; list = list->next; continue; }
-            } else if (w[2] != '\0') {
-                nv = w + 2;
-            } else {
-                /* bare -w => 32 (GNU default when no width given). */
-                o.width = 32;
-                list = list->next;
+                  .no_dedup = 0, .strings_min = 0, .gnu_strings_min = -1,
+                  .skip_bytes = 0, .max_bytes = -1, .has_label = 0, .label = 0 };
+    WORD_LIST *norm = NULL, *files = NULL, *l;
+    int own_files = 0, traditional = 0, modern = 0, rc = EXECUTION_SUCCESS;
+
+    od_big_endian = 0;
+    if (lon_normalize (list, od_longopts, "A:j:N:S:t:w::", 1, &norm) < 0)
+        return EXECUTION_FAILURE;
+
+    for (l = norm; l; l = l->next) {
+        const char *w = l->word->word;
+        if (w[0] != '-' || w[1] == '\0')
+            break;
+        if (!strcmp (w, "--")) { l = l->next; break; }
+        if (w[1] == '-') {
+            /* Only the long-only options remain after normalization. */
+            if (!strcmp (w, "--help")) {
+                for (char **dp = od_doc; *dp; dp++) puts (*dp);
+                goto out;
+            }
+            if (!strcmp (w, "--version")) {
+                puts ("od (bash-os) 0.1.5");
+                goto out;
+            }
+            if (!strcmp (w, "--traditional")) { traditional = 1; continue; }
+            if (!strncmp (w, "--endian=", 9)) {
+                if (od_parse_endian (w + 9) < 0) { rc = EXECUTION_FAILURE; goto out; }
                 continue;
             }
-            long long n;
-            if (od_parse_nonnegative_ll (nv, "-w", &n) < 0) return EX_USAGE;
-            o.width = (n < 1) ? OD_DEFAULT_WIDTH : (int) n;
-            list = list->next;
-            continue;
-        }
-        if (!strcmp (w, "-A") || (!strncmp (w, "-A", 2) && w[2] != '\0')) {
-            const char *rv = NULL;
-            if (w[2] != '\0') {
-                rv = w + 2;
-            } else {
-                if (!list->next) { builtin_error ("-A needs RADIX"); builtin_usage (); return EX_USAGE; }
-                list = list->next;
-                rv = list->word->word;
+            if (!strcmp (w, "--strings")) { o.gnu_strings_min = 3; modern = 1; continue; }
+            /* These keep their long names for GNU's diagnostics. */
+            if (!strncmp (w, "--read-bytes=", 13) || !strncmp (w, "--skip-bytes=", 13)) {
+                long long n;
+                char what[13];
+                memcpy (what, w, 12);
+                what[12] = '\0';
+                if (od_parse_size (w + 13, what, &n) < 0) { rc = EXECUTION_FAILURE; goto out; }
+                if (w[2] == 'r') o.max_bytes = n; else o.skip_bytes = n;
+                modern = 1;
+                continue;
             }
-            char r = rv[0];
-            if (rv[1] != '\0') {
-                builtin_error ("-A: radix must be a single x/o/d/n");
-                builtin_usage ();
-                return EX_USAGE;
+            if (!strcmp (w, "--width")) { o.width = 32; modern = 1; continue; }
+            if (!strncmp (w, "--width=", 8)) {
+                if (od_parse_width (w + 8, "--width", &o.width) < 0) { rc = EXECUTION_FAILURE; goto out; }
+                modern = 1;
+                continue;
             }
-            if (r != 'x' && r != 'o' && r != 'd' && r != 'n') {
-                builtin_error ("-A: radix must be x/o/d/n");
-                builtin_usage ();
-                return EX_USAGE;
+            if (!strncmp (w, "--strings=", 10)) {
+                long long n;
+                if (od_parse_size (w + 10, "--strings", &n) < 0) { rc = EXECUTION_FAILURE; goto out; }
+                o.gnu_strings_min = n > INT_MAX ? INT_MAX : (int) n;
+                modern = 1;
+                continue;
             }
-            o.addr_radix = r;
-            list = list->next;
-            continue;
+            lon_error ("unrecognized option '%s'", w);
+            lon_try_help ();
+            rc = EXECUTION_FAILURE;
+            goto out;
         }
-        if (!strcmp (w, "-t") || (!strncmp (w, "-t", 2) && w[2] != '\0')) {
-            const char *type = NULL;
-            if (w[2] != '\0') {
-                type = w + 2;
-            } else {
-                if (!list->next) { builtin_error ("-t needs TYPE"); builtin_usage (); return EX_USAGE; }
-                list = list->next;
-                type = list->word->word;
-            }
-            if (od_parse_type (type, &o) < 0) { builtin_usage (); return EX_USAGE; }
-            list = list->next;
-            continue;
-        }
-        /* -j N  — skip N bytes before dumping. GNU od also accepts -jN. */
-        if (!strcmp (w, "-j") || (!strncmp (w, "-j", 2) && w[2] != '\0')) {
-            const char *nv = NULL;
-            if (w[2] != '\0') {
-                nv = w + 2;
-            } else {
-                if (!list->next) { builtin_error ("-j needs BYTES"); builtin_usage (); return EX_USAGE; }
-                list = list->next;
-                nv = list->word->word;
-            }
-            long long n;
-            if (od_parse_nonnegative_ll (nv, "-j", &n) < 0) return EX_USAGE;
-            o.skip_bytes = n;
-            list = list->next;
-            continue;
-        }
-        /* -S N / -SN / --strings[=N]: GNU NUL-terminated string extraction.
-           GNU requires an argument for -S; --strings defaults to 3. */
-        if (!strcmp (w, "-S") || (!strncmp (w, "-S", 2) && w[2] != '\0')
-            || !strncmp (w, "--strings", 9)) {
-            const char *nv = NULL;
-            if (!strncmp (w, "--strings", 9)) {
-                nv = (w[9] == '=') ? w + 10 : NULL;
-                if (nv == NULL) { o.gnu_strings_min = 3; list = list->next; continue; }
-            } else if (w[2] != '\0') {
-                nv = w + 2;
-            } else {
-                if (!list->next) {
-                    builtin_error ("option requires an argument -- 'S'");
-                    builtin_usage ();
-                    return EX_USAGE;
-                }
-                list = list->next;
-                nv = list->word->word;
-            }
-            long long n;
-            if (od_parse_nonnegative_ll (nv, "-S", &n) < 0) return EX_USAGE;
-            o.gnu_strings_min = (n < 1) ? 3 : (int) n;
-            list = list->next;
-            continue;
-        }
-        if (!strcmp (w, "-s")) {
-            o.strings_min = 3;
-            list = list->next;
-            /* Optional N argument (numeric only). */
-            if (list && list->word->word[0] >= '0' && list->word->word[0] <= '9') {
-                o.strings_min = atoi (list->word->word);
-                if (o.strings_min < 1) o.strings_min = 3;
-                list = list->next;
-            }
-            continue;
-        }
-        /* -N N  — process at most N bytes from input(s) before stopping.
-           Accept either `-N 4` (space-separated) or `-N4` (joined).
-           POSIX-compat: GNU od / BSD od both accept this form. */
-        if (!strcmp (w, "-N") || (!strncmp (w, "-N", 2) && w[2] != '\0')) {
-            const char *nv = NULL;
-            if (w[2] != '\0') {
-                nv = w + 2;
-            } else {
-                if (!list->next) { builtin_error ("-N needs BYTE_COUNT"); builtin_usage (); return EX_USAGE; }
-                list = list->next;
-                nv = list->word->word;
-            }
-            long long n;
-            if (od_parse_nonnegative_ll (nv, "-N", &n) < 0) return EX_USAGE;
-            o.max_bytes = n;
-            list = list->next;
-            continue;
-        }
-        if (!strncmp (w, "-s", 2) && w[2] >= '0' && w[2] <= '9') {
-            o.strings_min = atoi (w + 2);
-            if (o.strings_min < 1) o.strings_min = 3;
-            list = list->next;
-            continue;
-        }
+        /* A cluster of short options; one that takes an argument ends it. */
         for (const char *c = w + 1; *c; c++) {
+            const char *arg;
+            long long n;
             switch (*c) {
-                case 'c': od_add_spec (&o, 'c', 0, 1);   break;
-                case 'a': od_add_spec (&o, 'a', 0, 1);   break;
-                case 'b': od_add_spec (&o, 'i', 'o', 1); break; /* legacy: o1 */
-                case 'x': od_add_spec (&o, 'i', 'x', 2); break;
-                case 'o': od_add_spec (&o, 'i', 'o', 2); break;
-                case 'd': od_add_spec (&o, 'i', 'u', 2); break; /* legacy -d is UNSIGNED 2-byte */
+                case 'a': od_add_spec (&o, 'a', 0, 1);   continue;
+                case 'b': od_add_spec (&o, 'i', 'o', 1); continue;
+                case 'c': od_add_spec (&o, 'c', 0, 1);   continue;
+                case 'd': od_add_spec (&o, 'i', 'u', 2); continue;
+                case 'f': od_add_spec (&o, 'f', 0, 4);   continue;
+                case 'i': od_add_spec (&o, 'i', 'd', 4); continue;
+                case 'l': od_add_spec (&o, 'i', 'd', 8); continue;
+                case 'o': od_add_spec (&o, 'i', 'o', 2); continue;
+                case 'x':
+                case 'h': od_add_spec (&o, 'i', 'x', 2); continue;
+                /* Undocumented GNU legacy selectors. */
+                case 'B': od_add_spec (&o, 'i', 'o', 2); continue;
+                case 'D': od_add_spec (&o, 'i', 'u', 4); continue;
+                case 'e':
+                case 'F': od_add_spec (&o, 'f', 0, 8);   continue;
+                case 'H':
+                case 'X': od_add_spec (&o, 'i', 'x', 4); continue;
+                case 'I':
+                case 'L': od_add_spec (&o, 'i', 'd', 8); continue;
+                case 'O': od_add_spec (&o, 'i', 'o', 4); continue;
+                case 'v': o.no_dedup = 1; modern = 1;    continue;
+                case 's':
+                    /* bash-os strings mode: -s, -sN or -s N (not GNU's -s). */
+                    o.strings_min = 3;
+                    if (isdigit ((unsigned char) c[1])) {
+                        o.strings_min = atoi (c + 1);
+                    } else if (c[1] == '\0' && l->next
+                               && isdigit ((unsigned char) l->next->word->word[0])) {
+                        l = l->next;
+                        o.strings_min = atoi (l->word->word);
+                    } else
+                        continue;
+                    if (o.strings_min < 1) o.strings_min = 3;
+                    break;
+                case 'w':
+                    modern = 1;
+                    if (c[1] == '\0') o.width = 32;    /* bare -w => 32 */
+                    else if (od_parse_width (c + 1, "-w", &o.width) < 0) {
+                        rc = EXECUTION_FAILURE;
+                        goto out;
+                    }
+                    break;
+                case 'A': case 'j': case 'N': case 'S': case 't':
+                    modern = 1;
+                    if (c[1]) arg = c + 1;
+                    else if (l->next) { l = l->next; arg = l->word->word; }
+                    else {
+                        lon_error ("option requires an argument -- '%c'", *c);
+                        lon_try_help ();
+                        rc = EXECUTION_FAILURE;
+                        goto out;
+                    }
+                    if (*c == 'A') {
+                        if (!arg[0] || !strchr ("doxn", arg[0])) {
+                            builtin_error ("invalid output address radix '%c'; it must be one character from [doxn]",
+                                           arg[0] ? arg[0] : ' ');
+                            rc = EXECUTION_FAILURE;
+                            goto out;
+                        }
+                        o.addr_radix = arg[0];
+                    } else if (*c == 't') {
+                        if (od_parse_type (arg, &o) < 0) { rc = EXECUTION_FAILURE; goto out; }
+                    } else {
+                        char what[3] = { '-', *c, '\0' };
+                        if (od_parse_size (arg, what, &n) < 0) { rc = EXECUTION_FAILURE; goto out; }
+                        if (*c == 'j') o.skip_bytes = n;
+                        else if (*c == 'N') o.max_bytes = n;
+                        else o.gnu_strings_min = n > INT_MAX ? INT_MAX : (int) n;
+                    }
+                    break;
                 default:
-                    builtin_error ("unknown flag: -%c", *c);
-                    builtin_usage ();
-                    return EX_USAGE;
+                    lon_error ("invalid option -- '%c'", *c);
+                    lon_try_help ();
+                    rc = EXECUTION_FAILURE;
+                    goto out;
+            }
+            break;
+        }
+    }
+
+    /* Operands: FILE... or the traditional [FILE] [[+]OFFSET [[+]LABEL]]. */
+    {
+        const char *op[4] = { NULL, NULL, NULL, NULL };
+        int nops = 0;
+        long long a, b;
+        for (WORD_LIST *p = l; p; p = p->next, nops++)
+            if (nops < 4) op[nops] = p->word->word;
+        files = l;
+        if (traditional) {
+            if (nops == 1) {
+                if (od_parse_offset (op[0], &a)) { o.skip_bytes = a; files = NULL; }
+            } else if (nops == 2) {
+                if (!od_parse_offset (op[1], &b)) { rc = od_extra_operand (op[1]); goto out; }
+                if (od_parse_offset (op[0], &a)) {
+                    o.skip_bytes = a; o.label = b; o.has_label = 1; files = NULL;
+                } else {
+                    o.skip_bytes = b; files = NULL; own_files = 1;
+                }
+            } else if (nops == 3) {
+                if (!od_parse_offset (op[1], &a) || !od_parse_offset (op[2], &b)) {
+                    rc = od_extra_operand (op[1]);
+                    goto out;
+                }
+                o.skip_bytes = a; o.label = b; o.has_label = 1; files = NULL; own_files = 1;
+            } else if (nops > 3) {
+                rc = od_extra_operand (op[1]);
+                goto out;
+            }
+        } else if (!modern) {
+            /* POSIX XSI form, recognized only with the traditional
+               format selectors: `od FILE [+]OFFSET` or `od +OFFSET`. */
+            if (nops == 1 && op[0][0] == '+' && od_parse_offset (op[0], &a)) {
+                o.skip_bytes = a; files = NULL;
+            } else if (nops == 2 && (op[1][0] == '+' || isdigit ((unsigned char) op[1][0]))
+                       && od_parse_offset (op[1], &a)) {
+                o.skip_bytes = a; files = NULL; own_files = 1;
             }
         }
-        list = list->next;
+        if (own_files)
+            files = make_word_list (make_word (op[0]), (WORD_LIST *) NULL);
     }
+
     /* If no display flag set and not in either strings mode, default to -t o2. */
-    if (!o.strings_min && !o.gnu_strings_min && o.nspecs == 0)
+    if (!o.strings_min && o.gnu_strings_min < 0 && o.nspecs == 0)
         od_add_spec (&o, 'i', 'o', 2);
 
-    /* od_dump rounds a short requested width up to one complete element.
-       The previous-line buffer must hold that same effective width. */
+    /* The width must be a multiple of the widest element; GNU warns and
+       falls back to one element per line. */
     int buffer_width = o.width;
-    for (int k = 0; k < o.nspecs; k++)
-        if (o.specs[k].bytes > buffer_width) buffer_width = o.specs[k].bytes;
+    if (o.nspecs && !o.strings_min && o.gnu_strings_min < 0) {
+        int gb = 1;
+        for (int k = 0; k < o.nspecs; k++)
+            if (o.specs[k].bytes > gb) gb = o.specs[k].bytes;
+        if (o.width % gb) {
+            builtin_error ("warning: invalid width %d; using %d instead", o.width, gb);
+            o.width = buffer_width = gb;
+        }
+    }
 
-    int rc = EXECUTION_SUCCESS;
-    if (o.strings_min && !o.gnu_strings_min)
-        rc = od_custom_strings (list, &o);
+    if (o.strings_min && o.gnu_strings_min < 0)
+        rc = od_custom_strings (files, &o);
     else {
-        od_input in = { .next = list, .implicit_stdin = list == NULL,
+        od_input in = { .next = files, .implicit_stdin = files == NULL,
                         .status = EXECUTION_SUCCESS, .remaining = -1 };
         if (!od_next_input (&in)) {
             od_close_input (&in);
-            return EXECUTION_FAILURE;
+            rc = EXECUTION_FAILURE;
+            goto out;
         }
         if (od_skip_input (&in, o.skip_bytes) < 0) {
-            builtin_error ("cannot skip %lld bytes", o.skip_bytes);
+            builtin_error ("cannot skip past end of combined input");
             rc = EXECUTION_FAILURE;
         } else {
             in.remaining = o.max_bytes;
-            if (o.gnu_strings_min)
-                rc = od_strings_gnu (&in, o.gnu_strings_min, o.addr_radix, o.skip_bytes);
+            if (o.gnu_strings_min >= 0)
+                rc = od_strings_gnu (&in, &o, o.gnu_strings_min, o.skip_bytes);
             else {
                 int seen = 0, dactive = 0; size_t pn = 0;
                 unsigned char *prev = (unsigned char *) malloc ((size_t) buffer_width);
@@ -906,6 +1138,12 @@ od_builtin (WORD_LIST *list)
         if (in.status != EXECUTION_SUCCESS) rc = in.status;
         od_close_input (&in);
     }
+
+out:
+    if (own_files && files)
+        dispose_words (files);
+    if (norm)
+        dispose_words (norm);
     if (fflush (stdout) == EOF || ferror (stdout)) {
         builtin_error ("write error: %s", strerror (errno ? errno : EIO));
         rc = EXECUTION_FAILURE;
@@ -914,32 +1152,46 @@ od_builtin (WORD_LIST *list)
 }
 
 char *od_doc[] = {
-    "Octal / hex / decimal / char dump (POSIX od).",
+    "Octal / hex / decimal / char dump (POSIX and GNU od).",
     "",
-    "    bashod [-A x|o|d|n] [-j BYTES] [-N BYTES] [-t TYPE] [-w[WIDTH]] [-v]",
-    "           [-c] [-x] [-o] [-d] [-b] [-s [N]] [FILE...]",
+    "    od [OPTION]... [FILE]...",
+    "    od [-abcdfhilosxBDeFHILOX]... [FILE] [[+]OFFSET[b]]",
+    "    od --traditional [OPTION]... [FILE] [[+]OFFSET[b] [[+]LABEL[b]]]",
     "",
-    "    -A RADIX   address radix: x (hex), o (octal, default), d (decimal),",
-    "               n (suppress address field)",
-    "    -c         show bytes as chars (escapes for control + space)",
-    "    -b         1-byte octal (legacy, == -t o1)",
-    "    -j BYTES   skip BYTES input bytes before dumping",
-    "    -x         16-bit hex words (LE)",
-    "    -t TYPE    a, c, [doux] with width 1/2/4/8 or size C/S/I/L (e.g. x4,",
-    "               dL), or f with width 4/8 or size F/D (IEEE float/double);",
+    "    -A, --address-radix=RADIX  address radix: x (hex), o (octal, default),",
+    "               d (decimal), n (no address field)",
+    "        --endian=big|little    byte order of multi-byte elements",
+    "    -j, --skip-bytes=BYTES     skip BYTES input bytes first",
+    "    -N, --read-bytes=BYTES     dump at most BYTES input bytes",
+    "    -S BYTES, --strings[=BYTES]  print NUL-terminated runs of at least",
+    "               BYTES (3) printable characters (GNU strings mode)",
+    "    -t, --format=TYPE  a, c, [doux] with size 1/2/4/8 or C/S/I/L (e.g. x4,",
+    "               dL), or f with size 4/8 or F/D (IEEE float/double);",
     "               a trailing z (e.g. x1z) appends each line's printable",
     "               bytes as >...<, non-printables as '.'",
-    "    -w[WIDTH]  bytes per output line (default 16; bare -w => 32)",
-    "    -v         do not collapse runs of identical lines into a single '*'",
-    "    -N BYTES   stop after BYTES bytes of input (POSIX -N)",
-    "    -o         16-bit octal words (default)",
-    "    -d         16-bit decimal words",
-    "    -s [N]     print printable-byte runs of length >= N (default 3)",
-    "    -S N       print NUL-terminated graphic runs >= N (GNU --strings)",
+    "    -v, --output-duplicates  do not collapse repeated lines into '*'",
+    "    -w[BYTES], --width[=BYTES]  bytes per output line (default 16;",
+    "               32 when BYTES is omitted)",
+    "        --traditional  accept the OFFSET and LABEL operands above",
+    "        --help, --version",
     "",
-    "Reads stdin when no FILE given (or `-` in the list). Combinable",
-    "modes (`-cx`, `-t o2 -t x2`) print each on stacked lines under the",
-    "same address, with per-type columns aligned GNU-style.",
+    "    Traditional selectors: -a (= -t a), -b (o1), -c (c), -d (u2),",
+    "    -f (fF), -i (dI), -l (dL), -o (o2), -x and -h (x2), and GNU's",
+    "    -B (o2), -D (u4), -e and -F (fD), -H and -X (x4), -I and -L (dL),",
+    "    -O (o4).",
+    "    -s [N]     bash-os strings mode: print printable-byte runs of",
+    "               length >= N (default 3); GNU's -s (= -t d2) is not provided",
+    "",
+    "BYTES is decimal, 0x hex or 0-prefixed octal, with an optional suffix",
+    "b (512), K/k, M/m, G, T, P, E, Z, Y, R, Q (powers of 1024), KB, MB, ...",
+    "(powers of 1000) or KiB, MiB, .... OFFSET and LABEL are octal, or hex",
+    "with 0x; a b suffix multiplies by 512. The OFFSET form works without",
+    "--traditional only with the traditional selectors: `od FILE [+]OFFSET`",
+    "(two operands) or `od +OFFSET`. Long options may be abbreviated.",
+    "",
+    "Reads stdin when no FILE given (or `-` in the list); operands form one",
+    "input stream. Combinable modes (`-cx`, `-t o2 -t x2`) print each on",
+    "stacked lines under the same address, with per-type columns aligned.",
     (char *)NULL
 };
 
@@ -948,6 +1200,6 @@ struct builtin bashod_struct = {
     od_builtin,
     BUILTIN_ENABLED,
     od_doc,
-    "bashod [-A x|o|d|n] [-j BYTES] [-t TYPE] [-N BYTES] [-w[WIDTH]] [-v] [-c] [-x] [-o] [-d] [-b] [-s [N]] [-S N] [FILE...]",
+    "bashod [-abcdfhilosxBDeFHILOXv] [-A RADIX] [-j BYTES] [-N BYTES] [-S BYTES] [-t TYPE] [-w[BYTES]] [--endian=big|little] [--traditional] [FILE...] [[+]OFFSET [[+]LABEL]]",
     0
 };

@@ -9,6 +9,7 @@
  *   sysctl --system                   # load standard locations in
  *                                         # the procps-ng order
  *   sysctl -n                         # value only (suppress name = )
+ *   sysctl -b                         # value only, without newlines
  *   sysctl -e                         # ignore unknown keys
  *   sysctl -q                         # quiet (no print on write)
  *
@@ -55,6 +56,7 @@
 #define BSC_F_DUMP_ALL       (1 << 6)
 #define BSC_F_NAMES_ONLY     (1 << 7)
 #define BSC_F_IGNORE_PERM    (1 << 8)
+#define BSC_F_BINARY         (1 << 9)   /* -b: values without their newlines */
 
 /* -r/--pattern: when set, only keys whose dotted name matches this
  * POSIX extended regex are read/written (procps-ng semantics). Reset at
@@ -180,8 +182,11 @@ bsc_read_key (const char *display_name, const char *fspath, int flags)
             printf ("%s = ", display_name);
             fwrite (line, 1, (size_t)n, stdout);
             if (line[n - 1] != '\n') putchar ('\n');
-        } else
+        } else {
+            /* procps -b: each line's newline is dropped. */
+            if ((flags & BSC_F_BINARY) && line[n - 1] == '\n') n--;
             fwrite (line, 1, (size_t)n, stdout);
+        }
     }
     if (ferror (fp)) {
         int saved = errno;
@@ -254,7 +259,7 @@ bsc_write_key (const char *display_name, const char *fspath,
         else if (flags & BSC_F_SHOW_KEYS)
             printf ("%s = %s\n", display_name, value);
         else
-            printf ("%s\n", value);
+            printf ((flags & BSC_F_BINARY) ? "%s" : "%s\n", value);
     }
     return EXECUTION_SUCCESS;
 }
@@ -514,13 +519,14 @@ sysctl_builtin (WORD_LIST *list)
         if (!strcmp (w, "--")) { list = list->next; break; }
 
         if (!strcmp (w, "-h") || !strcmp (w, "--help")) {
-            printf ("Usage: sysctl [-eNnq] [-r PATTERN] {-a | -p [FILE]... | "
+            printf ("Usage: sysctl [-beNnq] [-r PATTERN] {-a | -p [FILE]... | "
                     "--system | [-w] KEY[=VAL]...}\n");
             printf ("  -a  dump all readable keys under /proc/sys\n");
             printf ("  -w  write mode (KEY=VAL is implicit -w too)\n");
             printf ("  -p  load conf file(s); default /etc/sysctl.conf\n");
             printf ("  --system  load standard sysctl.d locations in order\n");
             printf ("  -n, --values  print values without 'KEY = ' prefix\n");
+            printf ("  -b, --binary  print values without 'KEY = ' prefix or newline\n");
             printf ("  -N, --names   print key names only (no values)\n");
             printf ("  -r, --pattern EXPR  only keys whose name matches EXPR (regex)\n");
             printf ("  -e  ignore 'unknown key' errors\n");
@@ -534,6 +540,7 @@ sysctl_builtin (WORD_LIST *list)
         if (!strcmp (w, "-w")) { flags |= BSC_F_WRITE; list = list->next; continue; }
         if (!strcmp (w, "-p")) { flags |= BSC_F_PRELOAD; list = list->next; continue; }
         if (!strcmp (w, "-n") || !strcmp (w, "--values")) { flags &= ~BSC_F_SHOW_KEYS; list = list->next; continue; }
+        if (!strcmp (w, "-b") || !strcmp (w, "--binary")) { flags &= ~BSC_F_SHOW_KEYS; flags |= BSC_F_BINARY; list = list->next; continue; }
         if (!strcmp (w, "-N") || !strcmp (w, "--names")) { flags |= BSC_F_NAMES_ONLY; list = list->next; continue; }
         if (!strcmp (w, "-e")) { flags &= ~BSC_F_SHOW_KEY_ERROR; list = list->next; continue; }
         if (!strcmp (w, "-q")) { flags |= BSC_F_QUIET; list = list->next; continue; }
@@ -612,7 +619,7 @@ char *sysctl_doc[] = {
     "",
     "Flags: -n/--values value-only, -N/--names names-only,",
     "       -r/--pattern EXPR filter keys by regex, -e ignore unknown,",
-    "       -q quiet on write.",
+    "       -q quiet on write, -b/--binary value-only without newlines.",
     "",
     "KEY syntax: dotted (kernel.ostype) — internally mapped onto",
     "/proc/sys/kernel/ostype.  sysctl(2) the syscall was removed in",
@@ -625,6 +632,6 @@ struct builtin sysctl_struct = {
     sysctl_builtin,
     BUILTIN_ENABLED,
     sysctl_doc,
-    "sysctl [-eNnq] [-r PATTERN] {-a | -p [FILE]... | --system | [-w] KEY[=VAL]...}",
+    "sysctl [-beNnq] [-r PATTERN] {-a | -p [FILE]... | --system | [-w] KEY[=VAL]...}",
     0
 };

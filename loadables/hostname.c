@@ -32,6 +32,7 @@
 #include <netdb.h>
 
 #include "loadables.h"
+#include "longopt-normalize.h"
 
 static const char *
 hostname_fixture_root (void)
@@ -125,10 +126,46 @@ print_fixture_tokens (const char *name)
     return 1;
 }
 
+/* net-tools hostname's long options (getopt_long, any unambiguous prefix,
+   options permuted ahead of a NAME operand). */
+static const struct lon_option hostname_longopts[] = {
+    { "alias",            LON_NONE,     "-a" },
+    { "all-fqdns",        LON_NONE,     "-A" },
+    { "boot",             LON_NONE,     "-b" },
+    { "domain",           LON_NONE,     "-d" },
+    { "fqdn",             LON_NONE,     "-f" },
+    { "long",             LON_NONE,     "-f" },
+    { "file",             LON_REQUIRED, "-F" },
+    { "ip-address",       LON_NONE,     "-i" },
+    { "all-ip-addresses", LON_NONE,     "-I" },
+    { "short",            LON_NONE,     "-s" },
+    { "yp",               LON_NONE,     "-y" },
+    { "nis",              LON_NONE,     "-y" },
+    { "dry-run",          LON_NONE,     "-n" },
+    { "version",          LON_NONE,     "-V" },
+    { "help",             LON_NONE,     NULL },
+    { NULL, 0, NULL }
+};
+
+static int hostname_run (WORD_LIST *list);
+
 int
 hostname_builtin (WORD_LIST *list)
 {
+    WORD_LIST *args;
+    if (lon_normalize (list, hostname_longopts, "aAbdfF:hiIsVyn", 1, &args) < 0)
+        return EX_USAGE;
+    int rc = hostname_run (args);
+    if (args) dispose_words (args);
+    return rc;
+}
+
+static int
+hostname_run (WORD_LIST *list)
+{
     int short_form = 0;
+    int alias_form = 0;
+    int nis_form = 0;
     int domain_form = 0;
     int fqdn_form = 0;
     int all_ips = 0;
@@ -148,6 +185,11 @@ hostname_builtin (WORD_LIST *list)
         if (!strcmp (w, "-I")) { all_ips = 1; list = list->next; continue; }
         if (!strcmp (w, "-i") || !strcmp (w, "--ip-address")) { ip_form = 1; list = list->next; continue; }
         if (!strcmp (w, "-A")) { all_fqdns = 1; list = list->next; continue; }
+        if (!strcmp (w, "-a")) { alias_form = 1; list = list->next; continue; }
+        if (!strcmp (w, "-y")) { nis_form = 1; list = list->next; continue; }
+        /* -b: set a default name only when none is available; a set or a
+           display request behaves the same with or without it here. */
+        if (!strcmp (w, "-b")) { list = list->next; continue; }
         if (!strcmp (w, "-n") || !strcmp (w, "--dry-run")) {
             dry_run = 1; list = list->next; continue;
         }
@@ -163,7 +205,7 @@ hostname_builtin (WORD_LIST *list)
             list = list->next;
             continue;
         }
-        if (!strcmp (w, "--help")) {
+        if (!strcmp (w, "--help") || !strcmp (w, "-h")) {
             puts ("bashhostname: get or set the system hostname");
             printf ("Usage: %s [-s | -d | -f | -i | -I | -A | -F FILE | [-n|--dry-run] NAME]\n",
                     "bashhostname");
@@ -180,7 +222,8 @@ hostname_builtin (WORD_LIST *list)
     }
 
     /* Print-mode selectors are mutually exclusive (coreutils/busybox parity). */
-    if (short_form + domain_form + fqdn_form + ip_form + all_ips + all_fqdns > 1) {
+    if (short_form + domain_form + fqdn_form + ip_form + all_ips + all_fqdns
+        + alias_form + nis_form > 1) {
         builtin_error ("-s, -d, -f, -i, -I, -A are mutually exclusive");
         builtin_usage ();
         return EX_USAGE;
@@ -233,8 +276,9 @@ hostname_builtin (WORD_LIST *list)
 
     if (name) {
         /* Set form. */
-        if (short_form || domain_form || fqdn_form || ip_form || all_ips || all_fqdns) {
-            builtin_error ("-s/-d/-f/-i/-I/-A cannot be combined with a set operation");
+        if (short_form || domain_form || fqdn_form || ip_form || all_ips || all_fqdns
+            || alias_form || nis_form) {
+            builtin_error ("-s/-d/-f/-i/-I/-A/-a/-y cannot be combined with a set operation");
             builtin_usage ();
             return EX_USAGE;
         }
@@ -356,6 +400,39 @@ hostname_builtin (WORD_LIST *list)
         return EXECUTION_SUCCESS;
     }
 
+    if (nis_form) {
+        /* net-tools hostname -y: the NIS/YP domain from getdomainname(2). */
+        char dom[256];
+        if (getdomainname (dom, sizeof dom) < 0 || !dom[0] || !strcmp (dom, "(none)")) {
+            fflush (stdout);
+            fprintf (stderr, "hostname: Local domain name not set\n");
+            return EXECUTION_FAILURE;
+        }
+        dom[sizeof dom - 1] = '\0';
+        puts (dom);
+        return EXECUTION_SUCCESS;
+    }
+
+    if (alias_form) {
+        /* net-tools hostname -a: the resolver's aliases for this host. */
+        char hostbuf[256];
+        if (gethostname (hostbuf, sizeof hostbuf) < 0) {
+            builtin_error ("gethostname: %s", strerror (errno));
+            return EXECUTION_FAILURE;
+        }
+        hostbuf[sizeof hostbuf - 1] = '\0';
+        struct hostent *hp = gethostbyname (hostbuf);
+        if (!hp) {
+            fflush (stdout);
+            fprintf (stderr, "hostname: %s\n", hstrerror (h_errno));
+            return EXECUTION_FAILURE;
+        }
+        for (char **a = hp->h_aliases; a && *a; a++)
+            printf ("%s%s", *a, a[1] ? " " : "");
+        putchar ('\n');
+        return EXECUTION_SUCCESS;
+    }
+
     /* Print form. */
     char buf[256];
     {
@@ -395,6 +472,9 @@ char *hostname_doc[] = {
     "    bashhostname -i         # resolved IP address(es) for this host",
     "    bashhostname -I         # configured non-loopback IP addresses",
     "    bashhostname -A         # all discoverable FQDNs for this host",
+    "    bashhostname -a         # resolver aliases for this host",
+    "    bashhostname -y         # NIS/YP domain name (getdomainname(2))",
+    "    bashhostname -b ...     # accepted; a name or file is still required to set",
     "    bashhostname -F FILE    # read hostname from FILE (requires privilege)",
     "    bashhostname NAME       # sethostname(NAME) -- requires privilege",
     "    bashhostname -n NAME    # dry-run: print 'would set' audit, no sethostname(2)",
@@ -402,6 +482,9 @@ char *hostname_doc[] = {
     "",
     "Default form prints the kernel hostname via gethostname(2).",
     "-s, -d, -f, -i, -I, -A are mutually exclusive.",
+    "net-tools long options: --short --domain --fqdn/--long --ip-address",
+    "  --all-ip-addresses --all-fqdns --alias --yp/--nis --boot --file=FILE",
+    "  --dry-run --version --help; any unambiguous prefix is accepted.",
     "-i resolves the current hostname and prints unique IP addresses with no",
     "  trailing space; resolver absence yields an empty successful line.",
     "-I enumerates UP non-loopback AF_INET/AF_INET6 addresses via getifaddrs(3),",
@@ -422,6 +505,6 @@ struct builtin bashhostname_struct = {
     hostname_builtin,
     BUILTIN_ENABLED,
     hostname_doc,
-    "bashhostname [-s | -d | -f | -i | -I | -A | -F FILE | NAME | -V | --version]",
+    "bashhostname [-b] [-s | -d | -f | -i | -I | -A | -a | -y | -F FILE | NAME | -V | --version]",
     0
 };

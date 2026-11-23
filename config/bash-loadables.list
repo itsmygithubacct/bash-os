@@ -32,7 +32,7 @@ stat|stat
 strftime|strftime format [seconds]
 strptime|strptime [-f format] date-time
 sync|sync
-tee|tee [-ai] [file ...]
+tee|tee [-aip] [--output-error[=MODE]] [file ...]
 tty|tty [-s]
 uname|uname [-amnrsvpio]
 unlink|unlink name
@@ -104,7 +104,7 @@ nohup|nohup CMD
 link|link TARGET NAME
 blkid|blkid [-p] [-o FORMAT] [-s TAG] [DEV...]
 lsblk|lsblk
-diff|diff [-abBcdeiNpqrstuwyZ] [-C N|-U N] [-x PAT] [-X FILE] FILE1 FILE2
+diff|diff [-abBcdeinNpqrstTuwyZ] [-C N|-U N|-D NAME] [-x PAT] [-X FILE] FILE1 FILE2
 ss|ss [-tuln]
 netstat|netstat -tuln (via ss backend)
 ping|ping [-c N] HOST
@@ -146,7 +146,7 @@ uclampset|Show and change task or system utilization clamps
 # text and formatting tools (imported 2026-09-06 from the upstream collection)
 expand|Convert tabs to spaces (POSIX expand)
 unexpand|Convert spaces to tabs (POSIX unexpand)
-split|split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [--additional-suffix=S] [--filter=COMMAND] [INPUT [PREFIX]]
+split|split [-l N | -b SIZE | -C SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [-e] [-t SEP] [-u] [--verbose] [--additional-suffix=S] [--filter=COMMAND] [INPUT [PREFIX]]
 csplit|Context-split a file (POSIX csplit)
 join|Relational join on two sorted files (POSIX join)
 pr|Format text for printing (POSIX pr)
@@ -161,7 +161,7 @@ clear|clear [-x] [-T TERM] | -V | --version | --help
 tput|tput [-T TERM] CAP [ARGS...] | tput query CAP [-T TERM] [-V VAR] [ARGS...] | tput cap-list [-T TERM] [-V VAR] | tput entry-list | tput info [-T TERM]
 tinfo|Read compiled terminfo entries
 strings|Print printable character sequences from files or stdin
-ed|ed [-s] [FILE]
+ed|ed [-EGlqrsv] [-p PROMPT] [--strip-trailing-cr] [FILE | !COMMAND]
 ar|ar [-D|-U] -t|-x|-r|-q|-s|s ARCHIVE [FILE...]
 uuencode|uuencode [-m] [FILE] NAME
 uudecode|Decode traditional uuencode and base64-uuencode streams
@@ -324,6 +324,6 @@ base64|base64 [-di] [-w COLS] [FILE]
 sha256sum|sha256sum [-bctwz] [--tag] [FILE...]
 md5sum|md5sum [-bctwz] [--tag] [FILE...]
 iconv|iconv [-cs] [-f FROM] [-t TO] [-o FILE] [FILE...]
-patch|patch [-bEfNRst] [-p N] [-F N] [-i PATCH] [-o OUT] [-d DIR] [FILE [PATCH]]
+patch|patch [-bEefNRst] [-p N] [-F N] [-i PATCH] [-o OUT] [-d DIR] [FILE [PATCH]]
 gzip|gzip [-cdfkntq1-9] [-S SUFFIX] [FILE...]
 tar|tar -c|-t|-x [-zv] [-f ARCHIVE] [-C DIR] [FILE...]

@@ -20,7 +20,8 @@
     "POSIX numeric-string comparisons (guest pass 2, G21).",
     "RS paragraph, single-character and regex modes (G22).",
     "VAR=VALUE operands, -v escapes and array parameters by reference (G23).",
-    "G64: block-buffered stdout and redirected files when not a tty, flushed before system(), command pipes, getline from a command, fflush(), close() and at exit."
+    "G64: block-buffered stdout and redirected files when not a tty, flushed before system(), command pipes, getline from a command, fflush(), close() and at exit.",
+    "G75: NUL bytes in records, fields, strings, regex matching, printf, gsub/sub, split, array subscripts and regex RS (gawk keeps them)."
   ],
   "exclusions": [
     "RT is outside the implementation's documented scope.",
@@ -286,6 +287,83 @@
       "purpose": "G64: before a command is read with getline, buffered stdout is flushed (as mawk does; gawk 5.3 does not), so the command's own output follows it.",
       "script": "export BASHAWK_ALLOW_SYSTEM=1\nawk 'BEGIN { print \"a\"; \"printf \\\"g\\\\n\\\" >&2\" | getline v; print \"b\" }' > o 2>&1\nprintf '%s\\n' \"$(< o)\"",
       "stdout": "a\ng\nb\n",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-record-print-length-fields",
+      "kind": "parity",
+      "purpose": "G75: a NUL byte is record data, as in gawk: print copies it, length() counts it, and the fields after it are kept.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf 'ab\\0cd e\\n\\0\\0\\n' | awk_cmd '{ print; print length($0), length(), length($1), NF; print $2 }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-regex-matching",
+      "kind": "parity",
+      "purpose": "G75: regular expressions match past a NUL, and `.` and a negated bracket match the NUL itself (gawk), for literal, ~ dynamic and match() forms.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf 'x\\0abc\\na\\0c\\nab\\n' | awk_cmd '/a.c/ { print NR \": dot\" } /x[^y]a/ { print NR \": bracket\" } $0 ~ \"b.?c$\" { print NR \": dynamic\" } { print NR, match($0, /c/), RSTART, RLENGTH }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-string-functions",
+      "kind": "parity",
+      "purpose": "G75: substr, index, toupper, concatenation, sprintf and printf %s keep NUL bytes; %c of an empty string and of 0 writes a NUL (gawk); comparisons see the bytes after a NUL.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf 'ab\\0cd\\n' | awk_cmd '{ print substr($0, 2, 3); print index($0, \"c\"), index($0, \"z\"); print toupper($0); s = $0 \"-\" $0; print s, length(s); x = sprintf(\"%s\", $0); print length(x); printf \"%s|%c%c|\\n\", $0, \"\", 0; print ($0 == \"ab\"), ($0 > \"ab\"), ($0 < \"ab\\001\") }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-gsub-split-fields",
+      "kind": "parity",
+      "purpose": "G75: gsub and sub work on the whole record and rebuild $0 with its NUL bytes; split and FS (blank, single character and regex) split past a NUL; assigning a field or NF rebuilds the record with the NULs kept.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf 'a\\0b c\\0d,e\\0f\\n' | awk_cmd '{ x = $0; n = gsub(/[bdf]/, \"<&>\", x); print n, x; n = sub(/c/, \"[&]\"); print n; print; n = split($0, A, \",\"); print n, A[1], A[2]; n = split($0, B, /,|[[:space:]]/); print n, B[3]; $4 = \"z\"; print; print NF; NF = 1; print }'\nprintf 'a\\0b:c\\0d\\n' | awk_cmd -F: '{ print $2; print NF }'\nprintf 'a\\0b::c\\0d\\n' | awk_cmd -F'::?' '{ print $1; print $2 }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-array-subscripts",
+      "kind": "parity",
+      "purpose": "G75: array subscripts keep their NUL bytes, so records that differ only after a NUL are different keys (`!seen[$0]++` keeps both).",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf 'a\\0x\\na\\0y\\na\\0x\\n' | awk_cmd '!seen[$0]++ { print NR } { c[$0]++ } END { n = 0; t = 0; for (k in c) { n++; t += length(k) } print n, t }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "nul-regex-record-separator",
+      "kind": "parity",
+      "purpose": "G75: with a regular-expression RS the records may hold NUL bytes, which are kept.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nprintf 'a\\0b;;c\\0d;e' | awk_cmd 'BEGIN { RS = \";+\" } { print NR, length($0); print }'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "printf-long-string-not-truncated",
+      "kind": "parity",
+      "purpose": "G75 (found alongside): %s output longer than 1023 bytes is no longer cut at the formatter's fixed chunk; gawk prints the whole string.",
+      "requires": [
+        "gawk"
+      ],
+      "script": "awk_cmd() { if [[ $(type -t awk) == builtin ]]; then awk \"$@\"; else gawk \"$@\"; fi; }\nawk_cmd 'BEGIN { s = sprintf(\"%2000s\", \"x\"); print length(s); t = sprintf(\"%s\", s s); print length(t) }'",
       "expected_status": 0,
       "stderr": "empty"
     }

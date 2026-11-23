@@ -9,7 +9,9 @@
     "Force overwrite, no-clobber, and interactive EOF behavior",
     "Moving a symlink itself",
     "Same-file, missing-source, and -T directory-target errors",
-    "Additional bounded regular-file, hardlink, symlink and multi-operand error continuation regressions."
+    "Additional bounded regular-file, hardlink, symlink and multi-operand error continuation regressions.",
+    "GNU long options, abbreviations and diagnostics, -b/--backup/-S, -u/--update, --exchange, and FIFOs and backups moved across file systems (the private /tmp tmpfs) (guest pass 5, G74/G76/G78).",
+    "Clean-room pass (agent 4): numbered/existing backups and suffix rules, --backup/$VERSION_CONTROL diagnostics and conflicts, -f/-i/-n/--update precedence, prompt and just-created ordering, directory and same-file errors, cross-device trees (FIFO, symlink, hard links, set-group-ID mode), cross-device failures with unbackup, --exchange and trailing-slash rules."
   ],
   "exclusions": [
     "EXDEV copy-and-remove fallback is deferred because the fixture runner exposes only one writable filesystem tree; exercising it needs a disposable environment with two distinct writable filesystems or a reviewed EXDEV syscall mock.",
@@ -228,6 +230,237 @@
       "script": "mkdir destination\nprintf old > destination/absent\nprintf last > last\nmv -n absent last destination",
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "g74-long-options-and-abbreviations",
+      "kind": "parity",
+      "purpose": "GNU long options and unambiguous prefixes (guest pass 5, G74): --force, --forc, --interactive, --verbose, options after operands and the -- end of options.",
+      "requires": [
+        "mv",
+        "mkdir"
+      ],
+      "script": "printf a > a; printf b > b; printf c > c; printf d > d\nmv --force a b\nmv --forc c b\nmv --verb d --no-target-directory e\nmkdir dir; printf f > -f\nmv -- -f dir\nprintf g > g; mv g -v dir",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g74-option-diagnostics",
+      "kind": "parity",
+      "purpose": "Ambiguous, unknown and argument-misuse options are diagnosed with getopt_long's text and coreutils' --help hint, status 1; diagnostics are folded into stdout without the shell prefix.",
+      "requires": [
+        "mv",
+        "sed"
+      ],
+      "script": "printf a > a; printf b > b\n{ mv --no-c a b || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ mv --zzz a b || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ mv -z a b || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ mv --force=1 a b || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ mv a --suffix || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ mv --update=bogus a b || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ mv --backup=bogus a b || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g78-backups",
+      "kind": "parity",
+      "purpose": "-b, --backup=CONTROL (with abbreviations), -S/--suffix in both argument forms, and -v naming the backup (G78 mv -b).",
+      "requires": [
+        "mv",
+        "cat"
+      ],
+      "script": "printf old > t; printf new > s; mv -b s t\nprintf 1 > s; mv -v --backup=numbered s t\nprintf 2 > s; mv -v --backup=t s t\nprintf 3 > s; mv -v --backup=exist s t\nprintf 4 > s; mv -v -S .bak s t\nprintf 5 > s; mv -v --suffix .old s t\nprintf 6 > s; mv -vb --suff=.x s t\nprintf 7 > s; VERSION_CONTROL=numbered mv -vb s t\nprintf 8 > s; mv -v --backup=none s t\ncat t; echo",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g78-backup-conflicts",
+      "kind": "parity",
+      "purpose": "--backup cannot be combined with -n or --update=none-fail; nothing is moved.",
+      "requires": [
+        "mv",
+        "sed",
+        "cat"
+      ],
+      "script": "printf old > t; printf new > s\n{ mv -bn s t || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ mv -b --update=none-fail s t || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\ncat s t; echo",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g74-update-modes",
+      "kind": "parity",
+      "purpose": "-u and --update=all|none|none-fail|older (abbreviated too) decide which existing destinations are replaced.",
+      "requires": [
+        "mv",
+        "touch",
+        "sed",
+        "cat"
+      ],
+      "script": "printf new > s; printf old > t; touch -t 200101010000 t\nmv -u s t; cat t; echo\nprintf newer > s; touch -t 200001010000 s\nmv -u s t; cat t; echo\nmv --update=none s t; cat t; echo\n{ mv --update=none-fail s t || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\nmv --upd=al s t; cat t; echo\nprintf x > s; mv --update s t; cat t",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g74-operand-diagnostics",
+      "kind": "parity",
+      "purpose": "Missing operands, an extra -T operand, a non-directory target and --strip-trailing-slashes use GNU's text and status 1.",
+      "requires": [
+        "mv",
+        "mkdir",
+        "sed"
+      ],
+      "script": "{ mv || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\nprintf a > a\n{ mv a || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\nprintf b > b; printf c > c\n{ mv -T a b c || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ mv a b c || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ mv -t c a || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ mv -t d -T a || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\nmkdir dir; mv --strip-trailing-slashes dir/ moved",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g74-exchange",
+      "kind": "parity",
+      "purpose": "--exchange swaps two names atomically and reports it with -v.",
+      "requires": [
+        "mv",
+        "cat"
+      ],
+      "script": "printf x > a; printf y > b\nmv -v --exchange a b\ncat a b",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g76-fifo-across-file-systems",
+      "kind": "parity",
+      "purpose": "A FIFO moved between the private /tmp tmpfs and the fixture tree is recreated as a FIFO with its mode (rename reports EXDEV), as GNU mv does; -v reports the copy and the removal.",
+      "requires": [
+        "mv",
+        "mkfifo"
+      ],
+      "script": "mkfifo -m 640 p\nmv p /tmp/p\n[ -p /tmp/p ] && [ ! -e p ] && echo moved-out\nmv -v /tmp/p q\n[ ! -e /tmp/p ] && echo moved-back",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g78-backup-across-file-systems",
+      "kind": "parity",
+      "purpose": "A cross-device move with -b keeps the replaced destination as its backup and -v names it.",
+      "requires": [
+        "mv",
+        "cat"
+      ],
+      "script": "printf old > t\nprintf new > /tmp/n\nmv -bv /tmp/n t\ncat t t~",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "c4-numbered-and-existing-backups",
+      "kind": "parity",
+      "purpose": "Numbered backups continue after the highest NAME.~N~ (decimal, no leading zero, any length, other names ignored); 'existing' picks numbered only when one exists; -S/SIMPLE_BACKUP_SUFFIX precedence and the '~' fallback for an empty suffix or one with an inner '/'.",
+      "requires": [
+        "mv",
+        "touch",
+        "rm",
+        "sed"
+      ],
+      "script": "mkdir w; cd w\nn() { echo *; rm -f ./*; }\ntouch f s f.~1~ f.~12~; mv --backup=numbered s f; n\ntouch f s f.~1~ f.~12~; mv --backup=existing s f; n\ntouch f s; mv --backup=existing s f; n\ntouch f s f.~01~ f.~0~ f.~1x~ f.~-2~; mv --backup=nil s f; n\ntouch f s f.~9~; mv --backup=t s f; n\ntouch f s f.~99999999999999999999~; mv --backup=t s f; n\ntouch f s ff.~3~ f.~3~~; mv --backup=t s f; n\ntouch f s; mv -b -S '' s f; n\ntouch f s; SIMPLE_BACKUP_SUFFIX=.bk mv -b s f; n\ntouch f s; SIMPLE_BACKUP_SUFFIX=.bk mv -b -S .o s f; n\ntouch f s; SIMPLE_BACKUP_SUFFIX=.bk mv -b -S a/b s f; n\ntouch f s; SIMPLE_BACKUP_SUFFIX=/x mv -b s f; n\ntouch f s; mv -b -S . s f; n\ntouch f s; { mv -b -S 'a//' s f || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'; n\ntouch f s; VERSION_CONTROL=t mv -b s f; n\ntouch f s; VERSION_CONTROL=t mv --backup=simple s f; n\ntouch f s; mv --backup=numbered -b s f; n\ntouch f s; mv --backup=simple --backup s f; n\nmkdir d; touch s d/f d/f.~4~; mv -v --backup=t s d/f; echo d/*",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "c4-backup-control-diagnostics",
+      "kind": "parity",
+      "purpose": "Invalid and ambiguous --backup and $VERSION_CONTROL values list the valid arguments (synonyms on one line) with the help hint; unambiguous prefixes work; -b conflicts with -n, --update=none(-fail) and --exchange unless a later -f wins; a SOURCE DEST rename into a free name happens before the checks.",
+      "requires": [
+        "mv",
+        "touch",
+        "sed"
+      ],
+      "script": "for v in n nu bogus \"x'y\"; do touch a b; { mv --backup=\"$v\" a b || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'; done\ntouch a b; { VERSION_CONTROL=x mv -b a b || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ntouch a b; { VERSION_CONTROL=n mv -b a b || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ntouch a b; VERSION_CONTROL= mv -b a b; VERSION_CONTROL=numbered mv --backup= b a\ntouch a b; { mv --backup=bogus --backup=numbered a b || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\nfor o in -bn '-b --update=none' '-b --update=none-fail' '-b --exchange' '-n -b -f' '-b --update=none-fail --update=all' '-n --backup=bogus'; do\n  touch a b; { mv $o a b || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ndone\ntouch a; { mv -v --backup=bogus a fresh || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ntouch a; { mv -v -bn a fresh2 || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ntouch a; mkdir D; { mv -v -T --backup=bogus a D/x || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\necho *",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "c4-update-and-clobber-precedence",
+      "kind": "parity",
+      "purpose": "The last of -f/-i/-n decides; -n overrides every --update value, --update=none skips silently and none-fail reports 'not replacing', -u and --update follow the last given; checks run before the same-file test only for -n and --update=none(-fail).",
+      "requires": [
+        "mv",
+        "touch",
+        "ln",
+        "sed"
+      ],
+      "script": "touch -d '2030-01-01 00:00' c2\nfor o in '-u --update=all' '--update=all -u' '-u --update=none' '-n --update=all' '-n -f' '-n -i' '-i -n' '-n --update=older' '--update=none-fail -n' '-f --update=none-fail' '--update=none-fail -i' '--update=none -i' '--upd=al -u' '-u --upd=o'; do\n  touch c; { mv $o c c2 || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'; [ -e c ] && echo \"$o: kept\" || echo \"$o: moved\"; touch -d '2030-01-01 00:00' c2\ndone\ntouch a; ln a h\nfor o in -n --update=none-fail -u -i ''; do { mv $o a h || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'; done\ntouch -d '2000-01-01 00:00' s; mkdir -p F/s; mv -u s F; echo F/*\nmkdir -p S1 D1/S1; touch -d '2000-01-01 00:00' S1; mv -uv S1 D1",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "c4-prompts-and-just-created",
+      "kind": "parity",
+      "purpose": "-i prompts go to stderr without flushing -v output (GNU's buffered stdout); a declined prompt fails; a just-created destination is never replaced by a later operand (a just-created empty directory may be); an unwritable destination prompts with its mode.",
+      "requires": [
+        "mv",
+        "touch",
+        "mkdir",
+        "chmod",
+        "sed"
+      ],
+      "script": "mkdir A B C S; touch A/f B/f C/f S/f\nprintf 'y\\ny\\ny\\n' | { mv -iv A/f B/f C/f S || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ntouch A/f B/f; printf 'n\\ny\\n' | { mv -iv A/f B/f S || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\nmkdir -p A/d B/d T; { mv -v A/d B/d T || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ntouch A/g B/g; { mv -bv A/g B/g T || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ntouch a b; chmod 444 b; { mv -i a b < /dev/null || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'; echo\nchmod 6555 b; { mv -i a b < /dev/null || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'; echo\nchmod 1444 b; echo y | { mv -iv a b || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\nprintf 'yes\\nno\\n' > ans; touch q r; { mv -i q r; cat; } < ans 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "c4-directory-and-same-file-errors",
+      "kind": "parity",
+      "purpose": "GNU's texts for replacing a directory with a non-directory and back, a non-empty directory, moving a directory into itself, a symlink onto its own target, an unstatable destination and an empty DEST; -b replaces a directory or a hard link by backing it up.",
+      "requires": [
+        "mv",
+        "touch",
+        "mkdir",
+        "ln",
+        "sed"
+      ],
+      "script": "mkdir -p F/a E G/E H; touch a G/E/y F2 f\n{ mv a F || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\n{ mv -i a F < /dev/null || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'; echo\n{ mv H F2 || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\n{ mv E G || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\n{ mv H H/sub || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\n{ mv H H || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\n{ mv -T H H/ || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\n{ mv f f/x || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\n{ mv f '' || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\n{ mv a ./a || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\n{ mv -b a ./a || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\nln -s a s; { mv s a || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\nmv -bv s a; echo *\nln f h; mv -bv f h\nmv -vb F2 F/a; echo F/*\nmkdir D; ln -s D L; { mv -T D L || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ntouch t1; ln -s t1 l1; ln -s t1 l2; mv -v l1 l2",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "c4-cross-device-tree",
+      "kind": "parity",
+      "purpose": "A tree moved to the private /tmp tmpfs and back (rename reports EXDEV) keeps directories, modes (set-group-ID too), hard links, a symlink and a FIFO; -v lists directories created, files copied in inode order (new links to an already copied file are silent) and the sources removed in directory order.",
+      "requires": [
+        "mv",
+        "mkdir",
+        "ln",
+        "mkfifo",
+        "chmod",
+        "cat"
+      ],
+      "script": "mkdir -p x/y/z; printf 1 > x/y/z/f; ln x/y/z/f x/l; ln -s ../f x/y/s; mkfifo -m 640 x/p; chmod 2750 x/y; chmod 604 x/y/z/f\nmv -v x /tmp/x\n[ -p /tmp/x/p ] && [ ! -e x ] && echo moved-out\nmv -v /tmp/x back\n[ ! -e /tmp/x ] && [ -p back/p ] && cat back/l back/y/z/f && echo\nprintf 1 > a; ln a b; mv -v a b /tmp/; mv -v /tmp/a /tmp/b .",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "c4-cross-device-failures",
+      "kind": "parity",
+      "purpose": "Across file systems: an unreadable source fails with GNU's message, leaves no partial file and puts the -b backup back ('(unbackup)'); a directory with an unreadable member is copied as far as possible and nothing is removed; --no-copy refuses; -u skips a newer destination; a non-empty destination directory is not replaced; --debug adds the copy report.",
+      "requires": [
+        "mv",
+        "mkdir",
+        "chmod",
+        "cat",
+        "sed",
+        "touch"
+      ],
+      "script": "trap 'chmod 600 u T/u 2>/dev/null || :' EXIT\nprintf u > u; chmod 0 u; printf old > /tmp/u\n{ mv -bv u /tmp/ || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ncat /tmp/u; echo; [ -e /tmp/u~ ] || echo no-backup-left\nmkdir T; printf a > T/a; printf u > T/u; chmod 0 T/u; printf z > T/z\n{ mv -v T /tmp/ || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ncat T/a T/z /tmp/T/a /tmp/T/z; echo; [ -e /tmp/T/u ] || echo no-partial-u\nchmod 600 u T/u\nprintf n > n; { mv --no-copy n /tmp/n || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\ntouch -d '2030-01-01 00:00' /tmp/n; mv -vu n /tmp/n; [ -e n ] && echo kept-older\nmkdir -p U /tmp/U/q; printf a > U/a; { mv -v U /tmp/ || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\nmkdir -p V /tmp/V; printf a > V/a; mv -v V /tmp/\nprintf d > dbg; mv --debug dbg /tmp/dbg; mv --debug /tmp/dbg dbg2; mv --debug dbg2 dbg3",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "c4-exchange-and-slashes",
+      "kind": "parity",
+      "purpose": "--exchange needs an existing destination (GNU prints 'Unknown error -1'), refuses the same file, honours -n/-i/--update and exchanges a directory with a file under -T; --strip-trailing-slashes keeps a non-directory SOURCE from being renamed to a name of its own, and target directories with trailing slashes get none doubled.",
+      "requires": [
+        "mv",
+        "mkdir",
+        "ln",
+        "cat",
+        "sed",
+        "touch"
+      ],
+      "script": "touch a; { mv -v --exchange a nofile || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\nmkdir D; { mv -v --exchange a D || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\nln a h; { mv --exchange a h || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\nprintf 1 > a; printf 2 > b; mv --exchange -n a b; { mv --exchange -i a b < /dev/null || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'; echo\n{ mv --exchange --update=none-fail a b || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'; cat a b; echo\nmv -v -T --exchange D a; [ -d a ] && [ -f D ] && echo swapped\ntouch f g; mkdir Q E; { mv -v --strip-trailing-slashes f/ Q || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\n{ mv -v --strip-trailing-slashes g/ new || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\nmkdir R; mv -v --strip-trailing-slashes R/// R2\n{ mv -v g/ x || echo rc=$?; } 2>&1 | sed -E 's/[^ ]*: line [0-9]+: //g'\nmv -v g E//; mv -v -t E// Q; mv -v E//g .//",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

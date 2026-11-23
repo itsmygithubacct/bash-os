@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 /* split.c — POSIX split(1) as a bash builtin.
  *
- *   split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d | -x]
+ *   split [-l N | -b SIZE | -C SIZE | -n CHUNKS] [-a SUFLEN] [-d | -x]
  *         [--additional-suffix=SUFFIX] [--filter=COMMAND] [INPUT [PREFIX]]
  *
  * Splits INPUT (or stdin) into pieces named PREFIX{aa,ab,ac,...}.
@@ -42,6 +42,8 @@
 
 #include "loadables.h"
 #include "command-run.h"
+#include "gnu-quote.h"
+#include "longopt-normalize.h"
 
 static long long
 bs_parse_count (const char *s)
@@ -95,6 +97,10 @@ bs_parse_size (const char *s, uintmax_t *size)
 
 /* --additional-suffix for the current invocation ("" when unset). */
 static const char *bs_extra_suffix = "";
+/* -t SEP record separator, -e (--elide-empty-files) and --verbose. */
+static int bs_sep = '\n';
+static int bs_elide;
+static int bs_verbose;
 
 /* Compose PREFIX + a fixed-width suffix from `index` + the additional
    suffix. NUMERIC is 0 for lowercase letters, or the digit base (10 or
@@ -306,6 +312,19 @@ bs_filter_cleanup (void *unused)
 static FILE *
 bs_open_output (const char *name, const struct stat *input)
 {
+    if (bs_verbose) {
+        /* GNU: quotef for the filter's FILE=, quoteaf for a created file. */
+        int plain = name[0] && strspn (name, "abcdefghijklmnopqrstuvwxyz"
+                                        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_./+-,:@%^")
+                                == strlen (name);
+        char *q = bs_filter && plain ? NULL : bos_quoteaf (name);
+        if (bs_filter)
+            printf ("executing with FILE=%s\n", q ? q : name);
+        else
+            printf ("creating file %s\n", q ? q : name);
+        free (q);
+        fflush (stdout);
+    }
     if (bs_filter)
         return bs_filter_open (name);
     int fd = open (name, O_WRONLY | O_CREAT, 0666);
@@ -389,6 +408,9 @@ bs_put_piece (const unsigned char *data, size_t n, int to_stdout,
     if (!append || !*open_out) {
         if (*open_out && bs_close_output (*open_out, namebuf) < 0) { *open_out = NULL; return -1; }
         *open_out = NULL;
+        /* -e: an empty piece is not created; a later append opens it. */
+        if (bs_elide && n == 0)
+            return 0;
         if (bs_make_name (namebuf, namecap, prefix, suflen, idx, numeric) < 0) {
             builtin_error ("split: suffix exhausted (try larger -a)");
             return -1;
@@ -437,7 +459,7 @@ bs_split_chunks (FILE *fin, int mode, uintmax_t k, uintmax_t n, char *namebuf,
         while (rc == 0 && pos < size) {
             size_t look = chunk_end > pos + 1 ? (size_t) chunk_end - 1 : pos;
             if (chunk_no == n) look = size;
-            const unsigned char *nl = look < size ? memchr (data + look, '\n', size - look) : NULL;
+            const unsigned char *nl = look < size ? memchr (data + look, bs_sep, size - look) : NULL;
             size_t stop = nl ? (size_t) (nl - data) + 1 : size;
             if (!k || k == chunk_no)
                 rc = bs_put_piece (data + pos, stop - pos, k != 0, namebuf, namecap, prefix,
@@ -479,6 +501,7 @@ bs_split_chunks (FILE *fin, int mode, uintmax_t k, uintmax_t n, char *namebuf,
                     rc = -1;
                     break;
                 }
+                if (bs_elide) continue;   /* opened on its first line */
                 outs[c] = bs_open_output (names[c], input_stat);
                 if (!outs[c]) rc = -1;
             }
@@ -486,9 +509,13 @@ bs_split_chunks (FILE *fin, int mode, uintmax_t k, uintmax_t n, char *namebuf,
         size_t pos = 0;
         uintmax_t line = 0;
         while (rc == 0 && pos < size) {
-            const unsigned char *nl = memchr (data + pos, '\n', size - pos);
+            const unsigned char *nl = memchr (data + pos, bs_sep, size - pos);
             size_t stop = nl ? (size_t) (nl - data) + 1 : size;
             uintmax_t c = line++ % n;
+            if (!k && !outs[c]) {
+                outs[c] = bs_open_output (names[c], input_stat);
+                if (!outs[c]) { rc = -1; break; }
+            }
             FILE *dst = k ? (c + 1 == k ? stdout : NULL) : outs[c];
             if (dst && fwrite (data + pos, 1, stop - pos, dst) != stop - pos &&
                 !bs_ignorable ()) {
@@ -543,12 +570,34 @@ static int bs_split (WORD_LIST *list);
 int
 split_builtin (WORD_LIST *list)
 {
+    /* GNU split's long options, with abbreviations and permuted operands. */
+    static const struct lon_option longopts[] = {
+        { "bytes",              LON_REQUIRED, "-b" },
+        { "lines",              LON_REQUIRED, "-l" },
+        { "line-bytes",         LON_REQUIRED, "-C" },
+        { "number",             LON_REQUIRED, "-n" },
+        { "elide-empty-files",  LON_NONE,     "-e" },
+        { "unbuffered",         LON_NONE,     "-u" },
+        { "suffix-length",      LON_REQUIRED, "-a" },
+        { "additional-suffix",  LON_REQUIRED, NULL },
+        { "filter",             LON_REQUIRED, NULL },
+        { "numeric-suffixes",   LON_OPTIONAL, NULL },
+        { "hex-suffixes",       LON_OPTIONAL, NULL },
+        { "separator",          LON_REQUIRED, "-t" },
+        { "verbose",            LON_NONE,     NULL },
+        { "help",               LON_NONE,     NULL },
+        { NULL, 0, NULL }
+    };
+    WORD_LIST *args;
+    if (lon_normalize (list, longopts, "0123456789C:a:b:del:n:t:ux", 1, &args) < 0)
+        return EXECUTION_FAILURE;
     bs_filter = NULL;
     bs_filter_status = 0;
     begin_unwind_frame ("bashsplit-filter");
     add_unwind_protect (bs_filter_cleanup, NULL);
-    int rc = bs_split (list);
+    int rc = bs_split (args);
     run_unwind_frame ("bashsplit-filter");
+    if (args) dispose_words (args);
     /* GNU split exits with a failing filter's own status. */
     if (rc != EXECUTION_SUCCESS && bs_filter_status)
         rc = bs_filter_status;
@@ -568,15 +617,22 @@ bs_split (WORD_LIST *list)
     const char *chunks = NULL;
 
     bs_extra_suffix = "";
+    bs_sep = '\n';
+    bs_elide = 0;
+    bs_verbose = 0;
+    int have_sep = 0;
+    uintmax_t line_bytes = 0;   /* -C SIZE; 0 = off */
     while (list && list->word->word[0] == '-' && list->word->word[1]) {
         const char *w = list->word->word;
         if (!strcmp (w, "--")) { list = list->next; break; }
-        if (!strcmp (w, "-d") || !strcmp (w, "--numeric-suffixes")) {
+        if (!strcmp (w, "--help")) { builtin_help (); return EXECUTION_SUCCESS; }
+        if (!strcmp (w, "--verbose")) { bs_verbose = 1; list = list->next; continue; }
+        if (!strcmp (w, "--numeric-suffixes")) {
             numeric = 10;
             list = list->next;
             continue;
         }
-        if (!strcmp (w, "-x") || !strcmp (w, "--hex-suffixes")) {
+        if (!strcmp (w, "--hex-suffixes")) {
             numeric = 16;
             list = list->next;
             continue;
@@ -602,14 +658,8 @@ invalid_start:
             builtin_error ("invalid start value for numerical suffix: %s", from);
             return EXECUTION_FAILURE;
         }
-        if (!strcmp (w, "--additional-suffix") || !strncmp (w, "--additional-suffix=", 20)) {
-            const char *v = w[19] == '=' ? w + 20
-                : (list = list->next, list ? list->word->word : NULL);
-            if (!v) {
-                builtin_error ("option '--additional-suffix' requires an argument");
-                builtin_usage ();
-                return EXECUTION_FAILURE;
-            }
+        if (!strncmp (w, "--additional-suffix=", 20)) {
+            const char *v = w + 20;
             if (strchr (v, '/')) {
                 builtin_error ("invalid suffix '%s', contains directory separator", v);
                 builtin_usage ();
@@ -619,59 +669,97 @@ invalid_start:
             list = list->next;
             continue;
         }
-        if (!strcmp (w, "--filter") || !strncmp (w, "--filter=", 9)) {
-            const char *v = w[8] == '=' ? w + 9
-                : (list = list->next, list ? list->word->word : NULL);
-            if (!v) {
-                builtin_error ("option '--filter' requires an argument");
-                builtin_usage ();
-                return EXECUTION_FAILURE;
-            }
-            bs_filter = v;
+        if (!strncmp (w, "--filter=", 9)) {
+            bs_filter = w + 9;
             list = list->next;
             continue;
         }
-        if (!strcmp (w, "-l") || !strncmp (w, "-l", 2)) {
-            const char *v = w[2] ? w + 2 : (list = list->next, list ? list->word->word : NULL);
-            if (!v) { builtin_error ("-l needs N"); builtin_usage (); return EXECUTION_FAILURE; }
-            long long value = bs_parse_count (v);
+        /* Obsolete -N: N lines per piece. */
+        if (w[1] >= '0' && w[1] <= '9' && strspn (w + 1, "0123456789") == strlen (w + 1)) {
+            long long value = bs_parse_count (w + 1);
             if (value <= 0 || value > LONG_MAX) {
-                builtin_error ("-l: invalid line count: %s", v);
-                builtin_usage ();
+                builtin_error ("invalid number of lines: '%s'", w + 1);
                 return EXECUTION_FAILURE;
             }
             line_chunk = (long) value;
             byte_chunk = 0;
+            line_bytes = 0;
             list = list->next;
             continue;
         }
-        if (!strcmp (w, "-b") || !strncmp (w, "-b", 2)) {
-            const char *v = w[2] ? w + 2 : (list = list->next, list ? list->word->word : NULL);
-            if (!v) { builtin_error ("-b needs SIZE"); builtin_usage (); return EXECUTION_FAILURE; }
-            if (bs_parse_size (v, &byte_chunk) < 0) { builtin_error ("-b: bad SIZE: %s", v); builtin_usage (); return EXECUTION_FAILURE; }
-            list = list->next;
-            continue;
+        /* A cluster of short options; one that takes a value ends it. */
+        int next_word = 0;
+        for (const char *c = w + 1; *c; c++) {
+            if (*c == 'd') { numeric = 10; continue; }
+            if (*c == 'x') { numeric = 16; continue; }
+            if (*c == 'e') { bs_elide = 1; continue; }
+            if (*c == 'u') { continue; }   /* unbuffered: output is unchanged */
+            if (!strchr ("lbCnat", *c)) {
+                builtin_error ("invalid option -- '%c'", *c);
+                lon_try_help ();
+                return EXECUTION_FAILURE;
+            }
+            char opt = *c;
+            const char *v = c[1] ? c + 1 : NULL;
+            if (!v) {
+                if (!list->next) {
+                    builtin_error ("option requires an argument -- '%c'", opt);
+                    lon_try_help ();
+                    return EXECUTION_FAILURE;
+                }
+                v = list->next->word->word;
+                next_word = 1;
+            }
+            if (opt == 'l') {
+                long long value = bs_parse_count (v);
+                if (value <= 0 || value > LONG_MAX) {
+                    builtin_error ("-l: invalid line count: %s", v);
+                    builtin_usage ();
+                    return EXECUTION_FAILURE;
+                }
+                line_chunk = (long) value;
+                byte_chunk = 0;
+                line_bytes = 0;
+            } else if (opt == 'b') {
+                if (bs_parse_size (v, &byte_chunk) < 0) { builtin_error ("-b: bad SIZE: %s", v); builtin_usage (); return EXECUTION_FAILURE; }
+                line_bytes = 0;
+            } else if (opt == 'C') {
+                if (bs_parse_size (v, &line_bytes) < 0) {
+                    builtin_error ("invalid number of bytes: '%s'", v);
+                    return EXECUTION_FAILURE;
+                }
+                byte_chunk = 0;
+            } else if (opt == 'n') {
+                chunks = v;
+            } else if (opt == 'a') {
+                long long value = bs_parse_count (v);
+                if (value < 1 || value > 6) { builtin_error ("-a: SUFLEN must be in 1..6"); builtin_usage (); return EXECUTION_FAILURE; }
+                suflen = (int) value;
+            } else {   /* -t SEP */
+                int sep;
+                if (!strcmp (v, "\\0"))
+                    sep = '\0';
+                else if (!v[0]) {
+                    builtin_error ("empty record separator");
+                    return EXECUTION_FAILURE;
+                } else if (v[1]) {
+                    char *q = bos_quote (v);
+                    builtin_error ("multi-character separator %s", q ? q : v);
+                    free (q);
+                    return EXECUTION_FAILURE;
+                } else
+                    sep = (unsigned char) v[0];
+                if (have_sep && sep != bs_sep) {
+                    builtin_error ("multiple separator characters specified");
+                    return EXECUTION_FAILURE;
+                }
+                have_sep = 1;
+                bs_sep = sep;
+            }
+            break;
         }
-        if (!strncmp (w, "-n", 2) || !strncmp (w, "--number=", 9)) {
-            const char *v = w[1] == '-' ? w + 9
-                : w[2] ? w + 2 : (list = list->next, list ? list->word->word : NULL);
-            if (!v) { builtin_error ("option requires an argument -- 'n'"); builtin_usage (); return EXECUTION_FAILURE; }
-            chunks = v;
-            list = list->next;
-            continue;
-        }
-        if (!strcmp (w, "-a") || !strncmp (w, "-a", 2)) {
-            const char *v = w[2] ? w + 2 : (list = list->next, list ? list->word->word : NULL);
-            if (!v) { builtin_error ("-a needs SUFLEN"); builtin_usage (); return EXECUTION_FAILURE; }
-            long long value = bs_parse_count (v);
-            if (value < 1 || value > 6) { builtin_error ("-a: SUFLEN must be in 1..6"); builtin_usage (); return EXECUTION_FAILURE; }
-            suflen = (int) value;
-            list = list->next;
-            continue;
-        }
-        builtin_error ("unknown flag: %s", w);
-        builtin_usage ();
-        return EXECUTION_FAILURE;
+        list = list->next;
+        if (next_word) list = list->next;
     }
     if (list) { input = list->word->word; list = list->next; }
     if (list) { prefix = list->word->word; list = list->next; }
@@ -771,6 +859,51 @@ invalid_start:
             }
         }
         if (fout && bs_close_output (fout, namebuf) < 0) rc = EXECUTION_FAILURE;
+    } else if (line_bytes > 0) {
+        /* -C SIZE: whole records while they fit in SIZE bytes; a record
+           longer than SIZE fills pieces of SIZE bytes and its remainder
+           starts the next piece, as GNU split does. */
+        char *line = NULL;
+        size_t cap = 0;
+        ssize_t n;
+        uintmax_t used = 0;
+        FILE *fout = NULL;
+        while (rc == EXECUTION_SUCCESS && (n = getdelim (&line, &cap, bs_sep, fin)) != -1) {
+            const char *rp = line;
+            uintmax_t left = (uintmax_t) n;
+            /* GNU sizes a final unterminated record as if it had its
+               separator: one that would exactly fill the piece moves on. */
+            uintmax_t pad = line[n - 1] != bs_sep;
+            while (left > 0) {
+                if (fout && used + left + (rp == line ? pad : 0) > line_bytes) {
+                    int failed = bs_close_output (fout, namebuf);
+                    fout = NULL;
+                    used = 0;
+                    idx++;
+                    if (failed) { rc = EXECUTION_FAILURE; break; }
+                }
+                if (!fout) {
+                    if (bs_make_name (namebuf, namecap, prefix, suflen, idx, numeric) < 0) {
+                        builtin_error ("split: suffix exhausted (try larger -a)");
+                        rc = EXECUTION_FAILURE;
+                        break;
+                    }
+                    fout = bs_open_output (namebuf, &input_stat);
+                    if (!fout) { rc = EXECUTION_FAILURE; break; }
+                }
+                size_t take = left > line_bytes - used ? (size_t) (line_bytes - used) : (size_t) left;
+                if (fwrite (rp, 1, take, fout) != take && !bs_ignorable ()) {
+                    builtin_error ("write %s: %s", namebuf, strerror (errno ? errno : EIO));
+                    rc = EXECUTION_FAILURE;
+                    break;
+                }
+                rp += take;
+                left -= take;
+                used += take;
+            }
+        }
+        if (fout && bs_close_output (fout, namebuf) < 0) rc = EXECUTION_FAILURE;
+        free (line);
     } else {
         /* Line-based splitting. */
         char *line = NULL;
@@ -778,7 +911,7 @@ invalid_start:
         ssize_t n;
         long lines_in_chunk = 0;
         FILE *fout = NULL;
-        while ((n = getline (&line, &cap, fin)) != -1) {
+        while ((n = getdelim (&line, &cap, bs_sep, fin)) != -1) {
             if (lines_in_chunk == 0) {
                 if (bs_make_name (namebuf, namecap, prefix, suflen, idx, numeric) < 0) {
                     builtin_error ("split: suffix exhausted (try larger -a)");
@@ -824,21 +957,30 @@ invalid_start:
 char *split_doc[] = {
     "Split a file into pieces (POSIX split).",
     "",
-    "    split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d | -x]",
-    "          [--additional-suffix=SUFFIX] [INPUT [PREFIX]]",
+    "    split [-l N | -b SIZE | -C SIZE | -n CHUNKS] [-a SUFLEN] [-d | -x]",
+    "          [-e] [-t SEP] [-u] [--verbose] [--additional-suffix=SUFFIX]",
+    "          [--filter=COMMAND] [INPUT [PREFIX]]",
     "",
-    "    -l N        N lines per piece (default 1000)",
-    "    -b SIZE     SIZE bytes per piece; b=512, K=1024, KB=1000, KiB=1024",
+    "    -l N, --lines=N  N lines per piece (default 1000); -N is the same",
+    "    -b SIZE, --bytes=SIZE  SIZE bytes per piece; b=512, K=1024, KB=1000, KiB=1024",
     "                Units K, M, G, T, P, E, Z, Y, R, Q; k/m also accepted",
-    "    -n CHUNKS   N, K/N, l/N, l/K/N, r/N or r/K/N pieces, as GNU split;",
-    "                with K, piece K goes to standard output",
-    "    -a SUFLEN   suffix length (default 2 → aa..zz, max 26^2 = 676)",
+    "    -C SIZE, --line-bytes=SIZE  at most SIZE bytes of whole records per",
+    "                piece; a longer record is cut into SIZE-byte pieces",
+    "    -n CHUNKS, --number=CHUNKS  N, K/N, l/N, l/K/N, r/N or r/K/N pieces,",
+    "                as GNU split; with K, piece K goes to standard output",
+    "    -e, --elide-empty-files  do not create empty pieces with -n",
+    "    -t SEP, --separator=SEP  record separator for -l, -C and -n l/ r/",
+    "                (one byte; '\\0' is NUL)",
+    "    -u, --unbuffered  accepted; output is the same",
+    "    --verbose   print \"creating file 'NAME'\" before each piece",
+    "    -a SUFLEN, --suffix-length=SUFLEN  suffix length (default 2)",
     "    -d, --numeric-suffixes[=FROM]  decimal suffixes (from FROM, default 0)",
     "    -x, --hex-suffixes[=FROM]      hexadecimal suffixes (FROM in hex)",
     "    --additional-suffix=SUFFIX     append SUFFIX (no '/') to every name",
     "    --filter=COMMAND  write each piece to \"$SHELL -c COMMAND\" (default",
     "                /bin/sh) with FILE set to its name; no file is created",
     "",
+    "Long options take any unambiguous prefix, as --opt=VALUE or --opt VALUE.",
     "INPUT defaults to stdin (or `-`). Output files are named",
     "PREFIXaa, PREFIXab, ... where PREFIX defaults to `x`.",
     (char *)NULL
@@ -849,6 +991,6 @@ struct builtin split_struct = {
     split_builtin,
     BUILTIN_ENABLED,
     split_doc,
-    "split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [--additional-suffix=S] [--filter=COMMAND] [INPUT [PREFIX]]",
+    "split [-l N | -b SIZE | -C SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [-e] [-t SEP] [-u] [--verbose] [--additional-suffix=S] [--filter=COMMAND] [INPUT [PREFIX]]",
     0
 };

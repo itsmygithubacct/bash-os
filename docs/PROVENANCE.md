@@ -6,7 +6,7 @@ bash-os is assembled from these sources:
 
 - **GNU bash 5.3** (GPL-3.0-or-later), pinned by sha256 in `config/versions.sh`
   and fetched at build time. Its own `examples/loadables/*.c` supply the stock
-  builtins a list names but this repo does not carry (`cat`, `chmod`, `head`, …
+  builtins a list names but this repo does not carry (`cat`, `head`, …
   — the pure list except for the MIT replacements described below).
 - **An upstream bash-os loadables collection** (MIT, "bash_linux contributors").
   The busybox-replacement loadables — `ls cp mv find sed sort grep ip ps pax`
@@ -192,9 +192,6 @@ as taken. The patches preserve their upstream GPL headers:
   a private stream, restores unread seekable input, avoids pipe read-ahead and
   propagates I/O errors. The upstream copyright and GPL header are preserved;
   [behavior and validation](head-sed.md) document the remaining option limits.
-- `mkdir -p`: only `chmod` the components it actually created, not existing
-  parents or an existing final directory. Explicit `-m` modes ignore the umask;
-  missing operands and invalid options return status 1.
 - `mktemp`: invalid options return status 1; `-u` retains the existing fix to
   generate a name without creating or removing filesystem entries.
 - `printenv`: print every requested exported value, continue past missing
@@ -204,14 +201,11 @@ as taken. The patches preserve their upstream GPL headers:
   hook never fires for a static builtin). Needs `libm`, linked via `LOCAL_LIBS`.
   Its lexer also recognizes the logical `&&` and `||` operators already handled
   by the expression parser.
-- `basename`, `dirname`, `pathchk`, `rm`, `tee`, `tty`, `unlink`: operand and
+- `basename`, `dirname`, `pathchk`, `tee`, `tty`, `unlink`: operand and
   option validation, empty-path behavior, pathname limits and error statuses.
   `dirname` accepts multiple operands and NUL termination; `unlink` validates
   its single operand before changing the filesystem.
-- `chmod`, `mkfifo`, `rmdir`: GNU mode semantics, creation umasks, recursive
-  permission changes, and removal of empty parent directories. Directory
-  set-ID preservation and command-line versus descendant symlinks have focused
-  fixtures.
+- `mkfifo`: GNU mode semantics and creation umasks.
 - `realpath`, `getconf`, `finfo`: missing final path components and lexical
   normalization, configuration listings and undefined values, and sticky bits.
 - `id`, `logname`, `whoami`, `uname`: identity/group formatting, operand checks
@@ -220,6 +214,16 @@ as taken. The patches preserve their upstream GPL headers:
   longest matching common date formats, reset state between parsing attempts,
   and numeric timezone offsets. The C-library date parser's locale and ISO-week
   limitations remain documented.
+
+`chmod`, `mkdir`, `rm`, `rmdir` and `sync` are no longer patched: since guest
+pass 5 this repository carries MIT replacements (`loadables/NAME.c`), written
+for bash-os from the coreutils manual, POSIX and observed GNU coreutils 9.7
+behaviour (long options and abbreviations, `-c`/`-v` reports, `--reference`,
+`rm -d`/`-I`, `mkdir -v`, `sync -d`/`-f`). The same holds for the pass-5 work
+in `chown`, `chgrp`, `mv`, `cp` and `coreutils install`, and for the shared
+MIT headers `loadables/common/gnu-longopt.h` (option scanning, keyword
+arguments, backup names), `gnu-mode.h` (chmod-style modes) and
+`chown-operand.h` (OWNER[:GROUP] operands and the chown/chgrp walk).
 
 The [compatibility notes](gnu-compatibility.md) and
 [`tests/loadable-parity/regressions/`](../tests/loadable-parity/regressions/)

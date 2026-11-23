@@ -12,7 +12,7 @@ flags=(-O1 -g -fPIC -shared -Wl,-Bsymbolic -fsanitize=address,undefined
 for name in comm cmp cp mv split diff dd; do
   shim=()
   case "$name" in
-    comm|cmp|cp|mv|diff)
+    comm|cmp|diff)
       cat > "$d/$name-entry.c" <<EOF
 #include <config.h>
 #include "loadables.h"

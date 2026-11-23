@@ -186,6 +186,17 @@
       "script": "printf 'a\\n' > in\nfor o in -c -C '-o out'; do rc=0; sort --debug $o in || rc=$?; echo \"$o rc=$rc\"; done\n[ ! -e out ] && echo no-out",
       "expected_status": 0,
       "stderr": "nonempty"
+    },
+    {
+      "id": "check_disorder_message_names_sort",
+      "kind": "parity",
+      "purpose": "G73: the -c disorder diagnostic starts \"sort: \" as GNU sort's does, not with the builtin's internal name, so the /bin shim needs no stderr rewriting.",
+      "script": "rc=0\nprintf 'b\\na\\n' | sort -c || rc=$?\nprintf 'status=%s\\n' \"$rc\"\nexit \"$rc\"",
+      "expected_status": 1,
+      "stderr": "exact",
+      "requires": [
+        "sort"
+      ]
     }
   ]
 }

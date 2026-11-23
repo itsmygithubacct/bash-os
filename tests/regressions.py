@@ -62,7 +62,11 @@ class CopyTests(BuiltinTest):
     def test_failed_recursive_copy_restores_directory_permissions(self):
         source = self.root / "source"
         source.mkdir()
-        os.mkfifo(source / "fifo")  # Unsupported by this cp implementation.
+        # An unreadable member makes the copy fail part-way. (A FIFO used to,
+        # but cp -R now recreates FIFOs as GNU cp does.)
+        unreadable = source / "unreadable"
+        unreadable.write_text("secret\n")
+        unreadable.chmod(0o000)
         source.chmod(0o555)
         result = self.shell('umask 022; cp -R source target')
         self.assertNotEqual(result.returncode, 0)
@@ -479,6 +483,93 @@ class PagerTests(BuiltinTest):
                 self.assertIn("status=1", result.stderr)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertGreater((self.root / "out").stat().st_size, 0)
+
+
+class ShimCommandTests(BuiltinTest):
+    """G73/G85: the bashy-box /bin shim sets BASHOS_SHIM_COMMAND=BUILTIN=NAME
+    (unexported) and runs `builtin BUILTIN'. The shell then words diagnostics
+    as the standalone NAME would, so the shim inherits fd 2 instead of
+    capturing and rewriting it, and test/[ follow coreutils test."""
+
+    def test_diagnostics_name_the_command(self):
+        result = self.shell('BASHOS_SHIM_COMMAND=cat=kat; cat nosuch')
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, "kat: nosuch: No such file or directory\n")
+        # Another builtin run on the command's behalf keeps its own name.
+        result = self.shell('BASHOS_SHIM_COMMAND=cat=kat; printf %d x')
+        self.assertEqual(result.stderr, "printf: x: invalid number\n")
+        # error_prolog: shell-level messages drop the script name and line.
+        result = self.shell('BASHOS_SHIM_COMMAND=cat=kat; cat < nosuch')
+        self.assertEqual(result.stderr, "kat: nosuch: No such file or directory\n")
+        result = self.shell('BASHOS_SHIM_COMMAND=cut=kut; cut')
+        self.assertEqual(result.stderr.splitlines()[-1].split(" ", 2)[:2],
+                         ["kut:", "usage:"])
+
+    def test_ordinary_scripts_keep_bash_messages(self):
+        expected = "regression: line 1: cat: nosuch: No such file or directory\n"
+        self.assertEqual(self.shell('cat nosuch').stderr, expected)
+        # An exported value (from the environment) is ignored.
+        result = subprocess.run(
+            [BINARY, "--noprofile", "--norc", "-c", "cat nosuch", "regression"],
+            cwd=self.root, capture_output=True, text=True, timeout=10,
+            env={**os.environ, "PATH": "", "LC_ALL": "C",
+                 "BASHOS_SHIM_COMMAND": "cat=kat"})
+        self.assertEqual(result.stderr, expected)
+        result = self.shell('export BASHOS_SHIM_COMMAND=cat=kat; cat nosuch')
+        self.assertEqual(result.stderr, expected)
+        # The builtin test keeps bash's rules.
+        result = self.shell('test 99999999999999999999 -gt 1')
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("integer expected", result.stderr)
+        self.assertEqual(self.shell('[ --help ]; [ --help ] && test --help').returncode, 0)
+
+    def test_test_follows_coreutils(self):
+        cases = [
+            (["99999999999999999999", "-gt", "1"], 0, ""),
+            (["-99999999999999999999", "-lt", "-9"], 0, ""),
+            (["18446744073709551617", "-ne", "18446744073709551616"], 0, ""),
+            (["+5", "-eq", " 05 "], 0, ""),
+            (["-0", "-eq", "+0"], 0, ""),
+            (["-l", "abc", "-eq", "3"], 0, ""),
+            (["3", "-eq", "-l", "abc"], 0, ""),
+            (["--help"], 0, ""),
+            (["--version"], 0, ""),
+            (["0x10", "-eq", "16"], 2, "test: invalid integer '0x10'\n"),
+            (["-v", "PATH"], 2, "test: '-v': unary operator expected\n"),
+            (["-a", "."], 2, "test: '-a': unary operator expected\n"),
+            (["-t", "x"], 2, "test: invalid integer 'x'\n"),
+            (["a", "b"], 2, "test: missing argument after 'b'\n"),
+            (["a", "b", "c", "d"], 2, "test: extra argument 'b'\n"),
+            (["-l", "a", "-nt", "b"], 2, "test: -nt does not accept -l\n"),
+        ]
+        gnu = "/usr/bin/test" if os.access("/usr/bin/test", os.X_OK) else None
+        for argv, status, stderr in cases:
+            with self.subTest(argv=argv):
+                result = self.shell('BASHOS_SHIM_COMMAND=test=test; test "$@"', *argv)
+                self.assertEqual((result.returncode, result.stdout, result.stderr),
+                                 (status, "", stderr))
+                if gnu:
+                    ref = subprocess.run([gnu, *argv], capture_output=True, text=True,
+                                         env={**os.environ, "LC_ALL": "C"}, timeout=10)
+                    self.assertEqual(ref.returncode, status, ref.stderr)
+                    self.assertEqual(ref.stderr.replace(gnu, "test"), stderr)
+                result = self.shell('BASHOS_SHIM_COMMAND=[=[; [ "$@" ]', *argv)
+                self.assertEqual((result.returncode, result.stderr),
+                                 (status, stderr.replace("test:", "[:")))
+
+    def test_bracket_help_and_version(self):
+        result = self.shell('BASHOS_SHIM_COMMAND=[=[; [ --help')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.startswith("Usage: test EXPRESSION\n"))
+        self.assertIn("INTEGER may also be -l STRING", result.stdout)
+        result = self.shell('BASHOS_SHIM_COMMAND=[=[; [ --version')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.startswith("[ (bash-os) "))
+        for script in ('[', '[ 1', '[ --help x'):
+            with self.subTest(script=script):
+                result = self.shell('BASHOS_SHIM_COMMAND=[=[; ' + script)
+                self.assertEqual((result.returncode, result.stdout, result.stderr),
+                                 (2, "", "[: missing ']'\n"))
 
 
 if __name__ == "__main__":

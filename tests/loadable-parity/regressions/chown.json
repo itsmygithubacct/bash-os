@@ -9,7 +9,9 @@
     "Legacy OWNER.GROUP separator",
     "-h changes a dangling symlink itself; default behavior follows it",
     "Invalid owner, negative numeric owner, missing operand, status, diagnostics, and unchanged fixture effects",
-    "-R recursion with the default -P, -H and -L symlink traversal, and -f"
+    "-R recursion with the default -P, -H and -L symlink traversal, and -f",
+    "Guest pass 5 (G74/G78): GNU long options, abbreviations and diagnostics, and the -c/-v/-d/-I/--reference behaviours of coreutils 9.7.",
+    "Clean-room rewrite: operand forms, report wording, traversal modes, --from/--reference, --preserve-root and option scanning against GNU coreutils 9.7."
   ],
   "exclusions": [
     "A successful ownership change to a distinct UID or non-member GID needs CAP_CHOWN or a reviewed syscall mock. The mandatory runner has no capabilities, so that operation is deferred rather than represented as passing."
@@ -272,6 +274,130 @@
       "stderr": "empty",
       "requires": [
         "chown"
+      ]
+    },
+    {
+      "id": "g78-verbose-and-changes",
+      "kind": "parity",
+      "purpose": "chown -v and -c describe each file as GNU does (retained, failed), for OWNER, OWNER:GROUP, :GROUP and OWNER: (G78).",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\n: > a; mkdir -p d/e\nn chown -v runner a\nn chown -c runner a\nn chown -v runner:runner a\nn chown -v :runner a\nn chown -v runner: a\nn chown -v \"$EUID\" a\nn chown -v '' a\nn chown -Rv runner d\nn chown -v runner nosuch | s\nn chown -cf runner nosuch\nn chown -v 0 a | s",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chown"
+      ]
+    },
+    {
+      "id": "g74-long-options",
+      "kind": "parity",
+      "purpose": "chown --recursive, --reference, --from, --dereference/--no-dereference, abbreviations and GNU diagnostics (G74).",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\n: > a; : > b; ln -s a l; ln -s nosuch dl; mkdir -p d/e\nn chown --recursive --verbose runner d\nn chown --reference=b --verb a\nn chown --from=runner --verbose runner a\nn chown --from=0 -v runner a\nn chown --no-dereference -v runner dl\nn chown --dereference runner dl | s\nn chown -R --dereference runner d | s\nn chown --ref=nosuch a | s\nn chown --bogus a | s\nn chown runner | s",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chown",
+        "ln",
+        "mkdir",
+        "sed"
+      ]
+    },
+    {
+      "id": "cleanroom-spec-forms",
+      "kind": "parity",
+      "purpose": "OWNER[:GROUP] operand forms from the coreutils manual: names, numbers, a leading '+', 'OWNER:' login group, ':GROUP', ':', the empty operand, the legacy '.' separator and its warning, blanks before a number, and GNU's invalid user/group/spec diagnostics naming the whole operand.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\ng=$(/usr/bin/id -g)\n: > a\nfor spec in runner runner: :runner \"+$EUID\" \"$EUID:\" \"+$EUID:\" \"$EUID:runner\" \"runner:$g\" \"$EUID:+$g\" runner.runner runner. .runner . .. : '' \" $EUID\" \"$EUID \" \"+ $EUID\" \"0$EUID\" + -0 +-1 +runner 4294967295 nosuch nosuch: nosuch:runner runner:nosuch :nosuch :+runner runner:runner:x abc.def \"$EUID.$g\" \"$EUID.\"; do\n  n chown -v -- \"$spec\" a | s\ndone\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chown",
+        "id",
+        "sed"
+      ]
+    },
+    {
+      "id": "cleanroom-report-kinds",
+      "kind": "parity",
+      "purpose": "Which -c/-v report GNU prints for a refused or impossible change: 'ownership' versus 'group', the old owner shown in the terms of the request, numeric versus named new owners, failures on a missing file (no 'from' part), and -c/-f silencing.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\ng=$(/usr/bin/id -g)\n: > a\nfor spec in 0 :0 0:0 0:runner runner:0 :+0 \"$EUID:0\"; do n chown -v -- \"$spec\" a | s; done\nn chown -c 0 a | s\nn chown -vf 0 a\nn chown -cf 0 a\nfor spec in :runner '' \"$EUID:$g\" :0 runner runner: 0; do n chown -v -- \"$spec\" nosuch | s; done\nn chown -vf runner nosuch\nn chown -cv runner a\nn chown -vc runner a\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chown",
+        "id",
+        "sed"
+      ]
+    },
+    {
+      "id": "cleanroom-recursive-symlinks",
+      "kind": "parity",
+      "purpose": "-R with -P (default), -H and -L, with and without -h/--dereference: which links are traversed, which are changed themselves, the post-order report sequence, and a link back to an ancestor directory that is changed but not entered.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\ng=$(/usr/bin/id -g)\nmkdir -p t/u d/e; : > d/x; : > t/f; : > t/u/z; ln -s ../t d/lt; ln -s ../t/f d/lf; ln -s d ld; ln -s .. d/e/up\nfor o in -R -RP -RH -RL -RLh -RHh \"-RH --dereference\" \"-RL --dereference\" \"-RP --dereference -H\"; do\n  echo \"== $o\"; n chown -v $o runner ld | s; n chown -c $o :runner ld | s\ndone\nn chown -Rv runner ld/ | s\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chown",
+        "id",
+        "ln",
+        "mkdir",
+        "sed"
+      ]
+    },
+    {
+      "id": "cleanroom-dangling-and-unreadable",
+      "kind": "parity",
+      "purpose": "Dangling links under each traversal mode (diagnostics and status; -c keeps GNU's unspecified 'from' text out of the comparison), a directory that cannot be read (reported, not changed), trailing slashes in operands, and -f.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\ng=$(/usr/bin/id -g)\nmkdir -p d u/locked u/ok; : > u/ok/y; ln -s nosuch d/dl; ln -s nosuch dl\nfor o in -R -RH -RL -RLh -RHh \"\"; do echo \"== $o\"; n chown -c $o runner d dl | s; done\nn chown -hv runner dl\nn chown -Rv runner dl\nchmod 000 u/locked\nn chown -Rv :runner u | s\nn chown -Rfv runner u\nn chown -Rf runner u\nchmod 700 u/locked\nn chown -Rv runner u/ u// ./u/ok/ | s\nn chown -v runner u/// | s\nn chown -v runner '' | s\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chmod",
+        "chown",
+        "id",
+        "ln",
+        "mkdir",
+        "sed"
+      ]
+    },
+    {
+      "id": "cleanroom-preserve-root",
+      "kind": "parity",
+      "purpose": "--preserve-root refuses a recursive walk of '/' reached through a followed link or a trailing slash, with GNU's two-line diagnostic, while -P changes the link itself and the option is inert without -R; --no-preserve-root cancels it.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\ng=$(/usr/bin/id -g)\nln -s / lroot\nn chown -RH --preserve-root runner lroot | s\nn chown -RL --preserve-root runner lroot | s\nn chown -R --preserve-root runner lroot/ | s\nn chown -R --preserve-root runner lroot/. | s\nn chown -Rfv --preserve-root runner lroot/ | s\nn chown -Rv --preserve-root runner lroot\nn chown -hv --preserve-root runner lroot\nn chown -Rv --preserve-root --no-preserve-root runner lroot\nmkdir -p e; ln -s ../lroot e/r\nn chown -RLv --preserve-root runner e | s\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chown",
+        "id",
+        "ln",
+        "mkdir",
+        "sed"
+      ]
+    },
+    {
+      "id": "cleanroom-from-reference",
+      "kind": "parity",
+      "purpose": "--from with each OWNER[:GROUP] form (matching, not matching, login group, legacy '.', invalid values parsed before other checks) and --reference (dereferenced, missing reference, report text naming the reference's owner and group).",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\ng=$(/usr/bin/id -g)\n: > a; : > b; ln -s b lb\nfor f in 0 :0 runner :runner runner: runner:runner \"$EUID:$g\" \"+$EUID\" '' :; do n chown -v --from=\"$f\" runner a | s; n chown -v --from=\"$f\" :runner a | s; done\nn chown -v --from=runner.runner runner a | s\nfor f in nosuch nosuch: :nosuch 1: -1; do n chown -v --from=\"$f\" runner a | s; done\nn chown --from=nosuch a | s\nn chown -R --dereference --from=nosuch a | s\nn chown --from=nosuch nosuch2:nosuch a | s\nn chown -v --reference=b a\nn chown -v --reference=lb a\nn chown -v --reference=b nosuch a | s\nn chown -v --reference=nosuch a | s\nn chown -f --reference=nosuch a | s\nn chown --reference=b | s\nn chown -c --reference=b --from=0 a\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chown",
+        "id",
+        "ln",
+        "sed"
+      ]
+    },
+    {
+      "id": "cleanroom-option-scan",
+      "kind": "parity",
+      "purpose": "GNU long-option handling: unambiguous prefixes, ambiguous prefixes with GNU's possibility list, arguments to options that take none, missing option arguments, the last of -c/-v winning, and the order of the -R --dereference and missing-operand errors.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\ng=$(/usr/bin/id -g)\n: > a\nn chown --re runner a | s\nn chown --no runner a | s\nn chown --ver | s\nn chown --rec --verb --no-d --pre --q --s --c --de -L runner a\nn chown --verbose=1 runner a | s\nn chown --from | s\nn chown --reference | s\nn chown -x runner a | s\nn chown -RHLP --dereference runner a | s\nn chown -R --dereference | s\nn chown -RL --dereference -v runner a\nn chown -- --help | s\nn chown -v runner -- a\nn chown | s\nn chown -v | s\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chown",
+        "id",
+        "sed"
       ]
     }
   ]

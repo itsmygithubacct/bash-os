@@ -1,0 +1,45 @@
+--- execute_cmd.c
++++ execute_cmd.c
+@@ -4490,6 +4490,20 @@
+     }
+ }
+ 
++/* A redirection is about to open FILENAME in this child. Opening a FIFO
++   waits for its other end, which the parent may open only after it
++   returns from the handshake wait (cmd < fifo & exec 9> fifo), so release
++   the parent first. */
++void
++bashos_release_async_exec_for (const char *filename)
++{
++  struct stat finfo;
++
++  if (bashos_async_exec_fd >= 0 && filename &&
++      stat (filename, &finfo) == 0 && S_ISFIFO (finfo.st_mode))
++    bashos_release_async_exec ();
++}
++
+ void
+ bashos_wait_async_exec (void)
+ {
+--- execute_cmd.h
++++ execute_cmd.h
+@@ -131,6 +131,8 @@
+ /* After stop_pipeline releases the process-group pipe, wait until an
+    armed asynchronous disk command has exec'd. */
+ extern void bashos_wait_async_exec (void);
++/* Release that wait before a redirection opens FILENAME if it is a FIFO. */
++extern void bashos_release_async_exec_for (const char *);
+ 
+ /* See execute_cmd.c: the builtin that owns a forked simple-command child. */
+ extern sh_builtin_func_t *bashos_sole_builtin;
+--- redir.c
++++ redir.c
+@@ -730,6 +730,8 @@
+   if (r >= 0)
+     return (redir_special_open (r, filename, flags, mode, ri));
+ 
++  bashos_release_async_exec_for (filename);
++
+   /* If we are in noclobber mode, you are not allowed to overwrite
+      existing files.  Check before opening. */
+   if (noclobber && CLOBBERING_REDIRECT (ri))

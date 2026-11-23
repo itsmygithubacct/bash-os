@@ -11,7 +11,9 @@
  * Options come from LESS first, then the arguments, in clusters (-FRX)
  * or long form, as less(1) reads them; unknown ones are reported and
  * ignored, as less does. When standard output is not a terminal, input
- * is copied unchanged whatever the options (less acts like cat there). Interactive mode reads files/stdin into a line
+ * is copied unchanged whatever the options (less acts like cat there).
+ * On a terminal, control characters are shown as less(1) shows them
+ * (ESC, ^X, <XX>) unless -R (colour sequences raw) or -r (all raw). Interactive mode reads files/stdin into a line
  * vector, renders one screen at a time, and supports the less muscle
  * memory most scripts/users expect first: space/f/^F, b/^B, j/down,
  * k/up, g, G, /PATTERN, n, N, q.
@@ -34,7 +36,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <termios.h>
+#include <wchar.h>
 #include <sys/ioctl.h>
 
 #include "loadables.h"
@@ -244,7 +248,125 @@ typedef struct {
     int start_end;         /* +G */
     long start_line;       /* +N, +Ng: 1-based, 0 for none */
     char *pattern;         /* -p PAT, +/PAT */
+    int rawctl;            /* 0, 'R' (colour sequences raw) or 'r' (all raw) */
+    int charset;           /* 'u' UTF-8, 'l' latin1, 'a' ASCII */
 } bl_less_opts;
+
+/* less(1)'s display of a line on a terminal. Without -r or -R, control
+   characters are made visible in standout: ESC as "ESC", other C0
+   characters and DEL in caret notation (^A, ^?), bytes that are not
+   characters of the charset as <XX> (and non-printing Unicode as <U+XXXX>).
+   A carriage return before the newline is hidden. Backspace overstrikes
+   as in nroff output: "c\bc" is bold, "_\bc" and "c\b_" are underlined,
+   another "a\bb" shows b. -R passes ANSI colour (SGR, "ESC[...m") and
+   OSC 8 hyperlink sequences, drops other CSI sequences, and ends each line
+   with "ESC[m" (and a hyperlink close after OSC 8), as less 668 does. -r passes the other control characters
+   raw too; overstrike and <XX> stay, as in less 668. The attribute
+   sequences are xterm/ECMA-48 ones (less uses the terminal's so/se,
+   md/me and us/ue). */
+enum { BL_ATTR_NONE, BL_ATTR_BOLD, BL_ATTR_UNDERLINE, BL_ATTR_STANDOUT };
+
+typedef struct {
+    int attr;              /* attribute currently switched on */
+    int col;               /* columns used on this screen line */
+    int room;              /* columns available with -S, else 0 */
+    int full;              /* -S: the line is cut here */
+} bl_out;
+
+static void
+bl_attr (bl_out *w, int attr)
+{
+    if (w->attr == attr) return;
+    switch (w->attr)
+    {
+    case BL_ATTR_BOLD: fputs ("\033[0m", stdout); break;
+    case BL_ATTR_UNDERLINE: fputs ("\033[24m", stdout); break;
+    case BL_ATTR_STANDOUT: fputs ("\033[27m", stdout); break;
+    }
+    switch (attr)
+    {
+    case BL_ATTR_BOLD: fputs ("\033[1m", stdout); break;
+    case BL_ATTR_UNDERLINE: fputs ("\033[4m", stdout); break;
+    case BL_ATTR_STANDOUT: fputs ("\033[7m", stdout); break;
+    }
+    w->attr = attr;
+}
+
+/* Write N bytes taking WIDTH columns in attribute ATTR; with -S nothing
+   past the screen's width is written. */
+static void
+bl_emit (bl_out *w, const char *s, size_t n, int width, int attr)
+{
+    if (w->full) return;
+    if (w->room > 0 && w->col + width > w->room) { w->full = 1; return; }
+    bl_attr (w, attr);
+    fwrite (s, 1, n, stdout);
+    w->col += width;
+}
+
+/* Length of the valid UTF-8 sequence at S (at most N bytes), or 0. *CP is
+   its code point. Overlong forms, surrogates and values past U+10FFFF are
+   not valid. */
+static size_t
+bl_utf8_seq (const unsigned char *s, size_t n, unsigned *cp)
+{
+    unsigned c = s[0];
+    size_t len;
+    unsigned min;
+    if (c < 0x80) { *cp = c; return 1; }
+    if (c >= 0xc2 && c <= 0xdf) { len = 2; c &= 0x1f; min = 0x80; }
+    else if (c >= 0xe0 && c <= 0xef) { len = 3; c &= 0x0f; min = 0x800; }
+    else if (c >= 0xf0 && c <= 0xf4) { len = 4; c &= 0x07; min = 0x10000; }
+    else return 0;
+    if (n < len) return 0;
+    for (size_t i = 1; i < len; i++)
+    {
+        if ((s[i] & 0xc0) != 0x80) return 0;
+        c = (c << 6) | (s[i] & 0x3f);
+    }
+    if (c < min || c > 0x10ffff || (c >= 0xd800 && c <= 0xdfff)) return 0;
+    *cp = c;
+    return len;
+}
+
+/* The ANSI sequence at LINE[I] (an ESC), for -R: 'm' for a colour (SGR)
+   sequence, 'c' for another CSI sequence, 'o' for an OSC 8 hyperlink, else
+   0. *END is the index just past it. */
+static int
+bl_ansi_seq (const char *line, size_t len, size_t i, size_t *end)
+{
+    size_t j = i + 1;
+    if (j < len && line[j] == '[')
+    {
+        for (j++; j < len && (unsigned char) line[j] >= 0x30 && (unsigned char) line[j] <= 0x3f; j++)
+            ;
+        for (; j < len && (unsigned char) line[j] >= 0x20 && (unsigned char) line[j] <= 0x2f; j++)
+            ;
+        if (j < len && (unsigned char) line[j] >= 0x40 && (unsigned char) line[j] <= 0x7e)
+        {
+            *end = j + 1;
+            return line[j] == 'm' ? 'm' : 'c';
+        }
+        return 0;
+    }
+    if (j + 2 < len && line[j] == ']' && line[j + 1] == '8' && line[j + 2] == ';')
+    {
+        for (j += 3; j < len; j++)
+        {
+            if (line[j] == '\a') { *end = j + 1; return 'o'; }
+            if (line[j] == '\033' && j + 1 < len && line[j + 1] == '\\') { *end = j + 2; return 'o'; }
+        }
+    }
+    return 0;
+}
+
+/* Is the byte C printable as itself outside UTF-8 mode? */
+static int
+bl_byte_printable (unsigned char c, int charset)
+{
+    if (c >= 0x20 && c < 0x7f) return 1;
+    return charset == 'l' && c >= 0xa0;
+}
 
 static void
 bl_render_line (const char *line, size_t linelen, const bl_less_opts *o, size_t lineno, int cols)
@@ -255,27 +377,131 @@ bl_render_line (const char *line, size_t linelen, const bl_less_opts *o, size_t 
     int room = cols > prefix ? cols - prefix : cols;
     size_t len = linelen;
     if (len && line[len - 1] == '\n') len--;
-    if (o->tabs > 0 && memchr (line, '\t', len))
+    bl_out w = { BL_ATTR_NONE, 0, o->chop ? room : 0, 0 };
+    int link_seen = 0;
+    char buf[16];
+    for (size_t i = 0; i < len && !w.full; )
     {
-        /* -x N: tab stops every N columns. */
-        int col = 0;
-        for (size_t i = 0; i < len; i++)
+        unsigned char c = (unsigned char) line[i];
+        /* Backspace overstrike between two printable ASCII characters. */
+        if (i + 2 < len && line[i + 1] == '\b' && c >= 0x20 && c < 0x7f
+            && (unsigned char) line[i + 2] >= 0x20 && (unsigned char) line[i + 2] < 0x7f)
         {
-            if (o->chop && room > 0 && col >= room) break;
-            if (line[i] == '\t')
+            char a = line[i], b = line[i + 2];
+            if (a == b && a != '_') bl_emit (&w, &a, 1, 1, BL_ATTR_BOLD);
+            else if (a == '_' && b != '_') bl_emit (&w, &b, 1, 1, BL_ATTR_UNDERLINE);
+            else if (b == '_') bl_emit (&w, &a, 1, 1, a == '_' ? BL_ATTR_BOLD : BL_ATTR_UNDERLINE);
+            else bl_emit (&w, &b, 1, 1, BL_ATTR_NONE);
+            i += 3;
+            continue;
+        }
+        if (c == '\t')
+        {
+            int stop = o->tabs > 0 ? o->tabs : 8;
+            int next = (w.col / stop + 1) * stop;
+            if (o->tabs > 0)
+                while (!w.full && w.col < next) bl_emit (&w, " ", 1, 1, BL_ATTR_NONE);
+            else
+                bl_emit (&w, "\t", 1, next - w.col, BL_ATTR_NONE);
+            i++;
+            continue;
+        }
+        if (c == '\r' && i + 1 == len && linelen > len)
+            break;                  /* CR LF: the carriage return is hidden */
+        if (c == 0x1b && o->rawctl == 'R')
+        {
+            size_t end;
+            int kind = bl_ansi_seq (line, len, i, &end);
+            if (kind)
             {
-                do { putchar (' '); col++; } while (col % o->tabs && !(o->chop && room > 0 && col >= room));
+                if (kind != 'c')
+                {
+                    /* Colour and hyperlink sequences take no columns. */
+                    bl_attr (&w, BL_ATTR_NONE);
+                    fwrite (line + i, 1, end - i, stdout);
+                    if (kind == 'o') link_seen = 1;
+                }
+                i = end;
                 continue;
             }
-            putchar ((unsigned char) line[i]);
-            col++;
         }
+        if ((c < 0x20 || c == 0x7f) && o->rawctl == 'r')
+        {
+            /* -r: control characters go to the terminal as they are. */
+            bl_emit (&w, line + i, 1, 0, BL_ATTR_NONE);
+            i++;
+            continue;
+        }
+        if (c == 0x1b)
+        {
+            bl_emit (&w, "ESC", 3, 3, BL_ATTR_STANDOUT);
+            i++;
+            continue;
+        }
+        if (c < 0x20 || c == 0x7f)
+        {
+            buf[0] = '^';
+            buf[1] = (char) (c == 0x7f ? '?' : c + 0x40);
+            bl_emit (&w, buf, 2, 2, BL_ATTR_STANDOUT);
+            i++;
+            continue;
+        }
+        if (c < 0x80)
+        {
+            bl_emit (&w, line + i, 1, 1, BL_ATTR_NONE);
+            i++;
+            continue;
+        }
+        if (o->charset == 'u')
+        {
+            unsigned cp;
+            size_t n = bl_utf8_seq ((const unsigned char *) line + i, len - i, &cp);
+            if (n)
+            {
+                int cw = wcwidth ((wchar_t) cp);
+                if (cw >= 0)
+                    bl_emit (&w, line + i, n, cw, BL_ATTR_NONE);
+                else
+                {
+                    int bn = snprintf (buf, sizeof buf, "<U+%04X>", cp);
+                    bl_emit (&w, buf, (size_t) bn, bn, BL_ATTR_STANDOUT);
+                }
+                i += n;
+                continue;
+            }
+        }
+        else if (bl_byte_printable (c, o->charset))
+        {
+            bl_emit (&w, line + i, 1, 1, BL_ATTR_NONE);
+            i++;
+            continue;
+        }
+        snprintf (buf, sizeof buf, "<%02X>", c);
+        bl_emit (&w, buf, 4, 4, BL_ATTR_STANDOUT);
+        i++;
     }
-    else if (o->chop && room > 0 && len > (size_t) room)
-        fwrite (line, 1, (size_t) room, stdout);
-    else
-        fwrite (line, 1, len, stdout);
+    bl_attr (&w, BL_ATTR_NONE);
+    if (o->rawctl == 'R')
+    {
+        /* less 668 resets the attributes, and closes any hyperlink. */
+        fputs ("\033[m", stdout);
+        if (link_seen) fputs ("\033]8;;\033\\", stdout);
+    }
     putchar ('\n');
+}
+
+/* The charset less(1) would choose: LESSCHARSET, else the locale's. */
+static int
+bl_less_charset (void)
+{
+    const char *cs = getenv ("LESSCHARSET");
+    if (cs && *cs)
+    {
+        if (!strncasecmp (cs, "utf", 3)) return 'u';
+        if (!strncasecmp (cs, "latin", 5) || !strncasecmp (cs, "iso8859", 7)) return 'l';
+        return 'a';
+    }
+    return MB_CUR_MAX > 1 ? 'u' : 'a';
 }
 
 /* Search with -i/-I: -i ignores case only for a pattern in lower case. */
@@ -600,8 +826,8 @@ bl_interactive (bl_lines *ls, bl_less_opts *o, const char *name)
 
 /* less(1)'s options: the letter, its long name, and whether it takes a
    number ('n') or a string ('s'). Options that only change how a real
-   terminal is driven (-R, -X, -c, -q, ...) are accepted and need nothing
-   here: bash-os less writes the input's bytes as they are. */
+   terminal is driven (-X, -c, -q, ...) are accepted and need nothing
+   here. -r and -R choose how control characters are shown. */
 static const struct { char letter; const char *name; char arg; } bl_less_options[] = {
     { 'a', "search-skip-screen", 0 }, { 'A', "SEARCH-SKIP-SCREEN", 0 },
     { 'b', "buffers", 'n' }, { 'B', "auto-buffers", 0 },
@@ -676,6 +902,8 @@ bl_less_apply (bl_less_opts *o, char letter, const char *value)
         free (o->pattern);
         o->pattern = strdup (value);
         break;
+    case 'r': o->rawctl = 'r'; break;
+    case 'R': o->rawctl = 'R'; break;
     case '?': return 1;
     case 'V': return 2;
     default: break;
@@ -875,6 +1103,7 @@ less_builtin (WORD_LIST *list)
     bl_less_opts o;
     memset (&o, 0, sizeof o);
     o.rows = bl_term_rows ();
+    o.charset = bl_less_charset ();
     bl_lines ls = { 0 };
     int rc = EXECUTION_SUCCESS;
 
@@ -980,8 +1209,15 @@ char *less_doc[] = {
     "    -x N        tab stops every N columns; -z N  N lines per page",
     "    -p PATTERN  start at the first line matching PATTERN",
     "    +G, +N, +/PATTERN  start at the end, at line N, at PATTERN",
-    "    -R -r -X and the other less(1) options are accepted; options may be",
+    "    -R          pass ANSI colour and OSC 8 hyperlink sequences raw",
+    "    -r          pass all control characters raw",
+    "    -X and the other less(1) options are accepted; options may be",
     "    clustered (-FRX), and LESS is read first, as git sets LESS=FRX.",
+    "",
+    "On a terminal, control characters are shown as less(1) shows them unless",
+    "-r or -R is given: ESC as \"ESC\" and other control characters as ^X in",
+    "standout, bytes that are not characters (LESSCHARSET or the locale) as",
+    "<XX>; backspace overstrike shows as bold or underline.",
     "",
     "Interactive keys: space/f next page, b previous page, j/k line",
     "movement, g/G top/bottom, / and ? search, n/N repeat search, q quit.",

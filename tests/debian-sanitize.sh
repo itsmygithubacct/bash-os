@@ -11,8 +11,9 @@ compile_flags=(-O1 -g -fPIC -shared -Wl,-Bsymbolic -fsanitize=address,undefined
 printf 'set -e\n' > "$d/load.sh"
 for name in cp mv tr date touch coreutils; do
   shim=()
-  if [[ $name != coreutils ]]; then
+  if [[ $name != coreutils && $name != cp && $name != mv ]]; then
     # These sources export bashNAME_struct; enable -f NAME needs NAME_struct.
+    # cp.c and mv.c export cp_struct and mv_struct themselves.
     cat > "$d/$name-entry.c" <<EOF
 #include <config.h>
 #include "loadables.h"

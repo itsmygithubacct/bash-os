@@ -1,11 +1,12 @@
 {
   "version": 1,
   "loadable": "patch",
-  "reference": "GNU patch 2.8 (and GNU diffutils diff for the round trip), compared for stdout, status and the resulting files, including .orig and .rej.",
+  "reference": "GNU patch 2.8 (and GNU diffutils diff for the round trip; GNU ed 1.21.1 for -e, which GNU patch runs), compared for stdout, status and the resulting files, including .orig and .rej.",
   "coverage": [
     "Guest pass 3 G45: fuzz is capped at the hunk's context, so deleted lines must match; zero- and one-line-context hunks fail rather than overwrite.",
     "Ordinary fuzz on a context line, and diff -ruN | patch -p1 creating and removing files.",
-    "Guest pass 4 G55: context diffs (diff -c, -C N): one and several hunks, omitted sides, -R, -p with diff -rcN creating and removing files, missing newlines, offsets, reversed-patch detection and GNU's context-form rejects (also for normal diffs)."
+    "Guest pass 4 G55: context diffs (diff -c, -C N): one and several hunks, omitted sides, -R, -p with diff -rcN creating and removing files, missing newlines, offsets, reversed-patch detection and GNU's context-form rejects (also for normal diffs).",
+    "Guest pass 5 G80: -e/--ed applies a diff -e script as GNU patch does through ed: hunks of a/c/d/i/s commands, skipped garbage, ed FAILED, -o (appending each hunk's result), -b, --dry-run and an unfinished last line."
   ],
   "exclusions": [
     "Interactive questions on a terminal are outside this suite."
@@ -207,6 +208,93 @@
         "rm",
         "ls",
         "cat"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "ed-diff-e-roundtrip",
+      "purpose": "G80: diff -e a b | patch -s --ed a gives b, including lone-dot lines (diff's s/.// fix-ups).",
+      "script": "printf '1\\n2\\n3\\n4\\n5\\n6\\n7\\n' > a\nprintf '0\\n1\\n.\\n3\\n..\\nnew\\n6\\n7\\n8\\n' > b\ndiff -e a b > s || true\npatch -s --ed a s\n[[ $(<a) == \"$(<b)\" ]]\nprintf 'applied\\n'\npatch -e a < /dev/null || echo rc=$?\n",
+      "requires": [
+        "patch",
+        "ed",
+        "diff"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "ed-hunks-and-garbage",
+      "purpose": "-e: runs of commands separated by other lines are separate ed hunks; other lines are skipped; s/^\\.\\././ is not passed on.",
+      "script": "seq 10 > a\nprintf 'junk\\n2d\\n\\n3,4d\\nw\\nq\\n0a\\nfirst\\n.\\n3s/.//\\n4a\\n..x\\n.\\n5s/^\\\\.\\\\././\\n' > s\npatch -e a s || echo rc=$?\nprintf '%s\\n' \"$(<a)\"\n",
+      "requires": [
+        "patch",
+        "ed"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "ed-failed",
+      "purpose": "-e: a command ed rejects prints ? and ed FAILED (status 2); earlier hunks stay applied.",
+      "script": "seq 10 > a\nprintf '9d\\n\\n20d\\n' > s\npatch -e a s || echo rc=$?\nprintf '%s\\n' \"$(<a)\"\n",
+      "requires": [
+        "patch",
+        "ed"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "ed-only-garbage",
+      "purpose": "-e: a patch with no ed command is only garbage (status 2); an empty one does nothing.",
+      "script": "seq 10 > a\nprintf 'hello\\n3 d\\n' > s\npatch -e a s || echo rc=$?\n: > e\npatch -e a e || echo rc=$?\n",
+      "requires": [
+        "patch",
+        "ed"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "ed-output-backup-dry-run",
+      "purpose": "-e with -o (each hunk applied to the original and appended), -b and --dry-run.",
+      "script": "seq 10 > a\nprintf '9d\\n\\n1d\\n' > s\npatch -s -e -o out a s\npatch -s -e --dry-run a s\npatch -e -b -z .bak a s\nprintf '%s\\n' \"$(<out)\" \"$(<a)\" \"$(<a.bak)\"\n",
+      "requires": [
+        "patch",
+        "ed"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "ed-indent-and-unfinished-line",
+      "purpose": "-e: an indented script is announced and applied; an unfinished last line is reported and dropped.",
+      "script": "seq 10 > a\nprintf '  3d\\n  1a\\n  x\\n  .\\n' > s\npatch -e a s\nprintf '1d\\n2d' > t\npatch -e a t\nprintf '%s\\n' \"$(<a)\"\n",
+      "requires": [
+        "patch",
+        "ed"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "ed-not-a-regular-file",
+      "purpose": "-e refuses a directory or symlink operand (status 1).",
+      "script": "seq 10 > a\nmkdir d\nln -s a l\nprintf '2d\\n' > s\npatch -e d s || echo rc=$?\npatch -e l s || echo rc=$?\n",
+      "requires": [
+        "patch",
+        "ed",
+        "mkdir",
+        "ln"
       ],
       "expected_status": 0,
       "stderr": "empty"

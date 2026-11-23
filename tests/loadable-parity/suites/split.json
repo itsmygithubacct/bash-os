@@ -123,7 +123,7 @@
       "purpose": "Bash short help reports the supported split command synopsis.",
       "script": "help -s split",
       "expected_status": 0,
-      "stdout": "split: split [-l N | -b SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [--additional-suffix=S] [--filter=COMMAND] [INPUT [PREFIX]]\n",
+      "stdout": "split: split [-l N | -b SIZE | -C SIZE | -n CHUNKS] [-a SUFLEN] [-d|-x] [-e] [-t SEP] [-u] [--verbose] [--additional-suffix=S] [--filter=COMMAND] [INPUT [PREFIX]]\n",
       "stderr": "empty"
     },
     {

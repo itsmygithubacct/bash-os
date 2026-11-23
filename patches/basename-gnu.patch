@@ -1,12 +1,16 @@
 --- builtins/basename.c
 +++ builtins/basename.c
-@@ -34,0 +35,17 @@
+@@ -33,79 +33,120 @@
+ #include "bashgetopt.h"
+ 
++extern char *this_command_name;
++
 +static void
-+basename_print (const char *path, const char *suffix)
++basename_print (const char *path, const char *suffix, int eol)
 +{
 +  size_t end = strlen (path), start, n;
 +  while (end && path[end - 1] == '/') end--;
-+  if (!end && *path) { puts ("/"); return; }
++  if (!end && *path) { fputs ("/", stdout); putchar (eol); return; }
 +  start = end;
 +  while (start && path[start - 1] != '/') start--;
 +  n = end - start;
@@ -15,10 +19,21 @@
 +    if (len < n && !memcmp (path + end - len, suffix, len)) n -= len;
 +  }
 +  fwrite (path + start, 1, n, stdout);
-+  putchar ('\n');
++  putchar (eol);
 +}
 +
-@@ -38,7 +55,14 @@ basename_builtin (WORD_LIST *list)
++/* GNU basename's long options, matched by any unambiguous prefix. */
++static const char *const basename_longopts[] = { "multiple", "suffix", "zero", "help", 0 };
++
++static void
++basename_try_help (void)
++{
++  fprintf (stderr, "Try '%s --help' for more information.\n", this_command_name);
++}
++
+ int
+ basename_builtin (WORD_LIST *list)
+ {
 -  int slen, sufflen, off;
 -  char *string, *suffix, *fn;
 -
@@ -26,37 +41,88 @@
 -    return (EX_USAGE);
 -  list = loptend;
 -  if (list == 0)
-+  int multiple = 0;
-+  for (; list; list = list->next) {
-+    const char *w = list->word->word;
-+    if (w[0] != '-' || !w[1]) break;
-+    if (!strcmp (w, "--")) { list = list->next; break; }
-+    if (!strcmp (w, "--multiple") || w[1 + strspn (w + 1, "a")] == 0) {
-+      multiple = 1;
-+      continue;
-+    }
-+    if (!strcmp (w, "--help")) { builtin_help (); return EXECUTION_SUCCESS; }
-+    builtin_error ("invalid option: %s", w);
-+    return EXECUTION_FAILURE;
-+  }
-+  if (!list || (!multiple && list->next && list->next->next))
-@@ -47 +71 @@ basename_builtin (WORD_LIST *list)
+-    {
+-      builtin_usage ();
 -      return (EX_USAGE);
-+      return (EXECUTION_FAILURE);
-@@ -50,60 +74,5 @@ basename_builtin (WORD_LIST *list)
+-    }    
+-
 -  string = list->word->word;
 -  suffix = (char *)NULL;
 -  if (list->next)
 -    {
 -      list = list->next;
 -      suffix = list->word->word;
--    }
++  int multiple = 0, eol = '\n';
++  const char *suffix = 0;
++  /* Options end at the first operand, as with GNU's "+as:z". */
++  for (; list; list = list->next) {
++    const char *w = list->word->word;
++    if (w[0] != '-' || !w[1]) break;
++    if (!strcmp (w, "--")) { list = list->next; break; }
++    if (w[1] == '-') {
++      const char *name = w + 2, *eq = strchr (name, '=');
++      size_t len = eq ? (size_t) (eq - name) : strlen (name);
++      int found = -1, count = 0;
++      for (int i = 0; basename_longopts[i]; i++)
++        if (!strncmp (basename_longopts[i], name, len)) {
++          if (strlen (basename_longopts[i]) == len) { found = i; count = 1; break; }
++          found = i;
++          count++;
++        }
++      if (count > 1) {
++        builtin_error ("option '%s' is ambiguous; possibilities: '--multiple' '--suffix'", w);
++        basename_try_help ();
++        return EXECUTION_FAILURE;
++      }
++      if (found < 0) {
++        builtin_error ("unrecognized option '%s'", w);
++        basename_try_help ();
++        return EXECUTION_FAILURE;
++      }
++      if (found != 1 && eq) {
++        builtin_error ("option '--%s' doesn't allow an argument", basename_longopts[found]);
++        basename_try_help ();
++        return EXECUTION_FAILURE;
++      }
++      if (found == 0) multiple = 1;
++      else if (found == 2) eol = '\0';
++      else if (found == 3) { builtin_help (); return EXECUTION_SUCCESS; }
++      else {
++        if (eq) suffix = eq + 1;
++        else if (list->next) { list = list->next; suffix = list->word->word; }
++        else {
++          builtin_error ("option '--suffix' requires an argument");
++          basename_try_help ();
++          return EXECUTION_FAILURE;
++        }
++        multiple = 1;
++      }
++      continue;
+     }
 -
 -  if (list->next)
 -    {
 -      builtin_usage ();
 -      return (EX_USAGE);
--    }
++    for (const char *c = w + 1; *c; c++) {
++      if (*c == 'a') multiple = 1;
++      else if (*c == 'z') eol = '\0';
++      else if (*c == 's') {
++        if (c[1]) suffix = c + 1;
++        else if (list->next) { list = list->next; suffix = list->word->word; }
++        else {
++          builtin_error ("option requires an argument -- 's'");
++          basename_try_help ();
++          return EXECUTION_FAILURE;
++        }
++        multiple = 1;
++        break;
++      } else {
++        builtin_error ("invalid option -- '%c'", *c);
++        basename_try_help ();
++        return EXECUTION_FAILURE;
++      }
+     }
 -
 -  slen = strlen (string);
 -
@@ -68,10 +134,15 @@
 -	 set to a single slash character.  In this case, skip steps (3)
 -	 through (5). */
 -  if (slen == 0)
--    {
++  }
++  if (!list)
+     {
 -      fputs ("/\n", stdout);
 -      return (EXECUTION_SUCCESS);
--    }
++      builtin_error ("missing operand");
++      basename_try_help ();
++      return (EXECUTION_FAILURE);
+     }
 -
 -  /* (3) If there are any trailing slash characters in string, they
 -	 shall be removed. */
@@ -92,7 +163,8 @@
 -	 shall be removed from string.  Otherwise, string shall not be
 -	 modified by this step. */
 -  if (suffix)
--    {
++  if (!multiple && list->next && list->next->next)
+     {
 -      sufflen = strlen (suffix);
 -      slen = strlen (fn);
 -      if (sufflen < slen)
@@ -101,13 +173,33 @@
 -          if (strcmp (fn + off, suffix) == 0)
 -            fn[off] = '\0';
 -        }
--    }
++      builtin_error ("extra operand '%s'", list->next->next->word->word);
++      basename_try_help ();
++      return (EXECUTION_FAILURE);
+     }
 -  printf ("%s\n", fn);
 -  return (EXECUTION_SUCCESS);
++
 +  if (multiple)
-+    for (; list; list = list->next) basename_print (list->word->word, 0);
++    for (; list; list = list->next) basename_print (list->word->word, suffix, eol);
 +  else
-+    basename_print (list->word->word, list->next ? list->next->word->word : 0);
++    basename_print (list->word->word, list->next ? list->next->word->word : 0, eol);
 +  return sh_chkwrite (EXECUTION_SUCCESS);
-@@ -117,0 +87 @@ char *basename_doc[] = {
+ }
+ 
+@@ -116,4 +157,8 @@
+ 	"pathname component in STRING.  If the suffix string SUFFIX is",
+ 	"supplied, it is removed.",
 +	"With -a or --multiple, print the basename of every operand.",
++	"-s SUFFIX or --suffix=SUFFIX removes SUFFIX from each name and",
++	"implies -a; -z or --zero ends each name with NUL, not newline.",
++	"Long options take any unambiguous prefix.",
+ 	(char *)NULL
+ };
+@@ -126,5 +171,5 @@
+ 	BUILTIN_ENABLED,	/* initial flags for builtin */
+ 	basename_doc,		/* array of long documentation strings. */
+-	"basename string [suffix]",	/* usage synopsis */
++	"basename [-az] [-s SUFFIX] string [suffix]",	/* usage synopsis */
+ 	0			/* reserved for internal use */
+ };

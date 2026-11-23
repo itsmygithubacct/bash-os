@@ -13,7 +13,9 @@
     "mknod FIFO creation and shred zero-fill/unlink on private relative files",
     "Private FIFO default/explicit modes across umasks, existing-entry preservation, and restored masks after errors.",
     "numfmt GNU options: --suffix, --padding, --field, --format, --round, --header, --from/--to-unit, --invalid modes, -d and option/conversion diagnostics (guest pass 2 G27)",
-    "install -t DIR / --target-directory, -D -t, -T and -c (guest pass 2 G35)"
+    "install -t DIR / --target-directory, -D -t, -T and -c (guest pass 2 G35)",
+    "install (guest pass 5 G74/G78): GNU long options and prefixes, -v/-b/-S output, symbolic -m modes, clustered options and diagnostics.",
+    "install (clean-room rewrite): GNU check order, -d mode semantics and failures, -v removal/backup reporting and VERSION_CONTROL, per-file copy failures, -D/-t creation, -s/--strip-program and -p, numeric -o/-g, -C with modes, quoting and symbolic-link destinations."
   ],
   "exclusions": [
     "Shuf permutation distribution and seeded output are not GNU byte-parity claims because the documented implementation uses a different random-source algorithm.",
@@ -337,6 +339,263 @@
       "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\numask 022\nprintf 'x\\n' > s; cu install -C s t; ln t keep\ncu install -C s t; stat -c '%h %a' t\ncu install --compare -m 644 s t; stat -c '%h %a' t; ln -f t keep\nprintf 'y\\n' > s; cu install -C -m 644 s t; stat -c '%h %a' t; cat t\nln -f t keep; cu install s t; stat -c '%h' t",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "install-gnu-verbose-backups",
+      "kind": "parity",
+      "purpose": "Guest pass 5 G78: install -v prints GNU's \"'SRC' -> 'DST'\" lines, \"removed 'DST'\" when it replaces a file, \"(backup: 'NAME')\" with -b, --backup=numbered, -S/--suffix and $SIMPLE_BACKUP_SUFFIX, and \"install: creating directory 'D'\" for each directory -d/-D make.",
+      "requires": [
+        "install",
+        "ls"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\numask 022\nprintf 'x\\n' > a; printf 'y\\n' > b\ncu install -v a z; cu install -v a z; cu install -bv a z\ncu install -v --backup=numbered a z; cu install -v --backup=numbered a z; cu install -vS .bak a z\ncu install -vb --suffix .k b k; cu install -vb --suffix=.k b k\nSIMPLE_BACKUP_SUFFIX=.old cu install -bv a s; SIMPLE_BACKUP_SUFFIX=.old cu install -bv a s\ncu install -dv d1/d2 d1/d3; cu install -Dv a p/q/r; cu install -vt d1 a b; cu install -vD -t n2/n3 a\nls",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-symbolic-and-clustered-modes",
+      "kind": "parity",
+      "purpose": "Guest pass 5 G78: -m takes chmod's symbolic modes applied to 0 (u=rwx,go=rx is 755, +rx is 555, g+s with u=rwx keeps the set-group-ID bit), for files and for -d directories; clustered and attached forms (-Dm755, -m600, -dm +t) parse as GNU getopt does; the last -m wins.",
+      "requires": [
+        "install",
+        "stat"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\numask 077\nprintf 'x\\n' > a; mkdir old\ncu install -m u=rwx,go=rx a f1; cu install -m +rx a f2; cu install -m g+s,u=rwx a f3; cu install -m a=r,u+w a f4\ncu install -Dm755 a deep/f5; cu install -m600 a f6; cu install -m 644 --mode=0600 a f7; cu install -m 0 -m u+r a f8\ncu install -d -m u=rwx,g=rx,o= d1; cu install -dm +rwxt d2; cu install -dm g+s d3; cu install -d -m 700 old\nstat -c '%n %a' f1 f2 f3 f4 deep deep/f5 f6 f7 f8 d1 d2 d3 old",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-gnu-long-options",
+      "kind": "parity",
+      "purpose": "Guest pass 5 G74: install's long options in --opt=value and --opt value forms and as unambiguous prefixes (--verb, --target, --no-t, --dir, --comp), options after operands, -- and -c.",
+      "requires": [
+        "install",
+        "stat",
+        "ls"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\numask 022\nprintf 'x\\n' > a; mkdir t\ncu install --mode 600 a m1; cu install --mode=640 a m2; cu install --verb a v1\ncu install --target t a; cu install --target-directory=t --verbose -- a; cu install --no-t a t2\ncu install a -m 700 late; cu install --dir --mode=711 dd; cu install --comp a m1; cu install -c a c1\nstat -c '%n %a' m1 m2 v1 t/a t2 late dd c1; ls t",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-gnu-diagnostics",
+      "kind": "parity",
+      "purpose": "Guest pass 5 G74/G78: GNU install's diagnostics and status 1 for an invalid mode, unrecognized, invalid and ambiguous options, a missing option argument, missing operands, a missing source, a directory source, -T with an extra operand, -d with -t, and -C with -p; each operand error is followed by the help hint as in coreutils 9.7.",
+      "requires": [
+        "install",
+        "rm"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n# Diagnostics are compared after the shell's \"NAME: line N: \" prefix.\nerrs() { local line; while IFS= read -r line; do [[ $line == *\"install: \"* ]] && line=${line#\"${line%%install: *}\"}; printf '%s\\n' \"$line\"; done < err; }\nprintf 'x\\n' > a; mkdir sd\nfor args in '-m bad a x' '--foo a x' '-k a x' '--s a x' '-m' '' 'a' 'nosuch x' 'sd x' '-T a b c' '-d -t x d' '-Cp a x' '--verbose=1 a x' '--b=bogus a x' '-t nodir a' 'a b nodir'; do\n  rc=0; cu install $args >out 2>err || rc=$?\n  printf '[%s] rc=%s\\n' \"$args\" \"$rc\"; errs\ndone\nrm -f out err",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-gnu-check-order",
+      "kind": "parity",
+      "purpose": "GNU install's order of checks after option parsing: backup type, -d with -s or -t, operand counts, -T conflicts, the -t directory and a SOURCE... DIRECTORY target, the --strip-program warning, -C with -p/-s, the mode, the -C special-bit warning, then owner and group; SELinux warnings appear while parsing, and each diagnostic keeps GNU's help-hint placement and status 1.",
+      "requires": [
+        "install",
+        "rm",
+        "mkdir",
+        "stat",
+        "chmod",
+        "ls"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n# Diagnostics are compared after the shell's \"NAME: line N: \" prefix.\nr() { local rc=0 line; cu install \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do [[ $line == *\"install: \"* ]] && line=${line#\"${line%%install: *}\"}; printf '%s\\n' \"$line\"; done < err; echo \"rc=$rc\"; }\nprintf 'x\\n' > a; mkdir sd\nr --backup=bogus; r --backup=bogus -x; r -t a -t b -x; r -ds -t x y; r -d -t x; r -t sd -T; r -Cp; r -Cp -T a b c\nr -t sd -T -Cp a; r -d -t x -T a; r --strip-program=x; r --strip-program=x -Cp a b; r --context=foo; r --preserve-context\nr -m bad -t nodir a; r -m 4755 -C -o nosuch a b; r -C -m u+s a c3; r -m 755 -m bad -m 644 a c4; r -g nosuch a c5\nr -d -C -m 4755 x1; r -d -Cp x2; r -d --strip-program=x x3; r -ds x4; r -t nodir -s a; r -Ds -t nd3 -C a\nr -D -t nd5 -m bad a; r -D -t a/b -m bad a; r -m bad a b nodir; r -o nosuch a b nodir; r a b a; r -dT a b c\nr --st a b; r --pre a b; r --co a b; r --d a b; r --v a b; r --mode; r --suffix; r -S; r --backup= ; r --help=x\nr -m 17777 a h2; r -m 99 a h3; r -m '' a h4\nr -o 4294967296 a o10; r -o '' a o11; r -g '' a o12; r -o 1000x a q3; r -o -1 a q4; r -o 0x a q5; r -o 1e3 a q6\nstat -c '%n %a' c3 c4 x1 x3; chmod 644 c3; ls\nrm -f out err",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-directory-mode-semantics",
+      "kind": "parity",
+      "purpose": "install -d applies -m to a new or existing directory as chmod would: octal modes keep a directory's set-user/group-ID bits unless given with five digits, symbolic modes edit the current mode, the default rwxr-xr-x is exact; new directories in a set-group-ID parent inherit the bit; -D parents are rwxr-xr-x whatever the umask.",
+      "requires": [
+        "install",
+        "stat",
+        "mkdir",
+        "chmod",
+        "rmdir"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n# Diagnostics are compared after the shell's \"NAME: line N: \" prefix.\nr() { local rc=0 line; cu install \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do [[ $line == *\"install: \"* ]] && line=${line#\"${line%%install: *}\"}; printf '%s\\n' \"$line\"; done < err; echo \"rc=$rc\"; }\numask 022; mkdir p; chmod 2755 p\ncu install -d p/n1; cu install -dm 700 p/n2; cu install -dm 755 p; cu install -dm u=rwx,go=rx p/n3; mkdir p/n4; chmod 2755 p/n4; cu install -dm 700 p/n4\nprintf 's\\n' > s; cu install -Dm 600 s p/q/r/f\ncu install -dm = p/n6; cu install -dm 00700 p/n7; cu install -dm 02700 p/n8\nstat -c '%n %a' p p/n1 p/n2 p/n3 p/n4 p/q p/q/r p/q/r/f p/n6 p/n7 p/n8\nfor pre in 2755 1755 3755 6755 700; do for m in u=rwx 700 00700 =755 -6000 +t g+s u-s o-x go= ''; do\n  mkdir d; chmod $pre d; if [[ -n $m ]]; then cu install -dm \"$m\" d; else cu install -d d; fi\n  printf '%s [%s] %s\\n' \"$pre\" \"$m\" \"$(stat -c %a d)\"; rmdir d\ndone; done\numask 077; cu install -d u/v/w; cu install -dm =X x1; cu install -dm o=u x2; cu install -dm -w x3; cu install -Dm 600 s y/z/f\nstat -c '%n %a' u u/v u/v/w x1 x2 x3 y y/z y/z/f; chmod 755 x3\nrm -f out err",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-directory-failures",
+      "kind": "parity",
+      "purpose": "install -d and -D failures: an existing non-directory component or leaf, an unwritable or unsearchable parent, an empty operand; GNU's 'cannot create directory' and 'cannot change permissions' wording, -v reporting each created component as spelled, continuation over later operands, and an existing mode-000 directory given rwxr-xr-x.",
+      "requires": [
+        "install",
+        "stat",
+        "mkdir",
+        "chmod",
+        "touch",
+        "ls",
+        "rm"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n# Diagnostics are compared after the shell's \"NAME: line N: \" prefix.\nr() { local rc=0 line; cu install \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do [[ $line == *\"install: \"* ]] && line=${line#\"${line%%install: *}\"}; printf '%s\\n' \"$line\"; done < err; echo \"rc=$rc\"; }\numask 022; touch f; mkdir a2; touch a2/f; mkdir ro ro2\nr -dv f f/g; r -dv f/g/h nn; r -dv a2/f/g; r -dv a2/f\nchmod 555 ro; r -dv ro/x/y; r -dv ro/x; r -dv ro\nr -dv a2//b///c/ ./e/./f /dev/null/x ''\nchmod 000 ro2; r -dv ro2/x; r -dv ro2; stat -c '%n %a' ro ro2\nr -D a2 f/x; r -Dv a2 a2/f/x; chmod 755 ro ro2; ls -R\nrm -f out err",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-verbose-backups-and-removal",
+      "kind": "parity",
+      "purpose": "install -v prints 'removed' for a replaced destination (including a symbolic link) and ' (backup: ...)' after a backup; simple, numbered, existing and none controls from --backup, -b, -S and VERSION_CONTROL, a bare --backup keeping an earlier CONTROL, SIMPLE_BACKUP_SUFFIX and an invalid $VERSION_CONTROL.",
+      "requires": [
+        "install",
+        "ls",
+        "ln",
+        "rm"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n# Diagnostics are compared after the shell's \"NAME: line N: \" prefix.\nr() { local rc=0 line; cu install \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do [[ $line == *\"install: \"* ]] && line=${line#\"${line%%install: *}\"}; printf '%s\\n' \"$line\"; done < err; echo \"rc=$rc\"; }\numask 022; printf 'x\\n' > a; printf 'y\\n' > b\nr -v a z; r -v a z; r -bv a z; r -v --backup=numbered a z; r -vS .bak a z; ln -s b sl; r -v a sl\nSIMPLE_BACKUP_SUFFIX=.old r -bv a s; SIMPLE_BACKUP_SUFFIX=.old r -bv a s\nVERSION_CONTROL=numbered r -bv a s; VERSION_CONTROL=never r -bv a s; VERSION_CONTROL=t r --backup=simple -v a s\nr --backup=t --backup -v a s; r --backup=none -bv a s; r -b --backup=none -v a s; r -S '' -bv a s\nVERSION_CONTROL=bogus r -b a s; VERSION_CONTROL=bogus r a s2\nls\nrm -f out err",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-copy-failures",
+      "kind": "parity",
+      "purpose": "Per-file install failures: an unremovable or un-backed-up destination, an uncreatable destination (printed after the -v line), an unreadable source, a destination under a non-directory, a trailing slash, an existing directory destination with and without backups, an empty destination, and same-file refusals; -C skips an identical destination before the same-file check.",
+      "requires": [
+        "install",
+        "mkdir",
+        "chmod",
+        "ls",
+        "ln",
+        "rm"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n# Diagnostics are compared after the shell's \"NAME: line N: \" prefix.\nr() { local rc=0 line; cu install \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do [[ $line == *\"install: \"* ]] && line=${line#\"${line%%install: *}\"}; printf '%s\\n' \"$line\"; done < err; echo \"rc=$rc\"; }\numask 022; printf 'x\\n' > a; chmod 755 a; mkdir ro sd t; printf 'x\\n' > t/a; printf 'y\\n' > ro/z; printf 'x\\n' > sd/a; chmod 555 ro sd; mkdir -p dd/a\nr -v a sd; r -vb a sd; r -bv a ro/z; r -v a ro/x; r -v a nodir/x; r -v a nodir/; r -T a t/a/x; r -v -T a t/a/x\nprintf 'y\\n' > b; chmod 000 b; r -v b z2; chmod 644 b; r -v a b t/a/x\nr -T a dd/a; r a dd; r -C a dd; r -b a dd; r -v a ''; r -v -t '' a; r -v sd x\nr a a; r a ./a; r a t/../a; ln -s a as; r as a; ln a ah; r -v a ah; r -C a a; r -C -m 664 a a; r -v -t . a\nchmod 755 ro sd; ls -R\nrm -f out err",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-parents-and-target-directory",
+      "kind": "parity",
+      "purpose": "install -D creates DEST's leading directories (a trailing slash is not one) or the whole -t directory, reporting each under -v; an existing non-directory in the -t path fails with 'failed to access', other components with 'cannot create directory'; names are joined without doubled slashes.",
+      "requires": [
+        "install",
+        "mkdir",
+        "chmod",
+        "touch",
+        "ls",
+        "rm"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n# Diagnostics are compared after the shell's \"NAME: line N: \" prefix.\nr() { local rc=0 line; cu install \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do [[ $line == *\"install: \"* ]] && line=${line#\"${line%%install: *}\"}; printf '%s\\n' \"$line\"; done < err; echo \"rc=$rc\"; }\numask 022; printf 'x\\n' > a; touch f; mkdir -p sd sub ro; printf 'x\\n' > sub/f; chmod 555 ro\nr -Dv -t a/b/c a; r -Dv -t a a; r -Dv -t a/ a; r -D a f/x; r -Dv a a/b/c; r -Dv -t f/g/h a; r -Dv -t nd/x a\nr -Dv a nd9/x/; r -Dv a nd10/f2/../x; r -Dv a /dev/null/x; r -Dt sd/n/ a; r -Dv -t ro/x a; r -Dv a ro/x/y; r -Dv -t ro a\nr -v a sd/; r -v a sd//; r -v -t sd/ a; r -v -t sd// sub/f; r -v ./a sd; r -v a b sd/; r -v sub/f/ sd; r -v sub/f sub/\nr -dv sd/n2/ sd/n3//; r -Dv a sd/n4//x\nchmod 755 ro; ls -R\nrm -f out err",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-strip-and-timestamps",
+      "kind": "parity",
+      "purpose": "install -s runs the strip program on the new file (a leading '-' is passed as ./-NAME), removes the file when the program fails or cannot run, and -p applies the source's times both before and after stripping.",
+      "requires": [
+        "install",
+        "stat",
+        "touch",
+        "chmod",
+        "ls",
+        "true",
+        "false",
+        "rm"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n# Diagnostics are compared after the shell's \"NAME: line N: \" prefix.\nr() { local rc=0 line; cu install \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do [[ $line == *\"install: \"* ]] && line=${line#\"${line%%install: *}\"}; printf '%s\\n' \"$line\"; done < err; echo \"rc=$rc\"; }\numask 022; printf 'x\\n' > a; touch -d '2001-02-03 04:05:06' a\nprintf '#!/bin/sh\\nprintf \"args: %%s\\\\n\" \"$*\"\\n' > sp; chmod +x sp\nr -s --strip-program=/usr/bin/true -v a s0; r -s --strip-program=/usr/bin/false a s1; r -s --strip-program=/nonexistent a s2\nr -s --strip-program=./sp a -- -x; r -p a p1; r -p -s --strip-program=/usr/bin/true a p2; r -m 640 -p a p3\nstat -c '%n %Y %a' s0 p1 p2 p3 ./-x; ls\nrm -f out err",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-numeric-owner-group",
+      "kind": "parity",
+      "purpose": "install -o/-g accept a known name or a number in C notation (decimal, 0x hex, leading-0 octal, optional leading space or +), reject '-1', a trailing suffix, '0x' and out-of-range values with 'invalid user/group', and apply them to files and -d directories.",
+      "requires": [
+        "install",
+        "stat",
+        "id",
+        "ls",
+        "rm"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n# Diagnostics are compared after the shell's \"NAME: line N: \" prefix.\nr() { local rc=0 line; cu install \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do [[ $line == *\"install: \"* ]] && line=${line#\"${line%%install: *}\"}; printf '%s\\n' \"$line\"; done < err; echo \"rc=$rc\"; }\numask 022; printf 'x\\n' > a; u=$(id -u); g=$(id -g)\nr -o \"$u\" -g \"$g\" a o1; r -o \"+$u\" a o2; r -o \" $u\" a o3; r -o \"$(printf 0x%x \"$u\")\" a o4; r -g \"0$(printf %o \"$g\")\" a o5\nr -o 4294967295 a o6; r -o \"$u:\" a o7; r -o \"$(id -un)\" a o8; r -d -o \"$u\" -g \"$g\" -m 700 od\nstat -c '%n %a' o1 o2 o3 o4 o5 o6 o8 od; [[ $(stat -c %u o4) == \"$u\" && $(stat -c %g o5) == \"$g\" ]] && echo ids-ok; ls\nrm -f out err",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-compare-and-modes",
+      "kind": "parity",
+      "purpose": "-C keeps an identical destination (and its other hard links) only when mode, owner and group already match; a change in content, mode or group rewrites it; the special-bit warning depends on the mode a file would get. -m modes are computed from 0 for files (X adds nothing) and for new directories (=X is 111).",
+      "requires": [
+        "install",
+        "stat",
+        "ln",
+        "ls",
+        "cat",
+        "id",
+        "chmod",
+        "rm"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n# Diagnostics are compared after the shell's \"NAME: line N: \" prefix.\nr() { local rc=0 line; cu install \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do [[ $line == *\"install: \"* ]] && line=${line#\"${line%%install: *}\"}; printf '%s\\n' \"$line\"; done < err; echo \"rc=$rc\"; }\numask 022; printf 'x\\n' > a; printf 'y\\n' > b; mkdir d\nr -t d a b; r -C -t d a b; ln d/a keep; r -Cv a d/a; stat -c '%h' d/a; r -Cv -m 644 a d/a; stat -c '%h %a' d/a\nr -Cv -m 755 b d/a; cat d/a; r -Cbv a d/a; r -C -g \"$(id -g)\" -v a d/a; ls d\nfor m in u-s g-s,u=rw o+t =rwx a+s ugo-st; do r -C -m $m a \"x$m\"; r -d -C -m $m \"dd$m\"; done\numask 077; r -m u+X a f9; r -m =X a f10; r -m -w a f11; r -m o=u a f12; r -m 4755 a f13; r -m 07777 a f14; r -dm 4755 d8\nstat -c '%n %a' f9 f10 f11 f12 f13 f14 d8 x* dd*; chmod -R u+rwX .\nrm -f out err",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "install-quoting-and-symlinks",
+      "kind": "parity",
+      "purpose": "install quotes file names in diagnostics and -v output in GNU's shell style (spaces, apostrophes, control characters) and the -m operand in locale quotes; a dangling or directory symbolic link destination is replaced under -T, a symbolic link to a directory is installed into otherwise, and options after operands still apply unless POSIXLY_CORRECT is set.",
+      "requires": [
+        "install",
+        "mkdir",
+        "ln",
+        "ls",
+        "stat",
+        "rm"
+      ],
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\n# Diagnostics are compared after the shell's \"NAME: line N: \" prefix.\nr() { local rc=0 line; cu install \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do [[ $line == *\"install: \"* ]] && line=${line#\"${line%%install: *}\"}; printf '%s\\n' \"$line\"; done < err; echo \"rc=$rc\"; }\numask 022; printf 'x\\n' > 'a b'; mkdir 's d'; printf 'q\\n' > \"it's\"; printf 'x' > $'n\\nl'\nr -m 'b d' 'a b' x; r -o 'u x' 'a b' x; r -T 'a b' x 'c d'; r 'a b'; r 'a b' 'a b' 'n d'; r -t 'n d' 'a b'; r 's d' x\nr -v 'a b' 'z z'; r -dv 'd d'; r -bv 'a b' 'z z'; r 'a b' 'a b'; r -T 'a b' 's d'; r -v \"it's\" \"x'y\"; r -v $'n\\nl' $'t\\tab'\nprintf 'x\\n' > a; mkdir dir; ln -s dir dl; ln -s nowhere dang; ln -s nowhere2 d2\nr -v a dang; r -v a dl; r -vT a d2; r -Dv a dl/sub/f; mkdir -p t/u\nr a -v -m 600 -- t/u; stat -c '%a' t/u/a; POSIXLY_CORRECT=1 r a -m 600 t/u; ls -R\nrm -f out err",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "fmt-real-text-modes",
+      "kind": "parity",
+      "purpose": "fmt over mixed prose (sentence ends, abbreviations, brackets, tabs, numbered items, a hash-prefixed comment) in default, -u, -c, -t, -s, -p and width/goal modes.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ncat > t <<'EOT'\nThe quick survey began at dawn. Each team (there were four of them)\ncarried a map, a compass and a radio; the radios, however, were old.  By\nnoon the first team had reached the ridge, e.g. the place marked \"A\" on\nthe map, and reported in.   The second team was late.\n\tIndented with a tab, this line starts a new paragraph because its\n\tindentation differs from the line above.\n\n    1. A numbered item that runs on for long enough to need wrapping at\n       the default width of seventy-five columns, and then some more.\n    2. Short item.\n\n# A comment block written with a hash prefix, the kind of text people\n# reflow in configuration files when a sentence grows too long to read.\n#\n#   An indented part of the same comment, which keeps its own indentation\n#   when it is refilled.\n#not spaced after the prefix\nMr. Smith went to Washington. He said: \"Hello!\" Then he left (quickly).\nWas it worth it?  Nobody knows... but the story ends here.\nEOT\nfor a in '' -u -c -t -s '-w 40' '-w 30 -u' '-p #' '-p # -w 50' '-g 50' '-c -w 60' '-t -w 50' '-50' '-u -s'; do echo \"== $a\"; cu fmt $a t; done",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "fmt",
+        "cat"
+      ]
+    },
+    {
+      "id": "fmt-option-errors",
+      "kind": "parity",
+      "purpose": "fmt's width/goal diagnostics, -WIDTH only as the first option, unreadable files and directories (processing continues, status 1).",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nshopt -s extglob\nr() { local rc=0 line; \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do line=${line#fixture: line +([0-9]): }; printf \"%s\\n\" \"$line\"; done < err; echo \"rc=$rc\"; }\nprintf 'a b c\\n' > t; mkdir d\nr cu fmt -w x t; r cu fmt -w 3000 t; r cu fmt -w 10 -g 20 t; r cu fmt -g 80 t; r cu fmt -g 60 t; r cu fmt -u -5 t; r cu fmt -5 t; r cu fmt nosuch t; r cu fmt d t; r cu fmt -x t; r cu fmt --wid=4 t; r cu fmt -p",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "fmt",
+        "mkdir"
+      ]
+    },
+    {
+      "id": "tsort-loop-diagnostic",
+      "kind": "parity",
+      "purpose": "G83: a loop prints 'input contains a loop:' and its members to stderr, the rest of the order is still written and the status is 1.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nshopt -s extglob\nr() { local rc=0 line; \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do line=${line#fixture: line +([0-9]): }; printf \"%s\\n\" \"$line\"; done < err; echo \"rc=$rc\"; }\necho 'a b b a' | r cu tsort; printf 'x y\\ny z\\nz x\\nz w\\n' | r cu tsort; echo '1 2 2 3 3 1 3 4 4 5 5 3' | r cu tsort; printf 'a b\\nb c\\nc a\\nd e\\ne d\\n' > f; r cu tsort f; r cu tsort nosuch; echo 'a b c' | r cu tsort; r cu tsort f g",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tsort"
+      ]
+    },
+    {
+      "id": "tsort-generated-graphs",
+      "kind": "parity",
+      "purpose": "tsort order and loop reports over pseudo-random graphs, with and without cycles.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nshopt -s extglob\nr() { local rc=0 line; \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do line=${line#fixture: line +([0-9]): }; printf \"%s\\n\" \"$line\"; done < err; echo \"rc=$rc\"; }\ns=7; for g in $(seq 25); do : > in; n=$((g % 9 + 3)); for e in $(seq $((g * 2))); do s=$(( (s * 1103515245 + 12345) % 2147483648 )); a=$((s % n)); s=$(( (s * 1103515245 + 12345) % 2147483648 )); b=$((s % n)); echo \"n$a n$b\" >> in; done; echo \"== $g\"; r cu tsort in; done",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tsort",
+        "seq"
+      ]
     }
   ]
 }

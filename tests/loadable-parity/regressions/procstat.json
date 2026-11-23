@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "loadable": "procstat",
+  "reference": "Contract values in the output layout of sysstat 12.7.5 iostat and procps-ng pmap as observed by running both programs on Debian 13 (black-box; no source consulted). Numbers are computed independently from the kernel's diskstats and stat field definitions (docs.kernel.org/admin-guide/iostats.html, proc(5)); the banner is matched by shape because it names the running kernel, host and date.",
+  "coverage": [
+    "G84: iostat -c, -d, -x, plain iostat, device order and selection, missing diskstats and usage errors.",
+    "G84: procps pmap header, row layout, mapping names and total, including a kernel thread's [comm] header."
+  ],
+  "exclusions": [
+    "Interval and count operands (repeated reports) are not implemented; each report is the since-boot average.",
+    "pmap -x keeps bash-os's offset column rather than procps's RSS/Dirty columns, which need smaps."
+  ],
+  "cases": [
+    {
+      "id": "iostat-c-sysstat-layout",
+      "kind": "contract",
+      "purpose": "G84: iostat -c prints sysstat's banner (kernel, node, date, machine, CPU count from the cpuN lines) and the avg-cpu report, %system being system+irq+softirq over a total that leaves guest time out, followed by sysstat's three blank lines.",
+      "script": "mkdir -p proc\nprintf 'cpu 100 20 30 400 10 5 5 0 10 2\\ncpu0 50 0 10 40 0 0 0 0 0 0\\ncpu1 50 20 20 360 10 5 5 0 10 2\\nintr 99\\n' > proc/stat\nb=$(BASHOS_PROC_ROOT=proc procstat iostat -c | head -2)\n[[ $b =~ ^[^\\ ]+\\ [^\\ ]+\\ \\(.*\\)\\ $'\\t'[^\\ ]+\\ $'\\t'_[^\\ ]+_$'\\t'\\(2\\ CPU\\)$ ]] && echo banner-ok\nBASHOS_PROC_ROOT=proc procstat iostat -c | tail -n +3",
+      "expected_status": 0,
+      "stdout": "banner-ok\navg-cpu:  %user   %nice %system %iowait  %steal   %idle\n          17.54    3.51    7.02    1.75    0.00   70.18\n\n\n\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "iostat-default-cpu-and-devices",
+      "kind": "contract",
+      "purpose": "G84: plain iostat prints the avg-cpu report, then the -d device table; a whole disk without I/O and a partition (absent from sys/block) are left out.",
+      "script": "mkdir -p proc\nprintf '100.0 0.0\\n' > proc/uptime\nprintf 'cpu 100 20 30 400 10 5 5 0 10 2\\ncpu0 50 0 10 40 0 0 0 0 0 0\\ncpu1 50 20 20 360 10 5 5 0 10 2\\nintr 99\\n' > proc/stat\nprintf '%s\\n' '8 0 sda 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0' '8 16 sdb 30 10 600 90 20 5 800 40 1 70 130 2 0 16 4 6 12' '8 17 sdb1 30 10 600 90 20 5 800 40 1 70 130 2 0 16 4 6 12' > proc/diskstats\nmkdir -p sys/block/sda sys/block/sdb\nBASHOS_SYS_ROOT=sys BASHOS_PROC_ROOT=proc procstat iostat | tail -n +3",
+      "expected_status": 0,
+      "stdout": "avg-cpu:  %user   %nice %system %iowait  %steal   %idle\n          17.54    3.51    7.02    1.75    0.00   70.18\n\nDevice             tps    kB_read/s    kB_wrtn/s    kB_dscd/s    kB_read    kB_wrtn    kB_dscd\nsdb               0.52         3.00         4.00         0.08        300        400          8\n\n\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "iostat-x-extended-columns",
+      "kind": "contract",
+      "purpose": "G84: iostat -x prints sysstat 12's extended table (read, write, discard and flush rates, merge percentages, await, request size, queue size and utilisation) after avg-cpu.",
+      "script": "mkdir -p proc\nprintf '100.0 0.0\\n' > proc/uptime\nprintf 'cpu 100 20 30 400 10 5 5 0 10 2\\ncpu0 50 0 10 40 0 0 0 0 0 0\\ncpu1 50 20 20 360 10 5 5 0 10 2\\nintr 99\\n' > proc/stat\nprintf '%s\\n' '8 0 sda 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0' '8 16 sdb 30 10 600 90 20 5 800 40 1 70 130 2 0 16 4 6 12' '8 17 sdb1 30 10 600 90 20 5 800 40 1 70 130 2 0 16 4 6 12' > proc/diskstats\nmkdir -p sys/block/sda sys/block/sdb\nBASHOS_SYS_ROOT=sys BASHOS_PROC_ROOT=proc procstat iostat -x | tail -n +3\nBASHOS_SYS_ROOT=sys BASHOS_PROC_ROOT=proc procstat iostat -dx | tail -n +3",
+      "expected_status": 0,
+      "stdout": "avg-cpu:  %user   %nice %system %iowait  %steal   %idle\n          17.54    3.51    7.02    1.75    0.00   70.18\n\nDevice            r/s     rkB/s   rrqm/s  %rrqm r_await rareq-sz     w/s     wkB/s   wrqm/s  %wrqm w_await wareq-sz     d/s     dkB/s   drqm/s  %drqm d_await dareq-sz     f/s f_await  aqu-sz  %util\nsdb              0.30      3.00     0.10  25.00    3.00    10.00    0.20      4.00     0.05  20.00    2.00    20.00    0.02      0.08     0.00   0.00    2.00     4.00    0.06    2.00    0.00   0.07\n\n\nDevice            r/s     rkB/s   rrqm/s  %rrqm r_await rareq-sz     w/s     wkB/s   wrqm/s  %wrqm w_await wareq-sz     d/s     dkB/s   drqm/s  %drqm d_await dareq-sz     f/s f_await  aqu-sz  %util\nsdb              0.30      3.00     0.10  25.00    3.00    10.00    0.20      4.00     0.05  20.00    2.00    20.00    0.02      0.08     0.00   0.00    2.00     4.00    0.06    2.00    0.00   0.07\n\n\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "iostat-devices-sorted-by-name",
+      "kind": "contract",
+      "purpose": "G84: sysstat lists devices by name, not in diskstats order; an alternate proc tree without BASHOS_SYS_ROOT keeps every device with I/O.",
+      "script": "mkdir -p proc\nprintf '10.0 0.0\\n' > proc/uptime\nprintf '%s\\n' '259 0 nvme0n1 1 0 2 0 0 0 0 0 0 0 0' '8 0 md0 1 0 2 0 0 0 0 0 0 0 0' > proc/diskstats\nBASHOS_PROC_ROOT=proc procstat iostat -d | tail -n +3",
+      "expected_status": 0,
+      "stdout": "Device             tps    kB_read/s    kB_wrtn/s    kB_dscd/s    kB_read    kB_wrtn    kB_dscd\nmd0               0.10         0.10         0.00         0.00          1          0          0\nnvme0n1           0.10         0.10         0.00         0.00          1          0          0\n\n\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "iostat-missing-diskstats",
+      "kind": "contract",
+      "purpose": "G84: without /proc/diskstats the device table header is printed with no rows, as sysstat does.",
+      "script": "mkdir -p proc\nprintf '10.0 0.0\\n' > proc/uptime\nBASHOS_PROC_ROOT=proc procstat iostat -d | tail -n +3",
+      "expected_status": 0,
+      "stdout": "Device             tps    kB_read/s    kB_wrtn/s    kB_dscd/s    kB_read    kB_wrtn    kB_dscd\n\n\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "iostat-unknown-option",
+      "kind": "contract",
+      "purpose": "G84: an option iostat does not implement is a usage error with no report.",
+      "script": "mkdir -p proc\nBASHOS_PROC_ROOT=proc procstat iostat -q",
+      "expected_status": 2,
+      "stdout": "",
+      "stderr": "nonempty"
+    },
+    {
+      "id": "pmap-procps-header-and-total",
+      "kind": "contract",
+      "purpose": "G84: pmap prints procps's 'PID:   COMMAND ARGS' header from cmdline, rows of a 16-digit address, a 6-column size with K, a five-column mode with the shared flag fourth, and the mapping's base name or [ stack ]/[ anon ], then ' total' with the size in 16 columns.",
+      "script": "mkdir -p proc/7\nprintf 'sleep\\0' > proc/7/cmdline\nprintf 'sleep\\n' > proc/7/comm\nprintf '%s\\n' '400000-402000 r-xp 00000000 08:01 9 /usr/bin/sleep' '600000-601000 rw-s 00000000 00:05 3 /dev/zero (deleted)' '7ff000-800000 rw-p 00000000 00:00 0 [stack]' '900000-904000 rw-p 00000000 00:00 0' > proc/7/maps\nBASHOS_PROC_ROOT=proc procstat pmap 7",
+      "expected_status": 0,
+      "stdout": "7:   sleep\n0000000000400000      8K r-x-- sleep\n0000000000600000      4K rw-s- zero (deleted)\n00000000007ff000      4K rw---   [ stack ]\n0000000000900000     16K rw---   [ anon ]\n total               32K\n",
+      "stderr": "empty"
+    },
+    {
+      "id": "pmap-kernel-thread-header",
+      "kind": "contract",
+      "purpose": "G84: a process with an empty cmdline (a kernel thread) is named [comm] in the header, as procps does; with neither file the header is 'PID:'.",
+      "script": "mkdir -p proc/2 proc/3\n: > proc/2/cmdline\nprintf 'kthreadd\\n' > proc/2/comm\n: > proc/2/maps\n: > proc/3/maps\nBASHOS_PROC_ROOT=proc procstat pmap 2 3",
+      "expected_status": 0,
+      "stdout": "2:   [kthreadd]\n total                0K\n3:\n total                0K\n",
+      "stderr": "empty"
+    }
+  ]
+}

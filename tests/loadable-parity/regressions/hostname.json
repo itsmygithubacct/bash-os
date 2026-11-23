@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "loadable": "hostname",
+  "reference": "net-tools hostname (Debian), run in the same isolated UTS namespace (host name 'parity').",
+  "coverage": [
+    "Guest compatibility pass 5 regressions (G74/G83)."
+  ],
+  "exclusions": [],
+  "cases": [
+    {
+      "id": "pass5-long-short",
+      "kind": "parity",
+      "purpose": "G74: --short and its prefixes print the host name up to the first dot.",
+      "script": "hostname --short; hostname --sh; hostname --s",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "hostname"
+      ]
+    },
+    {
+      "id": "pass5-nis-domain-unset",
+      "kind": "parity",
+      "purpose": "G74: --yp/--nis (-y) report an unset NIS domain the way net-tools hostname does.",
+      "script": "{ hostname --nis || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { hostname -y || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "hostname",
+        "sed"
+      ]
+    },
+    {
+      "id": "pass5-boot-flag",
+      "kind": "parity",
+      "purpose": "G74: -b/--boot with no name prints the current name.",
+      "script": "hostname --boot; hostname -b",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "hostname"
+      ]
+    }
+  ]
+}

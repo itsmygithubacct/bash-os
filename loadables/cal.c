@@ -8,8 +8,9 @@
  *
  * Verbs:
  *     cal                       # current month (Gregorian, Sunday-first)
- *     cal YYYY | -y YYYY        # full year (12 months, 3 columns)
- *     cal MM YYYY               # specific month
+ *     cal YYYY | -y [YYYY]      # full year (12 months, 3 columns)
+ *     cal MM YYYY               # specific month (number, name or abbrev.)
+ *     cal DD MM YYYY            # the month holding that day
  *     cal -j ...                # Julian day-of-year mode
  *     cal -m ...                # Monday-first week
  *     cal -w ...                # util-linux week numbers (see below)
@@ -40,7 +41,9 @@
  * Errors:
  *     A month outside 1..12 or a year outside 1..9999 prints util-linux's
  *     "illegal month value: use 1-12" / "illegal year value: use 1-9999"
- *     and exits 1; option errors keep Bash's usage status (2).
+ *     and exits 1; so do bad days, unknown month names and option errors
+ *     ("invalid option", "bad usage"). Options may follow operands and long
+ *     options may be abbreviated (getopt_long, as util-linux).
  *
  * Year mode:
  *     Non-Julian year output follows util-linux's horizontal
@@ -93,8 +96,12 @@
 #include <string.h>
 #include <ctype.h>
 #include <time.h>
+#include <errno.h>
+#include <limits.h>
+#include <strings.h>
 
 #include "loadables.h"
+#include "longopt-normalize.h"
 
 static const int bc_days_in_month[] = {
     0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
@@ -229,30 +236,107 @@ bc_parse_num (const char *s, long min, long max, const char *what, int *out)
     return 0;
 }
 
-/* Month and year operands: util-linux's diagnostics and exit status 1. */
+/* An operand number as util-linux reads it: optional leading blanks and
+   sign, decimal digits, nothing after. Returns 0 and sets *OUT, 1 when the
+   text is not a number, 2 when it does not fit an int. */
 static int
-bc_parse_operand (const char *s, int is_month, int *out)
+bc_operand_number (const char *s, long *out)
 {
     char *end = NULL;
-    long v = strtol (s, &end, 10);
+    long v;
+    errno = 0;
+    v = strtol (s, &end, 10);
+    if (end == s || *end != '\0')
+        return 1;
+    if (errno == ERANGE || v > INT_MAX || v < INT_MIN)
+        return 2;
+    *out = v;
+    return 0;
+}
 
-    /* util-linux reads a non-numeric month as a name; bash-os knows none. */
-    if (is_month && !isdigit ((unsigned char) *s) && *s != '-' && *s != '+') {
-        builtin_error ("unknown month name: %s", s);
-        return -1;
+/* util-linux month names: the full English name or its three-letter
+   abbreviation, in any case. Returns 1..12, or 0. */
+static int
+bc_month_name (const char *s)
+{
+    for (int m = 1; m <= 12; m++) {
+        if (!strcasecmp (s, bc_month_names[m]))
+            return m;
+        if (strlen (s) == 3 && !strncasecmp (s, bc_month_names[m], 3))
+            return m;
     }
-    if (end == s || *end != '\0') {
-        if (is_month)
+    return 0;
+}
+
+/* A MONTH operand: a number 1..12 when it starts with a digit, else a
+   month name. util-linux's diagnostics, status 1. */
+static int
+bc_parse_month (const char *s, int *out)
+{
+    long v;
+    if (!isdigit ((unsigned char) *s)) {
+        if (!(*out = bc_month_name (s))) {
+            builtin_error ("unknown month name: %s", s);
+            return -1;
+        }
+        return 0;
+    }
+    switch (bc_operand_number (s, &v)) {
+        case 1:
             builtin_error ("illegal month value: use 1-12: '%s'", s);
-        else
-            builtin_error ("illegal year value: '%s'", s);
+            return -1;
+        case 2:
+            builtin_error ("illegal month value: use 1-12: '%s': %s", s, strerror (ERANGE));
+            return -1;
+    }
+    if (v < 1 || v > 12) {
+        builtin_error ("illegal month value: use 1-12");
         return -1;
     }
-    if (v < 1 || v > (is_month ? 12 : 9999)) {
-        /* util-linux has no upper year bound; bash-os stops at 9999. */
-        builtin_error (is_month ? "illegal month value: use 1-12"
-                       : v < 1 ? "illegal year value: use positive integer"
-                       : "illegal year value: use 1-9999");
+    *out = (int) v;
+    return 0;
+}
+
+/* A YEAR operand. util-linux has no upper bound; bash-os stops at 9999. */
+static int
+bc_parse_year (const char *s, int *out)
+{
+    long v;
+    switch (bc_operand_number (s, &v)) {
+        case 1:
+            builtin_error ("illegal year value: '%s'", s);
+            return -1;
+        case 2:
+            builtin_error ("illegal year value: '%s': %s", s, strerror (ERANGE));
+            return -1;
+    }
+    if (v < 1) {
+        builtin_error ("illegal year value: use positive integer");
+        return -1;
+    }
+    if (v > 9999) {
+        builtin_error ("illegal year value: use 1-9999");
+        return -1;
+    }
+    *out = (int) v;
+    return 0;
+}
+
+/* A DAY operand: checked against 1..31 here and against its month later. */
+static int
+bc_parse_day (const char *s, int *out)
+{
+    long v;
+    switch (bc_operand_number (s, &v)) {
+        case 1:
+            builtin_error ("illegal day value: '%s'", s);
+            return -1;
+        case 2:
+            builtin_error ("illegal day value: '%s': %s", s, strerror (ERANGE));
+            return -1;
+    }
+    if (v < 1 || v > 31) {
+        builtin_error ("illegal day value: use 1-31");
         return -1;
     }
     *out = (int) v;
@@ -631,266 +715,253 @@ bc_print_weeks (int start_m, int start_y, int count, int julian, int monday,
     }
 }
 
+/* util-linux cal's long options (plus bash-os's --after/--before), with
+   unambiguous-prefix abbreviation; options may follow operands. */
+static const struct lon_option cal_longopts[] = {
+    { "after",   LON_REQUIRED, "-A" },
+    { "before",  LON_REQUIRED, "-B" },
+    { "help",    LON_NONE,     "-h" },
+    { "julian",  LON_NONE,     "-j" },
+    { "monday",  LON_NONE,     "-m" },
+    { "one",     LON_NONE,     "-1" },
+    { "sunday",  LON_NONE,     "-s" },
+    { "three",   LON_NONE,     "-3" },
+    { "version", LON_NONE,     "-V" },
+    { "week",    LON_OPTIONAL, NULL },
+    { "year",    LON_NONE,     "-y" },
+    { NULL, 0, NULL }
+};
+
+static void
+bc_help (void)
+{
+    puts ("cal: display a calendar (cal(1) subset)");
+    puts ("Usage: cal [options] [[[day] month] year]");
+    puts ("       cal [options] <month name>");
+    puts ("  -1, --one        display single month (default)");
+    puts ("  -3, --three      display previous, current, and next month");
+    puts ("  -A N, --after N  display N months after the target month");
+    puts ("  -B N, --before N display N months before the target month");
+    puts ("  -j, --julian     Julian day-of-year mode (3-digit cells)");
+    puts ("  -m, --monday     Monday-first week");
+    puts ("  -s, -S, --sunday Sunday-first week (default)");
+    puts ("  -w, --week[=N]   week numbers (US; ISO 8601 with -m), util-linux layout");
+    puts ("  -y, --year       display a whole year");
+    puts ("  -h, --help       display this help");
+    puts ("  -V, --version    display version");
+    puts ("A month is 1-12 or an English name or three-letter abbreviation.");
+}
+
 int
 cal_builtin (WORD_LIST *list)
 {
     int julian = 0;
     int monday = 0;
-    int explicit_year = 0;
+    int year_view = 0;
     int year = 0;
     int before = 0;
     int after = 0;
     int span_requested = 0;
     int three_requested = 0;
     int week_numbers = 0;
+    int rc = EXECUTION_SUCCESS;
+    WORD_LIST *norm = NULL, *l;
 
-    while (list && list->word->word[0] == '-' && list->word->word[1]) {
-        const char *w = list->word->word;
-        if (!strcmp (w, "--")) { list = list->next; break; }
-        if (!strcmp (w, "--version")) {
-            puts ("cal 1.0 (bash-loadable)");
-            return EXECUTION_SUCCESS;
-        }
-        /* Bundled argument-less short options: -wm, -jw3, ... */
-        if (w[1] != '-' && w[2] && strspn (w + 1, "jmMSsw31") == strlen (w + 1)) {
-            for (const char *o = w + 1; *o; o++) {
-                switch (*o) {
-                    case 'j': julian = 1; break;
-                    case 'm': case 'M': monday = 1; break;
-                    case 'S': case 's': monday = 0; break;
-                    case 'w': week_numbers = 1; break;
-                    case '3':
-                        before = 1; after = 1; span_requested = 1; three_requested = 1;
-                        break;
-                    default:
-                        before = 0; after = 0; span_requested = 0; three_requested = 0;
-                        break;
+    if (lon_normalize (list, cal_longopts, "A:B:", 1, &norm) < 0)
+        return EXECUTION_FAILURE;
+
+    for (l = norm; l; l = l->next) {
+        const char *w = l->word->word;
+        if (w[0] != '-' || w[1] == '\0')
+            break;
+        if (!strcmp (w, "--")) { l = l->next; break; }
+        if (!strcmp (w, "--week") || !strncmp (w, "--week=", 7)) {
+            /* --week=N only selects a week to highlight in color. */
+            if (w[6] == '=') {
+                long v;
+                if (bc_operand_number (w + 7, &v) != 0) {
+                    builtin_error ("invalid week argument: '%s'", w + 7);
+                    rc = EXECUTION_FAILURE;
+                    goto out;
+                }
+                if (v < 1 || v > 54) {
+                    builtin_error ("illegal week value: use 1-54");
+                    rc = EXECUTION_FAILURE;
+                    goto out;
                 }
             }
-            list = list->next;
+            week_numbers = 1;
             continue;
         }
-        if (!strcmp (w, "-j") || !strcmp (w, "--julian")) {
-            julian = 1; list = list->next; continue;
-        }
-        if (!strcmp (w, "-m") || !strcmp (w, "--monday")) {
-            monday = 1; list = list->next; continue;
-        }
-        if (!strcmp (w, "-M") || !strcmp (w, "--monday")) {
-            monday = 1; list = list->next; continue;
-        }
-        if (!strcmp (w, "-S") || !strcmp (w, "-s") || !strcmp (w, "--sunday")) {
-            monday = 0; list = list->next; continue;
-        }
-        if (!strcmp (w, "-w") || !strcmp (w, "--week") ||
-            !strncmp (w, "--week=", 7)) {
-            /* --week=N only selects a week to highlight in color. */
-            int highlight;
-            if (w[2] == 'e' && w[6] == '=' &&
-                bc_parse_num (w + 7, 1, 54, "week", &highlight) < 0)
-                return EXECUTION_FAILURE;
-            week_numbers = 1; list = list->next; continue;
-        }
-        if (!strcmp (w, "-3") || !strcmp (w, "--three")) {
-            before = 1; after = 1; span_requested = 1;
-            three_requested = 1;
-            list = list->next; continue;
-        }
-        if (!strcmp (w, "-1") || !strcmp (w, "--one")) {
-            /* Single month (the default); resets any prior -3/-A/-B span,
-               matching util-linux/bsd cal's last-one-wins flag handling. */
-            before = 0; after = 0; span_requested = 0; three_requested = 0;
-            list = list->next; continue;
-        }
-        if (!strcmp (w, "-A") || !strcmp (w, "--after")) {
-            if (!list->next) {
-                builtin_error ("%s requires a month count", w);
-                builtin_usage ();
-                return EX_USAGE;
+        for (const char *o = w + 1; *o; o++) {
+            int *count;
+            const char *arg;
+            switch (*o) {
+                case 'j': julian = 1; continue;
+                case 'm': case 'M': monday = 1; continue;
+                case 'S': case 's': monday = 0; continue;
+                case 'w': week_numbers = 1; continue;
+                case 'y': year_view = 1; continue;
+                case '3':
+                    before = 1; after = 1; span_requested = 1; three_requested = 1;
+                    continue;
+                case '1':
+                    /* Single month (the default); last of -1/-3 wins. */
+                    before = 0; after = 0; span_requested = 0; three_requested = 0;
+                    continue;
+                case 'h':
+                    bc_help ();
+                    goto out;
+                case 'V':
+                    puts ("cal (bash-os) 0.1.5");
+                    goto out;
+                case 'A': case 'B':
+                    count = (*o == 'A') ? &after : &before;
+                    if (o[1]) arg = o + 1;
+                    else if (l->next) { l = l->next; arg = l->word->word; }
+                    else {
+                        lon_error ("option requires an argument -- '%c'", *o);
+                        lon_try_help ();
+                        rc = EXECUTION_FAILURE;
+                        goto out;
+                    }
+                    if (bc_parse_num (arg, 0, 120000, "month count", count) < 0) {
+                        rc = EXECUTION_FAILURE;
+                        goto out;
+                    }
+                    span_requested = 1;
+                    three_requested = 0;
+                    break;
+                default:
+                    lon_error ("invalid option -- '%c'", *o);
+                    lon_try_help ();
+                    rc = EXECUTION_FAILURE;
+                    goto out;
             }
-            if (bc_parse_num (list->next->word->word, 0, 120000, "month count", &after) < 0)
-                return EX_USAGE;
-            span_requested = 1;
-            list = list->next->next;
-            continue;
+            break;
         }
-        if (!strcmp (w, "-B") || !strcmp (w, "--before")) {
-            if (!list->next) {
-                builtin_error ("%s requires a month count", w);
-                builtin_usage ();
-                return EX_USAGE;
-            }
-            if (bc_parse_num (list->next->word->word, 0, 120000, "month count", &before) < 0)
-                return EX_USAGE;
-            span_requested = 1;
-            list = list->next->next;
-            continue;
-        }
-        if (!strcmp (w, "-y") || !strcmp (w, "--year")) {
-            if (!list->next) {
-                builtin_error ("%s requires a year", w);
-                builtin_usage ();
-                return EX_USAGE;
-            }
-            if (bc_parse_operand (list->next->word->word, 0, &year) < 0)
-                return EXECUTION_FAILURE;
-            explicit_year = 1;
-            list = list->next->next;
-            continue;
-        }
-        if (!strcmp (w, "-h") || !strcmp (w, "--help")) {
-            puts ("cal: display a calendar (cal(1) subset)");
-            puts ("Usage: cal [-jm] [-1|-3] [-A N] [-B N] [[MM] YYYY]");
-            puts ("       cal [-jm] -y YEAR");
-            puts ("  -j   Julian day-of-year mode (3-digit cells)");
-            puts ("  -m   Monday-first week");
-            puts ("  -S   Sunday-first week (default)");
-            puts ("  -w   week numbers (US; ISO 8601 with -m), util-linux layout");
-            puts ("  -1   display single month (default)");
-            puts ("  -3   display previous, current, and next month");
-            puts ("  -A N display N months after the target month");
-            puts ("  -B N display N months before the target month");
-            puts ("  -y   display a full year");
-            puts ("  --version   show version");
-            return EXECUTION_SUCCESS;
-        }
-        builtin_error ("unknown flag: %s", w);
-        builtin_usage ();
-        return EX_USAGE;
     }
 
-    int npos = 0;
-    WORD_LIST *p;
-    for (p = list; p; p = p->next) npos++;
-
-    if (explicit_year) {
-        if (npos != 0) {
-            builtin_error ("too many arguments");
-            return EX_USAGE;
-        }
-        if (week_numbers)
-            bc_print_weeks (1, year, 12, julian, monday, 1);
-        else
-            bc_print_year (year, julian, monday);
-        return EXECUTION_SUCCESS;
+    /* Operands: [[[DAY] MONTH] YEAR], or a month name alone. */
+    int npos = 0, day = 0, month = 0, have_month = 0, have_year = 0;
+    const char *op[3] = { NULL, NULL, NULL };
+    for (WORD_LIST *p = l; p; p = p->next, npos++)
+        if (npos < 3) op[npos] = p->word->word;
+    if (npos > 3) {
+        builtin_error ("bad usage");
+        lon_try_help ();
+        rc = EXECUTION_FAILURE;
+        goto out;
     }
-
-    if (npos == 0) {
+    if (npos == 1) {
+        if (isdigit ((unsigned char) op[0][0]) || op[0][0] == '-' || op[0][0] == '+'
+            || isspace ((unsigned char) op[0][0])) {
+            if (bc_parse_year (op[0], &year) < 0) { rc = EXECUTION_FAILURE; goto out; }
+            have_year = 1;
+        } else if ((month = bc_month_name (op[0])) != 0)
+            have_month = 1;
+        else {
+            builtin_error ("failed to parse timestamp or unknown month name: %s", op[0]);
+            rc = EXECUTION_FAILURE;
+            goto out;
+        }
+    } else if (npos >= 2) {
+        int i = 0;
+        if (npos == 3 && bc_parse_day (op[i++], &day) < 0) { rc = EXECUTION_FAILURE; goto out; }
+        if (bc_parse_month (op[i++], &month) < 0) { rc = EXECUTION_FAILURE; goto out; }
+        if (bc_parse_year (op[i], &year) < 0) { rc = EXECUTION_FAILURE; goto out; }
+        if (day && day > bc_days_this_month (month, year)) {
+            builtin_error ("illegal day value: use 1-%d", bc_days_this_month (month, year));
+            rc = EXECUTION_FAILURE;
+            goto out;
+        }
+        have_month = have_year = 1;
+    }
+    if (!have_year || !have_month) {
         time_t now = time (NULL);
         struct tm *lt = localtime (&now);
         if (!lt) {
             builtin_error ("localtime: failed");
-            return EXECUTION_FAILURE;
+            rc = EXECUTION_FAILURE;
+            goto out;
         }
-        int m = lt->tm_mon + 1;
-        int y = lt->tm_year + 1900;
-        if (span_requested) {
-            int start_idx = bc_month_index (m, y) - before;
-            int count = before + 1 + after;
-            if (bc_check_span_range (start_idx, count) < 0) {
-                builtin_error ("month span out of range");
-                return EX_USAGE;
-            }
-            bc_month_from_index (start_idx, &m, &y);
-            if (week_numbers)
-                bc_print_weeks (m, y, count, julian, monday, 0);
-            else
-                bc_print_month_span (m, y, count, julian, monday);
-            return EXECUTION_SUCCESS;
+        if (!have_year) year = lt->tm_year + 1900;
+        /* A year alone is a year view, except that -3 shows the current
+           month's neighbours in that year (util-linux). */
+        if (!have_month && (!have_year || three_requested)) {
+            month = lt->tm_mon + 1;
+            have_month = 1;
         }
-        if (week_numbers)
-            bc_print_weeks (m, y, 1, julian, monday, 0);
-        else
-            bc_print_month (m, y, julian, monday);
-        return EXECUTION_SUCCESS;
     }
 
-    if (npos == 1) {
-        if (bc_parse_operand (list->word->word, 0, &year) < 0)
-            return EXECUTION_FAILURE;
-        if (span_requested) {
-            int start_idx;
-            int count;
-
-            if (three_requested) {
-                builtin_error ("-3 together with a given year but no given month is not supported");
-                return EX_USAGE;
-            }
-            start_idx = bc_month_index (1, year) - before;
-            count = before + 12 + after;
+    /* -y (or a year alone) shows the whole year; it wins over spans. */
+    if (year_view || !have_month) {
+        if (!year_view && span_requested) {
+            int start_idx = bc_month_index (1, year) - before;
+            int count = before + 12 + after;
+            int start_m, start_y;
             if (bc_check_span_range (start_idx, count) < 0) {
                 builtin_error ("month span out of range");
-                return EX_USAGE;
+                rc = EXECUTION_FAILURE;
+                goto out;
             }
-            {
-                int start_m, start_y;
-                bc_month_from_index (start_idx, &start_m, &start_y);
-                if (week_numbers)
-                    bc_print_weeks (start_m, start_y, count, julian, monday, 0);
-                else
-                    bc_print_month_span (start_m, start_y, count, julian, monday);
-            }
-            return EXECUTION_SUCCESS;
-        }
-        if (week_numbers)
+            bc_month_from_index (start_idx, &start_m, &start_y);
+            if (week_numbers)
+                bc_print_weeks (start_m, start_y, count, julian, monday, 0);
+            else
+                bc_print_month_span (start_m, start_y, count, julian, monday);
+        } else if (week_numbers)
             bc_print_weeks (1, year, 12, julian, monday, 1);
         else
             bc_print_year (year, julian, monday);
-        return EXECUTION_SUCCESS;
+        goto out;
     }
 
-    if (npos == 2) {
-        int month;
-        if (bc_parse_operand (list->word->word, 1, &month) < 0)
-            return EXECUTION_FAILURE;
-        if (bc_parse_operand (list->next->word->word, 0, &year) < 0)
-            return EXECUTION_FAILURE;
-        if (span_requested) {
-            int start_idx = bc_month_index (month, year) - before;
-            int count = before + 1 + after;
-            if (bc_check_span_range (start_idx, count) < 0) {
-                builtin_error ("month span out of range");
-                return EX_USAGE;
-            }
-            bc_month_from_index (start_idx, &month, &year);
-            if (week_numbers)
-                bc_print_weeks (month, year, count, julian, monday, 0);
-            else
-                bc_print_month_span (month, year, count, julian, monday);
-            return EXECUTION_SUCCESS;
+    if (span_requested) {
+        int start_idx = bc_month_index (month, year) - before;
+        int count = before + 1 + after;
+        if (bc_check_span_range (start_idx, count) < 0) {
+            builtin_error ("month span out of range");
+            rc = EXECUTION_FAILURE;
+            goto out;
         }
-        if (week_numbers) {
-            bc_print_weeks (month, year, 1, julian, monday, 0);
-            return EXECUTION_SUCCESS;
-        }
+        bc_month_from_index (start_idx, &month, &year);
+        if (week_numbers)
+            bc_print_weeks (month, year, count, julian, monday, 0);
+        else
+            bc_print_month_span (month, year, count, julian, monday);
+    } else if (week_numbers)
+        bc_print_weeks (month, year, 1, julian, monday, 0);
+    else
         bc_print_month (month, year, julian, monday);
-        return EXECUTION_SUCCESS;
-    }
 
-    builtin_error ("too many arguments");
-    return EX_USAGE;
+out:
+    if (norm)
+        dispose_words (norm);
+    return rc;
 }
 
 char *cal_doc[] = {
     "Display a calendar month or year (cal(1) subset).",
     "",
     "    cal                   # current month",
-    "    cal YYYY | -y YYYY    # entire year (12 months)",
-    "    cal MM YYYY           # specific month",
+    "    cal YYYY | -y [YYYY]  # entire year (12 months)",
+    "    cal MONTH YYYY        # specific month (1-12, name or abbreviation)",
+    "    cal DAY MONTH YYYY    # the month holding that day",
+    "    cal MONTH             # a month name alone: that month this year",
     "    cal -j ...            # Julian day-of-year mode (3-digit cells)",
     "    cal -m ...            # Monday-first week",
     "    cal -w ...            # week numbers: US, or ISO 8601 with -m",
     "    cal -3 | -A N | -B N  # month spans",
     "    cal --help | --version",
     "",
+    "Options may follow operands and long options may be abbreviated",
+    "(util-linux). -y is a flag: with MONTH YYYY or DAY MONTH YYYY it shows",
+    "that whole year, and it wins over -3, -A and -B.",
     "Gregorian calendar with British 1752 reformation correction.",
     "Day-of-week derived from Gregorian/Julian arithmetic. Year range: 1..9999.",
     "With -w the util-linux layout is used: each week row starts with its",
-    "number. A bad month or year exits 1 (util-linux).",
-    "",
-    "Source counterparts:",
-    "    research/refs/util-linux/misc-utils/cal.c",
-    "    research/refs/busybox/util-linux/cal.c",
+    "number. Bad operands and options exit 1 with util-linux's messages.",
     (char *) NULL
 };
 
@@ -899,6 +970,6 @@ struct builtin cal_struct = {
     cal_builtin,
     BUILTIN_ENABLED,
     cal_doc,
-    "cal [-jmw] [-3] [-A N] [-B N] [[MM] YYYY] | cal [-jmw] -y YEAR",
+    "cal [-13jmswy] [-A N] [-B N] [--week[=N]] [[[DAY] MONTH] YEAR]",
     0
 };

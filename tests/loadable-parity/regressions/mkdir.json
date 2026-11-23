@@ -10,7 +10,8 @@
     "-- option termination for a directory name beginning with a dash",
     "missing operand and existing-directory errors with captured statuses",
     "failure at a non-directory path component while independent operands are still created",
-    "Bash builtin type and short-help metadata contract"
+    "Bash builtin type and short-help metadata contract",
+    "Guest pass 5 (G74/G78): GNU long options, abbreviations and diagnostics, and the -c/-v/-d/-I/--reference behaviours of coreutils 9.7."
   ],
   "exclusions": [
     "symbolic mode edge cases, unusual filesystem errors, and concurrent creation races are not covered"
@@ -148,6 +149,73 @@
       ],
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "g74-long-options",
+      "kind": "parity",
+      "purpose": "mkdir --parents, --mode=MODE, --mode MODE, abbreviations and -v lines for each created directory (G74, G78).",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\numask 022\nn mkdir --parents --verbose p/q/r\nn mkdir --mode=700 m1\nn mkdir --mode 750 m2\nn mkdir --mo=711 --par --verb m3/n\nn mkdir -pv p/q/r p/q/s\nstat -c '%a %n' p p/q p/q/r p/q/s m1 m2 m3 m3/n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkdir",
+        "stat"
+      ]
+    },
+    {
+      "id": "g78-symbolic-modes",
+      "kind": "parity",
+      "purpose": "Symbolic -m modes as GNU computes them against a=rwx and the umask, including set-ID and sticky bits.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\numask 022\nmkdir -m u=rwx,go= s1\nmkdir -m -w s2\nmkdir -m g+s s3\nmkdir -m +t s4\nmkdir -m 2755 s5\nmkdir -m a=rx,u+w s6\nstat -c '%a %n' s1 s2 s3 s4 s5 s6",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkdir",
+        "stat"
+      ]
+    },
+    {
+      "id": "g74-errors",
+      "kind": "parity",
+      "purpose": "Invalid modes, an existing file in the path, -p over an existing directory with -m (unchanged), the umask for -p parents and status 1 diagnostics.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\numask 077\n: > f\nmkdir e; chmod 755 e\nn mkdir -m bad x | s\nn mkdir -p f/x/y | s\nn mkdir -p f | s\nn mkdir -p -m 700 e\nn mkdir -pv q/r\nn mkdir -v e new e | s\nn mkdir --bogus | s\nn mkdir | s\nstat -c '%a %n' e q q/r new",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkdir",
+        "chmod",
+        "stat",
+        "sed"
+      ]
+    },
+    {
+      "id": "cleanroom-special-modes",
+      "kind": "parity",
+      "purpose": "-m modes with set-ID or sticky bits, under several umasks and inside a set-group-ID parent: the bits the MODE names are exact, the others follow GNU's creation (group and other write withheld until the named bits are put right).",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\nmkdir sg; chmod 2755 sg\ni=0; for um in 077 0 0222 022; do umask $um; for m in +t g+s g-s o=t +t,a-r g+s,-x =t u+s 01777 +t,-w u=rwx,+t a=w,+t; do i=$((i+1)); n mkdir -m \"$m\" m$i sg/m$i | s; done; done\numask 022; stat -c '%a %n' m* sg/m*\nchmod -R u+rwx .",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkdir",
+        "chmod",
+        "stat",
+        "sed"
+      ]
+    },
+    {
+      "id": "cleanroom-parents-errors",
+      "kind": "parity",
+      "purpose": "-p names the component that failed (a directory without search permission, a symlink loop, a dangling link, a file), reports an empty operand, keeps the separators of the operand in -v lines, and gives new parents u+wx over the umask.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\numask 022\n: > f; ln -s nowhere dl; ln -s lp lp; mkdir nox; chmod 600 nox\nn mkdir -p '' | s; n mkdir -p nox/a | s; n mkdir -p lp | s; n mkdir -p lp/a | s; n mkdir -p dl | s; n mkdir -p f/x | s; n mkdir -p dl/x | s\nn mkdir -pv a//b/./c/../d\numask 0777; n mkdir -p p/q/r; umask 0555; n mkdir -pv s/t; umask 022; stat -c '%a %n' p p/q p/q/r s s/t\nchmod 755 nox p p/q p/q/r s s/t",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "mkdir",
+        "chmod",
+        "stat",
+        "ln",
+        "sed"
+      ]
     }
   ]
 }

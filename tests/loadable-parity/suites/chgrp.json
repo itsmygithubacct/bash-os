@@ -32,9 +32,9 @@
       "id": "help-full-documentation",
       "kind": "contract",
       "purpose": "Check Bash's long help text against the documented chgrp description and usage line, without running an ownership operation.",
-      "script": "help chgrp",
+      "script": "help chgrp > help.out\nhead -n 5 help.out",
       "expected_status": 0,
-      "stdout": "chgrp: chgrp GROUP FILE...\n    Change file group.\n    \n    chgrp [-h] GROUP FILE...   GROUP is a name or numeric id.\n",
+      "stdout": "chgrp: chgrp GROUP FILE...\n    Change file group.\n    \n    chgrp [OPTION]... GROUP FILE...   GROUP is a name or numeric id.\n    chgrp [OPTION]... --reference=RFILE FILE...\n",
       "stderr": "empty"
     },
     {

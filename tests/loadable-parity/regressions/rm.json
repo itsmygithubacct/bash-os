@@ -12,7 +12,9 @@
     "Failure to remove a directory without recursive mode, with contents preserved.",
     "Invalid-option status and preservation of the named file.",
     "Bash type/help metadata contract for builtin registration and documentation.",
-    "Explicit native -i with finite stdin answers: regular files, EOF refusal, multiple operands, last -f/-i precedence, state reset and tiny recursive trees; no PTY."
+    "Explicit native -i with finite stdin answers: regular files, EOF refusal, multiple operands, last -f/-i precedence, state reset and tiny recursive trees; no PTY.",
+    "Guest pass 5 (G74/G78): GNU long options, abbreviations and diagnostics, and the -c/-v/-d/-I/--reference behaviours of coreutils 9.7.",
+    "Clean-room rewrite (MIT): nested -ri answers and what they leave of enclosing directories, write-protected and unreadable directories, -f/-i ordering, the './-foo' hint, trailing slashes and verbose output order around prompts."
   ],
   "exclusions": [
     "Implicit prompting dependent on a controlling terminal, permission denial, immutable files and filesystem races are not qualified by these bounded private-file cases.",
@@ -223,6 +225,172 @@
       "expected_status": 0,
       "stdout": "rc=0\nstdout-only\n",
       "stderr": "empty"
+    },
+    {
+      "id": "g74-long-options",
+      "kind": "parity",
+      "purpose": "GNU long options --recursive, --force, --verbose, --dir, an abbreviation and options after operands (guest pass 5 G74).",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\nmkdir -p r/s e; : > r/s/f; : > g; : > h\nrm --recursive --verbose r\nrm --force nosuch\nrm --forc g\nrm --dir --verbose e\nrm h --verb\nls",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rm",
+        "mkdir",
+        "ls"
+      ]
+    },
+    {
+      "id": "g74-option-diagnostics",
+      "kind": "parity",
+      "purpose": "getopt_long diagnostics with the help hint and status 1: an argument to a flag, an unknown option, --interactive keywords, --preserve-root arguments, abbreviated --no-preserve-root and the leading-hyphen file hint.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\n: > f; : > ./-foo\nn rm --rec=1 f | s\nn rm --bogus f | s\nn rm --interactive=bogus f | s\nn rm --interactive=nev f | s\nn rm --preserve-root=bad -r f | s\nn rm --no-preserve-r -r nosuch | s\nn rm -foo | s\nn rm | s\nls",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rm",
+        "ls",
+        "sed"
+      ]
+    },
+    {
+      "id": "g78-dir-option",
+      "kind": "parity",
+      "purpose": "rm -d removes empty directories only; -r is still needed for contents (G78).",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\nmkdir e d; : > d/f\nn rm -d e | s\nn rm -d d | s\nn rm -dv d/f d | s\nn rm d | s\nls",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rm",
+        "mkdir",
+        "ls",
+        "sed"
+      ]
+    },
+    {
+      "id": "g78-prompt-once",
+      "kind": "parity",
+      "purpose": "rm -I asks once for more than three operands or a recursive removal and not otherwise; a refusal removes nothing and exits 0 (G78).",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\n: > a; : > b; : > c; : > d; : > i\nprintf 'n\\n' > no; printf 'y\\n' > yes\nn rm -I i < /dev/null\nn rm -I a b c d < no\nls\nn rm -I a b c d < yes\nmkdir t\nn rm -rI t < no\nn rm --interactive=once -r t < yes\nls",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rm",
+        "mkdir",
+        "ls"
+      ]
+    },
+    {
+      "id": "g78-prompt-text",
+      "kind": "parity",
+      "purpose": "rm -i and --interactive name each file type as GNU does and read one answer per prompt.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\n: > empty; printf x > full; ln -s full sl; mkfifo ff; mkdir dd\nprintf 'y\\ny\\ny\\ny\\nn\\n' > answers\nn rm -i empty full sl ff < answers\nn rm -i dd < answers | s\nn rm --interactive -d dd < answers\nls",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rm",
+        "ln",
+        "mkfifo",
+        "mkdir",
+        "ls",
+        "sed"
+      ]
+    },
+    {
+      "id": "g74-refuse-dot-and-root",
+      "kind": "parity",
+      "purpose": "rm -r refuses '.', '..' and '/' (--preserve-root, the default) and continues with later operands.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\nmkdir -p x/y; : > z\nn rm -rf . x/.. z | s\nn rm -r / | s\nn rm -r --preserve-root=all x/y | s\nls",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rm",
+        "mkdir",
+        "ls",
+        "sed"
+      ]
+    },
+    {
+      "id": "g78-nested-mixed-answers",
+      "kind": "parity",
+      "purpose": "rm -ri on nested trees with mixed answers: a declined file still lets its directory be asked about (and fail as non-empty), a declined post-order directory still lets its parent be asked; a declined descent, a declined empty directory or an error leaves every enclosing directory silently in place; declining alone keeps status 0.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/[^ ]*: line [0-9]*: //g'; }\nmk(){ rm -rf a; mkdir -p a/b/c; : > a/b/c/h; }\nmk; printf 'y\\ny\\ny\\nn\\ny\\ny\\ny\\n' > ans; n rm -ri a < ans | s; ls -R a\nmk; printf 'y\\ny\\ny\\nn\\nn\\ny\\ny\\n' > ans; n rm -ri a < ans | s; ls -R a\nmk; printf 'y\\ny\\ny\\ny\\nn\\ny\\ny\\n' > ans; n rm -ri a < ans | s; ls -R a\nmk; printf 'y\\nn\\ny\\n' > ans; n rm -ri a < ans | s; ls -R a\nrm -rf a; mkdir -p a/b/e; printf 'y\\ny\\nn\\ny\\ny\\n' > ans; n rm -ri a < ans | s; ls -R a\nmk; printf 'n\\n' > ans; n rm -riv a < ans | s; ls -R a\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rm",
+        "mkdir",
+        "ls",
+        "sed"
+      ]
+    },
+    {
+      "id": "g78-protected-and-unreadable",
+      "kind": "parity",
+      "purpose": "-i names write-protected files and directories ('descend into write-protected directory'), -d asks 'attempt removal of inaccessible directory' for an unreadable one, and unreadable directories under -r are removed when empty or reported with the open error.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/[^ ]*: line [0-9]*: //g'; }\nif [[ $EUID == 0 ]]; then echo 'skipped: running as root'; exit 0; fi\n: > e; printf x > f; chmod 444 e f; mkdir dp dq; : > dq/z; chmod 555 dp dq\nprintf 'n\\nn\\nn\\nn\\nn\\n' > no; printf 'y\\ny\\ny\\n' > yes\nn rm -i e f < no | s; n rm -ri dp dq < no | s; n rm -di dp < no | s; n rm -rI dq < no | s\nchmod 755 dp dq; n rm -rf dp dq e f | s\nmkdir u0 u1 u2; : > u1/f; chmod 0 u0 u1 u2\nn rm -rv u0 | s; n rm -rv u1 | s; n rm -ri u2 < yes | s; n rm -dv u1 | s; n rm -div u2 < yes | s\nchmod 755 u1; ls",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rm",
+        "mkdir",
+        "chmod",
+        "ls",
+        "sed"
+      ]
+    },
+    {
+      "id": "g74-force-interactive-order",
+      "kind": "parity",
+      "purpose": "-i, -I and --interactive=once/always cancel an earlier -f's silence about missing files; --interactive=never does not; with no operands only an effective -f exits 0.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/[^ ]*: line [0-9]*: //g'; }\nn rm -fi nosuch < /dev/null | s; n rm -if nosuch | s; n rm -fI nosuch | s\nn rm -f --interactive nosuch < /dev/null | s; n rm -f --interactive=never nosuch | s; n rm --interactive=never nosuch | s\nn rm -fi | s; n rm -if | s; n rm -fv | s",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rm",
+        "sed"
+      ]
+    },
+    {
+      "id": "g74-dash-file-hint",
+      "kind": "parity",
+      "purpose": "After an option error rm names the first argument that starts with '-' and exists (before or after the bad option, '--' included, '-' alone excluded), quoting it for the shell only when needed; keyword-argument and --no-preserve-root errors give no such hint.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/[^ ]*: line [0-9]*: //g'; }\n: > ./-v; : > ./--; : > ./-; : > './-a b'; : > './-a=b'; : > './-a,b'\nn rm -z f -v | s; n rm -v -z | s; n rm -z -- | s; n rm -z - | s; n rm -z '-a b' | s; n rm -z -a=b | s; n rm -z -a,b | s\nn rm --bogus -- | s; n rm --rec=1 -v | s; n rm --interactive=bogus -v | s; n rm --no-preserve-r -v | s\nrm ./-v ./-- ./- './-a b' ./-a=b ./-a,b; n rm -z -v | s; ls",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rm",
+        "ls",
+        "sed"
+      ]
+    },
+    {
+      "id": "g74-trailing-slashes",
+      "kind": "parity",
+      "purpose": "Repeated trailing slashes are shown as one, -f ignores 'Not a directory' for a file with a slash, and a symlink to a directory named with a slash is traversed but not removed by rmdir.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/[^ ]*: line [0-9]*: //g'; }\n: > f; mkdir -p d/e g; ln -s g gl\nn rm -v f// | s; n rm -f f/ | s; n rm -d f/ | s; n rm -dv g// | s; n rm -rv d///e// | s; n rm -dv d/// | s\nmkdir g; : > g/x; n rm -rv gl/ | s; n rm -dv gl/ | s; ls",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rm",
+        "mkdir",
+        "ln",
+        "ls",
+        "sed"
+      ]
+    },
+    {
+      "id": "g78-verbose-with-prompts",
+      "kind": "parity",
+      "purpose": "Verbose lines follow GNU's buffered standard output when merged with prompts and diagnostics: they appear after the prompts, and before any later diagnostic.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/[^ ]*: line [0-9]*: //g'; }\n: > a; : > b; : > c; mkdir -p t/u; : > t/u/v; : > t/w\nprintf 'y\\ny\\ny\\ny\\ny\\ny\\ny\\n' > yes\nn rm -iv a nosuch b < yes | s\nn rm -riv t < yes | s; n rm -Iv c d e f < yes | s; ls",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "rm",
+        "mkdir",
+        "ls",
+        "sed"
+      ]
     }
   ]
 }

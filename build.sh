@@ -276,6 +276,18 @@ patch -p0 -s < "$HERE/patches/enable-static-uv.patch" >>"$LOG" 2>&1 \
 # place, as the GNU tools exec it, and $! is the command.
 patch -p0 -s < "$HERE/patches/builtin-sole-child.patch" >>"$LOG" 2>&1 \
   || die "builtin-sole-child.patch did not apply (see $LOG)"
+# The /bin/<cmd> shim runs a builtin as a standalone program. While the
+# shell variable BASHOS_SHIM_COMMAND=BUILTIN=NAME is set (never exported),
+# diagnostics start "NAME: " with no script name or line number, so the
+# shim needs no stderr capture; and the test builtin run as /bin/test or
+# /bin/[ follows coreutils test (any-length integers, -l, [ --help).
+patch -p0 -s < "$HERE/patches/shim-command-name.patch" >>"$LOG" 2>&1 \
+  || die "shim-command-name.patch did not apply (see $LOG)"
+# A background command's child releases the async exec handshake before a
+# redirection opens a FIFO: that open waits for the other end, which the
+# parent may open only after the handshake (cmd < fifo &  exec 9> fifo).
+patch -p0 -s < "$HERE/patches/async-exec-fifo-release.patch" >>"$LOG" 2>&1 \
+  || die "async-exec-fifo-release.patch did not apply (see $LOG)"
 
 # --- 3. stage the loadable sources + helper headers ------------------------
 say "staging loadables"

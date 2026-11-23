@@ -1,10 +1,11 @@
 # Sed's portable GNU regex backend
 
-`loadables/common/sed-regex.h` is private to `loadables/sed.c` and
-`loadables/grep.c`. Non-glibc builds use this length-aware GNU engine for
-sed's addresses and substitutions and for grep's regular expressions (musl's
-regexec has no `REG_STARTEND` and stops at a NUL); `BASHGREP_PORTABLE_REGEX`
-selects it for grep on glibc.
+`loadables/common/sed-regex.h` is private to `loadables/sed.c`,
+`loadables/grep.c`, `loadables/awk.c` and `loadables/ed.c`. Non-glibc builds
+use this length-aware GNU engine for their regular expressions (musl's regexec
+has no `REG_STARTEND` and stops at a NUL); `BASHGREP_PORTABLE_REGEX`,
+`BASHAWK_PORTABLE_REGEX` and `BASHED_PORTABLE_REGEX` select it for grep, awk
+and ed on glibc.
 Glibc builds retain their system engine. Defining `BASHSED_PORTABLE_REGEX`
 selects the private engine on glibc as well, so the same production path can
 be checked with native address and undefined-behavior sanitizers.

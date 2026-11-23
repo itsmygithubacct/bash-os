@@ -10,7 +10,8 @@
     "End-of-options handling for a relative filename beginning with a dash",
     "A failed output open is reported while healthy outputs still receive input",
     "Invalid option and closed-stdin error statuses",
-    "Bash builtin availability and documented help metadata"
+    "Bash builtin availability and documented help metadata",
+    "Guest compatibility pass 5 (G74/G83): pass5-long-append, pass5-p-survives-closed-stdout, pass5-output-error-modes."
   ],
   "exclusions": [
     "SIGINT behavior for -i is deferred because this runner has no controlled per-process signal scheduler.",
@@ -119,7 +120,7 @@
       "id": "help-doc-options",
       "kind": "contract",
       "purpose": "The Bash help text exposes the documented synopsis and the append and interrupt options described by the stock tee loadable documentation.",
-      "script": "PATH=; doc=$(help tee); [[ $doc == *\"tee [-ai] [file ...]\"* && $doc == *appended* && $doc == *\"ignores interrupts\"* ]]; printf 'help exposes synopsis and -a/-i documentation\\n'",
+      "script": "PATH=; doc=$(help tee); [[ $doc == *\"tee [-aip] [--output-error[=MODE]] [file ...]\"* && $doc == *appended* && $doc == *\"ignores interrupts\"* ]]; printf 'help exposes synopsis and -a/-i documentation\\n'",
       "expected_status": 0,
       "stdout": "help exposes synopsis and -a/-i documentation\n",
       "stderr": "empty"
@@ -135,6 +136,41 @@
       "kind": "deferred",
       "purpose": "Exercise recovery when one already-open output fails during write while other output descriptors remain healthy.",
       "reason": "Requires a disposable VM with a reviewed deterministic write-fault mock that returns EIO for one private output after open, without relying on /dev/full. A future fixture should compare GNU and candidate status, stderr policy, prompt termination, stdout bytes and the complete contents of healthy sinks for a small bounded input."
+    },
+    {
+      "id": "pass5-long-append",
+      "kind": "parity",
+      "purpose": "G74: --append (and the --ap prefix) appends to each FILE.",
+      "script": "printf 'one\\n' > f; printf 'two\\n' | tee --append f >/dev/null; printf 'three\\n' | tee --ap f; cat f",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tee"
+      ]
+    },
+    {
+      "id": "pass5-p-survives-closed-stdout",
+      "kind": "parity",
+      "purpose": "G83: -p (warn-nopipe) keeps copying to FILE after standard output closes, and exits 0.",
+      "script": "i=0; while (( i++ < 20000 )); do echo $i; done > in; { tee -p out < in | { read -r x; echo \"$x\"; }; }; wc -l < out",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tee",
+        "wc"
+      ]
+    },
+    {
+      "id": "pass5-output-error-modes",
+      "kind": "parity",
+      "purpose": "G83: --output-error=MODE accepts GNU's modes and rejects others with the valid-argument list.",
+      "script": "printf 'x\\n' | tee --output-error=warn f; printf 'y\\n' | tee --output-error=exit-nopipe g; cat f g; { tee --output-error=bogus </dev/null || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tee",
+        "sed"
+      ]
     }
   ]
 }

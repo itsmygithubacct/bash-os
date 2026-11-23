@@ -9,7 +9,8 @@
     "matching, mismatching, and whole-name suffixes",
     "leading-dash operands after the option terminator",
     "spaces and hidden-file names",
-    "empty input and invalid operand counts"
+    "empty input and invalid operand counts",
+    "Guest compatibility pass 5 (G74/G83): pass5-long-suffix-multiple-zero, pass5-long-diagnostics."
   ],
   "exclusions": [
     "GNU NUL-output and option-driven suffix modes are outside the stock Bash loadable's documented string [suffix] interface.",
@@ -134,6 +135,30 @@
       "script": "basename --multiple -- dir/name -a /other/name",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass5-long-suffix-multiple-zero",
+      "kind": "parity",
+      "purpose": "G74: --suffix (implies --multiple), --multiple, --zero and prefixes.",
+      "script": "basename --suffix=.c a/x.c b/y.c; basename --multiple a/b c/d/; basename --mu e/f; basename --s .h q.h; basename --zero a/b | od -c; basename -az a/b c | od -c",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "basename",
+        "od"
+      ]
+    },
+    {
+      "id": "pass5-long-diagnostics",
+      "kind": "parity",
+      "purpose": "G74: missing operand, extra operand and unknown option diagnostics.",
+      "script": "{ basename || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { basename a b c || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { basename --bogus x || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "basename",
+        "sed"
+      ]
     }
   ]
 }

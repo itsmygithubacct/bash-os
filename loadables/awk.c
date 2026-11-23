@@ -75,7 +75,15 @@
 #include <string.h>
 #include <errno.h>
 #include <limits.h>
-#include <regex.h>
+/* Records may hold NUL bytes, so matching needs REG_STARTEND and GNU syntax
+   bits. Non-glibc C libraries (musl) lack them; those builds use sed's
+   private copy of the GNU regex engine. BASHAWK_PORTABLE_REGEX selects that
+   engine on glibc too, so the same path can be checked on the host. */
+#if defined (__GLIBC__) && !defined (BASHAWK_PORTABLE_REGEX)
+#  include <regex.h>
+#else
+#  include "sed-regex.h"
+#endif
 #include <math.h>
 #include <ctype.h>
 #include <time.h>
@@ -106,6 +114,36 @@ static char *bawk_strndup (const char *s, size_t limit)
     return p;
 }
 static char *bawk_strdup (const char *s) { return bawk_strndup (s, strlen (s)); }
+
+/* Regular expressions see the whole counted string: REG_STARTEND bounds the
+   search, so a NUL is data and \< or ^ know the byte before OFF. Patterns are
+   compiled with GNU awk's dot: `.` and [^x] match NUL (gawk, mawk). Offsets in
+   *M are from S. Process-global syntax is restored for other loadables. */
+static int
+bawk_regcomp (regex_t *re, const char *pat, size_t len)
+{
+    memset (re, 0, sizeof *re);
+    re->fastmap = malloc (256);
+    if (!re->fastmap) return -1;
+    reg_syntax_t saved = re_set_syntax ((RE_SYNTAX_POSIX_EXTENDED & ~RE_DOT_NOT_NULL));
+    const char *error = re_compile_pattern (pat, len, re);
+    re_set_syntax (saved);
+    re->newline_anchor = 0;
+    if (error) { regfree (re); memset (re, 0, sizeof *re); return -1; }
+    if (re_compile_fastmap (re) != 0) { regfree (re); memset (re, 0, sizeof *re); return -1; }
+    return 0;
+}
+static int
+bawk_regexec (const regex_t *re, const char *s, size_t len, size_t off, regmatch_t *m)
+{
+    regmatch_t mm[1];
+    if (len > (size_t) INT_MAX || off > len) return REG_NOMATCH;
+    mm[0].rm_so = (regoff_t) off;
+    mm[0].rm_eo = (regoff_t) len;
+    int rc = regexec (re, s, 1, mm, REG_STARTEND);
+    if (m) *m = mm[0];
+    return rc;
+}
 
 
 /* ================================================================ */
@@ -711,7 +749,7 @@ bawk_parse_print_arg (bawk_parser *P)
 static int
 bawk_compile_regex (bawk_node *n)
 {
-    if (regcomp (&n->re, n->sval, REG_EXTENDED) != 0) return -1;
+    if (bawk_regcomp (&n->re, n->sval, strlen (n->sval)) != 0) return -1;
     n->re_ok = 1;
     return 0;
 }
@@ -1612,8 +1650,11 @@ bawk_lower_program (bawk_parser *P, bawk_node *prog)
 
 /* Values: number or string. We store strings for everything and lazy-
    convert. Simplification vs full POSIX, but adequate for most uses. */
+/* Strings carry their length: NUL bytes are data (gawk, mawk), so records,
+   fields and values keep them. s[len] is always a NUL terminator too. */
 typedef struct {
     char  *s;
+    size_t len;
     double n;
     int    have_n;
     /* POSIX "numeric string" marking. BAWK_STRNUM: the string came from
@@ -1624,27 +1665,44 @@ typedef struct {
 } bawk_val;
 enum { BAWK_STRNUM = 1, BAWK_UNINIT = 2 };
 
-static void bawk_val_free (bawk_val *v) { free (v->s); v->s = NULL; v->n = 0; v->have_n = 0; v->strnum = 0; }
-static void bawk_val_set_str (bawk_val *v, const char *s) {
+static void bawk_val_free (bawk_val *v) { free (v->s); v->s = NULL; v->len = 0; v->n = 0; v->have_n = 0; v->strnum = 0; }
+/* A copy of the LEN bytes at S, NUL-terminated. */
+static char *bawk_memdup (const char *s, size_t len)
+{
+    if (len == SIZE_MAX) { fatal_error ("awk: string too large"); abort (); }
+    char *p = xmalloc (len + 1);
+    if (len) memcpy (p, s, len);
+    p[len] = 0;
+    return p;
+}
+static void bawk_val_set_mem (bawk_val *v, const char *s, size_t len) {
+    char *copy = bawk_memdup (s ? s : "", s ? len : 0);
     free (v->s);
-    v->s = s ? bawk_strdup (s) : bawk_strdup ("");
+    v->s = copy;
+    v->len = s ? len : 0;
     v->have_n = 0;
     v->strnum = 0;
 }
+static void bawk_val_set_str (bawk_val *v, const char *s) {
+    bawk_val_set_mem (v, s, s ? strlen (s) : 0);
+}
 static void bawk_val_set_num (bawk_val *v, double n) {
-    free (v->s); v->s = NULL;
+    free (v->s); v->s = NULL; v->len = 0;
     v->n = n; v->have_n = 1;
     v->strnum = 0;
 }
 /* A string from input data: a numeric string when it looks like a number. */
-static void bawk_val_set_input (bawk_val *v, const char *s) {
-    bawk_val_set_str (v, s);
+static void bawk_val_set_input_mem (bawk_val *v, const char *s, size_t len) {
+    bawk_val_set_mem (v, s, len);
     v->strnum = BAWK_STRNUM;
+}
+static void bawk_val_set_input (bawk_val *v, const char *s) {
+    bawk_val_set_input_mem (v, s, s ? strlen (s) : 0);
 }
 /* Read a stored scalar into a fresh value, keeping its strnum mark; an unset
    scalar reads as the uninitialized value. */
 static void bawk_val_read (bawk_val *r, const bawk_val *v) {
-    if (v->s) { bawk_val_set_str (r, v->s); r->strnum = v->strnum; }
+    if (v->s) { bawk_val_set_mem (r, v->s, v->len); r->strnum = v->strnum; }
     else if (v->have_n) bawk_val_set_num (r, v->n);
     else { bawk_val_set_str (r, ""); r->strnum = BAWK_UNINIT; }
 }
@@ -1663,7 +1721,7 @@ static bawk_val
 bawk_val_copy (const bawk_val *v)
 {
     bawk_val r = {0};
-    if (v->s) { bawk_val_set_str (&r, v->s); r.strnum = v->strnum; }
+    if (v->s) { bawk_val_set_mem (&r, v->s, v->len); r.strnum = v->strnum; }
     else if (v->have_n) bawk_val_set_num (&r, v->n);
     return r;
 }
@@ -1738,20 +1796,51 @@ bawk_val_to_str (bawk_val *v, char *buf, size_t bufsz)
     return "";
 }
 
+/* bawk_val_to_str with the string's length, NUL bytes included. */
+static const char *
+bawk_val_to_strl (bawk_val *v, char *buf, size_t bufsz, size_t *lenp)
+{
+    if (v->s) { *lenp = v->len; return v->s; }
+    const char *s = bawk_val_to_str (v, buf, bufsz);
+    *lenp = strlen (s);
+    return s;
+}
+
+/* A value's truth: a nonzero number or a non-empty string ("\0" is not empty). */
+static int
+bawk_val_true (bawk_val *v)
+{
+    return bawk_val_to_num (v) != 0 || (v->s && v->len);
+}
+
+/* Byte comparison of two counted strings (strcmp order for NUL-free ones). */
+static int
+bawk_memcmp2 (const char *a, size_t al, const char *b, size_t bl)
+{
+    int r = memcmp (a, b, al < bl ? al : bl);
+    if (r) return r;
+    return al < bl ? -1 : al > bl;
+}
+
+
 /* Shared awk-style printf formatter. Walks `fmt`, consuming one entry from
    `args[]` per conversion. Returns malloc'd output (caller frees) or NULL
    on internal error / disallowed conversion. Rejects %n/%N (write-pointer
    primitive). Unknown conversion characters are silently absorbed (matching
-   the prior, less-paranoid behavior); future hardening may reject them. */
+   the prior, less-paranoid behavior); future hardening may reject them.
+   FMT is FMTLEN bytes and the result is *OUTLEN bytes: either may hold NUL
+   bytes (gawk), and %s copies its argument's NUL bytes. */
 static char *
-bawk_format (const char *fmt, bawk_val *args, int nargs)
+bawk_format (const char *fmt, size_t fmtlen, bawk_val *args, int nargs, size_t *outlen)
 {
     size_t cap = 4096; size_t op = 0;
     char *out = xmalloc (cap);
     if (!out) return NULL;
     int ai = 0;
     bawk_val empty = {0};
-    for (const char *p = fmt; *p; p++) {
+    const char *fend = fmt + fmtlen;
+    *outlen = 0;
+    for (const char *p = fmt; p < fend; p++) {
         if (op + 32 >= cap) {
             size_t nc = cap * 2;
             char *no = xrealloc (out, nc);
@@ -1804,8 +1893,8 @@ bawk_format (const char *fmt, bawk_val *args, int nargs)
             builtin_error ("awk: %%n/%%N is not allowed in format");
             free (out); return NULL;
         }
-        if (!*p) break;
-        if (!strchr ("dioxXucsfeEgG", *p)) continue;
+        if (p >= fend) break;
+        if (!*p || !strchr ("dioxXucsfeEgG", *p)) continue;
         char conv = *p;
         /* Integer conversions: widen to long long so large awk numbers (stored
            as doubles) are not truncated by a 32-bit int (e.g. printf "%d" of
@@ -1819,9 +1908,29 @@ bawk_format (const char *fmt, bawk_val *args, int nargs)
         spec[sp++] = conv; spec[sp] = '\0';
         bawk_val *a = (ai < nargs) ? &args[ai++] : &empty;
         char chunk[1024];
+        char *big = NULL;
+        int cn = 0;
         if (conv == 's') {
-            char b2[64];
-            snprintf (chunk, sizeof chunk, spec, bawk_val_to_str (a, b2, sizeof b2));
+            /* Strings are not cut at sizeof chunk, and NUL bytes are kept:
+               the precision and width count bytes, as in snprintf. */
+            char b2[64]; size_t sl;
+            const char *sv = bawk_val_to_strl (a, b2, sizeof b2, &sl);
+            const char *q = spec + 1;
+            int left = 0;
+            long width = 0, prec = -1;
+            for (; *q && strchr ("-+ #0", *q); q++) if (*q == '-') left = 1;
+            for (; isdigit ((unsigned char) *q); q++) if (width < INT_MAX / 10) width = width * 10 + (*q - '0');
+            if (*q == '.') {
+                prec = 0;
+                for (q++; isdigit ((unsigned char) *q); q++) if (prec < INT_MAX / 10) prec = prec * 10 + (*q - '0');
+            }
+            size_t take = (prec >= 0 && (size_t) prec < sl) ? (size_t) prec : sl;
+            size_t pad = (size_t) width > take ? (size_t) width - take : 0;
+            if (take + pad > (size_t) INT_MAX) { free (out); return NULL; }
+            big = xmalloc (take + pad + 1);
+            if (left) { memcpy (big, sv, take); memset (big + take, ' ', pad); }
+            else { memset (big, ' ', pad); memcpy (big + pad, sv, take); }
+            cn = (int) (take + pad);
         } else if (strchr ("di", conv)) {
             snprintf (chunk, sizeof chunk, spec, (long long) bawk_val_to_num (a));
         } else if (strchr ("oxXu", conv)) {
@@ -1831,23 +1940,32 @@ bawk_format (const char *fmt, bawk_val *args, int nargs)
                argument contributes its first character. awk stores
                pure numbers with s==NULL and strings with s!=NULL. */
             if (a->s != NULL)
-                snprintf (chunk, sizeof chunk, spec, (int) (unsigned char) a->s[0]);
+                cn = snprintf (chunk, sizeof chunk, spec, (int) (unsigned char) a->s[0]);
             else
-                snprintf (chunk, sizeof chunk, spec, (int) bawk_val_to_num (a));
+                cn = snprintf (chunk, sizeof chunk, spec, (int) bawk_val_to_num (a));
         } else {
             snprintf (chunk, sizeof chunk, spec, bawk_val_to_num (a));
         }
-        size_t cl = strlen (chunk);
+        /* %c of NUL (or of an empty string) writes a NUL byte, as in gawk:
+           take the snprintf count, not strlen. */
+        if (conv == 'c') {
+            if (cn < 0) cn = 0;
+            if (cn >= (int) sizeof chunk) cn = (int) sizeof chunk - 1;
+        }
+        const char *src = big ? big : chunk;
+        size_t cl = big || conv == 'c' ? (size_t) cn : strlen (chunk);
         if (op + cl + 1 > cap) {
             size_t nc = cap;
             while (op + cl + 1 > nc) nc *= 2;
             char *no = xrealloc (out, nc);
-            if (!no) { free (out); return NULL; }
+            if (!no) { free (out); free (big); return NULL; }
             out = no; cap = nc;
         }
-        memcpy (out + op, chunk, cl); op += cl;
+        memcpy (out + op, src, cl); op += cl;
+        free (big);
     }
     out[op] = '\0';
+    *outlen = op;
     return out;
 }
 
@@ -1859,6 +1977,7 @@ typedef struct bawk_var {
     int    is_array;
     /* If is_array, key/val arrays. */
     char     **akey;
+    size_t    *aklen;     /* key lengths: subscripts may contain NUL bytes */
     bawk_val  *aval;
     int       n_a, cap_a;
     /* A function parameter bound to the caller's array (or to an untyped
@@ -1869,8 +1988,10 @@ typedef struct bawk_var {
 
 typedef struct {
     bawk_var *head;
-    /* Fields: $0 stored as fld[0], $1..$NF as fld[1..nf]. */
+    /* Fields: $0 stored as fld[0], $1..$NF as fld[1..nf]; fldlen[i] is the
+       byte length of fld[i], which may contain NUL bytes. */
     char    **fld;
+    size_t   *fldlen;
     int       nf;
     int       fld_cap;
     bawk_val  NR;
@@ -1974,20 +2095,24 @@ bawk_lookup_scalar (bawk_ctx *c, const char *name)
 }
 
 static bawk_val *
-bawk_array_slot (bawk_var *arr, const char *key, int create)
+bawk_array_slot (bawk_var *arr, const char *key, size_t klen, int create)
 {
     arr->is_array = 1;
     for (int i = 0; i < arr->n_a; i++)
-        if (!strcmp (arr->akey[i], key)) return &arr->aval[i];
+        if (arr->aklen[i] == klen && !memcmp (arr->akey[i], key, klen)) return &arr->aval[i];
     if (!create) return NULL;
     if (arr->n_a == arr->cap_a) {
         int nc = arr->cap_a ? arr->cap_a * 2 : 8;
         char **nk = xrealloc (arr->akey, (size_t) nc * sizeof *nk);
+        arr->akey = nk;
+        size_t *nl = xrealloc (arr->aklen, (size_t) nc * sizeof *nl);
+        arr->aklen = nl;
         bawk_val *nv = xrealloc (arr->aval, (size_t) nc * sizeof *nv);
-        if (!nk || !nv) return NULL;
-        arr->akey = nk; arr->aval = nv; arr->cap_a = nc;
+        if (!nk || !nl || !nv) return NULL;
+        arr->aval = nv; arr->cap_a = nc;
     }
-    arr->akey[arr->n_a] = bawk_strdup (key);
+    arr->aklen[arr->n_a] = klen;
+    arr->akey[arr->n_a] = bawk_memdup (key, klen);
     memset (&arr->aval[arr->n_a], 0, sizeof arr->aval[arr->n_a]);
     return &arr->aval[arr->n_a++];
 }
@@ -2004,48 +2129,62 @@ bawk_fld_grow (bawk_ctx *c, int n)
     }
     char **nf = xrealloc (c->fld, (size_t) nc * sizeof *nf);
     if (!nf) return -1;
-    /* zero new slots */
-    for (int i = c->fld_cap; i < nc; i++) nf[i] = NULL;
     c->fld = nf;
+    size_t *nl = xrealloc (c->fldlen, (size_t) nc * sizeof *nl);
+    if (!nl) return -1;
+    c->fldlen = nl;
+    /* zero new slots */
+    for (int i = c->fld_cap; i < nc; i++) { nf[i] = NULL; nl[i] = 0; }
     c->fld_cap = nc;
     return 0;
 }
 
-/* Split record into fields based on FS. On OOM, leaves c->nf at the count
-   of successfully-strdup'd fields (caller will see truncation). */
+/* Store the LEN bytes at S as field N (already allocated by bawk_fld_grow). */
 static void
-bawk_split_record (bawk_ctx *c, const char *line)
+bawk_fld_set (bawk_ctx *c, int n, const char *s, size_t len)
+{
+    free (c->fld[n]);
+    c->fld[n] = bawk_memdup (s, len);
+    c->fldlen[n] = len;
+}
+
+/* Split record into fields based on FS. On OOM, leaves c->nf at the count
+   of successfully-copied fields (caller will see truncation). The record is
+   LEN bytes and may contain NUL bytes, which are ordinary field data. */
+static void
+bawk_split_record (bawk_ctx *c, const char *line, size_t len)
 {
     /* free old fields */
-    for (int i = 0; i <= c->nf; i++) { free (c->fld[i]); c->fld[i] = NULL; }
+    for (int i = 0; i <= c->nf; i++) { free (c->fld[i]); c->fld[i] = NULL; c->fldlen[i] = 0; }
     c->nf = 0;
     if (bawk_fld_grow (c, 16) < 0) { builtin_error ("awk: oom in split"); return; }
-    c->fld[0] = bawk_strdup (line ? line : "");
+    if (!line) { line = ""; len = 0; }
+    bawk_fld_set (c, 0, line, len);
 
-    if (!line || !*line) return;
+    if (!len) return;
 
-    const char *p = line;
+    const char *p = line, *end = line + len;
     if (!c->FS || strlen (c->FS) == 0 || !strcmp (c->FS, " ")) {
         /* default: split on runs of blanks and newlines, trimming (POSIX) */
-        while (*p == ' ' || *p == '\t' || *p == '\n') p++;
-        while (*p) {
+        while (p < end && (*p == ' ' || *p == '\t' || *p == '\n')) p++;
+        while (p < end) {
             const char *s = p;
-            while (*p && *p != ' ' && *p != '\t' && *p != '\n') p++;
+            while (p < end && *p != ' ' && *p != '\t' && *p != '\n') p++;
             int n = ++c->nf;
             if (bawk_fld_grow (c, n) < 0) { c->nf--; return; }
-            c->fld[n] = bawk_strndup (s, (size_t) (p - s));
-            while (*p == ' ' || *p == '\t' || *p == '\n') p++;
+            bawk_fld_set (c, n, s, (size_t) (p - s));
+            while (p < end && (*p == ' ' || *p == '\t' || *p == '\n')) p++;
         }
     } else if (strlen (c->FS) == 1) {
         /* In paragraph mode newline separates fields whatever FS is. */
         char delim = c->FS[0], delim2 = c->rs_para ? '\n' : delim;
         for (;;) {
             const char *s = p;
-            while (*p && *p != delim && *p != delim2) p++;
+            while (p < end && *p != delim && *p != delim2) p++;
             int n = ++c->nf;
             if (bawk_fld_grow (c, n) < 0) { c->nf--; return; }
-            c->fld[n] = bawk_strndup (s, (size_t) (p - s));
-            if (!*p) break;
+            bawk_fld_set (c, n, s, (size_t) (p - s));
+            if (p >= end) break;
             p++;
         }
     } else {
@@ -2057,28 +2196,32 @@ bawk_split_record (bawk_ctx *c, const char *line)
             fsre = xmalloc (fl + 6);
             snprintf (fsre, fl + 6, "(%s)|\n", c->FS);
         }
-        int rc = regcomp (&re, fsre ? fsre : c->FS, REG_EXTENDED);
+        const char *fs = fsre ? fsre : c->FS;
+        int rc = bawk_regcomp (&re, fs, strlen (fs));
         free (fsre);
         if (rc != 0) {
             /* compile failed: surface and fall back to single-field */
             builtin_warning ("awk: bad FS regex: %s", c->FS);
             c->nf = 1;
             if (bawk_fld_grow (c, 1) < 0) { c->nf = 0; return; }
-            c->fld[1] = bawk_strdup (line);
+            bawk_fld_set (c, 1, line, len);
             return;
         }
         regmatch_t m;
-        while (regexec (&re, p, 1, &m, p == line ? 0 : REG_NOTBOL) == 0
+        size_t off = 0;
+        while (off < len && bawk_regexec (&re, line, len, off, &m) == 0
                && m.rm_so >= 0) {
             int n = ++c->nf;
             if (bawk_fld_grow (c, n) < 0) { c->nf--; regfree (&re); return; }
-            c->fld[n] = bawk_strndup (p, (size_t) m.rm_so);
-            p += m.rm_eo;
-            if (m.rm_eo == 0) p++;     /* zero-width safety */
+            bawk_fld_set (c, n, line + off, (size_t) m.rm_so - off);
+            int empty_here = (size_t) m.rm_eo == off;
+            off = (size_t) m.rm_eo;
+            if (empty_here) off++;     /* zero-width safety */
         }
         int n = ++c->nf;
         if (bawk_fld_grow (c, n) < 0) { c->nf--; regfree (&re); return; }
-        c->fld[n] = bawk_strdup (p);
+        if (off > len) off = len;
+        bawk_fld_set (c, n, line + off, len - off);
         regfree (&re);
     }
 }
@@ -2168,17 +2311,17 @@ bawk_read_record (bawk_ctx *c, FILE *fp, char **line, size_t *cap)
     }
     if (b->off >= b->len) return -1;
     regex_t re;
-    if (regcomp (&re, rs, REG_EXTENDED) != 0) {
+    if (bawk_regcomp (&re, rs, strlen (rs)) != 0) {
         builtin_error ("awk: bad RS regex: %s", rs);
         return -1;
     }
     const char *p = b->buf + b->off;
     size_t rem = b->len - b->off, rlen = rem, adv = rem;
     regmatch_t m;
-    if (regexec (&re, p, 1, &m, b->off ? REG_NOTBOL : 0) == 0
-        && m.rm_eo > m.rm_so && (size_t) m.rm_so < rem) {
-        rlen = (size_t) m.rm_so;
-        adv = (size_t) m.rm_eo;
+    if (bawk_regexec (&re, b->buf, b->len, b->off, &m) == 0
+        && m.rm_eo > m.rm_so && (size_t) m.rm_so - b->off < rem) {
+        rlen = (size_t) m.rm_so - b->off;
+        adv = (size_t) m.rm_eo - b->off;
     }
     regfree (&re);
     if (bawk_line_room (line, cap, rlen + 1) < 0) return -1;
@@ -2189,23 +2332,23 @@ bawk_read_record (bawk_ctx *c, FILE *fp, char **line, size_t *cap)
 }
 
 static void
-bawk_set_record (bawk_ctx *c, const char *line)
+bawk_set_record (bawk_ctx *c, const char *line, size_t len)
 {
-    bawk_split_record (c, line ? line : "");
+    bawk_split_record (c, line ? line : "", line ? len : 0);
 }
 
 static void
-bawk_set_scalar_from_getline (bawk_ctx *c, const char *name, const char *line)
+bawk_set_scalar_from_getline (bawk_ctx *c, const char *name, const char *line, size_t len)
 {
     if (!name) return;
+    if (!line) { line = ""; len = 0; }
     if (!strcmp (name, "NR") || !strcmp (name, "FNR")) {
-        bawk_val_set_str (!strcmp (name, "NR") ? &c->NR : &c->FNR,
-                          line ? line : "");
+        bawk_val_set_mem (!strcmp (name, "NR") ? &c->NR : &c->FNR, line, len);
         return;
     }
     bawk_var *v = bawk_lookup_scalar (c, name);
     bawk_val_free (&v->val);
-    bawk_val_set_input (&v->val, line ? line : "");
+    bawk_val_set_input_mem (&v->val, line, len);
 }
 
 static int
@@ -2216,21 +2359,20 @@ bawk_rebuild_record (bawk_ctx *c)
 
     for (int i = 1; i <= c->nf; i++) {
         if (i > 1) total += olen;
-        total += strlen (c->fld[i] ? c->fld[i] : "");
+        total += c->fld[i] ? c->fldlen[i] : 0;
     }
 
     char *buf = xmalloc (total + 1);
     if (!buf) {
         builtin_error ("awk: out of memory rebuilding $0");
-        free (c->fld[0]);
-        c->fld[0] = bawk_strdup ("");
+        bawk_fld_set (c, 0, "", 0);
         return -1;
     }
 
     size_t off = 0;
     for (int i = 1; i <= c->nf; i++) {
         const char *field = c->fld[i] ? c->fld[i] : "";
-        size_t flen = strlen (field);
+        size_t flen = c->fld[i] ? c->fldlen[i] : 0;
         if (i > 1 && olen) {
             memcpy (buf + off, ofs, olen);
             off += olen;
@@ -2244,6 +2386,7 @@ bawk_rebuild_record (bawk_ctx *c)
 
     free (c->fld[0]);
     c->fld[0] = buf;
+    c->fldlen[0] = off;
     return 0;
 }
 
@@ -2255,12 +2398,13 @@ bawk_assign_nf (bawk_ctx *c, int newnf)
         if (bawk_fld_grow (c, newnf) < 0) return;
         while (c->nf < newnf) {
             c->nf++;
-            c->fld[c->nf] = bawk_strdup ("");
+            bawk_fld_set (c, c->nf, "", 0);
         }
     } else if (newnf < c->nf) {
         for (int i = newnf + 1; i <= c->nf; i++) {
             free (c->fld[i]);
             c->fld[i] = NULL;
+            c->fldlen[i] = 0;
         }
         c->nf = newnf;
     }
@@ -2268,22 +2412,22 @@ bawk_assign_nf (bawk_ctx *c, int newnf)
 }
 
 static void
-bawk_assign_field (bawk_ctx *c, int n, const char *s)
+bawk_assign_field (bawk_ctx *c, int n, const char *s, size_t len)
 {
     if (n < 0 || n > 100000) return;
+    if (!s) { s = ""; len = 0; }
     if (n == 0) {
-        bawk_set_record (c, s);
+        bawk_set_record (c, s, len);
         return;
     }
     if (n > c->nf) {
         if (bawk_fld_grow (c, n) < 0) return;
         while (c->nf < n) {
             c->nf++;
-            c->fld[c->nf] = bawk_strdup ("");
+            bawk_fld_set (c, c->nf, "", 0);
         }
     }
-    free (c->fld[n]);
-    c->fld[n] = bawk_strdup (s ? s : "");
+    bawk_fld_set (c, n, s, len);
     bawk_rebuild_record (c);
 }
 
@@ -2505,6 +2649,7 @@ bawk_eval (bawk_ctx *c, bawk_node *n)
 }
 
 static void bawk_assign_lhs (bawk_ctx *c, bawk_node *lhs, bawk_val rhs);
+static char *bawk_eval_subscript_key (bawk_ctx *c, bawk_node *head, size_t *lenp);
 
 /* Apply a VAR=VALUE operand. */
 static void
@@ -2566,9 +2711,9 @@ bawk_eval_getline (bawk_ctx *c, bawk_node *n)
     }
 
     if (target == BAWK_GETLINE_TARGET_SCALAR) {
-        bawk_set_scalar_from_getline (c, n->sval, line);
+        bawk_set_scalar_from_getline (c, n->sval, line, (size_t) rd);
     } else {
-        bawk_set_record (c, line);
+        bawk_set_record (c, line, (size_t) rd);
         if (source == BAWK_GETLINE_PIPE) {
             /* Preserve awk's existing measured divergence: record-form
                command-pipe getline advances both counters; scalar target
@@ -2651,36 +2796,10 @@ bawk_lref_resolve (bawk_ctx *c, bawk_node *lhs)
     }
     if (lhs->kind == N_INDEX) {
         bawk_var *v = bawk_lookup_array (c, lhs->sval);
-        const char *subsep = c->SUBSEP ? c->SUBSEP : "\034";
-        size_t skey_cap = 64, skey_len = 0;
-        char *skey = xmalloc (skey_cap);
+        size_t skey_len;
+        char *skey = bawk_eval_subscript_key (c, lhs->A, &skey_len);
         if (!skey) return ref;
-        skey[0] = '\0';
-        for (bawk_node *p = lhs->A; p; p = p->next) {
-            bawk_val kv = bawk_eval (c, p);
-            char tmp[64];
-            const char *ks = bawk_val_to_str (&kv, tmp, sizeof tmp);
-            size_t need = skey_len + strlen (ks) + (skey_len ? strlen (subsep) : 0) + 1;
-            if (need > skey_cap) {
-                while (skey_cap < need) skey_cap *= 2;
-                char *ns = xrealloc (skey, skey_cap);
-                if (!ns) {
-                    free (skey);
-                    bawk_val_free (&kv);
-                    return ref;
-                }
-                skey = ns;
-            }
-            if (skey_len) {
-                memcpy (skey + skey_len, subsep, strlen (subsep));
-                skey_len += strlen (subsep);
-            }
-            memcpy (skey + skey_len, ks, strlen (ks));
-            skey_len += strlen (ks);
-            skey[skey_len] = '\0';
-            bawk_val_free (&kv);
-        }
-        bawk_val *slot = bawk_array_slot (v, skey, 1);
+        bawk_val *slot = bawk_array_slot (v, skey, skey_len, 1);
         free (skey);
         if (slot) {
             ref.kind = BAWK_LREF_SLOT;
@@ -2721,8 +2840,8 @@ bawk_lref_get (bawk_ctx *c, bawk_lref *ref)
     }
     if (ref->kind == BAWK_LREF_FIELD) {
         int i = ref->field;
-        if (i < 0 || i > c->nf) bawk_val_set_input (&r, "");
-        else bawk_val_set_input (&r, c->fld[i] ? c->fld[i] : "");
+        if (i < 0 || i > c->nf || !c->fld[i]) bawk_val_set_input (&r, "");
+        else bawk_val_set_input_mem (&r, c->fld[i], c->fldlen[i]);
     }
     return r;
 }
@@ -2761,9 +2880,9 @@ bawk_lref_set (bawk_ctx *c, bawk_lref *ref, bawk_val rhs)
     }
     if (ref->kind == BAWK_LREF_FIELD) {
         int n = ref->field;
-        char buf[64];
-        const char *s = bawk_val_to_str (&rhs, buf, sizeof buf);
-        bawk_assign_field (c, n, s);
+        char buf[64]; size_t sl;
+        const char *s = bawk_val_to_strl (&rhs, buf, sizeof buf, &sl);
+        bawk_assign_field (c, n, s, sl);
         bawk_val_free (&rhs);
     }
 }
@@ -2778,16 +2897,17 @@ bawk_assign_lhs (bawk_ctx *c, bawk_node *lhs, bawk_val rhs)
 
 /* Does the string (ignoring surrounding blanks) parse fully as a number? */
 static int
-bawk_str_looks_numeric (const char *s)
+bawk_str_looks_numeric (const char *s, size_t len)
 {
     if (!s) return 0;
-    while (*s==' '||*s=='\t'||*s=='\n') s++;
-    if (!*s) return 0;
+    const char *lim = s + len;
+    while (s < lim && (*s==' '||*s=='\t'||*s=='\n')) s++;
+    if (s >= lim) return 0;
     char *end = NULL;
     strtod (s, &end);
     if (end == s) return 0;
-    while (*end==' '||*end=='\t'||*end=='\n') end++;
-    return *end == '\0';
+    while (end < lim && (*end==' '||*end=='\t'||*end=='\n')) end++;
+    return end == lim;
 }
 
 /* POSIX comparison typing: a number, an uninitialized value, or a numeric
@@ -2798,7 +2918,7 @@ static int
 bawk_val_numeric (const bawk_val *v)
 {
     if (v->have_n || !v->s || v->strnum == BAWK_UNINIT) return 1;
-    return v->strnum == BAWK_STRNUM && bawk_str_looks_numeric (v->s);
+    return v->strnum == BAWK_STRNUM && bawk_str_looks_numeric (v->s, v->len);
 }
 
 static int
@@ -2850,32 +2970,10 @@ bawk_eval_index (bawk_ctx *c, bawk_node *n)
 {
     bawk_val r = {0};
     bawk_var *v = bawk_lookup_array (c, n->sval);
-    const char *subsep = c->SUBSEP ? c->SUBSEP : "\034";
-    size_t skey_cap = 64, skey_len = 0;
-    char *skey = xmalloc (skey_cap);
+    size_t skey_len;
+    char *skey = bawk_eval_subscript_key (c, n->A, &skey_len);
     if (!skey) { bawk_val_set_str (&r, ""); return r; }
-    skey[0] = '\0';
-    for (bawk_node *p = n->A; p; p = p->next) {
-        bawk_val kv = bawk_eval (c, p);
-        char tmp[64];
-        const char *ks = bawk_val_to_str (&kv, tmp, sizeof tmp);
-        size_t need = skey_len + strlen (ks) + (skey_len ? strlen (subsep) : 0) + 1;
-        if (need > skey_cap) {
-            while (skey_cap < need) skey_cap *= 2;
-            char *ns = xrealloc (skey, skey_cap);
-            if (!ns) { free (skey); bawk_val_free (&kv); bawk_val_set_str (&r, ""); return r; }
-            skey = ns;
-        }
-        if (skey_len) {
-            memcpy (skey + skey_len, subsep, strlen (subsep));
-            skey_len += strlen (subsep);
-        }
-        memcpy (skey + skey_len, ks, strlen (ks));
-        skey_len += strlen (ks);
-        skey[skey_len] = '\0';
-        bawk_val_free (&kv);
-    }
-    bawk_val *slot = bawk_array_slot (v, skey, 1);
+    bawk_val *slot = bawk_array_slot (v, skey, skey_len, 1);
     free (skey);
     bawk_val_read (&r, slot);
     return r;
@@ -2924,22 +3022,22 @@ bawk_eval_binop (bawk_ctx *c, bawk_node *n)
     int op = bawk_n_op (n);
     if (op == BAWK_BINOP_AND) {
         bawk_val a = bawk_eval (c, bawk_n_lhs (n));
-        int t = bawk_val_to_num (&a) != 0 || (a.s && *a.s);
+        int t = bawk_val_true (&a);
         bawk_val_free (&a);
         if (!t) { bawk_val_set_num (&r, 0); return r; }
         bawk_val b = bawk_eval (c, bawk_n_rhs (n));
-        int u = bawk_val_to_num (&b) != 0 || (b.s && *b.s);
+        int u = bawk_val_true (&b);
         bawk_val_free (&b);
         bawk_val_set_num (&r, u ? 1 : 0);
         return r;
     }
     if (op == BAWK_BINOP_OR) {
         bawk_val a = bawk_eval (c, bawk_n_lhs (n));
-        int t = bawk_val_to_num (&a) != 0 || (a.s && *a.s);
+        int t = bawk_val_true (&a);
         bawk_val_free (&a);
         if (t) { bawk_val_set_num (&r, 1); return r; }
         bawk_val b = bawk_eval (c, bawk_n_rhs (n));
-        int u = bawk_val_to_num (&b) != 0 || (b.s && *b.s);
+        int u = bawk_val_true (&b);
         bawk_val_free (&b);
         bawk_val_set_num (&r, u ? 1 : 0);
         return r;
@@ -2947,14 +3045,14 @@ bawk_eval_binop (bawk_ctx *c, bawk_node *n)
     bawk_val A = bawk_eval (c, bawk_n_lhs (n));
     bawk_val B = bawk_eval (c, bawk_n_rhs (n));
     if (op == BAWK_BINOP_CONCAT) {
-        char ab[64], bb[64];
-        const char *as = bawk_val_to_str (&A, ab, sizeof ab);
-        const char *bs = bawk_val_to_str (&B, bb, sizeof bb);
-        size_t ll = strlen (as), rl = strlen (bs);
+        char ab[64], bb[64]; size_t ll, rl;
+        const char *as = bawk_val_to_strl (&A, ab, sizeof ab, &ll);
+        const char *bs = bawk_val_to_strl (&B, bb, sizeof bb, &rl);
+        if (ll > SIZE_MAX - rl - 1) { fatal_error ("awk: string too large"); abort (); }
         char *m = xmalloc (ll + rl + 1);
         memcpy (m, as, ll); memcpy (m + ll, bs, rl); m[ll + rl] = '\0';
-        bawk_val_set_str (&r, m);
-        free (m);
+        free (r.s);
+        r.s = m; r.len = ll + rl; r.have_n = 0; r.strnum = 0;
     } else if (op == BAWK_BINOP_ADD || op == BAWK_BINOP_SUB
             || op == BAWK_BINOP_MUL || op == BAWK_BINOP_DIV
             || op == BAWK_BINOP_MOD || op == BAWK_BINOP_POW) {
@@ -2975,10 +3073,10 @@ bawk_eval_binop (bawk_ctx *c, bawk_node *n)
             double a = bawk_val_to_num (&A), b = bawk_val_to_num (&B);
             cmp = (a < b) ? -1 : (a > b) ? 1 : 0;
         } else {
-            char ab[64], bb[64];
-            const char *as = bawk_val_to_str (&A, ab, sizeof ab);
-            const char *bs = bawk_val_to_str (&B, bb, sizeof bb);
-            cmp = strcmp (as, bs);
+            char ab[64], bb[64]; size_t al, bl;
+            const char *as = bawk_val_to_strl (&A, ab, sizeof ab, &al);
+            const char *bs = bawk_val_to_strl (&B, bb, sizeof bb, &bl);
+            cmp = bawk_memcmp2 (as, al, bs, bl);
         }
         int t = 0;
         switch (op) {
@@ -3010,17 +3108,18 @@ bawk_eval_print (bawk_ctx *c, bawk_node *n)
         bawk_val_free (&tv);
     }
     if (!n->A) {
-        fputs (c->fld[0] ? c->fld[0] : "", out);
+        if (c->fld[0]) fwrite (c->fld[0], 1, c->fldlen[0], out);
     } else {
         int first = 1;
         for (bawk_node *p = n->A; p; p = p->next) {
             if (!first) fputs (ofs, out);
             bawk_val v = bawk_eval (c, p->A);
-            char b[64];
+            char b[64]; size_t sl = 0;
             const char *s = (!v.s && v.have_n)
                 ? bawk_num_to_str (v.n, bawk_ofmt, b, sizeof b)
-                : bawk_val_to_str (&v, b, sizeof b);
-            fputs (s, out);
+                : bawk_val_to_strl (&v, b, sizeof b, &sl);
+            if (!v.s && v.have_n) sl = strlen (s);
+            fwrite (s, 1, sl, out);
             bawk_val_free (&v);
             first = 0;
         }
@@ -3043,14 +3142,15 @@ bawk_eval_printf (bawk_ctx *c, bawk_node *n)
         bawk_val_free (&tv);
     }
     bawk_val fmtv = bawk_eval (c, n->A->A);
-    char b[64]; const char *fmt = bawk_val_to_str (&fmtv, b, sizeof b);
+    char b[64]; size_t fl; const char *fmt = bawk_val_to_strl (&fmtv, b, sizeof b, &fl);
     int nargs = 0;
     for (bawk_node *p = n->A->next; p; p = p->next) nargs++;
     bawk_val *aargs = nargs > 0 ? bawk_calloc ((size_t) nargs, sizeof *aargs) : NULL;
     int ai = 0;
     for (bawk_node *p = n->A->next; p; p = p->next) aargs[ai++] = bawk_eval (c, p->A);
-    char *res = bawk_format (fmt, aargs, nargs);
-    if (res) fputs (res, out);
+    size_t rl = 0;
+    char *res = bawk_format (fmt, fl, aargs, nargs, &rl);
+    if (res) fwrite (res, 1, rl, out);
     free (res);
     for (int j = 0; j < nargs; j++) bawk_val_free (&aargs[j]);
     free (aargs);
@@ -3063,7 +3163,7 @@ bawk_eval_if (bawk_ctx *c, bawk_node *n)
 {
     bawk_val r = {0};
     bawk_val cv = bawk_eval (c, bawk_n_cond (n));
-    int t = bawk_val_to_num (&cv) != 0 || (cv.s && *cv.s);
+    int t = bawk_val_true (&cv);
     bawk_val_free (&cv);
     if (t) bawk_eval (c, bawk_n_then (n));
     else if (bawk_n_else (n)) bawk_eval (c, bawk_n_else (n));
@@ -3078,7 +3178,7 @@ bawk_eval_while (bawk_ctx *c, bawk_node *n)
     for (;;) {
         if (!do_while) {
             bawk_val cv = bawk_eval (c, n->A);
-            int t = bawk_val_to_num (&cv) != 0 || (cv.s && *cv.s);
+            int t = bawk_val_true (&cv);
             bawk_val_free (&cv);
             if (!t) break;
         }
@@ -3089,7 +3189,7 @@ bawk_eval_while (bawk_ctx *c, bawk_node *n)
         if (c->exit_flag || c->next_flag || c->nextfile_flag || c->return_flag) break;
         if (do_while) {
             bawk_val cv = bawk_eval (c, n->A);
-            int t = bawk_val_to_num (&cv) != 0 || (cv.s && *cv.s);
+            int t = bawk_val_true (&cv);
             bawk_val_free (&cv);
             if (!t) break;
         }
@@ -3105,7 +3205,7 @@ bawk_eval_for (bawk_ctx *c, bawk_node *n)
     for (;;) {
         if (n->B) {
             bawk_val cv = bawk_eval (c, n->B);
-            int t = bawk_val_to_num (&cv) != 0 || (cv.s && *cv.s);
+            int t = bawk_val_true (&cv);
             bawk_val_free (&cv);
             if (!t) break;
         }
@@ -3127,7 +3227,7 @@ bawk_eval_forin (bawk_ctx *c, bawk_node *n)
     for (int i = 0; i < arr->n_a; i++) {
         bawk_var *kv = bawk_lookup_scalar (c, n->sval);
         bawk_val_free (&kv->val);
-        bawk_val_set_str (&kv->val, arr->akey[i]);
+        bawk_val_set_mem (&kv->val, arr->akey[i], arr->aklen[i]);
         bawk_val v = bawk_eval (c, n->C);
         bawk_val_free (&v);
         if (c->brk_flag)  { c->brk_flag = 0; break; }
@@ -3137,29 +3237,33 @@ bawk_eval_forin (bawk_ctx *c, bawk_node *n)
     return r;
 }
 
+/* The subscript of a[e1, e2, ...]: the values joined by SUBSEP, as a
+   malloc'd string of *LENP bytes (NUL bytes in the values are kept). */
 static char *
-bawk_eval_subscript_key (bawk_ctx *c, bawk_node *head)
+bawk_eval_subscript_key (bawk_ctx *c, bawk_node *head, size_t *lenp)
 {
     const char *subsep = c->SUBSEP ? c->SUBSEP : "\034";
+    size_t sslen = strlen (subsep);
     size_t cap = 64, len = 0;
     char *skey = xmalloc (cap);
     if (!skey) return NULL;
     skey[0] = '\0';
     for (bawk_node *p = head; p; p = p->next) {
         bawk_val kv = bawk_eval (c, p);
-        char tmp[64];
-        const char *ks = bawk_val_to_str (&kv, tmp, sizeof tmp);
-        size_t need = len + strlen (ks) + (len ? strlen (subsep) : 0) + 1;
+        char tmp[64]; size_t kl;
+        const char *ks = bawk_val_to_strl (&kv, tmp, sizeof tmp, &kl);
+        size_t need = len + kl + (p != head ? sslen : 0) + 1;
         if (need > cap) {
             while (cap < need) cap *= 2;
             char *ns = xrealloc (skey, cap);
             if (!ns) { free (skey); bawk_val_free (&kv); return NULL; }
             skey = ns;
         }
-        if (len) { memcpy (skey + len, subsep, strlen (subsep)); len += strlen (subsep); }
-        memcpy (skey + len, ks, strlen (ks)); len += strlen (ks); skey[len] = '\0';
+        if (p != head) { memcpy (skey + len, subsep, sslen); len += sslen; }
+        memcpy (skey + len, ks, kl); len += kl; skey[len] = '\0';
         bawk_val_free (&kv);
     }
+    *lenp = len;
     return skey;
 }
 
@@ -3174,13 +3278,14 @@ bawk_eval_delete (bawk_ctx *c, bawk_node *n)
         v->n_a = 0;
         return r;
     }
-    char *skey = bawk_eval_subscript_key (c, n->A);
+    size_t skey_len;
+    char *skey = bawk_eval_subscript_key (c, n->A, &skey_len);
     if (!skey) return r;
     for (int i = 0; i < v->n_a; i++) {
-        if (!strcmp (v->akey[i], skey)) {
+        if (v->aklen[i] == skey_len && !memcmp (v->akey[i], skey, skey_len)) {
             free (v->akey[i]);
             bawk_val_free (&v->aval[i]);
-            for (int j = i + 1; j < v->n_a; j++) { v->akey[j-1] = v->akey[j]; v->aval[j-1] = v->aval[j]; }
+            for (int j = i + 1; j < v->n_a; j++) { v->akey[j-1] = v->akey[j]; v->aklen[j-1] = v->aklen[j]; v->aval[j-1] = v->aval[j]; }
             v->n_a--;
             break;
         }
@@ -3196,16 +3301,17 @@ bawk_eval_inarray (bawk_ctx *c, bawk_node *n)
     bawk_var *v = bawk_lookup_array (c, n->sval);
     if (n->A && !n->A->next) {
         bawk_val kv = bawk_eval (c, n->A);
-        char tmp[64];
-        const char *ks = bawk_val_to_str (&kv, tmp, sizeof tmp);
-        bawk_val *slot = bawk_array_slot (v, ks, 0);
+        char tmp[64]; size_t kl;
+        const char *ks = bawk_val_to_strl (&kv, tmp, sizeof tmp, &kl);
+        bawk_val *slot = bawk_array_slot (v, ks, kl, 0);
         bawk_val_set_num (&r, slot ? 1.0 : 0.0);
         bawk_val_free (&kv);
         return r;
     }
-    char *skey = bawk_eval_subscript_key (c, n->A);
+    size_t skey_len;
+    char *skey = bawk_eval_subscript_key (c, n->A, &skey_len);
     if (!skey) return r;
-    bawk_val *slot = bawk_array_slot (v, skey, 0);
+    bawk_val *slot = bawk_array_slot (v, skey, skey_len, 0);
     bawk_val_set_num (&r, slot ? 1.0 : 0.0);
     free (skey);
     return r;
@@ -3233,8 +3339,8 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
             bawk_val idx = bawk_eval (c, n->A);
             int i = (int) bawk_val_to_num (&idx);
             bawk_val_free (&idx);
-            if (i < 0 || i > c->nf) bawk_val_set_input (&r, "");
-            else bawk_val_set_input (&r, c->fld[i] ? c->fld[i] : "");
+            if (i < 0 || i > c->nf || !c->fld[i]) bawk_val_set_input (&r, "");
+            else bawk_val_set_input_mem (&r, c->fld[i], c->fldlen[i]);
             return r;
         }
         case N_ASSIGN:
@@ -3254,7 +3360,7 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
         case N_UNARY: {
             bawk_val v = bawk_eval (c, n->A);
             if ((int) n->nval == T_MINUS) bawk_val_set_num (&r, -bawk_val_to_num (&v));
-            else                          bawk_val_set_num (&r, !bawk_val_to_num (&v) && (!v.s || !*v.s));
+            else                          bawk_val_set_num (&r, !bawk_val_true (&v));
             bawk_val_free (&v);
             return r;
         }
@@ -3262,25 +3368,25 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
             return bawk_eval_binop (c, n);
         case N_REGEX: {
             /* Bare /re/ as expression: matches against $0. */
-            char buf[64];
             const char *s = c->fld[0] ? c->fld[0] : "";
-            int ok = (regexec (&n->re, s, 0, NULL, 0) == 0);
-            (void) buf;
+            int ok = (bawk_regexec (&n->re, s, c->fld[0] ? c->fldlen[0] : 0, 0, NULL) == 0);
             bawk_val_set_num (&r, ok);
             return r;
         }
         case N_REGEX_MATCH: {
             bawk_val A = bawk_eval (c, n->A);
-            char buf[64];
-            const char *s = bawk_val_to_str (&A, buf, sizeof buf);
+            char buf[64]; size_t sl;
+            const char *s = bawk_val_to_strl (&A, buf, sizeof buf, &sl);
             int ok;
             if (n->B->kind == N_REGEX) {
-                ok = (regexec (&n->B->re, s, 0, NULL, 0) == 0);
+                ok = (bawk_regexec (&n->B->re, s, sl, 0, NULL) == 0);
             } else {
                 bawk_val B = bawk_eval (c, n->B);
                 regex_t re;
-                if (regcomp (&re, B.s ? B.s : "", REG_EXTENDED) != 0) ok = 0;
-                else { ok = (regexec (&re, s, 0, NULL, 0) == 0); regfree (&re); }
+                char pb[64]; size_t pl;
+                const char *ps = bawk_val_to_strl (&B, pb, sizeof pb, &pl);
+                if (bawk_regcomp (&re, ps, pl) != 0) ok = 0;
+                else { ok = (bawk_regexec (&re, s, sl, 0, NULL) == 0); regfree (&re); }
                 bawk_val_free (&B);
             }
             if ((int) n->nval == 1) ok = !ok;
@@ -3290,7 +3396,7 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
         }
         case N_TERNARY: {
             bawk_val cv = bawk_eval (c, n->A);
-            int t = bawk_val_to_num (&cv) != 0 || (cv.s && *cv.s);
+            int t = bawk_val_true (&cv);
             bawk_val_free (&cv);
             r = bawk_eval (c, t ? n->B : n->C);
             return r;
@@ -3307,7 +3413,7 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
             for (bawk_node *p = n->A; p; p = p->next) args[i++] = bawk_eval (c, p->A);
             switch (n->builtin_id) {
                 case BFN_LENGTH: {
-                    if (n_args == 0) { bawk_val_set_num (&r, (double) (c->fld[0] ? strlen (c->fld[0]) : 0)); break; }
+                    if (n_args == 0) { bawk_val_set_num (&r, (double) (c->fld[0] ? c->fldlen[0] : 0)); break; }
                     /* length(array) returns the element count. Detect an array
                        argument from the AST (the evaluated value can't tell us). */
                     bawk_node *arg0 = n->A ? n->A->A : NULL;
@@ -3315,13 +3421,15 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                         bawk_var *v = bawk_lookup_array (c, arg0->sval);
                         if (v && v->is_array) { bawk_val_set_num (&r, (double) v->n_a); break; }
                     }
-                    char b[64]; const char *s = bawk_val_to_str (&args[0], b, sizeof b);
-                    bawk_val_set_num (&r, (double) strlen (s));
+                    char b[64]; size_t sl;
+                    bawk_val_to_strl (&args[0], b, sizeof b, &sl);
+                    bawk_val_set_num (&r, (double) sl);
                     break;
                 }
                 case BFN_SUBSTR: {
-                    char b[64]; const char *s = bawk_val_to_str (&args[0], b, sizeof b);
-                    long long sl = (long long) strlen (s);
+                    char b[64]; size_t slen;
+                    const char *s = bawk_val_to_strl (&args[0], b, sizeof b, &slen);
+                    long long sl = (long long) slen;
                     /* Clamp inputs through double to avoid signed-int overflow on
                        attacker-controlled arguments (e.g. INT_MIN start). */
                     double dstart = bawk_val_to_num (&args[1]);
@@ -3337,24 +3445,23 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                     if (start - 1 > sl) { bawk_val_set_str (&r, ""); break; }
                     if (start - 1 + len > sl) len = sl - (start - 1);
                     if (len < 0) len = 0;
-                    char *out = bawk_strndup (s + start - 1, (size_t) len);
-                    bawk_val_set_str (&r, out ? out : "");
-                    free (out);
+                    bawk_val_set_mem (&r, s + start - 1, (size_t) len);
                     break;
                 }
                 case BFN_INDEX: {
-                    char ab[64], bb[64];
-                    const char *hay = bawk_val_to_str (&args[0], ab, sizeof ab);
-                    const char *nd  = bawk_val_to_str (&args[1], bb, sizeof bb);
-                    const char *p = strstr (hay, nd);
+                    char ab[64], bb[64]; size_t hl, nl;
+                    const char *hay = bawk_val_to_strl (&args[0], ab, sizeof ab, &hl);
+                    const char *nd  = bawk_val_to_strl (&args[1], bb, sizeof bb, &nl);
+                    const char *p = memmem (hay, hl, nd, nl);
                     bawk_val_set_num (&r, p ? (double) (p - hay + 1) : 0);
                     break;
                 }
                 case BFN_SPRINTF: {
                     if (n_args == 0) { bawk_val_set_str (&r, ""); break; }
-                    char b[64]; const char *fmt = bawk_val_to_str (&args[0], b, sizeof b);
-                    char *res = bawk_format (fmt, args + 1, n_args - 1);
-                    bawk_val_set_str (&r, res ? res : "");
+                    char b[64]; size_t fl; const char *fmt = bawk_val_to_strl (&args[0], b, sizeof b, &fl);
+                    size_t rl = 0;
+                    char *res = bawk_format (fmt, fl, args + 1, n_args - 1, &rl);
+                    bawk_val_set_mem (&r, res ? res : "", res ? rl : 0);
                     free (res);
                     break;
                 }
@@ -3458,17 +3565,17 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                     break;
                 }
                 case BFN_TOLOWER: {
-                    char b[64]; const char *s = bawk_val_to_str (&args[0], b, sizeof b);
-                    char *o = bawk_strdup (s);
-                    for (char *p = o; *p; p++) *p = (char) tolower ((unsigned char) *p);
-                    bawk_val_set_str (&r, o); free (o);
+                    char b[64]; size_t sl;
+                    const char *s = bawk_val_to_strl (&args[0], b, sizeof b, &sl);
+                    bawk_val_set_mem (&r, s, sl);
+                    for (size_t k = 0; k < sl; k++) r.s[k] = (char) tolower ((unsigned char) r.s[k]);
                     break;
                 }
                 case BFN_TOUPPER: {
-                    char b[64]; const char *s = bawk_val_to_str (&args[0], b, sizeof b);
-                    char *o = bawk_strdup (s);
-                    for (char *p = o; *p; p++) *p = (char) toupper ((unsigned char) *p);
-                    bawk_val_set_str (&r, o); free (o);
+                    char b[64]; size_t sl;
+                    const char *s = bawk_val_to_strl (&args[0], b, sizeof b, &sl);
+                    bawk_val_set_mem (&r, s, sl);
+                    for (size_t k = 0; k < sl; k++) r.s[k] = (char) toupper ((unsigned char) r.s[k]);
                     break;
                 }
                 case BFN_SYSTEM: {
@@ -3487,7 +3594,7 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                     /* gsub(re, repl[, in]) — replace all (or first for sub).
                        Returns count of substitutions. */
                     if (n_args < 2) break;
-                    char *src;
+                    char *src; size_t srclen;
                     bawk_lref target_ref = {0};
                     int have_target = 0;
                     if (n_args >= 3) {
@@ -3502,17 +3609,20 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                     if (have_target) {
                         bawk_val tv = bawk_lref_get (c, &target_ref);
                         char sb[64];
-                        const char *ts = bawk_val_to_str (&tv, sb, sizeof sb);
-                        src = bawk_strdup (ts);
+                        const char *ts = bawk_val_to_strl (&tv, sb, sizeof sb, &srclen);
+                        src = bawk_memdup (ts, srclen);
                         bawk_val_free (&tv);
                     } else {
-                        src = c->fld[0] ? bawk_strdup (c->fld[0]) : bawk_strdup ("");
+                        srclen = c->fld[0] ? c->fldlen[0] : 0;
+                        src = bawk_memdup (c->fld[0] ? c->fld[0] : "", srclen);
                     }
                     if (!src) {
                         bawk_val_set_num (&r, 0);
                         break;
                     }
-                    char rb[64]; const char *replstr = bawk_val_to_str (&args[1], rb, sizeof rb);
+                    char rb[64]; size_t repllen;
+                    const char *replstr = bawk_val_to_strl (&args[1], rb, sizeof rb, &repllen);
+                    const char *replend = replstr + repllen;
                     /* Use the AST node's pre-compiled regex when the first arg
                        is a literal /…/ — avoids per-record regcomp in hot loops. */
                     regex_t local_re;
@@ -3521,9 +3631,9 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                     if (n->A->A->kind == N_REGEX && n->A->A->re_ok) {
                         re_p = &n->A->A->re;
                     } else {
-                        char ab[64];
-                        const char *patstr = bawk_val_to_str (&args[0], ab, sizeof ab);
-                        if (regcomp (&local_re, patstr, REG_EXTENDED) != 0) {
+                        char ab[64]; size_t patlen;
+                        const char *patstr = bawk_val_to_strl (&args[0], ab, sizeof ab, &patlen);
+                        if (bawk_regcomp (&local_re, patstr, patlen) != 0) {
                             bawk_val_set_num (&r, 0); free (src); break;
                         }
                         own_re = 1;
@@ -3533,7 +3643,7 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                     regmatch_t m;
                     long count = 0;
                     char *out = NULL; size_t olen = 0, ocap = 0;
-                    const char *p = src;
+                    size_t off = 0;
                     /* Grow `out` to hold at least `need` bytes; on OOM, jump to gsub_oom. */
 #define GSUB_GROW(need_n) do { \
     if ((need_n) >= ocap) { \
@@ -3544,35 +3654,36 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
         out = nb; ocap = nc; \
     } \
 } while (0)
-                    while (regexec (&re, p, 1, &m, p == src ? 0 : REG_NOTBOL) == 0 && m.rm_so >= 0) {
-                        GSUB_GROW (olen + (size_t) m.rm_so + strlen (replstr) + 1);
-                        memcpy (out + olen, p, (size_t) m.rm_so);
-                        olen += (size_t) m.rm_so;
-                        for (const char *rp = replstr; *rp; rp++) {
-                            if (*rp == '\\' && rp[1]) { rp++; GSUB_GROW (olen + 1); out[olen++] = *rp; continue; }
+                    while (bawk_regexec (&re, src, srclen, off, &m) == 0 && m.rm_so >= 0) {
+                        size_t mso = (size_t) m.rm_so, meo = (size_t) m.rm_eo;
+                        GSUB_GROW (olen + (mso - off) + repllen + 1);
+                        memcpy (out + olen, src + off, mso - off);
+                        olen += mso - off;
+                        for (const char *rp = replstr; rp < replend; rp++) {
+                            if (*rp == '\\' && rp + 1 < replend) { rp++; GSUB_GROW (olen + 1); out[olen++] = *rp; continue; }
                             if (*rp == '&') {
-                                size_t mlen = (size_t) (m.rm_eo - m.rm_so);
+                                size_t mlen = meo - mso;
                                 GSUB_GROW (olen + mlen + 1);
-                                memcpy (out + olen, p + m.rm_so, mlen);
+                                memcpy (out + olen, src + mso, mlen);
                                 olen += mlen;
                                 continue;
                             }
                             GSUB_GROW (olen + 1);
                             out[olen++] = *rp;
                         }
-                        p += m.rm_eo;
+                        off = meo;
                         count++;
                         if (n->builtin_id == BFN_SUB) break;
-                        if (m.rm_so == m.rm_eo) {
-                            if (!*p) break;
+                        if (mso == meo) {
+                            if (off >= srclen) break;
                             GSUB_GROW (olen + 2);
-                            out[olen++] = *p++;
+                            out[olen++] = src[off++];
                         }
                     }
                     /* Append rest. */
-                    size_t restlen = strlen (p);
+                    size_t restlen = srclen - off;
                     GSUB_GROW (olen + restlen + 1);
-                    memcpy (out + olen, p, restlen);
+                    memcpy (out + olen, src + off, restlen);
                     olen += restlen;
                     if (!out) out = bawk_strdup ("");
                     goto gsub_done;
@@ -3585,10 +3696,10 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                     if (out) out[olen] = '\0';
                     if (have_target) {
                         bawk_val nv = {0};
-                        bawk_val_set_str (&nv, out ? out : "");
+                        bawk_val_set_mem (&nv, out ? out : "", out ? olen : 0);
                         bawk_lref_set (c, &target_ref, nv);
                     } else {
-                        bawk_split_record (c, out ? out : "");
+                        bawk_split_record (c, out ? out : "", out ? olen : 0);
                     }
                     bawk_val_set_num (&r, (double) count);
                     free (out); free (src);
@@ -3613,8 +3724,8 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                      * pattern at lines 2181–2191; the regex-typed
                      * arg is `n->A->next->A` (second arg-list cell,
                      * its expression node). */
-                    char ab[64];
-                    const char *s = bawk_val_to_str (&args[0], ab, sizeof ab);
+                    char ab[64]; size_t sl;
+                    const char *s = bawk_val_to_strl (&args[0], ab, sizeof ab, &sl);
                     regex_t local_re;
                     regex_t *re_p;
                     int own_re = 0;
@@ -3622,16 +3733,16 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                         && n->A->next->A->re_ok) {
                         re_p = &n->A->next->A->re;
                     } else {
-                        char bb[64];
-                        const char *p = bawk_val_to_str (&args[1], bb, sizeof bb);
-                        if (regcomp (&local_re, p, REG_EXTENDED) != 0) {
+                        char bb[64]; size_t pl;
+                        const char *p = bawk_val_to_strl (&args[1], bb, sizeof bb, &pl);
+                        if (bawk_regcomp (&local_re, p, pl) != 0) {
                             bawk_val_set_num (&r, 0); break;
                         }
                         own_re = 1;
                         re_p = &local_re;
                     }
                     regmatch_t m;
-                    int rrc = regexec (re_p, s, 1, &m, 0);
+                    int rrc = bawk_regexec (re_p, s, sl, 0, &m);
                     if (own_re) regfree (re_p);
                     if (rrc != 0) {
                         c->RSTART = 0;
@@ -3647,8 +3758,9 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                 case BFN_SPLIT: {
                     /* split(str, arr, [sep]) */
                     if (n_args < 2) { bawk_val_set_num (&r, 0); break; }
-                    char ab[64];
-                    const char *s = bawk_val_to_str (&args[0], ab, sizeof ab);
+                    char ab[64]; size_t sl;
+                    const char *s = bawk_val_to_strl (&args[0], ab, sizeof ab, &sl);
+                    const char *send = s + sl;
                     /* Need the array name from the AST, not the value. */
                     bawk_node *arr_node = n->A->next ? n->A->next->A : NULL;
                     if (!arr_node || arr_node->kind != N_IDENT) { bawk_val_set_num (&r, 0); break; }
@@ -3661,105 +3773,86 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                     arr->n_a = 0;
                     arr->is_array = 1;
                     int cnt = 0;
+                    /* Store element ++cnt: the LEN bytes at PIECE. */
+#define SPLIT_PUT(piece, plen) do { \
+    char keybuf[16]; snprintf (keybuf, sizeof keybuf, "%d", ++cnt); \
+    bawk_val *slot = bawk_array_slot (arr, keybuf, strlen (keybuf), 1); \
+    if (slot) bawk_val_set_input_mem (slot, (piece), (plen)); \
+} while (0)
                     /* Detect a regex-literal /.../ as the third arg and
                      * use the AST node's pre-compiled regex directly.
                      * Without this, the eager `bawk_eval(c, p->A)` at
                      * the top of N_CALL would route N_REGEX through
-                     * its eval-as-expression path (lines 1948-1956),
-                     * collapsing /sep/ to the boolean ($0 ~ /sep/) and
-                     * leaving args[2] holding "1" or "0".  That falls
-                     * through the `delim[1] == '\0'` single-char
-                     * fast-path below and splits on the literal `1` or
-                     * `0` character instead of the intended regex -
-                     * the latent shape-bug companion of the 2026-05-19
-                     * BFN_MATCH fix.  Mirrors the BFN_GSUB/BFN_SUB
-                     * pattern at lines 2181-2191 and the BFN_MATCH fix
-                     * at lines 2274-2293; the regex-typed arg is
+                     * its eval-as-expression path, collapsing /sep/ to
+                     * the boolean ($0 ~ /sep/) and leaving args[2]
+                     * holding "1" or "0", so the split would use the
+                     * literal `1` or `0` character instead of the
+                     * intended regex. Mirrors the BFN_GSUB/BFN_SUB and
+                     * BFN_MATCH handling; the regex-typed arg is
                      * `n->A->next->next->A` (third arg-list cell, its
-                     * expression node).  String / variable separator
-                     * forms fall through to the unchanged string-delim
-                     * paths (whitespace / single-char / regcomp). */
+                     * expression node). String / variable separator
+                     * forms fall through to the string-delim paths
+                     * (whitespace / single-char / regcomp). */
                     bawk_node *sep_node = (n_args >= 3 && n->A->next && n->A->next->next)
                                           ? n->A->next->next->A : NULL;
+                    regex_t sre;
+                    regex_t *re_p = NULL;
+                    int own_re = 0;
+                    char db[64]; size_t dl = 0;
+                    const char *delim = NULL;
                     if (sep_node && sep_node->kind == N_REGEX && sep_node->re_ok) {
-                        regex_t *re_p = &sep_node->re;
-                        regmatch_t m;
-                        const char *p = s;
-                        while (*p && regexec (re_p, p, 1, &m, p == s ? 0 : REG_NOTBOL) == 0
-                               && m.rm_so >= 0 && m.rm_eo > m.rm_so) {
-                            char keybuf[16]; snprintf (keybuf, sizeof keybuf, "%d", ++cnt);
-                            bawk_val *slot = bawk_array_slot (arr, keybuf, 1);
-                            char *piece = bawk_strndup (p, (size_t) m.rm_so);
-                            bawk_val_set_input (slot, piece); free (piece);
-                            p += m.rm_eo;
-                        }
-                        char keybuf[16]; snprintf (keybuf, sizeof keybuf, "%d", ++cnt);
-                        bawk_val *slot = bawk_array_slot (arr, keybuf, 1);
-                        bawk_val_set_input (slot, p);
-                        bawk_val_set_num (&r, (double) cnt);
-                        break;
+                        re_p = &sep_node->re;
+                    } else {
+                        if (n_args >= 3) delim = bawk_val_to_strl (&args[2], db, sizeof db, &dl);
+                        else { delim = c->FS ? c->FS : " "; dl = strlen (delim); }
                     }
-                    char db[64]; const char *delim = (n_args >= 3) ?
-                        bawk_val_to_str (&args[2], db, sizeof db) : (c->FS ? c->FS : " ");
-                    /* Simple split by empty-FS (per char), single-char delim,
-                       or whitespace. */
-                    if (!*delim) {
+                    if (re_p) {
+                        ;
+                    } else if (!dl) {
                         /* Empty FS: one element per character. awk is
                            byte-oriented, so each byte becomes a field (matches
                            GNU awk for single-byte/ASCII text). */
-                        for (const char *p = s; *p; p++) {
-                            char keybuf[16]; snprintf (keybuf, sizeof keybuf, "%d", ++cnt);
-                            bawk_val *slot = bawk_array_slot (arr, keybuf, 1);
-                            char ch[2]; ch[0] = *p; ch[1] = '\0';
-                            bawk_val_set_input (slot, ch);
-                        }
-                    } else if (!strcmp (delim, " ")) {
+                        for (const char *p = s; p < send; p++) SPLIT_PUT (p, 1);
+                    } else if (dl == 1 && delim[0] == ' ') {
                         const char *p = s;
-                        while (*p) {
-                            while (*p == ' ' || *p == '\t') p++;
-                            if (!*p) break;
+                        while (p < send) {
+                            while (p < send && (*p == ' ' || *p == '\t' || *p == '\n')) p++;
+                            if (p >= send) break;
                             const char *q = p;
-                            while (*p && *p != ' ' && *p != '\t') p++;
-                            char keybuf[16]; snprintf (keybuf, sizeof keybuf, "%d", ++cnt);
-                            bawk_val *slot = bawk_array_slot (arr, keybuf, 1);
-                            char *piece = bawk_strndup (q, (size_t) (p - q));
-                            bawk_val_set_input (slot, piece); free (piece);
+                            while (p < send && *p != ' ' && *p != '\t' && *p != '\n') p++;
+                            SPLIT_PUT (q, (size_t) (p - q));
                         }
-                    } else if (delim[1] == '\0') {
+                    } else if (dl == 1) {
                         char d = delim[0];
                         const char *p = s;
                         for (;;) {
                             const char *q = p;
-                            while (*p && *p != d) p++;
-                            char keybuf[16]; snprintf (keybuf, sizeof keybuf, "%d", ++cnt);
-                            bawk_val *slot = bawk_array_slot (arr, keybuf, 1);
-                            char *piece = bawk_strndup (q, (size_t) (p - q));
-                            bawk_val_set_input (slot, piece); free (piece);
-                            if (!*p) break;
+                            while (p < send && *p != d) p++;
+                            SPLIT_PUT (q, (size_t) (p - q));
+                            if (p >= send) break;
                             p++;
                         }
                     } else {
                         /* multi-char delim: regex split, matching POSIX awk. */
-                        regex_t re;
-                        if (regcomp (&re, delim, REG_EXTENDED) != 0) {
+                        if (bawk_regcomp (&sre, delim, dl) != 0) {
                             builtin_warning ("awk: split: bad regex: %s", delim);
                             break;
                         }
-                        regmatch_t m;
-                        const char *p = s;
-                        while (*p && regexec (&re, p, 1, &m, p == s ? 0 : REG_NOTBOL) == 0
-                               && m.rm_so >= 0 && m.rm_eo > m.rm_so) {
-                            char keybuf[16]; snprintf (keybuf, sizeof keybuf, "%d", ++cnt);
-                            bawk_val *slot = bawk_array_slot (arr, keybuf, 1);
-                            char *piece = bawk_strndup (p, (size_t) m.rm_so);
-                            bawk_val_set_input (slot, piece); free (piece);
-                            p += m.rm_eo;
-                        }
-                        char keybuf[16]; snprintf (keybuf, sizeof keybuf, "%d", ++cnt);
-                        bawk_val *slot = bawk_array_slot (arr, keybuf, 1);
-                        bawk_val_set_input (slot, p);
-                        regfree (&re);
+                        own_re = 1;
+                        re_p = &sre;
                     }
+                    if (re_p) {
+                        regmatch_t m;
+                        size_t off = 0;
+                        while (off < sl && bawk_regexec (re_p, s, sl, off, &m) == 0
+                               && m.rm_so >= 0 && m.rm_eo > m.rm_so) {
+                            SPLIT_PUT (s + off, (size_t) m.rm_so - off);
+                            off = (size_t) m.rm_eo;
+                        }
+                        SPLIT_PUT (s + off, sl - off);
+                        if (own_re) regfree (re_p);
+                    }
+#undef SPLIT_PUT
                     bawk_val_set_num (&r, (double) cnt);
                     break;
                 }
@@ -3880,7 +3973,7 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                 }
                 saved[j] = *v;
                 v->val = (bawk_val){0};
-                v->is_array = 0; v->akey = NULL; v->aval = NULL;
+                v->is_array = 0; v->akey = NULL; v->aklen = NULL; v->aval = NULL;
                 v->n_a = v->cap_a = 0; v->ref = byref[j];
                 /* Bind to arg value (or zero if not enough args). */
                 if (j < n_args) v->val = args[j];
@@ -3899,10 +3992,10 @@ bawk_eval_inner (bawk_ctx *c, bawk_node *n)
                 bawk_var *v2 = bawk_lookup_or_create (c, f->params[j]);
                 bawk_val_free (&v2->val);
                 for (int k = 0; k < v2->n_a; k++) { free (v2->akey[k]); bawk_val_free (&v2->aval[k]); }
-                free (v2->akey); free (v2->aval);
+                free (v2->akey); free (v2->aklen); free (v2->aval);
                 v2->val = saved[j].val;
                 v2->is_array = saved[j].is_array;
-                v2->akey = saved[j].akey; v2->aval = saved[j].aval;
+                v2->akey = saved[j].akey; v2->aklen = saved[j].aklen; v2->aval = saved[j].aval;
                 v2->n_a = saved[j].n_a; v2->cap_a = saved[j].cap_a;
                 v2->ref = saved[j].ref;
             }
@@ -3945,6 +4038,7 @@ bawk_free_all (bawk_parser *P, bawk_ctx *c)
     if (c) {
         for (int i = 0; i <= c->nf; i++) free (c->fld[i]);
         free (c->fld);
+        free (c->fldlen);
         bawk_var *v = c->head;
         while (v) {
             bawk_var *nx = v->next;
@@ -3954,7 +4048,7 @@ bawk_free_all (bawk_parser *P, bawk_ctx *c)
                 free (v->akey[i]);
                 bawk_val_free (&v->aval[i]);
             }
-            free (v->akey); free (v->aval);
+            free (v->akey); free (v->aklen); free (v->aval);
             free (v);
             v = nx;
         }
@@ -3995,9 +4089,9 @@ bawk_free_all (bawk_parser *P, bawk_ctx *c)
 
 /* Run one input line through every applicable rule. */
 static void
-bawk_run_line (bawk_ctx *c, bawk_node *prog, const char *line)
+bawk_run_line (bawk_ctx *c, bawk_node *prog, const char *line, size_t len)
 {
-    bawk_set_record (c, line);
+    bawk_set_record (c, line, len);
     for (bawk_node *p = prog->A; p; p = p->next) {
         bawk_node *r = p->A;
         if (r->kind == N_FUNCDEF) continue;   /* skip funcdefs at run time */
@@ -4005,7 +4099,7 @@ bawk_run_line (bawk_ctx *c, bawk_node *prog, const char *line)
         int matched = 1;
         if (r->A) {
             bawk_val v = bawk_eval (c, r->A);
-            matched = bawk_val_to_num (&v) != 0 || (v.s && *v.s);
+            matched = bawk_val_true (&v);
             bawk_val_free (&v);
         }
         if (matched && r->B) {
@@ -4083,9 +4177,10 @@ bawk_main (WORD_LIST *list)
     bawk_ofmt    = ctx.OFMT ? ctx.OFMT : "%.6g";
     ctx.fld_cap = 16;
     ctx.fld = bawk_calloc (16, sizeof *ctx.fld);
-    if (!ctx.fld || !ctx.FS || !ctx.OFS || !ctx.ORS || !ctx.SUBSEP || !ctx.CONVFMT || !ctx.OFMT) {
+    ctx.fldlen = bawk_calloc (16, sizeof *ctx.fldlen);
+    if (!ctx.fld || !ctx.fldlen || !ctx.FS || !ctx.OFS || !ctx.ORS || !ctx.SUBSEP || !ctx.CONVFMT || !ctx.OFMT) {
         builtin_error ("awk: out of memory");
-        free (ctx.fld); free (ctx.FS); free (ctx.OFS); free (ctx.ORS); free (ctx.SUBSEP);
+        free (ctx.fld); free (ctx.fldlen); free (ctx.FS); free (ctx.OFS); free (ctx.ORS); free (ctx.SUBSEP);
         free (ctx.CONVFMT); free (ctx.OFMT);
         bawk_convfmt = "%.6g"; bawk_ofmt = "%.6g";
         free ((void *) files);
@@ -4116,7 +4211,7 @@ bawk_main (WORD_LIST *list)
             if (!eq) continue;
             char *key = bawk_strndup (*e, (size_t) (eq - *e));
             const char *val = eq + 1;
-            bawk_val *slot = bawk_array_slot (envv, key, 1);
+            bawk_val *slot = bawk_array_slot (envv, key, strlen (key), 1);
             if (slot) bawk_val_set_input (slot, val);
             free (key);
         }
@@ -4242,11 +4337,11 @@ bawk_main (WORD_LIST *list)
         char key[32];
         bawk_val_set_num (&argc->val, (double) (n_files + 1));
         argv->is_array = 1;
-        bawk_val *slot = bawk_array_slot (argv, "0", 1);
+        bawk_val *slot = bawk_array_slot (argv, "0", 1, 1);
         if (slot) bawk_val_set_str (slot, "awk");
         for (int i = 0; i < n_files; i++) {
             snprintf (key, sizeof key, "%d", i + 1);
-            slot = bawk_array_slot (argv, key, 1);
+            slot = bawk_array_slot (argv, key, strlen (key), 1);
             if (slot) bawk_val_set_input (slot, files[i]);
         }
     }
@@ -4326,7 +4421,7 @@ bawk_main (WORD_LIST *list)
                 while ((rd = bawk_read_record (&ctx, stdin, &line, &cap)) != -1) {
                     bawk_counter_advance (&ctx.NR);
                     bawk_counter_advance (&ctx.FNR);
-                    bawk_run_line (&ctx, prog, line);
+                    bawk_run_line (&ctx, prog, line, (size_t) rd);
                     if (ctx.exit_flag) break;
                 }
                 free (line);
@@ -4348,7 +4443,7 @@ bawk_main (WORD_LIST *list)
                 while ((rd = bawk_read_record (&ctx, f, &line, &cap)) != -1) {
                     bawk_counter_advance (&ctx.NR);
                     bawk_counter_advance (&ctx.FNR);
-                    bawk_run_line (&ctx, prog, line);
+                    bawk_run_line (&ctx, prog, line, (size_t) rd);
                     if (ctx.exit_flag) break;
                     /* `nextfile` abandons the current input file; clear the
                        flag so subsequent files in argv are still processed.

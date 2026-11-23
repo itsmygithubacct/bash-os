@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "loadable": "coreutils",
+  "reference": "GNU coreutils 9.7 shuf and printf (the coreutils shuf and printf verbs).",
+  "coverage": [
+    "Guest compatibility pass 5 (G74/G83): shuf long options, -r/-o/-z and diagnostics; the printf verb behind env printf."
+  ],
+  "exclusions": [
+    "shuf output order is random; only counts, sorted members and repeated single values are compared."
+  ],
+  "cases": [
+    {
+      "id": "shuf-long-options",
+      "kind": "parity",
+      "purpose": "G74: --head-count, --input-range, --echo and prefixes; counts and sorted members are deterministic.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; printf '%s\\n' a b c d e > in; cu shuf --head-count=3 in | wc -l; cu shuf --he 2>/dev/null || true; cu shuf --input-range=1-5 | sort -n; cu shuf --echo x y z | sort; cu shuf -n 0 in; cu shuf --input-range 3-3",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "shuf",
+        "wc",
+        "sort"
+      ]
+    },
+    {
+      "id": "shuf-repeat-output-zero",
+      "kind": "parity",
+      "purpose": "G83: -r draws with replacement (needs -n to stop), -o writes FILE after reading (it may be the input) and -z uses NUL lines.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; printf '%s\\n' a b c > in; cu shuf -r -n 6 -e x | tr '\\n' ' '; echo; cu shuf --repeat --head-count=3 -i 7-7 | tr '\\n' ' '; echo; cu shuf -o in in; sort -o in in; cat in; printf 'p\\0q\\0' | cu shuf -z | sort -z | od -c",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "shuf",
+        "tr",
+        "sort",
+        "od"
+      ]
+    },
+    {
+      "id": "shuf-diagnostics",
+      "kind": "parity",
+      "purpose": "G83/G74: GNU shuf's messages and status 1 for bad ranges and counts, conflicting options, extra operands, no lines to repeat and option errors.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; { cu shuf -i 5-3 || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { cu shuf -i 1-2 -i 3-4 || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { cu shuf -n x || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { cu shuf -e -i 1-2 a || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { cu shuf -o a -o b /dev/null || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { cu shuf a b || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { cu shuf -r </dev/null || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { cu shuf --bogus || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { cu shuf --r </dev/null || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "shuf",
+        "sed"
+      ]
+    },
+    {
+      "id": "printf-verb-quoting",
+      "kind": "parity",
+      "purpose": "G83: the printf verb (used by env/xargs/nice/nohup printf) is coreutils printf: %q quotes the GNU way, -v is ordinary format text.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }; cup() { if [[ $(type -t coreutils) == builtin ]]; then coreutils printf \"$@\"; else env printf \"$@\"; fi; }; cup '%q|%q|%q|%q\\n' 'a b' \"it's\" '' 'x$y'; cup '%s-%d\\n' a 1 b 2; { cup -v x hi || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { cup 'ab%' || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { cup '%s\\n' a b || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "printf",
+        "env",
+        "sed"
+      ]
+    },
+    {
+      "id": "printf-verb-conversions",
+      "kind": "parity",
+      "purpose": "The printf verb's conversions, flags, widths from arguments, numeric arguments (hex, octal, character constants) and escapes in the format and in %b.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\ncup() { if [[ $(type -t coreutils) == builtin ]]; then coreutils printf \"$@\"; else env printf \"$@\"; fi; }\ncup '%5s|%-5s|%.2s|\\n' ab cd efgh; cup '%c%c|\\n' hello ''; cup '%d %i %o %x %X %u\\n' 42 -7 8 255 255 3; cup '%d\\n' 0x1F 010 \"'A\" '\"b' ' 12' +5\ncup '%f %e %g %E %G %a\\n' 1.5 1e10 0.0001 2 3 1; cup '%.3f|%10.2e|%-8g|\\n' 3.14159 12345 1e-5; cup '%#o %#x %+d % d %05d\\n' 8 255 5 5 42\ncup '%*d|%-*d|%.*f\\n' 5 1 4 2 2 3.14159; cup '%*s|%.*s|\\n' -4 ab -3 abc; cup '%ld %hd %lld %jd %zd %td\\n' 1 2 3 4 5 6; cup '%%%s\\n' x\ncup '%b|%b|%b\\n' 'a\\tb' '\\0101\\101' '\\x41\\u00e9'; cup '%b%s' 'x\\cy' z; echo; cup '\\101\\0101\\8\\x41\\u00e9\\n'; cup 'a\\cb'; echo; cup '%s %d\\n' a 1 b; cup '%.0s' gone x; echo\ncup '%q\\n' 'a b' \"it's\" '$x' '' $'tab\\there' $'\\x01' $'a\\nb' '~x' 'x=1' '#'; cup '%f %f %g\\n' inf nan 1e400",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "env",
+        "printf"
+      ]
+    },
+    {
+      "id": "printf-verb-diagnostics",
+      "kind": "parity",
+      "purpose": "The printf verb's GNU diagnostics: invalid and out-of-range numbers (output continues, status 1), bad directives, missing format, ignored extra arguments.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nshopt -s extglob\nr() { local rc=0 line; \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do line=${line#fixture: line +([0-9]): }; printf \"%s\\n\" \"$line\"; done < err; echo \"rc=$rc\"; }\ncup() { if [[ $(type -t coreutils) == builtin ]]; then coreutils printf \"$@\"; else env printf \"$@\"; fi; }\nr cup '%d\\n' abc 1.5 '' 99999999999999999999 -99999999999999999999 08; r cup '%i' 08; r cup '%o' 1e3; r cup '%d' -; r cup '%u\\n' -1; r cup '%z'; r cup '%'; r cup '%5'; r cup; r cup -x; r cup '%#s' x; r cup '%.5c' x; r cup '%d\\n' \"'\"; r cup '%c' '\\xff'; r cup '%Lf\\n' 1.5; r cup '\\ud800'; r cup '\\u12'; r cup -- '%s\\n' x; r cup no-directives extra",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "env",
+        "printf"
+      ]
+    },
+    {
+      "id": "shuf-random-source-and-errors",
+      "kind": "parity",
+      "purpose": "shuf --random-source errors, -z/-e/-i interplay, -o write failures and operand checks.",
+      "script": "cu() { if [[ $(type -t coreutils) == builtin ]]; then coreutils \"$@\"; else \"$@\"; fi; }\nshopt -s extglob\nr() { local rc=0 line; \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do line=${line#fixture: line +([0-9]): }; printf \"%s\\n\" \"$line\"; done < err; echo \"rc=$rc\"; }\nprintf 'l1\\nl2\\n' > in\nr cu shuf --random-source=/dev/null -e a b; r cu shuf --rand /nonexist in; r cu shuf -e a -o /nonexist/x; r cu shuf -i 1-3 extra; r cu shuf -ie; r cu shuf --input-range; r cu shuf -i a-b; r cu shuf -n -1 in; r cu shuf -n 18446744073709551616 -e x; r cu shuf -i 0-18446744073709551615 -n 0; r cu shuf -n 1 -n 0 -e x; r cu shuf -i 5-4; r cu shuf -r -n 0 </dev/null; r cu shuf -r -n 3 -i 7-7; r cu shuf -z -e q | od -c; r cu shuf nosuch; r cu shuf --output",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "shuf",
+        "od"
+      ]
+    }
+  ]
+}

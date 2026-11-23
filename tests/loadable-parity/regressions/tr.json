@@ -10,7 +10,8 @@
     "Complemented deletion combined with squeezing.",
     "Complemented translation including NUL and 0xff bytes in the C locale.",
     "GNU -t SET1 truncation and SET2 indefinite repeat with a trailing element.",
-    "Invalid character class and unknown option diagnostics/status."
+    "Invalid character class and unknown option diagnostics/status.",
+    "Guest compatibility pass 5 (G74/G83): pass5-long-delete-squeeze, pass5-long-diagnostics."
   ],
   "exclusions": [
     "Multibyte and locale-specific character semantics are not covered; parity fixtures intentionally run in LC_ALL=C.",
@@ -201,6 +202,29 @@
       ],
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "pass5-long-delete-squeeze",
+      "kind": "parity",
+      "purpose": "G74: --delete, --squeeze-repeats, --complement and --truncate-set1, also as unambiguous prefixes (--d, --sq, --c, --t).",
+      "script": "printf 'aabbccdd\\n' | tr --delete b; printf 'aabbccdd\\n' | tr --squeeze-repeats a-d; printf 'abc123\\n' | tr --complement --delete '0-9\\n'; printf 'abcd\\n' | tr --truncate-set1 abcd xy; printf 'aabb\\n' | tr --d a; printf 'aabb\\n' | tr --sq ab; printf 'ab1\\n' | tr --c -d 'a\\n'; printf 'abcd\\n' | tr --t abcd xy",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tr"
+      ]
+    },
+    {
+      "id": "pass5-long-diagnostics",
+      "kind": "parity",
+      "purpose": "G74: unknown and ambiguous-free long options print getopt's message and the Try line; options end at the first SET (no permutation).",
+      "script": "{ tr --bogus a b || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { tr --delete || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; printf 'a-b\\n' | tr a --delete",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "tr",
+        "sed"
+      ]
     }
   ]
 }

@@ -15,12 +15,15 @@
     "Bash type/help metadata contract for the registered cp builtin",
     "Additional bounded regular-file, hardlink, symlink and multi-operand error continuation regressions.",
     "GNU --parents path retention, parent modes, archive links, and failure continuation.",
-    "GNU long options and -u/-l/-s/-b/-S/-T/-x/-d, --preserve/--no-preserve lists, --update=WHEN, --backup=CONTROL, --remove-destination, --attributes-only, --sparse and --reflink (guest compatibility pass 1)."
+    "GNU long options and -u/-l/-s/-b/-S/-T/-x/-d, --preserve/--no-preserve lists, --update=WHEN, --backup=CONTROL, --remove-destination, --attributes-only, --sparse and --reflink (guest compatibility pass 1).",
+    "GNU long-option abbreviations and diagnostics, --update=none-fail, --debug, FIFOs recreated by -R/-a and read as data without -R or with --copy-contents, --keep-directory-symlink (guest pass 5, G74/G76).",
+    "GNU 9.7 cp clean-room rewrite: special-file creation errors, -v removal and backup lines, prompts, repeated sources and just-created destinations, same-file rules with backups and links, copies into themselves, --debug reports, directories over files, option diagnostics, FIFO modes and destination naming."
   ],
   "exclusions": [
     "Device nodes, FIFOs, sockets, ACLs, extended attributes, and security labels are outside this private regular-file/symlink fixture suite.",
     "The suite does not claim full GNU option coverage or compare timestamps because the harness tree snapshot records contents, modes, and link relationships but not timestamps.",
-    "Named-entry ACL behaviour added in guest compatibility pass 1 (ACL preservation by -p/-a, including a directory's default ACL) needs mapped IDs that this sandbox lacks (EINVAL for both arms); bashy-box's image smoke acl-42 checks it as root in the VM."
+    "Named-entry ACL behaviour added in guest compatibility pass 1 (ACL preservation by -p/-a, including a directory's default ACL) needs mapped IDs that this sandbox lacks (EINVAL for both arms); bashy-box's image smoke acl-42 checks it as root in the VM.",
+    "Device nodes and sockets are recreated with mknod like FIFOs, but creating device nodes needs privilege the runner drops; only FIFOs are covered."
   ],
   "cases": [
     {
@@ -144,7 +147,7 @@
       "id": "builtin_type_help_contract",
       "kind": "contract",
       "purpose": "Checks Bash metadata only: cp is registered as a builtin and help exposes the documented synopsis. This does not count as cp operation coverage.",
-      "script": "[[ $(type -t cp) == builtin ]] || exit 1\nhelp_text=$(help cp) || exit 1\n[[ $help_text == *'Copy files and directories.'* && $help_text == *'bashcp [-abdfilnprRsTuvx] [-HLP] [-S SUFFIX] SOURCE... DEST'* ]] || exit 1\nprintf 'type=builtin\\nhelp=cp synopsis present\\n'",
+      "script": "[[ $(type -t cp) == builtin ]] || exit 1\nhelp_text=$(help cp) || exit 1\n[[ $help_text == *'Copy files and directories.'* && $help_text == *'cp [OPTION]... [-T] SOURCE DEST'* ]] || exit 1\nprintf 'type=builtin\\nhelp=cp synopsis present\\n'",
       "expected_status": 0,
       "stdout": "type=builtin\nhelp=cp synopsis present\n",
       "stderr": "empty"
@@ -518,6 +521,251 @@
       "script": "printf a > f\ncp --bogus f g",
       "expected_status": 1,
       "stderr": "nonempty"
+    },
+    {
+      "id": "g74-long-option-abbreviations",
+      "kind": "parity",
+      "purpose": "GNU long-option prefixes (guest pass 5, G74): --rec, --pres=mode, --pre=mo, --no-pres=mode, --suffix in both argument forms, and options after operands.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "chmod"
+      ],
+      "script": "mkdir d; printf a > d/f; chmod 600 d/f\ncp --rec d e\ncp --pres=mode d/f m\ncp --pre=mo d/f m2\ncp -p --no-pres=mode d/f n\nprintf b > g; cp --suffix .bak d/f g\ncp -v --suff .old d/f g\ncp d/f -v h",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g74-option-diagnostics",
+      "kind": "parity",
+      "purpose": "Ambiguous and misused options, invalid keywords for --update/--sparse/--preserve, and conflicting -l/-s and --backup/-n use GNU's text and status 1.",
+      "requires": [
+        "cp",
+        "sed"
+      ],
+      "script": "printf a > f\n{ cp --re f g || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp --re=x f g || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp --interactive=x f g || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp f --suffix || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp --update=bogus f g || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp --sparse=bogus f g || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp --preserve=bogus f g || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -ls f g || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -bn f g || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -z f g || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp f || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g74-update-none-fail-and-debug",
+      "kind": "parity",
+      "purpose": "--update=none-fail refuses an existing destination; --debug reports skipped destinations.",
+      "requires": [
+        "cp",
+        "sed",
+        "cat"
+      ],
+      "script": "printf a > f; printf b > g\n{ cp --update=none-fail f g || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\ncp --debug -n f g\ncp --debug -u f g\ncat g",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g76-recursive-fifos",
+      "kind": "parity",
+      "purpose": "cp -a and cp -r recreate FIFOs as FIFOs (guest pass 5, G76); -a keeps the FIFO mode, -r applies the umask, -v names each copy.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "mkfifo"
+      ],
+      "script": "mkfifo p; mkdir o; cp -a p o/\nmkdir d; mkfifo -m 640 d/q; printf x > d/f\ncp -r d e\ncp -a d f\numask 077; cp -R d g; umask 022\ncp -rv d h",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g76-fifo-replaces-destination",
+      "kind": "parity",
+      "purpose": "-R onto an existing non-directory replaces it (-v reports the removal), -n keeps it, -b backs it up, and a directory in the way is an error.",
+      "requires": [
+        "cp",
+        "mkfifo",
+        "mkdir",
+        "sed",
+        "cat"
+      ],
+      "script": "mkfifo -m 600 p\nprintf x > q; cp -Rv p q\nprintf y > r; cp -Rn p r; cat r; echo\nprintf z > s; cp -Rb p s\nmkdir -p t/p; { cp -R p t/ || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\ncp -pR p u",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g76-special-files-read-without-recursion",
+      "kind": "parity",
+      "purpose": "Without -R, or with -R --copy-contents, a FIFO or device is read as data into a regular file.",
+      "requires": [
+        "cp",
+        "mkfifo",
+        "mkdir",
+        "cat"
+      ],
+      "script": "cp /dev/null n\nmkfifo p\n{ printf piped > p; } & cp p out; wait\ncat out; echo\nmkdir d; mkfifo d/q\n{ printf deep > d/q; } & cp -r --copy-contents d e; wait\ncat e/q",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "g74-trailing-slashes-and-directory-symlink",
+      "kind": "parity",
+      "purpose": "--strip-trailing-slashes, and --keep-directory-symlink, which GNU honours only with -R --copy-contents.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln",
+        "sed"
+      ],
+      "script": "mkdir d; cp --strip-trailing-slashes -r d/ e\nmkdir real; ln -s real l; mkdir -p s/l; printf x > s/l/f\n{ cp -r --keep-directory-symlink s/l . || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\ncp -r --copy-contents --keep-directory-symlink s/l .\nprintf a > f; mkdir td; cp -v f td/",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "cp97-special-file-errors",
+      "kind": "parity",
+      "purpose": "-R recreates a FIFO with mknod: a missing parent is reported as \"cannot create fifo\", and -R onto a same-named symlink to the FIFO is the same file.",
+      "requires": [
+        "cp",
+        "mkfifo",
+        "ln",
+        "sed"
+      ],
+      "script": "mkfifo p\n{ cp -R p nodir/q || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\nln -s p q; { cp -Rv p q || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -R p p || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "cp97-verbose-replacement-lines",
+      "kind": "parity",
+      "purpose": "-v reports removals (--remove-destination, a symlink copied over a file, a FIFO over a file) and the backup made for each copy.",
+      "requires": [
+        "cp",
+        "mkfifo",
+        "ln",
+        "sed",
+        "cat"
+      ],
+      "script": "printf a > f; printf b > g; cp -v --remove-destination f g\nprintf c > h; cp -bv f h; cp -v --backup=numbered f h; cp -v --backup=numbered f h; cp -v -S .old -b f h\nln -s f l; printf d > m; cp -Pv l m\nmkfifo p; printf e > q; cp -Rv p q\nmkdir d; printf x > d/f; cp -rv f d; cp -rbv f d",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "cp97-interactive-prompts",
+      "kind": "parity",
+      "purpose": "-i prompts on stderr and reads one answer line each; -n and -i override each other; --debug reports a declined copy as skipped.",
+      "requires": [
+        "cp",
+        "sed",
+        "cat"
+      ],
+      "script": "printf a > f; printf b > g\n{ cp -i f g <<< n || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'; cat g; echo\n{ cp -in f g <<< y || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'; cat g; echo\n{ cp -ni f g <<< nope || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'; cat g; echo\n{ cp --debug -i f g <<< no || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\nmkdir d; printf 1 > d/f; printf 2 > d/g\n{ cp -iv f g d <<< $'y\\nn' || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'; cat d/f d/g; echo\n{ cp -i f g < /dev/null || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "cp97-repeated-sources",
+      "kind": "parity",
+      "purpose": "A source named twice into a directory is a warning; a different source that lands on a file this command just wrote is an error.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln",
+        "sed",
+        "cat"
+      ],
+      "script": "printf a > f; mkdir d x; printf b > x/f; ln -s x y\n{ cp -v f f d || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -v f ./f d || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -v x/f y/f d || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -v f x/f d || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'; cat d/f; echo\n{ cp -nv f x/f d || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\nmkdir -p s/a t; { cp -rv s/a s/a t || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "cp97-same-file-rules",
+      "kind": "parity",
+      "purpose": "Same-file checks with backups, hard links, symbolic links and -fb on one name (whose copy becomes the backup).",
+      "requires": [
+        "cp",
+        "ln",
+        "sed",
+        "cat"
+      ],
+      "script": "printf a > f; ln f h; ln -s f l\n{ cp -fbv f f || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -b f ./f || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -bv f h || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -b l f || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -P l f || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -P --remove-destination l f || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -bRv l l || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -fbRv l l || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -fblv f f || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -l f h || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'; cat f h~; echo",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "cp97-copy-into-itself",
+      "kind": "parity",
+      "purpose": "A directory made by this command turning up as a source stops that operand: \"into itself\" when the destination is spelled inside the source, otherwise GNU's hard-link refusal.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln",
+        "sed"
+      ],
+      "script": "mkdir -p d c; { cp -r c . d || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\nmkdir -p a/b e; { cp -r e a a/b || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\nmkdir m; ln -s m n; { cp -r m n || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\nmkdir o; ln -s o r; { cp -r o r/x || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\nmkdir -p u/v; { cp -r u/v/.. u/v/w || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "cp97-debug-reports",
+      "kind": "parity",
+      "purpose": "--debug lines for plain, --sparse and --reflink copies, a failed --reflink=always clone (whose new file is removed), and the -v-only lines of directories, FIFOs and links.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "mkfifo",
+        "ln",
+        "sed"
+      ],
+      "script": "printf hello > f; : > e\ncp --debug f a; cp --debug e b; cp --debug --sparse=always f c; cp --debug --sparse=never f g; cp --debug --reflink=never f h\n{ cp --debug --reflink=always f i || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\nmkdir d; cp --debug -r d dd; mkfifo p; cp --debug -R p pp; ln -s f l; cp --debug -P l ll; cp --debug -l f lf; cp --debug -s f sf\ncp --debug --remove-destination f a; cp --debug -b f a",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "cp97-directory-over-file",
+      "kind": "parity",
+      "purpose": "A directory copied onto a non-directory: an error even with -n, -f or --remove-destination; -b moves the file aside without a -v backup note.",
+      "requires": [
+        "cp",
+        "mkdir",
+        "ln",
+        "sed"
+      ],
+      "script": "mkdir d e g j; printf x > e/d; printf y > g/d; printf z > j/d; ln -s nowhere j/l\ncp -rbv d e/\n{ cp -rv --remove-destination d g || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -rfv d g || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -rnv d j || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\ncp -rbv d j/l",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "cp97-option-errors",
+      "kind": "parity",
+      "purpose": "GNU 9.7 option diagnostics: --backup= as a bare --backup, $VERSION_CONTROL only checked when backing up, SELinux context options, target-directory conflicts.",
+      "requires": [
+        "cp",
+        "sed"
+      ],
+      "script": "printf a > f; printf b > g\ncp --backup= -v f g; VERSION_CONTROL=zz cp f g\n{ VERSION_CONTROL=zz cp -b f g || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp --preserve=context f h || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp --preserve=context --no-preserve=all f h || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\ncp --preserve=context --no-preserve=context f h; cp -aZ f i; cp -Z --context f j\n{ cp --context=x f k || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -t f g || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -t a -t b f || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp -T -t . f || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp f g h || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp f g/ || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'\n{ cp f/ x || echo rc=$?; } 2>&1 | sed 's/^.*\\(mv\\|cp\\): /\\1: /'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "cp97-special-file-modes",
+      "kind": "parity",
+      "purpose": "A recreated FIFO keeps its sticky bit without -p (the umask still applies); --no-preserve=mode gives the default mode.",
+      "requires": [
+        "cp",
+        "mkfifo",
+        "chmod"
+      ],
+      "script": "mkfifo p; chmod 1755 p; cp -R p q; cp -Rp p r; cp -R --no-preserve=mode p s; chmod 640 p; cp -R p t",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "cp97-destination-names",
+      "kind": "parity",
+      "purpose": "Destination names: a target directory's trailing slashes fold into one separator, a source's trailing slashes are dropped from its last component, and a source ending in /. names '.'.",
+      "requires": [
+        "cp",
+        "mkdir"
+      ],
+      "script": "printf a > f; mkdir d; cp -v f d//; cp -v f ./d; mkdir -p s/x; cp -rv s/. e; cp -rv s/// e2; cp -rv s e2",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

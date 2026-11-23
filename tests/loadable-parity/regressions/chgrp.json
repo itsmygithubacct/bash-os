@@ -5,7 +5,9 @@
   "coverage": [
     "Numeric existing-group application, symlink default/-h, multiple paths with a missing middle file, missing operands and unknown group.",
     "Bash registration and documented help metadata only for the metadata cases.",
-    "-R recursion with the default -P, -H and -L symlink traversal, and -f"
+    "-R recursion with the default -P, -H and -L symlink traversal, and -f",
+    "Guest pass 5 (G74/G78): GNU long options, abbreviations and diagnostics, and the -c/-v/-d/-I/--reference behaviours of coreutils 9.7.",
+    "Clean-room rewrite: operand forms, report wording, traversal modes, --from/--reference, --preserve-root and option scanning against GNU coreutils 9.7."
   ],
   "exclusions": [
     "Changing to distinct GIDs and controlled named-group resolution remain deferred for a disposable VM or syscall mock."
@@ -33,9 +35,9 @@
       "id": "help-full-documentation",
       "kind": "contract",
       "purpose": "Check Bash's long help text against the documented chgrp description and usage line, without running an ownership operation.",
-      "script": "help chgrp",
+      "script": "help chgrp > help.out\nhead -n 5 help.out",
       "expected_status": 0,
-      "stdout": "chgrp: chgrp GROUP FILE...\n    Change file group.\n    \n    chgrp [-fhR] [-H|-L|-P] GROUP FILE...   GROUP is a name or numeric id.\n",
+      "stdout": "chgrp: chgrp GROUP FILE...\n    Change file group.\n    \n    chgrp [OPTION]... GROUP FILE...   GROUP is a name or numeric id.\n    chgrp [OPTION]... --reference=RFILE FILE...\n",
       "stderr": "empty"
     },
     {
@@ -126,6 +128,61 @@
       "requires": [
         "chgrp",
         "ln"
+      ]
+    },
+    {
+      "id": "g78-verbose-and-changes",
+      "kind": "parity",
+      "purpose": "chgrp -v and -c describe each file as GNU does; --reference, --recursive and GNU diagnostics (G74, G78).",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\n: > a; : > b; mkdir -p d/e\nn chgrp -v runner a\nn chgrp -c runner a\nn chgrp --verbose --recursive runner d\nn chgrp --reference=b -v a\nn chgrp -v \"$(/usr/bin/id -g)\" a\nn chgrp -v 0 a | s\nn chgrp -v nosuchgroup a | s\nn chgrp -v runner | s",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chgrp",
+        "mkdir",
+        "sed"
+      ]
+    },
+    {
+      "id": "cleanroom-group-forms",
+      "kind": "parity",
+      "purpose": "GROUP operand forms: names, numbers, a leading '+', blanks before a number, the empty operand (no change), and GNU's invalid-group diagnostics (chgrp has no OWNER or '.' forms).",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\ng=$(/usr/bin/id -g)\n: > a\nfor grp in runner \"+$g\" \"$g\" \" $g\" \"0$g\" '' nosuch runner: :runner runner. .runner +runner + -0 +-1 4294967295 \"$g \"; do n chgrp -v -- \"$grp\" a | s; done\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chgrp",
+        "id",
+        "sed"
+      ]
+    },
+    {
+      "id": "cleanroom-group-reports",
+      "kind": "parity",
+      "purpose": "chgrp reports: 'group of ... retained as', refused changes, missing files, -c/-f, --from and --reference.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\ng=$(/usr/bin/id -g)\n: > a; : > b\nn chgrp -v 0 a | s\nn chgrp -c 0 a | s\nn chgrp -vf 0 a\nn chgrp -cf 0 a\nfor grp in runner 0 '' \"+$g\"; do n chgrp -v -- \"$grp\" nosuch | s; done\nfor f in 0 runner runner: :runner :0 ''; do n chgrp -v --from=\"$f\" runner a | s; done\nn chgrp --from=nosuch x | s\nn chgrp --from=runner.runner -v runner a | s\nn chgrp -v --reference=b a\nn chgrp -v --reference=nosuch a | s\nn chgrp --reference=b | s\nn chgrp runner | s\nn chgrp --re runner a | s\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chgrp",
+        "id",
+        "sed"
+      ]
+    },
+    {
+      "id": "cleanroom-group-recursive",
+      "kind": "parity",
+      "purpose": "chgrp -R with -P, -H and -L, -h and --dereference, dangling links (-c keeps GNU's unspecified 'from' text out of the comparison), an unreadable directory and --preserve-root.",
+      "script": "n(){ \"$@\" 2>&1 && echo rc=0 || echo \"rc=$?\"; }\ns(){ sed 's/^[^ ]*: line [0-9]*: //'; }\ng=$(/usr/bin/id -g)\nmkdir -p t d/e u/locked; : > t/f; : > d/x; ln -s ../t d/lt; ln -s ../t/f d/lf; ln -s nosuch d/dl; ln -s d ld; ln -s / lroot\nfor o in -R -RH -RL -RLh -RHh \"-RL --dereference\"; do echo \"== $o\"; n chgrp -c $o runner ld | s; done\nn chgrp -Rv runner ld | s\nn chgrp -RHhv runner ld | s\nn chgrp -RLhv runner ld | s\nn chgrp -R --dereference runner d | s\nchmod 000 u/locked\nn chgrp -Rv runner u | s\nchmod 700 u/locked\nn chgrp -RH --preserve-root runner lroot | s\nn chgrp -R --preserve-root -v runner lroot\n",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "chgrp",
+        "chmod",
+        "id",
+        "ln",
+        "mkdir",
+        "sed"
       ]
     }
   ]

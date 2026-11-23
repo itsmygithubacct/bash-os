@@ -32,6 +32,8 @@
 #include <stdint.h>
 
 #include "loadables.h"
+#include "gnu-quote.h"
+#include "longopt-normalize.h"
 
 static int
 btr_parse_escaped_char (const char **sp, unsigned char *out)
@@ -359,8 +361,32 @@ btr_expand_list (const char *s, unsigned char *out, size_t *n_out, size_t max,
     return 0;
 }
 
+static int tr_run (WORD_LIST *list);
+
+/* GNU tr's long options; abbreviations and permuted operands are
+   normalized by lon_normalize before tr_run sees the list. */
+static const struct lon_option tr_longopts[] = {
+    { "complement",      LON_NONE, "-c" },
+    { "delete",          LON_NONE, "-d" },
+    { "squeeze-repeats", LON_NONE, "-s" },
+    { "truncate-set1",   LON_NONE, "-t" },
+    { "help",            LON_NONE, NULL },
+    { NULL, 0, NULL }
+};
+
 int
 tr_builtin (WORD_LIST *list)
+{
+    WORD_LIST *args;
+    if (lon_normalize (list, tr_longopts, "", 0, &args) < 0)
+        return EXECUTION_FAILURE;
+    int rc = tr_run (args);
+    if (args) dispose_words (args);
+    return rc;
+}
+
+static int
+tr_run (WORD_LIST *list)
 {
     int dflag = 0, sflag = 0, cflag = 0, tflag = 0;
     /* Parse flags. */
@@ -368,7 +394,6 @@ tr_builtin (WORD_LIST *list)
         const char *w = list->word->word;
         if (!strcmp (w, "--")) { list = list->next; break; }
         if (!strcmp (w, "--help")) { builtin_help (); return EXECUTION_SUCCESS; }
-        if (!strcmp (w, "--truncate-set1")) { tflag = 1; list = list->next; continue; }
         for (const char *p = w + 1; *p; p++) {
             switch (*p) {
                 case 'd': dflag = 1; break;
@@ -376,30 +401,38 @@ tr_builtin (WORD_LIST *list)
                 case 't': tflag = 1; break;
                 case 'c': case 'C': cflag = 1; break;
                 default:
-                    builtin_error ("unknown flag: -%c", *p);
-                    builtin_usage ();
+                    builtin_error ("invalid option -- '%c'", *p);
+                    lon_try_help ();
                     return EXECUTION_FAILURE;
             }
         }
         list = list->next;
     }
-    if (!list) { builtin_error ("usage: bashtr [-Ccdst] SET1 [SET2]"); return EXECUTION_FAILURE; }
+    /* GNU tr's operand-count diagnostics, each followed by the Try line. */
+    if (!list) {
+        builtin_error ("missing operand");
+        lon_try_help ();
+        return EXECUTION_FAILURE;
+    }
     const char *set1 = list->word->word;
     const char *set2 = (list->next) ? list->next->word->word : "";
-    if (list->next && list->next->next) {
-        builtin_error ("extra operand: %s", list->next->next->word->word);
-        builtin_usage ();
+    int max_ops = (dflag && !sflag) ? 1 : 2;
+    if (!dflag && !sflag && !list->next) {
+        char *q = bos_quote (set1);
+        builtin_error ("missing operand after %s", q ? q : set1);
+        free (q);
+        fprintf (stderr, "Two strings must be given when translating.\n");
+        lon_try_help ();
         return EXECUTION_FAILURE;
     }
-    /* POSIX: translate mode (no -d/-s) requires SET2. */
-    if (!dflag && !sflag && !set2[0]) {
-        builtin_error ("translate mode requires SET2; use -d/-s for single-set ops");
-        return EXECUTION_FAILURE;
-    }
-    /* GNU parity: deleting without squeezing takes only one string. */
-    if (dflag && !sflag && set2[0]) {
-        builtin_error ("extra operand '%s' (only one string may be given "
-                       "when deleting without squeezing repeats)", set2);
+    if ((max_ops == 1 && list->next) || (list->next && list->next->next)) {
+        const char *extra = max_ops == 1 ? set2 : list->next->next->word->word;
+        char *q = bos_quote (extra);
+        builtin_error ("extra operand %s", q ? q : extra);
+        free (q);
+        if (max_ops == 1)
+            fprintf (stderr, "Only one string may be given when deleting without squeezing repeats.\n");
+        lon_try_help ();
         return EXECUTION_FAILURE;
     }
     int translate_mode = (!dflag && set2[0]);
@@ -510,6 +543,10 @@ char *tr_doc[] = {
     "    bashtr -ds SET1 SET2      delete in SET1 then squeeze in SET2",
     "    bashtr -c/-C ...          complement: act on chars NOT in SET",
     "    bashtr -t SET1 SET2       truncate SET1 to length of SET2 first",
+    "",
+    "Long options: --complement (-c), --delete (-d), --squeeze-repeats (-s),",
+    "--truncate-set1 (-t); any unambiguous prefix is accepted. As in GNU tr,",
+    "options end at the first SET.",
     "",
     "Char-set syntax: literal bytes, ranges `a-z`, escape sequences",
     "`\\n \\t \\r \\\\ \\NNN` (octal), POSIX classes `[:alpha:]` etc.,",

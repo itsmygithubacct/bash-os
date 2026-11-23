@@ -1,70 +1,48 @@
 /* SPDX-License-Identifier: MIT */
-/* chgrp.c — change file group via chown(2)/lchown(2). bash-os loadable (MIT).
- * Replaces busybox chgrp (plan D22).  chgrp [-fhR] [-H|-L|-P] GROUP FILE... */
+/* chgrp: change the group of files. A bash-os loadable written from the
+   coreutils manual, POSIX chgrp and the observed behaviour of GNU
+   coreutils 9.7; the work is shared with chown in chown-operand.h. */
 #include <config.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <grp.h>
 #include "loadables.h"
-#include "bashgetopt.h"
 #include "chown-operand.h"
 
 int
 chgrp_builtin (WORD_LIST *list)
 {
-  int opt, deref = 1, recurse = 0, traverse = BOS_TRAVERSE_P, rc = EXECUTION_SUCCESS;
-  gid_t gid; char *end; struct group *gr;
-  WORD_LIST *l;
-
-  bos_chown_quiet = 0;
-  reset_internal_getopt ();
-  while ((opt = internal_getopt (list, "hRHLPf")) != -1)
-    {
-      if (opt == 'h') deref = 0;
-      else if (opt == 'R') recurse = 1;
-      else if (opt == 'H') traverse = BOS_TRAVERSE_H;
-      else if (opt == 'L') traverse = BOS_TRAVERSE_L;
-      else if (opt == 'P') traverse = BOS_TRAVERSE_P;
-      else if (opt == 'f') bos_chown_quiet = 1;
-      else { builtin_usage (); return (EXECUTION_FAILURE); }
-    }
-  list = loptend;
-  if (list == 0 || list->next == 0)
-    { builtin_usage (); return (EXECUTION_FAILURE); }
-
-  gr = getgrnam (list->word->word);
-  if (gr)
-    gid = gr->gr_gid;
-  else
-    {
-      long v = strtol (list->word->word, &end, 10);
-      if (*end)
-	{
-	  char *quoted = bos_quote (list->word->word);
-
-	  builtin_error ("invalid group: %s", quoted ? quoted : list->word->word);
-	  free (quoted);
-	  return (EXECUTION_FAILURE);
-	}
-      gid = (gid_t) v;
-    }
-
-  for (l = list->next; l; l = l->next)
-    if ((recurse ? bos_chown_tree (l->word->word, (uid_t) -1, gid, deref, traverse, 1, NULL)
-                 : bos_chown_operand (l->word->word, (uid_t) -1, gid, deref)) < 0)
-      rc = EXECUTION_FAILURE;
-  return (rc);
+  return bos_chown_main (list, 1);
 }
 
 char *chgrp_doc[] = {
   "Change file group.",
   "",
-  "chgrp [-fhR] [-H|-L|-P] GROUP FILE...   GROUP is a name or numeric id.",
+  "chgrp [OPTION]... GROUP FILE...   GROUP is a name or numeric id.",
+  "chgrp [OPTION]... --reference=RFILE FILE...",
+  "",
+  "Change the group of each FILE to GROUP.",
+  "With --reference, change the group of each FILE to that of RFILE.",
+  "A leading '+' makes GROUP a numeric ID.",
+  "",
+  "  -c, --changes          like verbose but report only when a change is made",
+  "  -f, --silent, --quiet  suppress most error messages",
+  "  -v, --verbose          output a diagnostic for every file processed",
+  "      --dereference      affect the referent of each symbolic link (this is",
+  "                         the default), rather than the symbolic link itself",
+  "  -h, --no-dereference   affect symbolic links instead of any referenced file",
+  "      --from=CURRENT_OWNER:CURRENT_GROUP",
+  "                         change the group of each file only if its current",
+  "                         owner and/or group match those specified here",
+  "      --no-preserve-root  do not treat '/' specially (the default)",
+  "      --preserve-root    fail to operate recursively on '/'",
+  "      --reference=RFILE  use RFILE's group rather than specifying a value.",
+  "                         RFILE is always dereferenced if a symbolic link.",
+  "  -R, --recursive        operate on files and directories recursively",
+  "",
+  "With -R: -H traverses a command-line symbolic link to a directory, -L",
+  "traverses every symbolic link to a directory, -P (the default) none.",
   (char *) NULL
 };
 
 struct builtin chgrp_struct = {
-  "chgrp", chgrp_builtin, BUILTIN_ENABLED, chgrp_doc, "chgrp [-fhR] [-H|-L|-P] GROUP FILE...", 0
+  "chgrp", chgrp_builtin, BUILTIN_ENABLED, chgrp_doc,
+  "chgrp GROUP FILE...", 0
 };

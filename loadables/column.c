@@ -30,6 +30,10 @@
  *      are the -N names in ASCII lower case, the array is -n NAME /
  *      --table-name=NAME (default "table"), empty or missing cells are
  *      null, and a row with more fields than names is an error.
+ *      -l N / --table-columns-limit=N makes the N-th field the rest of the
+ *      line. -R / --table-right, -H / --table-hide and -O / --table-order
+ *      take util-linux column lists (names, numbers, ranges, 0, -1, and
+ *      '-' for -H) to right-align, hide and reorder columns.
  *
  *   col [-b] [FILE...]
  *      Preserve CTL-H (backspace) overstrike sequences by default. With
@@ -202,10 +206,11 @@ bcol_row_push (bcol_row *r, const char *s, size_t len)
 /* Split LINE into fields using SEPS. If sflag is 0 (no -s given) runs
  * of any byte in SEPS collapse into one separator and leading runs are
  * skipped. If sflag is 1 each separator byte makes one cut, so
- * consecutive separators yield empty fields. */
+ * consecutive separators yield empty fields. With LIMIT (-l) the
+ * LIMIT-th field is the rest of the line, separators and all. */
 static int
 bcol_split (const char *line, size_t len, const char *seps, int sflag,
-            bcol_row *out)
+            long limit, bcol_row *out)
 {
   size_t i = 0;
   if (!sflag)
@@ -214,6 +219,8 @@ bcol_split (const char *line, size_t len, const char *seps, int sflag,
         i++;
       while (i < len)
         {
+          if (limit && out->n == limit - 1)
+            return bcol_row_push (out, line + i, len - i);
           size_t j = i;
           while (j < len && !strchr (seps, line[j]))
             j++;
@@ -227,7 +234,7 @@ bcol_split (const char *line, size_t len, const char *seps, int sflag,
     }
   /* sflag: split on every separator byte. */
   size_t start = 0;
-  for (i = 0; i < len; i++)
+  for (i = 0; i < len && !(limit && out->n == limit - 1); i++)
     {
       if (strchr (seps, line[i]))
         {
@@ -323,19 +330,101 @@ bcol_names (const char *spec, bcol_row *names)
   return 0;
 }
 
+/* -R, -H and -O name columns by -N name, by number from 1, by a range
+   of numbers (A-B), as 0 for all of them, '-' for every column without a
+   name, or -1 for the last one not hidden. Each
+   column named in SPEC gets FLAG; ORDER (for -O, where only names,
+   numbers and -1 count) instead gets the columns appended in turn. A
+   column named twice in -O is placed once (util-linux 2.41 then drops
+   another column, which is not copied here).
+   Returns -1, after util-linux's message, for an unknown name. */
+static int
+bcol_columns (const char *spec, const bcol_row *names, int n_cols,
+              const char *hidden, char *flag, int *order, int *n_order)
+{
+  const char *p = spec;
+  while (*p)
+    {
+      const char *end = strchr (p, ',');
+      size_t len = end ? (size_t) (end - p) : strlen (p);
+      int from = -1, to = -2;
+      for (int k = 0; k < names->n && from < 0; k++)
+        if (strlen (names->fields[k]) == len && !strncmp (names->fields[k], p, len))
+          from = to = k;
+      size_t digits = strspn (p, "0123456789");
+      if (from >= 0)
+        ;
+      else if (len == 2 && !strncmp (p, "-1", 2))
+        {
+          for (int k = n_cols - 1; k >= 0 && from < 0; k--)
+            if (!hidden || !hidden[k])
+              from = to = k;
+        }
+      else if (!order && len == 1 && *p == '-')
+        from = names->n, to = n_cols - 1;
+      else if (digits && digits == len)
+        {
+          long v = strtol (p, NULL, 10);
+          if (v == 0 && !order)
+            from = 0, to = n_cols - 1;
+          else if (v >= 1 && v <= n_cols)
+            from = to = (int) v - 1;
+        }
+      else if (!order && digits && digits < len && p[digits] == '-'
+               && strspn (p + digits + 1, "0123456789") == len - digits - 1
+               && len > digits + 1)
+        {
+          long a = strtol (p, NULL, 10), b = strtol (p + digits + 1, NULL, 10);
+          from = a < 1 ? 0 : (int) (a - 1);
+          to = b > n_cols ? n_cols - 1 : (int) (b - 1);
+          if (from > to)
+            from = 0, to = -1;
+        }
+      if (from < 0 && len)
+        {
+          builtin_error ("undefined column name '%.*s'", (int) len, p);
+          return -1;
+        }
+      for (int k = from; k <= to && k >= 0; k++)
+        {
+          if (!order)
+            flag[k] = 1;
+          else if (!flag[k])
+            {
+              flag[k] = 1;
+              order[(*n_order)++] = k;
+            }
+        }
+      p += len;
+      if (*p == ',')
+        p++;
+    }
+  return 0;
+}
+
 static void
-bcol_json (bcol_row *rows, int n_rows, const bcol_row *names, const char *tname)
+bcol_json (bcol_row *rows, int n_rows, const bcol_row *names, const char *tname,
+           const int *vis, int n_vis)
 {
   if (n_rows == 0)
     return;
+  int last = -1;
+  for (int i = 0; i < n_vis; i++)
+    if (vis[i] < names->n)
+      last = i;
   fputs ("{\n   ", stdout);
   bcol_json_string (tname, 1);
   fputs (": [\n", stdout);
   for (int r = 0; r < n_rows; r++)
     {
       fputs (r ? "      },{\n" : "      {\n", stdout);
-      for (int k = 0; k < names->n; k++)
+      if (last < 0)
+        putchar ('\n');
+      for (int i = 0; i <= last; i++)
         {
+          int k = vis[i];
+          if (k >= names->n)
+            continue;
           fputs ("         ", stdout);
           bcol_json_string (names->fields[k], 1);
           fputs (": ", stdout);
@@ -343,11 +432,48 @@ bcol_json (bcol_row *rows, int n_rows, const bcol_row *names, const char *tname)
             bcol_json_string (rows[r].fields[k], 0);
           else
             fputs ("null", stdout);
-          fputs (k + 1 < names->n ? ",\n" : "\n", stdout);
+          fputs (i < last ? ",\n" : "\n", stdout);
         }
     }
   fputs ("      }\n   ]\n}\n", stdout);
 }
+
+/* -l NUMBER: util-linux's strtou32 check and messages. */
+static int
+bcol_limit (const char *arg, long *limit)
+{
+  const char *p = arg;
+  char *end;
+  while (isspace ((unsigned char) *p))
+    p++;
+  errno = 0;
+  unsigned long long v = *p == '-' ? 0 : strtoull (p, &end, 10);
+  if (*p == '-' || (!errno && v > 0xffffffffULL))
+    errno = ERANGE;
+  else if (!errno && (end == p || *end))
+    {
+      builtin_error ("invalid columns limit argument: '%s'", arg);
+      return -1;
+    }
+  if (errno)
+    {
+      builtin_error ("invalid columns limit argument: '%s': %s", arg, strerror (errno));
+      return -1;
+    }
+  if (v == 0)
+    {
+      builtin_error ("columns limit must be greater than zero");
+      return -1;
+    }
+  *limit = (long) v;
+  return 0;
+}
+
+/* The table options that take a column list or a number, long and short. */
+static const struct { const char *name; char c; } bcol_table_opts[] = {
+  { "table-right", 'R' }, { "table-hide", 'H' }, { "table-order", 'O' },
+  { "table-columns-limit", 'l' },
+};
 
 int
 column_builtin (WORD_LIST *list)
@@ -364,6 +490,8 @@ column_builtin (WORD_LIST *list)
   int jflag = 0;
   const char *colnames = NULL;      /* -N NAMES */
   const char *tname = NULL;         /* -n NAME */
+  const char *table_spec[3] = { NULL, NULL, NULL };   /* -R, -H, -O */
+  long limit = 0;                   /* -l NUMBER */
 
   for (WORD_LIST *p = list; p; p = p->next)
     {
@@ -404,6 +532,43 @@ column_builtin (WORD_LIST *list)
           p = p->next;
           continue;
         }
+      {
+        const char *arg = NULL;
+        int which = -1;
+        for (size_t k = 0; k < sizeof bcol_table_opts / sizeof bcol_table_opts[0]; k++)
+          {
+            size_t nl = strlen (bcol_table_opts[k].name);
+            if (strncmp (w, "--", 2) || strncmp (w + 2, bcol_table_opts[k].name, nl))
+              continue;
+            if (w[2 + nl] == '=')
+              arg = w + 3 + nl;
+            else if (w[2 + nl])
+              continue;
+            which = (int) k;
+            break;
+          }
+        if (which >= 0)
+          {
+            if (!arg)
+              {
+                if (!p->next)
+                  {
+                    builtin_error ("option '%s' requires an argument", w);
+                    return EXECUTION_FAILURE;
+                  }
+                p = p->next;
+                arg = p->word->word;
+              }
+            if (bcol_table_opts[which].c == 'l')
+              {
+                if (bcol_limit (arg, &limit) < 0)
+                  return EXECUTION_FAILURE;
+              }
+            else
+              table_spec[which] = arg;
+            continue;
+          }
+      }
       if (strcmp (w, "--output-width") == 0)
         {
           char *endp = NULL;
@@ -559,6 +724,28 @@ column_builtin (WORD_LIST *list)
                     }
                   break;
                 }
+              if (*q == 'R' || *q == 'H' || *q == 'O' || *q == 'l')
+                {
+                  const char *arg = q[1] ? q + 1 : NULL;
+                  if (!arg)
+                    {
+                      if (!p->next)
+                        {
+                          builtin_error ("option requires an argument -- '%c'", *q);
+                          return EXECUTION_FAILURE;
+                        }
+                      arg = p->next->word->word;
+                      p = p->next;
+                    }
+                  if (*q == 'l')
+                    {
+                      if (bcol_limit (arg, &limit) < 0)
+                        return EXECUTION_FAILURE;
+                    }
+                  else
+                    table_spec[*q == 'R' ? 0 : *q == 'H' ? 1 : 2] = arg;
+                  break;
+                }
               if (*q == 's' || *q == 'o' || *q == 'N' || *q == 'n')
                 {
                   const char *arg = q[1] ? q + 1 : NULL;
@@ -595,7 +782,8 @@ column_builtin (WORD_LIST *list)
 
   /* util-linux: the --table-* options need table or JSON output, and JSON
      needs the column names. */
-  if ((colnames || tname) && !tflag && !jflag)
+  if ((colnames || tname || table_spec[0] || table_spec[1] || table_spec[2])
+      && !tflag && !jflag)
     {
       builtin_error ("option --table required for all --table-*");
       return EXECUTION_FAILURE;
@@ -714,6 +902,8 @@ columnar_cleanup:
   int rc = EXECUTION_SUCCESS;
   bcol_row names = { 0 };
   long lineno = 0;
+  char *hidden = NULL, *right = NULL, *seen = NULL;
+  int *vis = NULL, n_vis = 0;
   int n_streams = n_files ? n_files : 1;
   FILE *in_stdin = NULL;
 
@@ -721,7 +911,7 @@ columnar_cleanup:
     { rc = EXECUTION_FAILURE; goto cleanup; }
   /* -N in table output: the names form a header row, measured like data
      and padded through every column; there is one even when NAMES is
-     empty (util-linux). */
+     empty, but none without a data row (util-linux). */
   int header = colnames && !jflag;
 
   for (int fi = 0; fi < n_streams; fi++)
@@ -760,7 +950,7 @@ columnar_cleanup:
                 if (bcol_row_push (&rows[n_rows], names.fields[k], strlen (names.fields[k])) != 0)
                   { n_rows++; rc = EXECUTION_FAILURE; goto cleanup; }
             }
-          else if (bcol_split (line, (size_t) got, seps, sflag, &rows[n_rows]) != 0)
+          else if (bcol_split (line, (size_t) got, seps, sflag, limit, &rows[n_rows]) != 0)
             { n_rows++; rc = EXECUTION_FAILURE; goto cleanup; }
           /* util-linux numbers the line one past the input line. */
           if (jflag && rows[n_rows].n > names.n)
@@ -802,22 +992,67 @@ columnar_cleanup:
       if (fp != in_stdin) fclose (fp);
     }
 
+  /* -H, -O and -R name the columns the input made (and the -N names):
+     the hidden ones are left out, -O's come first and the rest follow in
+     input order, and -R's are padded on the left. As util-linux, an empty
+     last cell is not padded even when right-aligned. */
+  /* Without a data row util-linux prints no header either. */
+  if (colnames && !jflag && n_rows == 1)
+    {
+      bcol_row_free (&rows[0]);
+      n_rows = 0;
+    }
+  int total = n_cols > names.n ? n_cols : names.n;
+  hidden = calloc ((size_t) total + 1, 1);
+  right = calloc ((size_t) total + 1, 1);
+  seen = calloc ((size_t) total + 1, 1);
+  vis = malloc (((size_t) total + 1) * sizeof (*vis));
+  if (!hidden || !right || !seen || !vis)
+    {
+      builtin_error ("out of memory");
+      rc = EXECUTION_FAILURE;
+      goto cleanup;
+    }
+  if (n_rows > 0
+      && ((table_spec[1] && bcol_columns (table_spec[1], &names, total, NULL, hidden, NULL, NULL) < 0)
+          || (table_spec[2] && bcol_columns (table_spec[2], &names, total, hidden, seen, vis, &n_vis) < 0)
+          || (table_spec[0] && bcol_columns (table_spec[0], &names, total, hidden, right, NULL, NULL) < 0)))
+    {
+      rc = EXECUTION_FAILURE;
+      goto cleanup;
+    }
+  for (int k = 0; k < total; k++)
+    if (!seen[k])
+      vis[n_vis++] = k;
+  {
+    int kept = 0;
+    for (int i = 0; i < n_vis; i++)
+      if (!hidden[vis[i]])
+        vis[kept++] = vis[i];
+    n_vis = kept;
+  }
+
   if (jflag)
     {
       if (rc == EXECUTION_SUCCESS)
-        bcol_json (rows, n_rows, &names, tname ? tname : "table");
-      n_cols = 0;
+        bcol_json (rows, n_rows, &names, tname ? tname : "table", vis, n_vis);
+      n_vis = 0;
     }
   for (int r = 0; r < n_rows && !jflag; r++)
     {
-      for (int k = 0; k < n_cols; k++)
+      for (int i = 0; i < n_vis; i++)
         {
+          int k = vis[i];
           const char *field = k < rows[r].n ? rows[r].fields[k] : "";
+          int last = i + 1 == n_vis;
+          size_t pad = colw[k] - bcol_width (field);
+          if (right[k] && (*field || !last))
+            for (size_t p = 0; p < pad; p++) putchar (' ');
           fputs (field, stdout);
-          if (k + 1 < n_cols)
+          if (!last)
             {
-              size_t pad = colw[k] - bcol_width (field);
-              for (size_t p = 0; p < pad; p++) putchar (' ');
+              if (!right[k])
+                for (size_t p = 0; p < pad; p++) putchar (' ');
               fputs (outsep, stdout);
             }
         }
@@ -825,6 +1060,10 @@ columnar_cleanup:
     }
 
 cleanup:
+  free (hidden);
+  free (right);
+  free (seen);
+  free (vis);
   if (in_stdin)
     fclose (in_stdin);
   bcol_row_free (&names);
@@ -1098,7 +1337,8 @@ char *column_doc[] = {
   "Aligned-column formatter (util-linux column subset).",
   "",
   "    column [-x] [-c WIDTH] [FILE...]",
-  "    column -t [-s SEPSTR] [-o OUTSTR] [-N NAMES] [FILE...]",
+  "    column -t [-s SEPSTR] [-o OUTSTR] [-N NAMES] [-l NUM] [-R COLS] [-H COLS]",
+  "              [-O COLS] [FILE...]",
   "    column -J -N NAMES [-n NAME] [-s SEPSTR] [FILE...]",
   "    column --help | --version",
   "",
@@ -1116,6 +1356,14 @@ char *column_doc[] = {
   "  -J, --json  print the table as JSON; empty cells are null",
   "  -n NAME, --table-name=NAME",
   "              JSON table name (default table)",
+  "  -l NUM, --table-columns-limit=NUM",
+  "              at most NUM input columns; the last holds the rest of the line",
+  "  -R COLS, --table-right=COLS   right-align these columns",
+  "  -H COLS, --table-hide=COLS    do not print these columns ('-': unnamed ones)",
+  "  -O COLS, --table-order=COLS   print these columns first, in this order",
+  "              COLS is a comma-separated list of -N names, numbers from 1,",
+  "              ranges such as 1-3 (not -O), 0 for all (not -O) and -1 for",
+  "              the last visible column",
   "  --help      show usage",
   "  --version   show version",
   "",
@@ -1130,7 +1378,7 @@ struct builtin column_struct = {
   column_builtin,
   BUILTIN_ENABLED,
   column_doc,
-  "column [-x] [-c WIDTH] [-t [-s SEPSTR] [-o OUTSTR] [-N NAMES]] [-J -N NAMES [-n NAME]] [FILE...]",
+  "column [-x] [-c WIDTH] [-t [-s SEPSTR] [-o OUTSTR] [-N NAMES] [-l NUM] [-R|-H|-O COLS]] [-J -N NAMES [-n NAME]] [FILE...]",
   0
 };
 

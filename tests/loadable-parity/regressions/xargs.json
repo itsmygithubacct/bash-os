@@ -763,6 +763,17 @@
       "kind": "deferred",
       "purpose": "G65: -o/--open-tty reopens standard input as /dev/tty for each command.",
       "reason": "The runner has no controlling terminal; without one GNU xargs 4.10 aborts with status 125 while bash-os reports '/dev/tty' and exits 1. Checked by hand under script(1) on the reference host."
+    },
+    {
+      "id": "child-failure-messages-name-xargs",
+      "kind": "parity",
+      "purpose": "G73: a command that cannot be run (status 127) and a command killed by a signal (status 125) are reported with GNU xargs' \"xargs: \" prefix, not the builtin's internal name.",
+      "requires": [
+        "xargs"
+      ],
+      "script": "rc=0; xargs ./no-such-command </dev/null || rc=$?; echo rc=$rc\nrc=0; echo x | xargs /bin/sh -c 'kill -9 $$' || rc=$?; echo rc=$rc",
+      "expected_status": 0,
+      "stderr": "exact"
     }
   ]
 }

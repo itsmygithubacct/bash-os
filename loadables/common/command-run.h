@@ -79,7 +79,8 @@ bos_builtin_environment (char **envp)
     maybe_make_export_env ();
 }
 
-/* Returns only when PROGRAM is not an enabled builtin. The caller then uses
+/* Returns only when PROGRAM is not an enabled builtin (an enabled printf
+   runs as `coreutils printf` when that bundle is present). The caller then uses
    its existing exec path, including its own 126/127 error handling. A slash
    always requests an external executable. PROGRAM is separate from argv[0]
    so env --argv0 cannot change which builtin is selected. */
@@ -89,6 +90,19 @@ bos_run_builtin (const char *program, char **argv, char **envp)
     struct builtin *entry;
     if (strchr (program, '/') || !(entry = builtin_address_internal (program, 0)))
         return;
+    /* The external printf these wrappers stand in for is coreutils printf
+       (no -v, %q as 'a b'), not Bash's builtin: while printf is enabled,
+       run `coreutils printf`. A disabled printf still reaches PATH. */
+    const char *verb = NULL;
+    if (!strcmp (program, "printf")) {
+        struct builtin *cu = builtin_address_internal ("coreutils", 0);
+        if (!cu)
+            cu = builtin_address_internal ("bashcoreutils", 0);
+        if (cu) {
+            entry = cu;
+            verb = "printf";
+        }
+    }
 
     /* A wrapper may have called chdir without using Bash's cd builtin. */
     free (the_current_working_directory);
@@ -104,6 +118,8 @@ bos_run_builtin (const char *program, char **argv, char **envp)
         if (envp)
             bos_builtin_environment (envp);
         WORD_LIST *words = strvec_to_word_list (argv + 1, 1, 0);
+        if (verb)
+            words = make_word_list (make_word (verb), words);
         this_command_name = (char *) program;
         current_builtin = entry;
         this_shell_builtin = entry->function;

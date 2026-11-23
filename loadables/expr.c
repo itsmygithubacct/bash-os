@@ -14,9 +14,10 @@
  *                / non-empty operand, else last; & returns first if both
  *                truthy, else 0)
  *
- * v1 cuts: only the canonical POSIX surface; no GNU extensions. Output
- * always single-line. Exit 0 if value is non-zero/non-empty, 1 if zero/
- * empty, 2 on syntax error, 3 on internal error.
+ * GNU extensions: integers of any length (Debian's expr is GMP-linked),
+ * `+ TOKEN` quoting, keyword operands parsed as primaries. Exit 0 if value
+ * is non-zero/non-empty, 1 if zero/empty, 2 on syntax or argument error,
+ * 3 on other errors.
  *
  * --- LICENSE --- MIT, same boilerplate as binhex.c.
  */
@@ -38,13 +39,24 @@
 
 #include "loadables.h"
 
-/* Token / value type. POSIX expr operates on a stack of strings;
-   numeric ops parse the operands as integers on demand. */
+/* Token / value type. POSIX expr operates on a stack of strings; numeric
+   ops read the operands as integers on demand. An integer is an optional
+   '-' followed by one or more decimal digits, of any length (as Debian's
+   GMP-linked GNU expr accepts). */
 typedef struct {
     char *s;         /* string form (always present, malloc'd) */
-    int   is_num;    /* 1 if the string parses cleanly as long long */
-    long long n;     /* cached numeric form */
+    int   is_num;    /* 1 if the string is an integer of any length */
 } bex_val;
+
+static int
+bex_is_integer (const char *s)
+{
+    if (*s == '-') s++;
+    if (!*s) return 0;
+    for (; *s; s++)
+        if (*s < '0' || *s > '9') return 0;
+    return 1;
+}
 
 static bex_val
 bex_make (const char *s)
@@ -52,43 +64,281 @@ bex_make (const char *s)
     bex_val v = { 0 };
     v.s = strdup (s ? s : "");
     if (!v.s) return v;
-    char *end;
-    errno = 0;
-    long long n = strtoll (v.s, &end, 10);
-    if (*v.s && *end == '\0' && errno == 0) { v.is_num = 1; v.n = n; }
+    v.is_num = bex_is_integer (v.s);
     return v;
 }
 
 static bex_val
 bex_from_ll (long long n)
 {
-    bex_val v = { 0 };
-    v.is_num = 1; v.n = n;
     char buf[32];
     snprintf (buf, sizeof buf, "%lld", n);
-    v.s = strdup (buf);
-    return v;
+    return bex_make (buf);
 }
 
 static void
 bex_free (bex_val *v) { free (v->s); v->s = NULL; }
 
+/* Null and every spelling of integer zero ("0", "-0", "00") are false. */
 static int
 bex_truthy (const bex_val *v)
 {
-    if (v->is_num) return v->n != 0;
+    if (v->is_num) {
+        for (const char *c = v->s; *c; c++)
+            if (*c >= '1' && *c <= '9') return 1;
+        return 0;
+    }
     return v->s && v->s[0] != '\0';
 }
 
 static int
-bex_require_num (const bex_val *v, long long *out)
+bex_require_num (const bex_val *v)
 {
     if (!v->is_num) {
         builtin_error ("non-integer argument");  /* matches GNU expr */
         return -1;
     }
-    *out = v->n;
     return 0;
+}
+
+/* --- Arbitrary-precision decimal integers. ---------------------------
+   A magnitude is an array of decimal digits, least significant first,
+   with no leading zeros (zero is the single digit 0). Schoolbook
+   algorithms throughout; expr operands are short. */
+typedef struct {
+    int neg;
+    size_t len;
+    unsigned char *d;
+} bex_num;
+
+static void
+bex_num_free (bex_num *n) { free (n->d); n->d = NULL; n->len = 0; }
+
+static void
+bex_num_trim (bex_num *n)
+{
+    while (n->len > 1 && n->d[n->len - 1] == 0) n->len--;
+    if (n->len == 1 && n->d[0] == 0) n->neg = 0;
+}
+
+static int
+bex_num_alloc (bex_num *n, size_t len)
+{
+    n->neg = 0;
+    n->len = len ? len : 1;
+    n->d = (unsigned char *) calloc (n->len, 1);
+    return n->d ? 0 : -1;
+}
+
+/* S must satisfy bex_is_integer. */
+static int
+bex_num_parse (const char *s, bex_num *n)
+{
+    int neg = (*s == '-');
+    if (neg) s++;
+    while (*s == '0' && s[1]) s++;
+    size_t len = strlen (s);
+    if (bex_num_alloc (n, len) < 0) return -1;
+    for (size_t i = 0; i < len; i++)
+        n->d[i] = (unsigned char) (s[len - 1 - i] - '0');
+    n->neg = neg;
+    bex_num_trim (n);
+    return 0;
+}
+
+static char *
+bex_num_str (const bex_num *n)
+{
+    char *s = (char *) malloc (n->len + 2), *p = s;
+    if (!s) return NULL;
+    if (n->neg) *p++ = '-';
+    for (size_t i = n->len; i > 0; i--)
+        *p++ = (char) ('0' + n->d[i - 1]);
+    *p = '\0';
+    return s;
+}
+
+static int
+bex_mag_cmp (const bex_num *a, const bex_num *b)
+{
+    if (a->len != b->len) return a->len < b->len ? -1 : 1;
+    for (size_t i = a->len; i > 0; i--)
+        if (a->d[i - 1] != b->d[i - 1]) return a->d[i - 1] < b->d[i - 1] ? -1 : 1;
+    return 0;
+}
+
+static int
+bex_num_cmp (const bex_num *a, const bex_num *b)
+{
+    if (a->neg != b->neg) return a->neg ? -1 : 1;
+    int c = bex_mag_cmp (a, b);
+    return a->neg ? -c : c;
+}
+
+/* R = |A| + |B| */
+static int
+bex_mag_add (const bex_num *a, const bex_num *b, bex_num *r)
+{
+    size_t len = (a->len > b->len ? a->len : b->len) + 1;
+    if (bex_num_alloc (r, len) < 0) return -1;
+    int carry = 0;
+    for (size_t i = 0; i < len; i++) {
+        int s = carry + (i < a->len ? a->d[i] : 0) + (i < b->len ? b->d[i] : 0);
+        r->d[i] = (unsigned char) (s % 10);
+        carry = s / 10;
+    }
+    bex_num_trim (r);
+    return 0;
+}
+
+/* R = |A| - |B|, with |A| >= |B| */
+static int
+bex_mag_sub (const bex_num *a, const bex_num *b, bex_num *r)
+{
+    if (bex_num_alloc (r, a->len) < 0) return -1;
+    int borrow = 0;
+    for (size_t i = 0; i < a->len; i++) {
+        int s = a->d[i] - borrow - (i < b->len ? b->d[i] : 0);
+        borrow = s < 0;
+        r->d[i] = (unsigned char) (s + (borrow ? 10 : 0));
+    }
+    bex_num_trim (r);
+    return 0;
+}
+
+/* R = A + B, or A - B when SUBTRACT. */
+static int
+bex_num_addsub (const bex_num *a, const bex_num *b, int subtract, bex_num *r)
+{
+    int bneg = b->neg ^ subtract;
+    if (a->neg == bneg) {
+        if (bex_mag_add (a, b, r) < 0) return -1;
+        r->neg = a->neg;
+    } else if (bex_mag_cmp (a, b) >= 0) {
+        if (bex_mag_sub (a, b, r) < 0) return -1;
+        r->neg = a->neg;
+    } else {
+        if (bex_mag_sub (b, a, r) < 0) return -1;
+        r->neg = bneg;
+    }
+    bex_num_trim (r);
+    return 0;
+}
+
+static int
+bex_num_mul (const bex_num *a, const bex_num *b, bex_num *r)
+{
+    size_t len = a->len + b->len;
+    unsigned *acc = (unsigned *) calloc (len, sizeof *acc);
+    if (!acc || bex_num_alloc (r, len) < 0) { free (acc); return -1; }
+    for (size_t i = 0; i < a->len; i++) {
+        unsigned carry = 0;
+        for (size_t j = 0; j < b->len; j++) {
+            unsigned t = acc[i + j] + (unsigned) a->d[i] * b->d[j] + carry;
+            acc[i + j] = t % 10;
+            carry = t / 10;
+        }
+        for (size_t k = i + b->len; carry; k++) {
+            unsigned t = acc[k] + carry;
+            acc[k] = t % 10;
+            carry = t / 10;
+        }
+    }
+    for (size_t i = 0; i < len; i++) r->d[i] = (unsigned char) acc[i];
+    free (acc);
+    r->neg = a->neg != b->neg;
+    bex_num_trim (r);
+    return 0;
+}
+
+/* Q = A / B truncated toward zero; M = A - Q*B (the sign of A).
+   B must be nonzero. */
+static int
+bex_num_divmod (const bex_num *a, const bex_num *b, bex_num *q, bex_num *m)
+{
+    bex_num rem, bmag = *b;
+    bmag.neg = 0;
+    if (bex_num_alloc (q, a->len) < 0) return -1;
+    if (bex_num_alloc (&rem, b->len + 1) < 0) { bex_num_free (q); return -1; }
+    rem.len = 1;
+    for (size_t i = a->len; i > 0; i--) {
+        /* rem = rem * 10 + next digit */
+        if (!(rem.len == 1 && rem.d[0] == 0)) {
+            memmove (rem.d + 1, rem.d, rem.len);
+            rem.len++;
+        }
+        rem.d[0] = a->d[i - 1];
+        bex_num_trim (&rem);
+        unsigned char digit = 0;
+        while (bex_mag_cmp (&rem, &bmag) >= 0) {
+            int borrow = 0;
+            for (size_t k = 0; k < rem.len; k++) {
+                int s = rem.d[k] - borrow - (k < bmag.len ? bmag.d[k] : 0);
+                borrow = s < 0;
+                rem.d[k] = (unsigned char) (s + (borrow ? 10 : 0));
+            }
+            bex_num_trim (&rem);
+            digit++;
+        }
+        q->d[i - 1] = digit;
+    }
+    q->neg = a->neg != b->neg;
+    bex_num_trim (q);
+    rem.neg = a->neg;
+    bex_num_trim (&rem);
+    *m = rem;
+    return 0;
+}
+
+/* Apply the arithmetic operator OP to the integer strings L and R. */
+static bex_val
+bex_arith (const char *op, const bex_val *l, const bex_val *r, int *err)
+{
+    bex_num a = { 0 }, b = { 0 }, q = { 0 }, m = { 0 };
+    bex_val out = { 0 };
+    int bad = 0;
+
+    if (bex_num_parse (l->s, &a) < 0 || bex_num_parse (r->s, &b) < 0)
+        bad = 1;
+    else if ((*op == '/' || *op == '%') && b.len == 1 && b.d[0] == 0) {
+        builtin_error ("division by zero");
+        *err = 2;
+        goto done;
+    } else if (*op == '+' || *op == '-')
+        bad = bex_num_addsub (&a, &b, *op == '-', &q) < 0;
+    else if (*op == '*')
+        bad = bex_num_mul (&a, &b, &q) < 0;
+    else
+        bad = bex_num_divmod (&a, &b, &q, &m) < 0;
+    if (!bad) {
+        char *s = bex_num_str (*op == '%' ? &m : &q);
+        if (s) {
+            out = bex_make (s);
+            free (s);
+        }
+        bad = out.s == NULL;
+    }
+    if (bad) {
+        builtin_error ("out of memory");
+        *err = 3;
+    }
+done:
+    bex_num_free (&a); bex_num_free (&b); bex_num_free (&q); bex_num_free (&m);
+    return out.s ? out : bex_make ("");
+}
+
+/* A substr POS or LEN: a positive integer clamped to LLONG_MAX, or 0 for
+   anything else (zero, negative or not an integer), which yields "". */
+static long long
+bex_count (const bex_val *v)
+{
+    if (!v->is_num || v->s[0] == '-') return 0;
+    long long n = 0;
+    for (const char *c = v->s; *c; c++) {
+        if (n > (LLONG_MAX - (*c - '0')) / 10) return LLONG_MAX;
+        n = n * 10 + (*c - '0');
+    }
+    return n;
 }
 
 #if defined (__GLIBC__)
@@ -1580,6 +1830,16 @@ bex_need_operand (bex_parser *p, const char *op)
     return 0;
 }
 
+/* A regular-expression failure, in the C library's words. */
+static void
+bex_regex_error (int code, regex_t *r, bex_parser *p)
+{
+    char msg[256];
+    regerror (code, r, msg, sizeof msg);
+    builtin_error ("%s", msg);
+    p->err = 2;
+}
+
 /* GNU expr threads a `bool evaluate` flag through every level: `|` and `&`
    short-circuit by evaluating the other operand only when needed, and a
    short-circuited (evaluate==0) branch still PARSES its tokens but performs
@@ -1588,18 +1848,31 @@ bex_need_operand (bex_parser *p, const char *op)
    errors (missing operand, unbalanced parens) fire regardless. */
 static bex_val bex_parse_or (bex_parser *p, int evaluate);
 
-/* primary: NUMBER | STRING | ( EXPR ) | length STR | substr S P L | index S C | match S RE */
+/* primary: + TOKEN | ( EXPR ) | length P | substr P P P | index P P
+            | match P P | STRING, where each P is itself a primary. */
 static bex_val
 bex_parse_primary (bex_parser *p, int evaluate)
 {
     const char *w = bex_take (p);
     if (!w) {
-        builtin_error ("syntax error: missing operand");
+        builtin_error ("syntax error: missing argument after '%s'", p->last);
         p->err = 2;
         return bex_make ("");
     }
+    /* `+ TOKEN` (GNU): TOKEN is a string even when it is a keyword or an
+       operator. */
+    if (!strcmp (w, "+")) {
+        const char *t = bex_take (p);
+        if (!t) {
+            builtin_error ("syntax error: missing argument after '%s'", w);
+            p->err = 2;
+            return bex_make ("");
+        }
+        return bex_make (t);
+    }
     if (!strcmp (w, "(")) {
         bex_val v = bex_parse_or (p, evaluate);
+        if (p->err) return v;
         const char *r = bex_take (p);
         if (!r) {
             builtin_error ("syntax error: expecting ')' after '%s'", p->last);
@@ -1610,53 +1883,69 @@ bex_parse_primary (bex_parser *p, int evaluate)
         }
         return v;
     }
+    if (!strcmp (w, ")")) {
+        builtin_error ("syntax error: unexpected ')'");
+        p->err = 2;
+        return bex_make ("");
+    }
+    int nargs = !strcmp (w, "length") ? 1
+              : !strcmp (w, "substr") ? 3
+              : (!strcmp (w, "index") || !strcmp (w, "match")) ? 2 : 0;
+    if (nargs == 0)
+        return bex_make (w);
+
+    /* A keyword function: its operands are primaries of their own. */
+    bex_val a[3] = { { 0 }, { 0 }, { 0 } };
+    for (int i = 0; i < nargs; i++) {
+        a[i] = bex_parse_primary (p, evaluate);
+        if (p->err) {
+            for (int k = 0; k <= i; k++) bex_free (&a[k]);
+            return bex_make ("");
+        }
+    }
+    bex_val v;
     if (!strcmp (w, "length")) {
-        const char *s = bex_take (p);
-        if (!s) { builtin_error ("syntax error: missing argument after '%s'", p->last); p->err = 2; return bex_make (""); }
-        return bex_from_ll ((long long) strlen (s));
-    }
-    if (!strcmp (w, "substr")) {
-        const char *s = bex_take (p);
-        if (!s) { builtin_error ("syntax error: missing argument after '%s'", p->last); p->err = 2; return bex_make (""); }
-        const char *ps = bex_take (p);
-        if (!ps) { builtin_error ("syntax error: missing argument after '%s'", p->last); p->err = 2; return bex_make (""); }
-        const char *ls = bex_take (p);
-        if (!ls) { builtin_error ("syntax error: missing argument after '%s'", p->last); p->err = 2; return bex_make (""); }
-        long long pos = atoll (ps), len = atoll (ls);
-        long long slen = (long long) strlen (s);
-        if (pos < 1 || pos > slen || len < 1) return bex_make ("");
-        long long avail = slen - (pos - 1);
-        if (len > avail) len = avail;
-        char *out = malloc ((size_t) len + 1);
-        if (!out) { builtin_error ("out of memory"); p->err = 2; return bex_make (""); }
-        memcpy (out, s + (pos - 1), (size_t) len);
-        out[len] = '\0';
-        bex_val v = bex_make (out);
-        free (out);
-        return v;
-    }
-    if (!strcmp (w, "index")) {
-        const char *s = bex_take (p);
-        if (!s) { builtin_error ("syntax error: missing argument after '%s'", p->last); p->err = 2; return bex_make (""); }
-        const char *c = bex_take (p);
-        if (!c) { builtin_error ("syntax error: missing argument after '%s'", p->last); p->err = 2; return bex_make (""); }
-        for (long long i = 0; s[i]; i++)
-            if (strchr (c, s[i])) return bex_from_ll (i + 1);
-        return bex_from_ll (0);
-    }
-    if (!strcmp (w, "match")) {
-        const char *s = bex_take (p);
-        if (!s) { builtin_error ("syntax error: missing argument after '%s'", p->last); p->err = 2; return bex_make (""); }
-        const char *re = bex_take (p);
-        if (!re) { builtin_error ("syntax error: missing argument after '%s'", p->last); p->err = 2; return bex_make (""); }
-        if (!evaluate) return bex_make ("");  /* short-circuited: tokens consumed, value unused */
+        v = bex_from_ll ((long long) strlen (a[0].s));
+    } else if (!strcmp (w, "substr")) {
+        long long pos = bex_count (&a[1]), len = bex_count (&a[2]);
+        long long slen = (long long) strlen (a[0].s);
+        if (pos < 1 || pos > slen || len < 1)
+            v = bex_make ("");
+        else {
+            long long avail = slen - (pos - 1);
+            if (len > avail) len = avail;
+            char *out = malloc ((size_t) len + 1);
+            if (!out) {
+                builtin_error ("out of memory");
+                p->err = 3;
+                v = bex_make ("");
+            } else {
+                memcpy (out, a[0].s + (pos - 1), (size_t) len);
+                out[len] = '\0';
+                v = bex_make (out);
+                free (out);
+            }
+        }
+    } else if (!strcmp (w, "index")) {
+        long long at = 0;
+        for (long long i = 0; a[0].s[i]; i++)
+            if (strchr (a[1].s, a[0].s[i])) { at = i + 1; break; }
+        v = bex_from_ll (at);
+    } else if (!evaluate) {
+        v = bex_make ("");   /* short-circuited match: tokens consumed, value unused */
+    } else {
         regex_t r;
-        if (regcomp (&r, re, 0) != 0) { builtin_error ("bad regex: %s", re); p->err = 2; return bex_make (""); }
-        bex_val v = bex_regex_result (&r, s, re, &p->err);
-        regfree (&r);
-        return v;
+        int code = regcomp (&r, a[1].s, 0);
+        if (code != 0) {
+            bex_regex_error (code, &r, p);
+            v = bex_make ("");
+        } else {
+            v = bex_regex_result (&r, a[0].s, a[1].s, &p->err);
+            regfree (&r);
+        }
     }
-    return bex_make (w);
+    for (int k = 0; k < nargs; k++) bex_free (&a[k]);
+    return v;
 }
 
 /* `:` regex match: STR : RE — POSIX shape. Same semantics as `match`. */
@@ -1664,13 +1953,14 @@ static bex_val
 bex_parse_re (bex_parser *p, int evaluate)
 {
     bex_val l = bex_parse_primary (p, evaluate);
-    while (p->cur && !strcmp (p->cur->word->word, ":")) {
+    while (!p->err && p->cur && !strcmp (p->cur->word->word, ":")) {
         bex_take (p);
         if (bex_need_operand (p, ":")) { return l; }
         bex_val r = bex_parse_primary (p, evaluate);
-        if (!evaluate) { bex_free (&r); continue; }  /* short-circuited: keep l, skip match */
+        if (p->err || !evaluate) { bex_free (&r); continue; }  /* short-circuited: keep l, skip match */
         regex_t rg;
-        if (regcomp (&rg, r.s, 0) != 0) { builtin_error ("bad regex: %s", r.s); p->err = 2; bex_free (&l); bex_free (&r); return bex_make (""); }
+        int code = regcomp (&rg, r.s, 0);
+        if (code != 0) { bex_regex_error (code, &rg, p); bex_free (&l); bex_free (&r); return bex_make (""); }
         bex_val out = bex_regex_result (&rg, l.s, r.s, &p->err);
         regfree (&rg);
         bex_free (&l); bex_free (&r);
@@ -1679,25 +1969,32 @@ bex_parse_re (bex_parser *p, int evaluate)
     return l;
 }
 
+/* One arithmetic step for the * / % and + - levels. */
+static int
+bex_arith_step (bex_parser *p, const char *op, bex_val *l, bex_val *r)
+{
+    if (bex_require_num (l) < 0 || bex_require_num (r) < 0) {
+        p->err = 2;
+        return -1;
+    }
+    bex_val n = bex_arith (op, l, r, &p->err);
+    bex_free (l); bex_free (r);
+    *l = n;
+    return p->err ? -1 : 0;
+}
+
 static bex_val
 bex_parse_mul (bex_parser *p, int evaluate)
 {
     bex_val l = bex_parse_re (p, evaluate);
-    while (p->cur) {
+    while (!p->err && p->cur) {
         const char *op = p->cur->word->word;
         if (strcmp (op, "*") && strcmp (op, "/") && strcmp (op, "%")) break;
         bex_take (p);
         if (bex_need_operand (p, op)) { return l; }
         bex_val r = bex_parse_re (p, evaluate);
-        if (!evaluate) { bex_free (&r); continue; }  /* short-circuited: no arith/div0 */
-        long long a, b;
-        if (bex_require_num (&l, &a) < 0 || bex_require_num (&r, &b) < 0) { p->err = 2; bex_free (&l); bex_free (&r); return bex_make (""); }
-        long long n;
-        if      (!strcmp (op, "*")) n = a * b;
-        else if (!strcmp (op, "/")) { if (!b) { builtin_error ("division by zero"); p->err = 2; bex_free (&l); bex_free (&r); return bex_make (""); } n = a / b; }
-        else                         { if (!b) { builtin_error ("division by zero"); p->err = 2; bex_free (&l); bex_free (&r); return bex_make (""); } n = a % b; }
-        bex_free (&l); bex_free (&r);
-        l = bex_from_ll (n);
+        if (p->err || !evaluate) { bex_free (&r); continue; }  /* short-circuited: no arith/div0 */
+        if (bex_arith_step (p, op, &l, &r) < 0) { bex_free (&r); return l; }
     }
     return l;
 }
@@ -1706,18 +2003,14 @@ static bex_val
 bex_parse_add (bex_parser *p, int evaluate)
 {
     bex_val l = bex_parse_mul (p, evaluate);
-    while (p->cur) {
+    while (!p->err && p->cur) {
         const char *op = p->cur->word->word;
         if (strcmp (op, "+") && strcmp (op, "-")) break;
         bex_take (p);
         if (bex_need_operand (p, op)) { return l; }
         bex_val r = bex_parse_mul (p, evaluate);
-        if (!evaluate) { bex_free (&r); continue; }  /* short-circuited: no arith */
-        long long a, b;
-        if (bex_require_num (&l, &a) < 0 || bex_require_num (&r, &b) < 0) { p->err = 2; bex_free (&l); bex_free (&r); return bex_make (""); }
-        long long n = !strcmp (op, "+") ? a + b : a - b;
-        bex_free (&l); bex_free (&r);
-        l = bex_from_ll (n);
+        if (p->err || !evaluate) { bex_free (&r); continue; }  /* short-circuited: no arith */
+        if (bex_arith_step (p, op, &l, &r) < 0) { bex_free (&r); return l; }
     }
     return l;
 }
@@ -1726,32 +2019,32 @@ static bex_val
 bex_parse_cmp (bex_parser *p, int evaluate)
 {
     bex_val l = bex_parse_add (p, evaluate);
-    while (p->cur) {
+    while (!p->err && p->cur) {
         const char *op = p->cur->word->word;
         if (strcmp (op, "=") && strcmp (op, "!=") && strcmp (op, "<") &&
             strcmp (op, "<=") && strcmp (op, ">") && strcmp (op, ">=")) break;
         bex_take (p);
         if (bex_need_operand (p, op)) { return l; }
         bex_val r = bex_parse_add (p, evaluate);
-        if (!evaluate) { bex_free (&r); continue; }  /* short-circuited: skip compare */
-        int t;
+        if (p->err || !evaluate) { bex_free (&r); continue; }  /* short-circuited: skip compare */
+        int c, t;
         if (l.is_num && r.is_num) {
-            long long a = l.n, b = r.n;
-            if (!strcmp (op, "="))  t = (a == b);
-            else if (!strcmp (op, "!=")) t = (a != b);
-            else if (!strcmp (op, "<"))  t = (a <  b);
-            else if (!strcmp (op, "<=")) t = (a <= b);
-            else if (!strcmp (op, ">"))  t = (a >  b);
-            else                          t = (a >= b);
-        } else {
-            int c = strcmp (l.s, r.s);
-            if (!strcmp (op, "="))  t = (c == 0);
-            else if (!strcmp (op, "!=")) t = (c != 0);
-            else if (!strcmp (op, "<"))  t = (c <  0);
-            else if (!strcmp (op, "<=")) t = (c <= 0);
-            else if (!strcmp (op, ">"))  t = (c >  0);
-            else                          t = (c >= 0);
-        }
+            bex_num a = { 0 }, b = { 0 };
+            if (bex_num_parse (l.s, &a) < 0 || bex_num_parse (r.s, &b) < 0) {
+                builtin_error ("out of memory");
+                p->err = 3;
+                c = 0;
+            } else
+                c = bex_num_cmp (&a, &b);
+            bex_num_free (&a); bex_num_free (&b);
+        } else
+            c = strcoll (l.s, r.s);
+        if (!strcmp (op, "="))  t = (c == 0);
+        else if (!strcmp (op, "!=")) t = (c != 0);
+        else if (!strcmp (op, "<"))  t = (c <  0);
+        else if (!strcmp (op, "<=")) t = (c <= 0);
+        else if (!strcmp (op, ">"))  t = (c >  0);
+        else                          t = (c >= 0);
         bex_free (&l); bex_free (&r);
         l = bex_from_ll (t);
     }
@@ -1762,11 +2055,11 @@ static bex_val
 bex_parse_and (bex_parser *p, int evaluate)
 {
     bex_val l = bex_parse_cmp (p, evaluate);
-    while (p->cur && !strcmp (p->cur->word->word, "&")) {
+    while (!p->err && p->cur && !strcmp (p->cur->word->word, "&")) {
         bex_take (p);
         if (bex_need_operand (p, "&")) { return l; }
-        /* GNU eval1: evaluate the right operand only if the left is truthy
-           (a null/zero left short-circuits to 0). */
+        /* Evaluate the right operand only if the left is truthy (a
+           null/zero left short-circuits to 0). */
         bex_val r = bex_parse_cmp (p, evaluate && bex_truthy (&l));
         if (bex_truthy (&l) && bex_truthy (&r)) {
             bex_free (&r);
@@ -1783,18 +2076,18 @@ static bex_val
 bex_parse_or (bex_parser *p, int evaluate)
 {
     bex_val l = bex_parse_and (p, evaluate);
-    while (p->cur && !strcmp (p->cur->word->word, "|")) {
+    while (!p->err && p->cur && !strcmp (p->cur->word->word, "|")) {
         bex_take (p);
         if (bex_need_operand (p, "|")) { return l; }
-        /* GNU eval (top): evaluate the right operand only if the left is
-           null/zero; a truthy left short-circuits and returns the left. */
+        /* Evaluate the right operand only if the left is null/zero; a
+           truthy left short-circuits and returns the left. */
         bex_val r = bex_parse_and (p, evaluate && !bex_truthy (&l));
         if (bex_truthy (&l))
             bex_free (&r);
         else {
             bex_free (&l);
             l = r;
-            /* GNU: when the chosen (right) operand is itself null/zero, the
+            /* When the chosen (right) operand is itself null/zero, the
                result normalizes to "0" rather than the empty string. */
             if (!bex_truthy (&l)) { bex_free (&l); l = bex_from_ll (0); }
         }
@@ -1802,14 +2095,32 @@ bex_parse_or (bex_parser *p, int evaluate)
     return l;
 }
 
+extern char *expr_doc[];
+
 int
 expr_builtin (WORD_LIST *list)
 {
-	if (!list) {
-	    builtin_error ("missing operand");
-	    builtin_usage ();
-	    return 2;
-	}
+    /* A sole --help or --version (or an abbreviation) is an option. */
+    if (list && !list->next) {
+        const char *w = list->word->word;
+        size_t n = strlen (w);
+        if (n > 2 && !strncmp (w, "--help", n)) {
+            for (char **dp = expr_doc; *dp; dp++) puts (*dp);
+            return EXECUTION_SUCCESS;
+        }
+        if (n > 2 && !strncmp (w, "--version", n)) {
+            puts ("expr (bash-os) 0.1.5");
+            return EXECUTION_SUCCESS;
+        }
+    }
+    /* A leading "--" ends options (GNU); only the first one is skipped. */
+    if (list && !strcmp (list->word->word, "--"))
+        list = list->next;
+    if (!list) {
+        builtin_error ("missing operand");
+        fprintf (stderr, "Try 'expr --help' for more information.\n");
+        return 2;
+    }
     bex_parser p = { list, 0, "" };
     bex_val v = bex_parse_or (&p, 1);
     if (p.err) { bex_free (&v); return p.err; }
@@ -1821,6 +2132,11 @@ expr_builtin (WORD_LIST *list)
     puts (v.s);
     int rc = bex_truthy (&v) ? 0 : 1;
     bex_free (&v);
+    if (fflush (stdout) == EOF || ferror (stdout)) {
+        builtin_error ("write error: %s", strerror (errno ? errno : EIO));
+        clearerr (stdout);
+        return 3;
+    }
     return rc;
 }
 
@@ -1831,17 +2147,21 @@ char *expr_doc[] = {
     "",
     "Operators (POSIX precedence, lowest first):",
     "    | &                  — first-truthy / both-truthy logic",
-    "    = != < <= > >=       — comparison (numeric if both args parse)",
+    "    = != < <= > >=       — comparison (numeric if both args are integers)",
     "    + -                  — addition / subtraction",
-    "    * / %                — multiplication / division / modulo",
+    "    * / %                — multiplication / division / remainder",
     "    :                    — STR : RE BRE match (paren-1 capture or len)",
     "    ( ... )              — grouping",
     "",
-    "String functions:",
+    "Integers are an optional - and decimal digits, of any length; results",
+    "are exact (/ truncates toward zero, % takes the dividend's sign).",
+    "",
+    "String functions (each operand is itself a primary):",
     "    length STR           — byte count",
     "    substr STR POS LEN   — POS is 1-based",
     "    index STR CHARS      — first byte of STR matching any of CHARS",
     "    match STR RE         — same as STR : RE",
+    "    + TOKEN              — TOKEN as a string, even a keyword or operator",
     "",
     "On glibc, a pattern that would make regexec loop is an error (exit 2).",
     "That is a + or {n,} (n at least 1) on a group that can match empty,",
@@ -1853,7 +2173,7 @@ char *expr_doc[] = {
     "does not change it.",
     "",
     "Exit: 0 if result is non-zero/non-empty, 1 if zero/empty,",
-    "      2 on syntax error.",
+    "      2 on syntax or argument error, 3 on other errors (write, memory).",
     (char *)NULL
 };
 

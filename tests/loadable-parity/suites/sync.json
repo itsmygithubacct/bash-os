@@ -43,10 +43,10 @@
     {
       "id": "help-documentation",
       "kind": "contract",
-      "purpose": "Check the complete long help text against the pinned GNU Bash loadable's documented summary, named-file behavior, no-operand behavior, and exit status.",
+      "purpose": "Check the complete long help text against the pinned GNU Bash loadable's documented summary, named-file behavior, no-operand behavior, and exit status, and the -d/--data and -f/--file-system options added in guest pass 5 (G78).",
       "script": "help sync",
       "expected_status": 0,
-      "stdout": "sync: sync\n    Sync disks or specified files.\n    \n    If one or more FILEs is supplied, force completion of pending writes\n    to those files. Otherwise, force completion of any pending disk\n    writes.\n    \n    Exit Status: zero unless any FILE could not be synced.\n",
+      "stdout": "sync: sync\n    Sync disks or specified files.\n    \n    If one or more FILEs is supplied, force completion of pending writes\n    to those files. Otherwise, force completion of any pending disk\n    writes.\n    \n      -d, --data         sync only file data, no unneeded metadata\n      -f, --file-system  sync the file systems that contain the files\n    \n    Exit Status: zero unless any FILE could not be synced.\n",
       "stderr": "empty"
     },
     {

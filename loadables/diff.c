@@ -17,18 +17,29 @@
  *   -t, --tabsize N  expand tabs in output; --suppress-common-lines (-y);
  *   --strip-trailing-cr; --color[=WHEN] and --palette with GNU's default
  *              colours (rs=0:hd=1:ad=32:de=31:ln=36)
+ *   -T         a tab after each line's flag (--initial-tab)
+ *   -n         an RCS script (--rcs)
+ *   -D NAME    the merged file with #ifdef NAME groups (--ifdef)
+ *   --old-line-format, --new-line-format, --unchanged-line-format,
+ *   --line-format, --old-group-format, --new-group-format,
+ *   --unchanged-group-format, --changed-group-format: output laid out by
+ *              the % directives of the GNU diff manual
+ *   --from-file=FILE / --to-file=FILE  compare FILE with each operand
+ *   --no-dereference  compare symbolic links themselves
+ *   --left-column     -y: common lines once, in the left column
+ *   -d, --minimal     no shortcuts in the line matching (may be slow)
+ *   --horizon-lines=NUM  lines of the common ends kept in the comparison
  *
  * Default output is POSIX ed-style: 1c2 / 1a1 / 2d3 with `< old`,
  * `---`, `> new` markers. Unified and context output follow GNU diffutils
- * 3.10 byte for byte: headers with the file modification time, GNU's hunk
- * grouping and ranges, and GNU's shift_boundaries placement of changes.
+ * 3.10's layout: headers with the file modification time, its hunk
+ * grouping and ranges.
  *
  * Exit codes: 0 (same), 1 (differ), 2 (error). Per POSIX.
  *
- * Algorithm: GNU diffutils' own — identical prefix and suffix skipped,
- * equivalence classes, discard_confusing_lines, gnulib's linear-space
- * compareseq (Myers O(ND) from both ends, with its TOO_EXPENSIVE cutoff)
- * and shift_boundaries — so the edit script is the one GNU diff prints.
+ * Algorithm: Myers' O(ND) difference algorithm in its linear-space form
+ * (from the 1986 paper), with run placement after the GNU diff manual;
+ * see "Line matching" below.
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c.
@@ -59,14 +70,21 @@
 #include "loadables.h"
 #include "bl-output.h"
 
-enum { BD_NORMAL, BD_UNIFIED, BD_CONTEXT, BD_SBS, BD_ED };
+enum { BD_NORMAL, BD_UNIFIED, BD_CONTEXT, BD_SBS, BD_ED, BD_IFDEF, BD_RCS };
+/* The formats of the line and group format options, and -D. */
+enum { BD_F_OLD_LINE, BD_F_NEW_LINE, BD_F_UNCHANGED_LINE, BD_F_OLD_GROUP,
+       BD_F_NEW_GROUP, BD_F_UNCHANGED_GROUP, BD_F_CHANGED_GROUP, BD_F_N };
 typedef struct {
     int style;               /* BD_NORMAL, -u/-U, -c/-C, -y, -e */
     int qflag, iflag, rflag, wflag, bflag, zflag;
     int nflag, sflag, blank, aflag, minimal;
     int suppress_common;     /* --suppress-common-lines */
     int strip_cr;            /* --strip-trailing-cr */
+    int no_deref;            /* --no-dereference */
+    int left_column;         /* --left-column */
+    char *formats[BD_F_N];   /* format options as given; NULL for the default */
     long context;            /* -C/-U lines, -1 until set */
+    long horizon;            /* --horizon-lines */
     const char *labels[2];
     long width;              /* -W: side-by-side output width */
     const char *switches;    /* option words as given, for -r headers */
@@ -83,12 +101,15 @@ typedef struct { const unsigned char *data; size_t len; } bd_line;
 enum { BD_C_RS, BD_C_HD, BD_C_AD, BD_C_DE, BD_C_LN, BD_C_N };
 static struct {
     int expand_tabs;
+    int initial_tab;         /* -T */
     long tabsize;
     int color;
     char *palette[BD_C_N];
 } bd_out;
 static const char *const bd_color_names[BD_C_N] = { "rs", "hd", "ad", "de", "ln" };
 static const char *const bd_color_defaults[BD_C_N] = { "0", "1", "32", "31", "36" };
+/* Set by a comparison that ends the whole run (-D with two directories). */
+static int bd_fatal;
 
 static int
 bd_is_stdin (const char *path)
@@ -322,11 +343,26 @@ bd_format (bl_output *out, const char *format, ...)
     bl_output_write (out, buffer, (size_t) n);
 }
 
-/* A line's text; with -t, tabs become spaces as GNU's output_1_line
-   expands them, counting columns from the start of the text. After a
-   carriage return inside the line GNU writes the line's flag again: FLAG
-   is the "< ", "> " or "! " of normal and context output, NULL for the
-   one-character flags of unified output and for ed scripts. */
+/* A line's flag. With -T the blank after a two-character flag becomes a
+   tab, a one-character unified flag gets a tab after it, and the lone
+   ' ' of an unchanged unified line is replaced by the tab. */
+static void
+bd_prefix (bl_output *out, const char *prefix)
+{
+    size_t len = strlen (prefix);
+    if (!bd_out.initial_tab || !len) {
+        bl_output_write (out, prefix, len);
+        return;
+    }
+    if (len != 1 || prefix[0] != ' ') bl_output_byte (out, prefix[0]);
+    bl_output_byte (out, '\t');
+}
+
+/* A line's text; with -t, tabs become spaces, counting columns from the
+   start of the text. After a carriage return inside the line GNU writes
+   the line's flag again: FLAG is the "< ", "> " or "! " of normal and
+   context output, NULL for the one-character flags of unified output and
+   for ed scripts. */
 static void
 bd_write_text (bl_output *out, const bd_line *line, const char *flag)
 {
@@ -345,7 +381,7 @@ bd_write_text (bl_output *out, const bd_line *line, const char *flag)
         }
         if (c == '\r') {
             bl_output_byte (out, c);
-            if (flag && i + 1 < line->len) bd_text (out, flag);
+            if (flag && i + 1 < line->len) bd_prefix (out, flag);
             column = 0;
             continue;
         }
@@ -369,7 +405,7 @@ bd_color (bl_output *out, int which)
 static void
 bd_print_line (bl_output *out, const char *prefix, const bd_line *line)
 {
-    bd_text (out, prefix);
+    bd_prefix (out, prefix);
     bd_write_text (out, line, strlen (prefix) == 2 ? prefix : NULL);
     bl_output_byte (out, '\n');
 }
@@ -379,18 +415,55 @@ static void
 bd_print_line_c (bl_output *out, const char *prefix, const bd_line *line, int which)
 {
     if (which >= 0) bd_color (out, which);
-    bd_text (out, prefix);
+    bd_prefix (out, prefix);
     bd_write_text (out, line, strlen (prefix) == 2 ? prefix : NULL);
     if (which >= 0) bd_color (out, BD_C_RS);
     bl_output_byte (out, '\n');
 }
 
-typedef enum { BDOP_EQ, BDOP_DEL, BDOP_INS } bd_optype;
-typedef struct { bd_optype op; int la; int lb; } bd_op;
+/* ------------------------------------------------------------------
+   Line matching and change placement.
 
-/* One change as GNU diff's build_script makes it: DEL lines of A from LINE0
-   replaced by INS lines of B from LINE1. IGNORE marks a change that -B or
-   -I would hide. */
+   Written for bash-os from E. Myers, "An O(ND) Difference Algorithm and
+   Its Variations" (Algorithmica 1, 1986), section 4b, and from the
+   behaviour the GNU diff manual documents, checked by running GNU diff
+   on sample inputs; no other diff program's source was used.
+
+   1. Each line gets an equivalence class: two lines are equal when
+      bd_lineq says so (it honours -i, -b, -w and -Z) and, without those
+      white space options, an incomplete last line equals only another
+      incomplete last line.
+   2. The common prefix and suffix are matched as they stand (with
+      --horizon-lines, or the context of -c and -u, some of their lines
+      join the rest).
+   3. Without -d, a line between them whose class does not occur between
+      them in the other file can never be matched. Such lines are marked
+      changed at once and left out of the search, which then runs on
+      shorter sequences (two unrelated files take linear time) without
+      changing the number of lines the script changes.
+   4. The search is the paper's linear-space refinement: D-paths grow
+      from both corners of the edit graph at once until a forward path
+      meets a reverse one; the snake where they meet lies on an optimal
+      path, so it is matched and the parts before and after it are
+      solved the same way. Each part strips its own common ends first.
+      Diagonals are scanned from the highest (most deletions) down, so
+      the first meeting found decides between equally short scripts.
+      Without -d, a part whose cost passes a limit stops growing paths
+      and is split at the point that has come furthest instead; that
+      keeps the time near linear on large, very different inputs and may
+      give a longer script than -d.
+   5. Where a run of changed lines can slide over identical lines without
+      changing what the script does, it is placed as the manual describes:
+      joined with an adjacent run where it can be, otherwise facing a run
+      of changed lines in the other file, otherwise as far towards the end
+      of the file as it goes (never into the common prefix or suffix).
+
+   Time is O((N+M)D) for the search (bounded further by the limit
+   without -d) and space is linear. */
+
+/* One change, from the walk over the change flags: DEL lines of A from
+   LINE0 replaced by INS lines of B from LINE1. IGNORE marks a change
+   that -B or -I would hide. */
 typedef struct { int line0, del, line1, ins, ignore; } bd_change;
 
 typedef struct {
@@ -425,424 +498,466 @@ bd_re_match (regex_t *re, const bd_files *f, const bd_line *l)
 #endif
 }
 
-/* Equality of two lines of the same file, as GNU's equivalence classes. */
-static int
-bd_same (const bd_line *L, int len, int nonl, int x, int y, const bd_opts *o)
+/* A hash that agrees with bd_lineq: the bytes it compares, folded the
+   same way. */
+static unsigned long
+bd_line_key (const bd_line *l, const bd_opts *o)
 {
-    if (!bd_lineq (&L[x], &L[y], o)) return 0;
-    return bd_ws_mode (o) || (nonl && x == len - 1) == (nonl && y == len - 1);
+    unsigned long h = 5381;
+    size_t len = l->len;
+    const unsigned char *p = l->data;
+#define BD_MIX(c) (h = h * 33u ^ (unsigned char) (o->iflag ? tolower (c) : (c)))
+    if (o->wflag) {
+        for (size_t i = 0; i < len; i++)
+            if (!isspace (p[i])) BD_MIX (p[i]);
+    } else if (o->bflag) {
+        for (size_t i = 0; i < len; ) {
+            if (bd_space (p[i])) {
+                size_t j = i;
+                while (j < len && bd_space (p[j])) j++;
+                if (j < len) BD_MIX (' ');
+                i = j;
+            } else {
+                BD_MIX (p[i]);
+                i++;
+            }
+        }
+    } else {
+        if (o->zflag)
+            while (len && bd_space (p[len - 1])) len--;
+        for (size_t i = 0; i < len; i++) BD_MIX (p[i]);
+    }
+#undef BD_MIX
+    return h;
 }
 
-/* GNU's shift_boundaries: slide each run of changed lines back to merge
-   with an earlier run, then forward as far as it goes, and finally back to
-   line up with a run in the other file. CHANGED and OTHER have a zero
-   sentinel at index -1 and at their end. */
-static void
-bd_shift_boundaries (char *changed, const char *other, const bd_line *L,
-                     int i_end, int nonl, const bd_opts *o)
+/* Is line I of file X (0 for A) the incomplete last line, for equality? */
+static int
+bd_tail (const bd_files *f, const bd_opts *o, int x, long i)
 {
-    int i = 0, j = 0;
-    for (;;) {
-        int runlength, start, corresponding;
-        while (i < i_end && !changed[i]) {
-            while (other[j++])
-                continue;
-            i++;
+    if (bd_ws_mode (o)) return 0;
+    return x ? f->nonl_b && i == f->m - 1 : f->nonl_a && i == f->n - 1;
+}
+
+/* Number the classes of equal lines: CLS[0..n) for A, CLS[n..n+m) for B.
+   Returns the number of classes, or -1 when out of memory. */
+static int
+bd_classify (const bd_files *f, const bd_opts *o, int *cls)
+{
+    long total = (long) f->n + f->m;
+    size_t size = 16;
+    while (size < (size_t) total * 2) size *= 2;
+    long *table = calloc (size, sizeof *table);   /* line index + 1, or 0 */
+    if (!table) return -1;
+    int classes = 0;
+    for (long g = 0; g < total; g++) {
+        int x = g >= f->n;
+        long i = x ? g - f->n : g;
+        const bd_line *l = x ? &f->B[i] : &f->A[i];
+        int tail = bd_tail (f, o, x, i);
+        unsigned long h = bd_line_key (l, o) * 2 + (unsigned long) tail;
+        size_t at = h & (size - 1);
+        for (;;) {
+            long e = table[at];
+            if (!e) {
+                table[at] = g + 1;
+                cls[g] = classes++;
+                break;
+            }
+            long r = e - 1;
+            int rx = r >= f->n;
+            long ri = rx ? r - f->n : r;
+            if (bd_tail (f, o, rx, ri) == tail &&
+                bd_lineq (rx ? &f->B[ri] : &f->A[ri], l, o)) {
+                cls[g] = cls[r];
+                break;
+            }
+            at = (at + 1) & (size - 1);
         }
-        if (i == i_end) break;
-        start = i;
-        while (changed[++i])
-            continue;
-        while (other[j])
-            j++;
-        do {
-            runlength = i - start;
-            while (start && bd_same (L, i_end, nonl, start - 1, i - 1, o)) {
-                changed[--start] = 1;
-                changed[--i] = 0;
-                while (changed[start - 1])
-                    start--;
-                while (other[--j])
-                    continue;
+    }
+    free (table);
+    return classes;
+}
+
+/* The search state: class sequences A and B with their change flags, and
+   the furthest point reached on each diagonal by forward and reverse
+   paths. Diagonal K holds the points with x - y == K. */
+typedef struct {
+    const int *a, *b;
+    char *ca, *cb;
+    long *fv, *bv;           /* indexed by diagonal + the length of B + 1 */
+    long limit;              /* cost at which a search gives up */
+} bd_search;
+
+#define BD_NONE (-1L)        /* no path reaches this diagonal */
+
+/* Find where an optimal path through [xl,xh) x [yl,yh) crosses its
+   middle (the paper's "middle snake"), or, past the cost limit, a point
+   to split at. On return the part [*x0,*x1) of A matches [*y0,*y1) of B. */
+static void
+bd_middle (bd_search *s, long xl, long xh, long yl, long yh,
+           long *x0, long *y0, long *x1, long *y1)
+{
+    const int *a = s->a, *b = s->b;
+    long *fv = s->fv, *bv = s->bv;
+    long fk = xl - yl, bk = xh - yh, kmin = xl - yh, kmax = xh - yl;
+    int odd = (bk - fk) & 1;
+    long flo = fk, fhi = fk, blo = bk, bhi = bk;
+    long x, y;
+
+    /* D = 0: the snakes from each corner. */
+    for (x = xl, y = yl; x < xh && y < yh && a[x] == b[y]; x++, y++)
+        ;
+    fv[fk] = x;
+    for (x = xh, y = yh; x > xl && y > yl && a[x - 1] == b[y - 1]; x--, y--)
+        ;
+    bv[bk] = x;
+
+    for (long d = 1; ; d++) {
+        if (d > s->limit) {
+            /* Give up: split at the reached point furthest from its corner. */
+            long best = -1, bx = 0, by = 0;
+            for (long k = flo; k <= fhi; k += 2) {
+                if (fv[k] == BD_NONE) continue;
+                long px = fv[k], py = px - k;
+                if ((px - xl) + (py - yl) > best) { best = (px - xl) + (py - yl); bx = px; by = py; }
             }
-            corresponding = other[j - 1] ? i : i_end;
-            while (i != i_end && bd_same (L, i_end, nonl, start, i, o)) {
-                changed[start++] = 0;
-                changed[i++] = 1;
-                while (changed[i])
-                    i++;
-                while (other[++j])
-                    corresponding = i;
+            for (long k = blo; k <= bhi; k += 2) {
+                if (bv[k] == BD_NONE) continue;
+                long px = bv[k], py = px - k;
+                if ((xh - px) + (yh - py) > best) { best = (xh - px) + (yh - py); bx = px; by = py; }
             }
-        } while (runlength != i - start);
-        while (corresponding < i) {
-            changed[--start] = 1;
-            changed[--i] = 0;
-            while (other[--j])
-                continue;
+            *x0 = *x1 = bx;
+            *y0 = *y1 = by;
+            return;
+        }
+
+        /* Forward paths of cost D. */
+        long lo = fk - d < kmin ? kmin + ((kmin - (fk - d)) & 1) : fk - d;
+        long hi = fk + d > kmax ? kmax - (((fk + d) - kmax) & 1) : fk + d;
+        for (long k = hi; k >= lo; k -= 2) {
+            long right = BD_NONE, down = BD_NONE;
+            if (k - 1 >= flo && k - 1 <= fhi && fv[k - 1] != BD_NONE && fv[k - 1] < xh)
+                right = fv[k - 1] + 1;
+            if (k + 1 >= flo && k + 1 <= fhi && fv[k + 1] != BD_NONE && fv[k + 1] - k <= yh)
+                down = fv[k + 1];
+            x = right > down ? right : down;
+            if (x == BD_NONE) { fv[k] = BD_NONE; continue; }
+            y = x - k;
+            long sx = x, sy = y;
+            while (x < xh && y < yh && a[x] == b[y]) x++, y++;
+            fv[k] = x;
+            if (odd && k >= blo && k <= bhi && bv[k] != BD_NONE && x >= bv[k]) {
+                *x0 = sx; *y0 = sy; *x1 = x; *y1 = y;
+                return;
+            }
+        }
+        flo = lo; fhi = hi;
+
+        /* Reverse paths of cost D. */
+        lo = bk - d < kmin ? kmin + ((kmin - (bk - d)) & 1) : bk - d;
+        hi = bk + d > kmax ? kmax - (((bk + d) - kmax) & 1) : bk + d;
+        for (long k = hi; k >= lo; k -= 2) {
+            long up = BD_NONE, left = BD_NONE;
+            if (k - 1 >= blo && k - 1 <= bhi && bv[k - 1] != BD_NONE && bv[k - 1] - k >= yl)
+                up = bv[k - 1];
+            if (k + 1 >= blo && k + 1 <= bhi && bv[k + 1] != BD_NONE && bv[k + 1] > xl)
+                left = bv[k + 1] - 1;
+            if (up == BD_NONE) x = left;
+            else if (left == BD_NONE) x = up;
+            else x = up < left ? up : left;
+            if (x == BD_NONE) { bv[k] = BD_NONE; continue; }
+            y = x - k;
+            long ex = x, ey = y;
+            while (x > xl && y > yl && a[x - 1] == b[y - 1]) x--, y--;
+            bv[k] = x;
+            if (!odd && k >= flo && k <= fhi && fv[k] != BD_NONE && x <= fv[k]) {
+                *x0 = x; *y0 = y; *x1 = ex; *y1 = ey;
+                return;
+            }
+        }
+        blo = lo; bhi = hi;
+    }
+}
+
+/* Mark the changed lines of [xl,xh) x [yl,yh). The smaller part left by
+   each split is solved by recursion and the larger in the loop, so the
+   recursion is no deeper than log2 of the input size. */
+static void
+bd_solve (bd_search *s, long xl, long xh, long yl, long yh)
+{
+    for (;;) {
+        while (xl < xh && yl < yh && s->a[xl] == s->b[yl]) xl++, yl++;
+        while (xl < xh && yl < yh && s->a[xh - 1] == s->b[yh - 1]) xh--, yh--;
+        if (xl == xh) { while (yl < yh) s->cb[yl++] = 1; return; }
+        if (yl == yh) { while (xl < xh) s->ca[xl++] = 1; return; }
+        long x0, y0, x1, y1;
+        bd_middle (s, xl, xh, yl, yh, &x0, &y0, &x1, &y1);
+        if ((x0 - xl) + (y0 - yl) <= (xh - x1) + (yh - y1)) {
+            bd_solve (s, xl, x0, yl, y0);
+            xl = x1; yl = y1;
+        } else {
+            bd_solve (s, x1, xh, y1, yh);
+            xh = x0; yh = y0;
         }
     }
 }
 
-/* Is a deleted or inserted line one that -B or -I lets diff ignore? */
+/* Slide the runs of changed lines of one file X (classes CLS, flags CX,
+   N lines) over identical lines. CY are the other file's flags (M lines)
+   and UY[u] the index of its u-th unchanged line: the u-th unchanged
+   lines of the two files are matched. Runs stay within [LO, HI), the part
+   outside the common prefix and suffix.
+
+   A run that meets another run while sliding is joined with it, and the
+   joined run can slide further, so each run first goes up and down as far
+   as it can until it stops growing. It then rests at the lowest place
+   where it faces changed lines of the other file (so the two make one
+   change rather than a deletion and an insertion), or at the bottom when
+   there is no such place. */
+static void
+bd_slide (const int *cls, char *cx, long n, const char *cy, long m,
+          const long *uy, long lo, long hi)
+{
+    long i = 0, u = 0;           /* u: unchanged lines of X before i */
+#define BD_FACING(u) ((u) > 0 ? uy[(u) - 1] + 1 < m && cy[uy[(u) - 1] + 1] \
+                              : m > 0 && cy[0])
+    while (i < n) {
+        if (!cx[i]) { i++; u++; continue; }
+        long st = i, en = i, len;
+        while (en < n && cx[en]) en++;
+        do {
+            len = en - st;
+            while (st > lo && cls[st - 1] == cls[en - 1]) {
+                cx[--st] = 1;
+                cx[--en] = 0;
+                u--;
+                while (st > 0 && cx[st - 1]) st--;
+            }
+            while (en < hi && cls[st] == cls[en]) {
+                cx[st++] = 0;
+                cx[en++] = 1;
+                u++;
+                while (en < n && cx[en]) en++;
+            }
+        } while (en - st != len);
+        long bottom = st;
+        while (!BD_FACING (u) && st > lo && cls[st - 1] == cls[en - 1]) {
+            cx[--st] = 1;
+            cx[--en] = 0;
+            u--;
+        }
+        if (!BD_FACING (u))
+            while (st < bottom) {
+                cx[st++] = 0;
+                cx[en++] = 1;
+                u++;
+            }
+        i = en;
+    }
+#undef BD_FACING
+}
+
+/* Index of each unchanged line of a file with flags C and N lines. */
+static void
+bd_unchanged (const char *c, long n, long *u)
+{
+    long k = 0;
+    for (long i = 0; i < n; i++)
+        if (!c[i]) u[k++] = i;
+}
+
+/* Would -B or -I hide this line? */
 static int
 bd_trivial (const bd_files *f, const bd_line *l, const bd_opts *o)
 {
     if (o->blank) {
         size_t i = 0;
         if (bd_ws_mode (o))
-            while (i < l->len && (bd_space (l->data[i]) || l->data[i] == '\n')) i++;
+            while (i < l->len && isspace (l->data[i])) i++;
         if (i == l->len) return 1;
     }
     return o->ignore_re && bd_re_match (o->ignore_re, f, l);
 }
 
-/* Cross-file line equality: the comparison options, and a missing final
-   newline unless -b, -w or -Z ignore it. */
+/* Are line I of A and line J of B the same bytes, newline included? */
 static int
-bd_eqline (const bd_files *f, int fx, int x, int fy, int y, const bd_opts *o)
+bd_bytes_equal (const bd_files *f, long i, long j)
 {
-    const bd_line *lx = fx ? &f->B[x] : &f->A[x], *ly = fy ? &f->B[y] : &f->A[y];
-    if (!bd_lineq (lx, ly, o)) return 0;
-    if (bd_ws_mode (o)) return 1;
-    int nx = fx ? f->nonl_b && x == f->m - 1 : f->nonl_a && x == f->n - 1;
-    int ny = fy ? f->nonl_b && y == f->m - 1 : f->nonl_a && y == f->n - 1;
-    return nx == ny;
+    const bd_line *a = &f->A[i], *b = &f->B[j];
+    return a->len == b->len && !memcmp (a->data, b->data, a->len) &&
+           (f->nonl_a && i == f->n - 1) == (f->nonl_b && j == f->m - 1);
 }
 
-static unsigned long
-bd_hash (const bd_line *l, const bd_opts *o)
-{
-    unsigned long h = 5381;
-    size_t len = l->len;
-    if (o->wflag) {
-        for (size_t i = 0; i < len; i++)
-            if (!isspace (l->data[i]))
-                h = h * 33 + (unsigned) (o->iflag ? tolower (l->data[i]) : l->data[i]);
-        return h;
-    }
-    if (o->bflag || o->zflag)
-        while (len && bd_space (l->data[len - 1])) len--;
-    for (size_t i = 0; i < len; i++) {
-        int c = l->data[i];
-        if (o->bflag && bd_space (c)) {
-            while (i + 1 < len && bd_space (l->data[i + 1])) i++;
-            c = ' ';
-        }
-        h = h * 33 + (unsigned) (o->iflag ? tolower (c) : c);
-    }
-    return h;
-}
+typedef enum { BDOP_EQ, BDOP_DEL, BDOP_INS } bd_optype;
+typedef struct { bd_optype op; int la; int lb; } bd_op;
 
-/* GNU's diffseq (gnulib): find the midpoint of the shortest edit script
-   by searching from both ends, giving up for a "good enough" split once
-   the cost passes TOO_EXPENSIVE. */
-typedef struct {
-    const long *xv, *yv;       /* equivalence classes of undiscarded lines */
-    long *fd, *bd;             /* forward and backward diagonals */
-    long too_expensive;
-    char *c0, *c1;             /* changed flags, by real line */
-    const long *ri0, *ri1;     /* undiscarded index -> real line */
-} bd_seq;
-
-typedef struct { long xmid, ymid; int lo_minimal, hi_minimal; } bd_part;
-
-static void
-bd_diag (long xoff, long xlim, long yoff, long ylim, int find_minimal, bd_part *part, bd_seq *c)
-{
-    long *const fd = c->fd, *const bd = c->bd;
-    const long *xv = c->xv, *yv = c->yv;
-    const long dmin = xoff - ylim, dmax = xlim - yoff;
-    const long fmid = xoff - yoff, bmid = xlim - ylim;
-    long fmin = fmid, fmax = fmid, bmin = bmid, bmax = bmid;
-    int odd = (fmid - bmid) & 1;
-    fd[fmid] = xoff;
-    bd[bmid] = xlim;
-    for (long cost = 1;; ++cost) {
-        long d;
-        if (fmin > dmin) fd[--fmin - 1] = -1; else ++fmin;
-        if (fmax < dmax) fd[++fmax + 1] = -1; else --fmax;
-        for (d = fmax; d >= fmin; d -= 2) {
-            long x, y, tlo = fd[d - 1], thi = fd[d + 1];
-            long x0 = tlo < thi ? thi : tlo + 1;
-            for (x = x0, y = x0 - d; x < xlim && y < ylim && xv[x] == yv[y]; x++, y++)
-                continue;
-            fd[d] = x;
-            if (odd && bmin <= d && d <= bmax && bd[d] <= x) {
-                part->xmid = x; part->ymid = y;
-                part->lo_minimal = part->hi_minimal = 1;
-                return;
-            }
-        }
-        if (bmin > dmin) bd[--bmin - 1] = LONG_MAX; else ++bmin;
-        if (bmax < dmax) bd[++bmax + 1] = LONG_MAX; else --bmax;
-        for (d = bmax; d >= bmin; d -= 2) {
-            long x, y, tlo = bd[d - 1], thi = bd[d + 1];
-            long x0 = tlo < thi ? tlo : thi - 1;
-            for (x = x0, y = x0 - d; xoff < x && yoff < y && xv[x - 1] == yv[y - 1]; x--, y--)
-                continue;
-            bd[d] = x;
-            if (!odd && fmin <= d && d <= fmax && x <= fd[d]) {
-                part->xmid = x; part->ymid = y;
-                part->lo_minimal = part->hi_minimal = 1;
-                return;
-            }
-        }
-        if (find_minimal) continue;
-        if (cost >= c->too_expensive) {
-            long fxybest = -1, fxbest = 0, bxybest = LONG_MAX, bxbest = 0;
-            for (d = fmax; d >= fmin; d -= 2) {
-                long x = fd[d] < xlim ? fd[d] : xlim, y = x - d;
-                if (ylim < y) { x = ylim + d; y = ylim; }
-                if (fxybest < x + y) { fxybest = x + y; fxbest = x; }
-            }
-            for (d = bmax; d >= bmin; d -= 2) {
-                long x = xoff > bd[d] ? xoff : bd[d], y = x - d;
-                if (y < yoff) { x = yoff + d; y = yoff; }
-                if (x + y < bxybest) { bxybest = x + y; bxbest = x; }
-            }
-            if ((xlim + ylim) - bxybest < fxybest - (xoff + yoff)) {
-                part->xmid = fxbest; part->ymid = fxybest - fxbest;
-                part->lo_minimal = 1; part->hi_minimal = 0;
-            } else {
-                part->xmid = bxbest; part->ymid = bxybest - bxbest;
-                part->lo_minimal = 0; part->hi_minimal = 1;
-            }
-            return;
-        }
-    }
-}
-
-static void
-bd_compareseq (long xoff, long xlim, long yoff, long ylim, int find_minimal, bd_seq *c)
-{
-    const long *xv = c->xv, *yv = c->yv;
-    while (xoff < xlim && yoff < ylim && xv[xoff] == yv[yoff]) xoff++, yoff++;
-    while (xoff < xlim && yoff < ylim && xv[xlim - 1] == yv[ylim - 1]) xlim--, ylim--;
-    if (xoff == xlim)
-        while (yoff < ylim) c->c1[c->ri1[yoff++]] = 1;
-    else if (yoff == ylim)
-        while (xoff < xlim) c->c0[c->ri0[xoff++]] = 1;
-    else {
-        bd_part part;
-        bd_diag (xoff, xlim, yoff, ylim, find_minimal, &part, c);
-        bd_compareseq (xoff, part.xmid, yoff, part.ymid, part.lo_minimal, c);
-        bd_compareseq (part.xmid, xlim, part.ymid, ylim, part.hi_minimal, c);
-    }
-}
-
-/* GNU's discard_confusing_lines for one file: lines with no match in the
-   other file are certainly changed (1); lines with very many matches are
-   provisionally discardable (2) and stay only inside runs of the first. */
-static void
-bd_discards (char *discards, const long *eq, const long *other_count, long end)
-{
-    long many = 5, tem = end / 64;
-    while ((tem = tem >> 2) > 0) many *= 2;
-    for (long i = 0; i < end; i++) {
-        long nmatch = other_count[eq[i]];
-        if (nmatch == 0) discards[i] = 1;
-        else if (nmatch > many) discards[i] = 2;
-    }
-    for (long i = 0; i < end; i++) {
-        if (discards[i] == 2) discards[i] = 0;
-        else if (discards[i] != 0) {
-            long j, length, provisional = 0;
-            for (j = i; j < end; j++) {
-                if (discards[j] == 0) break;
-                if (discards[j] == 2) ++provisional;
-            }
-            while (j > i && discards[j - 1] == 2) discards[--j] = 0, --provisional;
-            length = j - i;
-            if (provisional * 4 > length) {
-                while (j > i)
-                    if (discards[--j] == 2) discards[j] = 0;
-            } else {
-                long consec, minimum = 1, t = length >> 2;
-                while (0 < (t >>= 2)) minimum <<= 1;
-                minimum++;
-                for (j = 0, consec = 0; j < length; j++)
-                    if (discards[i + j] != 2) consec = 0;
-                    else if (minimum == ++consec) j -= consec;
-                    else if (minimum < consec) discards[i + j] = 0;
-                for (j = 0, consec = 0; j < length; j++) {
-                    if (j >= 8 && discards[i + j] == 1) break;
-                    if (discards[i + j] == 2) consec = 0, discards[i + j] = 0;
-                    else if (discards[i + j] == 0) consec = 0;
-                    else consec++;
-                    if (consec == 3) break;
-                }
-                i += length - 1;
-                for (j = 0, consec = 0; j < length; j++) {
-                    if (j >= 8 && discards[i - j] == 1) break;
-                    if (discards[i - j] == 2) consec = 0, discards[i - j] = 0;
-                    else if (discards[i - j] == 0) consec = 0;
-                    else consec++;
-                    if (consec == 3) break;
-                }
-            }
-        }
-    }
-}
-
-/* Mark changed lines as GNU diff's diff_2_files does: skip the identical
-   prefix and suffix (keeping HORIZON lines of each, the context), put the
-   rest in equivalence classes, discard confusing lines, run compareseq. */
-static int
-bd_mark_changes (const bd_files *f, const bd_opts *o, char *c0, char *c1)
-{
-    long horizon = o->context > 0 ? o->context : 0;
-    long n = f->n, m = f->m, pre = 0, suf = 0;
-    while (pre < n && pre < m && f->A[pre].len == f->B[pre].len &&
-           !memcmp (f->A[pre].data, f->B[pre].data, f->A[pre].len) &&
-           (f->nonl_a && pre == n - 1) == (f->nonl_b && pre == m - 1))
-        pre++;
-    pre = pre > horizon ? pre - horizon : 0;
-    if (f->nonl_a == f->nonl_b) {
-        while (suf < n - pre && suf < m - pre &&
-               f->A[n - 1 - suf].len == f->B[m - 1 - suf].len &&
-               !memcmp (f->A[n - 1 - suf].data, f->B[m - 1 - suf].data, f->A[n - 1 - suf].len))
-            suf++;
-        suf = suf > horizon ? suf - horizon : 0;
-    }
-    long len0 = n - pre - suf, len1 = m - pre - suf;
-    int rc = -1;
-    long *eq0 = malloc (((size_t) (len0 + len1) + 1) * sizeof *eq0);
-    size_t tsize = 16;
-    while (tsize < (size_t) (len0 + len1) * 2) tsize *= 2;
-    long *table = malloc (tsize * sizeof *table);     /* -1 or file*2^.. index */
-    long *count = NULL, *und = NULL;
-    char *disc = NULL;
-    long *fdiag = NULL;
-    if (!eq0 || !table) goto out;
-    long *eq1 = eq0 + len0;
-    for (size_t k = 0; k < tsize; k++) table[k] = -1;
-    long classes = 0;
-    long *rep = malloc (((size_t) (len0 + len1) + 1) * sizeof *rep);  /* class -> line code */
-    if (!rep) goto out;
-    for (int fi = 0; fi < 2; fi++) {
-        long len = fi ? len1 : len0;
-        for (long i = 0; i < len; i++) {
-            const bd_line *l = fi ? &f->B[pre + i] : &f->A[pre + i];
-            size_t h = bd_hash (l, o) & (tsize - 1);
-            for (;;) {
-                if (table[h] < 0) {
-                    rep[classes] = fi ? -(pre + i) - 1 : pre + i;
-                    table[h] = classes++;
-                    break;
-                }
-                long r = rep[table[h]];
-                int rf = r < 0;
-                long ri = rf ? -r - 1 : r;
-                if (bd_eqline (f, rf, (int) ri, fi, (int) (pre + i), o)) break;
-                h = (h + 1) & (tsize - 1);
-            }
-            (fi ? eq1 : eq0)[i] = table[h];
-        }
-    }
-    free (rep);
-    count = calloc ((size_t) classes * 2 + 1, sizeof *count);
-    disc = calloc ((size_t) (len0 + len1) + 1, 1);
-    und = malloc (((size_t) (len0 + len1) + 1) * 2 * sizeof *und);
-    if (!count || !disc || !und) goto out;
-    long *count0 = count, *count1 = count + classes;
-    for (long i = 0; i < len0; i++) count0[eq0[i]]++;
-    for (long i = 0; i < len1; i++) count1[eq1[i]]++;
-    char *disc0 = disc, *disc1 = disc + len0;
-    bd_discards (disc0, eq0, count1, len0);
-    bd_discards (disc1, eq1, count0, len1);
-    long *u0 = und, *u1 = und + len0, *r0 = und + len0 + len1, *r1 = r0 + len0;
-    long nd0 = 0, nd1 = 0;
-    if (o->minimal) memset (disc, 0, (size_t) (len0 + len1));
-    for (long i = 0; i < len0; i++)
-        if (disc0[i]) c0[pre + i] = 1;
-        else { u0[nd0] = eq0[i]; r0[nd0++] = pre + i; }
-    for (long i = 0; i < len1; i++)
-        if (disc1[i]) c1[pre + i] = 1;
-        else { u1[nd1] = eq1[i]; r1[nd1++] = pre + i; }
-    long diags = nd0 + nd1 + 3;
-    fdiag = malloc ((size_t) diags * 2 * sizeof *fdiag);
-    if (!fdiag) goto out;
-    bd_seq sq;
-    sq.xv = u0; sq.yv = u1;
-    sq.fd = fdiag + nd1 + 1;
-    sq.bd = fdiag + diags + nd1 + 1;
-    long te = 1;
-    for (long dg = diags; dg != 0; dg >>= 2) te <<= 1;
-    sq.too_expensive = te > 4096 ? te : 4096;
-    sq.c0 = c0; sq.c1 = c1; sq.ri0 = r0; sq.ri1 = r1;
-    bd_compareseq (0, nd0, 0, nd1, o->minimal, &sq);
-    /* shift_boundaries works on the compared region only. */
-    {
-        bd_files sub = { f->A + pre, f->B + pre, (int) len0, (int) len1,
-                         f->nonl_a && suf == 0, f->nonl_b && suf == 0, NULL };
-        char save0 = c0[pre - 1], save1 = c1[pre - 1];
-        char end0 = c0[pre + len0], end1 = c1[pre + len1];
-        c0[pre - 1] = c1[pre - 1] = 0;
-        c0[pre + len0] = c1[pre + len1] = 0;
-        bd_shift_boundaries (c0 + pre, c1 + pre, sub.A, sub.n, sub.nonl_a, o);
-        bd_shift_boundaries (c1 + pre, c0 + pre, sub.B, sub.m, sub.nonl_b, o);
-        c0[pre - 1] = save0; c1[pre - 1] = save1;
-        c0[pre + len0] = end0; c1[pre + len1] = end1;
-    }
-    rc = 0;
-out:
-    if (rc < 0) builtin_error ("out of memory comparing files");
-    free (eq0);
-    free (table);
-    free (count);
-    free (disc);
-    free (und);
-    free (fdiag);
-    return rc;
-}
-
-/* Turn the changed flags into GNU's change list. OPS gets the edit
-   script in canonical order (deletions before insertions in each change)
-   for the side-by-side writer. Returns the count, or -1 on error. */
+/* Compare the files: the list of changes (returned count, -1 when out of
+   memory) and the line-by-line operations that -y lays out. */
 static int
 bd_changes (const bd_files *f, const bd_opts *o, bd_change **out, bd_op **ops_out, int *n_ops)
 {
-    *out = NULL;
-    *ops_out = NULL;
-    *n_ops = 0;
-    char *f0 = calloc ((size_t) f->n + 2, 1), *f1 = calloc ((size_t) f->m + 2, 1);
-    bd_change *ch = malloc (((size_t) f->n + f->m + 1) * sizeof *ch);
-    bd_op *ops = malloc (((size_t) f->n + f->m + 1) * sizeof *ops);
-    if (!f0 || !f1 || !ch || !ops) {
-        free (f0); free (f1); free (ch); free (ops);
-        builtin_error ("out of memory comparing files");
-        return -1;
+    long n = f->n, m = f->m;
+    int *cls = malloc (((size_t) n + m + 1) * sizeof *cls);
+    int *count = NULL, *ra = NULL;
+    long *ia = NULL, *vec = NULL, *uy = NULL;
+    char *ca = calloc ((size_t) n + m + 2, 1);
+    bd_change *ch = NULL;
+    bd_op *ops = NULL;
+    int nch = -1;
+    if (!cls || !ca) goto oom;
+    char *cb = ca + n + 1;
+    int classes = bd_classify (f, o, cls);
+    if (classes < 0) goto oom;
+    const int *ea = cls, *eb = cls + n;
+
+    /* The common prefix and suffix of byte-identical lines (lines that
+       are only equal under -i, -b, -w or -Z do not count here; GNU diff
+       behaves the same), less the lines --horizon-lines (or the context
+       of -c and -u, as in GNU diff) keeps next to the rest: those lines
+       count when judging which lines have no counterpart, and runs may
+       slide into them. Lines equal under the options are matched by the
+       search, which strips equal ends of each part it is given. */
+    long pre = 0, suf = 0;
+    while (pre < n && pre < m && bd_bytes_equal (f, pre, pre)) pre++;
+    while (suf < n - pre && suf < m - pre && bd_bytes_equal (f, n - 1 - suf, m - 1 - suf)) suf++;
+    long keep = o->horizon;
+    if ((o->style == BD_UNIFIED || o->style == BD_CONTEXT) &&
+        (o->context < 0 ? 3 : o->context) > keep)
+        keep = o->context < 0 ? 3 : o->context;
+    pre = pre > keep ? pre - keep : 0;
+    suf = suf > keep ? suf - keep : 0;
+    long xn = n - pre - suf, yn = m - pre - suf;
+
+    /* Without -d, a line of the part between them whose class does not
+       occur in the other file's part is changed and left out of the
+       search. RA/RB hold the classes of the lines searched, IA/IB their
+       line numbers. COUNT has two flags per class: occurs in A's part,
+       occurs in B's. */
+    ra = malloc (((size_t) xn + yn + 1) * sizeof *ra);
+    ia = malloc (((size_t) xn + yn + 1) * sizeof *ia);
+    if (!ra || !ia) goto oom;
+    if (!o->minimal) {
+        count = calloc ((size_t) classes * 2 + 2, sizeof *count);
+        if (!count) goto oom;
+        for (long i = pre; i < n - suf; i++) count[ea[i] * 2] = 1;
+        for (long j = pre; j < m - suf; j++) count[eb[j] * 2 + 1] = 1;
     }
-    char *c0 = f0 + 1, *c1 = f1 + 1;
-    if (bd_mark_changes (f, o, c0, c1) < 0) {
-        free (f0); free (f1); free (ch); free (ops);
-        return -1;
+    long rn = 0, rm = 0;
+    for (long i = pre; i < n - suf; i++) {
+        if (!count || count[ea[i] * 2 + 1]) { ra[rn] = ea[i]; ia[rn++] = i; }
+        else ca[i] = 1;
     }
-    int count = 0;
-    int i0 = 0, i1 = 0, k = 0;
-    while (i0 < f->n || i1 < f->m) {
-        if (c0[i0] || c1[i1]) {
-            int l0 = i0, l1 = i1;
-            while (c0[i0]) ops[k++] = (bd_op) { BDOP_DEL, i0++, -1 };
-            while (c1[i1]) ops[k++] = (bd_op) { BDOP_INS, -1, i1++ };
-            bd_change c = { l0, i0 - l0, l1, i1 - l1, 0 };
-            if (o->blank || o->ignore_re) {
-                c.ignore = 1;
-                for (int x = l0; c.ignore && x < i0; x++) c.ignore = bd_trivial (f, &f->A[x], o);
-                for (int y = l1; c.ignore && y < i1; y++) c.ignore = bd_trivial (f, &f->B[y], o);
-            }
-            ch[count++] = c;
+    int *rb = ra + rn;
+    long *ib = ia + rn;
+    for (long j = pre; j < m - suf; j++) {
+        if (!count || count[eb[j] * 2]) { rb[rm] = eb[j]; ib[rm++] = j; }
+        else cb[j] = 1;
+    }
+    free (count);
+    count = NULL;
+
+    if (rn && rm) {
+        char *rc = calloc ((size_t) rn + rm, 1);
+        vec = malloc (((size_t) rn + rm + 3) * 2 * sizeof *vec);
+        if (!rc || !vec) { free (rc); goto oom; }
+        bd_search s;
+        s.a = ra;
+        s.b = rb;
+        s.ca = rc;
+        s.cb = rc + rn;
+        s.fv = vec + rm + 1;
+        s.bv = vec + (rn + rm + 3) + rm + 1;
+        if (o->minimal) s.limit = LONG_MAX;
+        else {
+            /* 4096, or the square root of the input when that is larger:
+               edits of thousands of lines still get a minimal script,
+               while two shuffled copies of a 100000-line file take about
+               as long as GNU diff takes. */
+            long t = rn + rm, r = 1;
+            while (r * r < t) r++;
+            s.limit = r > 4096 ? r : 4096;
         }
-        if (i0 < f->n && i1 < f->m) ops[k++] = (bd_op) { BDOP_EQ, i0, i1 };
-        i0++, i1++;
+        bd_solve (&s, 0, rn, 0, rm);
+        for (long i = 0; i < rn; i++) if (rc[i]) ca[ia[i]] = 1;
+        for (long j = 0; j < rm; j++) if (rc[rn + j]) cb[ib[j]] = 1;
+        free (rc);
+    } else {
+        for (long i = 0; i < rn; i++) ca[ia[i]] = 1;
+        for (long j = 0; j < rm; j++) cb[ib[j]] = 1;
     }
-    free (f0);
-    free (f1);
+    free (vec);
+    vec = NULL;
+    free (ra);
+    ra = NULL;
+    free (ia);
+    ia = NULL;
+
+    /* Place the runs: A against B's flags, then B against A's. */
+    uy = malloc (((size_t) (n > m ? n : m) + 1) * sizeof *uy);
+    if (!uy) goto oom;
+    bd_unchanged (cb, m, uy);
+    bd_slide (ea, ca, n, cb, m, uy, pre, n - suf);
+    bd_unchanged (ca, n, uy);
+    bd_slide (eb, cb, m, ca, n, uy, pre, m - suf);
+    free (uy);
+    uy = NULL;
+
+    /* Walk both files: matched lines in step, each stretch of changed
+       lines between them one change. */
+    long count_ch = 0, i = 0, j = 0;
+    while (i < n || j < m) {
+        if (i < n && j < m && !ca[i] && !cb[j]) { i++; j++; continue; }
+        while (i < n && ca[i]) i++;
+        while (j < m && cb[j]) j++;
+        count_ch++;
+    }
+    ch = malloc (((size_t) count_ch + 1) * sizeof *ch);
+    ops = malloc (((size_t) n + m + 1) * sizeof *ops);
+    if (!ch || !ops) goto oom;
+    int k = 0, c = 0;
+    i = j = 0;
+    while (i < n || j < m) {
+        if (i < n && j < m && !ca[i] && !cb[j]) {
+            ops[k++] = (bd_op) { BDOP_EQ, (int) i, (int) j };
+            i++; j++;
+            continue;
+        }
+        bd_change *h = &ch[c++];
+        h->line0 = (int) i;
+        h->line1 = (int) j;
+        h->ignore = o->blank || o->ignore_re != NULL;
+        for (; i < n && ca[i]; i++) {
+            ops[k++] = (bd_op) { BDOP_DEL, (int) i, (int) j };
+            if (h->ignore && !bd_trivial (f, &f->A[i], o)) h->ignore = 0;
+        }
+        for (; j < m && cb[j]; j++) {
+            ops[k++] = (bd_op) { BDOP_INS, (int) i, (int) j };
+            if (h->ignore && !bd_trivial (f, &f->B[j], o)) h->ignore = 0;
+        }
+        h->del = (int) i - h->line0;
+        h->ins = (int) j - h->line1;
+    }
+    nch = c;
     *out = ch;
     *ops_out = ops;
     *n_ops = k;
-    return count;
+    free (cls);
+    free (ca);
+    return nch;
+
+oom:
+    builtin_error ("out of memory comparing files");
+    free (cls);
+    free (count);
+    free (ra);
+    free (ia);
+    free (vec);
+    free (uy);
+    free (ca);
+    free (ch);
+    free (ops);
+    return -1;
 }
 
 static void
@@ -907,6 +1022,274 @@ bd_emit_ed_script (bl_output *out, const bd_files *f, const bd_change *ch, int n
                 bd_print_line (out, "", l);
         }
         if (insert_mode) bd_text (out, ".\n");
+    }
+}
+
+/* -n: an RCS script, first change first. "dL N" deletes N lines from
+   old line L; "aL N" adds the N lines that follow it after old line L.
+   An incomplete last line is written as it is. */
+static void
+bd_emit_rcs (bl_output *out, const bd_files *f, const bd_change *ch, int nch)
+{
+    for (int c = 0; c < nch; c++) {
+        const bd_change *h = &ch[c];
+        if (h->ignore) continue;
+        if (h->del) bd_format (out, "d%d %d\n", h->line0 + 1, h->del);
+        if (!h->ins) continue;
+        bd_format (out, "a%d %d\n", h->line0 + h->del, h->ins);
+        for (int k = h->line1; k < h->line1 + h->ins; k++) {
+            bd_write_text (out, &f->B[k], NULL);
+            if (!(f->nonl_b && k == f->m - 1)) bl_output_byte (out, '\n');
+        }
+    }
+}
+
+/* Output laid out by the line and group formats (and -D, which is a set
+   of group formats). The file is cut into groups: runs of unchanged
+   lines, and changes that delete lines (old), insert lines (new) or both
+   (changed). Each group is written by its group format; there %< writes
+   the group's old lines, %> its new lines and %= its old lines again,
+   each line by its line format. A change that -B or -I hides belongs to
+   the unchanged run around it.
+
+   A format is text with % directives. Group formats have %<, %>, %=,
+   %(A=B?THEN:ELSE), and numbers of the group's lines; line formats have
+   %l (the text), %L (the text and its newline, if it has one) and the
+   line's number. Both have %% and %c'C' (C a character or \OOO). A
+   number is printf-like: %[-'0][WIDTH][.PREC] then d, o, x or X, then a
+   letter: n in a line format; e f l m n (old file) or E F L M N (new
+   file) in a group format, for the line before the group, its first and
+   last lines, the line after it, and its length. A '%' that starts none
+   of these is written as it is and the text after it read on. */
+typedef struct {
+    bl_output *out;
+    const bd_files *f;
+    const bd_opts *o;
+    int is_line;             /* a line format, else a group format */
+    long lo[2], hi[2];       /* group: lines [lo, hi) of each file */
+    int file;                /* line: which file, and its index there */
+    long line;
+} bd_fmt;
+
+static const char *bd_fmt_walk (bd_fmt *x, const char *p, int stop, int emit);
+
+static const char *
+bd_fmt_default (const bd_opts *o, int slot)
+{
+    const char *fmt = o->formats[slot];
+    if (fmt) return fmt;
+    switch (slot) {
+    case BD_F_OLD_GROUP:
+        return o->formats[BD_F_CHANGED_GROUP] ? o->formats[BD_F_CHANGED_GROUP] : "%<";
+    case BD_F_NEW_GROUP:
+        return o->formats[BD_F_CHANGED_GROUP] ? o->formats[BD_F_CHANGED_GROUP] : "%>";
+    case BD_F_UNCHANGED_GROUP:
+        return "%=";
+    default:
+        return "%l\n";
+    }
+}
+
+/* Value of a number letter, 0 when the letter does not belong here. */
+static int
+bd_fmt_letter (const bd_fmt *x, int letter, intmax_t *v)
+{
+    if (x->is_line) {
+        if (letter != 'n') return 0;
+        *v = x->line + 1;
+        return 1;
+    }
+    if (!letter || !strchr ("eflmnEFLMN", letter)) return 0;
+    int side = letter >= 'A' && letter <= 'Z';
+    long lo = x->lo[side], hi = x->hi[side];
+    switch (letter | 0x20) {
+    case 'e': *v = lo; break;
+    case 'f': *v = lo + 1; break;
+    case 'l': *v = hi; break;
+    case 'm': *v = hi + 1; break;
+    default: *v = hi - lo; break;
+    }
+    return 1;
+}
+
+/* Write the lines [lo, hi) of FILE by the line format in SLOT. */
+static void
+bd_fmt_lines (const bd_fmt *x, int file, int slot)
+{
+    const char *fmt = bd_fmt_default (x->o, slot);
+    bd_fmt lx = *x;
+    lx.is_line = 1;
+    lx.file = file;
+    for (long i = x->lo[file]; i < x->hi[file]; i++) {
+        lx.line = i;
+        bd_fmt_walk (&lx, fmt, 0, 1);
+    }
+}
+
+/* A conditional operand: a number letter or a decimal number. */
+static const char *
+bd_fmt_operand (const bd_fmt *x, const char *p, intmax_t *v)
+{
+    if (bd_fmt_letter (x, (unsigned char) *p, v)) return p + 1;
+    if (!isdigit ((unsigned char) *p)) return NULL;
+    intmax_t n = 0;
+    for (; isdigit ((unsigned char) *p); p++) {
+        int d = *p - '0';
+        if (n > (INTMAX_MAX - d) / 10) return NULL;
+        n = n * 10 + d;
+    }
+    *v = n;
+    return p;
+}
+
+/* %(A=B?THEN:ELSE) from after the '('. THEN runs to a ':' (a ')' there is
+   text), ELSE to a ')'; either may run to the end of the format. */
+static const char *
+bd_fmt_cond (bd_fmt *x, const char *p, int emit)
+{
+    intmax_t a, b;
+    if (!(p = bd_fmt_operand (x, p, &a)) || *p != '=') return NULL;
+    if (!(p = bd_fmt_operand (x, p + 1, &b)) || *p != '?') return NULL;
+    p = bd_fmt_walk (x, p + 1, ':', emit && a == b);
+    if (*p == ':') {
+        p = bd_fmt_walk (x, p + 1, ')', emit && a != b);
+        if (*p == ')') p++;
+    }
+    return p;
+}
+
+/* %c'C' or %c'\OOO' from after the 'c'. */
+static const char *
+bd_fmt_char (bd_fmt *x, const char *p, int emit)
+{
+    unsigned value = 0;
+    if (*p++ != '\'') return NULL;
+    if (*p == '\\') {
+        int digits = 0;
+        for (p++; digits < 3 && *p >= '0' && *p <= '7'; p++, digits++)
+            value = value * 8 + (unsigned) (*p - '0');
+        if (!digits) return NULL;
+    } else if (*p && *p != '\'') value = (unsigned char) *p++;
+    else return NULL;
+    if (*p != '\'') return NULL;
+    if (emit) bl_output_byte (x->out, (unsigned char) value);
+    return p + 1;
+}
+
+/* One directive from after its '%'; NULL when it is not one. */
+static const char *
+bd_fmt_directive (bd_fmt *x, const char *p, int emit)
+{
+    const char *spec = p;
+    while (*p == '-' || *p == '\'' || *p == '0') p++;
+    while (isdigit ((unsigned char) *p)) p++;
+    if (*p == '.')
+        for (p++; isdigit ((unsigned char) *p); p++)
+            continue;
+    if (p == spec) {
+        switch (*p) {
+        case '%':
+            if (emit) bl_output_byte (x->out, '%');
+            return p + 1;
+        case '<': case '>': case '=':
+            if (x->is_line) return NULL;
+            if (emit)
+                bd_fmt_lines (x, *p == '>', *p == '<' ? BD_F_OLD_LINE
+                              : *p == '>' ? BD_F_NEW_LINE : BD_F_UNCHANGED_LINE);
+            return p + 1;
+        case 'l': case 'L':
+            if (!x->is_line) return NULL;
+            if (emit) {
+                const bd_line *l = x->file ? &x->f->B[x->line] : &x->f->A[x->line];
+                int nonl = x->file ? x->f->nonl_b && x->line == x->f->m - 1
+                                   : x->f->nonl_a && x->line == x->f->n - 1;
+                bd_write_text (x->out, l, NULL);
+                if (*p == 'L' && !nonl) bl_output_byte (x->out, '\n');
+            }
+            return p + 1;
+        case '(':
+            return x->is_line ? NULL : bd_fmt_cond (x, p + 1, emit);
+        }
+    }
+    if (*p == 'c') return bd_fmt_char (x, p + 1, emit);
+    intmax_t v;
+    if (!*p || !strchr ("doxX", *p) || !bd_fmt_letter (x, (unsigned char) p[1], &v))
+        return NULL;
+    if (emit) {
+        /* "%" SPEC "j" CONVERSION, for snprintf. */
+        size_t sl = (size_t) (p - spec);
+        char *cf = malloc (sl + 4);
+        if (!cf) { if (!x->out->error) x->out->error = ENOMEM; return p + 2; }
+        cf[0] = '%';
+        memcpy (cf + 1, spec, sl);
+        cf[sl + 1] = 'j';
+        cf[sl + 2] = *p;
+        cf[sl + 3] = '\0';
+        int n = *p == 'd' ? snprintf (NULL, 0, cf, v) : snprintf (NULL, 0, cf, (uintmax_t) v);
+        char *buf = n >= 0 ? malloc ((size_t) n + 1) : NULL;
+        if (n < 0) { free (cf); return NULL; }
+        if (!buf) { free (cf); if (!x->out->error) x->out->error = ENOMEM; return p + 2; }
+        if (*p == 'd') snprintf (buf, (size_t) n + 1, cf, v);
+        else snprintf (buf, (size_t) n + 1, cf, (uintmax_t) v);
+        bl_output_write (x->out, buf, (size_t) n);
+        free (buf);
+        free (cf);
+    }
+    return p + 2;
+}
+
+/* Run the format at P up to its end or to an unconsumed STOP character,
+   writing only when EMIT; returns where it stopped. */
+static const char *
+bd_fmt_walk (bd_fmt *x, const char *p, int stop, int emit)
+{
+    while (*p && *p != stop) {
+        const char *next = *p == '%' ? bd_fmt_directive (x, p + 1, emit) : NULL;
+        if (next) {
+            p = next;
+            continue;
+        }
+        if (emit) bl_output_byte (x->out, (unsigned char) *p);
+        p++;
+    }
+    return p;
+}
+
+static void
+bd_fmt_group (bd_fmt *x, int slot, long lo0, long hi0, long lo1, long hi1)
+{
+    x->is_line = 0;
+    x->lo[0] = lo0; x->hi[0] = hi0;
+    x->lo[1] = lo1; x->hi[1] = hi1;
+    if (slot == BD_F_CHANGED_GROUP && !x->o->formats[BD_F_CHANGED_GROUP]) {
+        /* By default a change is its old group and then its new group. */
+        bd_fmt_walk (x, bd_fmt_default (x->o, BD_F_OLD_GROUP), 0, 1);
+        bd_fmt_walk (x, bd_fmt_default (x->o, BD_F_NEW_GROUP), 0, 1);
+        return;
+    }
+    bd_fmt_walk (x, bd_fmt_default (x->o, slot), 0, 1);
+}
+
+static void
+bd_emit_formats (bl_output *out, const bd_files *f, const bd_change *ch, int nch,
+                 const bd_opts *o)
+{
+    bd_fmt x;
+    memset (&x, 0, sizeof x);
+    x.out = out;
+    x.f = f;
+    x.o = o;
+    long u0 = 0, u1 = 0;
+    for (int c = 0; c <= nch; c++) {
+        if (c < nch && ch[c].ignore) continue;
+        long e0 = c < nch ? ch[c].line0 : f->n, e1 = c < nch ? ch[c].line1 : f->m;
+        if (e0 > u0 || e1 > u1) bd_fmt_group (&x, BD_F_UNCHANGED_GROUP, u0, e0, u1, e1);
+        if (c == nch) break;
+        const bd_change *h = &ch[c];
+        int slot = h->del && h->ins ? BD_F_CHANGED_GROUP : h->del ? BD_F_OLD_GROUP : BD_F_NEW_GROUP;
+        bd_fmt_group (&x, slot, h->line0, h->line0 + h->del, h->line1, h->line1 + h->ins);
+        u0 = h->line0 + h->del;
+        u1 = h->line1 + h->ins;
     }
 }
 
@@ -1146,7 +1529,9 @@ bd_emit_hunks (bl_output *out, const bd_files *f, const bd_change *ch, int nch,
 /* Side-by-side output (-y), laid out as GNU diff does: two half columns,
    a marker gutter in the middle, tabs used to reach each column. Character
    widths follow the C locale: printable ASCII is one column, other bytes
-   take no column. */
+   take no column. With -t a tab in either column is expanded from the
+   start of that column; without it, real tabs keep the page's tab stops.
+   --left-column writes a common line once, with "(" in the gutter. */
 typedef struct { long half, col2; } bd_sbs;
 
 static long
@@ -1169,7 +1554,8 @@ bd_half_line (bl_output *out, const bd_line *line, long indent, long bound)
     for (size_t i = 0; i < line->len; i++) {
         unsigned char c = line->data[i];
         if (c == '\t') {
-            long spaces = bd_out.tabsize - ((in + indent) % bd_out.tabsize);
+            long at = bd_out.expand_tabs ? in : in + indent;
+            long spaces = bd_out.tabsize - (at % bd_out.tabsize);
             if (in == outpos && bd_out.expand_tabs) {
                 long stop = outpos + spaces < bound ? outpos + spaces : bound;
                 for (; outpos < stop; outpos++) bl_output_byte (out, ' ');
@@ -1210,6 +1596,7 @@ bd_sbs_line (bl_output *out, const bd_sbs *g, const bd_line *left, int left_nl,
         if (sep == '|' && newline != right_nl) sep = newline ? '/' : '\\';
         bl_output_byte (out, sep);
     }
+    if (sep == '(') right = NULL, newline |= right_nl;
     if (right) {
         newline |= right_nl;
         if (right->len) {
@@ -1223,7 +1610,8 @@ bd_sbs_line (bl_output *out, const bd_sbs *g, const bd_line *left, int left_nl,
 static void
 bd_emit_side_by_side (bl_output *out, bd_line *A, int n, bd_line *B, int m,
                       bd_op *ops, int n_ops, long width,
-                      int no_newline_a, int no_newline_b, int suppress_common)
+                      int no_newline_a, int no_newline_b, int suppress_common,
+                      int left_column)
 {
     bd_sbs g;
     /* GNU's column layout: tab stops of 1 with -t, else the tab size. */
@@ -1237,7 +1625,8 @@ bd_emit_side_by_side (bl_output *out, bd_line *A, int n, bd_line *B, int m,
         if (ops[i].op == BDOP_EQ) {
             int la = ops[i].la, lb = ops[i].lb;
             if (!suppress_common)
-                bd_sbs_line (out, &g, &A[la], !(no_newline_a && la == n - 1), ' ',
+                bd_sbs_line (out, &g, &A[la], !(no_newline_a && la == n - 1),
+                             left_column ? '(' : ' ',
                              &B[lb], !(no_newline_b && lb == m - 1));
             i++;
             continue;
@@ -1315,7 +1704,8 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
     /* Equal bytes imply equal lines for every supported comparison mode.
        Avoid indexing lines and building an edit trace when
        the complete inputs already establish that there is no difference. */
-    if (o->style != BD_SBS && bd_files_equal (da, la, db, lb)) {
+    /* Side-by-side and format output write the common lines too. */
+    if (o->style != BD_SBS && o->style != BD_IFDEF && bd_files_equal (da, la, db, lb)) {
         free (da);
         free (db);
         if (o->sflag) printf ("Files %s and %s are identical\n", p0, p1);
@@ -1407,17 +1797,22 @@ bd_compare_files (const char *p0, const char *p1, const bd_opts *o, const char *
     rc = differ ? 1 : 0;
     if (differ && o->qflag) {
         printf ("Files %s and %s differ\n", name0, name1);
-    } else if (differ || o->style == BD_SBS) {
+    } else if (differ || o->style == BD_SBS || o->style == BD_IFDEF) {
         bl_output out;
         bl_output_init (&out, stdout);
         if (header) { bd_text (&out, header); bl_output_byte (&out, '\n'); }
         if (o->style == BD_SBS)
             bd_emit_side_by_side (&out, f.A, f.n, f.B, f.m, ops, n_ops, o->width,
-                                  f.nonl_a, f.nonl_b, o->suppress_common);
+                                  f.nonl_a, f.nonl_b, o->suppress_common,
+                                  o->left_column);
         else if (o->style == BD_NORMAL)
             bd_emit_ed (&out, &f, ch, nch);
         else if (o->style == BD_ED)
             bd_emit_ed_script (&out, &f, ch, nch);
+        else if (o->style == BD_RCS)
+            bd_emit_rcs (&out, &f, ch, nch);
+        else if (o->style == BD_IFDEF)
+            bd_emit_formats (&out, &f, ch, nch, o);
         else
             bd_emit_hunks (&out, &f, ch, nch, o, p0, p1, &t0, &t1);
         bl_output_flush (&out);
@@ -1518,6 +1913,52 @@ bd_list_dir (const char *dir, size_t *count, const bd_opts *o)
 
 static int bd_compare_paths (const char *p0, const char *p1, const bd_opts *o, int top);
 
+/* The target of symbolic link PATH, allocated; NULL after an error. */
+static char *
+bd_readlink (const char *path, const struct stat *st)
+{
+    size_t cap = st->st_size > 0 ? (size_t) st->st_size + 1 : 64;
+    for (;;) {
+        char *buf = malloc (cap);
+        if (!buf) { builtin_error ("out of memory"); return NULL; }
+        ssize_t n = readlink (path, buf, cap);
+        if (n < 0) {
+            builtin_error ("%s: %s", path, strerror (errno));
+            free (buf);
+            return NULL;
+        }
+        if ((size_t) n < cap) { buf[n] = '\0'; return buf; }
+        free (buf);
+        if (cap > SIZE_MAX / 2) { builtin_error ("out of memory"); return NULL; }
+        cap *= 2;
+    }
+}
+
+/* --no-dereference with a symbolic link on either side: two links are
+   the same when their targets are; a link and another kind of file
+   always differ. */
+static int
+bd_compare_links (const char *p0, const struct stat *s0, const char *p1,
+                  const struct stat *s1, const bd_opts *o)
+{
+    int rc;
+    fflush (stdout);
+    if (S_ISLNK (s0->st_mode) && S_ISLNK (s1->st_mode)) {
+        char *t0 = bd_readlink (p0, s0), *t1 = t0 ? bd_readlink (p1, s1) : NULL;
+        if (!t1) { free (t0); return 2; }
+        rc = strcmp (t0, t1) != 0;
+        free (t0);
+        free (t1);
+        if (rc) printf ("Symbolic links %s and %s differ\n", p0, p1);
+        else if (o->sflag) printf ("Files %s and %s are identical\n", p0, p1);
+    } else {
+        printf ("File %s is a %s while file %s is a %s\n", p0, bd_file_type (s0),
+                p1, bd_file_type (s1));
+        rc = 1;
+    }
+    return bd_finish_output (rc);
+}
+
 /* Two directories, as GNU diff does: entries in name order, "Only in"
    for one-sided names (compared with an empty file under -N), recursion
    with -r, else "Common subdirectories". MISSING marks a side that does
@@ -1563,14 +2004,15 @@ bd_compare_paths (const char *p0, const char *p1, const bd_opts *o, int top)
 {
     struct stat s0, s1;
     int d0 = 0, d1 = 0, missing = 0;
+    int (*stat_fn) (const char *, struct stat *) = o->no_deref ? lstat : stat;
     if (!bd_is_stdin (p0)) {
-        if (stat (p0, &s0) < 0) {
+        if (stat_fn (p0, &s0) < 0) {
             if (errno != ENOENT || !o->nflag) { builtin_error ("%s: %s", p0, strerror (errno)); return 2; }
             missing |= 1;
         } else d0 = S_ISDIR (s0.st_mode);
     }
     if (!bd_is_stdin (p1)) {
-        if (stat (p1, &s1) < 0) {
+        if (stat_fn (p1, &s1) < 0) {
             if (errno != ENOENT || !o->nflag || missing) { builtin_error ("%s: %s", missing ? p0 : p1, strerror (ENOENT)); return 2; }
             missing |= 2;
         } else d1 = S_ISDIR (s1.st_mode);
@@ -1580,6 +2022,11 @@ bd_compare_paths (const char *p0, const char *p1, const bd_opts *o, int top)
     if (missing & 1) d0 = d1;
     if (missing & 2) d1 = d0;
     if (d0 && d1) {
+        if (o->style == BD_IFDEF) {
+            builtin_error ("-D option not supported with directories");
+            bd_fatal = 1;
+            return 2;
+        }
         if (top == 1 || o->rflag) return bd_compare_dirs (p0, p1, o, missing);
         fflush (stdout);
         printf ("Common subdirectories: %s and %s\n", p0, p1);
@@ -1604,6 +2051,9 @@ bd_compare_paths (const char *p0, const char *p1, const bd_opts *o, int top)
         free (joined);
         return rc;
     }
+    if (o->no_deref && !missing && !bd_is_stdin (p0) && !bd_is_stdin (p1) &&
+        (S_ISLNK (s0.st_mode) || S_ISLNK (s1.st_mode)))
+        return bd_compare_links (p0, &s0, p1, &s1, o);
     if (top) return bd_compare_files (p0, p1, o, NULL, missing);
     /* GNU C-quotes the names on the "diff OPTIONS A B" line. */
     char *q0 = bd_cquote (p0), *q1 = q0 ? bd_cquote (p1) : NULL;
@@ -1749,8 +2199,85 @@ bd_compile (const char *pat)
     return re;
 }
 
+/* Put VALUE in format SLOT; OPTION names the option for a conflict, a
+   second value that differs from the first. */
+static int
+bd_set_format (bd_parse *ps, int slot, const char *value, const char *option)
+{
+    bd_opts *o = ps->o;
+    if (o->formats[slot]) {
+        if (strcmp (o->formats[slot], value) == 0) return 0;
+        builtin_error ("conflicting %s option value '%s'", option, value);
+        return -1;
+    }
+    size_t len = strlen (value) + 1;
+    if (!(o->formats[slot] = malloc (len))) { builtin_error ("out of memory"); return -1; }
+    memcpy (o->formats[slot], value, len);
+    return 0;
+}
+
+/* The format options in bd_long order (codes 12 to 19); --line-format
+   sets all three line formats. */
+static const struct { const char *option; int slot; } bd_format_opts[] = {
+    { "--old-line-format", BD_F_OLD_LINE }, { "--new-line-format", BD_F_NEW_LINE },
+    { "--unchanged-line-format", BD_F_UNCHANGED_LINE }, { "--line-format", -1 },
+    { "--old-group-format", BD_F_OLD_GROUP }, { "--new-group-format", BD_F_NEW_GROUP },
+    { "--unchanged-group-format", BD_F_UNCHANGED_GROUP },
+    { "--changed-group-format", BD_F_CHANGED_GROUP },
+};
+
+static int
+bd_format_option (bd_parse *ps, int which, const char *value)
+{
+    if (bd_style (ps, BD_IFDEF) < 0) return -1;
+    const char *option = bd_format_opts[which].option;
+    if (bd_format_opts[which].slot >= 0)
+        return bd_set_format (ps, bd_format_opts[which].slot, value, option);
+    for (int slot = BD_F_OLD_LINE; slot <= BD_F_UNCHANGED_LINE; slot++)
+        if (bd_set_format (ps, slot, value, option) < 0) return -1;
+    return 0;
+}
+
+/* -D NAME: the group formats of the manual's #ifndef/#ifdef/#else/#endif
+   layout, NAME taken literally. */
+static int
+bd_ifdef (bd_parse *ps, const char *name)
+{
+    static const char *const shapes[4] = {
+        "#ifndef %s\n%%<#endif /* ! %s */\n",
+        "#ifdef %s\n%%>#endif /* %s */\n",
+        "%%=",
+        "#ifndef %s\n%%<#else /* %s */\n%%>#endif /* %s */\n",
+    };
+    static const int slots[4] = {
+        BD_F_OLD_GROUP, BD_F_NEW_GROUP, BD_F_UNCHANGED_GROUP, BD_F_CHANGED_GROUP
+    };
+    if (bd_style (ps, BD_IFDEF) < 0) return -1;
+    size_t len = 0;
+    for (const char *c = name; *c; c++) len += *c == '%' ? 2 : 1;
+    char *esc = malloc (len + 1);
+    if (!esc) { builtin_error ("out of memory"); return -1; }
+    char *q = esc;
+    for (const char *c = name; *c; c++) {
+        if (*c == '%') *q++ = '%';
+        *q++ = *c;
+    }
+    *q = '\0';
+    int rc = 0;
+    for (int i = 0; i < 4 && rc == 0; i++) {
+        size_t size = strlen (shapes[i]) + 3 * len + 1;
+        char *fmt = malloc (size);
+        if (!fmt) { builtin_error ("out of memory"); rc = -1; break; }
+        snprintf (fmt, size, shapes[i], esc, esc, esc);
+        rc = bd_set_format (ps, slots[i], fmt, "-D");
+        free (fmt);
+    }
+    free (esc);
+    return rc;
+}
+
 /* Options that take an argument: the rest of the word or the next one. */
-#define BD_SHORT_ARG "CUxXLWIF"
+#define BD_SHORT_ARG "CUxXLWIFD"
 
 /* Apply one short option C with argument ARG (NULL when it takes none). */
 static int
@@ -1776,8 +2303,11 @@ bd_short (bd_parse *ps, int c, const char *arg, int *nlabels)
         if (o->context < v) o->context = v;
         break;
     case 'd': o->minimal = 1; break;
+    case 'D': return bd_ifdef (ps, arg);
     case 'e': return bd_style (ps, BD_ED);
+    case 'n': return bd_style (ps, BD_RCS);
     case 't': bd_out.expand_tabs = 1; break;
+    case 'T': bd_out.initial_tab = 1; break;
     case 'i': o->iflag = 1; break;
     case 'I': return bd_add_pattern (&ps->ignore_pat, arg);
     case 'F': return bd_add_pattern (&ps->function_pat, arg);
@@ -1830,6 +2360,13 @@ static const struct { const char *name; int c, arg; } bd_long[] = {
     { "horizon-lines", 2, 1 }, { "ed", 'e', 0 }, { "expand-tabs", 't', 0 },
     { "suppress-common-lines", 3, 0 }, { "strip-trailing-cr", 4, 0 },
     { "color", 5, 2 }, { "palette", 6, 1 }, { "tabsize", 7, 1 },
+    { "initial-tab", 'T', 0 }, { "ifdef", 'D', 1 }, { "rcs", 'n', 0 },
+    { "from-file", 8, 1 }, { "to-file", 9, 1 }, { "no-dereference", 10, 0 },
+    { "left-column", 11, 0 },
+    { "old-line-format", 12, 1 }, { "new-line-format", 13, 1 },
+    { "unchanged-line-format", 14, 1 }, { "line-format", 15, 1 },
+    { "old-group-format", 16, 1 }, { "new-group-format", 17, 1 },
+    { "unchanged-group-format", 18, 1 }, { "changed-group-format", 19, 1 },
 };
 
 /* --palette: GNU's DIFF_COLORS syntax, KEY=SGR pairs split by ':' for
@@ -1886,7 +2423,8 @@ diff_builtin (WORD_LIST *list)
 {
     bd_opts o = {0};
     bd_parse ps = { &o, 0, NULL, NULL, 0 };
-    const char *paths[2] = { NULL, NULL };
+    const char **paths = NULL;
+    const char *from_file = NULL, *to_file = NULL;
     int npos = 0;
     size_t sw_len = 0;
     int nlabels = 0;
@@ -1896,14 +2434,23 @@ diff_builtin (WORD_LIST *list)
     o.style = BD_NORMAL;
     const char *palette = NULL;
     bd_out.expand_tabs = 0;
+    bd_out.initial_tab = 0;
     bd_out.tabsize = 8;
+    bd_fatal = 0;
     bd_out.color = 0;
     for (int i = 0; i < BD_C_N; i++) bd_out.palette[i] = (char *) bd_color_defaults[i];
     /* Option words as given, for the "diff OPTIONS A B" lines of -r. */
-    for (WORD_LIST *p = list; p; p = p->next)
+    size_t nwords = 0;
+    for (WORD_LIST *p = list; p; p = p->next, nwords++)
         sw_len += 4 * strlen (p->word->word) + 4;
     char *switches = malloc (sw_len + 1);
-    if (!switches) { builtin_error ("out of memory"); return 2; }
+    paths = malloc ((nwords + 1) * sizeof *paths);
+    if (!switches || !paths) {
+        builtin_error ("out of memory");
+        free (switches);
+        free (paths);
+        return 2;
+    }
     switches[0] = '\0';
 #define BD_SW(word) bd_switch (switches, (word))
 #define BD_USAGE_FAIL do { builtin_usage (); rc = EX_USAGE; goto done; } while (0)
@@ -1916,13 +2463,7 @@ diff_builtin (WORD_LIST *list)
             goto done;
         }
         if (strcmp (w, "--") == 0) {
-            for (p = p->next; p; p = p->next) {
-                if (npos < 2) paths[npos++] = p->word->word;
-                else {
-                    builtin_error ("extra operand: %s", p->word->word);
-                    BD_USAGE_FAIL;
-                }
-            }
+            for (p = p->next; p; p = p->next) paths[npos++] = p->word->word;
             break;
         }
         if (w[0] == '-' && w[1] == '-') {
@@ -1956,7 +2497,19 @@ diff_builtin (WORD_LIST *list)
             }
             int c = bd_long[found].c;
             if (c == 0) { if (bd_style (&ps, BD_NORMAL) < 0) BD_USAGE_FAIL; continue; }
-            if (c == 1 || c == 2) continue;      /* accepted, no effect here */
+            if (c == 1) continue;      /* --speed-large-files: accepted, no effect */
+            if (c == 2) {
+                /* GNU takes an empty value as 0. */
+                char *end;
+                errno = 0;
+                long v = *arg ? strtol (arg, &end, 10) : 0;
+                if (*arg && (end == arg || *end || v < 0)) {
+                    builtin_error ("invalid horizon length '%s'", arg);
+                    BD_USAGE_FAIL;
+                }
+                o.horizon = errno == ERANGE || v > INT_MAX ? INT_MAX : v;
+                continue;
+            }
             if (c == 3) { o.suppress_common = 1; continue; }
             if (c == 4) { o.strip_cr = 1; continue; }
             if (c == 5) {
@@ -1970,6 +2523,22 @@ diff_builtin (WORD_LIST *list)
                 continue;
             }
             if (c == 6) { palette = arg; continue; }
+            if (c == 8 || c == 9) {
+                const char **file = c == 8 ? &from_file : &to_file;
+                if (*file && strcmp (*file, arg)) {
+                    builtin_error ("conflicting %s option value '%s'",
+                                   c == 8 ? "--from-file" : "--to-file", arg);
+                    BD_USAGE_FAIL;
+                }
+                *file = arg;
+                continue;
+            }
+            if (c == 10) { o.no_deref = 1; continue; }
+            if (c == 11) { o.left_column = 1; continue; }
+            if (c >= 12 && c <= 19) {
+                if (bd_format_option (&ps, c - 12, arg) < 0) BD_USAGE_FAIL;
+                continue;
+            }
             if (c == 7) {
                 char *end;
                 errno = 0;
@@ -2002,15 +2571,18 @@ diff_builtin (WORD_LIST *list)
                 if (bd_short (&ps, w[i], arg, &nlabels) < 0) BD_USAGE_FAIL;
                 if (arg) break;
             }
-        } else {
-            if (npos < 2) paths[npos++] = w;
-            else {
-                builtin_error ("extra operand: %s", w);
-                BD_USAGE_FAIL;
-            }
-        }
+        } else paths[npos++] = w;
     }
-    if (npos != 2) {
+    if (from_file && to_file) {
+        builtin_error ("--from-file and --to-file both specified");
+        BD_USAGE_FAIL;
+    }
+    /* --from-file and --to-file take any number of operands. */
+    if (!from_file && !to_file && npos > 2) {
+        builtin_error ("extra operand: %s", paths[2]);
+        BD_USAGE_FAIL;
+    }
+    if (!from_file && !to_file && npos != 2) {
         if (npos) builtin_error ("missing operand after '%s'", paths[npos - 1]);
         BD_USAGE_FAIL;
     }
@@ -2020,9 +2592,21 @@ diff_builtin (WORD_LIST *list)
 #undef BD_SW
     if (palette && bd_out.color) bd_palette (palette);
     o.switches = switches;
-    rc = bd_finish_output (bd_compare_paths (paths[0], paths[1], &o, 1));
+    if (from_file || to_file) {
+        /* Each operand against the one file, in order; the worst status
+           wins. */
+        rc = 0;
+        for (int i = 0; i < npos && !bd_fatal; i++) {
+            int r = from_file ? bd_compare_paths (from_file, paths[i], &o, 1)
+                              : bd_compare_paths (paths[i], to_file, &o, 1);
+            if (r > rc) rc = r;
+        }
+        rc = bd_finish_output (rc);
+    } else rc = bd_finish_output (bd_compare_paths (paths[0], paths[1], &o, 1));
 done:
     free (switches);
+    free (paths);
+    for (int i = 0; i < BD_F_N; i++) free (o.formats[i]);
     free (ps.ignore_pat);
     free (ps.function_pat);
     if (o.ignore_re) { regfree (o.ignore_re); free (o.ignore_re); }
@@ -2038,6 +2622,8 @@ char *diff_doc[] = {
     "Compare two files line by line (Myers O(ND)).",
     "",
     "    diff [OPTION]... FILE1 FILE2",
+    "    diff [OPTION]... --from-file=FILE1 FILE2...",
+    "    diff [OPTION]... --to-file=FILE2 FILE1...",
     "",
     "    -u, -U NUM, --unified[=NUM]  unified diff, NUM (default 3) lines of context",
     "    -c, -C NUM, --context[=NUM]  context diff, NUM (default 3) lines of context",
@@ -2057,6 +2643,20 @@ char *diff_doc[] = {
     "    -I RE, --ignore-matching-lines=RE  ignore changes whose lines all match RE",
     "    -p, --show-c-function        show which C function each change is in",
     "    -e, --ed       output an ed script",
+    "    -n, --rcs      output an RCS format diff",
+    "    -D NAME, --ifdef=NAME  output the merged file with #ifdef NAME groups",
+    "    --GTYPE-group-format=GFMT  format GTYPE (old, new, unchanged or changed)",
+    "                   groups with GFMT: %< %> %= lines, %(A=B?T:E), %c'C',",
+    "                   printf-style %[-'0][W][.P]{doxX} of e f l m n (old file)",
+    "                   or E F L M N (new file)",
+    "    --LTYPE-line-format=LFMT  format LTYPE (old, new or unchanged) lines with",
+    "                   LFMT: %l %L text, %c'C', %%, printf-style line number n;",
+    "                   --line-format=LFMT sets all three",
+    "    -T, --initial-tab  make tabs line up by starting lines with a tab",
+    "    --left-column  output only the left column of common lines (with -y)",
+    "    --from-file=FILE  compare FILE to each operand (FILE may be a directory)",
+    "    --to-file=FILE    compare each operand to FILE",
+    "    --no-dereference  do not follow symbolic links",
     "    -t, --expand-tabs  expand tabs to spaces in output; --tabsize=NUM (default 8)",
     "    --suppress-common-lines  do not output common lines (with -y)",
     "    --strip-trailing-cr      strip trailing carriage return on input",
@@ -2066,7 +2666,11 @@ char *diff_doc[] = {
     "    -F RE, --show-function-line=RE  show the last line before a hunk matching RE",
     "    -a, --text     treat all files as text",
     "    -L LABEL, --label LABEL  use LABEL instead of a file name and time (up to two)",
-    "    -d, --minimal  try hard to find a smaller set of changes",
+    "    -d, --minimal  try hard to find a smaller set of changes: no shortcut",
+    "                   for lines found in only one file, and no cost limit",
+    "    --horizon-lines=NUM  keep NUM lines of the common prefix and suffix",
+    "                   in the comparison (-c and -u keep their context)",
+    "    --speed-large-files  accepted; the cost limit is always on without -d",
     "    -v, --version  show version",
     "    --help         show this help",
     "",
@@ -2080,6 +2684,6 @@ struct builtin bashdiff_struct = {
     diff_builtin,
     BUILTIN_ENABLED,
     diff_doc,
-    "bashdiff [-abBcdeiNpqrstuwyZ] [-C NUM|-U NUM] [-x PAT] [-X FILE] [-L LABEL] [-W NUM] FILE1 FILE2",
+    "bashdiff [-abBcdeinNpqrstTuwyZ] [-C NUM|-U NUM|-D NAME] [-x PAT] [-X FILE] [-L LABEL] [-W NUM] FILE1 FILE2",
     0
 };

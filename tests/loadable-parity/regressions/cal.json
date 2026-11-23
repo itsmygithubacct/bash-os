@@ -3,7 +3,8 @@
   "loadable": "cal",
   "reference": "util-linux 2.41 cal, built from the kernel.org release tarball (configure --disable-all-programs --enable-cal) because the reference host has no cal; its stdout under LC_ALL=C TZ=UTC is recorded as each contract's expected stdout. No expected value is taken from bash-os output. The runner's reference PATH has no cal, so these are contracts.",
   "coverage": [
-    "G69: -w week numbers in util-linux's horizontal layout, US (Sunday) and ISO 8601 (-m) numbering, Julian cells, the 1752 reform, three-month spans and whole years, bundled short options; invalid months and years exit 1."
+    "G69: -w week numbers in util-linux's horizontal layout, US (Sunday) and ISO 8601 (-m) numbering, Julian cells, the 1752 reform, three-month spans and whole years, bundled short options; invalid months and years exit 1.",
+    "Guest compatibility pass 5 (G74/G83): pass5-month-names, pass5-y-flag-anywhere, pass5-day-month-year, pass5-operand-diagnostics, pass5-option-order-and-forms."
   ],
   "exclusions": [
     "bash-os keeps BSD (ncal -C) output for modes without -w; util-linux's non-week layout differs and is not claimed.",
@@ -99,6 +100,51 @@
       "stdout": "13 2024 rc=1\n0 2024 rc=1\n1 0 rc=1\n1x 2024 rc=1\n",
       "expected_status": 0,
       "stderr": "nonempty"
+    },
+    {
+      "id": "pass5-month-names",
+      "kind": "contract",
+      "purpose": "G83: util-linux month names and abbreviations, any case, equal the numeric month; a bad name keeps util-linux's message.",
+      "script": "[[ $(cal feb 2024) == \"$(cal 2 2024)\" && $(cal February 2024) == \"$(cal 2 2024)\" && $(cal SEP 2024) == \"$(cal 9 2024)\" ]] && echo names; { cal fe 2024 || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "names\ncal: unknown month name: fe\nrc=1\n"
+    },
+    {
+      "id": "pass5-y-flag-anywhere",
+      "kind": "contract",
+      "purpose": "G83: -y is a flag (util-linux): options may follow operands, -y -w YEAR and -yw YEAR and YEAR -y equal the week year view, and -y MONTH YEAR shows the year.",
+      "script": "a=$(cal -y -w 2024); [[ $a == \"$(cal -w 2024)\" && $a == \"$(cal -yw 2024)\" && $a == \"$(cal 2024 -w -y)\" && $(cal -y 2 2024) == \"$(cal 2024)\" && $(cal --ye 2024) == \"$(cal 2024)\" ]] && echo year-views",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "year-views\n"
+    },
+    {
+      "id": "pass5-day-month-year",
+      "kind": "contract",
+      "purpose": "G83: three operands are DAY MONTH YEAR (the month holding that day); a day past the month's end is rejected.",
+      "script": "[[ $(cal 29 2 2024) == \"$(cal 2 2024)\" ]] && echo dmy; { cal 29 2 2023 || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "dmy\ncal: illegal day value: use 1-28\nrc=1\n"
+    },
+    {
+      "id": "pass5-operand-diagnostics",
+      "kind": "contract",
+      "purpose": "G83: util-linux's operand and option diagnostics, status 1: non-numeric and out-of-range days (checked against 1-31 first, then the month), month and year values, int overflow, bad usage, a negative operand read as an option, invalid --week values.",
+      "script": "for a in 'x' '1x 2 2024' 'x 13 2024' '0 13 2024' '32 1 x' '31 4 2024' '30 2 2024' '1 2 3 4' '-y 1 2 3 4' '13 x' '1 99999999999' '99999999999 2 2024' '-- -y 2024' '1 -5' '-q' '--foo' '--week=x 2 2024' '--week=60 2 2024' '-y 30 2 2023' '-y x'; do cal $a > /dev/null || echo \"[$a] rc=$?\"; done 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "cal: failed to parse timestamp or unknown month name: x\n[x] rc=1\ncal: illegal day value: '1x'\n[1x 2 2024] rc=1\ncal: illegal day value: 'x'\n[x 13 2024] rc=1\ncal: illegal day value: use 1-31\n[0 13 2024] rc=1\ncal: illegal day value: use 1-31\n[32 1 x] rc=1\ncal: illegal day value: use 1-30\n[31 4 2024] rc=1\ncal: illegal day value: use 1-29\n[30 2 2024] rc=1\ncal: bad usage\nTry 'cal --help' for more information.\n[1 2 3 4] rc=1\ncal: bad usage\nTry 'cal --help' for more information.\n[-y 1 2 3 4] rc=1\ncal: illegal month value: use 1-12\n[13 x] rc=1\ncal: illegal year value: '99999999999': Numerical result out of range\n[1 99999999999] rc=1\ncal: illegal day value: '99999999999': Numerical result out of range\n[99999999999 2 2024] rc=1\ncal: unknown month name: -y\n[-- -y 2024] rc=1\ncal: invalid option -- '5'\nTry 'cal --help' for more information.\n[1 -5] rc=1\ncal: invalid option -- 'q'\nTry 'cal --help' for more information.\n[-q] rc=1\ncal: unrecognized option '--foo'\nTry 'cal --help' for more information.\n[--foo] rc=1\ncal: invalid week argument: 'x'\n[--week=x 2 2024] rc=1\ncal: illegal week value: use 1-54\n[--week=60 2 2024] rc=1\ncal: illegal day value: use 1-28\n[-y 30 2 2023] rc=1\ncal: failed to parse timestamp or unknown month name: x\n[-y x] rc=1\n"
+    },
+    {
+      "id": "pass5-option-order-and-forms",
+      "kind": "contract",
+      "purpose": "G83: options after operands, last of -1/-3 wins, long-option prefixes, -y with a month name or DAY MONTH YEAR shows the year, and a month name alone shows that month.",
+      "script": "[[ $(cal 2 2024 -m) == \"$(cal -m 2 2024)\" && $(cal 2 2024 -3) == \"$(cal -3 2 2024)\" && $(cal -3 -1 2 2024) == \"$(cal 2 2024)\" && $(cal -1 2 2024 -3) == \"$(cal -3 2 2024)\" && $(cal --jul 2 2024) == \"$(cal -j 2 2024)\" && $(cal --thr 2 2024) == \"$(cal -3 2 2024)\" && $(cal -y feb) == \"$(cal -y)\" && $(cal -y 15 2 2024) == \"$(cal 2024)\" && $(cal 1 feb 2024) == \"$(cal 2 2024)\" && $(cal jun 2024) == \"$(cal 6 2024)\" ]] && echo order; out=$(cal feb); [[ $out == *February* ]] && echo name-alone; { cal sept 2024 || echo rc=$?; cal 2 2024 --bogus || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "stdout": "order\nname-alone\ncal: unknown month name: sept\nrc=1\ncal: unrecognized option '--bogus'\nTry 'cal --help' for more information.\nrc=1\n"
     }
   ]
 }

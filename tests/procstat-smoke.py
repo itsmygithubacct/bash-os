@@ -27,7 +27,9 @@ with tempfile.TemporaryDirectory() as tmp:
     assert cpu[1].split()==['all','35.00','8.00','20.00','5.00','2.00','2.00','1.00','5.00','2.00','20.00']
     assert len(run('mpstat','-P','ALL').splitlines())==3
     assert run('sar','-u')=='\n'.join(cpu)+'\n'
-    assert run('iostat','-d').splitlines()[1].split()==['sda','0.30','1.00','2.00','100.0','200.0']
+    # sysstat 12.7: discard columns, whole-kB totals; the device table follows a blank line.
+    io=[l for l in run('iostat','-d').splitlines() if l.startswith('sda')]
+    assert io[0].split()==['sda','0.30','1.00','2.00','0.00','100','200','0'],io
     hz=os.sysconf('SC_CLK_TCK');pagesize=os.sysconf('SC_PAGESIZE')
     fields=['0']*21
     for field,value in {4:1,14:2*hz,15:hz,20:3,22:50*hz,23:65536,24:4}.items():fields[field-4]=str(value)
@@ -41,7 +43,8 @@ with tempfile.TemporaryDirectory() as tmp:
     (root/'42/maps').write_text('1000-2000 r-xp 00000000 08:01 1 /lib/fixture.so.1\n'
                               '2000-3000 r--p 00001000 08:01 1 /lib/fixture.so.1\n'
                               '4000-6000 rw-p 00000000 00:00 0 [heap]\n')
-    assert run('pmap','42').endswith('total 16K\n')
+    # procps 4.0: " total" then the size right-aligned in 16 columns.
+    assert run('pmap','42').endswith(' total               16K\n')
     assert '0000000000001000 /lib/fixture.so.1' in run('pmap','-x','42')
     assert run('pldd','42')=='42:\n/lib/fixture.so.1\n'
     for args in [('prtstat','../42'),('pidstat','-p','0'),('pmap','-x'),('mpstat','2'),('unknown',)]:run(*args,rc=2)

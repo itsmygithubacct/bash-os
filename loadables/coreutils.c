@@ -1,23 +1,24 @@
 /* SPDX-License-Identifier: MIT */
-/* coreutils.c — 12 small POSIX coreutils as a single bash loadable.
+/* coreutils.c — 13 small POSIX coreutils as a single bash loadable.
  *
- * Phase MISSING_LOADABLES T3 of bash-os. Bundles twelve short
+ * Phase MISSING_LOADABLES T3 of bash-os. Bundles thirteen short
  * coreutils that each lack a dedicated bash builtin:
  *
  *   coreutils tac    [FILE...]                  reverse lines
- *   coreutils shuf   [-i LO-HI|-e|-n COUNT|--random-source=F] [FILE]
+ *   coreutils shuf   [-erz] [-i LO-HI] [-n COUNT] [-o FILE] [FILE|ARG...]
  *   coreutils factor N [N...]                   prime factorize
  *   coreutils yes    [STRING...]                infinite repeat
  *   coreutils fmt    [-cstu] [-w N] [-p S] [FILE...]  GNU fmt
  *   coreutils tsort  [FILE]                     topological sort
+ *   coreutils printf FORMAT [ARG...]            GNU printf (env/xargs/find use it)
  *   coreutils nproc                             sched_getaffinity count; --all is configured
  *   coreutils numfmt [OPTION]... [NUMBER]...    GNU numfmt options
  *   coreutils shred  [-n N] [-u] [-z] FILE...   overwrite + unlink
  *   coreutils groups [USER]                     list user groups
- *   coreutils install [-C] [-m MODE] [-d|-D] [-T] SRC... DST | -t DIR SRC...
+ *   coreutils install [-bCcDdpsTvZ] [-m MODE] [-o OWNER] [-g GROUP] [-S SUFFIX] [-t DIR] SRC... DST | -d DIR...
  *   coreutils mknod  PATH {b|c|p} [MAJ MIN]     create device/fifo
  *
- * Twelve verbs, one .c file, single struct builtin dispatched via
+ * Thirteen verbs, one .c file, single struct builtin dispatched via
  * the leading word. Each verb keeps its own static helpers under a
  * `bcu_<verb>_` prefix; the public entry points are `bcu_<verb>_cmd`
  * (taking a WORD_LIST). The bottom of the file holds the dispatch
@@ -28,10 +29,14 @@
  * /usr/bin/<verb>) get a real PATH entry. The wrappers all `exec
  * coreutils <verb> "$@"` so the loadable runs in-process.
  *
- * Source counterparts:
- *   research/refs/coreutils/src/{tac,shuf,factor,yes,fmt,tsort,
- *     nproc,numfmt,shred,groups,install,mknod}.c (GNU canonical)
- *   research/refs/sbase/{tac,factor,yes,tsort,nproc,shred}.c (minimal)
+ * shuf, fmt, tsort, printf and install are clean-room: written from the
+ * coreutils manual, POSIX and observed coreutils 9.7 behaviour, not from
+ * GNU source.
+ *
+ * Source counterparts named for the other verbs:
+ *   research/refs/coreutils/src/{tac,factor,yes,nproc,numfmt,shred,
+ *     groups,mknod}.c (GNU canonical)
+ *   research/refs/sbase/{tac,factor,yes,nproc,shred}.c (minimal)
  *
  * --- LICENSE ---
  * MIT License — same boilerplate as binhex.c.
@@ -164,7 +169,7 @@ bcu_usage (const char *verb)
   if (strcmp (verb, "tac") == 0)
     builtin_error ("usage: coreutils tac [FILE...]");
   else if (strcmp (verb, "shuf") == 0)
-    builtin_error ("usage: coreutils shuf [-i LO-HI|-e|-n COUNT|--random-source=F] [FILE]");
+    builtin_error ("usage: coreutils shuf [-erz] [-i LO-HI] [-n COUNT] [-o FILE] [--random-source=FILE] [FILE | ARG...]");
   else if (strcmp (verb, "factor") == 0)
     builtin_error ("usage: coreutils factor N [N...]");
   else if (strcmp (verb, "yes") == 0)
@@ -173,6 +178,8 @@ bcu_usage (const char *verb)
     builtin_error ("usage: coreutils fmt [-WIDTH] [-cstu] [-w WIDTH] [-g GOAL] [-p PREFIX] [FILE...]");
   else if (strcmp (verb, "tsort") == 0)
     builtin_error ("usage: coreutils tsort [FILE]");
+  else if (strcmp (verb, "printf") == 0)
+    builtin_error ("usage: coreutils printf FORMAT [ARGUMENT]...");
   else if (strcmp (verb, "nproc") == 0)
     builtin_error ("usage: coreutils nproc [--all] [--ignore=N]");
   else if (strcmp (verb, "numfmt") == 0)
@@ -182,7 +189,7 @@ bcu_usage (const char *verb)
   else if (strcmp (verb, "groups") == 0)
     builtin_error ("usage: coreutils groups [USER...]");
   else if (strcmp (verb, "install") == 0)
-    builtin_error ("usage: coreutils install [-c] [-C] [-m MODE] [-o OWNER] [-g GROUP] [-d|-D] [-T] SRC... DST | -t DIR SRC...");
+    builtin_error ("usage: coreutils install [-bCcDdpsTvZ] [-g GROUP] [-m MODE] [-o OWNER] [-S SUFFIX] [-t DIR] SOURCE... DEST | -d DIR...");
   else if (strcmp (verb, "mknod") == 0)
     builtin_error ("usage: coreutils mknod [-m MODE] PATH {b|c|p} [MAJ MIN]");
   else
@@ -327,195 +334,887 @@ bcu_tac_cmd (WORD_LIST *list)
 }
 
 /* ===================================================================
- * shuf — random permutation.
- *
- * Supports:
- *   -i LO-HI         shuffle integers LO..HI
- *   -e ITEM...       shuffle the explicit arguments
- *   -n COUNT         output at most COUNT items
- *   --random-source=FILE
- *                    use FILE as seed source (read 8 bytes;
- *                    deterministic for reproducible test pinning).
- * Plain `shuf` (or `shuf FILE`) reads lines from stdin/FILE.
+ * Helpers shared by shuf, tsort, fmt and printf: GNU-style option
+ * scanning, diagnostics and quoting. Written for bash-os from the
+ * coreutils manual, POSIX and observed behaviour of coreutils 9.7.
  * =================================================================== */
 
-/* xorshift64 — small deterministic PRNG seeded from /dev/urandom or
- * the user-supplied --random-source. NOT cryptographic; matches GNU
- * shuf's intent of "random for human-scale enumeration." */
-static uint64_t bcu_shuf_state = 0;
+/* "PROG: message" on stderr. Standard output is flushed first so the
+   two streams interleave as a stdio program's would. */
+static void bcu_err (const char *prog, const char *fmt, ...)
+  __attribute__ ((format (printf, 2, 3)));
+static void
+bcu_err (const char *prog, const char *fmt, ...)
+{
+  va_list ap;
+  fflush (stdout);
+  fprintf (stderr, "%s: ", prog);
+  va_start (ap, fmt);
+  vfprintf (stderr, fmt, ap);
+  va_end (ap);
+  fputc ('\n', stderr);
+  fflush (stderr);
+}
+
+static void
+bcu_try_help (const char *prog)
+{
+  fflush (stdout);
+  fprintf (stderr, "Try '%s --help' for more information.\n", prog);
+  fflush (stderr);
+}
+
+/* TEXT in the locale's quotation marks; always returns allocated text. */
+static char *
+bcu_quote (const char *text)
+{
+  char *q = bos_quote (text);
+  return q ? q : bcu_strdup (text);
+}
+
+/* Shell quoting as `ls --quoting-style=shell-escape` and printf %q show
+   it: words made only of safe characters stay bare; a word whose only
+   unsafe characters are apostrophes and spaces goes in double quotes;
+   anything else in single quotes, with an apostrophe written '\'' and
+   unprintable bytes in $'...' sections. */
+static char *
+bcu_shell_quote (const char *s)
+{
+  size_t len = strlen (s), at = 0;
+  int needs = len == 0, apostrophe = 0, single = 0;
+  mbstate_t st;
+
+  memset (&st, 0, sizeof st);
+  for (size_t i = 0; i < len;)
+    {
+      unsigned char c = (unsigned char) s[i];
+      int printable;
+      size_t n = bos_quote_next (s + i, len - i, &st, &printable);
+      if (!printable)
+        needs = single = 1;
+      else if (c == '\'')
+        needs = apostrophe = 1;
+      else if (c == ' ')
+        needs = 1;
+      else if (c < 0x80 && strchr ("!\"$&()*;<=>?[\\^`|", c))
+        needs = single = 1;
+      else if (c == '#' || c == '~')
+        {
+          single = 1;
+          if (i == 0)
+            needs = 1;
+        }
+      else if (c == '{' || c == '}')
+        {
+          single = 1;
+          if (len == 1)
+            needs = 1;
+        }
+      i += n;
+    }
+  if (!needs)
+    return bcu_strdup (s);
+
+  char *out = xmalloc (len * 8 + 8);
+  if (apostrophe && !single)
+    {
+      out[at++] = '"';
+      memcpy (out + at, s, len);
+      at += len;
+      out[at++] = '"';
+      out[at] = '\0';
+      return out;
+    }
+  int dollar = 0;
+  memset (&st, 0, sizeof st);
+  out[at++] = '\'';
+  for (size_t i = 0; i < len;)
+    {
+      unsigned char c = (unsigned char) s[i];
+      int printable;
+      size_t n = bos_quote_next (s + i, len - i, &st, &printable);
+      if (c == '\'')
+        {
+          memcpy (out + at, "'\\''", 4);
+          at += 4;
+          dollar = 0;
+        }
+      else if (!printable)
+        {
+          if (!dollar)
+            {
+              memcpy (out + at, "'$'", 3);
+              at += 3;
+              dollar = 1;
+            }
+          for (size_t k = 0; k < n; k++)
+            {
+              unsigned char b = (unsigned char) s[i + k];
+              char letter = bos_quote_letter (b);
+              out[at++] = '\\';
+              if (letter)
+                out[at++] = letter;
+              else
+                {
+                  out[at++] = (char) ('0' + (b >> 6));
+                  out[at++] = (char) ('0' + ((b >> 3) & 7));
+                  out[at++] = (char) ('0' + (b & 7));
+                }
+            }
+        }
+      else
+        {
+          if (dollar)
+            {
+              out[at++] = '\'';
+              out[at++] = '\'';
+              dollar = 0;
+            }
+          memcpy (out + at, s + i, n);
+          at += n;
+        }
+      i += n;
+    }
+  out[at++] = '\'';
+  out[at] = '\0';
+  return out;
+}
+
+/* A file name in a diagnostic: bare when that is unambiguous. */
+#define bcu_quotef bcu_shell_quote
+
+/* Option scanning in the manner of glibc getopt_long: short clusters,
+   "-oARG" and "-o ARG", long options as "--name=ARG" or "--name ARG",
+   unambiguous prefixes, operands collected in order with options after
+   them still recognised unless POSIXLY_CORRECT is set, and "--". */
+enum { BCU_NOARG, BCU_REQARG };
+enum { BCU_OPT_HELP = 0x100, BCU_OPT_VERSION, BCU_OPT_FIRST };
+
+struct bcu_lopt
+{
+  const char *name;
+  int has_arg;
+  int val;
+};
+
+typedef struct
+{
+  const char *prog;
+  const char *shortopts;
+  const struct bcu_lopt *longopts;
+  WORD_LIST *next;
+  const char *cluster;
+  const char *optarg;
+  int ended, posix;
+  char **ops;
+  int nops, cap;
+} bcu_opts;
+
+static void
+bcu_opts_init (bcu_opts *g, const char *prog, const char *shortopts,
+               const struct bcu_lopt *longopts, WORD_LIST *list)
+{
+  memset (g, 0, sizeof *g);
+  g->prog = prog;
+  g->shortopts = shortopts;
+  g->longopts = longopts;
+  g->next = list;
+  g->posix = getenv ("POSIXLY_CORRECT") != NULL;
+  g->ops = xmalloc (sizeof (char *));
+  g->ops[0] = NULL;
+}
+
+static void
+bcu_opts_free (bcu_opts *g)
+{
+  free (g->ops);
+  g->ops = NULL;
+}
 
 static int
-bcu_shuf_seed (const char *source)
+bcu_opts_long (bcu_opts *g, const char *word)
 {
-  uint64_t s = 0;
-  if (source)
+  const char *name = word + 2, *eq = strchr (name, '=');
+  size_t len = eq ? (size_t) (eq - name) : strlen (name);
+  const struct bcu_lopt *found = NULL, *o;
+  int ambiguous = 0;
+
+  for (o = g->longopts; o && o->name; o++)
+    if (!strncmp (o->name, name, len))
+      {
+        if (strlen (o->name) == len)
+          {
+            found = o;
+            ambiguous = 0;
+            break;
+          }
+        if (!found)
+          found = o;
+        else if (found->has_arg != o->has_arg || found->val != o->val)
+          ambiguous = 1;
+      }
+  if (ambiguous)
     {
-      FILE *fp = fopen (source, "rb");
-      if (!fp)
-        { builtin_error ("shuf: %s: %s", source, strerror (errno)); return 0; }
-      unsigned char b[8] = {0};
-      size_t count = fread (b, 1, sizeof b, fp);
-      int failed = ferror (fp);
-      fclose (fp);
-      if (failed)
-        { builtin_error ("shuf: %s: read error", source); return 0; }
-      for (size_t i = 0; i < count; i++) s = (s << 8) | b[i];
-      bcu_shuf_state = s ? s : 0x9E3779B97F4A7C15ULL;
-      return 1;
+      fflush (stdout);
+      fprintf (stderr, "%s: option '%.*s' is ambiguous; possibilities:",
+               g->prog, (int) (len + 2), word);
+      for (o = g->longopts; o->name; o++)
+        if (!strncmp (o->name, name, len))
+          fprintf (stderr, " '--%s'", o->name);
+      fputc ('\n', stderr);
+      bcu_try_help (g->prog);
+      return '?';
     }
-  if (s == 0)
+  if (!found)
     {
-      FILE *fp = fopen ("/dev/urandom", "rb");
-      if (fp)
+      bcu_err (g->prog, "unrecognized option '%s'", word);
+      bcu_try_help (g->prog);
+      return '?';
+    }
+  g->optarg = NULL;
+  if (eq)
+    {
+      if (found->has_arg == BCU_NOARG)
         {
-          unsigned char b[8] = {0};
-          fread (b, 1, 8, fp);
-          fclose (fp);
-          for (int i = 0; i < 8; i++)
-            s = (s << 8) | b[i];
+          bcu_err (g->prog, "option '--%s' doesn't allow an argument", found->name);
+          bcu_try_help (g->prog);
+          return '?';
+        }
+      g->optarg = eq + 1;
+    }
+  else if (found->has_arg == BCU_REQARG)
+    {
+      if (!g->next)
+        {
+          bcu_err (g->prog, "option '--%s' requires an argument", found->name);
+          bcu_try_help (g->prog);
+          return '?';
+        }
+      g->optarg = g->next->word->word;
+      g->next = g->next->next;
+    }
+  return found->val;
+}
+
+/* The next option, -1 when the words are used up (operands are then in
+   g->ops), or '?' after a diagnostic. */
+static int
+bcu_opts_next (bcu_opts *g)
+{
+  g->optarg = NULL;
+  while (!g->cluster || !*g->cluster)
+    {
+      g->cluster = NULL;
+      if (!g->next)
+        return -1;
+      char *w = g->next->word->word;
+      g->next = g->next->next;
+      if (g->ended || w[0] != '-' || !w[1])
+        {
+          if (g->nops + 2 > g->cap)
+            {
+              g->cap = g->cap ? g->cap * 2 : 8;
+              g->ops = xrealloc (g->ops, (size_t) g->cap * sizeof (char *));
+            }
+          g->ops[g->nops++] = w;
+          g->ops[g->nops] = NULL;
+          if (g->posix)
+            g->ended = 1;
+          continue;
+        }
+      if (w[1] == '-')
+        {
+          if (!w[2])
+            {
+              g->ended = 1;
+              continue;
+            }
+          return bcu_opts_long (g, w);
+        }
+      g->cluster = w + 1;
+    }
+  int c = (unsigned char) *g->cluster++;
+  const char *spec = c == ':' ? NULL : strchr (g->shortopts, c);
+  if (!spec)
+    {
+      bcu_err (g->prog, "invalid option -- '%c'", c);
+      bcu_try_help (g->prog);
+      return '?';
+    }
+  if (spec[1] == ':')
+    {
+      if (*g->cluster)
+        g->optarg = g->cluster;
+      else if (g->next)
+        {
+          g->optarg = g->next->word->word;
+          g->next = g->next->next;
+        }
+      else
+        {
+          bcu_err (g->prog, "option requires an argument -- '%c'", c);
+          bcu_try_help (g->prog);
+          return '?';
+        }
+      g->cluster = NULL;
+    }
+  return c;
+}
+
+/* Buffered output to a descriptor, for verbs that may write to a file. */
+typedef struct
+{
+  int fd;
+  int error;
+  size_t used;
+  char buf[65536];
+} bcu_wbuf;
+
+static void
+bcu_wbuf_flush (bcu_wbuf *w)
+{
+  size_t off = 0;
+  while (off < w->used && !w->error)
+    {
+      ssize_t n = write (w->fd, w->buf + off, w->used - off);
+      if (n < 0 && errno == EINTR)
+        continue;
+      if (n < 0)
+        w->error = errno;
+      else
+        off += (size_t) n;
+    }
+  w->used = 0;
+}
+
+static void
+bcu_wbuf_put (bcu_wbuf *w, const char *p, size_t n)
+{
+  while (n && !w->error)
+    {
+      size_t room = sizeof w->buf - w->used;
+      size_t k = n < room ? n : room;
+      memcpy (w->buf + w->used, p, k);
+      w->used += k;
+      p += k;
+      n -= k;
+      if (w->used == sizeof w->buf)
+        bcu_wbuf_flush (w);
+    }
+}
+
+/* Unsigned decimal as coreutils reads counts and ranges: optional
+   leading blanks and '+', digits, nothing after. 1 on success, 0 when
+   malformed, -1 on overflow. */
+static int
+bcu_parse_uint (const char *s, uintmax_t *out)
+{
+  while (*s == ' ' || (*s >= '\t' && *s <= '\r'))
+    s++;
+  if (*s == '+')
+    s++;
+  if (*s < '0' || *s > '9')
+    return 0;
+  uintmax_t v = 0;
+  int over = 0;
+  for (; *s >= '0' && *s <= '9'; s++)
+    {
+      unsigned d = (unsigned) (*s - '0');
+      if (v > (UINTMAX_MAX - d) / 10)
+        over = 1;
+      else
+        v = v * 10 + d;
+    }
+  if (*s)
+    return 0;
+  *out = over ? UINTMAX_MAX : v;
+  return over ? -1 : 1;
+}
+
+/* ===================================================================
+ * shuf — random permutation of input lines, operands or a range.
+ *
+ *   -e, --echo                 each operand is an input line
+ *   -i, --input-range=LO-HI    the numbers LO..HI are the input lines
+ *   -n, --head-count=COUNT     output at most COUNT lines (smallest wins)
+ *   -o, --output=FILE          write to FILE, opened after the input is read
+ *   --random-source=FILE       take random bytes from FILE
+ *   -r, --repeat               draw with replacement (forever without -n)
+ *   -z, --zero-terminated      lines end in NUL, not newline
+ * Plain `shuf` (or `shuf FILE`) reads lines from stdin/FILE.
+ * Written from the coreutils manual and observed coreutils 9.7 behaviour;
+ * the permutation itself is this file's own (see the parity exclusion).
+ * =================================================================== */
+
+typedef struct
+{
+  const char *source;   /* --random-source, or NULL for the kernel */
+  int fd;
+  unsigned char buf[512];
+  size_t have, pos;
+  int failed;
+} bcu_rand;
+
+/* Next random byte; 0 with r->failed set after a diagnostic. */
+static int
+bcu_rand_byte (bcu_rand *r, unsigned char *b)
+{
+  if (r->pos == r->have)
+    {
+      ssize_t n;
+      r->pos = r->have = 0;
+      if (r->fd < 0)
+        {
+#if defined (__linux__) && defined (SYS_getrandom)
+          do
+            n = syscall (SYS_getrandom, r->buf, sizeof r->buf, 0);
+          while (n < 0 && errno == EINTR);
+          if (n <= 0)
+#endif
+            {
+              r->fd = open ("/dev/urandom", O_RDONLY | O_CLOEXEC);
+              if (r->fd < 0)
+                {
+                  bcu_err ("shuf", "/dev/urandom: %s", strerror (errno));
+                  r->failed = 1;
+                  return 0;
+                }
+              return bcu_rand_byte (r, b);
+            }
+#if defined (__linux__) && defined (SYS_getrandom)
+          r->have = (size_t) n;
+#endif
+        }
+      else
+        {
+          do
+            n = read (r->fd, r->buf, sizeof r->buf);
+          while (n < 0 && errno == EINTR);
+          if (n <= 0)
+            {
+              char *q = bcu_quote (r->source ? r->source : "/dev/urandom");
+              if (n == 0)
+                bcu_err ("shuf", "%s: end of file", q);
+              else
+                bcu_err ("shuf", "%s: read error: %s", q, strerror (errno));
+              free (q);
+              r->failed = 1;
+              return 0;
+            }
+          r->have = (size_t) n;
         }
     }
-  if (s == 0)
-    s = ((uint64_t) time (NULL) << 16) ^ (uint64_t) getpid ();
-  bcu_shuf_state = s ? s : 0x9E3779B97F4A7C15ULL;
+  *b = r->buf[r->pos++];
   return 1;
 }
 
-static uint64_t
-bcu_shuf_rand (void)
+/* Uniform value in [0, N): N <= 1 needs no randomness. Big-endian bytes
+   masked to the bit length of N - 1, redrawn when too large, so a source
+   of zero bytes always yields 0. */
+static uintmax_t
+bcu_rand_below (bcu_rand *r, uintmax_t n)
 {
-  uint64_t x = bcu_shuf_state;
-  x ^= x << 13; x ^= x >> 7; x ^= x << 17;
-  bcu_shuf_state = x;
-  return x;
+  if (n <= 1 || r->failed)
+    return 0;
+  uintmax_t max = n - 1, mask = max;
+  int bytes = 0;
+  for (uintmax_t m = max; m; m >>= 8)
+    bytes++;
+  for (int s = 1; s < 64; s <<= 1)
+    mask |= mask >> s;
+  for (;;)
+    {
+      uintmax_t v = 0;
+      for (int i = 0; i < bytes; i++)
+        {
+          unsigned char b;
+          if (!bcu_rand_byte (r, &b))
+            return 0;
+          v = (v << 8) | b;
+        }
+      v &= mask;
+      if (v <= max)
+        return v;
+    }
 }
 
-/* Fisher-Yates in place. */
-static void
-bcu_shuf_permute (char **items, size_t n)
+/* Sparse map of swapped positions for a partial shuffle of a range too
+   large to hold: open addressing over uintmax_t keys. */
+typedef struct
 {
-  for (size_t i = n; i > 1; i--)
+  uintmax_t *keys, *vals;
+  unsigned char *used;
+  size_t cap, count;
+} bcu_umap;
+
+static size_t
+bcu_umap_slot (const bcu_umap *m, uintmax_t key)
+{
+  uint64_t h = (uint64_t) key * 0x9E3779B97F4A7C15ULL;
+  size_t i = (size_t) (h ^ (h >> 29)) & (m->cap - 1);
+  while (m->used[i] && m->keys[i] != key)
+    i = (i + 1) & (m->cap - 1);
+  return i;
+}
+
+static void
+bcu_umap_put (bcu_umap *m, uintmax_t key, uintmax_t val)
+{
+  if ((m->count + 1) * 2 > m->cap)
     {
-      size_t j = (size_t) (bcu_shuf_rand () % i);
-      char *t = items[i - 1];
-      items[i - 1] = items[j];
-      items[j] = t;
+      bcu_umap old = *m;
+      m->cap = old.cap ? old.cap * 2 : 64;
+      m->keys = xmalloc (m->cap * sizeof *m->keys);
+      m->vals = xmalloc (m->cap * sizeof *m->vals);
+      m->used = bcu_calloc (m->cap, 1);
+      m->count = 0;
+      for (size_t i = 0; i < old.cap; i++)
+        if (old.used[i])
+          bcu_umap_put (m, old.keys[i], old.vals[i]);
+      free (old.keys);
+      free (old.vals);
+      free (old.used);
     }
+  size_t i = bcu_umap_slot (m, key);
+  if (!m->used[i])
+    {
+      m->used[i] = 1;
+      m->keys[i] = key;
+      m->count++;
+    }
+  m->vals[i] = val;
+}
+
+static uintmax_t
+bcu_umap_get (const bcu_umap *m, uintmax_t key)
+{
+  if (!m->cap)
+    return key;
+  size_t i = bcu_umap_slot (m, key);
+  return m->used[i] ? m->vals[i] : key;
+}
+
+static void
+bcu_shuf_usage (void)
+{
+  fputs ("Usage: shuf [OPTION]... [FILE]\n"
+         "  or:  shuf -e [OPTION]... [ARG]...\n"
+         "  or:  shuf -i LO-HI [OPTION]...\n"
+         "Print the input lines in a random order.\n"
+         "\n"
+         "With no FILE, or when FILE is -, read standard input.\n"
+         "\n"
+         "Mandatory arguments to long options are mandatory for short options too.\n"
+         "  -e, --echo                each ARG is an input line\n"
+         "  -i, --input-range=LO-HI   the numbers LO to HI are the input lines\n"
+         "  -n, --head-count=COUNT    print no more than COUNT lines\n"
+         "  -o, --output=FILE         write to FILE, not standard output\n"
+         "      --random-source=FILE  read random bytes from FILE\n"
+         "  -r, --repeat              a line may be printed more than once\n"
+         "  -z, --zero-terminated     lines end in NUL, not newline\n"
+         "      --help        display this help and exit\n"
+         "      --version     output version information and exit\n",
+         stdout);
 }
 
 static int
 bcu_shuf_cmd (WORD_LIST *list)
 {
-  const char *source = NULL;
-  long long lo = 0, hi = -1;
-  int have_range = 0, have_e = 0;
-  long long limit = -1;
-  WORD_LIST *evals_head __attribute__((cleanup(bcu_free_nodes))) = NULL;
-  WORD_LIST *evals_tail = NULL;
-  const char *filename = NULL;
+  enum { OPT_RANDOM_SOURCE = BCU_OPT_FIRST };
+  static const struct bcu_lopt longopts[] = {
+    { "echo",            BCU_NOARG,  'e' },
+    { "input-range",     BCU_REQARG, 'i' },
+    { "head-count",      BCU_REQARG, 'n' },
+    { "output",          BCU_REQARG, 'o' },
+    { "random-source",   BCU_REQARG, OPT_RANDOM_SOURCE },
+    { "repeat",          BCU_NOARG,  'r' },
+    { "zero-terminated", BCU_NOARG,  'z' },
+    { "help",            BCU_NOARG,  BCU_OPT_HELP },
+    { "version",         BCU_NOARG,  BCU_OPT_VERSION },
+    { NULL, 0, 0 }
+  };
+  bcu_opts g;
+  int c, echo = 0, have_range = 0, repeat = 0, rc = EXECUTION_FAILURE;
+  char delim = '\n';
+  uintmax_t lo = 0, hi = 0, head = UINTMAX_MAX;
+  const char *outfile = NULL, *source = NULL;
+  char *data = NULL;
+  char **lines = NULL;
+  size_t nlines = 0, *loff = NULL, *llen = NULL;
+  bcu_rand rnd;
+  bcu_umap map;
+  int outfd = -1;
 
-  for (WORD_LIST *w = list; w; w = w->next)
+  memset (&rnd, 0, sizeof rnd);
+  rnd.fd = -1;
+  memset (&map, 0, sizeof map);
+  bcu_opts_init (&g, "shuf", "ei:n:o:rz", longopts, list);
+  while ((c = bcu_opts_next (&g)) != -1)
     {
-      const char *a = w->word->word;
-      if (have_e)
+      switch (c)
         {
-          /* After -e, everything is a literal item. */
-          WORD_LIST *nw = bcu_calloc (1, sizeof (*nw));
-          if (!nw) { builtin_error ("oom"); return EXECUTION_FAILURE; }
-          nw->word = w->word;
-          if (!evals_head) evals_head = nw; else evals_tail->next = nw;
-          evals_tail = nw;
-          continue;
+        case 'e':
+          echo = 1;
+          break;
+        case 'i':
+          {
+            if (have_range)
+              {
+                bcu_err ("shuf", "multiple -i options specified");
+                goto out;
+              }
+            const char *a = g.optarg, *dash = strchr (a, '-');
+            int ok = 0, over = 0;
+            if (dash)
+              {
+                char *left = bcu_strdup (a);
+                left[dash - a] = '\0';
+                int l = bcu_parse_uint (left, &lo);
+                int h = bcu_parse_uint (dash + 1, &hi);
+                free (left);
+                over = l < 0 || h < 0;
+                ok = l == 1 && h == 1 && !(lo == 0 && hi == UINTMAX_MAX)
+                     && (hi >= lo || hi + 1 == lo);
+              }
+            if (!ok)
+              {
+                char *q = bcu_quote (a);
+                if (over)
+                  bcu_err ("shuf", "invalid input range: %s: %s", q, strerror (EOVERFLOW));
+                else
+                  bcu_err ("shuf", "invalid input range: %s", q);
+                free (q);
+                goto out;
+              }
+            have_range = 1;
+            break;
+          }
+        case 'n':
+          {
+            uintmax_t v;
+            if (!bcu_parse_uint (g.optarg, &v))
+              {
+                char *q = bcu_quote (g.optarg);
+                bcu_err ("shuf", "invalid line count: %s", q);
+                free (q);
+                goto out;
+              }
+            if (v < head)
+              head = v;
+            break;
+          }
+        case 'o':
+          if (outfile && strcmp (outfile, g.optarg))
+            {
+              bcu_err ("shuf", "multiple output files specified");
+              goto out;
+            }
+          outfile = g.optarg;
+          break;
+        case OPT_RANDOM_SOURCE:
+          if (source && strcmp (source, g.optarg))
+            {
+              bcu_err ("shuf", "multiple random sources specified");
+              goto out;
+            }
+          source = g.optarg;
+          break;
+        case 'r':
+          repeat = 1;
+          break;
+        case 'z':
+          delim = '\0';
+          break;
+        case BCU_OPT_HELP:
+          bcu_shuf_usage ();
+          rc = EXECUTION_SUCCESS;
+          goto out;
+        case BCU_OPT_VERSION:
+          puts ("shuf (bash-os coreutils)");
+          rc = EXECUTION_SUCCESS;
+          goto out;
+        default:
+          goto out;
         }
-      if (strcmp (a, "-e") == 0) { have_e = 1; continue; }
-      if (strcmp (a, "-i") == 0 && w->next)
-        {
-          w = w->next;
-          const char *r = w->word->word;
-          char *dash = strchr (r, '-');
-          if (!dash) { builtin_error ("shuf: bad -i range: %s", r); bcu_usage ("shuf"); return EX_USAGE; }
-          *dash = '\0';
-          int valid = bcu_parse_ll (r, &lo) && bcu_parse_ll (dash + 1, &hi)
-                      && lo >= 0 && hi >= lo;
-          *dash = '-';
-          if (!valid || (uintmax_t) hi - (uintmax_t) lo >= SIZE_MAX / sizeof (char *))
-            { builtin_error ("shuf: bad -i range"); bcu_usage ("shuf"); return EX_USAGE; }
-          have_range = 1;
-          continue;
-        }
-      if (strcmp (a, "-n") == 0 && w->next)
-        {
-          w = w->next;
-          if (!bcu_parse_ll (w->word->word, &limit) || limit < 0)
-            { builtin_error ("shuf: bad -n"); bcu_usage ("shuf"); return EX_USAGE; }
-          continue;
-        }
-      if (strncmp (a, "--random-source=", 16) == 0)
-        { source = a + 16; continue; }
-      if (a[0] == '-' && a[1] != '\0' && strcmp (a, "-") != 0)
-        { builtin_error ("shuf: unknown flag: %s", a); bcu_usage ("shuf"); return EX_USAGE; }
-      filename = a;
     }
 
-  if (!bcu_shuf_seed (source)) return EXECUTION_FAILURE;
+  if (echo && have_range)
+    {
+      bcu_err ("shuf", "cannot combine -e and -i options");
+      bcu_try_help ("shuf");
+      goto out;
+    }
+  if (!echo && g.nops > (have_range ? 0 : 1))
+    {
+      char *q = bcu_quote (g.ops[have_range ? 0 : 1]);
+      bcu_err ("shuf", "extra operand %s", q);
+      free (q);
+      bcu_try_help ("shuf");
+      goto out;
+    }
 
-  size_t n = 0, cap = 0;
-  char **items = NULL;
+  if (source)
+    {
+      rnd.source = source;
+      rnd.fd = open (source, O_RDONLY | O_CLOEXEC);
+      if (rnd.fd < 0)
+        {
+          char *q = bcu_quotef (source);
+          bcu_err ("shuf", "%s: %s", q, strerror (errno));
+          free (q);
+          goto out;
+        }
+    }
 
+  /* Gather the input lines (a range stays implicit). */
+  uintmax_t total;
   if (have_range)
+    total = hi + 1 - lo;
+  else if (echo)
     {
-      size_t need = (size_t) ((uintmax_t) hi - (uintmax_t) lo + 1);
-      items = xmalloc (need * sizeof (*items));
-      if (!items) { builtin_error ("oom"); return EXECUTION_FAILURE; }
-      for (size_t i = 0; i < need; i++)
-        {
-          char buf[32];
-          snprintf (buf, sizeof buf, "%lld", lo + (long long) i);
-          items[n++] = bcu_strdup (buf);
-        }
-    }
-  else if (have_e)
-    {
-      for (WORD_LIST *w = evals_head; w; w = w->next)
-        {
-          if (n == cap)
-            { cap = cap ? cap * 2 : 16; items = xrealloc (items, cap * sizeof (*items)); }
-          items[n++] = bcu_strdup (w->word->word);
-        }
+      lines = g.ops;
+      nlines = (size_t) g.nops;
+      total = nlines;
     }
   else
     {
-      FILE *fp = filename ? bcu_open_input (filename) : stdin;
-      if (!fp) return EXECUTION_FAILURE;
-      char *line = NULL; size_t llen = 0; ssize_t r;
-      while ((r = getline (&line, &llen, fp)) != -1)
+      const char *name = g.nops ? g.ops[0] : "-";
+      int fd = 0;
+      if (strcmp (name, "-"))
         {
-          if (r > 0 && line[r - 1] == '\n') line[r - 1] = '\0';
-          if (n == cap)
-            { cap = cap ? cap * 2 : 64; items = xrealloc (items, cap * sizeof (*items)); }
-          items[n++] = bcu_strdup (line);
+          fd = open (name, O_RDONLY | O_CLOEXEC);
+          if (fd < 0)
+            {
+              char *q = bcu_quotef (name);
+              bcu_err ("shuf", "%s: %s", q, strerror (errno));
+              free (q);
+              goto out;
+            }
         }
-      free (line);
-      if (fp != stdin) fclose (fp);
+      ssize_t len = bcu_tac_slurp (fd, &data);
+      int e = errno;
+      if (fd)
+        close (fd);
+      if (len < 0)
+        {
+          char *q = bcu_quotef (name);
+          bcu_err ("shuf", "%s: read error: %s", q, strerror (e));
+          free (q);
+          goto out;
+        }
+      size_t cap = 0;
+      for (size_t at = 0; at < (size_t) len;)
+        {
+          char *end = memchr (data + at, delim, (size_t) len - at);
+          size_t stop = end ? (size_t) (end - data) : (size_t) len;
+          if (nlines == cap)
+            {
+              cap = cap ? cap * 2 : 64;
+              loff = xrealloc (loff, cap * sizeof *loff);
+              llen = xrealloc (llen, cap * sizeof *llen);
+            }
+          loff[nlines] = at;
+          llen[nlines++] = stop - at;
+          at = stop + 1;
+        }
+      total = nlines;
     }
 
-  /* Permute, then optionally truncate. */
-  bcu_shuf_permute (items, n);
-  size_t out_n = n;
-  if (limit >= 0 && (size_t) limit < n) out_n = (size_t) limit;
-
-  for (size_t i = 0; i < out_n; i++)
+  if (repeat && total == 0 && head)
     {
-      fputs (items[i], stdout);
-      fputc ('\n', stdout);
+      bcu_err ("shuf", "no lines to repeat");
+      goto out;
     }
 
-  for (size_t i = 0; i < n; i++) free (items[i]);
-  free (items);
-  /* Free the -e word list spine (we did not own w->word). */
+  if (outfile)
+    {
+      outfd = open (outfile, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0666);
+      if (outfd < 0)
+        {
+          char *q = bcu_quotef (outfile);
+          bcu_err ("shuf", "%s: %s", q, strerror (errno));
+          free (q);
+          goto out;
+        }
+    }
+  else
+    fflush (stdout);
 
+  bcu_wbuf *w = xmalloc (sizeof *w);
+  w->fd = outfd >= 0 ? outfd : 1;
+  w->error = 0;
+  w->used = 0;
+  uintmax_t count = repeat ? head : (head < total ? head : total);
+  char num[32];
+  for (uintmax_t k = 0; (repeat ? (head == UINTMAX_MAX || k < count) : k < count)
+         && !w->error && !rnd.failed; k++)
+    {
+      uintmax_t pick;
+      if (repeat)
+        pick = bcu_rand_below (&rnd, total);
+      else
+        {
+          /* Forward Fisher-Yates: position k takes a random one of the
+             positions k..total-1. */
+          uintmax_t j = k + bcu_rand_below (&rnd, total - k);
+          pick = bcu_umap_get (&map, j);
+          if (j != k)
+            bcu_umap_put (&map, j, bcu_umap_get (&map, k));
+        }
+      if (rnd.failed)
+        break;
+      if (have_range)
+        {
+          int n = snprintf (num, sizeof num, "%ju", lo + pick);
+          bcu_wbuf_put (w, num, (size_t) n);
+        }
+      else
+        {
+          if (echo)
+            bcu_wbuf_put (w, lines[pick], strlen (lines[pick]));
+          else
+            bcu_wbuf_put (w, data + loff[pick], llen[pick]);
+        }
+      bcu_wbuf_put (w, &delim, 1);
+    }
+  if (!w->error && !rnd.failed)
+    bcu_wbuf_flush (w);
+  if (w->error)
+    {
+      if (outfile)
+        {
+          char *q = bcu_quotef (outfile);
+          bcu_err ("shuf", "%s: %s", q, strerror (w->error));
+          free (q);
+        }
+      else
+        bcu_err ("shuf", "write error: %s", strerror (w->error));
+    }
+  else if (!rnd.failed)
+    rc = EXECUTION_SUCCESS;
+  free (w);
+  if (outfd >= 0 && close (outfd) < 0 && rc == EXECUTION_SUCCESS)
+    {
+      char *q = bcu_quotef (outfile);
+      bcu_err ("shuf", "%s: %s", q, strerror (errno));
+      free (q);
+      rc = EXECUTION_FAILURE;
+    }
+  outfd = -1;
 
-  return EXECUTION_SUCCESS;
+out:
+  if (outfd >= 0)
+    close (outfd);
+  if (rnd.fd >= 0)
+    close (rnd.fd);
+  free (map.keys);
+  free (map.vals);
+  free (map.used);
+  free (loff);
+  free (llen);
+  free (data);
+  bcu_opts_free (&g);
+  return rc;
 }
 
 /* ===================================================================
@@ -626,900 +1325,1653 @@ bcu_yes_cmd (WORD_LIST *list)
 }
 
 /* ===================================================================
- * fmt — paragraph formatter.
+ * fmt — refill paragraphs.
  *
- * GNU fmt (coreutils 9.7), ported from fmt.c: paragraphs are runs of
- * lines with the same indentation (crown/tagged rules under -c/-t, one
- * line under -s), inter-word spacing is kept except at line ends (-u:
- * one space between words, two after sentences), tabs are re-introduced
- * on output, and -p STRING formats only lines that start with STRING,
- * copying the others unchanged. -w WIDTH (or a first -WIDTH), -g GOAL
- * and the long options are GNU's. Line breaking is GNU's cost-minimizing
- * optimal fit (fmt_paragraph, line_cost, base_cost and the cost
- * constants), including flush_paragraph for paragraphs over 1000 words
- * or 5000 characters.
+ * Written for bash-os from the coreutils manual and from measurements of
+ * coreutils 9.7 output (no GNU source was consulted). Model:
+ *
+ *   Lines. A line holding only blanks is printed empty and ends the
+ *   paragraph. With -p, a line is a text line only when its leading
+ *   blanks reach the prefix's own leading blanks, the prefix's visible
+ *   part follows and the text then starts no earlier than the prefix's
+ *   trailing blanks would end; a line that is just the prefix (plus
+ *   blanks) prints as lead + prefix. Any other line is copied as is
+ *   apart from its leading blanks, which are rebuilt like indentation.
+ *   Columns expand tabs to multiples of 8.
+ *
+ *   Paragraphs. Consecutive text lines with the same lead column join
+ *   when their text columns agree: all equal by default; with -c the
+ *   second line may differ from the first and the rest follow the
+ *   second; -t is -c where the second line must differ (a lone tagged
+ *   line wraps to the previous paragraph's second-line column, or when
+ *   that equals its own, to column 3, or 0 if it was indented). -s never
+ *   joins. Each FILE is formatted separately.
+ *
+ *   Words. Space, tab and newline separate words. A word ending in . ? or
+ *   ! (closing ) ] " ' ignored) ends a sentence when two or more columns
+ *   or the end of the line follow it, and the last word of a paragraph
+ *   always does. Between words the input spacing is kept (in columns);
+ *   a line end becomes one space, two after a sentence end; -u always
+ *   uses one, or two after a sentence end.
+ *
+ *   Breaking. Lines stay within WIDTH - 1 columns unless a single word is
+ *   longer, and aim at GOAL (default WIDTH * 187 / 200). The break points
+ *   minimise, from the end of the paragraph backwards, for each line but
+ *   the last: (GOAL - length)^2 + 49, half the squared difference from the
+ *   following line's length unless that one is the last, and a cost for
+ *   the break: -25 after a sentence end, +3600 after any other word ending
+ *   in . ? or !, -16 after other punctuation, +400/(length+2) after the
+ *   first word of a sentence; then -16 before a word opening with ( [ " '
+ *   or `, otherwise +225/(length+2) before the last word of a sentence.
+ *   Ties go to the shorter line. A paragraph is refilled in windows of
+ *   about 5000 bytes of words: each full window prints all but its last
+ *   line, which starts the next window.
+ *
+ *   Output. Lead, prefix and indentation are rebuilt in columns; once any
+ *   line read so far held a tab, runs of blanks that reach a tab stop at
+ *   least two columns away use tabs.
  * =================================================================== */
 
-/* Cost model constants and word descriptor — copied verbatim from GNU
- * fmt.c so the dynamic program below reproduces its breaks exactly.
- * Costs/bonuses are "equivalent departure from optimal length * 10". */
+#define BCU_FMT_WINDOW 5000
+#define BCU_FMT_MAXWORDS 1000
 
-typedef long int BCU_COST;
-#define BCU_MAXCOST  ((BCU_COST) ((~(unsigned long) 0) >> 1))   /* LONG_MAX */
+typedef struct
+{
+  size_t off, len;      /* bytes in the paragraph arena */
+  long gap;             /* columns after the word when not at a line end */
+  int final, endp, at_eol;
+} bcu_fmt_word;
 
-#define BCU_LEEWAY        7         /* prefer lines LEEWAY% short of max. */
-#define BCU_SQR(n)        ((BCU_COST) (n) * (BCU_COST) (n))
-#define BCU_EQUIV(n)      BCU_SQR (n)
-#define BCU_SHORT_COST(n) BCU_EQUIV ((n) * 10)        /* line n short/long. */
-#define BCU_RAGGED_COST(n) (BCU_SHORT_COST (n) / 2)   /* adjacent-line diff. */
-#define BCU_LINE_COST     BCU_EQUIV (70)              /* basic per-line cost. */
-#define BCU_WIDOW_COST(n) (BCU_EQUIV (200) / ((n) + 2))
-#define BCU_ORPHAN_COST(n) (BCU_EQUIV (150) / ((n) + 2))
-#define BCU_SENTENCE_BONUS BCU_EQUIV (50)
-#define BCU_NOBREAK_COST  BCU_EQUIV (600)
-#define BCU_PAREN_BONUS   BCU_EQUIV (40)
-#define BCU_PUNCT_BONUS   BCU_EQUIV (40)
-#define BCU_LINE_CREDIT   BCU_EQUIV (3)
-
-#define BCU_MAXWORDS 1000         /* GNU paragraph buffer, in words... */
-#define BCU_MAXCHARS 5000         /* ...and characters; longer ones flush. */
-#define BCU_TABWIDTH 8
-#define BCU_DEF_INDENT 3          /* tagged one-line paragraph default. */
-
-typedef struct bcu_word {
-  const char *text;        /* the text of the word. */
-  int length;              /* length of this word. */
-  int space;               /* the size of the following space. */
-  unsigned int paren:1;    /* starts with open paren. */
-  unsigned int period:1;   /* ends in [.?!])* */
-  unsigned int punct:1;    /* ends in punctuation. */
-  unsigned int final:1;    /* end of sentence. */
-  /* Filled in during optimization. */
-  int line_length;         /* length of the best line starting here. */
-  BCU_COST best_cost;      /* cost of best paragraph starting here. */
-  struct bcu_word *next_break;  /* break which achieves best_cost. */
-} BCU_WORD;
-
-/* GNU fmt's file-scope state, kept in one struct so the loadable stays
- * reentrant-friendly. Field names follow fmt.c. */
-typedef struct {
-  /* Options. */
+typedef struct
+{
+  /* options */
+  long width, goal;
   int crown, tagged, split, uniform;
-  int max_width, goal_width;
-  const char *prefix;       /* -p STRING without its leading/trailing blanks. */
-  int prefix_full_length;   /* with trailing blanks. */
-  int prefix_lead_space;    /* leading blanks of the -p argument. */
-  int prefix_length;        /* without trailing blanks. */
-  /* Input/output state. */
-  FILE *f;
-  int tabs;                 /* input contained tabs: re-introduce on output. */
-  int prefix_indent, first_indent, other_indent;
-  int in_column, out_column;
-  int next_char, next_prefix_indent, last_line_length;
-  char parabuf[BCU_MAXCHARS];
-  char *wptr;
-  BCU_WORD word[BCU_MAXWORDS];
-  BCU_WORD *word_limit;
+  int has_prefix;
+  const char *core;     /* visible part of the prefix */
+  size_t core_len;
+  long pre_lead;        /* columns of the prefix's leading blanks */
+  long pre_trail;       /* columns of its trailing blanks */
+  /* state */
+  int tabs;
   BCU_OUTPUT *out;
-} BCU_FMTCTX;
+  /* paragraph */
+  int open;             /* a paragraph is being collected */
+  int lines;            /* text lines in it */
+  int first_done;       /* its first output line has been printed */
+  long last_other;      /* other indentation of the previous paragraph */
+  long lead, tc1, tc2;  /* lead column, first and other text columns */
+  char *arena;
+  size_t alen, acap;
+  bcu_fmt_word *w;
+  size_t nw, wcap;
+  size_t wbytes;
+} bcu_fmt_ctx;
 
-/* GNU isopen/isclose/isperiod ctype helpers. */
-#define BCU_ISOPEN(c)   (strchr ("(['`\"", (c)) != NULL)
-#define BCU_ISCLOSE(c)  (strchr (")]'\"",  (c)) != NULL)
-#define BCU_ISPERIOD(c) (strchr (".?!",    (c)) != NULL)
+static long
+bcu_fmt_advance (long col, unsigned char ch)
+{
+  return ch == '\t' ? (col / 8 + 1) * 8 : col + 1;
+}
 
 static void
-bcu_fmt_putc (BCU_FMTCTX *ctx, int c)
+bcu_fmt_space (bcu_fmt_ctx *f, long col, long target)
 {
-  char ch = (char) c;
-  bcu_output_append (ctx->out, &ch, 1);
-}
-
-/* GNU check_punctuation: set paren/punct/period flags for word W. */
-static void
-bcu_fmt_check_punctuation (BCU_WORD *w)
-{
-  const char *start = w->text;
-  const char *finish = start + (w->length - 1);
-  unsigned char fin = (unsigned char) *finish;
-
-  w->paren  = BCU_ISOPEN ((unsigned char) *start);
-  w->punct  = !! ispunct (fin);
-  while (start < finish && BCU_ISCLOSE ((unsigned char) *finish))
-    finish--;
-  w->period = BCU_ISPERIOD ((unsigned char) *finish);
-}
-
-/* GNU base_cost: constant component of the cost of breaking before THIS. */
-static BCU_COST
-bcu_fmt_base_cost (BCU_FMTCTX *ctx, BCU_WORD *this)
-{
-  BCU_COST cost = BCU_LINE_COST;
-
-  if (this > ctx->word)
+  if (target <= col)
+    return;
+  if (f->tabs)
     {
-      if ((this - 1)->period)
-        {
-          if ((this - 1)->final)
-            cost -= BCU_SENTENCE_BONUS;
-          else
-            cost += BCU_NOBREAK_COST;
-        }
-      else if ((this - 1)->punct)
-        cost -= BCU_PUNCT_BONUS;
-      else if (this > ctx->word + 1 && (this - 2)->final)
-        cost += BCU_WIDOW_COST ((this - 1)->length);
-    }
-
-  if (this->paren)
-    cost -= BCU_PAREN_BONUS;
-  else if (this->final)
-    cost += BCU_ORPHAN_COST (this->length);
-
-  return cost;
-}
-
-/* GNU line_cost: the LEN-dependent component of breaking before NEXT. */
-static BCU_COST
-bcu_fmt_line_cost (BCU_FMTCTX *ctx, BCU_WORD *next, int len)
-{
-  int n;
-  BCU_COST cost;
-
-  if (next == ctx->word_limit)
-    return 0;
-  n = ctx->goal_width - len;
-  cost = BCU_SHORT_COST (n);
-  if (next->next_break != ctx->word_limit)
-    {
-      n = len - next->line_length;
-      cost += BCU_RAGGED_COST (n);
-    }
-  return cost;
-}
-
-/* GNU fmt_paragraph: optimal formatting for the whole paragraph via the
- * suffix dynamic program. */
-static void
-bcu_fmt_paragraph (BCU_FMTCTX *ctx)
-{
-  BCU_WORD *w;
-  int len;
-  BCU_COST wcost, best;
-  int saved_length;
-
-  ctx->word_limit->best_cost = 0;
-  saved_length = ctx->word_limit->length;
-  ctx->word_limit->length = ctx->max_width;   /* sentinel. */
-
-  for (BCU_WORD *start = ctx->word_limit - 1; start >= ctx->word; start--)
-    {
-      best = BCU_MAXCOST;
-      len = (start == ctx->word) ? ctx->first_indent : ctx->other_indent;
-
-      /* At least one word, however long, in the line. */
-      w = start;
-      len += w->length;
-      do
-        {
-          w++;
-
-          /* Consider breaking before w. */
-          wcost = bcu_fmt_line_cost (ctx, w, len) + w->best_cost;
-          if (start == ctx->word && ctx->last_line_length > 0)
-            wcost += BCU_RAGGED_COST (len - ctx->last_line_length);
-          if (wcost < best)
-            {
-              best = wcost;
-              start->next_break = w;
-              start->line_length = len;
-            }
-
-          /* Avoid computing len from the (possibly huge) sentinel. */
-          if (w == ctx->word_limit)
-            break;
-
-          len += (w - 1)->space + w->length;   /* w > start >= word */
-        }
-      while (len < ctx->max_width);
-      start->best_cost = best + bcu_fmt_base_cost (ctx, start);
-    }
-
-  ctx->word_limit->length = saved_length;
-}
-
-/* GNU put_space: SPACE blanks, re-introducing tabs when the input had them. */
-static void
-bcu_fmt_put_space (BCU_FMTCTX *ctx, int space)
-{
-  int space_target = ctx->out_column + space;
-  if (ctx->tabs)
-    {
-      int tab_target = space_target / BCU_TABWIDTH * BCU_TABWIDTH;
-      if (ctx->out_column + 1 < tab_target)
-        while (ctx->out_column < tab_target)
+      long stop = target / 8 * 8;
+      if (stop - col >= 2)
+        while (col < stop)
           {
-            bcu_fmt_putc (ctx, '\t');
-            ctx->out_column = (ctx->out_column / BCU_TABWIDTH + 1) * BCU_TABWIDTH;
+            bcu_output_append (f->out, "\t", 1);
+            col = (col / 8 + 1) * 8;
           }
     }
-  while (ctx->out_column < space_target)
+  while (col < target)
     {
-      bcu_fmt_putc (ctx, ' ');
-      ctx->out_column++;
+      bcu_output_append (f->out, " ", 1);
+      col++;
     }
 }
 
-/* GNU put_line: the line beginning with W at column INDENT, with the prefix. */
-static void
-bcu_fmt_put_line (BCU_FMTCTX *ctx, BCU_WORD *w, int indent)
+/* Lead, prefix and indentation of an output line; returns the column. */
+static long
+bcu_fmt_head (bcu_fmt_ctx *f, long tc)
 {
-  BCU_WORD *endline;
-
-  ctx->out_column = 0;
-  bcu_fmt_put_space (ctx, ctx->prefix_indent);
-  bcu_output_append (ctx->out, ctx->prefix, (size_t) ctx->prefix_length);
-  ctx->out_column += ctx->prefix_length;
-  bcu_fmt_put_space (ctx, indent - ctx->out_column);
-
-  endline = w->next_break - 1;
-  for (; w != endline; w++)
+  long col = 0;
+  if (f->has_prefix)
     {
-      bcu_output_append (ctx->out, w->text, (size_t) w->length);
-      ctx->out_column += w->length;
-      bcu_fmt_put_space (ctx, w->space);
+      bcu_fmt_space (f, 0, f->lead);
+      bcu_output_append (f->out, f->core, f->core_len);
+      col = f->lead;
+      for (size_t i = 0; i < f->core_len; i++)
+        col = bcu_fmt_advance (col, (unsigned char) f->core[i]);
     }
-  bcu_output_append (ctx->out, w->text, (size_t) w->length);
-  ctx->out_column += w->length;
-  ctx->last_line_length = ctx->out_column;
-  bcu_fmt_putc (ctx, '\n');
+  bcu_fmt_space (f, col, tc);
+  return tc > col ? tc : col;
 }
 
-/* GNU put_paragraph: the words before FINISH, a next_break chain member. */
-static void
-bcu_fmt_put_paragraph (BCU_FMTCTX *ctx, BCU_WORD *finish)
+/* Costs are integers in hundredths so that equal choices tie exactly. */
+#define BCU_FMT_UNIT 100
+
+static long long
+bcu_fmt_break_cost (const bcu_fmt_ctx *f, size_t i)
 {
-  bcu_fmt_put_line (ctx, ctx->word, ctx->first_indent);
-  for (BCU_WORD *w = ctx->word->next_break; w != finish; w = w->next_break)
-    bcu_fmt_put_line (ctx, w, ctx->other_indent);
+  const bcu_fmt_word *a = &f->w[i], *b = &f->w[i + 1];
+  unsigned char last = (unsigned char) f->arena[a->off + a->len - 1];
+  unsigned char next = (unsigned char) f->arena[b->off];
+  long long c = 0;
+  if (a->final)
+    c -= 25 * BCU_FMT_UNIT;
+  else if (a->endp)
+    c += 3600 * BCU_FMT_UNIT;
+  else if (ispunct (last))
+    c -= 16 * BCU_FMT_UNIT;
+  else if (i > 0 && f->w[i - 1].final)
+    c += 400 * BCU_FMT_UNIT / (long long) (a->len + 2);
+  if (next == '(' || next == '[' || next == '"' || next == '\'' || next == '`')
+    c -= 16 * BCU_FMT_UNIT;
+  else if (b->final)
+    c += 225 * BCU_FMT_UNIT / (long long) (b->len + 2);
+  return c;
 }
 
-/* GNU set_other_indent. */
-static void
-bcu_fmt_set_other_indent (BCU_FMTCTX *ctx, int same_paragraph)
+static long
+bcu_fmt_spacing (const bcu_fmt_ctx *f, const bcu_fmt_word *x)
 {
-  if (ctx->split)
-    ctx->other_indent = ctx->first_indent;
-  else if (ctx->crown)
-    ctx->other_indent = same_paragraph ? ctx->in_column : ctx->first_indent;
-  else if (ctx->tagged)
+  if (f->uniform || x->at_eol)
+    return x->final ? 2 : 1;
+  return x->gap;
+}
+
+/* Print the lines chosen for words [0, n); with KEEP_LAST the words of
+   the final line stay in the paragraph. */
+static void
+bcu_fmt_emit (bcu_fmt_ctx *f, size_t n, int keep_last)
+{
+  if (!n)
+    return;
+  int saved_final = f->w[n - 1].final;
+  f->w[n - 1].final = 1;
+  long maxl = f->width - 1, goal = f->goal;
+  long long *best = xmalloc ((n + 1) * sizeof *best);
+  size_t *next = xmalloc ((n + 1) * sizeof *next);
+  long *flen = xmalloc ((n + 1) * sizeof *flen);
+  long long *bk = xmalloc ((n ? n : 1) * sizeof *bk);
+  for (size_t i = 0; i + 1 < n; i++)
+    bk[i] = bcu_fmt_break_cost (f, i);
+  best[n] = 0;
+  next[n] = n;
+  flen[n] = 0;
+  for (size_t a = n; a-- > 0;)
     {
-      if (same_paragraph && ctx->in_column != ctx->first_indent)
-        ctx->other_indent = ctx->in_column;
-      /* One line: keep the last split's secondary indent, or pick one that
-         differs from the first line's. */
-      else if (ctx->other_indent == ctx->first_indent)
-        ctx->other_indent = ctx->first_indent == 0 ? BCU_DEF_INDENT : 0;
+      long len = (a == 0 && !f->first_done ? f->tc1 : f->tc2) + (long) f->w[a].len;
+      long long bc = 0;
+      size_t bb = n;
+      long bl = len;
+      int have = 0;
+      for (size_t b = a + 1; b <= n; b++)
+        {
+          if (b > a + 1)
+            len += bcu_fmt_spacing (f, &f->w[b - 2]) + (long) f->w[b - 1].len;
+          if (len > maxl && b > a + 1)
+            break;
+          long long c;
+          if (b == n)
+            c = 0;
+          else
+            {
+              long long d = goal - len;
+              c = (d * d + 49) * BCU_FMT_UNIT + best[b] + bk[b - 1];
+              if (next[b] != n)
+                {
+                  long long r = len - flen[b];
+                  c += r * r * BCU_FMT_UNIT / 2;
+                }
+            }
+          if (!have || c < bc)
+            {
+              have = 1;
+              bc = c;
+              bb = b;
+              bl = len;
+            }
+        }
+      best[a] = bc;
+      next[a] = bb;
+      flen[a] = bl;
     }
-  else
-    ctx->other_indent = ctx->first_indent;
+
+  size_t a = 0;
+  while (a < n)
+    {
+      size_t b = next[a];
+      if (keep_last && b == n)
+        break;
+      long col = bcu_fmt_head (f, f->first_done ? f->tc2 : f->tc1);
+      for (size_t j = a; j < b; j++)
+        {
+          bcu_output_append (f->out, f->arena + f->w[j].off, f->w[j].len);
+          col += (long) f->w[j].len;
+          if (j + 1 < b)
+            {
+              long s = bcu_fmt_spacing (f, &f->w[j]);
+              bcu_fmt_space (f, col, col + s);
+              col += s;
+            }
+        }
+      bcu_output_append (f->out, "\n", 1);
+      f->first_done = 1;
+      a = b;
+    }
+  free (best);
+  free (next);
+  free (flen);
+  free (bk);
+  f->w[n - 1].final = saved_final;
+
+  /* Keep words [a, n) for the next window. */
+  if (a && a < n)
+    {
+      size_t base = f->w[a].off, bytes = 0;
+      memmove (f->arena, f->arena + base, f->alen - base);
+      f->alen -= base;
+      for (size_t j = a; j < n; j++)
+        {
+          f->w[j - a] = f->w[j];
+          f->w[j - a].off -= base;
+          bytes += f->w[j].len;
+        }
+      f->nw = n - a;
+      f->wbytes = bytes;
+    }
+  else if (a >= n)
+    {
+      f->nw = 0;
+      f->alen = 0;
+      f->wbytes = 0;
+    }
 }
 
-/* GNU flush_paragraph: on hitting the word or character limit, output the
- * paragraph up to a low-cost break near its end and keep the rest. */
 static void
-bcu_fmt_flush_paragraph (BCU_FMTCTX *ctx)
+bcu_fmt_flush (bcu_fmt_ctx *f)
 {
-  BCU_WORD *split_point, *w;
-  int shift;
-  BCU_COST best_break;
-
-  if (ctx->word_limit == ctx->word)
+  if (!f->open)
+    return;
+  if (f->lines == 1 && !f->split)
     {
-      bcu_output_append (ctx->out, ctx->parabuf, (size_t) (ctx->wptr - ctx->parabuf));
-      ctx->wptr = ctx->parabuf;
+      /* No second line decided the other indentation. */
+      if (f->tagged)
+        {
+          long min = 0;
+          if (f->has_prefix)
+            {
+              min = f->lead;
+              for (size_t i = 0; i < f->core_len; i++)
+                min = bcu_fmt_advance (min, (unsigned char) f->core[i]);
+            }
+          f->tc2 = f->last_other;
+          if (f->tc2 == f->tc1)
+            f->tc2 = f->tc1 == 0 ? 3 : 0;
+          if (f->tc2 < min)
+            f->tc2 = min;
+        }
+      else
+        f->tc2 = f->tc1;
+    }
+  bcu_fmt_emit (f, f->nw, 0);
+  f->last_other = f->tc2;
+  f->open = 0;
+  f->nw = f->alen = f->wbytes = 0;
+}
+
+/* Add the words of a text line starting at byte P, column COL. */
+static void
+bcu_fmt_add_words (bcu_fmt_ctx *f, const char *s, size_t len, size_t p, long col)
+{
+  while (p < len)
+    {
+      size_t start = p;
+      long scol = col;
+      while (p < len && s[p] != ' ' && s[p] != '\t')
+        {
+          p++;
+          col++;
+        }
+      size_t wl = p - start;
+      long ecol = col;
+      while (p < len && (s[p] == ' ' || s[p] == '\t'))
+        col = bcu_fmt_advance (col, (unsigned char) s[p++]);
+      (void) scol;
+      if (f->nw == f->wcap)
+        {
+          f->wcap = f->wcap ? f->wcap * 2 : 256;
+          f->w = xrealloc (f->w, f->wcap * sizeof *f->w);
+        }
+      if (f->alen + wl > f->acap)
+        {
+          while (f->alen + wl > f->acap)
+            f->acap = f->acap ? f->acap * 2 : 4096;
+          f->arena = xrealloc (f->arena, f->acap);
+        }
+      memcpy (f->arena + f->alen, s + start, wl);
+      bcu_fmt_word *x = &f->w[f->nw++];
+      x->off = f->alen;
+      x->len = wl;
+      f->alen += wl;
+      f->wbytes += wl;
+      x->at_eol = p >= len;
+      x->gap = col - ecol;
+      size_t k = wl;
+      while (k && strchr (")]\"'", s[start + k - 1]))
+        k--;
+      x->endp = k && (s[start + k - 1] == '.' || s[start + k - 1] == '?'
+                      || s[start + k - 1] == '!');
+      x->final = x->endp && (x->at_eol || x->gap >= 2);
+    }
+}
+
+static void
+bcu_fmt_line (bcu_fmt_ctx *f, const char *s, size_t len, int nl)
+{
+  if (memchr (s, '\t', len))
+    f->tabs = 1;
+
+  size_t p = 0;
+  long col = 0;
+  while (p < len && (s[p] == ' ' || s[p] == '\t'))
+    col = bcu_fmt_advance (col, (unsigned char) s[p++]);
+  if (p == len)
+    {
+      bcu_fmt_flush (f);
+      bcu_output_append (f->out, "\n", 1);
       return;
     }
 
-  bcu_fmt_paragraph (ctx);
-
-  split_point = ctx->word_limit;
-  best_break = BCU_MAXCOST;
-  for (w = ctx->word->next_break; w != ctx->word_limit; w = w->next_break)
+  long lead = 0, tc = col;
+  if (f->has_prefix)
     {
-      if (w->best_cost - w->next_break->best_cost < best_break)
+      lead = col;
+      size_t skip = p;
+      int ok = lead >= f->pre_lead && len - p >= f->core_len
+               && !memcmp (s + p, f->core, f->core_len);
+      long after = 0;
+      if (ok)
         {
-          split_point = w;
-          best_break = w->best_cost - w->next_break->best_cost;
-        }
-      if (best_break <= BCU_MAXCOST - BCU_LINE_CREDIT)
-        best_break += BCU_LINE_CREDIT;
-    }
-  bcu_fmt_put_paragraph (ctx, split_point);
-
-  memmove (ctx->parabuf, split_point->text, (size_t) (ctx->wptr - split_point->text));
-  shift = (int) (split_point->text - ctx->parabuf);
-  ctx->wptr -= shift;
-  for (w = split_point; w <= ctx->word_limit; w++)
-    w->text -= shift;
-  memmove (ctx->word, split_point, (size_t) (ctx->word_limit - split_point + 1) * sizeof *ctx->word);
-  ctx->word_limit -= split_point - ctx->word;
-}
-
-/* GNU get_space: blanks from C on, keeping in_column; first non-blank. */
-static int
-bcu_fmt_get_space (BCU_FMTCTX *ctx, int c)
-{
-  for (;;)
-    {
-      if (c == ' ')
-        ctx->in_column++;
-      else if (c == '\t')
-        {
-          ctx->tabs = 1;
-          ctx->in_column = (ctx->in_column / BCU_TABWIDTH + 1) * BCU_TABWIDTH;
-        }
-      else
-        return c;
-      c = getc (ctx->f);
-    }
-}
-
-/* GNU get_prefix: the first non-matching character, or the first
- * non-blank after the prefix. */
-static int
-bcu_fmt_get_prefix (BCU_FMTCTX *ctx)
-{
-  int c;
-
-  ctx->in_column = 0;
-  c = bcu_fmt_get_space (ctx, getc (ctx->f));
-  if (ctx->prefix_length == 0)
-    ctx->next_prefix_indent = ctx->prefix_lead_space < ctx->in_column
-                              ? ctx->prefix_lead_space : ctx->in_column;
-  else
-    {
-      ctx->next_prefix_indent = ctx->in_column;
-      for (const char *p = ctx->prefix; *p != '\0'; p++)
-        {
-          unsigned char pc = (unsigned char) *p;
-          if (c != pc)
-            return c;
-          ctx->in_column++;
-          c = getc (ctx->f);
-        }
-      c = bcu_fmt_get_space (ctx, c);
-    }
-  return c;
-}
-
-/* GNU copy_rest: copy a line that failed to match the prefix (C is the
- * mismatch) or was blank after it (C is \n or EOF). Returns \n or EOF. */
-static int
-bcu_fmt_copy_rest (BCU_FMTCTX *ctx, int c)
-{
-  ctx->out_column = 0;
-  if (ctx->in_column > ctx->next_prefix_indent || (c != '\n' && c != EOF))
-    {
-      bcu_fmt_put_space (ctx, ctx->next_prefix_indent);
-      for (const char *s = ctx->prefix; ctx->out_column != ctx->in_column && *s; ctx->out_column++)
-        bcu_fmt_putc (ctx, *s++);
-      if (c != EOF && c != '\n')
-        bcu_fmt_put_space (ctx, ctx->in_column - ctx->out_column);
-      if (c == EOF && ctx->in_column >= ctx->next_prefix_indent + ctx->prefix_length)
-        bcu_fmt_putc (ctx, '\n');
-    }
-  while (c != '\n' && c != EOF)
-    {
-      bcu_fmt_putc (ctx, c);
-      c = getc (ctx->f);
-    }
-  return c;
-}
-
-/* GNU same_para. */
-static int
-bcu_fmt_same_para (BCU_FMTCTX *ctx, int c)
-{
-  return (ctx->next_prefix_indent == ctx->prefix_indent
-          && ctx->in_column >= ctx->next_prefix_indent + ctx->prefix_full_length
-          && c != '\n' && c != EOF);
-}
-
-/* GNU get_line: break the line starting with C into words. A word ending
- * in [.?!][])"']* followed by end-of-line or two or more blanks ends a
- * sentence. Returns the first non-blank character of the next line. */
-static int
-bcu_fmt_get_line (BCU_FMTCTX *ctx, int c)
-{
-  char *end_of_parabuf = &ctx->parabuf[BCU_MAXCHARS];
-  BCU_WORD *end_of_word = &ctx->word[BCU_MAXWORDS - 2];
-
-  do
-    {
-      /* Scan word. */
-      ctx->word_limit->text = ctx->wptr;
-      do
-        {
-          if (ctx->wptr == end_of_parabuf)
+          p += f->core_len;
+          col = lead;
+          for (size_t i = 0; i < f->core_len; i++)
+            col = bcu_fmt_advance (col, (unsigned char) f->core[i]);
+          after = col;
+          while (p < len && (s[p] == ' ' || s[p] == '\t'))
+            col = bcu_fmt_advance (col, (unsigned char) s[p++]);
+          if (p == len)
             {
-              bcu_fmt_set_other_indent (ctx, 1);
-              bcu_fmt_flush_paragraph (ctx);
+              bcu_fmt_flush (f);
+              bcu_fmt_space (f, 0, lead);
+              bcu_output_append (f->out, f->core, f->core_len);
+              bcu_output_append (f->out, "\n", 1);
+              return;
             }
-          *ctx->wptr++ = (char) c;
-          c = getc (ctx->f);
+          ok = col - after >= f->pre_trail;
         }
-      while (c != EOF && !isspace (c));
-      ctx->in_column += ctx->word_limit->length = (int) (ctx->wptr - ctx->word_limit->text);
-      bcu_fmt_check_punctuation (ctx->word_limit);
-
-      /* Scan inter-word space. */
-      int start = ctx->in_column;
-      c = bcu_fmt_get_space (ctx, c);
-      ctx->word_limit->space = ctx->in_column - start;
-      ctx->word_limit->final = (c == EOF
-                                || (ctx->word_limit->period
-                                    && (c == '\n' || ctx->word_limit->space > 1)));
-      if (c == '\n' || c == EOF || ctx->uniform)
-        ctx->word_limit->space = ctx->word_limit->final ? 2 : 1;
-      if (ctx->word_limit == end_of_word)
+      if (!ok)
         {
-          bcu_fmt_set_other_indent (ctx, 1);
-          bcu_fmt_flush_paragraph (ctx);
+          /* Not for refilling: the indentation is rebuilt, the rest is
+             copied. */
+          bcu_fmt_flush (f);
+          bcu_fmt_space (f, 0, lead);
+          bcu_output_append (f->out, s + skip, len - skip);
+          if (nl)
+            bcu_output_append (f->out, "\n", 1);
+          return;
         }
-      ctx->word_limit++;
+      tc = col;
     }
-  while (c != '\n' && c != EOF);
-  return bcu_fmt_get_prefix (ctx);
+
+  int join = 0;
+  if (f->open && !f->split && lead == f->lead)
+    {
+      if (f->lines == 1 && (f->crown || f->tagged))
+        join = !f->tagged || tc != f->tc1;
+      else if (f->lines == 1)
+        join = tc == f->tc1;
+      else
+        join = tc == f->tc2;
+    }
+  if (!join)
+    {
+      bcu_fmt_flush (f);
+      f->open = 1;
+      f->lines = 0;
+      f->first_done = 0;
+      f->lead = lead;
+      f->tc1 = f->tc2 = tc;
+    }
+  else if (f->lines == 1)
+    f->tc2 = tc;
+  f->lines++;
+  bcu_fmt_add_words (f, s, len, p, col);
+
+  if (f->wbytes >= BCU_FMT_WINDOW || f->nw >= BCU_FMT_MAXWORDS)
+    {
+      if (f->lines == 1 && !f->split)
+        {
+          f->tc2 = f->tc1;
+          if (f->tagged)
+            {
+              f->tc2 = f->last_other;
+              if (f->tc2 == f->tc1)
+                f->tc2 = f->tc1 == 0 ? 3 : 0;
+            }
+        }
+      bcu_fmt_emit (f, f->nw, 1);
+    }
 }
 
-/* GNU get_paragraph: copy blank and non-prefixed lines, then read one
- * paragraph. False at EOF before a paragraph starts. */
+/* Width as fmt reads it: blanks and '+' allowed, decimal, at most MAX. */
 static int
-bcu_fmt_get_paragraph (BCU_FMTCTX *ctx)
+bcu_fmt_width (const char *arg, long max, long *out)
 {
-  int c;
-
-  ctx->last_line_length = 0;
-  c = ctx->next_char;
-
-  while (c == '\n' || c == EOF
-         || ctx->next_prefix_indent < ctx->prefix_lead_space
-         || ctx->in_column < ctx->next_prefix_indent + ctx->prefix_full_length)
+  uintmax_t v;
+  int r = bcu_parse_uint (arg, &v);
+  if (r == 0)
     {
-      c = bcu_fmt_copy_rest (ctx, c);
-      if (c == EOF)
-        {
-          ctx->next_char = EOF;
-          return 0;
-        }
-      bcu_fmt_putc (ctx, '\n');
-      c = bcu_fmt_get_prefix (ctx);
+      char *q = bcu_quote (arg);
+      bcu_err ("fmt", "invalid width: %s", q);
+      free (q);
+      return 0;
     }
-
-  ctx->prefix_indent = ctx->next_prefix_indent;
-  ctx->first_indent = ctx->in_column;
-  ctx->wptr = ctx->parabuf;
-  ctx->word_limit = ctx->word;
-  c = bcu_fmt_get_line (ctx, c);
-  bcu_fmt_set_other_indent (ctx, bcu_fmt_same_para (ctx, c));
-
-  if (ctx->split)
-    ;
-  else if (ctx->crown)
+  if (r < 0 || (max >= 0 && v > (uintmax_t) max) || v > LONG_MAX / 4)
     {
-      if (bcu_fmt_same_para (ctx, c))
-        do
-          c = bcu_fmt_get_line (ctx, c);
-        while (bcu_fmt_same_para (ctx, c) && ctx->in_column == ctx->other_indent);
+      char *q = bcu_quote (arg);
+      bcu_err ("fmt", "invalid width: %s: %s", q,
+               strerror (max >= 0 ? ERANGE : EOVERFLOW));
+      free (q);
+      return 0;
     }
-  else if (ctx->tagged)
-    {
-      if (bcu_fmt_same_para (ctx, c) && ctx->in_column != ctx->first_indent)
-        do
-          c = bcu_fmt_get_line (ctx, c);
-        while (bcu_fmt_same_para (ctx, c) && ctx->in_column == ctx->other_indent);
-    }
-  else
-    while (bcu_fmt_same_para (ctx, c) && ctx->in_column == ctx->other_indent)
-      c = bcu_fmt_get_line (ctx, c);
-
-  (ctx->word_limit - 1)->period = (ctx->word_limit - 1)->final = 1;
-  ctx->next_char = c;
+  *out = (long) v;
   return 1;
 }
 
-/* GNU fmt (): format one input stream. */
-static int
-bcu_fmt_stream (BCU_FMTCTX *ctx, FILE *fp, const char *name)
+static void
+bcu_fmt_usage (void)
 {
-  ctx->f = fp;
-  ctx->tabs = 0;
-  ctx->other_indent = 0;
-  ctx->next_char = bcu_fmt_get_prefix (ctx);
-  while (bcu_fmt_get_paragraph (ctx))
-    {
-      bcu_fmt_paragraph (ctx);
-      bcu_fmt_put_paragraph (ctx, ctx->word_limit);
-    }
-  if (ferror (fp))
-    {
-      bcu_output_flush (ctx->out);
-      fprintf (stderr, "fmt: %s: read error\n", name);
-      return EXECUTION_FAILURE;
-    }
-  return EXECUTION_SUCCESS;
-}
-
-static int
-bcu_fmt_try (void)
-{
-  fflush (stdout);
-  fprintf (stderr, "Try 'fmt --help' for more information.\n");
-  return EXECUTION_FAILURE;
-}
-
-/* GNU xnumtoumax for a width: decimal, optional blanks and '+', in
- * [0, MAX]. Prints GNU's diagnostic and returns -1 when invalid. */
-static int
-bcu_fmt_width (const char *s, int max, int *out)
-{
-  const char *d = s;
-  while (isspace ((unsigned char) *d)) d++;
-  if (*d == '+') d++;
-  unsigned long long v = 0;
-  int ok = isdigit ((unsigned char) *d), range = 0;
-  for (; ok && *d; d++)
-    {
-      if (!isdigit ((unsigned char) *d)) { ok = 0; break; }
-      if (v <= (unsigned long long) INT_MAX) v = v * 10 + (unsigned) (*d - '0');
-    }
-  if (ok && v > (unsigned long long) max) range = 1;
-  if (!ok || range)
-    {
-      char *q = bos_quote (s);
-      fflush (stdout);
-      if (range)
-        fprintf (stderr, "fmt: invalid width: %s: %s\n", q ? q : s, strerror (ERANGE));
-      else
-        fprintf (stderr, "fmt: invalid width: %s\n", q ? q : s);
-      free (q);
-      return -1;
-    }
-  *out = (int) v;
-  return 0;
+  fputs ("Usage: fmt [-WIDTH] [OPTION]... [FILE]...\n"
+         "Refill the paragraphs of each FILE and write them to standard output.\n"
+         "A leading -WIDTH is short for --width=WIDTH.\n"
+         "\n"
+         "With no FILE, or when FILE is -, read standard input.\n"
+         "\n"
+         "  -c, --crown-margin        keep the indentation of the first two lines\n"
+         "  -p, --prefix=STRING       refill only lines starting with STRING and put\n"
+         "                              STRING back in front of the refilled lines\n"
+         "  -s, --split-only          break long lines without joining short ones\n"
+         "  -t, --tagged-paragraph    the first line is indented unlike the second\n"
+         "  -u, --uniform-spacing     one space between words, two after sentences\n"
+         "  -w, --width=WIDTH         widest line allowed (75 columns by default)\n"
+         "  -g, --goal=WIDTH          preferred line width (93% of the width by default)\n"
+         "      --help        display this help and exit\n"
+         "      --version     output version information and exit\n",
+         stdout);
 }
 
 static int
 bcu_fmt_cmd (WORD_LIST *list)
 {
-  static const char *const longs[] = {
-    "crown-margin", "prefix", "split-only", "tagged-paragraph",
-    "uniform-spacing", "width", "goal", NULL
+  static const struct bcu_lopt longopts[] = {
+    { "crown-margin",     BCU_NOARG,  'c' },
+    { "prefix",           BCU_REQARG, 'p' },
+    { "split-only",       BCU_NOARG,  's' },
+    { "tagged-paragraph", BCU_NOARG,  't' },
+    { "uniform-spacing",  BCU_NOARG,  'u' },
+    { "width",            BCU_REQARG, 'w' },
+    { "goal",             BCU_REQARG, 'g' },
+    { "help",             BCU_NOARG,  BCU_OPT_HELP },
+    { "version",          BCU_NOARG,  BCU_OPT_VERSION },
+    { NULL, 0, 0 }
   };
-  static const char shorts[] = "cpstuwg";
-  const char *width_opt = NULL, *goal_opt = NULL, *prefix_opt = NULL;
-  int crown = 0, tagged = 0, split = 0, uniform = 0, ended = 0;
-  WORD_LIST *files __attribute__((cleanup(bcu_free_nodes))) = NULL;
-  WORD_LIST *files_tail = NULL;
+  bcu_fmt_ctx f;
+  memset (&f, 0, sizeof f);
+  int have_w = 0, have_g = 0, rc = EXECUTION_SUCCESS;
+  const char *goal_arg = NULL, *prefix = NULL;
+  long width = 75, goal = 0;
 
-  /* Old syntax: a first argument of a dash and digits is -w DIGITS. */
-  if (list && list->word->word[0] == '-' && isdigit ((unsigned char) list->word->word[1]))
+  if (list && list->word->word[0] == '-'
+      && list->word->word[1] >= '0' && list->word->word[1] <= '9')
     {
-      width_opt = list->word->word + 1;
+      if (!bcu_fmt_width (list->word->word + 1, 2500, &width))
+        return EXECUTION_FAILURE;
+      have_w = 1;
       list = list->next;
     }
-  /* getopt_long with permutation: options may follow file operands. */
-  for (WORD_LIST *w = list; w; w = w->next)
-    {
-      const char *a = w->word->word;
-      if (ended || a[0] != '-' || !a[1])
-        {
-          WORD_LIST *nw = bcu_calloc (1, sizeof (*nw));
-          nw->word = w->word;
-          if (!files) files = nw; else files_tail->next = nw;
-          files_tail = nw;
-          continue;
-        }
-      if (!strcmp (a, "--")) { ended = 1; continue; }
-      int opt = 0;
-      const char *arg = NULL;
-      if (a[1] == '-')
-        {
-          const char *name = a + 2, *eq = strchr (name, '=');
-          size_t len = eq ? (size_t) (eq - name) : strlen (name);
-          int match = -1, count = 0;
-          for (int i = 0; longs[i]; i++)
-            if (!strncmp (longs[i], name, len))
-              {
-                if (strlen (longs[i]) == len) { match = i; count = 1; break; }
-                match = i; count++;
-              }
-          fflush (stdout);
-          if (!count)
-            {
-              fprintf (stderr, "fmt: unrecognized option '%s'\n", a);
-              return bcu_fmt_try ();
-            }
-          if (count > 1)
-            {
-              fprintf (stderr, "fmt: option '%s' is ambiguous; possibilities:", a);
-              for (int i = 0; longs[i]; i++)
-                if (!strncmp (longs[i], name, len)) fprintf (stderr, " '--%s'", longs[i]);
-              fputc ('\n', stderr);
-              return bcu_fmt_try ();
-            }
-          opt = shorts[match];
-          int takes = opt == 'p' || opt == 'w' || opt == 'g';
-          if (eq && !takes)
-            {
-              fprintf (stderr, "fmt: option '--%s' doesn't allow an argument\n", longs[match]);
-              return bcu_fmt_try ();
-            }
-          if (takes)
-            {
-              if (eq) arg = eq + 1;
-              else if (w->next) { w = w->next; arg = w->word->word; }
-              else
-                {
-                  fprintf (stderr, "fmt: option '--%s' requires an argument\n", longs[match]);
-                  return bcu_fmt_try ();
-                }
-            }
-          switch (opt)
-            {
-            case 'c': crown = 1; break;
-            case 's': split = 1; break;
-            case 't': tagged = 1; break;
-            case 'u': uniform = 1; break;
-            case 'w': width_opt = arg; break;
-            case 'g': goal_opt = arg; break;
-            case 'p': prefix_opt = arg; break;
-            }
-          continue;
-        }
-      for (const char *p = a + 1; *p; p++)
-        {
-          switch (*p)
-            {
-            case 'c': crown = 1; continue;
-            case 's': split = 1; continue;
-            case 't': tagged = 1; continue;
-            case 'u': uniform = 1; continue;
-            case 'w': case 'g': case 'p':
-              if (p[1]) arg = p + 1;
-              else if (w->next) { w = w->next; arg = w->word->word; }
-              else
-                {
-                  fflush (stdout);
-                  fprintf (stderr, "fmt: option requires an argument -- '%c'\n", *p);
-                  return bcu_fmt_try ();
-                }
-              if (*p == 'w') width_opt = arg;
-              else if (*p == 'g') goal_opt = arg;
-              else prefix_opt = arg;
-              break;
-            default:
-              fflush (stdout);
-              if (isdigit ((unsigned char) *p))
-                fprintf (stderr, "fmt: invalid option -- %c; -WIDTH is recognized only when it is the first\n"
-                         "option; use -w N instead\n", *p);
-              else
-                fprintf (stderr, "fmt: invalid option -- '%c'\n", *p);
-              return bcu_fmt_try ();
-            }
-          break;
-        }
-    }
 
-  BCU_FMTCTX *ctx = xmalloc (sizeof *ctx);
-  memset (ctx, 0, sizeof *ctx);
-  BCU_OUTPUT *out = xmalloc (sizeof *out);
-  out->used = 0; out->failed = 0;
-  ctx->out = out;
-  ctx->crown = crown; ctx->tagged = tagged; ctx->split = split; ctx->uniform = uniform;
-  ctx->max_width = 75;
-  char *prefix_copy = NULL;
-  int rc = EXECUTION_SUCCESS;
-  if (width_opt && bcu_fmt_width (width_opt, BCU_MAXCHARS / 2, &ctx->max_width) < 0)
-    { rc = EXECUTION_FAILURE; goto done; }
-  if (goal_opt)
-    {
-      if (bcu_fmt_width (goal_opt, ctx->max_width, &ctx->goal_width) < 0)
-        { rc = EXECUTION_FAILURE; goto done; }
-      if (!width_opt)
-        ctx->max_width = ctx->goal_width + 10;
-    }
-  else
-    ctx->goal_width = ctx->max_width * (2 * (100 - BCU_LEEWAY) + 1) / 200;
-  /* GNU set_prefix: leading blanks become prefix_lead_space; trailing
-     blanks count for matching (prefix_full_length) but are not printed. */
-  ctx->prefix = "";
-  if (prefix_opt)
-    {
-      const char *p = prefix_opt;
-      while (*p == ' ') { ctx->prefix_lead_space++; p++; }
-      prefix_copy = bcu_strdup (p);
-      ctx->prefix_full_length = (int) strlen (prefix_copy);
-      char *s = prefix_copy + ctx->prefix_full_length;
-      while (s > prefix_copy && s[-1] == ' ') s--;
-      ctx->prefix_length = (int) (s - prefix_copy);
-      ctx->prefix = prefix_copy;
-    }
-
-  if (!files)
-    {
-      /* Read the descriptor through a private stream, not Bash's stdin FILE. */
-      int fd = dup (STDIN_FILENO);
-      FILE *fp = fd >= 0 ? fdopen (fd, "r") : NULL;
-      if (!fp) { if (fd >= 0) close (fd); builtin_error ("fmt: stdin: %s", strerror (errno)); rc = EXECUTION_FAILURE; }
-      else { rc = bcu_fmt_stream (ctx, fp, "-"); fclose (fp); }
-    }
-  else
-    for (WORD_LIST *w = files; w; w = w->next)
+  bcu_opts o;
+  int c;
+  bcu_opts_init (&o, "fmt", "0123456789cp:stuw:g:", longopts, list);
+  while ((c = bcu_opts_next (&o)) != -1)
+    switch (c)
       {
-        const char *name = w->word->word;
-        int from_stdin = !strcmp (name, "-");
-        FILE *fp = NULL;
-        if (from_stdin)
+      case 'c': f.crown = 1; break;
+      case 's': f.split = 1; break;
+      case 't': f.tagged = 1; break;
+      case 'u': f.uniform = 1; break;
+      case 'p': prefix = o.optarg; break;
+      case 'w':
+        if (!bcu_fmt_width (o.optarg, 2500, &width))
+          goto fail;
+        have_w = 1;
+        break;
+      case 'g':
+        if (!bcu_fmt_width (o.optarg, -1, &goal))
+          goto fail;
+        goal_arg = o.optarg;
+        have_g = 1;
+        break;
+      case BCU_OPT_HELP:
+        bcu_fmt_usage ();
+        bcu_opts_free (&o);
+        return EXECUTION_SUCCESS;
+      case BCU_OPT_VERSION:
+        puts ("fmt (bash-os coreutils)");
+        bcu_opts_free (&o);
+        return EXECUTION_SUCCESS;
+      default:
+        if (c >= '0' && c <= '9')
           {
-            int fd = dup (STDIN_FILENO);
-            fp = fd >= 0 ? fdopen (fd, "r") : NULL;
-            if (!fp && fd >= 0) close (fd);
-          }
-        else
-          fp = fopen (name, "r");
-        if (!fp)
-          {
-            int e = errno;
-            char *q = bos_quoteaf (name);
-            bcu_output_flush (out);
             fflush (stdout);
-            fprintf (stderr, "fmt: cannot open %s for reading: %s\n", q ? q : name, strerror (e));
-            free (q);
-            rc = EXECUTION_FAILURE;
-            continue;
+            fprintf (stderr, "fmt: invalid option -- %c; -WIDTH is recognized only when it is the first\n"
+                     "option; use -w N instead\n", c);
+            bcu_try_help ("fmt");
           }
-        if (bcu_fmt_stream (ctx, fp, name) != EXECUTION_SUCCESS) rc = EXECUTION_FAILURE;
-        fclose (fp);
+        goto fail;
       }
-  bcu_output_flush (out);
-  if (out->failed) rc = EXECUTION_FAILURE;
 
-done:
-  free (prefix_copy);
-  free (out);
-  free (ctx);
+  if (have_g)
+    {
+      if (goal > width)
+        {
+          char *q = bcu_quote (goal_arg);
+          bcu_err ("fmt", "invalid width: %s: %s", q, strerror (EOVERFLOW));
+          free (q);
+          goto fail;
+        }
+      if (!have_w)
+        width = goal + 10;
+    }
+  else
+    goal = width * 187 / 200;
+  f.width = width;
+  f.goal = goal;
+
+  if (prefix)
+    {
+      const char *s = prefix, *e;
+      long col = 0;
+      while (*s == ' ' || *s == '\t')
+        col = bcu_fmt_advance (col, (unsigned char) *s++);
+      e = s + strlen (s);
+      while (e > s && (e[-1] == ' ' || e[-1] == '\t'))
+        e--;
+      f.pre_lead = col;
+      f.core = s;
+      f.core_len = (size_t) (e - s);
+      long cc = 0, tc = 0;
+      for (const char *t = s; t < e; t++)
+        cc = bcu_fmt_advance (cc, (unsigned char) *t);
+      tc = cc;
+      for (const char *t = e; *t; t++)
+        tc = bcu_fmt_advance (tc, (unsigned char) *t);
+      f.pre_trail = tc - cc;
+      f.has_prefix = col > 0 || f.core_len > 0;
+    }
+
+  BCU_OUTPUT out;
+  out.used = 0;
+  out.failed = 0;
+  f.out = &out;
+
+  char *dash[] = { (char *) "-", NULL };
+  char **files = o.nops ? o.ops : dash;
+  int nfiles = o.nops ? o.nops : 1;
+  char *buf = NULL;
+  size_t cap = 0;
+  for (int i = 0; i < nfiles; i++)
+    {
+      const char *name = files[i];
+      int fd = 0;
+      if (strcmp (name, "-"))
+        {
+          fd = open (name, O_RDONLY | O_CLOEXEC);
+          if (fd < 0)
+            {
+              int e = errno;
+              char *q = bcu_shell_quote (name);
+              int quoted = q[0] == '\'' || q[0] == '"' || !strncmp (q, "$'", 2);
+              bcu_output_flush (&out);
+              bcu_err ("fmt", quoted ? "cannot open %s for reading: %s"
+                                     : "cannot open '%s' for reading: %s",
+                       q, strerror (e));
+              free (q);
+              rc = EXECUTION_FAILURE;
+              continue;
+            }
+        }
+      size_t used = 0, start = 0;
+      int eof = 0, err = 0;
+      for (;;)
+        {
+          char *nlp = used > start ? memchr (buf + start, '\n', used - start)
+                                   : NULL;
+          if (!nlp && !eof)
+            {
+              if (start)
+                {
+                  memmove (buf, buf + start, used - start);
+                  used -= start;
+                  start = 0;
+                }
+              if (used == cap)
+                {
+                  cap = cap ? cap * 2 : 65536;
+                  buf = xrealloc (buf, cap);
+                }
+              ssize_t n = read (fd, buf + used, cap - used);
+              if (n < 0 && errno == EINTR)
+                continue;
+              if (n < 0)
+                {
+                  err = 1;
+                  eof = 1;
+                }
+              else if (n == 0)
+                eof = 1;
+              else
+                used += (size_t) n;
+              continue;
+            }
+          if (!nlp && start == used)
+            break;
+          size_t end = nlp ? (size_t) (nlp - buf) : used;
+          bcu_fmt_line (&f, buf + start, end - start, nlp != NULL);
+          start = nlp ? end + 1 : used;
+        }
+      bcu_fmt_flush (&f);
+      if (fd)
+        close (fd);
+      if (err)
+        {
+          bcu_output_flush (&out);
+          bcu_err ("fmt", "read error");
+          rc = EXECUTION_FAILURE;
+        }
+    }
+  bcu_output_flush (&out);
+  if (out.failed)
+    rc = EXECUTION_FAILURE;
+  free (buf);
+  free (f.arena);
+  free (f.w);
+  bcu_opts_free (&o);
   return rc;
+
+fail:
+  bcu_opts_free (&o);
+  return EXECUTION_FAILURE;
 }
 
 /* ===================================================================
- * tsort — topological sort over whitespace-separated pairs (A B per
- *         edge). Output is one node per line in topological order.
- *         Cycles get a diagnostic but partial output still emerges.
- *         An odd number of tokens is GNU's "input contains an odd
- *         number of tokens" error: nothing is printed and the status is 1.
+ * tsort — topological sort of whitespace-separated pairs ("A B" is an
+ *         edge A -> B; "A A" only names A). Tokens are separated by
+ *         space, tab and newline.
+ *
+ * Order, as observed from coreutils 9.7: the items with no
+ * predecessor go first in byte order; then breadth first, each item
+ * releasing its successors newest edge first. When every remaining item
+ * waits on another there is a loop: "tsort: FILE: input contains a
+ * loop:" and its members, one "tsort: ITEM" line each, go to stderr,
+ * one edge of the loop is dropped, sorting resumes and the status
+ * becomes 1. The loop reported is found by following, from the first
+ * remaining item in byte order, each item's chosen predecessor: the
+ * first one in byte order that sorts after the item itself, otherwise
+ * the first one. The members print in edge order, starting at the
+ * loop's entry when the walk started on the loop and ending there
+ * otherwise; the dropped edge is the one into the first member printed.
+ * An odd number of tokens is "input contains an odd number of tokens"
+ * with no output and status 1.
  * =================================================================== */
 
-typedef struct bcu_tnode {
-  char *name;
-  size_t *succ;       /* indices into nodes[] */
-  size_t  nsucc, csucc;
-  int     indeg;
-  int     emitted;
-} bcu_tnode_t;
+typedef struct
+{
+  const char *name;
+  size_t first_edge;    /* newest outgoing edge, or SIZE_MAX */
+  size_t count;         /* live incoming edges */
+  size_t rank;          /* position in byte order */
+  int done;
+} bcu_tnode;
+
+typedef struct
+{
+  size_t to, next;
+  int dead;
+} bcu_tedge;
+
+typedef struct
+{
+  bcu_tnode *nodes;
+  size_t n, cap;
+  bcu_tedge *edges;
+  size_t ne, ecap;
+  size_t *table;        /* hash slots: node index + 1, 0 when empty */
+  size_t tcap;
+} bcu_tgraph;
 
 static size_t
-bcu_tsort_find (bcu_tnode_t *nodes, size_t n, const char *name)
+bcu_tsort_hash (const char *s)
 {
-  for (size_t i = 0; i < n; i++)
-    if (strcmp (nodes[i].name, name) == 0) return i;
-  return (size_t) -1;
+  size_t h = 1469598103934665603ULL & SIZE_MAX;
+  for (; *s; s++)
+    h = (h ^ (unsigned char) *s) * (1099511628211ULL & SIZE_MAX);
+  return h;
+}
+
+static size_t
+bcu_tsort_node (bcu_tgraph *g, const char *name)
+{
+  if ((g->n + 1) * 2 > g->tcap)
+    {
+      free (g->table);
+      g->tcap = g->tcap ? g->tcap * 2 : 1024;
+      g->table = bcu_calloc (g->tcap, sizeof *g->table);
+      for (size_t i = 0; i < g->n; i++)
+        {
+          size_t h = bcu_tsort_hash (g->nodes[i].name) & (g->tcap - 1);
+          while (g->table[h])
+            h = (h + 1) & (g->tcap - 1);
+          g->table[h] = i + 1;
+        }
+    }
+  size_t h = bcu_tsort_hash (name) & (g->tcap - 1);
+  while (g->table[h])
+    {
+      if (!strcmp (g->nodes[g->table[h] - 1].name, name))
+        return g->table[h] - 1;
+      h = (h + 1) & (g->tcap - 1);
+    }
+  if (g->n == g->cap)
+    {
+      g->cap = g->cap ? g->cap * 2 : 256;
+      g->nodes = xrealloc (g->nodes, g->cap * sizeof *g->nodes);
+    }
+  bcu_tnode *t = &g->nodes[g->n];
+  t->name = name;
+  t->first_edge = SIZE_MAX;
+  t->count = 0;
+  t->rank = 0;
+  t->done = 0;
+  g->table[h] = g->n + 1;
+  return g->n++;
+}
+
+static const bcu_tnode *bcu_tsort_sort_base;
+
+static int
+bcu_tsort_cmp (const void *a, const void *b)
+{
+  return strcmp (bcu_tsort_sort_base[*(const size_t *) a].name,
+                 bcu_tsort_sort_base[*(const size_t *) b].name);
+}
+
+static void
+bcu_tsort_usage (void)
+{
+  fputs ("Usage: tsort [OPTION] [FILE]\n"
+         "Print the items of FILE, read as pairs \"BEFORE AFTER\", in an order that\n"
+         "puts every BEFORE ahead of its AFTER.\n"
+         "\n"
+         "With no FILE, or when FILE is -, read standard input.\n"
+         "\n"
+         "      --help        display this help and exit\n"
+         "      --version     output version information and exit\n",
+         stdout);
 }
 
 static int
 bcu_tsort_cmd (WORD_LIST *list)
 {
-  const char *filename = list ? list->word->word : NULL;
-  FILE *fp = filename ? bcu_open_input (filename) : stdin;
-  if (!fp) return EXECUTION_FAILURE;
-
-  bcu_tnode_t *nodes = NULL;
-  size_t n = 0, cap = 0;
-  char *buf = NULL;
-  ssize_t blen = bcu_slurp (fp, &buf);
-  if (fp != stdin) fclose (fp);
-  if (blen < 0) return EXECUTION_FAILURE;
-
-  /* Tokenize whitespace-separated words, pairing each consecutive
-   * (a, b) as an edge a -> b. */
-  char *toks[2] = {NULL, NULL};
-  int pair_pos = 0;
-  char *p = buf;
-  while (*p)
+  static const struct bcu_lopt longopts[] = {
+    { "help",    BCU_NOARG, BCU_OPT_HELP },
+    { "version", BCU_NOARG, BCU_OPT_VERSION },
+    { NULL, 0, 0 }
+  };
+  bcu_opts o;
+  int c, rc = EXECUTION_FAILURE;
+  bcu_opts_init (&o, "tsort", "", longopts, list);
+  while ((c = bcu_opts_next (&o)) != -1)
     {
-      while (*p && isspace ((unsigned char) *p)) p++;
-      if (!*p) break;
-      char *start = p;
-      while (*p && !isspace ((unsigned char) *p)) p++;
-      char saved = *p; *p = '\0';
-      char *tok = bcu_strdup (start);
-      *p = saved;
-
-      /* Ensure node exists. */
-      size_t idx = bcu_tsort_find (nodes, n, tok);
-      if (idx == (size_t) -1)
+      if (c == BCU_OPT_HELP)
         {
-          if (n == cap) { cap = cap ? cap * 2 : 32; nodes = xrealloc (nodes, cap * sizeof (*nodes)); }
-          nodes[n].name = tok;
-          nodes[n].succ = NULL; nodes[n].nsucc = nodes[n].csucc = 0;
-          nodes[n].indeg = 0; nodes[n].emitted = 0;
-          idx = n++;
+          bcu_tsort_usage ();
+          bcu_opts_free (&o);
+          return EXECUTION_SUCCESS;
         }
-      else
-        free (tok);
-
-      toks[pair_pos++] = nodes[idx].name;
-      if (pair_pos == 2)
+      if (c == BCU_OPT_VERSION)
         {
-          /* Edge toks[0] -> toks[1]; skip self-loops (they trip cycle
-           * detection but POSIX tsort tolerates them when both items
-           * appear together — same behavior here). */
-          size_t a = bcu_tsort_find (nodes, n, toks[0]);
-          size_t b = bcu_tsort_find (nodes, n, toks[1]);
-          if (a != b)
-            {
-              if (nodes[a].nsucc == nodes[a].csucc)
-                {
-                  nodes[a].csucc = nodes[a].csucc ? nodes[a].csucc * 2 : 4;
-                  nodes[a].succ = xrealloc (nodes[a].succ, nodes[a].csucc * sizeof (*nodes[a].succ));
-                }
-              nodes[a].succ[nodes[a].nsucc++] = b;
-              nodes[b].indeg++;
-            }
-          pair_pos = 0;
+          puts ("tsort (bash-os coreutils)");
+          bcu_opts_free (&o);
+          return EXECUTION_SUCCESS;
         }
-    }
-  free (buf);
-  if (pair_pos)
-    {
-      /* GNU tsort's message and status; no partial order is printed. */
-      fflush (stdout);
-      fprintf (stderr, "tsort: %s: input contains an odd number of tokens\n",
-               filename ? filename : "-");
-      for (size_t i = 0; i < n; i++)
-        { free (nodes[i].name); free (nodes[i].succ); }
-      free (nodes);
+      bcu_opts_free (&o);
       return EXECUTION_FAILURE;
     }
+  if (o.nops > 1)
+    {
+      char *q = bcu_quote (o.ops[1]);
+      bcu_err ("tsort", "extra operand %s", q);
+      free (q);
+      bcu_try_help ("tsort");
+      bcu_opts_free (&o);
+      return EXECUTION_FAILURE;
+    }
+  const char *file = o.nops ? o.ops[0] : "-";
+  char *qfile = bcu_quotef (file);
+  bcu_opts_free (&o);
 
-  /* Kahn: emit zero-indegree nodes, decrement successors, repeat. */
-  int rc = EXECUTION_SUCCESS;
-  size_t emitted = 0;
+  int fd = 0;
+  if (strcmp (file, "-"))
+    {
+      fd = open (file, O_RDONLY | O_CLOEXEC);
+      if (fd < 0)
+        {
+          bcu_err ("tsort", "%s: %s", qfile, strerror (errno));
+          free (qfile);
+          return EXECUTION_FAILURE;
+        }
+    }
+  char *buf = NULL;
+  ssize_t len = bcu_tac_slurp (fd, &buf);
+  int e = errno;
+  if (fd)
+    close (fd);
+  if (len < 0)
+    {
+      bcu_err ("tsort", "%s: read error: %s", qfile, strerror (e));
+      free (qfile);
+      return EXECUTION_FAILURE;
+    }
+  buf = xrealloc (buf, (size_t) len + 1);
+  buf[len] = '\0';
+
+  bcu_tgraph g;
+  memset (&g, 0, sizeof g);
+  size_t pending = SIZE_MAX, ntok = 0;
+  for (size_t at = 0; at < (size_t) len;)
+    {
+      char ch = buf[at];
+      if (ch == ' ' || ch == '\t' || ch == '\n')
+        {
+          at++;
+          continue;
+        }
+      size_t start = at;
+      while (at < (size_t) len && buf[at] != ' ' && buf[at] != '\t' && buf[at] != '\n')
+        at++;
+      buf[at++] = '\0';
+      size_t k = bcu_tsort_node (&g, buf + start);
+      ntok++;
+      if (pending == SIZE_MAX)
+        {
+          pending = k;
+          continue;
+        }
+      if (pending != k)
+        {
+          if (g.ne == g.ecap)
+            {
+              g.ecap = g.ecap ? g.ecap * 2 : 256;
+              g.edges = xrealloc (g.edges, g.ecap * sizeof *g.edges);
+            }
+          g.edges[g.ne].to = k;
+          g.edges[g.ne].next = g.nodes[pending].first_edge;
+          g.edges[g.ne].dead = 0;
+          g.nodes[pending].first_edge = g.ne++;
+          g.nodes[k].count++;
+        }
+      pending = SIZE_MAX;
+    }
+  if (ntok % 2)
+    {
+      bcu_err ("tsort", "%s: input contains an odd number of tokens", qfile);
+      goto done;
+    }
+
+  size_t n = g.n;
+  size_t *order = xmalloc ((n ? n : 1) * sizeof *order);
+  size_t *queue = xmalloc ((n ? n : 1) * sizeof *queue);
+  size_t *link = xmalloc ((n ? n : 1) * sizeof *link);
+  size_t *above = xmalloc ((n ? n : 1) * sizeof *above);
+  size_t *seen = xmalloc ((n ? n : 1) * sizeof *seen);
+  size_t *path = xmalloc ((n ? n : 1) * sizeof *path);
+  for (size_t i = 0; i < n; i++)
+    order[i] = i;
+  bcu_tsort_sort_base = g.nodes;
+  qsort (order, n, sizeof *order, bcu_tsort_cmp);
+  for (size_t i = 0; i < n; i++)
+    g.nodes[order[i]].rank = i;
+
+  size_t head = 0, tail = 0, left = n, first = 0;
+  rc = EXECUTION_SUCCESS;
+  for (size_t i = 0; i < n; i++)
+    if (!g.nodes[order[i]].count)
+      queue[tail++] = order[i];
   for (;;)
     {
-      ssize_t pick = -1;
+      while (head < tail)
+        {
+          bcu_tnode *t = &g.nodes[queue[head++]];
+          t->done = 1;
+          left--;
+          fputs (t->name, stdout);
+          putchar ('\n');
+          for (size_t ed = t->first_edge; ed != SIZE_MAX; ed = g.edges[ed].next)
+            if (!g.edges[ed].dead && !--g.nodes[g.edges[ed].to].count)
+              queue[tail++] = g.edges[ed].to;
+        }
+      if (!left)
+        break;
+
+      /* Every remaining item has a predecessor: choose one for each. */
       for (size_t i = 0; i < n; i++)
-        if (!nodes[i].emitted && nodes[i].indeg == 0) { pick = (ssize_t) i; break; }
-      if (pick < 0) break;
-      printf ("%s\n", nodes[pick].name);
-      nodes[pick].emitted = 1;
-      emitted++;
-      for (size_t k = 0; k < nodes[pick].nsucc; k++)
-        nodes[nodes[pick].succ[k]].indeg--;
-    }
-  if (emitted < n)
-    {
-      builtin_error ("tsort: cycle detected (%zu nodes unsorted)", n - emitted);
+        link[i] = above[i] = SIZE_MAX;
+      for (size_t r = 0; r < n; r++)
+        {
+          size_t k = order[r];
+          if (g.nodes[k].done)
+            continue;
+          for (size_t ed = g.nodes[k].first_edge; ed != SIZE_MAX; ed = g.edges[ed].next)
+            {
+              size_t j = g.edges[ed].to;
+              if (g.edges[ed].dead || g.nodes[j].done)
+                continue;
+              if (link[j] == SIZE_MAX)
+                link[j] = k;
+              if (above[j] == SIZE_MAX && r > g.nodes[j].rank)
+                above[j] = k;
+            }
+        }
+      while (g.nodes[order[first]].done)
+        first++;
+      size_t start = order[first], cur = start, steps = 0;
       for (size_t i = 0; i < n; i++)
-        if (!nodes[i].emitted) printf ("%s\n", nodes[i].name);
+        seen[i] = SIZE_MAX;
+      while (seen[cur] == SIZE_MAX)
+        {
+          seen[cur] = steps;
+          path[steps++] = cur;
+          cur = above[cur] != SIZE_MAX ? above[cur] : link[cur];
+        }
+      size_t from = seen[cur], members = steps - from;
+      /* Members in edge order into the reused LINK array. */
+      size_t *loop = link;
+      if (cur == start)
+        {
+          loop[0] = cur;
+          for (size_t i = 1; i < members; i++)
+            loop[i] = path[steps - i];
+        }
+      else
+        for (size_t i = 0; i < members; i++)
+          loop[i] = path[steps - 1 - i];
+      fflush (stdout);
+      fprintf (stderr, "tsort: %s: input contains a loop:\n", qfile);
+      for (size_t i = 0; i < members; i++)
+        fprintf (stderr, "tsort: %s\n", g.nodes[loop[i]].name);
+      fflush (stderr);
       rc = EXECUTION_FAILURE;
+
+      /* Drop the edge from the last member printed into the first. */
+      size_t into = loop[0], src = loop[members - 1];
+      for (size_t ed = g.nodes[src].first_edge; ed != SIZE_MAX; ed = g.edges[ed].next)
+        if (!g.edges[ed].dead && g.edges[ed].to == into)
+          {
+            g.edges[ed].dead = 1;
+            if (!--g.nodes[into].count)
+              queue[tail++] = into;
+            break;
+          }
+    }
+  free (order);
+  free (queue);
+  free (link);
+  free (above);
+  free (seen);
+  free (path);
+
+done:
+  free (g.nodes);
+  free (g.edges);
+  free (g.table);
+  free (buf);
+  free (qfile);
+  return rc;
+}
+
+/* ===================================================================
+ * printf — coreutils printf: `coreutils printf FORMAT [ARGUMENT]...`.
+ *
+ * This is the external printf that env, nice, nohup, xargs and find run
+ * (common/command-run.h routes an enabled printf here), so it follows
+ * coreutils rather than Bash's builtin: there is no -v, %q quotes as
+ * `ls --quoting-style=shell-escape` does ('a b'), "--" is skipped only
+ * as the first argument, --help/--version only as the sole argument.
+ * FORMAT is reused while arguments remain; missing arguments read as ""
+ * or 0. %b expands escapes in its argument, \c stops all output.
+ * Numeric arguments take a leading ' or " for a character's value and
+ * C's base prefixes; bad ones are diagnosed, printed as far as they
+ * converted, and make the status 1. A bad directive or escape is fatal.
+ * %N$ picks argument N of the current round. Written from the coreutils
+ * manual, POSIX and observed coreutils 9.7 behaviour.
+ * =================================================================== */
+
+typedef struct
+{
+  char **argv;          /* arguments of the current round */
+  int argc;
+  int seq;              /* next sequential argument */
+  int maxpos;           /* highest %N$ used */
+  int status;
+  int stop;             /* \c seen: no more output at all */
+  int fatal;            /* fatal diagnostic printed */
+} bcu_pf;
+
+static void
+bcu_pf_fatal (bcu_pf *p, const char *fmt, ...) __attribute__ ((format (printf, 2, 3)));
+static void
+bcu_pf_fatal (bcu_pf *p, const char *fmt, ...)
+{
+  va_list ap;
+  fflush (stdout);
+  fputs ("printf: ", stderr);
+  va_start (ap, fmt);
+  vfprintf (stderr, fmt, ap);
+  va_end (ap);
+  fputc ('\n', stderr);
+  p->fatal = 1;
+  p->status = EXECUTION_FAILURE;
+}
+
+/* Write code point CP for a \u or \U escape: the locale's encoding of
+   it, or the escape itself (\uXXXX, \UXXXXXXXX) when the locale cannot
+   represent it. Surrogates are an error. */
+static void
+bcu_pf_unicode (bcu_pf *p, unsigned long cp, char letter, const char *digits, int ndigits)
+{
+  if (cp >= 0xD800 && cp <= 0xDFFF)
+    {
+      bcu_pf_fatal (p, "invalid universal character name \\%c%.*s", letter, ndigits, digits);
+      return;
+    }
+  if (cp < 0x80)
+    {
+      putchar ((int) cp);
+      return;
+    }
+  if (cp <= 0x10FFFF)
+    {
+      char mb[MB_LEN_MAX];
+      mbstate_t st;
+      memset (&st, 0, sizeof st);
+      size_t n = wcrtomb (mb, (wchar_t) cp, &st);
+      if (n != (size_t) -1)
+        {
+          fwrite (mb, 1, n, stdout);
+          return;
+        }
+    }
+  if (cp <= 0xFFFF)
+    printf ("\\u%04lX", cp);
+  else
+    printf ("\\U%08lX", cp);
+}
+
+/* Interpret the escape at S (just after the backslash); returns the
+   number of characters used. In %b arguments (BARG) octal is \0NNN or
+   \NNN; in the format it is \NNN. */
+static size_t
+bcu_pf_escape (bcu_pf *p, const char *s, int barg)
+{
+  const char *start = s;
+  int c = (unsigned char) *s;
+  switch (c)
+    {
+    case '\\': putchar ('\\'); return 1;
+    case '"':  putchar ('"'); return 1;
+    case 'a':  putchar ('\a'); return 1;
+    case 'b':  putchar ('\b'); return 1;
+    case 'e':  putchar (0x1b); return 1;
+    case 'f':  putchar ('\f'); return 1;
+    case 'n':  putchar ('\n'); return 1;
+    case 'r':  putchar ('\r'); return 1;
+    case 't':  putchar ('\t'); return 1;
+    case 'v':  putchar ('\v'); return 1;
+    case 'c':  p->stop = 1; return 1;
+    case 'x':
+      {
+        unsigned v = 0;
+        int n = 0;
+        for (s++; n < 2 && isxdigit ((unsigned char) *s); s++, n++)
+          v = v * 16 + (unsigned) (isdigit ((unsigned char) *s) ? *s - '0'
+                                   : (tolower ((unsigned char) *s) - 'a' + 10));
+        if (!n)
+          {
+            bcu_pf_fatal (p, "missing hexadecimal number in escape");
+            return (size_t) (s - start);
+          }
+        putchar ((int) v);
+        return (size_t) (s - start);
+      }
+    case 'u':
+    case 'U':
+      {
+        int want = c == 'u' ? 4 : 8, n = 0;
+        unsigned long v = 0;
+        const char *digits = s + 1;
+        for (s++; n < want && isxdigit ((unsigned char) *s); s++, n++)
+          v = v * 16 + (unsigned long) (isdigit ((unsigned char) *s) ? *s - '0'
+                                        : (tolower ((unsigned char) *s) - 'a' + 10));
+        if (n < want)
+          {
+            bcu_pf_fatal (p, "missing hexadecimal number in escape");
+            return (size_t) (s - start);
+          }
+        bcu_pf_unicode (p, v, (char) c, digits, want);
+        return (size_t) (s - start);
+      }
+    default:
+      break;
+    }
+  if (c >= '0' && c <= '7' && (!barg || c != '0'))
+    {
+      unsigned v = 0;
+      int n = 0;
+      for (; n < 3 && *s >= '0' && *s <= '7'; s++, n++)
+        v = v * 8 + (unsigned) (*s - '0');
+      putchar ((int) (v & 0xff));
+      return (size_t) (s - start);
+    }
+  if (barg && c == '0')
+    {
+      unsigned v = 0;
+      int n = 0;
+      for (s++; n < 3 && *s >= '0' && *s <= '7'; s++, n++)
+        v = v * 8 + (unsigned) (*s - '0');
+      putchar ((int) (v & 0xff));
+      return (size_t) (s - start);
+    }
+  /* Unknown escape, or a backslash at the end: both print as written. */
+  putchar ('\\');
+  if (c)
+    {
+      putchar (c);
+      return 1;
+    }
+  return 0;
+}
+
+/* %b: ARG with escapes expanded. */
+static void
+bcu_pf_bstring (bcu_pf *p, const char *arg)
+{
+  while (*arg && !p->stop && !p->fatal)
+    {
+      if (*arg == '\\')
+        arg += 1 + bcu_pf_escape (p, arg + 1, 1);
+      else
+        putchar (*arg++);
+    }
+}
+
+/* Argument for %N$ (POS > 0) or the next sequential one; NULL when the
+   round has no such argument. */
+static const char *
+bcu_pf_arg (bcu_pf *p, int pos)
+{
+  if (pos > 0)
+    {
+      if (pos > p->maxpos)
+        p->maxpos = pos;
+      return pos <= p->argc ? p->argv[pos - 1] : NULL;
+    }
+  p->seq++;
+  return p->seq <= p->argc ? p->argv[p->seq - 1] : NULL;
+}
+
+static void
+bcu_pf_numeric_error (bcu_pf *p, const char *arg, const char *msg)
+{
+  char *q = bcu_quote (arg);
+  fflush (stdout);
+  fprintf (stderr, "printf: %s: %s\n", q, msg);
+  free (q);
+  p->status = EXECUTION_FAILURE;
+}
+
+/* A leading ' or " gives the value of the following character (a
+   multibyte one in its locale's encoding, else the byte); text after it
+   is ignored with a warning. Returns 1 when ARG had that form. */
+static int
+bcu_pf_charconst (bcu_pf *p, const char *arg, uintmax_t *v)
+{
+  if ((arg[0] != '\'' && arg[0] != '"') || !arg[1])
+    return 0;
+  const char *s = arg + 1;
+  size_t len = strlen (s), n = 1;
+  mbstate_t st;
+  wchar_t wc;
+  memset (&st, 0, sizeof st);
+  size_t r = mbrtowc (&wc, s, len, &st);
+  if (r != (size_t) -1 && r != (size_t) -2 && r > 0 && (unsigned char) *s >= 0x80)
+    {
+      *v = (uintmax_t) wc;
+      n = r;
+    }
+  else
+    *v = (unsigned char) *s;
+  if (s[n])
+    {
+      fflush (stdout);
+      fprintf (stderr, "printf: warning: %s: character(s) following character constant have been ignored\n", s + n);
+    }
+  return 1;
+}
+
+/* Check a converted number: diagnose it (not fatally) as coreutils does. */
+static void
+bcu_pf_check (bcu_pf *p, const char *arg, const char *end, int err)
+{
+  if (end == arg)
+    bcu_pf_numeric_error (p, arg, "expected a numeric value");
+  else if (err == ERANGE)
+    bcu_pf_numeric_error (p, arg, strerror (ERANGE));
+  else if (*end)
+    bcu_pf_numeric_error (p, arg, "value not completely converted");
+}
+
+static intmax_t
+bcu_pf_signed (bcu_pf *p, const char *arg)
+{
+  uintmax_t c;
+  if (!arg)
+    return 0;
+  if (bcu_pf_charconst (p, arg, &c))
+    return (intmax_t) c;
+  char *end;
+  errno = 0;
+  intmax_t v = strtoimax (arg, &end, 0);
+  bcu_pf_check (p, arg, end, errno);
+  return v;
+}
+
+static uintmax_t
+bcu_pf_unsigned (bcu_pf *p, const char *arg)
+{
+  uintmax_t c;
+  if (!arg)
+    return 0;
+  if (bcu_pf_charconst (p, arg, &c))
+    return c;
+  char *end;
+  errno = 0;
+  uintmax_t v = strtoumax (arg, &end, 0);
+  bcu_pf_check (p, arg, end, errno);
+  return v;
+}
+
+static long double
+bcu_pf_float (bcu_pf *p, const char *arg)
+{
+  uintmax_t c;
+  if (!arg)
+    return 0;
+  if (bcu_pf_charconst (p, arg, &c))
+    return (long double) c;
+  char *end;
+  errno = 0;
+  long double v = strtold (arg, &end);
+  bcu_pf_check (p, arg, end, errno);
+  return v;
+}
+
+/* Pad TEXT[0..LEN) to WIDTH bytes (negative: none), left-justified with
+   MINUS; PREC (>= 0) first truncates it. */
+static void
+bcu_pf_pad (const char *text, size_t len, int minus, long width, long prec)
+{
+  if (prec >= 0 && (size_t) prec < len)
+    len = (size_t) prec;
+  size_t pad = width > 0 && (size_t) width > len ? (size_t) width - len : 0;
+  if (!minus)
+    for (; pad; pad--)
+      putchar (' ');
+  fwrite (text, 1, len, stdout);
+  for (; pad; pad--)
+    putchar (' ');
+}
+
+/* Width or precision taken from an argument ('*'). Returns 0 after a
+   fatal diagnostic. */
+static int
+bcu_pf_star (bcu_pf *p, int pos, int is_width, long *out)
+{
+  const char *arg = bcu_pf_arg (p, pos);
+  intmax_t v = bcu_pf_signed (p, arg);
+  if (is_width ? (v < -INT_MAX || v > INT_MAX) : v > INT_MAX)
+    {
+      char *q = bcu_quote (arg ? arg : "");
+      bcu_pf_fatal (p, "invalid %s: %s", is_width ? "field width" : "precision", q);
+      free (q);
+      return 0;
+    }
+  *out = v < INT_MIN ? -1 : (long) v;
+  return 1;
+}
+
+/* Read "N$" at *S; returns N (> 0), 0 when absent, -1 when it is "0$". */
+static int
+bcu_pf_position (const char **s)
+{
+  const char *t = *s;
+  long n = 0;
+  if (*t < '0' || *t > '9')
+    return 0;
+  for (; *t >= '0' && *t <= '9'; t++)
+    n = n < INT_MAX / 10 ? n * 10 + (*t - '0') : INT_MAX;
+  if (*t != '$')
+    return 0;
+  *s = t + 1;
+  return n ? (int) n : -1;
+}
+
+/* One directive at FMT (the '%'); returns the characters consumed. */
+static size_t
+bcu_pf_directive (bcu_pf *p, const char *fmt)
+{
+  const char *s = fmt + 1;
+  if (*s == '%')
+    {
+      putchar ('%');
+      return 2;
+    }
+  int pos = bcu_pf_position (&s);
+  if (pos < 0)
+    goto invalid;
+  char flags[16];
+  int nflags = 0, minus = 0, have_width = 0, have_prec = 0, have_len = 0;
+  int width_star = 0, prec_star = 0, width_pos = 0, prec_pos = 0, width_over = 0;
+  long width = -1, prec = -1;
+  static const char flagchars[] = "-+ #0'I";
+  unsigned seen = 0;    /* bit per flag: - + space # 0 ' I */
+  for (;; s++)
+    {
+      const char *f = *s ? strchr (flagchars, *s) : NULL;
+      if (!f)
+        break;
+      seen |= 1u << (f - flagchars);
+      if (*s == '-')
+        minus = 1;
+      if (nflags < (int) sizeof flags - 1)
+        flags[nflags++] = *s;
+    }
+  flags[nflags] = '\0';
+  if (*s == '*')
+    {
+      have_width = width_star = 1;
+      s++;
+      width_pos = bcu_pf_position (&s);
+      if (width_pos < 0)
+        goto invalid;
+    }
+  else if (*s >= '0' && *s <= '9')
+    {
+      have_width = 1;
+      width = 0;
+      for (; *s >= '0' && *s <= '9'; s++)
+        {
+          if (width > (INT_MAX - (*s - '0')) / 10)
+            width_over = 1;
+          else
+            width = width * 10 + (*s - '0');
+        }
+    }
+  if (*s == '.')
+    {
+      have_prec = 1;
+      s++;
+      if (*s == '*')
+        {
+          prec_star = 1;
+          s++;
+          prec_pos = bcu_pf_position (&s);
+          if (prec_pos < 0)
+            goto invalid;
+        }
+      else
+        {
+          int over = 0;
+          prec = 0;
+          for (; *s >= '0' && *s <= '9'; s++)
+            {
+              if (prec > (INT_MAX - (*s - '0')) / 10)
+                over = 1;
+              else
+                prec = prec * 10 + (*s - '0');
+            }
+          if (over)
+            prec = -1;
+        }
+    }
+  while (*s && strchr ("hlLjzt", *s))
+    {
+      have_len = 1;
+      s++;
+    }
+  if (!*s)
+    goto invalid;
+  int conv = (unsigned char) *s++;
+  /* Which flags each conversion takes, as coreutils accepts them:
+     bit order - + space # 0 ' I. */
+  unsigned allowed;
+  int w_ok = 1, p_ok = 1, l_ok = 1;
+  switch (conv)
+    {
+    case 's':                     allowed = 0x07; break;
+    case 'c':                     allowed = 0x07; p_ok = 0; break;
+    case 'b': case 'q':           allowed = 0; w_ok = p_ok = l_ok = 0; break;
+    case 'd': case 'i': case 'u': allowed = 0x77; break;
+    case 'o': case 'x': case 'X': allowed = 0x1f; break;
+    case 'f': case 'F': case 'g': case 'G': allowed = 0x7f; break;
+    case 'e': case 'E': case 'a': case 'A': allowed = 0x1f; break;
+    default: goto invalid;
+    }
+  if ((seen & ~allowed) || (have_width && !w_ok) || (have_prec && !p_ok)
+      || (have_len && !l_ok))
+    goto invalid;
+
+  if (width_star && !bcu_pf_star (p, width_pos, 1, &width))
+    return (size_t) (s - fmt);
+  if (width_star && width < 0)
+    {
+      minus = 1;
+      width = -width;
+    }
+  if (prec_star && !bcu_pf_star (p, prec_pos, 0, &prec))
+    return (size_t) (s - fmt);
+  if (width_over)
+    {
+      bcu_pf_fatal (p, "write error");
+      return (size_t) (s - fmt);
     }
 
-  for (size_t i = 0; i < n; i++)
-    { free (nodes[i].name); free (nodes[i].succ); }
-  free (nodes);
-  return rc;
+  const char *arg = bcu_pf_arg (p, pos);
+  char spec[48];
+  int k = 0;
+  spec[k++] = '%';
+  for (const char *f = flags; *f; f++)
+    if (k < 20)
+      spec[k++] = *f;
+  if (minus && !strchr (flags, '-'))
+    spec[k++] = '-';
+  if (width >= 0 || width_star)
+    k += snprintf (spec + k, sizeof spec - (size_t) k, "%ld", width < 0 ? 0 : width);
+  if (prec >= 0)
+    k += snprintf (spec + k, sizeof spec - (size_t) k, ".%ld", prec);
+  switch (conv)
+    {
+    case 'd': case 'i':
+      {
+        intmax_t v = bcu_pf_signed (p, arg);
+        snprintf (spec + k, sizeof spec - (size_t) k, "j%c", conv);
+        printf (spec, v);
+        break;
+      }
+    case 'o': case 'u': case 'x': case 'X':
+      {
+        uintmax_t v = bcu_pf_unsigned (p, arg);
+        snprintf (spec + k, sizeof spec - (size_t) k, "j%c", conv);
+        printf (spec, v);
+        break;
+      }
+    case 'f': case 'F': case 'g': case 'G': case 'e': case 'E': case 'a': case 'A':
+      {
+        long double v = bcu_pf_float (p, arg);
+        snprintf (spec + k, sizeof spec - (size_t) k, "L%c", conv);
+        printf (spec, v);
+        break;
+      }
+    case 'c':
+      {
+        char ch = arg ? arg[0] : '\0';
+        bcu_pf_pad (&ch, 1, minus, width, -1);
+        break;
+      }
+    case 's':
+      bcu_pf_pad (arg ? arg : "", arg ? strlen (arg) : 0, minus, width, prec);
+      break;
+    case 'b':
+      if (arg)
+        bcu_pf_bstring (p, arg);
+      break;
+    case 'q':
+      {
+        char *q = bcu_shell_quote (arg ? arg : "");
+        fputs (q, stdout);
+        free (q);
+        break;
+      }
+    }
+  return (size_t) (s - fmt);
+
+invalid:
+  bcu_pf_fatal (p, "%.*s: invalid conversion specification", (int) (s - fmt), fmt);
+  return (size_t) (s - fmt);
+}
+
+static void
+bcu_printf_usage (void)
+{
+  fputs ("Usage: printf FORMAT [ARGUMENT]...\n"
+         "  or:  printf OPTION\n"
+         "Print ARGUMENT(s) under control of FORMAT, reusing FORMAT while\n"
+         "arguments remain.\n"
+         "\n"
+         "      --help     display this help and exit\n"
+         "      --version  output version information and exit\n"
+         "\n"
+         "FORMAT is printed as written except for these escapes:\n"
+         "  \\\"  \\\\  \\a  \\b  \\c (no further output)  \\e  \\f  \\n  \\r  \\t  \\v\n"
+         "  \\NNN (octal byte, 1 to 3 digits)  \\xHH (hexadecimal byte, 1 or 2 digits)\n"
+         "  \\uHHHH  \\UHHHHHHHH (Unicode character)\n"
+         "and directives as in C printf (d i o u x X f F e E g G a A c s), plus:\n"
+         "  %%      a percent sign\n"
+         "  %b      ARGUMENT with backslash escapes expanded (octal is \\0NNN)\n"
+         "  %q      ARGUMENT quoted for reuse as shell input\n"
+         "A numeric ARGUMENT may be a character with a leading ' or \"; its value\n"
+         "is that character's code.\n",
+         stdout);
+}
+
+static int
+bcu_printf_cmd (WORD_LIST *list)
+{
+  if (list && !list->next)
+    {
+      if (!strcmp (list->word->word, "--help"))
+        {
+          bcu_printf_usage ();
+          return EXECUTION_SUCCESS;
+        }
+      if (!strcmp (list->word->word, "--version"))
+        {
+          puts ("printf (bash-os coreutils)");
+          return EXECUTION_SUCCESS;
+        }
+    }
+  if (list && !strcmp (list->word->word, "--"))
+    list = list->next;
+  if (!list)
+    {
+      bcu_err ("printf", "missing operand");
+      bcu_try_help ("printf");
+      return EXECUTION_FAILURE;
+    }
+  const char *format = list->word->word;
+  int argc = 0;
+  for (WORD_LIST *w = list->next; w; w = w->next)
+    argc++;
+  char **argv = xmalloc ((size_t) (argc + 1) * sizeof *argv);
+  argc = 0;
+  for (WORD_LIST *w = list->next; w; w = w->next)
+    argv[argc++] = w->word->word;
+  argv[argc] = NULL;
+
+  bcu_pf p;
+  memset (&p, 0, sizeof p);
+  int done = 0;
+  for (;;)
+    {
+      p.argv = argv + done;
+      p.argc = argc - done;
+      p.seq = p.maxpos = 0;
+      for (const char *f = format; *f && !p.stop && !p.fatal;)
+        {
+          if (*f == '%')
+            f += bcu_pf_directive (&p, f);
+          else if (*f == '\\')
+            f += 1 + bcu_pf_escape (&p, f + 1, 0);
+          else
+            putchar (*f++);
+        }
+      if (p.stop || p.fatal)
+        break;
+      int used = p.seq > p.maxpos ? p.seq : p.maxpos;
+      if (used > p.argc)
+        used = p.argc;
+      done += used;
+      if (done >= argc)
+        break;
+      if (!used)
+        {
+          char *q = bcu_quote (argv[done]);
+          fflush (stdout);
+          fprintf (stderr, "printf: warning: ignoring excess arguments, starting with %s\n", q);
+          free (q);
+          break;
+        }
+    }
+  free (argv);
+  return p.status;
 }
 
 /* ===================================================================
@@ -2842,19 +4294,191 @@ bcu_groups_cmd (WORD_LIST *list)
 /* ===================================================================
  * install — like `cp` with explicit -m mode and -d/-D for directories.
  *
- * Subset:
- *   install -m MODE SRC... DST          copy files, set MODE on each
- *   install -d [-m MODE] DIR...         mkdir -p style
- *   install -D [-m MODE] SRC DST        make parent dirs of DST first
- *   install [-D] -t DIR SRC...          copy every SRC into DIR (-D makes DIR)
- *   install -T SRC DST                  DST is never treated as a directory
- *   install -C|--compare ...            leave a destination that already has
- *                                       the content, mode and owner alone
- *   -c is accepted and ignored, as in GNU install.
+ *   install [OPTION]... [-T] SOURCE DEST
+ *   install [OPTION]... SOURCE... DIRECTORY
+ *   install [OPTION]... -t DIRECTORY SOURCE...
+ *   install [OPTION]... -d DIRECTORY...
  *
- * Owner/group flags (-o/-g) accept names or numeric IDs. Validate them
- * before modifying destinations, and report any ownership-change failure.
+ * Written for bash-os from the coreutils manual, POSIX and the observed
+ * behaviour of GNU coreutils 9.7 install (messages, the order of its
+ * checks, exit status and system calls, all seen from outside).
+ *
+ * Each SOURCE goes to a fresh file that takes DEST's name: an existing
+ * DEST is backed up (-b, --backup, -S) or removed, the copy is created
+ * exclusively, then optionally stripped (-s), given the source's times
+ * (-p), the requested owner and group (-o/-g, names or numbers) and last
+ * the mode (-m, octal or symbolic, computed as for a new file; default
+ * rwxr-xr-x). -C leaves a destination whose content, owner, group and
+ * mode already match untouched. -d creates each DIRECTORY with all its
+ * missing parents, then applies -m to it as chmod would; -D creates DEST's
+ * missing parents, or all of the -t directory. Parents are made
+ * rwxr-xr-x whatever the umask. -v reports each step on stdout. Any
+ * failure gives status 1; diagnostics read "install: ...".
  * =================================================================== */
+
+#include "gnu-longopt.h"
+#include "gnu-mode.h"
+#include "child-wait.h"
+#include "findcmd.h"
+#include "trap.h"
+#include <sys/wait.h>
+#if defined (__linux__)
+#  include <sys/ioctl.h>
+#  ifndef FICLONE
+#    define FICLONE _IOW (0x94, 9, int)
+#  endif
+#endif
+
+extern char *this_command_name;
+
+typedef struct
+{
+  int dir_arg, parents, compare, preserve_times, strip, verbose, debug;
+  int backup_kind;                      /* BOS_BACKUP_NONE: remove DEST */
+  const char *suffix;                   /* resolved simple-backup suffix */
+  const char *strip_program;            /* NULL: strip */
+  struct bos_mode_change *mode_change;  /* NULL: the default rwxr-xr-x */
+  mode_t file_mode, dir_mode;           /* what a new file / directory gets */
+  uid_t uid;                            /* (uid_t) -1: leave alone */
+  gid_t gid;
+} bcu_inst;
+
+/* "BEFORE 'NAME'AFTER[: ERROR]" with NAME in GNU's file-name quoting. */
+static void
+bcu_inst_fail (const char *before, const char *name, const char *after, int error)
+{
+  char *q = bos_quoteaf (name);
+  builtin_error ("%s%s%s%s%s", before, q ? q : name, after,
+                 error ? ": " : "", error ? strerror (error) : "");
+  free (q);
+}
+
+/* Print "install: creating directory 'NAME'" for -v. */
+static void
+bcu_inst_said_mkdir (const bcu_inst *o, const char *name)
+{
+  if (!o->verbose)
+    return;
+  char *q = bos_quoteaf (name);
+  printf ("install: creating directory %s\n", q ? q : name);
+  free (q);
+}
+
+static int
+bcu_inst_mkdir (const char *path, mode_t mode)
+{
+  /* Exact permissions, as install's own umask of 0 gives. mkdir itself
+     still lets a set-group-ID parent pass that bit on. */
+  mode_t mask = umask (0);
+  int rc = mkdir (path, mode);
+  int error = errno;
+  umask (mask);
+  errno = error;
+  return rc;
+}
+
+/* Create the missing directories along PATH, each rwxr-xr-x, reporting
+   each new one under -v. The last component is included only when
+   WITH_LAST is set. A component that exists must be a directory that can
+   be searched. Returns 0, or -1 after "cannot create directory". */
+static int
+bcu_inst_mkdirs (const bcu_inst *o, const char *path, int with_last)
+{
+  size_t len = strlen (path), i = 0;
+  char *prefix = xmalloc (len + 1);
+  while (path[i] == '/')
+    i++;
+  while (path[i])
+    {
+      while (path[i] && path[i] != '/')
+        i++;
+      size_t end = i;
+      while (path[i] == '/')
+        i++;
+      int last = path[i] == '\0';
+      if (last && !with_last)
+        break;
+      const char *name = path;
+      if (!last)
+        {
+          memcpy (prefix, path, end);
+          prefix[end] = '\0';
+          name = prefix;
+        }
+      if (bcu_inst_mkdir (name, 0755) == 0)
+        {
+          bcu_inst_said_mkdir (o, name);
+          continue;
+        }
+      int error = errno;
+      struct stat st;
+      if (stat (name, &st) == 0)
+        {
+          if (S_ISDIR (st.st_mode) && access (name, X_OK) == 0)
+            continue;
+          error = S_ISDIR (st.st_mode) ? errno : ENOTDIR;
+        }
+      else if (error == EEXIST)
+        error = errno;
+      bcu_inst_fail ("cannot create directory ", name, "", error);
+      free (prefix);
+      return -1;
+    }
+  free (prefix);
+  return 0;
+}
+
+/* install -d: PATH and its missing parents, then owner, group and mode on
+   PATH itself (an existing directory too). */
+static int
+bcu_inst_make_dir (const bcu_inst *o, const char *path)
+{
+  if (bcu_inst_mkdirs (o, path, 0) < 0)
+    return -1;
+  int made = bcu_inst_mkdir (path, o->dir_mode) == 0;
+  int error = errno;
+  struct stat st;
+  if (made)
+    bcu_inst_said_mkdir (o, path);
+  if (stat (path, &st) < 0)
+    {
+      int stat_error = errno;
+      if (made || error == ENOENT || error == ENOTDIR)
+        bcu_inst_fail ("cannot create directory ", path, "", made ? stat_error : error);
+      else
+        bcu_inst_fail ("cannot change permissions of ", path, "", stat_error);
+      return -1;
+    }
+  if (!S_ISDIR (st.st_mode))
+    {
+      bcu_inst_fail ("cannot create directory ", path, "", made ? ENOTDIR : error);
+      return -1;
+    }
+  if (o->uid != (uid_t) -1 || o->gid != (gid_t) -1)
+    {
+      if (lchown (path, o->uid, o->gid) < 0)
+        {
+          bcu_inst_fail ("cannot change owner and permissions of ", path, "", errno);
+          return -1;
+        }
+      if (stat (path, &st) < 0)
+        {
+          bcu_inst_fail ("cannot change permissions of ", path, "", errno);
+          return -1;
+        }
+    }
+  /* A -m mode works on the directory as chmod would (so a directory keeps
+     set-ID bits that octal modes leave alone); the default mode is exact. */
+  mode_t want = o->mode_change
+    ? bos_mode_adjust (st.st_mode & BOS_MODE_BITS, 1, 0, o->mode_change, NULL) & BOS_MODE_BITS
+    : 0755;
+  if ((st.st_mode & BOS_MODE_BITS) != want && chmod (path, want) < 0)
+    {
+      bcu_inst_fail ("cannot change permissions of ", path, "", errno);
+      return -1;
+    }
+  return 0;
+}
 
 /* Whether two paths name one directory entry: the same last component in
    the same parent directory, however either path is spelled. An answer that
@@ -2890,40 +4514,40 @@ bcu_install_same_entry (const char *a, const char *b)
   return dirs[0].st_dev == dirs[1].st_dev && dirs[0].st_ino == dirs[1].st_ino;
 }
 
-/* Handle a destination that already names the source's inode as GNU install
-   does. The same directory entry, or a source that reaches the destination
-   through a symbolic link, is refused. Another hard link or a symbolic link
-   to the source is removed, so a fresh file takes its name and the source
-   keeps its data. Returns -1 after reporting a refusal or failure. */
+static void
+bcu_inst_same_file (const char *src, const char *dst)
+{
+  char *qs = bos_quoteaf (src), *qd = bos_quoteaf (dst);
+  builtin_error ("%s and %s are the same file", qs ? qs : src, qd ? qd : dst);
+  free (qs);
+  free (qd);
+}
+
+/* Refuse a destination that is the source as GNU install does: the same
+   directory entry, or a source that reaches the destination through a
+   symbolic link. Another hard link or a symbolic link to the source is
+   fine: it is replaced by a fresh file and the source keeps its data.
+   Returns -1 after reporting a refusal. */
 static int
 bcu_install_same_file (const char *src, const char *dst, const struct stat *src_st)
 {
   struct stat st;
   if (stat (dst, &st) < 0 || st.st_dev != src_st->st_dev || st.st_ino != src_st->st_ino)
     return 0;
-  int replace;
   if (lstat (dst, &st) == 0 && S_ISLNK (st.st_mode))
-    replace = 1;
-  else
-    replace = !(lstat (src, &st) == 0 && S_ISLNK (st.st_mode)) &&
-              !bcu_install_same_entry (src, dst);
-  if (!replace)
+    return 0;
+  if ((lstat (src, &st) == 0 && S_ISLNK (st.st_mode)) || bcu_install_same_entry (src, dst))
     {
-      builtin_error ("install: '%s' and '%s' are the same file", src, dst);
-      return -1;
-    }
-  if (unlink (dst) < 0)
-    {
-      builtin_error ("install: cannot remove %s: %s", dst, strerror (errno));
+      bcu_inst_same_file (src, dst);
       return -1;
     }
   return 0;
 }
 
-/* GNU need_copy for -C/--compare: whether DST must be (re)written. It may be
-   skipped only when both are regular files without special mode bits, DST
-   already has MODE and the owner and group the copy would get (the caller's
-   real IDs unless -o/-g name them), and the contents are identical. */
+/* -C/--compare: whether DST must be (re)written. It may be skipped only
+   when both are regular files without special mode bits, DST already has
+   MODE and the owner and group the copy would get (the caller's real IDs
+   unless -o/-g name them), and the contents are identical. */
 static int
 bcu_install_need_copy (const char *src, const char *dst, mode_t mode, uid_t uid, gid_t gid)
 {
@@ -2961,139 +4585,337 @@ bcu_install_need_copy (const char *src, const char *dst, mode_t mode, uid_t uid,
   return differ;
 }
 
+/* Copy RFD to WFD. Returns 0, or the errno of a failed read (*READING set)
+   or write. *OFFLOAD and *REFLINK describe the method for --debug. */
 static int
-bcu_install_copyfile (const char *src, const char *dst, mode_t mode, uid_t uid, gid_t gid,
-                      int compare)
+bcu_inst_copy_data (int rfd, int wfd, const struct stat *src_st, int *reading,
+                    const char **offload, const char **reflink)
 {
-  if (compare && !bcu_install_need_copy (src, dst, mode, uid, gid))
-    return EXECUTION_SUCCESS;
-  int rfd = open (src, O_RDONLY);
-  if (rfd < 0) { builtin_error ("install: %s: %s", src, strerror (errno)); return EXECUTION_FAILURE; }
-  struct stat src_st, dst_st;
-  if (fstat (rfd, &src_st) < 0)
-    { int e = errno; close (rfd); builtin_error ("install: stat %s: %s", src, strerror (e)); return EXECUTION_FAILURE; }
-  if (S_ISDIR (src_st.st_mode))
-    { close (rfd); builtin_error ("install: %s is a directory", src); return EXECUTION_FAILURE; }
-  if (bcu_install_same_file (src, dst, &src_st) < 0)
-    { close (rfd); return EXECUTION_FAILURE; }
-  /* GNU install replaces the directory entry. Other hard links keep their
-     contents, and a destination symlink is replaced rather than followed.
-     Open the source and reject same-file operands before removing anything. */
-  if (unlink (dst) < 0 && errno != ENOENT)
-    { int e = errno; close (rfd); builtin_error ("install: cannot remove %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
-  int wfd = open (dst, O_WRONLY | O_CREAT | O_EXCL, 0600);
-  if (wfd < 0)
-    { int e = errno; close (rfd); builtin_error ("install: %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
-  if (fstat (wfd, &dst_st) < 0)
-    { int e = errno; close (rfd); close (wfd); builtin_error ("install: stat %s: %s", dst, strerror (e)); return EXECUTION_FAILURE; }
-  if (dst_st.st_dev == src_st.st_dev && dst_st.st_ino == src_st.st_ino)
+  struct stat dst_st;
+  int regular = S_ISREG (src_st->st_mode) && fstat (wfd, &dst_st) == 0
+                && S_ISREG (dst_st.st_mode);
+  *reading = 0;
+  *offload = "unsupported";
+  *reflink = "unsupported";
+#if defined (__linux__)
+  if (regular && ioctl (wfd, FICLONE, rfd) == 0)
     {
-      close (rfd); close (wfd);
-      builtin_error ("install: '%s' and '%s' are the same file", src, dst);
-      return EXECUTION_FAILURE;
+      *reflink = "yes";
+      *offload = "avoided";
+      return 0;
     }
-  int write_error = 0, read_error = 0;
-#if defined (__linux__) && defined (SYS_copy_file_range)
-  /* Unsupported filesystems (or a short kernel copy) continue through
+#  if defined (SYS_copy_file_range)
+  /* An unsupported filesystem (or a short kernel copy) continues through
      read/write at the descriptors' current offsets. */
-  if (S_ISREG (src_st.st_mode) && S_ISREG (dst_st.st_mode))
-    while (syscall (SYS_copy_file_range, rfd, NULL, wfd, NULL,
-                    (size_t) 1024 * 1024 * 1024, 0) > 0)
-      ;
+  if (regular)
+    {
+      ssize_t n = syscall (SYS_copy_file_range, rfd, NULL, wfd, NULL,
+                           (size_t) 1024 * 1024 * 1024, 0);
+      if (n > 0)
+        {
+          *offload = "yes";
+          while ((n = syscall (SYS_copy_file_range, rfd, NULL, wfd, NULL,
+                               (size_t) 1024 * 1024 * 1024, 0)) > 0)
+            ;
+        }
+      else if (n == 0)
+        *offload = "unknown";
+    }
+#  endif
+#endif
   /* Always finish with read, including after a zero return: some virtual
      regular files report zero size yet still yield data when read. */
-#endif
-  /* Amortize read/write calls for streams and portable fallback copies.
-     Short reads still emit at once. */
-  char buf[128 * 1024];
-  ssize_t n;
-  while (1)
+  static char buf[128 * 1024];
+  for (;;)
     {
-      n = read (rfd, buf, sizeof buf);
-      if (n < 0 && errno == EINTR) continue;
-      if (n <= 0) { if (n < 0) read_error = errno; break; }
-      ssize_t off = 0;
-      while (off < n)
+      ssize_t n = read (rfd, buf, sizeof buf);
+      if (n < 0 && errno == EINTR)
+        continue;
+      if (n < 0)
+        {
+          *reading = 1;
+          return errno;
+        }
+      if (n == 0)
+        return 0;
+      for (ssize_t off = 0; off < n;)
         {
           ssize_t w = write (wfd, buf + off, (size_t) (n - off));
-          if (w < 0 && errno == EINTR) continue;
-          if (w <= 0) { write_error = w < 0 ? errno : EIO; goto copy_done; }
+          if (w < 0 && errno == EINTR)
+            continue;
+          if (w <= 0)
+            return w < 0 ? errno : EIO;
           off += w;
         }
     }
-copy_done:
-  close (rfd);
-  if (read_error)
-    {
-      close (wfd);
-      builtin_error ("install: read %s: %s", src, strerror (read_error));
-      return EXECUTION_FAILURE;
-    }
-  if (write_error)
-    {
-      close (wfd);
-      builtin_error ("install: write: %s", strerror (write_error));
-      return EXECUTION_FAILURE;
-    }
-  if (uid != (uid_t) -1 || gid != (gid_t) -1)
-    {
-      if (fchown (wfd, uid, gid) < 0)
-        { close (wfd); builtin_error ("install: chown %s: %s", dst, strerror (errno)); return EXECUTION_FAILURE; }
-    }
-  /* Ownership changes may clear set-ID bits. Apply the requested mode last. */
-  if (fchmod (wfd, mode) < 0)
-    { close (wfd); builtin_error ("install: chmod %s: %s", dst, strerror (errno)); return EXECUTION_FAILURE; }
-  close (wfd);
-  return EXECUTION_SUCCESS;
 }
 
+/* Run the strip program on DST. Returns 0, or -1 after a diagnostic. */
 static int
-bcu_install_mkdir_unmasked (const char *path, mode_t mode)
+bcu_inst_strip (const bcu_inst *o, const char *dst)
 {
-  /* mkdir itself preserves inherited setgid/default directory metadata.
-     Creating with the final permissions avoids a chmod that clears setgid. */
-  mode_t mask = umask (0);
-  int rc = mkdir (path, mode);
-  int error = errno;
-  umask (mask);
-  errno = error;
+  const char *program = o->strip_program ? o->strip_program : "strip";
+  char *path = strchr (program, '/') ? savestring (program) : find_user_command (program);
+  /* An operand that starts with '-' must not read as an option. */
+  char *operand = NULL;
+  if (dst[0] == '-')
+    {
+      operand = xmalloc (strlen (dst) + 3);
+      strcpy (operand, "./");
+      strcat (operand, dst);
+    }
+  char *argv[3] = { (char *) program, operand ? operand : (char *) dst, NULL };
+  int rc = -1;
+  bos_child_wait wait_state;
+  if (bos_child_wait_begin (&wait_state) < 0)
+    builtin_error ("cannot fork: %s", strerror (errno));
+  else
+    {
+      maybe_make_export_env ();
+      fflush (stdout);
+      fflush (stderr);
+      pid_t pid = fork ();
+      if (pid == 0)
+        {
+          bos_child_wait_child (&wait_state);
+          restore_original_signals ();
+          if (path)
+            execve (path, argv, export_env);
+          else
+            errno = ENOENT;
+          bcu_inst_fail ("cannot run ", program, "", errno);
+          fflush (stderr);
+          _exit (EXIT_FAILURE);
+        }
+      int status = 0;
+      if (pid < 0)
+        builtin_error ("cannot fork: %s", strerror (errno));
+      else
+        {
+          pid_t w;
+          while ((w = waitpid (pid, &status, 0)) < 0 && errno == EINTR)
+            ;
+          if (w == pid && WIFEXITED (status) && WEXITSTATUS (status) == 0)
+            rc = 0;
+        }
+      bos_child_wait_end (&wait_state);
+      if (rc < 0)
+        builtin_error ("strip process terminated abnormally");
+    }
+  free (operand);
+  free (path);
   return rc;
 }
 
+/* Install the file SRC as DST. Returns 0, or -1 after a diagnostic. */
 static int
-bcu_install_mkdir_p (const char *path, mode_t mode, uid_t uid, gid_t gid,
-                     int adjust_existing)
+bcu_inst_file (const bcu_inst *o, const char *src, const char *dst)
 {
-  char *tmp = bcu_strdup (path);
-  if (!tmp) return EXECUTION_FAILURE;
-  for (char *p = tmp + 1; *p; p++)
-    if (*p == '/')
-      {
-        *p = '\0';
-        if (bcu_install_mkdir_unmasked (tmp, 0755) < 0 && errno != EEXIST)
-          { builtin_error ("install: mkdir %s: %s", tmp, strerror (errno)); free (tmp); return EXECUTION_FAILURE; }
-        *p = '/';
-      }
-  int made = adjust_existing ? mkdir (tmp, mode) : bcu_install_mkdir_unmasked (tmp, mode);
-  if (made < 0)
+  struct stat ss, ds;
+  if (stat (src, &ss) < 0)
     {
-      if (errno != EEXIST)
-        { builtin_error ("install: mkdir %s: %s", tmp, strerror (errno)); free (tmp); return EXECUTION_FAILURE; }
-      struct stat st;
-      if (stat (tmp, &st) < 0 || !S_ISDIR (st.st_mode))
-        { builtin_error ("install: %s is not a directory", tmp); free (tmp); return EXECUTION_FAILURE; }
+      bcu_inst_fail ("cannot stat ", src, "", errno);
+      return -1;
     }
-  /* -D only creates missing parents; -d explicitly sets their mode. */
-  if (!adjust_existing) { free (tmp); return EXECUTION_SUCCESS; }
-  if ((uid != (uid_t) -1 || gid != (gid_t) -1) && chown (tmp, uid, gid) < 0)
-    { builtin_error ("install: chown %s: %s", tmp, strerror (errno)); free (tmp); return EXECUTION_FAILURE; }
-  /* Make sure the final component honors mode even if it already existed. */
-  if (chmod (tmp, mode) < 0)
-    { builtin_error ("install: chmod %s: %s", tmp, strerror (errno)); free (tmp); return EXECUTION_FAILURE; }
-  free (tmp);
-  return EXECUTION_SUCCESS;
+  if (S_ISDIR (ss.st_mode))
+    {
+      bcu_inst_fail ("omitting directory ", src, "", 0);
+      return -1;
+    }
+  int exists = lstat (dst, &ds) == 0;
+  if (!exists && *dst && errno != ENOENT)
+    {
+      bcu_inst_fail ("cannot stat ", dst, "", errno);
+      return -1;
+    }
+  if (!*dst || (exists && S_ISDIR (ds.st_mode)))
+    {
+      if (*dst && o->backup_kind != BOS_BACKUP_NONE)
+        bcu_inst_fail ("cannot create regular file ", dst, "", EISDIR);
+      else
+        {
+          char *qd = bos_quoteaf (dst), *qs = bos_quoteaf (src);
+          builtin_error ("cannot overwrite directory %s with non-directory %s",
+                         qd ? qd : dst, qs ? qs : src);
+          free (qd);
+          free (qs);
+        }
+      return -1;
+    }
+  if (o->compare && !bcu_install_need_copy (src, dst, o->file_mode, o->uid, o->gid))
+    return 0;
+  if (bcu_install_same_file (src, dst, &ss) < 0)
+    return -1;
+
+  /* Free DST's name: back it up, or remove it, so other hard links keep
+     their contents and a symbolic link is replaced rather than followed. */
+  char *backup = NULL;
+  if (exists)
+    {
+      if (o->backup_kind != BOS_BACKUP_NONE)
+        {
+          backup = bos_backup_name (dst, o->backup_kind, o->suffix);
+          if (!backup || rename (dst, backup) < 0)
+            {
+              bcu_inst_fail ("cannot backup ", dst, "", errno);
+              free (backup);
+              return -1;
+            }
+        }
+      else if (unlink (dst) < 0)
+        {
+          if (errno != ENOENT)
+            {
+              bcu_inst_fail ("cannot remove ", dst, "", errno);
+              return -1;
+            }
+        }
+      else if (o->verbose)
+        {
+          char *q = bos_quoteaf (dst);
+          printf ("removed %s\n", q ? q : dst);
+          free (q);
+        }
+    }
+  if (o->verbose)
+    {
+      char *qs = bos_quoteaf (src), *qd = bos_quoteaf (dst);
+      printf ("%s -> %s", qs ? qs : src, qd ? qd : dst);
+      if (backup)
+        {
+          char *qb = bos_quoteaf (backup);
+          printf (" (backup: %s)", qb ? qb : backup);
+          free (qb);
+        }
+      putchar ('\n');
+      free (qs);
+      free (qd);
+    }
+  free (backup);
+
+  int rfd = open (src, O_RDONLY);
+  if (rfd < 0)
+    {
+      bcu_inst_fail ("cannot open ", src, " for reading", errno);
+      return -1;
+    }
+  if (fstat (rfd, &ss) < 0)
+    {
+      bcu_inst_fail ("cannot fstat ", src, "", errno);
+      close (rfd);
+      return -1;
+    }
+  int wfd = open (dst, O_WRONLY | O_CREAT | O_EXCL, 0600);
+  if (wfd < 0)
+    {
+      int error = errno;
+      size_t n = strlen (dst);
+      /* A name with a trailing slash can only be a directory. */
+      if (error == EISDIR && n && dst[n - 1] == '/')
+        error = ENOTDIR;
+      bcu_inst_fail ("cannot create regular file ", dst, "", error);
+      close (rfd);
+      return -1;
+    }
+  if (fstat (wfd, &ds) == 0 && ds.st_dev == ss.st_dev && ds.st_ino == ss.st_ino)
+    {
+      bcu_inst_same_file (src, dst);
+      close (rfd);
+      close (wfd);
+      return -1;
+    }
+  int reading;
+  const char *offload, *reflink;
+  int error = bcu_inst_copy_data (rfd, wfd, &ss, &reading, &offload, &reflink);
+  close (rfd);
+  if (error)
+    {
+      bcu_inst_fail (reading ? "error reading " : "error writing ",
+                     reading ? src : dst, "", error);
+      close (wfd);
+      return -1;
+    }
+  if (o->debug)
+    printf ("copy offload: %s, reflink: %s, sparse detection: no\n", offload, reflink);
+  struct timespec times[2] = { ss.st_atim, ss.st_mtim };
+  if (o->preserve_times && futimens (wfd, times) < 0)
+    {
+      bcu_inst_fail ("cannot set timestamps for ", dst, "", errno);
+      close (wfd);
+      return -1;
+    }
+  if (close (wfd) < 0)
+    {
+      bcu_inst_fail ("error writing ", dst, "", errno);
+      return -1;
+    }
+  if (o->strip)
+    {
+      if (bcu_inst_strip (o, dst) < 0)
+        {
+          unlink (dst);
+          return -1;
+        }
+      /* The strip program rewrote the file, so its times are new again. */
+      if (o->preserve_times && utimensat (AT_FDCWD, dst, times, 0) < 0)
+        {
+          bcu_inst_fail ("cannot set timestamps for ", dst, "", errno);
+          return -1;
+        }
+    }
+  if ((o->uid != (uid_t) -1 || o->gid != (gid_t) -1) && lchown (dst, o->uid, o->gid) < 0)
+    {
+      bcu_inst_fail ("cannot change ownership of ", dst, "", errno);
+      return -1;
+    }
+  /* Ownership changes may clear set-ID bits: the mode comes last. */
+  if (chmod (dst, o->file_mode) < 0)
+    {
+      bcu_inst_fail ("cannot change permissions of ", dst, "", errno);
+      return -1;
+    }
+  return 0;
 }
 
+/* DIR/NAME's last component, as installing NAME into DIR names it. */
+static char *
+bcu_inst_join (const char *dir, const char *name)
+{
+  size_t dl = strlen (dir);
+  while (dl > 1 && dir[dl - 1] == '/')
+    dl--;
+  const char *base = strrchr (name, '/');
+  base = base ? base + 1 : name;
+  char *out = xmalloc (dl + strlen (base) + 2);
+  memcpy (out, dir, dl);
+  if (!dl || dir[dl - 1] != '/')
+    out[dl++] = '/';
+  strcpy (out + dl, base);
+  return out;
+}
+
+/* The directory part of FILE (trailing slashes dropped), or NULL when it
+   has none or it is the root. */
+static char *
+bcu_inst_parent (const char *file)
+{
+  size_t n = strlen (file);
+  while (n > 1 && file[n - 1] == '/')
+    n--;
+  while (n > 0 && file[n - 1] != '/')
+    n--;
+  while (n > 0 && file[n - 1] == '/')
+    n--;
+  if (n == 0)
+    return NULL;
+  char *out = xmalloc (n + 1);
+  memcpy (out, file, n);
+  out[n] = '\0';
+  return out;
+}
+
+/* Resolve an -o/-g operand: a known name, else a number (C base rules,
+   as GNU install accepts "0x3e8" and "01750") that fits the ID type. */
 static int
 bcu_install_id (const char *name, int group, uintmax_t *id)
 {
@@ -3135,185 +4957,355 @@ bcu_install_id (const char *name, int group, uintmax_t *id)
   while (isspace ((unsigned char) *number)) number++;
   char *end;
   errno = 0;
-  uintmax_t value = strtoumax (number, &end, 10);
+  uintmax_t value = strtoumax (number, &end, 0);
   if (*number == '-' || end == number || *end || errno == ERANGE ||
       (group ? (uintmax_t) (gid_t) value : (uintmax_t) (uid_t) value) != value)
     {
-      builtin_error ("install: invalid %s '%s'", group ? "group" : "user", name);
+      bcu_inst_fail (group ? "invalid group " : "invalid user ", name, "", 0);
       return -1;
     }
   *id = value;
   return 0;
 }
 
+static void
+bcu_install_help (void)
+{
+  fputs ("Usage: install [OPTION]... [-T] SOURCE DEST\n"
+         "  or:  install [OPTION]... SOURCE... DIRECTORY\n"
+         "  or:  install [OPTION]... -t DIRECTORY SOURCE...\n"
+         "  or:  install [OPTION]... -d DIRECTORY...\n"
+         "\n"
+         "In the first three forms, copy SOURCE to DEST or multiple SOURCE(s) to\n"
+         "the existing DIRECTORY, while setting permission modes and owner/group.\n"
+         "In the 4th form, create all components of the given DIRECTORY(ies).\n"
+         "\n"
+         "Mandatory arguments to long options are mandatory for short options too.\n"
+         "      --backup[=CONTROL]  make a backup of each existing destination file\n"
+         "  -b                  like --backup but does not accept an argument\n"
+         "  -c                  (ignored)\n"
+         "  -C, --compare       compare content of source and destination files, and\n"
+         "                        if no change to content, ownership, and permissions,\n"
+         "                        do not modify the destination at all\n"
+         "  -d, --directory     treat all arguments as directory names; create all\n"
+         "                        components of the specified directories\n"
+         "  -D                  create all leading components of DEST except the last,\n"
+         "                        or all components of --target-directory,\n"
+         "                        then copy SOURCE to DEST\n"
+         "      --debug         explain how a file is copied.  Implies -v\n"
+         "  -g, --group=GROUP   set group ownership, instead of process' current group\n"
+         "  -m, --mode=MODE     set permission mode (as in chmod), instead of rwxr-xr-x\n"
+         "  -o, --owner=OWNER   set ownership (super-user only)\n"
+         "  -p, --preserve-timestamps   apply access/modification times of SOURCE files\n"
+         "                        to corresponding destination files\n"
+         "  -s, --strip         strip symbol tables\n"
+         "      --strip-program=PROGRAM  program used to strip binaries\n"
+         "  -S, --suffix=SUFFIX  override the usual backup suffix\n"
+         "  -t, --target-directory=DIRECTORY  copy all SOURCE arguments into DIRECTORY\n"
+         "  -T, --no-target-directory  treat DEST as a normal file\n"
+         "  -v, --verbose       print the name of each created file or directory\n"
+         "      --preserve-context  preserve SELinux security context\n"
+         "  -Z                      set SELinux security context of destination\n"
+         "                            file and each created directory to default type\n"
+         "      --context[=CTX]     like -Z, or if CTX is specified then set the\n"
+         "                            SELinux or SMACK security context to CTX\n"
+         "      --help        display this help and exit\n"
+         "      --version     output version information and exit\n"
+         "\n"
+         "The backup suffix is '~', unless set with --suffix or SIMPLE_BACKUP_SUFFIX.\n"
+         "The version control method may be selected via the --backup option or through\n"
+         "the VERSION_CONTROL environment variable.  Here are the values:\n"
+         "\n"
+         "  none, off       never make backups (even if --backup is given)\n"
+         "  numbered, t     make numbered backups\n"
+         "  existing, nil   numbered if numbered backups exist, simple otherwise\n"
+         "  simple, never   always make simple backups\n"
+         "\n"
+         "This build has no SELinux support: -Z and --context set no context.\n",
+         stdout);
+}
+
+static int
+bcu_install_run (WORD_LIST *list)
+{
+  enum { OPT_BACKUP = BOS_OPT_FIRST, OPT_DEBUG, OPT_STRIP_PROGRAM,
+         OPT_PRESERVE_CONTEXT, OPT_CONTEXT };
+  /* Table order decides the order of an ambiguity report's candidates. */
+  static const struct bos_longopt longopts[] = {
+    { "backup",              BOS_OPT_ARG, OPT_BACKUP },
+    { "compare",             BOS_NO_ARG,  'C' },
+    { "context",             BOS_OPT_ARG, OPT_CONTEXT },
+    { "debug",               BOS_NO_ARG,  OPT_DEBUG },
+    { "directory",           BOS_NO_ARG,  'd' },
+    { "group",               BOS_REQ_ARG, 'g' },
+    { "mode",                BOS_REQ_ARG, 'm' },
+    { "no-target-directory", BOS_NO_ARG,  'T' },
+    { "owner",               BOS_REQ_ARG, 'o' },
+    { "preserve-timestamps", BOS_NO_ARG,  'p' },
+    { "preserve-context",    BOS_NO_ARG,  OPT_PRESERVE_CONTEXT },
+    { "strip",               BOS_NO_ARG,  's' },
+    { "strip-program",       BOS_REQ_ARG, OPT_STRIP_PROGRAM },
+    { "suffix",              BOS_REQ_ARG, 'S' },
+    { "target-directory",    BOS_REQ_ARG, 't' },
+    { "verbose",             BOS_NO_ARG,  'v' },
+    { "version",             BOS_NO_ARG,  BOS_OPT_VERSION },
+    { "help",                BOS_NO_ARG,  BOS_OPT_HELP },
+    { NULL, 0, 0 }
+  };
+  bcu_inst o;
+  bos_getopt g;
+  int c, rc = EXECUTION_FAILURE, make_backups = 0, no_target = 0;
+  const char *control = NULL, *suffix = NULL, *target = NULL;
+  const char *mode_text = NULL, *owner = NULL, *group = NULL;
+  char **ops = NULL;
+  int n = 0, make_target = 0;
+  const char *into = NULL;
+
+  memset (&o, 0, sizeof o);
+  o.uid = (uid_t) -1;
+  o.gid = (gid_t) -1;
+  o.file_mode = o.dir_mode = 0755;
+  o.backup_kind = BOS_BACKUP_NONE;
+
+  bos_getopt_init (&g, "install", "bcCdDg:m:o:psS:t:TvZ", longopts, list);
+  while ((c = bos_getopt_next (&g)) != -1)
+    switch (c)
+      {
+      case 'b': make_backups = 1; break;
+      case OPT_BACKUP:
+        make_backups = 1;
+        if (g.optarg)
+          control = g.optarg;
+        break;
+      case 'c': break;
+      case 'C': o.compare = 1; break;
+      case 'd': o.dir_arg = 1; break;
+      case 'D': o.parents = 1; break;
+      case 'g': group = g.optarg; break;
+      case 'm': mode_text = g.optarg; break;
+      case 'o': owner = g.optarg; break;
+      case 'p': o.preserve_times = 1; break;
+      case 's': o.strip = 1; break;
+      case OPT_STRIP_PROGRAM: o.strip_program = g.optarg; break;
+      case 'S': make_backups = 1; suffix = g.optarg; break;
+      case 't':
+        if (target)
+          {
+            builtin_error ("multiple target directories specified");
+            goto done;
+          }
+        target = g.optarg;
+        break;
+      case 'T': no_target = 1; break;
+      case 'v': o.verbose = 1; break;
+      case OPT_DEBUG: o.debug = o.verbose = 1; break;
+      case 'Z': break;
+      case OPT_PRESERVE_CONTEXT:
+        builtin_error ("WARNING: ignoring --preserve-context; this kernel is not SELinux-enabled");
+        break;
+      case OPT_CONTEXT:
+        if (g.optarg)
+          builtin_error ("warning: ignoring --context; it requires an SELinux-enabled kernel");
+        break;
+      case BOS_OPT_HELP:
+        bcu_install_help ();
+        rc = sh_chkwrite (EXECUTION_SUCCESS);
+        goto done;
+      case BOS_OPT_VERSION:
+        puts ("install (bash-os coreutils)");
+        rc = sh_chkwrite (EXECUTION_SUCCESS);
+        goto done;
+      default:
+        goto done;
+      }
+
+  ops = g.operands;
+  n = g.noperands;
+
+  if (make_backups)
+    {
+      o.backup_kind = bos_backup_kind ("install", control);
+      if (o.backup_kind < 0)
+        goto done;
+      o.suffix = bos_backup_suffix (suffix);
+    }
+  if (o.dir_arg && o.strip)
+    {
+      builtin_error ("the strip option may not be used when installing a directory");
+      goto done;
+    }
+  if (o.dir_arg && target)
+    {
+      builtin_error ("target directory not allowed when installing a directory");
+      goto done;
+    }
+  if (n < (o.dir_arg || target ? 1 : 2))
+    {
+      if (n == 0)
+        builtin_error ("missing file operand");
+      else
+        bcu_inst_fail ("missing destination file operand after ", ops[0], "", 0);
+      bos_try_help ("install");
+      goto done;
+    }
+  if (no_target)
+    {
+      if (target)
+        {
+          builtin_error ("cannot combine --target-directory (-t) and --no-target-directory (-T)");
+          goto done;
+        }
+      if (n > 2)
+        {
+          bcu_inst_fail ("extra operand ", ops[2], "", 0);
+          bos_try_help ("install");
+          goto done;
+        }
+    }
+
+  /* Where the files go: the -t directory (made later under -D when it is
+     missing), a last operand that is a directory, or the one DEST. */
+  if (!o.dir_arg)
+    {
+      struct stat st;
+      if (target)
+        {
+          int error = stat (target, &st) < 0 ? errno : S_ISDIR (st.st_mode) ? 0 : ENOTDIR;
+          into = target;
+          if (error)
+            {
+              if (!(o.parents && error == ENOENT))
+                {
+                  bcu_inst_fail ("failed to access ", target, "", error);
+                  goto done;
+                }
+              make_target = 1;
+            }
+        }
+      else if (!no_target)
+        {
+          const char *last = ops[n - 1];
+          if (stat (last, &st) == 0 && S_ISDIR (st.st_mode))
+            {
+              into = last;
+              n--;
+            }
+          else if (n > 2)
+            {
+              bcu_inst_fail ("target ", last, "", stat (last, &st) == 0 ? ENOTDIR : errno);
+              goto done;
+            }
+        }
+    }
+
+  if (o.strip_program && !o.strip)
+    builtin_error ("WARNING: ignoring --strip-program option as -s option was not specified");
+  if (o.compare && (o.preserve_times || o.strip))
+    {
+      builtin_error ("options --compare (-C) and --%s are mutually exclusive",
+                     o.preserve_times ? "preserve-timestamps" : "strip");
+      bos_try_help ("install");
+      goto done;
+    }
+  if (mode_text)
+    {
+      int nomem = 0;
+      o.mode_change = bos_mode_compile (mode_text, &nomem);
+      if (!o.mode_change)
+        {
+          if (nomem)
+            builtin_error ("memory exhausted");
+          else
+            {
+              char *q = bos_quote (mode_text);
+              builtin_error ("invalid mode %s", q ? q : mode_text);
+              free (q);
+            }
+          goto done;
+        }
+      o.file_mode = bos_mode_adjust (0, 0, 0, o.mode_change, NULL) & BOS_MODE_BITS;
+      o.dir_mode = bos_mode_adjust (0, 1, 0, o.mode_change, NULL) & BOS_MODE_BITS;
+    }
+  if (o.compare && (o.file_mode & ~BOS_MODE_RWX))
+    {
+      builtin_error ("the --compare (-C) option is ignored when you specify a mode with non-permission bits");
+      o.compare = 0;
+    }
+  if (owner)
+    {
+      uintmax_t id;
+      if (bcu_install_id (owner, 0, &id) < 0)
+        goto done;
+      o.uid = (uid_t) id;
+    }
+  if (group)
+    {
+      uintmax_t id;
+      if (bcu_install_id (group, 1, &id) < 0)
+        goto done;
+      o.gid = (gid_t) id;
+    }
+
+  rc = EXECUTION_SUCCESS;
+  if (o.dir_arg)
+    {
+      for (int i = 0; i < n; i++)
+        {
+          QUIT;
+          if (bcu_inst_make_dir (&o, ops[i]) < 0)
+            rc = EXECUTION_FAILURE;
+        }
+    }
+  else if (into)
+    {
+      if (make_target)
+        {
+          struct stat st;
+          if (bcu_inst_mkdirs (&o, target, 1) < 0)
+            {
+              rc = EXECUTION_FAILURE;
+              goto done;
+            }
+          int error = stat (target, &st) < 0 ? errno : S_ISDIR (st.st_mode) ? 0 : ENOTDIR;
+          if (error)
+            {
+              bcu_inst_fail ("failed to access ", target, "", error);
+              rc = EXECUTION_FAILURE;
+              goto done;
+            }
+        }
+      for (int i = 0; i < n; i++)
+        {
+          QUIT;
+          char *dst = bcu_inst_join (into, ops[i]);
+          if (bcu_inst_file (&o, ops[i], dst) < 0)
+            rc = EXECUTION_FAILURE;
+          free (dst);
+        }
+    }
+  else
+    {
+      char *parent = o.parents ? bcu_inst_parent (ops[1]) : NULL;
+      if (parent && bcu_inst_mkdirs (&o, parent, 1) < 0)
+        rc = EXECUTION_FAILURE;
+      else if (bcu_inst_file (&o, ops[0], ops[1]) < 0)
+        rc = EXECUTION_FAILURE;
+      free (parent);
+    }
+
+done:
+  free (o.mode_change);
+  bos_getopt_free (&g);
+  return rc;
+}
+
 static int
 bcu_install_cmd (WORD_LIST *list)
 {
-  mode_t mode = 0755;
-  int dir_only = 0, parents = 0, no_target = 0, compare = 0;
-  const char *target_dir = NULL;
-  uid_t uid = (uid_t) -1;
-  gid_t gid = (gid_t) -1;
-  WORD_LIST *pos __attribute__((cleanup(bcu_free_nodes))) = NULL;
-  WORD_LIST *pos_tail = NULL;
-
-  for (WORD_LIST *w = list; w; w = w->next)
-    {
-      const char *a = w->word->word;
-      if (strcmp (a, "-m") == 0 && w->next)
-        {
-          w = w->next;
-          char *end = NULL;
-          unsigned long m = strtoul (w->word->word, &end, 8);
-          if (end == w->word->word || *end != '\0' || m > 07777)
-            { builtin_error ("install: bad -m"); bcu_usage ("install"); return EX_USAGE; }
-          mode = (mode_t) m;
-          continue;
-        }
-      if (strcmp (a, "-d") == 0) { dir_only = 1; continue; }
-      if (strcmp (a, "-D") == 0) { parents = 1; continue; }
-      if (strcmp (a, "-c") == 0) continue;      /* GNU: ignored, for compatibility */
-      if (strcmp (a, "-C") == 0 || strcmp (a, "--compare") == 0) { compare = 1; continue; }
-      if (strcmp (a, "-T") == 0 || strcmp (a, "--no-target-directory") == 0)
-        { no_target = 1; continue; }
-      if (strcmp (a, "-t") == 0 || strcmp (a, "--target-directory") == 0)
-        {
-          if (!w->next)
-            {
-              builtin_error ("install: option requires an argument -- 't'");
-              bcu_usage ("install");
-              return EX_USAGE;
-            }
-          w = w->next;
-          target_dir = w->word->word;
-          continue;
-        }
-      if (strncmp (a, "--target-directory=", 19) == 0) { target_dir = a + 19; continue; }
-      if (strncmp (a, "-t", 2) == 0) { target_dir = a + 2; continue; }
-      if ((strcmp (a, "-o") == 0 || strcmp (a, "-g") == 0) && w->next)
-        {
-          int group = a[1] == 'g';
-          uintmax_t id;
-          w = w->next;
-          if (bcu_install_id (w->word->word, group, &id) < 0) return EXECUTION_FAILURE;
-          if (group) gid = (gid_t) id;
-          else uid = (uid_t) id;
-          continue;
-        }
-      if (a[0] == '-' && a[1] != '\0') { builtin_error ("install: unknown flag: %s", a); bcu_usage ("install"); return EX_USAGE; }
-      WORD_LIST *nw = bcu_calloc (1, sizeof (*nw));
-      nw->word = w->word;
-      if (!pos) pos = nw; else pos_tail->next = nw;
-      pos_tail = nw;
-    }
-
-  int rc = EXECUTION_SUCCESS;
-  if (compare && (mode & ~0777))
-    {
-      builtin_error ("install: the --compare (-C) option is ignored when you specify a mode with non-permission bits");
-      compare = 0;
-    }
-  if (dir_only)
-    {
-      if (!pos) { builtin_error ("install: -d requires DIR..."); bcu_usage ("install"); return EX_USAGE; }
-      for (WORD_LIST *w = pos; w; w = w->next)
-        if (bcu_install_mkdir_p (w->word->word, mode, uid, gid, 1) != EXECUTION_SUCCESS)
-          rc = EXECUTION_FAILURE;
-      goto cleanup;
-    }
-
-  if (target_dir && no_target)
-    {
-      builtin_error ("install: cannot combine --target-directory (-t) and --no-target-directory (-T)");
-      return EXECUTION_FAILURE;
-    }
-  if (target_dir)
-    {
-      /* -t DIR: every operand is a source copied into DIR; -D creates DIR. */
-      struct stat td_st;
-      if (!pos) { builtin_error ("install: missing file operand"); bcu_usage ("install"); return EX_USAGE; }
-      if (parents && bcu_install_mkdir_p (target_dir, 0755, (uid_t) -1, (gid_t) -1, 0) != EXECUTION_SUCCESS)
-        return EXECUTION_FAILURE;
-      int e = stat (target_dir, &td_st) < 0 ? errno : S_ISDIR (td_st.st_mode) ? 0 : ENOTDIR;
-      if (e)
-        {
-          char *q = bos_quoteaf (target_dir);
-          builtin_error ("install: failed to access %s: %s", q ? q : target_dir, strerror (e));
-          free (q);
-          return EXECUTION_FAILURE;
-        }
-      for (WORD_LIST *w = pos; w; w = w->next)
-        {
-          const char *src = w->word->word;
-          const char *base = strrchr (src, '/');
-          char target[4096];
-          base = base ? base + 1 : src;
-          snprintf (target, sizeof target, "%s/%s", target_dir, base);
-          if (bcu_install_copyfile (src, target, mode, uid, gid, compare) != EXECUTION_SUCCESS)
-            rc = EXECUTION_FAILURE;
-        }
-      goto cleanup;
-    }
-
-  if (!pos || !pos->next) { builtin_error ("install: need SRC and DST"); bcu_usage ("install"); rc = EX_USAGE; goto cleanup; }
-  if (no_target && pos->next->next)
-    {
-      char *q = bos_quoteaf (pos->next->next->word->word);
-      builtin_error ("install: extra operand %s", q ? q : pos->next->next->word->word);
-      free (q);
-      bcu_usage ("install");
-      return EX_USAGE;
-    }
-
-  /* Find tail = DST. Walk to last node. */
-  WORD_LIST *dst_node = pos;
-  while (dst_node->next) dst_node = dst_node->next;
-  const char *dst = dst_node->word->word;
-  /* If DST is an existing directory, copy each SRC into it (not with -T). */
-  struct stat dst_st;
-  int dst_isdir = (stat (dst, &dst_st) == 0 && S_ISDIR (dst_st.st_mode));
-  if (no_target && dst_isdir)
-    {
-      char *qd = bos_quoteaf (dst), *qs = bos_quoteaf (pos->word->word);
-      builtin_error ("install: cannot overwrite directory %s with non-directory %s",
-                     qd ? qd : dst, qs ? qs : pos->word->word);
-      free (qd);
-      free (qs);
-      return EXECUTION_FAILURE;
-    }
-
-  if (parents)
-    {
-      /* Create parent directory of DST. */
-      char *tmp = bcu_strdup (dst);
-      char *slash = strrchr (tmp, '/');
-      if (slash && slash != tmp)
-        {
-          *slash = '\0';
-          if (bcu_install_mkdir_p (tmp, 0755, (uid_t) -1, (gid_t) -1, 0) != EXECUTION_SUCCESS)
-            { free (tmp); return EXECUTION_FAILURE; }
-        }
-      free (tmp);
-    }
-
-  for (WORD_LIST *w = pos; w && w != dst_node; w = w->next)
-    {
-      const char *src = w->word->word;
-      char target[4096];
-      if (dst_isdir)
-        {
-          const char *base = strrchr (src, '/');
-          base = base ? base + 1 : src;
-          snprintf (target, sizeof target, "%s/%s", dst, base);
-        }
-      else
-        snprintf (target, sizeof target, "%s", dst);
-      if (bcu_install_copyfile (src, target, mode, uid, gid, compare) != EXECUTION_SUCCESS)
-        rc = EXECUTION_FAILURE;
-    }
-
-cleanup:
-
+  char *saved = this_command_name;
+  this_command_name = (char *) "install";
+  int rc = bcu_install_run (list);
+  this_command_name = saved;
   return rc;
 }
 
@@ -3511,6 +5503,7 @@ bcu_dispatch (WORD_LIST *list)
   if (strcmp (verb, "yes")     == 0) return bcu_yes_cmd     (args);
   if (strcmp (verb, "fmt")     == 0) return bcu_fmt_cmd     (args);
   if (strcmp (verb, "tsort")   == 0) return bcu_tsort_cmd   (args);
+  if (strcmp (verb, "printf")  == 0) return bcu_printf_cmd  (args);
   if (strcmp (verb, "nproc")   == 0) return bcu_nproc_cmd   (args);
   if (strcmp (verb, "numfmt")  == 0) return bcu_numfmt_cmd  (args);
   if (strcmp (verb, "shred")   == 0) return bcu_shred_cmd   (args);
@@ -3518,7 +5511,7 @@ bcu_dispatch (WORD_LIST *list)
   if (strcmp (verb, "install") == 0) return bcu_install_cmd (args);
   if (strcmp (verb, "mknod")   == 0) return bcu_mknod_cmd   (args);
   builtin_error ("coreutils: unknown verb: %s", verb);
-  builtin_error ("usage: coreutils {tac|shuf|factor|yes|fmt|tsort|nproc|numfmt|shred|groups|install|mknod} ARGS");
+  builtin_error ("usage: coreutils {tac|shuf|factor|yes|fmt|tsort|printf|nproc|numfmt|shred|groups|install|mknod} ARGS");
   return EX_USAGE;
 }
 
@@ -3536,16 +5529,23 @@ coreutils_builtin (WORD_LIST *list)
 }
 
 char *coreutils_doc[] = {
-  "Bundle of 12 small POSIX coreutils as a single bash loadable.",
+  "Bundle of 13 small POSIX coreutils as a single bash loadable.",
   "",
   "    coreutils tac    [FILE...]",
-  "    coreutils shuf   [-i LO-HI|-e|-n COUNT|--random-source=F] [FILE]",
+  "    coreutils shuf   [-erz] [-i LO-HI] [-n COUNT] [-o FILE] [--random-source=FILE]",
+  "                     [FILE | ARG...]",
+  "        GNU shuf: -e/--echo, -i/--input-range, -n/--head-count, -o/--output,",
+  "        -r/--repeat, -z/--zero-terminated; long-option prefixes.",
   "    coreutils factor N [N...]",
   "    coreutils yes    [STRING...]",
   "    coreutils fmt    [-WIDTH] [-cstu] [-w WIDTH] [-g GOAL] [-p PREFIX] [FILE...]",
   "        GNU fmt: -c crown margin, -s split only, -t tagged paragraph,",
   "        -u uniform spacing, -p reformat only lines starting with PREFIX.",
   "    coreutils tsort  [FILE]",
+  "        GNU tsort: a loop is reported on stderr, sorting goes on, status 1.",
+  "    coreutils printf FORMAT [ARGUMENT]...",
+  "        GNU printf: \\ escapes, %b, %q, %N$ positions, * widths; reuses FORMAT",
+  "        until the arguments are used up.",
   "    coreutils nproc  [--all] [--ignore=N]",
   "    coreutils numfmt [--from=UNIT] [--to=UNIT] [--from-unit=N] [--to-unit=N]",
   "                     [--round=METHOD] [--suffix=S] [--padding=N] [--grouping]",
@@ -3555,9 +5555,13 @@ char *coreutils_doc[] = {
   "        MODE abort|fail|warn|ignore. Conversion errors exit 2.",
   "    coreutils shred  [-fuvxz] [-n N] [-s SIZE] [--remove[=HOW]] FILE...",
   "    coreutils groups [USER...]",
-  "    coreutils install [-c] [-C] [-m MODE] [-o OWNER] [-g GROUP] [-d|-D] [-T] SRC... DST",
-  "    coreutils install [-C] [-m MODE] [-o OWNER] [-g GROUP] [-D] -t DIR SRC...",
-  "        -C/--compare leaves a DST with the same content, mode and owner untouched.",
+  "    coreutils install [OPTION]... [-T] SOURCE DEST | SOURCE... DIRECTORY",
+  "    coreutils install [OPTION]... -t DIRECTORY SOURCE... | -d DIRECTORY...",
+  "        GNU install: -b, --backup[=CONTROL], -S/--suffix, -c, -C/--compare,",
+  "        -d/--directory, -D, -g/--group, -m/--mode (octal or symbolic), -o/--owner,",
+  "        -p/--preserve-timestamps, -s/--strip, --strip-program, -t/--target-directory,",
+  "        -T, -v/--verbose, --debug, -Z/--context (no SELinux here); long-option",
+  "        prefixes; diagnostics read \"install: ...\"; see coreutils install --help.",
   "    coreutils mknod  [-m MODE] PATH {b|c|p} [MAJ MIN]",
   "",
   "POSIX cmd-name wrappers in /bash-os/<verb>.sh exec the verb directly.",

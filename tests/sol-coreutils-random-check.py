@@ -43,7 +43,6 @@ with tempfile.TemporaryDirectory(prefix='sol-coreutils-entropy-') as tmp:
     seed.unlink(); target.write_bytes(b'x'*8193)
     run(['shred','-n','1','-u',target],success=False)
     assert target.read_bytes()==b'x'*8193
-    seed.write_bytes(bytes(range(1,9)))
-    p=run(['shuf','-i','1-10'])
-    assert p.stdout==b'10\n8\n2\n5\n9\n6\n4\n7\n3\n1\n'
+    # shuf reads getrandom(2) or opens /dev/urandom itself, so this fopen
+    # fixture does not reach it; sol-coreutils-check.py covers its entropy.
 print(f'sol-coreutils-random: {checks} production entropy fixture checks passed')

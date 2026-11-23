@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 /* patch.c — apply unified, context and normal diffs, as GNU patch 2.8 does.
  *
- *   patch [-bEfNRst] [-p N] [-F N] [-i PATCHFILE] [-o OUT] [-r REJ] [-d DIR]
+ *   patch [-bEefNRst] [-p N] [-F N] [-i PATCHFILE] [-o OUT] [-r REJ] [-d DIR]
  *         [-z SUFFIX] [--dry-run] [ORIGFILE [PATCHFILE]]
  *
  * The patch is read whole from -i, the second operand or standard input (a
@@ -26,6 +26,14 @@
  * context form. Fuzz never exceeds a
  * hunk's context, so deleted lines always match exactly. A header time at
  * the Epoch (diff -N) marks a file absent: created, or removed once empty.
+ *
+ * -e (--ed) takes the patch as an ed script (diff -e) for ORIGFILE, as GNU
+ * patch 2.8 does: only [N[,M]]c, [N[,M]]d, [N]a and [N]i with their text
+ * and diff's [N[,M]]s/.// fix-ups are kept; each run of them is a hunk
+ * that the ed builtin applies (ed - COPY, then w and q) to a copy of the
+ * file, which then replaces it or becomes -o OUT. When ed fails patch
+ * says "ed FAILED" and stops, keeping the hunks before. -b applies and
+ * --dry-run runs nothing.
  *
  * Exit status: 0 when everything applied, 1 when a hunk failed or was
  * skipped, 2 on a malformed patch or another error.
@@ -73,7 +81,7 @@ typedef struct {
 
 typedef struct {
     int strip, reverse, forward, force, batch, silent, remove_empty, backup;
-    int backup_mismatch, dry_run, maxfuzz;
+    int backup_mismatch, dry_run, maxfuzz, ed;
     const char *output, *reject, *suffix, *origfile;
     const char *text;              /* the whole patch */
     size_t text_len;
@@ -1312,6 +1320,305 @@ bp_number (const char *s, int *out)
     return 0;
 }
 
+/* --- -e: the patch is an ed script --- */
+
+/* What a line of an ed-script patch is, as GNU patch sorts them: one of
+   the commands it passes to ed ([N[,M]]c, [N[,M]]d, [N]a, [N]i, each with
+   only blanks after it, and diff's [N[,M]]s/.//), the malformed command
+   N,M...a/c/d/i that ends the scan, or anything else, which ends a run
+   of commands and is skipped. */
+enum { BP_ED_OTHER, BP_ED_CMD, BP_ED_TEXT_CMD, BP_ED_END };
+
+static int
+bp_ed_kind (const char *s, size_t len)
+{
+    size_t i = 0;
+    int a1 = 0, comma = 0;
+    while (i < len && isdigit ((unsigned char) s[i])) { i++; a1 = 1; }
+    if (a1 && i < len && s[i] == ',') {
+        size_t j = ++i;
+        while (i < len && isdigit ((unsigned char) s[i])) i++;
+        comma = i > j ? 1 : -1;
+    }
+    if (i < len && comma >= 0) {
+        char k = s[i];
+        size_t rest = i + 1;
+        while (rest < len && (s[rest] == ' ' || s[rest] == '\t')) rest++;
+        if ((k == 'c' || k == 'd') && rest == len) return k == 'c' ? BP_ED_TEXT_CMD : BP_ED_CMD;
+        if ((k == 'a' || k == 'i') && rest == len && !comma) return BP_ED_TEXT_CMD;
+        if (k == 's' && len - i == 5 && !memcmp (s + i, "s/.//", 5)) return BP_ED_CMD;
+    }
+    if (a1 && (comma || (i < len && s[i] == ','))) {
+        /* N,[digits and commas] then a command letter and blanks. */
+        i = 0;
+        while (i < len && (isdigit ((unsigned char) s[i]) || s[i] == ',')) i++;
+        if (i < len && strchr ("acdi", s[i])) {
+            size_t rest = i + 1;
+            while (rest < len && (s[rest] == ' ' || s[rest] == '\t')) rest++;
+            if (rest == len) return BP_ED_END;
+        }
+    }
+    return BP_ED_OTHER;
+}
+
+/* Copy SRC (NULL: nothing) into a new file beside DEST; its name in *TMP. */
+static int
+bp_ed_copy (const char *src, const char *dest, char **tmp)
+{
+    size_t nlen = strlen (dest);
+    *tmp = malloc (nlen + 16);
+    if (!*tmp) return -1;
+    snprintf (*tmp, nlen + 16, "%s.oXXXXXX", dest);
+    int out = mkstemp (*tmp);
+    if (out < 0) { free (*tmp); *tmp = NULL; return -1; }
+    int in = src ? open (src, O_RDONLY | O_CLOEXEC) : -1, bad = src && in < 0;
+    char buf[65536];
+    ssize_t r;
+    while (!bad && in >= 0 && (r = read (in, buf, sizeof buf)) != 0) {
+        if (r < 0) { if (errno == EINTR) continue; bad = 1; break; }
+        for (ssize_t w = 0; w < r && !bad; ) {
+            ssize_t k = write (out, buf + w, (size_t) (r - w));
+            if (k < 0 && errno != EINTR) bad = 1;
+            else if (k > 0) w += k;
+        }
+    }
+    if (in >= 0) close (in);
+    if (close (out) < 0) bad = 1;
+    if (bad) { int e = errno; unlink (*tmp); free (*tmp); *tmp = NULL; errno = e; return -1; }
+    return 0;
+}
+
+/* Run ed - FILE with SCRIPT as its input, as GNU patch pipes it to ed:
+   the ed builtin, in this process, with the script as its standard input. */
+static int
+bp_ed_run (const char *file, const char *script, size_t len)
+{
+    sh_builtin_func_t *ed = find_shell_builtin ("ed");
+    if (!ed) {
+        fflush (stdout);
+        builtin_error ("ed: not found");
+        return -1;
+    }
+    /* The script goes beside the copy, unlinked once open. */
+    size_t n = strlen (file) + 16;
+    char *name = malloc (n);
+    if (!name) return -1;
+    snprintf (name, n, "%s.sXXXXXX", file);
+    int fd = mkstemp (name);
+    if (fd < 0) { free (name); return -1; }
+    unlink (name);
+    free (name);
+    int bad = 0;
+    for (size_t w = 0; w < len && !bad; ) {
+        ssize_t k = write (fd, script + w, len - w);
+        if (k < 0 && errno != EINTR) bad = 1;
+        else if (k > 0) w += (size_t) k;
+    }
+    if (bad || lseek (fd, 0, SEEK_SET) < 0) { close (fd); return -1; }
+    fflush (stdout);
+    int saved = dup (STDIN_FILENO);
+    if (saved < 0 || dup2 (fd, STDIN_FILENO) < 0) {
+        if (saved >= 0) close (saved);
+        close (fd);
+        return -1;
+    }
+    close (fd);
+    WORD_LIST *args = make_word_list (make_word ("-"), make_word_list (make_word (file), NULL));
+    int rc = (*ed) (args);
+    dispose_words (args);
+    fflush (stdout);
+    dup2 (saved, STDIN_FILENO);
+    close (saved);
+    return rc;
+}
+
+/* GNU patch -e: each run of commands in the patch (with the text of a, c
+   and i) is a hunk that ed applies to a copy of the file, followed by w
+   and q; the copy then replaces the file, or becomes -o OUT. */
+static int
+bp_ed_script (const bp_opts *o)
+{
+    if (!o->text_len) return 0;
+    const char *t = o->text;
+    size_t tl = o->text_len, nlines = 0, at = 0;
+    int partial = t[tl - 1] != '\n';
+    for (size_t i = 0; i < tl; i++) nlines += t[i] == '\n';
+    typedef struct { const char *s; size_t len; } span;
+    span *lines = malloc ((nlines + 1) * sizeof *lines);
+    size_t *starts = malloc ((nlines + 2) * sizeof *starts);
+    char *buf = malloc (tl + 8);
+    if (!lines || !starts || !buf) {
+        free (lines); free (starts); free (buf);
+        builtin_error ("out of memory");
+        return 2;
+    }
+    nlines = 0;
+    while (at < tl) {
+        const char *nl = memchr (t + at, '\n', tl - at);
+        if (!nl) break;             /* the unfinished last line is dropped */
+        lines[nlines].s = t + at;
+        lines[nlines++].len = (size_t) (nl - t - at);
+        at += (size_t) (nl - t - at) + 1;
+    }
+
+    /* Hunk K is buf[starts[K]..starts[K+1]). Commands lose their leading
+       blanks, text lines the indent of the first command (a mailed patch). */
+    size_t nh = 0, blen = 0, indent = 0;
+    int found = 0, in_text = 0, last_cmd = 0, open_hunk = 0;
+    for (size_t i = 0; i < nlines; i++) {
+        span l = lines[i];
+        size_t lead = 0;
+        while (lead < l.len && (l.s[lead] == ' ' || l.s[lead] == '\t')) lead++;
+        int kind = bp_ed_kind (l.s + lead, l.len - lead);
+        if (kind == BP_ED_END) { last_cmd = 0; break; }
+        if (kind == BP_ED_OTHER) { open_hunk = last_cmd = 0; continue; }
+        if (!found) {
+            found = 1;
+            indent = lead;
+            if (indent) bp_say (o, "(Patch is indented %zu space%s.)\n", indent, indent == 1 ? "" : "s");
+        }
+        if (!open_hunk) { starts[nh++] = blen; open_hunk = 1; }
+        memcpy (buf + blen, l.s + lead, l.len - lead);
+        blen += l.len - lead;
+        buf[blen++] = '\n';
+        last_cmd = 1;
+        if (kind == BP_ED_TEXT_CMD) {
+            in_text = 1;
+            for (i++; i < nlines; i++) {
+                span x = lines[i];
+                size_t cut = 0;
+                while (cut < indent && cut < x.len && (x.s[cut] == ' ' || x.s[cut] == '\t')) cut++;
+                memcpy (buf + blen, x.s + cut, x.len - cut);
+                blen += x.len - cut;
+                buf[blen++] = '\n';
+                if (x.len - cut == 1 && x.s[cut] == '.') { in_text = 0; break; }
+            }
+            last_cmd = 0;
+        }
+    }
+    starts[nh] = blen;
+    if (partial) {
+        /* GNU reads an unfinished last line more than once on the way. */
+        int times = !found ? 1 : (!in_text && last_cmd) ? 3 : 2;
+        while (times--) printf ("patch unexpectedly ends in middle of line\n");
+    }
+    free (lines);
+    int rc = 0, ofd = -1, backed_up = 0;
+    char *script = NULL, *tmp = NULL;
+    const char *dest = NULL;
+    if (!nh) {
+        fflush (stdout);
+        builtin_error ("**** Only garbage was found in the patch input.");
+        rc = 2;
+        goto out;
+    }
+    const char *name = o->origfile;
+    if (!name) {
+        printf ("can't find file to patch at input line 1\n"
+                "File to patch: \nSkip this patch? [y] \nSkipping patch.\n");
+        rc = 1;
+        goto out;
+    }
+    struct stat st;
+    int exists = lstat (name, &st) == 0;
+    if (exists && !S_ISREG (st.st_mode)) {
+        printf ("File %s is not a regular file -- refusing to patch\n", name);
+        rc = 1;
+        goto out;
+    }
+    if (o->dry_run) goto out;
+    if (!exists && !o->output) {
+        printf ("?\n");
+        fflush (stdout);
+        builtin_error ("**** ed FAILED");
+        rc = 2;
+        goto out;
+    }
+    dest = o->output ? o->output : name;
+    if (o->output) {
+        /* As GNU patch does, OUT gets each hunk applied to the original,
+           one after another. */
+        ofd = open (dest, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+        if (ofd < 0) {
+            builtin_error ("**** Can't create file %s : %s", dest, strerror (errno));
+            rc = 2;
+            goto out;
+        }
+    }
+    for (size_t k = 0; k < nh; k++) {
+        size_t len = starts[k + 1] - starts[k];
+        char *s = realloc (script, len + 5);
+        if (!s) { builtin_error ("out of memory"); rc = 2; break; }
+        script = s;
+        memcpy (script, buf + starts[k], len);
+        memcpy (script + len, "w\nq\n", 4);
+        const char *src = !exists ? NULL : (k && !o->output) ? dest : name;
+        if (bp_ed_copy (src, dest, &tmp) < 0) {
+            builtin_error ("**** Can't create temporary file %s.oXXXXXX : %s", dest, strerror (errno));
+            rc = 2;
+            break;
+        }
+        if (bp_ed_run (tmp, script, len + 4) != 0) {
+            unlink (tmp);
+            fflush (stdout);
+            builtin_error ("**** ed FAILED");
+            rc = 2;
+            break;
+        }
+        if (o->output) {
+            int in = open (tmp, O_RDONLY | O_CLOEXEC), bad = in < 0;
+            char cb[65536];
+            ssize_t r;
+            while (!bad && (r = read (in, cb, sizeof cb)) != 0) {
+                if (r < 0) { if (errno != EINTR) bad = 1; continue; }
+                for (ssize_t w = 0; w < r && !bad; ) {
+                    ssize_t n = write (ofd, cb + w, (size_t) (r - w));
+                    if (n < 0 && errno != EINTR) bad = 1;
+                    else if (n > 0) w += n;
+                }
+            }
+            if (in >= 0) close (in);
+            unlink (tmp);
+            free (tmp);
+            tmp = NULL;
+            if (bad) {
+                builtin_error ("**** Can't write %s : %s", dest, strerror (errno));
+                rc = 2;
+                break;
+            }
+            continue;
+        }
+        if (chmod (tmp, st.st_mode & 07777) < 0) { rc = 2; break; }
+        if (o->backup && !backed_up) {
+            if (bp_backup (o, name) < 0) {
+                builtin_error ("**** Can't back up %s : %s", name, strerror (errno));
+                unlink (tmp);
+                rc = 2;
+                break;
+            }
+            backed_up = 1;
+        }
+        if (rename (tmp, dest) < 0) {
+            builtin_error ("**** Can't rename %s to %s : %s", tmp, dest, strerror (errno));
+            unlink (tmp);
+            rc = 2;
+            break;
+        }
+        free (tmp);
+        tmp = NULL;
+    }
+out:
+    if (ofd >= 0 && close (ofd) < 0 && !rc) {
+        builtin_error ("**** Can't write %s : %s", dest, strerror (errno));
+        rc = 2;
+    }
+    free (tmp);
+    free (script);
+    free (starts);
+    free (buf);
+    return rc;
+}
+
 int
 patch_builtin (WORD_LIST *list)
 {
@@ -1357,6 +1664,7 @@ patch_builtin (WORD_LIST *list)
             else if (BP_IS ("--backup-if-mismatch")) o.backup_mismatch = 1;
             else if (BP_IS ("--no-backup-if-mismatch")) o.backup_mismatch = 0;
             else if (BP_IS ("--dry-run")) o.dry_run = 1;
+            else if (BP_IS ("--ed")) o.ed = 1;
             else if (BP_IS ("--unified") || BP_IS ("--context") || BP_IS ("--normal") || BP_IS ("--binary") || BP_IS ("--verbose")) ;
             else if (BP_IS ("--help")) { builtin_usage (); return EXECUTION_SUCCESS; }
             else if (BP_IS ("--version")) { puts ("patch (bash-os) 0.1.5"); return EXECUTION_SUCCESS; }
@@ -1391,6 +1699,7 @@ patch_builtin (WORD_LIST *list)
                 case 's': o.silent = 1; break;
                 case 'E': o.remove_empty = 1; break;
                 case 'b': o.backup = 1; break;
+                case 'e': o.ed = 1; break;
                 case 'u': case 'c': case 'n': case 'l': break;
                 default:
                     builtin_error ("invalid option -- '%c'", c);
@@ -1428,6 +1737,10 @@ patch_builtin (WORD_LIST *list)
     if (fd != STDIN_FILENO) close (fd);
     o.text = text;
     o.text_len = text_len;
+    if (o.ed) {
+        rc = bp_ed_script (&o);
+        goto done;
+    }
 
     bp_file *files = NULL;
     size_t nfiles = 0;
@@ -1459,7 +1772,7 @@ done:
 char *patch_doc[] = {
     "Apply a unified, context or normal diff to files.",
     "",
-    "    patch [-bEfNRst] [-p N] [-F N] [-i PATCHFILE] [-o OUT] [-r REJ]",
+    "    patch [-bEefNRst] [-p N] [-F N] [-i PATCHFILE] [-o OUT] [-r REJ]",
     "          [-d DIR] [-z SUFFIX] [--dry-run] [ORIGFILE [PATCHFILE]]",
     "",
     "The patch comes from -i, PATCHFILE or standard input. Hunks are found",
@@ -1471,7 +1784,8 @@ char *patch_doc[] = {
     "does not check, -E removes files left empty, -s is quiet. Questions",
     "GNU patch asks on a terminal get their default answers. The kind of",
     "diff (unified, context or normal) is found from the patch text; -u,",
-    "-c and -n are accepted.",
+    "-c and -n are accepted. -e (--ed) applies an ed script (diff -e) to",
+    "ORIGFILE as GNU patch does through ed.",
     (char *)NULL
 };
 
@@ -1480,6 +1794,6 @@ struct builtin patch_struct = {
     patch_builtin,
     BUILTIN_ENABLED,
     patch_doc,
-    "patch [-bEfNRst] [-p N] [-F N] [-i PATCH] [-o OUT] [-d DIR] [FILE [PATCH]]",
+    "patch [-bEefNRst] [-p N] [-F N] [-i PATCH] [-o OUT] [-d DIR] [FILE [PATCH]]",
     0
 };

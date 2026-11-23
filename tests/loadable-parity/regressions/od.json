@@ -16,7 +16,8 @@
     "Empty and odd-sized operands, typed groups and line/dedup/string state across file boundaries",
     "Global skip/count, early stop before later operands, exact EOF and beyond-EOF skip",
     "Interleaved shared stdin and named files; recovery around missing paths with status and diagnostics",
-    "-t TYPEz printable-character column (guest pass 2 G35)"
+    "-t TYPEz printable-character column (guest pass 2 G35)",
+    "Guest compatibility pass 5 (G74/G83): pass5-long-format-radix, pass5-traditional-and-endian, pass5-legacy-selectors, pass5-endian-invalid, pass5-offset-operand-forms, pass5-traditional-label-forms, pass5-traditional-operand-errors, pass5-size-suffixes-and-diagnostics, pass5-strings-zero-and-long-options."
   ],
   "exclusions": [
     "The source documents a custom -s strings mode whose meaning differs from GNU od's -s; it is excluded from GNU parity claims.",
@@ -273,6 +274,112 @@
       "script": "printf ab | od -t x1z\nprintf 'abcdefghijklmnopqrst\\001' | od -t x1z -t cz\nprintf abc | od -t x2z\nprintf 'a\\nb' | od -An -t x1z\nprintf abc | od -t az\nprintf 'abcdefghijklmnopabcdefghijklmnopx' | od -t x1z -w8 -tc",
       "expected_status": 0,
       "stderr": "empty"
+    },
+    {
+      "id": "pass5-long-format-radix",
+      "kind": "parity",
+      "purpose": "G74: --format, --address-radix, --skip-bytes, --read-bytes, --width and --output-duplicates, with = and separate values and abbreviations.",
+      "script": "printf 'abcdefghijklmnop' > f; od --format=x1 --address-radix=d --skip-bytes=1 --read-bytes=6 f; od --format x2 --width=4 --output-duplicates f; od --form=c --addr=x --read=3 f; printf '%064d' 0 | od --output-duplicates -tx1 -w16",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "od"
+      ]
+    },
+    {
+      "id": "pass5-traditional-and-endian",
+      "kind": "parity",
+      "purpose": "G74: --traditional OFFSET [LABEL], the +OFFSET operand form and --endian=big|little.",
+      "script": "printf 'abcdefghijklmnopqrstuvwxyz0123456789' > f; od --traditional f 2 10; od -An --traditional -c f 2 10; od f +4; od --endian=big -tx2 -N4 f; od --endian=little -tx2 -N4 f",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "od"
+      ]
+    },
+    {
+      "id": "pass5-legacy-selectors",
+      "kind": "parity",
+      "purpose": "G74: the legacy selectors -i -l -e -B -D -F -H -X -O map to the GNU type specs.",
+      "script": "printf 'abcdefghijklmnop' > f; od -i f; od -l f; od -X f; od -O f; od -B -N4 f; od -D -N8 f; od -H -N4 f",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "od"
+      ]
+    },
+    {
+      "id": "pass5-endian-invalid",
+      "kind": "parity",
+      "purpose": "G74: an invalid --endian argument prints the invalid-argument diagnostic with the valid list.",
+      "script": "{ od --endian=foo /dev/null || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "od",
+        "sed"
+      ]
+    },
+    {
+      "id": "pass5-offset-operand-forms",
+      "kind": "parity",
+      "purpose": "G74: the POSIX offset operand without --traditional: FILE [+]OFFSET with octal, 0x hex and b (x512) forms, +OFFSET alone on stdin; a '.' suffix, 08 or 1k is a file name, and any -A/-j/-N/-S/-t/-v/-w option turns the offset form off.",
+      "script": "printf 'abcdefghijklmnopqrstuvwxyz0123456789' > f; printf 'PQ' > +4; od -c f 0x10; od -c f 010; od -c f 0B; od -c +4 < f; { od -c f 10. || echo rc=$?; od -c f 08 || echo rc=$?; od -c f 1b || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; od -tx1 f +4; od -x f +4; { od -Ax f g +4 || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "od",
+        "sed"
+      ]
+    },
+    {
+      "id": "pass5-traditional-label-forms",
+      "kind": "parity",
+      "purpose": "G74: --traditional operands: OFFSET alone, OFFSET LABEL on stdin, FILE OFFSET LABEL with -A x/d/n, stacked types, -S strings and duplicate suppression; the label overrides nothing but the printed pseudo-address.",
+      "script": "printf 'abcdefghijklmnopqrstuvwxyz0123456789' > f; printf 'abc\\0defg\\0' > s; printf '%064d' 0 > z; od --traditional -c 2 < f; od --traditional -c +2 +10 < f; od --traditional -Ax -c -tx1 f 4 100; od --traditional -Ad -c f 2 0x10; od --traditional -An -c -tx1 f 4 100; od --traditional -S3 s 1 100; od --traditional -An -S3 s 1 100; od --traditional -tx1 z 0 100; od --traditional -j1 -N4 -c f 2 10",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "od"
+      ]
+    },
+    {
+      "id": "pass5-traditional-operand-errors",
+      "kind": "parity",
+      "purpose": "G74: --traditional accepts one file; GNU names the second operand when the operands are not FILE [OFFSET [LABEL]].",
+      "script": "printf 'abcdef' > f; for a in 'f g' 'f 2x' 'f 2 1x' 'f 1 2 3' '2 x' 'f 8' 'f 1.'; do od --traditional -c $a || echo rc=$?; done 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "od",
+        "sed"
+      ]
+    },
+    {
+      "id": "pass5-size-suffixes-and-diagnostics",
+      "kind": "parity",
+      "purpose": "G74: BYTES arguments take 0x/0 radixes and b/K/k/M/KB/KiB suffixes; bad numbers, suffixes, types, radixes, widths and options keep GNU od's messages and status 1; -h is -t x2 and a width that is not a multiple of the element size warns.",
+      "script": "head -c 3000 /dev/zero > z; printf 'abcdefgh' > f; od -An -tx1 -w1 -v -N 1K z | wc -l; od -An -tx1 -w1 -v -N 2KB z | wc -l; od -An -tx1 -w1 -v -N 1KiB z | wc -l; od -c -j 0x2 -N 010 f; od -h f; od -w3 -tx2 -N4 f 2>&1 | sed 's/^fixture: line [0-9]*: //'; for a in '-N 1x' '-N 1B' '-j x' '-N -1' '-S 1x' '-A q' '-t x3' '-t q' '-t f3' '-wx' '-w0x4' '--width=x' '--read-bytes=1x' '--skip-bytes=x' '--strings=x' '--s=1' '--output-duplicates=1' '--foo' '-q' '-N 1Q'; do od $a f || echo rc=$?; done 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "od",
+        "head",
+        "wc",
+        "sed"
+      ]
+    },
+    {
+      "id": "pass5-strings-zero-and-long-options",
+      "kind": "parity",
+      "purpose": "G74: -S0 prints empty strings; --strings defaults to 3, --strings=N joins its value (a separate word is a file), --width without a value is 32, --address-radix and --format accept a separate value and long options take unambiguous prefixes.",
+      "script": "printf 'abc\\0\\0de\\0f\\0' > s; od -S0 s; od --strings s; od --str=1 s; { od --strings 4 s || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; printf 'abcdefghijklmnopqrstuvwxyz0123456789' > f; od --width -tx1 f; od --address-radix x --format x1 --wid=8 --read=10 f; od --e=b -tx2 -N4 f; od -vtx1 -N4 f",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "od",
+        "sed"
+      ]
     }
   ]
 }

@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "loadable": "expr",
+  "reference": "GNU coreutils expr (Debian, built with GMP).",
+  "coverage": [
+    "Guest compatibility pass 5 regressions (G74/G83), pass5-keyword-operands, pass5-syntax-and-regex-diagnostics, pass5-bignum-division-and-truth."
+  ],
+  "exclusions": [],
+  "cases": [
+    {
+      "id": "pass5-bignum-arithmetic",
+      "kind": "parity",
+      "purpose": "G83: integers of any length (Debian's GMP expr): + - * / % beyond 64 bits; / truncates toward zero, % takes the dividend's sign.",
+      "script": "for e in '18446744073709551615 + 1' \"99999999999999999999999 '*' 99999999999999999999\" '-123456789012345678901234567890 / 7' '-123456789012345678901234567891 % 7' '123456789012345678901234567891 % -7' '-123456789012345678901234567891 % -7' '123456789012345678901234567890 % 7' '5 - 123456789012345678901234567890' '18446744073709551616 - 18446744073709551617' '-99999999999999999999 + 99999999999999999999'; do eval \"expr $e\" || echo rc=$?; done",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "expr"
+      ]
+    },
+    {
+      "id": "pass5-bignum-compare",
+      "kind": "parity",
+      "purpose": "G83: numeric comparison of long integers, leading zeros and -0.",
+      "script": "expr 100000000000000000000 '>' 99999999999999999999; expr 100000000000000000000 = 0100000000000000000000; expr -0 = 0 || echo rc=$?; expr 007 + 0; expr 2 '*' -0 || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "expr"
+      ]
+    },
+    {
+      "id": "pass5-plus-token",
+      "kind": "parity",
+      "purpose": "G83: '+ TOKEN' makes TOKEN a string even when it is a keyword or operator; keyword functions take such operands; a bare keyword still needs its operand.",
+      "script": "expr + match; expr + /; expr length + match; expr + length = + length; { expr + length = length || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "expr"
+      ]
+    },
+    {
+      "id": "pass5-bignum-diagnostics",
+      "kind": "parity",
+      "purpose": "G83: division by zero, non-integer argument and a missing operand after + keep GNU's messages and status 2.",
+      "script": "{ expr 1 / 0 || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { expr 123456789012345678901234567890 % 0 || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { expr a + 1 || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'; { expr + || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "expr",
+        "sed"
+      ]
+    },
+    {
+      "id": "pass5-keyword-operands",
+      "kind": "parity",
+      "purpose": "G83: keyword functions take primaries as operands (nested keywords, parentheses, + TOKEN); a keyword binds tighter than the operators around it; + quotes ( and ).",
+      "script": "expr length length abc; expr length '(' abc ')'; expr length 1 + 2; expr length '(' 1 + 2 ')'; expr length + +; expr substr abc + 1 1; expr substr + abc 1 1; expr index + abc c; expr match abc + a; expr + '('; expr '(' + ')' ')'; expr length --; expr -- length abc; expr + -",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "expr"
+      ]
+    },
+    {
+      "id": "pass5-syntax-and-regex-diagnostics",
+      "kind": "parity",
+      "purpose": "G83: GNU's syntax-error wording (missing argument after, expecting ')', unexpected ')' and argument), missing operand with the help hint, and the C library's regex messages, all with status 2.",
+      "script": "for a in '(' ')' '( 1 + 2' '1 +' '1 2' 'match abc' 'length' 'abc : \\(' 'abc : a\\{1' '- 1' '-- -- 1' '* * *' '= ='; do set -f; expr $a || echo rc=$?; set +f; done 2>&1 | sed 's/^fixture: line [0-9]*: //'; { expr || echo rc=$?; expr -- || echo rc=$?; } 2>&1 | sed 's/^fixture: line [0-9]*: //'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "expr",
+        "sed"
+      ]
+    },
+    {
+      "id": "pass5-bignum-division-and-truth",
+      "kind": "parity",
+      "purpose": "G83: exact long division and remainder signs, normalized results, every spelling of zero is false, substr ignores non-integer or out-of-range positions and clamps huge lengths.",
+      "script": "for e in '340282366920938463463374607431768211456 / 18446744073709551616' '340282366920938463463374607431768211455 % 18446744073709551616' '-340282366920938463463374607431768211456 / 18446744073709551617' '12345678901234567890123 % 1000000007' '-10 / -3' '-10 % -3' '10 / -3' '99999999999999999999 - 99999999999999999999' '9223372036854775807 + 1' '-9223372036854775808 - 1' '-007 + 0' '00' '-0' '00 | 0' '1 & 00' '99999999999999999999 | 0' 'substr abc 1x 1' 'substr abc 1 99999999999999999999' 'substr abc 99999999999999999999 1' 'substr abc 00002 1' 'substr abc -0 1' '10 < 9a' '-100000000000000000000 < -99999999999999999999'; do set -f; expr $e && echo rc=0 || echo \"rc=$?\"; set +f; done",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "expr"
+      ]
+    }
+  ]
+}

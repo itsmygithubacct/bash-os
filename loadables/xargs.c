@@ -1149,7 +1149,7 @@ bx_launch (char **argv, const sigset_t *mask, bx_spawn_state *state)
         bos_run_builtin (argv[0], argv, NULL);
         execvp (argv[0], argv);
         int code = (errno == ENOENT || errno == ENOTDIR) ? 127 : 126;
-        fprintf (stderr, "bashxargs: %s: %s\n", argv[0], strerror (errno));
+        fprintf (stderr, "xargs: %s: %s\n", argv[0], strerror (errno));
         _exit (code);
     }
     bx_stdin_attach (state, detached);
@@ -1195,7 +1195,7 @@ bx_run (char **argv, int n, int tflag, bx_spawn_state *state,
         if (WIFSIGNALED (status)) {
             if (bx_end_mask_interval (state) < 0) return BX_BAD;
             int sig = WTERMSIG (status);
-            fprintf (stderr, "bashxargs: %s: terminated by signal %d\n",
+            fprintf (stderr, "xargs: %s: terminated by signal %d\n",
                      argv[0], sig);
             return BX_SIGNALED;
         }
@@ -1259,7 +1259,7 @@ bx_status_to_rc (const char *cmd, int status)
 {
     if (WIFSIGNALED (status)) {
         int sig = WTERMSIG (status);
-        fprintf (stderr, "bashxargs: %s: terminated by signal %d\n", cmd, sig);
+        fprintf (stderr, "xargs: %s: terminated by signal %d\n", cmd, sig);
         return BX_SIGNALED;
     }
     if (WIFEXITED (status)) {

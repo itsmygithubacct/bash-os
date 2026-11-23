@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "loadable": "sysctl",
+  "reference": "Parity cases run procps-ng sysctl (/usr/sbin/sysctl) in the reference Bash and the sysctl builtin in the candidate, both reading only kernel.ostype from the sandbox's read-only /proc. The contract case states the help text directly.",
+  "coverage": [
+    "G84: -b/--binary value output without names or newlines, alone, repeated and after -n; help and synopsis."
+  ],
+  "exclusions": [
+    "Writes with -b are not exercised: no sysctl write is made under this safety scope."
+  ],
+  "cases": [
+    {
+      "id": "binary-single-key",
+      "kind": "parity",
+      "requires": [
+        "sysctl"
+      ],
+      "purpose": "G84: sysctl -b prints a key's value without the 'KEY = ' prefix and without its newline, as procps-ng does (read-only, kernel.ostype).",
+      "script": "sysctl -b kernel.ostype | od -An -c",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "binary-keys-concatenated",
+      "kind": "parity",
+      "requires": [
+        "sysctl"
+      ],
+      "purpose": "G84: with several keys, -b output runs the values together with no separator (procps prints 'Linux6.12...').",
+      "script": "sysctl -b kernel.ostype kernel.ostype | od -An -c",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "binary-long-option-and-n",
+      "kind": "parity",
+      "requires": [
+        "sysctl"
+      ],
+      "purpose": "G84: --binary is the long form, and -b after -n still drops the newline.",
+      "script": "sysctl --binary kernel.ostype; echo '|'; sysctl -n -b kernel.ostype; echo '|'",
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "id": "binary-help-and-synopsis",
+      "kind": "contract",
+      "purpose": "G84: -b is in --help, the help text and the --help usage line.",
+      "script": "sysctl --help | grep -c -- '-b, --binary'\nhelp sysctl | grep -c -- '-b/--binary'\nsysctl --help | head -n 1",
+      "expected_status": 0,
+      "stdout": "1\n1\nUsage: sysctl [-beNnq] [-r PATTERN] {-a | -p [FILE]... | --system | [-w] KEY[=VAL]...}\n",
+      "stderr": "empty"
+    }
+  ]
+}

@@ -1,18 +1,14 @@
 {
   "head": "head-stdin.patch",
   "tee": "tee-io.patch",
-  "chmod": "chmod-umask.patch",
   "setpgid": "setpgid-ids.patch",
-  "mkdir": "mkdir-gnu.patch",
   "printenv": "printenv-gnu.patch",
   "basename": "basename-gnu.patch",
-  "rm": "rm-status.patch",
   "dirname": "dirname-gnu.patch",
   "pathchk": "pathchk-gnu.patch",
   "finfo": "finfo-gnu.patch",
   "strftime": "strftime-gnu.patch",
   "sleep": "sleep-gnu.patch",
-  "rmdir": "rmdir-gnu.patch",
   "mkfifo": "mkfifo-gnu.patch",
   "realpath": "realpath-gnu.patch",
   "getconf": "getconf-gnu.patch",
@@ -24,6 +20,5 @@
   "tty": "tty-gnu.patch",
   "unlink": "unlink-gnu.patch",
   "strptime": "strptime-gnu.patch",
-  "asort": "asort-status.patch",
-  "sync": "sync-status.patch"
+  "asort": "asort-status.patch"
 }

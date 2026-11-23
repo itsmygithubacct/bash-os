@@ -7,7 +7,9 @@
     "Bash type metadata exposes only the sync builtin in the fixture environment.",
     "The configured short help synopsis and long sync documentation match the pinned stock loadable contract.",
     "Deferred operation requirements cover global sync, named-file fsync, per-file failures, and option parsing behind a closed disposable-VM syscall mock.",
-    "Named-file synchronization, multiple operands, read-only files, missing-path continuation, and -- on a dash-leading file; no global flush."
+    "Named-file synchronization, multiple operands, read-only files, missing-path continuation, and -- on a dash-leading file; no global flush.",
+    "GNU -d/--data, -f/--file-system, long-option prefixes and option diagnostics (guest pass 5 G74/G78).",
+    "Read-only then write-only open fallback, per-file open/sync diagnostics with continuation, and option diagnostics (clean-room rewrite)."
   ],
   "exclusions": [
     "Global sync and syncfs are deferred: they can flush filesystems beyond private operands. Durability and injected I/O failures require a disposable VM/syscall mock."
@@ -43,10 +45,10 @@
     {
       "id": "help-documentation",
       "kind": "contract",
-      "purpose": "Check the complete long help text against the pinned GNU Bash loadable's documented summary, named-file behavior, no-operand behavior, and exit status.",
+      "purpose": "Check the complete long help text against the pinned GNU Bash loadable's documented summary, named-file behavior, no-operand behavior, and exit status, and the -d/--data and -f/--file-system options added in guest pass 5 (G78).",
       "script": "help sync",
       "expected_status": 0,
-      "stdout": "sync: sync\n    Sync disks or specified files.\n    \n    If one or more FILEs is supplied, force completion of pending writes\n    to those files. Otherwise, force completion of any pending disk\n    writes.\n    \n    Exit Status: zero unless any FILE could not be synced.\n",
+      "stdout": "sync: sync\n    Sync disks or specified files.\n    \n    If one or more FILEs is supplied, force completion of pending writes\n    to those files. Otherwise, force completion of any pending disk\n    writes.\n    \n      -d, --data         sync only file data, no unneeded metadata\n      -f, --file-system  sync the file systems that contain the files\n    \n    Exit Status: zero unless any FILE could not be synced.\n",
       "stderr": "empty"
     },
     {
@@ -122,6 +124,57 @@
       "requires": [
         "sync"
       ]
+    },
+    {
+      "id": "gnu-data-and-file-system-options",
+      "kind": "parity",
+      "purpose": "Guest pass 5 G74/G78: -d/--data (fdatasync) and -f/--file-system (syncfs) sync named private files; long options take GNU's unambiguous prefixes (--d, --file) and options may follow operands.",
+      "script": "printf one > one; mkdir dir\nsync -d one; sync -f one dir; sync --data one; sync --file-system dir; sync --d one; sync --file one; sync one -d\nprintf 'data and file-system syncs complete\\n'",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sync"
+      ]
+    },
+    {
+      "id": "gnu-option-diagnostics",
+      "kind": "parity",
+      "purpose": "GNU sync refuses --data with --file-system, --data without a FILE, an argument to --data and an unknown option, each with status 1 and one diagnostic before any sync; stdout reports each status.",
+      "script": "printf one > one\nfor args in '-df one' '-d' '--data=x one' '-x one' '--data --file-system one'; do\n  rc=0; sync $args 2>err || rc=$?\n  n=0; while IFS= read -r _; do n=$((n+1)); done < err\n  printf '%s rc=%s lines=%s\\n' \"$args\" \"$rc\" \"$n\"\ndone\nrm -f err",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sync",
+        "rm"
+      ]
+    },
+    {
+      "id": "gnu-fifo-and-directory-operands",
+      "kind": "parity",
+      "purpose": "A FIFO without a peer is opened without blocking and fails fsync with one diagnostic (status 1); a directory operand opens read-only and syncs.",
+      "script": "mkdir dir; mkfifo fifo\nrc=0; sync dir fifo 2>err || rc=$?\nn=0; while IFS= read -r line; do n=$((n+1)); [[ $line == *\"error syncing 'fifo'\"* ]] && echo named; done < err\nprintf 'rc=%s lines=%s\\n' \"$rc\" \"$n\"\nrm -f err",
+      "expected_status": 0,
+      "stderr": "empty",
+      "requires": [
+        "sync",
+        "mkfifo",
+        "rm"
+      ]
+    },
+    {
+      "id": "gnu-open-fallback-and-diagnostics",
+      "kind": "parity",
+      "purpose": "Each FILE is opened read-only, or write-only when reading is refused (a mode-200 file syncs), without blocking on a FIFO; open and sync failures name the file in GNU's words and later operands are still synced (status 1); option conflicts, -d without operands, unknown and malformed options give GNU's diagnostics and help hints.",
+      "requires": [
+        "sync",
+        "mkfifo",
+        "mkdir",
+        "chmod",
+        "rm"
+      ],
+      "script": "# Diagnostics are compared after the shell's \"NAME: line N: \" prefix.\nr() { local rc=0 line; sync \"$@\" >out 2>err || rc=$?; cat out; while IFS= read -r line; do [[ $line == *\"sync: \"* ]] && line=${line#\"${line%%sync: *}\"}; printf '%s\\n' \"$line\"; done < err; echo \"rc=$rc\"; }\nprintf one > one; mkdir dir; mkfifo fifo; printf w > wo; chmod 200 wo; printf n > no; chmod 000 no\nr one; r wo; r no; r nosuch; r fifo; r -d fifo; r -f fifo; r -d dir; r -f dir; r one nosuch wo no one\nr -df; r -d -f one; r --data --file-system one; r -d; r --data=x one; r --fi one; r --da one --fi; r -x; r --x; r --help=x\nr -- -x; r 'n x'; r ''; r -f -- one\nchmod 600 no wo; rm -f out err",
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

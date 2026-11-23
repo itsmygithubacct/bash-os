@@ -8,12 +8,14 @@
     "util-linux non-table layout with explicit output width, column-first versus row-first filling, and explicit space padding.",
     "Named relative file operands, an unterminated final input record, repeated redirected stdin in one shell, and invalid output-width handling.",
     "Nonempty zero-width list and table modes, ragged explicitly separated tails, repeated dash operands, and a custom identity banner.",
-    "G66: display-width -t padding under UTF-8, -N/--table-columns, -n/--table-name and -J/--json."
+    "G66: display-width -t padding under UTF-8, -N/--table-columns, -n/--table-name and -J/--json.",
+    "Guest pass 5 G81: -R/--table-right, -l/--table-columns-limit, -H/--table-hide and -O/--table-order with util-linux 2.41 column lists (names, numbers, ranges, 0, -1, '-'), and no header without data."
   ],
   "exclusions": [
     "Only the column command is covered; the sibling col and colrm builtins are outside this suite.",
     "Terminal-derived default width, wide-character display alignment, and util-linux options outside the implemented column subset are not covered.",
-    "No privileged, host-system, hardware, or network operation is part of column's selected behavior, so no operation case is deferred."
+    "No privileged, host-system, hardware, or network operation is part of column's selected behavior, so no operation case is deferred.",
+    "A column named twice in -O is placed once; util-linux 2.41 then also drops another column, which is not reproduced."
   ],
   "cases": [
     {
@@ -238,6 +240,73 @@
       "script": "printf 'a b c\\n' > t\nfor args in '-J' '-N a,b' '-n x' '-J -N a,b'; do rc=0; column $args t || rc=$?; echo \"$args rc=$rc\"; done",
       "expected_status": 0,
       "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "table-right",
+      "purpose": "G81: -R/--table-right right-aligns columns named by number, -N name, range (A-B, clipped), 0 (all) or -1 (last not hidden); a right-aligned column is padded on the left, an empty last cell is not padded.",
+      "script": "printf 'a 1 x\\nccc 22 yyy\\n' > T\nprintf 'a 1 x\\nccc\\n' > S\nprintf 'a 1\\nccc 2\\n' | column -t -R1\nfor r in 2 0 -1 1-2 3 3-1 2-9 ,1 1, '' 1,1; do echo \"[$r]\"; column -t -R \"$r\" T; done\ncolumn -t -N A,B,C -R B T\ncolumn -t -N A,B -R 3 T\ncolumn -t -N A,B,C,D -R D T\ncolumn -t -R 2 S\ncolumn -t -R 2 -R 1 T\ncolumn -t --table-right=1 T\ncolumn -t --table-right 3 T\ncolumn -tR1 T\nprintf 'aa b\\nc dd\\n' | column -t -R 1,2 -o '|'\ncolumn -t -N A -R - T",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "table-columns-limit",
+      "purpose": "G81: -l/--table-columns-limit N makes the N-th field the rest of the line: after a run of whitespace by default, after one separator with -s, trailing blanks kept; the last -l wins.",
+      "script": "echo 'a b c' | column -t -l2\necho 'a   b   c   d' | column -t -l2\necho '  a   b   c   d  ' | column -t -l2\necho 'a:b::c:d' | column -t -s: -l2\necho 'a:b::c:d' | column -t -s: -l3\nprintf 'a b c\\nd e\\n' | column -t -l1\nprintf 'a\\tb  c\\n' | column -t -l 2\nprintf 'a  b  c\\n' | column -t -l2 -s ' '\nprintf 'a b c d\\ne f\\n' | column -t -l 3 -N A,B\nprintf 'a b c\\n' | column -t -l2 -N A,B -J\nprintf 'a 1 xx\\nccc 22 yyy\\n' | column -t -l 2 -l 3\nprintf 'a b\\n' | column -t -l ' 2'\nprintf 'a b\\n' | column -t --table-columns-limit=1\nprintf 'a b\\n' | column -l 2",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "table-hide",
+      "purpose": "G81: -H/--table-hide leaves out columns by number, name, range, 0, -1 or '-' (every unnamed column); the last visible column is then the unpadded one.",
+      "script": "printf 'a b c\\nc d e\\n' > U\nprintf 'a b\\nc d\\n' | column -t -N X,Y -H Y\nprintf 'a b\\nc d\\n' | column -t -N X,Y -H X\nfor h in 2 0 -1 1-2 2,3 1; do echo \"[$h]\"; column -t -H \"$h\" U; done\ncolumn -t -N X -H - U\nprintf 'a b\\n' | column -t -H 1 -o :\nprintf 'a b c\\n' | column -t -H 1 -R 2 -o :\nprintf 'a b c\\n' | column -t -N A,B,C,D -H C\nprintf 'a b\\n' | column -t --table-hide=1\ncolumn -t -H 1 -H 2 U\nprintf 'a 1 xx\\nccc 22 yyy\\n' | column -t -H 3 -R -1\nprintf 'a b c\\n' | column -t -N A,B,C -J -H B\nprintf 'a b c\\n' | column -t -N A,B,C -J -H A,B,C",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "table-order",
+      "purpose": "G81: -O/--table-order prints the named columns first, in that order, then the rest in input order; -H applies after it and -R -1 still names the last input column not hidden.",
+      "script": "printf 'a b c\\nd e f\\n' > U\nprintf 'a 1 xx\\nccc 22 yyy\\n' > T\nprintf 'a b\\nc d\\n' | column -t -N X,Y -O Y,X\nfor o in 3 3,1 1,2 2,3 1,3 2,1 3,2 -1 -1,1 1,-1 01; do echo \"[$o]\"; column -t -O \"$o\" U; done\ncolumn -t -O 3 -H 2 U\ncolumn -t -O 3,1 -R 1 T\ncolumn -t -O 3,1 -R -1 T\ncolumn -t -O 3 -O 2 T\nprintf 'a b c\\n' | column -t -O 2 -H 2 -o :\nprintf 'a 1 x\\nccc\\n' | column -t -O 2 -N A,B,C\nprintf 'a b c\\n' | column -t -N A,B,C -J -O C\ncolumn -t --table-right=1 --table-hide 2 --table-order=3 --table-columns-limit=3 T",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
+    },
+    {
+      "kind": "parity",
+      "id": "table-option-errors",
+      "purpose": "G81: an unknown column name or number, -O 0 or a range in -O, a bad -l value, an option without its argument, and -R/-H/-O without -t exit 1.",
+      "script": "printf 'a 1 x\\nccc 22 yyy\\n' > T\nfor args in '-t -R 4' '-t -R X' '-t -R 2-' '-t -R x-1' '-t -R +1' '-t -N a,B,c -R A' '-t -O 0' '-t -O 2-3' '-t -O 5' '-t -l 0' '-t -l x' '-t -l -1' '-t -l 2x' '-t -l 99999999999' '-R1' '-H1' '-O1' '-t -H'; do rc=0; column $args T > out || rc=$?; echo \"$args rc=$rc $(wc -c < out)\"; done",
+      "requires": [
+        "column",
+        "wc"
+      ],
+      "expected_status": 0,
+      "stderr": "nonempty"
+    },
+    {
+      "kind": "parity",
+      "id": "header-needs-data",
+      "purpose": "util-linux prints no -N header when there is no data row, and then does not check -R names either.",
+      "script": "printf '' | column -t -N A,B || echo rc=$?\nprintf '\\n\\n' | column -t -N A,B || echo rc=$?\nprintf '' | column -t -N A,B -R 5 || echo rc=$?\nprintf '' | column -t -R 5 || echo rc=$?",
+      "requires": [
+        "column"
+      ],
+      "expected_status": 0,
+      "stderr": "empty"
     }
   ]
 }

@@ -71,6 +71,9 @@ class CopyMoveErrors(unittest.TestCase):
         self.assertIn(operation, calls, ("fault did not reach the selected operation", result.stderr))
         return result, calls
 
+    def arrow(self):
+        return f"'{self.source}' -> '{self.target}'\n".encode()
+
     def assert_failed(self, result):
         self.assertEqual(result.returncode, 1, (result.stdout, result.stderr))
         self.assertTrue(result.stderr)
@@ -81,7 +84,8 @@ class CopyMoveErrors(unittest.TestCase):
                 before = self.source.read_bytes()
                 result, _ = self.run_fault("cp", ["-v", self.source, self.target], "close", path)
                 self.assert_failed(result)
-                self.assertEqual(result.stdout, b"")
+                # GNU cp -v reports the copy before it starts.
+                self.assertEqual(result.stdout, self.arrow())
                 self.assertEqual(self.source.read_bytes(), before)
 
     def test_cp_reports_regular_file_metadata_errors(self):
@@ -90,7 +94,7 @@ class CopyMoveErrors(unittest.TestCase):
                 result, calls = self.run_fault("cp", ["-pv", self.source, self.target],
                                               operation, self.target)
                 self.assert_failed(result)
-                self.assertEqual(result.stdout, b"")
+                self.assertEqual(result.stdout, self.arrow())
                 if operation == "utimensat":
                     self.assertNotIn("utimes", calls, "EIO is not an unsupported-syscall fallback")
 

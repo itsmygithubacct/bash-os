@@ -115,7 +115,8 @@ def check_directory(root):
             dst.write_bytes(old)
             dst.chmod(0o640)
         p = run(src, dst, limit=1024, expected_status=1)
-        assert b'install: write:' in p.stderr, p.stderr
+        # GNU copy's wording (guest pass 5): "error writing 'DST': File too large".
+        assert b"install: error writing '" in p.stderr, p.stderr
         assert dst.read_bytes() == src.read_bytes()[:1024]
         assert stat.S_IMODE(dst.stat().st_mode) == 0o600
 

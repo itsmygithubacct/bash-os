@@ -119,7 +119,7 @@
       "id": "help-doc-options",
       "kind": "contract",
       "purpose": "The Bash help text exposes the documented synopsis and the append and interrupt options described by the stock tee loadable documentation.",
-      "script": "PATH=; doc=$(help tee); [[ $doc == *\"tee [-ai] [file ...]\"* && $doc == *appended* && $doc == *\"ignores interrupts\"* ]]; printf 'help exposes synopsis and -a/-i documentation\\n'",
+      "script": "PATH=; doc=$(help tee); [[ $doc == *\"tee [-aip] [--output-error[=MODE]] [file ...]\"* && $doc == *appended* && $doc == *\"ignores interrupts\"* ]]; printf 'help exposes synopsis and -a/-i documentation\\n'",
       "expected_status": 0,
       "stdout": "help exposes synopsis and -a/-i documentation\n",
       "stderr": "empty"
