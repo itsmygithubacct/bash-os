@@ -94,6 +94,7 @@ typedef struct {
 
 /* Internal routing sentinel: never collide with a child exit status. */
 #define BDA_AUTH_UNAVAILABLE (-2)
+#define BDA_EXTERNAL_MARK "BASHOS_DOAS_DELEGATED"
 #define BDA_PRIVCMD_MAX_ENVS 256
 #define BDA_ENV_CALLER_PREFIX "BASHOS_CALLER_"
 #define BDA_ENV_INLINE_PREFIX "BASHOS_INLINE_"
@@ -1926,6 +1927,18 @@ bda_verbatim_argv (const char *path, char **orig, int origc)
 static int
 bda_run_external (const bda_opts *o, char **orig, int origc)
 {
+  /* The default delegate "doas" resolves to the bash-os wrapper in the
+     rootfs, which runs this builtin again: without a guard every unprivileged
+     sudo/doas without an authority forks until RLIMIT_NPROC or the OOM
+     killer stops it. A delegate started by this function carries the marker;
+     seeing it means the delegate was bash-os itself, so refuse instead. */
+  if (getenv (BDA_EXTERNAL_MARK))
+    {
+      builtin_error ("no privilege authority is available, and the external delegate is bash-os %s itself",
+                     o->is_sudo ? "sudo" : "doas");
+      return EXECUTION_FAILURE;
+    }
+
   /* An explicitly named delegate receives the original words unchanged. */
   const char *path = getenv (o->is_sudo ? "BASHSUDO_EXTERNAL" : "BASHDOAS_EXTERNAL");
   if (!path || !*path) path = getenv (o->is_sudo ? "BASHDOAS_EXTERNAL" : "BASHSUDO_EXTERNAL");
@@ -1954,6 +1967,25 @@ bda_run_external (const bda_opts *o, char **orig, int origc)
       bda_child_reset_signals ();
       bda_child_close_fds ();
       bda_sync_environ ();
+      /* Append the marker to the synced environ directly: setenv may be
+         Bash's (a shell variable the sync already consumed) or libc's
+         (an environ the sync replaces), depending on the link. */
+      {
+        extern char **environ;
+        size_t n = 0;
+        while (environ && environ[n])
+          n++;
+        char **env = malloc ((n + 2) * sizeof *env);
+        if (!env)
+          _exit (126);
+        size_t k = 0;
+        for (size_t i = 0; i < n; i++)
+          if (strncmp (environ[i], BDA_EXTERNAL_MARK "=", sizeof BDA_EXTERNAL_MARK) != 0)
+            env[k++] = environ[i];
+        env[k++] = BDA_EXTERNAL_MARK "=1";
+        env[k] = NULL;
+        environ = env;
+      }
       execvp (path, argv);
       int exec_errno = errno;
       fprintf (stderr, "%s: external doas: %s: %s\n",
