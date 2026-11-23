@@ -36,7 +36,7 @@
       "id": "help-synopsis",
       "kind": "contract",
       "purpose": "Verify that Bash short help exposes the complete documented command synopsis, including state restore, cursor, clearing, cursor visibility, and paste controls.",
-      "script": "s=$(help -s bashtermraw)\ncase \"$s\" in *'bashtermraw raw|cooked|size|stty-g|stty-set STATE|keypress|cup ROW COL|clr-eol|clr-screen|clear|reset|show [on|off]|paste on|off'*) printf 'complete synopsis present\\n' ;; *) exit 1 ;; esac",
+      "script": "s=$(help -s bashtermraw)\ncase \"$s\" in *'bashtermraw raw|cooked|size|resize ROWS COLS|stty [-F DEV] [-a|-g|SETTING...]|stty-g|stty-set STATE|keypress|cup ROW COL|clr-eol|clr-screen|clear|reset|show [on|off]|paste on|off'*) printf 'complete synopsis present\\n' ;; *) exit 1 ;; esac",
       "expected_status": 0,
       "stdout": "complete synopsis present\n",
       "stderr": "empty"

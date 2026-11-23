@@ -1,15 +1,16 @@
 {
   "version": 1,
   "loadable": "bashtermraw",
-  "reference": "Contract cases use Bash's documented type/help builtins and the public bashtermraw help text in loadables/bashtermraw.c. There is no GNU bashtermraw command for same-script parity. For deferred PTY cases, GNU stty provides independent termios and window-size observations; terminal control bytes are checked against the documented ANSI/DEC protocol sequences.",
+  "reference": "Contract cases use Bash's documented type/help builtins and the public bashtermraw help text in loadables/bashtermraw.c. There is no GNU bashtermraw command for same-script parity. For deferred PTY cases, GNU stty provides independent termios and window-size observations; terminal control bytes are checked against the documented ANSI/DEC protocol sequences. The stty_* cases are same-script parity against GNU stty: the candidate's empty PATH has no stty, so the script maps stty onto bashtermraw stty.",
   "coverage": [
     "Bash registers bashtermraw as an enabled builtin.",
     "Bash help exposes the documented subcommand descriptions and terminal I/O contract.",
     "Bash short help exposes the complete advertised subcommand synopsis.",
-    "Deferred PTY behavior covers termios transitions, state serialization, key decoding, terminal output, and reset recovery."
+    "Deferred PTY behavior covers termios transitions, state serialization, key decoding, terminal output, and reset recovery.",
+    "bashtermraw stty error paths that need no terminal: not-a-tty, invalid and missing arguments, asymmetric speeds, output-style conflicts."
   ],
   "exclusions": [
-    "No matching GNU bashtermraw executable exists, so no fake GNU parity cases are included.",
+    "No matching GNU bashtermraw executable exists, so no fake GNU parity cases are included; only the stty subcommand, which implements GNU stty, is compared with GNU stty.",
     "The supplied runner closes stdin and does not provide a controlling PTY or PTY driver; terminal operations are not invoked in this suite.",
     "Interactive timing, terminal emulator rendering, signal-driven resize handling, and hardware-specific terminal behavior remain outside this run."
   ],
@@ -36,7 +37,7 @@
       "id": "help-synopsis",
       "kind": "contract",
       "purpose": "Verify that Bash short help exposes the complete documented command synopsis, including state restore, cursor, clearing, cursor visibility, and paste controls.",
-      "script": "s=$(help -s bashtermraw)\ncase \"$s\" in *'bashtermraw raw|cooked|size|stty-g|stty-set STATE|keypress|cup ROW COL|clr-eol|clr-screen|clear|reset|show [on|off]|paste on|off'*) printf 'complete synopsis present\\n' ;; *) exit 1 ;; esac",
+      "script": "s=$(help -s bashtermraw)\ncase \"$s\" in *'bashtermraw raw|cooked|size|resize ROWS COLS|stty [-F DEV] [-a|-g|SETTING...]|stty-g|stty-set STATE|keypress|cup ROW COL|clr-eol|clr-screen|clear|reset|show [on|off]|paste on|off'*) printf 'complete synopsis present\\n' ;; *) exit 1 ;; esac",
       "expected_status": 0,
       "stdout": "complete synopsis present\n",
       "stderr": "empty"
@@ -70,6 +71,72 @@
       "kind": "deferred",
       "purpose": "Verify reset's recovery escape sequence and canonical termios restoration after controlled PTY state changes.",
       "reason": "Requires a disposable PTY and a terminal-state observer. A future fixture should deliberately set a bounded noncanonical state, capture and compare reset's literal documented RIS/recovery bytes, then verify canonical/echo state through GNU `stty`; include reset -q only when terminal write failure can be safely injected. The current runner provides no PTY and reset mutates terminal state."
+    },
+    {
+      "id": "stty_not_a_tty",
+      "kind": "parity",
+      "purpose": "bashtermraw stty, like GNU stty, works on standard input and fails when it is not a terminal (guest pass 1: stty must not fall back to /dev/tty).",
+      "requires": [
+        "stty"
+      ],
+      "script": "if ! type -P stty >/dev/null; then stty() { bashtermraw stty \"$@\"; }; fi\nstty -g </dev/null",
+      "expected_status": 1,
+      "stderr": "exact"
+    },
+    {
+      "id": "stty_invalid_argument_first",
+      "kind": "parity",
+      "purpose": "Unknown settings are rejected before the device is opened, with GNU's message and hint.",
+      "requires": [
+        "stty"
+      ],
+      "script": "if ! type -P stty >/dev/null; then stty() { bashtermraw stty \"$@\"; }; fi\nstty -echo bogus </dev/null",
+      "expected_status": 1,
+      "stderr": "exact"
+    },
+    {
+      "id": "stty_missing_argument",
+      "kind": "parity",
+      "purpose": "A setting that needs an operand reports the missing argument before touching the device.",
+      "requires": [
+        "stty"
+      ],
+      "script": "if ! type -P stty >/dev/null; then stty() { bashtermraw stty \"$@\"; }; fi\nstty intr </dev/null",
+      "expected_status": 1,
+      "stderr": "exact"
+    },
+    {
+      "id": "stty_asymmetric_speed",
+      "kind": "parity",
+      "purpose": "Different input and output speeds are refused as on GNU/Linux.",
+      "requires": [
+        "stty"
+      ],
+      "script": "if ! type -P stty >/dev/null; then stty() { bashtermraw stty \"$@\"; }; fi\nstty ispeed 4800 ospeed 9600 </dev/null",
+      "expected_status": 1,
+      "stderr": "exact"
+    },
+    {
+      "id": "stty_output_styles",
+      "kind": "parity",
+      "purpose": "-a with -g, and an output style with settings, are usage errors.",
+      "requires": [
+        "stty"
+      ],
+      "script": "if ! type -P stty >/dev/null; then stty() { bashtermraw stty \"$@\"; }; fi\nstty -a -g </dev/null || echo rc=$?\nstty -g echo </dev/null || echo rc=$?",
+      "expected_status": 0,
+      "stderr": "exact"
+    },
+    {
+      "id": "stty_reversed_non_reversible",
+      "kind": "parity",
+      "purpose": "Only reversible flags take a leading minus.",
+      "requires": [
+        "stty"
+      ],
+      "script": "if ! type -P stty >/dev/null; then stty() { bashtermraw stty \"$@\"; }; fi\nstty -cs8 </dev/null",
+      "expected_status": 1,
+      "stderr": "exact"
     }
   ]
 }

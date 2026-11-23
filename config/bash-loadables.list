@@ -49,7 +49,7 @@ bashclock|bashclock
 bashjson|bashjson
 binhex|binhex
 bashbase64|bashbase64 [-d] [-u] [-i] [-w N] [FILE] > output
-bashtermraw|bashtermraw raw|cooked|size|stty-g|stty-set STATE|keypress|cup ROW COL|clr-eol|clr-screen|clear|reset|show [on|off]|paste on|off
+bashtermraw|bashtermraw raw|cooked|size|resize ROWS COLS|stty [-F DEV] [-a|-g|SETTING...]|stty-g|stty-set STATE|keypress|cup ROW COL|clr-eol|clr-screen|clear|reset|show [on|off]|paste on|off
 bashkmod|bashkmod
 bashmount|bashmount [-t TYPE] [-o OPTS] [-B|-R|--remount|-u|-l|--mountpoint|--findmnt-table] SRC DST
 bashlogger|bashlogger [-i] [-t TAG] [-p PRI] [MESSAGE...]
